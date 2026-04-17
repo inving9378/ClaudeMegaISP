@@ -1,0 +1,28 @@
+961981859
+
+ssh meganet@38.104.248.122 -p 2228
+pass: inving9378
+
+carpeta: /home/meganet
+
+init servicios:
+sudo /opt/lampp/lampp start
+
+
+borrar cache:
+/opt/lampp/bin/php artisan optimize:clear
+
+utilizar nodejs
+nvm use 14.17.5
+
+-----------mysql---------
+user: meganet
+pass: QweRdfdf2334H7jeer.
+
+
+
+Server :SpeedTest
+
+user: meganet
+
+pass: inving9378

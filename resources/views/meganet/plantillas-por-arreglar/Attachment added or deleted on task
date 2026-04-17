@@ -1,0 +1,15 @@
+Hello {{ recipient.name  }},<br>
+<br><br>
+
+{% if action == 'add' %}
+    New file added to task you’re working on - <a href="{{ task.link_to_task }}" target="_blank">#{{ task.id }} {{ task.title }}</a> <br>
+{% else %}
+    The file has been deleted from the task <a href="{{ task.link_to_task }}" target="_blank">#{{ task.id }} {{ task.title }}</a>
+{% endif %}
+<br>
+<p>{{ task.short_description | raw }}</p>
+<br>
+To view full task description and attachments, please follow this link {{ task.link_to_task }}.
+<br><br>
+Best regards,<br>
+{{ company_info.company_name }} team.

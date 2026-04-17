@@ -1,0 +1,21 @@
+Dear Splynx administrator,
+<br>
+this section is used for creating templates for any purposes you require. <br>
+You may use existing templates, modify them or create some of your own: invoices, payment receipts, messages to customers and teams, any information needed to display can be added through editing system.
+<br><br>
+
+You can use a great number of variables in templates:
+For example,  to get customer name please use <b>{{ customer.name }}</b>, <br>
+to display customer login - <b>{{ customer.login }}</b>.<br>
+Customer password can be added through <b>{{ customer.password }} </b> option.<br>
+Status of current customer is added using variable <b>{{ customer.status }}</b>.<br>
+Payment amount can be added using this variable - <b> {{ payment.amount }} </b>.<br>
+In case you need to add invoice number, please use - <b>{{ payment.invoice_id }} </b>. <br>
+<br>
+To get payment and invoice variables working you should use them in PDF or reminders and notification section of the system,
+<br>
+<br>
+While editing template, please refer to Placeholders tab of editing window where you can add necessary variable to template you are currently modifying by simply clicking on necessary item.
+<br>
+For any questions, please contact our support team.<br><br>
+Best regards,<b> {{ company_info.company_name }} </b>team.

@@ -1,0 +1,11 @@
+Ejemplo
+
+   'discharge_date' => [
+                'type' => 'date-time-local',
+                'value' => null,
+                'label' => 'Fecha de alta',
+                'placeholder' => '',
+                'position' => 14,
+                'disabled' => true,
+                'default_value' => Carbon\Carbon::now()->toDateTimeString()
+            ],

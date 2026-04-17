@@ -1,0 +1,109 @@
+.ticket-messages {
+    padding: 0 14px 18px 14px;
+}
+
+.ticket-messages .message-block.admin {
+    background-color: #fafafa;
+}
+
+.ticket-messages .message-block {
+    position: relative;
+    margin-bottom: 17px;
+    padding: 12px 20px;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 20%), 0 2px 1px -1px rgb(0 0 0 / 12%);
+}
+
+.comment-heading {
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 12px;
+}
+
+.default-avatar.default_color--7 {
+    background-color: #fff4a8 !important;
+}
+
+.comment-icon {
+    float: left;
+    z-index: 100;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    text-align: center;
+    font-size: 1.4em;
+    color: #fff;
+    background-color: #3f903f;
+    margin-right: 12px;
+    overflow: hidden;
+}
+
+.wrap_content_panel_info .ticket-messages .message-block .edit-message {
+    margin-right: 5px;
+}
+
+.wrap_content_panel_info .ticket-messages .message-block .delete-message, .wrap_content_panel_info .ticket-messages .message-block .edit-message {
+    font-size: 12px;
+    color: #616161;
+}
+
+
+.default-avatar {
+    display: inline-block;
+    margin-right: 5px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%  ;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 4%);
+    text-align: center;
+}
+
+.default-avatar .default_avatar_letter_custom {
+    color: rgba(0, 0, 0, 0.3);
+    text-transform: uppercase;
+    position: absolute;
+    top: 13px;
+    left: 30px;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.comment-title-wrapper {
+    float: left;
+}
+
+.comment-title {
+    margin: 0;
+    font-family: "HelveticaNeue-Light","Helvetica Neue Light","Helvetica Neue",Helvetica,Arial,"Lucida Grande",sans-serif;
+    font-size: 16px;
+    color: #212121;
+}
+
+.comment-author {
+    color: #777;
+}
+
+.ticket-messages .ticket-message-body {
+    padding: 12px 0 0;
+    font-size: 13px;
+    line-height: 1.38;
+    color: #212121;
+    border-top: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.ticket-messages .ticket-message-body {
+    overflow: auto;
+}
+
+.ticket-messages .ticket-message-body p {
+    margin: 0;
+}
+
+.ticket-messages .message-block .edit-message {
+    font-size: 12px;
+    color: #616161;
+}
+
+#tickets-thread{
+    height: calc(100vh - 350px);
+    overflow-y: scroll;
+}
+

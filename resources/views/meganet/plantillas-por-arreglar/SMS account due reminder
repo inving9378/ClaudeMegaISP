@@ -1,0 +1,2 @@
+Dear {{ customer.name }}, your account is overdue, balance is: {{ balance }}.
+To avoid service blocking, please proceed with payment. Best regards, {{ company_info.company_name }} team.

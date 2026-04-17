@@ -1,0 +1,10 @@
+Dear {{ customer.name }}<br>
+<br>
+Your internet services will be stopped in {{ days_before_ending }} {{ days_before_ending > 1 ? 'days' : 'day' }} according to your purchased package {{ bundle.description }}.
+<br>
+To avoid any downtime and/or inconvenience please contact administration to arrange purchases of new services. <br>
+<br><br>
+Thank you for using our services<br>
+<br><br>
+Best regards,<br>
+{{ company_info.company_name }}

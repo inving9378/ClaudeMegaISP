@@ -1,0 +1,25 @@
+.card-text-body {
+    background-image: linear-gradient(to bottom,#fcf8e3 0,#f8efc0 100%);
+    background-repeat: repeat-x;
+    background-color: #f5e79e;
+    border-color: #f5e79e;
+}
+
+.text-white-50 {
+    color: rgba(255, 255, 255, 0.5)!important;
+}
+
+p {
+    display: block;
+    margin-block-start: 1em;
+    margin-block-end: 1em;
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+}
+
+.card-text {
+    flex: 1 1 auto;
+    padding: 1.25rem 1.25rem;
+}
+    
+    

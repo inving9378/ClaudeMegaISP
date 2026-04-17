@@ -1,0 +1,47 @@
+-----------------------------------------------------------------
+Para agregar el acceso a dependiendo del cliente.
+-----------------------------------------------------------------
+#################################################################
+En el controlador del Modulo agregmos el prefijo del grupo
+-----------------------------------------------------------------
+$this->data['group'] = 'plan';
+#################################################################
+DatatableHelper agregar  el grupo en la funcion transform
+-----------------------------------------------------------------
+ 'group' => 'plan'
+#################################################################
+En config/router_permission agragar
+el grupo+nombre del premiso y las rutas
+----------------------------------------------------------------
+    'plan_view_internet' => ['/internet', '/internet/table'],
+    'plan_add_internet' => ['/internet/crear', '/internet/add', '/internet/success/'],
+    'plan_edit_internet' => ['/internet/editar', '/internet/update', '/internet/success/'],
+    'plan_delete_internet' => ['/internet/destroy'],
+##################################################################
+Agregar en config/constantes en la secci�n Permission el campo del
+nuevo modulo para agregarle el permiso. Por los [input-checkbox]
+#################################################################
+En layaut/sidebar.blade.php agregar a las items los permisos
+--------------------------------------------------------------------
+ @can('plan_view_internet')
+ @endcan
+####################################################################
+En la vista del datatable agragar el permiso al boton encima del add
+--------------------------------------------------------------------
+@can($group.'_add_'.\Illuminate\Support\Str::lower($module))
+add="asdasd"
+@endcan
+########################################################################
+Ageragr en PermissionSeeder
+El nuevo grupo
+------------------------------------------------------------------------
+ $group_permission = ['dashboard', 'plan', 'crm', 'client','router'];
+ #########################################################################
+En el compoente RolPermission
+Agregar una nueva tab
+  {
+                    ref: 'router',
+                    active: '',
+                    title: 'Router'
+                }
+ #########################################################################

@@ -1,0 +1,32 @@
+ public function ordering_query($start, $limit, $order, $dir, $idModule)
+    {
+        return $this->model::select('payments.id', 'payments.date','method_of_payments.type as payment_method_id','payments.amount', 'payments.payment_period','payments.comment')
+            ->with('file')
+            ->leftJoin('method_of_payments', 'payments.payment_method_id', '=', 'method_of_payments.id')
+            ->where('paymentable_id', $idModule)
+            ->offset($start)
+            ->limit($limit)
+            ->orderBy($order, $dir)
+            ->get();
+    }
+
+    public function searching_query($start, $limit, $order, $dir, $search, $idModule)
+    {
+        return $this->model::filters($this->columns, $search)
+            ->select('payments.id', 'payments.date','method_of_payments.type as payment_method_id','payments.amount', 'payments.payment_period','payments.comment')
+            ->with('file')
+            ->leftJoin('method_of_payments', 'payments.payment_method_id', '=', 'method_of_payments.id')
+            ->where('paymentable_id', $idModule)
+            ->offset($start)
+            ->limit($limit)
+            ->orderBy($order, $dir)
+            ->get();
+    }
+
+    public function filtering_query($search, $idModule)
+    {
+        return $this->model::filters($this->columns, $search)
+            ->leftJoin('method_of_payments', 'payments.payment_method_id', '=', 'method_of_payments.id')
+            ->where('paymentable_id', $idModule)
+            ->count();
+    }

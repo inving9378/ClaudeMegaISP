@@ -1,0 +1,44 @@
+.drop-target {
+    height: 400px;
+    width: 200px;
+    min-width: 200px;
+    background-color: gainsboro;
+}
+
+
+
+
+.drag-enter {
+    outline-style: dashed;
+}
+
+
+.box {
+    width: 100px;
+    height: 100px;
+    float: left;
+    cursor: pointer;
+}
+
+
+@media only screen and (max-width: 500px) {
+    .drop-target {
+        height: 200px;
+        width: 100px;
+        min-width: 100px;
+        background-color: gainsboro;
+    }
+
+
+    .box {
+        width: 50px;
+        height: 50px;
+    }
+
+
+
+    .box:nth-child(3) {
+        clear: both;
+    }
+
+}

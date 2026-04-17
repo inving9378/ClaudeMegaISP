@@ -1,0 +1,79 @@
+Dividir un modelo
+
+Creamos en constantes y sus contenidos.
+Ejemplo: 1. 'RouterAdd'
+         2. 'Router'  
+-----------------------------------------------------------------------------------------------------		 
+En ModuleSeeder.
+Creamos el modelo y declaramos cual es el modulo principal.
+ $module = Module::create(['name' => 'RouterAdd', 'is_main' => false, 'main' => 'Router']);
+
+insertamos los campos en el module		
+   $module->fields()->insert($this->transformFieldsModel($module));
+   
+Creamos el modelo principal
+   $module = Module::create(['name' => 'Router']);
+		
+Le pasamos los paquetes de ccs y demas		
+   $module->packages()->attach($bootstrap_multiselect_toaster_datatables_packages);
+
+insertamos los campos en el module	 
+   $module->fields()->insert($this->transformFieldsModel($module));
+   
+Insertamos los campos en el datatable   
+   $module->columnsDatatable()->insert($this->transformColumnsDatatableModel($module));
+		
+----------------------------------------------------------------------------------------------------		
+En el componenete addRouter
+Montamos de esta manera los campos
+
+        onMounted(async () => {
+            props.id
+                ? await getfieldsEdited("RouterAdd", props.id)
+                : await getfieldsJson("RouterAdd");
+        });
+		
+----------------------------------------------------------------------------------------------------
+Nos dirigimos a InformationRouterCrud
+Montamos de manera distinta creamos una funcion que la podemos llamar en cualqueir momento.
+
+        onMounted(() => {
+            initComponent(props.action);
+        });
+
+        const initComponent = async (action) => {
+            action == `crear/${props.id}`
+                ? await getfieldsJson("Router")
+                : await getfieldsEdited(
+                "Router",
+                props.action
+                );
+        };
+			
+En el caso	de getfieldsEdited 	hacemos la obtencion de los campos dependiendo si es 'init'	o 'other' (o simplemente lo declaradi en el parametro partition en constantes)
+
+ const getfieldsEdited = async (model, action) => {
+            let id = action.substr(7);
+            fieldsJson.value = await requestEditedFieldsById(model, id);
+            dataForm.data = new Form(fieldsJson.value);
+
+            let val;
+            val = _.groupBy(fieldsJson.value, 'partition');
+            val['init'] = _.mapKeys(val['init'], v => v.field)
+            val['other'] = _.mapKeys(val['other'], v => v.field)
+            fieldsJson.value = val;
+
+        };
+
+        const getfieldsJson = async (model) => {
+            fieldsJson.value = await requestFieldsByModule(model);
+            dataForm.data = new Form(fieldsJson.value);
+
+            let val;
+            val = _.groupBy(fieldsJson.value, 'partition');
+            val['init'] = _.mapKeys(val['init'], v => v.field)
+            val['other'] = _.mapKeys(val['other'], v => v.field)
+            fieldsJson.value = val;
+        };
+			
+-----------------------------------------------------------------------------------------------------			

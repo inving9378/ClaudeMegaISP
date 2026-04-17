@@ -1,0 +1,16 @@
+div.choices > .choices__inner {
+    background-color: white !important;
+}
+
+.choices[data-type*=select-one] .choices__inner {
+    padding-bottom: 0;
+}
+
+.choices{
+    margin-bottom: 0px !important;
+}
+
+
+.choices[data-type*=select-one]:after {
+    margin-top: 0px !important;
+}

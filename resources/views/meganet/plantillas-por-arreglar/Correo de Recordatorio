@@ -1,0 +1,34 @@
+{{ App.t('common', 'Hola') }} {{ customer.name }},
+
+
+<p>{{ App.t('common', 'El saldo de tu cuenta es de') }}: {{ App.formatMoney(customer_billing.deposit) }}
+    </p>
+
+<p>hasta el momento de generar este documento < {{ App.formatMoney(customer_billing.min_balance) }}
+    </p>
+
+
+
+ <p>{{ App.t('common', 'La Factura es realizada cada dia {billing_date} del mes, y ud necesita realizar su pago el dia {billing_due} de cada mes, para evitar corte debera realizar su pago un dia antes de la fecha.',
+{
+  'billing_date' : customer_billing.billing_date,
+  'billing_due' : customer_billing.billing_due
+  }) }}
+    </p>
+
+
+
+<p>
+{{ App.t('common', 'Por favor realice su pago oportunamente y por el monto completo del paquete contratado.
+') }}
+
+</p>
+
+<p>
+    {{ App.t('common', 'Este correo se envia de forma automatica, no es necesario responder al mismo.') }}
+    
+</p>
+
+   
+
+

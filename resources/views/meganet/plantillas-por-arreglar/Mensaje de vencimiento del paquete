@@ -1,0 +1,11 @@
+Estimado {{ customer.name }}<br>
+<br>
+Sus servicios de internet se detendrán en {{ days_before_ending }} {{ days_before_ending > 1 ? 'dias' : 'día' }} de acuerdo a su paquete comprado {{ bundle.description }}.
+<br>
+Para evitar cualquier tiempo de inactividad o inconvenientes, comuníquese con la administración para organizar la compra de nuevos servicios.
+<br>
+<br><br>
+Muchas gracias por usar nuestros servicios.<br>
+<br><br>
+Saludos cordiales,<br>
+{{ company_info.company_name }}

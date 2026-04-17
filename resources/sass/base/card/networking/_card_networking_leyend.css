@@ -1,0 +1,63 @@
+.spl-legend-primary {
+    background-color: rgba(25, 118, 210, 0.1) !important;
+}
+
+.spl-legend-block-item-container {
+    border-color: #fff;
+    text-align: left;
+    margin-bottom: 5px;
+    margin-right: 0;
+}
+
+.spl-legend-item-gray {
+    background-color: #e0e0e0;
+}
+.spl-legend-item-success {
+    background-color: rgb(67, 160, 71);
+}
+.spl-legend-success {
+    background-color: rgba(67, 160, 71, 0.2);
+}
+.spl-legend-warning {
+    background-color: rgba(245, 124, 0, 0.2);
+}
+.spl-legend-danger {
+    background-color: rgba(221, 44, 0, 0.2);
+}
+
+.spl-legend-item-success.spl-legend-block-item-icon {
+    color: #fafafa;
+}
+
+.spl-legend-block-item-icon {
+    text-align: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    display: inline-block;
+    color: #212121;
+}
+
+.spl-legend-block-item-label {
+    height: 19px;
+    font-size: 16px;
+    font-weight: 500;
+    font-style: normal;
+    font-stretch: normal;
+    line-height: normal;
+    letter-spacing: normal;
+    color: #212121;
+    display: inline-block;
+}
+
+.spl-legend-item-icon {
+    padding-top: 11px;
+    padding-bottom: 11px;
+    margin: 0;
+}
+
+.alert-gray {
+    color: #563d7c;
+    background-color: #f9f9f9;
+    border-color: #fff;
+}

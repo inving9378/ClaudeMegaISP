@@ -1,0 +1,112 @@
+Laravel
+////////////////
+Migrations////
+//////////////////
+
+# para migrar
+php artisan migrate
+//////////////////////
+
+#para crear la tabla migracion
+php artisan make:migration nametable
+
+#para crear por la convencion
+c
+php artisan make:migration create_change_plan_voz_clients
+php artisan make:migration PopulateMethodOfPaymentToFieldModule
+
+php artisan make:migration invoice_client_service
+
+
+php artisan make:model CrmMainInformation -m
+php artisan make:model CrmAdditionalInformation -m
+php artisan make:model CrmLeadInformation -m
+
+php artisan make:model ClientMainInformation -m
+php artisan make:model ClientAdditionalInformation -m  
+
+
+//////////////////////////////////////
+#para crear modelo con migracion
+php artisan make:model namemodel -m
+php artisan make:model Bundle -m
+php artisan make:model QuoteCrm -mcr
+php artisan make:model ClientInternetService -mc
+php artisan make:model ClientVozService -mc
+php artisan make:model ClientVozService -mc
+php artisan make:model Mikrotiks -mc
+php artisan make:model TicketThread -mc
+php artisan make:model Municipality-mc
+php artisan make:model MicrotikConfig -mc
+
+
+
+////////////////////////////////////
+#para refrescar las tablas o sea eliminarlas y volverlas a crear
+php artisan migrate:fresh
+php artisan migrate:fresh --seed
+
+#para regresar atras la migracion
+php artisan migrate:rollbak
+
+//////////////////////////////////////////////////////////
+#Crear modelo para adminstrar las tablas
+php artisan make:model name
+php artisan make:model internet
+
+///////////////////////////////////////////////////////////
+#para crear seeders
+php artisan make:seeder nameSeeder
+php artisan make:seeder BundleSeeder
+
+#para llenar las tablas se usan los seeders
+php artisan db:seed
+
+
+//////////////////////////////////////////////////////////
+#para crear un factory 
+
+php artisan make:factory namaFactory --model=Namemodel
+php artisan make:factory BundleFactory --model=Bundle
+
+//////////////////////////////////////////////
+#Cuando da error en la case seeder que no la encuentra 
+composer dump-autoload
+
+/////////////////////////////////////////////////////////
+#para crear un controlador
+php artisan make:controller RecurringController --model=Recurring
+php artisan make:controller ClientController --model=Client
+
+////////////////////////////////////////////////////////////
+#crear  observer
+php artisan make:observer UserObserver --model-User
+php artisan make:observer ClientMainInformationObserver --model=ClientMainInformation
+php artisan make:observer MikrotikObserver --model=Mikrotik
+php artisan make:observer ClientBundleServiceObserver --model=ClientBundleService
+
+////////////////////////////////////////////////
+#crear jobs
+php artisan make:job MicrotikConnectionJob
+php artisan make:job CreateInternetTariffJob
+
+/////////////////////////////////////////////////////////
+#Comando para crear enlaces simbilicos para subir archivos
+
+php artisan storage:link
+
+/////////////////////////////////////////////////////////
+#Crear comandos 
+
+php artisan make:command SendEmails
+
+////////////////////////////////////////////////////////
+# Crear Rules
+php artisan make:rule ContrasenaFuerte
+
+//////////////////////////////////////////////////////
+Crea
+
+
+php artisan schedule:work
+

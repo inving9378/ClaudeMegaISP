@@ -1,0 +1,5 @@
+Hola {{ customer.name }},
+<br>
+Encuentre la factura proforma en el archivo adjunto: #{{ request.number }}<br>
+Total sum: {{ App.formatMoney(request.total, true) }}
+

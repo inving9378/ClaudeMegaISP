@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Solicitud de restablecimiento de contraseña de administrador</title>
+</head>
+<body>
+<div style="background-color: #F7F8FC; color: #1B2124; border-radius: 4px; border: 1px solid #E9ECEF; padding: 24px; font-size: 14px; font-family: Arial, sans-serif; line-height: 20px; width: 600px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 24px;">
+        {% if company_info.splynx_url and company_info.file_logo %}
+            <img style="max-width: 200px; max-height: 150px;" alt="logo"
+                 src="{{ company_info.splynx_url }}{{ company_info.logo_url }}">
+        {% else %}
+            <p style="color: #1B2124; font-size: 18px; line-height: 24px; font-weight: 600;">{{ company_info.company_name }}</p>
+        {% endif %}
+    </div>
+    <h1 style="color: #1B2124; font-size: 18px; line-height: 24px; font-weight: 600; margin: 12px 0 16px 0;">
+        Restablecer contraseña de administrador
+    </h1>
+    <p style="color: #1B2124; margin: 12px 0; line-height: 20px;">
+        Hola {{ admin.name }}, has realizado una solicitud para cambiar la contraseña.
+    </p>
+    <p style="color: #1B2124; margin: 12px 0; line-height: 20px;">
+        Si solicitas un restablecimiento de contraseña, usa el enlace:
+        <a href="{{ domain }}/admin/reset-password--set-new-password?code={{ code }}"
+           style="text-decoration: none; color: #367BF5;">Cambiar la contraseña</a>
+        <br>
+        O este codigo: <span style="font-weight: 600;">{{ code }}</span>
+        <br>
+        A <a href="{{ domain }}/admin/reset-password--verify-check-code"
+             style="color: #367BF5!important; text-decoration: none;">esta</a> pagina.
+    </p>
+    <p style="color: #1B2124; margin: 0; line-height: 20px;">
+        En otro caso, por favor, contacta a la administración.
+    </p>
+</div>
+</body>
+</html>

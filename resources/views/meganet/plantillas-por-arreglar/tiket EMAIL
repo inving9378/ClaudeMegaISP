@@ -1,0 +1,96 @@
+<!-- #######  YAY, I AM THE SOURCE EDITOR! #########-->
+
+
+
+
+</ol>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</p>
+
+<table class="editorDemoTable">
+<thead>
+<tr>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Meganet Telecomunicaciones</td>
+</tr>
+<tr>
+<td>Atencion a clientes 55-42-10-62-77</td>
+
+</tr>
+<tr>
+<td>OXXO Dep a Tarjeta 5579 0890 0023 7860</td>
+</tr>
+<tr>
+<td>Whatsapp SOLO PAGOS 55-25-71-67-18</td>
+</tr>
+<tr>
+<td>Av. Hda La Purisima Mz 3 Lt 54 Casa A</td>
+
+</tr>
+<tr>
+<td>Ex Hda Santa Ines Nextlalpan Edo Mex</td>
+</tr>
+<tr>
+<td>Tiket {{ id }}  Fecha:{{ date_created }}</td>
+</tr>
+<tr>
+<td>Nombre:</td>
+</tr>
+<tr>
+<td>{{ customer.name }}</td>
+</tr>
+<tr>
+<td>Domicilio:{{ customer.street_1 }}</td>
+</tr>
+<tr>
+<td>Cuenta:{{ customer.id }}</td>
+</tr>
+<tr>
+<td>Paquete:{{ customer.category }}</td>
+</tr>
+<tr>
+<td>Valido:{{ customer.prepaid_expiration_date }}</td>
+</tr>
+<tr>
+<td>Total:{{ customer.prepaid_monthly_costs }}</td>
+<tr>
+<td>Fecha de Corte:{{ customer.prepaid_remains_days }}</td>
+</tr>
+<tr>
+<td>Ud fue atendido por:{{ partner.name }}</td>
+</tr>
+
+  <tr>
+<td>Gracias por SU VISITA</td>
+</tr>
+  <tr>
+<td>¡¡Que tenga un EXELENTE DIA!!</td>
+</tr>
+</tbody>
+</table>
+<p><strong>&nbsp;</strong></p>
+
+<p><strong>&nbsp;</strong></p>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title></title>
+<style type="text/css">
+body,td,th {
+	font-size: 11px;
+	color: #000;
+	font-family: "Times New Roman", Times, serif;
+}
+body {
+	margin-left: 1px;
+	margin-top: 2px;
+	margin-right: 1px;
+	margin-bottom: 2px;
+}
+</style>
+</head>
+

@@ -1,0 +1,37 @@
+
+Al recuperar los registros del modelo, es posible que desee limitar sus resultados en función de la existencia de una relación. Por ejemplo, imagine que desea recuperar todas las publicaciones de blog que tienen al menos un comentario. Para hacerlo, puede pasar el nombre de la relación a los métodos has y orHas:
+
+-----------------------------------
+use App\Models\Post;
+
+$posts = Post::has('comments')->get();
+-------------------------------------
+También puede especificar un operador y un valor de recuento para personalizar aún más la consulta: 
+
+----------------------------------------------------
+$posts = Post::has('comments', '>=', 3)->get();
+------------------------------------------------------
+
+Las sentencias has anidadas se pueden construir utilizando la notación de "puntos". Por ejemplo, puede recuperar todas las publicaciones que tengan al menos un comentario que tenga al menos una imagen: 
+
+----------------------------------------------------
+$posts = Post::has('comments.images')->get();
+----------------------------------------------------
+
+***
+Si necesita aún más poder, puede usar los métodos whereHas y orWhereHas para definir restricciones de consulta adicionales en sus consultas has, como inspeccionar el contenido de un comentario: 
+-------------------------------------------------------
+use Illuminate\Database\Eloquent\Builder;
+
+$posts = Post::whereHas('comments', function (Builder $query) {
+    $query->where('content', 'like', 'code%');
+})->get();
+
+
+$posts = Post::whereHas('comments', function (Builder $query) {
+    $query->where('content', 'like', 'code%');
+}, '>=', 10)->get();
+-------------------------------------------------------
+
+
+ 

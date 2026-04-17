@@ -1,0 +1,7 @@
+Hello!
+
+This is example template. We use Twig as template engine!
+
+You can use some variables in templates.
+For example to get customer name use {{ customer.name }},
+customer login - {{ customer.login }}

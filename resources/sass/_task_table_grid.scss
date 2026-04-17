@@ -1,0 +1,96 @@
+.board_task {
+    display: flex;
+    justify-content: space-between;
+}
+
+.column_task {
+    background-color: #f9f9f9;
+    border-radius: 5px;
+    padding: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+}
+
+.column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    background-color: #4285f4;
+}
+
+.column_task h2 {
+    font-size: 18px;
+    color: white;
+    background-color: #4285f4;
+    padding: 10px;
+    margin: 0;
+    border-radius: 5px 0 0 5px;
+    flex-grow: 1;
+}
+
+.add-button {
+    background-color: #4285f4;
+    color: white;
+    border: none;
+    padding: 10px;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 0 5px 5px 0;
+    margin-left: 10px;
+}
+
+.add-button:hover {
+    background-color: #357ae8;
+}
+
+.dropdown_task {
+    margin-left: 10px;
+    position: relative;
+}
+
+.dropbtn_task {
+    background-color: #4285f4;
+    color: white;
+    border: none;
+    padding: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.dropbtn_task:hover {
+    background-color: #357ae8;
+}
+
+.task {
+    background-color: #e7f0ff;
+    margin: 10px 0;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.task span {
+    font-size: 14px;
+    color: #666;
+    position: absolute;
+    top: 15px;
+    right: 15px;
+}
+
+.task p {
+    margin: 0;
+    font-size: 16px;
+}
+
+.task .priority {
+   
+}
+
+.no-data {
+    text-align: center;
+    color: #999;
+    margin-top: 20px;
+}

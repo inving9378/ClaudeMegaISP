@@ -1,0 +1,11 @@
+Hello {{ recipient.name }},<br>
+<br><br>
+New task <a href="{{ task.link_to_task }}" target="_blank">#{{ task.id }} {{ task.title }}</a> has been assigned to you.<br>
+<br><br>
+Task details<br>
+{{ task.short_description | raw }}
+To view full task description, please follow this link
+{{ task.link_to_task }}.
+<br><br>
+Best regards, <br>
+{{ company_info.company_name }} team.

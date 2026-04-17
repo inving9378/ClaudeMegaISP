@@ -1,0 +1,18 @@
+CREATE USER 'cakephp'@'localhost' IDENTIFIED BY 'cakephp.2022';
+
+GRANT ALL PRIVILEGES ON cakephp.* TO 'cakephp'@'localhost';
+
+FLUSH PRIVILEGES;
+
+CREATE datatbase cakephp
+
+
+
+
+
+CREATE USER 'remote'@'192.168.105.%' IDENTIFIED BY 'inving9378';
+
+GRANT ALL PRIVILEGES ON meganet.* TO 'remote'@'192.168.105.%';
+
+FLUSH PRIVILEGES;
+

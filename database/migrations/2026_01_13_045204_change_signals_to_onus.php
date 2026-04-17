@@ -1,0 +1,25 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    protected $fields = ['signal_1310', 'signal_1490'];
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        foreach ($this->fields as $f) {
+            DB::statement('ALTER TABLE olt_onus MODIFY ' . $f . ' varchar(30) NULL');
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void {}
+};

@@ -1,0 +1,21 @@
+.panel {
+    display: flex;
+    flex-direction: column; 
+  }
+  .seccion {
+    border: 1px solid #d4d4d4;
+    margin-bottom: 10px;
+    padding: 10px;
+  }
+  .seccion h3 {
+    font-size: 16px;
+  }
+  .item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 0;
+  }
+  .item span {
+    font-size: 14px;
+  }

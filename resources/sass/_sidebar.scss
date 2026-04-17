@@ -1,0 +1,19 @@
+small > i{
+    font-size: 12px !important;
+}
+
+@media (max-width: 992px) {
+    .vertical-menu {
+        // display: block !important;
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+    }
+
+    body.sidebar-enable {
+        .vertical-menu {
+            display: block;
+        }
+    }
+}

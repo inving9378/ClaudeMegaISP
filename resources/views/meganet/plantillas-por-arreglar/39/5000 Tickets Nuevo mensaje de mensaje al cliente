@@ -1,0 +1,8 @@
+<p>Hola <strong><em>{{customer.name}}</em>,</strong></p>
+<p>Un agente acaba de responder a su tiket (<a href="{{values.splynx_url}}/portal/tickets">#{{ticket.id}}</a>) - <strong>{{ ticket.subject}}</strong>.</p>
+<p>Para ver o agregar comentarios adicionales, haga clic en el siguiente botón:</p>
+<h2><a href="{{values.splynx_url}}portal/tickets">Ver Tickets</a></h2>
+<p>o siga el link: {{values.splynx_url}}portal/tickets</p>
+<hr />
+<p>Saludos,<br />
+{{values.company_name}}</p>

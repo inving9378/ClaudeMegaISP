@@ -1,0 +1,569 @@
+{% set page = 0 %}
+{% set per_page = 6 %}
+
+{% set total_page = (items|length / per_page)|round - 1 %}
+
+<html>
+<head>
+    <style type="text/css">
+        span.nowrap {
+            width: auto;
+            white-space: nowrap;
+        }
+
+        * {
+            padding: 0;
+            margin: 0;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 90%;
+        }
+
+        tr {
+            padding: 0;
+            margin: 0;
+        }
+
+        td {
+            padding: 0;
+            margin: 0;
+        }
+
+        .header {
+            margin: 0;
+            padding: 0;
+            font-weight: 700;
+            font-size: larger;
+        }
+
+        .header h4 {
+            margin: 0;
+            padding: 0;
+            color: red;
+        }
+
+        .header table td {
+            font-size: 15px;
+        }
+
+        .standard div {
+            padding-top: 10px;
+        }
+
+        .standard table {
+            width: 100%;
+            border: 1px solid #000;
+        }
+
+        .cleaner {
+            clear: both;
+            margin: 0;
+            padding: 0;
+            height: 1px;
+            overflow: hidden;
+        }
+
+        .padding_left {
+            padding-left: 11px;
+        }
+
+        .no_top_border {
+            border: solid 1px #000;
+            border-top: 0;
+        }
+
+        .bold td {
+            font-weight: 700;
+        }
+
+        .font_x-small {
+            font-size: 8pt;
+            border-bottom: none;
+        }
+
+        .font_x-small td {
+            border-bottom: none;
+            padding: 5px;
+        }
+
+        .font_small {
+            font-size: 9pt;
+        }
+
+        .font_small td {
+            border: none;
+            padding: 3px;
+        }
+
+        .font_normal, .font_normal td {
+            font-size: 10pt;
+        }
+
+        .border_thin {
+            border: 1px solid;
+        }
+
+        h4 {
+            margin: 0;
+            padding: 35px 0 0;
+        }
+
+        h3 {
+            margin: 0;
+            padding: 7px 0 0;
+        }
+
+        #itemsTable td {
+            line-height: 14px;
+        }
+
+        td.first, th.first {
+            padding-left: 11px;
+            text-align: left;
+        }
+
+        td.right, th.right {
+            text-align: right;
+        }
+
+        td.last, th.last {
+            text-align: right;
+            padding-right: 25px;
+        }
+
+        td.lastIco {
+            padding-right: 9px;
+            text-align: right;
+        }
+
+        table tr th {
+            padding-top: 5px;
+            padding-bottom: 5px;
+            border-bottom: solid 1px #000;
+            font-weight: 400;
+            font-size: 10pt;
+        }
+
+        td.itemsNote {
+            padding-top: 5px;
+            padding-bottom: 10px;
+            font-size: 10pt;
+        }
+
+        tr.topSpace td {
+            padding: 5px;
+            border-bottom: none;
+        }
+
+        tr.bottomSpace td {
+            padding-bottom: 25px;
+        }
+
+        tr.topSpace2 td {
+            padding-top: 5px;
+        }
+
+        tr.topSpace3 td {
+            padding-top: 5px;
+            border-bottom: solid 1px #000;
+        }
+
+        table.storebatch {
+            width: 100%;
+        }
+
+        table.storebatch tr td {
+            vertical-align: top;
+        }
+
+        .print {
+            direction: rtl;
+            padding-top: 5px;
+            padding-right: 120px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="content">
+    {% block header %}
+    <div class="header">
+        <table style="width:100%;font-weight:bold;">
+            <tr>
+                <td width="40%"> {{ values.company_name }}</td>
+
+                <td width="60%" align="right">
+                    {{ App.t('invoice', 'Factura - Certificado de Impuestos') }}
+                    {{ number }}</td>
+            </tr>
+        </table>
+    </div>
+
+
+    <div class="main" style="height:94%;border: 1px solid #000000;">
+        <table class="font_normal" style="width:100%; height: 40%">
+            <tr>
+                <td rowspan="2" style="padding:10px 0 0 10px;" valign="top" width="50%">
+                    <div style="width:100%;">
+                        <div class="padding_left" style="padding-top:10px;">
+                            <div class="font_x-medium" style="padding-bottom:6px;">
+                                {{ App.t('invoice', 'Supplier') }}:
+                            </div>
+                            <b>{{ values.company_name }}</b>
+                            <br>
+                            {{ values.street_1 }}
+                            <br>
+                            {{ values.zip }}, {{ values.city }}
+
+                            {% if values.street_2 is not empty %}
+                                - {{ values.street_2 }}
+                            {% endif %}
+
+                            <br>
+                            {% if values.country is not empty %}
+                                {{ values.country }} <br>
+                            {% endif %}
+                        </div>
+                        <br>
+
+                        <div class="font_small">
+                            {{ App.t('invoice','ID number') }}: {{ values.company_id }}<br>
+                            {% if values.company_vat is not empty %}
+                                {{ App.t('invoice', 'VAT Number') }}: {{ values.company_vat }}<br>
+                            {% endif %}
+                            {{ App.t('invoice','Phone') }}: {{ values.phone }}<br>
+                            {{ App.t('invoice', 'Email') }}: {{ values.email }}<br>
+                        </div>
+                    </div>
+                    <br>
+                </td>
+            </tr>
+
+
+            <table class="font_x-small" style="width:380px; margin:0" align="right">
+                <tr>
+                    <td align="right">{{ App.t('invoice','Account number') }}:</td>
+
+                    <td align="right" class="font_small"
+                        style="width: 220px;border-left:solid 3px black; border-top:solid 3px black; border-bottom:solid 3px black; border-right:solid 1px black;">{{ values.bank_account }}</td>
+                </tr>
+            </table>
+            <td style="border-left:solid 1px black;height:50px; width:50%">
+                <div class="padding_left">
+                    <table class="font_small" border="0" style="margin-top:8px;width:350px; margin-left:10px;">
+                        <tr>
+                            <td colspan="3">{{ App.t('invoice','Pairing') }}:</td>
+                            <td style="text-align:right;"> {{ pairing.global_1 }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3">{{ App.t('invoice', 'Pairing') }}:</td>
+                            <td style="text-align:right;"> {{ pairing.invoice }}</td>
+                        </tr>
+
+                    </table>
+                </div>
+            </td>
+            <tr>
+                <td style="border:solid 3px black;padding-left:10px;padding-top:10px; height:180px;" valign="top">
+
+                    {% if customer.category=='company' %}
+                        <table style="width:350px;line-height:12px;border:0">
+                            <tr style="border:0">
+                                <td rowspan="2" valign="top" height="10">{{ App.t('invoice', 'Ship to') }}:</td>
+                                <td height="10">{{ App.t('invoice','ID number') }}:</td>
+                                <td style="text-align:left;" height="10">{{ customer_info.company_id }}</td>
+                            </tr>
+                            <tr style="border:0">
+                                <td height="10">{{ App.t('invoice','VAT Number') }}:</td>
+                                <td style="text-align:left" height="10"> {{ customer_info.vat_id }}</td>
+                            </tr>
+                            <tr style="border:0">
+                                <td colspan="2"><br></td>
+                            </tr>
+                            <tr style="border:0">
+                                <td colspan="3" style="padding-left:5px;"><b>{{ customer.name }}</b>
+                                    <br>
+                                    {{ customer.street_1 }}
+                                    <br>
+                                    {{ customer.zip_code }}, {{ customer.city }}
+                                    {% if customer.street_2 is not empty %} - {{ customer.street_2 }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    {% else %}
+                        <table class="font_small" style="width:99%;margin-left:20px;">
+                            <tr>
+                                <td colspan="3">{{ App.t('invoice','Ship to') }}:</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" align="left">
+                                    <b>{{ customer.name }}</b>
+                                    <br>
+                                    {{ customer.street_1 }}
+                                    <br>
+                                    {{ customer.zip_code }}, {{ customer.city }}
+                                    {% if customer.street_2 is not empty %} - {{ customer.street_2 }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    {% endif %}
+                </td>
+            </tr>
+            {#{% if page != 0 %}#}
+            <tr>
+                <td style="border-bottom:none;padding-bottom:5px;">
+                    <div class="padding_left" style="padding-top:5px;">
+
+                        <table width="100%" class="font_small" cellspacing="0">
+                            <tr>
+                                <td width="100%">
+                                    <table width="100%" cellspacing="0" style="border-collapse:collapse;">
+                                        <tr>
+                                            <td style="padding-bottom:5px;padding-left:7px;"
+                                                width="130px">{{ App.t('invoice','Payment type') }}:
+                                            </td>
+                                            <td style="padding-bottom:5px;text-align:right;"
+                                                width="130px">
+                                                {% if payment_methods.payment is not empty %}
+                                                    {{ payment_methods.payment.name }}
+                                                {% else %}
+                                                    {{ payment_methods.customer.name }}
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding-left:7px;">{{ App.t('invoice','Date invoice') }}:
+                                            </td>
+                                            <td class="border_thin"
+                                                style="text-align:right;padding-right:5px; ">{{ App.formatDate(date_created) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding-left:7px;">{{ App.t('invoice','Pay till') }}:</td>
+                                            <td class="border_thin"
+                                                style="text-align:right;padding-right:5px; ">
+                                                {{ App.formatDate(date_till) }}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding-left:7px;"></td>
+                                            <td class="border_thin"
+                                                style="border-color:black;text-align:right;padding-right:5px;">
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td width="20%">
+                                    {# QR Code can be here #}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                <td style="border-left:solid 1px black;border-bottom:none;padding-left: 20px;padding-top:10px;"
+                    valign="top">
+                    {% if customer_billing.billing_person is not empty %}
+                        <div>{{ App.t('invoice','Bill to') }}:</div>
+                        <b>{{ customer_billing.billing_person }}</b>
+                        <br>
+                        {{ customer_billing.billing_street_1 ? customer_billing.billing_street_1 : customer.street_1 }}
+                        <br>
+                        {{ customer_billing.billing_zip_code ? customer_billing.billing_zip_code : customer.zip_code }},
+                        {{ customer_billing.billing_city ? customer_billing.billing_city : customer.city }}
+                        {% if customer_billing.billing_street_2 is not empty %} - {{ customer_billing.billing_street_2 }}
+                        {% elseif customer.street_2 is not empty %} - {{ customer.street_2 }}
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {#{% endif %}#}
+        </table>
+
+        <table id="itemsTable"
+               style="border-top:solid 1px black;width:100%;font-family: 'Arial Narrow', Arial, sans-serif;"
+               class="font_x-small">
+            <tr>
+                <th align="left"
+                    style="font-size: 11px;padding-left:9px;">{{ App.t('Factura', 'Factura por') }} {{ App.t('Factura','Serviccio') }}</th>
+                <th style="font-size: 11px; text-align:center;padding:3px;" colspan="2"
+                    class="right">{{ App.t('invoice','Quantity') }}</th>
+                <th style="font-size: 11px; text-align:center;padding:3px;"
+                    class="right">{{ App.t('invoice', 'Unit price') }} </th>
+                <th style="font-size: 11px; text-align:center;padding:3px;"
+                    class="right">{{ App.t('invoice', 'Price') }}</th>
+                <th style="font-size: 11px; text-align:center;padding:3px;"
+                    class="right">{{ App.getTaxName() }} %</th>
+                <th style="font-size: 11px; text-align:center;padding:3px;"
+                    class="right">{{  App.getTaxName() }}</th>
+                <th style="font-size: 11px; text-align:right;padding-right:5px;">{{ App.t('Factura','Total con {tax}', {'tax':  App.getTaxName()}) }}</th>
+            </tr>
+            {% endblock %}
+            {% set total_sum = 0 %}
+
+
+
+            {% set counter = 0 %}
+            {{ grouped_clean() }}
+
+            {% for item in items %}
+            {% set counter = counter+1 %}
+            {% if counter > per_page %}
+            {% set counter = 0 %}
+
+            <tr>
+                <td colspan="8" style="border-bottom:solid 1px black;font-size:1px;"></td>
+            </tr>
+        </table>
+        {{ block('footer') }}
+        {% set page = page + 1 %}
+        {{ block('header') }}
+        {% endif %}
+        <tr>
+            <td class="first" colspan="2" style="width:380px;padding-left:8px">
+                {{ item.description | nl2br }}
+                {% if item.period_from != '0000-00-00' %}
+                    ({{ App.formatDate(item.period_from) }} - {{ App.formatDate(item.period_to) }})
+                {% endif %}
+            </td>
+
+            <td align="center">
+                {{ item.quantity }}
+            </td>
+            <td align="center">
+                {{ App.formatMoney(item.price, false) }}
+            </td>
+            {% set current_total = item.price * item.quantity  %}
+            <td align="right">
+                {{ App.formatMoney(current_total, false) }}
+            </td>
+
+            {% set with_tax = withTax(current_total, item.tax) %}
+            <td align="center">
+                {{ App.formatTax(item.tax) }}
+            </td>
+            <td align="center">
+                {{ App.formatMoney(with_tax - (current_total), false) }}
+            </td>
+            <td align="right">
+                {{ App.formatMoney(with_tax) }}
+            </td>
+        </tr>
+        {% set total_sum = total + with_tax %}
+
+        {{ grouped_set(item.tax,
+        item.quantity,
+        item.price * item.quantity,
+        with_tax - current_total,
+        with_tax) }}
+
+
+        {% endfor %}
+        <tr>
+            <td colspan="8" style="border-bottom:solid 1px black;font-size:1px;"></td>
+        </tr>
+
+        {#  temp set to 0#}
+        {% if page == 0 %}
+
+            <tr class=' font_normal topSpace'>
+                <td colspan=8 class=right>{{ App.t('Factura','Total facturado') }}
+                    : {{ App.formatMoney(total) }} </td>
+            </tr>
+
+        {% endif %}
+        </table>
+
+        {% if page == total_page %}
+            <div id="" class="padding_left no_top_border" style="border:none; border-top:1px solid #000000;">
+                <div style="height:50px;">
+                    <table class="font_x-small" style="width:100%;">
+                        <tr>
+                            <td width="52%" valign="top"
+                                style="padding-left:0;padding-top:10px;">{{ App.t('Factura', 'Took') }}</td>
+                            <td width="48%" style="height:145px;">
+
+                                <div class="print" style="max-height:145px;">&nbsp;
+
+                                    {% set is_stamp = '/var/www/splynx/templates/logo MEGANET.jpg' %}
+
+                                    {% if is_stamp and is_stamp|is_readable %}
+                                        <img style="max-height:180px;" src="{{ is_stamp }}"/>
+                                    {% endif %}
+                                </div>
+
+
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div id="recap" class="padding_left no_top_border prntNoBreak"
+                 style="padding-top:5px;padding-right:11px; border:none;border-top:1px solid #000000">
+                <div style="width:52%;float:left;">
+                    <div>
+                        <div style="padding-left:50%;font-family: 'Arial Narrow', Arial, sans-serif;">
+                        </div>
+                    </div>
+                </div>
+                <div style="width:100%;float:right;">
+
+                    <table class="font_x-small"
+                           style="font-family: 'Arial Narrow', Arial, sans-serif;text-align:right;width:100%"
+                           border="0">
+                        <tr>
+                            <td rowspan="1" style="padding-left:1px;" width="320px;" align="center"
+                                valign="top">{{ App.t('FACTURA', 'Balance de IVA') }} {{ currency }}</td>
+                            <td>{{ App.t('invoice', 'SIN IVA') }}</td>
+                            <td>{{ App.t('invoice', 'IVA en %') }}</td>
+                            <td>{{ App.t('invoice', 'IVA') }}</td>
+                            <td>{{ App.t('invoice', 'PRECIO CON IVA') }}</td>
+                        </tr>
+
+                        {% for percent, group in grouped_get() %}
+                            <tr>
+                                <td></td>
+                                <td> {{ App.formatMoney(group.without, false) }}</td>
+                                <td> {{ percent }} </td>
+                                <td> {{ App.formatMoney(group.tax, false) }}</td>
+                                <td> {{ App.formatMoney(group.with) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+                <div class="cleaner"></div>
+            </div>
+            <table style="width:100%;font-size: 9pt;border-top:1px solid #000000;" class='font_x-small'>
+                <tr>
+                    <td width="50%" valign="top"
+                        style="padding-left:10px;padding-top:10px;border-bottom:0">{{ App.t('invoice', 'Took over') }}:
+                    </td>
+                    <td width="50%" valign="top"
+                        style="padding-left:10px;padding-top:10px;border-bottom:0">{{ App.t('invoice', 'Stamp') }}:
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border:none; padding:10px;font-size: 7pt;"></td>
+                </tr>
+            </table>
+        {% endif %}
+        {% block footer %}
+    </div>
+
+    <div style="height:33px;text-align: center;font-size: 8pt;border-left: 1px solid #000000;border-right: 1px solid #000000;border-bottom: 1px solid #000000;">
+        {% if total_page > 0 %}
+            {{ App.t('invoice', 'Page') }} {{ page + 1}} {{ App.t('invoice', 'of') }} {{ total_page +1 }}<br/>
+        {% else %}
+            <div style='padding-top:7px;'>{# copy can be here #}</div>
+        {% endif %}
+    </div>
+    {% endblock %}
+
+
+</div>
+</body>
+</html>

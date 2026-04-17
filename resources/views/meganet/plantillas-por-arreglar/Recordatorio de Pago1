@@ -1,0 +1,17 @@
+{{App.t ('common', 'Hello')}} {{customer.name}},
+¡Nos gustaría darle la bienvenida como un Super ISP!
+Su fecha de facturación será {{loader.billing.billing_date}} de cada mes.
+No hay un contrato de duración fija y se le facturará con 1 mes de anticipación.
+El número de referencia de su cliente es {{loader.customer.id}}
+La dirección de correo electrónico a donde se enviarán sus facturas es: {{loader.customer.email}}
+Su contraseña de Wifi es: {{loader.customer.additionalAttributes.wifi_pass}}
+ 
+ 
+Para descargar sus facturas, ver pagos, crear tickets de soporte, ver sus estadísticas de uso, use nuestro portal de autoservicio para clientes my.splynx.com usando el nombre de usuario {{loader.customer.login}} y {{loader.customer.password}} como tu contraseña.
+ 
+Nuestros números de teléfono en caso de que aún no los hayas guardado,
+ 
+1234567890
+1234567890
+ 
+office@superisp.com

@@ -1,0 +1,83 @@
+Desplegando servicio Meganet
+-Para instalar Php8
+#sudo apt install software-properties-common
+#sudo add-apt-repository ppa:ondrej/php
+- instalardo php 8 con apache, si desea instalar con apache
+#sudo apt update
+#sudo apt install php8.0 libapache2-mod-php8.0
+-Instalando fpm para php8
+#sudo apt install php8.0-fpm
+-Comprobar el fpm 
+systemctl status php8.0-fpm
+-Instalando extenciones
+#sudo apt install php8.0-mysql php8.0-gd
+---------------------------------------------------------------------
+
+-Instalando mysql 8
+# wget https://repo.mysql.com//mysql-apt-config_0.8.18-1_all.deb
+- Instalamos el archivo
+# sudo dpkg -i mysql-apt-config_0.8.18-1_all.deb
+-- Instalacion
+  - MySQL Server & Cluster(Currently selected:mysq-8.0)
+  - mysql-8.0
+
+Corremos la actualizacion del repo
+#sudo apt-get update
+#apt-cache policy mysql-server
+-Insalamos los paquetes
+#apt install mysql-client mysql-community-server mysql-server
+-Le ponemos una clave al servidor de mysql 
+- Pasamos seguridad a la instalacion del server
+# sudo mysql_secure_installation
+-  Comprobamos entrando con
+#mysql -u root -p
+CREATE DATABASE meganet;
+--------------------------------------------------------------------
+
+-Instalamos utilizando nvm para ello instalamos nvm Node
+-# sudo apt update
+-# sudo apt install build-essential libssl-dev
+-# add-apt-repository ppa:git-core/ppa
+-# sudo apt install git
+-# sudo apt install curl 
+-# curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash 
+-# source ~/.profile  
+-# nvm --version
+-# nvm install 14.17.5
+-# node --version
+-# nvm use 14.17.5
+--------------------------------------------------------------------------
+-Utilizando git descargamos la aplicacion
+
+-git init 
+-git remote add origin https://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@github.com/luffmaster/meganet-prod.git
+-git pull origin main
+--------------------------------------------------------------------------
+
+- Buscar Composer en internet e instalarlo
+-# apt install php-xml - instalar dependencia
+- Al terminar pasamos el npm
+-# npm i
+
+#php artisan optimize:clear
+#php artisan migrate:fresh --seed
+#npm run dev
+php artisan storage:linck
+#php artisan serve
+----------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

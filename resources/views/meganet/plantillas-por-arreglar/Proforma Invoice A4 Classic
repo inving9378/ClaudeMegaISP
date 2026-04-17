@@ -1,0 +1,1079 @@
+{# STYLING#}
+{% set main_color = "#1976d2" %} {# for set red main color change value to #bf360c for green #43a047 for blue #1976d2 #}
+{% set header_text_color = '#FFFFFF' %}
+
+{% set total_vat = 0 %}
+{% set transactions = loader.getTransactions('id') %}
+{% set enableVoiceDetails  = true %}
+{# Enabling showing statistics by categories, this block with true or false values only #}
+{% set enableCallsStatistics  = true %}
+{% set enableMessagesStatistics  = true %}
+{% set enableDataStatistics  = true %}
+{% set enableStatistic = enableCallsStatistics or enableMessagesStatistics or enableDataStatistics %}
+
+{# Enabling show items width price 0$ #}
+{% set show_zero_items  = true %}
+<html>
+<head>
+    <style type="text/css">
+        @page {
+            sheet-size: 209mm 279.5mm;
+            margin: 80px 0 0 0;
+            margin-header: 0mm;
+            footer: footer;
+            header: secondpageheader;
+            margin-bottom: 80px;
+            margin-footer: 0mm;
+            border: 0px;
+        }
+
+        @page :first {
+            header: firstpage;
+        }
+
+        @page callsPage {
+            header: secondpageheader;
+        }
+
+        @page voiceDetailsPage {
+            header: secondpageheader;
+        }
+
+        .voiceDetailsPage {
+            padding: 17px 20px 0 20px;
+            page-break-before: right;
+            page: voiceDetailsPage;
+        }
+
+        .callsPage {
+            padding: 17px 20px 0 20px;
+            page-break-before: right;
+            page: callsPage;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        .page_holder {
+            background: #fff;
+            font-family: 'Helvetica', sans-serif;
+            margin: 0 auto;
+            padding: 0;
+        }
+
+        .header {
+            margin: 0;
+            padding: 10px 20px;
+            background: {{ main_color }};
+            width: 100%;
+            border: 0;
+            text-align: center;
+        }
+
+        .header table {
+            border-colapse: colapse;
+            border: 0;
+            width: 100%;
+        }
+
+        .header table td {
+            vertical-align: middle;
+        }
+
+        .header table td.logo {
+            text-align: left;
+            width: auto;
+        }
+
+        .header table td.header_name {
+            text-align: left;
+            line-height: 28px;
+            font-size: 20px;
+            font-weight: normal;
+            color: #ffffff;
+            text-transform: uppercase;
+            font-family: 'Helvetica', sans-serif;
+            padding-left: 20px;
+        }
+
+        .header2 {
+            margin: 0;
+            padding: 14px 20px;
+            background: {{ main_color }};
+            width: 100%;
+            border: 0;
+            text-align: center;
+        }
+
+        .header2 .logo {
+            display: block;
+            text-align: left;
+            line-height: 30px;
+            margin-right: 16px;
+            padding-top: 0px;
+        }
+
+        .header2 .header_name2 {
+            float: left;
+            line-height: 20px;
+            font-size: 20px;
+            font-weight: normal;
+            width: 100%;
+            color: #ffffff;
+            text-transform: uppercase;
+            padding-top: 8px;
+            font-family: 'Helvetica', sans-serif;
+            text-align: left;
+        }
+
+        .clear {
+            clear: both;
+            width: 100%;
+        }
+
+        .decor_line {
+            margin-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .first_line table {
+            width: 100%;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .line_heading {
+            font-family: 'Helvetica', sans-serif;
+            font-size: 40px;
+            font-weight: bold;
+            color: #000;
+            text-align: left;
+            line-height: 24px;
+            padding: 0;
+        }
+
+        .first_line table td.invoice_detais {
+            width: 40%;
+            font-family: 'Helvetica', sans-serif;
+            font-size: 14px;
+        }
+
+        .second_line {
+            padding-top: 20px;
+        }
+
+        .second_line table {
+            vertical-align: top;
+            width: 100%;
+        }
+
+        .second_line table td.left_part {
+            width: 55%;
+        }
+
+        .second_line table td.right_part {
+            width: 40%;
+        }
+
+        .second_line table td {
+            font-size: 12px;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .second_line table td.left_part .heading,
+        .second_line table td.right_part .heading {
+            font-size: 12px;
+            font-weight: bold;
+            color: #000000;
+            padding-bottom: 7px;
+            padding-left: 0;
+            padding-right: 0;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .second_line table td.left_part .name,
+        .second_line table td.right_part .name {
+            font-size: 14px;
+            font-weight: bold;
+            color: #000000;
+            padding-bottom: 7px;
+            padding-left: 0;
+            padding-right: 0;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .second_line table td.right_part .blue {
+            padding-top: 7px;
+            color: {{ main_color }};
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .page_content {
+            padding: 17px 20px 0 20px;
+            text-align: center;
+        }
+
+        .page_content .right_part table td:nth-child(1) {
+            width: 80px;
+        }
+
+        .third_line {
+            width: 100%;
+            padding-top: 18px;
+        }
+
+        .invoice-items table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .invoice-items table th {
+            color: #000000;
+            font-size: 12px;
+            text-align: left;
+            font-weight: bold;
+            padding: 6px 8px;
+            border-top: solid 1px #e0e0e0;
+            border-bottom: solid 1px #e0e0e0;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .invoice-items table td {
+            color: #000;
+            font-size: 10px;
+            text-align: left;
+            font-weight: normal;
+            padding: 6px 8px;
+            border-bottom: solid 1px #e0e0e0;
+            font-family: 'Helvetica', sans-serif;
+            vertical-align: middle;
+            height: 36px;
+        }
+
+        .invoice-items table th:nth-child(1) {
+            text-align: left;
+        }
+
+        .invoice-items table td:nth-child(2) {
+            text-align: left;
+            font-style: italic;
+        }
+
+        .invoice-items table th:nth-child(1),
+        .invoice-items table td:nth-child(1) {
+            width: 25px;
+        }
+
+        .invoice-items table th:nth-child(3),
+        .invoice-items table th:nth-child(4),
+        .invoice-items table th:nth-child(5),
+        .invoice-items table th:nth-child(6),
+        .invoice-items table th:nth-child(7),
+        .invoice-items table td:nth-child(3),
+        .invoice-items table td:nth-child(5) {
+            width: 80px;
+            text-align: center;
+        }
+
+        .invoice-items table td:nth-child(4),
+        .invoice-items table td:nth-child(6),
+        .invoice-items table td:nth-child(7) {
+            width: 80px;
+            text-align: right;
+            padding-right: 16px;
+        }
+
+        .invoice-items table td:nth-child(7) {
+            font-weight: bold;
+        }
+
+        .voiceDetailsPage .invoice-items table th:nth-child(3),
+        .voiceDetailsPage .invoice-items table th:nth-child(4),
+        .voiceDetailsPage .invoice-items table th:nth-child(5),
+        .voiceDetailsPage .invoice-items table th:nth-child(6),
+        .voiceDetailsPage .invoice-items table td:nth-child(3),
+        .voiceDetailsPage .invoice-items table td:nth-child(4),
+        .voiceDetailsPage .invoice-items table td:nth-child(5) {
+            width: 120px;
+            text-align: center;
+        }
+
+        .voiceDetailsPage .invoice-items table td:nth-child(6) {
+            text-align: right;
+            padding-right: 32px;
+        }
+
+        .invoice_total {
+            padding: 20px 16px 20px 0;
+        }
+
+        .invoice_total .tables_holder {
+            width: 33%;
+            float: right;
+        }
+
+        .invoice_total .tables_holder table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .invoice_total .tables_holder table tr td {
+            padding-top: 5px;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .invoice_total .tables_holder table tr td:nth-child(1) {
+            font-size: 10px;
+            line-height: 10px;
+            color: #000;
+            border-collapse: collapse;
+            width: 50%;
+        }
+
+        .invoice_total .tables_holder table tr td:nth-child(2) {
+            font-size: 10px;
+            font-weight: bold;
+            text-align: right;
+            width: 50%;
+        }
+
+        .invoice_total .tables_holder table tr.blue td:nth-child(1),
+        .invoice_total .tables_holder table tr.blue td {
+            padding-top: 14px;
+            text-transform: uppercase;
+            font-weight: bold;
+            color: {{ main_color }};
+        }
+
+        .footer {
+            background: {{ main_color }};
+            text-align: right;
+            padding: 0 20px;
+            line-height: 29px;
+        }
+
+        .footer .pagination {
+            font-size: 12px;
+            color: #fff;
+        }
+
+        .table_wrap {
+            text-align: left;
+            margin-bottom: 36px;
+        }
+
+        .table_wrap .heading_table {
+            font-weight: bold;
+            font-size: 12px;
+            color: #000000;
+            font-family: 'Helvetica', sans-serif;
+            margin-bottom: 7px;
+            padding-left: 8px;
+        }
+
+        .voice-statistics-heading {
+            font-weight: bold;
+            font-size: 20px;
+            color: #000000;
+            font-family: 'Helvetica', sans-serif;
+            margin-bottom: 20px;
+            padding-left: 8px;
+        }
+
+        .table_wrap table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .table_wrap table tr th {
+            font-weight: bold;
+            font-family: 'Helvetica', sans-serif;
+            text-align: left;
+            text-transform: none;
+            padding: 6px 8px;
+            border-top: solid 1px #e0e0e0;
+            border-bottom: solid 1px #e0e0e0;
+            font-size: 12px;
+            color: #000;
+        }
+
+        .table_wrap table tr td {
+            font-size: 12px;
+            color: #000;
+            font-family: 'Helvetica', sans-serif;
+            text-align: left;
+            font-weight: normal;
+            border-bottom: solid 1px #e0e0e0;
+            padding: 6px 8px;
+        }
+
+        .table_wrap table tr td:nth-child(1) {
+            font-style: italic;
+        }
+
+        .voice table tr th:nth-child(2),
+        .voice table tr th:nth-child(3),
+        .voice table tr th:nth-child(4),
+        .voice table tr td:nth-child(2),
+        .voice table tr td:nth-child(3) {
+            text-align: center;
+            width: 120px;
+        }
+
+        .voice table tr td:nth-child(4) {
+            font-weight: bold;
+            text-align: right;
+            padding-right: 36px;
+            width: 120px;
+        }
+
+        .data table tr td:nth-child(2),
+        .data table tr td:nth-child(3),
+        .messages table tr td:nth-child(2),
+        .messages table tr td:nth-child(3) {
+            width: 120px;
+        }
+
+        .messages table tr td:nth-child(3),
+        .data table tr td:nth-child(3) {
+            font-weight: bold;
+            text-align: center;
+            width: 120px;
+            text-align: right;
+            padding-right: 36px;
+        }
+
+        .data table tr th:nth-child(2),
+        .data table tr th:nth-child(3),
+        .messages table tr th:nth-child(2),
+        .messages table tr th:nth-child(3) {
+            text-align: center;
+        }
+
+        .data table tr td:nth-child(2),
+        .messages table tr td:nth-child(2) {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<htmlpageheader name="firstpage">
+    <div class="header">
+        <table>
+            <tr style="min-height: 80px">
+                <td class="logo">
+                    <img style="max-height:80px;max-width:250px" src="{{ company_info.getLogoFilePath() }}">
+                </td>
+                <td class="header_name">
+                    {{ company_info.company_name }}
+                </td>
+            </tr>
+        </table>
+    </div>
+</htmlpageheader>
+<htmlpageheader name="secondpageheader">
+    <div class="header2">
+        <div class="header_name2"><span>{{ company_info.company_name }}</span></div>
+        <div class="clear"></div>
+    </div>
+</htmlpageheader>
+<div class="page_holder">
+    <div class="page_content">
+        <div class="first_line">
+            <table style="width:100%">
+                <tr>
+                    <td class="line_heading">
+                        {{ App.t('invoice','Proforma-Invoice') }}
+                    </td>
+                    <td style="width:40%" class="invoice_detais">
+                        <table>
+                            <tr>
+                                <td>{{ App.t('invoice','Number') }}:</td>
+                                <td>{{ number }}</td>
+                            </tr>
+                            <tr>
+                                <td>{{ App.t('invoice','Date') }}:</td>
+                                <td>{{ date_created| date(App.getDateFormat()) }}</td>
+                            </tr>
+                            <tr>
+                                <td>{{ App.t('invoice','Due Date') }}:</td>
+                                <td>{{ date_till| date(App.getDateFormat()) }}</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <div class="clear"></div>
+        </div>
+        <div class="decor_line"></div>
+
+        <div class="second_line">
+            <table>
+                <tr>
+                    <td class="left_part">
+                        <table>
+                            <tr>
+                                <td class="heading">
+                                    <strong>{{ App.t('invoice','Company details') }}</strong>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="name">
+                                    <strong>{{ company_info.company_name }}</strong>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>{{ company_info.street_1 ~ ' ' ~ company_info.street_2 }}</td>
+                            </tr>
+                            <tr>
+                                <td>{{ company_info.city }}</td>
+                            </tr>
+                            <tr>
+                                <td>{{ company_info.zip ~ ', ' ~ company_info.country }}</td>
+                            </tr>
+                            {#{% if company_info.company_id is not empty %}
+                                <tr>
+                                    <td>ID number: {{ company_info.company_id }} </td>
+                                </tr>
+                            {% endif %}#}
+
+                            {% if company_info.company_vat is not empty %}
+                                <tr>
+                                    <td>
+                                        {{ App.t('invoice', 'VAT Number') }}: {{ company_info.company_vat }}
+                                    </td>
+                                </tr>
+                            {% endif %}
+
+                            {#{% if company_info.phone is not empty %}
+                                <tr>
+                                    <td>
+                                        {{ App.t('invoice','Phone') }}: {{ company_info.phone }}
+                                    </td>
+                                </tr>
+                            {% endif %}
+
+                            {% if company_info.email is not empty %}
+                                <tr>
+                                    <td>
+                                        {{ App.t('invoice', 'Email') }}: {{ company_info.email }}
+                                    </td>
+                                </tr>
+                            {% endif %}#}
+                        </table>
+                    </td>
+                    <td></td>
+                    <td class="right_part">
+                        <table>
+                            <tr>
+                                <td class="heading">
+                                    <strong>{{ App.t('invoice','Customer details') }}</strong>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="name">{{ customer.name }}</td>
+                            </tr>
+                            {% if customer.street_1 %}
+                                <tr>
+                                    <td>{{ customer.street_1 }}</td>
+                                </tr>
+                            {% endif %}
+                            {% if customer.city %}
+                                <tr>
+                                    <td>{{ customer.city }}</td>
+                                </tr>
+                            {% endif %}
+                            {% if customer.zip_code %}
+                                <tr>
+                                    <td>{{ customer.zip_code }}</td>
+                                </tr>
+                            {% endif %}
+                            <tr>
+                                <td class="blue">{{ App.t('invoice','Total due') }}:
+                                    <strong>{{ App.financeFormat(total, true) }}</strong></td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="left_part">
+
+                        {% if company_info.bank_account is not empty %} {#  or company_info.bank_name is not empty or company_info.bank_address is not empty  #}
+                            <table>
+                                <tr>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <strong>{{ App.t('invoice','Bank details') }}</strong>
+                                    </td>
+                                </tr>
+
+                                {% if company_info.bank_account is not empty %}
+                                    <tr>
+                                        <td>{{ App.t('invoice','Account number') }}: <strong>{{ company_info.bank_account }}</strong></td>
+                                    </tr>
+                                {% endif %}
+
+                                {#{% if company_info.bank_name is not empty %}
+                                    <tr>
+                                        <td>
+                                            {{ company_info.bank_name }}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+
+                                {% if company_info.bank_address is not empty %}
+                                    <tr>
+                                        <td>
+                                            {{ company_info.bank_address }}
+                                        </td>
+                                    </tr>
+                                {% endif %}#}
+                            </table>
+                        {% endif %}
+                    </td>
+                    <td></td>
+                    <td class="right_part">
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div class="third_line">
+            <div class="invoice-items">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>{{ App.t('invoice','Description') }}</th>
+                        <th>{{ App.t('invoice','Qty') }}</th>
+                        <th>{{ App.t('invoice','Excl. Price') }}</th>
+                        <th>{{ App.getTaxName() }} %</th>
+                        <th>{{ App.t('invoice','Excl. Total') }}</th>
+                        <th>{{ App.t('invoice','Incl. Total') }}</th>
+                    </tr>
+                    </thead>
+
+                    {% set discount_sum = 0 %}
+                    {% set sub_total = 0 %}
+                    {% set vat_percent = 0 %}
+
+                    {% for item in items %}
+                        {% set itemTransaction = transactions[item.transaction_id] %}
+
+                        {% if itemTransaction.source != 'cdr' %}
+                            {% if show_zero_items == true %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ item.description }} <br>
+                                        {% if item.period_from != '0000-00-00' %}
+                                            ({{ item.period_from | date(App.getDateFormat()) }} - {{ item.period_to | date(App.getDateFormat()) }})
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td>{{ App.financeFormat(item.price, true) }}</td>
+                                    {% set vat_percent = vat_percent + ( item.price * item.tax / 100) %}
+                                    {% set line_total = item.price * item.quantity %}
+                                    {% set sub_total = sub_total+line_total %}
+                                    <td>{{ item.tax | number_format(2,".","") }}</td>
+                                    <td>{{ App.financeFormat(item.price * item.quantity , true) }}</td>
+                                    <td>{{ App.financeFormat(line_total + line_total * item.tax / 100, true) }}</td>
+                                </tr>
+                                {
+                                {% if item.price[0:1] == '-' %}
+                                    {% set discount_sum = discount_sum - withTax(item.price*item.quantity, item.tax) %}
+                                {% endif %}
+                            {% else %}
+                                {% if item.price != 0 %}
+                                    <tr>
+                                        <td>{{ loop.index }}</td>
+                                        <td>{{ item.description }} <br>
+                                            {% if item.period_from != '0000-00-00' %}
+                                                ({{ item.period_from | date(App.getDateFormat()) }} - {{ item.period_to | date(App.getDateFormat()) }})
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ item.quantity }}</td>
+                                        <td>{{ App.financeFormat(item.price, true) }}</td>
+                                        {% set vat_percent = vat_percent + ( item.price * item.tax / 100) %}
+                                        {% set line_total = item.price * item.quantity %}
+                                        {% set sub_total = sub_total+line_total %}
+                                        <td>{{ item.tax | number_format(2,".","") }}</td>
+                                        <td>{{ App.financeFormat(item.price * item.quantity , true) }}</td>
+                                        <td>{{ App.financeFormat(line_total + line_total * item.tax / 100, true) }}</td>
+                                    </tr>
+                                    {
+                                    {% if item.price[0:1] == '-' %}
+                                        {% set discount_sum = discount_sum - withTax(item.price*item.quantity, item.tax) %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {% for item in items %}
+                        {% set itemTransaction = transactions[item.transaction_id] %}
+
+                        {% if itemTransaction.source == 'cdr' %}
+                            {% if show_zero_items == true %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ item.description }} <br>
+                                        {% if item.period_from != '0000-00-00' %}
+                                            ({{ item.period_from | date(App.getDateFormat()) }} - {{ item.period_to | date(App.getDateFormat()) }})
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td>{{ App.financeFormat(item.price, true) }}</td>
+                                    {% set vat_percent = vat_percent + ( item.price * item.tax / 100) %}
+                                    {% set line_total = item.price * item.quantity %}
+                                    {% set sub_total = sub_total+line_total %}
+                                    <td>{{ item.tax | number_format(2,".","") }}</td>
+                                    <td>{{ App.financeFormat(item.price * item.quantity , true) }}</td>
+                                    <td>{{ App.financeFormat(line_total + line_total * item.tax / 100, true) }}</td>
+                                </tr>
+                                {
+                                {% if item.price[0:1] == '-' %}
+                                    {% set discount_sum = discount_sum - withTax(item.price*item.quantity, item.tax) %}
+                                {% endif %}
+                            {% else %}
+                                {% if item.price != 0 %}
+                                    <tr>
+                                        <td>{{ loop.index }}</td>
+                                        <td>{{ item.description }} <br>
+                                            {% if item.period_from != '0000-00-00' %}
+                                                ({{ item.period_from | date(App.getDateFormat()) }} - {{ item.period_to | date(App.getDateFormat()) }})
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ item.quantity }}</td>
+                                        <td>{{ App.financeFormat(item.price, true) }}</td>
+                                        {% set vat_percent = vat_percent + ( item.price * item.tax / 100) %}
+                                        {% set line_total = item.price * item.quantity %}
+                                        {% set sub_total = sub_total+line_total %}
+                                        <td>{{ item.tax | number_format(2,".","") }}</td>
+                                        <td>{{ App.financeFormat(item.price * item.quantity , true) }}</td>
+                                        <td>{{ App.financeFormat(line_total + line_total * item.tax / 100, true) }}</td>
+                                    </tr>
+                                    {
+                                    {% if item.price[0:1] == '-' %}
+                                        {% set discount_sum = discount_sum - withTax(item.price*item.quantity, item.tax) %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </table>
+            </div>
+
+            <div class="invoice_total">
+                <div class="tables_holder">
+                    <table>
+                        {% if (discount_sum > 0 ) %}
+                            <tr>
+                                <td>{{ App.t('invoice','Total Discount') }}:</td>
+                                <td>{{ App.financeFormat(discount_sum, true) }}</td>
+                            </tr>
+                        {% endif %}
+                        <tr>
+                            <td>{{ App.t('invoice','Total Exclusive') }}:</td>
+                            <td>{{ App.financeFormat(sub_total, true) }}</td>
+                        </tr>
+                        <tr>
+                            <td>{{ App.t('invoice','Total Tax') }}:</td>
+                            <td>{{ App.financeFormat(total-sub_total, true) }}</td>
+                        </tr>
+                        <tr class="blue">
+                            <td>{{ App.t('invoice','Total') }}:</td>
+                            <td>{{ App.financeFormat(total, true) }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="clear"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if enableStatistic %}
+    {% if enableCallsStatistics %}
+        {% set mobile_data = helper.getDataForVoiceCategoriesGroupedByTariffType('mobile') %}
+    {% endif %}
+
+    {% if enableMessagesStatistics %}
+        {% set fix_data = helper.getDataForVoiceCategoriesGroupedByTariffType('fix') %}
+    {% endif %}
+
+    {% if enableDataStatistics %}
+        {% set voip_data = helper.getDataForVoiceCategoriesGroupedByTariffType('voip') %}
+    {% endif %}
+
+    {% set dataForStatistics = {
+        'data': {},
+        'messages': {},
+        'calls': {},
+    } %}
+
+    {% for title, data in {'Mobile ' : mobile_data, 'Fix' : fix_data, 'VoIP': voip_data} %}
+
+        {% if enableCallsStatistics %}
+            {% if data['call'] is not empty %}
+                {% for item in data['call'] %}
+                    {% set duration = item.duration %}
+                    {% set amount = item.amount %}
+                    {% set sum = item.sum %}
+                    {% set showCategory = false %}
+                    {% set showCalls = false %}
+
+                    {% if amount > 0 %}
+                        {% set showCalls = true %}
+                        {% set showCategory = true %}
+                    {% endif %}
+
+                    {% if item.title != App.t('customers', 'None') %}
+                        {% if dataForStatistics.calls[(item.title)] %}
+                            {% set duration = dataForStatistics.calls[item.title].duration + item.duration %}
+                            {% set amount = dataForStatistics.calls[item.title].amount + item.amount %}
+                            {% set sum = dataForStatistics.calls[item.title].sum + item.sum %}
+                            {% if dataForStatistics.calls[item.title].showitem == true %}
+                                {% set showCategory = true %}
+                                {% set showCalls = true %}
+                            {% endif %}
+                        {% endif %}
+
+                        {% set dataForStatistics = dataForStatistics|merge({
+                            'calls': dataForStatistics.calls | merge({
+                                'showcalls': showCalls,
+                                (item.title): {
+                                    duration: duration,
+                                    amount: amount,
+                                    sum: sum,
+                                    showitem:showCategory
+                                }
+                            })
+                        }) %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endif %}
+
+        {% if enableMessagesStatistics %}
+            {% if data['message'] is not empty %}
+                {% for item in data['message'] %}
+                    {% set duration = item.duration %}
+                    {% set amount = item.amount %}
+                    {% set sum = item.sum %}
+                    {% set showCategory = false %}
+                    {% set showMessages = false %}
+
+                    {% if amount > 0 %}
+                        {% set showMessages = true %}
+                        {% set showCategory = true %}
+                    {% endif %}
+
+                    {% if item.title != App.t('customers', 'None') %}
+                        {% if dataForStatistics.messages[(item.title)] %}
+                            {% set duration = dataForStatistics.messages[item.title].duration + item.duration %}
+                            {% set amount = dataForStatistics.messages[item.title].amount + item.amount %}
+                            {% set sum = dataForStatistics.messages[item.title].sum + item.sum %}
+                            {% if dataForStatistics.messages[item.title].showitem == true %}
+                                {% set showCategory = true %}
+                                {% set showMessages = true %}
+                            {% endif %}
+                        {% endif %}
+
+                        {% set dataForStatistics = dataForStatistics|merge({
+                            'messages': dataForStatistics.messages | merge({
+                                'showmessages': showMessages,
+                                (item.title): {
+                                    duration: duration,
+                                    amount: amount,
+                                    sum: sum,
+                                    showitem:showCategory
+                                }
+                            })
+                        }) %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endif %}
+
+        {% if enableDataStatistics %}
+            {% if data['data'] is not empty %}
+                {% for item in data['data'] %}
+                    {% set amount = item.amount|number_format %}
+                    {% set sum = item.sum %}
+                    {% set showCategory = false %}
+                    {% set showData = false %}
+
+                    {% if amount > 0 %}
+                        {% set showData = true %}
+                        {% set showCategory = true %}
+                    {% endif %}
+
+                    {% if item.title != App.t('customers', 'None') %}
+                        {% if dataForStatistics.data[(item.title)] %}
+                            {% set amount = dataForStatistics.data[item.title].amount + item.amount|number_format %}
+                            {% set sum = dataForStatistics.data[item.title].sum + item.sum %}
+                            {% if dataForStatistics.data[item.title].showitem == true %}
+                                {% set showCategory = true %}
+                                {% set showData = true %}
+                            {% endif %}
+                        {% endif %}
+                        {% set dataForStatistics = dataForStatistics|merge({
+                            'data': dataForStatistics.data | merge({
+                                'showdata': showData,
+                                (item.title): {
+                                    amount: amount,
+                                    sum: sum,
+                                    showitem: showCategory
+                                }
+                            })
+                        }) %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endif %}
+
+    {% endfor %}
+
+    {% if dataForStatistics.calls is not empty or dataForStatistics.data is not empty or dataForStatistics.messages is not empty %}
+        {% if dataForStatistics.calls.showcalls == true or dataForStatistics.messages.showmessages == true or dataForStatistics.data.showdata == true %}
+            <div class="voice-statistics">
+            <div class="callsPage">
+                <div class="voice-statistics">
+                    <div class="voice-statistics-heading">{{ App.t('invoice','Voice categories') }}</div>
+                    {% if dataForStatistics.calls is not empty and enableCallsStatistics  and dataForStatistics.calls.showcalls == true %}
+                        <div class="table_wrap voice">
+                            <div class="heading_table">{{ App.t('invoice','VOICE') }}</div>
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>{{ App.t('invoice','Category') }}</th>
+                                    <th>{{ App.t('invoice','Duration') }}</th>
+                                    <th>{{ App.t('invoice','Amount') }}</th>
+                                    <th>{{ App.t('invoice','Sum') }}</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for title, item in dataForStatistics.calls %}
+
+{% if item.showitem == true  %}
+                                    {% set hasDataForView = false %}
+                                    <tr>
+                                        <td>{{ title }}</td>
+                                        <td>{{ item.duration }}</td>
+                                        <td>{{ item.amount }}</td>
+                                        <td>{{ App.financeFormat(item.sum, true) }}</td>
+                                    </tr>
+{% endif %}
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+
+                    {% if dataForStatistics.messages is not empty and enableMessagesStatistics and dataForStatistics.messages.showmessages == true %}
+                        <div class="table_wrap messages">
+                            <div class="heading_table">{{ App.t('invoice','MESSAGES') }}</div>
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>{{ App.t('invoice','Category') }}</th>
+                                    <th>{{ App.t('invoice','Amount') }}</th>
+                                    <th>{{ App.t('invoice','Sum') }}</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for title, item in dataForStatistics.messages %}
+
+{% if item.showitem == true  %}
+                                    <tr>
+                                        <td>{{ title }}</td>
+                                        <td>{{ item.amount }}</td>
+                                        <td>{{ App.financeFormat(item.sum, true) }}</td>
+                                    </tr>
+{% endif %}
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+
+
+                    {% if dataForStatistics.data is not empty and enableDataStatistics and dataForStatistics.data.showdata == true %}
+                        <div class="table_wrap data">
+                            <div class="heading_table">{{ App.t('invoice','DATA') }}</div>
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>{{ App.t('invoice','Category') }}</th>
+                                    <th>{{ App.t('invoice','Amount') }}</th>
+                                    <th>{{ App.t('invoice','Sum') }}</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for title, item in dataForStatistics.data %}
+
+{% if item.showitem == true  %}
+                                    <tr>
+                                        <td>{{ title }}</td>
+                                        <td>{{ item.amount }} MB</td>
+                                        <td>{{ App.financeFormat(item.sum, true) }}</td>
+                                    </tr>
+{% endif %}
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+        </div>
+    {% endif %}
+{% endif %}
+
+{% if enableVoiceDetails %}
+    {% set callsAll = helper.getVoiceCalls() %}
+    {% if callsAll is not empty %}
+        {% set countCalls = 0 %}
+        <div class="voiceDetailsPage">
+            <div class="invoice-items">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>{{ App.t('invoice','Date') }}</th>
+                        <th>{{ App.t('invoice','Calling ID') }}</th>
+                        <th>{{ App.t('invoice','Destination') }}</th>
+                        <th>{{ App.t('invoice','Duration') }}</th>
+                        <th>{{ App.t('invoice','Price') }}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for source, calls in callsAll %}
+                        {% for call in calls %}
+                            {% set countCalls = countCalls + 1 %}
+                            <tr>
+                                <td>{{ countCalls }}</td>
+                                <td>{{ call.start | date("d-m-Y") }} - {{ call.start | date("H:i:s") }}</td>
+                                <td>{{ call.source }}</td>
+                                <td>{{ call.call_to }}</td>
+                                <td>{{ call.getFormattedDuration() }}</td>
+                                <td>{{ App.financeFormat(call.price,true) }}</td>
+                            </tr>
+                        {% endfor %}
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+{% endif %}
+
+<htmlpagefooter name="footer">
+    <div class="footer">
+        <div class="pagination">{PAGENO}</div>
+    </div>
+</htmlpagefooter>
+</body>
+</html>

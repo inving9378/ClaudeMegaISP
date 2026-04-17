@@ -1,0 +1,5 @@
+server roncube
+https://jokmah.it:2083/invitation?user=vlady@jokmah.it&cookie=QWiqofmUlwYFCqw9
+
+vlady@jokmah.it
+pass.. la de siempre

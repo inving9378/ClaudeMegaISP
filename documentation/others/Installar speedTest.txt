@@ -1,0 +1,74 @@
+Instalar ooklaserver para speedtest
+----------------------------------------------------------------------------------
+URL:https://support.ookla.com/hc/en-us/articles/234578568-How-To-Install-Submit-Server
+----------------------------------------------------------------------------------
+https://www.youtube.com/watch?v=N-KyWMmb7C8
+----------------------------------------------------------------------------------
+
+1- Instalar en UBUNTU SERVER
+1.1 Configuramos la red de la pc virtual mediante la erramienta netplan
+    - obtenemos el ip y su interfaz 
+    - # ip a    o   #ip addr
+    - Revisamos si existe algun archivo la carpeta /etc/netplan
+    - ls /etc/netplan
+    - Hacemos una copia del archivo 
+    -# sudo cp -p /etc/netplan/01-network-manager-all.yaml /etc/netplan/01-network-manager-all.yaml.original
+    - Modificamos el archivo 
+    - sudo vim /etc/netplan/01-network-manager-all.yaml
+    - Modificacion con ip estatica
+--------------------------------------------------------------------------------------
+network:
+ethernets:
+ ens33:
+  dhcp4: no
+  addresses:
+  - 192.168.105.44/24
+  gateway4: 192.168.105.1
+  nameservers:
+   addresses: [8.8.8.8, 8.8.4.4]
+version: 2
+--------------------------------------------------------------------------------------
+    - Revisamos si es valida la configuracion
+    -# sudo netplan try
+    - Aplicamos la configuracion 
+    -# sudo netplan apply
+    - En caso de que no se resuelva el DNS
+    -# sudo systemctl start systemd-resolved
+    -# sudo systemctl enable systemd-resolved  
+		 
+		
+
+1.2- Nos dirigimos a la carpeta donde queremos instalar el servicio en mi caso.
+Salgo de root
+#cd ..
+entro
+
+Una vez instalado el UBUNTU
+2- Abrimos una terminal con permisos de administrador o usando sudo tecleamos para descargar 
+#wget https://install.speedtest.net/ooklaserver/ooklaserver.sh
+
+3- Damos permiso al archivo ooklaserver.sh
+#chmod a+x ooklaserver.sh
+
+4- Ejecutamos el instalador
+./ooklaserver.sh install
+
+5- Creamos un usuario con el nombre ooklauser
+#sudo adduser ooklauser
+
+6- Le damos permiso a este usuario al sudo
+# usermod -aG sudo ooklauser
+
+7- Una vez instalado completamente debemos ejecutar el servidor, iniciando el demonio
+su ooklauser -c '/direccion de la carpeta/OoklaServer --daemon'
+
+Necesitas un dns para que apunte al IP donde tenemos nuestro servicio de speedtest
+- Un vez en el CPanel, vamos a Zone Editor
+- Vamos al boton administrar
+- Alli agremamos nuestro HOST ej:spped.meganet:com:mx apuntando al ip publico 000.000.000.000
+
+8- El paso siguiente es ir a https://www.speedtest.net/es
+ - Para hacer la solicitud del servicio a seedtest
+- En el centro de la pantalla al debajo del boton Inicio existe un binculo llamado "cambiar servidor", una vez le des clic saldra una ventana para escoger los servividores
+y al lado hay un vinculo para loguerase "Sing Up", si no tienes cuenta te regisgtras y si tienes una solamente entras.
+Una vez alli saldra una vista para "Manage Server" donde se agregaran los datos de tu dominio que esta apuntando a tu server de servicio speedtest.

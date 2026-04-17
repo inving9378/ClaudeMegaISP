@@ -1,0 +1,1 @@
+ $query->orWhere(DB::raw('LOWER('.$value.')'), '=', strtolower($input['json'][$value]));

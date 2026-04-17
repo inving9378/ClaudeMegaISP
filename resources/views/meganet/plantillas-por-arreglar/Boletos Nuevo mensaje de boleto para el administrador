@@ -1,0 +1,7 @@
+<p>Hola <strong><em>{{ administrator.name}},</em></strong></p>
+<p>La solicitud <strong>{{ticket.subject}}</strong> (<a href="{{values.splynx_url}}admin/support/tickets/opened--view?id={{ ticket.id }}">#{{ ticket.id }}</a>) has been received.</p>
+<h2><a href="{{values.splynx_url}}admin/support/tickets/opened--view?id={{ticket.id}}">Ver Ticket</a></h2>
+<p>o siga este link: {{values.splynx_url}}admin/support/tickets/opened--view?id={{ticket.id}}</p>
+<hr />
+<p>Saludos,<br />
+{{values.company_name}}</p>

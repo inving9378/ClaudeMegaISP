@@ -1,0 +1,93 @@
+   public function addNatRulesMorososRedirct($connected, $command)
+    {
+        $comment = 'MgNet_REDIRECT_MOROSOS_TO_WEB_PROXY';
+        if (!$this->getIdByComment($connected, $command, $comment)) {
+            $this->addItem($connected, $command,
+                [
+                    'chain' => 'dstnat',
+                    'protocol' => 'tcp',
+                    'dst-port' => '80',
+                    'action' => 'redirect',
+                    'to-ports' => $this->mikrotik->port_redirect,
+                    'src-address-list' => 'MgNet_Morosos',
+                    'comment' => $comment
+                ]);
+        }
+    }
+
+
+ public function enableProxy($connected, $enable, $port)
+    {
+        $addRequest = new Request('/ip proxy ' . 'set');
+        $addRequest->setArgument('enabled', $enable);
+        $addRequest->setArgument('port', $port);
+        $addRequest->setArgument('max-fresh-time', '00:00:10');
+        if ($connected->sendSync($addRequest)->getType() !== Response::TYPE_FINAL) {
+            return false;
+        }
+        return true;
+    }
+
+
+  public function addWebProxyAccessIpRedirect($connected, $ip_redirect)
+    {
+        $comment = 'MgNet_ACCESS_IP_REDIRECT';
+        if (!$this->getIdByComment($connected, '/ip/proxy/access/', $comment)) {
+            $this->addItem($connected, '/ip proxy access ', ([
+                'action' => 'allow',
+                'dst-address' => $ip_redirect,
+                'comment' => $comment
+            ]));
+        }
+    }
+
+    public function addWebProxyAccessUrlRedirect($connected, $url_redirect)
+    {
+        $comment = 'MgNet_ACCESS_URL_RREDIRECT';
+        if (!$this->getIdByComment($connected, '/ip/proxy/access/', $comment)) {
+            $this->addItem($connected, '/ip proxy access ', ([
+                'action' => 'deny',
+                'redirect-to' => $url_redirect,
+                'comment' => $comment
+            ]));
+        }
+    }
+
+    public function addWebProxyAccessIpsPermited($connected, $ip_permited)
+    {
+        $ips = explode(',', $ip_permited);
+        foreach ($ips as $ip) {
+            $comment = 'MgNet_ACCESS_IP_PERMITED-' . $ip;
+            if (!$this->getIdByComment($connected, '/ip/proxy/access/', $comment)) {
+                $this->addItem($connected, '/ip proxy access ', ([
+                    'action' => 'allow',
+                    'dst-address' => $ip,
+                    'comment' => $comment
+                ]));
+            }
+        }
+    }
+
+public function addRulesInputApiAccept($connected, $command)
+    {
+        $comment = 'MgNet_INPUT_MEGANET_TO_API_ACCEPT';
+        if (!$this->getIdByComment($connected, $command, $comment)) {
+            $this->addItem($connected, '/ip firewall filter ', ([
+                'chain' => 'input',
+                'action' => 'accept',
+                'src-address' => $this->meganet_config_ip_address,
+                'dst-address' => null,
+                'dst-address-type' => null,
+                'protocol' => 'tcp',
+                'src-port' => null,
+                'dst-port' => $this->mikrotik->port_api,
+                'port' => null,
+                'in-interface' => null,
+                'out-interface' => null,
+                'src-address-list' => null,
+                'dst-address-list' => null,
+                'connection-state' => null,
+                'comment' => $comment
+            ]));
+        }
+    }

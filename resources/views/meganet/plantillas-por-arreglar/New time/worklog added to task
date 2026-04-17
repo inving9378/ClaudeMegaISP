@@ -1,0 +1,9 @@
+Hello {{ recipient.name }},<br>
+<br><br>
+
+Work time {{ worklog.time_spent }} has been added to the task <a href="{{ task.link_to_task }}" target="_blank">#{{ task.id }} {{ task.title }}</a>
+<br>
+To view task description and attachments, or change task state, please follow this link {{ task.link_to_task }}.
+<br><br>
+Best regards,<br>
+{{ company_info.company_name }} team. 

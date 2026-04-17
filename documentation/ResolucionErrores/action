@@ -1,0 +1,7 @@
+  *Model*DatatableHelper
+  Arreglamos la linea
+  18 perteneciente al constructor
+  $this->columns = Module::where('name', $moduleName)->first()->columnsDatatable->where('name', '!=', 'action')->pluck('name')->toArray();
+
+ y en Models/Module debe estar de esta forma
+  return $this->hasMany(ColumnDatatableModule::class);

@@ -1,0 +1,16 @@
+Estimado {{ customer.name }},<br>
+Bienvenido a {{ company_info.company_name }} customer portal. Muchas gracias por su confianza. <br>
+<br>
+Estamos enviando las credenciales del portal del cliente, donde puede encontrar información importante sobre su cuenta, como facturas, pagos e historial de uso de servicios.
+<br>
+<br>
+Enlace a portal: {{ company_info.splynx_url }} <br>
+Su usuario: {{ customer.login }} <br>
+Su contraseña: {{ customer.password }} <br><br>
+
+Puede cambiar la contraseña en la sección de perfil de su cuenta. <br>
+<br>
+Para cualquier pregunta, no dude en contactar a nuestro equipo de soporte. <br>
+<br>
+Saludos cordiales, <br>
+{{ company_info.company_name }}.<br>

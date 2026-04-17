@@ -1,0 +1,10 @@
+al iniciar ubuntu
+colocar archivo en 
+ /etc/init.d 
+ 
+ dar permisos al archivo
+ chmod +x mi-script.sh
+ 
+ actualizar el rc para que inicie la aplicacion
+ 	
+update-rc.d mi-script.sh defaults 80

@@ -1,0 +1,5 @@
+unique:table,column,except,idColumn
+Example-1
+'email' => 'unique:App\Models\User,email_address'
+Example-2
+'email' => 'email|unique:users,email,' . $this->id,

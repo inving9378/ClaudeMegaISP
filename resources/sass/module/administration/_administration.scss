@@ -1,0 +1,19 @@
+.container-administration {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .container-administration .item-administration {
+    padding: 1.25rem;
+    margin-top: 1.25rem;
+    margin-bottom: 1.25rem;
+    border-left: 1px solid ;
+    border-left-width: 0.25rem;
+    border-radius: 0.25rem;
+  }
+
+  .container-administration .item-administration i {
+    margin-right: 10px;
+  }
+
+

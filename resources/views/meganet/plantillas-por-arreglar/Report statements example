@@ -1,0 +1,232 @@
+{#
+variables:
+    openBalance
+    closingBalance
+    customer
+    customerInfo
+    company  //template values
+    companyLogo
+    invoicesAmount //if type = invoices/payments
+    paymentsAmount //if type = invoices/payments
+    creditAmount //if type = transactions
+    debitAmount //if type = transactions
+    cols
+    rows
+    type //invoices/payments or transactions
+    userLogin
+    userName
+    nowDate
+    fromDate
+    toDate
+#}
+<!doctype html>
+<html lang="en" xmlns="http://www.w3.org/1999/html" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="utf-8">
+    <title>Statements</title>
+    <style>
+        html {
+            padding: 30px 10px;
+            font-size: 10px;
+            line-height: 1.4;
+            color: #737373;
+            background: #f0f0f0;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+
+        html, input {
+            font-family: sans-serif, "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            max-width: 900px;
+            padding: 30px 20px 50px;
+            border: 1px solid #b3b3b3;
+            border-radius: 4px;
+            margin: 0 auto;
+            box-shadow: 0 1px 10px #a7a7a7, inset 0 1px 0 #fff;
+            background: #fcfcfc;
+        }
+
+        h1 {
+            margin: 0 10px;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        h1 span {
+            color: #bbb;
+        }
+
+        h3 {
+            margin: 1.5em 0 0.5em;
+        }
+
+        p {
+            margin: 1em 0;
+        }
+
+        ul {
+            padding: 0 0 0 40px;
+            margin: 1em 0;
+        }
+
+        hr {
+            margin: 2px 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .company-info, .head, .balance {
+            float: right;
+            width: 50%;
+        }
+
+        .customer-info {
+            float: left;
+            width: 50%;
+        }
+
+        .company-logo {
+            float: left;
+            width: 40%;
+        }
+
+        .company-logo img {
+            max-width: 100%;
+        }
+
+        .subhead {
+            clear: both;
+            margin-bottom: 20px;
+        }
+
+        table.data-view thead td {
+            background: #eceaea;
+            font-weight: bold;
+        }
+
+        table.data-view tbody td {
+            padding-right: 7px;
+        }
+
+        table.data-view tbody tr:nth-child(even) td {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+<body style="font-family: sans-serif; font-size: 9pt;">
+<div class="container">
+    <p>Generated: {{ nowDate }}</p>
+    <br>
+    <div class="company-logo">
+        {% if companyLogo %}
+            <img src="{{ companyLogo }}" alt="">
+        {% endif %}
+    </div>
+    <div class="company-info">
+        <b>{{ company.company_name }}</b><br>
+        VAT Number : {{ company.company_vat }}<br>
+        {{ company.street_1 }}<br>
+        {{ company.city }}<br>
+        {{ company.country }}<br>
+    </div>
+    <div style="clear: both;"></div>
+    <div class="head">
+        <h1 style="text-align: center;">Statement of Accounts</h1>
+        <hr>
+        <table width="100%">
+            <tr>
+                <td>
+                    from: {{ App.formatDate(fromDate) }}
+                </td>
+                <td>
+                    to: {{ App.formatDate(toDate) }}
+                </td>
+            </tr>
+        </table>
+        <hr>
+        <h5 style="background:#eceaea;padding: 5px; margin-bottom: 5px;">Account Summary</h5>
+    </div>
+    <div class="subhead">
+        <div class="balance">
+            <table width="100%">
+                <tr>
+                    <td>Opening balance:</td>
+                    <td align="right">{{ openBalance }}</td>
+                </tr>
+            </table>
+            <hr>
+            <table width="100%">
+                {% if invoicesAmount or paymentsAmount %}
+                    <tr>
+                        <td>Invoiced Amount:</td>
+                        <td align="right">{{ invoicesAmount }}</td>
+                    </tr>
+                    <tr>
+                        <td>Amount Paid:</td>
+                        <td align="right">{{ paymentsAmount }}</td>
+                    </tr>
+                {% endif %}
+                {% if creditAmount or  debitAmount %}
+                    <tr>
+                        <td>Credit Amount:</td>
+                        <td align="right">{{ creditAmount }}</td>
+                    </tr>
+                    <tr>
+                        <td>Debit Amount:</td>
+                        <td align="right">{{ debitAmount }}</td>
+                    </tr>
+                {% endif %}
+            </table>
+            <hr>
+            <table width="100%">
+                <tr>
+                    <td>Closing balance:</td>
+                    <td align="right">{{ closingBalance }}</td>
+                </tr>
+            </table>
+        </div>
+        <div class="customer-info">
+            {% if customer.category == 'company' %}
+                <b>Company Name:</b> {{ customer.name }}<br>
+                <b>Company Id:</b> {{ customerInfo.company_id }}<br>
+            {% else %}
+                <b>Full Name:</b> {{ customer.name }}<br>
+            {% endif %}
+            <b>Address:</b> {{ customer.city }} {{ customer.street_1 }} {{ customer.street_2 }}
+
+        </div>
+        <div style="clear: both;"></div>
+    </div>
+
+    <br>
+    <h3 style="text-align: center;clear: both; margin: 5px;">{{ type }}</h3>
+
+
+    <table width="100%" cellspacing="1" cellpadding="5" border="0" class="data-view">
+        <thead>
+        <tr>
+            {% for th in cols %}
+                <td>{{ th }}</td>
+            {% endfor %}
+        </tr>
+        </thead>
+        <tbody>
+        {% for tr in rows %}
+            <tr>
+                {% for i, v in cols %}
+                    <td>{{ tr[i] }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <hr>
+</div>
+</body>
+</html>

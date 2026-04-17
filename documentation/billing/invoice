@@ -1,0 +1,14 @@
+Despliegue y cobro del cliente
+- Al desplegar el servicio se debe crear una factura con todos los servicios pertenecientes al cliente, estado sin pagar
+- Si tiene balance – rectificamos el balance dependiendo del precio del servicio
+- Adiciona una transaccion por el valor de los servicios desplegados
+- Actualualizamos todos los servicios si son paquetes dia de que inicia y termina
+- Actualizamos la factura perteneciente el estaod pagado
+- Si fue en tiempo crea un servicio de pago en tiempo
+
+
+
+En que momento se genera la factura
+    Recurrente
+hola
+    ->

@@ -1,0 +1,31 @@
+
+.badge-invoice-Borrador,
+.badge-invoice-Emitida,
+.badge-invoice-Vencida {
+    background-color: #ec1717;
+    padding: 0 15px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-radius: 5px;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.badge-invoice-Pagada {
+    background-color: #29cc97;
+    padding: 0 15px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-radius: 5px;
+    color: #ffffff;
+}
+
+.badge-invoice-Parcialmente_Pagada {
+    background-color: #fd7e14;
+    padding: 0 15px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-radius: 5px;
+    color: #ffffff;
+    cursor: pointer;
+}

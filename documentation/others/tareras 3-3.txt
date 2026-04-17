@@ -1,0 +1,52 @@
+ok-En el generar de los Ip, Agregar los demas datos de los Ip desde el network
+ok-Revisar no se crean los pool en mikrotik - eso es dependiendo del la localizcion
+- Al eliminar un cliente o  se debe eliminar una entrada en entrada en mikrotik_client_ppoes
+- Al eliminar un el servicio se debe eliminar una entrada en entrada en
+  - mikrotik_tariff_target_tails
+  - mikrotik_tariff_main_tails
+
+Auditoria
+- hacer script recolector de basura lo que no este en el sistetma por cliente y servicio eliminarlo de los equipos
+
+
+al eliminar un cliente solo ponerlo en estado "delete" y se eliminan los servicios de ese cliente
+   - Eliminar solo el servicio
+
+
+ok-Arreglar el asigname Ip de clientbundle
+ok-Arrerglar el datatable de cliente
+
+arreglar cuando se crea un cliente y se crea un nuevo servicio de internet cammbiar el ip ppeoe del cliente
+arreglar que se cambien los ip de los queue al cambiar el ip del cliente.
+y actualizar en bd tails
+
+hacer commando para revisa los que estan en access list si no esta en bd quitarlos
+
+ok Al borrar el cliente no limpio en networkip el cliente_id
+
+ok-. al cambiar de ip del servicio, lo que hizo fue crearme un nuevo queue, debo cambiarlo y rectificar el json del padre
+
+ok Error eliminando cliente del mikrotik
+
+-ok- Modiifcarr rerglas del mikrotik desde actionMikrotik ver archivo en esta carpeta
+ hacer un crear desde updadte mikrortik mandando le modelo - revisar si desde ahi se modifican los demas modelos,
+si es asi se enviar modiifcacioon de mikrortikconfig
+
+
+- ok Eliminar las reglas por el boton estat dando problemas
+
+-ok Fecha de corte agrerarlo a ticket y a la afcturacion
+
+Al eliminar servicio del cliente . se debe poner el cliente en "Inactivo" al quedar sin servicio -- preugntarle a irvin
+ok -NO se esta eliminando clienteppoe al eliminar servicio -bundle lo hace ok. revisar en interets
+
+Crear recuadro en vista de facturacion, Arreglar la cuenta Costo día(s) faltantes de servicio
+
+ok-Pagos.. listadod de pagos no filtra
+
+ok-Invoice controller pdf crear html de la factura
+
+actualizar despues del pago la fecha de expiracion
+
+
+

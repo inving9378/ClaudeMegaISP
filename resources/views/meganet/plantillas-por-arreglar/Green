@@ -1,0 +1,112 @@
+<html>
+<head>
+    <style type="text/css">
+        div.cards {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            color: #ffffff;
+            padding: 10px 10px;
+            margin-bottom: 20px;
+            width: 300px;
+            height: 150px;
+            float: left;
+            margin-left: 10px;
+            box-shadow: 0 1px 3px rgba(000, 000, 000, 0.5),
+            inset 2px 2px 3px rgba(109, 129, 158, 0.3);
+        }
+
+        .green {
+            background: -moz-linear-gradient(
+                    top,
+                    #5ed90d 0%,
+                    #5ed90d);
+            background: -webkit-gradient(
+                    linear, left top, left bottom,
+                    from(#5ed90d),
+                    to(#5ed90d));
+            -moz-border-radius: 10px;
+            -webkit-border-radius: 10px;
+            border-radius: 10px;
+            border: 0px solid #006600;
+            -moz-box-shadow: 0px 1px 3px rgba(000, 000, 000, 0),
+            inset 0px 0px 1px rgba(255, 255, 255, 0);
+            -webkit-box-shadow: 0px 1px 3px rgba(000, 000, 000, 0),
+            inset 0px 0px 1px rgba(255, 255, 255, 0);
+            text-shadow: 0px -1px 0px rgba(000, 000, 000, 0),
+            0px 1px 0px rgba(255, 255, 255, 0);
+        }
+
+        .card_id {
+            width: 180px;
+            float: left;
+        }
+
+        .cards_price {
+            width: 100px;
+            float: left;
+            text-align: right;
+        }
+
+        .cards_user {
+            width: 100%;
+            padding-top: 20px;
+            font-size: 16px;
+        }
+
+        .cards_serie {
+            font-size: 10px;
+        }
+
+        .cards_serie span {
+            padding-left: 10px;
+        }
+
+        .align_center {
+            text-align: center
+        }
+    </style>
+
+    <title></title>
+</head>
+<body>
+
+{% for card in cards %}
+    <div class="cards green">
+        <div class="card_id">
+            {{ App.t('common', 'ID') }}: {{ card.id }}
+        </div>
+        <div class="cards_price">
+            {{ App.t('common', 'Price') }}: {{ card.price }}
+        </div>
+
+        <div class="cards_user">
+            {% if card.type == 'prepaid' %}
+                {{ App.t('common', 'Login') }}: {{ card.full_login }} <br/>
+                {{ App.t('common', 'Password') }}: {{ card.password }}
+            {% else %}
+                {{ App.t('common', 'Code') }}: {{ card.full_code }}
+            {% endif %}
+        </div>
+
+        <p class="align_center">
+            {% if card.expired_by is defined %}
+                {% if card.expired_by == 'valid_date' %}
+                    {{ App.t('common', 'Valid till') }} {{ card.valid_till }}
+                {% else %}
+                    {{ App.t('common', 'Valid {amount} minutes after activation', {
+                    'amount': card.time_expired
+                    }) }}
+                {% endif %}
+            {% else %}
+                {{ App.t('common', 'Valid till') }} {{ card.valid_till }}
+            {% endif %}
+        </p>
+
+        <div class="cards_serie">
+            <span>{{ App.t('common', 'Serie') }}: {{ card.serie }}</span>
+        </div>
+    </div>
+{% endfor %}
+
+</body>
+</html>

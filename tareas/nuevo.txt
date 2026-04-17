@@ -1,0 +1,82 @@
+-ok-Modulo Router requerir que sea por defecto de tipo Mikrotik
+-ok-Modulo Mikrotik Seleccionar por defecto shaping  y tipo de shaping
+-ok-Quitar  lo referente a Reglas de Bloqueo.
+-ok-Arreglar el componente generar usuarios, crear los usuario en la parte del servidor mirar referencia (ClientMainInformation)
+
+-ok- El primer cliente no se esta creando en Ppoe
+-ok- Agrgar placeholder en el agregar Ipv4
+-ok- Agregar tipo de uso en el agragar Ipv4 requerido
+
+-ok-Pool
+-ok- En la tabla Network no filtra el buscar
+-ok- En la tabla NetworkIp no filtra el buscar
+-ok- Actualizar en networkip db a quien pertenece la IP
+-ok- Error en el Eliminar Documentos http://localhost:8000/crm/editar/1
+-ok- Error en el add Crm
+-ok- No hay validacion para ip/host en router
+-ok- Arreglar el Require en assignmet ipv4 de ClientInternetServica - No es necesario Ipv4 dado que es un select
+-okk- Arreglar las datatables dependen de relación
+ -ok- Network con Networkip
+ -ok- CRM con documentcrm
+
+- Movilidad de Clientes de la Address-List
+-ok- Agregar pool en Mikrotik
+
+
+Preguntas para el cliente :
+1. Que poner en Shaping y tipo de Shaping en español
+
+
+
+Pagos
+comentario no es requerido
+file no es requerido
+
+-ok-crear poll de ip en el mikrotik
+
+-ok-Crear una tarjeta de la leyenda, para yo seguir creando las demas
+-Crear el componente select2, que filtre paulatinamente se va escribiendo en el, revisar
+  http://178.128.78.62/admin/tickets/create  -campo-  [ Customer / Lead ]
+
+- Determinar en la asignación de IP la categoria host dispuesta en la leyenda y agregarlo a la BD
+-ok- Docuementar el uso del With, First, GET, WhereHas
+- Revisar Plan, Router. Clientes
+-ok- Arreglar funcion DiferenceForHuman (Horas transurridas en Ticket)
+-ok- Error eliminando Plan de Internet
+- Al Eliminar el servicio PLan Internet se debe Eliminar la cola Padre y los Hijos de essa cola
+-ok- Arreglar etiqueta Telefono 2
+- ClientInformation Revisar el componente estado(status) desaparece  [style="display: none;"]
+
+-ok- Crear separador en ipCard cuando los ip sobrepasen el tamaño de una red y poner en intermedio la Ip Network inicial.
+-ok- Arreglar css del componente ticket, ordenar que salga el nombe a la izquierda y editar a la derecha. además de un separador con el texto.
+- Crear un componente formdefault que se ajuste al componente ticketDetails, que tenga la etiqueta arriba a la izquierda y debajo el tipo de componente.
+-ok- Arreglar modulo de socios que no salen los permisos
+-ok- Arreglar ccs en TicketModalEdit
+-ok- Arreglar ccs en TicketNewThread
+-ok-Pasar para comando el codigo que se encuentra en ScriptController
+-ok- El cambo Periodo en Billing_Configuration
+-ok- arreglar campos en transaccion date_from date_to
+-ok- agregar una nueva tabla para para manipular el cliente en el periodo de gracia
+-ok- agregar tabla serviceInAddresList - polimorfica de uno a muchos para agregar los usarios que enviamos a addresslist
+- si el servicio es recurrente y no se ha desplegado por primera vez y no tiene saldo Arreglar
+
+Yasma.
+- Arreglar Css en Dashboard
+- Visor de imagen al adjuntar una en los tikets, para evitar descargar cada vez quee se revise un tiket
+- Crear relacion para los componentes Estado-Municipio-Colonia
+
+
+-0k-si agregas un pago en automatico se genera una transaccion, al eliminar el pago manual y eliminar la transaccion manual, el servicio sigue activo, ahi deberia bloquearse, o cada cuanto tiempo se realiza la actualizacion de esos datos? en splynx es mas o menos 1 minuto
+-ok- Arreglar la cuenta de consto hasta diario
+
+- hacer facturarcion
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,12 @@
+Hi {{ admin.name }},
+<br>
+A quote has been rejected on {{ App.formatDate(date_of_decision) }} by {{ lead.name }}.
+<br>
+You can view the customer/lead <a title="View Lead" target="_blank" href="{{ lead_quotes_link }}">here</a>
+<br>
+Or view their quote PDF <a title="View PDF" target="_blank" href="{{ pdf_link }}">here</a>
+<br>
+Please pay attention to the customer/lead note:
+{{ note | nl2br }}
+<br>
+Please reach out to the customer/lead to discuss the quote.

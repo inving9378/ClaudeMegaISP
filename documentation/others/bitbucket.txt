@@ -1,0 +1,4 @@
+https://bitbucket.org/account/settings/app-passwords/
+gVK6CUZ4HnC9f86rwm8D
+
+git remote add origin https://vladismer:gVK6CUZ4HnC9f86rwm8D@bitbucket.org/rodrigoespinojokmah/cbtrading.git

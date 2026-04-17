@@ -1,0 +1,9 @@
+<p>Hola <strong><em>{{customer.name}}</em>,</strong></p>
+<p>El requerimiento de revision de servicio para soporte tecnico esta abierto, 
+nuestros tecnicos acudiran al domicilio para reparacion de fibra rota en un lapso no mayor a 24 hrs  (<a href="{{values.splynx_url}}portal/tickets">#{{ticket.id}}</a>) - <strong>{{ ticket.subject}}</strong>.</p>
+<p>To view or add additional comments, click the button below:</p>
+<h2><a href="{{values.splynx_url}}portal/tickets">View Tickets</a></h2>
+<p>or follow this link: {{values.splynx_url}}portal/tickets</p>
+<hr />
+<p>Regards,<br />
+{{values.company_name}}</p>

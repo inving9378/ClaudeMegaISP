@@ -1,0 +1,42 @@
+Agragando socios a un Modelo
+--------------------------------------------------------------
+1. En el modelo agregar la constante MULTIPLE_RELATIONS
+     const MULTIPLE_RELATIONS = [
+        'nombre del campo en el crud' => 'nombre de la relacion en este modelo',
+    ];
+
+2. Ejemplo de constante de socio
+
+                'partners' => [
+                    'label' => 'Socios',
+                    'placeholder' => 'socios',
+                    'type' => 'select-component-with-checkbox',
+                    'value' => [],
+                    'search' => [
+                        'model' => 'App\Models\Partner',
+                        'id' => 'id',
+                        'text' => 'name'
+                    ],
+                    'position' => 7
+                ],
+
+3. Agregar la relacion con Socio en dicho modelo utilizando el siguiente codigo
+    public function partners(){
+        return $this->morphToMany(
+            Partner::class,
+            'partner_module',
+            'partner_module'
+        )->withTimestamps();
+    }
+
+4. En la migracion eliminar el campo de socio si existe
+
+5. Si lo necesita Mostrar en el Socio agregar la relacion en el modelo
+Ej: Para relacionarlo con el modelo de internet
+    public function internet()
+        {
+            return $this->morphedByMany(Internet::class, 'partner_module', 'partner_module');
+        }
+
+   En la funcion getPartnerInfo del HelperController agregar la relacion
+   En PartnerInformation, en el array elements, agregar la relacionv

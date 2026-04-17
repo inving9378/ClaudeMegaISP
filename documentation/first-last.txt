@@ -1,0 +1,25 @@
+
+Al usar  Eloquent, el ORM predeterminado de Laravel. Digamos que desea obtener la última entrada de una tabla de usuario, por created_at, probablemente podría hacer lo siguiente: 
+-------------------------------------------------
+User::orderBy('created_at', 'desc')->first();
+--------------------------------------------------
+return DB::table('files')->order_by('upload_time', 'desc')->first();
+---------------------------------------------------
+
+Para obtener los detalles del último registro 
+---------------------------------------------------
+    Model::all()->last(); or
+    Model::orderBy('id', 'desc')->first();
+---------------------------------------------------
+
+    Model::all()->last()->id; or
+    Model::orderBy('id', 'desc')->first()->id;
+---------------------------------------------------
+
+Las colecciones de Laravel tienen el método último 
+---------------------------------------------------
+Model::all() -> last(); // last element 
+Model::all() -> last() -> pluck('name'); // extract value from name field. 	
+---------------------------------------------------
+
+

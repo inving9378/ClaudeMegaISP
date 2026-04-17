@@ -1,0 +1,21 @@
+Estimado Splynx administrador,
+<br>
+Esta sección se utiliza para crear plantillas para cualquier propósito que necesite. <br>
+Puede usar plantillas existentes, modificarlas o crear propias: facturas, recibos de pago, mensajes a clientes y trabajadores.
+<br><br>
+
+Puede usar una gran cantidad de variables en las plantillas:
+Por ejemplo, para obtener el nombre del cliente, utilice <b>{{ customer.name }}</b>, <br>
+para mostrar el nombre de usuario del cliente - <b>{{ customer.login }}</b>.<br>
+La contraseña del cliente se puede agregar a través de <b> {{ customer.password }} </b><br>
+El estado del cliente actual se agrega usando la variable <b>{{ customer.status }}</b>.<br>
+El monto del pago se puede agregar con esta variable - <b> {{ payment.amount }} </b>.<br>
+En caso de que necesite el número de factura, utilice - <b>{{ payment.invoice_id }} </b>. <br>
+<br>
+Para que las variables de pago y factura funcionen, debe usarlas en PDF o en la sección de recordatorios y notificaciones del sistema,
+<br>
+<br>
+Para editar la plantilla, mire a la pestaña Marcadores donde puede encontrar la variable necesaria a la plantilla que está modificando.
+<br>
+Para cualquier consulta, contacte con nuestro equipo de soporte.<br><br>
+Saludos cordiales,<b> {{ company_info.company_name }} </b>.

@@ -1,0 +1,44 @@
+.w-fit-content {
+    width: fit-content !important;
+}
+
+.modal-dialog-slide-right {
+    position: fixed;
+    right: 0;
+    margin: 0;
+    height: 100%;
+    width: 540px !important;
+}
+
+.modal-dialog-slide-right .modal-content {
+    height: 100%;
+    border-radius: 0;
+    overflow-y: auto;
+}
+
+.modal-dialog-slide-right .modal-dialog {
+    transform: translateX(100%);
+    transition: transform 0.3s ease-out;
+    height: 100%;
+}
+
+.modal.show .modal-dialog-slide-right .modal-dialog {
+    transform: translateX(0);
+}
+
+.modal-body {
+    overflow-y: auto;
+    max-height: calc(100vh - 150px);
+    padding: 15px;
+}
+
+@media (max-width: 500px) {
+    .modal-dialog-slide-right {
+        width: 100%;
+    }
+
+    .col-6.partial-class-field {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}

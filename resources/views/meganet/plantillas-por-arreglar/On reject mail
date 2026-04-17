@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Subject - {{ lead.name }} has rejected quote {{ quote.number }}</title>
+</head>
+<body>
+<div style="background-color: #F7F8FC; color: #1B2124; border-radius: 4px; border: 1px solid #E9ECEF; padding: 24px; font-size: 14px; font-family: Arial, sans-serif; line-height: 20px; width: 600px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 24px;">
+        {% if company_info.splynx_url and company_info.file_logo %}
+            <img style="max-width: 200px; max-height: 150px;" alt="logo"
+                 src="{{ company_info.splynx_url }}{{ company_info.logo_url }}">
+        {% else %}
+            <p style="color: #1B2124; font-size: 18px; line-height: 24px; font-weight: 600;">{{ company_info.company_name }}</p>
+        {% endif %}
+    </div>
+    <p style="color: #1B2124; margin: 12px 0; line-height: 20px;">
+        Hi {{ admin.name }}
+    </p>
+    <p style="color: #1B2124; margin: 12px 0; line-height: 20px; word-break: break-word;">
+        A quote has been rejected on {{ App.formatDate(date_of_decision) }} by {{ lead.name }}.
+        <br>
+        You can view the customer/lead <a title="View Lead" target="_blank" href="{{ lead_quotes_link }}">here</a>
+        <br>
+        Or view their quote PDF <a title="View PDF" target="_blank" href="{{ pdf_link }}">here</a>
+        <br>
+        Please pay attention to the customer/lead note:
+        {{ note | nl2br }}
+        <br>
+        Please reach out to the customer/lead to discuss the quote.
+    </p>
+</div>
+</body>
+</html>

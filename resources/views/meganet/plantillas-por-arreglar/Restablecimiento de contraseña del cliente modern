@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Solicitud de restablecimiento de contraseña de cliente</title>
+</head>
+<body>
+<div style="background-color: #F7F8FC; color: #1B2124; border-radius: 4px; border: 1px solid #E9ECEF; padding: 24px; font-size: 14px; font-family: Arial, sans-serif; line-height: 20px; width: 600px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 24px;">
+        {% if company_info.splynx_url and company_info.file_logo %}
+            <img style="max-width: 200px; max-height: 150px;" alt="logo"
+                 src="{{ company_info.splynx_url }}{{ company_info.logo_url }}">
+        {% else %}
+            <p style="color: #1B2124; font-size: 18px; line-height: 24px; font-weight: 600;">{{ company_info.company_name }}</p>
+        {% endif %}
+    </div>
+    <p style="color: #1B2124; margin: 12px 0; line-height: 20px;">
+        Estimado {{ customer.name }}, ha realizado una solicitud para cambiar la contraseña.
+    </p>
+    <p style="color: #1B2124; margin: 12px 0; line-height: 20px;">
+        Si solicita un restablecimiento de contraseña, siga el enlace:
+        <a href="{{ domain }}/portal/reset-password--set-new-password?code={{ random_code }}"
+           style="text-decoration: none; color: #367BF5;">Cambiar la contraseña</a>
+        <br/>
+        O por favor usa este codigo: <span style="font-weight: 600;">{{ random_code }}</span>
+        <br/>
+        En <a href="{{ domain }}/portal/reset-password--verify-check-code"
+              style="color: #367BF5!important; text-decoration: none;">esta</a> pagina.
+    </p>
+    <p style="color: #1B2124; margin: 0;">
+        En otro caso, por favor, contacte a la administración.
+    </p>
+</div>
+</body>
+</html>

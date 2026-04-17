@@ -1,0 +1,19 @@
+DatatableModule
+-Cambiar id por nombre dedl campo en tabla relacionada.
+-Utilizo LeftJoin
+-Coloco en el select las tablas . nombre de las columnas que quiero
+-Utilizo as para renombrar la columna que quiero cambiar como la que biene para el datatable
+- El leftJoin 
+  - ponemos siempre como primerar instancia la tabla con que quiero conectar, despues el la tabla principal con el id de conexion y por ultimo la tabla destino con el id relacionado
+
+    public function ordering_query($start, $limit, $order, $dir, $idModule)
+    {
+        return $this->model::select('payments.date','method_of_payments.type as payment_method_id','payments.amount', 		'payments.payment_period','payments.comment')
+            ->with('file')
+            ->leftJoin('method_of_payments', 'payments.payment_method_id', '=', 'method_of_payments.id')
+            ->where('paymentable_id', $idModule)
+            ->offset($start)
+            ->limit($limit)
+            ->orderBy($order, $dir)
+            ->get();
+    }

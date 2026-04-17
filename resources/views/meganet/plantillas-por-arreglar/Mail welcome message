@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+</head>
+<body>
+<div>
+    <div style="background-color: #1a3f68; padding: 20px 0px;width: 500px;margin: 0 auto;">
+        <div style="color: #fff;font-size: 21px;font-family: Arial, sans-serif;line-height: 18px;width: 500px;margin: 0 auto;padding: 0 40px;">
+            Hello!
+        </div>
+    </div>
+
+    <div style="width: 500px;margin: 0 auto;">
+        <div style="background-color: #c9e8e0;padding: 30px 50px;font-family: Arial, sans-serif;line-height: 40px;">
+            Hello {{ customer.name }}, thank you for registration.
+            <br>
+            Now you can log into your account!
+        </div>
+    </div>
+</div>
+</body>
+</html>

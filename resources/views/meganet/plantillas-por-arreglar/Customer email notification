@@ -1,0 +1,75 @@
+<div style="margin-bottom:8px;">Dear {{ customer.name }},</div>
+
+<div style="margin-bottom:8px;">
+    <div>A new order was placed on {{ App.formatDatetime(order.datetime) }}</div>
+    <div>Order details:</div>
+</div>
+
+<table style="width:100%;border:1px solid #E9ECEF;">
+    <thead>
+    <tr style="border-bottom:1px solid #E9ECEF;background-color:#F7F8FC;">
+        <th style="padding:7px 16px;">Service</th>
+        <th style="padding:7px 16px;">Type</th>
+        <th style="padding:7px 16px;">Price</th>
+        {% if with_charge %}
+            <th style="padding:7px 16px;">Service Period</th>
+        {% endif %}
+    </tr>
+    </thead>
+    <tbody>
+    {% for type,list in services %}
+        {% set countRows = 0 %}
+        {% for service in list %}
+            {% set countRows = countRows + 1 %}
+            {% if countRows is odd %}
+                <tr style="border-bottom:1px solid #E9ECEF;background-color:#ffffff;">
+                    <td style="padding:7px 16px;">{{ service.description }}</td>
+                    <td style="padding:7px 16px;">{{ type }}</td>
+                    <td style="padding:7px 16px;">{{ App.financeFormat(service.unit_price, true) }}</td>
+                    {% if with_charge %}
+                        <td style="padding:7px 16px;">{{ App.formatDate(service.start_date) }} - {{ App.formatDate(service.charged_up) }}</td>
+                    {% endif %}
+                </tr>
+            {% else %}
+                <tr style="border-bottom:1px solid #E9ECEF;background-color:#F7F8FC;">
+                    <td style="padding:7px 16px;">{{ service.description }}</td>
+                    <td style="padding:7px 16px;">{{ type }}</td>
+                    <td style="padding:7px 16px;">{{ App.financeFormat(service.total_price, true) }}</td>
+                    {% if with_charge %}
+                        <td style="padding:7px 16px;">{{ App.formatDate(service.start_date) }} - {{ App.formatDate(service.charged_up) }}</td>
+                    {% endif %}
+                </tr>
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+    </tbody>
+</table>
+
+<div style="margin-bottom:8px;">
+    <div>Total order amount:</div>
+    <div>{{ App.financeFormat(order.total, true) }}</div>
+</div>
+
+{% if with_pay %}
+    {% if payment_status and payment %}
+        <div style="margin-bottom:8px;">
+            Payment of {{ App.financeFormat(payment.amount, true) }} was successfully received via {{ order.pay_by_module }} and we will start processing your order.
+            <br />
+            Please find your receipt #{{ payment.receipt_number }} attached
+        </div>
+    {% else %}
+        <div style="margin-bottom:8px;">
+            Unfortunately the payment was not received.
+            Please contact us should you want to arrange for payment
+        </div>
+    {% endif %}
+{% else %}
+    <div style="margin-bottom:8px;">
+        We will contact you regarding further payment actions
+    </div>
+{% endif %}
+
+<div>
+    Kind regards,<br>
+    {{ company_info.company_name }}.
+</div>

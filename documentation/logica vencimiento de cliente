@@ -1,0 +1,24 @@
+Vencimiento de clientes custom y recurrente
+-custom
+----
+neceisto
+el servicio
+Fecha de inicio del servicio
+el cliente
+tipo de pago 
+recorro todos los servicios asignados a clientes 
+-obtengo del cliente asociado  al cada servicio y el tipo depago 
+-dependiendo del tipo de pago se aplica una logica diferente de Vencimiento 
+-si vencimiento es custom a fecha inicial sumar un mes y restar un dia
+-si vencimiento es recurrente 
+  - verificar el dia de facturacion 
+  - sumar un mes y tres dias a la fecha de inicio
+en caso del vencieminto sea positivo paso el cliente del mikrotik al access list
+- Cambiar el estado del cliente
+
+---------------------------------------------------------------
+Recorremos el modelo ClientInternet Service
+ - donde el estado del servicio este activado
+ - donde el servicio este desplegado
+ - donde el start_date (Fecha actual menos un mes) 
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            

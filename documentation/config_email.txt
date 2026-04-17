@@ -1,0 +1,8 @@
+MAIL_FROM_ADDRESS=yasmabc@gmail.com
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=yasmabc@gmail.com
+MAIL_PASSWORD=mdkcsdxqdwqvxkal
+MAIL_ENCRYPTION=tls
+MAIL_FROM_NAME="${APP_NAME}"

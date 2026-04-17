@@ -1,0 +1,120 @@
+
+ </ol>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</p>
+
+
+<table class="editorDemoTable">
+<thead>
+<tr>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>{{ company_info.company_name }}{{ company_info.logo }}</td>
+</tr>
+<tr>
+<td>Atencion a clientes               55-42-10-62-77</td>
+</tr>
+<tr>
+<td>OXXO Dep a Tarjeta {{ company_info.bank_account }}</td>
+</tr>
+<tr>
+<td>Banco:{{ company_info.bank_name }}</td>
+</tr>
+<tr>
+<td>Whatsapp SOLO PAGOS ___55-25-71-67-18</td>
+</tr>
+<tr>
+<td>Av. Hda La Purisima Mz 3 Lt 54 Casa A</td>
+</tr>
+<tr>
+<td>Ex Hda Santa Ines Nextlalpan Edo Mex</td>
+</tr>
+<tr>
+<td>Numero de Cuenta:{{ customer.id }}</td>
+</tr>
+<tr>
+<td>Tiket:{{ receipt_number }} Fecha:{{ date }}</td>
+</tr>
+<tr>
+<td>Nombre:</td>
+</tr>
+<tr>
+<td>{{ customer.name }}</td>
+</tr>
+<tr>
+<td>Abono:___________________________{{ amount }}</td>
+</tr>
+<tr>
+<td>
+     {% set active_services = loader.getServicesByTypeAndStatus('internet', 'active') %}
+     {% for active in active_services %}
+     Servicio: {{ active.type }}
+<tr>
+<td>Internet:_____ {{ active.description }}</td>
+</tr>
+<tr>
+     
+
+     Costo Mensual: {{ active.unit_price }}
+
+     Fecha de inicio del Servicio: {{ active.start_date }}
+
+     {% endfor %}
+     {% set active_voice = loader.getServicesByTypeAndStatus('voice', 'active') %}
+     {% for voice in active_voice %}
+     {% if voice is not empty %}
+     Service: {{ voice.type }}
+
+     Tarriff: {{ voice.description }}
+
+     Monthly price: {{ voice.unit_price }}
+
+     Service start date: {{ voice.start_date }}
+
+     {% endif %}
+     {% endfor %}
+     Contract Term: {{ loader.customer.additionalAttributes.contract_term }}</td>
+</tr>
+<tr>
+<td>Valido:{{ comment }}</td>
+</tr>
+<tr>
+<td>Fecha de Corte:_________{{ customer.real_create_datetime }}</td>
+</tr>
+<tr>
+  <tr>
+<td>Gracias por SU VISITA</td>
+</tr>
+  <tr>
+<td>¡¡Que tenga un EXELENTE DIA!!</td>
+</tr>
+
+
+
+</tbody>
+
+
+
+</table>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Esto es un Tiket de Pago</title>
+<style type="text/css">
+body,td,th {
+	font-size: 11px;
+	color: #000;
+	font-family: "Times New Roman", Times, serif;
+}
+body {
+	margin-left: 1px;
+	margin-top: 2px;
+	margin-right: 1px;
+	margin-bottom: 2px;
+}
+
+</style>
+</head>
+

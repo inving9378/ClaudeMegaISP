@@ -1,0 +1,123 @@
+@use "bootstrap_multiselect";
+@use "sidebar";
+@use "cursor";
+@use "custom_input_file";
+@use "custom_table_datatable";
+
+@use "network/ip/ip_card";
+@use "network/ip/table";
+
+// Base
+@use "base/card/networking/_card_networking_leyend.css";
+@use "base/card/text/_card_text.css";
+@use "base/card/stats/_card_stats.css";
+@use "base/choice/choice";
+@use "base/drif_image/drif_image";
+@use "./base/dark_mode/dark_mode.scss";
+
+// Module
+@use "module/ticket/ticket";
+@use "module/command_config/command_config";
+@use "module/administration/administration";
+@use "module/administration/documentation/markdown";
+@use "module/sellers/sellers";
+@use "module/scheduling/task";
+@use "module/finance/invoice/status";
+@use "./task_table_grid";
+@use "./mutation_drop";
+@use "module/releases/timeline";
+
+// Image
+@use "image";
+
+// Loading
+@use "loading";
+
+@use "modals";
+@use "customs";
+
+@import url("base/quasar/_quasar.scss");
+
+.task-status-done {
+    background-color: rgb(144, 238, 144);
+}
+
+.task-status-progress {
+    background-color: rgb(255, 223, 186);
+}
+
+.task-status-todo {
+    background-color: rgb(173, 216, 230);
+}
+
+.task-status-future {
+    background-color: rgb(255, 0, 0);
+}
+
+[data-layout-mode=dark] .task-status-done,
+[data-layout-mode=dark] .task-status-progress,
+[data-layout-mode=dark] .task-status-todo,
+[data-layout-mode=dark] .task-status-future,
+[data-layout-mode=dark] .badge-Interno,
+[data-layout-mode=dark] .badge-Externo,
+[data-layout-mode=dark] .badge-Distribuidor,
+[data-layout-mode=dark] .badge-Activo,
+[data-layout-mode=dark] .badge-Inactivo,
+[data-layout-mode=dark] .badge-Bloqueado,
+[data-layout-mode=dark] .client-block,
+[data-layout-mode=dark] .client-active,
+[data-layout-mode=dark] .client-inactive,
+[data-layout-mode=dark] .client-new,
+[data-layout-mode=dark] .client-cancel,
+[data-layout-mode=dark] tr.Activo a,
+[data-layout-mode=dark] tr.Bloqueado a,
+[data-layout-mode=dark] tr.Inactivo a,
+[data-layout-mode=dark] tr.Nuevo a,
+[data-layout-mode=dark] tr.Cancelado a,
+[data-layout-mode=dark] tr.Activo,
+[data-layout-mode=dark] tr.Bloqueado,
+[data-layout-mode=dark] tr.Inactivo,
+[data-layout-mode=dark] tr.Nuevo,
+[data-layout-mode=dark] tr.Cancelado,
+[data-layout-mode=dark] span.start-time {
+    color: #000 !important;
+}
+
+tr.Activo,
+tr.client-active,
+td.client-active,
+div.client-active {
+    background-color: #ccffcc;
+}
+
+tr.Bloqueado,
+tr.client-block,
+td.client-block,
+div.client-block {
+    background-color: #ffcccc;
+}
+
+tr.Inactivo,
+tr.client-inactive,
+td.client-inactive,
+div.client-inactive {
+    background-color: #ffffcc;
+}
+
+tr.Nuevo,
+tr.client-new,
+td.client-new,
+div.client-new {
+    background-color: #ccccff;
+}
+
+tr.Cancelado,
+tr.client-cancel,
+td.client-cancel,
+div.client-cancel {
+    background-color: #cccccf;
+}
+
+.swal-error-container {
+    color: red !important;
+}

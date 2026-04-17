@@ -1,0 +1,65 @@
+<style type="text/css">
+.negritas {
+	font-weight: bold;
+}
+.negritas {
+	font-weight: bold;
+	color: #F00;
+}
+.Azul {
+	font-weight: bold;
+	color: #00F;
+}
+</style>
+
+
+<p><img src="file:///C|/Users/invin/Desktop/logo png vladis.png" width="230" height="79" alt="Meganet"></p>
+<p>&nbsp;</p>
+<p class="Azul">Hola!
+  {{ customer.name }}  </p>
+<p>&nbsp;</p>
+<p>Hemos detectado que tu servicio esta proximo a vencer 
+  te invitamos a realizar tu pago para seguir disfrutando de la conexion 
+  y el contenido de internet que mas te agrada.</p>
+<p> <br>
+  
+  {{ customer.name }} recuerda que puedes realizar tu pago de diferentes formas:</p>
+<p> <br>
+  <span class="negritas">1.- Directo en sucursal:</span></p>
+<p>Av. Hda La Purisima Mz 3 Lt 54 Casa A Ex Hda Santa Ines Nextlalpan Edo. Mex
+  la aplicacion del pago y la reactivacion del servicio seran inmediatos </p>
+<p><br>
+  <span class="negritas">2.- Pago en OXXO</span><br>
+  Acercate al oxxo mas cercano y realiza deposito a la tarjeta 5579 0890 0023 7860
+  ESCREIBE CON PLUMA EL NOMBRE DEL SUSCRIPTOR BAJO EL MONTO DE PAGO, toma foto o escanea el tiket y envialo por whatsapp al 55-25-71-67-18, 
+  te llegara un mensaje inmediato, y deberas esperar la confirmacion en el lapso de 2 Hrs a partir que enviaste tu tiket que ha quedado aplicado tu pago.</p>
+<p class="negritas"> <br>
+  3.- Transferencia bancaria</p>
+<p>  Registra la cuenta clave interbancaria en tu portal 014180655063756953 y cuando este autorizada podras realizar tu transferencia, 
+  con el numero de autorizacion, mandanos un Whatsap al 55-25-71-67-18, te llegara un mensaje inmediato, 
+  y deberas esperar la confirmacion en el lapso de 2 Hrs a partir que enviaste tu tiket que ha quedado aplicado tu pago.</p>
+<p><span class="negritas"><br>
+  4.- Pay Pal</span><br>
+  Ingresa al portal de clientes http://usuarios.meganett.com.mx/  con tu usuario (email) y contraseña ( Si no la tienes, da click en Reiniciar Contraseña, coloca tu E-mail
+  da click en Enviar Solicitud, revisa tu email y te habra llegado tu contraseña nueva regresa al portal anterior e ingresa tus datos
+  y desde ahi paga tu factura con tarjeta de credito o debito
+  <br>
+  <br>
+  Recuerda que en Sucursal tambien puedes pagar con tarjeta  </p>
+<p><br>
+  Si ud requiere facturacion del servicio , es importante nos comparta sus datos fiscales y tipo de factura que requerira al correo 
+  facturacion@meganett.com.mx  </p>
+<p><br>
+  Nuestro Horario de Atencion es de Lunes a Sabado de 9:00 am a 9:00 pm  </p>
+<p><br>
+  Como vez Meganet tiene todo preparado para que No Te Quedes Incomunicado y sigas disfrutando de la conexion que mas te agrada  </p>
+<p><br>
+  Login de Cliente - {{ customer.login }}
+  <br>
+  Este correo se envia de forma automatica, no es necesario responder al mismo.</p>
+<p> Sin Mas Por el Momento <br>
+  Meganet te desea un EXELENTE DIA y Recuerda que:
+  <br>
+  ESTE MENSAJE ES AUTOMATICO NO ES NECESARIO RESPONDER
+  <br>
+  "La vida te pone obstaculos pero los limites los pones Tu"</p>

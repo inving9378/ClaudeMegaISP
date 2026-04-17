@@ -1,0 +1,10 @@
+Hi {{ admin.name }},
+<br><br>
+
+This is a low stock notification for {{ product.name }}.<br>
+The stock level has reached the set threshold of {{ threshold_level }}<br>
+{% if supplier %}
+    This product was last purchased through {{ supplier.name }}<br>
+{% endif %}
+<br>
+Please consider ordering additional stock to avoid an out-of-stock scenario.

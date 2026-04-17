@@ -1,0 +1,173 @@
+<?php
+
+namespace App\Http\Traits\Models\Client\ClientInternetService\Scope;
+
+use App\Http\Controllers\Utils\ComunConstantsController;
+use App\Models\ClientInternetService;
+use App\Models\ClientInvoice;
+use Carbon\Carbon;
+
+trait ScopeClientInternetService
+{
+    public function scopeFilters($query, $columns, $search = null)
+    {
+        if (isset($search)) {
+            $query->where(function ($query) use ($search, $columns) {
+                foreach (collect($columns)->filter(function ($value) {
+                    return $value != 'action';
+                })->toArray() as $value) {
+                    $query->orWhere($value, 'like', '%' . $search . '%');
+                }
+            });
+        }
+    }
+
+    public function scopeIsClientTypeOfBilling($query, $typeOfBilling)
+    {
+        $query->whereHas('client.client_main_information', function ($query) use ($typeOfBilling) {
+            $query->where('type_of_billing_id', $typeOfBilling);
+        });
+    }
+
+    public function scopeActivo($query)
+    {
+        $query->where('estado', '=', ComunConstantsController::STATE_ACTIVE);
+    }
+
+    public function scopeCharged($query)
+    {
+        $query->where('charged', '=', ComunConstantsController::IS_NUMERICAL_TRUE);
+    }
+
+    public function scopeDeployed($query)
+    {
+        $query->where('deployed', '=', ComunConstantsController::IS_NUMERICAL_TRUE);
+    }
+
+    public function scopeNoEsteDesplegado($query)
+    {
+        $query->where('deployed', '=', ComunConstantsController::IS_NUMERICAL_FALSE);
+    }
+
+    public function scopeGetClientActiveBillingToday($query)
+    {
+        $query->whereHas('client.billing_configuration', function ($query) {
+            $query->where('billing_activated', '=', ComunConstantsController::IS_NUMERICAL_TRUE)
+                ->where('billing_date', (int)Carbon::now()->format('d'));
+        });
+    }
+
+    public function scopeGetClientDontHaveClientPaymentToday($query)
+    {
+        $query->whereDoesntHave('client_payment_service', function ($query) {
+            $query->whereDate('created_at', Carbon::now()->toDateString());
+        });
+    }
+
+    public function scopeGetClientDontHaveTransactionToday($query)
+    {
+        $query->whereDoesntHave('transactions', function ($query) {
+            $query->whereDate('created_at', Carbon::now()->toDateString());
+        });
+    }
+    public function scopeGetClientDontHaveInvoiceTypeSurchargeDefaulter($query)
+    {
+        $query->whereDoesntHave('client.client_invoices', function ($query) {
+            $query->where('type', ClientInvoice::TYPE_INVOICE_SURCHARGE_DEFAULTER)
+                ->whereDate('created_at', Carbon::now()->toDateString());
+        });
+    }
+
+    public function scopeGetClientDontHaveTransactionAMonthAgo($query)
+    {
+        $query->whereHas('transactions', function ($query) {
+            $query->whereRaw('DATE(created_at) = DATE(DATE_SUB(now(), INTERVAL billing_configurations.period MONTH))');
+        });
+    }
+
+    public function scopeGetServicePaymentAMonthAgo($query)
+    {
+        $query->whereHas('client_payment_service', function ($query) {
+            $query->whereRaw('DATE(created_at) <= DATE(DATE_SUB(now(),INTERVAL 1 MONTH))');
+        });
+    }
+
+    public function scopeGetIsGracePeriodExpired($query)
+    {
+        $query->orWhereHas('client.client_grace_period', function ($query) {
+            $query->whereRaw('DATE(created_at) >= DATE(DATE_SUB(now(), INTERVAL billing_configurations.grace_period Day))');
+        });
+    }
+
+    public function scopeGetIsClientEstado($query, $estado)
+    {
+        $query->whereHas('client.client_main_information', function ($query) use ($estado) {
+            $query->where('estado', '=', $estado);
+        });
+    }
+
+    public function scopePerteneceAClienteConBillingConfiguration($query)
+    {
+        $query->whereHas('client.billing_configuration', function ($query) {
+            $query->where('billing_activated', '=', ComunConstantsController::IS_NUMERICAL_TRUE);
+        });
+    }
+
+    public function scopeTengaMikrotikAsignado($query)
+    {
+        $query->whereHas('router.mikrotik');
+    }
+
+    public function scopeEsteEnElAddressList($query)
+    {
+        $query->whereHas('service_in_address_list');
+    }
+
+    public function scopeNoEsteEnElAddressList($query)
+    {
+        $query->whereDoesntHave('service_in_address_list');
+    }
+
+    public function scopeServicioNoPerteneceAUnPaquete($query)
+    {
+        $query->whereDoesntHave('bundle_service');
+    }
+
+    public function scopeServicioPerteneceAunPaquete($query)
+    {
+        $query->whereHas('bundle_service');
+    }
+
+    public function scopePending($query)
+    {
+        $query->where('estado', '=', ComunConstantsController::STATE_PENDING);
+    }
+
+    public function scopeBlocked($query)
+    {
+        $query->where('estado', '=', ComunConstantsController::STATE_BLOCKED);
+    }
+
+    public function scopeNoEstaCobrado($query)
+    {
+        $query->where('charged', '=', ComunConstantsController::IS_NUMERICAL_FALSE);
+    }
+
+    public function scopeQueEsteEnUnPeriodoDeTiempoValido($query)
+    {
+        $query->where('start_date', '<=', \Carbon\Carbon::now()->format('Y-m-d\TH:i'))
+            ->where(function ($query) {
+                $query->whereNull('finish_date')
+                    ->orWhere('finish_date', '>=', \Carbon\Carbon::now()->format('Y-m-d\TH:i'));
+            });
+    }
+
+
+    public function scopeTiempoDeFacturacionEsHoyOYapaso($query)
+    {
+        $query->whereHas('client', function ($query) {
+            $query->tocaPagarHoyOYaPasoLaFechaDeCorte()
+                ->orWhereNull('fecha_corte');
+        });
+    }
+}

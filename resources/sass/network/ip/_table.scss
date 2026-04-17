@@ -1,0 +1,14 @@
+//usado ultimo ping que responde
+.td_network_ip_used_and_ping_ok{
+    background-color: #ccffcc !important;
+}
+
+//usado 4 ping que no responde
+.td_network_ip_used_and_ping_ko{
+    background-color: #ffcccc !important;
+}
+
+//hace 3 ping que no responde
+.td_network_ip_used_and_ping_nok {
+    background-color: #ffffcc !important;
+}

@@ -1,0 +1,117 @@
+.priority-medium {
+    background-color: yellow;
+}
+
+.priority-low {
+    background-color: blue;
+}
+
+.priority-high {
+    background-color: red;
+}
+
+.status-task-new {
+    background-color: blue;
+}
+
+.status-task-in-progress {
+    background-color: yellow;
+}
+
+.status-task-done {
+    background-color: green;
+}
+
+
+.a-event {
+    background: linear-gradient(115deg, #28a745 25%, #34d058 49%, #34d058 46%, #28a745 73%);
+    color: white;
+}
+
+
+.fc .fc-timegrid-slot {
+    height: 2.5em !important;
+}
+
+
+
+.fc-event {
+    margin: 0px !important;
+    padding: 0px !important;
+}
+
+.event-task-day-week-grid {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+
+
+
+.event_edit_task {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+.priority-indicator {
+    width: 10px;
+    margin-right: 5px;
+    height: -webkit-fill-available;
+}
+
+.task-content {
+    flex: 1;
+    text-align: center;
+    overflow: hidden;
+}
+
+.task-title, .task-time {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.status-user {
+    display: flex;
+    gap: 5px;
+    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    width: 6%;
+    height: -webkit-fill-available;
+    right: 10px;
+    position: relative;
+}
+
+.status-circle, .user-circle {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.user-circle i {
+    font-size: 0;
+}
+
+.img_legend_task{
+    width: -webkit-fill-available;
+}
+
+
+.td_inventory_item_limit_hight{
+    background-color: #ccffcc !important;
+}
+
+.td_inventory_item_limit_middle{
+    background-color: #ffffcc !important;
+}
+
+.td_inventory_item_limit_low{
+    background-color: #ffcccc !important;
+}

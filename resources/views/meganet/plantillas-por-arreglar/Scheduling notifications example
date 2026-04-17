@@ -1,0 +1,33 @@
+{% if notification_type == 'reminder' %}
+    <h4>Example reminder notification for <a href="{{ task.link_to_task }}" target="_blank">{{ task.title }} (#{{ task.id }})</a></h4>
+    <h3>Task Description</h3>
+    <p>{{ task.short_description | raw }}</p>
+    <p><a href="{{ task.link_to_task }}" target="_blank">See more</a></p>
+{% elseif notification_type == 'on_assign' %}
+    You has been assigned to task <a href="{{ task.link_to_task }}" target="_blank">{{ task.title }} (#{{ task.id }})</a>.
+    <h3>Task description</h3>
+    <p>{{ task.short_description | raw }}</p>
+    <p><a href="{{ task.link_to_task }}" target="_blank">See more</a></p>
+{% elseif notification_type == 'digest' %}
+    <h3>Example tasks digest</h3>
+
+    <ul>
+        {% for task in tasks %}
+            <li><a href="{{ task.link_to_task }}" target="_blank">{{ task.title }} (#{{ task.id }})</a></li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <h4>Example notification</h4>
+{% endif %}
+
+{% if notification_type != 'digest' %}
+    {% if task.assigned_to == 'assigned_to_team' %}
+        {# Assigned to team #}
+        Assignee: <b>{{ team.title }}</b>
+    {% else %}
+        {# Assigned to admin #}
+        Assignee: <b>{{ admin.name }}</b>
+    {% endif %}
+{% endif %}
+
+<p>Click <a href="{{ App.createUrl(loader.getDefaultCompanyInfo().splynx_url, '/admin/config/scheduling/notifications')  }}">here</a> for notifications settings.</p>

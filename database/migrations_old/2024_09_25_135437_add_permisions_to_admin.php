@@ -1,0 +1,34 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        $adminRole = Role::where('name', 'super-administrator')->first();
+
+        // Asignar todos los permisos al rol 'admin'
+        if ($adminRole) {
+            $permissions = Permission::all();
+            $adminRole->syncPermissions($permissions);
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('admin', function (Blueprint $table) {
+            //
+        });
+    }
+};

@@ -1,0 +1,12 @@
+Hello {{ recipient.name }},<br>
+<br><br>
+Tasks for today:
+
+<ul>
+    {% for task in tasks %}
+        <li><a href="{{ task.link_to_task }}" target="_blank">#{{ task.id }} {{ task.title }}</a></li>
+    {% endfor %}
+</ul>
+
+Best regards, <br>
+{{ company_info.company_name }} team.

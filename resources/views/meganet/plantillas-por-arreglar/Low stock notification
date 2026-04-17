@@ -1,0 +1,3 @@
+Low stock notification for {{ product.name }}.
+Stock level has reached the set threshold of {{ threshold_level }}
+Please restock.

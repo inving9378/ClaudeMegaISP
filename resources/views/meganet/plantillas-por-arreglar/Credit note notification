@@ -1,0 +1,8 @@
+Dear {{ customer.name }},<br>
+<br>
+Kindly find your credit note #{{ credit_note.number }} attached with the value of: {{ App.formatMoney(credit_note.total, true) }}<br>
+<br>
+In case of any queries please feel free to contact our accounts team.<br>
+<br>
+Kind regards,<br>
+{{ company_info.company_name }} team.

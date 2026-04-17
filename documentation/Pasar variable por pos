@@ -1,0 +1,4 @@
+
+En el controlador obtenermos el request donde viene nuestra variable por pos
+(Request $request)
+$request->NombreDeLaVariable

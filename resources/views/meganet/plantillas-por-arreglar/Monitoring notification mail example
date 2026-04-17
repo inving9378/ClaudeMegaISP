@@ -1,0 +1,15 @@
+{{ App.t('networking', 'Monitoring information') }}<br>
+{% if devices.error|length > 0 %}
+    <b>{{ App.t('networking', 'Devices DOWN:') }}</b><br>
+    {% for device in devices.error %}
+        <a href="{{ values.splynx_url }}/admin/networking/monitoring/view?id={{ device.id }}">{{ device.title }}
+        -{{ device.ip }}</a> {{ device.date }}<br>
+    {% endfor %}
+{% endif %}
+{% if devices.ok|length > 0 %}
+    <b>{{ App.t('networking', 'Devices UP:') }}</b><br>
+    {% for device in devices.ok %}
+        <a href="{{ values.splynx_url }}/admin/networking/monitoring/view?id={{ device.id }}">{{ device.title }}
+        -{{ device.ip }}</a> {{ device.date }}<br>
+    {% endfor %}
+{% endif %}

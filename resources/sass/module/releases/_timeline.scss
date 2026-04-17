@@ -1,0 +1,200 @@
+/* === Timeline Base === */
+.timeline-wrapper {
+    position: relative;
+    margin-top: 4rem;
+}
+.timeline-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-50%);
+    width: 3px;
+    background-color: var(--bs-border-color, #e5e7eb);
+    z-index: 0;
+}
+
+/* === Timeline Items === */
+.timeline-item {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 4rem;
+}
+.timeline-item.flex-row {
+    flex-direction: row;
+}
+.timeline-item.flex-row-reverse {
+    flex-direction: row-reverse;
+}
+
+/* === Dot === */
+.timeline-dot {
+    z-index: 2;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--bs-body-bg);
+    border: 6px solid var(--bs-primary);
+    box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.15);
+    position: relative;
+    transition: all 0.3s ease;
+}
+.timeline-item:hover .timeline-dot {
+    background: var(--bs-primary);
+    box-shadow: 0 0 0 6px rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* === Card === */
+.timeline-card {
+    position: relative;
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color, #e5e7eb);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.05);
+    width: 400px;
+    transition: all 0.35s ease;
+}
+.timeline-card h4 {
+    color: var(--bs-body-color);
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    transition: color 0.3s ease;
+}
+.timeline-card p {
+    color: var(--bs-secondary-color, #6b7280);
+    line-height: 1.5;
+    transition: color 0.3s ease;
+}
+.timeline-card small {
+    color: var(--bs-tertiary-color, #9ca3af);
+    transition: color 0.3s ease;
+}
+
+/* === Hover Effect === */
+.timeline-card:hover {
+    transform: translateY(-5px);
+    background: var(--bs-primary);
+    box-shadow: 0 12px 24px rgba(var(--bs-primary-rgb), 0.35);
+    border-color: var(--bs-primary);
+}
+.timeline-card:hover h4,
+.timeline-card:hover p,
+.timeline-card:hover small {
+    color: #fff !important;
+}
+.timeline-card:hover .btn-outline-primary,
+.timeline-card:hover .btn-outline-secondary {
+    color: var(--bs-primary);
+    background-color: #fff;
+    border-color: #fff;
+}
+.timeline-card:hover .btn-outline-primary:hover,
+.timeline-card:hover .btn-outline-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.85);
+}
+
+/* === Alternating Layout === */
+.timeline-item.flex-row .timeline-card {
+    margin-left: 2rem;
+}
+.timeline-item.flex-row-reverse .timeline-card {
+    margin-right: 2rem;
+}
+.timeline-item.flex-row .timeline-dot {
+    margin-left: calc(50% - 10px);
+}
+.timeline-item.flex-row-reverse .timeline-dot {
+    margin-right: calc(50% - 10px);
+}
+
+/* === Responsive Mobile Layout === */
+@media (max-width: 992px) {
+    .timeline-line {
+        left: 10px;
+        transform: none;
+    }
+    .timeline-item {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        margin-left: 2rem;
+    }
+    .timeline-card {
+        width: 100%;
+        margin: 1rem 0 0 1rem !important;
+    }
+    .timeline-dot {
+        left: 0;
+        margin: 0 !important;
+    }
+}
+
+/* === Animation === */
+.timeline-card {
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeInUp 0.6s ease forwards;
+}
+.timeline-item:nth-child(odd) .timeline-card {
+    animation-delay: 0.1s;
+}
+.timeline-item:nth-child(even) .timeline-card {
+    animation-delay: 0.25s;
+}
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================================
+   🌓 Modo Oscuro (usa atributo del body data-layout-mode="dark")
+   ============================================================ */
+body[data-layout-mode="dark"] .timeline-line {
+    background-color: #2f2f2f;
+}
+body[data-layout-mode="dark"] .timeline-card {
+    background-color: #1c1c1e;
+    border-color: #2a2a2d;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+}
+body[data-layout-mode="dark"] .timeline-card h4 {
+    color: #f3f4f6;
+}
+body[data-layout-mode="dark"] .timeline-card p {
+    color: #d1d5db;
+}
+body[data-layout-mode="dark"] .timeline-card small {
+    color: #9ca3af;
+}
+body[data-layout-mode="dark"] .timeline-dot {
+    background: #1c1c1e;
+    border: 6px solid var(--bs-primary);
+    box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.4);
+}
+
+/* Hover en modo oscuro */
+body[data-layout-mode="dark"] .timeline-card:hover {
+    background: var(--bs-primary);
+    box-shadow: 0 0 20px rgba(var(--bs-primary-rgb), 0.5);
+}
+body[data-layout-mode="dark"] .timeline-card:hover h4,
+body[data-layout-mode="dark"] .timeline-card:hover p,
+body[data-layout-mode="dark"] .timeline-card:hover small {
+    color: #fff !important;
+}
+body[data-layout-mode="dark"] .timeline-card:hover .btn-outline-primary,
+body[data-layout-mode="dark"] .timeline-card:hover .btn-outline-secondary {
+    color: var(--bs-primary);
+    background-color: #fff;
+    border-color: #fff;
+}
+body[data-layout-mode="dark"] .timeline-card:hover .btn-outline-primary:hover,
+body[data-layout-mode="dark"]
+    .timeline-card:hover
+    .btn-outline-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.9);
+}

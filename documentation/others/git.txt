@@ -1,0 +1,37 @@
+git init 
+git remote add origin https://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@github.com/luffmaster/meganet-prod.git
+git pull origin main
+
+
+git config --list
+
+git add remote https://github.com/Yasmanis/MEGANET.git
+git checkout -b desarrollo
+git checkout -b dev-client-service
+
+
+Git push - u origin desarrollo
+
+
+desde desarrollo
+git reset --hard
+git pull origin desarrollo
+
+
+npm run watch 
+npm run dev
+
+///////////////////////////
+[http]
+	sslBackend = openssl
+	sslCAInfo = C:/Program Files/Git/mingw64/ssl/certs/ca-bundle.crt
+	proxy = http://localhost:8080
+///////////////////////////	
+
+git remote add origin https://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@github.com/luffmaster/meganet-prod.git
+
+
+
+git push -u origin desarrollo
+
+git merge main 

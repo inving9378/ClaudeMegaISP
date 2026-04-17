@@ -1,0 +1,129 @@
+.f-right {
+    float: right !important;
+}
+
+.f-left {
+    float: left !important;
+}
+
+.btn-lightblue {
+    background-color: #4e73df;
+    color: #fff;
+}
+
+.text-lightblue {
+    color: #4e73df;
+}
+
+[data-layout-mode="dark"] .text-lightblue {
+    color: #4e73df;
+}
+
+.btn-lightorange {
+    background-color: #ffa726;
+    color: #fff;
+}
+
+.text-lightorange {
+    color: #ffa726;
+}
+
+[data-layout-mode="dark"] .text-lightorange {
+    color: #ffa726;
+}
+
+.btn-green-custom {
+    background-color: #198754;
+    color: #fff;
+}
+
+.text-green-custom {
+    color: #198754;
+}
+
+[data-layout-mode="dark"] .text-green-custom {
+    color: #198754;
+}
+
+.btn-gray-custom {
+    background-color: #566573;
+    color: #fff;
+}
+
+[data-layout-mode="dark"] .text-gray-custom {
+    color: #566573;
+}
+
+.text-aqua-custom {
+    color: #24C3C3;
+}
+
+.btn-aqua-custom {
+    background-color: #24C3C3;
+    color: #fff;
+}
+
+[data-layout-mode="dark"] .text-aqua-custom {
+    color: #24C3C3;
+}
+
+.q-table__bottom-item button {
+    margin: 50px !important;
+}
+
+.pagination-btn {
+    background-color: transparent;
+    /* Color de fondo */
+    color: #616161;
+    /* Color del icono */
+    border: none;
+    /* Sin borde */
+    border-radius: 50%;
+    /* Botones redondos */
+    width: 40px;
+    /* Ancho del botón */
+    height: 40px;
+    /* Altura del botón */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.pagination-btn:disabled {
+    background-color: #bdc3c7;
+    /* Color de fondo deshabilitado */
+    cursor: not-allowed;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: #bdc3c7;
+    /* Color de fondo al pasar el ratón */
+}
+
+.pagination-btn i {
+    font-size: 18px;
+    /* Tamaño del icono */
+}
+
+.pagination-text {
+    margin: 0 16px;
+    /* Ajusta el margen según sea necesario */
+}
+
+
+.select_component_checkbox {
+    margin-bottom: 400px !important;
+}
+
+
+.highlight-difference {
+    background-color: #ffffcc;
+    /* Color amarillo claro */
+}
+
+
+.choices__list--dropdown {
+    z-index: 9999 !important;
+}

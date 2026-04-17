@@ -1,0 +1,2 @@
+hay que quitar el
+style="display: block" de las tablas

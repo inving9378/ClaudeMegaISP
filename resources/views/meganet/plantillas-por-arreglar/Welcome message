@@ -1,0 +1,16 @@
+Dear {{ customer.name }},<br>
+Welcome to {{ company_info.company_name }} customer portal. Thank you for staying with us! <br>
+<br>
+Below are credentials to the customer portal, where you can find important information about your account, such as invoices, payment and usage history.
+<br>
+<br>
+Link to portal: {{ company_info.splynx_url }} <br>
+Your login: {{ customer.login }} <br>
+Your password: {{ customer.password }} <br><br>
+
+You can change your password in profile section of your account. <br>
+<br>
+For any questions, feel free to contact our support team. <br>
+<br>
+Best regards, <br>
+{{ company_info.company_name }} team.<br>

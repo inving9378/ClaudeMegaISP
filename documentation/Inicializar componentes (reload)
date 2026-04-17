@@ -1,0 +1,28 @@
+Para poder hacer reload a un componente y recargar sus datos
+
+importar
+import {onMounted, reactive, ref, watch} from "vue";
+
+Declaramos en onMounted una funcion con la inicializacion del componente
+-----------------------------------------------
+	onMounted(() => {
+            initComponent(props.id);
+        });
+-------------------------------------------------
+
+ponemos un watch a observar el cambio del props id
+------------------------------------------------
+  watch(
+            () => props.id,
+            (id, idBefore) => {
+                initComponent(id);
+            }
+        );
+------------------------------------------------
+
+creamos la funcion initComponet en este caso recargaremos la petición al modelo.
+---------------------------------------------------
+      const initComponent = async (id) => {
+            if(id) await getfieldsEditedInModal("TicketThread", id);
+        }
+------------------------------------------------------

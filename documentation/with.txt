@@ -1,0 +1,71 @@
+Este ciclo ejecutar� una consulta para recuperar todos los libros dentro de la tabla de la base de datos, luego otra consulta para cada libro con el fin de recuperar el autor del libro. Entonces, si tenemos 25 libros, el c�digo anterior ejecutar�a 26 consultas: una para el libro original y 25 consultas adicionales para recuperar el autor de cada libro.
+
+Afortunadamente, podemos usar la carga ansiosa para reducir esta operaci�n a solo dos consultas. Al crear una consulta, puede especificar qu� relaciones deben cargarse con entusiasmo utilizando el m�todo with:
+
+--------------------------------------------------------------
+$books = Book::with('author')->get();
+
+foreach ($books as $book) {
+    echo $book->author->name;
+}
+----------------------------------------------------------------
+
+A veces, es posible que necesite cargar ansiosamente varias relaciones diferentes. Para hacerlo, simplemente pase una matriz de relaciones al m�todo with:
+
+----------------------------------------------------------------
+$books = Book::with(['author', 'publisher'])->get();
+------------------------------------------------------------------
+
+To eager load a relationship's relationships, you may use "dot" syntax. For example, let's eager load all of the book's authors and all of the author's personal contacts:
+----------------------------------------------------------------------
+$books = Book::with('author.contacts')->get();
+--------------------------------------------------------------------------
+
+En este ejemplo, supongamos que los modelos Event, Photo y Post pueden crear modelos ActivityFeed. Adem�s, supongamos que los modelos de eventos pertenecen a un modelo de calendario, los modelos de fotos est�n asociados con modelos de etiquetas y los modelos de publicaciones pertenecen a un modelo de autor.
+
+Usando estas definiciones y relaciones de modelo, podemos recuperar instancias de modelo ActivityFeed y cargar ansiosamente todos los modelos parentables y sus respectivas relaciones anidadas:
+
+------------------------------------------------------------------------------
+use Illuminate\Database\Eloquent\Relations\MorphTo;
+
+$activities = ActivityFeed::query()
+        ->with(['parentable' => function (MorphTo $morphTo) {
+        $morphTo->morphWith([
+            Event::class => ['calendar'],
+            Photo::class => ['tags'],
+            Post::class => ['author'],
+        ]);
+    }])->get();
+-------------------------------------------------------------------------------
+
+Es posible que no siempre necesite todas las columnas de las relaciones que est� recuperando. Por esta raz�n, Eloquent te permite especificar qu� columnas de la relaci�n te gustar�a recuperar:
+-------------------------------------------------------------------------------
+$books = Book::with('author:id,name,book_id')->get();
+--------------------------------------------------------------------------------
+
+Si desea eliminar un elemento de la propiedad $ with para una sola consulta, puede usar el m�todo without:
+------------------------------------------------------------------------------
+$books = Book::without('author')->get();
+--------------------------------------------------------------------------------
+
+Si desea anular todos los elementos dentro de la propiedad $ with para una sola consulta, puede usar el m�todo withOnly:
+---------------------------------------------------------------------------------
+$books = Book::withOnly('genre')->get();
+----------------------------------------------------------------------------------
+
+A veces, es posible que desee cargar una relaci�n con entusiasmo, pero tambi�n especificar condiciones de consulta adicionales para la consulta de carga ansiosa. Puede lograr esto pasando una matriz de relaciones al m�todo with donde la clave de la matriz es un nombre de relaci�n y el valor de la matriz es un cierre que agrega restricciones adicionales a la consulta de carga ansiosa:
+----------------------------------------------------------------------------------------
+use App\Models\User;
+
+$users = User::with(['posts' => function ($query) {
+    $query->where('title', 'like', '%code%');
+}])->get();
+------------------------------------------------------------------------------------------
+
+En este ejemplo, Eloquent solo cargar� con entusiasmo publicaciones donde la columna de t�tulo de la publicaci�n contenga el c�digo de la palabra. Puede llamar a otros m�todos de creaci�n de consultas para personalizar a�n m�s la operaci�n de carga ansiosa:
+
+--------------------------------------------------------------------------------------------
+$users = User::with(['posts' => function ($query) {
+    $query->orderBy('created_at', 'desc');
+}])->get();
+--------------------------------------------------------------------------------------------

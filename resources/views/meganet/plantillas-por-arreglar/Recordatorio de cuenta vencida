@@ -1,0 +1,17 @@
+Estimado {{ customer.name }},<br>
+<br><br>
+Su cuenta con el numero {{ company_info.company_name }} parece estar vencida.
+El saldo es: {{ balance }} <br>
+Realice un pago de inmediato para evitar un cargo por pago atrasado y la suspensión automática de su conexión.<br>
+<br>Para procesar un pago en línea o mostrar el historial de pagos, inicie sesión en el portal del cliente.<br>
+Link del portal: {{ company_info.splynx_url }} <br>
+ login: {{ customer.login }} <br>
+ password: {{ customer.password }} <br><br>
+
+Si ya realizó el pago, ignore este recordatorio y ¡gracias!
+Apreciamos que utilice nuestros servicios.<br>
+<br><br>
+Atentamente,<br>
+El Equipo de {{ company_info.company_name }} 
+Este correo se envia de forma automatica, no es necesario responder al mismo..
+

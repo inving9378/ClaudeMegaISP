@@ -1,0 +1,19 @@
+Hello {{ recipient.name }},<br>
+<br><br>
+
+{% set taskLink = "'<a href=" ~ task.link_to_task ~" target=\"_blank\">#" ~ task.id ~ " " ~ task.title ~ "</a>'" %}
+
+{% if action == 'add' %}
+    Checklist item '{{ checklist_item.name | raw }}' was added to the task {{ taskLink | raw }}.
+{% elseif action == 'delete' %}
+    Checklist item '{{ checklist_item.name | raw }}' has been deleted from the task {{ taskLink | raw }}.
+{% elseif action == 'check' %}
+    Checklist item '{{ checklist_item.name | raw }}' has been checked in the task {{ taskLink | raw }}.
+{% elseif action == 'uncheck' %}
+    Checklist item '{{ checklist_item.name | raw }}' has been unchecked in the task {{ taskLink | raw }}.
+{% endif %}
+<br>
+To view task description and attachments, or change task state, please follow this link {{ task.link_to_task }}.
+<br><br>
+Best regards, <br>
+{{ company_info.company_name }} team.

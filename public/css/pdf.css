@@ -1,0 +1,110 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@200;400;500&display=swap");
+
+body,
+h1,
+h2,
+h3,
+p,
+ul,
+li {
+    font-family: "Sora", sans-serif;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.container {
+    display: block;
+}
+
+.card-front {
+    width: 300px;
+    height: 500px;
+    background-image: url("../images/gafete-front.png");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    border-radius: 10px;
+    margin-left: auto;
+    margin-right: auto;
+    border: #e5e8e8 1px solid;
+    color: #fff;
+}
+
+.card-back {
+    margin-top: 20px;
+    width: 300px;
+    height: 500px;
+    /* background-image: url("../images/gafete-back.png"); */
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    border-radius: 10px;
+    margin-left: auto;
+    margin-right: auto;
+    border: #e5e8e8 1px solid;
+}
+
+.image-logo {
+    /* background-image: url("../images/logo_meganet.jpg"); */
+    /* background-position: center; */
+    background-repeat: no-repeat;
+    background-size: cover;
+    object-fit: contain;
+    width: 265px;
+    height: 60px;
+    margin-top: 18px;
+    margin-left: 16px;
+    margin-right: 16px;
+}
+
+.container-perfil {
+    display: flex;
+    justify-content: center;
+    text-align: center;
+}
+
+.image-perfil {
+    border-radius: 50%;
+    width: 130px;
+    height: 130px;
+    background-color: #fff;
+    border: 5px solid #004790;
+    margin-top: 20px;
+}
+
+.content-text {
+    text-align: center;
+    margin-top: 0;
+    display: block;
+    margin-left: 16px;
+    margin-right: 16px;
+}
+
+.name-credential {
+    text-transform: uppercase;
+}
+
+.title-user {
+    text-transform: uppercase;
+}
+
+.text-back {
+    text-align: justify;
+    margin-left: 20px;
+    margin-right: 20px;
+}
+
+.signature {
+    padding-top: 100px;
+}
+
+.text-black {
+    color: black;
+}

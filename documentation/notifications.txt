@@ -1,0 +1,83 @@
+Creamos notificaciones
+---------------------------------------------
+php artisan make:notification InvoicePaid
+--------------------------------------------
+Pasamos en el constructor el ticket
+-------------------------------------------
+    public function __construct(Ticket $ticket)
+    {
+      $this->ticket = $ticket;
+    }
+--------------------------------------------
+
+Creamos la la via almacen de los ticket en la base de datos
+---------------------------------------------
+    public function via($notifiable)
+    {
+        return ['database'];
+    }
+----------------------------------------------
+
+Creamos la tabla notifications
+------------------------------------------------
+php artisan notifications:table
+
+php artisan migrate
+-------------------------------------------------
+
+Le pasamos a la base de datos el ticket
+------------------------------------------------
+ public function toDatabase($notifiable)
+    {
+        return [$this->ticket];
+    }
+------------------------------------------------
+ 
+
+
+
+Podemos crear una nueva notificacion, donde  InvoicePaid es el nombre de la clase creada
+---------------------------------------------
+use App\Notifications\InvoicePaid;
+
+$user->notify(new InvoicePaid($invoice));
+---------------------------------------------
+
+Accedemos a las notificaciones 
+----------------------------------------------
+$user = App\Models\User::find(1);
+
+foreach ($user->notifications as $notification) {
+    echo $notification->type;
+}
+----------------------------------------------
+
+accedemos a las notificaciones no leidas
+-----------------------------------------------
+$user = App\Models\User::find(1);
+
+foreach ($user->unreadNotifications as $notification) {
+    echo $notification->type;
+}
+-----------------------------------------------
+
+Marcar las notificaciones como leidas
+------------------------------------------------
+$user = App\Models\User::find(1);
+
+foreach ($user->unreadNotifications as $notification) {
+    $notification->markAsRead();
+}
+-------------------------------------------------
+
+Actualizar las notificaciones
+---------------------------------------------------
+$user = App\Models\User::find(1);
+
+$user->unreadNotifications()->update(['read_at' => now()]);
+---------------------------------------------------
+
+Eliminar notificaciones
+----------------------------------------------------
+$user->notifications()->delete();
+-----------------------------------------------------

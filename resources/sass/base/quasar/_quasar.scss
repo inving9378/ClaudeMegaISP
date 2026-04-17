@@ -1,0 +1,244 @@
+.q-inner-loading {
+    z-index: 999;
+}
+
+.row.q-color-picker__palette-rows {
+    --bs-gutter-x: 0;
+}
+
+.q-notifications {
+    z-index: 9999 !important;
+}
+
+.q-dialog__inner {
+    z-index: 9998 !important;
+}
+
+.q-table__top {
+    --bs-gutter-x: 0px !important;
+}
+
+.row > .q-table-control,
+.row > .q-table__control {
+    width: auto !important;
+}
+
+.q-item__section.draggable {
+    cursor: move;
+}
+
+.map-workspace-container {
+    position: relative;
+    width: 100%;
+    height: 10000px;
+}
+
+.map-workspace-container .q-expansion-item__container .q-item {
+    padding: 1px 8px;
+}
+
+.map-splitter {
+    position: absolute;
+    background-color: #e6e6e6;
+    border-radius: 10px;
+    border: 2px solid #333;
+    cursor: move;
+    user-select: none;
+    z-index: 10;
+}
+
+.map-client {
+    position: absolute;
+    user-select: none;
+    z-index: 10;
+    width: 350px !important;
+    border: 2px solid #333;
+}
+
+.map-splitter-header {
+    background-color: #3b3b3b;
+    color: white;
+    padding: 2px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    font-weight: bold;
+}
+
+.map-splitter-header .q-item__section--avatar,
+.map-device-header .q-item__section--avatar {
+    padding-left: 3px !important;
+}
+
+.map-connections-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 20;
+    height: 10000px;
+}
+
+.map-connection {
+    stroke: #4a708b;
+    stroke-width: 3;
+    fill: none;
+    cursor: pointer;
+    pointer-events: visibleStroke;
+}
+
+.map-connection.green {
+    stroke: rgb(152, 247, 152) !important;
+    cursor: default !important;
+}
+
+.map-connection-destroy:hover {
+    stroke: red;
+    stroke-width: 5;
+}
+
+.map-device {
+    position: absolute;
+    user-select: none;
+    z-index: 10;
+}
+
+.map-connection.animate-right {
+    animation: dash-move-right 1s linear infinite;
+    stroke-dasharray: 15, 5;
+}
+
+.map-connection.animate-left {
+    animation: dash-move-left 1s linear infinite;
+    stroke-dasharray: 15, 5;
+}
+
+.map-port-active {
+    animation: blink-and-pulse 1s infinite;
+    z-index: 10;
+}
+
+.map-port-active::after {
+    content: "";
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    border-radius: 50%;
+    background: rgba(74, 112, 139, 0.2);
+    animation: aura-pulse 2s infinite;
+    z-index: -1;
+}
+
+@keyframes blink-and-pulse {
+    0% {
+        opacity: 1;
+        transform: scale(1.1);
+        box-shadow: 0 0 0 0 rgba(74, 112, 139, 0.7),
+            0 0 10px 5px rgba(74, 112, 139, 0.5);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.15);
+        box-shadow: 0 0 0 10px rgba(74, 112, 139, 0),
+            0 0 20px 10px rgba(74, 112, 139, 0.3);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1.1);
+        box-shadow: 0 0 0 0 rgba(74, 112, 139, 0.7),
+            0 0 10px 5px rgba(74, 112, 139, 0.5);
+    }
+}
+
+@keyframes aura-pulse {
+    0% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(74, 112, 139, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(74, 112, 139, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(74, 112, 139, 0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 1s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Estilos para el handle de redimensionamiento */
+.col-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 2px;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    z-index: 10;
+}
+
+/* Opcional: feedback visual (una línea) al pasar el ratón */
+.col-resize-handle:hover::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #000;
+}
+
+/* Cursor global al arrastrar */
+.resizing-column {
+    cursor: col-resize !important;
+    user-select: none;
+}
+
+.form-field .q-field__after {
+    padding-left: 8px !important;
+}
+
+.object-field .q-radio span.no-outline,
+.object-field .q-checkbox span.no-outline {
+    display: none !important;
+}
+
+.object-field .q-radio__inner,
+.object-field .q-checkbox__inner {
+    width: auto !important;
+}
+
+.q-field__control-container.row .q-field__label{
+    position: absolute !important;
+}
+
+.q-field__control-container.row .q-field__native {
+    padding-left: 0px !important;
+}
+.input-select > .q-field__input, 
+.input-select > .q-field__native {
+    width: auto !important;
+}

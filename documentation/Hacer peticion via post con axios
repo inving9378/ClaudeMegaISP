@@ -1,0 +1,9 @@
+ejemplo:
+
+export const requestFieldsByModule = async (module) => {
+    let data = {}
+    await axios["post"](`/fields-by-module`, {module: module}).then((response) => {
+        data = response.data;
+    });
+    return data;
+}

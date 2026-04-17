@@ -1,0 +1,18 @@
+Del mismo modo, puede definir un método para recuperar el modelo "más antiguo" o el primero relacionado de una relación: 
+-------------------------------------------------------------------------------
+public function oldestOrder()
+{
+    return $this->hasOne(Order::class)->oldestOfMany();
+}
+--------------------------------------------------------------------------------
+
+
+De forma predeterminada, los métodos latestOfMany y ancientOfMany recuperarán el modelo relacionado más reciente o más antiguo según la clave principal del modelo, que debe ser ordenable. Sin embargo, a veces es posible que desee recuperar un solo modelo de una relación más amplia utilizando un criterio de clasificación diferente.
+
+Por ejemplo, utilizando el método ofMany, puede recuperar el pedido más caro del usuario. El método ofMany acepta la columna ordenable como su primer argumento y qué función agregada (mínimo o máximo) aplicar al consultar el modelo relacionado: 
+---------------------------------------------------------------------------------
+public function largestOrder()
+{
+    return $this->hasOne(Order::class)->ofMany('price', 'max');
+}
+---------------------------------------------------------------------------------

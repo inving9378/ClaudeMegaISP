@@ -1,0 +1,466 @@
+{# STYLING#}
+{% set main_color = "#1976d2" %} {# for set red main color change value to #bf360c for green #43a047 for blue #1976d2 #}
+{% set header_text_color = '#FFFFFF' %}
+{% set show_related_items = true %}
+<html>
+<head>
+    <style type="text/css">
+        @page {
+            sheet-size: 209mm 279.5mm;
+            margin: 80px 0 0 0;
+            margin-header: 0mm;
+            footer: footer;
+            header: secondpageheader;
+            margin-bottom: 80px;
+            margin-footer: 0mm;
+            border: 0;
+        }
+
+        @page :first {
+            header: firstpage;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        .page_holder {
+            background: #fff;
+            font-family: 'Helvetica', sans-serif;
+            margin: 0 auto;
+            padding: 0;
+        }
+
+        .header {
+            margin: 0;
+            padding: 10px 20px;
+            background: {{ main_color }};
+            width: 100%;
+            border: 0;
+            text-align: center;
+        }
+
+        .header table {
+            border-collapse: collapse;
+            border: 0;
+            width: 100%;
+        }
+
+        .header table td {
+            vertical-align: middle;
+        }
+
+        .header table td.logo {
+            text-align: left;
+            width: auto;
+        }
+
+        .header table td.header_name {
+            text-align: left;
+            line-height: 28px;
+            font-size: 20px;
+            font-weight: normal;
+            color: #ffffff;
+            text-transform: uppercase;
+            font-family: 'Helvetica', sans-serif;
+            padding-left: 20px;
+        }
+
+        .header2 {
+            margin: 0;
+            padding: 14px 20px;
+            background: {{ main_color }};
+            width: 100%;
+            border: 0;
+            text-align: center;
+        }
+
+        .header2 .header_name2 {
+            float: left;
+            line-height: 20px;
+            font-size: 20px;
+            font-weight: normal;
+            width: 100%;
+            color: #ffffff;
+            text-transform: uppercase;
+            padding-top: 8px;
+            font-family: 'Helvetica', sans-serif;
+            text-align: left;
+        }
+
+        .clear {
+            clear: both;
+            width: 100%;
+        }
+
+        .first_line table {
+            width: 100%;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .line_heading {
+            font-family: 'Helvetica', sans-serif;
+            font-size: 40px;
+            font-weight: bold;
+            color: #000;
+            text-align: left;
+            line-height: 24px;
+            padding: 0;
+        }
+
+        .second_line {
+            padding-top: 20px;
+        }
+
+        .second_line table {
+            vertical-align: top;
+            width: 100%;
+        }
+
+        .second_line table td.left_part {
+            width: 55%;
+        }
+
+        .second_line table td.right_part {
+            width: 40%;
+        }
+
+        .second_line table td {
+            font-size: 12px;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .second_line table td.left_part .heading,
+        .second_line table td.right_part .heading {
+            font-size: 12px;
+            font-weight: bold;
+            color: #000000;
+            padding-bottom: 7px;
+            padding-left: 0;
+            padding-right: 0;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .second_line table td.left_part .name,
+        .second_line table td.right_part .name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #000000;
+            padding-bottom: 7px;
+            padding-left: 0;
+            padding-right: 0;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .page_content {
+            padding: 17px 20px 0 20px;
+            text-align: center;
+        }
+
+        .page_content .right_part table td:nth-child(1) {
+            width: 80px;
+        }
+
+        .third_line {
+            width: 100%;
+            padding-top: 18px;
+        }
+
+        .invoice-items table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        .invoice-items table th {
+            color: #000000;
+            font-size: 12px;
+            text-align: left;
+            font-weight: bold;
+            padding: 6px 8px;
+            border-top: solid 1px #e0e0e0;
+            border-bottom: solid 1px #e0e0e0;
+            font-family: 'Helvetica', sans-serif;
+        }
+
+        .invoice-items table td {
+            color: #000;
+            font-size: 10px;
+            text-align: left;
+            font-weight: normal;
+            padding: 6px 8px;
+            border-bottom: solid 1px #e0e0e0;
+            font-family: 'Helvetica', sans-serif;
+            vertical-align: middle;
+            height: 36px;
+        }
+
+        .invoice-items table th:nth-child(1) {
+            text-align: left;
+        }
+
+        .invoice-items table td:nth-child(2) {
+            text-align: left;
+            font-style: italic;
+        }
+
+        .invoice-items table th:nth-child(1),
+        .invoice-items table td:nth-child(1) {
+            width: 25px;
+        }
+
+        .invoice-items table th:nth-child(3),
+        .invoice-items table th:nth-child(4),
+        .invoice-items table td:nth-child(3),
+        .invoice-items table td:nth-child(4) {
+            width: 140px;
+            text-align: center;
+        }
+
+        .invoice-items table td:nth-child(7) {
+            font-weight: bold;
+        }
+
+        .invoice_total {
+            padding: 20px 16px 20px 0;
+        }
+
+        .invoice_total .tables_holder {
+            width: 30%;
+            float: right;
+        }
+
+        .invoice_total .tables_holder table {
+            width: 100%;
+        }
+
+        .invoice_total .tables_holder table tr td {
+            padding-top: 5px;
+            font-family: 'Helvetica', sans-serif;
+            font-size: 12px;
+        }
+
+        .invoice_total .tables_holder table tr td:nth-child(1) {
+            font-size: 12px;
+            line-height: 10px;
+            color: #000;
+            border-collapse: collapse;
+            width: 50%;
+        }
+
+        .invoice_total .tables_holder table tr td:nth-child(2) {
+            font-size: 12px;
+            font-weight: bold;
+            text-align: left;
+            width: 50%;
+        }
+
+        .invoice_total .tables_holder table tr.blue td:nth-child(1),
+        .invoice_total .tables_holder table tr.blue td {
+            padding-top: 14px;
+            font-weight: bold;
+            color: {{ main_color }};
+            padding-bottom: 15px;
+        }
+
+        .signature {
+            padding-top: 15px;
+            font-size: 12px;
+        }
+
+        .footer {
+            background: {{ main_color }};
+            text-align: right;
+            padding: 0 20px;
+            line-height: 29px;
+        }
+
+        .footer .pagination {
+            font-size: 12px;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+<htmlpageheader name="firstpage">
+    <div class="header">
+        <table>
+            <tr style="min-height: 80px">
+                <td class="logo">
+                    <img style="max-height:80px;max-width:250px" src="{{ company_info.getLogoFilePath() }}">
+                </td>
+                <td class="header_name">
+                    {{ company_info.company_name }}
+                </td>
+            </tr>
+        </table>
+    </div>
+</htmlpageheader>
+<htmlpageheader name="secondpageheader">
+    <div class="header2">
+        <div class="header_name2"><span>{{ company_info.company_name }}</span></div>
+        <div class="clear"></div>
+    </div>
+</htmlpageheader>
+<div class="page_holder">
+    <div class="page_content">
+        <div class="first_line">
+            <table style="width:100%">
+                <tr>
+                    <td class="line_heading">
+                        {{ App.t('invoice','Payment receipt') }}
+                    </td>
+                </tr>
+            </table>
+            <div class="clear"></div>
+        </div>
+        <div class="second_line">
+            <table>
+                <tr>
+                    <td class="left_part">
+                        <table>
+                            <tr>
+                                <td class="heading">
+                                    {{ App.t('invoice','Company details') }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="name">
+                                    <strong>{{ company_info.company_name }}</strong>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>{{ company_info.street_1 ~ ' ' ~ company_info.street_2 }}</td>
+                            </tr>
+                            <tr>
+                                <td>{{ company_info.city }}</td>
+                            </tr>
+                            <tr>
+                                <td>{{ company_info.zip ~ ', ' ~ company_info.country }}</td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td></td>
+                    <td class="right_part">
+                        <table>
+                            <tr>
+                                <td class="heading">
+                                    {{ App.t('invoice','Receipt to:') }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <strong>{{ customer.name }}</strong>
+                                </td>
+                            </tr>
+                            {% if customer.street_1 %}
+                                <tr>
+                                    <td>{{ customer.street_1 }}</td>
+                                </tr>
+                            {% endif %}
+                            {% if customer.city %}
+                                <tr>
+                                    <td>{{ customer.city }}</td>
+                                </tr>
+                            {% endif %}
+                            {% if customer.zip_code %}
+                                <tr>
+                                    <td>{{ customer.zip_code }}</td>
+                                </tr>
+                            {% endif %}
+                            {% if customer.category == "company" %}
+                                <tr>
+                                    <td>{{ App.t('invoice', 'ID') }}: {{ customer_info.company_id }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ App.t('invoice', 'VAT ID') }}: {{ customer_info.vat_id }}</td>
+                                </tr>
+                            {% endif %}
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div class="third_line">
+            <div class="invoice-items">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>{{ App.t('invoice','Receipt number') }}</th>
+                        <th>{{ App.t('invoice','Payment date') }}</th>
+                        <th>{{ App.t('invoice','Total') }}</th>
+                    </tr>
+                    </thead>
+
+                    <tr>
+                        <td>1</td>
+                        <td>{{ receipt_number }}</td>
+                        <td>{{ App.formatDate(date) }}</td>
+                        <td>{{ App.financeFormat(amount, true) }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="invoice_total">
+                <div class="tables_holder">
+                    <table>
+                        <tr class="blue">
+                            <td>{{ App.t('invoice','Total') }}:</td>
+                            <td>{{ App.financeFormat(amount, true) }}</td>
+                        </tr>
+                        <tr class="signature">
+                            <td>Signature:</td>
+                            <td>_______________________</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="clear"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if show_related_items and related_invoices is not empty %}
+    <div class="page_holder">
+        <div class="page_content">
+            <div class="third_line">
+                <div class="invoice-items">
+                    <h5>{{ App.t('invoice', 'Paid items') }}</h5>
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>{{ App.t('invoice', 'Type') }}</th>
+                            <th>{{ App.t('invoice', 'Description') }}</th>
+                            <th>{{ App.t('invoice', 'Date') }}</th>
+                            <th>{{ App.t('invoice', 'Amount') }}</th>
+                        </tr>
+                        </thead>
+
+                        {% for row in related_invoices %}
+                            <tr>
+                                <td>{{ row.type_translated }}</td>
+                                <td>
+                                    {% if row.type == 'invoice' %}
+                                        #{{ row.invoice.id }} {{ row.invoice.number }}
+                                    {% else %}
+                                        #{{ row.transaction.id }} {{ row.transaction.description }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ row.date }}</td>
+                                <td>{{ App.financeFormat(row.amount, true) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<htmlpagefooter name="footer">
+    <div class="footer">
+        <div class="pagination">{PAGENO}</div>
+    </div>
+</htmlpagefooter>
+</body>
+</html>

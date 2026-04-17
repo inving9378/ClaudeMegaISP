@@ -1,0 +1,180 @@
+<div class="header">
+    <table style="width:100%;font-weight:bold;">
+        <tr>
+            <td width="40%"> {{ values.company_name }}</td>
+
+            <td width="60%" align="right">
+                {{ App.t('common', 'Payment calendar') }}
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div class="main" style="height:94%;border: 1px solid #000000;">
+    <table class="font_normal" style="width:100%; height: 40%">
+        <tr>
+            <td rowspan="2" style="padding:10px 0 0 10px;" valign="top" width="50%">
+                <div style="width:100%;">
+                    <div class="padding_left" style="padding-top:10px;">
+                        <div class="font_x-medium" style="padding-bottom:6px;">
+                            {{ App.t('invoice', 'Supplier') }}:
+                        </div>
+                        <b>{{ values.company_name }}</b>
+                        <br>
+                        {{ values.street_1 }}
+                        <br>
+                        {{ values.zip }}, {{ values.city }}
+
+                        {% if values.street_2 is not empty %}
+                            - {{ values.street_2 }}
+                        {% endif %}
+
+                        <br>
+                        {% if values.country is not empty %}
+                            {{ values.country }} <br>
+                        {% endif %}
+                    </div>
+                    <br>
+
+                    <div class="font_small">
+                        {{ App.t('invoice','ID number') }}: {{ values.company_id }}<br>
+                        {% if values.company_vat is not empty %}
+                            {{ App.t('invoice', 'VAT Number') }}: {{ values.company_vat }}<br>
+                        {% endif %}
+                        {{ App.t('invoice','Phone') }}: {{ values.phone }}<br>
+                        {{ App.t('invoice', 'Email') }}: {{ values.email }}<br>
+                    </div>
+                </div>
+                <br>
+            </td>
+        </tr>
+
+
+        <table class="font_x-small" style="width:380px; margin:0" align="right">
+            <tr>
+                <td align="right">{{ App.t('invoice','Account number') }}:</td>
+
+                <td align="right" class="font_small"
+                    style="width: 220px;border-left:solid 3px black; border-top:solid 3px black; border-bottom:solid 3px black; border-right:solid 1px black;">{{ values.bank_account }}</td>
+            </tr>
+        </table>
+        <td style="border-left:solid 1px black;height:50px; width:50%">
+            <div class="padding_left">
+                <table class="font_small" border="0" style="margin-top:8px;width:350px; margin-left:10px;">
+                    <tr>
+                        <td colspan="3">{{ App.t('invoice','Pairing') }}:</td>
+                        <td style="text-align:right;"> {{ pairing.global_1 }}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="3">{{ App.t('invoice', 'Pairing') }}:</td>
+                        <td style="text-align:right;"> {{ pairing.invoice }}</td>
+                    </tr>
+
+                </table>
+            </div>
+        </td>
+        <tr>
+            <td style="border:solid 3px black;padding-left:10px;padding-top:10px; height:180px;" valign="top">
+
+                {% if customer.category=='company' %}
+                    <table style="width:350px;line-height:12px;border:0">
+                        <tr style="border:0">
+                            <td rowspan="2" valign="top" height="10">{{ App.t('invoice', 'Ship to') }}:</td>
+                            <td height="10">{{ App.t('invoice','ID number') }}:</td>
+                            <td style="text-align:left;" height="10">{{ customer_info.company_id }}</td>
+                        </tr>
+                        <tr style="border:0">
+                            <td height="10">{{ App.t('invoice','VAT Number') }}:</td>
+                            <td style="text-align:left" height="10"> {{ customer_info.vat_id }}</td>
+                        </tr>
+                        <tr style="border:0">
+                            <td colspan="2"><br></td>
+                        </tr>
+                        <tr style="border:0">
+                            <td colspan="3" style="padding-left:5px;"><b>{{ customer.name }}</b>
+                                <br>
+                                {{ customer.street_1 }}
+                                <br>
+                                {{ customer.zip_code }}, {{ customer.city }}
+                                {% if customer.street_2 is not empty %} - {{ customer.street_2 }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                {% else %}
+                    <table class="font_small" style="width:99%;margin-left:20px;">
+                        <tr>
+                            <td colspan="3">{{ App.t('invoice','Ship to') }}:</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" align="left">
+                                <b>{{ customer.name }}</b>
+                                <br>
+                                {{ customer.street_1 }}
+                                <br>
+                                {{ customer.zip_code }}, {{ customer.city }}
+                                {% if customer.street_2 is not empty %} - {{ customer.street_2 }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    {% set total = 0 %}
+
+    {% for date, result in calendar.calendar %}
+        {% set total = 0 %}
+        <table id="itemsTable"
+               style="border-top:solid 1px black;width:100%;font-family: 'Arial Narrow', Arial, sans-serif;"
+               class="font_x-small">
+            {% for service_type, service_detail in result %}
+                {% for service_id, services in service_detail %}
+
+                    {% for key, service in services %}
+
+                        {% for id, charge in service %}
+                            {% if key == 'credit' %}
+                                {% set sign = '-' %}
+                                {% set total= total - (charge.total) %}
+                            {% else %}
+                                {% set sign = '' %}
+                                {% set total= total + (charge.total) %}
+                            {% endif %}
+                            {% if (calendar.group_month != 1) %}
+                                <tr>
+                                    <td>
+                                        {{ charge.description }}
+                                        {% if charge.from != '0000-00-00' %}
+                                            ({{ App.formatDate(charge.from) }} - {{ App.formatDate(charge.to) }})
+                                        {% endif %}
+
+                                    </td>
+                                    <td>
+                                        {{ charge.quantity }} {{ charge.unit }}
+                                    </td>
+                                    <td>
+                                        {{ sign }}{{ App.formatMoney(charge.price, false) }}
+                                    </td>
+                                    <td>
+                                        {{ App.formatTax(charge.tax_percent) }} %
+                                    </td>
+
+                                    <td>
+                                        {{ sign }}{{ App.formatMoney(charge.total) }}
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                {% endfor %}
+            {% endfor %}
+            <tr>
+                <td colspan="5" style="text-align: right"><b>{{ App.t('finance', 'Total for') }}: {{ date|date('Y/m') }}
+                        - {{ App.formatMoney(total) }}</b></td>
+            </tr>
+        </table>
+    {% endfor %}
+</div>

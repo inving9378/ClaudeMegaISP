@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title></title>
+<style>
+td, th, tr {
+border: 1px solid black;
+word-wrap: break-word;
+}
+
+table {
+border-collapse: collapse;
+table-layout: fixed;
+font-family: Arial, Verdana, sans-serif;
+font-size: 10px;
+}
+
+.fs {
+font-family: Arial, Verdana, sans-serif;
+font-size: 10px;
+}
+
+body {
+margin: 10px;
+padding: 10px;
+}
+</style>
+</head>
+<body>
+<div style="text-align: center" class="fs"><h4>CONTRATO DE SUSCRIPCION No. {{ customer.id }} </h4>
+enterado desde 
+</div>
+<br>
+<div>
+<table style="width:100%">
+<tr>
+<td bgcolor="#e0e0e0" style="width: 15%">Nombre Comercial</td>
+<td colspan="3">Meganettwork</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Nombre de la Empresa:</b></td>
+<td colspan="3">MEGANET TELECOMUNICACIONES S.A. DE C.V.</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Direccion</b></td>
+<td colspan="3">Av Hda La Purisima Mz 3 Lt 54 Casa A, Nextlalpan Edo Mex, C.P 55796</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Telefono:</b></td>
+<td colspan="3">(55)42-10-62-77</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Email</b></td>
+<td colspan="3">inving9378@hotmail.com</td>
+</tr>
+<tr>
+<td height="17" bgcolor="#e0e0e0"><b>Fecha</b></td>
+<td style="width: 30%">{{ "now"|date("m/d/Y") }}</td>
+<td bgcolor="#e0e0e0" style="width: 10%"><b>Lugar</b></td>
+<td>Nextlalpan Estado de Mexico</td>
+</tr>
+<tr>
+<td height="20" bgcolor="#e0e0e0"><b>RFC</b></td>
+<td colspan="3"><p align="left"><strong>MTE1709083F3</strong></p></td>
+</tr>
+</table>
+</div>
+<table border="0" cellspacing="0" cellpadding="0" width="100%">
+  <tr>
+    <td height="15" colspan="27" nowrap><p align="center"><strong>SUSCRIPTOR</strong></p></td>
+  </tr>
+  <tr>
+    <td colspan="27" valign="bottom" nowrap><p>{{ customer.name }}</p></td>
+  </tr>
+  <tr>
+    <td nowrap colspan="2"><p align="center"><strong>Nombre</strong></p></td>
+    <td nowrap colspan="12"><p align="center"><strong>Apellido Paterno</strong></p></td>
+    <td nowrap colspan="13"><p align="center"><strong>Apellido Materno</strong></p></td>
+  </tr>
+  <tr>
+    <td nowrap colspan="27"><p align="center"><strong>DOMICILIO</strong></p></td>
+  </tr>
+  <tr>
+    <td nowrap colspan="4"><p align="center"><strong>{{ customer.street_1 }}&nbsp;</strong></p></td>
+    <td width="3%"><p align="center"><strong>{{ customer.additionalAttributes.numero_exterior }}&nbsp;</strong></p></td>
+    <td width="3%"><p align="center"><strong>{{ customer.additionalAttributes.numero_interior }}&nbsp;</strong></p></td>
+    <td width="5%"><p align="center"><strong>{{ customer.city }}&nbsp;</strong></p></td>
+    <td colspan="5"><p align="center"><strong>{{ customer.city }}&nbsp;</strong></p></td>
+    <td colspan="4"><p align="center"><strong>{{ customer.status }}&nbsp;</strong></p></td>
+    <td colspan="3"><p align="center"><strong>&nbsp;</strong></p></td>
+    <td colspan="5"><p align="center"><strong>&nbsp;</strong></p></td>
+    <td colspan="2"><p align="center"><strong>&nbsp;</strong></p></td>
+    <td width="7%"><p align="center"><strong>{{ customer.zip_code }}&nbsp;</strong></p></td>
+  </tr>
+  <tr>
+    <td nowrap colspan="27"><p><strong>                                 Calle                                     #Ext.       #Int.            Colonia                     Alcaldía/Municipio               Estado             C.P.</strong></p></td>
+  </tr>
+  <tr>
+    <td width="20%" nowrap><p><img width="23" height="12" src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image001.png"><strong> TELEFÓNO  Fijo           Móvil  </strong><strong><img width="22" height="12" src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image003.png"></strong><strong>  </strong></p></td>
+    <td colspan="6"><p><strong>&nbsp;</strong></p></td>
+    <td colspan="2"><p><strong>  RFC  </strong></p></td>
+    <td colspan="11"><p><strong>{{ customer.additionalAttributes.rfc }}&nbsp;</strong></p></td>
+    <td colspan="6"><p><strong>&nbsp;</strong></p></td>
+  </tr>
+</table>
+<table border="1" cellspacing="0" cellpadding="0" width="771">
+  <tr>
+    <td width="771" colspan="5"><p align="center"><strong>SERVICIO    DE INTERNET FIJO EN CASA en Prepago</strong></p></td>
+  </tr>
+  <tr>
+    <td width="304"><p align="center"><strong>DESCRIPCIÓN    PAQUETE/OFERTA</strong><br>
+      <strong>(INCISO l)    Nom numeral 5.1.2.1)</strong></p></td>
+    <td width="243" colspan="2"><p align="center"><strong>TARIFA </strong><br>
+      <strong>FOLIO IFT:{{ customer.additionalAttributes.ift }} </strong></p></td>
+    <td width="121"><p align="center"><strong>FECHA DE PAGO</strong><br>
+        <strong>Modalidad </strong><br>
+        <strong>Prepago</strong></p></td>
+    <td width="102"><p><strong>&nbsp;</strong></p>
+      <p><strong>&nbsp;</strong></p></td>
+  </tr>
+  <tr>
+    <td width="304" rowspan="2"><p><strong>&nbsp;</strong></p>
+      <p><strong>&nbsp;</strong></p>
+      <p><strong>   Tipo de pago:{{ customer.billing_type }}<p>Password:{{ customer.password }}<p>Movienet User:{{ customer.additionalAttributes.usuario_peliculas }}<p>Movienet Pass:{{ customer.additionalAttributes.pass_peliculas }}<p>Wifi:{{ customer.additionalAttributes.pass_wifi }}<p>Telefono:{{ customer.additionalAttributes.telefono_notes }}                                                                                    </strong></p></td>
+    <td width="164"><p><strong>Total  Mensualidad</strong></p></td>
+    <td width="79"><p><strong>&nbsp;</strong></p>
+      <p><strong>$ {{ customer.prepaid_monthly_costs }}          M.N</strong></p></td>
+    <td width="121"><p align="center"><strong>VIGENCIA    DEL</strong><br>
+      <strong>CONTRATO</strong></p></td>
+    <td width="102"><p align="center"><strong>INDEFINIDO</strong></p></td>
+  </tr>
+  <tr>
+    <td width="164"><p><strong>Aplica Tarifa    por Reconexión:         </strong><br>
+      <strong>      SI X </strong><strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002.png" alt="" width="22" height="11"></strong><strong>     NO      </strong><strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0000.png" alt="" width="22" height="11"></strong><strong>  </strong></p></td>
+    <td width="79"><p><strong>$   99        M.N</strong></p></td>
+    <td width="121"><p align="center"><strong>PENALIDAD</strong></p></td>
+    <td width="102"><p align="center"><strong>N/A</strong></p></td>
+  </tr>
+  <tr>
+    <td width="771" colspan="5"><p align="center"><strong>En el    Estado de cuenta y/o factura se podrá visualizar la fecha de corte del    servicio y fecha de pago.</strong></p></td>
+  </tr>
+</table>
+<table border="1" cellspacing="0" cellpadding="0" align="left" width="371">
+  <tr>
+    <td width="371" colspan="2" valign="top"><p align="center"><strong>DATOS DEL    EQUIPO</strong><br>
+      <strong>Modem entregado en:     COMODATO</strong></p></td>
+  </tr>
+  <tr>
+    <td width="140" valign="top"><p align="center"><strong>Marca:</strong></p></td>
+    <td width="231" valign="top"><p><strong>&nbsp;</strong></p></td>
+  </tr>
+  <tr>
+    <td width="140" valign="top"><p align="center"><strong>Modelo:</strong></p></td>
+    <td width="231" valign="top"><p><strong>&nbsp;</strong></p></td>
+  </tr>
+  <tr>
+    <td width="140" valign="top"><p align="center"><strong>Número de    Serie:</strong></p></td>
+    <td width="231" valign="top"><p><strong>&nbsp;</strong></p></td>
+  </tr>
+  <tr>
+    <td width="140" valign="top"><p align="center"><strong>Garantía de    cumplimiento de obligación </strong></p></td>
+    <td width="231" valign="top"><p>Pagaré para garantizar    la devolución del equipo entregado en comodato.<br>
+      Visible en el anexo    de la presente carátula y contrato de adhesión.<strong> </strong></p></td>
+  </tr>
+</table>
+<div align="center">
+  <table border="1" cellspacing="0" cellpadding="0" align="right" width="376">
+    <tr>
+      <td width="376" colspan="4" valign="top"><p align="center"><strong>INSTALACIÓN DEL EQUIPO</strong></p></td>
+    </tr>
+    <tr>
+      <td width="183" colspan="2"><p align="center"><strong>Domicilio Instalación:</strong></p></td>
+      <td width="194" colspan="2" valign="top"><p><strong>&nbsp;</strong></p></td>
+    </tr>
+    <tr>
+      <td width="56" valign="top"><p><strong>Fecha:</strong></p></td>
+      <td width="127" valign="top"><p><strong>{{ customer.date_add }}&nbsp;</strong></p></td>
+      <td width="52" valign="top"><p><strong>Hora:</strong></p></td>
+      <td width="142" valign="top"><p><strong>&nbsp;</strong></p></td>
+    </tr>
+    <tr>
+      <td width="56" valign="top"><p align="center"><strong>Costo</strong></p></td>
+      <td width="320" colspan="3" valign="top"><p><strong>$299</strong></p></td>
+    </tr>
+    <tr>
+      <td width="376" height="68" colspan="4" valign="top"><p>Para    poder utilizar el Servicio se requiere la instalación del Equipo por parte de    MEGANETT en el domicilio de el SUSCRIPTOR para que se pueda activar el  servicio y empezar a prestar el servicio en    un plazo que no exceda de 10 días hábiles posteriores    a la firma del contrato<strong>.</strong></p></td>
+    </tr>
+  </table>
+</div>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<table border="1" cellspacing="0" cellpadding="0" align="left">
+  <tr>
+    <td width="768" colspan="2" valign="top"><p><strong>                                                                               MÉTODO    DE PAGO</strong></p></td>
+  </tr>
+  <tr>
+    <td width="259" rowspan="2" valign="top"><p> <br>
+      <img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0001.png" alt="" width="22" height="11"> <strong>Efectivo:</strong><br>
+      <strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image003_0000.png" alt="" width="21" height="11"></strong><strong> Transferencia Bancaria:</strong><br>
+      <img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0002.png" alt="" width="22" height="11"><strong> Depósito a cuenta Bancaria</strong><br>
+      <strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image003_0001.png" alt="" width="21" height="11"></strong> <strong>Domiciliado con Tarjeta</strong></p></td>
+    <td width="510" valign="top"><p><strong>Datos    para el método de pago elegido</strong>.</p></td>
+  </tr>
+  <tr>
+    <td width="510" valign="top"><p>Cuenta: 65-50637569-5<p> 
+ Clave interbancaria:  014180655063756953<p>
+ Tarjeta:  5579 0890 0178 8689 
+&nbsp;</p></td>
+  </tr>
+</table>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<table border="1" cellspacing="0" cellpadding="0" align="left">
+  <tr>
+    <td width="769" colspan="4" valign="top"><p align="center"><strong>AUTORIZACIÓN    PARA CARGO DE TARJETA DE CRÉDITO O DÉBITO</strong></p></td>
+  </tr>
+  <tr>
+    <td width="769" colspan="4" valign="top"><p align="center">Por medio de la     presente SÍ <img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0003.png" alt="" width="22" height="11"> NO <img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0004.png" alt="" width="22" height="11"> autorizo a &quot;EL PROVEEDOR&quot;, para    que cargue a mi tarjeta de crédito o débito, la cantidad por concepto de    servicios que mensualmente me presta. La vigencia de los cargos será por    __________ meses. <br>
+      <br>
+      <strong>__________________</strong><br>
+      <strong>   Firma</strong></p></td>
+  </tr>
+  <tr>
+    <td width="55" valign="top"><p><strong>Banco:</strong></p></td>
+    <td width="312" valign="top"><p><strong>&nbsp;</strong></p></td>
+    <td width="149" valign="top"><p><strong>Número    de Tarjeta:</strong></p></td>
+    <td width="253" valign="top"><p><strong>&nbsp;</strong></p></td>
+  </tr>
+</table>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<table border="1" cellspacing="0" cellpadding="0" width="774">
+  <tr>
+    <td width="771" colspan="25" valign="top"><p align="center"><strong>SERVICIOS    ADICIONALES</strong></p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="33" valign="top"><p><strong>1.- </strong></p></td>
+    <td width="350" colspan="14" valign="top"><p><strong>&nbsp;</strong></p></td>
+    <td width="30" valign="top"><p><strong>2.-</strong></p></td>
+    <td width="358" colspan="9" valign="top"><p><strong>&nbsp;</strong></p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="272" colspan="10" valign="top"><p><strong>DESCRIPCIÓN</strong></p></td>
+    <td width="61" valign="top"><p><strong>COSTO:</strong></p></td>
+    <td width="50" colspan="4" valign="top"><p><strong>&nbsp;</strong></p></td>
+    <td width="258" colspan="6" valign="top"><p><strong>DESCRIPCIÓN</strong></p></td>
+    <td width="61" valign="top"><p><strong>COSTO:</strong></p></td>
+    <td width="70" colspan="3" valign="top"><p>&nbsp;</p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="383" colspan="15" valign="top"><p align="center">&nbsp;</p>
+      <p>&nbsp;</p></td>
+    <td width="388" colspan="10" valign="top"><p>&nbsp;</p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="771" colspan="25" valign="top"><p align="center"><strong>CONCEPTOS    FACTURABLES</strong><br>
+      <strong>(Ejemplo:    Costo por cambio de domicilio, Costos administrativos adicionales)</strong></p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="33" valign="top"><p><strong>1.- </strong></p></td>
+    <td width="350" colspan="14" valign="top"><p><strong>&nbsp;</strong></p></td>
+    <td width="30" valign="top"><p><strong>2.-</strong></p></td>
+    <td width="358" colspan="9" valign="top"><p><strong>&nbsp;</strong></p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="272" colspan="10" valign="top"><p><strong>DESCRIPCIÓN</strong></p></td>
+    <td width="61" valign="top"><p><strong>COSTO:</strong></p></td>
+    <td width="50" colspan="4" valign="top"><p><strong>&nbsp;</strong></p></td>
+    <td width="258" colspan="6" valign="top"><p><strong>DESCRIPCIÓN</strong></p></td>
+    <td width="61" valign="top"><p><strong>COSTO:</strong></p></td>
+    <td width="70" colspan="3" valign="top"><p>&nbsp;</p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="383" colspan="15" valign="top"><p>&nbsp;</p></td>
+    <td width="388" colspan="10" valign="top"><p>&nbsp;</p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="771" colspan="25" valign="top"><p align="center"><strong>EL    SUSCRIPTOR AUTORIZA SE LE ENVIE POR CORREO ELECTRÓNICO</strong>:</p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="65" colspan="2" valign="top"><p><strong>Factura</strong></p></td>
+    <td width="125" colspan="4" valign="top"><p><strong>SI </strong><strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0005.png" alt="" width="28" height="14"></strong><strong>   NO </strong><strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0006.png" alt="" width="28" height="14"></strong><strong> </strong></p></td>
+    <td width="177" colspan="7" valign="top"><p><strong>Carta de    Derechos Mínimos</strong></p></td>
+    <td width="108" colspan="5" valign="top"><p><strong>SI</strong><strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0007.png" alt="" width="28" height="14"></strong><strong> NO</strong><strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image003_0002.png" alt="" width="29" height="15"></strong><strong> </strong></p></td>
+    <td width="138" colspan="2" valign="top"><p><strong>Contrato    de Adhesión</strong></p></td>
+    <td width="158" colspan="5" valign="top"><p><strong>SI </strong><strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image004.png" alt="" width="26" height="13"></strong><strong> NO</strong><strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0008.png" alt="" width="28" height="14"></strong><strong> </strong></p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="239" colspan="8" valign="top"><p align="center"><strong>COOREO    ELECTRÓNICO AUTORIZADO:</strong></p></td>
+    <td width="183" colspan="9" valign="top"><p><strong>&nbsp;</strong>{{ loader.customer.email }}</p></td>
+    <td width="134" colspan="2" valign="top"><p align="center"><strong>FIRMA    SUSCRIPTOR:</strong></p></td>
+    <td width="216" colspan="6" valign="top"><p><strong>&nbsp;</strong></p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="770" colspan="23" valign="top"><p align="center"><strong>AUTORIZACIÓN    PARA USO DE INFORMACIÓN DEL SUSCRIPTOR</strong></p></td>
+    <td width="5" colspan="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="770" colspan="23" valign="top"><ol>
+      <li>El Suscriptor SI <strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0009.png" alt="" width="28" height="14"></strong>  NO <strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0010.png" alt="" width="28" height="14"></strong> autoriza que su información sea cedida o    transmitida por el proveedor a terceros con fines mercadotécnicos o    publicitarios. <strong>FIRMA</strong>_________________</li>
+      <li>2.-El suscriptor acepta SI <strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0011.png" alt="" width="28" height="14"></strong> NO <strong><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002_0012.png" alt="" width="28" height="14"></strong> recibir llamadas del proveedor de promociones    de servicios o paquetes. <strong>FIRMA</strong>_______________</li>
+    </ol></td>
+    <td width="5" colspan="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="770" colspan="24" valign="top"><p align="center"><strong>MEDIOS    DE CONTACTO DEL PROVEEDOR PARA QUEJAS, ACLARACIONES, CONSULTAS Y    CANCELACIONES</strong></p></td>
+    <td width="4" colspan="2"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="89" colspan="3" valign="top"><p><strong>TELÉFONO:</strong></p></td>
+    <td width="287" colspan="11"><p>                          5542106277</p></td>
+    <td width="394" colspan="10"><p align="center">Disponible Lunes a    Sábado de 9:00 am-9:00 pm</p></td>
+    <td width="4" colspan="2"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="175" colspan="4" valign="top"><p><strong>CORREO    ELECTRÓNICO:</strong></p></td>
+    <td width="201" colspan="10" valign="top"><p>       soporte@meganett.com.mx  </p></td>
+    <td width="394" colspan="10"><p align="center">Disponible Lunes a Domingo    las 24 horas del día</p></td>
+    <td width="4" colspan="2"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="243" colspan="9" valign="top"><p><strong>CENTROS    DE ATENCIÓN A CLIENTES:</strong></p></td>
+    <td width="527" colspan="15" valign="top"><p>Consultar    horarios disponibles, días disponibles y centros de atención a clientes    disponibles en la página de internet www.meganett.com.mx</p></td>
+    <td width="4" colspan="2"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="771" colspan="25" valign="top"><p align="center"><strong>LA    PRESENTE CARÁTULA Y EL CONTRATO DE ADHESIÓN SE ENCUENTRAN DISPONIBLES EN:</strong></p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="181" colspan="5" valign="top"><ol>
+      <li>La página    del proveedor</li>
+    </ol></td>
+    <td width="591" colspan="20" valign="top"><p>www.meganett.com.mx</p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="221" colspan="7" valign="top"><ol>
+      <li>Buró    comercial de PROFECO</li>
+    </ol></td>
+    <td width="551" colspan="18" valign="top"><p>https://burocomercial.profeco.gob.mx/</p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="334" colspan="12" valign="top"><ol>
+      <li>Físicamente    en los centros de atención del proveedor</li>
+    </ol></td>
+    <td width="437" colspan="13" valign="top"><p>Consultar centros de atención a clientes en www.meganett.com.mx</p></td>
+    <td width="3"><p>&nbsp;</td>
+  </tr>
+  <tr>
+    <td width="774" colspan="26" valign="top"><p>&nbsp;</p>
+      <p><strong>LA    PRESENTE CARÁTULA SE RIGE CONFORME A LAS CLÁUSULAS DEL CONTRATO DE ADHESIÓN    REGISTRADO EN PROFECO EL __/__/____, CON NÚMERO: ______ DISPONIBLE EN EL    SIGUIENTE CÓDIGO:</strong><br>
+        <img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image006.png" alt="" width="85" height="84">&nbsp;</p>
+      <p align="center">&nbsp;</p>
+      <p align="center">&nbsp;</p>
+      <br clear="ALL">
+      <p align="center"><strong>LAS FIRMAS INSERTAS ABAJO    SON LA ACEPTACIÓN DE LA PRESENTE CARÁTULA Y CLAUSULADO DEL CONTRATO CON    NÚMERO __________</strong></p></td>
+  </tr>
+</table>
+<p>Este  contrato se firmó por duplicado en la Ciudad de ____________________, a ____ de  __________________ de ______.<br>
+</p>
+<p>&nbsp;</p>
+<p align="center">&nbsp;</p>
+<p align="center">_________________________                            ______________________<br>
+  <strong>       PROVEEDOR                                                          SUSCRIPTOR</strong></p>
+<p align="center">&nbsp;</p>
+<p>&nbsp;</p>
+<p><br>
+</p>
+<div style="text-align: center">(<b>"PROVEEDOR DE SERVICIOS"</b>) y
+</div>
+<br>
+<div>
+<table style="width:100%">
+<tr>
+<td bgcolor="#e0e0e0" style="width: 15%"><b>Nombre y Apellidos /<br>Nombre de La Empresa</b></td>
+<td colspan="3">&nbsp;</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Direccion de la conexion</b></td>
+<td colspan="3">{{ loader.customer.street_1 }}{% if loader.customer.additionalAttributes.street_2 is not empty %}, {{ loader.customer.additionalAttributes.street_2 }}{% endif %}, {{ customer.city}}{% if loader.customer.zip_code is not empty %}, {{ loader.customer.zip_code }}{% endif %}</td>
+</tr>
+
+<tr>
+<td bgcolor="#e0e0e0"><b>Email</b><br>Las facturas y recibos serán enviados a esta dirección.</td>
+<td colspan="3">&nbsp;</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Telefono</b></td>
+<td colspan="3">{{ loader.customer.phone }}</td>
+</tr>
+{% if loader.customer.additionalAttributes.contact_2 is not empty %}
+<tr>
+<td bgcolor="#e0e0e0"><b>Persona que autoriza:</b></td>
+<td colspan="3">{{ loader.customer.additionalAttributes.contact_2 }}</td>
+</tr>
+{% endif %}
+{% if loader.customer.additionalAttributes.phone_2 is not empty %}
+<tr>
+<td bgcolor="#e0e0e0"><b>Telefono de la persona que autoriza</b></td>
+<td colspan="3">{{ loader.customer.additionalAttributes.phone_2 }}</td>
+</tr>
+{% endif %}
+{% if loader.customer.additionalAttributes.contact_3 is not empty %}
+<tr>
+<td bgcolor="#e0e0e0"><b>Segunda persona autorizada:</b></td>
+<td colspan="3">{{ loader.customer.additionalAttributes.contact_3 }}</td>
+</tr>
+{% endif %}
+{% if loader.customer.additionalAttributes.phone_3 is not empty %}
+<tr>
+<td bgcolor="#e0e0e0"><b>Telefono de la segunda persona autorizada:</b></td>
+<td colspan="3">{{ loader.customer.additionalAttributes.phone_3 }}</td>
+</tr>
+{% endif %}
+<tr>
+<td bgcolor="#e0e0e0"><b>Date</b></td>
+<td style="width: 30%">{{ "now"|date("m/d/Y") }}</td>
+<td bgcolor="#e0e0e0" style="width: 10%"><b>Place</b></td>
+<td>Gorey</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Contraseña Wifi</b></td>
+<td colspan="3">{{ loader.customer.additionalAttributes.wifi_pass }}</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Usuario Meganet Peliculas</b></td>
+<td style="width: 30%">{{loader.customer.login}}</td>
+<td bgcolor="#e0e0e0" style="width: 10%"><b>Contraseña Meganet Peliculas</b></td>
+<td> {{loader.customer.password}}</td>
+</tr>
+<tr>
+<td bgcolor="#e0e0e0"><b>Firma</b><br>Quien lo autorice está debidamente autorizado para ello.</td>
+<td colspan="3"></td>
+</tr>
+</table>
+</div>
+<br>
+<div style="text-align: center" class="fs">(<b>"SUSCRIPTOR"</b>)<br>
+  <b>Juntas &quot;Las partes"</b>. A referirse a <b>"Parte"</b> Será una referencia a uno de ellos según lo determinado.
+por el contexto.)<br>
+Para el período y los servicios seleccionados a continuación
+</div>
+
+
+
+<div class="fs">
+<h4><b><br>
+{% set active_services = loader.getServicesByTypeAndStatus('internet', 'active') %}
+{% for active in active_services %}
+Servicio: {{ active.type }}<br>
+Tarifa: {{ active.description }}<br>
+Costo Mensual: {{ active.unit_price }}<br>
+Fecha de Inicio del Servicio: {{ active.start_date }}<br>
+{% endfor %}
+{% set active_voice = loader.getServicesByTypeAndStatus('voice', 'active') %}
+{% for voice in active_voice %}
+{% if voice is not empty %} 
+Servicio: {{ voice.type }}<br>
+Tarifa: {{ voice.description }}<br>
+Costo Mensual: {{ voice.unit_price }}<br>
+Fecha de Inicio del Servicio: {{ voice.start_date }}<br>
+{% endif %}
+{% endfor %}
+TERMINOS DEL CONTRATO: {{ loader.customer.additionalAttributes.contract_term }}
+</h4></b>
+</div>
+<div style="position: fixed; bottom: 0; width: 100%;" class="fs">
+<div style="text-align: right"></div>
+<hr style="width: 100%"/>
+<div>Meganet Telecomunicaciones S.A. de C.V. Banda Ancha </div>
+<div style="text-align: right">Pagina 1 de 8</div>
+</div>
+<div style="page-break-before: always;"></div>
+
+<div style="text-align: justify">
+  <p><strong>CONTRATO DE PRESTACIÓN DE  SERVICIO DE INTERNET EN EL ESQUEMA DE PREPAGO CELEBRADO POR UNA PARTE </strong><strong>ENTRE MEGANET TELECOMUNICACIONES, S.A. DE C.V., EN LO  SUCESIVO &ldquo;MEGANETT&rdquo; Y POR OTRA PARTE, LA PERSONA CUYO NOMBRE Y DIRECCIÓN QUEDAN  ASENTADOS EN LA CARÁTULA DEL PRESENTE DOCUMENTO, A QUIEN EN LO SUCESIVO SE LE  DENOMINARÁ &quot;SUSCRIPTOR&quot;, </strong><strong>AL TENOR DE LO SIGUIENTE.</strong></p>
+  <p align="center"><strong>DECLARACIONE</strong><strong>S</strong></p>
+  <ul>
+    <li>Las partes declaran:<strong></strong></li>
+  </ul>
+  <p><strong>&nbsp;</strong></p>
+  <ul>
+    <li>Que los datos consistentes  en el domicilio, RFC y datos de localización del domicilio son ciertos y se  encuentran establecidos en la carátula del presente contrato.<strong></strong></li>
+    <li>Que tienen pleno goce de sus  derechos y capacidad legal para contratar y obligarse en términos del presente  contrato.<strong></strong></li>
+    <li>Que aceptan que el presente  contrato se regirá por la Ley Federal de Protección al Consumidor, Ley Federal  de Telecomunicaciones y Radiodifusión, la Norma Oficial Mexicana  NOM-184-SCFI-2018, <em>Elementos Normativos y  Obligaciones Específicas que deben Observar los Proveedores para la  Comercialización y/o Prestación de los Servicios de Telecomunicaciones cuando  Utilicen una Red Pública de Telecomunicaciones</em>, y demás normatividad  aplicable, por lo que los derechos y obligaciones establecidas en dicho marco  normativo se tendrán por aquí reproducidas como si a la letra se insertase.<strong> </strong></li>
+    <li>Que la manifestación de la voluntad para  adherirse al presente contrato de adhesión y su   carátula (la cual forma parte integrante del referido contrato) son las  firmas que plasmen  las partes  en la carátula. </li>
+    <li>Que al momento de que el SUSCRIPTOR active y utilice el Servicio, se  obligan a lo establecido en las siguientes:<strong></strong></li>
+  </ul>
+  <p align="center"><strong>CLÁUSULA</strong><strong>S</strong></p>
+  <div>
+    <p><strong>PRIMERA: OBJETO DEL  CONTRATO. </strong>MEGANETT se obliga a prestar el servicio de Internet,  (en adelante el Servicio), de manera continua, uniforme, regular y eficiente, a  cambio del pago de la tarifa, plan o paquete que el SUSCRIPTOR haya  seleccionado en la carátula del presente contrato, los cuales no podrán  ser menores a los índices y parámetros de calidad que establezca el Instituto  Federal de Telecomunicaciones (en adelante IFT), ni menores a los ofrecidos  implícitamente o contratados en el presente instrumento.<br>
+      El presente contrato <strong>se regirá bajo  el esquema de PREPAGO</strong>, es decir se va a pagar el servicio de manera anticipada  a la utilización de los mismos, a través de <strong>RECARGAS</strong> que realice el suscriptor, por lo que la fecha en que se  realice el pago de la recarga será la misma en la que MEGANETT inicie la  prestación del servicio.MEGANETT es el único responsable frente al SUSCRIPTOR por la prestación del SERVICIO, así como, de los bienes o servicios  adicionales al originalmente contratado.MEGANETT no puede obligar al SUSCRIPTOR a  contratar servicios adicionales como requisito para la contratación o  continuación de la prestación de los Servicios originalmente contratados. <br>
+    </p>
+    <p><strong>SEGUNDA: VIGENCIA.</strong> La <strong>VIGENCIA del presente contrato es indefinida. </strong>Este contrato <strong>NO obliga a un plazo forzoso</strong>, por lo  que al tener una vigencia indeterminada el SUSCRIPTOR puede darlo por terminado  en cualquier momento, <strong>SIN PENALIDAD  alguna</strong> y sin necesidad de recabar autorización MEGANETT.<br>
+    </p>
+    <p><strong>TERCERA: EQUIPO. </strong>Los equipos y accesorios que son necesarios para recibir el SERVICIO son  propiedad MEGANETT mismos que se entregan al SUSCRIPTOR en <strong>COMODATO</strong> (en préstamo). El SUSCRIPTOR se compromete a la guarda, custodia y conservación del (los) equipo(s),  durante todo el tiempo que se encuentre en su poder, hasta la terminación del  presente contrato y deberán ser devueltos a MEGANETT, presentando  únicamente el desgaste natural por el paso del tiempo, y por su parte MEGANETT  se obliga a dar mantenimiento a los equipos y accesorios para la adecuada  prestación del SERVICIO. Cuando las fallas que se presenten en el equipo y accesorios no sean  atribuibles al SUSCRIPTOR, MEGANETT se obliga a realizar de manera gratuita las  reparaciones necesarias, en tanto este contrato permanezca vigente. Ambas  partes deberán coordinarse para establecer la fecha y hora en que se llevarán a  cabo dichas actividades. El personal designado por MEGANETT se debe de  identificar y mostrar al SUSCRIPTOR la orden de trabajo expedida por MEGANETT. En caso de que el equipo terminal se  encuentre en reparación o mantenimiento, MEGANETT debe suspender el cobro del  SERVICIO por el periodo que dure la revisión, reparación y/o mantenimiento de  dicho equipo terminal, excepto cuando MEGANETT acredite que el SUSCRIPTOR está  haciendo uso del servicio o le haya proporcionado un equipo sustituto.<br>
+      Cuando el  Equipo provisto en comodato,  sea robado  o sea objeto de algún siniestro, el SUSCRIPTOR deberá dar aviso inmediato a  MEGANETT, en un plazo que no excederá de veinticuatro horas posteriores al  evento para la reposición del Equipo y para suspender el cobro del SERVICIO  hasta que el SUSCRIPTOR tenga otro equipo para poder recibir el SERVICIO.<br>
+      El SUSCRIPTOR tendrá un plazo de 30 días hábiles posteriores al robo o  siniestro para presentar copia certificada de la constancia correspondiente  levantada ante una Autoridad Competente, que acredite el objeto de robo o  siniestro para que no tenga costo la reposición del equipo.<br>
+      Si al término o rescisión del Contrato, EL SUSCRIPTOR no devuelve al  MEGANETT el Equipo que le fue entregado en comodato en términos de lo previsto  en este Contrato, se le hará efectiva la garantía de cumplimiento de obligación  consistente en un pagaré que es causal y no negociable; es decir que este  pagaré sólo se firma por EL SUSCRIPTOR para garantizar la devolución del Equipo  que le fue entregado en comodato.<br>
+      Sí al finalizar la relación contractual y el SUSCRIPTOR sí haya devuelto a  MEGANETT el equipo que le fue entregado en comodato, MEGANETT tiene la  obligación de  devolver el pagaré  establecido en el Anexo 1 del presente contrato   al SUSCRIPTOR.<br>
+      En caso de terminación, rescisión o cancelación del presente Contrato, EL  SUSCRIPTOR se obliga a devolver o entregar el Equipo a EL MEGANETT a más tardar  dentro del plazo de 10 (diez) días naturales contados a partir de la fecha en  que notifique la terminación del Contrato.<br>
+    En el momento en el que, el SUSCRIPTOR realice la devolución del Equipo,  MEGANETT le debe proporcionar una nota de recepción, la cual deberá contener el  número de teléfono, nombre de EL SUSCRIPTOR y nombre de la persona que lo  entrega y lo recibe. EL MEGANETT se obliga a devolver el pagaré suscrito en  garantía del equipo establecido en el Anexo 1 al término del contrato siempre y  cuando EL SUSCRIPTOR entregue el Equipo. En el supuesto que EL SUSCRIPTOR no  devuelva el equipo a la terminación del contrato, EL MEGANETT podrá hacer valer  el pagaré establecido en el Anexo 1.</p>
+    <p><strong>CUARTA: REGLAS DE OPERACIÓN  DEL ESQUEMA DE PREPAGO. </strong></p>
+    <ul>
+      <li><strong>MEDIOS DE RECARGA DE SALDO</strong></li>
+    </ul>
+    <p>El SUSCRIPTOR podrá realizar  recargas en las de tiendas de conveniencia consultados en la siguiente liga de  internet: <a href="http://www.meganett.com.mx"><strong><em>www.meganett.com.mx</em></strong></a><strong><em><u> </u></em></strong>y vía Internet en la liga de  internet<strong><em> www.meganett.com.mx</em></strong>. Los medios antes mencionados pueden ser  consultados por el SUSCRIPTOR a través de la siguiente liga: <a href="http://www.meganett.com.mx"><strong><em>www.meganett.com.mx</em></strong></a><strong></strong></p>
+    <ul>
+      <li><strong>CICLO DE VIDA DEL SERVICIO.</strong></li>
+    </ul>
+    <p>El servicio asociado es una  oferta de prepago se mantendrá activa mientras el SUSCRIPTOR realice recargas.<br>
+      En caso de transcurrir 90  (noventa) días naturales sin que  el  servicio de prepago cuente con servicio podrá ser cancelada.<br>
+      Si el SUSCRIPTOR cuenta con saldo  pendiente de ser consumido, MEGANETT solo podrá cancelar el Servicio, una vez  que transcurra en exceso el término de 365 (trescientos sesenta y cinco) días  naturales siguientes a la fecha en que expiró dicho saldo. <br>
+      El SUSCRIPTOR no debe retener  bajo ningún concepto el Equipo propiedad de MEGANETT. Si el SUSCRIPTOR no  devuelve el Equipo se convierte en depositario a título gratuito del Equipo  obligándose en tal caso a guardar y conservar el Equipo y será responsable por  el menoscabo, daño o perjuicio que el Equipo sufra por negligencia, malicia,  dolo o mala fe y en su caso el SUSCRIPTOR se hará acreedor a la responsabilidad  y las sanciones legales, civiles y penales que resulten aplicables.<br>
+      En caso que el SUSCRIPTOR no  devuelva el Equipo a MEGANETT, este se obliga a pagar a favor  de MEGANETT o a quien esta designe, el costo  del equipo, el cual asciende a la cantidad de $3,000.00 (Tres Mil Pesos) por cada  equipo. Cualquier recuperación de Equipo será por cuenta y costo del  SUSCRIPTOR.<br>
+      Si al termino o rescisión el  Contrato, el SUSCRIPTOR no devuelve el Equipo a MEGANETT o no efectúa el pago  por concepto de costo de reposición de los equipos no devueltos en términos de  lo previsto en este Contrato, se hará efectivo el pagare que es causal y no  negociable; es decir que este pagare solo se firma por el SUSCRIPTOR para  garantizar el costo del Equipo de Red si no se hace la devolución de este por  parte del SUSCRIPTOR. Si al finalizar la relación contractual el SUSCRIPTOR  hace la devolución del Equipo de Red conforme al presente contrato, MEGANETT  devolverá el pagare establecido en el Anexo 1 a   el SUSCRIPTOR.<br>
+      En caso de terminación, rescisión  o cancelación del presente Contrato, el SUSCRIPTOR se obliga a devolver o  entregar el Equipo a MEGANETT a más tardar dentro del plazo de 10 (diez) días  naturales contados a partir de la fecha en que notifique la terminación del  Contrato.<br>
+      En caso de la devolución del  Equipo, se proporcionara una nota de recepción, la cual deberá contener el  número telefónico, nombre del SUSCRIPTOR y nombre de la persona que lo entrega  y lo recibe. MEGANETT se obliga a cancelar y devolver el pagare suscrito en  garantía del Equipo establecido en el Anexo 1, al término del contrato siempre  y cuando el SUSCRIPTOR entregue el Equipo.<br>
+      En el supuesto que el SUSCRIPTOR  no devuelva el Equipo a MEGANETT por terminación del Contrato, este podrá hacer  valer el pagare establecido en el Anexo 1. Asimismo MEGANETT se obliga a  cancelar y devolver el título de crédito suscrito en garantía del Equipo  establecido en el Anexo 1,  al término de  este Contrato. MEGANETT, por ningún motivo hará uso del título del crédito  correspondiente al término del contrato, sin pena de las sanciones establecidas  en la normatividad aplicable.<br>
+      <strong>QUINTA: CONSULTA DE  INFORMACIÓN Y ATENCIÓN AL SUSCRIPTOR. </strong>El  SUSCRIPTOR tiene los siguientes medios de consulta: </p>
+    <ul>
+      <li>Su saldo sin costo alguno: <strong><em>usuarios.meganett.com.mx</em></strong></li>
+      <li>Tarifas de la oferta comercial vigente  disponible: <strong><em>www.meganett.com.mx</em></strong></li>
+      <li>Aviso de Privacidad simplificado vigente: <strong><em>www.meganett.com.mx </em></strong></li>
+      <li>Estado de cuenta o detalle  de consumos: <strong><em>usuarios.meganett.com.mx</em></strong></li>
+      <li>Para la atención de consultas, reclamaciones,  reportar el robo o extravío de la línea y/o del equipo propiedad del  SUSCRIPTOR, se encuentra disponible el número telefónico 5542106277, así como  el correo electrónico soporte@meganett.com.mx disponibles de Lunes a Sábado de  9:00am-9:00pm.</li>
+    </ul>
+    <p>Las tarifas del servicio se encuentran  inscritas en el Registro Público de Concesiones del IFT<strong> y </strong>pueden ser  consultadas en la página del  IFT <a href="http://www.ift.org.mx">www.ift.org.mx</a><strong>. </strong><br>
+      Las tarifas no podrán establecer  condiciones contractuales tales como causas de terminación anticipada o  cualquier otra condición que deba ser pactada dentro de los contratos de  adhesión. De igual manera, no se podrán establecer términos y/o condiciones de  aplicación de las tarifas que contravengan a lo establecido en el presente  contrato de adhesión. <br>
+      <strong>SEXTA:</strong> <strong>SERVICIOS ADICIONALES. </strong>MEGANETT podrá prestar Servicios de Telecomunicaciones adicionales  siempre y cuando el SUSCRIPTOR lo solicite a través de los medios disponibles. <br>
+      MEGANETT debe  ofrecer al SUSCRIPTOR cada servicio adicional o producto por separado, dando a  conocer el precio previamente a su contratación.<br>
+      El  SUSCRIPTOR puede solicitar en cualquier momento la cancelación de los servicios  adicionales, sin que ello implique la suspensión o cancelación de la prestación  del  Servicio originalmente contratado.  La cancelación de los servicios adicionales se podrá realizar a través de los  mismos medios disponibles para su contratación y sin mayor requisito que su  solicitud.<br>
+      <strong>SÉPTIMA: ESTADO DE CUENTA O  DETALLE DE CONSUMO.</strong> MEGANETT se encuentra  obligado a emitir un estado de cuenta o detalle de consumo, donde consten la  descripción de los cargos, costos, conceptos y naturaleza de los  Servicios prestados. El estado de cuenta o detalle de consumo puede ser consultado  en el portal <a href="http://www.____________.com">usuarios.meganett.com.mx</a>. <br>
+      En caso de que exista algún cargo indebido en su  estado de cuenta o detalle de consumo, el SUSCRIPTOR le hará del conocimiento a  MEGANETT a través de los medios de consulta de información y atención al  suscriptor que se encuentran establecidos en la cláusula  quinta, debiendo efectuar la devolución  correspondiente dentro de un plazo no mayor a  los 5 días hábiles posteriores a la reclamación. Dicha devolución se efectuará  por la misma forma de pago en el que se realizó el cargo indebido  correspondiente y se deberá bonificar el 20% sobre el monto del cargo realizado  indebidamente.<br>
+      <strong>OCTAVA: ACTIVACIÓN DEL  SERVICIO</strong>. Para poder utilizar el Servicio se requiere la instalación del Equipo  por parte de MEGANETT en el domicilio de el SUSCRIPTOR para que se pueda  activar el  servicio y empezar a prestar  el servicio en un plazo que no exceda de 10 días hábiles posteriores a la firma  del contrato. El SUSCRIPTOR deberá cubrir el costo de instalación vigente.<br>
+      Al activar  el servicio, el SUSCRIPTOR manifiesta su voluntad de: <br>
+      1.- Aceptar los términos y  condiciones establecidos en el presente Contrato y; <br>
+      2.- Aceptar que MEGANETT utilice  sus datos personales de acuerdo con lo establecido en el Aviso de Privacidad  simplificado, mismo que podrá ser consultado en la siguiente liga: <strong><em>www.meganett.com.mx</em></strong><br>
+      Las aceptaciones señaladas  anteriormente se confirmarán con la firma del presente contrato.<br>
+      Las condiciones pactadas en forma  verbal o electrónica, serán confirmadas al SUSCRIPTOR que celebró el contrato a  través de medios físicos, electrónicos, digitales o de cualquier otra nueva  tecnología que lo permita, en un plazo no superior a 5 (cinco) días hábiles,  contados a partir del momento en que fueron pactadas.<br>
+      <strong>NOVENA: </strong><strong>RECARGAS. </strong>Todas las  recargas que el SUSCRIPTOR realice posteriores a la aceptación del presente  contrato, se regirán conforme a los términos y condiciones generales de éste contrato.<br>
+      MEGANETT podrá ofrecer planes o paquetes que incluyan las recargas y/o  productos que considere convenientes, cuyas condiciones comerciales deberán estar  previamente registradas ante el Instituto.<strong> </strong><br>
+      MEGANETT se obliga a informar al SUSCRIPTOR de manera gratuita cada vez que realice una recarga de saldo, a través  de <strong><em>usuarios.meganett.com.mx</em></strong>,  la siguiente información:</p>
+    <ul>
+      <li>La confirmación del monto de  recarga realizada;</li>
+      <li>La oferta comercial activada y beneficios  incluidos con motivo de la recarga de saldo realizada;</li>
+      <li>Con la recarga de saldo  realizada, se manifiesta la voluntad de aceptar los términos y condiciones de  la oferta comercial activada.</li>
+      <li>Vigencia de la recarga;</li>
+    </ul>
+    <p>Una vez agotados los  beneficios de la oferta comercial para obtener el servicio y si el SUSCRIPTOR desea continuar con el servicio, deberá realizar de nueva cuenta la  recarga correspondiente según la oferta comercial que deseé contratar. Cada  recarga realizada se regirá en lo establecido en el presente contrato.<br>
+      En caso de ser  aplicable según los términos y condiciones de la recarga, <strong>MEGANETT</strong> debe  abonar al SUSCRIPTOR que realice recarga, el saldo que no hayan consumido  dentro de su periodo de vigencia, en la siguiente recarga que realice el  Consumidor dentro del año siguiente a la fecha de expiración.<br>
+      <strong>DÉCIMA: MODIFICACIONES. </strong>MEGANETT dará aviso al SUSCRIPTOR,  cuando menos con 15 días naturales de anticipación, de cualquier cambio en los  términos y condiciones originalmente contratados. Dicho aviso deberá ser  notificado, a través de medios físicos, electrónicos, digitales o de cualquier  otra nueva tecnología que lo permita.<strong></strong><br>
+      El SUSCRIPTOR manifiesta su voluntad de aceptar los nuevos términos y condiciones con  el primer uso de servicios que realice a partir de la implementación efectiva  de los mismos<br>
+      <strong>DÉCIMA PRIMERA:  SUSPENSIÓN E INTERRUPCIÓN DEL SERVICIO</strong>. MEGANETT  podrá suspender el Servicio, previa notificación por escrito al SUSCRIPTOR, si  este último incurre en cualquiera de los siguientes supuestos:<br>
+      1. Por utilizar el  servicio de manera contraria a lo previsto en el contrato y/o a las  disposiciones aplicables.<br>
+      2. Por declaración judicial o administrativa.<br>
+      3. A solicitud del SUSCRIPTOR en caso de robo o extravío del equipo  terminal.<br>
+      No  obstante a lo anterior, se pueden presentar factores externos como es el caso  Fortuito o Fuerza mayor. En estos supuestos cuando la interrupción dure más de 72  horas consecutivas siguientes al reporte que realice el SUSCRIPTOR, MEGANETT  hará la compensación por la parte proporcional del periodo en que se dejó de  prestar el servicio contratado, la cual se verá reflejada en el siguiente  recibo y/o factura. Además, MEGANETT deberá bonificar por lo menos el 20% del  monto del periodo de afectación. <br>
+      Una vez solucionada la causa que originó la suspensión del servicio, MEGANETT  deberá reanudar la prestación del servicio de manera automática.<br>
+      <strong>DÉCIMA SEGUNDA: BONIFICACIÓN Y COMPENSACIÓN. </strong>MEGANETT deberá bonificar y compensar al suscriptor en los siguientes  casos:<strong></strong></p>
+    <ul>
+      <li>Cuando <strong>MEGANETT </strong>no preste el Servicio  en la forma y términos convenidos, contratados, ofrecidos o implícitos o  información desplegada en la publicidad MEGANETT, éste debe de compensar al  consumidor la parte proporcional del precio del servicio, plan o paquete que se  dejó de prestar y como bonificación al menos el 20% del monto del periodo de  afectación de la prestación del servicio.</li>
+      <li>Cuando la interrupción del servicio sea por casos fortuitos o de fuerza  mayor, si la misma dura más de 72 horas consecutivas siguientes al reporte que  realice el SUSCRIPTOR,<strong> </strong>MEGANETT hará  la compensación por la parte proporcional del periodo en que se dejó de prestar  el servicio contratado, la cual se verá reflejada en el siguiente recibo y/o  factura.  Además, MEGANETT deberá bonificar por lo menos el 20% del monto del  periodo de afectación.</li>
+      <li>Cuando MEGANETT realice <strong>cargos  indebidos</strong>, deberá bonificar el 20% sobre el monto del cargo realizado  indebidamente.</li>
+    </ul>
+    <p>A partir de que MEGANETT reciba la llamada  por parte del SUSCRIPTOR para reportar las fallas y/o interrupciones en el  SERVICIO, MEGANETT procederá a verificar el tipo de falla y con base en ello,  se determinará el tiempo necesario para la reparación, el cual no puede exceder  las 72 horas siguientes a la recepción del reporte. <br>
+      <strong>DÉCIMA TERCERA: MECANISMOS DE BONIFICACIÓN Y COMPENSACIÓN. </strong>En caso de que proceda la bonificación y/o compensación, MEGANETT se  obliga a: <strong></strong></p>
+    <ul>
+      <li>Realizarlas a más tardar en los 5 días siguientes a la fecha de que se  actualice algunos de los supuestos descritos en la cláusula anterior o que el  SUSCRIPTOR haya realizado la reclamación correspondiente. </li>
+      <li>La bonificación y compensación se realizará en servicio, y al momento de  realizarla MEGANETT se obliga a informarle al SUSCRIPTOR a través de medios electrónicos.</li>
+    </ul>
+    <p><strong>DÉCIMA CUARTA:</strong> <strong>NO  DISCRIMINACIÓN</strong>. MEGANETT debe prestar el Servicio en  condiciones equitativas a todo aquel que lo solicite, sin establecer  privilegios o distinciones en forma discriminatoria, respecto de otros  SUSCRIPTORES en la misma área de cobertura y en las mismas condiciones de  contratación.<br>
+      En caso de que MEGANETT ofrezca  condiciones más favorables a uno o más suscriptores situados en supuestos  equivalentes o similares, el SUSCRIPTOR puede exigir las mismas condiciones,  siempre y cuando sea posible técnicamente para la prestación del Servicio.<br>
+      <strong>DÉCIMA QUINTA:</strong> <strong>AVISO DE PRIVACIDAD.</strong><br>
+      El Aviso de Privacidad simplificado vigente, se encuentra para su  consulta en la siguiente liga <strong><em>www.meganett.com.mx</em></strong> para que el SUSCRIPTOR pueda  ejercer alguno de sus derechos, de conformidad con la Ley Federal de Protección  de Datos Personales en Posesión de los Particulares. <br>
+      Se informa al SUSCRIPTOR que al activar el servicio está aceptando que MEGANETT  utilice sus datos personales de acuerdo y para las finalidades establecidas en  dicho Aviso de Privacidad simplificado. <br>
+      MEGANETT está obligado a proteger  y tratar conforme a la normatividad aplicable, los datos personales que le sean  proporcionados por el  SUSCRIPTOR.  <br>
+      <strong>DÉCIMA SEXTA. AUTORIDAD COMPETENTE. </strong>La PROFECO es la autoridad  competente en materia administrativa para  resolver cualquier controversia que se suscite sobre la interpretación o  cumplimiento del presente contrato de adhesión. <br>
+      Al IFT le corresponde regular y  vigilar la calidad de los Servicios de Telecomunicaciones, así como el  cumplimiento de las disposiciones administrativas que emita y que sean  referidas en la Norma Oficial Mexicana NOM-184-SCFI-2018. <br>
+      <strong>DÉCIMA SÉPTIMA. PROCEDIMIENTO CONCILIATORIO.</strong> Cuando se llegare a iniciar  algún procedimiento conciliatorio ante la PROFECO, MEGANETT no podrá  interrumpir los servicios. Si el servicio de telecomunicaciones se suspendió  con posterioridad a la presentación de la reclamación y previo a la  notificación al PROVEEDOR, la PROFECO deberá solicitar restablecer el SERVICIO.  Si el servicio se suspende posterior a la notificación de la reclamación, la  PROFECO requerirá al PROVEEDOR el restablecimiento del servicio.<br>
+      <strong>DÉCIMA OCTAVA:</strong> <strong>DATOS  REGISTRALES. </strong>Este modelo de Contrato de Adhesión, se encuentra  registrado en la Procuraduría Federal del Consumidor, con el  número ________ de fecha _____ del mes de  ______de 2021. <br>
+    </p>
+    <p>Asimismo, el SUSCRIPTOR podrá consultar  dicho registro en <a href="https://burocomercial.profeco.gob.mx/ca_spt/Razon%20Social!!Nombre%20Comercial%2000-2021.pdf">https://burocomercial.profeco.gob.mx/ca_spt/Razon  Social!!Nombre Comercial 00-2021.pdf</a> y en el siguiente  código:<br>
+      <img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image002.jpg" alt="" width="69" height="68" align="middle"><br>
+      Cualquier diferencia  entre el texto del contrato de adhesión registrado ante la Procuraduría Federal  del Consumidor y el utilizado en perjuicio del SUSCRIPTOR, se tendrá por no  puesta.<br>
+    Los  contratos de adhesión registrados ante la PROFECO deberán utilizarse en todas  sus operaciones comerciales y corresponder fielmente con los modelos de  contrato registrados por la misma, estar publicados de manera permanente en la  página en Internet MEGANETT y disponibles para su consulta a través de medios  electrónicos, digitales o de cualquier otra nueva tecnología que lo permita,  sin perjuicio de lo establecido en los Lineamientos Generales de Accesibilidad  a Servicios de Telecomunicaciones para los Usuarios con Discapacidad que emita  el Instituto.</p>
+</div>
+  <br clear="all">
+  <p><strong>ANEXO 1 DEL&nbsp;</strong><strong>CONTRATO DE PRESTACIÓN DE SERVICIOS </strong><strong>DE INTERNET FIJO EN CASA</strong><strong> –EL &ldquo;CONTRATO&rdquo;–, QUE CELEBRAN POR  UNA PARTE </strong><strong>MEGANET  TELECOMUNICACIONES, S.A. DE C.V.</strong><strong>, A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ  &ldquo;MEGANETT&rdquo;, REPRESENTADA EN ESTE ACTO POR SU APODERADO LEGAL, Y POR LA OTRA  PARTE LA PERSONA CUYO NOMBRE Y DIRECCIÓN QUEDAN ASENTADOS EN LA CARÁTULA DEL  CONTRATO, A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ &ldquo;EL SUSCRIPTOR&rdquo;.</strong><strong> </strong></p>
+  <div align="center">
+    <table border="0" cellspacing="0" cellpadding="0">
+      <tr>
+        <td width="692" valign="top"><p>&nbsp;</p>
+          <p><strong>PAGARÉ</strong> <br>
+            BUENO POR $3,000.00 (Tres Milpesos 00/100 M.N.)<br>
+            Ciudad de ______ a ______ de ___________ de 2021.</p>
+          <p>Por el presente pagaré reconozco deber y me    obligo a pagar incondicionalmente en esta Ciudad a Meganet Telecomunicaciones    S.A. DE C.V. la cantidad de $3,000.00 (Tres mil pesos 00/100 M.N.) por cada    equipo que se haya entregado y no haya sido devuelto, una vez terminada la    relación contractual del presente contrato que fue celebrada con fecha    ________________.<br>
+            (Este pagaré no podrá cobrarse de manera autónoma    a las establecidas en el presente contrato de adhesión)<br>
+            Nombre: _____________________________________________________________    ACEPTO: _____________________________________.<br>
+            Domicilio:__________________________________________________________________________________________________________<br>
+            Firma: _______________________________________ Lugar y    fecha: ___________________________________________.</p></td>
+      </tr>
+    </table>
+  </div>
+  <p>Leído que fue por  las partes el contenido de este Anexo 1 del Contrato y sabedoras de su alcance  legal, lo firman por duplicado </p>
+  <p>en la ciudad de _______________________________________________________________,  _________________________________, </p>
+  <p>a los ___________________________________  días de mes de __________________________________ del año dos mil veintiuno;  entregándosele una copia del mismo a EL CLIENTE.</p>
+  <div align="center">
+    <table border="0" cellspacing="0" cellpadding="0">
+      <tr>
+        <td width="394" valign="top"><p>&nbsp;</p>
+          <p align="center">______________________________________________</p></td>
+        <td width="394" valign="top"><p align="center">&nbsp;&nbsp;&nbsp;<br>
+          ___________________________________________</p></td>
+      </tr>
+      <tr>
+        <td width="394" valign="top"><p align="center"><strong>&ldquo;EL MEGANETT&rdquo;</strong><br>
+          <strong>Apoderado legal</strong></p></td>
+        <td width="394" valign="top"><p align="center"><strong>&ldquo;EL SUSCRIPTOR&rdquo;</strong></p></td>
+      </tr>
+    </table>
+  </div>
+  <p><img src="../AppData/Roaming/Adobe/Dreamweaver CS5.5/es_ES/OfficeImageTemp/clip_image006.jpg" alt="" width="67" height="66">&nbsp;</p>
+<h4>&nbsp;</h4></div></body>
+</html>
+
+
+

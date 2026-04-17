@@ -1,0 +1,1 @@
+$input = Utility::modifyValueForCheckbox($input);

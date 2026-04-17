@@ -1,0 +1,9 @@
+Hello {{ recipient.name }},<br>
+<h3>Task <a href="{{ task.link_to_task }}" target="_blank">{{ task.title }} (#{{ task.id }})</a> was changed</h3>
+<p>{{ task.getTaskChangedAttributesHtmlDiff() | raw }}</p>
+<br>
+To view task, please follow this link
+{{ task.link_to_task }}.
+<br><br>
+Best regards, <br>
+{{ company_info.company_name }} team.

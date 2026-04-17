@@ -1,0 +1,17 @@
+cd /home/meganet
+git pull origin main
+sudo chmod -R 777 /home/meganet/storage/
+sudo chmod -R 777 /home/meganet/bootstrap/
+/opt/lampp/bin/php artisan optimize:clear
+/opt/lampp/bin/php artisan migrate:fresh --seed
+npm run dev
+/opt/lampp/bin/php artisan storage:link
+/opt/lampp/bin/php artisan cache:clear
+
+/opt/lampp/bin/php artisan view:clear
+
+/opt/lampp/bin/php artisan route:cache
+
+
+/opt/lampp/bin/php artisan schedule:work
+

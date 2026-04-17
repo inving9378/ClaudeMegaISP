@@ -1,0 +1,37 @@
+<?php
+
+use App\Models\MapDevice;
+use App\Models\MapLayer;
+use Illuminate\Database\Migrations\Migration;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        $layers = MapLayer::type('junction_box')->get();
+        $charoles = [];
+        foreach ($layers as $l) {
+            for ($i = 0; $i < 3; $i++) {
+                $charoles[] = [
+                    'name' => "Charole",
+                    'layer_id' => $l->id,
+                    'type' => "charole",
+                ];
+            }
+        }
+        if (count($charoles) > 0) {
+            MapDevice::insert($charoles);
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        //
+    }
+};

@@ -1,0 +1,158 @@
+Logica para Pagos.
+
+// Prepaid Daily - en el comando Billing Service (script corre cada dia a las 00:00)
+-> obtengo todos los ClientInternetService donde el tipo de pago sea diario
+-> hago un dispach del job RectifyBalanceAndCreateTransactionInClientInternetService
+        ->obtengo nuevo balance, precio y costo diario si el tipo de pago es daily.
+        ->si no tengo saldo agrego el cliente al address list de clientes morosos.
+        ->si tengo saldo se realiza el descuento del balance y se crea la transaccion de debito de dicho descuento por el pago del servicio.
+
+// Prepaid Custom
+-> obtengo todos los ClientInternetService donde el tipo de pago sea Personalizado(custom) y donde el campo start_date sea igual a la fecha actual menos 1 mes.
+-> hago un dispach del job RectifyBalanceAndCreateTransactionInClientInternetService
+        ->obtengo nuevo balance, precio y el costo que en este caso es igual al precio, todo esto segun si el tipo de pago Personalizado(custom)
+        ->si no tengo saldo agrego el cliente al address list de clientes morosos.
+        ->si tengo saldo se realiza el descuento del balance y se crea la transaccion de debito de dicho descuento por el pago del servicio.
+
+
+//Prepaid Recurrent
+-> obtengo todos los ClientInternetService donde el tipo de pago sea Recurrent y 
+->si esta activada la facturacion y donde el campo 
+->si el dia de facturacion igual a la fecha actual.
+->si no tiene facturaci'on para en el dia de hoy
+->si ha tendo transacci'on en el periodo designado
+->si no existe el ClientInternetService en la tabla PedriodGrace
+Gracie
+
+->hago un dispach del job RectifyBalanceAndCreateTransactionInClientInternetService
+->obtengo nuevo balance, precio y el costo, todo esto segun si el tipo de pago
+        ->si tengo saldo se realiza el descuento del balance y se crea la transaccion de debito de dicho descuento por el pago del servicio.
+        ->Agrego el tipo de pago a la tabla ClientPaymentService como constancia de pago
+
+       -si no tiene saldo disponible, se le crea la transacci'on de debito, y se le ajusta el balance en negativo
+       - Agrago al ClientInternetService en la tabla PedriodGrace
+
+
+-> Si se efectua un pago debemos revisar si existe el clientService en la tabla PedriodGrace y eliminar el registro o reiniciarle el periodo de gracia en la tabla PedriodGrace
+
+
+
+ //Cumplimiento del periodo de gracia      
+-> obtengo todos los registros de PedriodGrace que
+ - donde la fecha es mayor o igual al d'ia actual menos el periodo de gracia
+ -> 
+
+
+
+
+
+menos la cantidad de periodos designados desde la fecha de facturacion anterior pagada
+
+-> oDonde si fecha de facturacion sea igual a la fecha actual menos la cantidad de periodos designados desde
+la fecha de facturacion anterior pagada mas dias de Vencimiento de la facturacion
+
+->oDonde si fecha de facturacion sea igual a la fecha actual menos la cantidad de periodos designados desde
+la fecha de facturacion anterior pagada mas periodo de gracia
+
+Compruebo
+- Si el cliente tiene el periodo de gracia mayor o igual al dia de facturacion mas cantidad de dias de periodo de gracia.
+ - Desactivo el servicio perteneciente al cliente y bloqueo la cuenta en bases de datos
+
+-Si el cliente cumple que es mayor o igua la fecha de facturacion mas  la cantidad de dias de venciemento de facturacion
+  -agrego el cliente al address list de clientes morosos.
+
+Si solamenete el cliente ha llegado a la fecha de facturacion mas el periodo otorgado
+->hago un dispach del job RectifyBalanceAndCreateTransactionInClientInternetService
+->obtengo nuevo balance, precio y el costo que en este caso es igual al precio, todo esto segun si el tipo de pago
+        ->si tengo saldo se realiza el descuento del balance y se crea la transaccion de debito de dicho descuento por el pago del servicio.
+        ->Agrego el tipo de pago a la tabla ClientPaymentService como constancia de pago
+
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------------
+Promezas de servicio.
+no ha pagado el servicio el cliente, el cliente solicita este tipo de salvedad
+Crear promeza de pago ---  periodo en dias
+dias con servicio hasta los dias prometidos
+----------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+- Tipo de pagos diarios.
+-----------------------------------------------------------------
+Necesito
+-type_of_billing_id-pagos diarios(2)
+El tipo de pago de tipo del cliente
+El balance del cliente
+El inicio y el fin del servicio
+
+---
+1- Recorro ClientInternetService.
+2- Por cada servicio Obtengo el cliente que tenga el servio activo y desplegado
+   que la fecha de inicio sea menor o igual que la fecha actual y que la (fecha
+   final sea nula o mayor o igual que la fecha actual.)
+3- A cada cliente le obtengo el tipo de pago si este es (2) y el resultado del saldo entre el balance
+    y los dias del mes es mayor que su balance entonces
+  -Desplego el cliente en el mikrotik
+   se obtiene el cobro diario dependiendo del saldo del cliente dividido entre los dias del mes actual
+4- Rectifico el balance del cliente con la sustraccion del saldo
+5- Creo la transaccion para el cliente.
+
+
+------------------------------------
+Recurrente
+Primera consulta
+Recorrer ClientIntenetService donde
+ - Se llama a las relaciones client.balance', 'client.client_main_information', 'router', 'ClientPaymentService'
+ - Donde si tiene cliente
+ - Donde esta activa
+ - Donde esta desplegada
+ - Donde la fecha inicial <= la fecha actual menos un mes
+
+ Otra query cambiando la fecha termino
+ - O Donde la fecha inicial comprando la fecha actual menos un mes y la cantidad de dias en el campo Vencimiento de
+ facturacion
+
+
+
+
+
+
+
+
+
+// Por Hacer
+   Create table ClientPaymentService [Model,Id]
+
+
+
+
+

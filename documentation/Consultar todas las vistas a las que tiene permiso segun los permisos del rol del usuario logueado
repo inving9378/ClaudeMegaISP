@@ -1,0 +1,25 @@
+Incluir
+import Permission from helpers/Permission 
+import {allViewHasPermission} from helpers/Request
+Recordar poner correctamente las direcciones a Permission y Request;
+
+1- Crear la constante en setup
+
+   const hasPermission = reactive({
+            data: new Permission({})
+        })
+        
+2- En onBeforeMount
+        onBeforeMount(async () => {
+            hasPermission.data = new Permission(await allViewHasPermission());
+        });
+
+3- Para consultar si tiene permiso utilizar
+        hasPermission.data.canView('crm_document_add')
+        
+        donde crm_document_add -> se refiere en el archivo view_permission segun el permiso que tiene a que vista puede acceder;
+        
+        //Permiso                //Vista a la que tiene permiso separada por coma
+        'crm_document_add_crm' => ['crm_document_add']
+        
+4- Incluir hasPermission en el return del setup si necesita utilizarlo en el template del vuejs.

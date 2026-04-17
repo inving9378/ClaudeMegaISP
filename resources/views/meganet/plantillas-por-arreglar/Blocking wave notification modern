@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Blocking wave notification</title>
+</head>
+<body>
+<div style="background-color: #F7F8FC; color: #1B2124; border-radius: 4px; border: 1px solid #E9ECEF; padding: 24px; font-size: 14px; font-family: Arial, sans-serif; line-height: 20px; width: 600px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 24px;">
+        {% if company_info.splynx_url and company_info.file_logo %}
+            <img style="max-width: 200px; max-height: 150px;" alt="logo"
+                 src="{{ company_info.splynx_url }}{{ company_info.logo_url }}">
+        {% else %}
+            <p style="color: #1B2124; font-size: 18px; line-height: 24px; font-weight: 600;">{{ company_info.company_name }}</p>
+        {% endif %}
+    </div>
+    <p style="color: #1B2124; line-height: 20px; margin: 0 0 12px;">
+        Dear {{ customer.name }}, your services have been blocked today automatically because of unpaid invoice.
+    </p>
+    <p style="color: #1B2124; margin: 0; line-height: 20px;">
+        Please add a payment to your balance to unblock services by following link.
+    </p>
+    <p style="color: #1B2124; line-height: 20px; margin: 0">
+        Link to portal: <a href="{{ Url.getBaseUrl() ~ '/portal' }}" style="color: #367BF5; text-decoration: none"
+                           target="_blank">{{ Url.getBaseUrl() ~ '/portal' }}</a>
+    </p>
+    <p style="color: #1B2124; line-height: 20px; margin: 0">
+        Your login: <b>{{ customer.login }}</b>
+    </p>
+    <p style="color: #1B2124; margin: 0; line-height: 20px;">
+        Your password: <b>{{ customer.password }}</b>
+    </p>
+    <p style="color: #1B2124; margin: 0 0 12px; line-height: 20px;">
+        Should you have any queries please do not hesitate to contact us.
+    </p>
+    <p style="color: #1B2124; line-height: 20px; margin: 0">
+        Best regards, {{ company_info.company_name }} team.
+    </p>
+</div>
+</body>
+</html>

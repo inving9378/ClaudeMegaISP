@@ -1,0 +1,55 @@
+Estructura del modelo
+
+1- Varianles $protected;
+    -> ejemplo:         protected $guarded = [];
+
+2-> Luego las constantes
+    -> ejemplo:
+                         const SINGLE_RELATIONS = [
+                                'ClientMainInformation' => [
+                                    'relation_name' => 'client_main_information',
+                                    'relation_field' => 'client_id',
+                                    'local_relation' => 'id'
+                                ]
+                            ];
+
+2.1 Seters y geters
+
+3- Luego las relaciones en el siguiente formato
+    -> ejemplo:
+                         public function user()
+                         {
+                             return $this->hasOne(ClientUser::class);
+                         }
+
+                         public function client_main_information()
+                         {
+                                return $this->hasOne(ClientMainInformation::class);
+                         }
+
+4-> Luego los scope
+    -> ejemplo:
+                         public function scopeFilters($query, $columns, $search = null)
+                            {
+                                if (isset($search)) {
+                                    return $query->where(function ($query) use ($search, $columns) {
+                                        foreach (collect($columns)->filter(function ($value) {
+                                            return $value != 'action';
+                                        })->toArray() as $value) {
+                                            $query->orWhere($value, 'like', '%' . $search . '%');
+                                        }
+                                    });
+                                }
+                            }
+
+
+5-> Las funciones que se necesiten en el modelo se incluiran en un trait en app/Http/Trait/Models seguido del nombre del modelo.
+    -> quedaria por ejemplo el archivo  ClientTrait para el modelo Client en  app/Http/Trait/Models/Client
+    ->luego las funciones se escriben con el formato studlyCase comenzando con nombre del modelo
+
+        *ejemplo:        public function createClientMainInformation($request)
+                         {
+                             $key = collect(config('module.client.constants.ClientMainInformation.FIELDS'))->keys()->toArray();
+                             $this->client_main_information()->Create(\Illuminate\Support\Arr::only($request->all(), $key));
+                             return $this;
+                         }

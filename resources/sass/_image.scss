@@ -1,0 +1,9 @@
+div.image.resize {
+    background-repeat: no-repeat;
+    width: -webkit-fill-available;
+    height: 400px;
+    resize: both;
+    overflow: auto;
+    margin: 0 auto;
+    background-size: contain;
+}
