@@ -93,6 +93,15 @@ use App\Http\Controllers\InternetConsumptionRadiusController;
 
 include('script_db.php');
 
+/*
+ * Rutas modulares
+ * ---------------
+ * Cada módulo bajo app/Modules/{Core,Addons}/<Slug>/routes.php se carga
+ * automáticamente desde su ModuleServiceProvider (registrado por AppServiceProvider).
+ * No es necesario incluirlas aquí. Las rutas globales legacy permanecen abajo
+ * hasta que cada módulo sea migrado en PRs posteriores.
+ */
+
 Auth::routes();
 //Language Translation
 Route::group(['middleware' => ['auth']], function () {
@@ -1747,4 +1756,9 @@ Route::get('/notification-email', function () {
     $n = TaskNotification::find(1);
     return (new StandardNotification($n, ['email'], ['title' => 'usted tiene asignada una nueva tarea', 'url' => '/scheduling/task/editar/' . $n->task_id]))
         ->toMail($n->user);
+
+    Route::group(['prefix' => 'ia', 'namespace' => 'IA'], function () {
+        Route::post('/chat',   'IAChatController@chat');
+        Route::get('/history', 'IAChatController@history');
+    });
 });
