@@ -66,6 +66,7 @@ import ImportListar from "./components/module/setting/ImportListar.vue";
 import ImportCrud from "./components/module/setting/components/tools/ImportCrud.vue";
 import ShowActivity from "./components/module/adminstration/activity_log/ShowActivity.vue";
 import ModuleManager from "./components/module/admin/modules/ModuleManager.vue";
+import DevtoolsPanel from "./components/module/devtools/DevtoolsPanel.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -328,6 +329,7 @@ const app = createApp({
         CommandConfig,
         FieldModuleListar,
         ModuleManager,
+        DevtoolsPanel,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
