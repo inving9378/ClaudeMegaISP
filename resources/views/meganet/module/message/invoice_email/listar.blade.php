@@ -1,4 +1,4 @@
-@extends('meganet.layout.master')
+@extends('core-layout::master')
 
 @section('content')
      @if (session()->has('message'))

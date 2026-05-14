@@ -1,4 +1,4 @@
-@extends('meganet.layout.master-without-nav')
+@extends('core-layout::master-without-nav')
 @section('title')
 Login
 @endsection

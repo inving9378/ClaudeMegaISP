@@ -276,7 +276,7 @@ class UserController extends Controller
     public function changePassword()
     {
         $user = Auth::user();
-        return view('meganet.layout.change-password');
+        return view('core-layout::change-password');
     }
 
     public function destroy($id)

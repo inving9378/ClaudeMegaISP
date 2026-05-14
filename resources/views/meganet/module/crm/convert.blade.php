@@ -1,5 +1,5 @@
 
-@extends('meganet.layout.master')
+@extends('core-layout::master')
 @section('title')
     @lang('translation.Dashboard')
 @endsection
