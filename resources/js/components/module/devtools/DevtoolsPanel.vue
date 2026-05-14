@@ -163,7 +163,7 @@ export default {
     },
     data() {
         return {
-            chatModel: 'claude-sonnet-4',
+            chatModel: 'claude-sonnet-4-6',
             input: '',
             messages: [],
             sending: false,
