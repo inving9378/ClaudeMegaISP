@@ -15,9 +15,14 @@ use Illuminate\Support\Facades\Route;
  *   pero el controlador aplica 'auth' por constructor.
  *
  * Se preserva esa distribución de middleware exactamente.
+ *
+ * Se añade `web` como primer middleware porque BaseModuleServiceProvider
+ * carga este archivo con loadRoutesFrom(), que NO aplica el grupo `web`
+ * automáticamente. Sin él no corren StartSession ni ShareErrorsFromSession,
+ * y `auth` no podría leer la sesión del usuario.
  */
 
-Route::middleware(['auth', 'check_route_permission'])->group(function () {
+Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () {
     Route::get('/', [HomeController::class, 'index']);
     Route::get('/index', [HomeController::class, 'index']);
 
@@ -44,4 +49,9 @@ Route::middleware(['auth', 'check_route_permission'])->group(function () {
     });
 });
 
-Route::get('/home', [HomeController::class, 'index'])->name('home');
+// /home queda fuera del check_route_permission (igual que antes en
+// routes/web.php) pero ahora pasa por `web`+`auth`: web aporta la sesión y
+// auth corre desde el grupo, no sólo desde HomeController::__construct.
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/home', [HomeController::class, 'index'])->name('home');
+});
