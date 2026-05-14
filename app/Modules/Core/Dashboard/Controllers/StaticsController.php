@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Modules\Core\Dashboard\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\ClientMainInformation;
 use App\Models\CrmLeadInformation;
 use Carbon\Carbon;

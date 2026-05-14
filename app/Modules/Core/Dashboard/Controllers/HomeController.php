@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Modules\Core\Dashboard\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Http\Repository\ClientRepository;
 use App\Http\Repository\PaymentRepository;
 use App\Models\Client;
@@ -39,9 +40,9 @@ class HomeController extends Controller
     {
         $this->data['notifications'] = $this->userNotification();
         if (auth()->user()->isClient()) {
-            return view('meganet.module.started-page-client', $this->data);
+            return view('core-dashboard::started-page-client', $this->data);
         } else {
-            return view('meganet.module.started-page', $this->data);
+            return view('core-dashboard::started-page', $this->data);
         }
     }
 
