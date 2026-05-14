@@ -64,6 +64,12 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
 
-        'check_route_permission' => \App\Modules\Core\Auth\Middleware\CheckRoutePermission::class
+        'check_route_permission' => \App\Modules\Core\Auth\Middleware\CheckRoutePermission::class,
+
+        // Spatie role / permission middlewares — necesarios para `role:DESARROLLADOR`
+        // (rutas del módulo addon-devtools y similares).
+        'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+        'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+        'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
     ];
 }

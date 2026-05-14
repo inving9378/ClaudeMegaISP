@@ -1,0 +1,9 @@
+{
+    "slug": "addon-devtools",
+    "name": "DevTools",
+    "version": "0.1.0",
+    "description": "Panel split-screen para desarrolladores: chat con Claude + terminal web (ttyd) en un solo viewport. Sólo accesible al rol DESARROLLADOR.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}
