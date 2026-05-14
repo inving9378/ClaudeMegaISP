@@ -68,6 +68,26 @@ import ShowActivity from "./components/module/adminstration/activity_log/ShowAct
 import ModuleManager from "./components/module/admin/modules/ModuleManager.vue";
 import DevtoolsPanel from "./components/module/devtools/DevtoolsPanel.vue";
 
+// MegaFamilia (addon-megafamilia) — 1 dashboard + 17 scaffolds
+import MegaFamiliaDashboard from "./components/module/megafamilia/MegaFamiliaDashboard.vue";
+import MegaFamiliaClientes from "./components/module/megafamilia/MegaFamiliaClientes.vue";
+import MegaFamiliaLicencias from "./components/module/megafamilia/MegaFamiliaLicencias.vue";
+import MegaFamiliaPlanes from "./components/module/megafamilia/MegaFamiliaPlanes.vue";
+import MegaFamiliaIngresos from "./components/module/megafamilia/MegaFamiliaIngresos.vue";
+import MegaFamiliaAlertas from "./components/module/megafamilia/MegaFamiliaAlertas.vue";
+import MegaFamiliaSolicitudes from "./components/module/megafamilia/MegaFamiliaSolicitudes.vue";
+import MegaFamiliaPerfiles from "./components/module/megafamilia/MegaFamiliaPerfiles.vue";
+import MegaFamiliaDispositivos from "./components/module/megafamilia/MegaFamiliaDispositivos.vue";
+import MegaFamiliaTareas from "./components/module/megafamilia/MegaFamiliaTareas.vue";
+import MegaFamiliaUbicaciones from "./components/module/megafamilia/MegaFamiliaUbicaciones.vue";
+import MegaFamiliaReportes from "./components/module/megafamilia/MegaFamiliaReportes.vue";
+import MegaFamiliaAuditoria from "./components/module/megafamilia/MegaFamiliaAuditoria.vue";
+import MegaFamiliaMikrotik from "./components/module/megafamilia/MegaFamiliaMikrotik.vue";
+import MegaFamiliaNotificaciones from "./components/module/megafamilia/MegaFamiliaNotificaciones.vue";
+import MegaFamiliaSoporte from "./components/module/megafamilia/MegaFamiliaSoporte.vue";
+import MegaFamiliaTerminos from "./components/module/megafamilia/MegaFamiliaTerminos.vue";
+import MegaFamiliaConfiguracion from "./components/module/megafamilia/MegaFamiliaConfiguracion.vue";
+
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
 import LeafletMap from "./components/module/maps/LeafletMap.vue";
@@ -330,6 +350,24 @@ const app = createApp({
         FieldModuleListar,
         'module-manager': ModuleManager,
         'devtools-panel': DevtoolsPanel,
+        'mega-familia-dashboard': MegaFamiliaDashboard,
+        'mega-familia-clientes': MegaFamiliaClientes,
+        'mega-familia-licencias': MegaFamiliaLicencias,
+        'mega-familia-planes': MegaFamiliaPlanes,
+        'mega-familia-ingresos': MegaFamiliaIngresos,
+        'mega-familia-alertas': MegaFamiliaAlertas,
+        'mega-familia-solicitudes': MegaFamiliaSolicitudes,
+        'mega-familia-perfiles': MegaFamiliaPerfiles,
+        'mega-familia-dispositivos': MegaFamiliaDispositivos,
+        'mega-familia-tareas': MegaFamiliaTareas,
+        'mega-familia-ubicaciones': MegaFamiliaUbicaciones,
+        'mega-familia-reportes': MegaFamiliaReportes,
+        'mega-familia-auditoria': MegaFamiliaAuditoria,
+        'mega-familia-mikrotik': MegaFamiliaMikrotik,
+        'mega-familia-notificaciones': MegaFamiliaNotificaciones,
+        'mega-familia-soporte': MegaFamiliaSoporte,
+        'mega-familia-terminos': MegaFamiliaTerminos,
+        'mega-familia-configuracion': MegaFamiliaConfiguracion,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
