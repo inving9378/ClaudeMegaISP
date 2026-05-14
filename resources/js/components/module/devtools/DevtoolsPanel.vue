@@ -22,6 +22,15 @@
                     Claude
                     <span class="text-muted small ms-2">{{ chatModel }}</span>
                 </div>
+                <div v-if="context" class="context-bar" :title="contextTitle">
+                    <i class="fa fa-link text-warning"></i>
+                    <span class="ms-1">
+                        <strong>{{ context.branch }}</strong>
+                        · {{ (context.recent_commits || []).length }} commits
+                        · {{ (context.active_modules || []).length }} módulos
+                        · CLAUDE.md {{ claudeMdSize }}
+                    </span>
+                </div>
                 <div class="chat-messages" ref="messagesEl">
                     <div v-if="messages.length === 0" class="chat-empty">
                         Saluda a Claude para empezar.
@@ -36,6 +45,9 @@
                         <div class="chat-msg-content" v-text="m.content"></div>
                         <div v-if="m.tokens" class="chat-msg-tokens">
                             in: {{ m.tokens.input }} · out: {{ m.tokens.output }}
+                            <span v-if="m.tokens.cacheCreate || m.tokens.cacheRead">
+                                · cache w/r {{ m.tokens.cacheCreate }}/{{ m.tokens.cacheRead }}
+                            </span>
                         </div>
                     </div>
                     <div v-if="sending" class="chat-msg assistant">
@@ -60,7 +72,11 @@
                     </button>
                 </div>
                 <div class="chat-footer text-muted small">
-                    Total: in {{ totals.input }} · out {{ totals.output }} tokens
+                    Total: in {{ totals.input }} · out {{ totals.output }}
+                    <span v-if="totals.cacheCreate || totals.cacheRead">
+                        · cache w/r {{ totals.cacheCreate }}/{{ totals.cacheRead }}
+                    </span>
+                    tokens
                 </div>
             </div>
 
@@ -132,6 +148,18 @@ export default {
             }
             return this.ttydUrl;
         },
+        claudeMdSize() {
+            const n = this.context?.claude_md?.length || 0;
+            if (n === 0) return '(falta)';
+            if (n < 1024) return `${n} B`;
+            return `${(n / 1024).toFixed(1)} KB`;
+        },
+        contextTitle() {
+            if (!this.context) return '';
+            const commits = (this.context.recent_commits || []).join('\n');
+            const modules = (this.context.active_modules || []).join(', ');
+            return `Rama: ${this.context.branch}\nÚltimos commits:\n${commits}\n\nMódulos activos: ${modules}`;
+        },
     },
     data() {
         return {
@@ -139,7 +167,12 @@ export default {
             input: '',
             messages: [],
             sending: false,
-            totals: { input: 0, output: 0 },
+            totals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0 },
+
+            // Contexto inyectado en el system prompt (CLAUDE.md + git + módulos).
+            // Lo cargamos al montar para mostrar el resumen en la UI; el backend
+            // lo vuelve a leer en cada /devtools/chat para mantenerlo fresco.
+            context: null,
 
             // split state
             leftPct: 50,
@@ -149,6 +182,7 @@ export default {
     },
     mounted() {
         this.probeTtyd();
+        this.fetchContext();
         document.addEventListener('mousemove', this.onDrag);
         document.addEventListener('mouseup', this.endDrag);
     },
@@ -192,10 +226,14 @@ export default {
                         tokens: {
                             input: data.input_tokens || 0,
                             output: data.output_tokens || 0,
+                            cacheCreate: data.cache_creation_input_tokens || 0,
+                            cacheRead: data.cache_read_input_tokens || 0,
                         },
                     });
                     this.totals.input += data.input_tokens || 0;
                     this.totals.output += data.output_tokens || 0;
+                    this.totals.cacheCreate += data.cache_creation_input_tokens || 0;
+                    this.totals.cacheRead += data.cache_read_input_tokens || 0;
                 } else {
                     this.messages.push({
                         role: 'assistant',
@@ -217,6 +255,17 @@ export default {
                 const el = this.$refs.messagesEl;
                 if (el) el.scrollTop = el.scrollHeight;
             });
+        },
+
+        async fetchContext() {
+            try {
+                const { data } = await axios.get('/devtools/context');
+                this.context = data;
+            } catch (e) {
+                // Si falla, el backend igual inyecta el contexto en cada chat;
+                // sólo se pierde el resumen visual.
+                this.context = null;
+            }
         },
 
         // ttyd probe: try to fetch the URL; CORS may block it, but a network
@@ -310,6 +359,16 @@ export default {
     flex-shrink: 0;
 }
 .divider:hover, .divider.dragging { background: #ff8c00; }
+
+.context-bar {
+    background: #1e1e2e;
+    border-bottom: 1px solid #2a2b3d;
+    padding: 0.3rem 0.75rem;
+    font-size: 11px;
+    color: #a6adc8;
+    cursor: help;
+}
+.context-bar strong { color: #ff8c00; }
 
 /* Chat */
 .chat-messages {
