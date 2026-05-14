@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Auth;
+namespace App\Modules\Core\Auth\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -50,7 +50,7 @@ class LoginController extends Controller
 
     public function showLoginForm()
     {
-        return view('meganet.auth.login');
+        return view('core-auth::login');
     }
 
     public function username()

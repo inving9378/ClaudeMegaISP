@@ -102,7 +102,8 @@ include('script_db.php');
  * hasta que cada módulo sea migrado en PRs posteriores.
  */
 
-Auth::routes();
+// Auth::routes() reemplazado por app/Modules/Core/Auth/routes.php
+// (registra los mismos 9 endpoints + nombres login/logout/register/password.*)
 //Language Translation
 Route::group(['middleware' => ['auth']], function () {
     Route::get('script', 'TestScriptController@script');
