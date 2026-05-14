@@ -19,16 +19,25 @@ use Illuminate\Support\Facades\Route;
  *
  * Email verification y password confirmation no estaban habilitados — Auth::routes()
  * se llamaba sin opciones — y se omiten aquí para no ampliar la superficie pública.
+ *
+ * Se envuelve en Route::middleware(['web']) porque BaseModuleServiceProvider
+ * carga este archivo con loadRoutesFrom(), que NO aplica el grupo `web`
+ * automáticamente (a diferencia de routes/web.php cargado por
+ * RouteServiceProvider). Sin `web` no se ejecutan StartSession,
+ * ShareErrorsFromSession ni VerifyCsrfToken, por lo que $errors no estaría
+ * disponible en las vistas y el login form fallaría por CSRF.
  */
 
-Route::get('login',  [LoginController::class, 'showLoginForm'])->name('login');
-Route::post('login', [LoginController::class, 'login']);
-Route::post('logout', [LoginController::class, 'logout'])->name('logout');
+Route::middleware(['web'])->group(function () {
+    Route::get('login',  [LoginController::class, 'showLoginForm'])->name('login');
+    Route::post('login', [LoginController::class, 'login']);
+    Route::post('logout', [LoginController::class, 'logout'])->name('logout');
 
-Route::get('register',  [RegisterController::class, 'showRegistrationForm'])->name('register');
-Route::post('register', [RegisterController::class, 'register']);
+    Route::get('register',  [RegisterController::class, 'showRegistrationForm'])->name('register');
+    Route::post('register', [RegisterController::class, 'register']);
 
-Route::get('password/reset',          [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
-Route::post('password/email',         [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
-Route::get('password/reset/{token}',  [ResetPasswordController::class, 'showResetForm'])->name('password.reset');
-Route::post('password/reset',         [ResetPasswordController::class, 'reset'])->name('password.update');
+    Route::get('password/reset',          [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
+    Route::post('password/email',         [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
+    Route::get('password/reset/{token}',  [ResetPasswordController::class, 'showResetForm'])->name('password.reset');
+    Route::post('password/reset',         [ResetPasswordController::class, 'reset'])->name('password.update');
+});
