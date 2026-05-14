@@ -76,7 +76,7 @@
                 <div class="panel-header">
                     <i class="fa fa-terminal text-success"></i>
                     Terminal
-                    <span class="text-muted small ms-2">{{ ttydUrl }}</span>
+                    <span class="text-muted small ms-2">{{ effectiveTtydUrl }}</span>
                     <button class="btn btn-sm btn-link ms-auto" @click="probeTtyd">
                         <i class="fa fa-sync"></i>
                     </button>
@@ -84,15 +84,15 @@
                 <div class="terminal-body">
                     <iframe
                         v-if="ttydReachable !== false"
-                        :src="ttydUrl"
+                        :src="effectiveTtydUrl"
                         @load="onIframeLoad"
                         @error="onIframeError"
                     ></iframe>
                     <div v-else class="ttyd-setup">
                         <h5>Terminal no disponible</h5>
-                        <p class="text-muted">No se pudo conectar a <code>{{ ttydUrl }}</code>.</p>
+                        <p class="text-muted">No se pudo conectar a <code>{{ effectiveTtydUrl }}</code>.</p>
                         <p>Ejecuta en el servidor:</p>
-                        <pre>ttyd -p 7681 -W bash</pre>
+                        <pre>ttyd -p 7681 -W --interface 0.0.0.0 bash</pre>
                         <p>O activa el servicio systemd:</p>
                         <pre>sudo systemctl enable --now ttyd</pre>
                         <button class="btn btn-outline-primary" @click="probeTtyd">
@@ -113,6 +113,25 @@ export default {
         ttydUrl: { type: String, default: 'http://127.0.0.1:7681' },
         csrfToken: { type: String, required: true },
         userName: { type: String, default: 'Dev' },
+    },
+    computed: {
+        // El TTYD_URL del .env suele apuntar a 127.0.0.1, lo cual sólo
+        // funciona si el navegador corre en el mismo host que el servidor.
+        // Si el prop es ese default placeholder, derivamos la URL del
+        // hostname con el que la página fue servida — así el iframe llega
+        // al ttyd remoto desde cualquier máquina cliente.
+        // Nota: si la app corre sobre HTTPS, también hay que servir ttyd
+        // con TLS o el iframe será bloqueado por mixed-content.
+        effectiveTtydUrl() {
+            const placeholder = 'http://127.0.0.1:7681';
+            if (this.ttydUrl && this.ttydUrl !== placeholder) {
+                return this.ttydUrl;
+            }
+            if (typeof window !== 'undefined' && window.location?.hostname) {
+                return `http://${window.location.hostname}:7681`;
+            }
+            return this.ttydUrl;
+        },
     },
     data() {
         return {
@@ -205,7 +224,7 @@ export default {
         async probeTtyd() {
             this.ttydReachable = null;
             try {
-                await fetch(this.ttydUrl, { method: 'GET', mode: 'no-cors' });
+                await fetch(this.effectiveTtydUrl, { method: 'GET', mode: 'no-cors' });
                 this.ttydReachable = true;
             } catch (e) {
                 this.ttydReachable = false;
