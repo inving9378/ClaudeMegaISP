@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Utils;
 
 use App\Http\Controllers\Controller;
 use App\Mail\NotificateCrm;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use App\Models\Receipt;
 use Carbon\Carbon;
 use Illuminate\Http\Request;

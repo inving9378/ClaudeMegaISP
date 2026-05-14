@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Repository;
+namespace App\Modules\Core\CRM\Repositories;
 
 use App\Http\Traits\RouterConnection;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 
 class CrmRepository
 {

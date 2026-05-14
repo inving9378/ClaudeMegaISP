@@ -5,7 +5,7 @@ namespace App\Providers;
 use App\Models\ClientInternetService;
 use App\Models\ClientMainInformation;
 use App\Models\ClientUser;
-use App\Models\CrmMainInformation;
+use App\Modules\Core\CRM\Models\CrmMainInformation;
 use App\Models\File;
 use App\Models\Mikrotik;
 use App\Models\Payment;

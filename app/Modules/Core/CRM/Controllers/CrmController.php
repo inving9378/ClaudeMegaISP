@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Crm;
+namespace App\Modules\Core\CRM\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Module\Client\ClientHelperController;
@@ -9,13 +9,13 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Client;
 use App\Models\ClientAdditionalInformation;
 use App\Models\ClientMainInformation;
-use App\Models\CrmLeadInformation;
+use App\Modules\Core\CRM\Models\CrmLeadInformation;
 use App\Models\Module;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Http\HelpersModule\module\crm\CrmDatatableHelper;
 use App\Http\Requests\module\crm\CrmCreateRequest;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use Illuminate\Support\Facades\Auth;
 use App\Events\ProspectRegistered;
 use Spatie\Activitylog\Models\Activity;
@@ -27,9 +27,9 @@ class CrmController extends Controller
     public function __construct(CrmDatatableHelper $helper)
     {
         $model = 'Crm';
-        $this->data['url'] = 'meganet.module.crm';
+        $this->data['url'] = 'core-crm';
         $this->data['module'] = 'Crm';
-        $this->data['model'] = 'App\Models\\' . $model;
+        $this->data['model'] = 'App\Modules\Core\CRM\Models\\' . $model;
         $this->data['group'] = 'crm';
         $this->helper = $helper;
     }
@@ -43,7 +43,7 @@ class CrmController extends Controller
     {
         $this->data['notifications'] = $this->userNotification();
         $this->includeLibraryDinamic($this->data['model']);
-        return view($this->data['url'] . '.index', $this->data);
+        return view($this->data['url'] . '::index', $this->data);
     }
 
     public function success($id)
@@ -60,7 +60,7 @@ class CrmController extends Controller
     {
         $this->data['notifications'] = $this->userNotification();
         $this->includeLibraryDinamic($this->data['model']);
-        return view($this->data['url'] . '.add', $this->data);
+        return view($this->data['url'] . '::add', $this->data);
     }
 
     /**
@@ -126,7 +126,7 @@ class CrmController extends Controller
         if ($crmLeadInformation) {
             $crmLeadInformation->score++;
             $crmLeadInformation->update();
-            return view($this->data['url'] . '.edit', $this->data);
+            return view($this->data['url'] . '::edit', $this->data);
         }
         return view('meganet.pages.404');
     }
@@ -151,7 +151,7 @@ class CrmController extends Controller
         $this->includeLibraryDinamic($this->data['model']);
         $this->data['id'] = $id;
 
-        return view($this->data['url'] . '.ver', $this->data);
+        return view($this->data['url'] . '::ver', $this->data);
     }
 
 
@@ -160,7 +160,7 @@ class CrmController extends Controller
         $this->data['notifications'] = $this->userNotification();
         $this->includeLibraryDinamic($this->data['model']);
         $this->data['id'] = $id;
-        return view($this->data['url'] . '.convert', $this->data);
+        return view($this->data['url'] . '::convert', $this->data);
     }
 
     public function convertToClient(ConvertToClientRequest $request, $crmId)

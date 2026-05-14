@@ -4,7 +4,7 @@ namespace App\Modules\Core\Dashboard\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClientMainInformation;
-use App\Models\CrmLeadInformation;
+use App\Modules\Core\CRM\Models\CrmLeadInformation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

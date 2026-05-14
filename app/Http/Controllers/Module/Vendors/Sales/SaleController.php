@@ -8,8 +8,8 @@ use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\ClientMainInformation;
-use App\Models\CrmMainInformation;
-use App\Models\CrmLeadInformation;
+use App\Modules\Core\CRM\Models\CrmMainInformation;
+use App\Modules\Core\CRM\Models\CrmLeadInformation;
 use App\Services\Vendors\VendorService;
 use Carbon\Carbon;
 

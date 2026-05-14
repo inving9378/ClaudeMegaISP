@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Crm;
+namespace App\Modules\Core\CRM\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\module\crm\CrmUpdateRequest;
@@ -77,14 +77,14 @@ class CrmInformationController extends Controller
         try {
             DB::beginTransaction();
             $this->validateFieldByRulesInTableFiledModules('CrmMainInformation', $request);
-            $crm = \App\Models\Crm::find($id);
+            $crm = \App\Modules\Core\CRM\Models\Crm::find($id);
             $beforeCrmMainInformation = $crm->crm_main_information()->first()->toArray();
             $beforeCrmLeadInformation = $crm->crm_lead_information()->first()->toArray();
 
             $prospect = $crm->crm_lead_information()->first();
             event(new ProspectRegistered($prospect));
 
-            $this->saveSingleRelationIfExist('App\Models\Crm', $crm, $request);
+            $this->saveSingleRelationIfExist('App\Modules\Core\CRM\Models\Crm', $crm, $request);
             $crm->fresh();
 
             $crm->log_activities()->create([

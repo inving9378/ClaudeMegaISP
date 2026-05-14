@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Core\CRM\Models;
 
+use App\Models\BaseModel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
 class CrmMainInformation extends BaseModel
 {

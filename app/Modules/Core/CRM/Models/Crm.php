@@ -1,9 +1,12 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Core\CRM\Models;
 
 use App\Http\Controllers\FileController;
 use App\Http\Traits\Models\Crm\CrmTrait;
+use App\Models\BaseModel;
+use App\Models\LogActivity;
+use App\Models\TypeBilling;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Facades\Auth;
 
@@ -33,7 +36,7 @@ class Crm extends BaseModel
         ]
     ];
 
-    const MODEL_RELATION_TO_CREATE_FIELD_MODULE = 'App\Models\CrmMainInformation';
+    const MODEL_RELATION_TO_CREATE_FIELD_MODULE = 'App\Modules\Core\CRM\Models\CrmMainInformation';
 
 
     public function crm_main_information()

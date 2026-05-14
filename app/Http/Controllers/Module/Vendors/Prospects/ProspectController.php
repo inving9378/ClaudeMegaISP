@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Module\Vendors\Prospects;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\CrmLeadInformation;
+use App\Modules\Core\CRM\Models\CrmLeadInformation;
 use Illuminate\Support\Facades\DB;
 
 class ProspectController extends Controller

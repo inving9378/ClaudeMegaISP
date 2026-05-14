@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Http\Repository\ClientRepository;
 use App\Models\Client;
 use App\Models\ClientMainInformation;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use App\Models\DurationContract;
 use App\Models\HistorySellerRule;
 use App\Models\Payment;
