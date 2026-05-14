@@ -584,8 +584,38 @@
                         </a>
                     @endcan
                 </li>
+
+                @role('DESARROLLADOR')
+                    <li class="menu-item-desarrollador">
+                        <a href="{{ url('/devtools') }}" class="link-desarrollador">
+                            <i data-feather="code"></i>
+                            <span data-key="t-desarrollador">Desarrollador</span>
+                        </a>
+                    </li>
+                @endrole
             </ul>
         </div>
         <!-- Sidebar -->
     </div>
 </div>
+
+<style>
+    /* Enlace "Desarrollador" — sólo visible con role:DESARROLLADOR. Naranja
+       acento para diferenciarlo visualmente del resto del menú. */
+    #side-menu .menu-item-desarrollador > a.link-desarrollador {
+        color: #ff8c00 !important;
+        font-weight: 600;
+        border-left: 3px solid #ff8c00;
+        background: rgba(255, 140, 0, 0.06);
+    }
+    #side-menu .menu-item-desarrollador > a.link-desarrollador:hover {
+        color: #ffffff !important;
+        background: #ff8c00;
+    }
+    #side-menu .menu-item-desarrollador > a.link-desarrollador svg {
+        color: #ff8c00;
+    }
+    #side-menu .menu-item-desarrollador > a.link-desarrollador:hover svg {
+        color: #ffffff;
+    }
+</style>
