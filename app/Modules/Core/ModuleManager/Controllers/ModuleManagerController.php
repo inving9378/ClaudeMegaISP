@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Http;
 class ModuleManagerController extends Controller
 {
     /** Claude Sonnet — coincide con app/Http/Controllers/Module/IA/IAChatController.php */
-    private const CLAUDE_MODEL_DEFAULT = 'claude-sonnet-4-20250514';
+    private const CLAUDE_MODEL_DEFAULT = 'claude-sonnet-4-6';
     private const CLAUDE_MAX_TOKENS = 4096;
 
     public function index()

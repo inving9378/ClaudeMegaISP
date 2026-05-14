@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Process;
 class DevToolsController extends Controller
 {
     /** Mismo default que el resto de la app — IAChatController y ModuleManager. */
-    private const CLAUDE_MODEL_DEFAULT = 'claude-sonnet-4-20250514';
+    private const CLAUDE_MODEL_DEFAULT = 'claude-sonnet-4-6';
     private const CLAUDE_MAX_TOKENS = 2048;
 
     /**
