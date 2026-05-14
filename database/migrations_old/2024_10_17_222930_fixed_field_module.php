@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        \App\Models\FieldModule::where('module_id', 13)->where('name', 'user')->update(['label' => 'Usuario WEB']);
-        \App\Models\FieldModule::where('module_id', 13)->where('name', 'password')->update(['label' => 'Contraseña WEB']);
+        \App\Modules\Core\Configuracion\Models\FieldModule::where('module_id', 13)->where('name', 'user')->update(['label' => 'Usuario WEB']);
+        \App\Modules\Core\Configuracion\Models\FieldModule::where('module_id', 13)->where('name', 'password')->update(['label' => 'Contraseña WEB']);
     }
 
     /**

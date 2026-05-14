@@ -3,7 +3,7 @@
 namespace App\Http\Traits\Models\Client\Client;
 
 use App\Http\Controllers\Utils\ComunConstantsController;
-use App\Http\Repository\CommandConfigRepository;
+use App\Modules\Core\Configuracion\Repositories\CommandConfigRepository;
 use App\Models\ClientMainInformation;
 use App\Models\TypeBilling;
 use Carbon\Carbon;

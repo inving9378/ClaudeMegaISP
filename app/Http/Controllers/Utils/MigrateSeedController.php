@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Utils;
 use App\Http\Controllers\Controller;
 use App\Models\Balance;
 use App\Models\BillingAddress;
-use App\Models\BillingConfiguration;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Models\Client;
 use App\Models\ClientMainInformation;
 use App\Modules\Core\CRM\Models\Crm;

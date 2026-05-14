@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands\Scripts;
 
-use App\Http\Repository\FieldTypeRepository;
-use App\Models\FieldType;
+use App\Modules\Core\Configuracion\Repositories\FieldTypeRepository;
+use App\Modules\Core\Configuracion\Models\FieldType;
 use Illuminate\Console\Command;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;

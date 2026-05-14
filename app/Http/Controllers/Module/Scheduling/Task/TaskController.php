@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Module\Scheduling\Task;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\HelpersModule\module\scheduling\task\TaskDatatableHelper;
-use App\Http\Repository\DefaultValueRepository;
+use App\Modules\Core\Configuracion\Repositories\DefaultValueRepository;
 use App\Http\Repository\ListTemplateVerificationRepository;
 use App\Http\Repository\ModuleRepository;
 use App\Http\Requests\module\scheduling\project\TaskCreateRequest;

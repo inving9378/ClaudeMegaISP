@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Module\Vendors\Billing;
 
 use App\Http\Controllers\Controller;
-use App\Http\Repository\CompanyInformationRepository;
+use App\Modules\Core\Configuracion\Repositories\CompanyInformationRepository;
 use App\Http\Traits\PaymentsTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Commission;
-use App\Models\CompanyInformation;
+use App\Modules\Core\Configuracion\Models\CompanyInformation;
 use App\Models\Discount;
 use App\Models\DiscountSale;
 use App\Models\DurationContract;

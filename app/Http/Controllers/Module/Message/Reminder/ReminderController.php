@@ -6,7 +6,7 @@ namespace App\Http\Controllers\Module\Message\Reminder;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\message\reminder\ReminderDatatableHelper;
 use App\Http\Requests\module\message\reminder\ReminderCreateRequest;
-use App\Services\EmailConfigService;
+use App\Modules\Core\Configuracion\Services\EmailConfigService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;

@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Http\Requests\module\client\ClientInvoiseRequest;
-use App\Services\ConfigFinanceNotificationService;
+use App\Modules\Core\Configuracion\Services\ConfigFinanceNotificationService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

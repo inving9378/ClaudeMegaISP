@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Module\Message\Inbox;
 
 use App\Http\Controllers\Controller;
-use App\Http\Repository\ConfigFinanceNotificationRepository;
+use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
 use Illuminate\Support\Facades\Log;
 
 class InboxController extends Controller

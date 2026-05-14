@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Utils;
 
 use App\Http\Controllers\Controller;
-use App\Http\Repository\DefaultValueRepository;
+use App\Modules\Core\Configuracion\Repositories\DefaultValueRepository;
 use App\Http\Repository\ModuleRepository;
 use App\Models\Task;
 use App\Services\TaskService;

@@ -2,7 +2,7 @@
 
 namespace App\Modules\Core\Layout;
 
-use App\Models\CompanyInformation;
+use App\Modules\Core\Configuracion\Models\CompanyInformation;
 use App\Modules\BaseModuleServiceProvider;
 use App\Modules\Core\Layout\Models\AppLayoutConfiguration;
 use Illuminate\Support\Facades\Auth;

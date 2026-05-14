@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\FieldModule;
+use App\Modules\Core\Configuracion\Models\FieldModule;
 use App\Models\Module;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

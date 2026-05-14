@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\BillingReminder;
+use App\Modules\Core\Configuracion\Models\BillingReminder;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;

@@ -3,7 +3,7 @@
 namespace App\Console\Commands\Scripts;
 
 use App\Http\Repository\ClientRepository;
-use App\Http\Repository\ConfigFinanceNotificationRepository;
+use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Services\Finance\Invoice\InvoiceService;
