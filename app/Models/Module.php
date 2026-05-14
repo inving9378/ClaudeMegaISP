@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Http\Repository\DefaultValueRepository;
-use App\Http\Repository\FieldTypeRepository;
+use App\Modules\Core\Configuracion\Repositories\DefaultValueRepository;
+use App\Modules\Core\Configuracion\Repositories\FieldTypeRepository;
 use App\Http\Repository\ModuleRepository;
 use App\Http\Traits\IncludeFieldsTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

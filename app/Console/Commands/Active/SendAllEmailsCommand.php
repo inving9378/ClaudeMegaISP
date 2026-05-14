@@ -2,11 +2,11 @@
 
 namespace App\Console\Commands\Active;
 
-use App\Http\Repository\ConfigFinanceNotificationRepository;
+use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
 use App\Models\Client;
 use App\Models\EmailSetting;
 use App\Models\Reminder;
-use App\Services\EmailConfigService;
+use App\Modules\Core\Configuracion\Services\EmailConfigService;
 use Illuminate\Console\Command;
 use Carbon\Carbon;
 

@@ -6,7 +6,7 @@ namespace App\Http\Controllers\Module\Message\PaymentEmail;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\message\payment_email\PaymentEmailDatatableHelper;
 use App\Http\Requests\module\message\payment_email\PaymentEmailCreateRequest;
-use App\Services\EmailConfigService;
+use App\Modules\Core\Configuracion\Services\EmailConfigService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 

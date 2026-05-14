@@ -13,7 +13,7 @@ use App\Http\Repository\NetworkIpRepository;
 use App\Http\Repository\PaymentRepository;
 use App\Http\Repository\TransactionRepository;
 use App\Models\Balance;
-use App\Models\BillingConfiguration;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Models\Client;
 use App\Models\DocumentClient;
 use App\Models\RemindersConfiguration;

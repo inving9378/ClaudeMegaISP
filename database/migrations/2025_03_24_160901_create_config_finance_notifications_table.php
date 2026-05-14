@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\ConfigFinanceNotification;
+use App\Modules\Core\Configuracion\Models\ConfigFinanceNotification;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;

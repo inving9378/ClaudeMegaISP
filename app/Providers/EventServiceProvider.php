@@ -27,7 +27,7 @@ use App\Observers\ClientBundleServiceObserver;
 use App\Models\ClientBundleService;
 use App\Models\ClientCustomService;
 use App\Models\ClientVozService;
-use App\Models\FieldModule;
+use App\Modules\Core\Configuracion\Models\FieldModule;
 use App\Models\MikrotikConfig;
 use App\Observers\ClientCustomServiceObserver;
 use App\Observers\ClientVozServiceObserver;
@@ -38,7 +38,7 @@ use App\Events\ClientRegistered;
 use App\Listeners\CalculateProspectCommission;
 use App\Listeners\CalculateClientCommission;
 use App\Models\Balance;
-use App\Models\BillingConfiguration;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Observers\BillingConfigurationObserver;
 use App\Observers\ClientBalanceObserver;
 

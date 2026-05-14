@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Http\Repository\CompanyInformationRepository;
-use App\Models\CompanyInformation;
+use App\Modules\Core\Configuracion\Repositories\CompanyInformationRepository;
+use App\Modules\Core\Configuracion\Models\CompanyInformation;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 

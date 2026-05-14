@@ -4,7 +4,7 @@
 namespace App\Http\HelpersModule\module\setting;
 
 use App\Http\Repository\ModuleRepository;
-use App\Models\FieldModule;
+use App\Modules\Core\Configuracion\Models\FieldModule;
 use App\Models\SettingDebtPaymentClientCustom;
 use App\Models\Module;
 use Illuminate\Support\Arr;

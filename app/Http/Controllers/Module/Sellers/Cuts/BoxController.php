@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Module\Sellers\Cuts;
 
 use App\Http\Controllers\Controller;
-use App\Http\Repository\CompanyInformationRepository;
+use App\Modules\Core\Configuracion\Repositories\CompanyInformationRepository;
 use App\Models\CutBox;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;

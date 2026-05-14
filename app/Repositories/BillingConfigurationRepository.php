@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\BillingConfiguration;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Repositories\BaseRepository;
 
 /**

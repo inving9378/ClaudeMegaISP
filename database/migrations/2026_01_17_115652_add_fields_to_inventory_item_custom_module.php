@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Repository\FieldTypeRepository;
+use App\Modules\Core\Configuracion\Repositories\FieldTypeRepository;
 use App\Models\Module;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

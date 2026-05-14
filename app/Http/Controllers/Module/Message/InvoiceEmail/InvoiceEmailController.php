@@ -6,7 +6,7 @@ namespace App\Http\Controllers\Module\Message\InvoiceEmail;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\message\invoice_email\InvoiceEmailDatatableHelper;
 use App\Http\Requests\module\message\invoice_email\InvoiceEmailCreateRequest;
-use App\Services\EmailConfigService;
+use App\Modules\Core\Configuracion\Services\EmailConfigService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 

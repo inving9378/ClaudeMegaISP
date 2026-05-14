@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\Mikrotik\MikrotikCreateAddressList;
 use App\Models\Balance;
-use App\Models\BillingConfiguration;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Models\DocumentClient;
 use App\Models\Nomenclature;
 use App\Models\RemindersConfiguration;

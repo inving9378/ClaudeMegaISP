@@ -29,7 +29,7 @@ class StandardNotification extends Notification implements ShouldQueue
     public function toMail($notifiable)
     {
         // Cargar la configuración de correo desde la base de datos
-        \App\Services\EmailConfigService::setMailConfig();
+        \App\Modules\Core\Configuracion\Services\EmailConfigService::setMailConfig();
 
         return (new StandardMail($this->emailProps))->build();
     }

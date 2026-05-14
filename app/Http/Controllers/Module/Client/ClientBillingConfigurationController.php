@@ -20,7 +20,7 @@ class ClientBillingConfigurationController extends Controller
     public function update(Request $request, $id)
     {
         $client = Client::find($id);
-        return $this->saveSingleRelationWithoutModel('App\Models\BillingConfiguration', 'billing_configuration','client_id','id', $client, $request);
+        return $this->saveSingleRelationWithoutModel('App\Modules\Core\Configuracion\Models\BillingConfiguration', 'billing_configuration','client_id','id', $client, $request);
     }
 
     public function getBillingInformationBlock($clientId)

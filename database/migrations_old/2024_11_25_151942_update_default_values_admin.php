@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Repository\ModuleRepository;
-use App\Models\DefaultValue;
+use App\Modules\Core\Configuracion\Models\DefaultValue;
 use App\Models\Module;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

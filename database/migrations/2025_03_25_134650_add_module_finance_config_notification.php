@@ -31,7 +31,7 @@ return new class extends Migration
             'name' => 'ConfigFinanceNotificationInvoice',
             'group' => 'Configuration',
             'is_main' => false,
-            'main' => 'App\Models\ConfigFinanceNotification',
+            'main' => 'App\Modules\Core\Configuracion\Models\ConfigFinanceNotification',
         ]);
 
         $fields = [
