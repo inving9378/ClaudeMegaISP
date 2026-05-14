@@ -1,0 +1,9 @@
+{
+    "slug": "addon-megafamilia",
+    "name": "MegaFamilia",
+    "version": "0.1.0",
+    "description": "Plataforma de control parental: licencias por plan, perfiles de hijos, dispositivos, reglas, geofences, alertas, tareas y app móvil.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}
