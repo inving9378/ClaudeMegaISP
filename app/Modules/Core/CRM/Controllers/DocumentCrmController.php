@@ -1,20 +1,20 @@
 <?php
 
-namespace App\Http\Controllers\Module\Crm;
+namespace App\Modules\Core\CRM\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
+use App\Modules\Core\CRM\Repositories\CrmRepository;
+use App\Modules\Core\CRM\Services\ContractCrmService;
 use Illuminate\Http\Request;
 use App\Http\HelpersModule\module\crm\DocumentCrmDatatableHelper;
 use App\Http\Repository\ClientRepository;
-use App\Http\Repository\CrmRepository;
 use App\Http\Repository\DocumentTemplateRepository;
 use App\Http\Requests\module\client\GenerateContractRequest;
 use App\Http\Requests\module\client\ShowPreviewContractRequest;
 use App\Http\Requests\module\crm\DocumentCrmUpdateRequest;
 use App\Http\Requests\module\crm\DocumentCrmCreateRequest;
 use App\Services\ClientService\ContractClientService;
-use App\Services\ContractCrmService;
 use App\Services\DocumentTemplateService;
 use Illuminate\Support\Str;
 use function React\Promise\all;
@@ -25,9 +25,9 @@ class DocumentCrmController extends Controller
     public function __construct(DocumentCrmDatatableHelper $helper)
     {
         $model = 'DocumentCrm';
-        $this->data['url'] = 'meganet.module.' . Str::lower($model);
+        $this->data['url'] = 'core-crm';
         $this->data['module'] = $model;
-        $this->data['model'] = 'App\Models\\'.$model;
+        $this->data['model'] = 'App\Modules\Core\CRM\Models\\'.$model;
         $this->helper = $helper;
     }
 
@@ -39,7 +39,7 @@ class DocumentCrmController extends Controller
      */
     public function index()
     {
-      //  return view($this->data['url'] . '.index',$this->data);
+      //  return view($this->data['url'] . '::index',$this->data);
     }
 
     /**
@@ -50,7 +50,7 @@ class DocumentCrmController extends Controller
     public function create()
     {
         $this->includeLibraryDinamic($this->data['model']);
-        return view($this->data['url'] . '.add',$this->data);
+        return view($this->data['url'] . '::add',$this->data);
     }
 
     /**
@@ -87,7 +87,7 @@ class DocumentCrmController extends Controller
         $this->includeLibraryDinamic($this->data['model']);
         $this->data['id'] = $id;
 
-        return view($this->data['url'] . '.edit',$this->data);
+        return view($this->data['url'] . '::edit',$this->data);
     }
 
     /**

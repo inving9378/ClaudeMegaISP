@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Http\Controllers\Module\Crm;
+namespace App\Modules\Core\CRM\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Core\CRM\Models\Crm;
 use Illuminate\Http\Request;
-use App\Models\Crm;
 
 class DashboardController extends Controller
 {
 
     public function __construct()
     {
-        $this->data['url'] = 'meganet.module.crm';
+        $this->data['url'] = 'core-crm';
     }
     /**
      * Display a listing of the resource.
@@ -21,7 +21,7 @@ class DashboardController extends Controller
     public function index()
     {
         $this->data['notifications'] = $this->userNotification();
-        return view($this->data['url'] . '.dashboard',$this->data);
+        return view($this->data['url'] . '::dashboard',$this->data);
     }
 
     /**

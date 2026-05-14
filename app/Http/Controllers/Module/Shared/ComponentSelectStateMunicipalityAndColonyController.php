@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Module\Shared;
 use App\Http\Controllers\Controller;
 use App\Models\ClientMainInformation;
 use App\Models\CompanyInformation;
-use App\Models\CrmMainInformation;
+use App\Modules\Core\CRM\Models\CrmMainInformation;
 use Illuminate\Http\Request;
 
 class ComponentSelectStateMunicipalityAndColonyController extends Controller

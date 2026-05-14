@@ -3,7 +3,7 @@
 namespace App\Http\Repository;
 
 use App\Http\Traits\RouterConnection;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use App\Models\ListTemplateVerification;
 
 class ListTemplateVerificationRepository

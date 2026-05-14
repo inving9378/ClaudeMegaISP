@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Services;
+namespace App\Modules\Core\CRM\Services;
 
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\Repository\ClientRepository;
 use App\Http\Repository\ColonyRepository;
-use App\Http\Repository\CrmRepository;
 use App\Http\Repository\DocumentClientRepository;
-use App\Http\Repository\DocumentCrmRepository;
 use App\Http\Repository\DocumentTemplateRepository;
 use App\Http\Repository\MunicipalityRepository;
 use App\Http\Repository\StateRepository;
+use App\Modules\Core\CRM\Repositories\CrmRepository;
+use App\Modules\Core\CRM\Repositories\DocumentCrmRepository;
 use App\Services\DocumentTemplateService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;

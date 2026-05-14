@@ -12,7 +12,7 @@ use App\Http\Repository\InternetRepository;
 use App\Http\Repository\ModuleRepository;
 use App\Http\Repository\VoiseRepository;
 use App\Models\ClientMainInformation;
-use App\Models\CrmMainInformation;
+use App\Modules\Core\CRM\Models\CrmMainInformation;
 use App\Models\Task;
 use Illuminate\Http\Request;
 

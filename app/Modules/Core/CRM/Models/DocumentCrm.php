@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Core\CRM\Models;
 
 use App\Http\Controllers\FileController;
+use App\Models\BaseModel;
+use App\Models\File;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 

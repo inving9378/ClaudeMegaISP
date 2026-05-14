@@ -1,7 +1,11 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\Core\CRM\Models;
 
+use App\Models\BaseModel;
+use App\Models\CommissionDetail;
+use App\Models\PaymentDetail;
+use App\Models\Seller;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class CrmLeadInformation extends BaseModel

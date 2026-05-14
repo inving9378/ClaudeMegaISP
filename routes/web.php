@@ -769,33 +769,7 @@ Route::group(['middleware' => ['auth']], function () {
                 Route::get('/get-tickets-new-by-date/{startDate}/{endDate}/{status}', 'DashboardController@getTicketsByDateAndStatus');
             });
 
-            // Module CRM
-            Route::group(['prefix' => 'crm', 'namespace' => 'Crm'], function () {
-                Route::get('/', 'DashboardController@index');
-                Route::get('/success/{id}', 'CrmController@success');
-                Route::get('/listar', 'CrmController@index')->name('crm');
-                Route::get('/crear', 'CrmController@create');
-                Route::post('/add', 'CrmController@store');
-                Route::get('/editar/{id}', 'CrmController@edit');
-                Route::post('/update/{id}', 'CrmInformationController@update');
-                Route::get('/view-of-convert-crm-to-client/{id}', 'CrmController@viewOfConvertCrmToClient');
-                Route::post('/convert-to-client/{id}', 'CrmController@convertToClient');
-                Route::post('/update-last-contacted/{id}', 'CrmController@updateLastContacted');
-                Route::post('/destroy/{id}', 'CrmController@destroy');
-                Route::post('/table', 'CrmController@table');
-                Route::post('information/{crmId}/get-crm-main-information-id-and-crm-lead-information-id', 'CrmController@getCrmMainInformationIdAndCrmLeadInformationId');
-
-                Route::group(['prefix' => 'document'], function () {
-                    Route::post('/add/{idCrm}', 'DocumentCrmController@store');
-                    Route::post('/update/{idCrm}', 'DocumentCrmController@update');
-                    Route::post('/upload-file/{id}', 'DocumentCrmController@uploadFile');
-                    Route::post('/table', 'DocumentCrmController@table');
-                    Route::post('/destroy/{id}', 'DocumentCrmController@destroy');
-                    Route::post('/generate_contract/{id}', 'DocumentCrmController@generateContract');
-                    Route::get('/load_content_template', 'DocumentCrmController@loadContentTemplate');
-                    Route::post('/show_content_template', 'DocumentCrmController@showContentTemplate');
-                });
-            });
+            // Module CRM migrado a app/Modules/Core/CRM/routes.php
 
             Route::post('/helper/get-value-colony-state-municipality', 'Shared\ComponentSelectStateMunicipalityAndColonyController@getValueDB');
             Route::post('/helper/get-services-by-client-main-information', 'Shared\ComponentSearchServiceController@getServiceByClientMainInformationId');

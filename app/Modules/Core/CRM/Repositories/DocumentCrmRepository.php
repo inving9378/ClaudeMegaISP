@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Repository;
+namespace App\Modules\Core\CRM\Repositories;
 
 use App\Models\DocumentClient;
-use App\Models\DocumentCrm;
+use App\Modules\Core\CRM\Models\DocumentCrm;
 
 class DocumentCrmRepository
 {

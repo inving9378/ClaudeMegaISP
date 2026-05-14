@@ -5,7 +5,7 @@ namespace App\Http\HelpersModule\module\crm;
 
 use App\Http\HelpersModule\module\HelperDatatable;
 use App\Http\Traits\DatatableCoreTrait;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use App\Models\Module;
 
 class CrmDatatableHelper extends HelperDatatable

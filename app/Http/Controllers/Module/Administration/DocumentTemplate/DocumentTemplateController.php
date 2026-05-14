@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Module\Administration\DocumentTemplate;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\administration\document_template\DocumentTemplateDatatableHelper;
 use App\Http\Repository\ClientRepository;
-use App\Http\Repository\CrmRepository;
+use App\Modules\Core\CRM\Repositories\CrmRepository;
 use App\Http\Repository\DocumentTemplateRepository;
 use App\Http\Requests\module\administration\document_template\DocumentTemplateCreateRequest;
 use App\Http\Requests\module\administration\document_template\DocumentTemplateUpdateRequest;
 use App\Models\DocumentTemplate;
 use App\Services\ClientService\ContractClientService;
-use App\Services\ContractCrmService;
+use App\Modules\Core\CRM\Services\ContractCrmService;
 use App\Services\DocumentTemplateService;
 use Illuminate\Http\Request;
 
