@@ -1,4 +1,4 @@
-@extends('meganet.layout.master')
+@extends('core-layout::master')
 
 @section('content')
     <store :store_id = "{{$id}}" url_base={{ asset('storage/') }}></store>

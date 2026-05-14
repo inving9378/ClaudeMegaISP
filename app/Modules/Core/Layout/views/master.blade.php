@@ -2,8 +2,8 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
-    @include('meganet.layout.title-meta')
-    @include('meganet.layout.head')
+    @include('core-layout::title-meta')
+    @include('core-layout::head')
     @yield('styles')
 </head>
 
@@ -15,8 +15,8 @@
     @if ($config) class="pace-done" data-layout-mode="{{ $config->color_mode }}" data-topbar="{{ $config->color_mode }}" data-sidebar="{{ $config->color_mode }}" @endif>
     <div id="init-vue">
         <div>
-            @include('meganet.layout.topbar')
-            @include('meganet.layout.sidebar')
+            @include('core-layout::topbar')
+            @include('core-layout::sidebar')
         </div>
         <div id="layout-wrapper" class="main-content">
             <div class="page-content">
@@ -30,19 +30,19 @@
                         <Message-Response message="{{ session()->get('error') }}" type="error"></Message-Response>
                     @endif
                     @yield('content')
-                    @include('meganet.layout.modals')
+                    @include('core-layout::modals')
                 </div>
                 <!-- container-fluid -->
             </div>
             <!-- End Page-content -->
-            @include('meganet.layout.footer')
+            @include('core-layout::footer')
         </div>
 
-        @include('meganet.layout.right-sidebar')
+        @include('core-layout::right-sidebar')
         <!-- /Right-bar -->
     </div>
     <!-- JAVASCRIPT -->
-    @include('meganet.layout.vendor-scripts')
+    @include('core-layout::vendor-scripts')
 
     @stack('scripts')
 </body>

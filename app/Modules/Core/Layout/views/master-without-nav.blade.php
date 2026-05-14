@@ -2,8 +2,8 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
-    @include('meganet.layout.title-meta')
-    @include('meganet.layout.head')
+    @include('core-layout::title-meta')
+    @include('core-layout::head')
 </head>
 
 
@@ -13,11 +13,11 @@
 
 
             @yield('content')
-            @include('meganet.layout.modals')
+            @include('core-layout::modals')
         </div>
 
         <!-- JAVASCRIPT -->
-        @include('meganet.layout.vendor-scripts')
+        @include('core-layout::vendor-scripts')
 </body>
 
 </html>

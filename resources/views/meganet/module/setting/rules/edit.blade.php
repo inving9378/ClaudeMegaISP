@@ -1,4 +1,4 @@
-@extends('meganet.layout.master')
+@extends('core-layout::master')
 
 @section('content')
     <Breadcrumb :list=[{title:"Configuración"},{title:"Reglas"},{title:"Editar",active:"active"}]></Breadcrumb>
