@@ -1229,6 +1229,18 @@ return [
         '/administracion/sucursal/destroy/{id}',
     ],
 
+    //Module Manager (/admin/modules)
+    'admin_modules' => [
+        '/admin/modules',
+        '/admin/modules/{slug}/history',
+    ],
+    'admin_modules_migrate' => [
+        '/admin/modules/{slug}/migrate',
+    ],
+    'admin_modules_toggle' => [
+        '/admin/modules/{slug}/toggle',
+    ],
+
     //Configuración
     'config_view_module' => ['/configuracion'],
     'config_view_system' => [
