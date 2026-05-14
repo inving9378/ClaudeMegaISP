@@ -2,12 +2,8 @@
 
 namespace App\Providers;
 
-use App\Models\AppLayoutConfiguration;
-use App\Models\CompanyInformation;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
 use App\Services\MikrotikService;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use GuzzleHttp\Client;
 
@@ -46,29 +42,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        View::share('configLayout', function ($id) {
-            if (Auth::check()) {
-                $configLayout = AppLayoutConfiguration::where('user_id', $id)->first();
-            }
-            return $configLayout;
-        });
-
-        View::share('logoMeganet', function () {
-            //TODO ajustar para cuando se despliegue
-            $companyInformation = CompanyInformation::first();
-            if ($companyInformation) {
-                $logo = [
-                    'name' => $companyInformation->logo,
-                    'url_logo' => $companyInformation->url_logo
-                ];
-                return $logo;
-            }
-            $logo = [
-                'name' => null,
-                'url_logo' => ''
-            ];
-            return $logo;
-        });
+        // View::share('configLayout', …) y View::share('logoMeganet', …)
+        // se movieron a app/Modules/Core/Layout/ModuleServiceProvider::boot().
     }
 
     /**

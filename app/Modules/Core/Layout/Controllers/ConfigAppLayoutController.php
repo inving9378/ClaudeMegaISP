@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Modules\Core\Layout\Controllers;
 
-use App\Models\AppLayoutConfiguration;
+use App\Http\Controllers\Controller;
+use App\Modules\Core\Layout\Models\AppLayoutConfiguration;
 use Illuminate\Http\Request;
 
 class ConfigAppLayoutController extends Controller
