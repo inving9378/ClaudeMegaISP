@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\AppLayoutConfiguration;
 use App\Models\CompanyInformation;
+use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
 use App\Services\MikrotikService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
@@ -19,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        $this->registerModuleProviders();
+
         $this->app->singleton(MikrotikService::class, function ($app) {
             return new MikrotikService();
         });
@@ -66,5 +69,21 @@ class AppServiceProvider extends ServiceProvider
             ];
             return $logo;
         });
+    }
+
+    /**
+     * Discover every app/Modules/{Core,Addons}/<Module>/ModuleServiceProvider.php
+     * and register it. Each provider gates its own boot() via ModuleManagerService.
+     *
+     * Done in register() so that bindings + commands declared by module providers
+     * are available before any boot() runs.
+     */
+    private function registerModuleProviders(): void
+    {
+        foreach (ModuleManagerService::instance()->discoverProviderClasses() as $providerClass) {
+            if (class_exists($providerClass)) {
+                $this->app->register($providerClass);
+            }
+        }
     }
 }

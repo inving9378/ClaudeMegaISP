@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run()
     {
+        $this->call(ModuleRegistrySeeder::class);
         $this->call(ClientTestSeeder::class);
         $this->call(NetworkTestSeeder::class);
     }
