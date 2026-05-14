@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Middleware;
+namespace App\Modules\Core\Auth\Middleware;
 
 use App\Http\Traits\PermissionTrait;
 use Closure;
