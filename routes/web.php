@@ -73,7 +73,6 @@ use App\Http\Controllers\Module\Setting\MethodPayment\MethodPaymentController;
 use App\Http\Controllers\Module\Setting\ListTemplateVerification\ListTemplateVerificationController;
 use App\Http\Controllers\Module\Setting\TemplateTask\TemplateTaskController;
 use App\Http\Controllers\RegisterVendorController;
-use App\Http\Controllers\StaticsController;
 use App\Models\TaskNotification;
 use App\Notifications\StandardNotification;
 use Illuminate\Support\Facades\Auth;
@@ -1650,16 +1649,9 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/setting-table/get/{table_id}', 'Module\Setting\Table\SettingTableController@get');
     Route::post('/setting-table/post/{table_id}', 'Module\Setting\Table\SettingTableController@store');
 
-    Route::get('/', 'HomeController@index');
+    // Rutas / , /index y /get-*-card-in-dashboard-c migradas a
+    // app/Modules/Core/Dashboard/routes.php
     Route::get('/permissions-auth', 'Module\Administration\Permission\PermissionController@userPermissions');
-    Route::post('/get-home-statistics-for-tarjets-by-status-c', 'HomeController@getHomeStatisticsForTarjetsByStatus');
-    Route::post('/get-home-statistics-for-text-card-in-dashboard-c', 'HomeController@getStatisticsForTextCardInDashBoard');
-    Route::post('/get-stats-client-card-in-dashboard-c', 'HomeController@getStatsCardClientInDashBoard');
-    Route::post('/get-stats-ticket-card-in-dashboard-c', 'HomeController@getStatsCardTicketsInDashBoard');
-    Route::post('/get-stats-finance-card-in-dashboard-c', 'HomeController@getStatsCardFinanceInDashBoard');
-    Route::post('/get-stats-server-card-in-dashboard-c', 'HomeController@getStatsCardServerInDashBoard');
-
-    Route::get('/index', 'HomeController@index');
 
     Route::post('/user/get-next-user', 'HelperController@getNextUserId');
 
@@ -1727,23 +1719,10 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/read-all-notifications', 'Utils\NotificationController@readAll');
     Route::get('/read-notification/{id}', 'Utils\NotificationController@readNotification');
 
-    Route::group(['prefix' => '/statics'], function () {
-        Route::post('/sales-and-prospects/{id}', [StaticsController::class, 'salesAndProspects']);
-        Route::post('/sales-and-prospects', [StaticsController::class, 'salesAndProspects']);
-        Route::post('/sales-by-medium/{id}', [StaticsController::class, 'salesByMedium']);
-        Route::post('/sales-by-medium', [StaticsController::class, 'salesByMedium']);
-        Route::post('/compare-sales/{id}', [StaticsController::class, 'compareSales']);
-        Route::post('/compare-sales', [StaticsController::class, 'compareSales']);
-        Route::post('/prospects-by-status/{id}', [StaticsController::class, 'prospectsByStatus']);
-        Route::post('/prospects-by-status', [StaticsController::class, 'prospectsByStatus']);
-        Route::post('/ranking-sales', [StaticsController::class, 'rankingSales']);
-        Route::post('/total-prospects', [StaticsController::class, 'getTotalProspects']);
-        Route::post('/total-sales', [StaticsController::class, 'getTotalSales']);
-        Route::post('/total-lost-sales', [StaticsController::class, 'getLostSales']);
-    });
+    // Bloque /statics/* migrado a app/Modules/Core/Dashboard/routes.php
 });
 
-Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
+// Ruta /home (named 'home') migrada a app/Modules/Core/Dashboard/routes.php
 
 Route::group(['prefix' => '/register-vendor'], function () {
     Route::get('', [RegisterVendorController::class, 'index'])->name('register-vendor.index');
