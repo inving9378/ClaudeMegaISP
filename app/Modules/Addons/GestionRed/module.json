@@ -1,0 +1,9 @@
+{
+    "slug": "addon-gestion-red",
+    "name": "Gestión de Red",
+    "version": "0.1.0",
+    "description": "Routers, OLTs, ONUs y monitoreo.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

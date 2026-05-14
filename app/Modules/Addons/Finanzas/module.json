@@ -1,0 +1,9 @@
+{
+    "slug": "addon-finanzas",
+    "name": "Finanzas",
+    "version": "0.1.0",
+    "description": "Facturación, pagos y contabilidad.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

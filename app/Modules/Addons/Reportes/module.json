@@ -1,0 +1,9 @@
+{
+    "slug": "addon-reportes",
+    "name": "Reportes",
+    "version": "0.1.0",
+    "description": "Reportes y exportaciones.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

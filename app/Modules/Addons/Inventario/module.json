@@ -1,0 +1,9 @@
+{
+    "slug": "addon-inventario",
+    "name": "Inventario",
+    "version": "0.1.0",
+    "description": "Inventario de equipos y materiales.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

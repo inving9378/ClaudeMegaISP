@@ -1,0 +1,9 @@
+{
+    "slug": "core-layout",
+    "name": "Layout",
+    "version": "0.1.0",
+    "description": "Plantillas maestras, topbar, sidebar y modo oscuro.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

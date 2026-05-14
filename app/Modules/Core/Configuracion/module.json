@@ -1,0 +1,9 @@
+{
+    "slug": "core-configuracion",
+    "name": "Configuración",
+    "version": "0.1.0",
+    "description": "Datos de empresa, monedas y ajustes base.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}
