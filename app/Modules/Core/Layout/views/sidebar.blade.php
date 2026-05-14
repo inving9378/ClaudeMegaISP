@@ -585,6 +585,31 @@
                     @endcan
                 </li>
 
+                @hasanyrole('DESARROLLADOR|Administrador|Super Administrador|super-administrator|TECNICO')
+                    @canany(['megafamilia_admin', 'megafamilia_support'])
+                        <li>
+                            <a href="javascript: void(0);" class="has-arrow">
+                                <i data-feather="shield"></i>
+                                <span data-key="t-megafamilia">MegaFamilia</span>
+                            </a>
+                            <ul class="sub-menu" aria-expanded="false">
+                                @can('megafamilia_admin')
+                                    <li><a href="{{ url('/megafamilia') }}"><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</a></li>
+                                    <li><a href="{{ url('/megafamilia/clientes') }}"><small><i class="fa fa-fw fa-users"></i></small> Clientes</a></li>
+                                    <li><a href="{{ url('/megafamilia/licencias') }}"><small><i class="fa fa-fw fa-key"></i></small> Licencias</a></li>
+                                    <li><a href="{{ url('/megafamilia/planes') }}"><small><i class="fa fa-fw fa-layer-group"></i></small> Planes</a></li>
+                                @endcan
+                                <li><a href="{{ url('/megafamilia/dispositivos') }}"><small><i class="fa fa-fw fa-mobile-screen"></i></small> Dispositivos</a></li>
+                                <li><a href="{{ url('/megafamilia/alertas') }}"><small><i class="fa fa-fw fa-bell"></i></small> Alertas</a></li>
+                                <li><a href="{{ url('/megafamilia/reportes') }}"><small><i class="fa fa-fw fa-chart-bar"></i></small> Reportes</a></li>
+                                @can('megafamilia_admin')
+                                    <li><a href="{{ url('/megafamilia/configuracion') }}"><small><i class="fa fa-fw fa-cog"></i></small> Configuración</a></li>
+                                @endcan
+                            </ul>
+                        </li>
+                    @endcanany
+                @endhasanyrole
+
                 @role('DESARROLLADOR')
                     <li class="menu-item-desarrollador">
                         <a href="{{ url('/devtools') }}" class="link-desarrollador">
