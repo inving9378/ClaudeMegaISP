@@ -114,6 +114,24 @@
             <div class="row d-flex">
                 <div class="col-md-2">
                     <div class="cursor-pointer">
+                        <a :href="`${url}/admin/modules`"
+                            ><div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-primary m-0">
+                                        <i
+                                            class="fa fa-fw fa-1x circle-icon fa-puzzle-piece"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center"
+                                        >Add-ons</span
+                                    >
+                                </div>
+                            </div></a
+                        >
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="cursor-pointer">
                         <a :href="`${url}/configuracion/additional-fields`"
                             ><div class="card-body position-relative">
                                 <div class="faq-count d-flex">
