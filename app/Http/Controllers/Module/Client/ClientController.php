@@ -8,7 +8,7 @@ use App\Jobs\DeletedClientWithServiceJob;
 use App\Models\Client;
 use Illuminate\Http\Request;
 use App\Http\HelpersModule\module\client\ClientDatatableHelper;
-use App\Http\Repository\AppLayoutConfigurationRepository;
+use App\Modules\Core\Layout\Repositories\AppLayoutConfigurationRepository;
 use App\Http\Repository\ClientMainInformationRepository;
 use App\Http\Repository\ClientRepository;
 use App\Http\Requests\module\client\ClientCreateRequest;

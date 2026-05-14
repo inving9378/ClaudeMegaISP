@@ -1721,11 +1721,8 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/save-or-delete-default-value', 'SharedDefaultValues@saveOrDeleteDefaultValue');
     Route::post('/get-default-fields-value', 'SharedDefaultValues@getDefaultFieldsValue');
 
-    Route::post('/save-app-config-layout', 'ConfigAppLayoutController@saveAppConfigLayout');
+    // ConfigAppLayoutController routes movidas a app/Modules/Core/Layout/routes.php
     Route::post('/getDataTable', 'Controller@getDataToTable');
-
-    Route::post('/get-config-tabs', 'ConfigAppLayoutController@getConfigTabs');
-    Route::post('/set-config-tabs', 'ConfigAppLayoutController@setConfigTabs');
     Route::get('/read-all-notifications', 'Utils\NotificationController@readAll');
     Route::get('/read-notification/{id}', 'Utils\NotificationController@readNotification');
 

@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Services;
+namespace App\Modules\Core\Layout\Services;
 
-use App\Http\Repository\AppLayoutConfigurationRepository;
+use App\Modules\Core\Layout\Repositories\AppLayoutConfigurationRepository;
 
 class AppLayoutConfigurationService
 {

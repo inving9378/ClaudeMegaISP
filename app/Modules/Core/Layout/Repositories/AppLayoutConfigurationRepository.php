@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Http\Repository;
+namespace App\Modules\Core\Layout\Repositories;
 
-use App\Models\AppLayoutConfiguration;
+use App\Modules\Core\Layout\Models\AppLayoutConfiguration;
 
 class AppLayoutConfigurationRepository
 {
