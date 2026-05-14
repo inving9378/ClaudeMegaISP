@@ -58,7 +58,7 @@ Login
                                         <div class="mb-3">
                                             <button class="btn btn-primary w-100 waves-effect waves-light" type="submit">Entrar</button>
                                         </div>
-                                        @if(count( $errors ) > 0)
+                                        @if($errors->any())
                                             @foreach ($errors->all() as $error)
                                                 <h6 class="text-danger">{{ $error }}</h6>
                                             @endforeach
