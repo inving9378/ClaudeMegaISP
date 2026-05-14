@@ -1,0 +1,9 @@
+{
+    "slug": "addon-vendedores",
+    "name": "Vendedores",
+    "version": "0.1.0",
+    "description": "Vendedores, comisiones y cobros.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

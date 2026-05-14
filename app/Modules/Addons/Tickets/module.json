@@ -1,0 +1,9 @@
+{
+    "slug": "addon-tickets",
+    "name": "Tickets",
+    "version": "0.1.0",
+    "description": "Soporte y mesa de ayuda.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

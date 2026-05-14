@@ -1,0 +1,9 @@
+{
+    "slug": "addon-ia",
+    "name": "IA",
+    "version": "0.1.0",
+    "description": "Asistente IA / Claude integrado.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}
