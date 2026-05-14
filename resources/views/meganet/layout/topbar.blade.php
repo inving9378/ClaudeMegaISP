@@ -37,6 +37,12 @@
                 </a>
             </div>
 
+            <span class="badge align-self-center ms-2 px-3 py-2 fw-bold"
+                style="background-color: #ff6b00; color: #fff; font-size: 13px; letter-spacing: 1px; border-radius: 4px; box-shadow: 0 0 8px rgba(255,107,0,0.5);"
+                title="Entorno de prueba">
+                CLAUDE TEST
+            </span>
+
             <button type="button" class="btn btn-sm px-3 font-size-16 header-item" id="vertical-menu-btn">
                 <i class="fa fa-fw fa-bars"></i>
             </button>
