@@ -22,5 +22,6 @@ Route::middleware(['web', 'auth', 'role:DESARROLLADOR'])
     ->prefix('devtools')
     ->group(function () {
         Route::get('/', [DevToolsController::class, 'index'])->name('devtools.index');
+        Route::get('/context', [DevToolsController::class, 'context'])->name('devtools.context');
         Route::post('/chat', [DevToolsController::class, 'chat'])->name('devtools.chat');
     });
