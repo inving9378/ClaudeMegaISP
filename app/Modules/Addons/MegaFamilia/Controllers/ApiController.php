@@ -28,6 +28,40 @@ use Illuminate\Support\Str;
  */
 class ApiController extends Controller
 {
+    // ---- OTA --------------------------------------------------------------
+
+    /**
+     * Endpoint público que el cliente móvil consulta al abrir para
+     * decidir si tiene que descargar una versión nueva. Versión y URL
+     * vienen de la config persistida en `api_mobile_config`; si no hay
+     * fila, caen a defaults razonables.
+     *
+     * El sha256 del APK se calcula al vuelo cuando el archivo está
+     * disponible localmente — sirve para que la app valide la descarga.
+     */
+    public function appVersion(): JsonResponse
+    {
+        $config = \App\Modules\Core\Configuracion\Models\ApiMobileConfig::getAll();
+
+        $version = $config['app_version'] ?? '0.2.0';
+        $apkUrl = $config['apk_url'] ?? 'http://192.168.105.11/apk/megafamilia.apk';
+
+        $apkPath = public_path('apk/megafamilia.apk');
+        $sha256 = is_file($apkPath) ? hash_file('sha256', $apkPath) : null;
+        $size = is_file($apkPath) ? filesize($apkPath) : null;
+        $builtAt = is_file($apkPath) ? date('c', filemtime($apkPath)) : null;
+
+        return response()->json([
+            'version' => $version,
+            'apk_url' => $apkUrl,
+            'sha256' => $sha256,
+            'size' => $size,
+            'built_at' => $builtAt,
+            'mandatory' => false,
+            'release_notes' => $config['release_notes'] ?? null,
+        ]);
+    }
+
     // ---- AUTH -------------------------------------------------------------
 
     public function login(Request $request): JsonResponse

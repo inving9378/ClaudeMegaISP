@@ -167,6 +167,9 @@ Route::prefix('api/megafamilia')->middleware('log_api_mobile')->group(function (
     // Public: login → returns sanctum token
     Route::post('/auth/login', [ApiController::class, 'login']);
 
+    // Public: OTA — la app revisa esto al abrir y se autoactualiza
+    Route::get('/app-version', [ApiController::class, 'appVersion']);
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/account', [ApiController::class, 'account']);
 
