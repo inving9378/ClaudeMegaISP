@@ -178,6 +178,9 @@ Route::prefix('api/megafamilia')->middleware('log_api_mobile')->group(function (
         Route::get('/tickets', [ApiController::class, 'tickets']);
         Route::post('/tickets', [ApiController::class, 'storeTicket']);
         Route::get('/profile', [ApiController::class, 'profile']);
+        Route::get('/facturas', [ApiController::class, 'facturas']);
+        Route::get('/pagos', [ApiController::class, 'pagos']);
+        Route::post('/pagos', [ApiController::class, 'crearPago']);
 
         Route::get('/profiles', [ApiController::class, 'profiles']);
         Route::post('/profiles', [ApiController::class, 'storeProfile']);
