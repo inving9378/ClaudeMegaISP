@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/cliente_provider.dart';
+import '../../services/update_service.dart';
 import '../../theme.dart';
 import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
@@ -21,11 +22,37 @@ class _ClienteDashboardState extends State<ClienteDashboard> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
+    Future.microtask(() async {
       final p = context.read<ClienteProvider>();
       p.loadServicio();
       p.loadTickets();
+      await _checkUpdate();
     });
+  }
+
+  Future<void> _checkUpdate() async {
+    final info = await UpdateService().checkForUpdate();
+    if (info == null || !mounted) return;
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: !info.mandatory,
+      builder: (_) => AlertDialog(
+        title: const Text('Actualización disponible'),
+        content: Text(
+          'Hay una versión nueva (${info.version}) lista para instalar.'
+          '${info.releaseNotes != null && info.releaseNotes!.isNotEmpty ? "\n\n${info.releaseNotes}" : ""}'
+          '\n\nAl tocar "Descargar", el sistema bajará el APK y te pedirá actualizar la app — no necesitas desinstalar.',
+        ),
+        actions: [
+          if (!info.mandatory)
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Más tarde')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Descargar')),
+        ],
+      ),
+    );
+    if (accepted == true) {
+      await UpdateService().openApkUrl(info.apkUrl);
+    }
   }
 
   @override

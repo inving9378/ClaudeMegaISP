@@ -1,7 +1,7 @@
 name: megafamilia
 description: "MegaFamilia — app móvil de MegaISP (control parental + autoservicio cliente + órdenes técnico)."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -30,6 +30,10 @@ dependencies:
   # archivado y rompe con AGP moderno por "namespace missing". mobile_scanner
   # es el sucesor mantenido con la misma funcionalidad.
   mobile_scanner: ^5.0.0
+
+  # OTA self-update (en lugar de re-instalar manual cada cambio)
+  package_info_plus: ^8.0.0
+  url_launcher: ^6.2.5
 
   # NOTA: firebase_core / firebase_messaging / google_maps_flutter omitidos
   # de v0.1 — requieren google-services.json y Maps API key. Se añaden en una
