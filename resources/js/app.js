@@ -65,6 +65,10 @@ import IndexSetting from "./components/module/setting/IndexSetting.vue";
 import ImportListar from "./components/module/setting/ImportListar.vue";
 import ImportCrud from "./components/module/setting/components/tools/ImportCrud.vue";
 import ShowActivity from "./components/module/adminstration/activity_log/ShowActivity.vue";
+import ApiMovilConfig from "./components/module/setting/api-movil/ApiMovilConfig.vue";
+import ApiMovilTokens from "./components/module/setting/api-movil/ApiMovilTokens.vue";
+import ApiMovilDocs from "./components/module/setting/api-movil/ApiMovilDocs.vue";
+import ApiMovilLogs from "./components/module/setting/api-movil/ApiMovilLogs.vue";
 import ModuleManager from "./components/module/admin/modules/ModuleManager.vue";
 import DevtoolsPanel from "./components/module/devtools/DevtoolsPanel.vue";
 
@@ -350,6 +354,10 @@ const app = createApp({
         FieldModuleListar,
         'module-manager': ModuleManager,
         'devtools-panel': DevtoolsPanel,
+        'api-movil-config': ApiMovilConfig,
+        'api-movil-tokens': ApiMovilTokens,
+        'api-movil-docs': ApiMovilDocs,
+        'api-movil-logs': ApiMovilLogs,
         'mega-familia-dashboard': MegaFamiliaDashboard,
         'mega-familia-clientes': MegaFamiliaClientes,
         'mega-familia-licencias': MegaFamiliaLicencias,
