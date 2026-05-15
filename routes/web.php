@@ -1370,8 +1370,9 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/cliente/get-receipt-for-client', 'Utils\ReceiptController@getReceiptForClient');
     Route::post('/get-payment-period', 'Utils\UtilController@getPaymentPeriod');
 
-    Route::get('/setting-table/get/{table_id}', 'Module\Setting\Table\SettingTableController@get');
-    Route::post('/setting-table/post/{table_id}', 'Module\Setting\Table\SettingTableController@store');
+    // SettingTableController migrado a App\Modules\Core\Configuracion\Controllers\Table
+    Route::get('/setting-table/get/{table_id}', [\App\Modules\Core\Configuracion\Controllers\Table\SettingTableController::class, 'get']);
+    Route::post('/setting-table/post/{table_id}', [\App\Modules\Core\Configuracion\Controllers\Table\SettingTableController::class, 'store']);
 
     // Rutas / , /index y /get-*-card-in-dashboard-c migradas a
     // app/Modules/Core/Dashboard/routes.php
