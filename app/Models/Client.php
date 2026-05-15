@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Http\Repository\ClientRepository;
 use App\Http\Requests\module\client\ClientCreateRequest;
 use App\Http\Traits\Models\Client\Client\ScopeClient;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Http\Traits\Models\Client\ClientTrait;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
