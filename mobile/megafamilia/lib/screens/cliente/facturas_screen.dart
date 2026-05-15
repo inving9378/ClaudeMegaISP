@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
 import '../../providers/cliente_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class FacturasScreen extends StatefulWidget {
@@ -60,8 +60,7 @@ class _FacturasScreenState extends State<FacturasScreen> with SingleTickerProvid
 
   Widget _list(List<Factura> items) {
     if (items.isEmpty) return const CenteredState(message: 'Sin facturas en esta categoría.');
-    final df = DateFormat('d MMM yyyy', 'es');
-    final mf = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+    String money(double v) => '\$${v.toStringAsFixed(2)}';
     return ListView.separated(
       padding: const EdgeInsets.all(12),
       itemCount: items.length,
@@ -72,13 +71,13 @@ class _FacturasScreenState extends State<FacturasScreen> with SingleTickerProvid
           child: ListTile(
             leading: const CircleAvatar(backgroundColor: Color(0xFFFFF1E2), child: Icon(Icons.receipt_long, color: BrandColors.primary)),
             title: Text(f.number, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(f.date != null ? df.format(f.date!) : '—'),
+            subtitle: Text(f.date != null ? fechaCorta(f.date!) : '—'),
             trailing: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(mf.format(f.amount), style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(money(f.amount), style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 StatusBadge(f.status),
               ],

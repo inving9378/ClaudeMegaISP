@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/cliente_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class FacturaDetailScreen extends StatelessWidget {
@@ -17,8 +17,7 @@ class FacturaDetailScreen extends StatelessWidget {
       (x) => x.id == facturaId,
       orElse: () => c.facturas.isNotEmpty ? c.facturas.first : throw StateError('factura $facturaId no encontrada'),
     );
-    final df = DateFormat('d MMMM yyyy', 'es');
-    final mf = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+    String money(double v) => '\$${v.toStringAsFixed(2)}';
 
     return Scaffold(
       appBar: AppBar(title: Text('Factura ${f.number}')),
@@ -39,11 +38,11 @@ class FacturaDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text('Fecha de emisión: ${f.date != null ? df.format(f.date!) : "—"}', style: const TextStyle(color: BrandColors.textMuted)),
+                  Text('Fecha de emisión: ${f.date != null ? fechaLarga(f.date!) : "—"}', style: const TextStyle(color: BrandColors.textMuted)),
                   const Divider(height: 32),
                   const Text('Total a pagar', style: TextStyle(color: BrandColors.textMuted)),
                   const SizedBox(height: 4),
-                  Text(mf.format(f.amount), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: BrandColors.primary)),
+                  Text(money(f.amount), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: BrandColors.primary)),
                 ],
               ),
             ),

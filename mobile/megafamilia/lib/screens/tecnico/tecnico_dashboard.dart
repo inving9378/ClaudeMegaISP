@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/tecnico_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class TecnicoDashboard extends StatefulWidget {
@@ -75,7 +75,7 @@ class _TecnicoDashboardState extends State<TecnicoDashboard> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (o.scheduledAt != null) Text(DateFormat('HH:mm').format(o.scheduledAt!), style: const TextStyle(fontWeight: FontWeight.bold)),
+                          if (o.scheduledAt != null) Text(hora(o.scheduledAt!), style: const TextStyle(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           StatusBadge(_statusLabel(o.status)),
                         ],

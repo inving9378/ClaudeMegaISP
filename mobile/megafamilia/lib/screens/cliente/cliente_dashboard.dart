@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/cliente_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class ClienteDashboard extends StatefulWidget {
@@ -103,7 +103,6 @@ class _ServicioCard extends StatelessWidget {
     final used = s.consumoGb ?? 0;
     final limit = s.consumoLimite ?? 1;
     final pct = (used / limit).clamp(0.0, 1.0);
-    final df = DateFormat('d MMM yyyy', 'es');
 
     return Card(
       child: Padding(
@@ -132,7 +131,7 @@ class _ServicioCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.event, size: 16, color: BrandColors.textMuted),
                   const SizedBox(width: 6),
-                  Text('Próximo pago: ${df.format(s.nextPaymentDate!)}', style: const TextStyle(color: BrandColors.textMuted, fontSize: 13)),
+                  Text('Próximo pago: ${fechaCorta(s.nextPaymentDate!)}', style: const TextStyle(color: BrandColors.textMuted, fontSize: 13)),
                 ],
               ),
             const SizedBox(height: 14),

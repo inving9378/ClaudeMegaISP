@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/cliente_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class MiServicioScreen extends StatefulWidget {
@@ -25,7 +25,6 @@ class _MiServicioScreenState extends State<MiServicioScreen> {
     final c = context.watch<ClienteProvider>();
     final s = c.servicio;
     final auth = context.watch<AuthProvider>();
-    final df = DateFormat('d MMM yyyy', 'es');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mi servicio')),
@@ -59,7 +58,7 @@ class _MiServicioScreenState extends State<MiServicioScreen> {
                     _InfoSection(title: 'Datos del servicio', items: [
                       ('Contrato', s.contractNumber.isEmpty ? '—' : s.contractNumber),
                       ('Dirección', s.address.isEmpty ? '—' : s.address),
-                      ('Próximo pago', s.nextPaymentDate != null ? df.format(s.nextPaymentDate!) : '—'),
+                      ('Próximo pago', s.nextPaymentDate != null ? fechaCorta(s.nextPaymentDate!) : '—'),
                     ]),
                     const SizedBox(height: 16),
                     _InfoSection(title: 'Titular', items: [
