@@ -48,7 +48,18 @@ class ApiController extends Controller
         }
 
         $token = $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken;
-        return response()->json(['success' => true, 'token' => $token, 'user' => $user->only('id', 'name', 'email')]);
+
+        $role = strtolower((string) ($user->getRoleNames()->first() ?? ''));
+
+        return response()->json([
+            'success' => true,
+            'token' => $token,
+            'role' => $role,
+            'user' => array_merge(
+                $user->only('id', 'name', 'email'),
+                ['role' => $role]
+            ),
+        ]);
     }
 
     // ---- ACCOUNT / PROFILES ----------------------------------------------
