@@ -14,6 +14,7 @@ use App\Modules\Core\Configuracion\Controllers\Nomenclature\NomenclatureControll
 use App\Modules\Core\Configuracion\Controllers\Rules\RuleController;
 use App\Modules\Core\Configuracion\Controllers\ServiceInAddressList\ServiceInAddressListController;
 use App\Modules\Core\Configuracion\Controllers\SettingAdditionalFieldController;
+use App\Modules\Core\Configuracion\Controllers\SettingApiMovilController;
 use App\Modules\Core\Configuracion\Controllers\SettingController;
 use App\Modules\Core\Configuracion\Controllers\SettingDebitPaymentCustomController;
 use App\Modules\Core\Configuracion\Controllers\StatusSeller\StatusSellerController;
@@ -279,5 +280,25 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/', [ConfigFinanceNotificationController::class, 'index']);
             Route::post('/get-data-tabs', [ConfigFinanceNotificationController::class, 'getDataTabs']);
             Route::post('/update/{id}', [ConfigFinanceNotificationController::class, 'update']);
+        });
+
+        // API Móvil — configuración, tokens Sanctum activos, docs auto-
+        // generadas de /api/megafamilia/* y logs de acceso.
+        Route::group(['prefix' => 'api-movil'], function () {
+            Route::get('/', [SettingApiMovilController::class, 'index']);
+            Route::get('/get', [SettingApiMovilController::class, 'getConfig']);
+            Route::post('/update', [SettingApiMovilController::class, 'updateConfig']);
+
+            Route::get('/tokens', [SettingApiMovilController::class, 'tokens']);
+            Route::get('/tokens/data', [SettingApiMovilController::class, 'listTokens']);
+            Route::post('/tokens/{id}/revoke', [SettingApiMovilController::class, 'revokeToken'])->whereNumber('id');
+            Route::post('/tokens/revoke-all', [SettingApiMovilController::class, 'revokeAllTokens']);
+
+            Route::get('/docs', [SettingApiMovilController::class, 'docs']);
+            Route::get('/docs/endpoints', [SettingApiMovilController::class, 'endpoints']);
+
+            Route::get('/logs', [SettingApiMovilController::class, 'logs']);
+            Route::get('/logs/data', [SettingApiMovilController::class, 'logsData']);
+            Route::get('/logs/csv', [SettingApiMovilController::class, 'logsCsv']);
         });
     });
