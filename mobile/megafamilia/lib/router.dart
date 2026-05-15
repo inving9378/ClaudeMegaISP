@@ -12,6 +12,7 @@ import 'screens/cliente/factura_detail_screen.dart';
 import 'screens/cliente/facturas_screen.dart';
 import 'screens/cliente/mi_servicio_screen.dart';
 import 'screens/cliente/new_ticket_screen.dart';
+import 'screens/cliente/perfil_screen.dart';
 import 'screens/cliente/pagos_screen.dart';
 import 'screens/cliente/tickets_screen.dart';
 import 'screens/hijo/blocked_screen.dart';
@@ -63,6 +64,7 @@ GoRouter buildRouter(BuildContext context) {
         GoRoute(path: 'pagos', builder: (_, __) => const PagosScreen()),
         GoRoute(path: 'tickets', builder: (_, __) => const TicketsScreen()),
         GoRoute(path: 'tickets/nuevo', builder: (_, __) => const NewTicketScreen()),
+        GoRoute(path: 'perfil', builder: (_, __) => const PerfilScreen()),
         GoRoute(path: 'parental', builder: (_, __) => const ControlParentalScreen()),
         GoRoute(path: 'parental/:id', builder: (_, s) => ChildDetailScreen(childId: int.parse(s.pathParameters['id']!))),
       ]),

@@ -9,7 +9,7 @@ import '../models/models.dart';
 /// la observa para forzar logout + redirect a /login.
 class UnauthorizedException implements Exception {
   final String message;
-  UnauthorizedException([this.message = 'Sesión expirada']);
+  UnauthorizedException([this.message = 'Credenciales incorrectas']);
   @override
   String toString() => message;
 }
@@ -19,7 +19,21 @@ class ApiException implements Exception {
   final String message;
   ApiException(this.status, this.message);
   @override
-  String toString() => 'ApiException($status): $message';
+  String toString() => message;
+}
+
+/// Mapea códigos HTTP a mensajes legibles en español. Cualquier código
+/// que no esté aquí cae al mensaje del backend (campo `error` o `message`).
+String _statusMessage(int status, String fallback) {
+  return switch (status) {
+    400 => 'Solicitud inválida',
+    403 => 'No tienes permiso para esto',
+    404 => 'Datos no encontrados',
+    422 => fallback.isNotEmpty ? fallback : 'Datos incompletos',
+    429 => 'Demasiados intentos, espera un momento',
+    500 || 502 || 503 => 'Error del servidor, intenta más tarde',
+    _ => fallback.isNotEmpty ? fallback : 'Error de servidor ($status)',
+  };
 }
 
 class ApiService {
@@ -46,7 +60,9 @@ class ApiService {
       final res = await _client.get(_u(path), headers: _headers()).timeout(const Duration(seconds: 15));
       return _decode(res);
     } on TimeoutException {
-      throw ApiException(0, 'Tiempo de espera agotado');
+      throw ApiException(0, 'La conexión está muy lenta');
+    } on http.ClientException {
+      throw ApiException(0, 'Sin conexión a internet');
     }
   }
 
@@ -57,21 +73,33 @@ class ApiService {
           .timeout(const Duration(seconds: 20));
       return _decode(res);
     } on TimeoutException {
-      throw ApiException(0, 'Tiempo de espera agotado');
+      throw ApiException(0, 'La conexión está muy lenta');
+    } on http.ClientException {
+      throw ApiException(0, 'Sin conexión a internet');
     }
   }
 
   Future<dynamic> _put(String path, [Object? body]) async {
-    final res = await _client
-        .put(_u(path), headers: _headers(jsonBody: true), body: body != null ? jsonEncode(body) : null)
-        .timeout(const Duration(seconds: 20));
-    return _decode(res);
+    try {
+      final res = await _client
+          .put(_u(path), headers: _headers(jsonBody: true), body: body != null ? jsonEncode(body) : null)
+          .timeout(const Duration(seconds: 20));
+      return _decode(res);
+    } on TimeoutException {
+      throw ApiException(0, 'La conexión está muy lenta');
+    } on http.ClientException {
+      throw ApiException(0, 'Sin conexión a internet');
+    }
   }
 
   dynamic _decode(http.Response res) {
-    if (res.statusCode == 401) throw UnauthorizedException();
+    if (res.statusCode == 401) {
+      throw UnauthorizedException(_extractError(res.body).isNotEmpty
+          ? _extractError(res.body)
+          : 'Credenciales incorrectas');
+    }
     if (res.statusCode >= 400) {
-      throw ApiException(res.statusCode, _extractError(res.body));
+      throw ApiException(res.statusCode, _statusMessage(res.statusCode, _extractError(res.body)));
     }
     if (res.body.isEmpty) return null;
     return jsonDecode(res.body);

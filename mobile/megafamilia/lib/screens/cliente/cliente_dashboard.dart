@@ -94,7 +94,7 @@ class _ClienteDashboardState extends State<ClienteDashboard> {
           switch (i) {
             case 1: context.go('/cliente/servicio'); break;
             case 2: context.go('/cliente/tickets'); break;
-            case 3: ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perfil — próximamente'))); break;
+            case 3: context.go('/cliente/perfil'); break;
           }
         },
         destinations: const [

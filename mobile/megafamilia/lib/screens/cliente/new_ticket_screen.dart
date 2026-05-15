@@ -64,8 +64,12 @@ class _NewTicketScreenState extends State<NewTicketScreen> {
                 label: Text(c),
                 selected: selected,
                 onSelected: (_) => setState(() => _category = c),
-                selectedColor: BrandColors.primary,
-                labelStyle: TextStyle(color: selected ? Colors.white : BrandColors.textPrimary),
+                selectedColor: BrandColors.selectedTint,
+                side: BorderSide(color: selected ? BrandColors.primary : Colors.grey.shade300),
+                labelStyle: TextStyle(
+                  color: selected ? BrandColors.primary : BrandColors.textPrimary,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
               );
             }).toList(),
           ),

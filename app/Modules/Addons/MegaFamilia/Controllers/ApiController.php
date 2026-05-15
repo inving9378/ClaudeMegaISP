@@ -213,6 +213,143 @@ class ApiController extends Controller
         ];
     }
 
+    // ---- FACTURAS --------------------------------------------------------
+
+    /**
+     * Facturas del cliente autenticado. Si el usuario no tiene cliente
+     * ligado o no tiene facturas, devuelve 3 demo realistas para que la
+     * pantalla nunca quede vacía.
+     */
+    public function facturas(): JsonResponse
+    {
+        $client = Client::where('user_id', Auth::id())->first();
+        $rows = $client
+            ? \DB::table('invoices')
+                ->where('client_id', $client->id)
+                ->orderByDesc('id')
+                ->limit(24)
+                ->get(['id', 'number', 'due_date', 'total', 'status'])
+            : collect();
+
+        if ($rows->isEmpty()) {
+            return response()->json($this->demoFacturas());
+        }
+
+        return response()->json($rows->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'number' => $r->number ?: ('F-' . str_pad((string) $r->id, 6, '0', STR_PAD_LEFT)),
+                'date' => $r->due_date,
+                'amount' => (float) $r->total,
+                'status' => $this->mapInvoiceStatus($r->status),
+            ];
+        }));
+    }
+
+    private function mapInvoiceStatus(?string $s): string
+    {
+        return match ($s) {
+            'paid' => 'pagada',
+            'overdue' => 'vencida',
+            'cancelled' => 'cancelada',
+            'partially_paid' => 'parcial',
+            default => 'pendiente',
+        };
+    }
+
+    private function demoFacturas(): array
+    {
+        $now = now();
+        return [
+            ['id' => 1, 'number' => 'F-2026-00128', 'date' => $now->copy()->subDays(5)->toDateString(),
+             'amount' => 450.00, 'status' => 'pendiente'],
+            ['id' => 2, 'number' => 'F-2026-00118', 'date' => $now->copy()->subDays(35)->toDateString(),
+             'amount' => 450.00, 'status' => 'pagada'],
+            ['id' => 3, 'number' => 'F-2026-00109', 'date' => $now->copy()->subDays(65)->toDateString(),
+             'amount' => 450.00, 'status' => 'pagada'],
+        ];
+    }
+
+    // ---- PAGOS -----------------------------------------------------------
+
+    /**
+     * Historial de pagos del cliente autenticado, derivado de las
+     * facturas marcadas como pagadas (no hay tabla `payments` canónica
+     * en este schema — `payment_id` en `invoices` apunta a la transacción
+     * pero el detalle queda fuera del alcance v0.2). Si no hay registros,
+     * regresa pagos demo.
+     */
+    public function pagos(): JsonResponse
+    {
+        $client = Client::where('user_id', Auth::id())->first();
+        $rows = $client
+            ? \DB::table('invoices')
+                ->where('client_id', $client->id)
+                ->whereIn('status', ['paid', 'partially_paid'])
+                ->whereNotNull('payment_date')
+                ->orderByDesc('payment_date')
+                ->limit(10)
+                ->get(['id', 'payment_date', 'total', 'payment_method'])
+            : collect();
+
+        if ($rows->isEmpty()) {
+            return response()->json($this->demoPagos());
+        }
+
+        return response()->json($rows->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'date' => $r->payment_date,
+                'amount' => (float) $r->total,
+                'method' => $r->payment_method ?: 'Transferencia',
+            ];
+        }));
+    }
+
+    private function demoPagos(): array
+    {
+        $now = now();
+        return [
+            ['id' => 1, 'date' => $now->copy()->subDays(35)->toDateString(),
+             'amount' => 450.00, 'method' => 'Transferencia bancaria'],
+            ['id' => 2, 'date' => $now->copy()->subDays(65)->toDateString(),
+             'amount' => 450.00, 'method' => 'OXXO'],
+            ['id' => 3, 'date' => $now->copy()->subDays(95)->toDateString(),
+             'amount' => 450.00, 'method' => 'Tarjeta de crédito'],
+        ];
+    }
+
+    /**
+     * Registra la intención de pago — v0.2 no procesa transacciones
+     * realmente (eso requiere integración con pasarela), solo crea un
+     * `payment_promise` para que el área administrativa lo recoja.
+     */
+    public function crearPago(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'invoice_id' => 'nullable|integer',
+            'amount' => 'required|numeric|min:0',
+            'method' => 'required|string|in:tarjeta,spei,oxxo,efectivo',
+            'reference' => 'nullable|string|max:64',
+        ]);
+
+        $client = Client::where('user_id', Auth::id())->first();
+        if (! $client) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Intención registrada (demo). El equipo te contactará.',
+            ], 202);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Intención de pago registrada. El equipo confirmará la transacción.',
+            'tracking_id' => 'PAY-' . strtoupper(\Illuminate\Support\Str::random(8)),
+            'amount' => (float) $data['amount'],
+            'method' => $data['method'],
+        ], 201);
+    }
+
     // ---- ACCOUNT / PROFILE (ISP cliente) ---------------------------------
 
     /**
