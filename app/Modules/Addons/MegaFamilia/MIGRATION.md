@@ -37,8 +37,9 @@ web (admin/soporte) y app móvil (padres + hijos vía Sanctum).
 - Vue: `MegaFamiliaDashboard.vue` está completo; los otros 17 son
   scaffolds funcionales (tablas/cards/forms cableados al endpoint pero
   con poco contenido específico). Iterar caso por caso.
-- API mobile: endpoints existen, pero el modelo `User` debe tener
-  `Laravel\Sanctum\HasApiTokens` para que `auth:sanctum` funcione con
-  tokens; revisar antes de exponer la app móvil.
+- API mobile: endpoints listos. `App\Models\User` ya usa
+  `Laravel\Sanctum\HasApiTokens` (verificado: `createToken()` emite
+  tokens `1|…` y la revocación funciona), así que `/api/megafamilia/
+  auth/login` opera sin cambios adicionales.
 - Repositorios y Services están vacíos — añadir cuando una consulta
   amerite extraer del controller.

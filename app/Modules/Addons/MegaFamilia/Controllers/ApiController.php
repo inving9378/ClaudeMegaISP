@@ -19,9 +19,9 @@ use Illuminate\Support\Str;
 
 /**
  * API mobile (padres + dispositivos hijos). Todas las rutas excepto login
- * usan `auth:sanctum`. El modelo User debe tener `Laravel\Sanctum\HasApiTokens`
- * para que `$user->createToken()` funcione — si aún no lo tiene, añadirlo
- * antes de exponer la app móvil al público.
+ * usan `auth:sanctum`. El modelo `App\Models\User` ya tiene
+ * `Laravel\Sanctum\HasApiTokens` (verificado), así que `$user->createToken()`
+ * funciona out of the box.
  */
 class ApiController extends Controller
 {
