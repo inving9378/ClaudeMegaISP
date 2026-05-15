@@ -163,7 +163,7 @@ Route::middleware(['web', 'auth'])->prefix('megafamilia')->group(function () {
 // API MOBILE
 // ---------------------------------------------------------------------------
 
-Route::prefix('api/megafamilia')->group(function () {
+Route::prefix('api/megafamilia')->middleware('log_api_mobile')->group(function () {
     // Public: login → returns sanctum token
     Route::post('/auth/login', [ApiController::class, 'login']);
 
