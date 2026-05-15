@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
@@ -12,9 +11,27 @@ import 'services/api_service.dart';
 import 'services/storage_service.dart';
 import 'theme.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('es', null);
+
+  // En release Flutter pinta un cuadro gris cuando un widget lanza una
+  // excepción. Lo reemplazamos por una caja roja con el error legible
+  // para que NUNCA volvamos a ver "está todo gris" sin saber por qué.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: const Color(0xFFFFCDD2),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: SingleChildScrollView(
+          child: Text(
+            'Error de UI:\n${details.exceptionAsString()}',
+            style: const TextStyle(color: Color(0xFFB71C1C), fontSize: 12),
+          ),
+        ),
+      ),
+    );
+  };
+
   final api = ApiService();
   final storage = StorageService();
 

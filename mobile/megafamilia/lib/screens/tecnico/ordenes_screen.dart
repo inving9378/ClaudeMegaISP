@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
 import '../../providers/tecnico_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class OrdenesScreen extends StatefulWidget {
@@ -61,7 +61,6 @@ class _OrdenesScreenState extends State<OrdenesScreen> with SingleTickerProvider
 
   Widget _list(List<Orden> items) {
     if (items.isEmpty) return const CenteredState(message: 'Sin órdenes en esta categoría.', icon: Icons.assignment_outlined);
-    final df = DateFormat('d MMM HH:mm', 'es');
     return ListView.separated(
       padding: const EdgeInsets.all(12),
       itemCount: items.length,
@@ -77,7 +76,7 @@ class _OrdenesScreenState extends State<OrdenesScreen> with SingleTickerProvider
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (o.scheduledAt != null) Text(df.format(o.scheduledAt!), style: const TextStyle(fontSize: 11, color: BrandColors.textMuted)),
+                if (o.scheduledAt != null) Text(fechaCortaConHora(o.scheduledAt!), style: const TextStyle(fontSize: 11, color: BrandColors.textMuted)),
                 const SizedBox(height: 4),
                 StatusBadge(_statusLabel(o.status)),
               ],

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/tecnico_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class OrdenDetailScreen extends StatelessWidget {
@@ -18,8 +18,6 @@ class OrdenDetailScreen extends StatelessWidget {
       (x) => x.id == ordenId,
       orElse: () => throw StateError('orden $ordenId no encontrada'),
     );
-    final df = DateFormat('EEEE d MMM, HH:mm', 'es');
-
     return Scaffold(
       appBar: AppBar(title: Text('Orden ${o.number}')),
       body: ListView(
@@ -68,7 +66,7 @@ class OrdenDetailScreen extends StatelessWidget {
               child: ListTile(
                 leading: const Icon(Icons.event, color: BrandColors.secondary),
                 title: const Text('Programado para'),
-                subtitle: Text(df.format(o.scheduledAt!)),
+                subtitle: Text(fechaConDia(o.scheduledAt!)),
               ),
             ),
           ],

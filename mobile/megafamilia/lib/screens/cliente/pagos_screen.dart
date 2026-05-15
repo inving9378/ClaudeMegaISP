@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/cliente_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class PagosScreen extends StatefulWidget {
@@ -29,8 +29,7 @@ class _PagosScreenState extends State<PagosScreen> {
     final pending = c.facturas.where((f) => f.status.toLowerCase() != 'pagada').toList();
     final totalDue = pending.fold<double>(0, (a, b) => a + b.amount);
     final nextDue = pending.isNotEmpty ? pending.first : null;
-    final df = DateFormat('d MMMM yyyy', 'es');
-    final mf = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+    String money(double v) => '\$${v.toStringAsFixed(2)}';
 
     final overdue = nextDue?.date != null && nextDue!.date!.isBefore(DateTime.now());
 
@@ -48,13 +47,13 @@ class _PagosScreenState extends State<PagosScreen> {
                 children: [
                   const Text('Total a pagar', style: TextStyle(color: BrandColors.textMuted)),
                   const SizedBox(height: 4),
-                  Text(mf.format(totalDue), style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: overdue ? BrandColors.danger : BrandColors.primary)),
+                  Text(money(totalDue), style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: overdue ? BrandColors.danger : BrandColors.primary)),
                   if (nextDue != null) ...[
                     const SizedBox(height: 8),
                     Text('Ref: ${nextDue.number}', style: const TextStyle(color: BrandColors.textMuted)),
                     const SizedBox(height: 2),
                     Text(
-                      'Límite: ${nextDue.date != null ? df.format(nextDue.date!) : "—"}',
+                      'Límite: ${nextDue.date != null ? fechaLarga(nextDue.date!) : "—"}',
                       style: TextStyle(color: overdue ? BrandColors.danger : BrandColors.textMuted, fontWeight: overdue ? FontWeight.bold : FontWeight.normal),
                     ),
                   ],
@@ -85,9 +84,9 @@ class _PagosScreenState extends State<PagosScreen> {
             ...c.pagos.map((p) => Card(
                   child: ListTile(
                     leading: const Icon(Icons.check_circle, color: BrandColors.success),
-                    title: Text(mf.format(p.amount), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    title: Text(money(p.amount), style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(p.method),
-                    trailing: Text(p.date != null ? df.format(p.date!) : '—', style: const TextStyle(color: BrandColors.textMuted, fontSize: 12)),
+                    trailing: Text(p.date != null ? fechaLarga(p.date!) : '—', style: const TextStyle(color: BrandColors.textMuted, fontSize: 12)),
                   ),
                 )),
         ],

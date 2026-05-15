@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
 import '../../providers/cliente_provider.dart';
 import '../../theme.dart';
+import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
 class TicketsScreen extends StatefulWidget {
@@ -80,7 +80,6 @@ class _TicketsScreenState extends State<TicketsScreen> with SingleTickerProvider
 
   Widget _list(List<Ticket> items) {
     if (items.isEmpty) return const CenteredState(message: 'Sin tickets en esta categoría.', icon: Icons.confirmation_number_outlined);
-    final df = DateFormat('d MMM yyyy', 'es');
     return ListView.separated(
       padding: const EdgeInsets.all(12),
       itemCount: items.length,
@@ -91,7 +90,7 @@ class _TicketsScreenState extends State<TicketsScreen> with SingleTickerProvider
           child: ListTile(
             leading: const CircleAvatar(backgroundColor: Color(0xFFE3F2FD), child: Icon(Icons.confirmation_number, color: BrandColors.secondary)),
             title: Text(t.subject, maxLines: 2, overflow: TextOverflow.ellipsis),
-            subtitle: Text('${t.number} · ${t.date != null ? df.format(t.date!) : "—"}'),
+            subtitle: Text('${t.number} · ${t.date != null ? fechaCorta(t.date!) : "—"}'),
             trailing: StatusBadge(t.status),
           ),
         );
