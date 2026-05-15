@@ -3,10 +3,12 @@
 namespace App\Modules\Addons\MegaFamilia\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Router;
 use App\Services\MikrotikService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Integración MegaFamilia ↔ MikroTik (corte de internet por reglas
@@ -42,18 +44,69 @@ class MikrotikController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function testConnection(MikrotikService $svc): JsonResponse
+    /**
+     * Prueba la conexión a uno o más routers MikroTik usando
+     * MikrotikService::getConnectionByRouter(), que abre una conexión TCP
+     * vía pear2/net_routeros. Itera sobre los routers de la tabla
+     * `routers` (limitado a 5 para no colgar el request) y reporta el
+     * estado de cada uno.
+     */
+    public function testConnection(Request $request, MikrotikService $svc): JsonResponse
     {
-        try {
-            // MikrotikService de la app principal — el método exacto varía,
-            // aquí usamos un ping genérico simbólico.
+        if (env('CONECTION_MIKROTIK', true) === false || env('CONECTION_MIKROTIK') === 'false') {
             return response()->json([
                 'success' => true,
-                'reachable' => true,
-                'note' => 'Conexión MikroTik delegada a App\Services\MikrotikService. Implementar ping real cuando el service exponga health().',
+                'reachable' => false,
+                'note' => 'CONECTION_MIKROTIK=false en .env — la conexión está deshabilitada por configuración.',
+                'results' => [],
             ]);
-        } catch (\Throwable $e) {
-            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+
+        $routerId = $request->input('router_id');
+        $query = Router::query()->with('mikrotik');
+        if ($routerId) {
+            $query->where('id', $routerId);
+        }
+        $routers = $query->limit(5)->get();
+
+        if ($routers->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'reachable' => false,
+                'error' => 'No hay routers configurados en la tabla `routers`.',
+            ], 404);
+        }
+
+        $results = [];
+        $anyOk = false;
+        foreach ($routers as $router) {
+            $row = ['router_id' => $router->id, 'ip_host' => $router->ip_host];
+            try {
+                $svc->resetConnection(); // fresh socket por router
+                $conn = $svc->getConnectionByRouter($router);
+                $ok = $conn !== null && $conn !== false;
+                $row['reachable'] = $ok;
+                if ($ok) {
+                    $anyOk = true;
+                } else {
+                    $row['error'] = 'Conexión devolvió valor falsy';
+                }
+            } catch (\Throwable $e) {
+                $row['reachable'] = false;
+                $row['error'] = $e->getMessage();
+                Log::warning('MegaFamilia MikroTik test failed', [
+                    'router_id' => $router->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            $results[] = $row;
+        }
+
+        return response()->json([
+            'success' => true,
+            'reachable' => $anyOk,
+            'tested_at' => now()->toIso8601String(),
+            'results' => $results,
+        ]);
     }
 }
