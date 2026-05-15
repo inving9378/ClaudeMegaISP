@@ -71,5 +71,8 @@ class Kernel extends HttpKernel
         'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
         'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
         'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+
+        // Registra cada hit a /api/megafamilia/* en api_mobile_logs (terminable).
+        'log_api_mobile' => \App\Modules\Core\Configuracion\Middleware\LogApiMobileAccess::class,
     ];
 }
