@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Modules\Core\Configuracion\Models\FieldModule;
 use App\Modules\Core\Configuracion\Repositories\DefaultValueRepository;
 use App\Modules\Core\Configuracion\Repositories\FieldTypeRepository;
 use App\Http\Repository\ModuleRepository;
