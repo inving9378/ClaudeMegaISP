@@ -87,7 +87,18 @@ class _ServicioCard extends StatelessWidget {
     final c = context.watch<ClienteProvider>();
     if (c.loadingServicio && c.servicio == null) return const Card(child: Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())));
     final s = c.servicio;
-    if (s == null) return const SizedBox.shrink();
+    if (s == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Row(children: [
+            Icon(Icons.info_outline, color: BrandColors.textMuted),
+            SizedBox(width: 12),
+            Expanded(child: Text('Aún no tienes un servicio asociado a tu cuenta.', style: TextStyle(color: BrandColors.textMuted))),
+          ]),
+        ),
+      );
+    }
 
     final used = s.consumoGb ?? 0;
     final limit = s.consumoLimite ?? 1;

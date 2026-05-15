@@ -3,6 +3,8 @@
 namespace App\Modules\Addons\MegaFamilia\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Client;
+use App\Models\Ticket;
 use App\Models\User;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
@@ -60,6 +62,77 @@ class ApiController extends Controller
                 ['role' => $role]
             ),
         ]);
+    }
+
+    // ---- CLIENT DASHBOARD (mobile home) ----------------------------------
+
+    /**
+     * Resumen del servicio ISP del usuario autenticado. Si el usuario no
+     * tiene cliente vinculado, regresa un placeholder en estado "sin servicio"
+     * en lugar de 404 — el dashboard móvil necesita algo que renderizar.
+     */
+    public function servicio(): JsonResponse
+    {
+        $userId = Auth::id();
+        $client = Client::where('user_id', $userId)
+            ->with(['internet_service.internet', 'client_main_information'])
+            ->first();
+
+        if (! $client) {
+            return response()->json([
+                'plan_name' => 'Sin servicio activo',
+                'speed' => '—',
+                'estado' => 'sin_servicio',
+                'next_payment_date' => null,
+                'consumo_gb' => null,
+                'consumo_limite' => null,
+                'contract_number' => null,
+                'address' => null,
+            ]);
+        }
+
+        $service = $client->internet_service->first();
+        $internet = optional(optional($service)->internet);
+        $info = optional($client->client_main_information);
+
+        return response()->json([
+            'plan_name' => $internet->service_name ?? $internet->title ?? 'Plan ISP',
+            'speed' => $internet->download_speed ? ($internet->download_speed . ' Mbps') : '—',
+            'estado' => $client->fecha_suspension ? 'suspendido' : 'activo',
+            'next_payment_date' => $client->fecha_pago,
+            'consumo_gb' => null,
+            'consumo_limite' => null,
+            'contract_number' => 'MGI-' . str_pad((string) $client->id, 6, '0', STR_PAD_LEFT),
+            'address' => trim((string) ($info->address ?? '')) ?: null,
+        ]);
+    }
+
+    /**
+     * Tickets del usuario autenticado. La tabla `tickets` usa `reporter_id`
+     * (polymorphic con `reporter_type`) — para usuarios web es
+     * App\Models\User. Si no hay tickets, regresa array vacío (la UI ya
+     * maneja el caso "Aún no has creado tickets").
+     */
+    public function tickets(): JsonResponse
+    {
+        $userId = Auth::id();
+
+        $rows = Ticket::where('reporter_id', $userId)
+            ->where('reporter_type', User::class)
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get(['id', 'topic', 'estado', 'group', 'created_at']);
+
+        return response()->json($rows->map(function ($t) {
+            return [
+                'id' => $t->id,
+                'number' => 'T-' . str_pad((string) $t->id, 6, '0', STR_PAD_LEFT),
+                'subject' => $t->topic ?? '',
+                'status' => $t->estado ?? 'Nuevo',
+                'date' => $t->created_at,
+                'category' => $t->group,
+            ];
+        }));
     }
 
     // ---- ACCOUNT / PROFILES ----------------------------------------------

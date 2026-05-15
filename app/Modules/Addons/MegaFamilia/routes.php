@@ -170,6 +170,10 @@ Route::prefix('api/megafamilia')->middleware('log_api_mobile')->group(function (
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/account', [ApiController::class, 'account']);
 
+        // Cliente dashboard (mobile home)
+        Route::get('/servicio', [ApiController::class, 'servicio']);
+        Route::get('/tickets', [ApiController::class, 'tickets']);
+
         Route::get('/profiles', [ApiController::class, 'profiles']);
         Route::post('/profiles', [ApiController::class, 'storeProfile']);
         Route::get('/profiles/{id}/devices', [ApiController::class, 'profileDevices'])->whereNumber('id');
