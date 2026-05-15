@@ -5,6 +5,7 @@ namespace App\Modules\Addons\MegaFamilia\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Ticket;
+use App\Models\TicketThread;
 use App\Models\User;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
@@ -121,23 +122,162 @@ class ApiController extends Controller
             ->where('reporter_type', User::class)
             ->orderByDesc('id')
             ->limit(50)
-            ->get(['id', 'topic', 'estado', 'group', 'created_at']);
+            ->get(['id', 'topic', 'estado', 'group', 'source', 'created_at']);
 
-        return response()->json($rows->map(function ($t) {
-            return [
-                'id' => $t->id,
-                'number' => 'T-' . str_pad((string) $t->id, 6, '0', STR_PAD_LEFT),
-                'subject' => $t->topic ?? '',
-                'status' => $t->estado ?? 'Nuevo',
-                'date' => $t->created_at,
-                'category' => $t->group,
-            ];
-        }));
+        return response()->json($rows->map(fn ($t) => $this->ticketToJson($t)));
     }
 
-    // ---- ACCOUNT / PROFILES ----------------------------------------------
+    /**
+     * Crea un ticket desde la app móvil. Categoría libre (vienen valores
+     * como "Internet lento" que no caben en el enum `group`), así que la
+     * guardamos en `source`. La descripción larga se persiste como primer
+     * mensaje del hilo.
+     */
+    public function storeTicket(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'subject' => 'required|string|max:255',
+            'category' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+        ]);
 
+        $user = Auth::user();
+
+        $t = new Ticket();
+        $t->topic = $data['subject'];
+        $t->estado = 'Nuevo';
+        $t->group = 'Cualquier';
+        $t->type = 'Pregunta';
+        $t->source = $data['category'] ?? null;
+        $t->reporter = $user->name;
+        $t->reporter_id = $user->id;
+        $t->reporter_type = User::class;
+        $t->save();
+
+        if (! empty($data['description'])) {
+            TicketThread::create([
+                'ticket_id' => $t->id,
+                'edited_by' => $user->id,
+                'client_id' => optional(Client::where('user_id', $user->id)->first())->id ?? 0,
+                'message' => $data['description'],
+                'hidden' => false,
+            ]);
+        }
+
+        return response()->json($this->ticketToJson($t), 201);
+    }
+
+    private function ticketToJson($t): array
+    {
+        return [
+            'id' => $t->id,
+            'number' => 'T-' . str_pad((string) $t->id, 6, '0', STR_PAD_LEFT),
+            'subject' => $t->topic ?? '',
+            'status' => $t->estado ?? 'Nuevo',
+            'date' => $t->created_at,
+            'category' => $t->source ?? $t->group,
+        ];
+    }
+
+    // ---- ACCOUNT / PROFILE (ISP cliente) ---------------------------------
+
+    /**
+     * Datos consolidados del cliente ISP autenticado: nombre, contacto,
+     * contrato, plan, estado de servicio y próximo pago. Si el usuario no
+     * tiene un registro `clients` ligado, devuelve datos demo realistas
+     * para que la pantalla no quede en blanco.
+     */
     public function account(): JsonResponse
+    {
+        $user = Auth::user();
+        $client = Client::where('user_id', $user->id)
+            ->with(['client_main_information', 'internet_service.internet'])
+            ->first();
+
+        if (! $client) {
+            return response()->json($this->demoAccount($user));
+        }
+
+        $info = $client->client_main_information;
+        $service = $client->internet_service->first();
+        $internet = optional(optional($service)->internet);
+
+        $fullName = trim(implode(' ', array_filter([
+            $info->name ?? null,
+            $info->father_last_name ?? null,
+            $info->mother_last_name ?? null,
+        ]))) ?: $user->name;
+
+        return response()->json([
+            'name' => $fullName,
+            'email' => ($info && $info->email) ? $info->email : $user->email,
+            'phone' => $info->phone ?? '—',
+            'contract_number' => 'MGI-' . str_pad((string) $client->id, 6, '0', STR_PAD_LEFT),
+            'plan_name' => $internet->service_name ?? $internet->title ?? 'Plan ISP',
+            'speed' => $internet->download_speed ? ($internet->download_speed . ' Mbps') : '—',
+            'estado' => $client->fecha_suspension ? 'suspendido' : 'activo',
+            'next_payment_date' => $client->fecha_pago ?: null,
+            'balance' => 0,
+            'consumo_gb' => null,
+            'consumo_limite' => null,
+            'address' => trim((string) ($info->address ?? '')) ?: null,
+            'demo' => false,
+        ]);
+    }
+
+    /**
+     * Perfil del usuario (nombre, email, teléfono, dirección). Para que
+     * la app móvil siempre tenga algo que renderizar, los datos del
+     * `clients`/`client_main_information` ligado tienen prioridad sobre
+     * los del modelo `users`. Cae a demo si no hay nada.
+     */
+    public function profile(): JsonResponse
+    {
+        $user = Auth::user();
+        $client = Client::where('user_id', $user->id)
+            ->with('client_main_information')
+            ->first();
+        $info = optional(optional($client)->client_main_information);
+
+        $name = trim(implode(' ', array_filter([
+            $info->name ?? $user->name,
+            $info->father_last_name ?? $user->father_last_name ?? null,
+            $info->mother_last_name ?? $user->mother_last_name ?? null,
+        ]))) ?: $user->name;
+
+        return response()->json([
+            'name' => $name,
+            'email' => $info->email ?? $user->email,
+            'phone' => $info->phone ?? $user->phone ?? '—',
+            'address' => $info->address ?? $user->address ?? null,
+            'role' => strtolower((string) ($user->getRoleNames()->first() ?? '')),
+            'avatar_url' => $user->photography ?: null,
+            'demo' => $client === null,
+        ]);
+    }
+
+    private function demoAccount(User $u): array
+    {
+        return [
+            'name' => $u->name,
+            'email' => $u->email,
+            'phone' => '744-555-2200',
+            'contract_number' => 'MGI-DEMO-001',
+            'plan_name' => 'Internet Hogar 200',
+            'speed' => '200 Mbps',
+            'estado' => 'activo',
+            'next_payment_date' => now()->addDays(8)->toDateString(),
+            'balance' => 450.00,
+            'consumo_gb' => 187.5,
+            'consumo_limite' => 500,
+            'address' => 'Av. Reforma 123, Col. Centro, Acapulco',
+            'demo' => true,
+        ];
+    }
+
+    // ---- ACCOUNT / PROFILES (parental) -----------------------------------
+
+    public function parentalAccount(): JsonResponse
     {
         $account = $this->requireAccount();
         return response()->json($account->load(['plan', 'profiles', 'license']));
