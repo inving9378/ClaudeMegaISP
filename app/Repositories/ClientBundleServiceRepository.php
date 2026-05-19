@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\ClientBundleService;
+use App\Modules\Core\Clientes\Models\ClientBundleService;
 use App\Repositories\BaseRepository;
 
 /**

@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\ClientInvoice;
+use App\Modules\Core\Clientes\Models\ClientInvoice;
 use App\Repositories\BaseRepository;
 
 /**

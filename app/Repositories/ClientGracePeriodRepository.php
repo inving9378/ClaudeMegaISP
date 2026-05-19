@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\ClientGracePeriod;
+use App\Modules\Core\Clientes\Models\ClientGracePeriod;
 use App\Repositories\BaseRepository;
 
 /**
