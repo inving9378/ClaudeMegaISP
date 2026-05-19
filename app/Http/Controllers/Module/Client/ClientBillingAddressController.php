@@ -2,17 +2,12 @@
 
 namespace App\Http\Controllers\Module\Client;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\module\client\ClientUpdateBillingAddressRequest;
-use App\Models\Client;
-use Illuminate\Http\Request;
-
-class ClientBillingAddressController extends Controller
+/**
+ * Proxy de backward-compatibility — el controller real vive ahora en
+ * \App\Modules\Core\Clientes\Controllers\ClientBillingAddressController (Capa 4/6).
+ * Las rutas en routes/web.php (namespace => 'Client') resuelven a esta
+ * proxy class que hereda todos los métodos del controller real.
+ */
+class ClientBillingAddressController extends \App\Modules\Core\Clientes\Controllers\ClientBillingAddressController
 {
-    public function update(ClientUpdateBillingAddressRequest $request, $id)
-    {
-        $client = Client::find($id);
-        return  $this->saveSingleRelationWithoutModel('App\Models\BillingAddress', 'billing_address','client_id','id', $client, $request);
-
-    }
 }

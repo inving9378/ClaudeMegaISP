@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Module\Client;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-
-class ClientPaymentServiceController extends Controller
+/**
+ * Proxy de backward-compatibility — el controller real vive ahora en
+ * \App\Modules\Core\Clientes\Controllers\ClientPaymentServiceController (Capa 4/6).
+ * Las rutas en routes/web.php (namespace => 'Client') resuelven a esta
+ * proxy class que hereda todos los métodos del controller real.
+ */
+class ClientPaymentServiceController extends \App\Modules\Core\Clientes\Controllers\ClientPaymentServiceController
 {
-    //
 }
