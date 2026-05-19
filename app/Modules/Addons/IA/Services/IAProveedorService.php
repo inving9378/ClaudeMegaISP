@@ -17,8 +17,15 @@ class IAProveedorService
         protected ?ContextoProyectoService $contexto = null,
         protected ?SesionTrabajoService $sesionTrabajo = null,
         protected ?IAPricingService $pricing = null,
+        protected ?MemoriaService $memoria = null,
     ) {
     }
+
+    /**
+     * Cada cuántos mensajes (user + assistant combinados) se dispara la
+     * extracción automática de hechos hacia ia_memoria_proyecto.
+     */
+    public const EXTRAER_MEMORIA_CADA = 10;
 
     /** Tamaño máximo por imagen: 5 MB. */
     public const MAX_BYTES_IMAGEN = 5 * 1024 * 1024;
@@ -107,6 +114,20 @@ class IAProveedorService
                 $conversacion->update([
                     'titulo' => Str::limit(trim($mensaje), 50, '...') ?: 'Nuevo chat',
                 ]);
+            }
+
+            // Extracción automática de hechos a memoria persistente del proyecto.
+            // Se dispara cada N mensajes para no penalizar cada respuesta de chat.
+            // Falla silenciosa: la memoria es best-effort, no debe romper la conversación.
+            if ($this->memoria) {
+                try {
+                    $totalMensajes = IAMensaje::where('ia_conversacion_id', $conversacion->id)->count();
+                    if ($totalMensajes > 0 && $totalMensajes % self::EXTRAER_MEMORIA_CADA === 0) {
+                        $this->memoria->extraerHechos($conversacion->fresh());
+                    }
+                } catch (\Throwable $e) {
+                    // Ya logueado dentro de MemoriaService::extraerHechos.
+                }
             }
 
             return ['user' => $mensajeUser, 'assistant' => $mensajeAssistant];
