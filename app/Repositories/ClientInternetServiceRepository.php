@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\ClientInternetService;
+use App\Modules\Core\Clientes\Models\ClientInternetService;
 use App\Repositories\BaseRepository;
 
 /**

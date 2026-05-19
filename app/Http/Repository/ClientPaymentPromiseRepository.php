@@ -2,62 +2,11 @@
 
 namespace App\Http\Repository;
 
-use App\Http\Controllers\Utils\ComunConstantsController;
-use App\Models\ClientPaymentPromise;
-use App\Models\State;
-
-class ClientPaymentPromiseRepository
+/**
+ * Proxy de backward-compatibility — el repositorio real vive ahora en
+ * \App\Modules\Core\Clientes\Repositories\ClientPaymentPromiseRepository desde la migración modular
+ * (Capa 2/6). Mantener mientras existan imports legacy en el codebase.
+ */
+class ClientPaymentPromiseRepository extends \App\Modules\Core\Clientes\Repositories\ClientPaymentPromiseRepository
 {
-    protected $client;
-    protected $model;
-
-    public function __construct()
-    {
-        $this->model = ClientPaymentPromise::query();
-    }
-
-    public function count()
-    {
-        return $this->model->count();
-    }
-
-    // GETTERS
-    public function getPromiseAndCourtDateAndAmountPaymentNotPaid($clientId)
-    {
-        $promisePayment = $this->model->where('client_id', $clientId)->first();
-        $numberAmountPaid = [
-            'first' => 'first_amount_is_pay',
-            'second' => 'second_amount_is_pay',
-            'third' => 'third_amount_is_pay'
-        ];
-        $data = [];
-
-        foreach ($numberAmountPaid as $key => $field) {
-            if (!$promisePayment->$field) {
-                $nextDate = null;
-                if ($key == 'first') {
-                    $nextDate = $promisePayment->second_court_date;
-                } elseif ($key == 'second') {
-                    $nextDate = $promisePayment->third_court_date;
-                }
-
-                $data['field'] = $field;
-                $data['amount'] = $promisePayment->{$key . '_amount'};
-                $data['date'] = $promisePayment->{$key . '_court_date'};
-                $data['promise'] = $promisePayment;
-                $data['nextDate'] = $nextDate;
-                break;
-            }
-        }
-
-        return $data;
-    }
-
-
-    // SETTERS
-
-    public function create($data)
-    {
-        return $this->model->create($data);
-    }
 }
