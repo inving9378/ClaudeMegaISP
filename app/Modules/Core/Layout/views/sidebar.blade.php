@@ -25,6 +25,44 @@
                     </li>
                 @endcan
 
+                {{-- Inteligencia Artificial — portado desde MEGANET 2026-05-19 --}}
+                <li>
+                    @canany(['ia_view_chat', 'ia_view_prompts', 'ia_manage_proveedores'])
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="cpu"></i>
+                            <span data-key="t-ia">Inteligencia Artificial</span>
+                        </a>
+                    @endcanany
+                    <ul class="sub-menu" aria-expanded="false">
+                        @can('ia_view_chat')
+                            <li>
+                                <a href="{{ url('/ia') }}">
+                                    <span data-key="t-ia-asistente"><small><i class="fa fa-fw fa-comments"></i></small> Asistente IA</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{{ url('/ia/historial') }}">
+                                    <span data-key="t-ia-historial"><small><i class="fa fa-fw fa-clock-rotate-left"></i></small> Historial</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('ia_view_prompts')
+                            <li>
+                                <a href="{{ url('/ia/prompts') }}">
+                                    <span data-key="t-ia-prompts"><small><i class="fa fa-fw fa-bookmark"></i></small> Mis Prompts</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('ia_manage_proveedores')
+                            <li>
+                                <a href="{{ url('/ia/configuracion') }}">
+                                    <span data-key="t-ia-config"><small><i class="fa fa-fw fa-gear"></i></small> Configuración IA</span>
+                                </a>
+                            </li>
+                        @endcan
+                    </ul>
+                </li>
+
                 <li>
                     @canany(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package'])
                         <a href="javascript: void(0);" class="has-arrow">

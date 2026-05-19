@@ -267,6 +267,12 @@ import ReleasesDescription from "./components/module/releases/ReleasesDescriptio
 import InventoryItemCustomModelListar from "./components/module/inventory/inventory_item_custom_model/InventoryItemCustomModelListar.vue";
 import InventoryItemCustomListar from "./components/module/inventory/inventory_item_custom/InventoryItemCustomListar.vue";
 
+//IA — portado desde MEGANET 2026-05-19
+import IAChatIndex from "./components/module/ia/IAChatIndex.vue";
+import IAHistorial from "./components/module/ia/IAHistorial.vue";
+import IAPrompts from "./components/module/ia/IAPrompts.vue";
+import IAConfiguracion from "./components/module/ia/IAConfiguracion.vue";
+
 
 const app = createApp({
     components: {
@@ -463,6 +469,12 @@ const app = createApp({
         //RELEASES
         ReleasesIndex,
         ReleasesDescription,
+
+        //IA — portado desde MEGANET 2026-05-19
+        IAChatIndex,
+        IAHistorial,
+        IAPrompts,
+        IAConfiguracion,
     },
 });
 
