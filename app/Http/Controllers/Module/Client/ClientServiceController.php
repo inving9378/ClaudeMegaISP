@@ -2,28 +2,12 @@
 
 namespace App\Http\Controllers\Module\Client;
 
-use App\Http\Controllers\Controller;
-use App\Http\Repository\ClientRepository;
-use App\Models\Client;
-use Illuminate\Http\Request;
-
-class ClientServiceController extends Controller
+/**
+ * Proxy de backward-compatibility — el controller real vive ahora en
+ * \App\Modules\Core\Clientes\Controllers\ClientServiceController (Capa 4/6).
+ * Las rutas en routes/web.php (namespace => 'Client') resuelven a esta
+ * proxy class que hereda todos los métodos del controller real.
+ */
+class ClientServiceController extends \App\Modules\Core\Clientes\Controllers\ClientServiceController
 {
-    protected $helper;
-    protected $client_repository;
-
-    public function __construct(ClientRepository $repository)
-    {
-        $this->client_repository = $repository;
-    }
-
-    public function hasService(Request $request, $clientId)
-    {
-        return $this->client_repository->hasService($clientId, $request->service);
-    }
-
-    public function canAddService(Request $request, $clientId)
-    {
-        return $this->client_repository->canAddService($clientId, $request->service);
-    }
 }
