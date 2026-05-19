@@ -4,6 +4,7 @@ use App\Modules\Addons\IA\Controllers\IAChatController;
 use App\Modules\Addons\IA\Controllers\IAConfiguracionController;
 use App\Modules\Addons\IA\Controllers\IAConversacionController;
 use App\Modules\Addons\IA\Controllers\IAHistorialController;
+use App\Modules\Addons\IA\Controllers\IAMemoriaController;
 use App\Modules\Addons\IA\Controllers\IANotaController;
 use App\Modules\Addons\IA\Controllers\IAPromptsController;
 use App\Modules\Addons\IA\Controllers\IAPromptUsuarioController;
@@ -97,6 +98,16 @@ Route::middleware(['web', 'auth'])->prefix('ia')->group(function () {
         Route::post('/store', [IANotaController::class, 'store']);
         Route::post('/update/{id}', [IANotaController::class, 'update']);
         Route::delete('/destroy/{id}', [IANotaController::class, 'destroy']);
+    });
+
+    // Memoria persistente del proyecto (global, compartida)
+    Route::middleware('permission:ia_manage_memoria')->prefix('memoria')->group(function () {
+        Route::get('/', [IAMemoriaController::class, 'index']);
+        Route::post('/store', [IAMemoriaController::class, 'store']);
+        Route::post('/update/{id}', [IAMemoriaController::class, 'update']);
+        Route::delete('/destroy/{id}', [IAMemoriaController::class, 'destroy']);
+        Route::post('/limpiar-antiguos', [IAMemoriaController::class, 'limpiarAntiguos']);
+        Route::post('/limpiar-obsoletos', [IAMemoriaController::class, 'limpiarObsoletos']);
     });
 
     // Sesiones de trabajo

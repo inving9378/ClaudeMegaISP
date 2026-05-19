@@ -31,6 +31,7 @@ class ContextoProyectoService
         protected BaseDatosContextoService $bd,
         protected SesionTrabajoService $sesiones,
         protected ModulosContextoService $modulos,
+        protected ?MemoriaService $memoria = null,
     ) {
     }
 
@@ -95,6 +96,7 @@ class ContextoProyectoService
 
         $secciones = [];
         $secciones[] = $this->seccionIdentidad();
+        $secciones[] = $this->seccionMemoria();
         $secciones[] = $this->seccionRepositorio($git, $bd['migraciones_pendientes'] ?? []);
         $secciones[] = $this->seccionCommits($git['commits_recientes'] ?? []);
         $secciones[] = $this->seccionSesionAnterior($sesionesPrev);
@@ -106,6 +108,16 @@ class ContextoProyectoService
         $secciones[] = $this->seccionClaudeMd();
 
         return implode("\n\n", array_filter($secciones));
+    }
+
+    /**
+     * Bloque de memoria persistente del proyecto extraída de conversaciones
+     * anteriores (hechos, decisiones, avances, pendientes). Scope global.
+     */
+    protected function seccionMemoria(): string
+    {
+        if (!$this->memoria) return '';
+        return $this->memoria->construirContexto();
     }
 
     /**
@@ -153,10 +165,20 @@ class ContextoProyectoService
 # Contexto del proyecto MegaISP (auto-inyectado)
 
 ## Quién eres
-Eres un asistente experto en desarrollo de MegaISP (Laravel 10 + Vue 3 + Quasar).
-Ayudas a Irving a programar, migrar módulos y resolver problemas del sistema.
-Responde en español, sé conciso y técnico. Cuando hagas referencia a código,
-usa el formato `archivo:linea` para facilitar la navegación.
+Eres el asistente de desarrollo de MegaISP (Sistema Medussa).
+Conoces el proyecto completo gracias a la memoria persistente del sistema.
+
+REGLAS:
+- Responde siempre en español.
+- Usa tablas para comparar opciones.
+- Genera prompts listos para Claude Code cuando se requieran cambios de código.
+- Nunca repitas pasos ya validados.
+- Commits siempre selectivos por scope, nunca `git add -A`.
+- Arquitectura modular es prioridad sobre todo.
+- Ante cualquier duda técnica, primero diagnostica con `ls`/`cat`/`grep` antes de modificar.
+
+El desarrollador es Irving — visual, directo, prefiere métricas concretas y respuestas sin relleno.
+Cuando hagas referencia a código, usa el formato `archivo:linea` para facilitar la navegación.
 MD;
     }
 
