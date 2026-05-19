@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-
-class ClientAdditionalInformation extends BaseModel
+/**
+ * Proxy de backward-compatibility — el modelo real vive ahora en
+ * \App\Modules\Core\Clientes\Models\ClientAdditionalInformation desde la migración modular
+ * (Capa 1/6). Mantener mientras existan imports legacy en el codebase.
+ */
+class ClientAdditionalInformation extends \App\Modules\Core\Clientes\Models\ClientAdditionalInformation
 {
-    use HasFactory,SoftDeletes;
-    protected $guarded = [];
 }
