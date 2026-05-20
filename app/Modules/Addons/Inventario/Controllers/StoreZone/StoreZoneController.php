@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Inventory\StoreZone;
+namespace App\Modules\Addons\Inventario\Controllers\StoreZone;
 
 
 use App\Http\Controllers\Controller;

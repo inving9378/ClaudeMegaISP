@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Inventory\InventoryMovement;
+namespace App\Modules\Addons\Inventario\Controllers\InventoryMovement;
 
 
 use App\Http\Controllers\Base\CrudModalController;

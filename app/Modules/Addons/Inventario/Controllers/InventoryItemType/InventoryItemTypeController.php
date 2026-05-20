@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Inventory\InventoryItemType;
+namespace App\Modules\Addons\Inventario\Controllers\InventoryItemType;
 
 
 use App\Http\Controllers\Base\CrudModalController;
