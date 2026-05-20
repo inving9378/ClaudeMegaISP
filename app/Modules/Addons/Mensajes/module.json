@@ -1,0 +1,9 @@
+{
+    "slug": "addon-mensajes",
+    "name": "Mensajes",
+    "version": "0.1.0",
+    "description": "Inbox, recordatorios y correos de cobranza (factura, proforma, pagos).",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

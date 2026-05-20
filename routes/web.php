@@ -326,29 +326,7 @@ Route::group(['middleware' => ['auth']], function () {
             });
             // Rutas `sellers/*` migradas a app/Modules/Addons/Vendedores/routes.php
 
-            Route::group(['prefix' => 'message', 'namespace' => 'Message'], function () {
-                Route::group(['prefix' => 'inbox', 'namespace' => 'Inbox'], function () {
-                    Route::get('/', 'InboxController@index');
-                    Route::post('/get-data-tabs', 'InboxController@getDataTabs');
-                });
-
-                Route::group(['prefix' => 'reminder', 'namespace' => 'Reminder'], function () {
-                    Route::post('/table', 'ReminderController@table');
-                    Route::post('/send_message', 'ReminderController@sendMessage');
-                });
-                // Route::group(['prefix' => 'payment_email', 'namespace' => 'PaymentEmail'], function () {
-                //     Route::post('/table', 'PaymentEmailController@table');
-                //     Route::post('/send_message', 'PaymentEmailController@sendMessage');
-                // });
-                Route::group(['prefix' => 'invoice_email', 'namespace' => 'InvoiceEmail'], function () {
-                    Route::post('/table', 'InvoiceEmailController@table');
-                    // Route::post('/send_message', 'PaymentEmailController@sendMessage');
-                });
-                Route::group(['prefix' => 'proforma_invoice_email', 'namespace' => 'ProformaInvoiceEmail'], function () {
-                    Route::post('/table', 'ProformaInvoiceEmailController@table');
-                    Route::post('/send_message', 'ProformaInvoiceEmailController@sendMessage');
-                });
-            });
+            // Rutas `message/*` migradas a app/Modules/Addons/Mensajes/routes.php
 
             // Module Plan
             Route::group(['namespace' => 'Plan'], function () {

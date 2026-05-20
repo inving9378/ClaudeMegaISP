@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Message\Inbox;
+namespace App\Modules\Addons\Mensajes\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
