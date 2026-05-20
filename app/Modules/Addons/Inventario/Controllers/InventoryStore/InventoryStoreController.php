@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Inventory\InventoryStore;
+namespace App\Modules\Addons\Inventario\Controllers\InventoryStore;
 
 
 use App\Http\Controllers\Controller;

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Inventory\InventoryItemCustom;
+namespace App\Modules\Addons\Inventario\Controllers\InventoryItemCustom;
 
 use App\Http\Controllers\Base\CrudModalController;
 use App\Http\HelpersModule\module\inventory\inventoryItemcustom\InventoryItemCustomModelDatatableHelper;
