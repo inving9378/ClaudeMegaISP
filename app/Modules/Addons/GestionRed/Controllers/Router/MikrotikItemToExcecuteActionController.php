@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Router;
+namespace App\Modules\Addons\GestionRed\Controllers\Router;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
