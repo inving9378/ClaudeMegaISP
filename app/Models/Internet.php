@@ -84,7 +84,7 @@ class Internet extends BaseModel implements PackageInterface
     public function getRequestAndStoreMethod()
     {
         $request = new InternetCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Plan\InternetController@store';
+        $storeMethod = 'App\Modules\Addons\Planes\Controllers\InternetController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod

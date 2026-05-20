@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Plan;
+namespace App\Modules\Addons\Planes\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\planes\BundleDatatableHelper;

@@ -1,33 +1,33 @@
 <?php
 
-namespace App\Http\Controllers\Module\Plan;
+namespace App\Modules\Addons\Planes\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Http\HelpersModule\module\planes\InternetDatatableHelper;
-use App\Http\Requests\module\plan\InternetCreateRequest;
-use App\Http\Requests\module\plan\InternetUpdateRequest;
+use Illuminate\Http\Request;
+use App\Http\HelpersModule\module\planes\VozDatatableHelper;
+use App\Http\Requests\module\plan\VozCreateRequest;
+use App\Http\Requests\module\plan\VozUpdateRequest;
 use App\Http\Traits\ValidationImportModuleTrait;
-use App\Models\ClientInternetService;
 use App\Models\Internet;
 use App\Models\Module;
 use App\Models\Partner;
 use App\Models\TypeBilling;
+use App\Models\Voise;
 use App\Services\ImportdDBService;
 use App\Services\PromotionService;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
-class InternetController extends Controller
+class VozController extends Controller
 {
-
     private $helper;
+
     use ValidationImportModuleTrait;
-    public function __construct(InternetDatatableHelper $helper)
+
+    public function __construct(VozDatatableHelper $helper)
     {
-        $model = 'Internet';
-        $this->data['url'] = 'meganet.module.' . Str::lower($model);
-        $this->data['module'] = 'internet';
+        $model = 'Voise';
+        $this->data['url'] = 'meganet.module.voz';
+        $this->data['module'] = 'voz';
         $this->data['model'] = 'App\Models\\' . $model;
         $this->data['group'] = 'plan';
         $this->helper = $helper;
@@ -47,8 +47,8 @@ class InternetController extends Controller
 
     public function success($id)
     {
-        $message =  'Plan de Internet ' . ($id == 'null' ? 'Creado' : 'Actualizado') . ' Correctamente';
-        return redirect()->route('internet')->with(['message' => $message]);
+        $message =  'Plan de Voz ' . ($id == 'null' ? 'Creado' : 'Actualizado') . ' Correctamente';
+        return redirect()->route('voz')->with(['message' => $message]);
     }
 
     /**
@@ -66,10 +66,10 @@ class InternetController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\Response
      */
-    public function store(InternetCreateRequest $request)
+    public function store(VozCreateRequest $request)
     {
         // Trunca el precio a 2 decimales SIN redondear
         $rawPrice = (float)$request->input('price');
@@ -78,20 +78,18 @@ class InternetController extends Controller
         $request->merge([
             'price' => (string)$truncatedPrice, // Guarda como "499.99"
         ]);
-        $this->validateFieldByRulesInTableFiledModules($this->data['module'], $request);
         $input = defined($this->data['model'] . '::MULTIPLE_RELATIONS') ?
             $request->except(collect($this->data['model']::MULTIPLE_RELATIONS)->keys()->toArray()) :
-            $request->except('id_old');
+            $request->all();
 
         $input['cost_activation'] = $input['cost_activation'] ?? '0.00';
         $input['cost_instalation'] = $input['cost_instalation'] ?? '0.00';
 
         $input = (new PromotionService())->createPromotionIfPromotionEnable($input);
-
         if ($request->import) {
             $this->imporDataToTable($input, $request);
         } else {
-            $model = $this->data['model']::create($input, $request);
+            $model = $this->data['model']::create($input);
             $this->saveRelationMultipleIfExist($this->data['model'], $model, $request);
             return $model;
         }
@@ -100,28 +98,25 @@ class InternetController extends Controller
     public function imporDataToTable($input, $request)
     {
         $newImportDbService = new ImportdDBService();
-        $module = Module::where('name', Module::PLAN_INTERNET_MODULE_NAME)->first();
+        $module = Module::where('name', Module::PLAN_VOZ_MODULE_NAME)->first();
         $input = $newImportDbService->processInputImportByModule($input, $module);
         $input['created_at'] = now();
         $input['updated_at'] = now();
         $input['cost_activation'] = $input['cost_activation'] ?? '0.00';
         $input['cost_instalation'] = $input['cost_instalation'] ?? '0.00';
-        $input['id'] = $input['id_old'];
         unset($input['import']);
-        unset($input['id_old']);
-
-        DB::table('internets')->insert($input);
-        $model = $this->data['model']::where('id', $input['id'])->first();
+        $idModel = DB::table('voises')->insertGetId($input);
+        $model = $this->data['model']::where('id', $idModel)->first();
         $this->processItems($request->partners, Partner::class, 'name', $model, 'partners');
         $this->processItems($request->types_of_billing, TypeBilling::class, 'type', $model, 'billings');
-        $this->processItems($request->rates_to_change, Internet::class, 'title', $model, 'plan_internet_client');
+        $this->processItems($request->rates_to_change, Voise::class, 'title', $model, 'plan_voz_client');
         return $model;
     }
 
     /**
      * Display the specified resource.
      *
-     * @param  int  $id
+     * @param int $id
      * @return \Illuminate\Http\Response
      */
     public function show($id)
@@ -132,7 +127,7 @@ class InternetController extends Controller
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  int  $id
+     * @param int $id
      * @return \Illuminate\Http\Response
      */
     public function edit($id)
@@ -140,17 +135,18 @@ class InternetController extends Controller
         $this->data['notifications'] = $this->userNotification();
         $this->includeLibraryDinamic($this->data['model']);
         $this->data['id'] = $id;
+
         return view($this->data['url'] . '.edit', $this->data);
     }
 
     /**
      * Update the specified resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
+     * @param \Illuminate\Http\Request $request
+     * @param int $id
      * @return \Illuminate\Http\Response
      */
-    public function update(InternetUpdateRequest $request, $id)
+    public function update(VozUpdateRequest $request, $id)
     {
         // Trunca el precio a 2 decimales SIN redondear
         $rawPrice = (float)$request->input('price');
@@ -174,12 +170,11 @@ class InternetController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int  $id
+     * @param int $id
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)
     {
-        ClientInternetService::where('internet_id', $id)->with('ClientIntenetService')->delete();
         $this->data['model']::findOrFail($id)->delete();
         return redirect()->back()->with('message', $this->data['module'] . ' Eliminado Correctamente');
     }

@@ -1,13 +1,14 @@
 <?php
 
-namespace App\Http\Controllers\Module\Plan;
+namespace App\Modules\Addons\Planes\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Http\HelpersModule\module\planes\CustomDatatableHelper;
-use App\Http\Requests\module\plan\CustomCreateRequest;
-use App\Http\Requests\module\plan\CustomUpdateRequest;
+use App\Http\HelpersModule\module\planes\InternetDatatableHelper;
+use App\Http\Requests\module\plan\InternetCreateRequest;
+use App\Http\Requests\module\plan\InternetUpdateRequest;
 use App\Http\Traits\ValidationImportModuleTrait;
-use App\Models\Custom;
+use App\Models\ClientInternetService;
+use App\Models\Internet;
 use App\Models\Module;
 use App\Models\Partner;
 use App\Models\TypeBilling;
@@ -15,22 +16,23 @@ use App\Services\ImportdDBService;
 use App\Services\PromotionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
-//use Illuminate\Support\Str;
-
-class CustomController extends Controller
+class InternetController extends Controller
 {
-    use ValidationImportModuleTrait;
+
     private $helper;
-    public function __construct(CustomDatatableHelper $helper)
+    use ValidationImportModuleTrait;
+    public function __construct(InternetDatatableHelper $helper)
     {
-        $model = 'Custom';
-        $this->data['url'] = 'meganet.module.custom';
-        $this->data['module'] = 'custom';
+        $model = 'Internet';
+        $this->data['url'] = 'meganet.module.' . Str::lower($model);
+        $this->data['module'] = 'internet';
         $this->data['model'] = 'App\Models\\' . $model;
         $this->data['group'] = 'plan';
         $this->helper = $helper;
     }
+
     /**
      * Display a listing of the resource.
      *
@@ -45,9 +47,10 @@ class CustomController extends Controller
 
     public function success($id)
     {
-        $message =  'Plan Custom ' . ($id == 'null' ? 'Creado' : 'Actualizado') . ' Correctamente';
-        return redirect()->route('recurrente')->with(['message' => $message]);
+        $message =  'Plan de Internet ' . ($id == 'null' ? 'Creado' : 'Actualizado') . ' Correctamente';
+        return redirect()->route('internet')->with(['message' => $message]);
     }
+
     /**
      * Show the form for creating a new resource.
      *
@@ -66,7 +69,7 @@ class CustomController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store(CustomCreateRequest $request)
+    public function store(InternetCreateRequest $request)
     {
         // Trunca el precio a 2 decimales SIN redondear
         $rawPrice = (float)$request->input('price');
@@ -78,16 +81,18 @@ class CustomController extends Controller
         $this->validateFieldByRulesInTableFiledModules($this->data['module'], $request);
         $input = defined($this->data['model'] . '::MULTIPLE_RELATIONS') ?
             $request->except(collect($this->data['model']::MULTIPLE_RELATIONS)->keys()->toArray()) :
-            $request->all();
+            $request->except('id_old');
+
+        $input['cost_activation'] = $input['cost_activation'] ?? '0.00';
+        $input['cost_instalation'] = $input['cost_instalation'] ?? '0.00';
 
         $input = (new PromotionService())->createPromotionIfPromotionEnable($input);
 
         if ($request->import) {
             $this->imporDataToTable($input, $request);
         } else {
-            $model = $this->data['model']::create($input);
+            $model = $this->data['model']::create($input, $request);
             $this->saveRelationMultipleIfExist($this->data['model'], $model, $request);
-
             return $model;
         }
     }
@@ -95,19 +100,21 @@ class CustomController extends Controller
     public function imporDataToTable($input, $request)
     {
         $newImportDbService = new ImportdDBService();
-        $module = Module::where('name', Module::CUSTOM_MODULE_NAME)->first();
+        $module = Module::where('name', Module::PLAN_INTERNET_MODULE_NAME)->first();
         $input = $newImportDbService->processInputImportByModule($input, $module);
         $input['created_at'] = now();
         $input['updated_at'] = now();
         $input['cost_activation'] = $input['cost_activation'] ?? '0.00';
         $input['cost_instalation'] = $input['cost_instalation'] ?? '0.00';
+        $input['id'] = $input['id_old'];
         unset($input['import']);
+        unset($input['id_old']);
 
-        $idModel = DB::table('customs')->insert($input);
-        $model = $this->data['model']::where('id', $idModel)->first();
+        DB::table('internets')->insert($input);
+        $model = $this->data['model']::where('id', $input['id'])->first();
         $this->processItems($request->partners, Partner::class, 'name', $model, 'partners');
         $this->processItems($request->types_of_billing, TypeBilling::class, 'type', $model, 'billings');
-        $this->processItems($request->rates_to_change, Custom::class, 'title', $model, 'plan_custom_client');
+        $this->processItems($request->rates_to_change, Internet::class, 'title', $model, 'plan_internet_client');
         return $model;
     }
 
@@ -133,7 +140,6 @@ class CustomController extends Controller
         $this->data['notifications'] = $this->userNotification();
         $this->includeLibraryDinamic($this->data['model']);
         $this->data['id'] = $id;
-
         return view($this->data['url'] . '.edit', $this->data);
     }
 
@@ -144,7 +150,7 @@ class CustomController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function update(CustomUpdateRequest $request, $id)
+    public function update(InternetUpdateRequest $request, $id)
     {
         // Trunca el precio a 2 decimales SIN redondear
         $rawPrice = (float)$request->input('price');
@@ -160,6 +166,7 @@ class CustomController extends Controller
             $request->all();
 
         $input = (new PromotionService())->updateAndReturnInput($input, $model);
+
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request, 'sync');
         return $model->update($input);
     }
@@ -172,6 +179,7 @@ class CustomController extends Controller
      */
     public function destroy($id)
     {
+        ClientInternetService::where('internet_id', $id)->with('ClientIntenetService')->delete();
         $this->data['model']::findOrFail($id)->delete();
         return redirect()->back()->with('message', $this->data['module'] . ' Eliminado Correctamente');
     }
