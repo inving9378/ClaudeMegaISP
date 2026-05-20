@@ -56,29 +56,14 @@ Route::group(['middleware' => ['auth']], function () {
         Route::group(['namespace' => 'Module'], function () {
             // Module Configuracion migrado a app/Modules/Core/Configuracion/routes.php
 
-            // Module Administracion
-            Route::group(['prefix' => 'administracion', 'namespace' => 'Administration'], function () {
-                // Rutas dashboard /administracion migradas a app/Modules/Core/Usuarios/routes.php
-
-                // Rutas user/addresses/rol/permisos migradas a app/Modules/Core/Usuarios/routes.php
-
-                // Rutas socios migradas a app/Modules/Core/Configuracion/routes.php
-
-                // Rutas ubicacion/sucursal/estado migradas a app/Modules/Core/Localizacion/routes.php
-
-                // Rutas activity_log migradas a app/Modules/Core/Auditoria/routes.php
-
-                // Rutas document_template y document_type_template migradas a app/Modules/Core/Documentos/routes.php
-
-                // Rutas ift migradas a app/Modules/Core/Configuracion/routes.php
-
-                // Rutas municipio/colonia migradas a app/Modules/Core/Localizacion/routes.php
-
-                // Rutas metotdo-de-pago migradas a app/Modules/Core/Configuracion/routes.php
-
-                // Rutas administracion/documentation/* migradas a app/Modules/Core/Documentacion/routes.php
-
-            });
+            // Module Administracion — TODAS las rutas migradas a módulos:
+            //   - dashboard + user/rol/permisos/addresses      -> Core/Usuarios/routes.php
+            //   - socios + ift + metotdo-de-pago               -> Core/Configuracion/routes.php
+            //   - ubicacion + sucursal + estado + municipio    -> Core/Localizacion/routes.php
+            //   - colonia                                       -> Core/Localizacion/routes.php
+            //   - activity_log                                  -> Core/Auditoria/routes.php
+            //   - document_template + document_type_template    -> Core/Documentos/routes.php
+            //   - documentation/* (menu/submenu/content)        -> Core/Documentacion/routes.php
 
             Route::group(['prefix' => 'inventory', 'namespace' => 'Inventory'], function () {
                 Route::group(['prefix' => 'inventory_item', 'namespace' => 'InventoryItem'], function () {
