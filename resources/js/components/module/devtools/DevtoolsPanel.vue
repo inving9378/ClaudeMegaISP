@@ -556,6 +556,39 @@ export default {
             pendingAttachments.value.splice(i, 1);
         };
 
+        // Paste desde clipboard (Win+Shift+S, Cmd+Shift+4, copy desde apps).
+        // Solo procesa la primera imagen del clipboard por paste — si hay
+        // varias o si se quieren múltiples adjuntos, se pegan uno a uno.
+        // Guardamos la referencia en `pasteHandler` para cleanup en
+        // onBeforeUnmount; el listener vive en `document` para capturar el
+        // paste sin importar el foco (el textarea robaría el evento si lo
+        // colgáramos solo en él).
+        let pasteHandler = null;
+        const handlePaste = (event) => {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type.startsWith("image/")) {
+                    event.preventDefault();
+                    const file = item.getAsFile();
+                    if (!file) continue;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const dataUrl = e.target.result;
+                        pendingAttachments.value.push({
+                            type: "image",
+                            name: `captura-${Date.now()}.png`,
+                            preview: dataUrl,
+                            base64: dataUrl.split(",")[1] || "",
+                            mimeType: item.type,
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                    break;
+                }
+            }
+        };
+
         // =============================================================
         // 5. VOZ INPUT (Web Speech API — SpeechRecognition)
         // =============================================================
@@ -762,6 +795,8 @@ export default {
             document.addEventListener("mousemove", onDrag);
             document.addEventListener("mouseup", endDrag);
             document.addEventListener("keydown", onKeyDown);
+            pasteHandler = handlePaste;
+            document.addEventListener("paste", pasteHandler);
 
             // Theme observer
             themeObserver = new MutationObserver(() => {
@@ -778,6 +813,10 @@ export default {
             document.removeEventListener("mousemove", onDrag);
             document.removeEventListener("mouseup", endDrag);
             document.removeEventListener("keydown", onKeyDown);
+            if (pasteHandler) {
+                document.removeEventListener("paste", pasteHandler);
+                pasteHandler = null;
+            }
             if (themeObserver) themeObserver.disconnect();
             if (speechSupported.value) window.speechSynthesis.cancel();
             stopVoiceInput();
