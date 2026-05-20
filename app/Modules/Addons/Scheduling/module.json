@@ -1,0 +1,9 @@
+{
+    "slug": "addon-scheduling",
+    "name": "Scheduling",
+    "version": "0.1.0",
+    "description": "Gestión de proyectos y tareas con calendario, notas y archivos adjuntos.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

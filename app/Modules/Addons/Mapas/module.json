@@ -1,0 +1,9 @@
+{
+    "slug": "addon-mapas",
+    "name": "Mapas",
+    "version": "0.1.0",
+    "description": "Mapas de red, FTTH y proyectos.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

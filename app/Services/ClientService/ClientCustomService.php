@@ -2,19 +2,10 @@
 
 namespace App\Services\ClientService;
 
-class ClientCustomService implements ClientServiceInterface
+/**
+ * Proxy de backward-compatibility — el service real vive ahora en
+ * \App\Modules\Core\Clientes\Services\ClientCustomService (Capa 3/6).
+ */
+class ClientCustomService extends \App\Modules\Core\Clientes\Services\ClientCustomService
 {
-    protected $model;
-    public function __construct($model)
-    {
-        $this->model = $model;
-    }
-
-
-    public function deploy()
-    {
-        $repository =  $this->model->getRepository();
-        $repository = new $repository();
-        $repository->setDeployedTrueAndActiveService($this->model);
-    }
 }

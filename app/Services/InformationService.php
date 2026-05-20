@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Http\Repository\ClientRepository;
-use App\Http\Repository\CommandConfigRepository;
+use App\Modules\Core\Configuracion\Repositories\CommandConfigRepository;
 use App\Http\Traits\RouterConnection;
 use App\Models\Client;
 use App\Models\ClientBundleService;

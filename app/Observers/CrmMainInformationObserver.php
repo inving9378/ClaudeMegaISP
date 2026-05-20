@@ -5,7 +5,7 @@ namespace App\Observers;
 use App\Http\Repository\ColonyRepository;
 use App\Http\Repository\MunicipalityRepository;
 use App\Http\Repository\StateRepository;
-use App\Models\CrmMainInformation;
+use App\Modules\Core\CRM\Models\CrmMainInformation;
 
 class CrmMainInformationObserver
 {

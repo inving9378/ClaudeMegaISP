@@ -93,7 +93,7 @@ class Bundle extends BaseModel implements PackageInterface
     public function getRequestAndStoreMethod()
     {
         $request = new BundleCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Plan\BundleController@store';
+        $storeMethod = 'App\Modules\Addons\Planes\Controllers\BundleController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,

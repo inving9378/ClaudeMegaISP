@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\FieldModule;
+use App\Modules\Core\Configuracion\Models\FieldModule;
 use App\Repositories\BaseRepository;
 
 /**

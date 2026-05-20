@@ -1,0 +1,9 @@
+{
+    "slug": "core-usuarios",
+    "name": "Usuarios",
+    "version": "0.1.0",
+    "description": "Gestión de usuarios, roles y permisos del sistema.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

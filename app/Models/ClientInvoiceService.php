@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-
-class ClientInvoiceService extends BaseModel
+/**
+ * Proxy de backward-compatibility — el modelo real vive ahora en
+ * \App\Modules\Core\Clientes\Models\ClientInvoiceService desde la migración modular
+ * (Capa 1/6). Mantener mientras existan imports legacy en el codebase.
+ */
+class ClientInvoiceService extends \App\Modules\Core\Clientes\Models\ClientInvoiceService
 {
-    use HasFactory;
-    protected $table = 'client_serviceables';
-    protected $guarded = [];
 }

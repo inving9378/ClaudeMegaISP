@@ -75,7 +75,7 @@ class Voise extends BaseModel implements PackageInterface
     public function getRequestAndStoreMethod()
     {
         $request = new VozCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Plan\VozController@store';
+        $storeMethod = 'App\Modules\Addons\Planes\Controllers\VozController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod

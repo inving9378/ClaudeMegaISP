@@ -3,7 +3,7 @@
 namespace App\Console\Commands\Active;
 
 use App\Http\Repository\DocumentTemplateRepository;
-use App\Models\BillingReminder;
+use App\Modules\Core\Configuracion\Models\BillingReminder;
 use App\Models\Client;
 use App\Models\Reminder;
 use App\Services\ClientService\ContractClientService;

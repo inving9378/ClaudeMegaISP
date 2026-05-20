@@ -1,0 +1,9 @@
+{
+    "slug": "core-dashboard",
+    "name": "Dashboard",
+    "version": "0.1.0",
+    "description": "Dashboard principal con widgets aportados por otros módulos.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

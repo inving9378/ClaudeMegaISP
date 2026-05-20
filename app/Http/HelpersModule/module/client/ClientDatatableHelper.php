@@ -7,7 +7,7 @@ use App\Models\Client;
 use App\Models\ClientCustomService;
 use App\Models\ClientInternetService;
 use App\Models\Module;
-use App\Services\AppLayoutConfigurationService;
+use App\Modules\Core\Layout\Services\AppLayoutConfigurationService;
 use App\Services\FormatDateService;
 use App\Services\NetworkIpService;
 use Carbon\Carbon;

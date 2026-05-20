@@ -3,7 +3,7 @@
 
 namespace App\MyLibrary;
 
-use App\Http\Repository\FieldTypeRepository;
+use App\Modules\Core\Configuracion\Repositories\FieldTypeRepository;
 use App\Models\Module;
 use Illuminate\Support\Facades\Log;
 

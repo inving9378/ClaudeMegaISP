@@ -2,29 +2,11 @@
 
 namespace App\Http\Repository;
 
-use App\Models\ClientGracePeriod;
-
-class ClientGracePeriodRepository
+/**
+ * Proxy de backward-compatibility — el repositorio real vive ahora en
+ * \App\Modules\Core\Clientes\Repositories\ClientGracePeriodRepository desde la migración modular
+ * (Capa 2/6). Mantener mientras existan imports legacy en el codebase.
+ */
+class ClientGracePeriodRepository extends \App\Modules\Core\Clientes\Repositories\ClientGracePeriodRepository
 {
-    protected $client;
-    protected $model;
-
-    public function __construct()
-    {
-        $this->model = ClientGracePeriod::query();
-    }
-
-    public function count()
-    {
-        return $this->model->count();
-    }
-
-    public function getModelByServiceableId($serviceableId){
-        return $this->model->where('serviceable_id',$serviceableId)->first();
-    }
-
-
-    public function create($array){
-        return $this->model->create($array);
-    }
 }

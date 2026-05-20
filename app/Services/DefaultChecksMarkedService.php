@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Http\Repository\DefaultValueRepository;
+use App\Modules\Core\Configuracion\Repositories\DefaultValueRepository;
 
 class DefaultChecksMarkedService
 {

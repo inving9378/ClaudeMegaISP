@@ -114,6 +114,42 @@
             <div class="row d-flex">
                 <div class="col-md-2">
                     <div class="cursor-pointer">
+                        <a :href="`${url}/admin/modules`"
+                            ><div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-primary m-0">
+                                        <i
+                                            class="fa fa-fw fa-1x circle-icon fa-puzzle-piece"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center"
+                                        >Add-ons</span
+                                    >
+                                </div>
+                            </div></a
+                        >
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/megafamilia`"
+                            ><div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-primary m-0">
+                                        <i
+                                            class="fa fa-fw fa-1x circle-icon fa-shield-alt"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center"
+                                        >MegaFamilia</span
+                                    >
+                                </div>
+                            </div></a
+                        >
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="cursor-pointer">
                         <a :href="`${url}/configuracion/additional-fields`"
                             ><div class="card-body position-relative">
                                 <div class="faq-count d-flex">
@@ -2136,6 +2172,72 @@
                                 </div>
                             </div></a
                         >
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            class="item-administration row"
+            style="border-left-color: #ff8c00"
+            v-show="selectedDiv === 15 || selectedDiv === 0"
+        >
+            <h3>API Móvil</h3>
+            <div class="row d-flex">
+                <div class="col-md-2">
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/configuracion/api-movil`">
+                            <div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-primary m-0">
+                                        <i class="fa fa-fw fa-1x circle-icon fa-code"></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center">Configuración API</span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/configuracion/api-movil/tokens`">
+                            <div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-warning m-0">
+                                        <i class="fa fa-fw fa-1x circle-icon fa-key"></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center">Tokens activos</span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/configuracion/api-movil/docs`">
+                            <div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-info m-0">
+                                        <i class="fa fa-fw fa-1x circle-icon fa-book"></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center">Documentación</span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/configuracion/api-movil/logs`">
+                            <div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-secondary m-0">
+                                        <i class="fa fa-fw fa-1x circle-icon fa-list"></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center">Logs de acceso</span>
+                                </div>
+                            </div>
+                        </a>
                     </div>
                 </div>
             </div>

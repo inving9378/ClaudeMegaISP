@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Repository\FrequencyCommandRepository;
-use App\Models\CommandConfig;
+use App\Modules\Core\Configuracion\Repositories\FrequencyCommandRepository;
+use App\Modules\Core\Configuracion\Models\CommandConfig;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;

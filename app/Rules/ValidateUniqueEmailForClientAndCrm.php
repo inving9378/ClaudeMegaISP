@@ -3,7 +3,7 @@
 namespace App\Rules;
 
 use App\Models\ClientMainInformation;
-use App\Models\CrmMainInformation;
+use App\Modules\Core\CRM\Models\CrmMainInformation;
 use Illuminate\Contracts\Validation\Rule;
 
 class ValidateUniqueEmailForClientAndCrm implements Rule

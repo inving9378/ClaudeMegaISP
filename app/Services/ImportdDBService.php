@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Http\Controllers\Utils\ComunConstantsController;
-use App\Http\Repository\FieldTypeRepository;
+use App\Modules\Core\Configuracion\Repositories\FieldTypeRepository;
 use App\Http\Repository\NetworkRepository;
 use App\Http\Repository\RouterRepository;
-use App\Models\FieldType;
+use App\Modules\Core\Configuracion\Models\FieldType;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;

@@ -1,0 +1,9 @@
+{
+    "slug": "core-auditoria",
+    "name": "Auditoría",
+    "version": "0.1.0",
+    "description": "Activity log / auditoría de cambios en el sistema (spatie/laravel-activitylog).",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}
