@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Router;
+namespace App\Modules\Addons\GestionRed\Controllers\Router;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\Mikrotik\MicrotikDeleteRulesJob;

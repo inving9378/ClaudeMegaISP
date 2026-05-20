@@ -1055,38 +1055,7 @@ Route::group(['middleware' => ['auth']], function () {
 
             Route::group(['prefix' => 'red'], function () {
 
-                // Rutas `red/ipv4` migradas a app/Modules/Addons/GestionRed/routes.php
-
-                Route::group(['prefix' => 'router', 'namespace' => 'Router'], function () {
-                    Route::get('/listar', 'RouterController@index');
-                    Route::get('/success/{id}', 'RouterController@success');
-                    Route::get('/crear', 'RouterController@create');
-                    Route::post('/add', 'RouterController@store');
-                    Route::get('/editar/{id}', 'RouterController@edit');
-                    Route::post('/update/{id}', 'RouterController@update');
-                    Route::post('/destroy/{id}', 'RouterController@destroy');
-                    Route::post('/table', 'RouterController@table');
-
-
-                    Route::group(['prefix' => 'mikrotik'], function () {
-                        Route::get('/crear', 'MikrotikController@create');
-                        Route::post('/add', 'MikrotikController@store');
-                        Route::get('/editar/{id}', 'MikrotikController@edit');
-                        Route::post('/update/{id}', 'MikrotikController@update');
-                        Route::post('/crear/{id}', 'MikrotikController@store');
-                        Route::post('/destroy/{id}', 'MikrotikController@destroy');
-                        Route::post('/table', 'MikrotikController@table');
-                        Route::get('/cleantails', 'MikrotikController@clearMikrotikTails');
-                        Route::get('/read-notification/{id}', 'RouterController@readNotification');
-
-                        Route::group(['prefix' => 'config'], function () {
-                            Route::get('/editar/{id}', 'MikrotikConfigController@edit');
-                            Route::post('/update/{id}', 'MikrotikConfigController@update');
-                            Route::post('/crear/{id}', 'MikrotikConfigController@store');
-                            Route::post('/destroy/{id}', 'MikrotikConfigController@destroy');
-                        });
-                    });
-                });
+                // Rutas `red/ipv4` y `red/router` migradas a app/Modules/Addons/GestionRed/routes.php
             });
 
             Route::group(['prefix' => 'finanzas', 'namespace' => 'Finance'], function () {
@@ -1198,12 +1167,7 @@ Route::group(['middleware' => ['auth']], function () {
                 });
             });
 
-            Route::group(['namespace' => 'Router'], function () {
-                Route::post('/status-by-router/{id}', 'MikrotikController@getMikrotikStatus');
-                Route::post('/remove-rules-by-router/{id}', 'MikrotikController@getMikrotikRemoveRules');
-                Route::post('/create-rules-by-router/{id}', 'MikrotikController@getMikrotikCreateRules');
-                Route::post('/request-clone-client-to-mikrotik/{id}', 'MikrotikController@cloneClientToMikrotik');
-            });
+            // Rutas Mikrotik globales migradas a app/Modules/Addons/GestionRed/routes.php
         });
     });
 

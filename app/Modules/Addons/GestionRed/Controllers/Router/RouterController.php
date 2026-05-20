@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Router;
+namespace App\Modules\Addons\GestionRed\Controllers\Router;
 
 use App\Models\Mikrotik;
 use App\Models\ClientInternetService;
