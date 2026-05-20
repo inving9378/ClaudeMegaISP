@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Release;
+namespace App\Modules\Core\Release\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\ReleaseDescription;

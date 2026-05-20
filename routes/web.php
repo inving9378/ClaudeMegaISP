@@ -516,17 +516,7 @@ Route::group(['middleware' => ['auth']], function () {
                 });
             });
 
-            Route::group(['prefix' => 'releases', 'namespace' => 'Release'], function () {
-                Route::get('/', 'ReleaseController@index');
-                Route::get('/{version}', 'ReleaseController@show');
-                Route::post('/store', 'ReleaseController@store');
-                Route::post('/update/{id}', 'ReleaseController@update');
-
-                Route::get('/{releaseId}/descriptions', 'ReleaseDescriptionController@index');
-                Route::post('/description/store', 'ReleaseDescriptionController@store');
-                Route::post('/description/update/{id}', 'ReleaseDescriptionController@update');
-                Route::delete('/description/delete/{id}', 'ReleaseDescriptionController@destroy');
-            });
+            // Rutas `releases/*` migradas a app/Modules/Core/Release/routes.php
             Route::group(['prefix' => 'git', 'namespace' => 'Git'], function () {
                 Route::get('/get-tags', 'GitController@getTags');
             });
