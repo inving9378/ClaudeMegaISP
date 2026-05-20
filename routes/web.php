@@ -76,8 +76,7 @@ Route::group(['middleware' => ['auth']], function () {
 
             // Module CRM migrado a app/Modules/Core/CRM/routes.php
 
-            Route::post('/helper/get-value-colony-state-municipality', 'Shared\ComponentSelectStateMunicipalityAndColonyController@getValueDB');
-            Route::post('/helper/get-services-by-client-main-information', 'Shared\ComponentSearchServiceController@getServiceByClientMainInformationId');
+            // Rutas /helper/* migradas a routes.php de Core/Localizacion y Core/Clientes
 
             // Módulo de vendedores
             // Rutas `vendedores/*` migradas a app/Modules/Addons/Vendedores/routes.php
