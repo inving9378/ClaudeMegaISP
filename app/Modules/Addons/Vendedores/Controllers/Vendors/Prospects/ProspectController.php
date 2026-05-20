@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Vendors\Prospects;
+namespace App\Modules\Addons\Vendedores\Controllers\Vendors\Prospects;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
