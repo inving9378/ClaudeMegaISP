@@ -94,3 +94,12 @@ Rediseño de DevtoolsPanel.vue a layout 3 columnas:
 ### Modelos compartidos
 - Quedan en app/Models/ — acceder con use App\Models\X desde cualquier módulo
 - BaseModel extiende todos los modelos — auto-stamp created_by/updated_by
+
+### Commits completados
+- 474c343: fix(layout): propagate data-layout-mode to master-without-nav
+- 0d183e9: feat(devtools): navItems endpoint for sidebar navigation
+- 4f96326: docs: add DECISIONS.md
+- b176296: feat(devtools): SUB-PASO 3A scaffold layout 3-col + theme switching
+- d17b51f: feat(devtools): SUB-PASOS 3B+3C+3D full chat, attachments, voice, actions
+
+### Estado: COMPLETO
