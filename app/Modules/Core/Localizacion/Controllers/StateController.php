@@ -1,28 +1,29 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\Location;
+namespace App\Modules\Core\Localizacion\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Http\HelpersModule\module\administration\location\LocationDatatableHelper;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
+use App\Http\HelpersModule\module\administration\state\StateDatatableHelper;
 
-class LocationController extends Controller
+
+class StateController extends Controller
 {
     private $helper;
 
-    public function __construct(LocationDatatableHelper $helper)
+    public function __construct(StateDatatableHelper $helper)
     {
-        $this->data['model'] = 'App\Models\Location';
-        $this->data['url'] = 'meganet.module.administration.location';
-        $this->data['module'] = 'Location';
+        $this->data['model'] = 'App\Models\State';
+        $this->data['url'] = 'meganet.module.administration.state';
+        $this->data['module'] = 'State';
         $this->helper = $helper;
     }
 
     public function index()
     {
         $this->data['notifications'] = $this->userNotification();
-        $this->includeLibraryDinamic('Location');
-        return view('meganet.module.administration.location.listar', $this->data);
+        $this->includeLibraryDinamic('State');
+        return view('meganet.module.administration.state.listar', $this->data);
     }
 
     public function store(Request $request)
@@ -40,6 +41,7 @@ class LocationController extends Controller
 
     public function update(Request $request, $id)
     {
+        $this->validateFieldByRulesInTableFiledModules($this->data['module'],$request);
         $model = $this->data['model']::find($id);
         $input = defined($this->data['model'] . '::MULTIPLE_RELATIONS') ?
             $request->except(collect($this->data['model']::MULTIPLE_RELATIONS)->keys()->toArray()) :

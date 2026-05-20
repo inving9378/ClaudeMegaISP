@@ -80,34 +80,7 @@ Route::group(['middleware' => ['auth']], function () {
                     Route::post('/table', 'PartnerController@table');
                 });
 
-                Route::group(['prefix' => 'ubicacion', 'namespace' => 'Location'], function () {
-                    Route::get('/', 'LocationController@index');
-                    Route::post('/add', 'LocationController@store');
-                    Route::get('/editar/{id}', 'LocationController@edit');
-                    Route::post('/update/{id}', 'LocationController@update');
-                    Route::post('/destroy/{id}', 'LocationController@destroy');
-                    Route::post('/table', 'LocationController@table');
-                });
-
-                Route::group(['prefix' => 'sucursal', 'namespace' => 'Sucursal'], function () {
-                    Route::get('/', 'SucursalController@index');
-                    Route::get('/all', 'SucursalController@all');
-                    Route::post('/add', 'SucursalController@store');
-                    Route::get('/editar/{id}', 'SucursalController@edit');
-                    Route::post('/update/{id}', 'SucursalController@update');
-                    Route::post('/destroy/{id}', 'SucursalController@destroy');
-                    Route::post('/table', 'SucursalController@table');
-                });
-
-
-                Route::group(['prefix' => 'estado', 'namespace' => 'State'], function () {
-                    Route::get('/', 'StateController@index');
-                    Route::post('/add', 'StateController@store');
-                    Route::get('/editar/{id}', 'StateController@edit');
-                    Route::post('/update/{id}', 'StateController@update');
-                    Route::post('/destroy/{id}', 'StateController@destroy');
-                    Route::post('/table', 'StateController@table');
-                });
+                // Rutas ubicacion/sucursal/estado migradas a app/Modules/Core/Localizacion/routes.php
 
                 Route::group(['prefix' => 'activity_log', 'namespace' => 'ActivityLog'], function () {
                     Route::get('/', 'ActivityLogController@index');
@@ -146,23 +119,7 @@ Route::group(['middleware' => ['auth']], function () {
                     Route::post('/table', 'IftController@table');
                 });
 
-                Route::group(['prefix' => 'municipio', 'namespace' => 'Municipality'], function () {
-                    Route::get('/', 'MunicipalityController@index');
-                    Route::post('/add', 'MunicipalityController@store');
-                    Route::get('/editar/{id}', 'MunicipalityController@edit');
-                    Route::post('/update/{id}', 'MunicipalityController@update');
-                    Route::post('/destroy/{id}', 'MunicipalityController@destroy');
-                    Route::post('/table', 'MunicipalityController@table');
-                });
-
-                Route::group(['prefix' => 'colonia', 'namespace' => 'Colony'], function () {
-                    Route::get('/', 'ColonyController@index');
-                    Route::post('/add', 'ColonyController@store');
-                    Route::get('/editar/{id}', 'ColonyController@edit');
-                    Route::post('/update/{id}', 'ColonyController@update');
-                    Route::post('/destroy/{id}', 'ColonyController@destroy');
-                    Route::post('/table', 'ColonyController@table');
-                });
+                // Rutas municipio/colonia migradas a app/Modules/Core/Localizacion/routes.php
 
                 Route::group(['prefix' => 'metotdo-de-pago', 'namespace' => 'MethodOfPayment'], function () {
                     Route::get('/', 'MethodOfPaymentController@index');
