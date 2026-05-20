@@ -58,16 +58,7 @@ Route::group(['middleware' => ['auth']], function () {
 
             // Module Administracion
             Route::group(['prefix' => 'administracion', 'namespace' => 'Administration'], function () {
-                Route::get('/', 'AdministracionController@index');
-                Route::get('/clean-all-client-service', 'AdministracionController@clearAllClientServices');
-                Route::get('/add-clients-imported-to-mikrotik', 'AdministracionController@addClientsImportedToMikrotik');
-                Route::get('/suspend_clients', 'AdministracionController@suspendProcess');
-                Route::get('/billing_services', 'AdministracionController@billigProcess');
-                Route::post('/active-schedule-process', 'AdministracionController@activeCommands');
-                Route::get('/check-schedule-process', 'AdministracionController@checkProcess');
-                Route::get('/show_scripts', 'AdministracionController@showScripts');
-                Route::get('/rectify_address_list', 'AdministracionController@rectifyAddressList');
-                Route::get('/billing_services_to_client_active_promise_payment', 'AdministracionController@billingServiceToClientActivePromise');
+                // Rutas dashboard /administracion migradas a app/Modules/Core/Usuarios/routes.php
 
                 // Rutas user/addresses/rol/permisos migradas a app/Modules/Core/Usuarios/routes.php
 
