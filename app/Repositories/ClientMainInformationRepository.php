@@ -2,8 +2,8 @@
 
 namespace App\Repositories;
 
-use App\Models\Client;
-use App\Models\ClientMainInformation;
+use App\Modules\Core\Clientes\Models\Client;
+use App\Modules\Core\Clientes\Models\ClientMainInformation;
 use App\Repositories\BaseRepository;
 
 /**

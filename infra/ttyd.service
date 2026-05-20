@@ -1,0 +1,11 @@
+[Unit]
+Description=ttyd web terminal
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/ttyd -p 7681 -W --interface 0.0.0.0 bash
+Restart=always
+User=meganet
+
+[Install]
+WantedBy=multi-user.target

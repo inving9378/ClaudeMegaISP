@@ -3,7 +3,7 @@
 namespace App\Rules;
 
 use App\Models\Client;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use Illuminate\Contracts\Validation\Rule;
 
 class ValidateSameNameInCrmOrClientTable implements Rule

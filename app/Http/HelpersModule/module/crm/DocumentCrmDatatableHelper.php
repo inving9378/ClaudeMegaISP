@@ -4,7 +4,7 @@
 namespace App\Http\HelpersModule\module\crm;
 
 use App\Http\HelpersModule\module\HelperDatatable;
-use App\Models\DocumentCrm;
+use App\Modules\Core\CRM\Models\DocumentCrm;
 use App\Models\Module;
 use Illuminate\Support\Arr;
 

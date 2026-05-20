@@ -151,6 +151,25 @@
                     </div>
                     <!-- end card -->
                 </div>
+                <div class="col-md-3">
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/configuracion`"
+                            ><div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-primary m-0">
+                                        <i
+                                            class="fa fa-fw fa-1x circle-icon fa-network-wired"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center"
+                                        >Configuracion Redes</span
+                                    >
+                                </div>
+                            </div></a
+                        ><!-- end card body -->
+                    </div>
+                    <!-- end card -->
+                </div>
             </div>
         </div>
         <div

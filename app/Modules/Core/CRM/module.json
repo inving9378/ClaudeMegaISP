@@ -1,0 +1,9 @@
+{
+    "slug": "core-crm",
+    "name": "CRM",
+    "version": "0.1.0",
+    "description": "Prospectos, leads y seguimiento comercial.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

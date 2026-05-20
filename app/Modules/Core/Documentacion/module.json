@@ -1,0 +1,9 @@
+{
+    "slug": "core-documentacion",
+    "name": "Documentación",
+    "version": "0.1.0",
+    "description": "Sistema de documentación interna: menús, submenús y contenido jerárquico.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

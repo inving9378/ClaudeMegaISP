@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Utils;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Client;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use App\Models\LogActivity;
 use App\Models\User;
 use Carbon\Carbon;

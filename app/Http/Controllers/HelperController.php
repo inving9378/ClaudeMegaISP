@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Base\Encryption;
 use App\Http\Repository\TeamRepository;
 use App\Models\Client;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use App\Models\Location;
 use App\Models\Module;
 use App\Models\Partner;

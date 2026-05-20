@@ -1,0 +1,9 @@
+{
+    "slug": "core-documentos",
+    "name": "Documentos",
+    "version": "0.1.0",
+    "description": "Plantillas de documentos (contratos, recibos, facturas) y sus tipos.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

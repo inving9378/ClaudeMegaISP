@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Http\Controllers\FileController;
 use App\Http\Requests\module\client\ClientPaymentRequest;
 use App\Http\Traits\Models\Payments\ScopePayment\ScopePayment;
-use App\Services\ConfigFinanceNotificationService;
+use App\Modules\Core\Configuracion\Services\ConfigFinanceNotificationService;
 use App\Services\Finance\Invoice\InvoiceService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -139,7 +139,7 @@ class Payment extends Model
     public function getRequestAndStoreMethod()
     {
         $request = new ClientPaymentRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientPaymentController@store';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientPaymentController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,

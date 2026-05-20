@@ -1,0 +1,9 @@
+{
+    "slug": "core-module-manager",
+    "name": "Module Manager",
+    "version": "0.1.0",
+    "description": "Registro y orquestación dinámica de módulos Core y Addons.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

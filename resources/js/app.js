@@ -65,6 +65,32 @@ import IndexSetting from "./components/module/setting/IndexSetting.vue";
 import ImportListar from "./components/module/setting/ImportListar.vue";
 import ImportCrud from "./components/module/setting/components/tools/ImportCrud.vue";
 import ShowActivity from "./components/module/adminstration/activity_log/ShowActivity.vue";
+import ApiMovilConfig from "./components/module/setting/api-movil/ApiMovilConfig.vue";
+import ApiMovilTokens from "./components/module/setting/api-movil/ApiMovilTokens.vue";
+import ApiMovilDocs from "./components/module/setting/api-movil/ApiMovilDocs.vue";
+import ApiMovilLogs from "./components/module/setting/api-movil/ApiMovilLogs.vue";
+import ModuleManager from "./components/module/admin/modules/ModuleManager.vue";
+import DevtoolsPanel from "./components/module/devtools/DevtoolsPanel.vue";
+
+// MegaFamilia (addon-megafamilia) — 1 dashboard + 17 scaffolds
+import MegaFamiliaDashboard from "./components/module/megafamilia/MegaFamiliaDashboard.vue";
+import MegaFamiliaClientes from "./components/module/megafamilia/MegaFamiliaClientes.vue";
+import MegaFamiliaLicencias from "./components/module/megafamilia/MegaFamiliaLicencias.vue";
+import MegaFamiliaPlanes from "./components/module/megafamilia/MegaFamiliaPlanes.vue";
+import MegaFamiliaIngresos from "./components/module/megafamilia/MegaFamiliaIngresos.vue";
+import MegaFamiliaAlertas from "./components/module/megafamilia/MegaFamiliaAlertas.vue";
+import MegaFamiliaSolicitudes from "./components/module/megafamilia/MegaFamiliaSolicitudes.vue";
+import MegaFamiliaPerfiles from "./components/module/megafamilia/MegaFamiliaPerfiles.vue";
+import MegaFamiliaDispositivos from "./components/module/megafamilia/MegaFamiliaDispositivos.vue";
+import MegaFamiliaTareas from "./components/module/megafamilia/MegaFamiliaTareas.vue";
+import MegaFamiliaUbicaciones from "./components/module/megafamilia/MegaFamiliaUbicaciones.vue";
+import MegaFamiliaReportes from "./components/module/megafamilia/MegaFamiliaReportes.vue";
+import MegaFamiliaAuditoria from "./components/module/megafamilia/MegaFamiliaAuditoria.vue";
+import MegaFamiliaMikrotik from "./components/module/megafamilia/MegaFamiliaMikrotik.vue";
+import MegaFamiliaNotificaciones from "./components/module/megafamilia/MegaFamiliaNotificaciones.vue";
+import MegaFamiliaSoporte from "./components/module/megafamilia/MegaFamiliaSoporte.vue";
+import MegaFamiliaTerminos from "./components/module/megafamilia/MegaFamiliaTerminos.vue";
+import MegaFamiliaConfiguracion from "./components/module/megafamilia/MegaFamiliaConfiguracion.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -241,6 +267,12 @@ import ReleasesDescription from "./components/module/releases/ReleasesDescriptio
 import InventoryItemCustomModelListar from "./components/module/inventory/inventory_item_custom_model/InventoryItemCustomModelListar.vue";
 import InventoryItemCustomListar from "./components/module/inventory/inventory_item_custom/InventoryItemCustomListar.vue";
 
+//IA — portado desde MEGANET 2026-05-19
+import IAChatIndex from "./components/module/ia/IAChatIndex.vue";
+import IAHistorial from "./components/module/ia/IAHistorial.vue";
+import IAPrompts from "./components/module/ia/IAPrompts.vue";
+import IAConfiguracion from "./components/module/ia/IAConfiguracion.vue";
+
 
 const app = createApp({
     components: {
@@ -326,6 +358,30 @@ const app = createApp({
         DebitCustomListar,
         CommandConfig,
         FieldModuleListar,
+        'module-manager': ModuleManager,
+        'devtools-panel': DevtoolsPanel,
+        'api-movil-config': ApiMovilConfig,
+        'api-movil-tokens': ApiMovilTokens,
+        'api-movil-docs': ApiMovilDocs,
+        'api-movil-logs': ApiMovilLogs,
+        'mega-familia-dashboard': MegaFamiliaDashboard,
+        'mega-familia-clientes': MegaFamiliaClientes,
+        'mega-familia-licencias': MegaFamiliaLicencias,
+        'mega-familia-planes': MegaFamiliaPlanes,
+        'mega-familia-ingresos': MegaFamiliaIngresos,
+        'mega-familia-alertas': MegaFamiliaAlertas,
+        'mega-familia-solicitudes': MegaFamiliaSolicitudes,
+        'mega-familia-perfiles': MegaFamiliaPerfiles,
+        'mega-familia-dispositivos': MegaFamiliaDispositivos,
+        'mega-familia-tareas': MegaFamiliaTareas,
+        'mega-familia-ubicaciones': MegaFamiliaUbicaciones,
+        'mega-familia-reportes': MegaFamiliaReportes,
+        'mega-familia-auditoria': MegaFamiliaAuditoria,
+        'mega-familia-mikrotik': MegaFamiliaMikrotik,
+        'mega-familia-notificaciones': MegaFamiliaNotificaciones,
+        'mega-familia-soporte': MegaFamiliaSoporte,
+        'mega-familia-terminos': MegaFamiliaTerminos,
+        'mega-familia-configuracion': MegaFamiliaConfiguracion,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
@@ -413,6 +469,12 @@ const app = createApp({
         //RELEASES
         ReleasesIndex,
         ReleasesDescription,
+
+        //IA — portado desde MEGANET 2026-05-19
+        IAChatIndex,
+        IAHistorial,
+        IAPrompts,
+        IAConfiguracion,
     },
 });
 

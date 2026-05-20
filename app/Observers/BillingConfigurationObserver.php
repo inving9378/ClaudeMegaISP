@@ -2,7 +2,7 @@
 
 namespace App\Observers;
 
-use App\Models\BillingConfiguration;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Models\TypeBilling;
 use App\Services\ClientService\BillingPaymentDateService;
 
@@ -11,7 +11,7 @@ class BillingConfigurationObserver
     /**
      * Handle the BillingConfiguration "updating" event.
      *
-     * @param  \App\Models\BillingConfiguration  $billingConfiguration
+     * @param  \App\Modules\Core\Configuracion\Models\BillingConfiguration  $billingConfiguration
      * @return void
      */
 

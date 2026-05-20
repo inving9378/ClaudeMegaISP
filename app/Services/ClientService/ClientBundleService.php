@@ -2,20 +2,10 @@
 
 namespace App\Services\ClientService;
 
-
-class ClientBundleService implements ClientServiceInterface
+/**
+ * Proxy de backward-compatibility — el service real vive ahora en
+ * \App\Modules\Core\Clientes\Services\ClientBundleService (Capa 3/6).
+ */
+class ClientBundleService extends \App\Modules\Core\Clientes\Services\ClientBundleService
 {
-    protected $model;
-    public function __construct($model)
-    {
-        $this->model = $model;
-    }
-
-    public function deploy()
-    {
-        $repository = $this->model->getRepository();
-        $repository = new $repository();
-        $repository->setDeployedTrueAndActiveService($this->model);
-    }
-
 }

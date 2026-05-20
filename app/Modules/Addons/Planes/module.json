@@ -1,0 +1,9 @@
+{
+    "slug": "addon-planes",
+    "name": "Planes",
+    "version": "0.1.0",
+    "description": "Planes Internet, VoIP, Custom y Bundles.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

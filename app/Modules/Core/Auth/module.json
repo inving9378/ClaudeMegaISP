@@ -1,0 +1,9 @@
+{
+    "slug": "core-auth",
+    "name": "Autenticación",
+    "version": "0.1.0",
+    "description": "Login, roles y permisos (Spatie).",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Repository\DefaultValueRepository;
-use App\Models\DefaultValue;
-use App\Services\DefaultValueService;
+use App\Modules\Core\Configuracion\Repositories\DefaultValueRepository;
+use App\Modules\Core\Configuracion\Models\DefaultValue;
+use App\Modules\Core\Configuracion\Services\DefaultValueService;
 use Illuminate\Http\Request;
 
 class SharedDefaultValues

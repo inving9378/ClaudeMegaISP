@@ -56,7 +56,7 @@ return new class extends Migration
 
             [
                 'name' => 'colony_id',
-                'label' => 'App\Models\CompanyInformation',
+                'label' => 'App\Modules\Core\Configuracion\Models\CompanyInformation',
                 'placeholder' => 'Seleccionar Colonia',
                 'type' => 24,
                 'position' => 4,

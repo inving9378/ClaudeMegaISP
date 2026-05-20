@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\CommandConfig;
+use App\Modules\Core\Configuracion\Models\CommandConfig;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;

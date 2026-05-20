@@ -2,9 +2,9 @@
 
 namespace App\Console;
 
-use App\Http\Repository\CommandConfigRepository;
-use App\Http\Repository\FrequencyCommandRepository;
-use App\Models\BillingReminder;
+use App\Modules\Core\Configuracion\Repositories\CommandConfigRepository;
+use App\Modules\Core\Configuracion\Repositories\FrequencyCommandRepository;
+use App\Modules\Core\Configuracion\Models\BillingReminder;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 

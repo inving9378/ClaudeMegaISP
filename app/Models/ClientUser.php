@@ -2,15 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-
-class ClientUser extends BaseModel
+/**
+ * Proxy de backward-compatibility — el modelo real vive ahora en
+ * \App\Modules\Core\Clientes\Models\ClientUser desde la migración modular
+ * (Capa 1/6). Mantener mientras existan imports legacy en el codebase.
+ */
+class ClientUser extends \App\Modules\Core\Clientes\Models\ClientUser
 {
-    use HasFactory;
-    protected $guarded = [];
-
-    public function client(){
-        return $this->belongsTo('App\Models\Client');
-    }
 }

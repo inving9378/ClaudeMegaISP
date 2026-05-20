@@ -3,7 +3,7 @@
 namespace Tests\Unit\Helpers;
 
 
-use App\Http\Controllers\Module\Client\ClientBundleServiceController;
+use App\Modules\Core\Clientes\Controllers\ClientBundleServiceController;
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\HelpersModule\module\client\ClientBundleServiceDatatableHelper;
 use App\Http\Repository\ClientBundleServiceRepository;

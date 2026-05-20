@@ -56,8 +56,8 @@ class ComunConstantsController
 
     const PPP_SECRET_WHIT_SLASH = '/ppp/secret/'; //print
 
-    const MODEL_CRM = 'App\Models\Crm';
-    const MODEL_CRM_MAIN_INFORMATION = 'App\Models\CrmMainInformation';
+    const MODEL_CRM = 'App\Modules\Core\CRM\Models\Crm';
+    const MODEL_CRM_MAIN_INFORMATION = 'App\Modules\Core\CRM\Models\CrmMainInformation';
     const MODEL_CLIENT = 'App\Models\Client';
     const MODEL_CLIENT_MAIN_INFORMATION = 'App\Models\ClientMainInformation';
 

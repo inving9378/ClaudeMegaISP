@@ -2,23 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-
-class ClientPaymentPromise extends BaseModel
+/**
+ * Proxy de backward-compatibility — el modelo real vive ahora en
+ * \App\Modules\Core\Clientes\Models\ClientPaymentPromise desde la migración modular
+ * (Capa 1/6). Mantener mientras existan imports legacy en el codebase.
+ */
+class ClientPaymentPromise extends \App\Modules\Core\Clientes\Models\ClientPaymentPromise
 {
-    use HasFactory;
-
-    protected $fillable = [
-        'client_id',
-        'first_court_date',
-        'first_amount',
-        'first_amount_is_pay',
-        'second_court_date',
-        'second_amount',
-        'second_amount_is_pay',
-        'third_court_date',
-        'third_amount',
-        'third_amount_is_pay'
-    ];
 }

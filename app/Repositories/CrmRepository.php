@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use App\Repositories\BaseRepository;
 
 /**

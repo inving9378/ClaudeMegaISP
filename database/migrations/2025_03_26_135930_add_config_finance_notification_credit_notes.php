@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\ConfigFinanceNotification;
+use App\Modules\Core\Configuracion\Models\ConfigFinanceNotification;
 use App\Models\Module;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -34,7 +34,7 @@ return new class extends Migration
             'name' => 'ConfigFinanceNotificationCreditNotes',
             'group' => 'Configuration',
             'is_main' => false,
-            'main' => 'App\Models\ConfigFinanceNotification',
+            'main' => 'App\Modules\Core\Configuracion\Models\ConfigFinanceNotification',
         ]);
 
         $fields = [

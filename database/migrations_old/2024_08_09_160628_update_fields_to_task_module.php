@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Repository\FieldTypeRepository;
-use App\Models\FieldType;
+use App\Modules\Core\Configuracion\Repositories\FieldTypeRepository;
+use App\Modules\Core\Configuracion\Models\FieldType;
 use App\Models\Module;
 use App\Models\TemplateVerification;
 use Illuminate\Database\Migrations\Migration;

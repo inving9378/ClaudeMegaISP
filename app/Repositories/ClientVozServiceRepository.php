@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\ClientVozService;
+use App\Modules\Core\Clientes\Models\ClientVozService;
 use App\Repositories\BaseRepository;
 
 /**

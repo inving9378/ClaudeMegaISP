@@ -2,7 +2,7 @@
 
 namespace App\Http\Traits;
 
-use App\Http\Controllers\Module\Network\Ipv4CalculatorController;
+use App\Modules\Addons\GestionRed\Controllers\Network\Ipv4CalculatorController;
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\Repository\NetworkIpRepository;
 use App\Http\Repository\RouterRepository;

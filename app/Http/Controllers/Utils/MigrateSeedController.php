@@ -5,10 +5,10 @@ namespace App\Http\Controllers\Utils;
 use App\Http\Controllers\Controller;
 use App\Models\Balance;
 use App\Models\BillingAddress;
-use App\Models\BillingConfiguration;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Models\Client;
 use App\Models\ClientMainInformation;
-use App\Models\Crm;
+use App\Modules\Core\CRM\Models\Crm;
 use App\Models\Internet;
 use App\Models\Location;
 use App\Models\Network;
@@ -507,11 +507,11 @@ class MigrateSeedController extends Controller
 
         $populate = array_chunk($populate_main_information, 300);
         foreach ($populate as $value) {
-            \App\Models\CrmMainInformation::insert($value);
+            \App\Modules\Core\CRM\Models\CrmMainInformation::insert($value);
         }
         $populate = array_chunk($populate_lead_information, 300);
         foreach ($populate as $value) {
-            \App\Models\CrmLeadInformation::insert($value);
+            \App\Modules\Core\CRM\Models\CrmLeadInformation::insert($value);
         }
         \Illuminate\Support\Facades\Log::info('populate crm');
         return true;
