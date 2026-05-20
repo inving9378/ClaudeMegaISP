@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\Module\Administration\User\UserController;
+// Administration\User\UserController migrado a App\Modules\Core\Usuarios (rutas en módulo)
 // Mapas controllers (infraestructura física) migrados a App\Modules\Addons\Mapas\Controllers\Mapas (rutas en módulo)
 // Maps controllers (sub-namespace Geo) migrados a App\Modules\Addons\Mapas\Controllers\Geo
 // Vendors controllers migrados a App\Modules\Addons\Vendedores\Controllers\Vendors (rutas en módulo)
@@ -69,41 +69,7 @@ Route::group(['middleware' => ['auth']], function () {
                 Route::get('/rectify_address_list', 'AdministracionController@rectifyAddressList');
                 Route::get('/billing_services_to_client_active_promise_payment', 'AdministracionController@billingServiceToClientActivePromise');
 
-                Route::group(['prefix' => 'user', 'namespace' => 'User'], function () {
-                    Route::get('/', [UserController::class, 'index'])->name('user.index');
-                    Route::get('/getRoles', [UserController::class, 'getRoles'])->name('user.getRoles');
-                    Route::get('/get-all-users', [UserController::class, 'getAllUsers'])->name('user.get-all-users');
-                    Route::get('/crear', [UserController::class, 'create'])->name('user.create');
-                    Route::post('/create', [UserController::class, 'store'])->name('user.store');
-                    Route::get('/{id}/editar', [UserController::class, 'edit'])->name('user.edit');
-                    Route::post('/get-data-user/{id}', [UserController::class, 'getData'])->name('user.getData');
-                    Route::post('/{id}/update', [UserController::class, 'update'])->name('user.update');
-                    Route::delete('/{id}/destroy', [UserController::class, 'destroy'])->name('user.destroy');
-                    Route::post('/{id}/inactive-or-active', [UserController::class, 'inactiveOrActive'])->name('user.inactive-or-active');
-                });
-
-                Route::group(['prefix' => 'addresses', 'namespace' => 'Addresses'], function () {
-                    Route::get('/states', [UserController::class, 'getStates'])->name('states');
-                    Route::get('/{id}/municipalities', [UserController::class, 'getMunicipalities'])->name('municipalities');
-                    Route::get('/{id}/colonies', [UserController::class, 'getColonies'])->name('colonies');
-                });
-
-                Route::group(['prefix' => 'rol', 'namespace' => 'Rol'], function () {
-                    Route::get('/', 'RolController@index');
-                    Route::get('/get-all', 'RolController@get');
-                    Route::post('/add', 'RolController@store');
-                    Route::get('/editar-role/{id}', 'RolController@edit');
-                    Route::post('/update-role/{id}', 'RolController@updateRole');
-                    Route::delete('/destroy/{id}', 'RolController@destroy');
-                    Route::post('/table', 'RolController@table');
-                });
-
-                Route::group(['prefix' => 'permisos', 'namespace' => 'Permission'], function () {
-                    Route::get('/get-permission-for-role/{id}', 'PermissionController@get');
-                    Route::post('/update-permission-for-role/{id}', 'PermissionController@update');
-                    Route::get('/get-permission-for-user/{id}', 'PermissionController@getPermissionUser');
-                    Route::post('/update-permission-for-user/{id}', 'PermissionController@updatePermissionUser');
-                });
+                // Rutas user/addresses/rol/permisos migradas a app/Modules/Core/Usuarios/routes.php
 
                 Route::group(['prefix' => 'socios', 'namespace' => 'Partner'], function () {
                     Route::get('/', 'PartnerController@index');
@@ -512,7 +478,7 @@ Route::group(['middleware' => ['auth']], function () {
 
     // Rutas / , /index y /get-*-card-in-dashboard-c migradas a
     // app/Modules/Core/Dashboard/routes.php
-    Route::get('/permissions-auth', 'Module\Administration\Permission\PermissionController@userPermissions');
+    // Ruta /permissions-auth migrada a app/Modules/Core/Usuarios/routes.php
 
     Route::post('/user/get-next-user', 'HelperController@getNextUserId');
 
@@ -546,8 +512,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/get-long-options-select', 'SearchModelController@longOptions');
     Route::post('/get-options-client', 'SearchModelController@longOptionsClient');
 
-    Route::post('/has-permission-to-view/{view}', 'Module\Administration\Permission\PermissionController@hasPermissionToView');
-    Route::post('/all-view-has-permission', 'Module\Administration\Permission\PermissionController@allViewHasPermission');
+    // Rutas /has-permission-to-view y /all-view-has-permission migradas a app/Modules/Core/Usuarios/routes.php
 
     Route::group(['prefix' => 'perfil'], function () {
         Route::get('/{id}', 'UserController@show');

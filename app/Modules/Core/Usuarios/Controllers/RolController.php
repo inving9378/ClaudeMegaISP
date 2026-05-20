@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\Rol;
+namespace App\Modules\Core\Usuarios\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\administration\rol\RolDatatableHelper;
