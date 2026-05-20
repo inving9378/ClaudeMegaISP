@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Core\Usuarios\Controllers\AdministracionController;
 use App\Modules\Core\Usuarios\Controllers\PermissionController;
 use App\Modules\Core\Usuarios\Controllers\RolController;
 use App\Modules\Core\Usuarios\Controllers\UserController;
@@ -19,6 +20,18 @@ use Illuminate\Support\Facades\Route;
  */
 
 Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administracion')->group(function () {
+
+    // Dashboard de Administración (entry point + procesos batch)
+    Route::get('/', [AdministracionController::class, 'index']);
+    Route::get('/clean-all-client-service', [AdministracionController::class, 'clearAllClientServices']);
+    Route::get('/add-clients-imported-to-mikrotik', [AdministracionController::class, 'addClientsImportedToMikrotik']);
+    Route::get('/suspend_clients', [AdministracionController::class, 'suspendProcess']);
+    Route::get('/billing_services', [AdministracionController::class, 'billigProcess']);
+    Route::post('/active-schedule-process', [AdministracionController::class, 'activeCommands']);
+    Route::get('/check-schedule-process', [AdministracionController::class, 'checkProcess']);
+    Route::get('/show_scripts', [AdministracionController::class, 'showScripts']);
+    Route::get('/rectify_address_list', [AdministracionController::class, 'rectifyAddressList']);
+    Route::get('/billing_services_to_client_active_promise_payment', [AdministracionController::class, 'billingServiceToClientActivePromise']);
 
     Route::prefix('user')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('user.index');
