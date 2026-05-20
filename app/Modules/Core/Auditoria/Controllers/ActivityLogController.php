@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\ActivityLog;
+namespace App\Modules\Core\Auditoria\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\administration\activity_log\ActivityLogDatatableHelper;

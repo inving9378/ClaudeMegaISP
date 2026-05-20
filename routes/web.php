@@ -75,10 +75,7 @@ Route::group(['middleware' => ['auth']], function () {
 
                 // Rutas ubicacion/sucursal/estado migradas a app/Modules/Core/Localizacion/routes.php
 
-                Route::group(['prefix' => 'activity_log', 'namespace' => 'ActivityLog'], function () {
-                    Route::get('/', 'ActivityLogController@index');
-                    Route::post('/table', 'ActivityLogController@table');
-                });
+                // Rutas activity_log migradas a app/Modules/Core/Auditoria/routes.php
 
                 Route::group(['prefix' => 'document_template', 'namespace' => 'DocumentTemplate'], function () {
                     Route::get('/', 'DocumentTemplateController@index');
