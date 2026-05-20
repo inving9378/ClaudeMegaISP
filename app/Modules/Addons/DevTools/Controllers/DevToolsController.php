@@ -96,10 +96,29 @@ class DevToolsController extends Controller
             }
         }
         $userMsg = trim((string) $request->input('message', ''));
-        if ($userMsg === '') {
+        $attachments = $request->input('attachments', []);
+        if ($userMsg === '' && empty($attachments)) {
             return response()->json(['success' => false, 'error' => 'Mensaje vacío'], 422);
         }
-        $messages[] = ['role' => 'user', 'content' => $userMsg];
+
+        // Si hay attachments, transformar el último mensaje user a content blocks
+        // multimodales (imagen=base64 vision; archivos texto=text con cita).
+        if (! empty($attachments)) {
+            $contentBlocks = $this->buildAttachmentBlocks($attachments);
+            // Bloque de texto del usuario al final — Claude vision sugiere
+            // poner imágenes antes de la pregunta para mejor calidad.
+            if ($userMsg !== '') {
+                $contentBlocks[] = ['type' => 'text', 'text' => $userMsg];
+            } elseif (empty($contentBlocks)) {
+                // Sin texto ni bloques válidos → cae a mensaje plano vacío
+                $messages[] = ['role' => 'user', 'content' => '(adjunto sin contenido extraíble)'];
+            }
+            if (! empty($contentBlocks)) {
+                $messages[] = ['role' => 'user', 'content' => $contentBlocks];
+            }
+        } else {
+            $messages[] = ['role' => 'user', 'content' => $userMsg];
+        }
 
         try {
             $context = $this->gatherContext();
@@ -146,6 +165,121 @@ class DevToolsController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * GET /devtools/nav-items — devuelve la lista de items principales del
+     * sistema filtrada por los permisos del usuario actual, para alimentar
+     * la columna sidebar del DevtoolsPanel (que vive en una página
+     * master-without-nav y necesita su propio menú).
+     *
+     * Lista hardcoded — la fidelidad con el sidebar real del sistema no es
+     * objetivo aquí; es una navegación de atajos para el usuario DESARROLLADOR.
+     */
+    public function navItems(): JsonResponse
+    {
+        $user = auth()->user();
+
+        $items = [
+            [
+                'label'      => 'Dashboard',
+                'icon'       => 'fas fa-tachometer-alt',
+                'route'      => '/dashboard',
+                'permission' => 'dashboard_view_dashboard',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Clientes',
+                'icon'       => 'fas fa-users',
+                'route'      => '/clientes',
+                'permission' => 'client_view_client',
+                'children'   => [
+                    ['label' => 'Lista',   'route' => '/clientes'],
+                    ['label' => 'Morosos', 'route' => '/clientes/morosos'],
+                ],
+            ],
+            [
+                'label'      => 'Finanzas',
+                'icon'       => 'fas fa-dollar-sign',
+                'route'      => '/finanzas',
+                'permission' => 'finance_view_finance',
+                'children'   => [
+                    ['label' => 'Pagos',        'route' => '/finanzas/pagos'],
+                    ['label' => 'Facturas',     'route' => '/finanzas/facturas'],
+                    ['label' => 'Contabilidad', 'route' => '/finanzas/contabilidad'],
+                ],
+            ],
+            [
+                'label'      => 'Red',
+                'icon'       => 'fas fa-network-wired',
+                'route'      => '/red',
+                'permission' => 'network_view_network',
+                'children'   => [
+                    ['label' => 'Routers', 'route' => '/red/routers'],
+                    ['label' => 'OLTs',    'route' => '/red/olts'],
+                    ['label' => 'IPs',     'route' => '/red/ips'],
+                ],
+            ],
+            [
+                'label'      => 'Tickets',
+                'icon'       => 'fas fa-ticket-alt',
+                'route'      => '/tickets',
+                'permission' => 'ticket_view_ticket',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Inventario',
+                'icon'       => 'fas fa-boxes',
+                'route'      => '/inventario',
+                'permission' => 'inventory_view_inventory',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Mapas',
+                'icon'       => 'fas fa-map-marked-alt',
+                'route'      => '/mapas',
+                'permission' => 'maps_view_maps',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Reportes',
+                'icon'       => 'fas fa-chart-bar',
+                'route'      => '/reportes',
+                'permission' => 'report_view_report',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'IA',
+                'icon'       => 'fas fa-robot',
+                'route'      => '/ia',
+                'permission' => 'ia_view_chat',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Configuración',
+                'icon'       => 'fas fa-cog',
+                'route'      => '/configuracion',
+                'permission' => 'setting_view_setting',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'DevTools',
+                'icon'       => 'fas fa-tools',
+                'route'      => '/devtools',
+                'permission' => null,
+                'active'     => true,
+                'children'   => [],
+            ],
+        ];
+
+        $filtered = array_values(array_filter($items, function ($item) use ($user) {
+            if ($item['permission'] === null) {
+                return true;
+            }
+            return $user && $user->can($item['permission']);
+        }));
+
+        return response()->json($filtered);
     }
 
     // ---------------------------------------------------------------------
@@ -226,6 +360,63 @@ class DevToolsController extends Controller
             fn ($m) => $m['slug'] ?? null,
             app(ModuleManagerService::class)->manifests()
         )));
+    }
+
+    /**
+     * Convierte la lista de attachments del request a content blocks que la
+     * Claude API entiende. Imágenes → bloque "image" base64 (vision).
+     * Archivos de texto → bloque "text" con el contenido entre fences.
+     * Archivos binarios sin extracción → bloque "text" con placeholder.
+     *
+     * El payload espera attachments con keys: type ('image'|'file'),
+     * name, mimeType, base64.
+     */
+    private function buildAttachmentBlocks(array $attachments): array
+    {
+        $blocks = [];
+        foreach ($attachments as $att) {
+            $type = $att['type'] ?? '';
+            $b64 = $att['base64'] ?? '';
+            $mime = $att['mimeType'] ?? '';
+            $name = $att['name'] ?? 'archivo';
+            if ($b64 === '') {
+                continue;
+            }
+            if ($type === 'image') {
+                $blocks[] = [
+                    'type' => 'image',
+                    'source' => [
+                        'type' => 'base64',
+                        'media_type' => $mime !== '' ? $mime : 'image/png',
+                        'data' => $b64,
+                    ],
+                ];
+                continue;
+            }
+            // type === 'file' → intentar decodificar como texto.
+            $raw = base64_decode($b64, true);
+            $isTextMime = $mime !== '' && (
+                str_starts_with($mime, 'text/')
+                || in_array($mime, ['application/json', 'application/javascript', 'application/x-php'], true)
+            );
+            $isTextExt = (bool) preg_match('/\.(txt|md|json|csv|php|js|vue|py)$/i', $name);
+            if (($isTextMime || $isTextExt) && $raw !== false) {
+                // Truncar a 50 KB para no inflar el payload — suficiente para
+                // archivos de código razonables, y evita exceder context window
+                // si el desarrollador adjunta logs gigantes.
+                $excerpt = mb_substr($raw, 0, 50000);
+                $blocks[] = [
+                    'type' => 'text',
+                    'text' => "[Archivo adjunto: {$name}]\n```\n{$excerpt}\n```",
+                ];
+            } else {
+                $blocks[] = [
+                    'type' => 'text',
+                    'text' => "[Archivo adjunto binario: {$name} ({$mime}) — contenido no extraído]",
+                ];
+            }
+        }
+        return $blocks;
     }
 
     /**

@@ -6,8 +6,15 @@
     @include('core-layout::head')
 </head>
 
+@php
+    // `configLayout` está disponible globalmente vía View::share() registrado
+    // en Core/Layout/ModuleServiceProvider. Lo usamos aquí para propagar el
+    // tema (light/dark) al body, igual que master.blade.php — necesario para
+    // que componentes Vue como DevtoolsPanel detecten el tema del usuario.
+    $config = isset($configLayout) ? $configLayout(auth()->user()->id ?? null) : null;
+@endphp
 
-<body>
+<body @if($config) data-layout-mode="{{ $config->color_mode }}" data-topbar="{{ $config->color_mode }}" data-sidebar="{{ $config->color_mode }}" @endif>
     <div id="init-vue">
         <div id="layout-wrapper">
 
