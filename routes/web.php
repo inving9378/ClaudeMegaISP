@@ -200,42 +200,7 @@ Route::group(['middleware' => ['auth']], function () {
                 });
             });
 
-            // Module Tickets
-            Route::group(['prefix' => 'tickets', 'namespace' => 'Ticket'], function () {
-                Route::get('/', 'DashboardController@index');
-
-                Route::get('/abiertos', 'TicketController@opened');
-                Route::get('/abiertos/{client_id}', 'TicketController@opened');
-                Route::get('/cerrados', 'TicketController@closed');
-                Route::get('/cerrados/{client_id}', 'TicketController@closed');
-                Route::get('/reciclados', 'TicketController@trash');
-                Route::get('/crear', 'TicketController@create');
-                Route::get('/crear/{clientId}', 'TicketController@create');
-                Route::post('/add', 'TicketController@store');
-                Route::get('/success/{id}', 'TicketController@success');
-                Route::get('/editar/{id}', 'TicketController@edit');
-                Route::get('/ver/{id}', 'TicketController@ver');
-                Route::post('/update/{id}', 'TicketController@update');
-                Route::post('/mensaje/update/{id}', 'TicketThreadController@update');
-                Route::post('/mensaje/add/{id}', 'TicketThreadController@store');
-                Route::get('/destroy/{id}', 'TicketController@destroy');
-                Route::post('/table', 'TicketController@table');
-                Route::get('/notifica/{id}', 'TicketController@notificationsReadMarked');
-
-                Route::post('/get-ticket-by-id/{id}', 'TicketController@getTicketById');
-                Route::post('/get-time-lapsed/{id}', 'TicketController@getTimeLapsed');
-                Route::post('/get-user-data-by-ticket-id/{id}', 'TicketController@getUserDataTicketById');
-                Route::post('/set-status-ticket-by-id/{id}', 'TicketController@setStatusTicketById');
-                Route::post('/get-ticket-thread-by-id/{id}', 'TicketThreadController@getTicketThreadById');
-                Route::post('/get-data-client/{id}', 'TicketController@getDataClient');
-                Route::post('/get-parent-ticket-by-id/{id}', 'TicketThreadController@getParentTicketById');
-                Route::post('/get-child-ticket-by-id/{id}', 'TicketThreadController@getChildTicketById');
-
-                Route::post('/request-statistics-for-tarjets-by-status', 'DashboardController@getStatisticsForTarjetsByStatus');
-                Route::post('/request-ticket-assigned-to-me', 'DashboardController@getTicketAssignedToMe');
-                Route::post('/request-ticket-assigned-to', 'DashboardController@getTicketAssignedTo');
-                Route::get('/get-tickets-new-by-date/{startDate}/{endDate}/{status}', 'DashboardController@getTicketsByDateAndStatus');
-            });
+            // Rutas `tickets/*` migradas a app/Modules/Addons/Tickets/routes.php
 
             // Module CRM migrado a app/Modules/Core/CRM/routes.php
 
