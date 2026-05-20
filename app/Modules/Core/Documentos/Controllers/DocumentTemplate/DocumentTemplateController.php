@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\DocumentTemplate;
+namespace App\Modules\Core\Documentos\Controllers\DocumentTemplate;
 
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\administration\document_template\DocumentTemplateDatatableHelper;
