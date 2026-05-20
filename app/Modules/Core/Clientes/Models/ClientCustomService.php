@@ -203,7 +203,7 @@ class ClientCustomService extends BaseModel implements ServiceInterface
     public function getRequestAndStoreMethod()
     {
         $request = new ClientCustomServiceCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientCustomServiceController@store';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientCustomServiceController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,

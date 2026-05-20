@@ -3,7 +3,7 @@
 namespace App\Modules\Core\CRM\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Module\Client\ClientHelperController;
+use App\Modules\Core\Clientes\Controllers\ClientHelperController;
 use App\Http\Requests\module\crm\ConvertToClientRequest;
 use Illuminate\Support\Facades\DB;
 use App\Models\Client;
