@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Maps;
+namespace App\Modules\Addons\Mapas\Controllers\Geo;
 
 use App\Http\Controllers\Controller;
 use App\Http\Traits\Maps\LayerConfig;
