@@ -1,38 +1,36 @@
 <?php
 
-namespace App\Http\Controllers\Module\Plan;
+namespace App\Modules\Addons\Planes\Controllers;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Http\HelpersModule\module\planes\VozDatatableHelper;
-use App\Http\Requests\module\plan\VozCreateRequest;
-use App\Http\Requests\module\plan\VozUpdateRequest;
+use App\Http\HelpersModule\module\planes\CustomDatatableHelper;
+use App\Http\Requests\module\plan\CustomCreateRequest;
+use App\Http\Requests\module\plan\CustomUpdateRequest;
 use App\Http\Traits\ValidationImportModuleTrait;
-use App\Models\Internet;
+use App\Models\Custom;
 use App\Models\Module;
 use App\Models\Partner;
 use App\Models\TypeBilling;
-use App\Models\Voise;
 use App\Services\ImportdDBService;
 use App\Services\PromotionService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-class VozController extends Controller
+//use Illuminate\Support\Str;
+
+class CustomController extends Controller
 {
-    private $helper;
-
     use ValidationImportModuleTrait;
-
-    public function __construct(VozDatatableHelper $helper)
+    private $helper;
+    public function __construct(CustomDatatableHelper $helper)
     {
-        $model = 'Voise';
-        $this->data['url'] = 'meganet.module.voz';
-        $this->data['module'] = 'voz';
+        $model = 'Custom';
+        $this->data['url'] = 'meganet.module.custom';
+        $this->data['module'] = 'custom';
         $this->data['model'] = 'App\Models\\' . $model;
         $this->data['group'] = 'plan';
         $this->helper = $helper;
     }
-
     /**
      * Display a listing of the resource.
      *
@@ -47,10 +45,9 @@ class VozController extends Controller
 
     public function success($id)
     {
-        $message =  'Plan de Voz ' . ($id == 'null' ? 'Creado' : 'Actualizado') . ' Correctamente';
-        return redirect()->route('voz')->with(['message' => $message]);
+        $message =  'Plan Custom ' . ($id == 'null' ? 'Creado' : 'Actualizado') . ' Correctamente';
+        return redirect()->route('recurrente')->with(['message' => $message]);
     }
-
     /**
      * Show the form for creating a new resource.
      *
@@ -66,10 +63,10 @@ class VozController extends Controller
     /**
      * Store a newly created resource in storage.
      *
-     * @param \Illuminate\Http\Request $request
+     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store(VozCreateRequest $request)
+    public function store(CustomCreateRequest $request)
     {
         // Trunca el precio a 2 decimales SIN redondear
         $rawPrice = (float)$request->input('price');
@@ -78,19 +75,19 @@ class VozController extends Controller
         $request->merge([
             'price' => (string)$truncatedPrice, // Guarda como "499.99"
         ]);
+        $this->validateFieldByRulesInTableFiledModules($this->data['module'], $request);
         $input = defined($this->data['model'] . '::MULTIPLE_RELATIONS') ?
             $request->except(collect($this->data['model']::MULTIPLE_RELATIONS)->keys()->toArray()) :
             $request->all();
 
-        $input['cost_activation'] = $input['cost_activation'] ?? '0.00';
-        $input['cost_instalation'] = $input['cost_instalation'] ?? '0.00';
-
         $input = (new PromotionService())->createPromotionIfPromotionEnable($input);
+
         if ($request->import) {
             $this->imporDataToTable($input, $request);
         } else {
             $model = $this->data['model']::create($input);
             $this->saveRelationMultipleIfExist($this->data['model'], $model, $request);
+
             return $model;
         }
     }
@@ -98,25 +95,26 @@ class VozController extends Controller
     public function imporDataToTable($input, $request)
     {
         $newImportDbService = new ImportdDBService();
-        $module = Module::where('name', Module::PLAN_VOZ_MODULE_NAME)->first();
+        $module = Module::where('name', Module::CUSTOM_MODULE_NAME)->first();
         $input = $newImportDbService->processInputImportByModule($input, $module);
         $input['created_at'] = now();
         $input['updated_at'] = now();
         $input['cost_activation'] = $input['cost_activation'] ?? '0.00';
         $input['cost_instalation'] = $input['cost_instalation'] ?? '0.00';
         unset($input['import']);
-        $idModel = DB::table('voises')->insertGetId($input);
+
+        $idModel = DB::table('customs')->insert($input);
         $model = $this->data['model']::where('id', $idModel)->first();
         $this->processItems($request->partners, Partner::class, 'name', $model, 'partners');
         $this->processItems($request->types_of_billing, TypeBilling::class, 'type', $model, 'billings');
-        $this->processItems($request->rates_to_change, Voise::class, 'title', $model, 'plan_voz_client');
+        $this->processItems($request->rates_to_change, Custom::class, 'title', $model, 'plan_custom_client');
         return $model;
     }
 
     /**
      * Display the specified resource.
      *
-     * @param int $id
+     * @param  int  $id
      * @return \Illuminate\Http\Response
      */
     public function show($id)
@@ -127,7 +125,7 @@ class VozController extends Controller
     /**
      * Show the form for editing the specified resource.
      *
-     * @param int $id
+     * @param  int  $id
      * @return \Illuminate\Http\Response
      */
     public function edit($id)
@@ -142,11 +140,11 @@ class VozController extends Controller
     /**
      * Update the specified resource in storage.
      *
-     * @param \Illuminate\Http\Request $request
-     * @param int $id
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function update(VozUpdateRequest $request, $id)
+    public function update(CustomUpdateRequest $request, $id)
     {
         // Trunca el precio a 2 decimales SIN redondear
         $rawPrice = (float)$request->input('price');
@@ -162,7 +160,6 @@ class VozController extends Controller
             $request->all();
 
         $input = (new PromotionService())->updateAndReturnInput($input, $model);
-
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request, 'sync');
         return $model->update($input);
     }
@@ -170,7 +167,7 @@ class VozController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param int $id
+     * @param  int  $id
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)

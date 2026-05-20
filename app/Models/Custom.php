@@ -71,7 +71,7 @@ class Custom extends BaseModel implements PackageInterface
     public function getRequestAndStoreMethod()
     {
         $request = new CustomCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Plan\CustomController@store';
+        $storeMethod = 'App\Modules\Addons\Planes\Controllers\CustomController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod

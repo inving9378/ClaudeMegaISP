@@ -152,53 +152,7 @@ Route::group(['middleware' => ['auth']], function () {
 
             // Rutas `message/*` migradas a app/Modules/Addons/Mensajes/routes.php
 
-            // Module Plan
-            Route::group(['namespace' => 'Plan'], function () {
-                // Internet
-                Route::group(['prefix' => 'internet'], function () {
-                    Route::get('/', 'InternetController@index')->name('internet');
-                    Route::get('/success/{id}', 'InternetController@success');
-                    Route::get('/crear', 'InternetController@create');
-                    Route::post('/add', 'InternetController@store');
-                    Route::get('/editar/{id}', 'InternetController@edit');
-                    Route::post('/update/{id}', 'InternetController@update');
-                    Route::post('/destroy/{id}', 'InternetController@destroy');
-                    Route::post('/table', 'InternetController@table');
-                });
-                // Bundles
-                Route::group(['prefix' => 'paquetes'], function () {
-                    Route::get('/', 'BundleController@index')->name('paquetes');
-                    Route::get('/success/{id}', 'BundleController@success');
-                    Route::get('/crear', 'BundleController@create');
-                    Route::post('/add', 'BundleController@store');
-                    Route::get('/editar/{id}', 'BundleController@edit');
-                    Route::post('/update/{id}', 'BundleController@update');
-                    Route::post('/destroy/{id}', 'BundleController@destroy');
-                    Route::post('/table', 'BundleController@table');
-                });
-                // Voz
-                Route::group(['prefix' => 'voz'], function () {
-                    Route::get('/', 'VozController@index')->name('voz');
-                    Route::get('/success/{id}', 'VozController@success');
-                    Route::get('/crear', 'VozController@create');
-                    Route::post('/add', 'VozController@store');
-                    Route::get('/editar/{id}', 'VozController@edit');
-                    Route::post('/update/{id}', 'VozController@update');
-                    Route::post('/destroy/{id}', 'VozController@destroy');
-                    Route::post('/table', 'VozController@table');
-                });
-                // Custom
-                Route::group(['prefix' => 'custom'], function () {
-                    Route::get('/', 'CustomController@index')->name('recurrente');
-                    Route::get('/success/{id}', 'CustomController@success');
-                    Route::get('/crear', 'CustomController@create');
-                    Route::post('/add', 'CustomController@store');
-                    Route::get('/editar/{id}', 'CustomController@edit');
-                    Route::post('/update/{id}', 'CustomController@update');
-                    Route::post('/destroy/{id}', 'CustomController@destroy');
-                    Route::post('/table', 'CustomController@table');
-                });
-            });
+            // Rutas internet/paquetes/voz/custom (Module Plan) migradas a app/Modules/Addons/Planes/routes.php
 
             // Rutas `tickets/*` migradas a app/Modules/Addons/Tickets/routes.php
 
