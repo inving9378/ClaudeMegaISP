@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Helpers;
 
-use App\Http\Controllers\Module\Client\ClientController;
+use App\Modules\Core\Clientes\Controllers\ClientController;
 use App\Models\Client;
 use App\Models\ClientMainInformation;
 use App\Models\BillingConfiguration;

@@ -139,7 +139,7 @@ class Payment extends Model
     public function getRequestAndStoreMethod()
     {
         $request = new ClientPaymentRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientPaymentController@store';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientPaymentController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,
