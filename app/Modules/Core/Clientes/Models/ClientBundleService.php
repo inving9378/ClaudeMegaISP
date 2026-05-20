@@ -158,7 +158,7 @@ class ClientBundleService extends BaseModel implements ServiceInterface
     public function getRequestAndStoreMethod()
     {
         $request = new Request();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientBundleServiceController@imporDataToTable';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientBundleServiceController@imporDataToTable';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,
