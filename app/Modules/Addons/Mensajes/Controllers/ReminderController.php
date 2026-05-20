@@ -1,27 +1,28 @@
 <?php
 
-namespace App\Http\Controllers\Module\Message\InvoiceEmail;
+namespace App\Modules\Addons\Mensajes\Controllers;
 
 
 use App\Http\Controllers\Controller;
-use App\Http\HelpersModule\module\message\invoice_email\InvoiceEmailDatatableHelper;
-use App\Http\Requests\module\message\invoice_email\InvoiceEmailCreateRequest;
+use App\Http\HelpersModule\module\message\reminder\ReminderDatatableHelper;
+use App\Http\Requests\module\message\reminder\ReminderCreateRequest;
 use App\Modules\Core\Configuracion\Services\EmailConfigService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
-class InvoiceEmailController extends Controller
+class ReminderController extends Controller
 {
     protected $helper;
     protected $crudValidationRequest;
-    public function __construct(InvoiceEmailDatatableHelper $helper)
+    public function __construct(ReminderDatatableHelper $helper)
     {
-        $this->crudValidationRequest = new InvoiceEmailCreateRequest();
+        $this->crudValidationRequest = new ReminderCreateRequest();
         $this->helper = $helper;
 
-        $this->data['model'] = 'App\Models\InvoiceEmail';
-        $this->data['url'] = 'meganet.module.message.invoice_email';
-        $this->data['module'] = 'InvoiceEmail';
+        $this->data['model'] = 'App\Models\Reminder';
+        $this->data['url'] = 'meganet.module.message.reminder';
+        $this->data['module'] = 'Reminder';
 
         $this->includeLibraryDinamic($this->data['module']);
     }
@@ -43,7 +44,7 @@ class InvoiceEmailController extends Controller
         $message = $this->data['model']::find($id);
         try {
             $emailConfigService = new EmailConfigService();
-            $emailConfigService->sendEmail('invoice', $message);
+            $emailConfigService->sendEmail('reminder', $message);
             return response()->json([
                 'success' => true,
                 'message' => 'El mensaje se ha enviado con éxito.',
