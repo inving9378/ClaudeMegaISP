@@ -1,0 +1,9 @@
+{
+    "slug": "core-release",
+    "name": "Release",
+    "version": "0.1.0",
+    "description": "Notas de versión / changelog del sistema.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}
