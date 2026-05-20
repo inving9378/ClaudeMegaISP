@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Http\Controllers\Module\Client\ClientController;
+use App\Modules\Core\Clientes\Controllers\ClientController;
 use App\Http\HelpersModule\module\client\ClientDatatableHelper;
 use App\Models\Helper\Client as ClientRequest;
 use App\Services\UserAuthenticator;

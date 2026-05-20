@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Modules\Addons\GestionRed\Controllers\Network;
 
-use App\Http\Controllers\Module\Client\ClientController;
+use App\Modules\Core\Clientes\Controllers\ClientController;
 use App\Http\Requests\module\client\ClientCreateRequest;
 use App\Models\Client;
 use App\Models\ClientMainInformation;

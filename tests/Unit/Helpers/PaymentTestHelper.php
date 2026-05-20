@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Helpers;
 
-use App\Http\Controllers\Module\Client\ClientPaymentController;
+use App\Modules\Core\Clientes\Controllers\ClientPaymentController;
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\Controllers\Utils\TypeOfBillingController;
 use App\Http\HelpersModule\module\client\ClientPaymentDatatableHelper;

@@ -28,7 +28,7 @@ class Transaction extends BaseModel
     public function getRequestAndStoreMethod()
     {
         $request = new ClientTransactionRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientTransactionController@store';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientTransactionController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,
