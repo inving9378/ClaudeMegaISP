@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Finance\GeneralAccounting;
+namespace App\Modules\Addons\Finanzas\Controllers\GeneralAccounting;
 
 use App\Http\Controllers\Controller;
 use App\Models\GeneralAccountingCategory;

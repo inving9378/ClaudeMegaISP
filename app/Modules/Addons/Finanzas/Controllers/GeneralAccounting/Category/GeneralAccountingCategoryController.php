@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Finance\GeneralAccounting\Category;
+namespace App\Modules\Addons\Finanzas\Controllers\GeneralAccounting\Category;
 
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\finance\GeneralAccountingCategoryDatatableHelper;

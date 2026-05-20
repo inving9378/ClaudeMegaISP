@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Finance\Invoice;
+namespace App\Modules\Addons\Finanzas\Controllers\Invoice;
 
 use App\Dto\EmailDto;
 use App\Http\Controllers\Base\CrudModalController;

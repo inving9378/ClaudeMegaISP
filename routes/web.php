@@ -96,64 +96,7 @@ Route::group(['middleware' => ['auth']], function () {
                 // Rutas `red/ipv4` y `red/router` migradas a app/Modules/Addons/GestionRed/routes.php
             });
 
-            Route::group(['prefix' => 'finanzas', 'namespace' => 'Finance'], function () {
-
-                Route::group(['prefix' => 'transacciones', 'namespace' => 'Transaction'], function () {
-                    Route::get('/', 'FinanceTransactionController@index');
-                    Route::get('/', 'FinanceTransactionController@index');
-                    Route::post('/table', 'FinanceTransactionController@table');
-                });
-
-                Route::group(['prefix' => 'facturas', 'namespace' => 'Invoice'], function () {
-                    Route::get('/', 'FinanceInvoiceController@index');
-                    Route::post('/table', 'FinanceInvoiceController@table');
-                });
-
-                Route::group(['prefix' => 'pagos', 'namespace' => 'Payment'], function () {
-                    Route::get('/', 'FinancePaymentController@index');
-                    Route::post('/table', 'FinancePaymentController@table');
-                });
-
-                Route::group(['prefix' => 'invoices', 'namespace' => 'Invoice'], function () {
-                    Route::get('/', 'InvoiceController@index');
-                    Route::post('/table', 'InvoiceController@table');
-                    Route::post('/create-for-client/{id}', 'InvoiceController@createForClient');
-
-                    Route::post('/send/{id}', 'InvoiceController@sendInvoice');
-                    Route::get('/print/{id}', 'InvoiceController@printInvoice');
-                    Route::post('/mark-as-paid/{id}', 'InvoiceController@markAsPaid');
-                    Route::post('/edit-period/{id}', 'InvoiceController@editPeriod');
-
-                    Route::post('/get-pending-by-client/{id}', 'InvoiceController@getPendingByClient');
-                    Route::post('/destroy/{id}', 'InvoiceController@destroy');
-                    Route::get('/get-available-periods-by-client/{id}', 'InvoiceController@getAvailablePeriodsByClient');
-                });
-
-                Route::group(['prefix' => 'general-accounting', 'namespace' => 'GeneralAccounting'], function () {
-                    Route::get('/', 'GeneralAccountingController@index');
-                    Route::get('/get-data', 'GeneralAccountingController@getData');
-                    Route::get('/get-bar-data', 'GeneralAccountingController@getBarData');
-                    Route::get('/get-donut-data', 'GeneralAccountingController@getDonutData');
-                    Route::group(['prefix' => 'income', 'namespace' => 'Income'], function () {
-                        Route::post('/table', 'GeneralAccountingIncomeController@table');
-                        Route::post('/add', 'GeneralAccountingIncomeController@store');
-                    });
-
-                    Route::group(['prefix' => 'expense', 'namespace' => 'Expense'], function () {
-                        Route::post('/table', 'GeneralAccountingExpenseController@table');
-                        Route::post('/add', 'GeneralAccountingExpenseController@store');
-                    });
-
-                    Route::group(['prefix' => 'operation', 'namespace' => 'Operation'], function () {
-                        Route::post('/add', 'GeneralAccountingOperationController@store');
-                        Route::post('/update/{id}', 'GeneralAccountingOperationController@update');
-                    });
-
-                    Route::group(['prefix' => 'category', 'namespace' => 'Category'], function () {
-                        Route::post('/add', 'GeneralAccountingCategoryController@store');
-                    });
-                });
-            });
+            // Rutas `finanzas/*` migradas a app/Modules/Addons/Finanzas/routes.php
 
             // Rutas `releases/*` migradas a app/Modules/Core/Release/routes.php
             // Rutas `git/*` migradas a app/Modules/Addons/DevTools/routes.php (sub-namespace Git)

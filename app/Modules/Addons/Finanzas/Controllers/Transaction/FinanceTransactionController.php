@@ -1,21 +1,21 @@
 <?php
 
-namespace App\Http\Controllers\Module\Finance\Payment;
+namespace App\Modules\Addons\Finanzas\Controllers\Transaction;
 
 use App\Http\Controllers\Controller;
-use App\Http\HelpersModule\module\finance\FinancePaymentDatatableHelper;
+use App\Http\HelpersModule\module\finance\FinanceTransactionDatatableHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-class FinancePaymentController extends Controller
+class FinanceTransactionController extends Controller
 {
 
     private $helper;
-    public function __construct(FinancePaymentDatatableHelper $helper)
+    public function __construct(FinanceTransactionDatatableHelper $helper)
     {
-        $model = 'Payment';
-        $this->data['url'] = 'meganet.module.finance.payment';
-        $this->data['module'] = 'FinancePayment';
+        $model = 'Transaction';
+        $this->data['url'] = 'meganet.module.finance.' . Str::lower($model);
+        $this->data['module'] = 'FinanceTransaction';
         $this->data['model'] = 'App\Models\\'.$model;
         $this->data['group'] = 'finance';
         $this->helper = $helper;
@@ -29,7 +29,7 @@ class FinancePaymentController extends Controller
     public function index()
     {
         $this->data['notifications'] = $this->userNotification();
-        $this->includeLibraryDinamic('App\Models\FinancePayment');
+        $this->includeLibraryDinamic('App\Models\FinanceTransaction');
         return view($this->data['url'] . '.index',$this->data);
     }
 
