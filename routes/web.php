@@ -517,9 +517,7 @@ Route::group(['middleware' => ['auth']], function () {
             });
 
             // Rutas `releases/*` migradas a app/Modules/Core/Release/routes.php
-            Route::group(['prefix' => 'git', 'namespace' => 'Git'], function () {
-                Route::get('/get-tags', 'GitController@getTags');
-            });
+            // Rutas `git/*` migradas a app/Modules/Addons/DevTools/routes.php (sub-namespace Git)
 
             Route::group(['prefix' => 'scheduling', 'namespace' => 'Scheduling'], function () {
 

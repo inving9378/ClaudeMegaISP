@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Git;
+namespace App\Modules\Addons\DevTools\Controllers\Git;
 
 use App\Http\Controllers\Controller;
 use App\Services\Git\GitService;
