@@ -48,17 +48,7 @@ use App\Http\Controllers\Module\Maps\LayersController;
 use App\Http\Controllers\Module\Maps\ProyectsController;
 use App\Http\Controllers\Module\Maps\KMZController;
 use App\Http\Controllers\Module\Maps\ServiceBoxController;
-use App\Http\Controllers\Module\OLTs\OLTsBillingController;
-use App\Http\Controllers\Module\OLTs\OLTsCardsController;
-use App\Http\Controllers\Module\OLTs\OLTsController;
-use App\Http\Controllers\Module\OLTs\OLTsODBsController;
-use App\Http\Controllers\Module\OLTs\OLTsOnuController;
-use App\Http\Controllers\Module\OLTs\OLTsPonPortsController;
-use App\Http\Controllers\Module\OLTs\OLTsProfilesController;
-use App\Http\Controllers\Module\OLTs\OLTsTypeONUsController;
-use App\Http\Controllers\Module\OLTs\OLTsUplinkPortsController;
-use App\Http\Controllers\Module\OLTs\OLTsVlansController;
-use App\Http\Controllers\Module\OLTs\OLTsZonesController;
+// OLTs controllers migrados a App\Modules\Addons\GestionRed\Controllers\OLTs (rutas en módulo)
 use App\Http\Controllers\Module\Sellers\Cuts\ExtraIncomeController;
 use App\Http\Controllers\Module\Sellers\Cuts\InstallationController;
 use App\Http\Controllers\Module\Sellers\Cuts\ObservationsController;
@@ -662,100 +652,7 @@ Route::group(['middleware' => ['auth']], function () {
             });
 
 
-            Route::group(['prefix' => 'olts', 'namespace' => 'OLTs'], function () {
-                Route::get('/', [OLTsController::class, 'panel']);
-                Route::post('/list', [OLTsController::class, 'oltList']);
-                Route::post('/zones', [OLTsController::class, 'zones']);
-                Route::post('/type-onus', [OLTsController::class, 'typeONUs']);
-                Route::post('/nomenclatures', [OLTsController::class, 'nomenclatures']);
-                Route::post('/uptime-env-temp', [OLTsController::class, 'getUptimeEnvTemp']);
-                Route::post('/cards/{id}', [OLTsController::class, 'oltCardsDetails']);
-                Route::post('/pon-ports/{id}', [OLTsController::class, 'getOltPonPortsDetails']);
-                Route::post('/outage-pons/{id}', [OLTsController::class, 'getOutagePons']);
-                Route::post('/outage-pons', [OLTsController::class, 'getOutagePons']);
-                Route::post('/uplink-ports/{id}', [OLTsController::class, 'getOltUplinkPortsDetails']);
-                Route::post('/vlans/{id}', [OLTsController::class, 'getVLANs']);
-
-                Route::post('/dashboard-interruptions', [OLTsController::class, 'getDashboardInterruptions']);
-                Route::post('/dashboard-onus-status/{id}', [OLTsController::class, 'getDashboardOnusStatus']);
-                Route::post('/dashboard-onus-status', [OLTsController::class, 'getDashboardOnusStatus']);
-
-                Route::get('/dashboard', [OLTsController::class, 'dashboard']);
-
-                Route::group(['prefix' => 'onus'], function () {
-                    Route::post('/create', [OLTsOnuController::class, 'store']);
-                    Route::post('/sync/{id}', [OLTsOnuController::class, 'sync']);
-                    Route::post('/get-by-client/{id}', [OLTsOnuController::class, 'getByClient']);
-                    Route::post('/get-mgmt-ip/{id}', [OLTsOnuController::class, 'getMgmTIp']);
-                    Route::post('/get-ip-address/{id}', [OLTsOnuController::class, 'getIpAddress']);
-                    Route::post('/get-signal-and-status/{id}', [OLTsOnuController::class, 'getSignalAndStatus']);
-                    Route::post('/configure-ethernet-port/{id}', [OLTsOnuController::class, 'configureEhernetPort']);
-                    Route::post('/configure-wifi-port/{id}', [OLTsOnuController::class, 'configureWifiPort']);
-                    Route::post('/update-service-port/{id}', [OLTsOnuController::class, 'updateServicePort']);
-                    Route::post('/update-attached-vlans/{id}', [OLTsOnuController::class, 'changeAttachedVlans']);
-                    Route::post('/set-onu-voip-port/{id}', [OLTsOnuController::class, 'setOnuVoipPort']);
-                    Route::post('/update-channel/{id}', [OLTsOnuController::class, 'updateChannel']);
-                    Route::post('/update-mode/{id}', [OLTsOnuController::class, 'updateMode']);
-                    Route::delete('/remove/{id}', [OLTsOnuController::class, 'remove']);
-                    Route::post('/traffic-graph/{id}', [OLTsOnuController::class, 'getTrafficGraph']);
-                    Route::post('/image/{id}', [OLTsOnuController::class, 'getImageONU']);
-                    Route::post('/signal-graph/{id}', [OLTsOnuController::class, 'getSignalGrap']);
-                    Route::post('/update-mgmt-and-vo-ip/{id}', [OLTsOnuController::class, 'updateMgmtAndVoIp']);
-                    Route::post('/full-status/{id}', [OLTsOnuController::class, 'getFullStatus']);
-                    Route::post('/running-config/{id}', [OLTsOnuController::class, 'getRunningConfig']);
-                    Route::post('/update-external-id/{id}', [OLTsOnuController::class, 'updateExternalId']);
-                    Route::post('/change-web-user-pass/{id}', [OLTsOnuController::class, 'changeWebUserPass']);
-                    Route::post('/set-catv/{id}', [OLTsOnuController::class, 'setCATV']);
-                    Route::post('/change-onu-type/{id}', [OLTsOnuController::class, 'changeOnuType']);
-                    Route::post('/unconfigured', [OLTsOnuController::class, 'getUnconfigured']);
-                    Route::post('/unconfigured/{id}', [OLTsOnuController::class, 'getUnconfigured']);
-                    Route::post('/saved-unconfigured', [OLTsOnuController::class, 'getSavedUnconfigured']);
-                    Route::post('/configured', [OLTsOnuController::class, 'index']);
-                    Route::post('/configured/{id}', [OLTsOnuController::class, 'index']);
-
-                    Route::post('/signal/{sn}', [OLTsController::class, 'getSignalByOnu']);
-                    Route::post('/enable-disable/{id}', [OLTsController::class, 'enableDisableOnu']);
-                    Route::post('/resync/{id}', [OLTsController::class, 'resyncOnuConfig']);
-                    Route::post('/reboot/{id}', [OLTsController::class, 'rebootOnu']);
-                    Route::post('/move/{id}', [OLTsController::class, 'moveOnu']);
-                    Route::post('/details/{id}', [OLTsController::class, 'getDetailsByONU']);
-                    Route::post('/update-location/{id}', [OLTsController::class, 'updateOnuLocation']);
-                    Route::post('/nomenclatures', [OLTsController::class, 'nomenclaturesFromOnus']);
-                });
-
-                Route::group(['prefix' => 'settings'], function () {
-                    Route::post('/billings', [OLTsBillingController::class, 'index']);
-
-                    Route::group(['prefix' => 'zones'], function () {
-                        Route::post('/', [OLTsZonesController::class, 'index']);
-                        Route::post('/store', [OLTsZonesController::class, 'store']);
-                    });
-
-                    Route::group(['prefix' => 'odbs'], function () {
-                        Route::post('/', [OLTsODBsController::class, 'index']);
-                        Route::post('/store', [OLTsODBsController::class, 'store']);
-                    });
-
-                    Route::group(['prefix' => 'type-onus'], function () {
-                        Route::post('/', [OLTsTypeONUsController::class, 'index']);
-                        Route::post('/store', [OLTsTypeONUsController::class, 'store']);
-                    });
-
-                    Route::group(['prefix' => 'profiles'], function () {
-                        Route::post('/', [OLTsProfilesController::class, 'index']);
-                        Route::post('/store', [OLTsProfilesController::class, 'store']);
-                    });
-
-                    Route::group(['prefix' => 'olts'], function () {
-                        Route::post('/', [OLTsController::class, 'index']);
-                        Route::post('/{id}/cards', [OLTsCardsController::class, 'index']);
-                        Route::post('/{id}/pon-ports', [OLTsPonPortsController::class, 'index']);
-                        Route::post('/{id}/uplink-ports', [OLTsUplinkPortsController::class, 'index']);
-                        Route::post('/{id}/vlans', [OLTsVlansController::class, 'index']);
-                        Route::post('/{id}/vlans/store', [OLTsVlansController::class, 'store']);
-                    });
-                });
-            });
+            // Rutas `olts/*` migradas a app/Modules/Addons/GestionRed/routes.php
 
             Route::group(['prefix' => 'mapas', 'namespace' => 'Mapas'], function () {
                 Route::get('/', [MapasController::class, 'index']);

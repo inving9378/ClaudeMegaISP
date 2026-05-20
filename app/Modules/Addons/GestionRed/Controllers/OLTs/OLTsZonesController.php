@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\OLTs;
+namespace App\Modules\Addons\GestionRed\Controllers\OLTs;
 
 use App\Http\Controllers\Controller;
 use App\Http\Traits\DatatableCoreTrait;

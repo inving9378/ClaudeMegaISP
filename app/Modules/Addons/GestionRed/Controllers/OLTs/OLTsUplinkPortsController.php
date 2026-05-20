@@ -1,32 +1,29 @@
 <?php
 
-namespace App\Http\Controllers\Module\OLTs;
+namespace App\Modules\Addons\GestionRed\Controllers\OLTs;
 
 use App\Http\Controllers\Controller;
 use App\Http\Traits\DatatableCoreTrait;
-use App\Models\OltVlan;
-use App\Services\OLTsService;
+use App\Models\OltUplinkPort;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 
-class OLTsVlansController extends Controller
+class OLTsUplinkPortsController extends Controller
 {
     use DatatableCoreTrait;
 
     private $model;
-    protected $oltService;
 
     public function __construct()
     {
-        $this->model = OltVlan::class;
-        $this->oltService = new OLTsService();
+        $this->model = OltUplinkPort::class;
     }
 
     public function index(Request $request, $id)
     {
         if ($request->force) {
             Artisan::call('smartolt:sync-inventory', [
-                '--only' => 'vlans',
+                '--only' => 'uplink-ports',
                 'olt' => $id
             ]);
         }
@@ -50,18 +47,21 @@ class OLTsVlansController extends Controller
     protected function getBaseColumnsByTable()
     {
         return [
-            'olt_vlans' => [
-                'vlan' => ['searchable' => true],
-                'scope' => ['searchable' => true],
+            'olt_uplink_ports' => [
+                'name' => ['searchable' => true],
+                'type' => ['searchable' => true],
+                'mode' => ['searchable' => true],
+                'admin_status' => ['searchable' => true],
+                'status' => ['searchable' => true],
+                'vlan_tag' => ['searchable' => true],
+                'negotiation_auto' => ['searchable' => true],
+                'mtu' => ['searchable' => true],
+                'wavelength' => ['searchable' => true],
+                'temperature' => ['searchable' => true],
+                'pvid' => ['searchable' => true],
                 'description' => ['searchable' => true],
                 'last_synced_at' => ['searchable' => false]
             ]
         ];
-    }
-
-    public function store(Request $request, $id)
-    {
-        $response = $this->oltService->addVlan($id, $request->all());
-        return response()->json($response);
     }
 }

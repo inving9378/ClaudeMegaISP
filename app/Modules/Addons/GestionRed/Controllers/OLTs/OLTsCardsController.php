@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Http\Controllers\Module\OLTs;
+namespace App\Modules\Addons\GestionRed\Controllers\OLTs;
 
 use App\Http\Controllers\Controller;
 use App\Http\Traits\DatatableCoreTrait;
-use App\Models\OltPonPort;
+use App\Models\OltCard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 
-class OLTsPonPortsController extends Controller
+class OLTsCardsController extends Controller
 {
     use DatatableCoreTrait;
 
@@ -16,14 +16,14 @@ class OLTsPonPortsController extends Controller
 
     public function __construct()
     {
-        $this->model = OltPonPort::class;
+        $this->model = OltCard::class;
     }
 
     public function index(Request $request, $id)
     {
         if ($request->force) {
             Artisan::call('smartolt:sync-inventory', [
-                '--only' => 'pon-ports',
+                '--only' => 'cards',
                 'olt' => $id
             ]);
         }
@@ -47,19 +47,15 @@ class OLTsPonPortsController extends Controller
     protected function getBaseColumnsByTable()
     {
         return [
-            'olt_pon_ports' => [
-                'board' => ['searchable' => true],
-                'pon_port' => ['searchable' => true],
-                'pon_type' => ['searchable' => true],
-                'admin_status' => ['searchable' => true],
-                'operational_status' => ['searchable' => true],
-                'onus_count' => ['searchable' => true],
-                'online_onus_count' => ['searchable' => true],
-                'average_signal' => ['searchable' => true],
-                'min_range' => ['searchable' => true],
-                'max_range' => ['searchable' => true],
-                'tx_power' => ['searchable' => true],
-                'description' => ['searchable' => true],
+            'olt_cards' => [
+                'slot' => ['searchable' => true],
+                'type' => ['searchable' => true],
+                'real_type' => ['searchable' => true],
+                'ports' => ['searchable' => true],
+                'software_version' => ['searchable' => true],
+                'role' => ['searchable' => true],
+                'status' => ['searchable' => true],
+                'info_updated' => ['searchable' => true],
                 'last_synced_at' => ['searchable' => false]
             ]
         ];
