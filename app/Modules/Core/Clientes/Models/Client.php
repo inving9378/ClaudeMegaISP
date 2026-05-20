@@ -370,7 +370,7 @@ class Client extends BaseModel
     public function getRequestAndStoreMethod()
     {
         $request = new ClientCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientController@store';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod
