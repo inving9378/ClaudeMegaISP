@@ -1,6 +1,6 @@
 <?php
 
-namespace  App\Http\Controllers\Module\Administration\Ift;
+namespace App\Modules\Core\Configuracion\Controllers\Ift;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;

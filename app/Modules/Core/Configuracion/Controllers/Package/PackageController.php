@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\Package;
+namespace App\Modules\Core\Configuracion\Controllers\Package;
 
 
 use App\Http\Controllers\Base\CrudModalController;

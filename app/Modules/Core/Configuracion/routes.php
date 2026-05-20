@@ -27,6 +27,11 @@ use App\Modules\Core\Configuracion\Controllers\WorkFlow\WorkFlowController;
 use App\Modules\Addons\Mapas\Controllers\Mapas\MapCredentialController;
 use App\Modules\Addons\Vendedores\Controllers\Vendors\Billing\CommissionRuleController;
 use App\Modules\Addons\Vendedores\Controllers\Vendors\Billing\RangeSaleController;
+// Catálogos folded into Configuracion (decision 2026-05-20). Rutas siguen
+// expuestas bajo `administracion/*` para compatibilidad con frontend.
+use App\Modules\Core\Configuracion\Controllers\Ift\IftController;
+use App\Modules\Core\Configuracion\Controllers\MethodOfPayment\MethodOfPaymentController;
+use App\Modules\Core\Configuracion\Controllers\Partner\PartnerController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -300,5 +305,39 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/logs', [SettingApiMovilController::class, 'logs']);
             Route::get('/logs/data', [SettingApiMovilController::class, 'logsData']);
             Route::get('/logs/csv', [SettingApiMovilController::class, 'logsCsv']);
+        });
+    });
+
+// Catálogos legacy de Administration folded into Configuracion (2026-05-20)
+// URL prefix `administracion/*` preservado para compat con frontend.
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->prefix('administracion')
+    ->group(function () {
+
+        Route::prefix('socios')->group(function () {
+            Route::get('/', [PartnerController::class, 'index']);
+            Route::post('/add', [PartnerController::class, 'store']);
+            Route::get('/editar/{id}', [PartnerController::class, 'edit']);
+            Route::post('/update/{id}', [PartnerController::class, 'update']);
+            Route::post('/destroy/{id}', [PartnerController::class, 'destroy']);
+            Route::post('/table', [PartnerController::class, 'table']);
+        });
+
+        Route::prefix('ift')->group(function () {
+            Route::get('/', [IftController::class, 'index']);
+            Route::post('/add', [IftController::class, 'store']);
+            Route::get('/editar/{id}', [IftController::class, 'edit']);
+            Route::post('/update/{id}', [IftController::class, 'update']);
+            Route::post('/destroy/{id}', [IftController::class, 'destroy']);
+            Route::post('/table', [IftController::class, 'table']);
+        });
+
+        Route::prefix('metotdo-de-pago')->group(function () {
+            Route::get('/', [MethodOfPaymentController::class, 'index']);
+            Route::post('/add', [MethodOfPaymentController::class, 'store']);
+            Route::get('/editar/{id}', [MethodOfPaymentController::class, 'edit']);
+            Route::post('/update/{id}', [MethodOfPaymentController::class, 'update']);
+            Route::post('/destroy/{id}', [MethodOfPaymentController::class, 'destroy']);
+            Route::post('/table', [MethodOfPaymentController::class, 'table']);
         });
     });

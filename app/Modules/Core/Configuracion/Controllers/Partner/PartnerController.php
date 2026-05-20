@@ -1,28 +1,28 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\MethodOfPayment;
+namespace App\Modules\Core\Configuracion\Controllers\Partner;
 
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use App\Http\HelpersModule\module\administration\methodofpayment\MethodOfPaymentDatatableHelper;
+use App\Http\HelpersModule\module\administration\partner\PartnerDatatableHelper;
+use Illuminate\Http\Request;
 
-class MethodOfPaymentController extends Controller
+class PartnerController extends Controller
 {
     private $helper;
 
-    public function __construct(MethodOfPaymentDatatableHelper $helper)
+    public function __construct(PartnerDatatableHelper $helper)
     {
-        $this->data['model'] = 'App\Models\MethodOfPayment';
-        $this->data['url'] = 'meganet.module.administration.metotdo-de-pago';
-        $this->data['module'] = 'MethodOfPayment';
+        $this->data['model'] = 'App\Models\Partner';
+        $this->data['url'] = 'meganet.module.administration.partner';
+        $this->data['module'] = 'Partner';
         $this->helper = $helper;
     }
 
     public function index()
     {
         $this->data['notifications'] = $this->userNotification();
-        $this->includeLibraryDinamic('MethodOfPayment');
-        return view('meganet.module.administration.methodofpayment.listar', $this->data);
+        $this->includeLibraryDinamic('Partner');
+        return view('meganet.module.administration.partner.listar', $this->data);
     }
 
     public function store(Request $request)
@@ -31,6 +31,8 @@ class MethodOfPaymentController extends Controller
         $input = defined($this->data['model'] . '::MULTIPLE_RELATIONS') ?
             $request->except(collect($this->data['model']::MULTIPLE_RELATIONS)->keys()->toArray()) :
             $request->all();
+
+        unset($input['import']);
 
         $model = $this->data['model']::create($input);
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request);

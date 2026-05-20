@@ -47,7 +47,7 @@ class Partner extends BaseModel
     public function getRequestAndStoreMethod()
     {
         $request = null;
-        $storeMethod = 'App\Http\Controllers\Module\Administration\Partner\PartnerController@store';
+        $storeMethod = 'App\Modules\Core\Configuracion\Controllers\Partner\PartnerController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod

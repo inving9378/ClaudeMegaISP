@@ -71,14 +71,7 @@ Route::group(['middleware' => ['auth']], function () {
 
                 // Rutas user/addresses/rol/permisos migradas a app/Modules/Core/Usuarios/routes.php
 
-                Route::group(['prefix' => 'socios', 'namespace' => 'Partner'], function () {
-                    Route::get('/', 'PartnerController@index');
-                    Route::post('/add', 'PartnerController@store');
-                    Route::get('/editar/{id}', 'PartnerController@edit');
-                    Route::post('/update/{id}', 'PartnerController@update');
-                    Route::post('/destroy/{id}', 'PartnerController@destroy');
-                    Route::post('/table', 'PartnerController@table');
-                });
+                // Rutas socios migradas a app/Modules/Core/Configuracion/routes.php
 
                 // Rutas ubicacion/sucursal/estado migradas a app/Modules/Core/Localizacion/routes.php
 
@@ -110,25 +103,11 @@ Route::group(['middleware' => ['auth']], function () {
                     Route::post('/table', 'DocumentTypeTemplateController@table');
                 });
 
-                Route::group(['prefix' => 'ift', 'namespace' => 'Ift'], function () {
-                    Route::get('/', 'IftController@index');
-                    Route::post('/add', 'IftController@store');
-                    Route::get('/editar/{id}', 'IftController@edit');
-                    Route::post('/update/{id}', 'IftController@update');
-                    Route::post('/destroy/{id}', 'IftController@destroy');
-                    Route::post('/table', 'IftController@table');
-                });
+                // Rutas ift migradas a app/Modules/Core/Configuracion/routes.php
 
                 // Rutas municipio/colonia migradas a app/Modules/Core/Localizacion/routes.php
 
-                Route::group(['prefix' => 'metotdo-de-pago', 'namespace' => 'MethodOfPayment'], function () {
-                    Route::get('/', 'MethodOfPaymentController@index');
-                    Route::post('/add', 'MethodOfPaymentController@store');
-                    Route::get('/editar/{id}', 'MethodOfPaymentController@edit');
-                    Route::post('/update/{id}', 'MethodOfPaymentController@update');
-                    Route::post('/destroy/{id}', 'MethodOfPaymentController@destroy');
-                    Route::post('/table', 'MethodOfPaymentController@table');
-                });
+                // Rutas metotdo-de-pago migradas a app/Modules/Core/Configuracion/routes.php
 
                 // Rutas nuevo módulo Documentation
                 Route::group(['prefix' => 'documentation', 'namespace' => 'Documentation'], function () {
