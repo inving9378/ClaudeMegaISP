@@ -43,7 +43,7 @@ class Network extends BaseModel
     public function getRequestAndStoreMethod()
     {
         $request = new NetworkCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Network\NetworkController@store';
+        $storeMethod = 'App\Modules\Addons\GestionRed\Controllers\Network\NetworkController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod

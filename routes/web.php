@@ -1055,22 +1055,7 @@ Route::group(['middleware' => ['auth']], function () {
 
             Route::group(['prefix' => 'red'], function () {
 
-                Route::group(['prefix' => 'ipv4', 'namespace' => 'Network'], function () {
-                    Route::post('/add', 'NetworkController@store');
-                    Route::get('/listar', 'NetworkController@index');
-                    Route::get('/success', 'NetworkController@success');
-                    Route::get('/crear', 'NetworkController@create');
-                    Route::post('/table', 'NetworkController@table');
-                    Route::post('/update/{id}', 'NetworkController@update');
-                    Route::post('/destroy/{id}', 'NetworkController@destroy');
-                    Route::post('/network/{id}', 'NetworkController@getIpByNetwork');
-
-                    Route::get('/ver/{id}', 'NetworkIpController@show');
-                    Route::post('/ip/table', 'NetworkIpController@table');
-                    Route::post('/ip/update/{id}', 'NetworkIpController@update');
-
-                    Route::post('/calculator', 'Ipv4CalculatorController@calculator');
-                });
+                // Rutas `red/ipv4` migradas a app/Modules/Addons/GestionRed/routes.php
 
                 Route::group(['prefix' => 'router', 'namespace' => 'Router'], function () {
                     Route::get('/listar', 'RouterController@index');

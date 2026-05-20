@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Unit\Http\Controllers\Module\Network;
+namespace Tests\Unit\Modules\Addons\GestionRed\Controllers\Network;
 
 use App\Http\Controllers\Module\Client\ClientController;
 use App\Http\Requests\module\client\ClientCreateRequest;

@@ -40,7 +40,7 @@ class NetworkIp extends BaseModel
     public function getRequestAndStoreMethod()
     {
         $request = new NetworkIpCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Network\NetworkIpController@store';
+        $storeMethod = 'App\Modules\Addons\GestionRed\Controllers\Network\NetworkIpController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod

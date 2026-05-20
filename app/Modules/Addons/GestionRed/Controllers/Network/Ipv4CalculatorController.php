@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Network;
+namespace App\Modules\Addons\GestionRed\Controllers\Network;
 
 
 use App\Http\HelpersModule\module\network\NetworkDatatableHelper;
