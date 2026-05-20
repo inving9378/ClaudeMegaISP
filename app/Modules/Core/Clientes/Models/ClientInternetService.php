@@ -203,7 +203,7 @@ class ClientInternetService extends BaseModel implements ServiceInterface
     public function getRequestAndStoreMethod()
     {
         $request = new ClientInternetServiceCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientInternetServiceController@store';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientInternetServiceController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,

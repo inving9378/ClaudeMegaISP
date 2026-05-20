@@ -131,7 +131,7 @@ class ClientVozService extends BaseModel implements ServiceInterface
     public function getRequestAndStoreMethod()
     {
         $request = new ClientVozServiceCreateRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientVozServiceController@store';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientVozServiceController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,

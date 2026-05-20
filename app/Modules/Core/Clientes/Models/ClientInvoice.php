@@ -69,7 +69,7 @@ class ClientInvoice extends BaseModel
     public function getRequestAndStoreMethod()
     {
         $request = new ClientInvoiseRequest();
-        $storeMethod = 'App\Http\Controllers\Module\Client\ClientInvoiceController@store';
+        $storeMethod = 'App\Modules\Core\Clientes\Controllers\ClientInvoiceController@store';
         return [
             'request' => $request,
             'storeMethod' => $storeMethod,
