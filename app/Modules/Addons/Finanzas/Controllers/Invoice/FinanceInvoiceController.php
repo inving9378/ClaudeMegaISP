@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Finance\Invoice;
+namespace App\Modules\Addons\Finanzas\Controllers\Invoice;
 
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\finance\FinanceInvoiceDatatableHelper;

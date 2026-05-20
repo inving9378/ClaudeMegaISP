@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Finance\GeneralAccounting\Expense;
+namespace App\Modules\Addons\Finanzas\Controllers\GeneralAccounting\Expense;
 
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\finance\GeneralAccountingExpenseDatatableHelper;
