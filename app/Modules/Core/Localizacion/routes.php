@@ -66,3 +66,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administra
         Route::post('/table', [ColonyController::class, 'table']);
     });
 });
+
+// Helper utility consumido por formularios de varios módulos (resolver de
+// catálogos geo state/municipality/colony). Ruta global sin prefix por compat.
+Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () {
+    Route::post('/helper/get-value-colony-state-municipality', [\App\Modules\Core\Localizacion\Controllers\ComponentSelectStateMunicipalityAndColonyController::class, 'getValueDB']);
+});

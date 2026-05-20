@@ -199,3 +199,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/get-ping-daily/{id}',   [ClientPingController::class, 'getPingDailySummary']);
         });
     });
+
+// Helper utility consumido por formularios de varios módulos (búsqueda de
+// servicios contratados de un cliente). Ruta global sin prefix por compat.
+Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () {
+    Route::post('/helper/get-services-by-client-main-information', [\App\Modules\Core\Clientes\Controllers\Helpers\ComponentSearchServiceController::class, 'getServiceByClientMainInformationId']);
+});

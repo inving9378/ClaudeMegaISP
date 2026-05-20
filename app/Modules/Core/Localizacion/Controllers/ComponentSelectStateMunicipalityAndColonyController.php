@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Shared;
+namespace App\Modules\Core\Localizacion\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClientMainInformation;

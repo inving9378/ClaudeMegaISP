@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Shared;
+namespace App\Modules\Core\Clientes\Controllers\Helpers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Utils\ComunConstantsController;
