@@ -33,8 +33,7 @@ use App\Http\Controllers\Module\Mapas\TableController;
 use App\Http\Controllers\Module\Mapas\TubeTypeController;
 use App\Http\Controllers\Module\Mapas\TransceiverController;
 use App\Http\Controllers\Module\Mapas\TrayController;
-use App\Http\Controllers\Module\Maps\ConnectionsController;
-use App\Http\Controllers\Module\Maps\DevicesController;
+// Maps controllers (sub-namespace Geo) migrados a App\Modules\Addons\Mapas\Controllers\Geo
 use App\Http\Controllers\Module\Vendors\VendorController;
 use App\Http\Controllers\Module\Vendors\SellerController;
 use App\Http\Controllers\Module\Vendors\Prospects\ProspectController;
@@ -44,10 +43,6 @@ use App\Http\Controllers\Module\Vendors\Billing\PaymentSellerController;
 use App\Http\Controllers\Module\Vendors\Billing\SellerTransactionController;
 use App\Http\Controllers\Module\Vendors\Billing\CommissionRuleController;
 use App\Http\Controllers\Module\Vendors\Billing\RangeSaleController;
-use App\Http\Controllers\Module\Maps\LayersController;
-use App\Http\Controllers\Module\Maps\ProyectsController;
-use App\Http\Controllers\Module\Maps\KMZController;
-use App\Http\Controllers\Module\Maps\ServiceBoxController;
 // OLTs controllers migrados a App\Modules\Addons\GestionRed\Controllers\OLTs (rutas en módulo)
 use App\Http\Controllers\Module\Sellers\Cuts\ExtraIncomeController;
 use App\Http\Controllers\Module\Sellers\Cuts\InstallationController;
@@ -601,55 +596,8 @@ Route::group(['middleware' => ['auth']], function () {
             });
 
 
-            Route::group(['prefix' => 'maps', 'namespace' => 'Maps'], function () {
-                Route::get('/zones', [ConnectionsController::class, 'zones']);
-                Route::post('/get-clients', [ProyectsController::class, 'clients']);
-                Route::post('/clients-without-project', [ProyectsController::class, 'clientsWithoutProject']);
-                Route::resource('/layers', LayersController::class);
-                Route::resource('/projects', ProyectsController::class);
-                Route::post('/projects/move-folder/{node}/{to}', [ProyectsController::class, 'moveFolder']);
-                Route::post('/projects/move-marker/{node}/{to}', [LayersController::class, 'moveMarker']);
-                Route::post('/projects/move-folder/{node}', [ProyectsController::class, 'moveFolder']);
-                Route::post('/projects/move-marker/{node}', [LayersController::class, 'moveMarker']);
-                Route::post('/layers/configuration/{id}', [LayersController::class, 'configuration']);
-                Route::post('/projects/move-marker/{node}', [LayersController::class, 'moveMarker']);
-                Route::post('/layers/convert-from-project/{id}', [LayersController::class, 'convertLayersFromProject']);
-                Route::post('/layers/convert-from-layer/{id}', [LayersController::class, 'convertLayerFromLayer']);
-                Route::post('/layers/convert-from-tickeds', [LayersController::class, 'convertLayersFromTickeds']);
-                Route::post('/layers/destroy-multiple', [LayersController::class, 'destroyMultiple']);
-                Route::post('/layers/coords/{id}', [LayersController::class, 'coords']);
-                Route::post('/layers/avaiables-routes/{id}', [LayersController::class, 'avaiablesRoutes']);
-                Route::post('/layers/avaiables-routes', [LayersController::class, 'avaiablesRoutes']);
-                Route::post('/layers/assign-routes/{id}', [LayersController::class, 'assignRoutes']);
-                Route::post('/layers/create-input/{id}', [LayersController::class, 'createInput']);
-                Route::post('/layers/update-input/{id}', [LayersController::class, 'updateInput']);
-                Route::post('/layers/update-markers-distance-from-route/{id}', [LayersController::class, 'updateMarkersDistanceFromRoute']);
-                Route::delete('/layers/unassign-route/{id}', [LayersController::class, 'unassignRoute']);
-                Route::post('/layers/change-route-position/{id}', [LayersController::class, 'changeRoutePosition']);
-                Route::get('/layers/devices/{id}', [LayersController::class, 'devicesFromRack']);
-                Route::post('/change-classification', [LayersController::class, 'changeClassification']);
-                Route::post('/client-to-service-box/{client}/{box}', [LayersController::class, 'addClientToServiceBox']);
-                Route::post('/kmz/{id}', [KMZController::class, 'loadKMZ']);
-                Route::post('/kmz', [KMZController::class, 'loadKMZ']);
-                Route::post('/service-box/selected-clients/{id}', [ServiceBoxController::class, 'getSelectedClients']);
-                Route::post('/service-box/avaiables-clients', [ServiceBoxController::class, 'getAvaiablesClients']);
-                Route::post('/service-box/remove-clients', [ServiceBoxController::class, 'removeClients']);
-                Route::post('/service-box/remove-client/{id}', [ServiceBoxController::class, 'removeClient']);
-                Route::post('/service-box/add-clients/{id}', [ServiceBoxController::class, 'addClients']);
-                Route::post('/service-box/save-port/{id}', [ServiceBoxController::class, 'savePort']);
-                Route::post('/service-box/remove-client-from-drop/{id}', [ServiceBoxController::class, 'removeClientFromDrop']);
-
-                //Connections
-                Route::resource('/connections', ConnectionsController::class)->except('index');
-                Route::post('/connections-multiple/{id}', [ConnectionsController::class, 'connectionsMultiple']);
-                Route::post('/connections/cut/{id}', [ConnectionsController::class, 'cutConnections']);
-
-                //Devices
-                Route::resource('/devices', DevicesController::class)->except('index');
-                Route::post('/devices/save-port/{id}', [DevicesController::class, 'savePort']);
-                Route::post('/devices/add-ports/{id}', [DevicesController::class, 'addPorts']);
-                Route::post('/devices/change-card-olt-direction/{id}', [DevicesController::class, 'changeCardOLTDirection']);
-            });
+            // Rutas `maps/*` (Connections/Devices/KMZ/Layers/Proyects/ServiceBox) migradas
+            // a app/Modules/Addons/Mapas/routes.php (sub-namespace Geo)
 
 
             // Rutas `olts/*` migradas a app/Modules/Addons/GestionRed/routes.php
