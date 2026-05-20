@@ -519,40 +519,7 @@ Route::group(['middleware' => ['auth']], function () {
             // Rutas `releases/*` migradas a app/Modules/Core/Release/routes.php
             // Rutas `git/*` migradas a app/Modules/Addons/DevTools/routes.php (sub-namespace Git)
 
-            Route::group(['prefix' => 'scheduling', 'namespace' => 'Scheduling'], function () {
-
-                Route::group(['prefix' => 'project', 'namespace' => 'Project'], function () {
-                    Route::get('/', 'ProjectController@index');
-                    Route::post('/table', 'ProjectController@table');
-                    Route::post('/update/{id}', 'ProjectController@update');
-                    Route::post('/add', 'ProjectController@store');
-                    Route::post('/destroy/{id}', 'ProjectController@destroy');
-                });
-
-                Route::group(['prefix' => 'task', 'namespace' => 'Task'], function () {
-                    Route::get('/', 'TaskController@index');
-                    Route::post('/table', 'TaskController@table');
-                    Route::post('/update/{id}', 'TaskController@update');
-                    Route::post('/add', 'TaskController@store');
-                    Route::get('/crear', 'TaskController@create');
-                    Route::post('/destroy/{id}', 'TaskController@destroy');
-                    Route::get('/editar/{id}', 'TaskController@edit');
-                    Route::get('/calendar', 'TaskController@showCalendar');
-                    Route::post('/get-list-template-verification-by-task/{id}', 'TaskController@getListTemplateVerification');
-                    Route::post('/update-task-to-calendar', 'TaskController@updatetaskToCalenddar');
-                    Route::post('/archive/{id}', 'TaskController@archive');
-                    Route::post('/unarchive/{id}', 'TaskController@unArchive');
-                    Route::post('/add_note/{id}', 'TaskController@addNote');
-                    Route::post('/get-notes-by-task/{id}', 'TaskController@getNotesByTask');
-                    Route::post('/get-data-task/{id}', 'TaskController@getData');
-                    Route::get('/show-archived', 'TaskController@showArchived');
-                    Route::get('/read-notification/{id}', 'TaskController@readNotification');
-                    Route::post('/unread-notification/{id}', 'TaskController@unreadNotification');
-                    Route::post('/download-file/{id}', 'TaskController@download');
-                    Route::post('/upload-file/{task}', 'TaskController@uploadFile');
-                    Route::post('/remove-file/{task}', 'TaskController@removeFile');
-                });
-            });
+            // Rutas `scheduling/*` migradas a app/Modules/Addons/Scheduling/routes.php
 
             // Rutas Mikrotik globales migradas a app/Modules/Addons/GestionRed/routes.php
         });

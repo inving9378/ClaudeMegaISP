@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Scheduling\Task;
+namespace App\Modules\Addons\Scheduling\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Utils\ComunConstantsController;
