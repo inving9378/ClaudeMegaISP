@@ -1,121 +1,105 @@
 <template>
-    <div class="devtools-root">
-        <!-- Header strip -->
-        <div class="devtools-header">
-            <div class="devtools-title">
-                <i class="fa fa-code text-warning"></i>
-                <span>DevTools</span>
-                <span class="text-muted small ms-2">{{ userName }}</span>
-            </div>
-            <button class="btn btn-sm btn-outline-light" @click="close">
-                <i class="fa fa-times"></i>
-                Cerrar
+    <div class="devtools-root" :data-theme="currentTheme" ref="rootRef">
+        <!-- ============================================================ -->
+        <!-- COLUMNA 1: SIDEBAR NAV (colapsable, persistido en localStorage) -->
+        <!-- ============================================================ -->
+        <div class="dt-sidebar" :class="{ collapsed: sidebarCollapsed }">
+            <button
+                class="dt-sidebar-toggle"
+                @click="toggleSidebar"
+                :title="sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'"
+            >
+                <i class="fas fa-bars"></i>
             </button>
+            <nav class="dt-nav">
+                <a
+                    v-for="item in placeholderNav"
+                    :key="item.route"
+                    :href="item.route"
+                    class="dt-nav-item"
+                    :class="{ active: item.active }"
+                    :title="sidebarCollapsed ? item.label : ''"
+                >
+                    <i :class="item.icon" class="dt-nav-icon"></i>
+                    <span class="dt-nav-label">{{ item.label }}</span>
+                </a>
+                <div class="dt-nav-scaffold-note" v-if="!sidebarCollapsed">
+                    Items completos se cargan en 3B
+                </div>
+            </nav>
         </div>
 
-        <!-- Split body -->
-        <div class="devtools-body" ref="body">
-            <!-- LEFT: Claude chat -->
-            <div class="panel panel-left" :style="{ width: leftPct + '%' }">
-                <div class="panel-header">
-                    <i class="fa fa-robot text-info"></i>
-                    Claude
-                    <span class="text-muted small ms-2">{{ chatModel }}</span>
-                </div>
-                <div v-if="context" class="context-bar" :title="contextTitle">
-                    <i class="fa fa-link text-warning"></i>
-                    <span class="ms-1">
-                        <strong>{{ context.branch }}</strong>
-                        · {{ (context.recent_commits || []).length }} commits
-                        · {{ (context.active_modules || []).length }} módulos
-                        · CLAUDE.md {{ claudeMdSize }}
-                    </span>
-                </div>
-                <div class="chat-messages" ref="messagesEl">
-                    <div v-if="messages.length === 0" class="chat-empty">
-                        Saluda a Claude para empezar.
-                    </div>
-                    <div
-                        v-for="(m, i) in messages"
-                        :key="i"
-                        class="chat-msg"
-                        :class="m.role"
-                    >
-                        <div class="chat-msg-role">{{ m.role === 'user' ? userName : 'Claude' }}</div>
-                        <div class="chat-msg-content" v-text="m.content"></div>
-                        <div v-if="m.tokens" class="chat-msg-tokens">
-                            in: {{ m.tokens.input }} · out: {{ m.tokens.output }}
-                            <span v-if="m.tokens.cacheCreate || m.tokens.cacheRead">
-                                · cache w/r {{ m.tokens.cacheCreate }}/{{ m.tokens.cacheRead }}
-                            </span>
-                        </div>
-                    </div>
-                    <div v-if="sending" class="chat-msg assistant">
-                        <div class="chat-msg-role">Claude</div>
-                        <div class="chat-msg-content text-muted">
-                            <i class="fa fa-spinner fa-spin"></i>
-                            Pensando…
-                        </div>
-                    </div>
-                </div>
-                <div class="chat-input">
-                    <textarea
-                        v-model="input"
-                        @keydown.enter.exact.prevent="send"
-                        @keydown.enter.shift.exact="newline"
-                        placeholder="Pregúntale a Claude…  (Enter para enviar · Shift+Enter para salto)"
-                        rows="2"
-                        :disabled="sending"
-                    ></textarea>
-                    <button class="btn btn-primary" :disabled="sending || !input.trim()" @click="send">
-                        <i class="fa fa-paper-plane"></i>
-                    </button>
-                </div>
-                <div class="chat-footer text-muted small">
-                    Total: in {{ totals.input }} · out {{ totals.output }}
-                    <span v-if="totals.cacheCreate || totals.cacheRead">
-                        · cache w/r {{ totals.cacheCreate }}/{{ totals.cacheRead }}
-                    </span>
-                    tokens
-                </div>
+        <!-- ============================================================ -->
+        <!-- COLUMNA 2: CLAUDE CHAT (scaffold — lógica llega en 3B) -->
+        <!-- ============================================================ -->
+        <div class="dt-chat">
+            <div class="dt-chat-header">
+                <span class="dt-chat-title">
+                    <i class="fas fa-robot"></i> Claude AI
+                    <small class="dt-chat-subtitle">{{ userName }}</small>
+                </span>
+                <button class="dt-icon-btn" @click="close" title="Cerrar DevTools">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
+            <div class="dt-messages">
+                <p class="dt-empty-state">
+                    <i class="fas fa-tools"></i><br />
+                    Scaffold 3A — chat + adjuntos + voz se conectan en 3B-3D.
+                </p>
+            </div>
+            <div class="dt-input-bar">
+                <textarea
+                    class="dt-textarea"
+                    placeholder="Pregunta a Claude (disabled en scaffold)…"
+                    disabled
+                    rows="2"
+                ></textarea>
+            </div>
+        </div>
 
-            <!-- Divider -->
-            <div
-                class="divider"
-                @mousedown="startDrag"
-                :class="{ dragging }"
-            ></div>
+        <!-- ============================================================ -->
+        <!-- DIVIDER arrastrable entre chat y terminal -->
+        <!-- ============================================================ -->
+        <div
+            class="dt-divider"
+            @mousedown="startDrag"
+            :class="{ dragging }"
+        ></div>
 
-            <!-- RIGHT: ttyd iframe -->
-            <div class="panel panel-right" :style="{ width: 100 - leftPct + '%' }">
-                <div class="panel-header">
-                    <i class="fa fa-terminal text-success"></i>
-                    Terminal
-                    <span class="text-muted small ms-2">{{ effectiveTtydUrl }}</span>
-                    <button class="btn btn-sm btn-link ms-auto" @click="probeTtyd">
-                        <i class="fa fa-sync"></i>
+        <!-- ============================================================ -->
+        <!-- COLUMNA 3: TERMINAL ttyd (lógica preservada del original) -->
+        <!-- ============================================================ -->
+        <div class="dt-terminal" :style="{ width: terminalPct + '%' }">
+            <div class="dt-terminal-header">
+                <span class="dt-terminal-title">
+                    <i class="fas fa-terminal"></i> Terminal
+                    <small class="dt-terminal-url">{{ effectiveTtydUrl }}</small>
+                </span>
+                <button class="dt-icon-btn" @click="probeTtyd" title="Reintentar conexión">
+                    <i class="fas fa-sync"></i>
+                </button>
+            </div>
+            <div class="dt-terminal-body">
+                <iframe
+                    v-if="ttydReachable !== false"
+                    :src="effectiveTtydUrl"
+                    @load="onIframeLoad"
+                    @error="onIframeError"
+                ></iframe>
+                <div v-else class="dt-ttyd-setup">
+                    <h5>Terminal no disponible</h5>
+                    <p>
+                        No se pudo conectar a
+                        <code>{{ effectiveTtydUrl }}</code>.
+                    </p>
+                    <p>Ejecuta en el servidor:</p>
+                    <pre>ttyd -p 7681 -W --interface 0.0.0.0 bash</pre>
+                    <p>O activa el servicio systemd:</p>
+                    <pre>sudo systemctl enable --now ttyd</pre>
+                    <button class="btn btn-outline-primary" @click="probeTtyd">
+                        <i class="fas fa-sync"></i> Reintentar
                     </button>
-                </div>
-                <div class="terminal-body">
-                    <iframe
-                        v-if="ttydReachable !== false"
-                        :src="effectiveTtydUrl"
-                        @load="onIframeLoad"
-                        @error="onIframeError"
-                    ></iframe>
-                    <div v-else class="ttyd-setup">
-                        <h5>Terminal no disponible</h5>
-                        <p class="text-muted">No se pudo conectar a <code>{{ effectiveTtydUrl }}</code>.</p>
-                        <p>Ejecuta en el servidor:</p>
-                        <pre>ttyd -p 7681 -W --interface 0.0.0.0 bash</pre>
-                        <p>O activa el servicio systemd:</p>
-                        <pre>sudo systemctl enable --now ttyd</pre>
-                        <button class="btn btn-outline-primary" @click="probeTtyd">
-                            <i class="fa fa-sync"></i>
-                            Reintentar
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -123,336 +107,445 @@
 </template>
 
 <script>
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+
 export default {
-    name: 'DevtoolsPanel',
+    name: "DevtoolsPanel",
     props: {
-        ttydUrl: { type: String, default: 'http://127.0.0.1:7681' },
+        ttydUrl: { type: String, default: "http://127.0.0.1:7681" },
         csrfToken: { type: String, required: true },
-        userName: { type: String, default: 'Dev' },
+        userName: { type: String, default: "Dev" },
     },
-    computed: {
+    setup(props) {
+        // -------------------------------------------------------------
+        // Theme reactivo desde <body data-layout-mode="...">
+        // -------------------------------------------------------------
+        // Lee el atributo al montar y se reactualiza si el usuario cambia
+        // el tema desde otra vista (vía MutationObserver). Esto requiere
+        // que el body tenga el atributo — fix aplicado en commit 474c343
+        // a master-without-nav.blade.php.
+        const themeRaw = ref(
+            document.body.getAttribute("data-layout-mode") || "light"
+        );
+        let themeObserver = null;
+        const currentTheme = computed(() =>
+            themeRaw.value === "dark" ? "dark" : "light"
+        );
+
+        // -------------------------------------------------------------
+        // Sidebar colapsable (estado persistido en localStorage)
+        // -------------------------------------------------------------
+        const sidebarCollapsed = ref(
+            localStorage.getItem("devtools_sidebar_collapsed") === "true"
+        );
+        const toggleSidebar = () => {
+            sidebarCollapsed.value = !sidebarCollapsed.value;
+            localStorage.setItem(
+                "devtools_sidebar_collapsed",
+                sidebarCollapsed.value ? "true" : "false"
+            );
+        };
+
+        // -------------------------------------------------------------
+        // Placeholder nav items (3 de prueba — se reemplaza con fetch a
+        // /devtools/nav-items en 3B)
+        // -------------------------------------------------------------
+        const placeholderNav = [
+            { label: "Dashboard", icon: "fas fa-tachometer-alt", route: "/dashboard" },
+            { label: "IA", icon: "fas fa-robot", route: "/ia" },
+            { label: "DevTools", icon: "fas fa-tools", route: "/devtools", active: true },
+        ];
+
+        // -------------------------------------------------------------
+        // Terminal: width drag entre chat y terminal
+        // -------------------------------------------------------------
+        const rootRef = ref(null);
+        const terminalPct = ref(38);
+        const dragging = ref(false);
+        const startDrag = (e) => {
+            dragging.value = true;
+            e.preventDefault();
+        };
+        const onDrag = (e) => {
+            if (!dragging.value || !rootRef.value) return;
+            const rect = rootRef.value.getBoundingClientRect();
+            const pct = ((rect.right - e.clientX) / rect.width) * 100;
+            terminalPct.value = Math.max(20, Math.min(70, pct));
+        };
+        const endDrag = () => {
+            dragging.value = false;
+        };
+
+        // -------------------------------------------------------------
+        // ttyd (preservado del archivo original)
+        // -------------------------------------------------------------
         // El TTYD_URL del .env suele apuntar a 127.0.0.1, lo cual sólo
         // funciona si el navegador corre en el mismo host que el servidor.
         // Si el prop es ese default placeholder, derivamos la URL del
         // hostname con el que la página fue servida — así el iframe llega
         // al ttyd remoto desde cualquier máquina cliente.
-        // Nota: si la app corre sobre HTTPS, también hay que servir ttyd
-        // con TLS o el iframe será bloqueado por mixed-content.
-        effectiveTtydUrl() {
-            const placeholder = 'http://127.0.0.1:7681';
-            if (this.ttydUrl && this.ttydUrl !== placeholder) {
-                return this.ttydUrl;
+        const ttydReachable = ref(null);
+        const effectiveTtydUrl = computed(() => {
+            const placeholder = "http://127.0.0.1:7681";
+            if (props.ttydUrl && props.ttydUrl !== placeholder) {
+                return props.ttydUrl;
             }
-            if (typeof window !== 'undefined' && window.location?.hostname) {
+            if (typeof window !== "undefined" && window.location?.hostname) {
                 return `http://${window.location.hostname}:7681`;
             }
-            return this.ttydUrl;
-        },
-        claudeMdSize() {
-            const n = this.context?.claude_md?.length || 0;
-            if (n === 0) return '(falta)';
-            if (n < 1024) return `${n} B`;
-            return `${(n / 1024).toFixed(1)} KB`;
-        },
-        contextTitle() {
-            if (!this.context) return '';
-            const commits = (this.context.recent_commits || []).join('\n');
-            const modules = (this.context.active_modules || []).join(', ');
-            return `Rama: ${this.context.branch}\nÚltimos commits:\n${commits}\n\nMódulos activos: ${modules}`;
-        },
-    },
-    data() {
-        return {
-            chatModel: 'claude-sonnet-4-6',
-            input: '',
-            messages: [],
-            sending: false,
-            totals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0 },
-
-            // Contexto inyectado en el system prompt (CLAUDE.md + git + módulos).
-            // Lo cargamos al montar para mostrar el resumen en la UI; el backend
-            // lo vuelve a leer en cada /devtools/chat para mantenerlo fresco.
-            context: null,
-
-            // split state
-            leftPct: 50,
-            dragging: false,
-            ttydReachable: null, // null = unknown, true = ok, false = failed
+            return props.ttydUrl;
+        });
+        const probeTtyd = async () => {
+            ttydReachable.value = null;
+            try {
+                await fetch(effectiveTtydUrl.value, {
+                    method: "GET",
+                    mode: "no-cors",
+                });
+                ttydReachable.value = true;
+            } catch (e) {
+                ttydReachable.value = false;
+            }
         };
-    },
-    mounted() {
-        this.probeTtyd();
-        this.fetchContext();
-        document.addEventListener('mousemove', this.onDrag);
-        document.addEventListener('mouseup', this.endDrag);
-    },
-    beforeUnmount() {
-        document.removeEventListener('mousemove', this.onDrag);
-        document.removeEventListener('mouseup', this.endDrag);
-    },
-    methods: {
-        close() {
-            window.location.href = '/home';
-        },
-        newline() {
-            this.input += '\n';
-        },
-        async send() {
-            const msg = this.input.trim();
-            if (!msg || this.sending) return;
+        const onIframeLoad = () => {
+            ttydReachable.value = true;
+        };
+        const onIframeError = () => {
+            ttydReachable.value = false;
+        };
 
-            this.messages.push({ role: 'user', content: msg });
-            this.input = '';
-            this.sending = true;
-            this.scrollToBottom();
+        // -------------------------------------------------------------
+        // Navegación de salida
+        // -------------------------------------------------------------
+        const close = () => {
+            window.location.href = "/home";
+        };
 
-            const history = this.messages
-                .filter((m) => m.role === 'user' || m.role === 'assistant')
-                .slice(0, -1)
-                .map((m) => ({ role: m.role, content: m.content }));
-
-            try {
-                const { data } = await axios.post('/devtools/chat', {
-                    message: msg,
-                    history,
-                }, {
-                    headers: { 'X-CSRF-TOKEN': this.csrfToken },
-                });
-
-                if (data.success) {
-                    this.messages.push({
-                        role: 'assistant',
-                        content: data.reply,
-                        tokens: {
-                            input: data.input_tokens || 0,
-                            output: data.output_tokens || 0,
-                            cacheCreate: data.cache_creation_input_tokens || 0,
-                            cacheRead: data.cache_read_input_tokens || 0,
-                        },
-                    });
-                    this.totals.input += data.input_tokens || 0;
-                    this.totals.output += data.output_tokens || 0;
-                    this.totals.cacheCreate += data.cache_creation_input_tokens || 0;
-                    this.totals.cacheRead += data.cache_read_input_tokens || 0;
-                } else {
-                    this.messages.push({
-                        role: 'assistant',
-                        content: '[Error] ' + (data.error || 'fallo desconocido'),
-                    });
-                }
-            } catch (e) {
-                this.messages.push({
-                    role: 'assistant',
-                    content: '[Error de red] ' + (e.response?.data?.error || e.message),
-                });
-            } finally {
-                this.sending = false;
-                this.scrollToBottom();
-            }
-        },
-        scrollToBottom() {
-            this.$nextTick(() => {
-                const el = this.$refs.messagesEl;
-                if (el) el.scrollTop = el.scrollHeight;
+        // -------------------------------------------------------------
+        // Lifecycle
+        // -------------------------------------------------------------
+        onMounted(() => {
+            probeTtyd();
+            document.addEventListener("mousemove", onDrag);
+            document.addEventListener("mouseup", endDrag);
+            // Observe cambios en data-layout-mode para reaccionar al
+            // toggle de tema global del usuario sin recargar la página.
+            themeObserver = new MutationObserver(() => {
+                themeRaw.value =
+                    document.body.getAttribute("data-layout-mode") || "light";
             });
-        },
+            themeObserver.observe(document.body, {
+                attributes: true,
+                attributeFilter: ["data-layout-mode"],
+            });
+        });
+        onBeforeUnmount(() => {
+            document.removeEventListener("mousemove", onDrag);
+            document.removeEventListener("mouseup", endDrag);
+            if (themeObserver) themeObserver.disconnect();
+        });
 
-        async fetchContext() {
-            try {
-                const { data } = await axios.get('/devtools/context');
-                this.context = data;
-            } catch (e) {
-                // Si falla, el backend igual inyecta el contexto en cada chat;
-                // sólo se pierde el resumen visual.
-                this.context = null;
-            }
-        },
-
-        // ttyd probe: try to fetch the URL; CORS may block it, but a network
-        // error vs an opaque response tells us if the host is up.
-        async probeTtyd() {
-            this.ttydReachable = null;
-            try {
-                await fetch(this.effectiveTtydUrl, { method: 'GET', mode: 'no-cors' });
-                this.ttydReachable = true;
-            } catch (e) {
-                this.ttydReachable = false;
-            }
-        },
-        onIframeLoad() {
-            this.ttydReachable = true;
-        },
-        onIframeError() {
-            this.ttydReachable = false;
-        },
-
-        // Drag divider
-        startDrag(e) {
-            this.dragging = true;
-            e.preventDefault();
-        },
-        onDrag(e) {
-            if (!this.dragging) return;
-            const body = this.$refs.body;
-            if (!body) return;
-            const rect = body.getBoundingClientRect();
-            const pct = ((e.clientX - rect.left) / rect.width) * 100;
-            this.leftPct = Math.max(20, Math.min(80, pct));
-        },
-        endDrag() {
-            this.dragging = false;
-        },
+        return {
+            // theme
+            currentTheme,
+            // sidebar
+            sidebarCollapsed,
+            toggleSidebar,
+            placeholderNav,
+            // root + drag
+            rootRef,
+            terminalPct,
+            dragging,
+            startDrag,
+            // ttyd
+            effectiveTtydUrl,
+            ttydReachable,
+            probeTtyd,
+            onIframeLoad,
+            onIframeError,
+            // misc
+            close,
+        };
     },
 };
 </script>
 
 <style scoped>
+/* ====================================================================
+   CSS variables — dark/light themes
+   ==================================================================== */
+.devtools-root[data-theme="dark"] {
+    --dt-bg: #1a1b26;
+    --dt-sidebar-bg: #16171f;
+    --dt-chat-bg: #1e1f2e;
+    --dt-border: #2a2b3d;
+    --dt-text: #cdd6f4;
+    --dt-text-muted: #6c7086;
+    --dt-accent: #ff8c00;
+    --dt-user-bubble: #2a2b3d;
+    --dt-ai-bubble: #1e2030;
+    --dt-hover: #2a2b3d;
+}
+.devtools-root[data-theme="light"] {
+    --dt-bg: #f8f9fa;
+    --dt-sidebar-bg: #ffffff;
+    --dt-chat-bg: #ffffff;
+    --dt-border: #e0e0e0;
+    --dt-text: #212529;
+    --dt-text-muted: #6c757d;
+    --dt-accent: #ff8c00;
+    --dt-user-bubble: #e9ecef;
+    --dt-ai-bubble: #f1f3f5;
+    --dt-hover: #f0f0f0;
+}
+
+/* ====================================================================
+   Root layout — fixed full-screen, 3-column flex
+   ==================================================================== */
 .devtools-root {
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: #1a1b26;
-    color: #cdd6f4;
     display: flex;
-    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--dt-bg);
+    color: var(--dt-text);
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-.devtools-header {
+
+/* ====================================================================
+   Columna 1 — Sidebar
+   ==================================================================== */
+.dt-sidebar {
+    width: 220px;
+    min-width: 220px;
+    transition: width 0.25s ease, min-width 0.25s ease;
+    background: var(--dt-sidebar-bg);
+    border-right: 1px solid var(--dt-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.dt-sidebar.collapsed {
+    width: 52px;
+    min-width: 52px;
+}
+.dt-sidebar-toggle {
     height: 44px;
-    background: #11111b;
-    color: #cdd6f4;
+    background: transparent;
+    border: none;
+    color: var(--dt-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid var(--dt-border);
+}
+.dt-sidebar-toggle:hover {
+    background: var(--dt-hover);
+    color: var(--dt-accent);
+}
+.dt-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+}
+.dt-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    color: var(--dt-text);
+    text-decoration: none;
+    white-space: nowrap;
+    font-size: 13px;
+    transition: background 0.15s, color 0.15s;
+    cursor: pointer;
+}
+.dt-nav-item:hover {
+    background: var(--dt-hover);
+    color: var(--dt-accent);
+}
+.dt-nav-item.active {
+    background: var(--dt-hover);
+    color: var(--dt-accent);
+    border-left: 3px solid var(--dt-accent);
+    padding-left: calc(1rem - 3px);
+}
+.dt-nav-icon {
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.dt-sidebar.collapsed .dt-nav-label,
+.dt-sidebar.collapsed .dt-nav-scaffold-note {
+    display: none;
+}
+.dt-nav-scaffold-note {
+    padding: 0.5rem 1rem;
+    font-size: 11px;
+    color: var(--dt-text-muted);
+    font-style: italic;
+}
+
+/* ====================================================================
+   Columna 2 — Chat
+   ==================================================================== */
+.dt-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--dt-chat-bg);
+    min-width: 0;
+}
+.dt-chat-header {
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 1rem;
-    border-bottom: 1px solid #2a2b3d;
+    border-bottom: 1px solid var(--dt-border);
+    background: var(--dt-sidebar-bg);
 }
-.devtools-title { font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
-.devtools-body {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-    min-height: 0;
-}
-.panel {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: #1e1e2e;
-}
-.panel-header {
-    height: 36px;
-    background: #181825;
-    color: #cdd6f4;
+.dt-chat-title {
+    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0 0.75rem;
-    border-bottom: 1px solid #2a2b3d;
-    font-size: 13px;
 }
-.divider {
-    width: 6px;
-    cursor: col-resize;
-    background: #2a2b3d;
-    transition: background 0.15s;
-    flex-shrink: 0;
+.dt-chat-subtitle {
+    color: var(--dt-text-muted);
+    font-weight: 400;
+    font-size: 12px;
 }
-.divider:hover, .divider.dragging { background: #ff8c00; }
-
-.context-bar {
-    background: #1e1e2e;
-    border-bottom: 1px solid #2a2b3d;
-    padding: 0.3rem 0.75rem;
-    font-size: 11px;
-    color: #a6adc8;
-    cursor: help;
-}
-.context-bar strong { color: #ff8c00; }
-
-/* Chat */
-.chat-messages {
+.dt-messages {
     flex: 1;
     overflow-y: auto;
     padding: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
 }
-.chat-empty {
-    color: #585b70;
+.dt-empty-state {
+    color: var(--dt-text-muted);
     text-align: center;
-    margin-top: 2rem;
+    margin-top: 3rem;
     font-style: italic;
+    line-height: 1.8;
 }
-.chat-msg {
-    padding: 0.5rem 0.7rem;
-    border-radius: 6px;
-    background: #313244;
-    max-width: 92%;
+.dt-empty-state i {
+    font-size: 2rem;
+    color: var(--dt-accent);
+    opacity: 0.6;
 }
-.chat-msg.user {
-    background: #45475a;
-    align-self: flex-end;
-}
-.chat-msg.assistant { background: #313244; align-self: flex-start; }
-.chat-msg-role {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #a6adc8;
-    margin-bottom: 0.2rem;
-}
-.chat-msg-content {
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-size: 13px;
-    line-height: 1.45;
-    color: #cdd6f4;
-}
-.chat-msg-tokens {
-    font-size: 10px;
-    color: #585b70;
-    margin-top: 0.3rem;
-    text-align: right;
-}
-.chat-input {
-    display: flex;
-    gap: 0.5rem;
+.dt-input-bar {
     padding: 0.5rem;
-    background: #181825;
-    border-top: 1px solid #2a2b3d;
+    border-top: 1px solid var(--dt-border);
+    background: var(--dt-sidebar-bg);
 }
-.chat-input textarea {
-    flex: 1;
-    background: #1e1e2e;
-    color: #cdd6f4;
-    border: 1px solid #2a2b3d;
+.dt-textarea {
+    width: 100%;
+    background: var(--dt-bg);
+    color: var(--dt-text);
+    border: 1px solid var(--dt-border);
     border-radius: 6px;
     padding: 0.5rem;
     font-size: 13px;
     resize: vertical;
     font-family: inherit;
+    min-height: 50px;
 }
-.chat-input textarea:focus {
+.dt-textarea:focus {
     outline: none;
-    border-color: #ff8c00;
+    border-color: var(--dt-accent);
 }
-.chat-footer { padding: 0.25rem 0.75rem; background: #181825; }
+.dt-textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 
-/* Terminal */
-.terminal-body { flex: 1; position: relative; background: #000; }
-.terminal-body iframe { width: 100%; height: 100%; border: 0; }
-.ttyd-setup {
-    padding: 2rem;
-    color: #cdd6f4;
+/* ====================================================================
+   Divider (entre chat y terminal)
+   ==================================================================== */
+.dt-divider {
+    width: 4px;
+    background: var(--dt-border);
+    cursor: col-resize;
+    transition: background 0.15s;
+    flex-shrink: 0;
 }
-.ttyd-setup pre {
-    background: #11111b;
+.dt-divider:hover,
+.dt-divider.dragging {
+    background: var(--dt-accent);
+}
+
+/* ====================================================================
+   Columna 3 — Terminal
+   ==================================================================== */
+.dt-terminal {
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    background: #000;
+    flex-shrink: 0;
+}
+.dt-terminal-header {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    background: var(--dt-sidebar-bg);
+    color: var(--dt-text);
+    border-bottom: 1px solid var(--dt-border);
+}
+.dt-terminal-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    font-size: 13px;
+}
+.dt-terminal-url {
+    color: var(--dt-text-muted);
+    font-weight: 400;
+    font-size: 11px;
+}
+.dt-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--dt-text);
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+}
+.dt-icon-btn:hover {
+    color: var(--dt-accent);
+    background: var(--dt-hover);
+}
+.dt-terminal-body {
+    flex: 1;
+    position: relative;
+    background: #000;
+}
+.dt-terminal-body iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+.dt-ttyd-setup {
+    padding: 2rem;
+    color: var(--dt-text);
+    background: var(--dt-bg);
+    height: 100%;
+}
+.dt-ttyd-setup pre {
+    background: var(--dt-sidebar-bg);
     padding: 0.75rem 1rem;
     border-radius: 6px;
-    color: #ff8c00;
-    border-left: 3px solid #ff8c00;
+    color: var(--dt-accent);
+    border-left: 3px solid var(--dt-accent);
     font-size: 13px;
+    margin: 0.5rem 0;
 }
 </style>
