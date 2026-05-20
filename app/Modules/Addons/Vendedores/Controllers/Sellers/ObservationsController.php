@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Http\Controllers\Module\Sellers\Cuts;
+namespace App\Modules\Addons\Vendedores\Controllers\Sellers;
 
 use App\Http\Controllers\Controller;
-use App\Repositories\Sellers\Cuts\ExtraIncomeRepository;
+use App\Repositories\Sellers\Cuts\ObservationRepository;
 use Illuminate\Http\Request;
 
-class ExtraIncomeController extends Controller
+class ObservationsController extends Controller
 {
     protected $repository;
 
     public function __construct()
     {
-        $this->repository = new ExtraIncomeRepository();
+        $this->repository = new ObservationRepository();
     }
 
     public function index($id)

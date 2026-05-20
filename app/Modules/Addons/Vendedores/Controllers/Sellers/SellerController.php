@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Sellers\Seller;
+namespace App\Modules\Addons\Vendedores\Controllers\Sellers;
 
 
 use App\Http\Controllers\Base\CrudModalController;

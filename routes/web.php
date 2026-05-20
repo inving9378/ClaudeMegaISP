@@ -13,10 +13,7 @@ use App\Http\Controllers\Module\Vendors\Billing\SellerTransactionController;
 use App\Http\Controllers\Module\Vendors\Billing\CommissionRuleController;
 use App\Http\Controllers\Module\Vendors\Billing\RangeSaleController;
 // OLTs controllers migrados a App\Modules\Addons\GestionRed\Controllers\OLTs (rutas en módulo)
-use App\Http\Controllers\Module\Sellers\Cuts\ExtraIncomeController;
-use App\Http\Controllers\Module\Sellers\Cuts\InstallationController;
-use App\Http\Controllers\Module\Sellers\Cuts\ObservationsController;
-use App\Http\Controllers\Module\Sellers\Cuts\SuppliersExpensesController;
+// Sellers controllers migrados a App\Modules\Addons\Vendedores\Controllers\Sellers (rutas en módulo)
 // Imports de Module/Setting movidos a app/Modules/Core/Configuracion/routes.php
 use App\Http\Controllers\RegisterVendorController;
 use App\Models\TaskNotification;
@@ -335,34 +332,7 @@ Route::group(['middleware' => ['auth']], function () {
                     Route::post('/table', 'InventoryItemCustomController@table');
                 });
             });
-            Route::group(['prefix' => 'sellers', 'namespace' => 'Sellers'], function () {
-                Route::group(['prefix' => 'seller', 'namespace' => 'Seller'], function () {
-                    Route::get('/', 'SellerController@index');
-                    Route::post('/add', 'SellerController@store');
-                    Route::get('/editar/{id}', 'SellerController@edit');
-                    Route::post('/update/{id}', 'SellerController@update');
-                    Route::post('/destroy/{id}', 'SellerController@destroy');
-                    Route::post('/table', 'SellerController@table');
-                    Route::post('/get-prospects/{id}', 'SellerController@table');
-                });
-                Route::group(['prefix' => 'cuts', 'namespace' => 'Cuts'], function () {
-                    Route::resource('/extras-incomes', ExtraIncomeController::class)->except('index');
-                    Route::post('/extras-incomes-list/{id}', 'ExtraIncomeController@index');
-                    Route::resource('/installations', InstallationController::class)->except('index');
-                    Route::post('/installations-list/{id}', 'InstallationController@index');
-                    Route::resource('/suppliers-expenses', SuppliersExpensesController::class)->except('index');
-                    Route::post('/suppliers-expenses-list/{id}', 'SuppliersExpensesController@index');
-                    Route::resource('/observations', ObservationsController::class)->except('index');
-                    Route::post('/observations-list/{id}', 'ObservationsController@index');
-                    Route::get('/get-user-current-box/{id}', 'BoxController@getCurrentBox');
-                    Route::get('/box/{id}', 'BoxController@findBox');
-                    Route::get('/box-pdf/{id}', 'BoxController@pdf');
-                    Route::get('/get-received-payments-by-box/{id}', 'BoxController@getReceivedPaymentsByBox');
-                    Route::post('/close-user-current-box/{id}', 'BoxController@close');
-                    Route::get('/technicals', 'BoxController@technicals');
-                    Route::post('/{id}', 'BoxController@cuts');
-                });
-            });
+            // Rutas `sellers/*` migradas a app/Modules/Addons/Vendedores/routes.php
 
             Route::group(['prefix' => 'message', 'namespace' => 'Message'], function () {
                 Route::group(['prefix' => 'inbox', 'namespace' => 'Inbox'], function () {

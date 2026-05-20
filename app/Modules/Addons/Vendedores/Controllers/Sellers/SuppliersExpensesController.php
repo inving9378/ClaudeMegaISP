@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Sellers\Cuts;
+namespace App\Modules\Addons\Vendedores\Controllers\Sellers;
 
 use App\Http\Controllers\Controller;
 use App\Repositories\Sellers\Cuts\SuppliersExpenseRepository;
