@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Vendors\Sales;
+namespace App\Modules\Addons\Vendedores\Controllers\Vendors\Sales;
 
 use App\Http\Controllers\Controller;
 use App\Http\Traits\DatatableCoreTrait;

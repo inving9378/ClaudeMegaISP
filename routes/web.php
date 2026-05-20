@@ -3,15 +3,7 @@
 use App\Http\Controllers\Module\Administration\User\UserController;
 // Mapas controllers (infraestructura física) migrados a App\Modules\Addons\Mapas\Controllers\Mapas (rutas en módulo)
 // Maps controllers (sub-namespace Geo) migrados a App\Modules\Addons\Mapas\Controllers\Geo
-use App\Http\Controllers\Module\Vendors\VendorController;
-use App\Http\Controllers\Module\Vendors\SellerController;
-use App\Http\Controllers\Module\Vendors\Prospects\ProspectController;
-use App\Http\Controllers\Module\Vendors\Sales\SaleController;
-use App\Http\Controllers\Module\Vendors\Billing\PaymentClientController;
-use App\Http\Controllers\Module\Vendors\Billing\PaymentSellerController;
-use App\Http\Controllers\Module\Vendors\Billing\SellerTransactionController;
-use App\Http\Controllers\Module\Vendors\Billing\CommissionRuleController;
-use App\Http\Controllers\Module\Vendors\Billing\RangeSaleController;
+// Vendors controllers migrados a App\Modules\Addons\Vendedores\Controllers\Vendors (rutas en módulo)
 // OLTs controllers migrados a App\Modules\Addons\GestionRed\Controllers\OLTs (rutas en módulo)
 // Sellers controllers migrados a App\Modules\Addons\Vendedores\Controllers\Sellers (rutas en módulo)
 // Imports de Module/Setting movidos a app/Modules/Core/Configuracion/routes.php
@@ -449,90 +441,7 @@ Route::group(['middleware' => ['auth']], function () {
             Route::post('/helper/get-services-by-client-main-information', 'Shared\ComponentSearchServiceController@getServiceByClientMainInformationId');
 
             // Módulo de vendedores
-            Route::group(['prefix' => 'vendedores'], function () {
-                Route::get('/', [SellerController::class, 'showView'])->name('vendedores.showView');
-                Route::get('/seguimiento-me/', [SellerController::class, 'showPanel'])->name('vendedores.showPanel');
-                Route::get('/data', [SellerController::class, 'index'])->name('vendedores.index');
-                Route::get('/{id}/seguimiento-vendedor/{seller_id}', [SellerController::class, 'edit'])->name('vendedores.seguimiento');
-                Route::get('/{id}/getDataById', [SellerController::class, 'getDataById'])->name('vendedores.getDataById');
-                Route::get('/get-status-sellers', [SellerController::class, 'getStatusSeller'])->name('vendedores.getStatusSeller');
-                Route::get('/get-type-sellers', [SellerController::class, 'getTypesSeller'])->name('vendedores.getTypesSeller');
-                Route::post('/{id}/update', [SellerController::class, 'update'])->name('vendedores.update');
-                Route::get('/{id}/pdf', [SellerController::class, 'pdf'])->name('vendedores.pdf');
-
-                // Dashboard
-                Route::group(['prefix' => 'dashboard'], function () {
-                    Route::get('/', [VendorController::class, 'index'])->name('dashboard');
-                });
-
-                // Prospectos
-                Route::group(['prefix' => 'prospectos'], function () {
-                    Route::get('/', [ProspectController::class, 'index'])->name('prospectos.index');
-                    Route::get('{id}/getById', [ProspectController::class, 'getById'])->name('prospectos.getById');
-                    Route::get('/statusProspects/{startDate}/{endDate}', [ProspectController::class, 'statusProspects'])->name('prospectos.statusProspects');
-                });
-
-                // Ventas
-                Route::group(['prefix' => 'ventas'], function () {
-                    Route::get('/', [SaleController::class, 'index'])->name('ventas.index');
-                    Route::get('{id}/salesBySeller', [SaleController::class, 'salesBySeller'])->name('ventas.salesBySeller');
-                    Route::post('/sales-by-seller/{id}', [SaleController::class, 'getSalesBySeller']);
-                    Route::get('/salesByMedium/{startDate}/{endDate}', [SaleController::class, 'salesByMedium'])->name('ventas.salesByMedium');
-                    Route::get('/salesByMonth', [SaleController::class, 'salesByMonth'])->name('ventas.salesByMonth');
-                    Route::get('/salesAndProspectsByDateRange/{startDate}/{endDate}', [SaleController::class, 'salesAndProspectsByDateRange'])->name('ventas.salesAndProspectsByDateRange');
-                    Route::get('/rankingSales/{startDate}/{endDate}', [SaleController::class, 'rankingSales'])->name('ventas.rankingSales');
-
-                    Route::get('/total-prospects', [SaleController::class, 'getTotalProspects'])->name('ventas.getTotalProspects');
-                    Route::get('/total-sales', [SaleController::class, 'getTotalSales'])->name('ventas.getTotalSales');
-                    Route::get('/total-lost-sales', [SaleController::class, 'getLostSales'])->name('ventas.getLostSales');
-                });
-
-                // Pagos de los clientes
-                Route::group(['prefix' => 'payments'], function () {
-                    Route::get('/', [PaymentClientController::class, 'index'])->name('index');
-                    Route::get('{id}/getListPayments', [PaymentClientController::class, 'getListPaymentsOfCustomersBySeller'])->name('getListPayments');
-                    Route::get('{id}/getPayments', [PaymentClientController::class, 'getPaymentsOfCustomersBySeller'])->name('getPayments');
-                    Route::get('{id}/getDataSeller', [PaymentClientController::class, 'getDataSeller'])->name('getDataSeller');
-                    Route::post('{id}/getRuleDataSeller', [PaymentClientController::class, 'getRuleDataSeller'])->name('getRuleDataSeller');
-                    Route::post('get-periods-from-seller/{id}', [PaymentClientController::class, 'getPeriodsFromSeller'])->name('getPeriodsFromSeller');
-                    Route::post('{id}/getMontlyCommissionsBySeller', [PaymentClientController::class, 'getMontlyCommissionsBySeller'])->name('getMontlyCommissionsBySeller');
-                });
-
-                // Pagos de los vendedores
-                Route::group(['prefix' => 'payments-sellers'], function () {
-                    Route::get('{id}/get-all-payments-of-seller', [PaymentSellerController::class, 'getPaymentsBySellerId']);
-                    Route::get('{id_seller}/{id_payment}/get-ticket-of-seller', [PaymentSellerController::class, 'getTicket']);
-                    Route::get('/{id_seller}/{id_payment}/download-receipt-pdf', [PaymentSellerController::class, 'downloadReceipt']);
-                    Route::get('/{id}/edit-payment', [PaymentSellerController::class, 'getDataToEditPayment']);
-                    Route::get('/{id}/edit', [PaymentSellerController::class, 'edit']);
-                    Route::post('/create', [PaymentSellerController::class, 'registerPayment']);
-                    Route::post('/{id}/update', [PaymentSellerController::class, 'updatePayment']);
-                    Route::delete('/{id}/destroy', [PaymentSellerController::class, 'deletePayment']);
-                    Route::post('/store', [PaymentSellerController::class, 'store']);
-                    Route::post('/details', [PaymentSellerController::class, 'details']);
-                    Route::post('/details-from-payment-type', [PaymentSellerController::class, 'detailsFromPaymentType']);
-                    Route::post('/details-from-discount-type', [PaymentSellerController::class, 'detailsFromDiscountType']);
-                    Route::get('/payment-receipt/{id}', [PaymentSellerController::class, 'paymentReceiptPDF']);
-                    Route::get('/payment-receipt-by-type/{id}', [PaymentSellerController::class, 'paymentReceiptByTypePDF']);
-                    Route::get('/discount-receipt/{id}', [PaymentSellerController::class, 'discountReceiptPDF']);
-                    Route::post('/statement-account/{id}', [PaymentSellerController::class, 'statementAccount']);
-                    Route::post('/incomes-account/{id}', [PaymentSellerController::class, 'incomesAccount']);
-                    Route::post('/expenses-account/{id}', [PaymentSellerController::class, 'expensesAccount']);
-                    Route::post('/debt-account/{id}', [PaymentSellerController::class, 'debtAccount']);
-                    Route::post('/discount-account/{id}', [PaymentSellerController::class, 'discountAccount']);
-                    Route::post('/payments-by-seller/{id}', [PaymentSellerController::class, 'paymentsBySeller']);
-                    Route::post('/payment-signature/{id}', [PaymentSellerController::class, 'paymentSignature']);
-                    Route::post('/pending-payments-by-seller/{id}', [PaymentSellerController::class, 'pendingPaymentsBySeller']);
-                    Route::post('/discounts-by-seller/{id}', [PaymentSellerController::class, 'discountsBySeller']);
-                    Route::get('/pending-discounts/{id}', [PaymentSellerController::class, 'pendingDiscountsBySeller']);
-                    Route::post('/collect-debt', [PaymentSellerController::class, 'collectDebt']);
-                });
-
-                // Transacciones
-                Route::group(['prefix' => 'transacciones'], function () {
-                    Route::get('{id_seller}/{start_date}/{end_date}/{method}/get-transactions-by-seller', [SellerTransactionController::class, 'getTransactionsList']);
-                });
-            });
+            // Rutas `vendedores/*` migradas a app/Modules/Addons/Vendedores/routes.php
 
 
             // Rutas `maps/*` (Connections/Devices/KMZ/Layers/Proyects/ServiceBox) migradas

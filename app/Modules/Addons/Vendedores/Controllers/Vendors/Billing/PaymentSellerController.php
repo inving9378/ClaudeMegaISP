@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Vendors\Billing;
+namespace App\Modules\Addons\Vendedores\Controllers\Vendors\Billing;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Configuracion\Repositories\CompanyInformationRepository;

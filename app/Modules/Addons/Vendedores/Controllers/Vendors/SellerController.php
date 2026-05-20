@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Vendors;
+namespace App\Modules\Addons\Vendedores\Controllers\Vendors;
 
 use App\Models\User;
 use App\Models\Seller;
