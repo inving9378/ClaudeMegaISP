@@ -1,0 +1,9 @@
+{
+    "slug": "core-localizacion",
+    "name": "Localización",
+    "version": "0.1.0",
+    "description": "Entidades geográficas y administrativas: estado, municipio, colonia, sucursal, ubicación.",
+    "type": "core",
+    "dependencies": [],
+    "active": true
+}

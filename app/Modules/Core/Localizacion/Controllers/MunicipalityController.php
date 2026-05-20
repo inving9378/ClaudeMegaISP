@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\Municipality;
+namespace App\Modules\Core\Localizacion\Controllers;
 
 
 use App\Http\Controllers\Base\CrudModalController;
