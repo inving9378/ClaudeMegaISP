@@ -1,37 +1,36 @@
 <?php
 
-namespace App\Http\Controllers\Module\OLTs;
+namespace App\Modules\Addons\GestionRed\Controllers\OLTs;
 
 use App\Http\Controllers\Controller;
 use App\Http\Traits\DatatableCoreTrait;
-use App\Models\OltTypeONU;
-use App\Services\OLTsService;
+use App\Models\OltSpeedProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 
-class OLTsTypeOnusController extends Controller
+class OLTsProfilesController extends Controller
 {
+
     use DatatableCoreTrait;
 
     private $model;
-    protected $oltService;
 
     public function __construct()
     {
-        $this->model = OltTypeONU::class;
-        $this->oltService = new OLTsService();
+        $this->model = OltSpeedProfile::class;
     }
 
     public function index(Request $request)
     {
         if ($request->force) {
-            Artisan::call('smartolt:sync-inventory', ['--only' => 'type-onus']);
+            Artisan::call('smartolt:sync-inventory', ['--only' => 'profiles']);
         }
         $columns =  $request->columns;
         $order = $request->sortBy ?? $columns[0];
         $dir = $request->descending ? 'DESC' : 'ASC';
         $mapping = $this->getColumnMapping();
         $query  = $this->getGeneralQuery($columns, $mapping);
+        $query->where('direction', $request->direction);
         $query = $this->applySearch($query, $request->search ?? null, $columns, $mapping);
         $query = $this->applySorting($query, $order, $dir, $mapping);
         $objects = $query->paginate(isset($request->rowsPerPage) ? $request->rowsPerPage : 20, ['*'], 'page', isset($request->page) ? $request->page : null);
@@ -46,23 +45,12 @@ class OLTsTypeOnusController extends Controller
     protected function getBaseColumnsByTable()
     {
         return [
-            'olt_type_onus' => [
+            'olt_speed_profiles' => [
                 'name' => ['searchable' => true],
-                'pon_type' => ['searchable' => true],
-                'capability' => ['searchable' => true],
-                'ethernet_ports' => ['searchable' => true],
-                'wifi_ports' => ['searchable' => true],
-                'voip_ports' => ['searchable' => true],
-                'catv' => ['searchable' => true],
-                'allow_custom_profiles' => ['searchable' => true],
-                'last_synced_at' => ['searchable' => false]
+                'speed' => ['searchable' => true],
+                'direction' => ['searchable' => true],
+                'type' => ['searchable' => true]
             ]
         ];
-    }
-
-    public function store(Request $request)
-    {
-        $response = $this->oltService->addTypeOnu($request->all());
-        return response()->json($response);
     }
 }

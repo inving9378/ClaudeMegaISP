@@ -1,38 +1,38 @@
 <?php
 
-namespace App\Http\Controllers\Module\OLTs;
+namespace App\Modules\Addons\GestionRed\Controllers\OLTs;
 
 use App\Http\Controllers\Controller;
 use App\Http\Traits\DatatableCoreTrait;
-use App\Models\OltCard;
+use App\Models\OltOdb;
+use App\Services\OLTsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 
-class OLTsCardsController extends Controller
+class OLTsODBsController extends Controller
 {
     use DatatableCoreTrait;
 
     private $model;
 
+    protected $oltService;
+
     public function __construct()
     {
-        $this->model = OltCard::class;
+        $this->model = OltOdb::class;
+        $this->oltService = new OLTsService();
     }
 
-    public function index(Request $request, $id)
+    public function index(Request $request)
     {
         if ($request->force) {
-            Artisan::call('smartolt:sync-inventory', [
-                '--only' => 'cards',
-                'olt' => $id
-            ]);
+            Artisan::call('smartolt:sync-inventory', ['--only' => 'odbs']);
         }
         $columns =  $request->columns;
         $order = $request->sortBy ?? $columns[0];
         $dir = $request->descending ? 'DESC' : 'ASC';
         $mapping = $this->getColumnMapping();
         $query  = $this->getGeneralQuery($columns, $mapping);
-        $query->where('olt_id', $id);
         $query = $this->applySearch($query, $request->search ?? null, $columns, $mapping);
         $query = $this->applySorting($query, $order, $dir, $mapping);
         $objects = $query->paginate(isset($request->rowsPerPage) ? $request->rowsPerPage : 20, ['*'], 'page', isset($request->page) ? $request->page : null);
@@ -47,17 +47,19 @@ class OLTsCardsController extends Controller
     protected function getBaseColumnsByTable()
     {
         return [
-            'olt_cards' => [
-                'slot' => ['searchable' => true],
-                'type' => ['searchable' => true],
-                'real_type' => ['searchable' => true],
-                'ports' => ['searchable' => true],
-                'software_version' => ['searchable' => true],
-                'role' => ['searchable' => true],
-                'status' => ['searchable' => true],
-                'info_updated' => ['searchable' => true],
+            'olt_odbs' => [
+                'name' => ['searchable' => true],
+                'latitude' => ['searchable' => true],
+                'longitude' => ['searchable' => true],
+                'zone_name' => ['searchable' => true],
                 'last_synced_at' => ['searchable' => false]
             ]
         ];
+    }
+
+    public function store(Request $request)
+    {
+        $response = $this->oltService->addOdb($request->all());
+        return response()->json($response);
     }
 }

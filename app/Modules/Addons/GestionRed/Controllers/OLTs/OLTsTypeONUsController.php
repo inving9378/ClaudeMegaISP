@@ -1,38 +1,37 @@
 <?php
 
-namespace App\Http\Controllers\Module\OLTs;
+namespace App\Modules\Addons\GestionRed\Controllers\OLTs;
 
 use App\Http\Controllers\Controller;
 use App\Http\Traits\DatatableCoreTrait;
-use App\Models\OltUplinkPort;
+use App\Models\OltTypeONU;
+use App\Services\OLTsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 
-class OLTsUplinkPortsController extends Controller
+class OLTsTypeOnusController extends Controller
 {
     use DatatableCoreTrait;
 
     private $model;
+    protected $oltService;
 
     public function __construct()
     {
-        $this->model = OltUplinkPort::class;
+        $this->model = OltTypeONU::class;
+        $this->oltService = new OLTsService();
     }
 
-    public function index(Request $request, $id)
+    public function index(Request $request)
     {
         if ($request->force) {
-            Artisan::call('smartolt:sync-inventory', [
-                '--only' => 'uplink-ports',
-                'olt' => $id
-            ]);
+            Artisan::call('smartolt:sync-inventory', ['--only' => 'type-onus']);
         }
         $columns =  $request->columns;
         $order = $request->sortBy ?? $columns[0];
         $dir = $request->descending ? 'DESC' : 'ASC';
         $mapping = $this->getColumnMapping();
         $query  = $this->getGeneralQuery($columns, $mapping);
-        $query->where('olt_id', $id);
         $query = $this->applySearch($query, $request->search ?? null, $columns, $mapping);
         $query = $this->applySorting($query, $order, $dir, $mapping);
         $objects = $query->paginate(isset($request->rowsPerPage) ? $request->rowsPerPage : 20, ['*'], 'page', isset($request->page) ? $request->page : null);
@@ -47,21 +46,23 @@ class OLTsUplinkPortsController extends Controller
     protected function getBaseColumnsByTable()
     {
         return [
-            'olt_uplink_ports' => [
+            'olt_type_onus' => [
                 'name' => ['searchable' => true],
-                'type' => ['searchable' => true],
-                'mode' => ['searchable' => true],
-                'admin_status' => ['searchable' => true],
-                'status' => ['searchable' => true],
-                'vlan_tag' => ['searchable' => true],
-                'negotiation_auto' => ['searchable' => true],
-                'mtu' => ['searchable' => true],
-                'wavelength' => ['searchable' => true],
-                'temperature' => ['searchable' => true],
-                'pvid' => ['searchable' => true],
-                'description' => ['searchable' => true],
+                'pon_type' => ['searchable' => true],
+                'capability' => ['searchable' => true],
+                'ethernet_ports' => ['searchable' => true],
+                'wifi_ports' => ['searchable' => true],
+                'voip_ports' => ['searchable' => true],
+                'catv' => ['searchable' => true],
+                'allow_custom_profiles' => ['searchable' => true],
                 'last_synced_at' => ['searchable' => false]
             ]
         ];
+    }
+
+    public function store(Request $request)
+    {
+        $response = $this->oltService->addTypeOnu($request->all());
+        return response()->json($response);
     }
 }

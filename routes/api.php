@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\Module\OLTs\OLTsController;
+use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsController;
 // use App\Http\Controllers\PaymentTestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
