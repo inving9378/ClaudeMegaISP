@@ -24,7 +24,7 @@ use App\Modules\Core\Configuracion\Controllers\Tools\ImportController;
 use App\Modules\Core\Configuracion\Controllers\TypeSeller\TypeSellerController;
 use App\Modules\Core\Configuracion\Controllers\WorkFlow\WorkFlowController;
 // Controllers que NO pertenecen a este módulo pero se enrutan bajo /configuracion:
-use App\Http\Controllers\Module\Mapas\MapCredentialController;
+use App\Modules\Addons\Mapas\Controllers\Mapas\MapCredentialController;
 use App\Http\Controllers\Module\Vendors\Billing\CommissionRuleController;
 use App\Http\Controllers\Module\Vendors\Billing\RangeSaleController;
 use Illuminate\Support\Facades\Route;
