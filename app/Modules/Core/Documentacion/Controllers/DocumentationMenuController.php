@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\Documentation\DocumentationMenu;
+namespace App\Modules\Core\Documentacion\Controllers;
 
 use App\Http\Controllers\Base\CrudModalController;
 use App\Http\Controllers\Controller;

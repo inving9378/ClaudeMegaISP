@@ -85,37 +85,7 @@ Route::group(['middleware' => ['auth']], function () {
 
                 // Rutas metotdo-de-pago migradas a app/Modules/Core/Configuracion/routes.php
 
-                // Rutas nuevo módulo Documentation
-                Route::group(['prefix' => 'documentation', 'namespace' => 'Documentation'], function () {
-                    Route::group(['prefix' => 'documentation_menu', 'namespace' => 'DocumentationMenu'], function () {
-                        Route::get('/', 'DocumentationMenuController@index');
-                        Route::post('/add', 'DocumentationMenuController@store');
-                        Route::post('/update/{id}', 'DocumentationMenuController@update');
-                        Route::post('/destroy/{id}', 'DocumentationMenuController@destroy');
-                        Route::post('/table', 'DocumentationMenuController@table');
-                        Route::get('/getById/{id}', 'DocumentationMenuController@getById');
-                        Route::get('/get-title/{id}', 'DocumentationMenuController@getTitle');
-                        // Ruta para el árbol de documentación (dropdown)
-                        Route::get('/tree', 'DocumentationMenuController@getTree');
-                    });
-                    Route::group(['prefix' => 'documentation_submenu', 'namespace' => 'DocumentationSubmenu'], function () {
-                        Route::get('/', 'DocumentationSubmenuController@index');
-                        Route::post('/add', 'DocumentationSubmenuController@store');
-                        Route::post('/update/{id}', 'DocumentationSubmenuController@update');
-                        Route::post('/destroy/{id}', 'DocumentationSubmenuController@destroy');
-                        Route::post('/table', 'DocumentationSubmenuController@table');
-                        // NUEVA RUTA:
-                        Route::get('/{id}', 'DocumentationSubmenuController@show');
-                    });
-                    Route::group(['prefix' => 'documentation_content', 'namespace' => 'DocumentationContent'], function () {
-                        // Route::get('/{submenu_id}/contents', 'DocumentationContentController@index');
-                        Route::post('/add', 'DocumentationContentController@store');
-                        Route::post('/update/{id}', 'DocumentationContentController@update');
-                        Route::delete('/delete/{id}', 'DocumentationContentController@destroy');
-                        // Route::get('/{submenuId}/contents', 'DocumentationContentController@getContents');
-                        Route::get('/{submenuId}/contents', 'DocumentationContentController@getContentsBySubmenuId');
-                    });
-                });
+                // Rutas administracion/documentation/* migradas a app/Modules/Core/Documentacion/routes.php
 
             });
 

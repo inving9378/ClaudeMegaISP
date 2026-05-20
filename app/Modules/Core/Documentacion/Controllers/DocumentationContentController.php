@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\Documentation\DocumentationContent;
+namespace App\Modules\Core\Documentacion\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\DocumentationContent;
