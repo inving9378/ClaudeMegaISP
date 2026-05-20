@@ -25,6 +25,7 @@ Route::middleware(['web', 'auth', 'role:DESARROLLADOR'])
         Route::get('/', [DevToolsController::class, 'index'])->name('devtools.index');
         Route::get('/context', [DevToolsController::class, 'context'])->name('devtools.context');
         Route::post('/chat', [DevToolsController::class, 'chat'])->name('devtools.chat');
+        Route::get('/nav-items', [DevToolsController::class, 'navItems'])->name('devtools.nav-items');
     });
 
 // Git tooling — sub-namespace dentro de DevTools, pero gating con

@@ -148,6 +148,121 @@ class DevToolsController extends Controller
         }
     }
 
+    /**
+     * GET /devtools/nav-items — devuelve la lista de items principales del
+     * sistema filtrada por los permisos del usuario actual, para alimentar
+     * la columna sidebar del DevtoolsPanel (que vive en una página
+     * master-without-nav y necesita su propio menú).
+     *
+     * Lista hardcoded — la fidelidad con el sidebar real del sistema no es
+     * objetivo aquí; es una navegación de atajos para el usuario DESARROLLADOR.
+     */
+    public function navItems(): JsonResponse
+    {
+        $user = auth()->user();
+
+        $items = [
+            [
+                'label'      => 'Dashboard',
+                'icon'       => 'fas fa-tachometer-alt',
+                'route'      => '/dashboard',
+                'permission' => 'dashboard_view_dashboard',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Clientes',
+                'icon'       => 'fas fa-users',
+                'route'      => '/clientes',
+                'permission' => 'client_view_client',
+                'children'   => [
+                    ['label' => 'Lista',   'route' => '/clientes'],
+                    ['label' => 'Morosos', 'route' => '/clientes/morosos'],
+                ],
+            ],
+            [
+                'label'      => 'Finanzas',
+                'icon'       => 'fas fa-dollar-sign',
+                'route'      => '/finanzas',
+                'permission' => 'finance_view_finance',
+                'children'   => [
+                    ['label' => 'Pagos',        'route' => '/finanzas/pagos'],
+                    ['label' => 'Facturas',     'route' => '/finanzas/facturas'],
+                    ['label' => 'Contabilidad', 'route' => '/finanzas/contabilidad'],
+                ],
+            ],
+            [
+                'label'      => 'Red',
+                'icon'       => 'fas fa-network-wired',
+                'route'      => '/red',
+                'permission' => 'network_view_network',
+                'children'   => [
+                    ['label' => 'Routers', 'route' => '/red/routers'],
+                    ['label' => 'OLTs',    'route' => '/red/olts'],
+                    ['label' => 'IPs',     'route' => '/red/ips'],
+                ],
+            ],
+            [
+                'label'      => 'Tickets',
+                'icon'       => 'fas fa-ticket-alt',
+                'route'      => '/tickets',
+                'permission' => 'ticket_view_ticket',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Inventario',
+                'icon'       => 'fas fa-boxes',
+                'route'      => '/inventario',
+                'permission' => 'inventory_view_inventory',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Mapas',
+                'icon'       => 'fas fa-map-marked-alt',
+                'route'      => '/mapas',
+                'permission' => 'maps_view_maps',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Reportes',
+                'icon'       => 'fas fa-chart-bar',
+                'route'      => '/reportes',
+                'permission' => 'report_view_report',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'IA',
+                'icon'       => 'fas fa-robot',
+                'route'      => '/ia',
+                'permission' => 'ia_view_chat',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'Configuración',
+                'icon'       => 'fas fa-cog',
+                'route'      => '/configuracion',
+                'permission' => 'setting_view_setting',
+                'children'   => [],
+            ],
+            [
+                'label'      => 'DevTools',
+                'icon'       => 'fas fa-tools',
+                'route'      => '/devtools',
+                'permission' => null,
+                'active'     => true,
+                'children'   => [],
+            ],
+        ];
+
+        $filtered = array_values(array_filter($items, function ($item) use ($user) {
+            if ($item['permission'] === null) {
+                return true;
+            }
+            return $user && $user->can($item['permission']);
+        }));
+
+        return response()->json($filtered);
+    }
+
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
