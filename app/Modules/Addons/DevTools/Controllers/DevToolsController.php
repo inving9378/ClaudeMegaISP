@@ -96,10 +96,29 @@ class DevToolsController extends Controller
             }
         }
         $userMsg = trim((string) $request->input('message', ''));
-        if ($userMsg === '') {
+        $attachments = $request->input('attachments', []);
+        if ($userMsg === '' && empty($attachments)) {
             return response()->json(['success' => false, 'error' => 'Mensaje vacío'], 422);
         }
-        $messages[] = ['role' => 'user', 'content' => $userMsg];
+
+        // Si hay attachments, transformar el último mensaje user a content blocks
+        // multimodales (imagen=base64 vision; archivos texto=text con cita).
+        if (! empty($attachments)) {
+            $contentBlocks = $this->buildAttachmentBlocks($attachments);
+            // Bloque de texto del usuario al final — Claude vision sugiere
+            // poner imágenes antes de la pregunta para mejor calidad.
+            if ($userMsg !== '') {
+                $contentBlocks[] = ['type' => 'text', 'text' => $userMsg];
+            } elseif (empty($contentBlocks)) {
+                // Sin texto ni bloques válidos → cae a mensaje plano vacío
+                $messages[] = ['role' => 'user', 'content' => '(adjunto sin contenido extraíble)'];
+            }
+            if (! empty($contentBlocks)) {
+                $messages[] = ['role' => 'user', 'content' => $contentBlocks];
+            }
+        } else {
+            $messages[] = ['role' => 'user', 'content' => $userMsg];
+        }
 
         try {
             $context = $this->gatherContext();
@@ -341,6 +360,63 @@ class DevToolsController extends Controller
             fn ($m) => $m['slug'] ?? null,
             app(ModuleManagerService::class)->manifests()
         )));
+    }
+
+    /**
+     * Convierte la lista de attachments del request a content blocks que la
+     * Claude API entiende. Imágenes → bloque "image" base64 (vision).
+     * Archivos de texto → bloque "text" con el contenido entre fences.
+     * Archivos binarios sin extracción → bloque "text" con placeholder.
+     *
+     * El payload espera attachments con keys: type ('image'|'file'),
+     * name, mimeType, base64.
+     */
+    private function buildAttachmentBlocks(array $attachments): array
+    {
+        $blocks = [];
+        foreach ($attachments as $att) {
+            $type = $att['type'] ?? '';
+            $b64 = $att['base64'] ?? '';
+            $mime = $att['mimeType'] ?? '';
+            $name = $att['name'] ?? 'archivo';
+            if ($b64 === '') {
+                continue;
+            }
+            if ($type === 'image') {
+                $blocks[] = [
+                    'type' => 'image',
+                    'source' => [
+                        'type' => 'base64',
+                        'media_type' => $mime !== '' ? $mime : 'image/png',
+                        'data' => $b64,
+                    ],
+                ];
+                continue;
+            }
+            // type === 'file' → intentar decodificar como texto.
+            $raw = base64_decode($b64, true);
+            $isTextMime = $mime !== '' && (
+                str_starts_with($mime, 'text/')
+                || in_array($mime, ['application/json', 'application/javascript', 'application/x-php'], true)
+            );
+            $isTextExt = (bool) preg_match('/\.(txt|md|json|csv|php|js|vue|py)$/i', $name);
+            if (($isTextMime || $isTextExt) && $raw !== false) {
+                // Truncar a 50 KB para no inflar el payload — suficiente para
+                // archivos de código razonables, y evita exceder context window
+                // si el desarrollador adjunta logs gigantes.
+                $excerpt = mb_substr($raw, 0, 50000);
+                $blocks[] = [
+                    'type' => 'text',
+                    'text' => "[Archivo adjunto: {$name}]\n```\n{$excerpt}\n```",
+                ];
+            } else {
+                $blocks[] = [
+                    'type' => 'text',
+                    'text' => "[Archivo adjunto binario: {$name} ({$mime}) — contenido no extraído]",
+                ];
+            }
+        }
+        return $blocks;
     }
 
     /**
