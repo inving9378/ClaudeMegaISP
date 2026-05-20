@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Network;
+namespace App\Modules\Addons\GestionRed\Controllers\Network;
 
 
 use App\Jobs\CreateNetWorkIpRowsJob;
@@ -13,7 +13,6 @@ use Illuminate\Support\Str;
 use App\Http\HelpersModule\module\network\NetworkDatatableHelper;
 use App\Http\Requests\module\network\NetworkCreateRequest;
 use App\Http\Requests\module\network\NetworkUpdateRequest;
-use App\Http\Controllers\Module\Network\Ipv4CalculatorController;
 use App\Models\Module;
 use App\Services\ImportdDBService;
 use Illuminate\Support\Facades\DB;
