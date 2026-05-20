@@ -77,28 +77,7 @@ Route::group(['middleware' => ['auth']], function () {
 
                 // Rutas activity_log migradas a app/Modules/Core/Auditoria/routes.php
 
-                Route::group(['prefix' => 'document_template', 'namespace' => 'DocumentTemplate'], function () {
-                    Route::get('/', 'DocumentTemplateController@index');
-                    Route::post('/table', 'DocumentTemplateController@table');
-                    Route::get('/load_content_template', 'DocumentTemplateController@loadContentTemplate');
-                    Route::post('/show_content_template', 'DocumentTemplateController@showContentTemplate');
-                    Route::post('/show_content_template/{id}', 'DocumentTemplateController@showContentTemplateById');
-                    Route::get('/get_variables', 'DocumentTemplateController@getVariables');
-                    Route::post('/add', 'DocumentTemplateController@store');
-                    Route::post('/update/{id}', 'DocumentTemplateController@update');
-                    Route::post('/destroy/{id}', 'DocumentTemplateController@destroy');
-
-                    Route::post('/get_data_template/{id}', 'DocumentTemplateController@getDataTemplate');
-                });
-
-                Route::group(['prefix' => 'document_type_template', 'namespace' => 'DocumentTypeTemplate'], function () {
-                    Route::get('/', 'DocumentTypeTemplateController@index');
-                    Route::post('/add', 'DocumentTypeTemplateController@store');
-                    Route::get('/editar/{id}', 'DocumentTypeTemplateController@edit');
-                    Route::post('/update/{id}', 'DocumentTypeTemplateController@update');
-                    Route::post('/destroy/{id}', 'DocumentTypeTemplateController@destroy');
-                    Route::post('/table', 'DocumentTypeTemplateController@table');
-                });
+                // Rutas document_template y document_type_template migradas a app/Modules/Core/Documentos/routes.php
 
                 // Rutas ift migradas a app/Modules/Core/Configuracion/routes.php
 

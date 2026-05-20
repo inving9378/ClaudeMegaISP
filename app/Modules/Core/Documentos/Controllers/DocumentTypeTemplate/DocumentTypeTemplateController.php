@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Module\Administration\DocumentTypeTemplate;
+namespace App\Modules\Core\Documentos\Controllers\DocumentTypeTemplate;
 
 
 use App\Http\Controllers\Base\CrudModalController;
