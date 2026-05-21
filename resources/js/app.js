@@ -64,6 +64,9 @@ import FieldModuleListar from "./components/module/setting/FieldModuleListar";
 import IndexSetting from "./components/module/setting/IndexSetting.vue";
 import ImportListar from "./components/module/setting/ImportListar.vue";
 import ImportCrud from "./components/module/setting/components/tools/ImportCrud.vue";
+import SmartImport from "./components/module/setting/SmartImport.vue";
+import SmartExport from "./components/module/setting/SmartExport.vue";
+import ImportExportHistory from "./components/module/setting/ImportExportHistory.vue";
 import ShowActivity from "./components/module/adminstration/activity_log/ShowActivity.vue";
 import ApiMovilConfig from "./components/module/setting/api-movil/ApiMovilConfig.vue";
 import ApiMovilTokens from "./components/module/setting/api-movil/ApiMovilTokens.vue";
@@ -475,6 +478,11 @@ const app = createApp({
         IAHistorial,
         IAPrompts,
         IAConfiguracion,
+
+        //Smart Import/Export — addon-smart-import-export (portado de MEGANET 2026-05-21)
+        'smart-import': SmartImport,
+        'smart-export': SmartExport,
+        'import-export-history': ImportExportHistory,
     },
 });
 

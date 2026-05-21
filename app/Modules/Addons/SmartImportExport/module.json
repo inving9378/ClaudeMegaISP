@@ -1,0 +1,9 @@
+{
+    "slug": "addon-smart-import-export",
+    "name": "Smart Import/Export",
+    "version": "0.1.0",
+    "description": "Importación inteligente con detección de conflictos por IA, exportación selectiva por módulos y bitácora persistente.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}
