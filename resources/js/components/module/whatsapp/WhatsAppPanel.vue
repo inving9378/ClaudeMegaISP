@@ -221,6 +221,25 @@
                             </div>
                         </div>
 
+                        <!-- Prospecto CRM -->
+                        <div v-if="activeConversation.crm_id" class="wa-ia-section wa-crm-card">
+                            <div class="wa-ia-title">
+                                <i class="bi bi-person-plus"></i> Prospecto CRM
+                                <span class="wa-crm-badge">En CRM</span>
+                            </div>
+                            <div class="wa-crm-info">
+                                <div>
+                                    <a :href="'/crm/' + activeConversation.crm_id" target="_blank">
+                                        Ver CRM #{{ activeConversation.crm_id }}
+                                        <i class="bi bi-box-arrow-up-right" style="font-size:10px"></i>
+                                    </a>
+                                </div>
+                                <button class="wa-ia-btn full primary" @click="openScheduleModal" style="margin-top:8px">
+                                    <i class="bi bi-calendar-plus"></i> Agendar instalación
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Tono -->
                         <div class="wa-ia-section">
                             <div class="wa-ia-title">Tono</div>
@@ -282,6 +301,40 @@
                 </template>
             </aside>
         </div>
+
+        <!-- Modal: agendar instalación -->
+        <div v-if="showScheduleModal" class="wa-modal-backdrop" @click.self="closeScheduleModal">
+            <div class="wa-modal">
+                <h4>Agendar instalación — CRM #{{ activeConversation?.crm_id }}</h4>
+                <div class="wa-modal-body">
+                    <label>
+                        Fecha y hora
+                        <input v-model="scheduleForm.scheduled_at" type="datetime-local" required />
+                    </label>
+                    <label>
+                        Técnico asignado (opcional)
+                        <select v-model="scheduleForm.technician_id">
+                            <option :value="null">Sin asignar</option>
+                            <option v-for="t in technicians" :key="t.id" :value="t.id">
+                                {{ t.name }}
+                            </option>
+                        </select>
+                    </label>
+                    <label>
+                        Notas para el técnico (opcional)
+                        <textarea v-model="scheduleForm.notes" rows="3" maxlength="500"
+                                  placeholder="Punto de referencia, instrucciones de acceso, etc."></textarea>
+                    </label>
+                    <div v-if="scheduleError" class="wa-modal-error">{{ scheduleError }}</div>
+                </div>
+                <div class="wa-modal-actions">
+                    <button class="wa-ia-btn" @click="closeScheduleModal" :disabled="scheduleSaving">Cancelar</button>
+                    <button class="wa-ia-btn primary" @click="submitSchedule" :disabled="scheduleSaving || !scheduleForm.scheduled_at">
+                        {{ scheduleSaving ? 'Agendando…' : 'Agendar + notificar' }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -316,6 +369,17 @@ export default {
             iaResult: null,
             selectedTone: 'friendly',
             iaHistory: [],
+
+            // Modal agendar instalación
+            showScheduleModal: false,
+            scheduleSaving: false,
+            scheduleError: '',
+            technicians: [],
+            scheduleForm: {
+                scheduled_at: '',
+                technician_id: null,
+                notes: '',
+            },
         };
     },
 
@@ -548,6 +612,50 @@ export default {
 
         async sendDraftDirect() {
             if (this.newMessage.trim()) await this.sendMessage();
+        },
+
+        async openScheduleModal() {
+            if (!this.activeConversation?.crm_id) return;
+            this.scheduleError = '';
+            this.scheduleForm = { scheduled_at: '', technician_id: null, notes: '' };
+            this.showScheduleModal = true;
+            // Cargar técnicos lazy — solo cuando se abre el modal
+            if (!this.technicians.length) {
+                try {
+                    const { data } = await axios.get('/whatsapp/api/technicians');
+                    this.technicians = Array.isArray(data) ? data : [];
+                } catch {
+                    this.technicians = [];
+                }
+            }
+        },
+
+        closeScheduleModal() {
+            if (this.scheduleSaving) return;
+            this.showScheduleModal = false;
+        },
+
+        async submitSchedule() {
+            if (!this.activeConversation || !this.scheduleForm.scheduled_at) return;
+            this.scheduleSaving = true;
+            this.scheduleError = '';
+            try {
+                const resp = await axios.post(
+                    `/whatsapp/api/conversations/${this.activeConversation.id}/schedule-installation`,
+                    this.scheduleForm,
+                );
+                this.showScheduleModal = false;
+                // Refrescar mensajes para ver la notificación auto-enviada
+                await this.refreshMessagesQuiet(this.activeConversation.id);
+                alert(`Instalación agendada — Ticket #${resp.data.ticket_id}. El cliente recibió la confirmación por WhatsApp.`);
+            } catch (e) {
+                this.scheduleError = e.response?.data?.message
+                    || e.response?.data?.error
+                    || e.message
+                    || 'Error al agendar';
+            } finally {
+                this.scheduleSaving = false;
+            }
         },
 
         startPolling() {
@@ -1020,4 +1128,90 @@ export default {
     padding: 4px 0; border-top: 1px solid #2ecc7115;
 }
 .wa-ia-history em { color: #9de0b3; font-style: normal; }
+
+/* ─── Card Prospecto CRM ─── */
+.wa-crm-card {
+    border-left: 3px solid #25d366 !important;
+}
+.wa-crm-badge {
+    display: inline-block;
+    margin-left: 6px;
+    background: #25d366;
+    color: #0a2b15;
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+.wa-crm-info a {
+    color: #25d366;
+    text-decoration: none;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.wa-crm-info a:hover { text-decoration: underline; }
+
+/* ─── Modal agendar ─── */
+.wa-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+}
+.wa-modal {
+    background: #1a1a3a;
+    color: #e9edef;
+    border: 1px solid #2ecc7130;
+    border-radius: 8px;
+    padding: 20px;
+    width: 92%;
+    max-width: 460px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+.wa-modal h4 {
+    margin: 0 0 16px 0;
+    color: #25d366;
+    font-size: 16px;
+}
+.wa-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.wa-modal-body label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #aebac1;
+}
+.wa-modal-body input,
+.wa-modal-body select,
+.wa-modal-body textarea {
+    background: #0b141a;
+    color: #e9edef;
+    border: 1px solid #2a3942;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+}
+.wa-modal-body textarea { resize: vertical; }
+.wa-modal-error {
+    background: #2a1a1a;
+    color: #f15c6d;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+.wa-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
 </style>
