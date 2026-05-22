@@ -30,6 +30,7 @@ class WhatsAppAutoReplyService
     public function __construct(
         private WhatsAppIAService $ia,
         private EvolutionApiService $evolution,
+        private WhatsAppCrmService $crm,
     ) {
     }
 
@@ -56,6 +57,18 @@ class WhatsAppAutoReplyService
             $history       = $this->buildHistory($conversation);
 
             $result = $this->ia->assist($incoming, $history, $clientContext, $tone);
+
+            // ─── Integración CRM ──────────────────────────────────────────
+            // Sin bloquear el envío del borrador: acumular extracted_data en
+            // collected_data y crear el lead cuando haya lo mínimo. Errores
+            // van al log del CrmService, no propagan.
+            $extracted = $result['extracted_data'] ?? null;
+            $intent    = (string) ($result['intent']['primary'] ?? '');
+            if (is_array($extracted)) {
+                $this->crm->accumulateData($conversation, $extracted);
+            }
+            $this->crm->createLeadIfReady($conversation->fresh(), $message, $intent);
+            // ──────────────────────────────────────────────────────────────
 
             $confidence = (float) ($result['intent']['confidence'] ?? 0);
             $draft      = trim((string) ($result['draft'] ?? ''));
