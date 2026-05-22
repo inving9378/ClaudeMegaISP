@@ -43,8 +43,11 @@ class ImportExportController extends Controller
 
     public function upload(Request $request)
     {
+        // `extensions:` (Laravel 10.46+) valida por extensión del nombre del archivo.
+        // `mimes:sql,...` rechazaba .sql porque no tiene MIME type estándar registrado
+        // en Symfony MimeTypes, lo que causaba 422 ANTES de llegar a analyzeFile().
         $validator = Validator::make($request->all(), [
-            'file' => ['required', 'file', 'mimes:sql,json,xlsx,xls,csv,zip', 'max:2097152'],
+            'file' => ['required', 'file', 'extensions:sql,json,xlsx,xls,csv,zip', 'max:2097152'],
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
