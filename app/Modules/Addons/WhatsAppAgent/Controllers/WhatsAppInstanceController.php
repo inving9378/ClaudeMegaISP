@@ -79,7 +79,10 @@ class WhatsAppInstanceController extends Controller
         $instance = WhatsAppInstance::findOrFail($id);
         $status   = app(EvolutionApiService::class)->getConnectionStatus($instance);
 
-        $mapped = ($status['state'] ?? null) === 'open' ? 'connected' : 'disconnected';
+        // Evolution v2 anida el state: {"instance":{"state":"open"}}
+        // El fake mode devuelve top-level: {"state":"open"}
+        $state = $status['instance']['state'] ?? $status['state'] ?? null;
+        $mapped = $state === 'open' ? 'connected' : 'disconnected';
         $instance->update(['status' => $mapped]);
 
         return response()->json(['status' => $mapped, 'raw' => $status]);
