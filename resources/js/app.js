@@ -279,6 +279,10 @@ import IAConfiguracion from "./components/module/ia/IAConfiguracion.vue";
 //Manual de Usuario (addon-manual)
 import ManualIndex from "./components/module/manual/ManualIndex.vue";
 
+//Evaluador Empresarial — portado desde MEGANET 2026-05-22
+import EvaluadorEmpresarial from "./components/module/sellers/EvaluadorEmpresarial.vue";
+import EvaluacionesDashboard from "./components/module/sellers/EvaluacionesDashboard.vue";
+
 
 const app = createApp({
     components: {
@@ -487,6 +491,10 @@ const app = createApp({
         'smart-import': SmartImport,
         'smart-export': SmartExport,
         'import-export-history': ImportExportHistory,
+
+        //Evaluador Empresarial — addon-evaluador-empresarial (portado de MEGANET 2026-05-22)
+        'evaluador-empresarial': EvaluadorEmpresarial,
+        'evaluaciones-dashboard': EvaluacionesDashboard,
     },
 });
 
