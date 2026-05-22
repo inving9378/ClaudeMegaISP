@@ -276,6 +276,9 @@ import IAHistorial from "./components/module/ia/IAHistorial.vue";
 import IAPrompts from "./components/module/ia/IAPrompts.vue";
 import IAConfiguracion from "./components/module/ia/IAConfiguracion.vue";
 
+//Manual de Usuario (addon-manual)
+import ManualIndex from "./components/module/manual/ManualIndex.vue";
+
 
 const app = createApp({
     components: {
@@ -363,6 +366,7 @@ const app = createApp({
         FieldModuleListar,
         'module-manager': ModuleManager,
         'devtools-panel': DevtoolsPanel,
+        'manual-index': ManualIndex,
         'api-movil-config': ApiMovilConfig,
         'api-movil-tokens': ApiMovilTokens,
         'api-movil-docs': ApiMovilDocs,
@@ -474,10 +478,10 @@ const app = createApp({
         ReleasesDescription,
 
         //IA — portado desde MEGANET 2026-05-19
-        IAChatIndex,
-        IAHistorial,
-        IAPrompts,
-        IAConfiguracion,
+        'ia-chat-index': IAChatIndex,
+        'ia-historial': IAHistorial,
+        'ia-prompts': IAPrompts,
+        'ia-configuracion': IAConfiguracion,
 
         //Smart Import/Export — addon-smart-import-export (portado de MEGANET 2026-05-21)
         'smart-import': SmartImport,
