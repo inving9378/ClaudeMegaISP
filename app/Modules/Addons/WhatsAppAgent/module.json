@@ -1,0 +1,16 @@
+{
+    "slug": "addon-whatsapp-agent",
+    "name": "WhatsApp Agent",
+    "version": "1.0.0",
+    "description": "Mensajería WhatsApp conversacional con Evolution API + asistente IA",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "permissions": [
+        "whatsapp_view_conversations",
+        "whatsapp_send_messages",
+        "whatsapp_manage_instances",
+        "whatsapp_view_logs",
+        "whatsapp_use_ia"
+    ]
+}
