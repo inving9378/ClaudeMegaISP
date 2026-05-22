@@ -218,8 +218,9 @@ class WhatsAppPanelController extends Controller
                 ['label' => 'Crear ticket',      'detail' => 'Dar seguimiento post-upgrade',              'type' => 'ticket'],
                 ['label' => 'Aplicar descuento', 'detail' => 'Cliente frecuente — 10% primer mes',        'type' => 'discount'],
             ],
-            'tone_used' => $tone,
-            'fake'      => true,
+            'tone_used'      => $tone,
+            'extracted_data' => app(WhatsAppIAService::class)->emptyExtractedData(),
+            'fake'           => true,
         ];
     }
 

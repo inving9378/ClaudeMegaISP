@@ -86,12 +86,49 @@ Genera el siguiente JSON exacto:
       "type": "offer|ticket|discount|info|escalate"
     }
   ],
-  "tone_used": "{$tone}"
+  "tone_used": "{$tone}",
+  "extracted_data": {
+    "nombre": null,
+    "apellido_paterno": null,
+    "apellido_materno": null,
+    "email": null,
+    "phone2": null,
+    "calle": null,
+    "numero_ext": null,
+    "numero_int": null,
+    "colonia_texto": null,
+    "municipio_texto": null,
+    "estado_texto": null,
+    "cp": null,
+    "referencia_origen": null
+  }
 }
 
 Tipos de intención válidos: payment_inquiry, upgrade_plan, service_issue,
 disconnection_request, price_inquiry, complaint, compliment, general_inquiry,
-reconnection_request, schedule_visit, invoice_dispute.
+reconnection_request, schedule_visit, invoice_dispute, installation_request.
+
+EXTRACCIÓN DE DATOS (extracted_data):
+- SOLO cuando intent.primary sea installation_request o schedule_visit, intenta
+  extraer del mensaje (y/o del historial) los datos del cliente para crear un
+  prospecto en el CRM.
+- Para CUALQUIER otra intención, deja extracted_data con TODOS los campos en null.
+- Reglas estrictas:
+  · NO inventes datos. Si el cliente no lo mencionó, deja null.
+  · "nombre" = primer nombre (ej. "Juan Pedro"). Si el cliente sólo dijo "soy Juan",
+    "nombre"="Juan", apellidos null.
+  · "calle" SIN número (el número va en numero_ext / numero_int).
+  · "cp" debe ser 5 dígitos exactos; sino null.
+  · "colonia_texto" / "municipio_texto" / "estado_texto" = texto libre tal como
+    el cliente lo dijo, sin normalizar. La resolución a IDs la hace el backend.
+  · "referencia_origen" = cómo se enteró ("amigo", "Facebook", "instagram", etc.).
+- Si el cliente expresa interés en instalación PERO aún no dio datos suficientes,
+  la draft debe pedirle UN dato a la vez (no abrumar):
+  1) primero nombre completo,
+  2) luego dirección (calle + número),
+  3) luego colonia + CP + municipio + estado,
+  4) opcionalmente email y cómo se enteró.
+  Y todos los datos que SÍ haya dado en este o mensajes previos ya van en extracted_data.
 PROMPT;
 
         $proveedor = $this->getClaudeProveedor();
@@ -135,7 +172,32 @@ PROMPT;
             'quick_replies'     => ['Con gusto te ayudo', 'Dame un momento', 'Claro, ya reviso'],
             'suggested_actions' => [],
             'tone_used'         => $tone,
+            'extracted_data'    => $this->emptyExtractedData(),
             'fallback'          => true,
+        ];
+    }
+
+    /**
+     * Forma canónica de extracted_data — todas las claves esperadas en null.
+     * Útil para fallback y para que código consumidor pueda hacer ?? con
+     * confianza sin chequear existencia de cada key.
+     */
+    public function emptyExtractedData(): array
+    {
+        return [
+            'nombre'            => null,
+            'apellido_paterno'  => null,
+            'apellido_materno'  => null,
+            'email'             => null,
+            'phone2'            => null,
+            'calle'             => null,
+            'numero_ext'        => null,
+            'numero_int'        => null,
+            'colonia_texto'     => null,
+            'municipio_texto'   => null,
+            'estado_texto'      => null,
+            'cp'                => null,
+            'referencia_origen' => null,
         ];
     }
 
