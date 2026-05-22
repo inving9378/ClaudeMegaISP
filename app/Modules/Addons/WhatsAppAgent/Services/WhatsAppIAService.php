@@ -54,6 +54,7 @@ class WhatsAppIAService
         $clientInfo    = $this->formatClientContext($clientContext);
         $history       = $this->formatHistory($conversationHistory);
         $collectedInfo = $this->formatCollectedData($collectedData);
+        $planesInfo    = $this->formatPlanesDisponibles();
 
         $prompt = <<<PROMPT
 Eres un asistente de atención al cliente para MegaNet, una empresa ISP en México.
@@ -64,6 +65,9 @@ INFORMACIÓN DEL CLIENTE:
 
 DATOS YA RECOPILADOS (NO volver a pedir estos):
 {$collectedInfo}
+
+PLANES DISPONIBLES EN MEGANET (usar SOLO estos precios, NUNCA inventar otros):
+{$planesInfo}
 
 HISTORIAL RECIENTE DE LA CONVERSACIÓN:
 {$history}
@@ -139,6 +143,18 @@ EXTRACCIÓN DE DATOS (extracted_data):
   3) luego colonia + CP + municipio + estado,
   4) opcionalmente email y cómo se enteró.
   Y todos los datos que SÍ haya dado en este o mensajes previos ya van en extracted_data.
+
+CRÍTICO — USO DE "PLANES DISPONIBLES":
+- Cuando el cliente pregunte por precios, velocidades o planes, responde
+  ÚNICAMENTE con los datos listados en PLANES DISPONIBLES. Cita el plan por
+  su nombre exacto (campo "title") y el precio tal como aparece.
+- NUNCA inventes precios, velocidades, planes o promociones que no estén
+  en esa lista. NUNCA aproximes precios.
+- Si el cliente pide un plan que NO está en la lista (ej. "tienen 200 Mbps?"
+  cuando solo hay hasta 100), aclara que ese plan no está disponible y
+  ofrece el más cercano de la lista.
+- Si la lista dice "(no hay planes cargados…)" responde
+  "un asesor te informará sobre nuestros planes disponibles" — NO inventes.
 
 CRÍTICO — USO DE "DATOS YA RECOPILADOS":
 - Todo dato listado bajo "DATOS YA RECOPILADOS" ARRIBA ya fue proporcionado por
@@ -242,6 +258,68 @@ PROMPT;
             "- Tickets abiertos: ". ($ctx['open_tickets']  ?? '0'),
             "- Deuda pendiente: " . ($ctx['balance']       ?? '$0'),
         ]));
+    }
+
+    /**
+     * Carga los planes vendibles desde `internets` y los formatea para el prompt.
+     * Excluye placeholders internos (price=0 o download_speed=0). Cachea por
+     * 5 minutos para no martillar la BD con cada mensaje WhatsApp.
+     *
+     * Si la query falla o la tabla está vacía, devuelve un mensaje explícito
+     * para que la IA NO invente precios.
+     */
+    private function formatPlanesDisponibles(): string
+    {
+        try {
+            $planes = \Illuminate\Support\Facades\Cache::remember(
+                'whatsapp.planes_disponibles',
+                now()->addMinutes(5),
+                function () {
+                    // Solo filtramos precio > 0 para excluir placeholders internos
+                    // (ej. "administracion" con price=0). NO filtramos por
+                    // download_speed porque la data en `internets` es heterogénea:
+                    // algunos planes vendibles tienen speed=0 históricamente.
+                    // La tabla `internets` no tiene deleted_at — no usar SoftDeletes.
+                    return \Illuminate\Support\Facades\DB::table('internets')
+                        ->where('price', '>', 0)
+                        ->orderBy('price')
+                        ->get(['title', 'service_name', 'price', 'download_speed', 'upload_speed', 'tax_include'])
+                        ->map(function ($p) {
+                            // Las velocidades en BD están en kbps. Convertir a Mbps
+                            // dividiendo /1024 si > 1000. Si es 0, omitir el campo
+                            // para no confundir a la IA con "0 Mbps".
+                            $entry = [
+                                'nombre'       => $p->title,
+                                'precio_mxn'   => (float) $p->price,
+                                'iva_incluido' => (bool) $p->tax_include,
+                            ];
+                            if ((int) $p->download_speed > 0) {
+                                $entry['mbps_descarga'] = (int) $p->download_speed > 1000
+                                    ? round($p->download_speed / 1024, 1)
+                                    : (int) $p->download_speed;
+                            }
+                            if ((int) $p->upload_speed > 0) {
+                                $entry['mbps_subida'] = (int) $p->upload_speed > 1000
+                                    ? round($p->upload_speed / 1024, 1)
+                                    : (int) $p->upload_speed;
+                            }
+                            return $entry;
+                        })
+                        ->all();
+                }
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('WhatsAppIA: no se pudieron cargar planes', [
+                'error' => $e->getMessage(),
+            ]);
+            return '(no hay planes cargados — responder "un asesor te informará sobre nuestros planes")';
+        }
+
+        if (empty($planes)) {
+            return '(no hay planes cargados — responder "un asesor te informará sobre nuestros planes")';
+        }
+
+        return json_encode($planes, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
     /**
