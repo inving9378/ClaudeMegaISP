@@ -8,10 +8,10 @@
 
 | Path                  | Estado                                                          |
 | --------------------- | --------------------------------------------------------------- |
-| `/var/www/megaisp`    | **Único árbol activo.** nginx lo sirve en `:80`. Todo desarrollo va aquí. |
-| `/var/www/MEGANET`    | Árbol de **referencia / código legacy**. NO se desarrolla aquí. NO se commitea aquí. Su vhost nginx (`/etc/nginx/sites-enabled/meganet.conf`) está deshabilitado desde 2026-05-20. |
+| `/var/www/megaisp`    | **Único árbol Laravel.** nginx lo sirve en `:80`. Todo desarrollo va aquí. |
+| `/var/www/MEGANET`    | **Eliminado 2026-05-22.** El historial vive en `github.com/inving9378/MEGANET` (último commit `d772eab9` en rama `ia-module-migration`). |
 
-**Si trabajas en MEGANET porque ahí está el código a portar:** úsalo como fuente de lectura, escribe el resultado en `megaisp/app/Modules/Addons/<NuevoModulo>/`. Nunca commitees nuevos features al árbol MEGANET.
+Si necesitas consultar código legacy del árbol MEGANET: clónalo desde el remoto a un path temporal, lee, no commitees nada ahí.
 
 ---
 
@@ -198,17 +198,19 @@ Cuando encuentres una feature útil en MEGANET que aún no está en megaisp:
 
 ---
 
-## Migraciones pendientes desde MEGANET (referencia)
+## Portaciones desde MEGANET (cerrado 2026-05-22)
 
-Si necesitas portar uno de estos, ya hay un esqueleto funcional en MEGANET:
+Módulos completados antes de eliminar el árbol:
 
-| Feature MEGANET                                          | Destino sugerido en megaisp                              |
-| -------------------------------------------------------- | -------------------------------------------------------- |
-| Smart Import/Export + History UI                         | `app/Modules/Addons/SmartImportExport/`                  |
-| Evaluador de Servicios Empresariales                     | `app/Modules/Addons/Vendedores/` (sub-feature) o nuevo Addon |
-| DevTools chat con storage físico                         | Ya existe `app/Modules/Addons/DevTools/` — ver si extender o reescribir |
+| Feature MEGANET                          | Destino en megaisp                                       | Commit |
+| ---------------------------------------- | -------------------------------------------------------- | ------ |
+| IA (chat multi-proveedor + tokens)       | `app/Modules/Addons/IA/`                                 | (varios) |
+| DevTools (chat con storage físico)       | `app/Modules/Addons/DevTools/`                           | `d17b51f` |
+| MegaFamilia (control parental)           | `app/Modules/Addons/MegaFamilia/`                        | (varios) |
+| Smart Import/Export + History UI         | `app/Modules/Addons/SmartImportExport/`                  | `5241dc2` |
+| Evaluador de Servicios Empresariales     | `app/Modules/Addons/EvaluadorEmpresarial/`               | `6607b7e` |
 
-Lista no exhaustiva — revisar `/var/www/MEGANET/app/Modules/` y branches `ia-module-migration` para más candidatos.
+Si necesitas rescatar algo no listado aquí, está en `github.com/inving9378/MEGANET` (rama `ia-module-migration`, último commit `d772eab9`).
 
 ---
 
@@ -217,3 +219,17 @@ Lista no exhaustiva — revisar `/var/www/MEGANET/app/Modules/` y branches `ia-m
 - `tests/TestCase.php::setUp()` corre `migrate:fresh --seed` — apunta `APP_ENV=test` a una DB separada (`meganet_test`), nunca dev/prod
 - `php artisan test --filter=<nombre>` para un test individual
 - Suite incompleta — Feature tests de `ClientTest.php` mayormente comentados
+
+---
+
+## Historial de infraestructura
+
+### 2026-05-22 — MEGANET eliminado del servidor
+
+- `/var/www/MEGANET` eliminado completamente (9 GB liberados).
+- `meganet.conf` removido de `/etc/nginx/sites-enabled/`.
+- 4 vhost residuales de Apache eliminados de `/etc/apache2/sites-{available,enabled}/` (Apache estaba `inactive/disabled`, no servían tráfico).
+- Cron `* * * * * cd /var/www/MEGANET && php artisan schedule:run` removido del crontab de `meganet`.
+- Snapshot final commiteado al remoto `github.com/inving9378/MEGANET` (commit `d772eab9` en rama `ia-module-migration`) como respaldo histórico permanente.
+- Puerto `:8080` queda libre para Evolution API (WhatsApp Agent).
+- Estado actual del servidor: `nginx` único proceso sirviendo `megaisp` en `:80`; no quedan referencias a `MEGANET` en `/etc/nginx/` ni `/etc/apache2/` ni en crontab.
