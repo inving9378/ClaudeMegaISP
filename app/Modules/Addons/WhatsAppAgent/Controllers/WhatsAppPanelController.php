@@ -4,8 +4,10 @@ namespace App\Modules\Addons\WhatsAppAgent\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Utils\ComunConstantsController;
+use App\Models\User;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppConversation;
 use App\Modules\Addons\WhatsAppAgent\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppCrmService;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppIAService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -222,6 +224,66 @@ class WhatsAppPanelController extends Controller
             'extracted_data' => app(WhatsAppIAService::class)->emptyExtractedData(),
             'fake'           => true,
         ];
+    }
+
+    /**
+     * GET /whatsapp/api/technicians
+     * Lista de usuarios con rol TECNICO para el selector del modal "agendar".
+     */
+    public function technicians(): JsonResponse
+    {
+        $techs = User::role('TECNICO')
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+        return response()->json($techs);
+    }
+
+    /**
+     * POST /whatsapp/api/conversations/{id}/schedule-installation
+     * Body: { scheduled_at: "2026-05-25 10:00", technician_id: 42|null, notes: "..." }
+     * Crea Ticket vinculado al crm_id de la conversación y notifica al cliente.
+     */
+    public function scheduleInstallation(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'scheduled_at'  => 'required|date|after:now',
+            'technician_id' => 'nullable|integer|exists:users,id',
+            'notes'         => 'nullable|string|max:500',
+        ]);
+
+        $conversation = WhatsAppConversation::with('instance')->findOrFail($id);
+
+        if (!$this->canAccess($conversation)) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        if (!$conversation->crm_id) {
+            return response()->json([
+                'error'   => 'Sin CRM vinculado',
+                'message' => 'La conversación aún no tiene un prospecto. Pide al cliente sus datos primero para que se cree el lead automáticamente.',
+            ], 422);
+        }
+
+        $ticket = app(WhatsAppCrmService::class)->scheduleInstallation(
+            $conversation,
+            $data['scheduled_at'],
+            $data['technician_id'] ?? null,
+            $data['notes']         ?? null,
+        );
+
+        if (!$ticket) {
+            return response()->json([
+                'error'   => 'No se pudo agendar',
+                'message' => 'Revisa logs de WhatsApp CRM para el detalle.',
+            ], 500);
+        }
+
+        return response()->json([
+            'success'   => true,
+            'ticket_id' => $ticket->id,
+            'crm_id'    => $conversation->crm_id,
+        ], 201);
     }
 
     /**

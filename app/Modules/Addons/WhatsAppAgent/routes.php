@@ -41,6 +41,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/conversations/{id}/mark-read',    [WhatsAppPanelController::class, 'markRead'])->whereNumber('id');
             Route::post('/conversations/{id}/close',        [WhatsAppPanelController::class, 'close'])->whereNumber('id');
             Route::post('/conversations/{id}/ia-assist',    [WhatsAppPanelController::class, 'iaAssist'])->whereNumber('id');
+            Route::post('/conversations/{id}/schedule-installation', [WhatsAppPanelController::class, 'scheduleInstallation'])->whereNumber('id');
+
+            // Helper: técnicos disponibles para el selector del modal
+            Route::get('/technicians', [WhatsAppPanelController::class, 'technicians']);
 
             // Instancias
             Route::get('/instances',                [WhatsAppInstanceController::class, 'index']);
