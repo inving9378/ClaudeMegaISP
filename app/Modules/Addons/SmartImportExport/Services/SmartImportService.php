@@ -72,6 +72,7 @@ class SmartImportService
             'json'  => $this->parseJson($path),
             'csv'   => $this->parseCsv($path),
             'xlsx'  => $this->parseSpreadsheet($path),
+            'zip'   => $this->parseZip($path),
             default => [],
         };
 
@@ -94,7 +95,7 @@ class SmartImportService
             'file'       => $storedName,
             'format'     => $format,
             'datasets'   => $datasets,
-            'report'     => $report,
+            'report'     => $this->sanitizeUtf8($report),
             'total_rows' => array_sum(array_map('count', $datasets)),
         ];
     }
@@ -219,14 +220,76 @@ class SmartImportService
 
     private function detectFormat(string $extension, string $path): string
     {
-        $byExt = ['sql' => 'sql', 'json' => 'json', 'csv' => 'csv', 'xlsx' => 'xlsx', 'xls' => 'xlsx'];
+        $byExt = ['sql' => 'sql', 'json' => 'json', 'csv' => 'csv', 'xlsx' => 'xlsx', 'xls' => 'xlsx', 'zip' => 'zip'];
         if (isset($byExt[$extension])) {
             return $byExt[$extension];
         }
         $head = @file_get_contents($path, false, null, 0, 512) ?: '';
+        if (str_starts_with($head, "PK\x03\x04")) return 'zip';
         if (Str::startsWith(ltrim($head), ['{', '['])) return 'json';
         if (stripos($head, 'INSERT INTO') !== false || stripos($head, 'CREATE TABLE') !== false) return 'sql';
         return 'csv';
+    }
+
+    private function parseZip(string $path): array
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            throw new \RuntimeException('La extensión PHP zip no está disponible en este servidor.');
+        }
+
+        $zip = new \ZipArchive();
+        $opened = $zip->open($path);
+        if ($opened !== true) {
+            throw new \RuntimeException('No se pudo abrir el archivo ZIP (código ' . $opened . ').');
+        }
+
+        $extractDir = storage_path(self::STORAGE_DIR . '/extracted-' . Str::uuid());
+        if (!File::exists($extractDir)) {
+            File::makeDirectory($extractDir, 0775, true, true);
+        }
+        $zip->extractTo($extractDir);
+        $zip->close();
+
+        $datasets = [];
+        try {
+            foreach (File::allFiles($extractDir) as $extracted) {
+                $ext = strtolower($extracted->getExtension());
+                $sub = match ($ext) {
+                    'sql'         => $this->parseSql($extracted->getPathname()),
+                    'json'        => $this->parseJson($extracted->getPathname()),
+                    'csv'         => $this->parseCsv($extracted->getPathname()),
+                    'xlsx', 'xls' => $this->parseSpreadsheet($extracted->getPathname()),
+                    default       => [],
+                };
+                foreach ($sub as $table => $rows) {
+                    $datasets[$table] = array_merge($datasets[$table] ?? [], $rows);
+                }
+            }
+        } finally {
+            File::deleteDirectory($extractDir);
+        }
+
+        return $datasets;
+    }
+
+    /**
+     * Reemplaza bytes inválidos UTF-8 por su equivalente convertido para evitar
+     * JsonEncodingException al persistir el report en ImportExportLog->ai_analysis.
+     * Pasa strings por mb_convert_encoding UTF-8→UTF-8 (descarta secuencias rotas).
+     */
+    private function sanitizeUtf8(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $k => $v) {
+                $out[$k] = $this->sanitizeUtf8($v);
+            }
+            return $out;
+        }
+        if (is_string($value) && !mb_check_encoding($value, 'UTF-8')) {
+            return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+        }
+        return $value;
     }
 
     private function parseSql(string $path): array
