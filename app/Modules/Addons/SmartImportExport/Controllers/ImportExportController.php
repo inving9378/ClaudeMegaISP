@@ -73,22 +73,31 @@ class ImportExportController extends Controller
 
         Cache::put($this->cacheKey($analysis['token']), $analysis, now()->addHours(6));
 
-        $log->update([
-            'ai_analysis' => [
-                'token'      => $analysis['token'],
-                'format'     => $analysis['format'],
-                'report'     => $analysis['report'],
-                'total_rows' => $analysis['total_rows'],
-            ],
-        ]);
-
-        return response()->json([
-            'success'    => true,
-            'log_id'     => $log->id,
+        $payload = $this->sanitizeForJson([
             'token'      => $analysis['token'],
             'format'     => $analysis['format'],
             'report'     => $analysis['report'],
             'total_rows' => $analysis['total_rows'],
+        ]);
+
+        try {
+            $log->update(['ai_analysis' => $payload]);
+        } catch (Throwable $e) {
+            $log->markFailed('No se pudo persistir el análisis: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'El archivo se subió pero el resultado del análisis no pudo guardarse: ' . $e->getMessage(),
+                'log_id'  => $log->id,
+            ], 500);
+        }
+
+        return response()->json([
+            'success'    => true,
+            'log_id'     => $log->id,
+            'token'      => $payload['token'],
+            'format'     => $payload['format'],
+            'report'     => $payload['report'],
+            'total_rows' => $payload['total_rows'],
         ]);
     }
 
@@ -328,5 +337,26 @@ class ImportExportController extends Controller
         return auth()->user()->login_user
             ?? auth()->user()->email
             ?? 'admin';
+    }
+
+    /**
+     * Defensa contra "Malformed UTF-8" al castear ai_analysis a JSON.
+     * Recorre el payload y arregla strings cuyo encoding no sea UTF-8 válido.
+     * Previene JsonEncodingException si analyzeFile() devolvió bytes raros
+     * (zip mal parseado, dumps SQL en latin1, etc.).
+     */
+    private function sanitizeForJson(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $k => $v) {
+                $out[$k] = $this->sanitizeForJson($v);
+            }
+            return $out;
+        }
+        if (is_string($value) && !mb_check_encoding($value, 'UTF-8')) {
+            return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+        }
+        return $value;
     }
 }
