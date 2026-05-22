@@ -40,6 +40,15 @@
                         <i class="bi bi-qr-code"></i>
                         {{ ins.status === 'connected' ? 'Reconectar' : 'Conectar / Ver QR' }}
                     </button>
+                    <button
+                        class="wim-btn"
+                        @click="syncStatus(ins)"
+                        :disabled="syncing[ins.id]"
+                        title="Refrescar estado real desde Evolution API"
+                    >
+                        <i class="bi bi-arrow-clockwise" :class="{ 'wim-spin': syncing[ins.id] }"></i>
+                        {{ syncing[ins.id] ? 'Sincronizando…' : 'Sincronizar' }}
+                    </button>
                     <button class="wim-btn danger" @click="remove(ins)">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -122,6 +131,7 @@ export default {
             loading: false,
             showCreate: false,
             saving: false,
+            syncing: {},        // { instanceId: true } mientras Sincronizar está en curso
             formError: '',
             form: {
                 name: '',
@@ -220,6 +230,19 @@ export default {
                     || 'Error al crear la instancia';
             } finally {
                 this.saving = false;
+            }
+        },
+
+        async syncStatus(ins) {
+            this.syncing = { ...this.syncing, [ins.id]: true };
+            try {
+                const { data } = await axios.get(`/whatsapp/api/instances/${ins.id}/status`);
+                // Actualizar inline sin recargar la lista entera
+                ins.status = data.status;
+            } catch (e) {
+                alert('No se pudo sincronizar: ' + (e.response?.data?.message || e.message));
+            } finally {
+                this.syncing = { ...this.syncing, [ins.id]: false };
             }
         },
 
@@ -469,5 +492,13 @@ export default {
 }
 .wim-qr-status {
     margin-top: 8px;
+}
+.wim-spin {
+    display: inline-block;
+    animation: wim-spin 1s linear infinite;
+}
+@keyframes wim-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
 }
 </style>
