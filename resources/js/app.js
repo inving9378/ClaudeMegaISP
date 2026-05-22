@@ -230,6 +230,9 @@ import {
     QRadio,
     QSpinner,
     QSpinnerIos,
+    QStepper,
+    QStep,
+    QUploader,
 } from "./../../public/plugins/quasar/js/quasar.umd.prod";
 import PaymentListar from "./components/module/finance/payment/PaymentListar.vue";
 import ShowScripts from "./components/module/adminstration/show_scripts/ShowScripts.vue";
@@ -581,6 +584,9 @@ app.use(Quasar, {
         QRadio,
         QSpinner,
         QSpinnerIos,
+        QStepper,
+        QStep,
+        QUploader,
     ],
 });
 Quasar.iconSet = Quasar.iconSet.fontawesomeV5;
