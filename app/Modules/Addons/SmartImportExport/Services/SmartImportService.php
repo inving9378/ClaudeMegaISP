@@ -383,17 +383,23 @@ class SmartImportService
                         }
 
                         if ($c === 'S' || $c === 's') {
-                            // Posible fin de "VALUES" — intentar match del header completo
+                            // Posible fin de "VALUES" — intentar match del header completo.
+                            // La lista de columnas `(col1, col2, ...)` es OPCIONAL porque
+                            // mysqldump/mysqldump-php por default emiten
+                            //   INSERT INTO `tabla` VALUES (...)
+                            // SIN la lista. Sin esto el parser detectaba 0 tablas en dumps reales.
                             if (preg_match(
-                                '/INSERT\s+(?:IGNORE\s+)?INTO\s+`?(\w+)`?\s*\(([^)]+)\)\s*VALUES\s*$/is',
+                                '/INSERT\s+(?:IGNORE\s+)?INTO\s+`?(\w+)`?\s*(?:\(([^)]+)\))?\s*VALUES\s*$/is',
                                 $header,
                                 $m
                             )) {
                                 $currentTable   = $m[1];
-                                $currentColumns = array_map(
-                                    fn ($x) => trim($x, " `\t\n\r"),
-                                    explode(',', $m[2])
-                                );
+                                $currentColumns = isset($m[2]) && $m[2] !== ''
+                                    ? array_map(
+                                        fn ($x) => trim($x, " `\t\n\r"),
+                                        explode(',', $m[2])
+                                    )
+                                    : []; // sin lista → tuplas se guardan como arrays indexados
                                 $header   = '';
                                 $tuple    = '';
                                 $depth    = 0;
@@ -419,12 +425,23 @@ class SmartImportService
                         if ($c === ')') {
                             $depth--;
                             if ($depth === 0) {
-                                // Tupla cerrada — procesarla
+                                // Tupla cerrada — procesarla.
+                                // Si hay columnas declaradas, combinamos por nombre y validamos
+                                // que la cardinalidad coincida (descarta tuplas malformadas).
+                                // Si NO hay columnas (caso mysqldump default), guardamos como
+                                // array indexado — el report sigue siendo válido (table+records+
+                                // sample). executeImport puede resolver las columnas leyendo
+                                // SHOW COLUMNS FROM la tabla destino al momento de aplicar.
                                 $values = $this->parseSqlTuple($tuple);
-                                if (count($values) === count($currentColumns)) {
+                                $accept = empty($currentColumns)
+                                    ? !empty($values)
+                                    : (count($values) === count($currentColumns));
+                                if ($accept) {
                                     $rowCounts[$currentTable] = ($rowCounts[$currentTable] ?? 0) + 1;
                                     if ($rowCounts[$currentTable] <= self::MAX_ROWS_PER_TABLE) {
-                                        $datasets[$currentTable][] = array_combine($currentColumns, $values);
+                                        $datasets[$currentTable][] = empty($currentColumns)
+                                            ? $values
+                                            : array_combine($currentColumns, $values);
                                     }
                                 }
                                 $tuple = '';
