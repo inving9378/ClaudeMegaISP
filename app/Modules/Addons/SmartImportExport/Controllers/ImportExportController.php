@@ -44,7 +44,7 @@ class ImportExportController extends Controller
     public function upload(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'file' => ['required', 'file', 'mimes:sql,json,xlsx,xls,csv,zip', 'max:102400'],
+            'file' => ['required', 'file', 'mimes:sql,json,xlsx,xls,csv,zip', 'max:2097152'],
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
