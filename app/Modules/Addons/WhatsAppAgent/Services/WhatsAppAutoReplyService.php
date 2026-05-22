@@ -55,8 +55,12 @@ class WhatsAppAutoReplyService
         try {
             $clientContext = $this->buildClientContext($conversation);
             $history       = $this->buildHistory($conversation);
+            // Pasar al prompt los datos ya acumulados en turnos previos para
+            // que la IA NO vuelva a pedirlos. Sin esto, el cliente se frustra
+            // dando el mismo email/dirección 5+ veces.
+            $collected     = is_array($conversation->collected_data) ? $conversation->collected_data : [];
 
-            $result = $this->ia->assist($incoming, $history, $clientContext, $tone);
+            $result = $this->ia->assist($incoming, $history, $clientContext, $tone, $collected);
 
             // ─── Integración CRM ──────────────────────────────────────────
             // Sin bloquear el envío del borrador: acumular extracted_data en

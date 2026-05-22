@@ -32,12 +32,18 @@ class WhatsAppIAService
      * @param array  $conversationHistory Lista de ['direction'=>'in|out','body'=>'..']
      * @param array  $clientContext       Datos del cliente (name, plan, status, etc.)
      * @param string $tone                friendly | formal | brief
+     * @param array  $collectedData       Datos YA recopilados en turnos previos
+     *                                    (WhatsAppCrmService los acumula en
+     *                                    whatsapp_conversations.collected_data).
+     *                                    Se incluyen en el prompt para que la
+     *                                    IA NO vuelva a pedirlos.
      */
     public function assist(
         string $incomingMessage,
         array  $conversationHistory,
         array  $clientContext,
-        string $tone = 'friendly'
+        string $tone = 'friendly',
+        array  $collectedData = []
     ): array {
         $toneInstructions = match ($tone) {
             'formal' => 'Responde de manera formal y profesional.',
@@ -45,8 +51,9 @@ class WhatsAppIAService
             default  => 'Responde de manera amigable y cercana, usando el nombre del cliente cuando lo sepas.',
         };
 
-        $clientInfo = $this->formatClientContext($clientContext);
-        $history    = $this->formatHistory($conversationHistory);
+        $clientInfo    = $this->formatClientContext($clientContext);
+        $history       = $this->formatHistory($conversationHistory);
+        $collectedInfo = $this->formatCollectedData($collectedData);
 
         $prompt = <<<PROMPT
 Eres un asistente de atención al cliente para MegaNet, una empresa ISP en México.
@@ -54,6 +61,9 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques markdown.
 
 INFORMACIÓN DEL CLIENTE:
 {$clientInfo}
+
+DATOS YA RECOPILADOS (NO volver a pedir estos):
+{$collectedInfo}
 
 HISTORIAL RECIENTE DE LA CONVERSACIÓN:
 {$history}
@@ -129,6 +139,22 @@ EXTRACCIÓN DE DATOS (extracted_data):
   3) luego colonia + CP + municipio + estado,
   4) opcionalmente email y cómo se enteró.
   Y todos los datos que SÍ haya dado en este o mensajes previos ya van en extracted_data.
+
+CRÍTICO — USO DE "DATOS YA RECOPILADOS":
+- Todo dato listado bajo "DATOS YA RECOPILADOS" ARRIBA ya fue proporcionado por
+  el cliente en turnos anteriores. NUNCA vuelvas a pedirlo aunque el cliente lo
+  repita.
+- Solo pide los datos que FALTEN. Identifica qué campos del set
+  {nombre, apellido_paterno, calle, numero_ext, colonia_texto, cp,
+   municipio_texto, estado_texto, email} aún no aparecen en DATOS YA
+  RECOPILADOS y pide UNO a la vez en draft.
+- Si TODOS los datos mínimos (nombre, dirección con número, CP, email) ya están
+  recopilados: NO pidas más datos. En su lugar, draft debe CONFIRMAR la solicitud
+  ("Perfecto {nombre}, ya tengo tus datos completos. Un asesor te contactará en
+  breve para agendar la fecha de instalación. ¿Hay un horario que prefieras?")
+  y agregar 'suggested_actions' con type='ticket' label='Agendar instalación'.
+- En extracted_data del response solo emite los campos NUEVOS extraídos del
+  mensaje actual; el backend ya tiene los previos.
 PROMPT;
 
         $proveedor = $this->getClaudeProveedor();
@@ -216,6 +242,19 @@ PROMPT;
             "- Tickets abiertos: ". ($ctx['open_tickets']  ?? '0'),
             "- Deuda pendiente: " . ($ctx['balance']       ?? '$0'),
         ]));
+    }
+
+    /**
+     * Formato legible para el prompt — solo claves con valor real (no null).
+     * Se pretty-print con JSON para que Claude lo lea como bloque estructurado.
+     */
+    private function formatCollectedData(array $data): string
+    {
+        $clean = array_filter($data, fn ($v) => $v !== null && $v !== '');
+        if (empty($clean)) {
+            return '(ningún dato recopilado aún)';
+        }
+        return json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
     private function formatHistory(array $messages): string
