@@ -30,6 +30,13 @@ use Throwable;
 class SmartImportService
 {
     /**
+     * Counts exactos por tabla del último parseSql() — incluso si truncamos
+     * el dataset cargado en RAM. analyzeFile() los usa para 'records' real.
+     * @var array<string, int>
+     */
+    private array $lastRowCounts = [];
+
+    /**
      * Mapa de tabla → módulo lógico + modelo Eloquent que la administra.
      * El frontend usa esto para enseñar el reporte y resolver conflictos.
      */
@@ -66,6 +73,9 @@ class SmartImportService
         $file->move($dir, $storedName);
         $path = $dir . '/' . $storedName;
 
+        // Reset por-llamada — parseSql lo llena
+        $this->lastRowCounts = [];
+
         $format = $this->detectFormat($extension, $path);
         $datasets = match ($format) {
             'sql'   => $this->parseSql($path),
@@ -80,15 +90,22 @@ class SmartImportService
         foreach ($datasets as $table => $rows) {
             $rows = array_values($rows);
             $info = self::TABLE_MODULE_MAP[$table] ?? null;
+            // Count exacto del archivo (puede ser > count($rows) si truncamos en RAM)
+            $exactCount = $this->lastRowCounts[$table] ?? count($rows);
             $report[] = [
-                'table'   => $table,
-                'module'  => $info['module'] ?? 'Sin clasificar',
-                'model'   => $info['model'] ?? null,
-                'records' => count($rows),
-                'sample'  => array_slice($rows, 0, 3),
-                'known'   => $info !== null,
+                'table'     => $table,
+                'module'    => $info['module'] ?? 'Sin clasificar',
+                'model'     => $info['model'] ?? null,
+                'records'   => $exactCount,
+                'sample'    => array_slice($rows, 0, 3),
+                'known'     => $info !== null,
+                'truncated' => $exactCount > count($rows),
             ];
         }
+
+        $totalRows = !empty($this->lastRowCounts)
+            ? array_sum($this->lastRowCounts)
+            : array_sum(array_map('count', $datasets));
 
         return [
             'token'      => $token,
@@ -96,7 +113,7 @@ class SmartImportService
             'format'     => $format,
             'datasets'   => $datasets,
             'report'     => $this->sanitizeUtf8($report),
-            'total_rows' => array_sum(array_map('count', $datasets)),
+            'total_rows' => $totalRows,
         ];
     }
 
@@ -292,27 +309,134 @@ class SmartImportService
         return $value;
     }
 
+    /**
+     * Parsea un archivo .sql en STREAMING (chunks de 64 KB) — no carga el archivo
+     * completo en RAM. Diseñado para dumps gigantes (cientos de MB / GB) que con
+     * file_get_contents() reventaban el memory_limit y dejaban $datasets vacío.
+     *
+     * Acumula bytes hasta encontrar un `;` fuera de string (= fin de statement),
+     * procesa solo los INSERT INTO (con o sin IGNORE), descarta el resto.
+     *
+     * Cap por tabla: MAX_ROWS_PER_TABLE filas en memoria. Si se excede, el report
+     * sigue contando el total (records), pero datasets queda truncado. Esto permite
+     * un reporte exacto sin OOM; executeImport puede re-parsear desde disco luego.
+     */
+    private const MAX_ROWS_PER_TABLE = 10000;
+    private const MAX_STATEMENT_BYTES = 100 * 1024 * 1024; // 100 MB safety cap
+    private const STREAM_CHUNK_BYTES = 65536;              // 64 KB
+
     private function parseSql(string $path): array
     {
-        $contents = file_get_contents($path) ?: '';
-        $datasets = [];
-
-        if (!preg_match_all('/INSERT\s+INTO\s+`?(\w+)`?\s*\(([^)]+)\)\s*VALUES\s*(.+?);\s*$/imsU', $contents, $matches, PREG_SET_ORDER)) {
-            return $datasets;
+        $handle = @fopen($path, 'rb');
+        if (!$handle) {
+            return [];
         }
 
-        foreach ($matches as $m) {
-            $table = $m[1];
-            $columns = array_map(fn ($c) => trim($c, " `\t\n\r"), explode(',', $m[2]));
-            $valuesBlob = $m[3];
-            $rows = $this->splitSqlTuples($valuesBlob);
-            foreach ($rows as $tuple) {
-                $values = $this->parseSqlTuple($tuple);
-                if (count($values) !== count($columns)) continue;
+        $datasets    = [];
+        $rowCounts   = [];
+        $buffer      = '';
+        $bufferOffset = 0; // byte ya escaneado para findStatementEnd (avoid re-scan)
+
+        try {
+            while (!feof($handle)) {
+                $chunk = fread($handle, self::STREAM_CHUNK_BYTES);
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+                $buffer .= $chunk;
+
+                while (($endPos = $this->findStatementEnd($buffer, $bufferOffset)) !== false) {
+                    $statement = substr($buffer, 0, $endPos + 1);
+                    $buffer = substr($buffer, $endPos + 1);
+                    $bufferOffset = 0;
+
+                    $this->processSqlStatement($statement, $datasets, $rowCounts);
+                }
+
+                // Safety cap: si un solo statement excede 100 MB, descartar y reset.
+                if (strlen($buffer) > self::MAX_STATEMENT_BYTES) {
+                    \Log::warning('SmartImport.parseSql: statement excede ' . self::MAX_STATEMENT_BYTES . ' bytes, descartado');
+                    $buffer = '';
+                    $bufferOffset = 0;
+                }
+            }
+
+            // Último statement sin `;` terminal (mysqldump suele cerrar con ;)
+            if (trim($buffer) !== '') {
+                $this->processSqlStatement($buffer, $datasets, $rowCounts);
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        // Acumular counts exactos. Importante usar += en vez de = porque
+        // parseZip() puede llamar parseSql() para múltiples .sql del ZIP, y
+        // analyzeFile() ya hizo reset una sola vez al inicio.
+        foreach ($rowCounts as $table => $count) {
+            $this->lastRowCounts[$table] = ($this->lastRowCounts[$table] ?? 0) + $count;
+        }
+
+        return $datasets;
+    }
+
+    /**
+     * Busca el índice del primer `;` en $buffer que esté FUERA de un string SQL
+     * (es decir, fin de statement real). Empieza a escanear desde $startFrom para
+     * evitar re-procesar bytes ya analizados en chunks anteriores.
+     */
+    private function findStatementEnd(string $buffer, int $startFrom = 0): int|false
+    {
+        $len = strlen($buffer);
+        $inString = false;
+        $escape = false;
+
+        // Para mantener el estado in-string a través de chunks, rescaneamos desde
+        // el inicio del buffer actual (que SIEMPRE empieza después del último ;
+        // procesado, no a mitad de un string).
+        for ($i = 0; $i < $len; $i++) {
+            $c = $buffer[$i];
+            if ($escape) { $escape = false; continue; }
+            if ($c === '\\') { $escape = true; continue; }
+            if ($c === "'") { $inString = !$inString; continue; }
+            if (!$inString && $c === ';' && $i >= $startFrom) {
+                return $i;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Procesa un statement individual. Solo extrae INSERT INTO; descarta CREATE,
+     * DROP, SET, etc. Honra MAX_ROWS_PER_TABLE pero sigue contando rowCounts.
+     */
+    private function processSqlStatement(string $statement, array &$datasets, array &$rowCounts): void
+    {
+        $stripped = ltrim($statement);
+        // ltrim de comentarios y BOM
+        $stripped = preg_replace('/^(--[^\n]*\n|\/\*.*?\*\/|\s+)+/s', '', $stripped) ?? $stripped;
+        if (stripos($stripped, 'INSERT') !== 0) {
+            return;
+        }
+
+        if (!preg_match('/INSERT\s+(?:IGNORE\s+)?INTO\s+`?(\w+)`?\s*\(([^)]+)\)\s*VALUES\s*(.+);\s*$/is', $stripped, $m)) {
+            return;
+        }
+
+        $table       = $m[1];
+        $columns     = array_map(fn ($c) => trim($c, " `\t\n\r"), explode(',', $m[2]));
+        $valuesBlob  = rtrim($m[3]);
+
+        $rows = $this->splitSqlTuples($valuesBlob);
+        foreach ($rows as $tuple) {
+            $values = $this->parseSqlTuple($tuple);
+            if (count($values) !== count($columns)) {
+                continue;
+            }
+            $rowCounts[$table] = ($rowCounts[$table] ?? 0) + 1;
+            if (($rowCounts[$table] ?? 0) <= self::MAX_ROWS_PER_TABLE) {
                 $datasets[$table][] = array_combine($columns, $values);
             }
         }
-        return $datasets;
     }
 
     private function splitSqlTuples(string $blob): array
