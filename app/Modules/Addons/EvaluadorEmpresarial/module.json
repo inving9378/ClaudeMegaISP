@@ -1,0 +1,9 @@
+{
+    "slug": "addon-evaluador-empresarial",
+    "name": "Evaluador Empresarial",
+    "version": "0.1.0",
+    "description": "Cuestionario público para evaluar necesidades empresariales y captar leads. Incluye dashboard staff.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}
