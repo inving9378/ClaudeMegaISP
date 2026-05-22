@@ -5,6 +5,7 @@ namespace App\Modules\Addons\WhatsAppAgent\Models;
 use App\Models\BaseModel;
 use App\Models\Client;
 use App\Models\User;
+use App\Modules\Core\CRM\Models\Crm;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -18,6 +19,7 @@ class WhatsAppConversation extends BaseModel
         'contact_number',
         'contact_name',
         'client_id',
+        'crm_id',
         'seller_id',
         'status',
         'unread_count',
@@ -37,6 +39,11 @@ class WhatsAppConversation extends BaseModel
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class, 'client_id');
+    }
+
+    public function crm(): BelongsTo
+    {
+        return $this->belongsTo(Crm::class, 'crm_id');
     }
 
     public function seller(): BelongsTo
