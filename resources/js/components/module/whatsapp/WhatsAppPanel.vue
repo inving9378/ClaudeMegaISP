@@ -353,36 +353,97 @@ export default {
             }
         },
 
+        // Carga inicial: con spinner, reemplaza la lista entera.
         async loadConversations() {
             this.loadingConversations = true;
             try {
-                const { data } = await axios.get('/whatsapp/api/conversations', {
-                    params: {
-                        instance: this.filterInstance || undefined,
-                        status: this.statusFilter || undefined,
-                        search: this.searchQuery || undefined,
-                    },
-                });
-                this.conversations = data.data || [];
-            } catch (e) {
+                this.conversations = await this.fetchConversations();
+            } catch {
                 this.conversations = [];
             } finally {
                 this.loadingConversations = false;
             }
         },
 
+        // Polling silencioso: solo actualiza si hay cambios reales.
+        // Evita el parpadeo de reasignar this.conversations cada 5s sin necesidad.
+        async refreshConversationsQuiet() {
+            try {
+                const next = await this.fetchConversations();
+                if (!this.conversationsChanged(this.conversations, next)) return;
+                this.conversations = next;
+            } catch { /* silencio en polling */ }
+        },
+
+        async fetchConversations() {
+            const { data } = await axios.get('/whatsapp/api/conversations', {
+                params: {
+                    instance: this.filterInstance || undefined,
+                    status: this.statusFilter || undefined,
+                    search: this.searchQuery || undefined,
+                },
+            });
+            return data.data || [];
+        },
+
+        // Comparación liviana: cambio en cantidad, IDs en orden, unread_count o
+        // last_message_at del primer item (ordenado por last_message_at desc).
+        conversationsChanged(curr, next) {
+            if (curr.length !== next.length) return true;
+            for (let i = 0; i < next.length; i++) {
+                const a = curr[i] || {};
+                const b = next[i] || {};
+                if (a.id !== b.id) return true;
+                if (a.unread_count !== b.unread_count) return true;
+                if (a.last_message_at !== b.last_message_at) return true;
+                if (a.status !== b.status) return true;
+            }
+            return false;
+        },
+
+        // Carga inicial de mensajes — con spinner, scroll al fondo siempre.
         async loadMessages(conversationId) {
             this.loadingMessages = true;
             try {
-                const { data } = await axios.get(`/whatsapp/api/conversations/${conversationId}/messages`);
-                const items = (data.data || []).slice().reverse();
-                this.messages = items;
+                this.messages = await this.fetchMessages(conversationId);
                 this.$nextTick(() => this.scrollToBottom());
             } catch {
                 this.messages = [];
             } finally {
                 this.loadingMessages = false;
             }
+        },
+
+        // Polling silencioso de mensajes: solo asigna si llegaron nuevos.
+        // Mantiene scroll-position del usuario; auto-scroll solo si ya estaba al fondo.
+        async refreshMessagesQuiet(conversationId) {
+            try {
+                const next = await this.fetchMessages(conversationId);
+                const lastCurrId = this.messages.length ? this.messages[this.messages.length - 1].id : null;
+                const lastNextId = next.length ? next[next.length - 1].id : null;
+                if (lastCurrId === lastNextId && this.messages.length === next.length) return;
+
+                const wasAtBottom = this.isScrolledToBottom();
+                this.messages = next;
+                if (wasAtBottom) {
+                    this.$nextTick(() => this.scrollToBottom());
+                }
+            } catch { /* silencio en polling */ }
+        },
+
+        async fetchMessages(conversationId) {
+            const { data } = await axios.get(`/whatsapp/api/conversations/${conversationId}/messages`);
+            // El backend devuelve ASC (antiguo → reciente) gracias al orderBy de la
+            // relación messages() en el modelo WhatsAppConversation. No invertir.
+            return data.data || [];
+        },
+
+        isScrolledToBottom() {
+            const el = this.$refs.messagesContainer;
+            if (!el) return true;
+            // tolerancia de 32px para que cambios mínimos de scroll del usuario
+            // no impidan el auto-scroll al recibir un mensaje nuevo.
+            return el.scrollHeight - el.scrollTop - el.clientHeight < 32;
         },
 
         async selectConversation(conv) {
@@ -416,7 +477,8 @@ export default {
                     `/whatsapp/api/conversations/${this.activeConversation.id}/send`,
                     { body }
                 );
-                await this.loadMessages(this.activeConversation.id);
+                // Refrescar sin parpadeo — sustituye el mensaje optimista con el real.
+                await this.refreshMessagesQuiet(this.activeConversation.id);
             } catch (e) {
                 console.error('Error enviando mensaje', e);
             } finally {
@@ -490,11 +552,12 @@ export default {
 
         startPolling() {
             this.pollingInterval = setInterval(async () => {
-                await this.loadConversations();
+                // Polling silencioso: NO toca loadingConversations/loadingMessages,
+                // NO reasigna arrays a menos que haya cambios reales. Resuelve el
+                // parpadeo visible del refresh cada 5s.
+                await this.refreshConversationsQuiet();
                 if (this.activeConversation) {
-                    const before = this.messages.length;
-                    await this.loadMessages(this.activeConversation.id);
-                    if (this.messages.length > before) this.scrollToBottom();
+                    await this.refreshMessagesQuiet(this.activeConversation.id);
                 }
             }, 5000);
         },
