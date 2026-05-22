@@ -163,11 +163,13 @@ class WhatsAppPanelController extends Controller
         }
 
         try {
+            $collected = is_array($conversation->collected_data) ? $conversation->collected_data : [];
             $result = app(WhatsAppIAService::class)->assist(
                 (string) $lastIncoming->body,
                 $history,
                 $clientContext,
-                $tone
+                $tone,
+                $collected
             );
             return response()->json($result);
         } catch (\Throwable $e) {
