@@ -24,7 +24,7 @@
                             :headers="uploadHeaders"
                             accept=".sql,.json,.xlsx,.xls,.csv,.zip"
                             :max-files="1"
-                            :max-file-size="104857600"
+                            :max-file-size="2147483648"
                             auto-upload
                             color="primary"
                             class="full-width"
@@ -424,7 +424,7 @@ export default {
         }
         function onRejected() {
             alert(
-                "Archivo rechazado. Verifica formato (sql/json/xlsx/csv/zip) y tamaño máximo 100MB."
+                "Archivo rechazado. Verifica formato (sql/json/xlsx/csv/zip) y tamaño máximo 2GB."
             );
         }
 
