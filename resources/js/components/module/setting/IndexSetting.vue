@@ -1757,7 +1757,7 @@
             <div class="row d-flex">
                 <div class="col-md-2">
                     <div class="cursor-pointer">
-                        <a :href="`${url}/configuracion/tools-import`"
+                        <a :href="`${url}/configuracion/smart-import`"
                             ><div class="card-body position-relative">
                                 <div class="faq-count d-flex">
                                     <h5 class="text-primary m-0">
@@ -1774,17 +1774,35 @@
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <div class="cursor-pointer disabled">
-                        <a :href="`${url}/`"
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/configuracion/smart-export`"
                             ><div class="card-body position-relative">
                                 <div class="faq-count d-flex">
                                     <h5 class="text-primary m-0">
                                         <i
-                                            class="fa fa-fw fa-1x circle-icon fa-user-secret"
+                                            class="fa fa-fw fa-1x circle-icon fa-file-export"
                                         ></i>
                                     </h5>
                                     <span class="ms-1 align-self-center"
                                         >Exportar</span
+                                    >
+                                </div>
+                            </div></a
+                        >
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/configuracion/smart-import-export`"
+                            ><div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-primary m-0">
+                                        <i
+                                            class="fa fa-fw fa-1x circle-icon fa-history"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center"
+                                        >Historial I/E</span
                                     >
                                 </div>
                             </div></a
