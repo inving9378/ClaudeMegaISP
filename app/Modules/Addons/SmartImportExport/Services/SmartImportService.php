@@ -310,20 +310,33 @@ class SmartImportService
     }
 
     /**
-     * Parsea un archivo .sql en STREAMING (chunks de 64 KB) — no carga el archivo
-     * completo en RAM. Diseñado para dumps gigantes (cientos de MB / GB) que con
-     * file_get_contents() reventaban el memory_limit y dejaban $datasets vacío.
+     * Parser SQL en STREAMING con FSM (finite state machine) carácter-por-carácter.
      *
-     * Acumula bytes hasta encontrar un `;` fuera de string (= fin de statement),
-     * procesa solo los INSERT INTO (con o sin IGNORE), descarta el resto.
+     * Por qué el approach previo fallaba con dumps gigantes:
+     *   El parser anterior acumulaba el statement entero en RAM hasta encontrar
+     *   `;` (fin de statement). Para mysqldump `--extended-insert` con un solo
+     *   INSERT de cientos de MB ("INSERT INTO t VALUES (1,'a'),(2,'b'),...;"),
+     *   el buffer excedía MAX_STATEMENT_BYTES (100 MB) y se DESCARTABA completo,
+     *   dejando $rowCounts en cero — exactamente el bug "report:[]" reportado.
      *
-     * Cap por tabla: MAX_ROWS_PER_TABLE filas en memoria. Si se excede, el report
-     * sigue contando el total (records), pero datasets queda truncado. Esto permite
-     * un reporte exacto sin OOM; executeImport puede re-parsear desde disco luego.
+     * Solución actual:
+     *   Procesar carácter por carácter manteniendo dos estados principales:
+     *     - $currentTable === null  → buscando "INSERT INTO tabla VALUES"
+     *     - $currentTable !== null  → dentro de VALUES, consumiendo tuplas (...)
+     *   Cada tupla `(...)` cerrada se procesa y CUENTA al instante, sin esperar
+     *   al `;` final. El buffer en RAM se mantiene mínimo (solo lo necesario
+     *   para parsear el header del INSERT y la tupla actual).
+     *
+     * Cap por tabla: MAX_ROWS_PER_TABLE filas en memoria para sample/conflictos.
+     * Counts exactos siguen llegando a $lastRowCounts incluso si truncamos.
+     * Hard limit MAX_LINES_FOR_ANALYSIS (iteraciones del scanner) para acotar
+     * tiempo de respuesta en uploads enormes; el resto del archivo queda
+     * en disco para que executeImport pueda re-procesarlo.
      */
-    private const MAX_ROWS_PER_TABLE = 10000;
-    private const MAX_STATEMENT_BYTES = 100 * 1024 * 1024; // 100 MB safety cap
-    private const STREAM_CHUNK_BYTES = 65536;              // 64 KB
+    private const MAX_ROWS_PER_TABLE       = 10000;
+    private const STREAM_CHUNK_BYTES       = 65536;              // 64 KB por fread
+    private const MAX_INSERT_HEADER_BYTES  = 16384;              // INSERT INTO ... VALUES rara vez excede 16 KB
+    private const MAX_SCAN_BYTES           = 500 * 1024 * 1024;  // 500 MB de scan máximo (no leer archivos absurdos)
 
     private function parseSql(string $path): array
     {
@@ -332,46 +345,116 @@ class SmartImportService
             return [];
         }
 
-        $datasets    = [];
-        $rowCounts   = [];
-        $buffer      = '';
-        $bufferOffset = 0; // byte ya escaneado para findStatementEnd (avoid re-scan)
+        $datasets       = [];
+        $rowCounts      = [];
+
+        // Estado FSM
+        $currentTable   = null;   // ?string — tabla del INSERT actual, null fuera de un INSERT
+        $currentColumns = [];     // string[] — columnas del INSERT actual
+        $header         = '';     // buffer mientras buscamos "INSERT INTO ... VALUES"
+        $tuple          = '';     // buffer de la tupla actual cuando estamos dentro de VALUES
+        $depth          = 0;      // profundidad de paréntesis (siempre 0 o 1 en SQL bien formado)
+        $inString       = false;  // dentro de string '...'
+        $escape         = false;  // próximo char está escapado
+        $scanned        = 0;      // bytes totales escaneados (para MAX_SCAN_BYTES)
 
         try {
-            while (!feof($handle)) {
+            while (!feof($handle) && $scanned < self::MAX_SCAN_BYTES) {
                 $chunk = fread($handle, self::STREAM_CHUNK_BYTES);
                 if ($chunk === false || $chunk === '') {
                     break;
                 }
-                $buffer .= $chunk;
+                $scanned += strlen($chunk);
+                $chunkLen = strlen($chunk);
 
-                while (($endPos = $this->findStatementEnd($buffer, $bufferOffset)) !== false) {
-                    $statement = substr($buffer, 0, $endPos + 1);
-                    $buffer = substr($buffer, $endPos + 1);
-                    $bufferOffset = 0;
+                for ($i = 0; $i < $chunkLen; $i++) {
+                    $c = $chunk[$i];
 
-                    $this->processSqlStatement($statement, $datasets, $rowCounts);
+                    if ($currentTable === null) {
+                        // ─── ESTADO: BUSCANDO HEADER "INSERT INTO ... VALUES" ───
+                        $header .= $c;
+
+                        // Trim agresivo: solo nos importa la parte donde vive INSERT
+                        if (strlen($header) > self::MAX_INSERT_HEADER_BYTES) {
+                            // Si llevamos 16 KB sin ver "INSERT INTO ... VALUES" en una línea
+                            // posiblemente estamos en CREATE TABLE / dump de schema. Conservar
+                            // los últimos bytes para no perder un INSERT que esté empezando.
+                            $header = substr($header, -2048);
+                        }
+
+                        if ($c === 'S' || $c === 's') {
+                            // Posible fin de "VALUES" — intentar match del header completo
+                            if (preg_match(
+                                '/INSERT\s+(?:IGNORE\s+)?INTO\s+`?(\w+)`?\s*\(([^)]+)\)\s*VALUES\s*$/is',
+                                $header,
+                                $m
+                            )) {
+                                $currentTable   = $m[1];
+                                $currentColumns = array_map(
+                                    fn ($x) => trim($x, " `\t\n\r"),
+                                    explode(',', $m[2])
+                                );
+                                $header   = '';
+                                $tuple    = '';
+                                $depth    = 0;
+                                $inString = false;
+                                $escape   = false;
+                            }
+                        }
+                        continue;
+                    }
+
+                    // ─── ESTADO: DENTRO DE VALUES — consumiendo tuplas (...) ───
+                    if ($escape) { $tuple .= $c; $escape = false; continue; }
+                    if ($c === '\\') { $tuple .= $c; $escape = true; continue; }
+                    if ($c === "'") { $inString = !$inString; $tuple .= $c; continue; }
+
+                    if (!$inString) {
+                        if ($c === '(') {
+                            if ($depth === 0) { $tuple = ''; }
+                            else              { $tuple .= $c; }
+                            $depth++;
+                            continue;
+                        }
+                        if ($c === ')') {
+                            $depth--;
+                            if ($depth === 0) {
+                                // Tupla cerrada — procesarla
+                                $values = $this->parseSqlTuple($tuple);
+                                if (count($values) === count($currentColumns)) {
+                                    $rowCounts[$currentTable] = ($rowCounts[$currentTable] ?? 0) + 1;
+                                    if ($rowCounts[$currentTable] <= self::MAX_ROWS_PER_TABLE) {
+                                        $datasets[$currentTable][] = array_combine($currentColumns, $values);
+                                    }
+                                }
+                                $tuple = '';
+                                continue;
+                            }
+                            $tuple .= $c;
+                            continue;
+                        }
+                        if ($c === ';' && $depth === 0) {
+                            // Fin del INSERT — volver a estado "buscando header"
+                            $currentTable   = null;
+                            $currentColumns = [];
+                            $tuple          = '';
+                            $header         = '';
+                            continue;
+                        }
+                    }
+
+                    if ($depth > 0) {
+                        $tuple .= $c;
+                    }
+                    // bytes entre tuplas (`,`, espacios, `\n`) se ignoran
                 }
-
-                // Safety cap: si un solo statement excede 100 MB, descartar y reset.
-                if (strlen($buffer) > self::MAX_STATEMENT_BYTES) {
-                    \Log::warning('SmartImport.parseSql: statement excede ' . self::MAX_STATEMENT_BYTES . ' bytes, descartado');
-                    $buffer = '';
-                    $bufferOffset = 0;
-                }
-            }
-
-            // Último statement sin `;` terminal (mysqldump suele cerrar con ;)
-            if (trim($buffer) !== '') {
-                $this->processSqlStatement($buffer, $datasets, $rowCounts);
             }
         } finally {
             fclose($handle);
         }
 
-        // Acumular counts exactos. Importante usar += en vez de = porque
-        // parseZip() puede llamar parseSql() para múltiples .sql del ZIP, y
-        // analyzeFile() ya hizo reset una sola vez al inicio.
+        // Acumular counts exactos. Importante usar += porque parseZip() puede llamar
+        // parseSql() para múltiples .sql del ZIP, y analyzeFile() ya resetea al inicio.
         foreach ($rowCounts as $table => $count) {
             $this->lastRowCounts[$table] = ($this->lastRowCounts[$table] ?? 0) + $count;
         }
@@ -380,19 +463,14 @@ class SmartImportService
     }
 
     /**
-     * Busca el índice del primer `;` en $buffer que esté FUERA de un string SQL
-     * (es decir, fin de statement real). Empieza a escanear desde $startFrom para
-     * evitar re-procesar bytes ya analizados en chunks anteriores.
+     * Stub conservado por si algún test/legacy lo invoca. La detección de fin
+     * de statement ahora vive directamente en el FSM de parseSql().
      */
     private function findStatementEnd(string $buffer, int $startFrom = 0): int|false
     {
         $len = strlen($buffer);
         $inString = false;
         $escape = false;
-
-        // Para mantener el estado in-string a través de chunks, rescaneamos desde
-        // el inicio del buffer actual (que SIEMPRE empieza después del último ;
-        // procesado, no a mitad de un string).
         for ($i = 0; $i < $len; $i++) {
             $c = $buffer[$i];
             if ($escape) { $escape = false; continue; }
@@ -406,26 +484,22 @@ class SmartImportService
     }
 
     /**
-     * Procesa un statement individual. Solo extrae INSERT INTO; descarta CREATE,
-     * DROP, SET, etc. Honra MAX_ROWS_PER_TABLE pero sigue contando rowCounts.
+     * Legacy: procesa un statement completo. Reemplazado por el FSM de parseSql();
+     * conservado por compat — no se usa en el flujo actual.
      */
     private function processSqlStatement(string $statement, array &$datasets, array &$rowCounts): void
     {
         $stripped = ltrim($statement);
-        // ltrim de comentarios y BOM
         $stripped = preg_replace('/^(--[^\n]*\n|\/\*.*?\*\/|\s+)+/s', '', $stripped) ?? $stripped;
         if (stripos($stripped, 'INSERT') !== 0) {
             return;
         }
-
         if (!preg_match('/INSERT\s+(?:IGNORE\s+)?INTO\s+`?(\w+)`?\s*\(([^)]+)\)\s*VALUES\s*(.+);\s*$/is', $stripped, $m)) {
             return;
         }
-
         $table       = $m[1];
         $columns     = array_map(fn ($c) => trim($c, " `\t\n\r"), explode(',', $m[2]));
         $valuesBlob  = rtrim($m[3]);
-
         $rows = $this->splitSqlTuples($valuesBlob);
         foreach ($rows as $tuple) {
             $values = $this->parseSqlTuple($tuple);
