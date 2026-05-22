@@ -80,7 +80,7 @@ class WhatsAppRouterService
                 $conversation->update(['contact_name' => $contactName]);
             }
 
-            WhatsAppMessage::create([
+            $stored = WhatsAppMessage::create([
                 'conversation_id'      => $conversation->id,
                 'instance_id'          => $instance->id,
                 'direction'            => 'in',
@@ -92,6 +92,19 @@ class WhatsAppRouterService
 
             $conversation->incrementUnread();
             $conversation->update(['last_message_at' => now()]);
+
+            // Auto-reply: opcional, NO bloqueante. Errores van a logs sin
+            // propagarse — el mensaje IN ya quedó persistido arriba.
+            if ((bool) config('whatsapp.auto_reply', false)) {
+                try {
+                    app(WhatsAppAutoReplyService::class)->maybeReply($stored, $conversation);
+                } catch (\Throwable $e) {
+                    Log::warning('WhatsApp auto-reply: excepción no capturada', [
+                        'message_id' => $stored->id,
+                        'error'      => $e->getMessage(),
+                    ]);
+                }
+            }
         }
     }
 
