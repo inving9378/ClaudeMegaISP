@@ -354,9 +354,25 @@ class ImportExportController extends Controller
             }
             return $out;
         }
-        if (is_string($value) && !mb_check_encoding($value, 'UTF-8')) {
-            return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+        if (!is_string($value)) {
+            return $value;
         }
-        return $value;
+        if (mb_check_encoding($value, 'UTF-8')) {
+            return $value;
+        }
+        // Bytes inválidos: detectar encoding origen probable y reconvertir.
+        // mb_convert_encoding('UTF-8','UTF-8') era no-op para bytes mal codificados —
+        // SQL dumps en latin1 / Windows-1252 son la causa más común aquí.
+        $detected = mb_detect_encoding(
+            $value,
+            ['UTF-8', 'ISO-8859-1', 'Windows-1252', 'ASCII'],
+            true
+        );
+        $converted = mb_convert_encoding($value, 'UTF-8', $detected ?: 'Windows-1252');
+        if (mb_check_encoding($converted, 'UTF-8')) {
+            return $converted;
+        }
+        // Último recurso: descartar bytes inválidos.
+        return mb_scrub($value, 'UTF-8');
     }
 }
