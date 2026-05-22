@@ -14,11 +14,16 @@ return [
     'default_instance' => env('WHATSAPP_DEFAULT_INSTANCE', 'meganet'),
 
     /*
-    | URL pública que Evolution API usa para enviar webhooks de vuelta a
-    | Laravel (Evolution → Laravel). Aquí SÍ debe ser la IP/dominio público
-    | porque Evolution se conecta desde fuera de este proceso.
+    | URL base que Evolution API usa para enviar webhooks de vuelta a Laravel.
+    | Si Evolution y Laravel viven en el MISMO servidor (caso default), usa
+    | localhost/127.0.0.1 — más rápido y NO depende de NAT loopback (que
+    | suele estar deshabilitado en hosts con NAT 1:1, donde la IP pública
+    | externa NO está bindeada localmente y conectar a ella desde el mismo
+    | host da EHOSTUNREACH).
+    |
+    | Solo usa la IP pública aquí si Evolution corre en un host DISTINTO.
     */
-    'webhook_base_url' => env('WHATSAPP_WEBHOOK_BASE_URL', 'http://localhost'),
+    'webhook_base_url' => env('WHATSAPP_WEBHOOK_BASE_URL', 'http://127.0.0.1'),
 
     'fake'             => env('WHATSAPP_FAKE', false),
 ];
