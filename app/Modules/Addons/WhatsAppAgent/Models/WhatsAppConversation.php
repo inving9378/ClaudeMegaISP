@@ -20,6 +20,7 @@ class WhatsAppConversation extends BaseModel
         'contact_name',
         'client_id',
         'crm_id',
+        'collected_data',
         'seller_id',
         'status',
         'unread_count',
@@ -29,6 +30,7 @@ class WhatsAppConversation extends BaseModel
     protected $casts = [
         'last_message_at' => 'datetime',
         'unread_count'    => 'integer',
+        'collected_data'  => 'array',
     ];
 
     public function instance(): BelongsTo
