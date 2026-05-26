@@ -26,6 +26,7 @@ class LeadQualifierService
     public function qualify(Lead $lead): array
     {
         $conversation = $this->formatConversation($lead->conversation ?? []);
+        $contactName = $lead->contact_name ?? 'Desconocido';
 
         $prompt = <<<PROMPT
 Eres un experto en ventas y calificación de prospectos para un ISP (proveedor de internet) en México.
@@ -36,7 +37,7 @@ CONVERSACIÓN:
 {$conversation}
 
 CANAL: {$lead->channel}
-NOMBRE: {$lead->contact_name ?? 'Desconocido'}
+NOMBRE: {$contactName}
 
 Evalúa y responde ÚNICAMENTE con JSON válido en este formato exacto:
 {
