@@ -87,6 +87,7 @@ import MegaFamiliaPerfiles from "./components/module/megafamilia/MegaFamiliaPerf
 import MegaFamiliaDispositivos from "./components/module/megafamilia/MegaFamiliaDispositivos.vue";
 import MegaFamiliaTareas from "./components/module/megafamilia/MegaFamiliaTareas.vue";
 import MegaFamiliaUbicaciones from "./components/module/megafamilia/MegaFamiliaUbicaciones.vue";
+import MegaFamiliaGeofences from "./components/module/megafamilia/MegaFamiliaGeofences.vue";
 import MegaFamiliaReportes from "./components/module/megafamilia/MegaFamiliaReportes.vue";
 import MegaFamiliaAuditoria from "./components/module/megafamilia/MegaFamiliaAuditoria.vue";
 import MegaFamiliaMikrotik from "./components/module/megafamilia/MegaFamiliaMikrotik.vue";
@@ -286,9 +287,20 @@ import ManualIndex from "./components/module/manual/ManualIndex.vue";
 import EvaluadorEmpresarial from "./components/module/sellers/EvaluadorEmpresarial.vue";
 import EvaluacionesDashboard from "./components/module/sellers/EvaluacionesDashboard.vue";
 
+//Marketing — addon-marketing 2026-05-25
+import MarketingDashboard from "./components/module/marketing/MarketingDashboard.vue";
+import MarketingCampaigns from "./components/module/marketing/MarketingCampaigns.vue";
+import MarketingCampaignShow from "./components/module/marketing/MarketingCampaignShow.vue";
+import MarketingContentGenerator from "./components/module/marketing/MarketingContentGenerator.vue";
+import MarketingLeads from "./components/module/marketing/MarketingLeads.vue";
+
 //WhatsApp Agent — 2026-05-22
 import WhatsAppPanel from "./components/module/whatsapp/WhatsAppPanel.vue";
 import WhatsAppInstanceManager from "./components/module/whatsapp/WhatsAppInstanceManager.vue";
+
+//Payments (SPEI / OpenPay) — 2026-05-23
+import PaymentMethods from "./components/module/finance/PaymentMethods.vue";
+import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 
 
 const app = createApp({
@@ -393,6 +405,7 @@ const app = createApp({
         'mega-familia-dispositivos': MegaFamiliaDispositivos,
         'mega-familia-tareas': MegaFamiliaTareas,
         'mega-familia-ubicaciones': MegaFamiliaUbicaciones,
+        'mega-familia-geofences': MegaFamiliaGeofences,
         'mega-familia-reportes': MegaFamiliaReportes,
         'mega-familia-auditoria': MegaFamiliaAuditoria,
         'mega-familia-mikrotik': MegaFamiliaMikrotik,
@@ -503,9 +516,20 @@ const app = createApp({
         'evaluador-empresarial': EvaluadorEmpresarial,
         'evaluaciones-dashboard': EvaluacionesDashboard,
 
+        //Marketing — addon-marketing (2026-05-25)
+        'marketing-dashboard': MarketingDashboard,
+        'marketing-campaigns': MarketingCampaigns,
+        'marketing-campaign-show': MarketingCampaignShow,
+        'marketing-content-generator': MarketingContentGenerator,
+        'marketing-leads': MarketingLeads,
+
         //WhatsApp Agent — addon-whatsapp-agent (2026-05-22)
         'whatsapp-panel': WhatsAppPanel,
         'whatsapp-instance-manager': WhatsAppInstanceManager,
+
+        // Payments (SPEI / OpenPay)
+        'payment-methods': PaymentMethods,
+        'client-clabe-card': ClientClabeCard,
     },
 });
 

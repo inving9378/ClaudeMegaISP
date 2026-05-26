@@ -918,14 +918,15 @@ export default {
 }
 
 /* ====================================================================
-   Root layout — fixed full-screen, 3-column flex
+   Root layout — inline dentro del master (sidebar/topbar visibles).
+   Antes era position:fixed/inset:0/z-index:9999 (full-screen) cuando
+   devtools usaba master-without-nav. Ver IAChatIndex.vue:307 para el
+   mismo patrón de altura.
    ==================================================================== */
 .devtools-root {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
+    position: relative;
     display: flex;
-    height: 100vh;
+    height: calc(100vh - 70px);
     overflow: hidden;
     background: var(--dt-bg);
     color: var(--dt-text);
@@ -933,9 +934,15 @@ export default {
 }
 
 /* ====================================================================
-   Columna 1 — Sidebar
+   Columna 1 — Sidebar interno
+   Oculto porque duplica al sidebar principal del layout master.
+   El sidebar Blade de core-layout::master ya provee la navegación global.
+   Reglas debajo se conservan por si más adelante reactivamos el mini-nav.
    ==================================================================== */
 .dt-sidebar {
+    display: none !important;
+}
+.dt-sidebar--legacy {
     width: 220px;
     min-width: 220px;
     transition: width 0.25s ease, min-width 0.25s ease;
