@@ -20,6 +20,8 @@ public/mix-manifest.json
 public/credencial
 public/perfiles
 public/uploads
+public/downloads/
+*.apk
 Docs
 .env
 .env.testing
