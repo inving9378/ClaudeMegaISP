@@ -165,7 +165,20 @@ class ClientInformationController extends Controller
                     'client_id' => $id,
                 ]);
             }
+            // No sobrescribir password si viene vacío del form
+            $newPassword = $input['password'] ?? null;
+            if (empty($newPassword)) {
+                unset($input['password']);
+            }
+
             $this->saveSingleRelationIfExist('App\Models\Client', $client, collect($input));
+
+            // Sincronizar users.password al cambiar la password del cliente
+            if (! empty($newPassword)) {
+                User::where('login_user', optional($client->client_main_information)->user)
+                    ->update(['password' => base64_encode($newPassword)]);
+            }
+
             DB::commit();
             return redirect()->back()->with('message', 'Información Actualizada Correctamente');
         } catch (Exception $e) {

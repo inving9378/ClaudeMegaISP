@@ -2,7 +2,35 @@
 
 namespace App\Modules\Core\Clientes\Models;
 
+use App\Models\Balance;
 use App\Models\BaseModel;
+use App\Models\BillingAddress;
+use App\Models\BoxZone;
+use App\Models\ClientAdditionalInformation;
+use App\Models\ClientBundleService;
+use App\Models\ClientCustomService;
+use App\Models\ClientGracePeriod;
+use App\Models\ClientInternetService;
+use App\Models\ClientInvoice;
+use App\Models\ClientMainInformation;
+use App\Models\ClientUser;
+use App\Models\ClientVozService;
+use App\Models\CommissionDetail;
+use App\Models\DailyPingStatistic;
+use App\Models\DocumentClient;
+use App\Models\InventoryItemStock;
+use App\Models\Invoice;
+use App\Models\MikrotikClientHostpotUser;
+use App\Models\MikrotikClientPpoe;
+use App\Models\NetworkIp;
+use App\Models\Nomenclature;
+use App\Models\Payment;
+use App\Models\PingStatistic;
+use App\Models\Receipt;
+use App\Models\RemindersConfiguration;
+use App\Models\Ticket;
+use App\Models\Transaction;
+use App\Models\User;
 
 use App\Http\Repository\ClientRepository;
 use App\Http\Requests\module\client\ClientCreateRequest;
