@@ -1539,4 +1539,29 @@ return [
         '/configuracion/smart-export/download/{token}',
     ],
 
+    // Manual de Usuario (addon-manual)
+    'manual_view' => [
+        '/manual',
+        '/api/manual/sections',
+        '/api/manual/sections/{slug}',
+    ],
+    'manual_generate' => [
+        '/api/manual/generate',
+    ],
+
+    // Pagos SPEI / OpenPay
+    'payments_manage_providers' => [
+        '/finanzas/metodos-pago',
+        '/finanzas/payment-providers',
+        '/finanzas/payment-providers/{id}',
+    ],
+    'payments_assign_clabe' => [
+        '/finanzas/clients/{id}/clabe',
+        '/finanzas/clients/{id}/assign-clabe',
+    ],
+    'payments_view_receipts' => [
+        '/finanzas/payments/{id}/receipt',
+        '/finanzas/payments/{payment}/receipt/{receipt}/download',
+    ],
+
 ];

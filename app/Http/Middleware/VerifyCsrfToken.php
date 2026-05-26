@@ -13,5 +13,6 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         'whatsapp/webhook/*',
+        'payments/spei/webhook',
     ];
 }

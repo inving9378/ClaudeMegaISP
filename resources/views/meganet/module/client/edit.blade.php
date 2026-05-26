@@ -17,5 +17,13 @@
             id="{{ $id }}"
             authuserid="{{ $authuserid }}"
         ></client-crud>
+
+        @can('payments_assign_clabe')
+            <div class="row q-mt-md">
+                <div class="col-12">
+                    <client-clabe-card :client-id="{{ $id }}"></client-clabe-card>
+                </div>
+            </div>
+        @endcan
     @endcan
 @endsection
