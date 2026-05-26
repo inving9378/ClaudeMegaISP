@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
@@ -261,6 +262,56 @@ class ApiService {
     );
   }
 
+  // ------------------------------------------------------- pagos SPEI
+
+  /// GET /payments/clabe — CLABE virtual del cliente. Auto-genera si no existe.
+  /// Devuelve null cuando el backend reporta has_clabe=false (sin provider
+  /// configurado), para que la UI muestre estado "Cobros SPEI no habilitados".
+  Future<ClabeInfo?> getClabe() async {
+    return await _tryEndpoint<ClabeInfo?>(
+      () async {
+        final j = await _get('/payments/clabe') as Map<String, dynamic>;
+        if (j['has_clabe'] == false) return null;
+        return ClabeInfo.fromJson(j);
+      },
+      fallback: () => MockData.clabe(),
+    );
+  }
+
+  /// POST /payments/notify-transfer — cliente reporta transferencia hecha,
+  /// con comprobante adjunto. Multipart upload (no JSON), por eso bypassea
+  /// los helpers _get/_post y arma su propia request.
+  Future<TransferReceipt> notifyTransfer({
+    required double declaredAmount,
+    required String depositorName,
+    required File receiptFile,
+    String? reference,
+  }) async {
+    final uri = _u('/payments/notify-transfer');
+    final req = http.MultipartRequest('POST', uri);
+    req.headers['Accept'] = 'application/json';
+    if (_token != null && _token!.isNotEmpty) {
+      req.headers['Authorization'] = 'Bearer $_token';
+    }
+    req.fields['declared_amount'] = declaredAmount.toStringAsFixed(2);
+    req.fields['depositor_name'] = depositorName;
+    if (reference != null && reference.isNotEmpty) {
+      req.fields['reference'] = reference;
+    }
+    req.files.add(await http.MultipartFile.fromPath('receipt', receiptFile.path));
+
+    try {
+      final streamed = await _client.send(req).timeout(const Duration(seconds: 60));
+      final res = await http.Response.fromStream(streamed);
+      final body = _decode(res);
+      return TransferReceipt.fromJson(body as Map<String, dynamic>);
+    } on TimeoutException {
+      throw ApiException(0, 'La subida está muy lenta — intenta de nuevo');
+    } on http.ClientException {
+      throw ApiException(0, 'Sin conexión a internet');
+    }
+  }
+
   // ------------------------------------------------------- mock orchestration
 
   Future<T> _tryEndpoint<T>(Future<T> Function() real, {required T Function() fallback}) async {
@@ -304,6 +355,15 @@ class MockData {
       Factura(id: 4, number: 'F-2026-00100', date: now.subtract(const Duration(days: 95)), amount: 450.00, status: 'pagada'),
     ];
   }
+
+  static ClabeInfo clabe() => ClabeInfo(
+        clabe: '646180123456789012',
+        clabeFormat: '646 180 123456789012',
+        isActive: true,
+        beneficiario: 'Meganet Telecomunicaciones',
+        banco: 'STP (vía OpenPay)',
+        concepto: 'Cliente #demo',
+      );
 
   static List<Pago> pagos() {
     final now = DateTime.now();

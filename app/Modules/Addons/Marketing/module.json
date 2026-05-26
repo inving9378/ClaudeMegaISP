@@ -1,0 +1,20 @@
+{
+    "slug": "addon-marketing",
+    "name": "Marketing",
+    "version": "1.0.0",
+    "description": "Campañas de marketing con IA, generación de contenido y gestión de leads para ISP",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "permissions": [
+        "marketing_view",
+        "marketing_campaigns_view",
+        "marketing_campaigns_create",
+        "marketing_campaigns_edit",
+        "marketing_campaigns_approve",
+        "marketing_content_generate",
+        "marketing_leads_view",
+        "marketing_leads_manage",
+        "marketing_templates_manage"
+    ]
+}

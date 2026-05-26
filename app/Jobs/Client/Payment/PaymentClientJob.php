@@ -44,7 +44,11 @@ class PaymentClientJob implements ShouldQueue
         $this->$action($client);
     }
 
-    public function created(Client $client)
+    // ClientRepository::getClientFilteredByPaymentableId() devuelve la clase
+    // modular (\App\Modules\Core\Clientes\Models\Client), no el proxy legacy
+    // App\Models\Client. Type-hint amplio a la clase parent — App\Models\Client
+    // extends modular, así que callers que pasan el proxy siguen funcionando.
+    public function created(\App\Modules\Core\Clientes\Models\Client $client)
     {
         $client->updateClientBalance($this->payment);
 

@@ -31,7 +31,7 @@ class DashboardController extends Controller
                 ->select('parental_plans.name as plan', DB::raw('count(*) as total'))
                 ->groupBy('parental_plans.name')
                 ->get(),
-            'recent_alerts' => ParentalAlert::with(['profile:id,name', 'account:id,client_id'])
+            'recent_alerts' => ParentalAlert::with(['profile:id,name', 'account:id,user_id'])
                 ->orderByDesc('id')
                 ->limit(10)
                 ->get(),

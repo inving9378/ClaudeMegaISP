@@ -64,6 +64,9 @@ import FieldModuleListar from "./components/module/setting/FieldModuleListar";
 import IndexSetting from "./components/module/setting/IndexSetting.vue";
 import ImportListar from "./components/module/setting/ImportListar.vue";
 import ImportCrud from "./components/module/setting/components/tools/ImportCrud.vue";
+import SmartImport from "./components/module/setting/SmartImport.vue";
+import SmartExport from "./components/module/setting/SmartExport.vue";
+import ImportExportHistory from "./components/module/setting/ImportExportHistory.vue";
 import ShowActivity from "./components/module/adminstration/activity_log/ShowActivity.vue";
 import ApiMovilConfig from "./components/module/setting/api-movil/ApiMovilConfig.vue";
 import ApiMovilTokens from "./components/module/setting/api-movil/ApiMovilTokens.vue";
@@ -84,6 +87,7 @@ import MegaFamiliaPerfiles from "./components/module/megafamilia/MegaFamiliaPerf
 import MegaFamiliaDispositivos from "./components/module/megafamilia/MegaFamiliaDispositivos.vue";
 import MegaFamiliaTareas from "./components/module/megafamilia/MegaFamiliaTareas.vue";
 import MegaFamiliaUbicaciones from "./components/module/megafamilia/MegaFamiliaUbicaciones.vue";
+import MegaFamiliaGeofences from "./components/module/megafamilia/MegaFamiliaGeofences.vue";
 import MegaFamiliaReportes from "./components/module/megafamilia/MegaFamiliaReportes.vue";
 import MegaFamiliaAuditoria from "./components/module/megafamilia/MegaFamiliaAuditoria.vue";
 import MegaFamiliaMikrotik from "./components/module/megafamilia/MegaFamiliaMikrotik.vue";
@@ -227,6 +231,9 @@ import {
     QRadio,
     QSpinner,
     QSpinnerIos,
+    QStepper,
+    QStep,
+    QUploader,
 } from "./../../public/plugins/quasar/js/quasar.umd.prod";
 import PaymentListar from "./components/module/finance/payment/PaymentListar.vue";
 import ShowScripts from "./components/module/adminstration/show_scripts/ShowScripts.vue";
@@ -272,6 +279,28 @@ import IAChatIndex from "./components/module/ia/IAChatIndex.vue";
 import IAHistorial from "./components/module/ia/IAHistorial.vue";
 import IAPrompts from "./components/module/ia/IAPrompts.vue";
 import IAConfiguracion from "./components/module/ia/IAConfiguracion.vue";
+
+//Manual de Usuario (addon-manual)
+import ManualIndex from "./components/module/manual/ManualIndex.vue";
+
+//Evaluador Empresarial — portado desde MEGANET 2026-05-22
+import EvaluadorEmpresarial from "./components/module/sellers/EvaluadorEmpresarial.vue";
+import EvaluacionesDashboard from "./components/module/sellers/EvaluacionesDashboard.vue";
+
+//Marketing — addon-marketing 2026-05-25
+import MarketingDashboard from "./components/module/marketing/MarketingDashboard.vue";
+import MarketingCampaigns from "./components/module/marketing/MarketingCampaigns.vue";
+import MarketingCampaignShow from "./components/module/marketing/MarketingCampaignShow.vue";
+import MarketingContentGenerator from "./components/module/marketing/MarketingContentGenerator.vue";
+import MarketingLeads from "./components/module/marketing/MarketingLeads.vue";
+
+//WhatsApp Agent — 2026-05-22
+import WhatsAppPanel from "./components/module/whatsapp/WhatsAppPanel.vue";
+import WhatsAppInstanceManager from "./components/module/whatsapp/WhatsAppInstanceManager.vue";
+
+//Payments (SPEI / OpenPay) — 2026-05-23
+import PaymentMethods from "./components/module/finance/PaymentMethods.vue";
+import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 
 
 const app = createApp({
@@ -360,6 +389,7 @@ const app = createApp({
         FieldModuleListar,
         'module-manager': ModuleManager,
         'devtools-panel': DevtoolsPanel,
+        'manual-index': ManualIndex,
         'api-movil-config': ApiMovilConfig,
         'api-movil-tokens': ApiMovilTokens,
         'api-movil-docs': ApiMovilDocs,
@@ -375,6 +405,7 @@ const app = createApp({
         'mega-familia-dispositivos': MegaFamiliaDispositivos,
         'mega-familia-tareas': MegaFamiliaTareas,
         'mega-familia-ubicaciones': MegaFamiliaUbicaciones,
+        'mega-familia-geofences': MegaFamiliaGeofences,
         'mega-familia-reportes': MegaFamiliaReportes,
         'mega-familia-auditoria': MegaFamiliaAuditoria,
         'mega-familia-mikrotik': MegaFamiliaMikrotik,
@@ -471,10 +502,34 @@ const app = createApp({
         ReleasesDescription,
 
         //IA — portado desde MEGANET 2026-05-19
-        IAChatIndex,
-        IAHistorial,
-        IAPrompts,
-        IAConfiguracion,
+        'ia-chat-index': IAChatIndex,
+        'ia-historial': IAHistorial,
+        'ia-prompts': IAPrompts,
+        'ia-configuracion': IAConfiguracion,
+
+        //Smart Import/Export — addon-smart-import-export (portado de MEGANET 2026-05-21)
+        'smart-import': SmartImport,
+        'smart-export': SmartExport,
+        'import-export-history': ImportExportHistory,
+
+        //Evaluador Empresarial — addon-evaluador-empresarial (portado de MEGANET 2026-05-22)
+        'evaluador-empresarial': EvaluadorEmpresarial,
+        'evaluaciones-dashboard': EvaluacionesDashboard,
+
+        //Marketing — addon-marketing (2026-05-25)
+        'marketing-dashboard': MarketingDashboard,
+        'marketing-campaigns': MarketingCampaigns,
+        'marketing-campaign-show': MarketingCampaignShow,
+        'marketing-content-generator': MarketingContentGenerator,
+        'marketing-leads': MarketingLeads,
+
+        //WhatsApp Agent — addon-whatsapp-agent (2026-05-22)
+        'whatsapp-panel': WhatsAppPanel,
+        'whatsapp-instance-manager': WhatsAppInstanceManager,
+
+        // Payments (SPEI / OpenPay)
+        'payment-methods': PaymentMethods,
+        'client-clabe-card': ClientClabeCard,
     },
 });
 
@@ -553,6 +608,9 @@ app.use(Quasar, {
         QRadio,
         QSpinner,
         QSpinnerIos,
+        QStepper,
+        QStep,
+        QUploader,
     ],
 });
 Quasar.iconSet = Quasar.iconSet.fontawesomeV5;

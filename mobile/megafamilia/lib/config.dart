@@ -1,7 +1,7 @@
 /// Configuración estática de la app. Para v0.1, valores hardcoded.
 class AppConfig {
   static const String apiBaseUrl = 'http://192.168.105.11/api/megafamilia';
-  static const String apkDownloadUrl = 'http://192.168.105.11/apk/megafamilia.apk';
+  static const String apkDownloadUrl = 'http://192.168.105.11/downloads/megafamilia-v0_3_0.apk';
   static const String appName = 'MegaFamilia';
   static const String appVersion = '0.3.0';
 

@@ -3,6 +3,19 @@
 namespace App\Modules\Core\Clientes\Models;
 
 use App\Models\BaseModel;
+use App\Models\Colony;
+use App\Models\CommissionDetail;
+use App\Models\DistributionCommission;
+use App\Models\DurationContract;
+use App\Models\MapLayer;
+use App\Models\MediumOfSale;
+use App\Models\Municipality;
+use App\Models\Partner;
+use App\Models\PaymentDetail;
+use App\Models\Seller;
+use App\Models\State;
+use App\Models\TypeBilling;
+use App\Models\User;
 
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\Repository\ClientRepository;

@@ -1,0 +1,9 @@
+{
+    "slug": "addon-manual",
+    "name": "Manual de Usuario",
+    "version": "0.1.0",
+    "description": "Manual de usuario generado automáticamente vía Claude API. Documentación viva por módulo con versionado y regeneración bajo demanda.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}

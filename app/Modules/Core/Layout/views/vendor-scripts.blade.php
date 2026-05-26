@@ -1,7 +1,7 @@
 <script src="{{ URL::asset('plugins/quasar/js/vue.global.prod.js') }}"></script>
 <script src="{{ URL::asset('plugins/quasar/js/quasar.umd.prod.js') }}"></script>
 <script src="{{ URL::asset('plugins/quasar/icon-set/fontawesome-v5.umd.prod.js') }}"></script>
-<script src="{{ URL::asset('js/app.js') }}"></script>
+<script src="{{ mix('js/app.js') }}"></script>
 
 <script src="{{ URL::asset('assets/libs/jquery/jquery.min.js') }}"></script>
 <script src="{{ URL::asset('plugins/popper.js/popper.js') }}"></script>

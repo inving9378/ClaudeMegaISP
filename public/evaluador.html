@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Meganet — Evaluador de Internet Empresarial</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Open Sans',sans-serif;background:#f0f4f8;min-height:100vh}
+input,textarea,select{font-family:inherit}
+input:focus,textarea:focus,select:focus{outline:none}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+.tab-btn{border:none;background:none;padding:10px 18px;cursor:pointer;font-size:13px;font-weight:600;color:#64748b;border-bottom:3px solid transparent;transition:all .2s;font-family:inherit}
+.tab-btn.active{color:#00AEEF;border-bottom-color:#00AEEF}
+.tab-btn:hover{color:#00AEEF}
+@media print{.no-print{display:none!important}body{background:#fff}.plan-card{break-inside:avoid}}
+</style>
+</head>
+<body><div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+const C={navy:'#0d1b2a',blue:'#00AEEF',green:'#00A651',red:'#ED1C24',bg:'#f0f4f8'};
+
+/* ─── SVG Logo ─────────────────────────────────────────────────── */
+const Logo=({h=58})=>(
+  <svg viewBox="0 0 340 110" height={h}>
+    <g transform="translate(33,55)"><rect x="-33" y="-33" width="66" height="66" rx="9" fill="#ED1C24" transform="rotate(45)"/></g>
+    <g transform="translate(46,55)"><rect x="-31" y="-31" width="62" height="62" rx="8" fill="#00A651" transform="rotate(45)"/></g>
+    <g transform="translate(59,55)"><rect x="-29" y="-29" width="58" height="58" rx="7" fill="#FFF200" transform="rotate(45)"/></g>
+    <g transform="translate(72,55)"><rect x="-27" y="-27" width="54" height="54" rx="6" fill="#00AEEF" transform="rotate(45)"/></g>
+    <text x="72" y="62" fill="white" fontSize="22" fontFamily="Georgia,serif" fontStyle="italic" textAnchor="middle" transform="rotate(-5,72,62)">Mega</text>
+    <text x="110" y="78" fill="#00AEEF" fontSize="48" fontFamily="Georgia,serif" fontStyle="italic" fontWeight="bold">Net</text>
+    <text x="196" y="42" fill="#888" fontSize="13">mx</text>
+    <text x="112" y="100" fill="#00A651" fontSize="18">Te conecta</text>
+  </svg>
+);
+
+/* ─── Default Plans ───────────────────────────────────────────── */
+const DP=[
+  {id:"basico",nombre:"Empresarial Básico",etiqueta:"Conectividad dedicada confiable",color:"#00A651",bg:"#f0faf3",icon:"🌱",
+   velocidad:"30 – 100 Mbps simétrico",ips:"1 IP pública fija",sla:"99.5% mensual",soporte:"Lun-Vie 8-18h",
+   mttr:"Hasta 8 horas",fibra:"Single fiber",entrega:"Entrega en punta",modo:"Bridge o Router",
+   redundancia:"Sin enlace de respaldo",bgp:"No incluido",seguridad:"Sin firewall gestionado",
+   cuenta:"Soporte por ticket",precioMin:"2,500",precioMax:"5,000",
+   caracteristicas:["Enlace dedicado simétrico garantizado","Fibra óptica monomodo","Entrega en punta al equipo terminal","1 IP pública fija incluida","Modo Bridge o Router a elección","SLA 99.5% mensual","Soporte técnico horario hábil","Portal de autogestión 24/7"],
+   ideal:"Ideal para PyMEs con operación en horario de oficina y tolerancia moderada a interrupciones."},
+  {id:"plus",nombre:"Empresarial Plus",etiqueta:"Alta disponibilidad para operaciones críticas",color:"#00AEEF",bg:"#e8f6fd",icon:"⭐",
+   velocidad:"100 – 500 Mbps simétrico",ips:"Pool /29 — 6 IPs utilizables",sla:"99.9% + penalizaciones",soporte:"24×7 los 365 días",
+   mttr:"Máximo 4 horas",fibra:"Dual fiber (doble hilo)",entrega:"Entrega en punta + CPE incluido",modo:"Bridge + Router simultáneo",
+   redundancia:"Failover semi-automático",bgp:"Disponible bajo demanda",seguridad:"Firewall perimetral + monitoreo",
+   cuenta:"Ejecutivo semi-dedicado",precioMin:"6,000",precioMax:"15,000",
+   caracteristicas:["Enlace dedicado de alta capacidad","Fibra dual — doble hilo independiente","CPE administrado por ISP incluido","Pool /29 (6 IPs utilizables)","Bridge y Router simultáneo","SLA 99.9% con penalizaciones contractuales","Soporte 24/7 los 365 días","MTTR ≤ 4 horas garantizado","Ejecutivo de cuenta semi-dedicado","Monitoreo proactivo básico 24/7"],
+   ideal:"Para empresas con dependencia crítica de internet que no pueden permitirse más de pocas horas de inactividad."},
+  {id:"premium",nombre:"Empresarial Premium",etiqueta:"Misión crítica — máxima robustez corporativa",color:"#0d1b2a",bg:"#eef0f4",icon:"💎",
+   velocidad:"500 Mbps – 1 Gbps simétrico",ips:"Pool /28+ (13+ IPs) + BGP",sla:"99.99% + SLA económico",soporte:"NOC dedicado 24/7/365",
+   mttr:"Máximo 2 horas garantizado",fibra:"Rutas físicas independientes",entrega:"Entrega en punta + equipo activo",modo:"Bridge + Router + equipo activo",
+   redundancia:"Failover automático transparente",bgp:"BGP incluido + AS disponible",seguridad:"Firewall gestionado + anti-DDoS incluido",
+   cuenta:"Ejecutivo de cuenta dedicado exclusivo",precioMin:"18,000",precioMax:"45,000",
+   caracteristicas:["Enlace dedicado corporativo de máxima capacidad","Rutas físicas completamente independientes","Failover automático — sin downtime perceptible","Equipo activo administrado 24/7","Pool /28 o mayor + BGP disponible","SLA 99.99% — max 52 min/año + SLA económico","NOC dedicado 24/7 los 365 días","MTTR ≤ 2 horas garantizado","Ejecutivo de cuenta exclusivo asignado","Monitoreo proactivo y alertas en tiempo real","Firewall perimetral gestionado incluido","Protección anti-DDoS volumétrico incluida","MPLS/VPN entre sucursales disponible"],
+   ideal:"Para corporativos, finanzas, salud, gobierno y organizaciones donde una interrupción representa pérdidas económicas directas."},
+];
+
+const DCFG={
+  empresa:{
+    nombre:"Meganet Telecomunicaciones",eslogan:"Te conecta",
+    email:"ventas@meganett.com.mx",
+    tel:"55 6817 5643",web:"www.meganett.com.mx",
+    whatsapp:"525568175643",
+    formspreeUrl:"",  // Opcional: poner aquí URL de https://formspree.io o https://web3forms.com para envío silencioso automático sin que el prospecto tape Send
+    formUrl:"",
+    pass:"meganet2024"
+  },
+  smtp:{host:"mail.meganett.com.mx",port:"465",usuario:"ventas@meganett.com.mx",ssl:true},
+  planes:JSON.parse(JSON.stringify(DP)),
+};
+
+const loadCfg=()=>{try{const s=localStorage.getItem('mg_cfg2');if(s){const c=JSON.parse(s);if(!c.empresa.formspreeUrl&&c.empresa.formspreeUrl!=='')c.empresa.formspreeUrl='';return c;}}catch(e){}return JSON.parse(JSON.stringify(DCFG));};
+const saveCfg=c=>{try{localStorage.setItem('mg_cfg2',JSON.stringify(c));}catch(e){}};
+
+/* ─── Questions ───────────────────────────────────────────────── */
+const STEPS=[
+  {n:1,t:"Perfil Empresarial",sub:"Información general de su organización",icon:"🏢",qs:[
+    {id:"q1",txt:"¿Cuál es el giro principal de su empresa?",hint:"El sector define la criticidad mínima de conectividad requerida.",
+     opts:[{l:"Pequeño comercio o negocio local",d:"Tienda, consultorio, restaurante",s:1},{l:"Servicios profesionales o PYME",d:"Consultoría, contabilidad, servicios",s:2},{l:"Manufactura, industria o logística",d:"Producción, distribución, almacenes",s:2},{l:"Finanzas, tecnología, salud o datos",d:"Alta dependencia digital, datos críticos",s:3},{l:"Corporativo multi-sede o holding",d:"Múltiples empresas, sucursales o ubicaciones",s:3}]},
+    {id:"q2",txt:"¿Cuántos colaboradores tiene esta sede?",hint:"El número de usuarios activos define el ancho de banda requerido.",
+     opts:[{l:"1 a 10 empleados",d:"Microempresa o equipo pequeño",s:1},{l:"11 a 50 empleados",d:"Empresa pequeña en crecimiento",s:2},{l:"51 a 200 empleados",d:"Empresa mediana con demanda real",s:2},{l:"Más de 200 empleados",d:"Gran empresa o corporativo",s:3}]},
+    {id:"q3",txt:"¿Cuál es el horario de operación?",hint:"Operaciones nocturnas o de fin de semana requieren soporte extendido.",
+     opts:[{l:"Horario de oficina — Lun-Vie 8-18h",d:"Operación estándar de oficina",s:1},{l:"Horario extendido — más de 10 hrs diarias",d:"Incluyendo sábados o noches",s:2},{l:"24 horas al día, los 7 días de la semana",d:"Operación continua sin interrupción",s:3}]},
+    {id:"q4",txt:"¿Cómo afecta una interrupción de internet a su operación?",hint:"Este indicador define directamente el SLA y redundancia necesario.",
+     opts:[{l:"Inconveniente menor",d:"Podemos operar manualmente por horas",s:1},{l:"Pérdida de productividad moderada",d:"Podemos esperar hasta 4 horas para restaurar",s:2},{l:"Pérdida económica directa e inmediata",d:"Cada minuto sin internet tiene impacto financiero",s:3}]},
+  ]},
+  {n:2,t:"Uso y Aplicaciones",sub:"Sus necesidades actuales de conectividad",icon:"💻",qs:[
+    {id:"q5",txt:"¿Cuántos usuarios usan internet simultáneamente en horas pico?",hint:"La concurrencia real define el ancho de banda garantizado mínimo.",
+     opts:[{l:"Hasta 15 usuarios",d:"Micro o pequeña empresa",s:1},{l:"De 16 a 50 usuarios",d:"Empresa en crecimiento",s:2},{l:"De 51 a 200 usuarios",d:"Empresa mediana con alta demanda",s:3},{l:"Más de 200 usuarios",d:"Gran corporativo o call center",s:3}]},
+    {id:"q6",txt:"¿Cuál es su ancho de banda actual contratado?",hint:"Identificar la brecha ayuda a dimensionar correctamente la solución.",
+     opts:[{l:"Menos de 30 Mbps o servicio residencial",d:"Primer servicio o básico",s:1},{l:"30 a 100 Mbps",d:"Servicio intermedio",s:2},{l:"100 Mbps o más dedicado",d:"Servicio dedicado actual",s:3},{l:"No sé / sin servicio actual",d:"Primera contratación",s:2}]},
+    {id:"q7",txt:"¿Cuál es la aplicación más exigente que usa su empresa?",hint:"La app más crítica define latencia, jitter y ancho de banda mínimo.",
+     opts:[{l:"Navegación web, correo y redes sociales",d:"Uso básico de internet",s:1},{l:"Videoconferencias y telefonía VoIP",d:"Zoom, Teams, Google Meet, Cisco",s:2},{l:"ERP/CRM en nube, backups y cloud",d:"SAP, Salesforce, AWS, Azure, O365",s:2},{l:"Servidores propios, e-commerce o datacenter",d:"Publicación de servicios críticos 24/7",s:3}]},
+    {id:"q8",txt:"¿Su empresa publica servicios accesibles desde internet?",hint:"Los servicios publicados requieren IPs fijas y alta disponibilidad de uplink.",
+     opts:[{l:"No, solo consumimos internet",d:"Sin servidores públicos",s:1},{l:"Sí, sitio web y correo corporativo básico",d:"Servicios básicos publicados",s:2},{l:"Sí, servidores críticos de acceso constante",d:"ERP, API, bases de datos, VPN corporativa",s:3}]},
+  ]},
+  {n:3,t:"Requerimientos de Red",sub:"Especificaciones técnicas del enlace",icon:"🌐",qs:[
+    {id:"q9",txt:"¿Qué tipo de servicio de internet requiere?",hint:"Un enlace dedicado garantiza velocidad constante independiente del tráfico vecinal.",
+     opts:[{l:"Servicio compartido (mejor precio, sin garantía)",d:"Velocidad variable según demanda general",s:1},{l:"Enlace dedicado básico (velocidad garantizada)",d:"Caudal reservado 100% para su empresa",s:2},{l:"Enlace dedicado con SLA contractual y penalizaciones",d:"Compensaciones por incumplimiento del proveedor",s:3}]},
+    {id:"q10",txt:"¿Cómo requiere la entrega del servicio?",hint:"Entrega en punta garantiza que el SLA aplica hasta su equipo terminal.",
+     opts:[{l:"En instalaciones del proveedor (acometida)",d:"Sin last mile garantizado",s:1},{l:"Entrega en punta hasta sus instalaciones",d:"Fibra garantizada hasta su local",s:2},{l:"Entrega en punta + equipo CPE administrado",d:"ISP gestiona y monitorea el equipo terminal",s:3}]},
+    {id:"q11",txt:"¿Qué tipo de enlace físico requiere?",hint:"El doble hilo elimina el corte físico como punto único de falla.",
+     opts:[{l:"Un solo hilo de fibra óptica (single fiber)",d:"Solución estándar, costo optimizado",s:1},{l:"Doble hilo de fibra óptica (dual fiber)",d:"Mayor resiliencia, dos cables independientes",s:2},{l:"Rutas físicas completamente independientes",d:"Infraestructuras distintas — máxima resiliencia",s:3}]},
+    {id:"q12",txt:"¿Requiere redundancia o enlace de respaldo?",hint:"La redundancia automática elimina el downtime por fallas en el enlace principal.",
+     opts:[{l:"No, un solo enlace es suficiente",d:"Sin necesidad de respaldo",s:1},{l:"Sí, con conmutación manual (failover manual)",d:"Técnico activa el respaldo al detectar la falla",s:2},{l:"Sí, failover automático y transparente",d:"Sin intervención humana, sin downtime perceptible",s:3}]},
+    {id:"q13",txt:"¿En qué modo desea recibir el tráfico del enlace?",hint:"El modo define quién gestiona el ruteo y el primer salto.",
+     opts:[{l:"No sé / sin preferencia técnica definida",d:"El ISP recomienda según mi perfil",s:1},{l:"Modo Bridge — yo administro mi propia red",d:"IP pública directa en mi equipo propio",s:2},{l:"Modo Router — ISP gestiona el primer salto",d:"Ruteo y NAT gestionado por el proveedor",s:2},{l:"Equipo administrado con bridge + router activo",d:"ISP gestiona y usted mantiene control total",s:3}]},
+  ]},
+  {n:4,t:"IPs Públicas y Seguridad",sub:"Direccionamiento y protección perimetral",icon:"🔒",qs:[
+    {id:"q14",txt:"¿Cuántas IPs públicas fijas necesita?",hint:"Cada servicio publicado generalmente requiere al menos una IP pública.",
+     opts:[{l:"No necesito IPs públicas fijas",d:"Solo navegar, sin publicar servicios",s:1},{l:"1 o 2 IPs públicas fijas",d:"Para pocos servicios publicados",s:2},{l:"Pool /29 o mayor (6+ IPs utilizables)",d:"Múltiples servidores o servicios publicados",s:3}]},
+    {id:"q15",txt:"¿Requiere ruteo BGP o conectividad multi-proveedor?",hint:"BGP permite anunciar su propio bloque de IPs y conectarse a múltiples ISPs.",
+     opts:[{l:"No lo requiero",d:"Sin necesidad de ruteo avanzado",s:1},{l:"Posiblemente a futuro (12-24 meses)",d:"Evaluando multi-homing",s:2},{l:"Sí, tenemos o planeamos BGP activo",d:"ASN propio o de terceros, multi-homing",s:3}]},
+    {id:"q16",txt:"¿Qué nivel de seguridad perimetral requiere de su ISP?",hint:"Un firewall gestionado y anti-DDoS reduce drásticamente el riesgo de incidentes.",
+     opts:[{l:"Solo internet, yo gestiono mi seguridad",d:"Firewall y seguridad internos propios",s:1},{l:"Firewall perimetral o UTM básico",d:"Protección del perímetro de la red",s:2},{l:"Firewall gestionado + anti-DDoS + VPN site-to-site",d:"Seguridad gestionada 24/7 por el ISP",s:3}]},
+  ]},
+  {n:5,t:"SLA y Soporte",sub:"Niveles de servicio y atención técnica",icon:"🎯",qs:[
+    {id:"q17",txt:"¿Qué nivel de disponibilidad (uptime) requiere contractualmente?",hint:"SLA 99.9% = max 44 min/mes inactividad. SLA 99.99% = solo 4.3 min/mes.",
+     opts:[{l:"Sin SLA formal / mejor esfuerzo",d:"Sin garantías contractuales",s:1},{l:"99% a 99.5% de disponibilidad mensual",d:"Hasta 7.2 horas de inactividad permitida/mes",s:2},{l:"99.9% o superior con SLA económico",d:"Penalizaciones contractuales por incumplimiento",s:3}]},
+    {id:"q18",txt:"¿Cuál es el tiempo máximo tolerable sin servicio? (MTTR)",hint:"El tiempo de recuperación define el impacto máximo aceptable.",
+     opts:[{l:"Más de 24 horas (podemos esperar)",d:"Baja criticidad operativa",s:1},{l:"Entre 4 y 8 horas en horario hábil",d:"Criticidad media",s:2},{l:"Menos de 2 horas, incluyendo madrugadas",d:"Alta criticidad, respuesta inmediata 24/7",s:3}]},
+    {id:"q19",txt:"¿Qué tipo de soporte técnico requiere?",hint:"Las fallas fuera de horario hábil son especialmente críticas para operaciones continuas.",
+     opts:[{l:"Horario hábil — Lun-Vie 8-18h",d:"Soporte estándar de oficina",s:1},{l:"Horario extendido 12×7",d:"Hasta las 10pm todos los días",s:2},{l:"24 horas, 7 días, 365 días al año",d:"NOC activo en madrugadas y fines de semana",s:3}]},
+    {id:"q20",txt:"¿Necesita un ejecutivo de cuenta dedicado?",hint:"Un ejecutivo exclusivo conoce su red y reduce tiempos de diagnóstico.",
+     opts:[{l:"No es necesario, atención por ticket",d:"Soporte general compartido",s:1},{l:"Sería útil para seguimiento de casos",d:"Contacto semi-dedicado asignado",s:2},{l:"Sí, indispensable para nuestra operación",d:"Ejecutivo exclusivo asignado permanentemente",s:3}]},
+  ]},
+  {n:6,t:"Crecimiento y Presupuesto",sub:"Escalabilidad y viabilidad financiera",icon:"📈",qs:[
+    {id:"q21",txt:"¿Cuánto espera crecer su empresa en los próximos 12 meses?",hint:"Un servicio escalable evita migraciones costosas durante etapas de crecimiento.",
+     opts:[{l:"Estable, sin cambios significativos",d:"Operación constante, sin expansión planeada",s:1},{l:"Crecimiento moderado del 10 al 30%",d:"Más personal o capacidad productiva",s:2},{l:"Crecimiento acelerado o expansión importante",d:"Nuevas líneas de negocio, más oficinas",s:3}]},
+    {id:"q22",txt:"¿Planea abrir nuevas sucursales o sedes?",hint:"La conectividad entre sedes requiere MPLS, VPN o SD-WAN.",
+     opts:[{l:"No, solo operamos desde una ubicación",d:"Sin planes de expansión física",s:1},{l:"Posiblemente en 12-24 meses",d:"En evaluación o planificación",s:2},{l:"Sí, en menos de 12 meses",d:"Expansión inminente confirmada",s:3}]},
+    {id:"q23",txt:"¿Cuál es su presupuesto mensual para conectividad?",hint:"El costo de 1 hora de downtime frecuentemente supera meses de servicio premium.",
+     opts:[{l:"Hasta $3,000 MXN/mes",d:"Inversión conservadora inicial",s:1},{l:"Entre $3,000 y $15,000 MXN/mes",d:"Inversión intermedia alineada a necesidades",s:2},{l:"Más de $15,000 MXN/mes",d:"Inversión robusta acorde a la criticidad",s:2}]},
+    {id:"q24",txt:"¿Invertiría más por garantías contractuales de servicio?",hint:"¿Vale la diferencia entre SLA 99.5% y 99.99% para su empresa?",
+     opts:[{l:"No, el precio es el factor principal",d:"Prioridad: menor costo inicial",s:1},{l:"Sí, con un ROI claro y justificable",d:"Con evidencia del retorno de inversión",s:2},{l:"Definitivamente, la continuidad lo justifica",d:"La inversión en disponibilidad es no negociable",s:3}]},
+  ]},
+];
+
+/* ─── Scoring ──────────────────────────────────────────────────── */
+const getAvg=a=>{const s=Object.values(a).filter(n=>typeof n==='number');return s.length?s.reduce((x,y)=>x+y,0)/s.length:1;};
+const getRec=(a,planes)=>{const avg=getAvg(a);if(avg>=2.35)return planes[2]?.id;if(avg>=1.75)return planes[1]?.id;return planes[0]?.id;};
+
+/* ─── Reusable UI ──────────────────────────────────────────────── */
+const Inp=({label,val,set,ph,type='text',full,note})=>(
+  <div style={{gridColumn:full?'1/-1':'auto'}}>
+    <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4}}>{label}</label>
+    <input type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph}
+      style={{width:'100%',border:'2px solid #e2e8f0',borderRadius:7,padding:'9px 11px',fontSize:13}}
+      onFocus={e=>e.target.style.borderColor=C.blue} onBlur={e=>e.target.style.borderColor='#e2e8f0'}/>
+    {note&&<div style={{fontSize:10,color:'#94a3b8',marginTop:3}}>{note}</div>}
+  </div>
+);
+const Btn=({onClick,disabled,primary,ghost,danger,full,sm,children,style:st={}})=>{
+  const bg=danger?C.red:primary?`linear-gradient(135deg,${C.blue},#0095d4)`:ghost?'transparent':'#fff';
+  const col=danger||primary?'#fff':ghost?C.blue:C.navy;
+  const brd=ghost?`2px solid ${C.blue}`:danger?`2px solid ${C.red}`:`2px solid #e2e8f0`;
+  return <button onClick={onClick} disabled={disabled}
+    style={{padding:sm?'6px 14px':'10px 20px',border:disabled?'2px solid #e2e8f0':brd,borderRadius:8,
+    background:disabled?'#e2e8f0':bg,color:disabled?'#94a3b8':col,fontSize:sm?12:13,fontWeight:700,
+    cursor:disabled?'not-allowed':'pointer',width:full?'100%':'auto',fontFamily:'inherit',...st}}>
+    {children}</button>;
+};
+
+/* ─── Check icon ───────────────────────────────────────────────── */
+const Chk=({col})=>(
+  <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0,marginTop:2}}>
+    <circle cx="7" cy="7" r="7" fill={col+'22'}/>
+    <path d="M3.5 7l2.5 2.5 5-5" stroke={col} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+/* ─── Question Card ─────────────────────────────────────────────── */
+function QCard({q,selIdx,onChange,idx}){
+  return(
+    <div style={{marginBottom:20}}>
+      <div style={{display:'flex',gap:10,marginBottom:10,alignItems:'flex-start'}}>
+        <div style={{background:C.navy,color:'#fff',borderRadius:'50%',width:24,height:24,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0,marginTop:1}}>{idx+1}</div>
+        <div><div style={{fontSize:14,fontWeight:700,color:C.navy,lineHeight:1.4}}>{q.txt}</div>
+          <div style={{fontSize:11,color:'#64748b',marginTop:2}}>{q.hint}</div></div>
+      </div>
+      <div style={{display:'grid',gap:7,paddingLeft:34}}>
+        {q.opts.map((o,i)=>{
+          const sel=selIdx===i;
+          const cc=o.s===3?'#b7791f':o.s===2?C.blue:C.green;
+          const cb=o.s===3?'#fffbeb':o.s===2?'#e8f6fd':'#f0faf3';
+          return(
+            <div key={i} onClick={()=>onChange(o.s,i)}
+              style={{border:`2px solid ${sel?C.blue:'#e2e8f0'}`,borderRadius:9,padding:'10px 14px',cursor:'pointer',
+                background:sel?C.blue+'0d':'#fff',display:'flex',alignItems:'flex-start',gap:10,transition:'all .15s'}}>
+              <div style={{width:17,height:17,borderRadius:'50%',border:`2px solid ${sel?C.blue:'#cbd5e1'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1,background:sel?C.blue:'transparent'}}>
+                {sel&&<div style={{width:6,height:6,borderRadius:'50%',background:'#fff'}}/>}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:sel?700:500,color:sel?C.blue:C.navy}}>{o.l}</div>
+                <div style={{fontSize:11,color:'#64748b',marginTop:1}}>{o.d}</div>
+              </div>
+              <div style={{background:cb,color:cc,borderRadius:4,padding:'2px 7px',fontSize:9,fontWeight:700,flexShrink:0}}>
+                {o.s===3?'Alta':o.s===2?'Media':'Básica'}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Plan Card (Results) ───────────────────────────────────────── */
+function PlanCard({plan,rec,company}){
+  const isR=plan.id===rec;
+  return(
+    <div className="plan-card" style={{border:`3px solid ${isR?plan.color:'#e2e8f0'}`,borderRadius:14,overflow:'hidden',
+      background:isR?plan.bg:'#fff',boxShadow:isR?`0 6px 28px ${plan.color}33`:'0 2px 8px rgba(0,0,0,.05)'}}>
+      {isR&&<div style={{background:plan.color,padding:'6px',textAlign:'center'}}>
+        <span style={{color:'#fff',fontSize:11,fontWeight:800,textTransform:'uppercase'}}>⭐ Solución Recomendada{company?' para '+company:''}</span></div>}
+      <div style={{padding:18}}>
+        <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
+          <span style={{fontSize:26}}>{plan.icon}</span>
+          <div><div style={{fontSize:17,fontWeight:800,color:plan.color}}>{plan.nombre}</div>
+            <div style={{fontSize:11,color:'#64748b'}}>{plan.etiqueta}</div></div>
+        </div>
+        <div style={{background:plan.color+'11',borderRadius:9,padding:'10px',marginBottom:12,textAlign:'center'}}>
+          <div style={{fontSize:9,color:'#64748b',textTransform:'uppercase',letterSpacing:.5}}>Inversión estimada</div>
+          <div style={{fontSize:22,fontWeight:800,color:plan.color}}>${plan.precioMin} – ${plan.precioMax}</div>
+          <div style={{fontSize:11,color:'#64748b'}}>MXN/mes + IVA</div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5,marginBottom:12}}>
+          {[['Velocidad',plan.velocidad],['IPs Públicas',plan.ips],['SLA',plan.sla],['Soporte',plan.soporte],
+            ['MTTR',plan.mttr],['Enlace',plan.fibra],['Entrega',plan.entrega],['Redundancia',plan.redundancia],
+            ['BGP',plan.bgp],['Seguridad',plan.seguridad]].map(([k,v],i)=>(
+            <div key={i} style={{background:'#f8fafc',borderRadius:6,padding:'6px 9px'}}>
+              <div style={{fontSize:9,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>{k}</div>
+              <div style={{fontSize:11,color:C.navy,fontWeight:600,marginTop:1,lineHeight:1.3}}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.navy,marginBottom:6,textTransform:'uppercase'}}>Incluido en el servicio</div>
+          {plan.caracteristicas.map((f,i)=>(
+            <div key={i} style={{display:'flex',gap:6,alignItems:'flex-start',marginBottom:4}}>
+              <Chk col={plan.color}/><span style={{fontSize:11.5,color:'#374151'}}>{f}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{background:plan.color+'11',borderLeft:`3px solid ${plan.color}`,padding:'8px 10px',borderRadius:'0 7px 7px 0',fontSize:11,color:'#374151',fontStyle:'italic'}}>
+          {plan.ideal}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── CONFIG PANEL ─────────────────────────────────────────────── */
+function ConfigPanel({cfg,setCfg,onClose}){
+  const [tab,setTab]=useState('empresa');
+  const [local,setLocal]=useState(JSON.parse(JSON.stringify(cfg)));
+  const [editPlan,setEditPlan]=useState(null);
+  const [newFeat,setNewFeat]=useState('');
+  const [saved,setSaved]=useState(false);
+
+  const save=()=>{saveCfg(local);setCfg(local);setSaved(true);setTimeout(()=>setSaved(false),2000);};
+  const reset=()=>{const r=JSON.parse(JSON.stringify(DCFG));setLocal(r);};
+
+  const updEmpresa=(k,v)=>setLocal(p=>({...p,empresa:{...p.empresa,[k]:v}}));
+  const updSmtp=(k,v)=>setLocal(p=>({...p,smtp:{...p.smtp,[k]:v}}));
+  const updPlan=(idx,k,v)=>setLocal(p=>{const pl=[...p.planes];pl[idx]={...pl[idx],[k]:v};return{...p,planes:pl};});
+  const addFeat=(idx)=>{if(!newFeat.trim())return;const pl=JSON.parse(JSON.stringify(local.planes));pl[idx].caracteristicas.push(newFeat.trim());setLocal(p=>({...p,planes:pl}));setNewFeat('');};
+  const delFeat=(idx,fi)=>{const pl=JSON.parse(JSON.stringify(local.planes));pl[idx].caracteristicas.splice(fi,1);setLocal(p=>({...p,planes:pl}));};
+
+  return(
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'20px',overflowY:'auto'}}>
+      <div style={{background:'#fff',borderRadius:16,width:'100%',maxWidth:860,boxShadow:'0 20px 60px rgba(0,0,0,.3)'}}>
+        <div style={{background:`linear-gradient(135deg,${C.navy},#1a2f45)`,padding:'16px 24px',borderRadius:'14px 14px 0 0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <span style={{fontSize:22}}>⚙️</span>
+            <div>
+              <div style={{color:'#fff',fontSize:17,fontWeight:800,fontFamily:'Raleway,sans-serif'}}>Panel de Configuración</div>
+              <div style={{color:'#94a3b8',fontSize:12}}>Personalice sus planes, datos de empresa y opciones de envío</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',width:34,height:34,borderRadius:'50%',cursor:'pointer',fontSize:18}}>×</button>
+        </div>
+
+        <div style={{borderBottom:'2px solid #f1f5f9',display:'flex',paddingLeft:24,background:'#fafbfc'}}>
+          {[['empresa','🏢 Empresa'],['planes','📦 Planes'],['envio','📤 Recepción de leads']].map(([k,l])=>(
+            <button key={k} className={`tab-btn${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</button>
+          ))}
+        </div>
+
+        <div style={{padding:'24px',maxHeight:'calc(100vh - 220px)',overflowY:'auto'}}>
+
+          {tab==='empresa'&&(
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:16}}>Datos de su empresa</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                <Inp label="Nombre de la Empresa" full val={local.empresa.nombre} set={v=>updEmpresa('nombre',v)} ph="Razón social"/>
+                <Inp label="Eslogan" val={local.empresa.eslogan} set={v=>updEmpresa('eslogan',v)} ph="Te conecta"/>
+                <Inp label="Email donde recibe los leads" val={local.empresa.email} set={v=>updEmpresa('email',v)} ph="ventas@empresa.com" note="A esta dirección le llegarán las evaluaciones de los prospectos"/>
+                <Inp label="Teléfono" val={local.empresa.tel} set={v=>updEmpresa('tel',v)} ph="55 xxxx xxxx"/>
+                <Inp label="Sitio web" val={local.empresa.web} set={v=>updEmpresa('web',v)} ph="www.empresa.com"/>
+                <Inp label="WhatsApp donde recibe los leads (internacional)" val={local.empresa.whatsapp} set={v=>updEmpresa('whatsapp',v)} ph="525568175643" note="52 + 10 dígitos. Ej: 525568175643. A este número llegarán los WhatsApps de los prospectos."/>
+                <Inp label="Contraseña del panel de configuración" val={local.empresa.pass} set={v=>updEmpresa('pass',v)} ph="meganet2024" type="password"/>
+              </div>
+            </div>
+          )}
+
+          {tab==='planes'&&(
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+                <div style={{fontSize:13,fontWeight:700,color:C.navy}}>Editor de Planes / Paquetes</div>
+                <div style={{fontSize:11,color:'#64748b'}}>Los cambios se reflejarán en los resultados de la evaluación</div>
+              </div>
+              {local.planes.map((plan,pi)=>(
+                <div key={plan.id} style={{border:`2px solid ${pi===editPlan?plan.color:'#e2e8f0'}`,borderRadius:12,marginBottom:16,overflow:'hidden'}}>
+                  <div onClick={()=>setEditPlan(pi===editPlan?null:pi)}
+                    style={{background:pi===editPlan?plan.color+'11':'#f8fafc',padding:'12px 16px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <span style={{fontSize:22}}>{plan.icon}</span>
+                      <div>
+                        <div style={{fontSize:14,fontWeight:700,color:plan.color}}>{plan.nombre}</div>
+                        <div style={{fontSize:11,color:'#64748b'}}>{plan.etiqueta}</div>
+                      </div>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <div style={{fontSize:13,fontWeight:700,color:C.green}}>${plan.precioMin}–${plan.precioMax} MXN/mes</div>
+                      <span style={{fontSize:18,color:plan.color}}>{pi===editPlan?'▲':'▼'}</span>
+                    </div>
+                  </div>
+                  {pi===editPlan&&(
+                    <div style={{padding:16}}>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+                        <Inp label="Nombre del plan" full val={plan.nombre} set={v=>updPlan(pi,'nombre',v)}/>
+                        <Inp label="Etiqueta/Subtítulo" full val={plan.etiqueta} set={v=>updPlan(pi,'etiqueta',v)}/>
+                        <Inp label="Velocidad" val={plan.velocidad} set={v=>updPlan(pi,'velocidad',v)}/>
+                        <Inp label="IPs Públicas" val={plan.ips} set={v=>updPlan(pi,'ips',v)}/>
+                        <Inp label="SLA Garantizado" val={plan.sla} set={v=>updPlan(pi,'sla',v)}/>
+                        <Inp label="Soporte Técnico" val={plan.soporte} set={v=>updPlan(pi,'soporte',v)}/>
+                        <Inp label="MTTR (tiempo de resolución)" val={plan.mttr} set={v=>updPlan(pi,'mttr',v)}/>
+                        <Inp label="Tipo de fibra" val={plan.fibra} set={v=>updPlan(pi,'fibra',v)}/>
+                        <Inp label="Entrega del servicio" val={plan.entrega} set={v=>updPlan(pi,'entrega',v)}/>
+                        <Inp label="Modo de entrega" val={plan.modo} set={v=>updPlan(pi,'modo',v)}/>
+                        <Inp label="Redundancia" val={plan.redundancia} set={v=>updPlan(pi,'redundancia',v)}/>
+                        <Inp label="BGP" val={plan.bgp} set={v=>updPlan(pi,'bgp',v)}/>
+                        <Inp label="Seguridad" val={plan.seguridad} set={v=>updPlan(pi,'seguridad',v)}/>
+                        <Inp label="Ejecutivo de cuenta" val={plan.cuenta} set={v=>updPlan(pi,'cuenta',v)}/>
+                        <Inp label="Precio mínimo (MXN/mes)" val={plan.precioMin} set={v=>updPlan(pi,'precioMin',v)}/>
+                        <Inp label="Precio máximo (MXN/mes)" val={plan.precioMax} set={v=>updPlan(pi,'precioMax',v)}/>
+                        <div style={{gridColumn:'1/-1'}}>
+                          <label style={{display:'block',fontSize:11,fontWeight:600,color:'#374151',marginBottom:4}}>Descripción / Texto ideal para</label>
+                          <textarea value={plan.ideal} onChange={e=>updPlan(pi,'ideal',e.target.value)} rows={2}
+                            style={{width:'100%',border:'2px solid #e2e8f0',borderRadius:7,padding:'9px 11px',fontSize:12,resize:'vertical'}}
+                            onFocus={e=>e.target.style.borderColor=C.blue} onBlur={e=>e.target.style.borderColor='#e2e8f0'}/>
+                        </div>
+                      </div>
+                      <div style={{background:'#f8fafc',borderRadius:10,padding:14}}>
+                        <div style={{fontSize:12,fontWeight:700,color:C.navy,marginBottom:10}}>Características incluidas</div>
+                        {plan.caracteristicas.map((f,fi)=>(
+                          <div key={fi} style={{display:'flex',gap:8,alignItems:'center',marginBottom:6}}>
+                            <input value={f} onChange={e=>{const pl=JSON.parse(JSON.stringify(local.planes));pl[pi].caracteristicas[fi]=e.target.value;setLocal(p=>({...p,planes:pl}));}}
+                              style={{flex:1,border:'1px solid #e2e8f0',borderRadius:6,padding:'7px 10px',fontSize:12}}/>
+                            <button onClick={()=>delFeat(pi,fi)} style={{background:'#fee2e2',color:C.red,border:'none',borderRadius:6,padding:'6px 10px',cursor:'pointer',fontSize:13,fontWeight:700}}>✕</button>
+                          </div>
+                        ))}
+                        <div style={{display:'flex',gap:8,marginTop:10}}>
+                          <input value={newFeat} onChange={e=>setNewFeat(e.target.value)}
+                            onKeyDown={e=>e.key==='Enter'&&addFeat(pi)}
+                            placeholder="Nueva característica"
+                            style={{flex:1,border:'2px dashed #cbd5e1',borderRadius:6,padding:'8px 10px',fontSize:12,background:'#fff'}}/>
+                          <Btn sm onClick={()=>addFeat(pi)} ghost>+ Agregar</Btn>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab==='envio'&&(
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:16}}>Cómo recibe los leads de prospectos</div>
+
+              <div style={{background:'#e8f6fd',border:`1px solid ${C.blue}`,borderRadius:10,padding:'12px 16px',marginBottom:20,fontSize:12,color:C.navy,lineHeight:1.5}}>
+                <strong>📋 Cómo funciona:</strong> al final de la encuesta, el prospecto verá tres botones para enviarle sus datos:
+                <ul style={{margin:'8px 0 0 20px',padding:0}}>
+                  <li><strong>WhatsApp</strong> (verde): se abre WhatsApp con un mensaje listo dirigido a su número. El prospecto solo tapea Send. <strong>Funciona desde cualquier dispositivo con WhatsApp instalado.</strong></li>
+                  <li><strong>Email</strong> (azul): se abre el cliente de correo (Outlook/Gmail/Apple Mail) con el mensaje listo dirigido a su email. El prospecto solo tapea Send.</li>
+                  <li><strong>Formspree/Web3Forms</strong> (silencioso): si configura una URL abajo, los datos se envían automáticamente sin que el prospecto haga nada extra. Es el método más confiable.</li>
+                </ul>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
+                <Inp label="WhatsApp donde recibe leads (internacional)" val={local.empresa.whatsapp} set={v=>updEmpresa('whatsapp',v)} ph="525568175643" note="52 + 10 dígitos. Sin espacios ni guiones."/>
+                <Inp label="Email donde recibe leads" val={local.empresa.email} set={v=>updEmpresa('email',v)} ph="ventas@empresa.com"/>
+              </div>
+
+              <div style={{borderTop:'2px solid #f1f5f9',paddingTop:20,marginBottom:16}}>
+                <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:6}}>⚡ Envío automático silencioso (recomendado)</div>
+                <div style={{fontSize:11,color:'#64748b',marginBottom:12,lineHeight:1.5}}>
+                  Para que los datos del prospecto le lleguen automáticamente sin que tenga que tapear Send en WhatsApp/email, cree una cuenta gratuita en <a href="https://formspree.io" target="_blank" style={{color:C.blue}}>Formspree</a> o <a href="https://web3forms.com" target="_blank" style={{color:C.blue}}>Web3Forms</a>, obtenga la URL del endpoint (algo como <code style={{background:'#f1f5f9',padding:'1px 4px',borderRadius:3}}>https://formspree.io/f/xyzabc123</code>) y péguela aquí. Los datos del prospecto se enviarán a su email automáticamente en cuanto termine la encuesta.
+                </div>
+                <Inp full label="URL de Formspree / Web3Forms (opcional, recomendado para envío automático)" val={local.empresa.formspreeUrl||''} set={v=>updEmpresa('formspreeUrl',v)} ph="https://formspree.io/f/xxxxxxx" note="Sin esto, el prospecto tiene que tapear Send en WhatsApp o email. Con esto, todo es automático."/>
+              </div>
+
+              <div style={{borderTop:'2px solid #f1f5f9',paddingTop:20}}>
+                <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:6}}>📧 SMTP (no usado por el browser — solo referencia)</div>
+                <div style={{background:'#fffbeb',border:'1px solid #f6ad55',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:11,color:'#7c2d12'}}>
+                  <strong>Limitación técnica:</strong> los browsers no permiten conectar a SMTP por seguridad. Estos datos son para referencia o para un futuro backend PHP/Node propio. El envío automático real lo hace el Formspree URL de arriba.
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                  <Inp label="Servidor SMTP" val={local.smtp.host} set={v=>updSmtp('host',v)} ph="mail.meganett.com.mx"/>
+                  <Inp label="Puerto SMTP" val={local.smtp.port} set={v=>updSmtp('port',v)} ph="465"/>
+                  <Inp label="Usuario SMTP" val={local.smtp.usuario} set={v=>updSmtp('usuario',v)} ph="ventas@meganett.com.mx"/>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{padding:'16px 24px',borderTop:'1px solid #f1f5f9',display:'flex',gap:10,justifyContent:'space-between',alignItems:'center',background:'#fafbfc',borderRadius:'0 0 14px 14px'}}>
+          <Btn onClick={reset} danger sm>Restaurar predeterminados</Btn>
+          <div style={{display:'flex',gap:10,alignItems:'center'}}>
+            {saved&&<span style={{color:C.green,fontSize:12,fontWeight:700}}>✓ Guardado</span>}
+            <Btn onClick={onClose}>Cancelar</Btn>
+            <Btn onClick={save} primary>💾 Guardar cambios</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Header ─────────────────────────────────────────────────────── */
+function Header({cfg,company,onConfig}){
+  return(
+    <div className="no-print" style={{background:`linear-gradient(135deg,${C.navy},#1a2f45)`,padding:'14px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+      <Logo h={54}/>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        {company&&<div style={{color:'#fff',fontSize:12,opacity:.8,marginRight:4}}>{company}</div>}
+        <button onClick={onConfig}
+          style={{background:'rgba(255,255,255,.12)',border:'1px solid rgba(255,255,255,.25)',color:'#fff',padding:'8px 14px',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',gap:6}}>
+          <span>⚙️</span> Config
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Progress Bar ───────────────────────────────────────────────── */
+function ProgBar({cur,total}){
+  return(
+    <div style={{padding:'10px 24px',background:'#fff',borderBottom:'1px solid #e2e8f0'}}>
+      <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+        <span style={{fontSize:11,color:'#64748b',fontWeight:600}}>Sección {cur} de {total}</span>
+        <span style={{fontSize:11,color:C.blue,fontWeight:700}}>{Math.round((cur/total)*100)}% completado</span>
+      </div>
+      <div style={{height:5,background:'#e2e8f0',borderRadius:3,overflow:'hidden',marginBottom:6}}>
+        <div style={{height:'100%',width:`${(cur/total)*100}%`,background:`linear-gradient(90deg,${C.green},${C.blue})`,borderRadius:3,transition:'width .4s'}}/>
+      </div>
+      <div style={{display:'flex',gap:2}}>
+        {STEPS.map((s,i)=>(
+          <div key={i} style={{flex:1,textAlign:'center',fontSize:9,color:i+1<=cur?C.blue:'#94a3b8',fontWeight:i+1===cur?700:400,overflow:'hidden',whiteSpace:'nowrap'}}>
+            {s.icon} {s.t}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── MAIN APP ───────────────────────────────────────────────────── */
+export default function App(){
+  const [cfg,setCfg]=useState(()=>loadCfg());
+  const [phase,setPhase]=useState('intro');
+  const [step,setStep]=useState(1);
+  const [answers,setAnswers]=useState({});
+  const [selIdx,setSelIdx]=useState({});
+  const [company,setCompany]=useState('');
+  const [contact,setContact]=useState('');
+  const [phone,setPhone]=useState('');
+  const [email,setEmail]=useState('');
+  const [showCfg,setShowCfg]=useState(false);
+  const [autoSent,setAutoSent]=useState(false);
+  const [autoSentStatus,setAutoSentStatus]=useState('');
+  const [cfgPass,setCfgPass]=useState('');
+  const [cfgAuth,setCfgAuth]=useState(false);
+  const [cfgErr,setCfgErr]=useState(false);
+
+  const cur=STEPS[step-1];
+  const planes=cfg.planes;
+  const stepDone=cur?.qs.every(q=>answers[q.id]!==undefined);
+  const totalQ=STEPS.reduce((a,s)=>a+s.qs.length,0);
+  const answered=Object.keys(answers).length;
+  const rec=getRec(answers,planes);
+  const avg=getAvg(answers);
+  const today=new Date().toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+
+  const openCfg=()=>{if(cfgAuth){setShowCfg(true);}else{setCfgErr(false);setCfgPass('');setShowCfg('auth');}};
+  const authCfg=()=>{if(cfgPass===cfg.empresa.pass){setCfgAuth(true);setShowCfg(true);}else{setCfgErr(true);}};
+
+  const handleAns=(qId,score,oi)=>{setAnswers(p=>({...p,[qId]:score}));setSelIdx(p=>({...p,[qId]:oi}));};
+
+  const recPlan=planes.find(p=>p.id===rec);
+  const scoreCol=avg>=2.35?C.red:avg>=1.75?C.blue:C.green;
+  const scoreLabel=avg>=2.35?'Alta':avg>=1.75?'Media':'Básica';
+
+  /* ─── Build comprehensive lead summary (for WhatsApp / email / Formspree) ─── */
+  const buildLeadText=()=>{
+    const L=[];
+    L.push(`*🔔 Nueva evaluación de Internet — ${cfg.empresa.nombre}*`);
+    L.push('');
+    L.push(`📅 ${today}`);
+    L.push('');
+    L.push(`*👤 Datos del prospecto*`);
+    L.push(`• Empresa: ${company||'(no proporcionada)'}`);
+    if(contact)L.push(`• Contacto: ${contact}`);
+    if(phone)L.push(`• Teléfono: ${phone}`);
+    if(email)L.push(`• Email: ${email}`);
+    L.push('');
+    L.push(`*📊 Resultado del análisis*`);
+    L.push(`• Puntaje: ${avg.toFixed(2)}/3.0 (${scoreLabel} criticidad)`);
+    L.push(`• Recomendación: ${recPlan?.icon||''} ${recPlan?.nombre||''}`);
+    L.push(`• Inversión estimada: $${recPlan?.precioMin}–$${recPlan?.precioMax} MXN/mes`);
+    L.push(`• SLA: ${recPlan?.sla}`);
+    L.push(`• Soporte: ${recPlan?.soporte}`);
+    L.push('');
+    L.push(`*📈 Diagnóstico por sección*`);
+    STEPS.forEach(s=>{
+      const sc=s.qs.filter(q=>answers[q.id]!==undefined).map(q=>answers[q.id]);
+      const a=sc.length?sc.reduce((x,y)=>x+y,0)/sc.length:0;
+      L.push(`${s.icon} ${s.t}: ${a.toFixed(1)}/3.0`);
+    });
+    L.push('');
+    L.push(`*📋 Respuestas (${totalQ} preguntas)*`);
+    let qNum=0;
+    STEPS.forEach(s=>{
+      L.push('');
+      L.push(`◆ ${s.t}`);
+      s.qs.forEach(q=>{
+        qNum++;
+        const oi=selIdx[q.id];
+        const opt=oi!==undefined?q.opts[oi].l:'(no contestado)';
+        L.push(`${qNum}. ${q.txt}`);
+        L.push(`   → ${opt}`);
+      });
+    });
+    return L.join('\n');
+  };
+
+  /* ─── Send actions ─── */
+  const enviarPorWhatsApp=()=>{
+    const wa=(cfg.empresa.whatsapp||'525568175643').replace(/\D/g,'');
+    const msg=buildLeadText();
+    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'_blank');
+  };
+
+  const enviarPorEmail=()=>{
+    const dest=cfg.empresa.email||'ventas@meganett.com.mx';
+    const subj=`Nueva evaluación — ${company||'(prospecto)'}`;
+    const msg=buildLeadText();
+    window.location.href=`mailto:${dest}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(msg)}`;
+  };
+
+  /* ─── Auto-send silencioso a Formspree/Web3Forms si está configurado ─── */
+  const enviarSilencioso=async()=>{
+    if(!cfg.empresa.formspreeUrl||autoSent)return;
+    const payload={
+      empresa:company,
+      contacto:contact||'(no proporcionado)',
+      telefono:phone||'(no proporcionado)',
+      email:email||'(no proporcionado)',
+      fecha:today,
+      puntaje:`${avg.toFixed(2)}/3.0`,
+      criticidad:scoreLabel,
+      recomendacion:recPlan?.nombre,
+      inversion_estimada:`$${recPlan?.precioMin}–$${recPlan?.precioMax} MXN/mes`,
+      respuestas:STEPS.flatMap(s=>s.qs.map(q=>{
+        const oi=selIdx[q.id];
+        return{
+          seccion:s.t,
+          pregunta:q.txt,
+          respuesta:oi!==undefined?q.opts[oi].l:'(sin contestar)',
+          score:answers[q.id]||null
+        };
+      })),
+      mensaje_completo:buildLeadText()
+    };
+    try{
+      const res=await fetch(cfg.empresa.formspreeUrl,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body:JSON.stringify(payload)
+      });
+      setAutoSent(true);
+      setAutoSentStatus(res.ok?'ok':'error');
+    }catch(e){
+      setAutoSent(true);
+      setAutoSentStatus('error');
+    }
+  };
+
+  useEffect(()=>{
+    if(phase==='results'&&cfg.empresa.formspreeUrl&&!autoSent){
+      enviarSilencioso();
+    }
+  },[phase]);
+
+  return(
+    <div style={{minHeight:'100vh',background:C.bg}}>
+      {showCfg==='auth'&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:1100,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div style={{background:'#fff',borderRadius:14,padding:28,maxWidth:360,width:'100%',boxShadow:'0 20px 60px rgba(0,0,0,.3)'}}>
+            <div style={{fontSize:16,fontWeight:800,color:C.navy,marginBottom:4,fontFamily:'Raleway,sans-serif'}}>🔒 Panel de Configuración</div>
+            <div style={{fontSize:12,color:'#64748b',marginBottom:16}}>Ingrese la contraseña de administrador.</div>
+            <input type="password" value={cfgPass} onChange={e=>{setCfgPass(e.target.value);setCfgErr(false);}}
+              onKeyDown={e=>e.key==='Enter'&&authCfg()}
+              placeholder="Contraseña" style={{width:'100%',border:`2px solid ${cfgErr?C.red:'#e2e8f0'}`,borderRadius:7,padding:'10px 12px',fontSize:13,marginBottom:cfgErr?4:12}}/>
+            {cfgErr&&<div style={{color:C.red,fontSize:11,marginBottom:10}}>Contraseña incorrecta</div>}
+            <div style={{display:'flex',gap:10}}>
+              <Btn full onClick={()=>setShowCfg(false)}>Cancelar</Btn>
+              <Btn full primary onClick={authCfg}>Ingresar →</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+      {showCfg===true&&<ConfigPanel cfg={cfg} setCfg={c=>setCfg(c)} onClose={()=>setShowCfg(false)}/>}
+
+      {/* INTRO */}
+      {phase==='intro'&&(
+        <div style={{minHeight:'100vh',background:`linear-gradient(135deg,${C.navy},#1a2f45)`,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{position:'absolute',top:16,right:20}}>
+            <button onClick={openCfg}
+              style={{background:'rgba(255,255,255,.12)',border:'1px solid rgba(255,255,255,.25)',color:'#fff',padding:'8px 14px',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:700}}>
+              ⚙️ Config
+            </button>
+          </div>
+          <div style={{maxWidth:520,width:'100%'}}>
+            <div style={{textAlign:'center',marginBottom:24}}>
+              <div style={{display:'inline-block',background:'rgba(255,255,255,.06)',borderRadius:16,padding:'20px 36px',marginBottom:20}}><Logo h={72}/></div>
+              <h1 style={{color:'#fff',fontSize:22,fontWeight:800,margin:0,fontFamily:'Raleway,sans-serif'}}>Evaluador de Servicio de Internet Empresarial</h1>
+              <p style={{color:'#94a3b8',fontSize:13,marginTop:8,lineHeight:1.6}}>Complete esta evaluación y reciba al instante una recomendación de servicio personalizada para su empresa.</p>
+              <div style={{display:'flex',gap:8,justifyContent:'center',marginTop:10,flexWrap:'wrap'}}>
+                {[`📋 6 secciones`,`❓ ${totalQ} preguntas`,`⏱ ~5 min`,`📊 Resultado inmediato`].map((b,i)=>(
+                  <div key={i} style={{background:'rgba(255,255,255,.08)',borderRadius:16,padding:'5px 12px',color:'#cbd5e1',fontSize:11}}>{b}</div>
+                ))}
+              </div>
+            </div>
+            <div style={{background:'#fff',borderRadius:14,padding:22,boxShadow:'0 16px 48px rgba(0,0,0,.25)'}}>
+              <h2 style={{fontSize:14,fontWeight:700,color:C.navy,margin:'0 0 14px',fontFamily:'Raleway,sans-serif'}}>Información del Prospecto</h2>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <Inp label="Nombre de su Empresa *" full val={company} set={setCompany} ph="Razón social o nombre comercial"/>
+                <Inp label="Su nombre" val={contact} set={setContact} ph="Nombre completo"/>
+                <Inp label="Su Teléfono / WhatsApp" val={phone} set={setPhone} ph="55 xxxx xxxx"/>
+                <Inp label="Su Correo Electrónico" val={email} set={setEmail} ph="correo@empresa.com"/>
+              </div>
+              <Btn full primary onClick={()=>{if(company.trim())setPhase('form');}} disabled={!company.trim()} style={{marginTop:16,padding:'13px'}}>
+                Iniciar Evaluación →
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FORM */}
+      {phase==='form'&&(
+        <>
+          <Header cfg={cfg} company={company} onConfig={openCfg}/>
+          <ProgBar cur={step} total={STEPS.length}/>
+          <div style={{maxWidth:740,margin:'0 auto',padding:'20px 16px'}}>
+            <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 16px rgba(0,0,0,.07)',overflow:'hidden'}}>
+              <div style={{background:`linear-gradient(135deg,${C.navy},#1a2f45)`,padding:'16px 22px',display:'flex',alignItems:'center',gap:12}}>
+                <span style={{fontSize:26}}>{cur.icon}</span>
+                <div>
+                  <div style={{color:C.blue,fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Sección {step} de {STEPS.length}</div>
+                  <div style={{color:'#fff',fontSize:17,fontWeight:800,fontFamily:'Raleway,sans-serif'}}>{cur.t}</div>
+                  <div style={{color:'#94a3b8',fontSize:12}}>{cur.sub}</div>
+                </div>
+              </div>
+              <div style={{padding:'20px 22px'}}>
+                {cur.qs.map((q,i)=><QCard key={q.id} q={q} selIdx={selIdx[q.id]} idx={i} onChange={(s,oi)=>handleAns(q.id,s,oi)}/>)}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:14,borderTop:'1px solid #f1f5f9'}}>
+                  <Btn onClick={()=>step>1?setStep(s=>s-1):setPhase('intro')}>← {step>1?'Anterior':'Volver'}</Btn>
+                  <span style={{fontSize:11,color:'#94a3b8'}}>{answered}/{totalQ} respondidas</span>
+                  <Btn primary disabled={!stepDone} onClick={()=>{if(!stepDone)return;step<STEPS.length?setStep(s=>s+1):setPhase('results');}}>
+                    {step<STEPS.length?'Siguiente →':'Ver resultados ✓'}
+                  </Btn>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* RESULTS */}
+      {phase==='results'&&(
+        <>
+          <Header cfg={cfg} company={company} onConfig={openCfg}/>
+          <div style={{maxWidth:1060,margin:'0 auto',padding:'20px 16px'}}>
+
+            {/* Banner */}
+            <div style={{background:`linear-gradient(135deg,${C.navy},#1a2f45)`,borderRadius:14,padding:'20px 26px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:16}}>
+              <div>
+                <div style={{color:C.blue,fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:1,marginBottom:3}}>Evaluación completada — {today}</div>
+                <h2 style={{color:'#fff',margin:0,fontSize:19,fontFamily:'Raleway,sans-serif',fontWeight:800}}>Recomendación para <span style={{color:C.blue}}>{company}</span></h2>
+                {contact&&<div style={{color:'#94a3b8',fontSize:12,marginTop:3}}>Contacto: {contact}{phone?' · '+phone:''}{email?' · '+email:''}</div>}
+              </div>
+              <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                <div style={{background:'rgba(255,255,255,.08)',borderRadius:10,padding:'10px 16px',textAlign:'center'}}>
+                  <div style={{fontSize:9,color:'#94a3b8',textTransform:'uppercase'}}>Puntaje</div>
+                  <div style={{fontSize:22,fontWeight:800,color:scoreCol}}>{avg.toFixed(2)}<span style={{fontSize:11,color:'#64748b'}}>/3.0</span></div>
+                  <div style={{fontSize:10,color:scoreCol,fontWeight:600}}>{scoreLabel} criticidad</div>
+                </div>
+                <div style={{background:'rgba(255,255,255,.08)',borderRadius:10,padding:'10px 16px',textAlign:'center'}}>
+                  <div style={{fontSize:9,color:'#94a3b8',textTransform:'uppercase'}}>Solución</div>
+                  <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>{recPlan?.icon} {recPlan?.nombre}</div>
+                  <div style={{fontSize:10,color:C.green,fontWeight:600}}>{recPlan?.sla}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* AUTO-SEND status banner (silencioso, si está configurado) */}
+            {cfg.empresa.formspreeUrl&&autoSent&&autoSentStatus==='ok'&&(
+              <div className="no-print" style={{background:'#d1fae5',border:'1px solid #10b981',borderRadius:10,padding:'10px 16px',marginBottom:16,fontSize:12,color:'#065f46',fontWeight:600}}>
+                ✓ Sus datos fueron enviados a un asesor de {cfg.empresa.nombre}. Le contactaremos pronto.
+              </div>
+            )}
+            {cfg.empresa.formspreeUrl&&autoSent&&autoSentStatus==='error'&&(
+              <div className="no-print" style={{background:'#fee2e2',border:'1px solid #ef4444',borderRadius:10,padding:'10px 16px',marginBottom:16,fontSize:12,color:'#7f1d1d',fontWeight:600}}>
+                ⚠️ No pudimos enviar sus datos automáticamente. Por favor use los botones de WhatsApp/Email abajo.
+              </div>
+            )}
+
+            {/* CTA principal — enviar al asesor */}
+            <div className="no-print" style={{background:`linear-gradient(135deg,#25D366,#128C7E)`,borderRadius:14,padding:'18px 24px',marginBottom:18,boxShadow:'0 4px 16px rgba(37,211,102,.3)'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:14}}>
+                <div style={{flex:'1 1 240px'}}>
+                  <div style={{color:'#fff',fontSize:16,fontWeight:800,marginBottom:3,fontFamily:'Raleway,sans-serif'}}>📩 ¿Listo para una cotización formal?</div>
+                  <div style={{color:'rgba(255,255,255,.9)',fontSize:12,lineHeight:1.5}}>
+                    Envíe sus datos a un asesor de {cfg.empresa.nombre}. Recibirá una propuesta personalizada adaptada a lo que respondió.
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  <button onClick={enviarPorWhatsApp}
+                    style={{background:'#fff',color:'#128C7E',border:'none',padding:'12px 20px',borderRadius:8,cursor:'pointer',fontSize:13,fontWeight:800,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
+                    💬 Enviar por WhatsApp
+                  </button>
+                  <button onClick={enviarPorEmail}
+                    style={{background:'rgba(255,255,255,.2)',color:'#fff',border:'2px solid rgba(255,255,255,.4)',padding:'12px 20px',borderRadius:8,cursor:'pointer',fontSize:13,fontWeight:800}}>
+                    📧 Enviar por Email
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Scores per section */}
+            <div style={{background:'#fff',borderRadius:12,padding:'14px 20px',marginBottom:18,boxShadow:'0 2px 8px rgba(0,0,0,.05)'}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.navy,marginBottom:10}}>📊 Diagnóstico por sección</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:8}}>
+                {STEPS.map(s=>{
+                  const sc=s.qs.filter(q=>answers[q.id]!==undefined).map(q=>answers[q.id]);
+                  const a=sc.length?sc.reduce((x,y)=>x+y,0)/sc.length:0;
+                  const col=a>=2.35?C.red:a>=1.75?C.blue:C.green;
+                  return(
+                    <div key={s.n} style={{background:'#f8fafc',borderRadius:9,padding:'9px 11px'}}>
+                      <div style={{fontSize:11,fontWeight:600,color:C.navy,marginBottom:4}}>{s.icon} {s.t}</div>
+                      <div style={{height:4,background:'#e2e8f0',borderRadius:2,overflow:'hidden',marginBottom:3}}>
+                        <div style={{height:'100%',width:`${(a/3)*100}%`,background:col,borderRadius:2}}/>
+                      </div>
+                      <div style={{fontSize:10,color:col,fontWeight:700}}>{a.toFixed(1)}/3.0</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Plan cards */}
+            <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12,fontFamily:'Raleway,sans-serif'}}>📋 Las 3 opciones de servicio</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))',gap:16,marginBottom:20}}>
+              {planes.map(p=><PlanCard key={p.id} plan={p} rec={rec} company={company}/>)}
+            </div>
+
+            {/* Contact info CTA */}
+            <div style={{background:`linear-gradient(135deg,${C.navy},#1a2f45)`,borderRadius:14,padding:'20px 26px',textAlign:'center',marginBottom:16}}>
+              <div style={{color:'#fff',fontSize:16,fontWeight:800,fontFamily:'Raleway,sans-serif',marginBottom:6}}>Contacto directo con {cfg.empresa.nombre}</div>
+              <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginTop:8}}>
+                <div style={{background:'rgba(255,255,255,.1)',borderRadius:8,padding:'8px 14px',color:'#fff',fontSize:12}}>📧 {cfg.empresa.email}</div>
+                <div style={{background:'rgba(255,255,255,.1)',borderRadius:8,padding:'8px 14px',color:'#fff',fontSize:12}}>📞 {cfg.empresa.tel}</div>
+                <div style={{background:'rgba(255,255,255,.1)',borderRadius:8,padding:'8px 14px',color:'#fff',fontSize:12}}>🌐 {cfg.empresa.web}</div>
+              </div>
+            </div>
+
+            {/* Secondary actions */}
+            <div className="no-print" style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginBottom:30}}>
+              <button onClick={()=>window.print()}
+                style={{background:'#fff',border:`2px solid ${C.navy}`,color:C.navy,padding:'10px 18px',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:700}}>
+                🖨 Imprimir / Guardar como PDF
+              </button>
+              <button onClick={()=>{setPhase('intro');setAnswers({});setSelIdx({});setStep(1);setAutoSent(false);setAutoSentStatus('');setCompany('');setContact('');setPhone('');setEmail('');}}
+                style={{background:'#f1f5f9',border:'2px solid #e2e8f0',color:'#374151',padding:'10px 18px',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:700}}>
+                🔄 Nueva evaluación
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

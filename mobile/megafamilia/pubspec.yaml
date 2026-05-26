@@ -35,6 +35,12 @@ dependencies:
   package_info_plus: ^8.0.0
   url_launcher: ^6.2.5
 
+  # Tour guiado / onboarding overlay
+  tutorial_coach_mark: ^1.2.11
+
+  # Subida de comprobante SPEI desde galería/cámara (pagos)
+  image_picker: ^1.0.7
+
   # NOTA: firebase_core / firebase_messaging / google_maps_flutter omitidos
   # de v0.1 — requieren google-services.json y Maps API key. Se añaden en una
   # iteración posterior cuando esos secretos estén configurados.

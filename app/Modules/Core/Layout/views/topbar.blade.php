@@ -54,6 +54,15 @@
                 </Mode-Visual-Body>
             </div>
 
+            <!-- MANUAL_TEST_OK -->
+            @if(auth()->user()->can('manual_view'))
+                <a href="{{ url('/manual') }}"
+                    class="btn header-item"
+                    title="Manual de Usuario">
+                    <i data-feather="book-open"></i>
+                </a>
+            @endif
+
             <button class="btn header-item" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasRight"
                 aria-controls="offcanvasRight">
                 <i class="far fa-folder-open"></i>

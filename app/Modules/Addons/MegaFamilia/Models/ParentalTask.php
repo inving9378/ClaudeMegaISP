@@ -13,6 +13,7 @@ class ParentalTask extends BaseModel
         'profile_id', 'title', 'description', 'reward_type',
         'reward_value', 'reward_detail', 'points', 'status',
         'completed_at', 'approved_at', 'photo_proof',
+        'due_date', 'priority', 'notes',
     ];
 
     protected $casts = [
@@ -20,6 +21,7 @@ class ParentalTask extends BaseModel
         'points' => 'integer',
         'completed_at' => 'datetime',
         'approved_at' => 'datetime',
+        'due_date' => 'date',
     ];
 
     public function profile(): BelongsTo

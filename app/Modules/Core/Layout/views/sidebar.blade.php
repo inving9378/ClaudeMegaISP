@@ -63,6 +63,65 @@
                     </ul>
                 </li>
 
+                {{-- Marketing — addon-marketing 2026-05-25 --}}
+                <li>
+                    @canany(['marketing_view', 'marketing_campaigns_view', 'marketing_leads_view'])
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="trending-up"></i>
+                            <span data-key="t-marketing">Marketing</span>
+                        </a>
+                    @endcanany
+                    <ul class="sub-menu" aria-expanded="false">
+                        @can('marketing_campaigns_view')
+                            <li>
+                                <a href="{{ url('/marketing') }}">
+                                    <span data-key="t-marketing-camp"><small><i class="fa fa-fw fa-bullhorn"></i></small> Campañas</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('marketing_leads_view')
+                            <li>
+                                <a href="{{ url('/marketing') }}?tab=leads">
+                                    <span data-key="t-marketing-leads"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('marketing_templates_manage')
+                            <li>
+                                <a href="{{ url('/marketing') }}?tab=templates">
+                                    <span data-key="t-marketing-tpl"><small><i class="fa fa-fw fa-file-alt"></i></small> Plantillas</span>
+                                </a>
+                            </li>
+                        @endcan
+                    </ul>
+                </li>
+
+                {{-- WhatsApp Agent — addon-whatsapp-agent 2026-05-22 --}}
+                <li>
+                    @canany(['whatsapp_view_conversations', 'whatsapp_manage_instances'])
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="message-circle"></i>
+                            <span data-key="t-whatsapp">WhatsApp</span>
+                        </a>
+                    @endcanany
+                    <ul class="sub-menu" aria-expanded="false">
+                        @can('whatsapp_view_conversations')
+                            <li>
+                                <a href="{{ url('/whatsapp') }}">
+                                    <span data-key="t-whatsapp-conv"><small><i class="fa fa-fw fa-whatsapp"></i></small> Conversaciones</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('whatsapp_manage_instances')
+                            <li>
+                                <a href="{{ url('/whatsapp/instances') }}">
+                                    <span data-key="t-whatsapp-inst"><small><i class="fa fa-fw fa-mobile-screen"></i></small> Instancias</span>
+                                </a>
+                            </li>
+                        @endcan
+                    </ul>
+                </li>
+
                 <li>
                     @canany(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package'])
                         <a href="javascript: void(0);" class="has-arrow">
@@ -272,7 +331,7 @@
                 </li>
 
                 <li>
-                    @canany(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments'])
+                    @canany(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments', 'payments_manage_providers'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="grid"></i>
                             <span data-key="t-cliente">Finanzas</span>
@@ -336,6 +395,18 @@
                                             <i class="fas fa-file-invoice-dollar"></i>
                                         </small>
                                         Contabilidad General
+                                    </span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('payments_manage_providers')
+                            <li>
+                                <a href="{{ url('/finanzas/metodos-pago') }}">
+                                    <span data-key="t-payments-providers">
+                                        <small>
+                                            <i class="fas fa-university"></i>
+                                        </small>
+                                        Métodos de Pago SPEI
                                     </span>
                                 </a>
                             </li>
@@ -636,9 +707,14 @@
                                     <li><a href="{{ url('/megafamilia/clientes') }}"><small><i class="fa fa-fw fa-users"></i></small> Clientes</a></li>
                                     <li><a href="{{ url('/megafamilia/licencias') }}"><small><i class="fa fa-fw fa-key"></i></small> Licencias</a></li>
                                     <li><a href="{{ url('/megafamilia/planes') }}"><small><i class="fa fa-fw fa-layer-group"></i></small> Planes</a></li>
+                                    <li><a href="{{ url('/megafamilia/perfiles') }}"><small><i class="fa fa-fw fa-child"></i></small> Perfiles</a></li>
                                 @endcan
                                 <li><a href="{{ url('/megafamilia/dispositivos') }}"><small><i class="fa fa-fw fa-mobile-screen"></i></small> Dispositivos</a></li>
+                                <li><a href="{{ url('/megafamilia/solicitudes') }}"><small><i class="fa fa-fw fa-inbox"></i></small> Solicitudes</a></li>
                                 <li><a href="{{ url('/megafamilia/alertas') }}"><small><i class="fa fa-fw fa-bell"></i></small> Alertas</a></li>
+                                <li><a href="{{ url('/megafamilia/tareas') }}"><small><i class="fa fa-fw fa-tasks"></i></small> Tareas</a></li>
+                                <li><a href="{{ url('/megafamilia/ubicaciones') }}"><small><i class="fa fa-fw fa-map-marker-alt"></i></small> Ubicaciones</a></li>
+                                <li><a href="{{ url('/megafamilia/geofences') }}"><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geofences</a></li>
                                 <li><a href="{{ url('/megafamilia/reportes') }}"><small><i class="fa fa-fw fa-chart-bar"></i></small> Reportes</a></li>
                                 @can('megafamilia_admin')
                                     <li><a href="{{ url('/megafamilia/configuracion') }}"><small><i class="fa fa-fw fa-cog"></i></small> Configuración</a></li>

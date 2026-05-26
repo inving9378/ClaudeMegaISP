@@ -41,4 +41,10 @@ return [
         'ttl' => env('SMARTOLT_TTL', 120)
     ],
 
+    'anthropic' => [
+        'key' => env('CLAUDE_API_KEY'),
+        'model' => env('CLAUDE_MODEL', 'claude-sonnet-4-20250514'),
+        'endpoint' => env('CLAUDE_API_ENDPOINT', 'https://api.anthropic.com/v1/messages'),
+    ],
+
 ];
