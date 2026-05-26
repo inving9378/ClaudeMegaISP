@@ -11,11 +11,13 @@ class ClienteProvider extends ChangeNotifier {
   List<Factura> facturas = const [];
   List<Pago> pagos = const [];
   List<Ticket> tickets = const [];
+  ClabeInfo? clabe;
 
   bool loadingServicio = false;
   bool loadingFacturas = false;
   bool loadingPagos = false;
   bool loadingTickets = false;
+  bool loadingClabe = false;
   String? error;
 
   Future<void> loadServicio() async {
@@ -67,6 +69,19 @@ class ClienteProvider extends ChangeNotifier {
       error = e.toString();
     } finally {
       loadingTickets = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadClabe() async {
+    loadingClabe = true;
+    notifyListeners();
+    try {
+      clabe = await api.getClabe();
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      loadingClabe = false;
       notifyListeners();
     }
   }

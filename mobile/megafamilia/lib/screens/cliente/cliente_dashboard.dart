@@ -5,8 +5,11 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/cliente_provider.dart';
+import '../../services/tour_service.dart';
 import '../../services/update_service.dart';
 import '../../theme.dart';
+import '../../tours/home_tour.dart';
+import '../../tours/update_tour.dart';
 import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
 
@@ -18,6 +21,7 @@ class ClienteDashboard extends StatefulWidget {
 
 class _ClienteDashboardState extends State<ClienteDashboard> {
   int _bottomIndex = 0;
+  final HomeTourKeys _tourKeys = HomeTourKeys();
 
   @override
   void initState() {
@@ -27,6 +31,16 @@ class _ClienteDashboardState extends State<ClienteDashboard> {
       p.loadServicio();
       p.loadTickets();
       await _checkUpdate();
+      if (!mounted) return;
+      // 1. Si vienes de una actualización, muestra el changelog primero.
+      await UpdateTour(context).show();
+      if (!mounted) return;
+      // 2. Si es la primera vez (o tras reset), muestra el tour de bienvenida.
+      if (await TourService().shouldShowTour('home')) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) HomeTour(context, _tourKeys).show();
+        });
+      }
     });
   }
 
@@ -79,15 +93,19 @@ class _ClienteDashboardState extends State<ClienteDashboard> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _ServicioCard(),
+            // Las KeyedSubtree adjuntan GlobalKeys del HomeTour sin tocar
+            // los widgets privados que pueblan el dashboard.
+            KeyedSubtree(key: _tourKeys.saldo, child: _ServicioCard()),
             const SizedBox(height: 16),
-            _QuickActionsGrid(),
+            KeyedSubtree(key: _tourKeys.pago, child: _QuickActionsGrid()),
             const SizedBox(height: 24),
-            _RecentTickets(),
+            KeyedSubtree(key: _tourKeys.tickets, child: _RecentTickets()),
           ],
         ),
       ),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: KeyedSubtree(
+        key: _tourKeys.navegacion,
+        child: NavigationBar(
         selectedIndex: _bottomIndex,
         onDestinationSelected: (i) {
           setState(() => _bottomIndex = i);
@@ -103,6 +121,7 @@ class _ClienteDashboardState extends State<ClienteDashboard> {
           NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Soporte'),
           NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Perfil'),
         ],
+        ),
       ),
     );
   }
