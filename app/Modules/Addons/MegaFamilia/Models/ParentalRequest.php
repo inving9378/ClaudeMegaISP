@@ -11,7 +11,7 @@ class ParentalRequest extends BaseModel
 
     protected $fillable = [
         'profile_id', 'device_id', 'type', 'detail', 'message',
-        'status', 'responded_at', 'expires_at',
+        'status', 'responded_at', 'expires_at', 'notes',
     ];
 
     protected $casts = [

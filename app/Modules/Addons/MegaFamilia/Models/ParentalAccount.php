@@ -13,7 +13,7 @@ class ParentalAccount extends BaseModel
     protected $table = 'parental_accounts';
 
     protected $fillable = [
-        'client_id', 'plan_id', 'status', 'licensed_at', 'expires_at',
+        'user_id', 'client_isp_id', 'plan_id', 'status', 'licensed_at', 'expires_at',
         'terms_accepted_at', 'terms_ip',
     ];
 
@@ -23,9 +23,14 @@ class ParentalAccount extends BaseModel
         'terms_accepted_at' => 'datetime',
     ];
 
-    public function client(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'client_id');
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function clientIsp(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Client::class, 'client_isp_id');
     }
 
     public function plan(): BelongsTo

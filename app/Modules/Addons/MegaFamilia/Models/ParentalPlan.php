@@ -10,12 +10,13 @@ class ParentalPlan extends BaseModel
     protected $table = 'parental_plans';
 
     protected $fillable = [
-        'name', 'slug', 'price_monthly', 'max_children', 'max_devices',
-        'max_parents', 'features', 'active',
+        'name', 'slug', 'description', 'price_monthly', 'price_yearly', 'period',
+        'max_children', 'max_devices', 'max_parents', 'features', 'active',
     ];
 
     protected $casts = [
         'price_monthly' => 'decimal:2',
+        'price_yearly' => 'decimal:2',
         'features' => 'array',
         'active' => 'boolean',
         'max_children' => 'integer',
