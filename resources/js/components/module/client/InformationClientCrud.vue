@@ -351,6 +351,19 @@
                                                             "
                                                         />
                                                     </div>
+                                                    <div
+                                                        class="col-sm-12 col-md-2 self-center text-center"
+                                                    >
+                                                        <q-icon
+                                                            :name="getOnuStatusIcon(dataForm.data['status_smart'])"
+                                                            :color="getOnuStatusClass(dataForm.data['status_smart'])"
+                                                            size="sm"
+                                                        >
+                                                            <q-tooltip>
+                                                                {{ dataForm.data['status_smart'] ?? "Desconocido" }}
+                                                            </q-tooltip>
+                                                        </q-icon>
+                                                    </div>
                                                 </div>
                                                 <ComponentFormDefault
                                                     :id="id"
@@ -555,10 +568,13 @@ import { allViewHasPermission } from "../../../helpers/Request";
 import { getOnuByClient, getSignal } from "../olts/helper/request";
 import { formatDate } from "@fullcalendar/core/index.js";
 import { message } from "../../../helpers/toastMsg";
+import { useOlts } from "../../../composables/useOlts";
 
 defineOptions({
     name: "InformationClientCrud",
 });
+
+const { getOnuStatusClass, getOnuStatusIcon } = useOlts();
 
 const props = defineProps({
     action: String,

@@ -3,12 +3,30 @@
 namespace App\Modules\Core\Clientes\Models;
 
 use App\Models\BaseModel;
+use App\Models\Balance;
+use App\Models\BillingAddress;
+use App\Models\BoxZone;
+use App\Models\ClientPlanPromotion;
+use App\Models\CommissionDetail;
+use App\Models\DailyPingStatistic;
+use App\Models\DocumentClient;
+use App\Models\InventoryItemStock;
+use App\Models\Invoice;
+use App\Models\MikrotikClientHostpotUser;
+use App\Models\MikrotikClientPpoe;
+use App\Models\NetworkIp;
+use App\Models\Nomenclature;
+use App\Models\Payment;
+use App\Models\PingStatistic;
+use App\Models\Receipt;
+use App\Models\RemindersConfiguration;
+use App\Models\Ticket;
+use App\Models\Transaction;
 use App\Models\User;
 
 use App\Http\Repository\ClientRepository;
 use App\Http\Requests\module\client\ClientCreateRequest;
 use App\Http\Traits\Models\Client\Client\ScopeClient;
-use App\Models\ClientPlanPromotion;
 use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Http\Traits\Models\Client\ClientTrait;
 use Carbon\Carbon;

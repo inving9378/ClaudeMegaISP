@@ -269,7 +269,7 @@ class ClientController extends Controller
         $tabs[] = 'documents';
         if ($this->userAutenticated()->hasPermissionTo('client_service_view_tab_client') || $this->userAutenticated()->isAdmin()) $tabs[] = 'services';
         if ($this->userAutenticated()->hasPermissionTo('client_payroll_view_tab_client') || $this->userAutenticated()->isAdmin()) $tabs[] = 'facture';
-        if ($this->userAutenticated()->hasPermissionTo('client_promotions_view_tab_client') || $this->userAutenticated()->isAdmin()) $tabs[] = 'promotions';
+        $tabs[] = 'promotions';
       //  if ($this->userAutenticated()->hasPermissionTo('client_statistics_view_tab_client') || $this->userAutenticated()->isAdmin()) {
             $tabs[] = 'statistics';
    //     }

@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Configuracion\Models;
 
 use App\Models\BaseModel;
+use App\Models\Module;
 use App\Modules\Core\Configuracion\Repositories\FieldTypeRepository;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
