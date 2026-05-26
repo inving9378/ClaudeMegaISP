@@ -276,6 +276,21 @@ import IAHistorial from "./components/module/ia/IAHistorial.vue";
 import IAPrompts from "./components/module/ia/IAPrompts.vue";
 import IAConfiguracion from "./components/module/ia/IAConfiguracion.vue";
 
+//Supplier / Proveedores
+import SupplierListar from "./components/module/inventory/supplier/SupplierListar.vue";
+import SupplierCrear from "./components/module/inventory/supplier/SupplierCrear.vue";
+import SupplierShow from "./components/module/inventory/supplier/SupplierShow.vue";
+import SupplierInvoiceListar from "./components/module/inventory/supplier_invoice/SupplierInvoiceListar.vue";
+import SupplierInvoiceCreate from "./components/module/inventory/supplier_invoice/SupplierInvoiceCreate.vue";
+import SupplierInvoiceShow from "./components/module/inventory/supplier_invoice/SupplierInvoiceShow.vue";
+import InventoryValuation from "./components/module/inventory/valuation/InventoryValuation.vue";
+import SupplierVendorCrear from "./components/module/inventory/supplier_vendor/SupplierVendorCrear.vue";
+import DataPlanPromotionTable from "./components/module/setting/data_plan_promotion/DataPlanPromotionTable.vue";
+
+//Promociones de cliente
+import PromotionsComponent from "./components/module/client/PromotionsComponent.vue";
+import ClientsToPromotionComponent from "./components/module/client/ClientsToPromotionComponent.vue";
+import ColorPicker from "./shared/ColorPicker.vue";
 
 const app = createApp({
     components: {
@@ -458,6 +473,20 @@ const app = createApp({
         MediaItem,
         InventoryItemCustomModelListar,
         InventoryItemCustomListar,
+        //Supplier / Proveedores
+        SupplierListar,
+        SupplierCrear,
+        SupplierShow,
+        SupplierInvoiceListar,
+        SupplierInvoiceCreate,
+        SupplierInvoiceShow,
+        InventoryValuation,
+        SupplierVendorCrear,
+        DataPlanPromotionTable,
+        //Promociones
+        PromotionsComponent,
+        ClientsToPromotionComponent,
+        ColorPicker,
         ///Vendedores
         SellerListar,
         ///Reglas

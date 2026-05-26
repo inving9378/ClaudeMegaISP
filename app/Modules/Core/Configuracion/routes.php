@@ -29,6 +29,7 @@ use App\Modules\Addons\Vendedores\Controllers\Vendors\Billing\CommissionRuleCont
 use App\Modules\Addons\Vendedores\Controllers\Vendors\Billing\RangeSaleController;
 // Catálogos folded into Configuracion (decision 2026-05-20). Rutas siguen
 // expuestas bajo `administracion/*` para compatibilidad con frontend.
+use App\Modules\Core\Configuracion\Controllers\DataPlanPromotions\DataPlanPromotionsController;
 use App\Modules\Core\Configuracion\Controllers\Ift\IftController;
 use App\Modules\Core\Configuracion\Controllers\MethodOfPayment\MethodOfPaymentController;
 use App\Modules\Core\Configuracion\Controllers\Partner\PartnerController;
@@ -287,26 +288,34 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/update/{id}', [ConfigFinanceNotificationController::class, 'update']);
         });
 
-        // API Móvil — configuración, tokens Sanctum activos, docs auto-
-        // generadas de /api/megafamilia/* y logs de acceso.
-        Route::group(['prefix' => 'api-movil'], function () {
-            Route::get('/', [SettingApiMovilController::class, 'index']);
-            Route::get('/get', [SettingApiMovilController::class, 'getConfig']);
-            Route::post('/update', [SettingApiMovilController::class, 'updateConfig']);
+    // API Móvil — configuración, tokens Sanctum activos, docs auto-
+    // generadas de /api/megafamilia/* y logs de acceso.
+    Route::group(['prefix' => 'api-movil'], function () {
+        Route::get('/', [SettingApiMovilController::class, 'index']);
+        Route::get('/get', [SettingApiMovilController::class, 'getConfig']);
+        Route::post('/update', [SettingApiMovilController::class, 'updateConfig']);
 
-            Route::get('/tokens', [SettingApiMovilController::class, 'tokens']);
-            Route::get('/tokens/data', [SettingApiMovilController::class, 'listTokens']);
-            Route::post('/tokens/{id}/revoke', [SettingApiMovilController::class, 'revokeToken'])->whereNumber('id');
-            Route::post('/tokens/revoke-all', [SettingApiMovilController::class, 'revokeAllTokens']);
+        Route::get('/tokens', [SettingApiMovilController::class, 'tokens']);
+        Route::get('/tokens/data', [SettingApiMovilController::class, 'listTokens']);
+        Route::post('/tokens/{id}/revoke', [SettingApiMovilController::class, 'revokeToken'])->whereNumber('id');
+        Route::post('/tokens/revoke-all', [SettingApiMovilController::class, 'revokeAllTokens']);
 
-            Route::get('/docs', [SettingApiMovilController::class, 'docs']);
-            Route::get('/docs/endpoints', [SettingApiMovilController::class, 'endpoints']);
+        Route::get('/docs', [SettingApiMovilController::class, 'docs']);
+        Route::get('/docs/endpoints', [SettingApiMovilController::class, 'endpoints']);
 
-            Route::get('/logs', [SettingApiMovilController::class, 'logs']);
-            Route::get('/logs/data', [SettingApiMovilController::class, 'logsData']);
-            Route::get('/logs/csv', [SettingApiMovilController::class, 'logsCsv']);
-        });
+        Route::get('/logs', [SettingApiMovilController::class, 'logs']);
+        Route::get('/logs/data', [SettingApiMovilController::class, 'logsData']);
+        Route::get('/logs/csv', [SettingApiMovilController::class, 'logsCsv']);
     });
+
+    Route::prefix('data-plan-promotions')->group(function () {
+        Route::get('/', [DataPlanPromotionsController::class, 'index']);
+        Route::post('/data', [DataPlanPromotionsController::class, 'data']);
+        Route::post('/store', [DataPlanPromotionsController::class, 'store']);
+        Route::put('/update/{id}', [DataPlanPromotionsController::class, 'update']);
+        Route::delete('/destroy/{id}', [DataPlanPromotionsController::class, 'destroy']);
+    });
+});
 
 // Catálogos legacy de Administration folded into Configuracion (2026-05-20)
 // URL prefix `administracion/*` preservado para compat con frontend.

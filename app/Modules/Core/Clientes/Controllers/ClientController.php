@@ -269,6 +269,7 @@ class ClientController extends Controller
         $tabs[] = 'documents';
         if ($this->userAutenticated()->hasPermissionTo('client_service_view_tab_client') || $this->userAutenticated()->isAdmin()) $tabs[] = 'services';
         if ($this->userAutenticated()->hasPermissionTo('client_payroll_view_tab_client') || $this->userAutenticated()->isAdmin()) $tabs[] = 'facture';
+        if ($this->userAutenticated()->hasPermissionTo('client_promotions_view_tab_client') || $this->userAutenticated()->isAdmin()) $tabs[] = 'promotions';
       //  if ($this->userAutenticated()->hasPermissionTo('client_statistics_view_tab_client') || $this->userAutenticated()->isAdmin()) {
             $tabs[] = 'statistics';
    //     }
@@ -708,5 +709,65 @@ class ClientController extends Controller
     {
         $clients = DB::select("SELECT id main_id, client_id, CONCAT(client_id, ' - ', NAME, ' ', COALESCE(father_last_name, ' '), ' ', COALESCE(mother_last_name, ' ')) name FROM client_main_information where estado='Activo' order by name");
         return response()->json($clients);
+    }
+
+    public function getClientsWithoutDataPromotions(Request $request)
+    {
+        $query = DB::table('client_main_information')
+            ->selectRaw("client_main_information.client_id, CONCAT(client_main_information.name,' ',client_main_information.father_last_name, ' ', client_main_information.mother_last_name) as client_name, FALSE as selected, olt_onus.service_ports")
+            ->where('client_main_information.estado', 'Activo')
+            ->whereNotIn('client_main_information.client_id', function ($subquery) {
+                $subquery->select('client_id')
+                    ->from('client_plan_promotions')
+                    ->where('status', 'active');
+            })
+            ->whereNotNull('client_main_information.name')
+            ->join('olt_onus', 'client_main_information.client_id', '=', 'olt_onus.client_id');
+
+        $this->setQueryFilters($query, $request);
+
+        $results = $query->get();
+
+        return response()->json($results);
+    }
+
+    public function getClientsWithDataPromotions(Request $request)
+    {
+        $query = ClientMainInformation::whereHas('client', function ($q) {
+            $q->withActiveDataPromotion();
+        })->stateActive();
+        return response()->json($query->paginate(isset($request->rowsPerPage) ? $request->rowsPerPage : 20, ['*'], 'page', isset($request->page) ? $request->page : null));
+    }
+
+    public function setQueryFilters($query, $request)
+    {
+        $exactFilters = ['municipality_id', 'seller_id', 'state_id', 'colony_id', 'street'];
+
+        foreach ($exactFilters as $f) {
+            $query->when($request->filled($f), function ($q) use ($request, $f) {
+                return $q->where($f, $request->input($f));
+            });
+        }
+
+        $dateFilters = ['activation_date', 'discharge_date', 'created_at'];
+        foreach ($dateFilters as $f) {
+            $query->when($request->filled($f), function ($q) use ($request, $f) {
+                $values = $request->input($f);
+                $from = $values[0];
+                $to = $values[1];
+                if ($from && $to) {
+                    return $q->whereDate(
+                        'client_main_information.' . $f,
+                        '>=',
+                        $from
+                    )->whereDate(
+                        'client_main_information.' . $f,
+                        '<=',
+                        $to
+                    );
+                }
+                return $q;
+            });
+        }
     }
 }

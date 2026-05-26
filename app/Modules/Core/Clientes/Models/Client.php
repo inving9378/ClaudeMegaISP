@@ -3,10 +3,12 @@
 namespace App\Modules\Core\Clientes\Models;
 
 use App\Models\BaseModel;
+use App\Models\User;
 
 use App\Http\Repository\ClientRepository;
 use App\Http\Requests\module\client\ClientCreateRequest;
 use App\Http\Traits\Models\Client\Client\ScopeClient;
+use App\Models\ClientPlanPromotion;
 use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Http\Traits\Models\Client\ClientTrait;
 use Carbon\Carbon;
@@ -365,6 +367,25 @@ class Client extends BaseModel
                 copy($from, $to);
             }
         }
+    }
+
+    public function dataPromotions()
+    {
+        return $this->hasMany(ClientPlanPromotion::class, 'client_id', 'id');
+    }
+
+    public function scopeWithoutActiveDataPromotion($query)
+    {
+        return $query->whereDoesntHave('dataPromotions', function ($q) {
+            $q->where('status', 'active');
+        });
+    }
+
+    public function scopeWithActiveDataPromotion($query)
+    {
+        return $query->whereHas('dataPromotions', function ($q) {
+            $q->where('status', 'active');
+        });
     }
 
     public function getRequestAndStoreMethod()

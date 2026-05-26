@@ -50,6 +50,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administra
         Route::get('/states', [UserController::class, 'getStates'])->name('states');
         Route::get('/{id}/municipalities', [UserController::class, 'getMunicipalities'])->name('municipalities');
         Route::get('/{id}/colonies', [UserController::class, 'getColonies'])->name('colonies');
+        Route::get('/avaiables-promotions/{code}', [UserController::class, 'avaiablesPromotions']);
     });
 
     Route::prefix('rol')->group(function () {

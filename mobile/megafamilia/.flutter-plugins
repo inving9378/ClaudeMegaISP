@@ -1,0 +1,27 @@
+# This is a generated file; do not edit or check into version control.
+flutter_plugin_android_lifecycle=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/flutter_plugin_android_lifecycle-2.0.22/
+local_auth=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/local_auth-2.3.0/
+local_auth_android=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/local_auth_android-1.0.43/
+local_auth_darwin=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/local_auth_darwin-1.4.3/
+local_auth_windows=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/local_auth_windows-1.0.11/
+mobile_scanner=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/mobile_scanner-5.2.3/
+package_info_plus=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/package_info_plus-8.3.1/
+path_provider=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/path_provider-2.1.5/
+path_provider_android=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/path_provider_android-2.2.10/
+path_provider_foundation=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/path_provider_foundation-2.4.1/
+path_provider_linux=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/path_provider_linux-2.2.1/
+path_provider_windows=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/path_provider_windows-2.3.0/
+shared_preferences=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/shared_preferences-2.3.3/
+shared_preferences_android=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/shared_preferences_android-2.3.2/
+shared_preferences_foundation=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/shared_preferences_foundation-2.5.4/
+shared_preferences_linux=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/shared_preferences_linux-2.4.1/
+shared_preferences_web=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/shared_preferences_web-2.4.3/
+shared_preferences_windows=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/shared_preferences_windows-2.4.1/
+sqflite=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/sqflite-2.3.3+1/
+url_launcher=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/url_launcher-6.3.1/
+url_launcher_android=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/url_launcher_android-6.3.9/
+url_launcher_ios=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/url_launcher_ios-6.3.3/
+url_launcher_linux=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/url_launcher_linux-3.2.1/
+url_launcher_macos=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/url_launcher_macos-3.2.2/
+url_launcher_web=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/url_launcher_web-2.3.3/
+url_launcher_windows=/home/code_storm/.pub-cache/hosted/pub.flutter-io.cn/url_launcher_windows-3.1.4/

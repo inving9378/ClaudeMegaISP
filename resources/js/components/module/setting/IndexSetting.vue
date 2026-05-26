@@ -276,6 +276,28 @@
                         >
                     </div>
                 </div>
+
+                <div
+                    class="col-md-2"
+                    v-if="hasPermission.data.canView(`view_data_plan_promotion`)"
+                >
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/configuracion/data-plan-promotions`"
+                            ><div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-primary m-0">
+                                        <i
+                                            class="fa fa-fw fa-1x circle-icon fa-wifi"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center"
+                                        >Promociones de paquetes</span
+                                    >
+                                </div>
+                            </div></a
+                        >
+                    </div>
+                </div>
             </div>
         </div>
         <div

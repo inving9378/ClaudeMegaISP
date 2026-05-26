@@ -4,6 +4,7 @@ namespace App\Modules\Core\Usuarios\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Module;
+use App\Models\Promotion;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -37,7 +38,9 @@ class PermissionController extends Controller
         $user = User::find($userId);
         $permissions = $user->permissions;
         $permissions = $permissions->pluck('name')->toArray();
-        return response()->json(['permissions' => $permissions], 200);
+        $all_promotions = Promotion::with(['promotionable'])->get();
+        $avaiables_promotions = $user->avaiablesPromotions;
+        return response()->json(['permissions' => $permissions, 'all_promotions' => $all_promotions, 'avaiables_promotions' => $avaiables_promotions], 200);
     }
 
 
@@ -76,6 +79,13 @@ class PermissionController extends Controller
         // Revocar permisos eliminados
         foreach ($permissionsToRemove as $permission) {
             $user->revokePermissionTo($permission);
+        }
+
+        $promotions = $request->input('promotions', []);
+        if (!empty($promotions)) {
+            $user->avaiablesPromotions()->sync($promotions);
+        } else {
+            $user->avaiablesPromotions()->detach();
         }
 
         return response()->json(['status' => 200, 'message' => 'Permisos actualizados correctamente']);

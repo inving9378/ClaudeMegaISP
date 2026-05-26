@@ -47,6 +47,14 @@
             }"
             v-if="tabs.includes('statistics')"
         />
+        <q-tab
+            name="promotions"
+            label="Promociones"
+            :style="{
+                width: percentage,
+            }"
+            v-if="tabs.includes('promotions')"
+        />
     </q-tabs>
     <q-tab-panels v-model="currentTab" animated :dark="darkMode">
         <q-tab-panel name="information" v-if="tabs.includes('information')">
@@ -76,6 +84,9 @@
         <q-tab-panel name="statistics" v-if="tabs.includes('statistics')">
             <Statistics :id="id"/>
         </q-tab-panel>
+        <q-tab-panel name="promotions">
+            <promotions-component :client-id="id" />
+        </q-tab-panel>
     </q-tab-panels>
 </template>
 
@@ -89,6 +100,7 @@ import DocumentClientCrud from "./document/DocumentClientCrud";
 import { configTabsHook } from "../../../hook/configTabsHook";
 import { darkMode } from "../../../hook/appConfig";
 import Statistics from "./statistics/Statistics.vue";
+import PromotionsComponent from "./PromotionsComponent.vue";
 
 export default {
     name: "ClientCrud",
@@ -107,6 +119,7 @@ export default {
         InformationClientCrud,
         ClientService,
         Statistics,
+        PromotionsComponent,
     },
     setup(props) {
         const currentTab = ref(null);
@@ -145,6 +158,11 @@ export default {
                 name: "statistics",
                 label: "Estadísticas",
                 component: Statistics,
+            },
+            promotions: {
+                name: "promotions",
+                label: "Promociones",
+                component: PromotionsComponent,
             },
         };
 

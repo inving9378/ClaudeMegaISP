@@ -19,8 +19,10 @@ trait UserTrait
 
     public function userNotification()
     {
+        $repo = new TaskRepository();
         $user = $this->userAutenticated();
         $notifications = [];
+        $taskIds = [];
         foreach ($user->unreadNotifications as $notification) {
             $data = $this->getNotificationAttributes($notification);
             if ($data) {
@@ -32,30 +34,31 @@ trait UserTrait
                     'topic' => $data['topic'] ?? '',
                     'created_at' => Carbon::parse($data['created_at'])->diffForHumans()
                 ];
+                if(isset($data['task_id'])){
+                    $taskIds[] = $data['task_id'];
+                }
             }
         }
         $this->data['notifications'] = $notifications;
 
-        //si la notificacion es de tareas que solo muestre las que la fecha de inicio es hoy
-        $unsetsNotifications = [];
+        if(!empty($taskIds)){
+            $tasksStartingToday = $repo->getStartingTodayTasks($taskIds);
+        }
+
+        $filtered = [];
         foreach ($notifications as $notification) {
             if (isset($notification['model']['task_id'])) {
-                $taskId = $notification['model']['task_id'];
-                $taskRepository = new TaskRepository();
-                $task = $taskRepository->getModelById($taskId);
-                if ($task) {
-                    $taskStartTime = $task->start_time;
-                    $isTaskToday = $this->getIsTaskToDay($taskStartTime);
-                    if (!$isTaskToday) {
-                        $unsetsNotifications[] = $notification;
-                    }
+                $taskId = (int) $notification['model']['task_id'];
+                if (in_array($taskId, $tasksStartingToday)) {
+                    $filtered[] = $notification;
                 }
+            } else {
+                $filtered[] = $notification;
             }
         }
 
-        foreach ($unsetsNotifications as $notification) {
-            unset($notifications[array_search($notification, $notifications)]);
-        }
+        $notifications = $filtered;
+        $this->data['notifications'] = $notifications;
 
         return $notifications;
     }

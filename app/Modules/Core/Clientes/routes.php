@@ -13,6 +13,7 @@ use App\Modules\Core\Clientes\Controllers\ClientPaymentController;
 use App\Modules\Core\Clientes\Controllers\ClientPingController;
 use App\Modules\Core\Clientes\Controllers\ClientServiceController;
 use App\Modules\Core\Clientes\Controllers\ClientStatisticsController;
+use App\Modules\Core\Clientes\Controllers\ClientPlanPromotionController;
 use App\Modules\Core\Clientes\Controllers\ClientTransactionController;
 use App\Modules\Core\Clientes\Controllers\ClientVozServiceController;
 use App\Modules\Core\Clientes\Controllers\DashboardController;
@@ -198,6 +199,15 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/get-ping-history/{id}', [ClientPingController::class, 'getPingHistory']);
             Route::get('/get-ping-daily/{id}',   [ClientPingController::class, 'getPingDailySummary']);
         });
+
+        // Plan promotions
+        Route::post('/{id}/plan-promotions', [ClientPlanPromotionController::class, 'index']);
+        Route::post('/cancel-promotion/{id}', [ClientPlanPromotionController::class, 'cancel']);
+        Route::post('/plan-promotions', [ClientPlanPromotionController::class, 'store']);
+        Route::put('/plan-promotions/{id}', [ClientPlanPromotionController::class, 'update']);
+        Route::post('/bulk-plan-promotion', [ClientPlanPromotionController::class, 'bulkStore']);
+        Route::post('/without-data-promotions', [ClientController::class, 'getClientsWithoutDataPromotions']);
+        Route::post('/with-data-promotions/{id}', [ClientController::class, 'getClientsWithDataPromotions']);
     });
 
 // Helper utility consumido por formularios de varios módulos (búsqueda de

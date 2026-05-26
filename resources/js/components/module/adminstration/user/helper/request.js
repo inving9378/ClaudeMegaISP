@@ -154,3 +154,13 @@ export const updatePermissionByUser = async (id, data) => {
         });
     return response;
 };
+
+export const getAvaiablesPromotions = async (code) => {
+    let data = null;
+    await axios["get"](
+        `/administracion/user/avaiables-promotions/${code}`
+    ).then((response) => {
+        data = response.data;
+    });
+    return data;
+};

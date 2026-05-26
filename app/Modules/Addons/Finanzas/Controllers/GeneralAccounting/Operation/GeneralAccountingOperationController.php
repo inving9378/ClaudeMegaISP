@@ -5,17 +5,23 @@ namespace App\Modules\Addons\Finanzas\Controllers\GeneralAccounting\Operation;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\finance\GeneralAccountingOperationDatatableHelper;
 use App\Models\GeneralAccountingCategory;
+use App\Models\GeneralAccountingOperation;
 use App\Services\Finance\GeneralAccounting\GeneralAccountingService;
+use App\Services\LogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class GeneralAccountingOperationController extends Controller
 {
 
     private $helper;
+    private $data;
+    private $logService;
     public function __construct(GeneralAccountingOperationDatatableHelper $helper)
     {
+        $this->logService = new LogService();
         $model = 'GeneralAccountingOperation';
         $this->data['url'] = 'meganet.module.finance.general_accounting.operation';
         $this->data['module'] = 'GeneralAccountingOperation';
@@ -66,6 +72,7 @@ class GeneralAccountingOperationController extends Controller
                 $generalAccountingService->setNewGeneralAccountingExpenseByData($data);
             }
             DB::commit();
+            $this->logService->log($model, 'Se ha creado una nueva Operacion. Cantidad: '.$data['amount']);
             return response()->json([
                 'success' => true,
                 'message' => 'La solicitud se ha procesado con exito.',
@@ -119,6 +126,7 @@ class GeneralAccountingOperationController extends Controller
             }
 
             DB::commit();
+            $this->logService->log($model, 'Se ha actualizado la operacion '.$id.' .Cantidad: '.$data['amount']);
             return response()->json([
                 'success' => true,
                 'message' => 'La solicitud se ha procesado con exito.',
@@ -132,5 +140,14 @@ class GeneralAccountingOperationController extends Controller
                 'message' => 'Ocurrio un error al procesar la solicitud',
             ], 500);
         }
+    }
+
+    public function destroy($id){
+        $_data = $this->data['model']::findOrFail($id);
+        if($_data){
+            $_data->delete();
+            $this->logService->log($_data, 'Se ha eliminado la operacion '.$id);
+        }
+        return redirect()->back()->with('message', Str::title($this->data['module']) . ' Eliminado Correctamente');
     }
 }
