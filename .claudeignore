@@ -1,0 +1,15 @@
+vendor/
+node_modules/
+storage/
+public/apk/
+.git/
+mobile/megafamilia/.dart_tool/
+mobile/megafamilia/build/
+mobile/megafamilia/.pub-cache/
+*.lock
+*.map
+*.min.js
+*.min.css
+public/js/
+public/css/
+public/mix-manifest.json
