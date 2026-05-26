@@ -166,16 +166,17 @@ class ImportExportController extends Controller
 
         $log->markRunning($jobId);
 
+        // El job rehidrata $datasets desde el cache usando el token; pasarlo aquí
+        // serializaría 500MB+ en Queue::createPayload y revienta por OOM.
+        // El cleanup() del archivo y el Cache::forget() también viven en el job
+        // (finally), para que ocurran tras procesar — no aquí antes de despachar.
         SmartImportJob::dispatch(
             $jobId,
-            $analysis['datasets'],
+            $token,
             $options,
             auth()->id(),
             $log->id,
         );
-
-        $this->importService->cleanup($analysis['file']);
-        Cache::forget($this->cacheKey($token));
 
         return response()->json([
             'success' => true,

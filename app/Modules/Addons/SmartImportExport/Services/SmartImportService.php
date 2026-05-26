@@ -2,22 +2,250 @@
 
 namespace App\Modules\Addons\SmartImportExport\Services;
 
+use App\Models\ActiveEquipment;
+use App\Models\ActiveEquipmentPeripheral;
+use App\Models\ActiveEquipmentType;
+use App\Models\Balance;
+use App\Models\BillingAddress;
+use App\Models\Box;
+use App\Models\BoxInput;
+use App\Models\BoxType;
+use App\Models\BoxZone;
+use App\Models\Brand;
+use App\Models\Buffer;
 use App\Models\Bundle;
+use App\Models\Card;
 use App\Models\Client;
+use App\Models\ClientAdditionalInformation;
+use App\Models\ClientBundleService;
+use App\Models\ClientCustomService;
+use App\Models\ClientGracePeriod;
+use App\Models\ClientInternetService;
+use App\Models\ClientInvoice;
+use App\Models\ClientInvoiceService;
+use App\Models\ClientMainInformation;
+use App\Models\ClientPaymentMetadata;
+use App\Models\ClientPaymentPromise;
+use App\Models\ClientPaymentService;
+use App\Models\ClientUser;
+use App\Models\ClientVozService;
+use App\Models\Colony;
+use App\Models\Color;
+use App\Models\ColumnDatatableModule;
+use App\Models\Commission;
+use App\Models\CommissionDetail;
+use App\Models\CommissionRule;
+use App\Models\Credential;
 use App\Models\Custom;
+use App\Models\CutBox;
+use App\Models\CutExtraIncome;
+use App\Models\CutFiber;
+use App\Models\CutInstallation;
+use App\Models\CutObservation;
+use App\Models\CutSupplierExpense;
+use App\Models\Discount;
+use App\Models\DiscountSale;
+use App\Models\DistributionCommission;
+use App\Models\DistributionCommissionAmount;
+use App\Models\District;
+use App\Models\DocumentClient;
+use App\Models\DocumentTemplate;
+use App\Models\DocumentTypeTemplate;
+use App\Models\DocumentationContent;
+use App\Models\DocumentationMenu;
+use App\Models\DocumentationSubmenu;
+use App\Models\DurationContract;
+use App\Models\EmailSetting;
+use App\Models\EquipmentLink;
+use App\Models\Fiber;
+use App\Models\File as FileModel;
+use App\Models\FrequencyCommand;
+use App\Models\FrequencyEstimatedDedicatedTime;
+use App\Models\GeneralAccountingCategory;
+use App\Models\GeneralAccountingExpense;
+use App\Models\GeneralAccountingIncome;
+use App\Models\GeneralAccountingOperation;
+use App\Models\GeneralAccountingType;
+use App\Models\GeneralConfigurationRule;
+use App\Models\HistoryGeneralConfigurationRule;
+use App\Models\HistorySellerRule;
+use App\Models\Ift;
 use App\Models\Internet;
 use App\Models\InventoryItem;
+use App\Models\InventoryItemCustomModel;
+use App\Models\InventoryItemMedia;
+use App\Models\InventoryItemStock;
+use App\Models\InventoryItemStoreZone;
+use App\Models\InventoryItemType;
+use App\Models\InventoryMovement;
+use App\Models\InventoryReservation;
+use App\Models\InventoryStore;
 use App\Models\Invoice;
+use App\Models\InvoiceEmail;
+use App\Models\InvoiceItem;
+use App\Models\ListTemplateVerification;
+use App\Models\ListTemplateVerificationTask;
+use App\Models\Location;
+use App\Models\MapCredential;
+use App\Models\MapCutFiber;
+use App\Models\MapDevice;
+use App\Models\MapDevicePort;
+use App\Models\MapDevicePortConnection;
+use App\Models\MapFiber;
+use App\Models\MapLayer;
+use App\Models\MapLayerRoute;
+use App\Models\MapLink;
+use App\Models\MapPort;
+use App\Models\MapProyect;
+use App\Models\MapRoute;
+use App\Models\MediumOfSale;
+use App\Models\MethodOfPayment;
+use App\Models\Mikrotik;
+use App\Models\MikrotikClientHostpotRadius;
+use App\Models\MikrotikClientHostpotUser;
+use App\Models\MikrotikClientPpoe;
+use App\Models\MikrotikConfig;
+use App\Models\MikrotikItemToExcecuteAction;
+use App\Models\MikrotikNotification;
+use App\Models\MikrotikTariffMainTail;
+use App\Models\MikrotikTariffTargetTail;
+use App\Models\Modem;
+use App\Models\Module;
+use App\Models\Municipality;
 use App\Models\Network;
+use App\Models\NetworkIp;
+use App\Models\Nomenclature;
+use App\Models\ObservationTask;
+use App\Models\Olt;
+use App\Models\OltBilling;
+use App\Models\OltCard;
+use App\Models\OltInterruptionPon;
+use App\Models\OltOdb;
+use App\Models\OltOnu;
+use App\Models\OltPonPort;
+use App\Models\OltSpeedProfile;
+use App\Models\OltTypeONU;
+use App\Models\OltUnconfiguredOnu;
+use App\Models\OltUplinkPort;
+use App\Models\OltVlan;
+use App\Models\OltZone;
 use App\Models\Package;
+use App\Models\Partner;
+use App\Models\PassiveEquipment;
+use App\Models\PassiveEquipmentType;
 use App\Models\Payment;
+use App\Models\PaymentAccount;
+use App\Models\PaymentByRule;
+use App\Models\PaymentByRuleDetails;
+use App\Models\PaymentDetail;
+use App\Models\PaymentEmail;
+use App\Models\PaymentPromise;
+use App\Models\PaymentSeller;
+use App\Models\Point;
+use App\Models\PointAccessory;
+use App\Models\Pole;
+use App\Models\PoleAccessory;
+use App\Models\Port;
+use App\Models\Position;
+use App\Models\ProformaInvoiceEmail;
+use App\Models\Project;
+use App\Models\ProjectType;
+use App\Models\QuoteCrm;
+use App\Models\Rack;
+use App\Models\RangeSale;
+use App\Models\Receipt;
+use App\Models\Release;
+use App\Models\ReleaseDescription;
+use App\Models\Reminder;
+use App\Models\RemindersConfiguration;
 use App\Models\Router;
 use App\Models\Seller;
+use App\Models\SellerStatus;
+use App\Models\SellerType;
+use App\Models\ServiceInAddressList;
+use App\Models\SettingDebtPaymentClientCustom;
+use App\Models\SettingDebtPaymentClientRecurrent;
+use App\Models\SettingTable;
+use App\Models\SettingToolsImport;
+use App\Models\Site;
+use App\Models\Splitter;
+use App\Models\State;
+use App\Models\StoreZone;
+use App\Models\Sucursal;
+use App\Models\SystemUser;
+use App\Models\Table;
+use App\Models\Task;
+use App\Models\TaskNotification;
+use App\Models\Tax;
+use App\Models\Team;
+use App\Models\TemplateTask;
+use App\Models\TemplateVerification;
 use App\Models\Ticket;
+use App\Models\TicketThread;
+use App\Models\Transaction;
+use App\Models\TransactionSeller;
+use App\Models\Transceiver;
+use App\Models\Tray;
+use App\Models\Trench;
+use App\Models\TrencheTypes;
+use App\Models\Tube;
+use App\Models\TubeType;
+use App\Models\TypeBilling;
 use App\Models\User;
+use App\Models\UserColumnDatatableExpand;
+use App\Models\UserColumnDatatableModule;
+use App\Models\Voise;
+use App\Models\WorkFlow;
+use App\Models\Zone;
+use App\Modules\Addons\EvaluadorEmpresarial\Models\EvaluacionEmpresarial;
+use App\Modules\Addons\IA\Models\IAConversacion;
+use App\Modules\Addons\IA\Models\IAMemoriaProyecto;
+use App\Modules\Addons\IA\Models\IAMensaje;
+use App\Modules\Addons\IA\Models\IAMessageFile;
+use App\Modules\Addons\IA\Models\IANotaProyecto;
+use App\Modules\Addons\IA\Models\IAPromptUsuario;
 use App\Modules\Addons\IA\Models\IAProveedor;
+use App\Modules\Addons\IA\Models\IAProyecto;
+use App\Modules\Addons\IA\Models\IASesionTrabajo;
+use App\Modules\Addons\IA\Models\IATarea;
+use App\Modules\Addons\IA\Models\IAUsoToken;
 use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
+use App\Modules\Addons\Manual\Models\ManualSection;
+use App\Modules\Addons\MegaFamilia\Models\AppVersion;
+use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
+use App\Modules\Addons\MegaFamilia\Models\ParentalAlert;
+use App\Modules\Addons\MegaFamilia\Models\ParentalAppBlock;
+use App\Modules\Addons\MegaFamilia\Models\ParentalConsent;
+use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
+use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
+use App\Modules\Addons\MegaFamilia\Models\ParentalGeofence;
+use App\Modules\Addons\MegaFamilia\Models\ParentalLicense;
+use App\Modules\Addons\MegaFamilia\Models\ParentalLocation;
+use App\Modules\Addons\MegaFamilia\Models\ParentalPlan;
+use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
+use App\Modules\Addons\MegaFamilia\Models\ParentalRequest;
+use App\Modules\Addons\MegaFamilia\Models\ParentalReward;
+use App\Modules\Addons\MegaFamilia\Models\ParentalRule;
+use App\Modules\Addons\MegaFamilia\Models\ParentalSchedule;
+use App\Modules\Addons\MegaFamilia\Models\ParentalTask;
+use App\Modules\Addons\MegaFamilia\Models\ParentalWebBlock;
+use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstance;
 use App\Modules\Core\CRM\Models\Crm;
+use App\Modules\Core\CRM\Models\CrmLeadInformation;
+use App\Modules\Core\CRM\Models\CrmMainInformation;
+use App\Modules\Core\CRM\Models\DealCrm;
+use App\Modules\Core\CRM\Models\DocumentCrm;
+use App\Modules\Core\Configuracion\Models\ApiMobileConfig;
+use App\Modules\Core\Configuracion\Models\BillingConfiguration;
+use App\Modules\Core\Configuracion\Models\BillingReminder;
+use App\Modules\Core\Configuracion\Models\CommandConfig;
+use App\Modules\Core\Configuracion\Models\CompanyInformation;
+use App\Modules\Core\Configuracion\Models\ConfigFinanceNotification;
+use App\Modules\Core\Configuracion\Models\DefaultValue;
+use App\Modules\Core\Configuracion\Models\FieldModule;
+use App\Modules\Core\Configuracion\Models\FieldType;
+use App\Modules\Core\Layout\Models\AppLayoutConfiguration;
+use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -37,24 +265,355 @@ class SmartImportService
     private array $lastRowCounts = [];
 
     /**
+     * Mapa tabla → orden ORIGINAL de columnas tomado de CREATE TABLE del
+     * dump. Crítico para schema drift: cuando el dump es más viejo que la
+     * BD destino (dump tiene 23 cols, BD tiene 26 cols), array_combine con
+     * Schema::getColumnListing() da cardinality mismatch y sanitizeRow
+     * devolvía [] silenciosamente. Con este mapa hacemos array_combine
+     * contra las columnas del DUMP (lo que realmente viene en cada tuple),
+     * luego array_intersect_key contra la BD destino — las columnas nuevas
+     * en BD quedan en NULL/default y las eliminadas del dump se ignoran.
+     *
+     * Se pobla en extractDumpColumns() (pre-pass de parseSql) y se persiste
+     * en el cache del analysis. SmartImportJob::handle() lo rehidrata vía
+     * setDumpColumns() antes de procesar las tablas.
+     *
+     * @var array<string, string[]>
+     */
+    private array $dumpColumnsByTable = [];
+
+    public function setDumpColumns(array $dumpColumns): void
+    {
+        $this->dumpColumnsByTable = $dumpColumns;
+    }
+
+    /**
      * Mapa de tabla → módulo lógico + modelo Eloquent que la administra.
      * El frontend usa esto para enseñar el reporte y resolver conflictos.
+     *
+     * Cada entrada puede tener:
+     *   - 'module'        — etiqueta cosmética para el reporte
+     *   - 'model'         — clase Eloquent FQCN (mode='model', default)
+     *   - 'mode' => 'raw' — tablas sin modelo Eloquent; executeImport() debe
+     *                       insertar vía DB::table() en vez de $modelClass::create()
+     *   - 'conflict_keys' — columnas que definen duplicado. [] = solo-inserción
+     *                       (ver paso 6 del plan: defaultear vacío es seguro;
+     *                       autoritativo cuando vienen de UNIQUE indexes).
      */
     public const TABLE_MODULE_MAP = [
-        'clients'           => ['module' => 'Clientes',    'model' => Client::class,         'conflict_keys' => ['email', 'phone', 'full_name']],
-        'crms'              => ['module' => 'CRM',         'model' => Crm::class,            'conflict_keys' => ['email', 'phone', 'full_name']],
-        'invoices'          => ['module' => 'Finanzas',    'model' => Invoice::class,        'conflict_keys' => ['folio', 'client_id']],
-        'payments'          => ['module' => 'Finanzas',    'model' => Payment::class,        'conflict_keys' => ['folio', 'client_id']],
-        'packages'          => ['module' => 'Planes',      'model' => Package::class,        'conflict_keys' => ['title']],
-        'internets'         => ['module' => 'Planes',      'model' => Internet::class,       'conflict_keys' => ['title']],
-        'customs'           => ['module' => 'Planes',      'model' => Custom::class,         'conflict_keys' => ['title']],
-        'bundles'           => ['module' => 'Planes',      'model' => Bundle::class,         'conflict_keys' => ['title']],
-        'tickets'           => ['module' => 'Tickets',     'model' => Ticket::class,         'conflict_keys' => ['folio']],
-        'sellers'           => ['module' => 'Vendedores',  'model' => Seller::class,         'conflict_keys' => ['email', 'phone']],
-        'inventory_items'   => ['module' => 'Inventario',  'model' => InventoryItem::class,  'conflict_keys' => ['serial', 'sku']],
-        'networks'          => ['module' => 'Red',         'model' => Network::class,        'conflict_keys' => ['network']],
-        'routers'           => ['module' => 'Red',         'model' => Router::class,         'conflict_keys' => ['ip', 'title']],
-        'users'             => ['module' => 'Usuarios',    'model' => User::class,           'conflict_keys' => ['email']],
+        // ─── API Mobile ─── (1)
+        'api_mobile_config'                        => ['module' => 'API Mobile', 'model' => ApiMobileConfig::class, 'conflict_keys' => ['key']],
+
+        // ─── Administración ─── (6)
+        'email_settings'                           => ['module' => 'Administración', 'model' => EmailSetting::class, 'conflict_keys' => []],
+        'permissions'                              => ['module' => 'Administración', 'mode' => 'raw', 'conflict_keys' => ['name', 'guard_name']],
+        'positions'                                => ['module' => 'Administración', 'model' => Position::class, 'conflict_keys' => []],
+        'roles'                                    => ['module' => 'Administración', 'mode' => 'raw', 'conflict_keys' => ['name', 'guard_name']],
+        'system_users'                             => ['module' => 'Administración', 'model' => SystemUser::class, 'conflict_keys' => []],
+        'teams'                                    => ['module' => 'Administración', 'model' => Team::class, 'conflict_keys' => []],
+
+        // ─── CRM ─── (6)
+        'crm_lead_information'                     => ['module' => 'CRM', 'model' => CrmLeadInformation::class, 'conflict_keys' => ['instalation_date']],
+        'crm_main_information'                     => ['module' => 'CRM', 'model' => CrmMainInformation::class, 'conflict_keys' => []],
+        'crms'                                     => ['module' => 'CRM', 'model' => Crm::class, 'conflict_keys' => ['email', 'phone', 'full_name']],
+        'deal_crms'                                => ['module' => 'CRM', 'model' => DealCrm::class, 'conflict_keys' => []],
+        'document_crms'                            => ['module' => 'CRM', 'model' => DocumentCrm::class, 'conflict_keys' => []],
+        'quote_crms'                               => ['module' => 'CRM', 'model' => QuoteCrm::class, 'conflict_keys' => []],
+
+        // ─── Cajas ─── (4)
+        'box_inputs'                               => ['module' => 'Cajas', 'model' => BoxInput::class, 'conflict_keys' => []],
+        'box_types'                                => ['module' => 'Cajas', 'model' => BoxType::class, 'conflict_keys' => []],
+        'boxes'                                    => ['module' => 'Cajas', 'model' => Box::class, 'conflict_keys' => []],
+        'colors'                                   => ['module' => 'Cajas', 'model' => Color::class, 'conflict_keys' => ['code']],
+
+        // ─── Clientes ─── (16)
+        'change_plan_internet_clients'             => ['module' => 'Clientes', 'mode' => 'raw', 'conflict_keys' => []],
+        'change_plan_voz_clients'                  => ['module' => 'Clientes', 'mode' => 'raw', 'conflict_keys' => []],
+        'client_additional_information'            => ['module' => 'Clientes', 'model' => ClientAdditionalInformation::class, 'conflict_keys' => []],
+        'client_bundle_services'                   => ['module' => 'Clientes', 'model' => ClientBundleService::class, 'conflict_keys' => []],
+        'client_custom_services'                   => ['module' => 'Clientes', 'model' => ClientCustomService::class, 'conflict_keys' => []],
+        'client_grace_periods'                     => ['module' => 'Clientes', 'model' => ClientGracePeriod::class, 'conflict_keys' => []],
+        'client_internet_services'                 => ['module' => 'Clientes', 'model' => ClientInternetService::class, 'conflict_keys' => []],
+        'client_invoices'                          => ['module' => 'Clientes', 'model' => ClientInvoice::class, 'conflict_keys' => []],
+        'client_main_information'                  => ['module' => 'Clientes', 'model' => ClientMainInformation::class, 'conflict_keys' => []],
+        'client_payment_metadata'                  => ['module' => 'Clientes', 'model' => ClientPaymentMetadata::class, 'conflict_keys' => []],
+        'client_payment_promises'                  => ['module' => 'Clientes', 'model' => ClientPaymentPromise::class, 'conflict_keys' => []],
+        'client_payment_services'                  => ['module' => 'Clientes', 'model' => ClientPaymentService::class, 'conflict_keys' => []],
+        'client_serviceables'                      => ['module' => 'Clientes', 'model' => ClientInvoiceService::class, 'conflict_keys' => []],
+        'client_users'                             => ['module' => 'Clientes', 'model' => ClientUser::class, 'conflict_keys' => []],
+        'client_voz_services'                      => ['module' => 'Clientes', 'model' => ClientVozService::class, 'conflict_keys' => []],
+        'clients'                                  => ['module' => 'Clientes', 'model' => Client::class, 'conflict_keys' => ['email', 'phone', 'full_name']],
+
+        // ─── Contabilidad ─── (5)
+        'general_accounting_categories'            => ['module' => 'Contabilidad', 'model' => GeneralAccountingCategory::class, 'conflict_keys' => []],
+        'general_accounting_expenses'              => ['module' => 'Contabilidad', 'model' => GeneralAccountingExpense::class, 'conflict_keys' => []],
+        'general_accounting_incomes'               => ['module' => 'Contabilidad', 'model' => GeneralAccountingIncome::class, 'conflict_keys' => []],
+        'general_accounting_operations'            => ['module' => 'Contabilidad', 'model' => GeneralAccountingOperation::class, 'conflict_keys' => []],
+        'general_accounting_types'                 => ['module' => 'Contabilidad', 'model' => GeneralAccountingType::class, 'conflict_keys' => []],
+
+        // ─── Cortes ─── (5)
+        'cut_boxs'                                 => ['module' => 'Cortes', 'model' => CutBox::class, 'conflict_keys' => []],
+        'cut_extras_incomes'                       => ['module' => 'Cortes', 'model' => CutExtraIncome::class, 'conflict_keys' => []],
+        'cut_installations'                        => ['module' => 'Cortes', 'model' => CutInstallation::class, 'conflict_keys' => []],
+        'cut_suppliers_expenses'                   => ['module' => 'Cortes', 'model' => CutSupplierExpense::class, 'conflict_keys' => []],
+        'cuts_observations'                        => ['module' => 'Cortes', 'model' => CutObservation::class, 'conflict_keys' => []],
+
+        // ─── Documentación ─── (4)
+        'documentation_contents'                   => ['module' => 'Documentación', 'model' => DocumentationContent::class, 'conflict_keys' => []],
+        'documentation_menus'                      => ['module' => 'Documentación', 'model' => DocumentationMenu::class, 'conflict_keys' => ['title']],
+        'documentation_submenus'                   => ['module' => 'Documentación', 'model' => DocumentationSubmenu::class, 'conflict_keys' => ['documentation_menu_id', 'title']],
+        'manual_sections'                          => ['module' => 'Documentación', 'model' => ManualSection::class, 'conflict_keys' => ['module_slug', 'version']],
+
+        // ─── Documentos ─── (5)
+        'credential_images'                        => ['module' => 'Documentos', 'model' => Credential::class, 'conflict_keys' => []],
+        'document_clients'                         => ['module' => 'Documentos', 'model' => DocumentClient::class, 'conflict_keys' => []],
+        'document_templates'                       => ['module' => 'Documentos', 'model' => DocumentTemplate::class, 'conflict_keys' => []],
+        'document_type_templates'                  => ['module' => 'Documentos', 'model' => DocumentTypeTemplate::class, 'conflict_keys' => []],
+        'files'                                    => ['module' => 'Documentos', 'model' => FileModel::class, 'conflict_keys' => []],
+
+        // ─── Evaluador ─── (1)
+        'evaluaciones_empresariales'               => ['module' => 'Evaluador', 'model' => EvaluacionEmpresarial::class, 'conflict_keys' => ['token_publico']],
+
+        // ─── Finanzas ─── (26)
+        'balances'                                 => ['module' => 'Finanzas', 'model' => Balance::class, 'conflict_keys' => []],
+        'billing_addresses'                        => ['module' => 'Finanzas', 'model' => BillingAddress::class, 'conflict_keys' => []],
+        'billing_configurations'                   => ['module' => 'Finanzas', 'model' => BillingConfiguration::class, 'conflict_keys' => []],
+        'billing_reminders'                        => ['module' => 'Finanzas', 'model' => BillingReminder::class, 'conflict_keys' => []],
+        'config_finance_notifications'             => ['module' => 'Finanzas', 'model' => ConfigFinanceNotification::class, 'conflict_keys' => ['type_config']],
+        'discounts'                                => ['module' => 'Finanzas', 'model' => Discount::class, 'conflict_keys' => []],
+        'discounts_sales'                          => ['module' => 'Finanzas', 'model' => DiscountSale::class, 'conflict_keys' => []],
+        'invoice_emails'                           => ['module' => 'Finanzas', 'model' => InvoiceEmail::class, 'conflict_keys' => []],
+        'invoice_items'                            => ['module' => 'Finanzas', 'model' => InvoiceItem::class, 'conflict_keys' => []],
+        'invoices'                                 => ['module' => 'Finanzas', 'model' => Invoice::class, 'conflict_keys' => ['folio', 'client_id']],
+        'method_of_payments'                       => ['module' => 'Finanzas', 'model' => MethodOfPayment::class, 'conflict_keys' => []],
+        'payment_accounts'                         => ['module' => 'Finanzas', 'model' => PaymentAccount::class, 'conflict_keys' => []],
+        'payment_by_rule'                          => ['module' => 'Finanzas', 'model' => PaymentByRule::class, 'conflict_keys' => []],
+        'payment_by_rule_commissions'              => ['module' => 'Finanzas', 'model' => PaymentByRuleDetails::class, 'conflict_keys' => []],
+        'payment_emails'                           => ['module' => 'Finanzas', 'model' => PaymentEmail::class, 'conflict_keys' => []],
+        'payment_promises'                         => ['module' => 'Finanzas', 'model' => PaymentPromise::class, 'conflict_keys' => []],
+        'payments'                                 => ['module' => 'Finanzas', 'model' => Payment::class, 'conflict_keys' => ['folio', 'client_id']],
+        'payments_details'                         => ['module' => 'Finanzas', 'model' => PaymentDetail::class, 'conflict_keys' => []],
+        'payments_sellers'                         => ['module' => 'Finanzas', 'model' => PaymentSeller::class, 'conflict_keys' => []],
+        'plan_type_billings'                       => ['module' => 'Finanzas', 'mode' => 'raw', 'conflict_keys' => []],
+        'proforma_invoice_emails'                  => ['module' => 'Finanzas', 'model' => ProformaInvoiceEmail::class, 'conflict_keys' => []],
+        'receipts'                                 => ['module' => 'Finanzas', 'model' => Receipt::class, 'conflict_keys' => []],
+        'taxes'                                    => ['module' => 'Finanzas', 'model' => Tax::class, 'conflict_keys' => []],
+        'transactions'                             => ['module' => 'Finanzas', 'model' => Transaction::class, 'conflict_keys' => []],
+        'transactions_sellers'                     => ['module' => 'Finanzas', 'model' => TransactionSeller::class, 'conflict_keys' => []],
+        'type_billings'                            => ['module' => 'Finanzas', 'model' => TypeBilling::class, 'conflict_keys' => []],
+
+        // ─── Geografía ─── (10)
+        'box_zones'                                => ['module' => 'Geografía', 'model' => BoxZone::class, 'conflict_keys' => []],
+        'colonies'                                 => ['module' => 'Geografía', 'model' => Colony::class, 'conflict_keys' => []],
+        'districts'                                => ['module' => 'Geografía', 'model' => District::class, 'conflict_keys' => []],
+        'ifts'                                     => ['module' => 'Geografía', 'model' => Ift::class, 'conflict_keys' => []],
+        'locations'                                => ['module' => 'Geografía', 'model' => Location::class, 'conflict_keys' => []],
+        'municipalities'                           => ['module' => 'Geografía', 'model' => Municipality::class, 'conflict_keys' => []],
+        'nomenclatures'                            => ['module' => 'Geografía', 'model' => Nomenclature::class, 'conflict_keys' => ['name']],
+        'states'                                   => ['module' => 'Geografía', 'model' => State::class, 'conflict_keys' => []],
+        'store_zones'                              => ['module' => 'Geografía', 'model' => StoreZone::class, 'conflict_keys' => []],
+        'zones'                                    => ['module' => 'Geografía', 'model' => Zone::class, 'conflict_keys' => []],
+
+        // ─── IA ─── (12)
+        'ia_chat_conversations'                    => ['module' => 'IA', 'mode' => 'raw', 'conflict_keys' => []],
+        'ia_conversaciones'                        => ['module' => 'IA', 'model' => IAConversacion::class, 'conflict_keys' => []],
+        'ia_memoria_proyecto'                      => ['module' => 'IA', 'model' => IAMemoriaProyecto::class, 'conflict_keys' => []],
+        'ia_mensajes'                              => ['module' => 'IA', 'model' => IAMensaje::class, 'conflict_keys' => []],
+        'ia_message_files'                         => ['module' => 'IA', 'model' => IAMessageFile::class, 'conflict_keys' => []],
+        'ia_notas_proyecto'                        => ['module' => 'IA', 'model' => IANotaProyecto::class, 'conflict_keys' => []],
+        'ia_prompts_usuario'                       => ['module' => 'IA', 'model' => IAPromptUsuario::class, 'conflict_keys' => []],
+        'ia_proveedores'                           => ['module' => 'IA', 'model' => IAProveedor::class, 'conflict_keys' => []],
+        'ia_proyectos'                             => ['module' => 'IA', 'model' => IAProyecto::class, 'conflict_keys' => []],
+        'ia_sesiones_trabajo'                      => ['module' => 'IA', 'model' => IASesionTrabajo::class, 'conflict_keys' => []],
+        'ia_tareas'                                => ['module' => 'IA', 'model' => IATarea::class, 'conflict_keys' => []],
+        'ia_uso_tokens'                            => ['module' => 'IA', 'model' => IAUsoToken::class, 'conflict_keys' => []],
+
+        // ─── Inventario ─── (10)
+        'brands'                                   => ['module' => 'Inventario', 'model' => Brand::class, 'conflict_keys' => []],
+        'inventory_item_custom_models'             => ['module' => 'Inventario', 'model' => InventoryItemCustomModel::class, 'conflict_keys' => []],
+        'inventory_item_media'                     => ['module' => 'Inventario', 'model' => InventoryItemMedia::class, 'conflict_keys' => []],
+        'inventory_item_stocks'                    => ['module' => 'Inventario', 'model' => InventoryItemStock::class, 'conflict_keys' => []],
+        'inventory_item_store_zones'               => ['module' => 'Inventario', 'model' => InventoryItemStoreZone::class, 'conflict_keys' => []],
+        'inventory_item_types'                     => ['module' => 'Inventario', 'model' => InventoryItemType::class, 'conflict_keys' => []],
+        'inventory_items'                          => ['module' => 'Inventario', 'model' => InventoryItem::class, 'conflict_keys' => ['serial', 'sku']],
+        'inventory_movements'                      => ['module' => 'Inventario', 'model' => InventoryMovement::class, 'conflict_keys' => []],
+        'inventory_reservations'                   => ['module' => 'Inventario', 'model' => InventoryReservation::class, 'conflict_keys' => []],
+        'inventory_stores'                         => ['module' => 'Inventario', 'model' => InventoryStore::class, 'conflict_keys' => []],
+
+        // ─── Mapas ─── (12)
+        'map_devices'                              => ['module' => 'Mapas', 'model' => MapDevice::class, 'conflict_keys' => []],
+        'map_devices_ports'                        => ['module' => 'Mapas', 'model' => MapDevicePort::class, 'conflict_keys' => []],
+        'map_devices_ports_connections'            => ['module' => 'Mapas', 'model' => MapDevicePortConnection::class, 'conflict_keys' => []],
+        'map_fibers'                               => ['module' => 'Mapas', 'model' => MapFiber::class, 'conflict_keys' => []],
+        'map_fibers_cut'                           => ['module' => 'Mapas', 'model' => MapCutFiber::class, 'conflict_keys' => []],
+        'map_layers'                               => ['module' => 'Mapas', 'model' => MapLayer::class, 'conflict_keys' => []],
+        'map_layers_routes'                        => ['module' => 'Mapas', 'model' => MapLayerRoute::class, 'conflict_keys' => []],
+        'map_links'                                => ['module' => 'Mapas', 'model' => MapLink::class, 'conflict_keys' => []],
+        'map_ports'                                => ['module' => 'Mapas', 'model' => MapPort::class, 'conflict_keys' => []],
+        'map_proyects'                             => ['module' => 'Mapas', 'model' => MapProyect::class, 'conflict_keys' => []],
+        'map_routes'                               => ['module' => 'Mapas', 'model' => MapRoute::class, 'conflict_keys' => []],
+        'system_map_credentials'                   => ['module' => 'Mapas', 'model' => MapCredential::class, 'conflict_keys' => []],
+
+        // ─── MegaFamilia ─── (18)
+        'app_versions'                             => ['module' => 'MegaFamilia', 'model' => AppVersion::class, 'conflict_keys' => []],
+        'parental_accounts'                        => ['module' => 'MegaFamilia', 'model' => ParentalAccount::class, 'conflict_keys' => []],
+        'parental_alerts'                          => ['module' => 'MegaFamilia', 'model' => ParentalAlert::class, 'conflict_keys' => []],
+        'parental_app_blocks'                      => ['module' => 'MegaFamilia', 'model' => ParentalAppBlock::class, 'conflict_keys' => ['profile_id', 'package_name']],
+        'parental_consents'                        => ['module' => 'MegaFamilia', 'model' => ParentalConsent::class, 'conflict_keys' => ['version_number']],
+        'parental_devices'                         => ['module' => 'MegaFamilia', 'model' => ParentalDevice::class, 'conflict_keys' => ['link_token']],
+        'parental_events'                          => ['module' => 'MegaFamilia', 'model' => ParentalEvent::class, 'conflict_keys' => []],
+        'parental_geofences'                       => ['module' => 'MegaFamilia', 'model' => ParentalGeofence::class, 'conflict_keys' => []],
+        'parental_licenses'                        => ['module' => 'MegaFamilia', 'model' => ParentalLicense::class, 'conflict_keys' => []],
+        'parental_locations'                       => ['module' => 'MegaFamilia', 'model' => ParentalLocation::class, 'conflict_keys' => []],
+        'parental_plans'                           => ['module' => 'MegaFamilia', 'model' => ParentalPlan::class, 'conflict_keys' => ['slug']],
+        'parental_profiles'                        => ['module' => 'MegaFamilia', 'model' => ParentalProfile::class, 'conflict_keys' => []],
+        'parental_requests'                        => ['module' => 'MegaFamilia', 'model' => ParentalRequest::class, 'conflict_keys' => []],
+        'parental_rewards'                         => ['module' => 'MegaFamilia', 'model' => ParentalReward::class, 'conflict_keys' => []],
+        'parental_rules'                           => ['module' => 'MegaFamilia', 'model' => ParentalRule::class, 'conflict_keys' => ['profile_id']],
+        'parental_schedules'                       => ['module' => 'MegaFamilia', 'model' => ParentalSchedule::class, 'conflict_keys' => []],
+        'parental_tasks'                           => ['module' => 'MegaFamilia', 'model' => ParentalTask::class, 'conflict_keys' => []],
+        'parental_web_blocks'                      => ['module' => 'MegaFamilia', 'model' => ParentalWebBlock::class, 'conflict_keys' => ['profile_id', 'domain']],
+
+        // ─── MikroTik ─── (9)
+        'mikrotik_client_hostpot_radius'           => ['module' => 'MikroTik', 'model' => MikrotikClientHostpotRadius::class, 'conflict_keys' => []],
+        'mikrotik_client_hostpot_users'            => ['module' => 'MikroTik', 'model' => MikrotikClientHostpotUser::class, 'conflict_keys' => []],
+        'mikrotik_client_ppoes'                    => ['module' => 'MikroTik', 'model' => MikrotikClientPpoe::class, 'conflict_keys' => []],
+        'mikrotik_configs'                         => ['module' => 'MikroTik', 'model' => MikrotikConfig::class, 'conflict_keys' => []],
+        'mikrotik_item_to_excecute_actions'        => ['module' => 'MikroTik', 'model' => MikrotikItemToExcecuteAction::class, 'conflict_keys' => []],
+        'mikrotik_notifications'                   => ['module' => 'MikroTik', 'model' => MikrotikNotification::class, 'conflict_keys' => []],
+        'mikrotik_tariff_main_tails'               => ['module' => 'MikroTik', 'model' => MikrotikTariffMainTail::class, 'conflict_keys' => []],
+        'mikrotik_tariff_target_tails'             => ['module' => 'MikroTik', 'model' => MikrotikTariffTargetTail::class, 'conflict_keys' => []],
+        'mikrotiks'                                => ['module' => 'MikroTik', 'model' => Mikrotik::class, 'conflict_keys' => []],
+
+        // ─── OLT ─── (13)
+        'olt_billings'                             => ['module' => 'OLT', 'model' => OltBilling::class, 'conflict_keys' => []],
+        'olt_cards'                                => ['module' => 'OLT', 'model' => OltCard::class, 'conflict_keys' => ['olt_id', 'slot']],
+        'olt_interruption_pons'                    => ['module' => 'OLT', 'model' => OltInterruptionPon::class, 'conflict_keys' => ['olt_id', 'board', 'port']],
+        'olt_odbs'                                 => ['module' => 'OLT', 'model' => OltOdb::class, 'conflict_keys' => []],
+        'olt_onus'                                 => ['module' => 'OLT', 'model' => OltOnu::class, 'conflict_keys' => ['sn', 'olt_id']],
+        'olt_pon_ports'                            => ['module' => 'OLT', 'model' => OltPonPort::class, 'conflict_keys' => ['olt_id', 'board', 'pon_port']],
+        'olt_speed_profiles'                       => ['module' => 'OLT', 'model' => OltSpeedProfile::class, 'conflict_keys' => []],
+        'olt_type_onus'                            => ['module' => 'OLT', 'model' => OltTypeONU::class, 'conflict_keys' => ['name']],
+        'olt_unconfigured_onus'                    => ['module' => 'OLT', 'model' => OltUnconfiguredOnu::class, 'conflict_keys' => ['sn']],
+        'olt_uplink_ports'                         => ['module' => 'OLT', 'model' => OltUplinkPort::class, 'conflict_keys' => ['olt_id', 'name']],
+        'olt_vlans'                                => ['module' => 'OLT', 'model' => OltVlan::class, 'conflict_keys' => []],
+        'olt_zones'                                => ['module' => 'OLT', 'model' => OltZone::class, 'conflict_keys' => ['name']],
+        'olts'                                     => ['module' => 'OLT', 'model' => Olt::class, 'conflict_keys' => []],
+
+        // ─── Planes ─── (7)
+        'bundles'                                  => ['module' => 'Planes', 'model' => Bundle::class, 'conflict_keys' => ['title']],
+        'customs'                                  => ['module' => 'Planes', 'model' => Custom::class, 'conflict_keys' => ['title']],
+        'duration_contracts'                       => ['module' => 'Planes', 'model' => DurationContract::class, 'conflict_keys' => []],
+        'internets'                                => ['module' => 'Planes', 'model' => Internet::class, 'conflict_keys' => ['title']],
+        'packages'                                 => ['module' => 'Planes', 'model' => Package::class, 'conflict_keys' => ['title']],
+        'plan_bundles'                             => ['module' => 'Planes', 'mode' => 'raw', 'conflict_keys' => []],
+        'plan_custom_client'                       => ['module' => 'Planes', 'mode' => 'raw', 'conflict_keys' => []],
+
+        // ─── Proyectos ─── (2)
+        'project_types'                            => ['module' => 'Proyectos', 'model' => ProjectType::class, 'conflict_keys' => []],
+        'projects'                                 => ['module' => 'Proyectos', 'model' => Project::class, 'conflict_keys' => []],
+
+        // ─── Red ─── (29)
+        'active_equipment_peripherals'             => ['module' => 'Red', 'model' => ActiveEquipmentPeripheral::class, 'conflict_keys' => []],
+        'active_equipment_types'                   => ['module' => 'Red', 'model' => ActiveEquipmentType::class, 'conflict_keys' => []],
+        'active_equipments'                        => ['module' => 'Red', 'model' => ActiveEquipment::class, 'conflict_keys' => []],
+        'buffers'                                  => ['module' => 'Red', 'model' => Buffer::class, 'conflict_keys' => ['color_id']],
+        'cards'                                    => ['module' => 'Red', 'model' => Card::class, 'conflict_keys' => []],
+        'cut_fibers'                               => ['module' => 'Red', 'model' => CutFiber::class, 'conflict_keys' => []],
+        'equipment_links'                          => ['module' => 'Red', 'model' => EquipmentLink::class, 'conflict_keys' => []],
+        'fibers'                                   => ['module' => 'Red', 'model' => Fiber::class, 'conflict_keys' => []],
+        'modems'                                   => ['module' => 'Red', 'model' => Modem::class, 'conflict_keys' => []],
+        'network_ips'                              => ['module' => 'Red', 'model' => NetworkIp::class, 'conflict_keys' => []],
+        'networks'                                 => ['module' => 'Red', 'model' => Network::class, 'conflict_keys' => ['network']],
+        'passive_equipment_types'                  => ['module' => 'Red', 'model' => PassiveEquipmentType::class, 'conflict_keys' => []],
+        'passive_equipments'                       => ['module' => 'Red', 'model' => PassiveEquipment::class, 'conflict_keys' => []],
+        'point_accessories'                        => ['module' => 'Red', 'model' => PointAccessory::class, 'conflict_keys' => []],
+        'points'                                   => ['module' => 'Red', 'model' => Point::class, 'conflict_keys' => []],
+        'pole_accessories'                         => ['module' => 'Red', 'model' => PoleAccessory::class, 'conflict_keys' => []],
+        'poles'                                    => ['module' => 'Red', 'model' => Pole::class, 'conflict_keys' => []],
+        'ports'                                    => ['module' => 'Red', 'model' => Port::class, 'conflict_keys' => []],
+        'racks'                                    => ['module' => 'Red', 'model' => Rack::class, 'conflict_keys' => []],
+        'routers'                                  => ['module' => 'Red', 'model' => Router::class, 'conflict_keys' => ['ip', 'title']],
+        'service_in_address_lists'                 => ['module' => 'Red', 'model' => ServiceInAddressList::class, 'conflict_keys' => []],
+        'sites'                                    => ['module' => 'Red', 'model' => Site::class, 'conflict_keys' => []],
+        'splitters'                                => ['module' => 'Red', 'model' => Splitter::class, 'conflict_keys' => []],
+        'transceivers'                             => ['module' => 'Red', 'model' => Transceiver::class, 'conflict_keys' => []],
+        'trays'                                    => ['module' => 'Red', 'model' => Tray::class, 'conflict_keys' => []],
+        'trenche_types'                            => ['module' => 'Red', 'model' => TrencheTypes::class, 'conflict_keys' => []],
+        'trenches'                                 => ['module' => 'Red', 'model' => Trench::class, 'conflict_keys' => []],
+        'tube_types'                               => ['module' => 'Red', 'model' => TubeType::class, 'conflict_keys' => []],
+        'tubes'                                    => ['module' => 'Red', 'model' => Tube::class, 'conflict_keys' => []],
+
+        // ─── Sistema ─── (24)
+        'app_layout_configurations'                => ['module' => 'Sistema', 'model' => AppLayoutConfiguration::class, 'conflict_keys' => []],
+        'column_datatable_modules'                 => ['module' => 'Sistema', 'model' => ColumnDatatableModule::class, 'conflict_keys' => []],
+        'command_configs'                          => ['module' => 'Sistema', 'model' => CommandConfig::class, 'conflict_keys' => []],
+        'company_information'                      => ['module' => 'Sistema', 'model' => CompanyInformation::class, 'conflict_keys' => []],
+        'crud_packages'                            => ['module' => 'Sistema', 'mode' => 'raw', 'conflict_keys' => []],
+        'default_values'                           => ['module' => 'Sistema', 'model' => DefaultValue::class, 'conflict_keys' => []],
+        'field_modules'                            => ['module' => 'Sistema', 'model' => FieldModule::class, 'conflict_keys' => []],
+        'field_types'                              => ['module' => 'Sistema', 'model' => FieldType::class, 'conflict_keys' => []],
+        'general_configuration_rule'               => ['module' => 'Sistema', 'model' => GeneralConfigurationRule::class, 'conflict_keys' => []],
+        'history_general_configuration_rule'       => ['module' => 'Sistema', 'model' => HistoryGeneralConfigurationRule::class, 'conflict_keys' => []],
+        'module_registry'                          => ['module' => 'Sistema', 'model' => ModuleRegistry::class, 'conflict_keys' => ['slug']],
+        'modules'                                  => ['module' => 'Sistema', 'model' => Module::class, 'conflict_keys' => []],
+        'release_descriptions'                     => ['module' => 'Sistema', 'model' => ReleaseDescription::class, 'conflict_keys' => []],
+        'releases'                                 => ['module' => 'Sistema', 'model' => Release::class, 'conflict_keys' => ['version']],
+        'setting_debt_payment_client_customs'      => ['module' => 'Sistema', 'model' => SettingDebtPaymentClientCustom::class, 'conflict_keys' => []],
+        'setting_debt_payment_client_recurrents'   => ['module' => 'Sistema', 'model' => SettingDebtPaymentClientRecurrent::class, 'conflict_keys' => []],
+        'setting_imports'                          => ['module' => 'Sistema', 'model' => SettingToolsImport::class, 'conflict_keys' => []],
+        'setting_table'                            => ['module' => 'Sistema', 'mode' => 'raw', 'conflict_keys' => []],
+        'setting_tables'                           => ['module' => 'Sistema', 'model' => SettingTable::class, 'conflict_keys' => []],
+        'sucursals'                                => ['module' => 'Sistema', 'model' => Sucursal::class, 'conflict_keys' => ['email']],
+        'system_settings'                          => ['module' => 'Sistema', 'mode' => 'raw', 'conflict_keys' => ['key']],
+        'tables'                                   => ['module' => 'Sistema', 'model' => Table::class, 'conflict_keys' => []],
+        'user_column_datatable_modules'            => ['module' => 'Sistema', 'model' => UserColumnDatatableModule::class, 'conflict_keys' => []],
+        'user_column_dt_expand'                    => ['module' => 'Sistema', 'model' => UserColumnDatatableExpand::class, 'conflict_keys' => []],
+
+        // ─── Tareas ─── (12)
+        'frequency_commands'                       => ['module' => 'Tareas', 'model' => FrequencyCommand::class, 'conflict_keys' => []],
+        'frequency_estimated_dedicated_times'      => ['module' => 'Tareas', 'model' => FrequencyEstimatedDedicatedTime::class, 'conflict_keys' => []],
+        'list_template_verifications'              => ['module' => 'Tareas', 'model' => ListTemplateVerification::class, 'conflict_keys' => []],
+        'list_template_verifications_tasks'        => ['module' => 'Tareas', 'model' => ListTemplateVerificationTask::class, 'conflict_keys' => []],
+        'observation_tasks'                        => ['module' => 'Tareas', 'model' => ObservationTask::class, 'conflict_keys' => []],
+        'reminders'                                => ['module' => 'Tareas', 'model' => Reminder::class, 'conflict_keys' => []],
+        'reminders_configurations'                 => ['module' => 'Tareas', 'model' => RemindersConfiguration::class, 'conflict_keys' => []],
+        'task_notifications'                       => ['module' => 'Tareas', 'model' => TaskNotification::class, 'conflict_keys' => []],
+        'tasks'                                    => ['module' => 'Tareas', 'model' => Task::class, 'conflict_keys' => []],
+        'template_tasks'                           => ['module' => 'Tareas', 'model' => TemplateTask::class, 'conflict_keys' => []],
+        'template_verifications'                   => ['module' => 'Tareas', 'model' => TemplateVerification::class, 'conflict_keys' => []],
+        'work_flows'                               => ['module' => 'Tareas', 'model' => WorkFlow::class, 'conflict_keys' => []],
+
+        // ─── Tickets ─── (2)
+        'ticket_threads'                           => ['module' => 'Tickets', 'model' => TicketThread::class, 'conflict_keys' => []],
+        'tickets'                                  => ['module' => 'Tickets', 'model' => Ticket::class, 'conflict_keys' => ['folio']],
+
+        // ─── Usuarios ─── (1)
+        'users'                                    => ['module' => 'Usuarios', 'model' => User::class, 'conflict_keys' => ['email']],
+
+        // ─── Vendedores ─── (16)
+        'commissions'                              => ['module' => 'Vendedores', 'model' => Commission::class, 'conflict_keys' => []],
+        'commissions_details'                      => ['module' => 'Vendedores', 'model' => CommissionDetail::class, 'conflict_keys' => []],
+        'commissions_rules'                        => ['module' => 'Vendedores', 'model' => CommissionRule::class, 'conflict_keys' => []],
+        'commissions_rules_sellers'                => ['module' => 'Vendedores', 'mode' => 'raw', 'conflict_keys' => []],
+        'distribution_commission_sales'            => ['module' => 'Vendedores', 'model' => DistributionCommission::class, 'conflict_keys' => []],
+        'distribution_commission_sales_amount'     => ['module' => 'Vendedores', 'model' => DistributionCommissionAmount::class, 'conflict_keys' => []],
+        'history_sellers_rules'                    => ['module' => 'Vendedores', 'model' => HistorySellerRule::class, 'conflict_keys' => []],
+        'medium_sales'                             => ['module' => 'Vendedores', 'model' => MediumOfSale::class, 'conflict_keys' => []],
+        'partner_module'                           => ['module' => 'Vendedores', 'mode' => 'raw', 'conflict_keys' => []],
+        'partners'                                 => ['module' => 'Vendedores', 'model' => Partner::class, 'conflict_keys' => []],
+        'prospects'                                => ['module' => 'Vendedores', 'mode' => 'raw', 'conflict_keys' => []],
+        'ranges_of_sales_sectors'                  => ['module' => 'Vendedores', 'model' => RangeSale::class, 'conflict_keys' => ['sector', 'range']],
+        'sales'                                    => ['module' => 'Vendedores', 'mode' => 'raw', 'conflict_keys' => []],
+        'seller_status'                            => ['module' => 'Vendedores', 'model' => SellerStatus::class, 'conflict_keys' => []],
+        'seller_types'                             => ['module' => 'Vendedores', 'model' => SellerType::class, 'conflict_keys' => []],
+        'sellers'                                  => ['module' => 'Vendedores', 'model' => Seller::class, 'conflict_keys' => ['email', 'phone']],
+
+        // ─── Voz ─── (1)
+        'voises'                                   => ['module' => 'Voz', 'model' => Voise::class, 'conflict_keys' => []],
+
+        // ─── WhatsApp ─── (1)
+        'whatsapp_instances'                       => ['module' => 'WhatsApp', 'model' => WhatsAppInstance::class, 'conflict_keys' => ['slug']],
     ];
 
     /** Carpeta temporal donde se persiste el archivo durante el flujo. */
@@ -108,12 +667,13 @@ class SmartImportService
             : array_sum(array_map('count', $datasets));
 
         return [
-            'token'      => $token,
-            'file'       => $storedName,
-            'format'     => $format,
-            'datasets'   => $datasets,
-            'report'     => $this->sanitizeUtf8($report),
-            'total_rows' => $totalRows,
+            'token'        => $token,
+            'file'         => $storedName,
+            'format'       => $format,
+            'datasets'     => $datasets,
+            'dump_columns' => $this->dumpColumnsByTable, // pobladas por parseSql → handle schema drift
+            'report'       => $this->sanitizeUtf8($report),
+            'total_rows'   => $totalRows,
         ];
     }
 
@@ -184,13 +744,15 @@ class SmartImportService
         $summary = [];
         foreach ($datasets as $table => $rows) {
             $info = self::TABLE_MODULE_MAP[$table] ?? null;
-            if (!$info || !class_exists($info['model'])) {
-                $summary[$table] = ['imported' => 0, 'skipped' => count($rows), 'errors' => 0, 'reason' => 'tabla_no_mapeada'];
+            $skipReason = $this->validateMapEntry($table, $info);
+            if ($skipReason !== null) {
+                $summary[$table] = ['imported' => 0, 'skipped' => count($rows), 'errors' => 0, 'reason' => $skipReason];
                 continue;
             }
-            $modelClass = $info['model'];
+
             $defaultAction = $options[$table]['action'] ?? 'skip';
             $perRow = $options[$table]['conflicts'] ?? [];
+            $pk = $this->pkOf($table, $info);
             $imported = 0;
             $skipped = 0;
             $errors = 0;
@@ -205,15 +767,14 @@ class SmartImportService
                         continue;
                     }
                     if ($action === 'replace' && $existing) {
-                        $modelClass::query()->whereKey($existing[$modelClass::make()->getKeyName()])
-                            ->update($this->sanitizeRow($row, $modelClass));
+                        $this->updateRow($table, $info, $existing[$pk], $row);
                         $imported++;
                         continue;
                     }
                     if ($action === 'duplicate') {
-                        unset($row[$modelClass::make()->getKeyName()]);
+                        unset($row[$pk]);
                     }
-                    $modelClass::create($this->sanitizeRow($row, $modelClass));
+                    $this->insertRow($table, $info, $row);
                     $imported++;
                 } catch (Throwable $e) {
                     Log::warning('SmartImport row error [' . $table . ']: ' . $e->getMessage());
@@ -340,6 +901,14 @@ class SmartImportService
 
     private function parseSql(string $path): array
     {
+        // Pre-pass: extraer orden de columnas desde CREATE TABLE statements.
+        // Necesario para schema-drift-safe array_combine en sanitizeRow.
+        // Se acumula porque parseSql puede llamarse múltiples veces (parseZip
+        // itera archivos del zip).
+        foreach ($this->extractDumpColumns($path) as $t => $cols) {
+            $this->dumpColumnsByTable[$t] = $cols;
+        }
+
         $handle = @fopen($path, 'rb');
         if (!$handle) {
             return [];
@@ -685,12 +1254,171 @@ class SmartImportService
         return $matched;
     }
 
-    private function sanitizeRow(array $row, string $modelClass): array
+    private function sanitizeRow(array $row, string $table): array
     {
-        $instance = new $modelClass();
-        $table = $instance->getTable();
+        $destColumns = Schema::getColumnListing($table);
+        if ($row !== [] && array_is_list($row)) {
+            // Rows con keys numéricas vienen del parser cuando el INSERT del
+            // dump NO trae lista de columnas (mysqldump default). Necesitamos
+            // mapear posición → nombre. Hay 3 estrategias en orden de preferencia:
+            //
+            // 1) Columnas del DUMP (extraídas del CREATE TABLE): siempre
+            //    coinciden con la cardinalidad de la fila — es el origen
+            //    autoritativo. Maneja schema drift sin perder datos.
+            // 2) Columnas del destino (current Schema): solo si la cardinalidad
+            //    coincide exactamente. Funciona cuando no hay drift.
+            // 3) Devolver [] cuando no podemos mapear con confianza — la fila
+            //    se contabiliza como error en lugar de insertarse desalineada.
+            $dumpCols = $this->dumpColumnsByTable[$table] ?? null;
+            if ($dumpCols && count($dumpCols) === count($row)) {
+                $row = array_combine($dumpCols, $row);
+            } elseif (count($destColumns) === count($row)) {
+                $row = array_combine($destColumns, $row);
+            } else {
+                return [];
+            }
+        }
+        // Filtramos a las columnas que existen en el destino — drop columns
+        // que ya no existen en BD (eliminadas desde el dump), y BD aporta
+        // sus columnas nuevas como NULL/default vía mass-assignment fallback.
+        return array_intersect_key($row, array_flip($destColumns));
+    }
+
+    /**
+     * Pre-pass del archivo SQL para extraer el orden de columnas de cada
+     * tabla desde sus CREATE TABLE statements. Streaming-friendly: lee en
+     * chunks de 64KB y mantiene un buffer rotativo de 256KB (suficiente
+     * para CREATE TABLEs gigantes).
+     *
+     * Regex es deliberadamente tolerante: matchea `CREATE TABLE \`name\` (...)`
+     * seguido de `ENGINE=` o `TYPE=` (mysqldump emite uno u otro). Dentro
+     * del cuerpo, columnas son líneas que arrancan con backtick — saltamos
+     * `PRIMARY KEY`, `KEY`, `CONSTRAINT`, `INDEX`, etc. porque NO arrancan
+     * con backtick.
+     *
+     * @return array<string, string[]>
+     */
+    private function extractDumpColumns(string $path): array
+    {
+        $result = [];
+        $handle = @fopen($path, 'rb');
+        if (!$handle) return [];
+        $buf = '';
+        try {
+            while (!feof($handle)) {
+                $chunk = fread($handle, 64 * 1024);
+                if ($chunk === false || $chunk === '') break;
+                $buf .= $chunk;
+                // Procesar todos los CREATE TABLE completos que estén en el buffer
+                while (preg_match(
+                    '/CREATE\s+TABLE\s+`?(\w+)`?\s*\((.*?)\)\s*(?:ENGINE|TYPE)\s*=/is',
+                    $buf,
+                    $m,
+                    PREG_OFFSET_CAPTURE
+                )) {
+                    $name = $m[1][0];
+                    $body = $m[2][0];
+                    // Columnas: líneas que arrancan con backtick + identificador
+                    // (filtra KEY/PRIMARY KEY/CONSTRAINT/etc que no arrancan con `)
+                    if (preg_match_all('/^\s*`(\w+)`\s+\w/m', $body, $colM)) {
+                        if (!empty($colM[1])) {
+                            $result[$name] = $colM[1];
+                        }
+                    }
+                    // Avanzar buffer past este match
+                    $endPos = $m[0][1] + strlen($m[0][0]);
+                    $buf = substr($buf, $endPos);
+                }
+                // Conservar últimos 256KB para no perder CREATE TABLE que cruzan chunks
+                if (strlen($buf) > 256 * 1024) {
+                    $buf = substr($buf, -256 * 1024);
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+        return $result;
+    }
+
+    /**
+     * Valida que la entrada del map sea ejecutable. Devuelve null si OK,
+     * o un string con la razón del skip ('tabla_no_mapeada', etc.).
+     */
+    private function validateMapEntry(string $table, ?array $info): ?string
+    {
+        if (!$info) {
+            return 'tabla_no_mapeada';
+        }
+        $mode = $info['mode'] ?? 'model';
+        if ($mode === 'model' && (empty($info['model']) || !class_exists($info['model']))) {
+            return 'modelo_no_encontrado';
+        }
+        if (!Schema::hasTable($table)) {
+            return 'tabla_destino_inexistente';
+        }
+        return null;
+    }
+
+    /** PK de la tabla. Modelo Eloquent → getKeyName(); raw → 'id'. */
+    private function pkOf(string $table, array $info): string
+    {
+        if (($info['mode'] ?? 'model') === 'model') {
+            return (new $info['model']())->getKeyName();
+        }
+        return 'id';
+    }
+
+    /** Insert ramificado por modo. Raw inyecta timestamps + user-stamp si la tabla los tiene. */
+    private function insertRow(string $table, array $info, array $row): void
+    {
+        if (($info['mode'] ?? 'model') === 'model') {
+            $modelClass = $info['model'];
+            $modelClass::create($this->sanitizeRow($row, $table));
+            return;
+        }
+        $clean = $this->sanitizeRow($row, $table);
+        $clean = $this->injectAuditColumns($table, $clean, isUpdate: false);
+        DB::table($table)->insert($clean);
+    }
+
+    /** Update ramificado por modo. */
+    private function updateRow(string $table, array $info, mixed $existingId, array $row): void
+    {
+        if (($info['mode'] ?? 'model') === 'model') {
+            $modelClass = $info['model'];
+            $modelClass::query()->whereKey($existingId)
+                ->update($this->sanitizeRow($row, $table));
+            return;
+        }
+        $clean = $this->sanitizeRow($row, $table);
+        $clean = $this->injectAuditColumns($table, $clean, isUpdate: true);
+        DB::table($table)->where($this->pkOf($table, $info), $existingId)->update($clean);
+    }
+
+    /**
+     * Replica el auto-stamp de BaseModel (created_by/updated_by) y los
+     * timestamps de Eloquent para tablas que no pasan por un modelo Eloquent.
+     */
+    private function injectAuditColumns(string $table, array $row, bool $isUpdate): array
+    {
         $columns = Schema::getColumnListing($table);
-        return array_intersect_key($row, array_flip($columns));
+        $userId = auth()->id();
+        $now = now();
+        if (in_array('updated_at', $columns, true)) {
+            $row['updated_at'] = $now;
+        }
+        if (in_array('updated_by', $columns, true) && $userId) {
+            $row['updated_by'] = $userId;
+        }
+        if (!$isUpdate) {
+            if (in_array('created_at', $columns, true) && !isset($row['created_at'])) {
+                $row['created_at'] = $now;
+            }
+            if (in_array('created_by', $columns, true) && $userId && !isset($row['created_by'])) {
+                $row['created_by'] = $userId;
+            }
+        }
+        return $row;
     }
 
     private function buildConflictPrompt(string $table, array $item): string
