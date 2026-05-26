@@ -2,11 +2,13 @@
 
 use App\Modules\Addons\MegaFamilia\Controllers\AlertasController;
 use App\Modules\Addons\MegaFamilia\Controllers\ApiController;
+use App\Modules\Addons\MegaFamilia\Controllers\AppVersionController;
 use App\Modules\Addons\MegaFamilia\Controllers\AuditoriaController;
 use App\Modules\Addons\MegaFamilia\Controllers\ClientesController;
 use App\Modules\Addons\MegaFamilia\Controllers\ConfiguracionController;
 use App\Modules\Addons\MegaFamilia\Controllers\DashboardController;
 use App\Modules\Addons\MegaFamilia\Controllers\DispositivosController;
+use App\Modules\Addons\MegaFamilia\Controllers\GeofencesController;
 use App\Modules\Addons\MegaFamilia\Controllers\IngresosController;
 use App\Modules\Addons\MegaFamilia\Controllers\LicenciasController;
 use App\Modules\Addons\MegaFamilia\Controllers\MikrotikController;
@@ -33,6 +35,22 @@ use Illuminate\Support\Facades\Route;
  */
 
 // ---------------------------------------------------------------------------
+// PÚBLICAS (sin auth) — distribución de APK
+// ---------------------------------------------------------------------------
+
+Route::middleware('web')->group(function () {
+    // Página standalone de descarga
+    Route::get('/megafamilia/descargar', [AppVersionController::class, 'downloadPage'])
+        ->name('megafamilia.descargar');
+
+    // Endpoints mobile públicos (sin sanctum) — la app consulta antes de loguear
+    Route::prefix('api/megafamilia/mobile')->group(function () {
+        Route::get('/check-update', [AppVersionController::class, 'checkUpdate']);
+        Route::get('/download/{id}', [AppVersionController::class, 'download'])->whereNumber('id');
+    });
+});
+
+// ---------------------------------------------------------------------------
 // UI WEB
 // ---------------------------------------------------------------------------
 
@@ -49,19 +67,29 @@ Route::middleware(['web', 'auth'])->prefix('megafamilia')->group(function () {
             Route::get('/{id}', [ClientesController::class, 'show'])->whereNumber('id');
             Route::post('/{id}/activate', [ClientesController::class, 'activate'])->whereNumber('id');
             Route::post('/{id}/suspend', [ClientesController::class, 'suspend'])->whereNumber('id');
+            Route::post('/{id}/cancel', [ClientesController::class, 'cancel'])->whereNumber('id');
+            Route::post('/{id}/change-plan', [ClientesController::class, 'changePlan'])->whereNumber('id');
         });
 
         Route::prefix('licencias')->group(function () {
             Route::get('/', [LicenciasController::class, 'index']);
             Route::get('/data', [LicenciasController::class, 'data']);
+            Route::get('/plans', [LicenciasController::class, 'plans']);
+            Route::get('/accounts', [LicenciasController::class, 'accounts']);
             Route::post('/', [LicenciasController::class, 'store']);
             Route::post('/{id}/renew', [LicenciasController::class, 'renew'])->whereNumber('id');
             Route::post('/{id}/suspend', [LicenciasController::class, 'suspend'])->whereNumber('id');
+            Route::post('/{id}/reactivate', [LicenciasController::class, 'reactivate'])->whereNumber('id');
         });
 
         Route::prefix('planes')->group(function () {
             Route::get('/', [PlanesController::class, 'index']);
             Route::get('/data', [PlanesController::class, 'data']);
+            Route::post('/', [PlanesController::class, 'store']);
+            Route::put('/{id}', [PlanesController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}', [PlanesController::class, 'destroy'])->whereNumber('id');
+            Route::post('/{id}/toggle', [PlanesController::class, 'toggle'])->whereNumber('id');
+            // Backwards-compat: POST /{id} también actualiza (vue legacy lo usaba).
             Route::post('/{id}', [PlanesController::class, 'update'])->whereNumber('id');
         });
 
@@ -74,30 +102,52 @@ Route::middleware(['web', 'auth'])->prefix('megafamilia')->group(function () {
         Route::prefix('notificaciones')->group(function () {
             Route::get('/', [NotificacionesController::class, 'index']);
             Route::get('/history', [NotificacionesController::class, 'history']);
+            Route::get('/targets', [NotificacionesController::class, 'targets']);
+            Route::post('/estimate', [NotificacionesController::class, 'estimateRecipients']);
             Route::post('/send', [NotificacionesController::class, 'send']);
+            Route::get('/{id}', [NotificacionesController::class, 'show'])->whereNumber('id');
         });
 
         Route::prefix('configuracion')->group(function () {
             Route::get('/', [ConfiguracionController::class, 'index']);
             Route::get('/get', [ConfiguracionController::class, 'get']);
             Route::post('/update', [ConfiguracionController::class, 'update']);
+            Route::post('/test-fcm', [ConfiguracionController::class, 'testFcm']);
+        });
+
+        Route::prefix('app-versions')->group(function () {
+            Route::get('/', [AppVersionController::class, 'index']);
+            Route::post('/', [AppVersionController::class, 'store']);
+            Route::post('/{id}/activate', [AppVersionController::class, 'activate'])->whereNumber('id');
+            Route::delete('/{id}', [AppVersionController::class, 'destroy'])->whereNumber('id');
         });
 
         Route::prefix('terminos')->group(function () {
             Route::get('/', [TerminosController::class, 'index']);
             Route::get('/data', [TerminosController::class, 'data']);
+            Route::get('/history', [TerminosController::class, 'history']);
+            Route::get('/acceptances', [TerminosController::class, 'acceptances']);
+            Route::post('/', [TerminosController::class, 'store']);
+            Route::post('/draft', [TerminosController::class, 'draft']);
+            Route::get('/{version}', [TerminosController::class, 'show'])->whereNumber('version');
         });
 
         Route::prefix('auditoria')->group(function () {
             Route::get('/', [AuditoriaController::class, 'index']);
             Route::get('/data', [AuditoriaController::class, 'data']);
+            Route::get('/export', [AuditoriaController::class, 'export']);
         });
 
         Route::prefix('mikrotik')->group(function () {
             Route::get('/', [MikrotikController::class, 'index']);
             Route::get('/get', [MikrotikController::class, 'get']);
+            Route::get('/routers', [MikrotikController::class, 'routers']);
+            Route::get('/address-list', [MikrotikController::class, 'addressList']);
             Route::post('/update', [MikrotikController::class, 'update']);
             Route::post('/test', [MikrotikController::class, 'testConnection']);
+            Route::post('/sync', [MikrotikController::class, 'sync']);
+            Route::post('/pause/{profileId}', [MikrotikController::class, 'pauseProfile'])->whereNumber('profileId');
+            Route::post('/resume/{profileId}', [MikrotikController::class, 'resumeProfile'])->whereNumber('profileId');
         });
     });
 
@@ -106,12 +156,16 @@ Route::middleware(['web', 'auth'])->prefix('megafamilia')->group(function () {
         Route::prefix('alertas')->group(function () {
             Route::get('/', [AlertasController::class, 'index']);
             Route::get('/data', [AlertasController::class, 'data']);
+            Route::post('/all-read', [AlertasController::class, 'markAllRead']);
+            Route::get('/{id}', [AlertasController::class, 'show'])->whereNumber('id');
             Route::post('/{id}/read', [AlertasController::class, 'markRead'])->whereNumber('id');
+            Route::post('/{id}/notify-parent', [AlertasController::class, 'notifyParent'])->whereNumber('id');
         });
 
         Route::prefix('solicitudes')->group(function () {
             Route::get('/', [SolicitudesController::class, 'index']);
             Route::get('/data', [SolicitudesController::class, 'data']);
+            Route::post('/bulk-read', [SolicitudesController::class, 'bulkRead']);
             Route::post('/{id}/approve', [SolicitudesController::class, 'approve'])->whereNumber('id');
             Route::post('/{id}/reject', [SolicitudesController::class, 'reject'])->whereNumber('id');
         });
@@ -120,18 +174,36 @@ Route::middleware(['web', 'auth'])->prefix('megafamilia')->group(function () {
             Route::get('/', [DispositivosController::class, 'index']);
             Route::get('/data', [DispositivosController::class, 'data']);
             Route::get('/{id}', [DispositivosController::class, 'show'])->whereNumber('id');
+            Route::delete('/{id}', [DispositivosController::class, 'unlink'])->whereNumber('id');
+            Route::post('/{id}/ping', [DispositivosController::class, 'ping'])->whereNumber('id');
+            Route::post('/{id}/force-logout', [DispositivosController::class, 'forceLogout'])->whereNumber('id');
         });
 
         Route::prefix('ubicaciones')->group(function () {
             Route::get('/', [UbicacionesController::class, 'index']);
             Route::get('/latest', [UbicacionesController::class, 'latest']);
+            Route::get('/profiles', [UbicacionesController::class, 'profiles']);
+            Route::get('/history/{profileId}', [UbicacionesController::class, 'history'])->whereNumber('profileId');
+        });
+
+        Route::prefix('geofences')->group(function () {
+            Route::get('/', [GeofencesController::class, 'index']);
+            Route::get('/data', [GeofencesController::class, 'data']);
+            Route::post('/', [GeofencesController::class, 'store']);
+            Route::put('/{id}', [GeofencesController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}', [GeofencesController::class, 'destroy'])->whereNumber('id');
+            Route::post('/{id}/toggle', [GeofencesController::class, 'toggle'])->whereNumber('id');
         });
 
         Route::prefix('soporte')->group(function () {
             Route::get('/', [SoporteController::class, 'index']);
             Route::get('/data', [SoporteController::class, 'data']);
+            Route::get('/technicians', [SoporteController::class, 'technicians']);
+            Route::post('/', [SoporteController::class, 'store']);
             Route::get('/{id}', [SoporteController::class, 'show'])->whereNumber('id');
             Route::post('/{id}/respond', [SoporteController::class, 'respond'])->whereNumber('id');
+            Route::post('/{id}/status', [SoporteController::class, 'updateStatus'])->whereNumber('id');
+            Route::post('/{id}/assign', [SoporteController::class, 'assign'])->whereNumber('id');
         });
     });
 
@@ -139,6 +211,7 @@ Route::middleware(['web', 'auth'])->prefix('megafamilia')->group(function () {
     Route::prefix('perfiles')->group(function () {
         Route::get('/', [PerfilesController::class, 'index']);
         Route::get('/data', [PerfilesController::class, 'data']);
+        Route::get('/{id}', [PerfilesController::class, 'show'])->whereNumber('id');
         Route::post('/', [PerfilesController::class, 'store']);
         Route::put('/{id}', [PerfilesController::class, 'update'])->whereNumber('id');
         Route::delete('/{id}', [PerfilesController::class, 'destroy'])->whereNumber('id');
@@ -150,11 +223,13 @@ Route::middleware(['web', 'auth'])->prefix('megafamilia')->group(function () {
         Route::post('/', [TareasController::class, 'store']);
         Route::post('/{id}/approve', [TareasController::class, 'approve'])->whereNumber('id');
         Route::post('/{id}/reject', [TareasController::class, 'reject'])->whereNumber('id');
+        Route::delete('/{id}', [TareasController::class, 'destroy'])->whereNumber('id');
     });
 
     Route::prefix('reportes')->group(function () {
         Route::get('/', [ReportesController::class, 'index']);
         Route::get('/data', [ReportesController::class, 'data']);
+        Route::get('/profiles', [ReportesController::class, 'profiles']);
         Route::get('/export', [ReportesController::class, 'export']);
     });
 });

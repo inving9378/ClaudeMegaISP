@@ -4,6 +4,7 @@ namespace App\Modules\Addons\MegaFamilia\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\ClientMainInformation;
 use App\Models\Ticket;
 use App\Models\TicketThread;
 use App\Models\User;
@@ -41,23 +42,54 @@ class ApiController extends Controller
      */
     public function appVersion(): JsonResponse
     {
+        // Fuente de verdad: tabla `app_versions` poblada desde la UI admin.
+        // Fallback al legacy ApiMobileConfig sólo si no hay versión activa.
+        $latest = \App\Modules\Addons\MegaFamilia\Models\AppVersion::query()
+            ->where('platform', 'android')
+            ->where('active', true)
+            ->orderByDesc('version_code')
+            ->first();
+
+        if ($latest) {
+            $apkPath = public_path($latest->file_path);
+            $sha256  = is_file($apkPath) ? hash_file('sha256', $apkPath) : null;
+            $builtAt = is_file($apkPath) ? date('c', filemtime($apkPath)) : null;
+
+            return response()->json([
+                'has_update'   => true,
+                'version'      => $latest->version_name,
+                'version_name' => $latest->version_name,
+                'version_code' => $latest->version_code,
+                'apk_url'      => url('/api/megafamilia/mobile/download/' . $latest->id),
+                'download_url' => url('/api/megafamilia/mobile/download/' . $latest->id),
+                'sha256'       => $sha256,
+                'size'         => (int) $latest->file_size,
+                'file_size'    => (int) $latest->file_size,
+                'built_at'     => $builtAt,
+                'released_at'  => optional($latest->released_at)->toDateString(),
+                'mandatory'    => (bool) $latest->is_mandatory,
+                'is_mandatory' => (bool) $latest->is_mandatory,
+                'release_notes'=> $latest->changelog,
+                'changelog'    => $latest->changelog,
+            ]);
+        }
+
+        // Fallback legacy — sin versión activa en app_versions
         $config = \App\Modules\Core\Configuracion\Models\ApiMobileConfig::getAll();
 
-        $version = $config['app_version'] ?? '0.2.0';
-        $apkUrl = $config['apk_url'] ?? 'http://192.168.105.11/apk/megafamilia.apk';
-
-        $apkPath = public_path('apk/megafamilia.apk');
-        $sha256 = is_file($apkPath) ? hash_file('sha256', $apkPath) : null;
-        $size = is_file($apkPath) ? filesize($apkPath) : null;
-        $builtAt = is_file($apkPath) ? date('c', filemtime($apkPath)) : null;
+        if (empty($config['apk_url'])) {
+            return response()->json([
+                'has_update' => false,
+                'message'    => 'No hay versión activa disponible.',
+            ]);
+        }
 
         return response()->json([
-            'version' => $version,
-            'apk_url' => $apkUrl,
-            'sha256' => $sha256,
-            'size' => $size,
-            'built_at' => $builtAt,
-            'mandatory' => false,
+            'has_update'    => false,
+            'version'       => $config['app_version'] ?? '0.2.0',
+            'apk_url'       => $config['apk_url'],
+            'download_url'  => $config['apk_url'],
+            'mandatory'     => false,
             'release_notes' => $config['release_notes'] ?? null,
         ]);
     }
@@ -67,35 +99,41 @@ class ApiController extends Controller
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required|string',
+            'email'       => 'required|email',
+            'password'    => 'required|string',
             'device_name' => 'sometimes|string',
         ]);
 
-        $user = User::where('email', $data['email'])->first();
-        if (! $user || ! Hash::check($data['password'], $user->password)) {
+        // Busca el cliente por email en client_main_information
+        $cmi = ClientMainInformation::where('email', $data['email'])->first();
+
+        if (! $cmi || $cmi->password === null || $data['password'] !== $cmi->password) {
             return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
         }
 
-        if (! method_exists($user, 'createToken')) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Sanctum no está habilitado en el modelo User (falta HasApiTokens trait).',
-            ], 500);
+        // Obtiene el usuario ISP asociado por login_user = cmi.user
+        $user = User::where('login_user', $cmi->user)->first();
+
+        if (! $user) {
+            return response()->json(['success' => false, 'error' => 'Usuario del sistema no encontrado'], 404);
         }
 
         $token = $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken;
 
-        $role = strtolower((string) ($user->getRoleNames()->first() ?? ''));
+        $client = Client::find($cmi->client_id);
 
         return response()->json([
-            'success' => true,
-            'token' => $token,
-            'role' => $role,
-            'user' => array_merge(
-                $user->only('id', 'name', 'email'),
-                ['role' => $role]
-            ),
+            'success'    => true,
+            'token'      => $token,
+            'role'       => 'cliente',
+            'user'       => [
+                'id'        => $user->id,
+                'name'      => trim($cmi->name . ' ' . $cmi->father_last_name),
+                'email'     => $cmi->email,
+                'client_id' => $cmi->client_id,
+                'role'      => 'cliente',
+            ],
+            'client'     => $client ? $client->only('id', 'active') : null,
         ]);
     }
 
@@ -623,7 +661,7 @@ class ApiController extends Controller
 
     private function requireAccount(): ParentalAccount
     {
-        $account = ParentalAccount::where('client_id', Auth::id())->first();
+        $account = ParentalAccount::where('user_id', Auth::id())->first();
         abort_if(! $account, 404, 'No hay cuenta MegaFamilia asociada al usuario');
         return $account;
     }
