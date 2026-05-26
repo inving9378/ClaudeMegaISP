@@ -406,7 +406,7 @@ export default {
                 report.value = resp.report || [];
                 totalRows.value = resp.total_rows || 0;
                 report.value.forEach((r) => {
-                    if (!defaultAction[r.table]) defaultAction[r.table] = "skip";
+                    if (!defaultAction[r.table]) defaultAction[r.table] = "replace";
                 });
                 await loadPreview(false);
                 step.value = 2;
@@ -442,7 +442,7 @@ export default {
                     conflicts.value[table].forEach((item) => {
                         if (perRowAction[table][item.index] === undefined) {
                             perRowAction[table][item.index] =
-                                defaultAction[table] || "skip";
+                                defaultAction[table] || "replace";
                         }
                     });
                 });
@@ -489,7 +489,7 @@ export default {
                 const options = {};
                 report.value.forEach((r) => {
                     options[r.table] = {
-                        action: defaultAction[r.table] || "skip",
+                        action: defaultAction[r.table] || "replace",
                         conflicts: perRowAction[r.table] || {},
                     };
                 });

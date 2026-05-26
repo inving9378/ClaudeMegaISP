@@ -282,6 +282,12 @@ class SmartImportService
      */
     private array $dumpColumnsByTable = [];
 
+    /**
+     * Cache de Schema::hasColumn() para evitar consultas repetidas a information_schema.
+     * @var array<string, array<string, bool>>
+     */
+    private array $hasColumnCache = [];
+
     public function setDumpColumns(array $dumpColumns): void
     {
         $this->dumpColumnsByTable = $dumpColumns;
@@ -686,10 +692,13 @@ class SmartImportService
                 continue;
             }
             $keys = $info['conflict_keys'] ?? [];
+            if (empty($keys)) continue;
+
             $tableConflicts = [];
+            $existingMap = $this->batchFindExisting($table, $keys, $rows);
 
             foreach ($rows as $index => $row) {
-                $existing = $this->findExisting($table, $keys, $row);
+                $existing = $existingMap[$index] ?? null;
                 if ($existing) {
                     $tableConflicts[] = [
                         'index'    => $index,
@@ -750,16 +759,18 @@ class SmartImportService
                 continue;
             }
 
-            $defaultAction = $options[$table]['action'] ?? 'skip';
+            $defaultAction = $options[$table]['action'] ?? 'replace';
             $perRow = $options[$table]['conflicts'] ?? [];
             $pk = $this->pkOf($table, $info);
             $imported = 0;
             $skipped = 0;
             $errors = 0;
 
+            $existingMap = $this->batchFindExisting($table, $info['conflict_keys'] ?? [], $rows);
+
             foreach ($rows as $index => $row) {
                 try {
-                    $existing = $this->findExisting($table, $info['conflict_keys'] ?? [], $row);
+                    $existing = $existingMap[$index] ?? null;
                     $action = $existing ? ($perRow[$index] ?? $defaultAction) : 'insert';
 
                     if ($action === 'skip') {
@@ -1233,7 +1244,7 @@ class SmartImportService
         $query = DB::table($table);
         $hasFilter = false;
         foreach ($keys as $key) {
-            if (!empty($row[$key]) && Schema::hasColumn($table, $key)) {
+            if (!empty($row[$key]) && $this->hasColumnCached($table, $key)) {
                 $query->orWhere($key, $row[$key]);
                 $hasFilter = true;
             }
@@ -1241,6 +1252,102 @@ class SmartImportService
         if (!$hasFilter) return null;
         $found = $query->first();
         return $found ? (array) $found : null;
+    }
+
+    /**
+     * Encuentra filas existentes para TODAS las filas entrantes en UNA sola query.
+     * Reduce O(R) queries por tabla → O(1).
+     *
+     * @return array<int, array>  rowIndex => existingRow
+     */
+    private function batchFindExisting(string $table, array $keys, array $rows): array
+    {
+        if (empty($keys) || empty($rows)) {
+            return [];
+        }
+
+        // 1. Colectar valores únicos por cada conflict_key
+        $valuesByKey = [];
+        foreach ($keys as $key) {
+            if (!$this->hasColumnCached($table, $key)) continue;
+            $valuesByKey[$key] = [];
+        }
+        if (empty($valuesByKey)) return [];
+
+        foreach ($rows as $row) {
+            foreach ($keys as $key) {
+                if (!isset($valuesByKey[$key])) continue;
+                if (!empty($row[$key])) {
+                    $valuesByKey[$key][] = $row[$key];
+                }
+            }
+        }
+
+        // Deduplicar
+        foreach ($valuesByKey as $key => $values) {
+            $valuesByKey[$key] = array_unique($values);
+        }
+
+        // 2. Query única: WHERE key1 IN (v1,v2,...) OR key2 IN (v1,v2,...)
+        $query = DB::table($table);
+        $hasFilter = false;
+        foreach ($valuesByKey as $key => $values) {
+            if (!empty($values)) {
+                $query->orWhereIn($key, $values);
+                $hasFilter = true;
+            }
+        }
+        if (!$hasFilter) return [];
+
+        $existingRows = $query->get();
+        if ($existingRows->isEmpty()) return [];
+
+        // 3. Indexar existentes por cada key: keyValue → existingRow[]
+        $index = [];
+        foreach ($existingRows as $existing) {
+            $existing = (array) $existing;
+            foreach ($keys as $key) {
+                if (!isset($valuesByKey[$key])) continue;
+                if (!empty($existing[$key])) {
+                    $index[$key][(string) $existing[$key]][] = $existing;
+                }
+            }
+        }
+
+        // 4. Para cada fila entrante, buscar matching en memoria
+        $result = [];
+        foreach ($rows as $idx => $row) {
+            foreach ($keys as $key) {
+                if (!isset($valuesByKey[$key])) continue;
+                if (empty($row[$key])) continue;
+                $candidates = $index[$key][(string) $row[$key]] ?? [];
+                foreach ($candidates as $candidate) {
+                    // Verificar que TODOS los valores de conflict_keys coincidan
+                    $allMatch = true;
+                    foreach ($keys as $k) {
+                        if (empty($row[$k]) || empty($candidate[$k])) continue;
+                        if ((string) $row[$k] !== (string) $candidate[$k]) {
+                            $allMatch = false;
+                            break;
+                        }
+                    }
+                    if ($allMatch) {
+                        $result[$idx] = $candidate;
+                        break 2; // salir de keys + candidates
+                    }
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    private function hasColumnCached(string $table, string $column): bool
+    {
+        if (!isset($this->hasColumnCache[$table][$column])) {
+            $this->hasColumnCache[$table][$column] = Schema::hasColumn($table, $column);
+        }
+        return $this->hasColumnCache[$table][$column];
     }
 
     private function matchedKeys(array $keys, array $row, array $existing): array
