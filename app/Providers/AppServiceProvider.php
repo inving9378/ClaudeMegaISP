@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\Marketing\Lead;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
+use App\Observers\Marketing\LeadObserver;
 use App\Services\MikrotikService;
 use Illuminate\Support\ServiceProvider;
 use GuzzleHttp\Client;
@@ -44,6 +46,10 @@ class AppServiceProvider extends ServiceProvider
     {
         // View::share('configLayout', …) y View::share('logoMeganet', …)
         // se movieron a app/Modules/Core/Layout/ModuleServiceProvider::boot().
+        Lead::observe(LeadObserver::class);
+
+        // Embajadores Meganet
+        \App\Models\Client::observe(\App\Observers\ClientObserver::class);
     }
 
     /**

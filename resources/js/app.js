@@ -293,6 +293,16 @@ import MarketingCampaigns from "./components/module/marketing/MarketingCampaigns
 import MarketingCampaignShow from "./components/module/marketing/MarketingCampaignShow.vue";
 import MarketingContentGenerator from "./components/module/marketing/MarketingContentGenerator.vue";
 import MarketingLeads from "./components/module/marketing/MarketingLeads.vue";
+// Marketing Fase 2 — leads & forms
+import MarketingLeadsView from "./components/module/marketing/MarketingLeadsView.vue";
+import MarketingLeadDetail from "./components/module/marketing/MarketingLeadDetail.vue";
+import MarketingLeadFormsView from "./components/module/marketing/MarketingLeadFormsView.vue";
+import MarketingLeadFormEditor from "./components/module/marketing/MarketingLeadFormEditor.vue";
+import MarketingLeadForm from "./components/module/marketing/MarketingLeadForm.vue";
+import LeadScoreBadge from "./components/module/marketing/LeadScoreBadge.vue";
+import LeadStatusBadge from "./components/module/marketing/LeadStatusBadge.vue";
+import LeadSourceChip from "./components/module/marketing/LeadSourceChip.vue";
+import LeadActivityTimeline from "./components/module/marketing/LeadActivityTimeline.vue";
 
 //WhatsApp Agent — 2026-05-22
 import WhatsAppPanel from "./components/module/whatsapp/WhatsAppPanel.vue";
@@ -522,6 +532,16 @@ const app = createApp({
         'marketing-campaign-show': MarketingCampaignShow,
         'marketing-content-generator': MarketingContentGenerator,
         'marketing-leads': MarketingLeads,
+        // Marketing Fase 2
+        'marketing-leads-view': MarketingLeadsView,
+        'marketing-lead-detail': MarketingLeadDetail,
+        'marketing-lead-forms-view': MarketingLeadFormsView,
+        'marketing-lead-form-editor': MarketingLeadFormEditor,
+        'marketing-lead-form': MarketingLeadForm,
+        'lead-score-badge': LeadScoreBadge,
+        'lead-status-badge': LeadStatusBadge,
+        'lead-source-chip': LeadSourceChip,
+        'lead-activity-timeline': LeadActivityTimeline,
 
         //WhatsApp Agent — addon-whatsapp-agent (2026-05-22)
         'whatsapp-panel': WhatsAppPanel,
