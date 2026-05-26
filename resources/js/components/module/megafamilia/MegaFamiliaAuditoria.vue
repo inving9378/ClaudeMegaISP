@@ -1,104 +1,295 @@
 <template>
     <div class="megafamilia-auditoria mt-3">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-            <h5 class="m-0">Auditoría de eventos</h5>
-            <div class="d-flex gap-2 flex-wrap">
-                <input v-model="actionFilter" class="form-control form-control-sm" style="width:180px" placeholder="Acción…" @keyup.enter="fetch" />
-                <input v-model="dateFrom" type="date" class="form-control form-control-sm" style="width:160px" @change="fetch" />
-                <input v-model="dateTo" type="date" class="form-control form-control-sm" style="width:160px" @change="fetch" />
-                <button class="btn btn-sm btn-outline-secondary" @click="fetch" :disabled="loading">
+            <h5 class="m-0">
+                <i class="fa fa-clipboard-list me-2 text-primary"></i>
+                Auditoría MegaFamilia
+            </h5>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" :disabled="loading" @click="fetch(pagination.current_page)">
                     <i class="fa fa-sync" :class="{ 'fa-spin': loading }"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" @click="exportCsv">
+                    <i class="fa fa-file-csv me-1"></i> Exportar CSV
                 </button>
             </div>
         </div>
 
-        <div v-if="loading && rows.length === 0" class="text-muted">Cargando…</div>
-        <div v-else-if="errorMsg" class="text-danger small">{{ errorMsg }}</div>
-        <div v-else-if="rows.length === 0" class="text-muted">No hay eventos con esos filtros.</div>
-
-        <div v-else class="card">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover m-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>#</th>
-                                <th>Acción</th>
-                                <th>Cuenta</th>
-                                <th>Perfil</th>
-                                <th>Device</th>
-                                <th>IP</th>
-                                <th>Detalle</th>
-                                <th>Fecha</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="ev in rows" :key="ev.id">
-                                <td class="text-muted small">{{ ev.id }}</td>
-                                <td>
-                                    <i class="fa me-1" :class="actionIcon(ev.action)"></i>
-                                    <code>{{ ev.action }}</code>
-                                </td>
-                                <td>#{{ ev.account_id }}</td>
-                                <td>{{ ev.profile_id || '—' }}</td>
-                                <td>{{ ev.device_id || '—' }}</td>
-                                <td class="small text-muted">{{ ev.ip || '—' }}</td>
-                                <td class="detail-cell" :title="ev.detail">{{ truncate(ev.detail, 60) }}</td>
-                                <td class="small text-muted">{{ formatDate(ev.created_at) }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+        <!-- KPIs -->
+        <div class="row g-2 mb-3">
+            <div class="col-md-4 col-6">
+                <div class="card kpi-card kpi-primary">
+                    <div class="card-body p-3">
+                        <div class="text-muted small">Eventos hoy</div>
+                        <div class="kpi-num">{{ kpis.today }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 col-6">
+                <div class="card kpi-card kpi-info">
+                    <div class="card-body p-3">
+                        <div class="text-muted small">Eventos esta semana</div>
+                        <div class="kpi-num">{{ kpis.this_week }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 col-12">
+                <div class="card kpi-card kpi-danger">
+                    <div class="card-body p-3">
+                        <div class="text-muted small">Acciones críticas (semana)</div>
+                        <div class="kpi-num text-danger">{{ kpis.critical }}</div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div v-if="pagination" class="d-flex justify-content-between align-items-center mt-2">
-            <div class="text-muted small">Página {{ pagination.current_page }} / {{ pagination.last_page }} · {{ pagination.total }} eventos</div>
-            <div>
-                <button class="btn btn-sm btn-outline-secondary me-1" :disabled="!pagination.prev_page_url || loading" @click="goto(pagination.current_page - 1)">←</button>
-                <button class="btn btn-sm btn-outline-secondary" :disabled="!pagination.next_page_url || loading" @click="goto(pagination.current_page + 1)">→</button>
+        <!-- Filtros -->
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Acción</label>
+                        <select v-model="filters.action" class="form-select form-select-sm" @change="fetch(1)">
+                            <option value="">Todas</option>
+                            <option v-for="a in actions" :key="a" :value="a">{{ a }}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Cuenta ID</label>
+                        <input v-model="filters.account_id" type="number" class="form-control form-control-sm"
+                               placeholder="—" @keyup.enter="fetch(1)" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Perfil ID</label>
+                        <input v-model="filters.profile_id" type="number" class="form-control form-control-sm"
+                               placeholder="—" @keyup.enter="fetch(1)" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Dispositivo ID</label>
+                        <input v-model="filters.device_id" type="number" class="form-control form-control-sm"
+                               placeholder="—" @keyup.enter="fetch(1)" />
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-sm btn-primary w-100" @click="fetch(1)">
+                            <i class="fa fa-filter me-1"></i> Filtrar
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Desde</label>
+                        <input v-model="filters.date_from" type="date" class="form-control form-control-sm" @change="fetch(1)" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Hasta</label>
+                        <input v-model="filters.date_to" type="date" class="form-control form-control-sm" @change="fetch(1)" />
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-1"><i class="fa fa-sync me-1"></i>Auto-actualiza cada 2 min</small>
+            </div>
+        </div>
+
+        <!-- Tabla -->
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:36px"></th>
+                            <th>Fecha/hora</th>
+                            <th>Acción</th>
+                            <th>Perfil</th>
+                            <th>Dispositivo</th>
+                            <th>IP / Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="loading && rows.length === 0">
+                            <td colspan="6" class="text-center text-muted py-4">Cargando…</td>
+                        </tr>
+                        <tr v-else-if="rows.length === 0">
+                            <td colspan="6" class="text-center text-muted py-4">Sin eventos para el filtro.</td>
+                        </tr>
+                        <template v-for="row in rows" :key="row.id">
+                            <tr role="button" @click="toggleExpand(row.id)">
+                                <td class="text-center">
+                                    <i class="fa" :class="expanded[row.id] ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                                </td>
+                                <td class="small">{{ formatDate(row.created_at) }}</td>
+                                <td>
+                                    <span :class="['badge', actionBadge(row.action)]">
+                                        {{ categoryIcon(row.action) }} {{ row.action }}
+                                    </span>
+                                </td>
+                                <td>{{ row.profile?.name || '—' }}</td>
+                                <td>{{ row.device?.name || '—' }}</td>
+                                <td class="small">
+                                    <code v-if="row.ip" class="me-2">{{ row.ip }}</code>
+                                    <span class="text-truncate d-inline-block" style="max-width:320px;">{{ shortDetail(row.detail) }}</span>
+                                </td>
+                            </tr>
+                            <tr v-if="expanded[row.id]">
+                                <td></td>
+                                <td colspan="5" class="bg-light">
+                                    <div class="small">
+                                        <strong>Cuenta:</strong> #{{ row.account_id }}
+                                        <span v-if="row.account?.user"> · {{ row.account.user.name }} ({{ row.account.user.email }})</span>
+                                    </div>
+                                    <pre class="audit-detail mt-2 mb-0">{{ prettyDetail(row.detail) }}</pre>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            <div v-if="pagination.last_page > 1" class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+                <small class="text-muted">
+                    Mostrando {{ pagination.from }}-{{ pagination.to }} de {{ pagination.total }}
+                </small>
+                <ul class="pagination pagination-sm m-0">
+                    <li class="page-item" :class="{ disabled: pagination.current_page === 1 }">
+                        <button class="page-link" @click="fetch(pagination.current_page - 1)">‹</button>
+                    </li>
+                    <li class="page-item" v-for="p in pageRange" :key="p" :class="{ active: p === pagination.current_page }">
+                        <button class="page-link" @click="fetch(p)">{{ p }}</button>
+                    </li>
+                    <li class="page-item" :class="{ disabled: pagination.current_page === pagination.last_page }">
+                        <button class="page-link" @click="fetch(pagination.current_page + 1)">›</button>
+                    </li>
+                </ul>
             </div>
         </div>
     </div>
 </template>
 
 <script>
+const CRITICAL  = ['uninstall_attempt', 'sos', 'geofence_exit'];
+const WARNING   = ['app_blocked', 'web_blocked', 'device_offline'];
+const NORMAL    = ['login', 'logout', 'task_completed', 'request_approved'];
+const INFO_KEYS = ['screen_time', 'app_usage', 'location_update', 'device_linked'];
+
 export default {
     name: 'MegaFamiliaAuditoria',
-    props: { baseUrl: { type: String, required: true }, csrfToken: { type: String, required: true } },
-    data() { return { rows: [], pagination: null, actionFilter: '', dateFrom: '', dateTo: '', loading: false, errorMsg: '', page: 1 }; },
-    mounted() { this.fetch(); },
+    props: {
+        baseUrl: { type: String, required: true },
+        csrfToken: { type: String, required: true },
+    },
+    data() {
+        return {
+            loading: false,
+            rows: [],
+            actions: [],
+            kpis: { today: 0, this_week: 0, critical: 0 },
+            filters: { action: '', account_id: '', profile_id: '', device_id: '', date_from: '', date_to: '' },
+            pagination: { current_page: 1, last_page: 1, from: 0, to: 0, total: 0 },
+            expanded: {},
+            pollTimer: null,
+        };
+    },
+    computed: {
+        pageRange() {
+            const cur = this.pagination.current_page;
+            const last = this.pagination.last_page;
+            const lo = Math.max(1, cur - 2);
+            const hi = Math.min(last, cur + 2);
+            const arr = [];
+            for (let i = lo; i <= hi; i++) arr.push(i);
+            return arr;
+        },
+    },
+    mounted() {
+        this.fetch(1);
+        this.pollTimer = setInterval(() => this.fetch(this.pagination.current_page, true), 120000);
+    },
+    beforeUnmount() {
+        if (this.pollTimer) clearInterval(this.pollTimer);
+    },
     methods: {
-        async fetch() {
-            this.loading = true; this.errorMsg = '';
+        async fetch(page = 1, silent = false) {
+            if (!silent) this.loading = true;
             try {
-                const params = { page: this.page };
-                if (this.actionFilter) params.action = this.actionFilter;
-                if (this.dateFrom) params.date_from = this.dateFrom;
-                if (this.dateTo) params.date_to = this.dateTo;
+                const params = { page, per_page: 50 };
+                for (const k of Object.keys(this.filters)) {
+                    if (this.filters[k] !== '' && this.filters[k] !== null) params[k] = this.filters[k];
+                }
                 const { data } = await axios.get(`${this.baseUrl}/auditoria/data`, { params });
-                this.rows = data.data || [];
+                this.kpis    = data.kpis || this.kpis;
+                this.actions = data.actions_list || [];
+                this.rows    = data.events?.data || [];
                 this.pagination = {
-                    current_page: data.current_page, last_page: data.last_page, total: data.total,
-                    prev_page_url: data.prev_page_url, next_page_url: data.next_page_url,
+                    current_page: data.events?.current_page || 1,
+                    last_page:    data.events?.last_page || 1,
+                    from:         data.events?.from || 0,
+                    to:           data.events?.to || 0,
+                    total:        data.events?.total || 0,
                 };
-            } catch (e) { this.errorMsg = e.response?.data?.error || e.message; }
-            finally { this.loading = false; }
+            } catch (e) {
+                if (!silent) console.error('[MF/Auditoria]', e);
+            } finally {
+                this.loading = false;
+            }
         },
-        goto(p) { this.page = Math.max(1, p); this.fetch(); },
-        actionIcon(a) {
-            if (a?.includes('notification')) return 'fa-bell text-warning';
-            if (a?.includes('login') || a?.includes('auth')) return 'fa-key text-primary';
-            if (a?.includes('delete')) return 'fa-trash text-danger';
-            if (a?.includes('update')) return 'fa-edit text-info';
-            return 'fa-circle-info text-muted';
+        toggleExpand(id) {
+            this.expanded[id] = !this.expanded[id];
         },
-        truncate(s, n) { if (!s) return ''; return s.length > n ? s.slice(0, n) + '…' : s; },
-        formatDate(ts) { return new Date(ts).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }); },
+        exportCsv() {
+            const params = new URLSearchParams();
+            for (const k of Object.keys(this.filters)) {
+                if (this.filters[k] !== '' && this.filters[k] !== null) params.set(k, this.filters[k]);
+            }
+            window.location.href = `${this.baseUrl}/auditoria/export?${params.toString()}`;
+        },
+        categoryIcon(action) {
+            if (CRITICAL.includes(action)) return '🔴';
+            if (WARNING.includes(action))  return '🟠';
+            if (NORMAL.includes(action))   return '🟢';
+            if (INFO_KEYS.includes(action)) return '🔵';
+            return '⚪';
+        },
+        actionBadge(action) {
+            if (CRITICAL.includes(action))  return 'bg-danger';
+            if (WARNING.includes(action))   return 'bg-warning text-dark';
+            if (NORMAL.includes(action))    return 'bg-success';
+            if (INFO_KEYS.includes(action)) return 'bg-info text-dark';
+            return 'bg-light text-dark';
+        },
+        shortDetail(detail) {
+            if (!detail) return '';
+            const s = String(detail);
+            return s.length > 80 ? s.slice(0, 80) + '…' : s;
+        },
+        prettyDetail(detail) {
+            if (!detail) return 'Sin detalle.';
+            try {
+                const parsed = JSON.parse(detail);
+                return JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                return detail;
+            }
+        },
+        formatDate(value) {
+            if (!value) return '—';
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return value;
+            return d.toLocaleString('es-MX', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+            });
+        },
     },
 };
 </script>
 
 <style scoped>
-.detail-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 11px; }
+.kpi-card { border: 1px solid #e9ecef; }
+.kpi-card.kpi-primary { border-left: 4px solid #0d6efd; }
+.kpi-card.kpi-info    { border-left: 4px solid #0dcaf0; }
+.kpi-card.kpi-danger  { border-left: 4px solid #dc3545; }
+.kpi-num { font-size: 1.75rem; font-weight: 700; line-height: 1; margin-top: 4px; }
+
+.audit-detail {
+    background: #fff; border: 1px solid #e9ecef; border-radius: 4px;
+    padding: 0.5rem 0.75rem; font-size: 12px; max-height: 240px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word;
+}
 </style>

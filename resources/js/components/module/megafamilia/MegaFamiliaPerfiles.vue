@@ -1,159 +1,395 @@
 <template>
     <div class="megafamilia-perfiles mt-3">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="m-0">Perfiles</h5>
-            <button class="btn btn-primary btn-sm" @click="openCreate">
-                <i class="fa fa-plus"></i> Nuevo perfil
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h5 class="m-0">
+                <i class="fa fa-child me-2 text-primary"></i>
+                Perfiles MegaFamilia
+            </h5>
+            <button class="btn btn-sm btn-outline-secondary" :disabled="loading" @click="fetchProfiles">
+                <i class="fa fa-sync" :class="{ 'fa-spin': loading }"></i>
             </button>
         </div>
 
-        <div v-if="loading && profiles.length === 0" class="text-muted">Cargando…</div>
-        <div v-else-if="errorMsg" class="text-danger small">{{ errorMsg }}</div>
-        <div v-else-if="profiles.length === 0" class="text-muted">No hay perfiles. Crea el primero arriba.</div>
-
-        <div v-else class="row">
-            <div v-for="p in profiles" :key="p.id" class="col-md-4 col-lg-3 mb-3">
-                <div class="card profile-card h-100" :class="{ inactive: !p.active }">
-                    <div class="card-body text-center d-flex flex-column">
-                        <div class="avatar mx-auto" :style="{ background: avatarColor(p.id) }">
-                            <span v-if="!p.photo">{{ initials(p.name) }}</span>
-                            <img v-else :src="p.photo" :alt="p.name" />
-                        </div>
-                        <h5 class="mt-2 mb-0">{{ p.name }}</h5>
-                        <div class="text-muted small">
-                            {{ p.age ? `${p.age} años` : '—' }} · {{ typeLabel(p.profile_type) }}
-                        </div>
-                        <div v-if="p.school_level" class="text-muted small">
-                            <i class="fa fa-graduation-cap"></i> {{ schoolLabel(p.school_level) }}
-                        </div>
-                        <div class="mt-2">
-                            <span class="badge bg-info">
-                                <i class="fa fa-mobile-screen"></i> {{ p.devices_count || 0 }} dispositivos
-                            </span>
-                        </div>
-                        <div class="mt-auto pt-3 d-flex gap-1 justify-content-center">
-                            <button class="btn btn-sm btn-outline-primary" @click="openEdit(p)">
-                                <i class="fa fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" :disabled="acting === p.id" @click="destroy(p)">
-                                <i class="fa fa-trash"></i>
-                            </button>
+        <div class="row">
+            <!-- Lista lateral -->
+            <div class="col-lg-4 col-xl-3 mb-3 mf-perfiles-grid">
+                <div class="card">
+                    <div class="card-header py-2 bg-light">
+                        <strong>Perfiles ({{ profiles.length }})</strong>
+                    </div>
+                    <div class="list-group list-group-flush profile-list">
+                        <button
+                            v-if="loading && profiles.length === 0"
+                            class="list-group-item text-muted">
+                            Cargando…
+                        </button>
+                        <button
+                            v-for="p in profiles"
+                            :key="p.id"
+                            class="list-group-item list-group-item-action d-flex align-items-center"
+                            :class="{ active: selected && selected.id === p.id }"
+                            @click="selectProfile(p)">
+                            <div class="profile-avatar me-2">
+                                <i class="fa fa-child"></i>
+                            </div>
+                            <div class="flex-grow-1 text-start">
+                                <div class="fw-semibold">{{ p.name }}</div>
+                                <small class="opacity-75">
+                                    {{ p.age || '?' }} años · {{ p.profile_type }}
+                                </small>
+                            </div>
+                            <span class="badge bg-light text-dark">{{ p.devices_count }}</span>
+                        </button>
+                        <div v-if="!loading && profiles.length === 0" class="list-group-item text-muted small">
+                            No hay perfiles registrados.
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Modal -->
-        <div v-if="editing" class="modal-overlay" @click.self="closeEdit">
-            <div class="modal-panel">
-                <div class="modal-panel-header">
-                    <h5 class="m-0">{{ editing.id ? 'Editar perfil' : 'Nuevo perfil' }}</h5>
-                    <button class="btn-close" @click="closeEdit"></button>
-                </div>
-                <div class="modal-panel-body">
-                    <div class="mb-2">
-                        <label class="form-label">Nombre</label>
-                        <input v-model="editing.name" class="form-control" />
+            <!-- Panel detalle con tabs -->
+            <div class="col-lg-8 col-xl-9 mb-3">
+                <div class="card h-100">
+                    <div v-if="!selected" class="card-body text-center text-muted py-5">
+                        <i class="fa fa-arrow-left fa-2x mb-3 d-block"></i>
+                        Selecciona un perfil de la lista.
                     </div>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label">Edad</label>
-                            <input v-model.number="editing.age" type="number" min="0" max="25" class="form-control" />
+                    <template v-else>
+                        <div class="card-header bg-white">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <h5 class="m-0">{{ selected.name }}</h5>
+                                    <small class="text-muted">
+                                        {{ selected.age || '?' }} años ·
+                                        {{ selected.profile_type }} ·
+                                        {{ selected.school_level || 'sin nivel' }}
+                                    </small>
+                                </div>
+                                <span class="badge" :class="selected.active ? 'bg-success' : 'bg-secondary'">
+                                    {{ selected.active ? 'Activo' : 'Inactivo' }}
+                                </span>
+                            </div>
+                            <ul class="nav nav-tabs nav-justified card-header-tabs mf-perfil-tabs">
+                                <li class="nav-item" v-for="t in tabs" :key="t.key">
+                                    <button
+                                        class="nav-link"
+                                        :class="{ active: activeTab === t.key }"
+                                        @click="activeTab = t.key">
+                                        <i :class="['fa', t.icon, 'me-1']"></i>
+                                        {{ t.label }}
+                                        <span v-if="t.count !== null" class="badge bg-light text-dark ms-1">{{ t.count }}</span>
+                                    </button>
+                                </li>
+                            </ul>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label">Tipo</label>
-                            <select v-model="editing.profile_type" class="form-select">
-                                <option value="nino">Niño</option>
-                                <option value="preadolescente">Preadolescente</option>
-                                <option value="adolescente">Adolescente</option>
-                            </select>
+
+                        <div class="card-body">
+                            <div v-if="detailLoading" class="text-center py-5">
+                                <div class="spinner-border text-primary"></div>
+                            </div>
+                            <template v-else>
+                                <!-- Tab Info -->
+                                <div v-show="activeTab === 'info'">
+                                    <dl class="row mb-0">
+                                        <dt class="col-sm-4">Nombre</dt><dd class="col-sm-8">{{ selected.name }}</dd>
+                                        <dt class="col-sm-4">Edad</dt><dd class="col-sm-8">{{ selected.age || '—' }}</dd>
+                                        <dt class="col-sm-4">Tipo</dt><dd class="col-sm-8">{{ selected.profile_type }}</dd>
+                                        <dt class="col-sm-4">Nivel escolar</dt><dd class="col-sm-8">{{ selected.school_level || '—' }}</dd>
+                                        <dt class="col-sm-4">Cuenta padre</dt><dd class="col-sm-8">#{{ selected.account_id }}</dd>
+                                        <dt class="col-sm-4">Dispositivos</dt><dd class="col-sm-8">{{ (detail?.profile?.devices || []).length }}</dd>
+                                        <dt class="col-sm-4">Creado</dt><dd class="col-sm-8">{{ formatDate(selected.created_at) }}</dd>
+                                    </dl>
+                                </div>
+
+                                <!-- Tab Dispositivos -->
+                                <div v-show="activeTab === 'devices'">
+                                    <div v-if="!detail?.profile?.devices?.length" class="text-muted small">
+                                        Sin dispositivos vinculados.
+                                    </div>
+                                    <table v-else class="table table-sm align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Nombre</th>
+                                                <th>OS</th>
+                                                <th>App</th>
+                                                <th>Batería</th>
+                                                <th class="text-center">Estado</th>
+                                                <th>Última actividad</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="d in detail.profile.devices" :key="d.id">
+                                                <td>
+                                                    <strong>{{ d.name }}</strong>
+                                                    <div v-if="d.model" class="text-muted small">{{ d.model }}</div>
+                                                </td>
+                                                <td>{{ d.os }} {{ d.os_version }}</td>
+                                                <td class="small">{{ d.app_version || '—' }}</td>
+                                                <td>
+                                                    <span v-if="d.battery_level !== null">
+                                                        <i class="fa fa-battery-half me-1"></i>{{ d.battery_level }}%
+                                                    </span>
+                                                    <span v-else class="text-muted">—</span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge" :class="d.status === 'online' ? 'bg-success' : 'bg-secondary'">
+                                                        {{ d.status }}
+                                                    </span>
+                                                </td>
+                                                <td class="small">{{ formatDate(d.last_seen_at) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Tab Reglas -->
+                                <div v-show="activeTab === 'rules'">
+                                    <div v-if="!detail?.profile?.rules" class="text-muted small">
+                                        No hay reglas configuradas para este perfil.
+                                    </div>
+                                    <dl v-else class="row mb-3">
+                                        <dt class="col-sm-5">Límite diario</dt>
+                                        <dd class="col-sm-7">{{ detail.profile.rules.daily_limit_minutes }} min</dd>
+
+                                        <dt class="col-sm-5">Límite fin de semana</dt>
+                                        <dd class="col-sm-7">{{ detail.profile.rules.weekend_limit_minutes }} min</dd>
+
+                                        <dt class="col-sm-5">Hora de dormir</dt>
+                                        <dd class="col-sm-7">
+                                            {{ detail.profile.rules.bedtime_start || '—' }} – {{ detail.profile.rules.bedtime_end || '—' }}
+                                        </dd>
+
+                                        <dt class="col-sm-5">Horario escolar</dt>
+                                        <dd class="col-sm-7">
+                                            {{ detail.profile.rules.school_start || '—' }} – {{ detail.profile.rules.school_end || '—' }}
+                                        </dd>
+
+                                        <dt class="col-sm-5">Internet pausado</dt>
+                                        <dd class="col-sm-7">
+                                            <span class="badge" :class="detail.profile.rules.internet_paused ? 'bg-danger' : 'bg-success'">
+                                                {{ detail.profile.rules.internet_paused ? 'Sí' : 'No' }}
+                                            </span>
+                                        </dd>
+                                    </dl>
+
+                                    <h6 class="text-uppercase small text-muted mt-3">Apps bloqueadas ({{ (detail?.profile?.app_blocks || []).length }})</h6>
+                                    <div v-if="!detail?.profile?.app_blocks?.length" class="text-muted small">Ninguna.</div>
+                                    <ul v-else class="list-unstyled small">
+                                        <li v-for="b in detail.profile.app_blocks" :key="b.id">
+                                            <i class="fa fa-ban me-1 text-danger"></i> {{ b.package_name || b.app_name }}
+                                        </li>
+                                    </ul>
+
+                                    <h6 class="text-uppercase small text-muted mt-3">Webs bloqueadas ({{ (detail?.profile?.web_blocks || []).length }})</h6>
+                                    <div v-if="!detail?.profile?.web_blocks?.length" class="text-muted small">Ninguna.</div>
+                                    <ul v-else class="list-unstyled small">
+                                        <li v-for="b in detail.profile.web_blocks" :key="b.id">
+                                            <i class="fa fa-ban me-1 text-danger"></i> {{ b.domain }}
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <!-- Tab Tareas -->
+                                <div v-show="activeTab === 'tasks'">
+                                    <div v-if="!detail?.profile?.tasks?.length" class="text-muted small">
+                                        Sin tareas registradas.
+                                    </div>
+                                    <table v-else class="table table-sm align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Tarea</th>
+                                                <th>Recompensa</th>
+                                                <th>Puntos</th>
+                                                <th class="text-center">Estado</th>
+                                                <th>Completada</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="t in detail.profile.tasks" :key="t.id">
+                                                <td>
+                                                    <strong>{{ t.title }}</strong>
+                                                    <div v-if="t.description" class="text-muted small">{{ t.description }}</div>
+                                                </td>
+                                                <td class="small">{{ rewardLabel(t.reward_type) }}</td>
+                                                <td>{{ t.points }}</td>
+                                                <td class="text-center">
+                                                    <span class="badge" :class="taskBadge(t.status)">{{ t.status }}</span>
+                                                </td>
+                                                <td class="small">{{ formatDate(t.completed_at) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Tab Alertas -->
+                                <div v-show="activeTab === 'alerts'">
+                                    <div v-if="!detail?.alerts?.length" class="text-muted small">
+                                        Sin alertas para este perfil.
+                                    </div>
+                                    <ul v-else class="list-group list-group-flush">
+                                        <li v-for="a in detail.alerts" :key="a.id" class="list-group-item px-0">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <span class="badge bg-warning-subtle text-warning me-2">
+                                                        {{ alertLabel(a.type) }}
+                                                    </span>
+                                                    <strong>{{ a.device?.name || 'Dispositivo' }}</strong>
+                                                    <div class="text-muted small mt-1">{{ a.detail || '—' }}</div>
+                                                </div>
+                                                <small class="text-muted">{{ formatDate(a.created_at) }}</small>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </template>
                         </div>
-                        <div class="col-12">
-                            <label class="form-label">Nivel escolar</label>
-                            <select v-model="editing.school_level" class="form-select">
-                                <option value="">—</option>
-                                <option value="primaria">Primaria</option>
-                                <option value="secundaria">Secundaria</option>
-                                <option value="preparatoria">Preparatoria</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-panel-footer">
-                    <button class="btn btn-outline-secondary" @click="closeEdit">Cancelar</button>
-                    <button class="btn btn-primary" :disabled="saving" @click="save">
-                        {{ saving ? 'Guardando…' : 'Guardar' }}
-                    </button>
+                    </template>
                 </div>
             </div>
         </div>
+
+        <button @click="launchTour" class="btn-tour-help" title="Tour guiado">
+            <i class="fas fa-question-circle"></i>
+        </button>
     </div>
 </template>
 
 <script>
-const AVATAR_COLORS = ['#5b8def', '#38c172', '#ff8c00', '#e91e63', '#9b59b6', '#16a085'];
+import { startTour, shouldShowTour } from './MegaFamiliaTour.js';
+
+const ALERT_LABELS = {
+    uninstall_attempt: 'Intento de desinstalación',
+    geofence_exit: 'Salida de zona',
+    blocked_content: 'Contenido bloqueado',
+    low_battery: 'Batería baja',
+    device_offline: 'Dispositivo offline',
+};
+const REWARD_LABELS = {
+    time_extra: 'Tiempo extra',
+    app_unlock: 'Desbloqueo de app',
+    points: 'Puntos',
+    badge: 'Insignia',
+};
+const TASK_BADGE = {
+    pending: 'bg-secondary',
+    completed: 'bg-info text-dark',
+    approved: 'bg-success',
+    rejected: 'bg-danger',
+};
 
 export default {
     name: 'MegaFamiliaPerfiles',
-    props: { baseUrl: { type: String, required: true }, csrfToken: { type: String, required: true } },
-    data() { return { profiles: [], loading: false, errorMsg: '', editing: null, saving: false, acting: null }; },
-    mounted() { this.fetch(); },
+    props: {
+        baseUrl: { type: String, required: true },
+        csrfToken: { type: String, required: true },
+    },
+    data() {
+        return {
+            loading: false,
+            detailLoading: false,
+            profiles: [],
+            selected: null,
+            detail: null,
+            activeTab: 'info',
+        };
+    },
+    computed: {
+        tabs() {
+            const d = this.detail || {};
+            const p = d.profile || {};
+            return [
+                { key: 'info',    label: 'Info',         icon: 'fa-info-circle',     count: null },
+                { key: 'devices', label: 'Dispositivos', icon: 'fa-mobile-alt',      count: (p.devices || []).length },
+                { key: 'rules',   label: 'Reglas',       icon: 'fa-shield-alt',      count: null },
+                { key: 'tasks',   label: 'Tareas',       icon: 'fa-tasks',           count: (p.tasks || []).length },
+                { key: 'alerts',  label: 'Alertas',      icon: 'fa-exclamation-triangle', count: (d.alerts || []).length },
+            ];
+        },
+    },
+    mounted() {
+        this.fetchProfiles();
+        if (shouldShowTour('perfiles')) setTimeout(() => startTour('perfiles'), 1200);
+    },
     methods: {
-        async fetch() {
-            this.loading = true; this.errorMsg = '';
-            try { const { data } = await axios.get(`${this.baseUrl}/perfiles/data`); this.profiles = data.profiles || []; }
-            catch (e) { this.errorMsg = e.response?.data?.error || e.message; }
-            finally { this.loading = false; }
-        },
-        openCreate() { this.editing = { name: '', age: null, profile_type: 'nino', school_level: '' }; },
-        openEdit(p) { this.editing = { ...p }; },
-        closeEdit() { this.editing = null; },
-        async save() {
-            this.saving = true;
-            const payload = { ...this.editing };
-            if (payload.school_level === '') payload.school_level = null;
+        launchTour() { startTour('perfiles'); },
+        async fetchProfiles() {
+            this.loading = true;
             try {
-                if (this.editing.id) {
-                    await axios.put(`${this.baseUrl}/perfiles/${this.editing.id}`, payload, { headers: { 'X-CSRF-TOKEN': this.csrfToken } });
-                } else {
-                    await axios.post(`${this.baseUrl}/perfiles`, payload, { headers: { 'X-CSRF-TOKEN': this.csrfToken } });
+                const { data } = await axios.get(`${this.baseUrl}/perfiles/data`);
+                this.profiles = data.profiles || [];
+                if (!this.selected && this.profiles.length) {
+                    this.selectProfile(this.profiles[0]);
                 }
-                this.closeEdit();
-                await this.fetch();
-            } catch (e) { alert(e.response?.data?.error || e.message); }
-            finally { this.saving = false; }
+            } catch (e) {
+                console.error('[MF/Perfiles] fetch', e);
+            } finally {
+                this.loading = false;
+            }
         },
-        async destroy(p) {
-            if (! confirm(`¿Eliminar el perfil de ${p.name}?`)) return;
-            this.acting = p.id;
-            try { await axios.delete(`${this.baseUrl}/perfiles/${p.id}`, { headers: { 'X-CSRF-TOKEN': this.csrfToken } }); await this.fetch(); }
-            catch (e) { alert(e.response?.data?.error || e.message); }
-            finally { this.acting = null; }
+        async selectProfile(profile) {
+            this.selected = profile;
+            this.activeTab = 'info';
+            this.detail = null;
+            this.detailLoading = true;
+            try {
+                const { data } = await axios.get(`${this.baseUrl}/perfiles/${profile.id}`);
+                this.detail = data;
+            } catch (e) {
+                console.error('[MF/Perfiles] show', e);
+            } finally {
+                this.detailLoading = false;
+            }
         },
-        initials(name) { return (name || '?').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase(); },
-        avatarColor(id) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; },
-        typeLabel(t) { return ({ nino: 'Niño', preadolescente: 'Preadolescente', adolescente: 'Adolescente' })[t] || t; },
-        schoolLabel(s) { return ({ primaria: 'Primaria', secundaria: 'Secundaria', preparatoria: 'Preparatoria' })[s] || s; },
+        alertLabel(type) { return ALERT_LABELS[type] || type; },
+        rewardLabel(type) { return REWARD_LABELS[type] || type; },
+        taskBadge(status) { return TASK_BADGE[status] || 'bg-secondary'; },
+        formatDate(value) {
+            if (!value) return '—';
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return value;
+            return d.toLocaleString('es-MX', {
+                year: 'numeric', month: 'short', day: '2-digit',
+                hour: '2-digit', minute: '2-digit',
+            });
+        },
     },
 };
 </script>
 
 <style scoped>
-.profile-card { transition: transform 0.15s; }
-.profile-card:hover { transform: translateY(-2px); }
-.profile-card.inactive { opacity: 0.5; }
-.avatar {
-    width: 72px; height: 72px;
+.profile-list { max-height: calc(100vh - 250px); overflow-y: auto; }
+.profile-list .list-group-item { cursor: pointer; border-left: 3px solid transparent; }
+.profile-list .list-group-item.active {
+    background: rgba(13, 110, 253, 0.08);
+    color: #0d6efd;
+    border-left-color: #0d6efd;
+}
+.profile-avatar {
+    width: 36px; height: 36px;
+    background: rgba(13, 110, 253, 0.12);
+    color: #0d6efd;
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 24px; font-weight: 700;
-    overflow: hidden;
 }
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-.modal-panel { background: #fff; border-radius: 8px; width: min(520px, 92vw); display: flex; flex-direction: column; }
-.modal-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid #e9ecef; }
-.modal-panel-body { padding: 1rem 1.25rem; }
-.modal-panel-footer { padding: 0.75rem 1.25rem; border-top: 1px solid #e9ecef; display: flex; justify-content: flex-end; gap: 0.5rem; }
+.nav-tabs .nav-link {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: #495057;
+    background: transparent;
+}
+.nav-tabs .nav-link.active {
+    color: #0d6efd;
+    border-bottom-color: #0d6efd;
+    background: transparent;
+}
+dl.row dt { color: #6c757d; font-weight: 500; }
+
+.btn-tour-help {
+    position: fixed; bottom: 30px; right: 30px; z-index: 999;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: #0d6efd; color: white; border: none;
+    font-size: 20px; box-shadow: 0 4px 12px rgba(13,110,253,0.4);
+    cursor: pointer; transition: transform 0.2s;
+}
+.btn-tour-help:hover { transform: scale(1.1); }
 </style>
