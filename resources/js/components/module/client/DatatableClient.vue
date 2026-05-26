@@ -435,7 +435,7 @@ export default {
             $(e.target).parent().attr("id-item"),
             data.value
           );
-          if (deleteItem) {
+          if (deleteItem) { 
             emit("item-delete");
             getRowsByModule(
               _.map(headers.value, (v) => v.name),

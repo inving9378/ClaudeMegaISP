@@ -199,7 +199,7 @@ export const convertToSelect2 = async (
 ) => {
     try {
         const element = `select#${id}`;
-
+        const valToUse = val && typeof val === 'object' && '__v_isRef' in val ? val.value : val;
         let options = _.map(allOptions.value, (opt) => {
             if (opt.value == val)
                 return { value: opt.value, label: opt.text, selected: true };
@@ -222,7 +222,10 @@ export const convertToSelect2 = async (
             shouldSort: false,
             choices: defaultOpt,
         });
-        choice.setChoices(options, "value", "label", false);
+        choice.setChoices(options, "value", "label", true);
+        if (valToUse && valToUse !== "null") {
+            choice.setChoiceByValue(valToUse.toString());
+        }
         return choice;
     } catch (error) {
         console.error(error.message);
@@ -238,8 +241,9 @@ export const convertToSelect2WithSearch = async (
     orderByAlfabetic = false
 ) => {
     // Generate the options list and set the selected one if it matches `val`
+    const valToUse = val && typeof val === 'object' && '__v_isRef' in val ? val.value : val;
     let options = _.map(allOptions._rawValue, (opt) => {
-        if (opt.value == val) {
+        if (opt.value == valToUse) {
             return { value: opt.value, label: opt.text, selected: true }; // Mark the matching value as selected
         }
         return { value: opt.value, label: opt.text };
@@ -264,6 +268,9 @@ export const convertToSelect2WithSearch = async (
 
     // Set initial choices, including the selected one
     choice.setChoices(options, "value", "label", true);
+    if (valToUse && valToUse !== "null") {
+        choice.setChoiceByValue(valToUse.toString());
+    }
 
     const selectElement = document.querySelector(`select#${id}`);
     const selectContainer = selectElement.parentNode;

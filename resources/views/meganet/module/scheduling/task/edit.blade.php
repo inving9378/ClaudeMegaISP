@@ -4,6 +4,6 @@
 @endsection
 
 @section('content')
-    <task-edit action="update/{{ $id }}" id="{{ $id }}" observations="{{ $observations }}"
+    <task-edit action="update/{{ $id }}" id="{{ $id }}"
         archived ="{{ $archived }}"></task-edit>
 @endsection
