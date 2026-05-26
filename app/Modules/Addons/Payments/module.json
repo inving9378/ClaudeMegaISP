@@ -1,0 +1,9 @@
+{
+    "slug": "addon-payments",
+    "name": "Pagos SPEI / OpenPay",
+    "version": "0.1.0",
+    "description": "Cobros automáticos vía CLABE virtual con OpenPay. Webhook entrante valida firma, aplica pago al cliente, activa servicio en MikroTik/OLT y notifica por WhatsApp. Diseñado para soportar Stripe, Conekta y otros proveedores en el futuro.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}
