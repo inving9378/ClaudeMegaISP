@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config.dart';
+import 'tour_service.dart';
 
 class AppVersionInfo {
   final String version;
@@ -80,7 +81,13 @@ class UpdateService {
   /// archivo y al tocarlo lanza el instalador; como mantenemos la misma
   /// firma (debug keystore), aparece como "Actualizar", no "Instalar",
   /// y conserva datos.
+  ///
+  /// Antes de lanzar el descargador, resetea los tours guiados — la próxima
+  /// vez que la app abra (ya con la nueva versión), todos los tours se
+  /// mostrarán de nuevo con las novedades.
   Future<bool> openApkUrl(String url) async {
+    await TourService().resetTours();
+
     final uri = Uri.parse(url);
     if (!await canLaunchUrl(uri)) return false;
     return launchUrl(uri, mode: LaunchMode.externalApplication);
