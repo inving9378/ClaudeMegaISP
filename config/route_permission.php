@@ -1510,6 +1510,58 @@ return [
         '/message/reminder/send_message',
         '/message/payment_email/send_message',
         '/message/invoice_email/send_message'
-    ]
+    ],
+
+    // Smart Import/Export (addon-smart-import-export)
+    'smart_import_view' => [
+        '/configuracion/smart-import',
+        '/configuracion/smart-import-export',
+        '/configuracion/smart-import-export/history',
+        '/configuracion/smart-import-export/log/{id}',
+        '/configuracion/smart-import-export/log/{id}/download',
+    ],
+    'smart_import_execute' => [
+        '/configuracion/smart-import/upload',
+        '/configuracion/smart-import/preview',
+        '/configuracion/smart-import/execute',
+        '/configuracion/smart-import/status/{jobId}',
+    ],
+    'smart_export_view' => [
+        '/configuracion/smart-export',
+        '/configuracion/smart-export/modules',
+        '/configuracion/smart-import-export',
+        '/configuracion/smart-import-export/history',
+        '/configuracion/smart-import-export/log/{id}',
+        '/configuracion/smart-import-export/log/{id}/download',
+    ],
+    'smart_export_execute' => [
+        '/configuracion/smart-export/generate',
+        '/configuracion/smart-export/download/{token}',
+    ],
+
+    // Manual de Usuario (addon-manual)
+    'manual_view' => [
+        '/manual',
+        '/api/manual/sections',
+        '/api/manual/sections/{slug}',
+    ],
+    'manual_generate' => [
+        '/api/manual/generate',
+    ],
+
+    // Pagos SPEI / OpenPay
+    'payments_manage_providers' => [
+        '/finanzas/metodos-pago',
+        '/finanzas/payment-providers',
+        '/finanzas/payment-providers/{id}',
+    ],
+    'payments_assign_clabe' => [
+        '/finanzas/clients/{id}/clabe',
+        '/finanzas/clients/{id}/assign-clabe',
+    ],
+    'payments_view_receipts' => [
+        '/finanzas/payments/{id}/receipt',
+        '/finanzas/payments/{payment}/receipt/{receipt}/download',
+    ],
 
 ];

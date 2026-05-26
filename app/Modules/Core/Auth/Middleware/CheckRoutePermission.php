@@ -24,7 +24,9 @@ class CheckRoutePermission
         '/configuracion/service_in_address_list',
         '/configuracion/service_in_address_list/table',
         '/cliente/get-client-status/{id}',
-        '/inventory/inventory_store/my-store/{id}'
+        '/inventory/inventory_store/my-store/{id}',
+        '/whatsapp/webhook/{slug}',
+        '/payments/spei/webhook',
     ];
 
     public function handle(Request $request, Closure $next)

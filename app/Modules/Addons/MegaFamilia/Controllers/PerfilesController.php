@@ -58,11 +58,39 @@ class PerfilesController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Detalle completo del perfil para los 5 tabs:
+     * Info, Dispositivos, Reglas, Tareas, Alertas.
+     */
+    public function show(int $id): JsonResponse
+    {
+        $profile = ParentalProfile::with([
+            'devices',
+            'rules',
+            'appBlocks',
+            'webBlocks',
+            'schedules',
+            'tasks' => fn ($q) => $q->latest()->limit(50),
+        ])->findOrFail($id);
+
+        $alerts = \App\Modules\Addons\MegaFamilia\Models\ParentalAlert::query()
+            ->where('profile_id', $id)
+            ->with('device:id,name')
+            ->latest()
+            ->limit(30)
+            ->get();
+
+        return response()->json([
+            'profile' => $profile,
+            'alerts'  => $alerts,
+        ]);
+    }
+
     private function accountForCurrentUser(): ?ParentalAccount
     {
         $userId = Auth::id();
         if (! $userId) return null;
-        return ParentalAccount::where('client_id', $userId)->first();
+        return ParentalAccount::where('user_id', $userId)->first();
     }
 
     private function guardOwnership(ParentalProfile $profile): void

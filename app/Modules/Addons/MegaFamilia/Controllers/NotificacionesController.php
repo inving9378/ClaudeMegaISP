@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
 use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
+use App\Modules\Addons\MegaFamilia\Models\ParentalPlan;
 use App\Modules\Addons\MegaFamilia\Services\FcmService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,34 +18,29 @@ class NotificacionesController extends Controller
         return view('addon-megafamilia::notificaciones.index');
     }
 
-    public function history(): JsonResponse
+    /**
+     * Cuenta destinatarios sin enviar. Para el preview del modal antes del confirm.
+     */
+    public function estimateRecipients(Request $request): JsonResponse
     {
-        $rows = ParentalEvent::where('action', 'broadcast_notification')
-            ->orderByDesc('id')
-            ->paginate(20);
-        return response()->json($rows);
+        $data = $request->validate([
+            'segment' => 'required|in:all,plan,profile_type,account',
+            'target'  => 'nullable|string',
+        ]);
+        $count = count($this->resolveTokens($data['segment'], $data['target'] ?? null));
+        return response()->json(['count' => $count]);
     }
 
-    /**
-     * Envío real de push a un segmento de dispositivos.
-     *
-     * Segmentos:
-     *   - all           → todos los devices con fcm_token
-     *   - plan          → target = slug de plan (basico/plus/premium)
-     *   - profile_type  → target = nino/preadolescente/adolescente
-     *   - account       → target = id de parental_accounts
-     *
-     * Persiste un ParentalEvent con el resultado FCM (sent/failed) para
-     * la pestaña Historial.
-     */
     public function send(Request $request, FcmService $fcm): JsonResponse
     {
         $data = $request->validate([
-            'title' => 'required|string',
-            'message' => 'required|string',
+            'title'   => 'required|string|max:100',
+            'message' => 'required|string|max:500',
             'segment' => 'required|in:all,plan,profile_type,account',
-            'target' => 'nullable|string',
+            'target'  => 'nullable|string',
+            'type'    => 'sometimes|in:informativa,urgente,promocion,mantenimiento',
         ]);
+        $data['type'] = $data['type'] ?? 'informativa';
 
         $tokens = $this->resolveTokens($data['segment'], $data['target'] ?? null);
         $tokenCount = count($tokens);
@@ -52,20 +48,68 @@ class NotificacionesController extends Controller
         if ($tokenCount === 0) {
             $this->logEvent($data, ['error' => 'no_tokens'], 0, $request->ip());
             return response()->json([
-                'success' => false,
-                'error' => 'El segmento no produjo ningún token FCM destino.',
+                'success'      => false,
+                'error'        => 'El segmento no produjo ningún token FCM destino.',
                 'segment_size' => 0,
             ], 422);
         }
 
         $result = $fcm->send($tokens, $data['title'], $data['message'], [
             'segment' => $data['segment'],
-            'target' => (string) ($data['target'] ?? ''),
+            'target'  => (string) ($data['target'] ?? ''),
+            'type'    => $data['type'],
         ]);
 
         $this->logEvent($data, $result, $tokenCount, $request->ip());
 
         return response()->json(array_merge(['segment_size' => $tokenCount], $result));
+    }
+
+    public function history(Request $request): JsonResponse
+    {
+        $rows = ParentalEvent::query()
+            ->where('action', 'broadcast_notification')
+            ->when($request->date_from, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
+            ->when($request->date_to,   fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
+            ->orderByDesc('id')
+            ->paginate(25);
+
+        // El filtro por tipo se aplica post-query porque el campo está dentro de detail JSON.
+        if ($request->filled('type')) {
+            $type = $request->type;
+            $rows->setCollection($rows->getCollection()->filter(function ($ev) use ($type) {
+                $d = json_decode((string) $ev->detail, true);
+                return is_array($d) && ($d['type'] ?? null) === $type;
+            })->values());
+        }
+
+        return response()->json($rows);
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        $ev = ParentalEvent::findOrFail($id);
+        $payload = json_decode((string) $ev->detail, true) ?: [];
+        return response()->json([
+            'id'         => $ev->id,
+            'created_at' => $ev->created_at,
+            'ip'         => $ev->ip,
+            'data'       => $payload,
+        ]);
+    }
+
+    public function targets(): JsonResponse
+    {
+        // Helpers para los selects del segmento
+        $plans = ParentalPlan::orderBy('price_monthly')->get(['id', 'name', 'slug']);
+        $accounts = ParentalAccount::with('user:id,name,email')
+            ->orderByDesc('id')->limit(50)->get(['id', 'user_id']);
+
+        return response()->json([
+            'plans'    => $plans,
+            'accounts' => $accounts,
+            'profile_types' => ['nino', 'preadolescente', 'adolescente'],
+        ]);
     }
 
     /**
@@ -87,7 +131,6 @@ class NotificacionesController extends Controller
                 break;
             case 'all':
             default:
-                // sin filtro adicional
                 break;
         }
 
@@ -97,18 +140,15 @@ class NotificacionesController extends Controller
     private function logEvent(array $data, array $result, int $segmentSize, ?string $ip): void
     {
         $accountId = ParentalAccount::query()->value('id');
-        if (! $accountId) {
-            // No hay cuentas todavía — saltamos el log (FK NOT NULL).
-            return;
-        }
+        if (!$accountId) return; // sin cuentas todavía, FK NOT NULL — saltamos
         ParentalEvent::create([
             'account_id' => $accountId,
-            'action' => 'broadcast_notification',
-            'detail' => json_encode(array_merge($data, [
+            'action'     => 'broadcast_notification',
+            'detail'     => json_encode(array_merge($data, [
                 'segment_size' => $segmentSize,
-                'result' => $result,
+                'result'       => $result,
             ])),
-            'ip' => $ip,
+            'ip'         => $ip,
             'created_at' => now(),
         ]);
     }

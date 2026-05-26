@@ -13,10 +13,11 @@
 <!-- CSS no crítico (cargado normalmente) -->
 <link rel="stylesheet" href="{{ URL::asset('assets/css/preloader.min.css') }}" type="text/css" />
 <link rel="stylesheet" href="{{ URL::asset('assets/css/icons.min.css') }}" id="icons-style" type="text/css" />
-<link rel="stylesheet" href="{{ URL::asset('css/app.css') }}" type="text/css" />
+<link rel="stylesheet" href="{{ mix('css/app.css') }}" type="text/css" />
 
 <!-- Favicon -->
-<link rel="shortcut icon" href="{{ URL::asset('assets/images/favicon.ico') }}">
+<link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+<link rel="shortcut icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
 
 <!-- Fallback para navegadores sin soporte a preload -->
 <noscript>

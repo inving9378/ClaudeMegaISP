@@ -24,4 +24,5 @@ Docs
 .env
 .env.testing
 .env.backup
+.claude/
 

@@ -10,7 +10,7 @@ class ParentalGeofence extends BaseModel
     protected $table = 'parental_geofences';
 
     protected $fillable = [
-        'profile_id', 'name', 'type', 'lat', 'lng', 'radius_meters',
+        'profile_id', 'name', 'address', 'type', 'lat', 'lng', 'radius_meters',
         'alert_on_enter', 'alert_on_exit', 'active',
     ];
 

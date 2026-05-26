@@ -108,6 +108,56 @@ class Pago {
       Pago(id: _int(j['id']), date: _date(j['date']), amount: _dbl(j['amount']), method: _str(j['method']));
 }
 
+/// CLABE virtual del cliente — endpoint GET /api/megafamilia/payments/clabe.
+class ClabeInfo {
+  final String clabe;          // 18 dígitos sin espacios
+  final String clabeFormat;    // "646 180 123456789012" para display
+  final bool isActive;
+  final String beneficiario;
+  final String banco;
+  final String concepto;
+
+  ClabeInfo({
+    required this.clabe,
+    required this.clabeFormat,
+    required this.isActive,
+    required this.beneficiario,
+    required this.banco,
+    required this.concepto,
+  });
+
+  factory ClabeInfo.fromJson(Map<String, dynamic> j) => ClabeInfo(
+        clabe: _str(j['clabe']),
+        clabeFormat: _str(j['clabe_format']).isNotEmpty ? _str(j['clabe_format']) : _str(j['clabe']),
+        isActive: _bool(j['is_active']),
+        beneficiario: _str(j['beneficiario']).isNotEmpty ? _str(j['beneficiario']) : 'Meganet Telecomunicaciones',
+        banco: _str(j['banco']),
+        concepto: _str(j['concepto']),
+      );
+}
+
+/// Respuesta a POST /api/megafamilia/payments/notify-transfer.
+class TransferReceipt {
+  final int notificationId;
+  final String message;
+  final double declaredAmount;
+  final DateTime? submittedAt;
+
+  TransferReceipt({
+    required this.notificationId,
+    required this.message,
+    required this.declaredAmount,
+    this.submittedAt,
+  });
+
+  factory TransferReceipt.fromJson(Map<String, dynamic> j) => TransferReceipt(
+        notificationId: _int(j['notification_id']),
+        message: _str(j['message']),
+        declaredAmount: _dbl(j['declared_amount']),
+        submittedAt: _date(j['submitted_at']),
+      );
+}
+
 class Ticket {
   final int id;
   final String number;
