@@ -63,6 +63,39 @@
                     </ul>
                 </li>
 
+                {{-- Marketing — addon-marketing 2026-05-25 --}}
+                <li>
+                    @canany(['marketing_view', 'marketing_campaigns_view', 'marketing_leads_view'])
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="trending-up"></i>
+                            <span data-key="t-marketing">Marketing</span>
+                        </a>
+                    @endcanany
+                    <ul class="sub-menu" aria-expanded="false">
+                        @can('marketing_campaigns_view')
+                            <li>
+                                <a href="{{ url('/marketing') }}">
+                                    <span data-key="t-marketing-camp"><small><i class="fa fa-fw fa-bullhorn"></i></small> Campañas</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('marketing_leads_view')
+                            <li>
+                                <a href="{{ url('/marketing') }}?tab=leads">
+                                    <span data-key="t-marketing-leads"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('marketing_templates_manage')
+                            <li>
+                                <a href="{{ url('/marketing') }}?tab=templates">
+                                    <span data-key="t-marketing-tpl"><small><i class="fa fa-fw fa-file-alt"></i></small> Plantillas</span>
+                                </a>
+                            </li>
+                        @endcan
+                    </ul>
+                </li>
+
                 {{-- WhatsApp Agent — addon-whatsapp-agent 2026-05-22 --}}
                 <li>
                     @canany(['whatsapp_view_conversations', 'whatsapp_manage_instances'])
@@ -298,7 +331,7 @@
                 </li>
 
                 <li>
-                    @canany(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments'])
+                    @canany(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments', 'payments_manage_providers'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="grid"></i>
                             <span data-key="t-cliente">Finanzas</span>
@@ -362,6 +395,18 @@
                                             <i class="fas fa-file-invoice-dollar"></i>
                                         </small>
                                         Contabilidad General
+                                    </span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('payments_manage_providers')
+                            <li>
+                                <a href="{{ url('/finanzas/metodos-pago') }}">
+                                    <span data-key="t-payments-providers">
+                                        <small>
+                                            <i class="fas fa-university"></i>
+                                        </small>
+                                        Métodos de Pago SPEI
                                     </span>
                                 </a>
                             </li>
