@@ -65,24 +65,31 @@
 
                 {{-- Marketing — addon-marketing 2026-05-25 --}}
                 <li>
-                    @canany(['marketing_view', 'marketing_campaigns_view', 'marketing_leads_view'])
+                    @canany(['marketing_view', 'marketing_campaigns_view', 'marketing_leads_view', 'view-marketing-leads', 'view-marketing-forms'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="trending-up"></i>
                             <span data-key="t-marketing">Marketing</span>
                         </a>
                     @endcanany
                     <ul class="sub-menu" aria-expanded="false">
+                        @canany(['view-marketing-leads', 'marketing_leads_view'])
+                            <li>
+                                <a href="{{ url('/marketing/leads') }}">
+                                    <span data-key="t-marketing-leads2"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span>
+                                </a>
+                            </li>
+                        @endcanany
+                        @canany(['view-marketing-forms', 'manage-marketing-forms'])
+                            <li>
+                                <a href="{{ url('/marketing/lead-forms') }}">
+                                    <span data-key="t-marketing-forms"><small><i class="fa fa-fw fa-wpforms"></i></small> Formularios</span>
+                                </a>
+                            </li>
+                        @endcanany
                         @can('marketing_campaigns_view')
                             <li>
                                 <a href="{{ url('/marketing') }}">
                                     <span data-key="t-marketing-camp"><small><i class="fa fa-fw fa-bullhorn"></i></small> Campañas</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('marketing_leads_view')
-                            <li>
-                                <a href="{{ url('/marketing') }}?tab=leads">
-                                    <span data-key="t-marketing-leads"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span>
                                 </a>
                             </li>
                         @endcan
