@@ -8,6 +8,8 @@ class ImportExportLog extends BaseModel
 {
     protected $table = 'import_export_logs';
 
+    private const RUNTIME_STATUS_KEY = 'runtime_status';
+
     protected $fillable = [
         'type',
         'filename',
@@ -50,5 +52,35 @@ class ImportExportLog extends BaseModel
             'status'        => 'failed',
             'error_message' => $message,
         ]);
+    }
+
+    public function storeRuntimeStatus(array $payload): void
+    {
+        $analysis = $this->ai_analysis;
+        if (!is_array($analysis)) {
+            $analysis = [];
+        }
+
+        $analysis[self::RUNTIME_STATUS_KEY] = $payload;
+        $this->update(['ai_analysis' => $analysis]);
+    }
+
+    public function runtimeStatus(): ?array
+    {
+        $analysis = $this->ai_analysis;
+        if (!is_array($analysis)) {
+            return null;
+        }
+
+        $status = $analysis[self::RUNTIME_STATUS_KEY] ?? null;
+        return is_array($status) ? $status : null;
+    }
+
+    public static function findByJobId(string $jobId): ?self
+    {
+        return static::query()
+            ->where('job_id', $jobId)
+            ->latest('id')
+            ->first();
     }
 }

@@ -10,7 +10,7 @@
         >
             <q-step
                 :name="1"
-                title="Subir archivo"
+                title="Subir dump"
                 icon="cloud_upload"
                 :done="step > 1"
             >
@@ -18,11 +18,11 @@
                     <div class="col-12 col-md-8">
                         <q-uploader
                             ref="uploader"
-                            label="Arrastra un archivo .sql, .json, .xlsx, .csv o .zip"
+                            label="Arrastra un archivo .sql o .zip con dumps SQL"
                             :url="uploadUrl"
                             field-name="file"
                             :headers="uploadHeaders"
-                            accept=".sql,.json,.xlsx,.xls,.csv,.zip"
+                            accept=".sql,.zip"
                             :max-files="1"
                             :max-file-size="2147483648"
                             auto-upload
@@ -35,7 +35,7 @@
                         <div v-if="analyzing" class="q-mt-md">
                             <q-linear-progress indeterminate color="primary" />
                             <div class="text-caption q-mt-sm text-grey-7">
-                                Analizando estructura con IA...
+                                Analizando dump SQL...
                             </div>
                         </div>
                     </div>
@@ -43,13 +43,13 @@
                         <q-card flat bordered class="q-pa-md bg-grey-1">
                             <div class="text-subtitle2 q-mb-sm">
                                 <i class="fas fa-info-circle text-primary"></i>
-                                Formatos aceptados
+                                Alcance actual
                             </div>
                             <ul class="q-pl-md q-mb-none text-caption text-grey-8">
-                                <li>.sql — parsea INSERT INTO</li>
-                                <li>.json — mapea por nombre de tabla</li>
-                                <li>.xlsx/.csv — detecta módulo por columnas</li>
-                                <li>.zip — múltiples archivos</li>
+                                <li>.sql</li>
+                                <li>.zip con archivos .sql</li>
+                                <li>modos globales y override por tabla</li>
+                                <li>creación de tablas faltantes desde CREATE TABLE</li>
                             </ul>
                         </q-card>
                     </div>
@@ -58,35 +58,82 @@
 
             <q-step
                 :name="2"
-                title="Reporte y conflictos"
-                icon="fact_check"
+                title="Plan de importación"
+                icon="schema"
                 :done="step > 2"
             >
                 <div v-if="report.length === 0" class="text-grey-7 q-pa-md">
                     Sin datos analizados todavía.
                 </div>
                 <div v-else>
-                    <div class="row q-mb-md items-center q-gutter-sm">
-                        <q-btn
-                            color="purple"
-                            icon="auto_awesome"
-                            label="Resolver todo con IA"
-                            :loading="aiLoading"
-                            :disable="!hasConflicts"
-                            @click="resolveAllWithAI"
-                        />
-                        <q-btn
-                            flat
-                            color="primary"
-                            icon="refresh"
-                            label="Recalcular conflictos"
-                            @click="loadPreview(false)"
-                        />
-                        <q-space />
-                        <q-chip dense color="grey-3">
-                            Total filas: {{ totalRows }}
-                        </q-chip>
+                    <div class="row q-col-gutter-md q-mb-md">
+                        <div class="col-12 col-md-4">
+                            <q-card flat bordered class="q-pa-md">
+                                <div class="text-caption text-grey-7 q-mb-xs">
+                                    Modo general
+                                </div>
+                                <q-select
+                                    v-model="globalMode"
+                                    :options="modeOptions"
+                                    emit-value
+                                    map-options
+                                    outlined
+                                    dense
+                                />
+                                <div class="text-caption text-grey-7 q-mt-sm">
+                                    Se aplica por defecto a todas las tablas.
+                                </div>
+                                <div class="q-mt-sm">
+                                    <q-btn
+                                        color="primary"
+                                        flat
+                                        dense
+                                        icon="playlist_add_check"
+                                        label="Aplicar a todas"
+                                        @click="applyGlobalMode"
+                                    />
+                                </div>
+                            </q-card>
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <div class="row q-col-gutter-md">
+                                <div class="col-6 col-md-3">
+                                    <q-card flat bordered class="q-pa-md bg-blue-1 text-center">
+                                        <div class="text-h5">{{ totalRows }}</div>
+                                        <div class="text-caption">Filas detectadas</div>
+                                    </q-card>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <q-card flat bordered class="q-pa-md bg-grey-2 text-center">
+                                        <div class="text-h5">{{ report.length }}</div>
+                                        <div class="text-caption">Tablas</div>
+                                    </q-card>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <q-card flat bordered class="q-pa-md bg-orange-1 text-center">
+                                        <div class="text-h5">{{ missingTargetCount }}</div>
+                                        <div class="text-caption">Tablas faltantes</div>
+                                    </q-card>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <q-card flat bordered class="q-pa-md bg-red-1 text-center">
+                                        <div class="text-h5">{{ noModelCount }}</div>
+                                        <div class="text-caption">Sin modelo</div>
+                                    </q-card>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    <q-banner
+                        v-if="structuralWarningCount > 0"
+                        rounded
+                        class="bg-orange-1 text-grey-9 q-mb-md"
+                    >
+                        Se detectaron {{ structuralWarningCount }} advertencias estructurales.
+                        Revisa tablas faltantes, columnas nuevas y tablas sin modelo
+                        antes de ejecutar.
+                    </q-banner>
 
                     <q-table
                         :rows="report"
@@ -95,8 +142,17 @@
                         flat
                         dense
                         bordered
-                        :pagination="{ rowsPerPage: 15 }"
+                        :pagination="{ rowsPerPage: 20 }"
                     >
+                        <template v-slot:body-cell-target="props">
+                            <q-td :props="props">
+                                <q-badge
+                                    :color="props.row.target_exists ? 'positive' : 'orange'"
+                                    :label="props.row.target_exists ? 'Existe' : 'Se creará'"
+                                />
+                            </q-td>
+                        </template>
+
                         <template v-slot:body-cell-status="props">
                             <q-td :props="props">
                                 <q-badge
@@ -105,103 +161,37 @@
                                 />
                             </q-td>
                         </template>
+
+                        <template v-slot:body-cell-warnings="props">
+                            <q-td :props="props">
+                                <div class="row q-gutter-xs">
+                                    <q-chip
+                                        v-for="warning in props.row.warnings || []"
+                                        :key="`${props.row.table}-${warning}`"
+                                        dense
+                                        color="orange-2"
+                                        text-color="orange-10"
+                                    >
+                                        {{ warningLabel(warning) }}
+                                    </q-chip>
+                                </div>
+                            </q-td>
+                        </template>
+
                         <template v-slot:body-cell-action="props">
                             <q-td :props="props">
                                 <q-select
-                                    v-model="defaultAction[props.row.table]"
-                                    :options="actionOptions"
+                                    v-model="tableMode[props.row.table]"
+                                    :options="modeOptions"
                                     dense
                                     outlined
                                     emit-value
                                     map-options
-                                    style="min-width: 170px"
+                                    style="min-width: 210px"
                                 />
                             </q-td>
                         </template>
                     </q-table>
-
-                    <div v-if="hasConflicts" class="q-mt-md">
-                        <div class="text-subtitle2 q-mb-sm">
-                            <i class="fas fa-exclamation-triangle text-warning"></i>
-                            Conflictos detectados ({{ conflictCount }})
-                        </div>
-                        <q-list bordered separator>
-                            <q-expansion-item
-                                v-for="(items, table) in conflicts"
-                                :key="table"
-                                :label="`${table} (${items.length})`"
-                                expand-separator
-                                icon="warning"
-                            >
-                                <q-list dense>
-                                    <q-item
-                                        v-for="item in items"
-                                        :key="`${table}-${item.index}`"
-                                    >
-                                        <q-item-section>
-                                            <q-item-label>
-                                                <strong>Fila #{{ item.index + 1 }}</strong> —
-                                                coincide en
-                                                <q-chip
-                                                    v-for="k in item.matched"
-                                                    :key="k"
-                                                    dense
-                                                    color="orange-2"
-                                                    text-color="orange-10"
-                                                    >{{ k }}</q-chip
-                                                >
-                                            </q-item-label>
-                                            <q-item-label caption>
-                                                <div class="row q-col-gutter-sm">
-                                                    <div class="col-6">
-                                                        <div class="text-grey-7">
-                                                            Existente
-                                                        </div>
-                                                        <pre class="conflict-pre">{{ pretty(item.existing) }}</pre>
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <div class="text-grey-7">
-                                                            Nuevo
-                                                        </div>
-                                                        <pre class="conflict-pre">{{ pretty(item.incoming) }}</pre>
-                                                    </div>
-                                                </div>
-                                            </q-item-label>
-                                            <q-item-label
-                                                v-if="aiRecommendations[table] && aiRecommendations[table][item.index]"
-                                            >
-                                                <q-chip
-                                                    color="purple-2"
-                                                    text-color="purple-10"
-                                                    icon="auto_awesome"
-                                                >
-                                                    IA sugiere:
-                                                    <strong class="q-ml-xs">
-                                                        {{ aiRecommendations[table][item.index].accion }}
-                                                    </strong>
-                                                </q-chip>
-                                                <span class="text-caption text-grey-7 q-ml-sm">
-                                                    {{ aiRecommendations[table][item.index].razon }}
-                                                </span>
-                                            </q-item-label>
-                                        </q-item-section>
-                                        <q-item-section side>
-                                            <q-select
-                                                v-model="perRowAction[table][item.index]"
-                                                :options="perRowOptions"
-                                                dense
-                                                outlined
-                                                emit-value
-                                                map-options
-                                                style="min-width: 170px"
-                                                @update:model-value="onPerRowChange(table, item)"
-                                            />
-                                        </q-item-section>
-                                    </q-item>
-                                </q-list>
-                            </q-expansion-item>
-                        </q-list>
-                    </div>
 
                     <div class="q-mt-md text-right">
                         <q-btn
@@ -248,7 +238,7 @@
                             Log de ejecución
                         </div>
                         <q-scroll-area style="height: 320px">
-                            <pre class="log-pre">{{ (jobStatus.log || []).join('\n') }}</pre>
+                            <pre class="log-pre">{{ (jobStatus.log || []).join("\n") }}</pre>
                         </q-scroll-area>
                     </q-card>
 
@@ -306,26 +296,23 @@ export default {
         const step = ref(1);
         const stepper = ref(null);
         const analyzing = ref(false);
-        const aiLoading = ref(false);
         const executing = ref(false);
 
         const token = ref(null);
         const report = ref([]);
         const totalRows = ref(0);
-        const conflicts = ref({});
-        const aiRecommendations = reactive({});
+        const globalMode = ref("smart");
+        const tableMode = reactive({});
 
         const jobId = ref(null);
         const jobStatus = ref({ state: "idle", progress: 0, log: [] });
         let pollTimer = null;
 
-        const defaultAction = reactive({});
-        const perRowAction = reactive({});
-
         const csrf =
             document
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute("content") || "";
+
         const uploadUrl = "/configuracion/smart-import/upload";
         const uploadHeaders = [
             { name: "X-CSRF-TOKEN", value: csrf },
@@ -333,15 +320,10 @@ export default {
             { name: "Accept", value: "application/json" },
         ];
 
-        const actionOptions = [
-            { label: "Insertar (omitir conflictos)", value: "skip" },
-            { label: "Reemplazar al conflictar", value: "replace" },
-            { label: "Duplicar al conflictar", value: "duplicate" },
-        ];
-        const perRowOptions = [
-            { label: "Omitir", value: "skip" },
-            { label: "Reemplazar", value: "replace" },
-            { label: "Duplicar", value: "duplicate" },
+        const modeOptions = [
+            { label: "Resolver inteligentemente", value: "smart" },
+            { label: "Reemplazar por fuente", value: "force_source" },
+            { label: "Omitir si ya existe", value: "skip_existing" },
         ];
 
         const reportColumns = [
@@ -353,16 +335,21 @@ export default {
                 field: "records",
                 align: "right",
             },
-            { name: "status", label: "Estado", field: "table", align: "center" },
-            { name: "action", label: "Acción", field: "table", align: "center" },
+            { name: "target", label: "Destino", field: "target_exists", align: "center" },
+            { name: "status", label: "Estado", field: "warnings", align: "center" },
+            { name: "warnings", label: "Advertencias", field: "warnings", align: "left" },
+            { name: "action", label: "Modo", field: "table", align: "center" },
         ];
 
-        const hasConflicts = computed(
-            () => Object.keys(conflicts.value).length > 0
+        const missingTargetCount = computed(
+            () => report.value.filter((row) => !row.target_exists).length
         );
-        const conflictCount = computed(() =>
-            Object.values(conflicts.value).reduce(
-                (acc, arr) => acc + arr.length,
+        const noModelCount = computed(
+            () => report.value.filter((row) => !row.has_model).length
+        );
+        const structuralWarningCount = computed(() =>
+            report.value.reduce(
+                (carry, row) => carry + ((row.warnings || []).length > 0 ? 1 : 0),
                 0
             )
         );
@@ -376,27 +363,46 @@ export default {
             return map[jobStatus.value.state] || "grey";
         });
 
+        function warningLabel(code) {
+            const labels = {
+                tabla_destino_inexistente: "Tabla faltante",
+                sin_modelo_asociado: "Sin modelo",
+                sin_regla_explicita: "Sin regla explícita",
+                sin_create_table: "Sin CREATE TABLE",
+                columnas_faltantes_en_destino: "Columnas nuevas",
+                columnas_extra_en_destino: "Columnas extra en destino",
+            };
+            return labels[code] || code;
+        }
+
         function rowStatusColor(row) {
-            if (!row.known) return "negative";
-            const c = conflicts.value[row.table];
-            if (c && c.length) return "warning";
+            if (!row.target_exists) return "orange";
+            if ((row.warnings || []).length > 0) return "warning";
             return "positive";
         }
+
         function rowStatusLabel(row) {
-            if (!row.known) return "Tabla no mapeada";
-            const c = conflicts.value[row.table];
-            if (c && c.length) return `${c.length} conflicto(s)`;
+            if (!row.target_exists) return "Tabla nueva";
+            if ((row.warnings || []).length > 0) return "Revisar";
             return "Listo";
         }
-        function pretty(obj) {
-            try {
-                return JSON.stringify(obj, null, 2);
-            } catch (e) {
-                return String(obj);
-            }
+
+        function applyGlobalMode() {
+            report.value.forEach((row) => {
+                tableMode[row.table] = globalMode.value;
+            });
+        }
+
+        function ensureTableModes() {
+            report.value.forEach((row) => {
+                if (!tableMode[row.table]) {
+                    tableMode[row.table] = globalMode.value;
+                }
+            });
         }
 
         async function onUploaded(info) {
+            analyzing.value = true;
             try {
                 const resp = JSON.parse(info.xhr.response);
                 if (!resp.success) {
@@ -405,10 +411,8 @@ export default {
                 token.value = resp.token;
                 report.value = resp.report || [];
                 totalRows.value = resp.total_rows || 0;
-                report.value.forEach((r) => {
-                    if (!defaultAction[r.table]) defaultAction[r.table] = "replace";
-                });
-                await loadPreview(false);
+                ensureTableModes();
+                await loadPreview();
                 step.value = 2;
             } catch (e) {
                 console.error(e);
@@ -417,85 +421,53 @@ export default {
                 analyzing.value = false;
             }
         }
+
         function onUploadFailed(info) {
             analyzing.value = false;
             const msg = info?.xhr?.response || "Falló la subida del archivo.";
             alert(msg);
         }
+
         function onRejected() {
             alert(
-                "Archivo rechazado. Verifica formato (sql/json/xlsx/csv/zip) y tamaño máximo 2GB."
+                "Archivo rechazado. Verifica formato (sql/zip) y tamaño máximo 2GB."
             );
         }
 
-        async function loadPreview(withAI = false) {
+        async function loadPreview() {
             if (!token.value) return;
             try {
-                const { data } = await axios.post(
-                    "/configuracion/smart-import/preview",
-                    { token: token.value, with_ai: withAI ? 1 : 0 }
-                );
-                if (!data.success) throw new Error(data.message);
-                conflicts.value = data.conflicts || {};
-                Object.keys(conflicts.value).forEach((table) => {
-                    if (!perRowAction[table]) perRowAction[table] = {};
-                    conflicts.value[table].forEach((item) => {
-                        if (perRowAction[table][item.index] === undefined) {
-                            perRowAction[table][item.index] =
-                                defaultAction[table] || "replace";
-                        }
-                    });
+                const { data } = await axios.post("/configuracion/smart-import/preview", {
+                    token: token.value,
                 });
-                if (data.ai_recommendations) {
-                    Object.assign(aiRecommendations, data.ai_recommendations);
-                    // Aplica la sugerencia de IA al selector por fila.
-                    Object.entries(data.ai_recommendations).forEach(
-                        ([table, perIdx]) => {
-                            Object.entries(perIdx).forEach(([idx, rec]) => {
-                                const map = {
-                                    omitir: "skip",
-                                    reemplazar: "replace",
-                                    duplicar: "duplicate",
-                                };
-                                if (map[rec.accion]) {
-                                    if (!perRowAction[table])
-                                        perRowAction[table] = {};
-                                    perRowAction[table][idx] = map[rec.accion];
-                                }
-                            });
-                        }
-                    );
-                }
+                if (!data.success) throw new Error(data.message);
+                report.value = data.report || report.value;
+                ensureTableModes();
             } catch (e) {
                 console.error(e);
                 alert("No se pudo obtener el preview: " + e.message);
             }
         }
 
-        async function resolveAllWithAI() {
-            aiLoading.value = true;
-            try {
-                await loadPreview(true);
-            } finally {
-                aiLoading.value = false;
-            }
-        }
-
-        function onPerRowChange() { /* no-op: el v-model basta */ }
-
         async function execute() {
             executing.value = true;
             try {
-                const options = {};
-                report.value.forEach((r) => {
-                    options[r.table] = {
-                        action: defaultAction[r.table] || "replace",
-                        conflicts: perRowAction[r.table] || {},
+                const tableModes = {};
+                report.value.forEach((row) => {
+                    tableModes[row.table] = {
+                        mode: tableMode[row.table] || globalMode.value,
                     };
                 });
+
                 const { data } = await axios.post(
                     "/configuracion/smart-import/execute",
-                    { token: token.value, options }
+                    {
+                        token: token.value,
+                        options: {
+                            global_mode: globalMode.value,
+                            table_modes: tableModes,
+                        },
+                    }
                 );
                 if (!data.success) throw new Error(data.message);
                 jobId.value = data.job_id;
@@ -503,7 +475,7 @@ export default {
                 startPolling();
             } catch (e) {
                 console.error(e);
-                alert("No se pudo encolar la importación: " + e.message);
+                alert("No se pudo iniciar la importación: " + e.message);
             } finally {
                 executing.value = false;
             }
@@ -518,17 +490,16 @@ export default {
                     );
                     if (data.success) {
                         jobStatus.value = data.status;
-                        if (
-                            ["completed", "failed"].includes(data.status.state)
-                        ) {
+                        if (["completed", "failed"].includes(data.status.state)) {
                             stopPolling();
                         }
                     }
                 } catch (e) {
-                    /* swallow — reintentos automáticos */
+                    /* retry automático */
                 }
-            }, 2000);
+            }, 5000);
         }
+
         function stopPolling() {
             if (pollTimer) {
                 clearInterval(pollTimer);
@@ -542,10 +513,8 @@ export default {
             token.value = null;
             report.value = [];
             totalRows.value = 0;
-            Object.keys(conflicts.value).forEach((k) => delete conflicts.value[k]);
-            Object.keys(aiRecommendations).forEach((k) => delete aiRecommendations[k]);
-            Object.keys(defaultAction).forEach((k) => delete defaultAction[k]);
-            Object.keys(perRowAction).forEach((k) => delete perRowAction[k]);
+            globalMode.value = "smart";
+            Object.keys(tableMode).forEach((key) => delete tableMode[key]);
             jobId.value = null;
             jobStatus.value = { state: "idle", progress: 0, log: [] };
         }
@@ -556,34 +525,29 @@ export default {
             step,
             stepper,
             analyzing,
-            aiLoading,
             executing,
             token,
             report,
             totalRows,
-            conflicts,
-            aiRecommendations,
-            jobId,
-            jobStatus,
-            defaultAction,
-            perRowAction,
+            globalMode,
+            tableMode,
             uploadUrl,
             uploadHeaders,
-            actionOptions,
-            perRowOptions,
+            modeOptions,
             reportColumns,
-            hasConflicts,
-            conflictCount,
+            missingTargetCount,
+            noModelCount,
+            structuralWarningCount,
+            jobId,
+            jobStatus,
             jobStateColor,
+            warningLabel,
             rowStatusColor,
             rowStatusLabel,
-            pretty,
+            applyGlobalMode,
             onUploaded,
             onUploadFailed,
             onRejected,
-            loadPreview,
-            resolveAllWithAI,
-            onPerRowChange,
             execute,
             reset,
         };
@@ -592,15 +556,6 @@ export default {
 </script>
 
 <style scoped>
-.conflict-pre {
-    background: #f5f5f5;
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 11px;
-    max-height: 160px;
-    overflow: auto;
-    margin: 0;
-}
 .log-pre {
     background: #0f172a;
     color: #cbd5e1;

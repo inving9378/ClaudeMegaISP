@@ -10,6 +10,7 @@ use App\Models\InvoiceEmail;
 use App\Models\PaymentEmail;
 use App\Notifications\StandardNotification;
 use App\Services\ClientService\ContractClientService;
+use App\Services\DocumentTemplateService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
