@@ -30,6 +30,7 @@ class SmartImportJob implements ShouldQueue
         public array $options = [],
         public ?int $userId = null,
         public ?int $logId = null,
+        public bool $truncateBefore = false,
     ) {}
 
     private static function analysisCacheKey(string $token): string
@@ -60,7 +61,8 @@ class SmartImportJob implements ShouldQueue
     {
         // Salvaguarda: parseo + intersect_key sobre 226 tablas puede picar fuerte.
         // 2G es holgado y se libera al terminar el request.
-        ini_set('memory_limit', '2G');
+        set_time_limit(0);
+        ini_set('memory_limit', '8912M');
 
         $cacheKey = self::analysisCacheKey($this->token);
         $analysis = Cache::get($cacheKey);
@@ -101,16 +103,21 @@ class SmartImportJob implements ShouldQueue
                 try {
                     $summary = $service->executeImport(
                         [$table => $rows],
-                        [$table => $this->options[$table] ?? []]
+                        [$table => $this->options[$table] ?? []],
+                        $this->truncateBefore
                     );
                     $perTable[$table] = $summary[$table] ?? ['imported' => 0, 'skipped' => 0, 'errors' => 0];
-                    $log[] = sprintf(
+                    $entry = sprintf(
                         "✓ `%s`: %d importados, %d omitidos, %d errores",
                         $table,
                         $perTable[$table]['imported'] ?? 0,
                         $perTable[$table]['skipped'] ?? 0,
                         $perTable[$table]['errors'] ?? 0
                     );
+                    if (!empty($perTable[$table]['backup'])) {
+                        $entry .= " | backup → {$perTable[$table]['backup']}";
+                    }
+                    $log[] = $entry;
                 } catch (Throwable $e) {
                     Log::error('SmartImportJob table error: ' . $e->getMessage());
                     $log[] = "✗ `{$table}`: error " . $e->getMessage();

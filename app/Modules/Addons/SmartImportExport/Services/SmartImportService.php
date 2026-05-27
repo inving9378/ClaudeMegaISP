@@ -282,6 +282,9 @@ class SmartImportService
      */
     private array $dumpColumnsByTable = [];
 
+    /** Cache de Schema::getColumnListing() por tabla — evita N llamadas repetidas. */
+    private array $columnCache = [];
+
     public function setDumpColumns(array $dumpColumns): void
     {
         $this->dumpColumnsByTable = $dumpColumns;
@@ -739,9 +742,43 @@ class SmartImportService
         return $resultados;
     }
 
-    public function executeImport(array $datasets, array $options = []): array
+    /**
+     * Crea una copia de seguridad de la tabla y la trunca.
+     * Usa CREATE TABLE ... SELECT * para preservar solo datos (no índices/FK).
+     * Retorna el nombre de la tabla backup, o null si la tabla estaba vacía.
+     */
+    public function createBackupAndTruncate(string $table, string $timestamp): ?string
     {
-        $summary = [];
+        if (!Schema::hasTable($table)) return null;
+        $count = DB::table($table)->count();
+        if ($count === 0) return null;
+
+        // Nombre backup: bk_{timestamp}_{table}, max 64 chars (límite MySQL)
+        $prefix     = 'bk_' . $timestamp . '_';
+        $maxTbl     = 64 - strlen($prefix);
+        $backupName = $prefix . substr($table, 0, max(1, $maxTbl));
+
+        DB::statement("CREATE TABLE `{$backupName}` SELECT * FROM `{$table}`");
+        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        DB::statement("TRUNCATE TABLE `{$table}`");
+        DB::statement('SET FOREIGN_KEY_CHECKS=1');
+
+        return $backupName;
+    }
+
+    public function executeImport(array $datasets, array $options = [], bool $truncateBefore = false): array
+    {
+        $summary   = [];
+        $timestamp = now()->format('ymdHis'); // 12 chars, compartido entre todas las tablas del batch
+
+        // FK checks desactivados durante todo el import: el dump importa tablas en
+        // orden alfabético/de aparición, no por dependencias. Sin esto, inserts a
+        // tablas hijas (commissions_details, client_bundle_services, etc.) fallan
+        // con 1452 si la tabla padre aún no se procesó. MySQL no revalida los datos
+        // existentes cuando se reactiva FK_CHECKS al final.
+        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+
+        try {
         foreach ($datasets as $table => $rows) {
             $info = self::TABLE_MODULE_MAP[$table] ?? null;
             $skipReason = $this->validateMapEntry($table, $info);
@@ -750,23 +787,62 @@ class SmartImportService
                 continue;
             }
 
-            $defaultAction = $options[$table]['action'] ?? 'skip';
-            $perRow = $options[$table]['conflicts'] ?? [];
-            $pk = $this->pkOf($table, $info);
-            $imported = 0;
-            $skipped = 0;
-            $errors = 0;
+            $defaultAction   = $options[$table]['action'] ?? 'replace';
+            $perRow          = $options[$table]['conflicts'] ?? [];
+            $pk              = $this->pkOf($table, $info);
+            $conflictKeys    = $info['conflict_keys'] ?? [];
+            $destColumns     = $this->cachedColumns($table);
+            $imported        = 0;
+            $skipped         = 0;
+            $errors          = 0;
+            $insertBatch     = [];
+            $backupTable     = null;
+
+            // El PK siempre se incluye en la detección de conflictos, además de
+            // conflict_keys semánticos. Sin esto, cuando conflict_keys apuntan a
+            // columnas que no existen en el dump (folio, serial, email...) el índice
+            // queda vacío y todas las filas se intentan INSERT → duplicate PK 1062.
+            $effectiveConflictKeys = array_values(array_unique(
+                array_merge(!empty($conflictKeys) ? $conflictKeys : [], [$pk])
+            ));
+
+            if ($truncateBefore) {
+                try {
+                    $backupTable = $this->createBackupAndTruncate($table, $timestamp);
+                } catch (Throwable $e) {
+                    Log::error("SmartImport backup/truncate [{$table}]: " . $e->getMessage());
+                    $summary[$table] = [
+                        'imported' => 0, 'skipped' => count($rows), 'errors' => count($rows),
+                        'reason' => 'backup_truncate_failed: ' . $e->getMessage(),
+                    ];
+                    continue;
+                }
+            }
+
+            // Las filas del dump vienen como lista cuando mysqldump no incluye nombres de
+            // columnas en el INSERT. buildExistingIndex necesita $row['id'] para detectar
+            // conflictos → normalizar a asociativo antes de cualquier lookup.
+            $rows = $this->normalizeRows($rows, $table, $destColumns);
+
+            // 1 SELECT por tabla en vez de 1 por fila — carga todos los registros
+            // existentes que podrían conflictuar usando WHERE IN sobre los valores
+            // del batch. Lookup posterior es O(1) en memoria.
+            // Si hicimos TRUNCATE, la tabla está vacía → índice vacío → todo será insert.
+            $existingIndex = $truncateBefore
+                ? []
+                : $this->buildExistingIndex($table, $effectiveConflictKeys, $rows, $destColumns);
 
             foreach ($rows as $index => $row) {
                 try {
-                    $existing = $this->findExisting($table, $info['conflict_keys'] ?? [], $row);
-                    $action = $existing ? ($perRow[$index] ?? $defaultAction) : 'insert';
+                    $existing = $this->lookupExisting($existingIndex, $effectiveConflictKeys, $row);
+                    $action   = $existing ? ($perRow[$index] ?? $defaultAction) : 'insert';
 
                     if ($action === 'skip') {
                         $skipped++;
                         continue;
                     }
                     if ($action === 'replace' && $existing) {
+                        // Updates son pocos en imports masivos — se hacen uno a uno
                         $this->updateRow($table, $info, $existing[$pk], $row);
                         $imported++;
                         continue;
@@ -774,16 +850,189 @@ class SmartImportService
                     if ($action === 'duplicate') {
                         unset($row[$pk]);
                     }
-                    $this->insertRow($table, $info, $row);
-                    $imported++;
+
+                    // Bypass Eloquent para bulk: preserva audit columns del dump y evita
+                    // que BaseModel sobreescriba created_by/updated_by con el user actual.
+                    $clean = $this->sanitizeRowWithColumns($row, $table, $destColumns);
+                    if ($clean === []) {
+                        $errors++;
+                        continue;
+                    }
+                    $clean = $this->injectAuditColumnsCached($table, $clean, $destColumns, false);
+                    $insertBatch[] = $clean;
+
+                    if (count($insertBatch) >= 500) {
+                        [$ins, $err] = $this->flushInsertBatch($table, $insertBatch);
+                        $imported += $ins;
+                        $errors   += $err;
+                        $insertBatch = [];
+                    }
                 } catch (Throwable $e) {
                     Log::warning('SmartImport row error [' . $table . ']: ' . $e->getMessage());
                     $errors++;
                 }
             }
-            $summary[$table] = compact('imported', 'skipped', 'errors');
+
+            if ($insertBatch !== []) {
+                [$ins, $err] = $this->flushInsertBatch($table, $insertBatch);
+                $imported += $ins;
+                $errors   += $err;
+            }
+
+            $result = compact('imported', 'skipped', 'errors');
+            if ($backupTable) {
+                $result['backup'] = $backupTable;
+            }
+            $summary[$table] = $result;
         }
+        } finally {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
+
         return $summary;
+    }
+
+    private function cachedColumns(string $table): array
+    {
+        return $this->columnCache[$table] ??= Schema::getColumnListing($table);
+    }
+
+    /**
+     * Carga en UN solo SELECT todos los registros que podrían conflictuar
+     * con cualquier fila del batch, usando WHERE IN por cada conflict_key.
+     * Devuelve índice [key][value] => record para lookup O(1).
+     */
+    private function buildExistingIndex(string $table, array $conflictKeys, array $rows, array $destColumns): array
+    {
+        if (empty($conflictKeys)) return [];
+
+        $valuesByKey = [];
+        foreach ($conflictKeys as $key) {
+            if (!in_array($key, $destColumns, true)) continue;
+            foreach ($rows as $row) {
+                if (isset($row[$key]) && $row[$key] !== '' && $row[$key] !== null) {
+                    $valuesByKey[$key][] = $row[$key];
+                }
+            }
+            if (isset($valuesByKey[$key])) {
+                $valuesByKey[$key] = array_values(array_unique($valuesByKey[$key]));
+            }
+        }
+        if (empty($valuesByKey)) return [];
+
+        $query = DB::table($table);
+        $hasFilter = false;
+        foreach ($valuesByKey as $key => $values) {
+            $query->orWhereIn($key, $values);
+            $hasFilter = true;
+        }
+        if (!$hasFilter) return [];
+
+        $index = [];
+        foreach ($query->get() as $record) {
+            $record = (array) $record;
+            foreach ($conflictKeys as $key) {
+                if (isset($record[$key])) {
+                    $index[$key][(string) $record[$key]] = $record;
+                }
+            }
+        }
+        return $index;
+    }
+
+    /** Lookup O(1) en el índice pre-cargado por buildExistingIndex(). */
+    private function lookupExisting(array $index, array $conflictKeys, array $row): ?array
+    {
+        foreach ($conflictKeys as $key) {
+            if (isset($row[$key], $index[$key][(string) $row[$key]])) {
+                return $index[$key][(string) $row[$key]];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Convierte filas en formato lista a asociativo usando los nombres de columnas del dump
+     * o los de la tabla destino. Filas ya asociativas se devuelven sin cambios.
+     * Necesario antes de buildExistingIndex: las filas del dump llegan como listas
+     * cuando mysqldump no incluye nombres de columnas en el INSERT INTO.
+     */
+    private function normalizeRows(array $rows, string $table, array $destColumns): array
+    {
+        $dumpCols   = $this->dumpColumnsByTable[$table] ?? null;
+        $normalized = [];
+        foreach ($rows as $idx => $row) {
+            if (!is_array($row) || !array_is_list($row)) {
+                $normalized[$idx] = $row;
+                continue;
+            }
+            if ($dumpCols && count($dumpCols) === count($row)) {
+                $normalized[$idx] = array_combine($dumpCols, $row);
+            } elseif (count($destColumns) === count($row)) {
+                $normalized[$idx] = array_combine($destColumns, $row);
+            } else {
+                $normalized[$idx] = $row; // no se puede normalizar — sanitizeRow lo descartará
+            }
+        }
+        return $normalized;
+    }
+
+    /** sanitizeRow con columnas destino ya pre-cacheadas (evita Schema::getColumnListing por fila). */
+    private function sanitizeRowWithColumns(array $row, string $table, array $destColumns): array
+    {
+        if ($row !== [] && array_is_list($row)) {
+            $dumpCols = $this->dumpColumnsByTable[$table] ?? null;
+            if ($dumpCols && count($dumpCols) === count($row)) {
+                $row = array_combine($dumpCols, $row);
+            } elseif (count($destColumns) === count($row)) {
+                $row = array_combine($destColumns, $row);
+            } else {
+                return [];
+            }
+        }
+        return array_intersect_key($row, array_flip($destColumns));
+    }
+
+    /** injectAuditColumns con columnas pre-cacheadas. */
+    private function injectAuditColumnsCached(string $table, array $row, array $columns, bool $isUpdate): array
+    {
+        $userId = auth()->id();
+        $now    = now();
+        if (in_array('updated_at', $columns, true)) $row['updated_at'] = $now;
+        if (in_array('updated_by', $columns, true) && $userId) $row['updated_by'] = $userId;
+        if (!$isUpdate) {
+            if (in_array('created_at', $columns, true) && !isset($row['created_at'])) $row['created_at'] = $now;
+            if (in_array('created_by', $columns, true) && $userId && !isset($row['created_by'])) $row['created_by'] = $userId;
+        }
+        return $row;
+    }
+
+    /**
+     * Inserta un lote de filas con un solo DB::table()->insert().
+     * Si el batch falla (FK violation, duplicate key, etc.), reintenta fila a fila
+     * para no perder las filas válidas del lote.
+     * Retorna [importados, errores].
+     */
+    private function flushInsertBatch(string $table, array $batch): array
+    {
+        if (empty($batch)) return [0, 0];
+        try {
+            DB::table($table)->insert($batch);
+            return [count($batch), 0];
+        } catch (Throwable $e) {
+            $imported = 0;
+            $errors   = 0;
+            foreach ($batch as $row) {
+                try {
+                    DB::table($table)->insert($row);
+                    $imported++;
+                } catch (Throwable $inner) {
+                    Log::warning("SmartImport insert [{$table}]: " . $inner->getMessage());
+                    $errors++;
+                }
+            }
+            return [$imported, $errors];
+        }
     }
 
     public function cleanup(string $storedName): void
@@ -897,7 +1146,7 @@ class SmartImportService
     private const MAX_ROWS_PER_TABLE       = 10000;
     private const STREAM_CHUNK_BYTES       = 65536;              // 64 KB por fread
     private const MAX_INSERT_HEADER_BYTES  = 16384;              // INSERT INTO ... VALUES rara vez excede 16 KB
-    private const MAX_SCAN_BYTES           = 500 * 1024 * 1024;  // 500 MB de scan máximo (no leer archivos absurdos)
+    private const MAX_SCAN_BYTES           = 4 * 1024 * 1024 * 1024; // 4 GB — el FSM es streaming; no carga en RAM
 
     private function parseSql(string $path): array
     {
@@ -1381,18 +1630,22 @@ class SmartImportService
         DB::table($table)->insert($clean);
     }
 
-    /** Update ramificado por modo. */
+    /** Update ramificado por modo. El PK nunca se actualiza: cambiar el id de una fila
+     *  a un valor que ya existe en otra fila provoca duplicate key 1062. */
     private function updateRow(string $table, array $info, mixed $existingId, array $row): void
     {
+        $pk = $this->pkOf($table, $info);
         if (($info['mode'] ?? 'model') === 'model') {
             $modelClass = $info['model'];
-            $modelClass::query()->whereKey($existingId)
-                ->update($this->sanitizeRow($row, $table));
+            $data = $this->sanitizeRow($row, $table);
+            unset($data[$pk]);
+            $modelClass::query()->whereKey($existingId)->update($data);
             return;
         }
         $clean = $this->sanitizeRow($row, $table);
         $clean = $this->injectAuditColumns($table, $clean, isUpdate: true);
-        DB::table($table)->where($this->pkOf($table, $info), $existingId)->update($clean);
+        unset($clean[$pk]);
+        DB::table($table)->where($pk, $existingId)->update($clean);
     }
 
     /**

@@ -43,6 +43,11 @@ class ImportExportController extends Controller
 
     public function upload(Request $request)
     {
+        // Subir límite solo para esta request: el análisis de ZIPs/dumps grandes
+        // puede necesitar varios GB en RAM (datasets + cache). No afecta otras requests.
+        set_time_limit(0);
+        ini_set('memory_limit', '8912M');
+
         // `extensions:` (Laravel 10.46+) valida por extensión del nombre del archivo.
         // `mimes:sql,...` rechazaba .sql porque no tiene MIME type estándar registrado
         // en Symfony MimeTypes, lo que causaba 422 ANTES de llegar a analyzeFile().
@@ -135,7 +140,8 @@ class ImportExportController extends Controller
             return response()->json(['success' => false, 'message' => 'Token inválido o expirado.'], 404);
         }
 
-        $options = $request->input('options', []);
+        $options       = $request->input('options', []);
+        $truncateBefore = $request->boolean('truncate_before', false);
         if (!is_array($options)) {
             $options = [];
         }
@@ -176,6 +182,7 @@ class ImportExportController extends Controller
             $options,
             auth()->id(),
             $log->id,
+            $truncateBefore,
         );
 
         return response()->json([
