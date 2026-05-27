@@ -4,12 +4,15 @@ use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Spatie\Permission\Models\Role;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $superAdmin = Role::where('name', ComunConstantsController::SUPER_ADMIN_ROLE)->first();
         $developer = Role::where('name', ComunConstantsController::DEVELOPER_ROLE)->first();
 
@@ -20,10 +23,11 @@ return new class extends Migration
         ];
 
         foreach ($permissions as $name) {
-            $permission = Permission::where('name', $name)->where('guard_name', 'web')->first();
-            if (! $permission) {
-                $permission = Permission::create(['name' => $name, 'guard_name' => 'web']);
-            }
+            $permission = Permission::firstOrCreate([
+                'name'       => $name,
+                'guard_name' => 'web',
+            ]);
+
             // Sólo SUPER_ADMIN y DESARROLLADOR pueden administrar módulos.
             foreach ([$superAdmin, $developer] as $role) {
                 if ($role && ! $role->hasPermissionTo($permission)) {
@@ -43,15 +47,21 @@ return new class extends Migration
         foreach ($users->unique('id') as $user) {
             $user->givePermissionTo($permissions);
         }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     public function down(): void
     {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         foreach (['admin_modules', 'admin_modules_migrate', 'admin_modules_toggle'] as $name) {
             $permission = Permission::where('name', $name)->where('guard_name', 'web')->first();
             if ($permission) {
                 $permission->delete();
             }
         }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 };

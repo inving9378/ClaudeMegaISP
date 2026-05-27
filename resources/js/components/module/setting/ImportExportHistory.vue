@@ -536,7 +536,7 @@ export default {
                 .forEach((l) => {
                     pollingIntervals[l.id] = setInterval(
                         () => pollOne(l),
-                        3000
+                        10000
                     );
                 });
         }

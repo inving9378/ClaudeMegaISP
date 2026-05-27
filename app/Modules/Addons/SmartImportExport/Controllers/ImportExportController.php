@@ -9,9 +9,11 @@ use App\Modules\Addons\SmartImportExport\Services\SmartExportService;
 use App\Modules\Addons\SmartImportExport\Services\SmartImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Throwable;
+use Symfony\Component\Process\PhpExecutableFinder;
 
 /**
  * Controlador unificado del addon Smart Import/Export.
@@ -47,7 +49,7 @@ class ImportExportController extends Controller
         // `mimes:sql,...` rechazaba .sql porque no tiene MIME type estándar registrado
         // en Symfony MimeTypes, lo que causaba 422 ANTES de llegar a analyzeFile().
         $validator = Validator::make($request->all(), [
-            'file' => ['required', 'file', 'extensions:sql,json,xlsx,xls,csv,zip', 'max:2097152'],
+            'file' => ['required', 'file', 'extensions:sql,zip', 'max:2097152'],
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
@@ -112,18 +114,18 @@ class ImportExportController extends Controller
             return response()->json(['success' => false, 'message' => 'Token inválido o expirado.'], 404);
         }
 
-        $conflicts = $this->importService->detectConflicts($analysis['datasets']);
-        $aiRecommendations = null;
-        if ($request->boolean('with_ai') && !empty($conflicts)) {
-            $aiRecommendations = $this->importService->resolveWithAI($conflicts);
-        }
-
         return response()->json([
-            'success'            => true,
-            'token'              => $token,
-            'report'             => $analysis['report'],
-            'conflicts'          => $conflicts,
-            'ai_recommendations' => $aiRecommendations,
+            'success'         => true,
+            'token'           => $token,
+            'report'          => $analysis['report'],
+            'conflicts'       => [],
+            'conflict_stats'  => [],
+            'conflict_meta'   => [],
+            'supported_modes' => [
+                SmartImportService::GLOBAL_MODE_FORCE_SOURCE,
+                SmartImportService::GLOBAL_MODE_SKIP_EXISTING,
+                SmartImportService::GLOBAL_MODE_SMART,
+            ],
         ]);
     }
 
@@ -161,22 +163,36 @@ class ImportExportController extends Controller
             'state'    => 'queued',
             'progress' => 0,
             'log'      => ['Importación encolada.'],
-            'tables'   => array_keys($analysis['datasets']),
+            'tables'   => array_values(array_unique(array_column($analysis['report'] ?? [], 'table'))),
+        ], $log->id);
+
+        SmartImportJob::storeExecutionContext($jobId, [
+            'token'   => $token,
+            'options' => $options,
+            'user_id' => auth()->id(),
+            'log_id'  => $log->id,
         ]);
 
-        $log->markRunning($jobId);
+        try {
+            $this->launchSmartImportProcess($jobId);
+            $log->markRunning($jobId);
+        } catch (Throwable $e) {
+            Log::error('No se pudo iniciar el proceso SmartImport: ' . $e->getMessage());
+            SmartImportJob::forgetExecutionContext($jobId);
+            SmartImportJob::setStatus($jobId, [
+                'state'    => 'failed',
+                'progress' => 0,
+                'log'      => ['Importación abortada: ' . $e->getMessage()],
+                'error'    => $e->getMessage(),
+            ], $log->id);
+            $log->markFailed($e->getMessage());
 
-        // El job rehidrata $datasets desde el cache usando el token; pasarlo aquí
-        // serializaría 500MB+ en Queue::createPayload y revienta por OOM.
-        // El cleanup() del archivo y el Cache::forget() también viven en el job
-        // (finally), para que ocurran tras procesar — no aquí antes de despachar.
-        SmartImportJob::dispatch(
-            $jobId,
-            $token,
-            $options,
-            auth()->id(),
-            $log->id,
-        );
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo iniciar la importación en segundo plano: ' . $e->getMessage(),
+                'log_id'  => $log->id,
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
@@ -334,6 +350,46 @@ class ImportExportController extends Controller
     private function cacheKey(string $token): string
     {
         return 'smart_import:analysis:' . $token;
+    }
+
+    private function launchSmartImportProcess(string $jobId): void
+    {
+        $php = $this->resolvePhpCliBinary();
+        $logPath = storage_path('logs/smart-import-process-' . $jobId . '.log');
+
+        $command = sprintf(
+            'cd %s && nohup %s artisan smart-import:run %s > %s 2>&1 & echo $!',
+            escapeshellarg(base_path()),
+            escapeshellarg($php),
+            escapeshellarg($jobId),
+            escapeshellarg($logPath)
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+
+        $pid = trim((string) ($output[0] ?? ''));
+        if ($exitCode !== 0 || $pid === '') {
+            throw new \RuntimeException('No fue posible iniciar el proceso de importación.');
+        }
+    }
+
+    private function resolvePhpCliBinary(): string
+    {
+        $finder = new PhpExecutableFinder();
+        $php = $finder->find(false);
+
+        if (is_string($php) && $php !== '') {
+            return $php;
+        }
+
+        $fallback = PHP_BINDIR . DIRECTORY_SEPARATOR . 'php';
+        if (is_file($fallback) && is_executable($fallback)) {
+            return $fallback;
+        }
+
+        throw new \RuntimeException('No se encontró el binario PHP CLI para lanzar la importación.');
     }
 
     private function resolveAdminUser(): string

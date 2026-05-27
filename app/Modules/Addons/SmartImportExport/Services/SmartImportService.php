@@ -283,14 +283,131 @@ class SmartImportService
     private array $dumpColumnsByTable = [];
 
     /**
+     * Metadata del esquema del dump SQL/ZIP.
+     *
+     * @var array<string, array{
+     *     table: string,
+     *     columns: string[],
+     *     column_definitions: array<string, string>,
+     *     key_definitions: string[],
+     *     foreign_key_definitions: string[],
+     *     dependencies: string[],
+     *     create_sql: string,
+     *     table_options: string
+     * }>
+     */
+    private array $sourceTableSchemas = [];
+
+    /**
      * Cache de Schema::hasColumn() para evitar consultas repetidas a information_schema.
      * @var array<string, array<string, bool>>
      */
     private array $hasColumnCache = [];
 
+    /**
+     * Cache de metadata derivada de getColumnListing() para evitar resolver
+     * las mismas columnas por fila durante sanitize/inject/bulk normalize.
+     *
+     * @var array<string, array{
+     *     columns: string[],
+     *     columns_flip: array<string, bool>,
+     *     has_created_at: bool,
+     *     has_updated_at: bool,
+     *     has_created_by: bool,
+     *     has_updated_by: bool
+     * }>
+     */
+    private array $tableMetadataCache = [];
+
+    /**
+     * Cache de Schema::hasTable() para evitar consultas repetidas durante el parser streaming.
+     * @var array<string, bool>
+     */
+    private array $targetTableExistsCache = [];
+
+    /**
+     * Cache de dependencias FK existentes en la DB destino.
+     * @var array<string, string[]>
+     */
+    private array $targetForeignKeyDependencyCache = [];
+
+    /** Usuario que ejecuta el import en contexto async. */
+    private ?int $actingUserId = null;
+
+    private ?SmartImportTableResolver $tableResolver = null;
+
+    /**
+     * Modelos que deben quedarse en camino estricto: observers, jobs o lógica
+     * de dominio embebida al crear/actualizar.
+     *
+     * @var class-string[]
+     */
+    private const STRICT_MODEL_CLASSES = [
+        Balance::class,
+        BillingConfiguration::class,
+        Client::class,
+        ClientBundleService::class,
+        ClientCustomService::class,
+        ClientInternetService::class,
+        ClientInvoice::class,
+        ClientMainInformation::class,
+        ClientUser::class,
+        ClientVozService::class,
+        CompanyInformation::class,
+        CrmMainInformation::class,
+        CutExtraIncome::class,
+        CutInstallation::class,
+        CutObservation::class,
+        CutSupplierExpense::class,
+        Discount::class,
+        DistributionCommission::class,
+        DocumentationContent::class,
+        DocumentationMenu::class,
+        DocumentationSubmenu::class,
+        EvaluacionEmpresarial::class,
+        FieldModule::class,
+        FileModel::class,
+        IANotaProyecto::class,
+        IATarea::class,
+        InventoryItem::class,
+        InventoryItemMedia::class,
+        InventoryItemType::class,
+        InventoryMovement::class,
+        MapDevicePortConnection::class,
+        MapLayer::class,
+        MapRoute::class,
+        Mikrotik::class,
+        MikrotikConfig::class,
+        ModuleRegistry::class,
+        Network::class,
+        Payment::class,
+        PaymentByRule::class,
+        Seller::class,
+        Task::class,
+        WhatsAppInstance::class,
+    ];
+
+    private const BULK_CHUNK_SIZE = 500;
+    private const PREVIEW_CONFLICT_CHUNK_SIZE = 500;
+    private const PREVIEW_CONFLICT_DETAIL_LIMIT = 50;
+    public const GLOBAL_MODE_FORCE_SOURCE = 'force_source';
+    public const GLOBAL_MODE_SKIP_EXISTING = 'skip_existing';
+    public const GLOBAL_MODE_SMART = 'smart';
+    private const SUPPORTED_IMPORT_FORMATS = ['sql', 'zip'];
+
     public function setDumpColumns(array $dumpColumns): void
     {
         $this->dumpColumnsByTable = $dumpColumns;
+    }
+
+    public function setSourceTableSchemas(array $schemas): void
+    {
+        $this->sourceTableSchemas = $schemas;
+    }
+
+    public function setActingUserId(?int $userId): void
+    {
+        $this->actingUserId = $userId;
     }
 
     /**
@@ -638,35 +755,16 @@ class SmartImportService
         $file->move($dir, $storedName);
         $path = $dir . '/' . $storedName;
 
-        // Reset por-llamada — parseSql lo llena
-        $this->lastRowCounts = [];
+        $this->resetAnalysisState();
 
         $format = $this->detectFormat($extension, $path);
         $datasets = match ($format) {
             'sql'   => $this->parseSql($path),
-            'json'  => $this->parseJson($path),
-            'csv'   => $this->parseCsv($path),
-            'xlsx'  => $this->parseSpreadsheet($path),
             'zip'   => $this->parseZip($path),
             default => [],
         };
 
-        $report = [];
-        foreach ($datasets as $table => $rows) {
-            $rows = array_values($rows);
-            $info = self::TABLE_MODULE_MAP[$table] ?? null;
-            // Count exacto del archivo (puede ser > count($rows) si truncamos en RAM)
-            $exactCount = $this->lastRowCounts[$table] ?? count($rows);
-            $report[] = [
-                'table'     => $table,
-                'module'    => $info['module'] ?? 'Sin clasificar',
-                'model'     => $info['model'] ?? null,
-                'records'   => $exactCount,
-                'sample'    => array_slice($rows, 0, 3),
-                'known'     => $info !== null,
-                'truncated' => $exactCount > count($rows),
-            ];
-        }
+        $report = $this->buildAnalysisReport($datasets);
 
         $totalRows = !empty($this->lastRowCounts)
             ? array_sum($this->lastRowCounts)
@@ -678,42 +776,177 @@ class SmartImportService
             'format'       => $format,
             'datasets'     => $datasets,
             'dump_columns' => $this->dumpColumnsByTable, // pobladas por parseSql → handle schema drift
+            'source_tables'=> $this->sourceTableSchemas,
             'report'       => $this->sanitizeUtf8($report),
             'total_rows'   => $totalRows,
         ];
     }
 
-    public function detectConflicts(array $datasets): array
+    public function loadDatasetsForExecution(array $analysis): array
+    {
+        $storedName = $analysis['file'] ?? null;
+        $format = $analysis['format'] ?? null;
+        if (!$storedName || !$format) {
+            return $analysis['datasets'] ?? [];
+        }
+
+        $path = storage_path(self::STORAGE_DIR . '/' . $storedName);
+        if (!File::exists($path)) {
+            return $analysis['datasets'] ?? [];
+        }
+
+        $this->resetAnalysisState();
+        $this->dumpColumnsByTable = $analysis['dump_columns'] ?? [];
+        $this->sourceTableSchemas = $analysis['source_tables'] ?? [];
+
+        return match ($format) {
+            'sql'   => $this->parseSql($path, PHP_INT_MAX),
+            'zip'   => $this->parseZip($path, PHP_INT_MAX),
+            default => $analysis['datasets'] ?? [],
+        };
+    }
+
+    public function executeSqlImportFromAnalysis(array $analysis, array $options = [], ?callable $onTableStarted = null): array
+    {
+        $storedName = $analysis['file'] ?? null;
+        if (!$storedName) {
+            return [];
+        }
+
+        $path = storage_path(self::STORAGE_DIR . '/' . $storedName);
+        if (!File::exists($path)) {
+            return [];
+        }
+
+        $this->sourceTableSchemas = $analysis['source_tables'] ?? $this->sourceTableSchemas;
+        $plan = $this->buildExecutionPlan($analysis, $options);
+        $summary = $this->initializeExecutionSummary($plan);
+        $this->preparePlannedTables($plan, $summary);
+        $rowIndexes = [];
+        $startedTables = [];
+        $this->executeSqlImportFromPath($path, $plan, $summary, $rowIndexes, $startedTables, $onTableStarted);
+        $this->notifyEmptyPlannedTables($plan, $startedTables, $onTableStarted);
+
+        return $summary;
+    }
+
+    public function executeZipImportFromAnalysis(array $analysis, array $options = [], ?callable $onTableStarted = null): array
+    {
+        $storedName = $analysis['file'] ?? null;
+        if (!$storedName) {
+            return [];
+        }
+
+        $path = storage_path(self::STORAGE_DIR . '/' . $storedName);
+        if (!File::exists($path)) {
+            return [];
+        }
+
+        if (!class_exists(\ZipArchive::class)) {
+            throw new \RuntimeException('La extensión PHP zip no está disponible en este servidor.');
+        }
+
+        $zip = new \ZipArchive();
+        $opened = $zip->open($path);
+        if ($opened !== true) {
+            throw new \RuntimeException('No se pudo abrir el archivo ZIP (código ' . $opened . ').');
+        }
+
+        $extractDir = storage_path(self::STORAGE_DIR . '/execute-extracted-' . Str::uuid());
+        if (!File::exists($extractDir)) {
+            File::makeDirectory($extractDir, 0775, true, true);
+        }
+        $zip->extractTo($extractDir);
+        $zip->close();
+
+        $this->sourceTableSchemas = $analysis['source_tables'] ?? $this->sourceTableSchemas;
+        $plan = $this->buildExecutionPlan($analysis, $options);
+        $summary = $this->initializeExecutionSummary($plan);
+        $this->preparePlannedTables($plan, $summary);
+        $rowIndexes = [];
+        $startedTables = [];
+
+        try {
+            foreach (File::allFiles($extractDir) as $extracted) {
+                $ext = strtolower($extracted->getExtension());
+                $pathname = $extracted->getPathname();
+
+                if ($ext !== 'sql') {
+                    continue;
+                }
+
+                $this->executeSqlImportFromPath($pathname, $plan, $summary, $rowIndexes, $startedTables, $onTableStarted);
+            }
+        } finally {
+            File::deleteDirectory($extractDir);
+        }
+
+        $this->notifyEmptyPlannedTables($plan, $startedTables, $onTableStarted);
+
+        return $summary;
+    }
+
+    public function detectConflicts(array $datasets, array $options = []): array
     {
         $conflicts = [];
+        $stats = [];
+        $detailLimit = max(1, (int) ($options['detail_limit_per_table'] ?? self::PREVIEW_CONFLICT_DETAIL_LIMIT));
+        $chunkSize = max(1, (int) ($options['chunk_size'] ?? self::PREVIEW_CONFLICT_CHUNK_SIZE));
+
         foreach ($datasets as $table => $rows) {
-            $info = self::TABLE_MODULE_MAP[$table] ?? null;
-            if (!$info || !Schema::hasTable($table)) {
+            if (!Schema::hasTable($table)) {
                 continue;
             }
-            $keys = $info['conflict_keys'] ?? [];
+            $info = $this->importDescriptor($table);
+            $keys = $info['conflict_keys'];
             if (empty($keys)) continue;
 
             $tableConflicts = [];
-            $existingMap = $this->batchFindExisting($table, $keys, $rows);
+            $conflictCount = 0;
+            $scannedRows = count($rows);
 
-            foreach ($rows as $index => $row) {
-                $existing = $existingMap[$index] ?? null;
-                if ($existing) {
-                    $tableConflicts[] = [
-                        'index'    => $index,
-                        'incoming' => $row,
-                        'existing' => $existing,
-                        'matched'  => $this->matchedKeys($keys, $row, $existing),
-                    ];
+            foreach (array_chunk($rows, $chunkSize, true) as $chunkRows) {
+                $existingMap = $this->batchFindExisting($table, $keys, $chunkRows);
+
+                foreach ($chunkRows as $index => $row) {
+                    $existing = $existingMap[$index] ?? null;
+                    if (!$existing) {
+                        continue;
+                    }
+
+                    $conflictCount++;
+                    if (count($tableConflicts) < $detailLimit) {
+                        $tableConflicts[] = [
+                            'index'    => $index,
+                            'incoming' => $row,
+                            'existing' => $existing,
+                            'matched'  => $this->matchedKeys($keys, $row, $existing),
+                        ];
+                    }
                 }
             }
 
-            if (!empty($tableConflicts)) {
+            if ($conflictCount > 0) {
                 $conflicts[$table] = $tableConflicts;
+                $stats[$table] = [
+                    'total_conflicts'    => $conflictCount,
+                    'returned_conflicts' => count($tableConflicts),
+                    'truncated'          => $conflictCount > count($tableConflicts),
+                    'scanned_rows'       => $scannedRows,
+                    'detail_limit'       => $detailLimit,
+                ];
             }
         }
-        return $conflicts;
+
+        return [
+            'items' => $conflicts,
+            'stats' => $stats,
+            'meta'  => [
+                'detail_limit_per_table' => $detailLimit,
+                'chunk_size'             => $chunkSize,
+                'sampled_response'       => true,
+            ],
+        ];
     }
 
     public function resolveWithAI(array $conflicts): array
@@ -752,7 +985,7 @@ class SmartImportService
     {
         $summary = [];
         foreach ($datasets as $table => $rows) {
-            $info = self::TABLE_MODULE_MAP[$table] ?? null;
+            $info = $this->importDescriptor($table);
             $skipReason = $this->validateMapEntry($table, $info);
             if ($skipReason !== null) {
                 $summary[$table] = ['imported' => 0, 'skipped' => count($rows), 'errors' => 0, 'reason' => $skipReason];
@@ -766,7 +999,19 @@ class SmartImportService
             $skipped = 0;
             $errors = 0;
 
-            $existingMap = $this->batchFindExisting($table, $info['conflict_keys'] ?? [], $rows);
+            $conflictRows = $this->prepareRowsForConflictDetection($table, $rows);
+            $existingMap = $this->batchFindExisting($table, $info['conflict_keys'], $conflictRows);
+            if ($this->canUseBulkPath($info)) {
+                $summary[$table] = $this->executeBulkImportTable(
+                    $table,
+                    $info,
+                    $rows,
+                    $existingMap,
+                    $defaultAction,
+                    $perRow
+                );
+                continue;
+            }
 
             foreach ($rows as $index => $row) {
                 try {
@@ -778,7 +1023,11 @@ class SmartImportService
                         continue;
                     }
                     if ($action === 'replace' && $existing) {
-                        $this->updateRow($table, $info, $existing[$pk], $row);
+                        if (isset($existing[$pk]) && $this->hasColumnCached($table, $pk)) {
+                            $this->updateRow($table, $info, $existing[$pk], $row);
+                        } else {
+                            $this->updateExistingRowByConflictKeys($table, $info['conflict_keys'], $row);
+                        }
                         $imported++;
                         continue;
                     }
@@ -797,6 +1046,35 @@ class SmartImportService
         return $summary;
     }
 
+    private function updateExistingRowByConflictKeys(string $table, array $keys, array $row): void
+    {
+        if ($keys === []) {
+            throw new \RuntimeException('No hay llaves de conflicto disponibles para actualizar ' . $table . '.');
+        }
+
+        $clean = $this->prepareDirectWriteRow($table, $row, isUpdate: true);
+        if ($clean === []) {
+            throw new \RuntimeException('Fila vacía después de normalizar columnas para ' . $table . '.');
+        }
+
+        $query = DB::table($table);
+        foreach ($keys as $key) {
+            if (!$this->hasConflictValue($clean, $key)) {
+                throw new \RuntimeException('Falta llave de conflicto ' . $key . ' para actualizar ' . $table . '.');
+            }
+            $query->where($key, $clean[$key]);
+        }
+
+        $update = $clean;
+        foreach ($keys as $key) {
+            unset($update[$key]);
+        }
+
+        if ($update !== []) {
+            $query->update($update);
+        }
+    }
+
     public function cleanup(string $storedName): void
     {
         $path = storage_path(self::STORAGE_DIR . '/' . $storedName);
@@ -807,20 +1085,271 @@ class SmartImportService
 
     /* ===================== Helpers privados ===================== */
 
+    private function buildExecutionPlan(array $analysis, array $options): array
+    {
+        $globalMode = $this->normalizeGlobalMode($options['global_mode'] ?? self::GLOBAL_MODE_SMART);
+        $tables = array_values(array_unique(array_merge(
+            array_column($analysis['report'] ?? [], 'table'),
+            array_keys($analysis['source_tables'] ?? [])
+        )));
+        $orderedTables = $this->topologicalSortTables($tables);
+        $rawTableModes = is_array($options['table_modes'] ?? null) ? $options['table_modes'] : [];
+        $planTables = [];
+
+        foreach ($orderedTables as $table) {
+            $rawMode = $rawTableModes[$table]['mode']
+                ?? $rawTableModes[$table]
+                ?? $options[$table]['mode']
+                ?? null;
+            $mode = $this->normalizeGlobalMode($rawMode ?? $globalMode);
+
+            $planTables[$table] = [
+                'table'                => $table,
+                'mode'                 => $mode,
+                'info'                 => $this->importDescriptor($table),
+                'source_schema'        => $analysis['source_tables'][$table] ?? $this->sourceTableSchemas[$table] ?? null,
+                'target_exists_before' => Schema::hasTable($table),
+                'disabled'             => false,
+            ];
+        }
+
+        return [
+            'global_mode'   => $globalMode,
+            'ordered_tables'=> $orderedTables,
+            'tables'        => $planTables,
+        ];
+    }
+
+    private function normalizeGlobalMode(?string $mode): string
+    {
+        return match ($mode) {
+            self::GLOBAL_MODE_FORCE_SOURCE,
+            self::GLOBAL_MODE_SKIP_EXISTING,
+            self::GLOBAL_MODE_SMART => $mode,
+            default => self::GLOBAL_MODE_SMART,
+        };
+    }
+
+    private function initializeExecutionSummary(array $plan): array
+    {
+        $summary = [];
+        foreach ($plan['ordered_tables'] as $table) {
+            $mode = $plan['tables'][$table]['mode'] ?? self::GLOBAL_MODE_SMART;
+            $summary[$table] = [
+                'imported'             => 0,
+                'skipped'              => 0,
+                'errors'               => 0,
+                'mode'                 => $mode,
+                'created'              => false,
+                'replaced'             => false,
+                'added_columns'        => [],
+                'warnings'             => [],
+                'target_exists_before' => (bool) ($plan['tables'][$table]['target_exists_before'] ?? false),
+            ];
+        }
+
+        return $summary;
+    }
+
+    private function preparePlannedTables(array &$plan, array &$summary): void
+    {
+        foreach ($plan['ordered_tables'] as $table) {
+            $tablePlan = &$plan['tables'][$table];
+            $sourceSchema = $tablePlan['source_schema'] ?? null;
+            $mode = $tablePlan['mode'] ?? self::GLOBAL_MODE_SMART;
+
+            if (!$tablePlan['target_exists_before']) {
+                if ($sourceSchema === null) {
+                    $tablePlan['disabled'] = true;
+                    $summary[$table]['warnings'][] = 'sin_create_table_para_crear_destino';
+                    continue;
+                }
+
+                $created = $this->createTargetTableFromSource($table, $sourceSchema);
+                if ($created) {
+                    $summary[$table]['created'] = true;
+                } else {
+                    $tablePlan['disabled'] = true;
+                    $summary[$table]['warnings'][] = 'no_se_pudo_crear_tabla_destino';
+                    continue;
+                }
+            }
+
+            if ($sourceSchema !== null && in_array($mode, [self::GLOBAL_MODE_FORCE_SOURCE, self::GLOBAL_MODE_SMART], true)) {
+                $addedColumns = $this->syncMissingTargetColumns($table, $sourceSchema);
+                if ($addedColumns !== []) {
+                    $summary[$table]['added_columns'] = array_values(array_unique(array_merge(
+                        $summary[$table]['added_columns'] ?? [],
+                        $addedColumns
+                    )));
+                    $summary[$table]['warnings'][] = 'columnas_agregadas_desde_dump';
+                }
+            }
+        }
+
+        foreach (array_reverse($plan['ordered_tables']) as $table) {
+            $tablePlan = $plan['tables'][$table] ?? null;
+            if (!$tablePlan || ($tablePlan['disabled'] ?? false)) {
+                continue;
+            }
+            if (($tablePlan['mode'] ?? null) !== self::GLOBAL_MODE_FORCE_SOURCE) {
+                continue;
+            }
+            if (!($tablePlan['target_exists_before'] ?? false)) {
+                continue;
+            }
+            if (!Schema::hasTable($table)) {
+                continue;
+            }
+
+            $this->clearExistingTable($table);
+            $summary[$table]['replaced'] = true;
+        }
+    }
+
+    private function createTargetTableFromSource(string $table, array $sourceSchema): bool
+    {
+        $sql = $this->buildCreateSqlWithoutForeignKeys($table, $sourceSchema);
+        if ($sql === null) {
+            return false;
+        }
+
+        try {
+            DB::statement($sql);
+        } catch (Throwable $e) {
+            Log::warning('SmartImport create table error [' . $table . ']: ' . $e->getMessage());
+            return false;
+        }
+
+        return Schema::hasTable($table);
+    }
+
+    private function buildCreateSqlWithoutForeignKeys(string $table, array $sourceSchema): ?string
+    {
+        $definitions = array_values($sourceSchema['column_definitions'] ?? []);
+        foreach ($sourceSchema['key_definitions'] ?? [] as $definition) {
+            $definitions[] = $definition;
+        }
+
+        if ($definitions === []) {
+            return null;
+        }
+
+        $tableOptions = trim((string) ($sourceSchema['table_options'] ?? ''));
+        if ($tableOptions === '') {
+            $tableOptions = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+        }
+
+        return sprintf(
+            "CREATE TABLE `%s` (\n  %s\n) %s;",
+            str_replace('`', '``', $table),
+            implode(",\n  ", $definitions),
+            rtrim($tableOptions, ';')
+        );
+    }
+
+    private function syncMissingTargetColumns(string $table, array $sourceSchema): array
+    {
+        if (!Schema::hasTable($table)) {
+            return [];
+        }
+
+        $addedColumns = [];
+        foreach (($sourceSchema['column_definitions'] ?? []) as $column => $definition) {
+            if (Schema::hasColumn($table, $column)) {
+                continue;
+            }
+
+            try {
+                DB::statement(sprintf(
+                    'ALTER TABLE `%s` ADD COLUMN %s',
+                    str_replace('`', '``', $table),
+                    $definition
+                ));
+                unset($this->tableMetadataCache[$table], $this->hasColumnCache[$table]);
+                $addedColumns[] = $column;
+            } catch (Throwable $e) {
+                Log::warning('SmartImport add column error [' . $table . '.' . $column . ']: ' . $e->getMessage());
+            }
+        }
+
+        return $addedColumns;
+    }
+
+    private function clearExistingTable(string $table): void
+    {
+        try {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            DB::statement('TRUNCATE TABLE `' . str_replace('`', '``', $table) . '`');
+        } catch (Throwable $e) {
+            Log::warning('SmartImport truncate error [' . $table . ']: ' . $e->getMessage());
+            DB::table($table)->delete();
+        } finally {
+            try {
+                DB::statement('SET FOREIGN_KEY_CHECKS=1');
+            } catch (Throwable) {
+            }
+        }
+    }
+
+    private function notifyEmptyPlannedTables(array $plan, array &$startedTables, ?callable $onTableStarted): void
+    {
+        if (!$onTableStarted) {
+            return;
+        }
+
+        foreach ($plan['ordered_tables'] as $table) {
+            if (isset($startedTables[$table])) {
+                continue;
+            }
+            $startedTables[$table] = true;
+            $onTableStarted($table);
+        }
+    }
+
+    private function executeDirectInsertTable(string $table, array $rows): array
+    {
+        $insertRows = [];
+        $errors = 0;
+
+        foreach ($rows as $row) {
+            try {
+                $prepared = $this->prepareDirectWriteRow($table, $row, isUpdate: false);
+                if ($prepared === []) {
+                    $errors++;
+                    continue;
+                }
+                $insertRows[] = $prepared;
+            } catch (Throwable $e) {
+                Log::warning('SmartImport direct insert prepare error [' . $table . ']: ' . $e->getMessage());
+                $errors++;
+            }
+        }
+
+        $imported = $this->flushBulkInsertRows($table, $insertRows, $errors);
+
+        return [
+            $table => [
+                'imported' => $imported,
+                'skipped'  => 0,
+                'errors'   => $errors,
+            ],
+        ];
+    }
+
     private function detectFormat(string $extension, string $path): string
     {
-        $byExt = ['sql' => 'sql', 'json' => 'json', 'csv' => 'csv', 'xlsx' => 'xlsx', 'xls' => 'xlsx', 'zip' => 'zip'];
+        $byExt = ['sql' => 'sql', 'zip' => 'zip'];
         if (isset($byExt[$extension])) {
             return $byExt[$extension];
         }
         $head = @file_get_contents($path, false, null, 0, 512) ?: '';
         if (str_starts_with($head, "PK\x03\x04")) return 'zip';
-        if (Str::startsWith(ltrim($head), ['{', '['])) return 'json';
         if (stripos($head, 'INSERT INTO') !== false || stripos($head, 'CREATE TABLE') !== false) return 'sql';
-        return 'csv';
+        throw new \RuntimeException('Formato no soportado. Smart Import sólo acepta .sql o .zip con dumps SQL.');
     }
 
-    private function parseZip(string $path): array
+    private function parseZip(string $path, ?int $sqlRowStoreLimit = self::MAX_ROWS_PER_TABLE): array
     {
         if (!class_exists(\ZipArchive::class)) {
             throw new \RuntimeException('La extensión PHP zip no está disponible en este servidor.');
@@ -843,13 +1372,10 @@ class SmartImportService
         try {
             foreach (File::allFiles($extractDir) as $extracted) {
                 $ext = strtolower($extracted->getExtension());
-                $sub = match ($ext) {
-                    'sql'         => $this->parseSql($extracted->getPathname()),
-                    'json'        => $this->parseJson($extracted->getPathname()),
-                    'csv'         => $this->parseCsv($extracted->getPathname()),
-                    'xlsx', 'xls' => $this->parseSpreadsheet($extracted->getPathname()),
-                    default       => [],
-                };
+                if ($ext !== 'sql') {
+                    continue;
+                }
+                $sub = $this->parseSql($extracted->getPathname(), $sqlRowStoreLimit);
                 foreach ($sub as $table => $rows) {
                     $datasets[$table] = array_merge($datasets[$table] ?? [], $rows);
                 }
@@ -910,14 +1436,24 @@ class SmartImportService
     private const MAX_INSERT_HEADER_BYTES  = 16384;              // INSERT INTO ... VALUES rara vez excede 16 KB
     private const MAX_SCAN_BYTES           = 500 * 1024 * 1024;  // 500 MB de scan máximo (no leer archivos absurdos)
 
-    private function parseSql(string $path): array
+    private function parseSql(string $path, ?int $rowStoreLimit = self::MAX_ROWS_PER_TABLE): array
     {
-        // Pre-pass: extraer orden de columnas desde CREATE TABLE statements.
-        // Necesario para schema-drift-safe array_combine en sanitizeRow.
-        // Se acumula porque parseSql puede llamarse múltiples veces (parseZip
-        // itera archivos del zip).
-        foreach ($this->extractDumpColumns($path) as $t => $cols) {
-            $this->dumpColumnsByTable[$t] = $cols;
+        return $this->scanSqlFile($path, $rowStoreLimit);
+    }
+
+    private function scanSqlFile(
+        string $path,
+        ?int $rowStoreLimit = self::MAX_ROWS_PER_TABLE,
+        ?callable $onAcceptedRow = null,
+        ?int $maxScanBytes = self::MAX_SCAN_BYTES
+    ): array
+    {
+        // Pre-pass: extraer esquema y orden de columnas desde CREATE TABLE.
+        // Esto alimenta tanto el mapeo seguro de columnas como la capacidad
+        // de crear tablas faltantes a partir del dump.
+        foreach ($this->extractDumpTableSchemas($path) as $table => $schema) {
+            $this->sourceTableSchemas[$table] = $schema;
+            $this->dumpColumnsByTable[$table] = $schema['columns'];
         }
 
         $handle = @fopen($path, 'rb');
@@ -931,6 +1467,7 @@ class SmartImportService
         // Estado FSM
         $currentTable   = null;   // ?string — tabla del INSERT actual, null fuera de un INSERT
         $currentColumns = [];     // string[] — columnas del INSERT actual
+        $skipCurrentInsert = false; // true cuando el INSERT apunta a una tabla no aplicable
         $header         = '';     // buffer mientras buscamos "INSERT INTO ... VALUES"
         $tuple          = '';     // buffer de la tupla actual cuando estamos dentro de VALUES
         $depth          = 0;      // profundidad de paréntesis (siempre 0 o 1 en SQL bien formado)
@@ -939,7 +1476,7 @@ class SmartImportService
         $scanned        = 0;      // bytes totales escaneados (para MAX_SCAN_BYTES)
 
         try {
-            while (!feof($handle) && $scanned < self::MAX_SCAN_BYTES) {
+            while (!feof($handle) && ($maxScanBytes === null || $scanned < $maxScanBytes)) {
                 $chunk = fread($handle, self::STREAM_CHUNK_BYTES);
                 if ($chunk === false || $chunk === '') {
                     break;
@@ -974,6 +1511,7 @@ class SmartImportService
                                 $m
                             )) {
                                 $currentTable   = $m[1];
+                                $skipCurrentInsert = !$this->shouldScanSqlRowsForTable($currentTable);
                                 $currentColumns = isset($m[2]) && $m[2] !== ''
                                     ? array_map(
                                         fn ($x) => trim($x, " `\t\n\r"),
@@ -1012,16 +1550,22 @@ class SmartImportService
                                 // array indexado — el report sigue siendo válido (table+records+
                                 // sample). executeImport puede resolver las columnas leyendo
                                 // SHOW COLUMNS FROM la tabla destino al momento de aplicar.
-                                $values = $this->parseSqlTuple($tuple);
-                                $accept = empty($currentColumns)
-                                    ? !empty($values)
-                                    : (count($values) === count($currentColumns));
-                                if ($accept) {
-                                    $rowCounts[$currentTable] = ($rowCounts[$currentTable] ?? 0) + 1;
-                                    if ($rowCounts[$currentTable] <= self::MAX_ROWS_PER_TABLE) {
-                                        $datasets[$currentTable][] = empty($currentColumns)
+                                if (!$skipCurrentInsert) {
+                                    $values = $this->parseSqlTuple($tuple);
+                                    $accept = empty($currentColumns)
+                                        ? !empty($values)
+                                        : (count($values) === count($currentColumns));
+                                    if ($accept) {
+                                        $mappedRow = empty($currentColumns)
                                             ? $values
                                             : array_combine($currentColumns, $values);
+                                        $rowCounts[$currentTable] = ($rowCounts[$currentTable] ?? 0) + 1;
+                                        if ($rowStoreLimit !== null && $rowCounts[$currentTable] <= $rowStoreLimit) {
+                                            $datasets[$currentTable][] = $mappedRow;
+                                        }
+                                        if ($onAcceptedRow) {
+                                            $onAcceptedRow($currentTable, $mappedRow);
+                                        }
                                     }
                                 }
                                 $tuple = '';
@@ -1034,6 +1578,7 @@ class SmartImportService
                             // Fin del INSERT — volver a estado "buscando header"
                             $currentTable   = null;
                             $currentColumns = [];
+                            $skipCurrentInsert = false;
                             $tuple          = '';
                             $header         = '';
                             continue;
@@ -1057,6 +1602,163 @@ class SmartImportService
         }
 
         return $datasets;
+    }
+
+    private function executeSqlImportFromPath(
+        string $path,
+        array $plan,
+        array &$summary,
+        array &$rowIndexes,
+        array &$startedTables,
+        ?callable $onTableStarted
+    ): void {
+        $chunks = [];
+        $spoolDir = storage_path(self::STORAGE_DIR . '/spool-' . Str::uuid());
+        if (!File::exists($spoolDir)) {
+            File::makeDirectory($spoolDir, 0775, true, true);
+        }
+        $spools = [];
+        $handles = [];
+
+        $flushTableChunk = function (string $table) use (&$chunks, &$summary, $plan): void {
+            $rows = $chunks[$table] ?? [];
+            if ($rows === []) {
+                return;
+            }
+
+            $tablePlan = $plan['tables'][$table] ?? null;
+            if (!$tablePlan || ($tablePlan['disabled'] ?? false)) {
+                $summary[$table]['errors'] = ($summary[$table]['errors'] ?? 0) + count($rows);
+                $chunks[$table] = [];
+                return;
+            }
+
+            $mode = $tablePlan['mode'] ?? self::GLOBAL_MODE_SMART;
+            $targetExistedBefore = (bool) ($tablePlan['target_exists_before'] ?? false);
+
+            if ($mode === self::GLOBAL_MODE_SKIP_EXISTING && $targetExistedBefore) {
+                $summary[$table]['skipped'] = ($summary[$table]['skipped'] ?? 0) + count($rows);
+                $chunks[$table] = [];
+                return;
+            }
+
+            if (
+                $mode === self::GLOBAL_MODE_FORCE_SOURCE
+                || ($mode === self::GLOBAL_MODE_SKIP_EXISTING && !$targetExistedBefore)
+            ) {
+                $chunkSummary = $this->executeDirectInsertTable($table, $rows);
+            } else {
+                $chunkSummary = $this->executeImport(
+                    [$table => $rows],
+                    [$table => ['action' => 'replace', 'conflicts' => []]]
+                );
+            }
+
+            $summary[$table] = $this->mergeImportSummary(
+                $summary[$table] ?? ['imported' => 0, 'skipped' => 0, 'errors' => 0],
+                $chunkSummary[$table] ?? ['imported' => 0, 'skipped' => 0, 'errors' => 0]
+            );
+
+            $chunks[$table] = [];
+        };
+
+        try {
+            $this->scanSqlFile($path, null, function (string $table, array $row) use (&$spools, &$handles, &$rowIndexes, $spoolDir): void {
+                if (!isset($spools[$table])) {
+                    $path = $spoolDir . '/' . $this->spoolFileNameForTable($table);
+                    $handle = @fopen($path, 'ab');
+                    if (!$handle) {
+                        throw new \RuntimeException('No se pudo crear spool temporal para ' . $table . '.');
+                    }
+                    $spools[$table] = [
+                        'path' => $path,
+                        'rows' => 0,
+                    ];
+                    $handles[$table] = $handle;
+                }
+
+                $rowIndexes[$table] = ($rowIndexes[$table] ?? 0);
+                $payload = base64_encode(serialize([$rowIndexes[$table], $row]));
+                fwrite($handles[$table], $payload . PHP_EOL);
+                $spools[$table]['rows']++;
+                $rowIndexes[$table]++;
+            }, null);
+
+            foreach ($handles as $handle) {
+                if (is_resource($handle)) {
+                    fclose($handle);
+                }
+            }
+            $handles = [];
+
+            foreach ($plan['ordered_tables'] as $table) {
+                $spool = $spools[$table] ?? null;
+                if (!$spool || !File::exists($spool['path'])) {
+                    continue;
+                }
+
+                if (!isset($startedTables[$table])) {
+                    $startedTables[$table] = true;
+                    if ($onTableStarted) {
+                        $onTableStarted($table);
+                    }
+                }
+
+                foreach ($this->readRowsFromSpool($spool['path']) as $index => $row) {
+                    $chunks[$table][$index] = $row;
+                    if (count($chunks[$table]) >= self::BULK_CHUNK_SIZE) {
+                        $flushTableChunk($table);
+                    }
+                }
+                $flushTableChunk($table);
+            }
+        } finally {
+            foreach ($handles as $handle) {
+                if (is_resource($handle)) {
+                    fclose($handle);
+                }
+            }
+            File::deleteDirectory($spoolDir);
+        }
+    }
+
+    private function spoolFileNameForTable(string $table): string
+    {
+        return preg_replace('/[^A-Za-z0-9_.-]/', '_', $table) . '-' . sha1($table) . '.spool';
+    }
+
+    /**
+     * @return \Generator<int, array>
+     */
+    private function readRowsFromSpool(string $path): \Generator
+    {
+        $handle = @fopen($path, 'rb');
+        if (!$handle) {
+            return;
+        }
+
+        try {
+            while (($line = fgets($handle)) !== false) {
+                $decoded = base64_decode(trim($line), true);
+                if ($decoded === false) {
+                    continue;
+                }
+
+                $payload = @unserialize($decoded);
+                if (!is_array($payload) || count($payload) !== 2) {
+                    continue;
+                }
+
+                [$index, $row] = $payload;
+                if (!is_int($index) || !is_array($row)) {
+                    continue;
+                }
+
+                yield $index => $row;
+            }
+        } finally {
+            fclose($handle);
+        }
     }
 
     /**
@@ -1139,6 +1841,7 @@ class SmartImportService
         $i = 0;
         $current = '';
         $inString = false;
+        $currentQuoted = false;
         while ($i < $len) {
             $c = $tuple[$i];
             if ($inString) {
@@ -1146,18 +1849,25 @@ class SmartImportService
                 if ($c === "'") { $inString = false; $i++; continue; }
                 $current .= $c; $i++; continue;
             }
-            if ($c === "'") { $inString = true; $i++; continue; }
-            if ($c === ',') { $values[] = $this->castSqlValue(trim($current)); $current = ''; $i++; continue; }
+            if ($c === "'") { $inString = true; $currentQuoted = true; $i++; continue; }
+            if ($c === ',') {
+                $values[] = $this->castSqlValue(trim($current), $currentQuoted);
+                $current = '';
+                $currentQuoted = false;
+                $i++;
+                continue;
+            }
             $current .= $c; $i++;
         }
-        if ($current !== '' || $tuple !== '') {
-            $values[] = $this->castSqlValue(trim($current));
+        if ($current !== '' || $tuple !== '' || $currentQuoted) {
+            $values[] = $this->castSqlValue(trim($current), $currentQuoted);
         }
         return $values;
     }
 
-    private function castSqlValue(string $raw)
+    private function castSqlValue(string $raw, bool $quoted = false)
     {
+        if ($quoted) return $raw;
         if ($raw === '') return null;
         if (strcasecmp($raw, 'NULL') === 0) return null;
         if (is_numeric($raw)) return $raw + 0;
@@ -1209,7 +1919,10 @@ class SmartImportService
             if (count($rows) < 2) continue;
             $header = array_map(fn ($h) => trim((string) $h), $rows[0]);
             $tableName = strtolower($sheet->getTitle());
-            $tableKey = isset(self::TABLE_MODULE_MAP[$tableName]) ? $tableName : ($this->guessTableFromHeader($header) ?? $tableName);
+            $legacyRule = self::TABLE_MODULE_MAP[$tableName] ?? null;
+            $tableKey = $this->tableResolver()->hasDescriptor($tableName, $legacyRule)
+                ? $tableName
+                : ($this->guessTableFromHeader($header) ?? $tableName);
             $records = [];
             for ($i = 1, $n = count($rows); $i < $n; $i++) {
                 if (count($rows[$i]) !== count($header)) continue;
@@ -1225,8 +1938,7 @@ class SmartImportService
     private function guessTableFromHeader(array $header): ?string
     {
         $needle = array_map('strtolower', $header);
-        foreach (self::TABLE_MODULE_MAP as $table => $info) {
-            $keys = $info['conflict_keys'] ?? [];
+        foreach ($this->tableResolver()->conflictKeyHints(self::TABLE_MODULE_MAP) as $table => $keys) {
             $hits = 0;
             foreach ($keys as $key) {
                 if (in_array($key, $needle, true)) $hits++;
@@ -1277,7 +1989,7 @@ class SmartImportService
         foreach ($rows as $row) {
             foreach ($keys as $key) {
                 if (!isset($valuesByKey[$key])) continue;
-                if (!empty($row[$key])) {
+                if ($this->hasConflictValue($row, $key)) {
                     $valuesByKey[$key][] = $row[$key];
                 }
             }
@@ -1308,7 +2020,7 @@ class SmartImportService
             $existing = (array) $existing;
             foreach ($keys as $key) {
                 if (!isset($valuesByKey[$key])) continue;
-                if (!empty($existing[$key])) {
+                if ($this->hasConflictValue($existing, $key)) {
                     $index[$key][(string) $existing[$key]][] = $existing;
                 }
             }
@@ -1319,13 +2031,16 @@ class SmartImportService
         foreach ($rows as $idx => $row) {
             foreach ($keys as $key) {
                 if (!isset($valuesByKey[$key])) continue;
-                if (empty($row[$key])) continue;
+                if (!$this->hasConflictValue($row, $key)) continue;
                 $candidates = $index[$key][(string) $row[$key]] ?? [];
                 foreach ($candidates as $candidate) {
                     // Verificar que TODOS los valores de conflict_keys coincidan
                     $allMatch = true;
                     foreach ($keys as $k) {
-                        if (empty($row[$k]) || empty($candidate[$k])) continue;
+                        if (!$this->hasConflictValue($row, $k) || !$this->hasConflictValue($candidate, $k)) {
+                            $allMatch = false;
+                            break;
+                        }
                         if ((string) $row[$k] !== (string) $candidate[$k]) {
                             $allMatch = false;
                             break;
@@ -1342,12 +2057,174 @@ class SmartImportService
         return $result;
     }
 
+    private function hasConflictValue(array $row, string $key): bool
+    {
+        return array_key_exists($key, $row) && $row[$key] !== null && $row[$key] !== '';
+    }
+
+    private function resolveConflictKeys(string $table, ?array $mapped): array
+    {
+        return $this->resolveConflictIdentity($table, $mapped)['keys'];
+    }
+
+    private function resolveConflictIdentity(string $table, ?array $mapped): array
+    {
+        $preferExplicit = ($mapped['identity_priority'] ?? null) === 'override';
+        if ($preferExplicit) {
+            $explicitIdentity = $this->resolveExplicitConflictIdentity($table, $mapped);
+            if ($explicitIdentity !== null) {
+                return $explicitIdentity;
+            }
+        }
+
+        if (Schema::hasTable($table)) {
+            $fromIndexes = $this->inferConflictKeysFromTarget($table);
+            $usableIndexes = $this->filterUsableConflictKeys($table, $fromIndexes);
+            if ($usableIndexes !== []) {
+                return [
+                    'keys' => $usableIndexes,
+                    'source' => in_array('id', $usableIndexes, true) ? 'target_primary_key' : 'target_unique_index',
+                ];
+            }
+        }
+
+        if (!$preferExplicit) {
+            $explicitIdentity = $this->resolveExplicitConflictIdentity($table, $mapped);
+            if ($explicitIdentity !== null) {
+                return $explicitIdentity;
+            }
+        }
+
+        $sourceColumns = $this->sourceTableSchemas[$table]['columns']
+            ?? $this->dumpColumnsByTable[$table]
+            ?? [];
+
+        if (in_array('id', $sourceColumns, true)) {
+            return [
+                'keys' => ['id'],
+                'source' => 'source_id',
+            ];
+        }
+
+        return [
+            'keys' => [],
+            'source' => 'none',
+        ];
+    }
+
+    private function resolveExplicitConflictIdentity(string $table, ?array $mapped): ?array
+    {
+        $explicit = is_array($mapped) ? array_values(array_filter($mapped['conflict_keys'] ?? [])) : [];
+        if ($explicit === []) {
+            return null;
+        }
+
+        $usableExplicit = $this->filterUsableConflictKeys($table, $explicit);
+        if ($usableExplicit === []) {
+            return null;
+        }
+
+        return [
+            'keys' => $usableExplicit,
+            'source' => $mapped['conflict_keys_source'] ?? 'explicit_conflict_keys',
+        ];
+    }
+
+    private function filterUsableConflictKeys(string $table, array $keys): array
+    {
+        $keys = array_values(array_filter($keys));
+        if ($keys === [] || !$this->targetTableExistsCached($table)) {
+            return [];
+        }
+
+        $metadata = $this->tableMetadata($table);
+        $sourceColumns = $this->sourceTableSchemas[$table]['columns']
+            ?? $this->dumpColumnsByTable[$table]
+            ?? [];
+        $sourceColumnsFlip = $sourceColumns === [] ? [] : array_flip($sourceColumns);
+
+        foreach ($keys as $key) {
+            if (!isset($metadata['columns_flip'][$key])) {
+                return [];
+            }
+            if ($sourceColumnsFlip !== [] && !isset($sourceColumnsFlip[$key])) {
+                return [];
+            }
+        }
+
+        return $keys;
+    }
+
+    private function prepareRowsForConflictDetection(string $table, array $rows): array
+    {
+        $prepared = [];
+        foreach ($rows as $index => $row) {
+            $prepared[$index] = $this->sanitizeRow($row, $table);
+        }
+
+        return $prepared;
+    }
+
+    private function inferConflictKeysFromTarget(string $table): array
+    {
+        try {
+            $indexes = DB::select('SHOW INDEX FROM `' . str_replace('`', '``', $table) . '`');
+        } catch (Throwable) {
+            return [];
+        }
+
+        $grouped = [];
+        foreach ($indexes as $index) {
+            $nonUnique = (int) ($index->Non_unique ?? 1);
+            if ($nonUnique !== 0) {
+                continue;
+            }
+
+            $keyName = (string) ($index->Key_name ?? '');
+            $seq = (int) ($index->Seq_in_index ?? 1);
+            $column = (string) ($index->Column_name ?? '');
+            if ($keyName === '' || $column === '') {
+                continue;
+            }
+            $grouped[$keyName][$seq] = $column;
+        }
+
+        if (isset($grouped['PRIMARY'])) {
+            ksort($grouped['PRIMARY']);
+            return array_values($grouped['PRIMARY']);
+        }
+
+        foreach ($grouped as $columns) {
+            ksort($columns);
+            if ($columns !== []) {
+                return array_values($columns);
+            }
+        }
+
+        return [];
+    }
+
     private function hasColumnCached(string $table, string $column): bool
     {
         if (!isset($this->hasColumnCache[$table][$column])) {
-            $this->hasColumnCache[$table][$column] = Schema::hasColumn($table, $column);
+            $metadata = $this->tableMetadata($table);
+            $this->hasColumnCache[$table][$column] = isset($metadata['columns_flip'][$column]);
         }
         return $this->hasColumnCache[$table][$column];
+    }
+
+    private function shouldScanSqlRowsForTable(string $table): bool
+    {
+        return isset($this->sourceTableSchemas[$table]) || $this->targetTableExistsCached($table);
+    }
+
+    private function targetTableExistsCached(string $table): bool
+    {
+        if (!array_key_exists($table, $this->targetTableExistsCache)) {
+            $this->targetTableExistsCache[$table] = Schema::hasTable($table);
+        }
+
+        return $this->targetTableExistsCache[$table];
     }
 
     private function matchedKeys(array $keys, array $row, array $existing): array
@@ -1363,7 +2240,8 @@ class SmartImportService
 
     private function sanitizeRow(array $row, string $table): array
     {
-        $destColumns = Schema::getColumnListing($table);
+        $metadata = $this->tableMetadata($table);
+        $destColumns = $metadata['columns'];
         if ($row !== [] && array_is_list($row)) {
             // Rows con keys numéricas vienen del parser cuando el INSERT del
             // dump NO trae lista de columnas (mysqldump default). Necesitamos
@@ -1388,24 +2266,29 @@ class SmartImportService
         // Filtramos a las columnas que existen en el destino — drop columns
         // que ya no existen en BD (eliminadas desde el dump), y BD aporta
         // sus columnas nuevas como NULL/default vía mass-assignment fallback.
-        return array_intersect_key($row, array_flip($destColumns));
+        return array_intersect_key($row, $metadata['columns_flip']);
     }
 
     /**
-     * Pre-pass del archivo SQL para extraer el orden de columnas de cada
-     * tabla desde sus CREATE TABLE statements. Streaming-friendly: lee en
-     * chunks de 64KB y mantiene un buffer rotativo de 256KB (suficiente
-     * para CREATE TABLEs gigantes).
+     * Pre-pass del archivo SQL para extraer el esquema fuente por tabla.
      *
-     * Regex es deliberadamente tolerante: matchea `CREATE TABLE \`name\` (...)`
-     * seguido de `ENGINE=` o `TYPE=` (mysqldump emite uno u otro). Dentro
-     * del cuerpo, columnas son líneas que arrancan con backtick — saltamos
-     * `PRIMARY KEY`, `KEY`, `CONSTRAINT`, `INDEX`, etc. porque NO arrancan
-     * con backtick.
+     * Se usa para:
+     * - mapear filas indexadas -> columnas reales del dump
+     * - crear tablas faltantes desde el dump
+     * - detectar drift de columnas y dependencias entre tablas
      *
-     * @return array<string, string[]>
+     * @return array<string, array{
+     *     table: string,
+     *     columns: string[],
+     *     column_definitions: array<string, string>,
+     *     key_definitions: string[],
+     *     foreign_key_definitions: string[],
+     *     dependencies: string[],
+     *     create_sql: string,
+     *     table_options: string
+     * }>
      */
-    private function extractDumpColumns(string $path): array
+    private function extractDumpTableSchemas(string $path): array
     {
         $result = [];
         $handle = @fopen($path, 'rb');
@@ -1416,27 +2299,61 @@ class SmartImportService
                 $chunk = fread($handle, 64 * 1024);
                 if ($chunk === false || $chunk === '') break;
                 $buf .= $chunk;
-                // Procesar todos los CREATE TABLE completos que estén en el buffer
+                // Procesar todos los CREATE TABLE completos que estén en el buffer.
                 while (preg_match(
-                    '/CREATE\s+TABLE\s+`?(\w+)`?\s*\((.*?)\)\s*(?:ENGINE|TYPE)\s*=/is',
+                    '/CREATE\s+TABLE\s+`?(\w+)`?\s*\((.*?)\)\s*((?:ENGINE|TYPE)\s*=.*?);/is',
                     $buf,
                     $m,
                     PREG_OFFSET_CAPTURE
                 )) {
                     $name = $m[1][0];
                     $body = $m[2][0];
-                    // Columnas: líneas que arrancan con backtick + identificador
-                    // (filtra KEY/PRIMARY KEY/CONSTRAINT/etc que no arrancan con `)
-                    if (preg_match_all('/^\s*`(\w+)`\s+\w/m', $body, $colM)) {
-                        if (!empty($colM[1])) {
-                            $result[$name] = $colM[1];
+                    $tableOptions = trim($m[3][0]);
+                    $columnDefinitions = [];
+                    $keyDefinitions = [];
+                    $foreignKeyDefinitions = [];
+                    $dependencies = [];
+
+                    foreach (preg_split('/\R/', $body) ?: [] as $line) {
+                        $trimmed = trim(trim($line), ',');
+                        if ($trimmed === '') {
+                            continue;
+                        }
+
+                        if (preg_match('/^`(\w+)`\s+(.+)$/', $trimmed, $columnMatch)) {
+                            $columnDefinitions[$columnMatch[1]] = $trimmed;
+                            continue;
+                        }
+
+                        if (preg_match('/^(PRIMARY KEY|UNIQUE KEY|KEY|FULLTEXT KEY|SPATIAL KEY)\b/i', $trimmed)) {
+                            $keyDefinitions[] = $trimmed;
+                            continue;
+                        }
+
+                        if (preg_match('/^(?:CONSTRAINT\s+`?\w+`?\s+)?FOREIGN KEY\b/i', $trimmed)) {
+                            $foreignKeyDefinitions[] = $trimmed;
+                            if (preg_match('/REFERENCES\s+`?(\w+)`?/i', $trimmed, $dependencyMatch)) {
+                                $dependencies[] = $dependencyMatch[1];
+                            }
+                            continue;
                         }
                     }
-                    // Avanzar buffer past este match
+
+                    $result[$name] = [
+                        'table'                   => $name,
+                        'columns'                 => array_keys($columnDefinitions),
+                        'column_definitions'      => $columnDefinitions,
+                        'key_definitions'         => $keyDefinitions,
+                        'foreign_key_definitions' => $foreignKeyDefinitions,
+                        'dependencies'            => array_values(array_unique(array_filter($dependencies))),
+                        'create_sql'              => trim($m[0][0]),
+                        'table_options'           => $tableOptions,
+                    ];
+
                     $endPos = $m[0][1] + strlen($m[0][0]);
                     $buf = substr($buf, $endPos);
                 }
-                // Conservar últimos 256KB para no perder CREATE TABLE que cruzan chunks
+
                 if (strlen($buf) > 256 * 1024) {
                     $buf = substr($buf, -256 * 1024);
                 }
@@ -1447,19 +2364,215 @@ class SmartImportService
         return $result;
     }
 
+    private function resetAnalysisState(): void
+    {
+        $this->lastRowCounts = [];
+        $this->dumpColumnsByTable = [];
+        $this->sourceTableSchemas = [];
+        $this->hasColumnCache = [];
+        $this->tableMetadataCache = [];
+        $this->targetTableExistsCache = [];
+        $this->targetForeignKeyDependencyCache = [];
+    }
+
+    private function buildAnalysisReport(array $datasets): array
+    {
+        $tables = array_values(array_unique(array_merge(
+            array_keys($this->sourceTableSchemas),
+            array_keys($datasets)
+        )));
+
+        $report = [];
+        foreach ($tables as $table) {
+            $rows = array_values($datasets[$table] ?? []);
+            $schema = $this->sourceTableSchemas[$table] ?? null;
+            $info = $this->importDescriptor($table);
+            $targetExists = Schema::hasTable($table);
+            $targetColumns = $targetExists ? Schema::getColumnListing($table) : [];
+            $sourceColumns = $schema['columns'] ?? ($this->dumpColumnsByTable[$table] ?? []);
+            $missingTargetColumns = array_values(array_diff($sourceColumns, $targetColumns));
+            $extraTargetColumns = array_values(array_diff($targetColumns, $sourceColumns));
+            $warnings = $info['warnings'] ?? [];
+
+            if (!$targetExists) {
+                $warnings[] = 'tabla_destino_inexistente';
+            }
+            if ($schema === null) {
+                $warnings[] = 'sin_create_table';
+            }
+            if ($missingTargetColumns !== []) {
+                $warnings[] = 'columnas_faltantes_en_destino';
+            }
+            if ($extraTargetColumns !== []) {
+                $warnings[] = 'columnas_extra_en_destino';
+            }
+
+            $exactCount = $this->lastRowCounts[$table] ?? count($rows);
+            $report[] = [
+                'table'                  => $table,
+                'module'                 => $info['module'],
+                'model'                  => $info['model'],
+                'mode'                   => $info['mode'],
+                'records'                => $exactCount,
+                'sample'                 => array_slice($rows, 0, 3),
+                'known'                  => $info['known'],
+                'has_model'              => $info['has_model'],
+                'descriptor_source'      => $info['descriptor_source'],
+                'identity_source'        => $info['identity_source'],
+                'model_candidates'       => $info['model_candidates'] ?? [],
+                'target_exists'          => $targetExists,
+                'truncated'              => $exactCount > count($rows),
+                'source_columns'         => $sourceColumns,
+                'target_columns'         => $targetColumns,
+                'missing_target_columns' => $missingTargetColumns,
+                'extra_target_columns'   => $extraTargetColumns,
+                'dependencies'           => $schema['dependencies'] ?? [],
+                'warnings'               => array_values(array_unique($warnings)),
+            ];
+        }
+
+        return $this->sortReportByDependencies($report);
+    }
+
+    private function importDescriptor(string $table): array
+    {
+        $descriptor = $this->tableResolver()->resolve($table, self::TABLE_MODULE_MAP[$table] ?? null);
+        $identity = $this->resolveConflictIdentity($table, $descriptor['conflict_rule'] ?? null);
+        $descriptor['conflict_keys'] = $identity['keys'];
+        $descriptor['identity_source'] = $identity['source'];
+        unset($descriptor['conflict_rule']);
+
+        return $descriptor;
+    }
+
+    private function sortReportByDependencies(array $report): array
+    {
+        $tables = array_map(static fn (array $row) => $row['table'], $report);
+        $ordered = $this->topologicalSortTables($tables);
+        $indexed = [];
+        foreach ($report as $row) {
+            $indexed[$row['table']] = $row;
+        }
+
+        $sorted = [];
+        foreach ($ordered as $table) {
+            if (isset($indexed[$table])) {
+                $sorted[] = $indexed[$table];
+                unset($indexed[$table]);
+            }
+        }
+
+        foreach ($indexed as $row) {
+            $sorted[] = $row;
+        }
+
+        return $sorted;
+    }
+
+    private function tableResolver(): SmartImportTableResolver
+    {
+        if ($this->tableResolver === null) {
+            $this->tableResolver = new SmartImportTableResolver();
+        }
+
+        return $this->tableResolver;
+    }
+
+    private function topologicalSortTables(array $tables): array
+    {
+        $tables = array_values(array_unique($tables));
+        $inDegree = array_fill_keys($tables, 0);
+        $adjacency = array_fill_keys($tables, []);
+
+        foreach ($tables as $table) {
+            foreach ($this->dependenciesForTable($table) as $dependency) {
+                if (!isset($inDegree[$dependency])) {
+                    continue;
+                }
+                $adjacency[$dependency][] = $table;
+                $inDegree[$table]++;
+            }
+        }
+
+        $queue = [];
+        foreach ($tables as $table) {
+            if (($inDegree[$table] ?? 0) === 0) {
+                $queue[] = $table;
+            }
+        }
+
+        $ordered = [];
+        while ($queue !== []) {
+            $table = array_shift($queue);
+            $ordered[] = $table;
+
+            foreach ($adjacency[$table] ?? [] as $dependent) {
+                $inDegree[$dependent]--;
+                if ($inDegree[$dependent] === 0) {
+                    $queue[] = $dependent;
+                }
+            }
+        }
+
+        if (count($ordered) !== count($tables)) {
+            foreach ($tables as $table) {
+                if (!in_array($table, $ordered, true)) {
+                    $ordered[] = $table;
+                }
+            }
+        }
+
+        return $ordered;
+    }
+
+    private function dependenciesForTable(string $table): array
+    {
+        $dependencies = $this->sourceTableSchemas[$table]['dependencies'] ?? [];
+        foreach ($this->targetForeignKeyDependencies($table) as $dependency) {
+            $dependencies[] = $dependency;
+        }
+
+        return array_values(array_unique(array_filter(
+            $dependencies,
+            static fn (string $dependency) => $dependency !== $table
+        )));
+    }
+
+    private function targetForeignKeyDependencies(string $table): array
+    {
+        if (!$this->targetTableExistsCached($table)) {
+            return [];
+        }
+
+        if (!isset($this->targetForeignKeyDependencyCache[$table])) {
+            try {
+                $database = DB::connection()->getDatabaseName();
+                $rows = DB::select(
+                    'SELECT REFERENCED_TABLE_NAME AS referenced_table
+                     FROM information_schema.KEY_COLUMN_USAGE
+                     WHERE TABLE_SCHEMA = ?
+                       AND TABLE_NAME = ?
+                       AND REFERENCED_TABLE_NAME IS NOT NULL',
+                    [$database, $table]
+                );
+                $this->targetForeignKeyDependencyCache[$table] = array_values(array_unique(array_filter(array_map(
+                    static fn ($row) => (string) ($row->referenced_table ?? ''),
+                    $rows
+                ))));
+            } catch (Throwable) {
+                $this->targetForeignKeyDependencyCache[$table] = [];
+            }
+        }
+
+        return $this->targetForeignKeyDependencyCache[$table];
+    }
+
     /**
      * Valida que la entrada del map sea ejecutable. Devuelve null si OK,
      * o un string con la razón del skip ('tabla_no_mapeada', etc.).
      */
     private function validateMapEntry(string $table, ?array $info): ?string
     {
-        if (!$info) {
-            return 'tabla_no_mapeada';
-        }
-        $mode = $info['mode'] ?? 'model';
-        if ($mode === 'model' && (empty($info['model']) || !class_exists($info['model']))) {
-            return 'modelo_no_encontrado';
-        }
         if (!Schema::hasTable($table)) {
             return 'tabla_destino_inexistente';
         }
@@ -1508,24 +2621,309 @@ class SmartImportService
      */
     private function injectAuditColumns(string $table, array $row, bool $isUpdate): array
     {
-        $columns = Schema::getColumnListing($table);
-        $userId = auth()->id();
+        $metadata = $this->tableMetadata($table);
+        $userId = $this->actingUserId ?? auth()->id();
         $now = now();
-        if (in_array('updated_at', $columns, true)) {
+        if ($metadata['has_updated_at']) {
             $row['updated_at'] = $now;
         }
-        if (in_array('updated_by', $columns, true) && $userId) {
+        if ($metadata['has_updated_by'] && $userId) {
             $row['updated_by'] = $userId;
         }
         if (!$isUpdate) {
-            if (in_array('created_at', $columns, true) && !isset($row['created_at'])) {
+            if ($metadata['has_created_at'] && !isset($row['created_at'])) {
                 $row['created_at'] = $now;
             }
-            if (in_array('created_by', $columns, true) && $userId && !isset($row['created_by'])) {
+            if ($metadata['has_created_by'] && $userId && !isset($row['created_by'])) {
                 $row['created_by'] = $userId;
             }
         }
         return $row;
+    }
+
+    private function canUseBulkPath(array $info): bool
+    {
+        if (($info['mode'] ?? 'model') === 'raw') {
+            return true;
+        }
+
+        if (($info['strict_model'] ?? false) === true) {
+            return false;
+        }
+
+        $modelClass = $info['model'] ?? null;
+        if (!$modelClass || !class_exists($modelClass)) {
+            return false;
+        }
+
+        return !in_array($modelClass, self::STRICT_MODEL_CLASSES, true);
+    }
+
+    private function executeBulkImportTable(
+        string $table,
+        array $info,
+        array $rows,
+        array $existingMap,
+        string $defaultAction,
+        array $perRow
+    ): array {
+        $pk = $this->pkOf($table, $info);
+        $hasSinglePk = $this->hasColumnCached($table, $pk);
+        $insertRows = [];
+        $updateRows = [];
+        $imported = 0;
+        $skipped = 0;
+        $errors = 0;
+
+        foreach ($rows as $index => $row) {
+            try {
+                $existing = $existingMap[$index] ?? null;
+                $action = $existing ? ($perRow[$index] ?? $defaultAction) : 'insert';
+
+                if ($action === 'skip') {
+                    $skipped++;
+                    continue;
+                }
+
+                if ($action === 'replace' && $existing) {
+                    $prepared = $this->prepareDirectWriteRow($table, $row, isUpdate: true);
+                    if ($prepared === []) {
+                        $errors++;
+                        continue;
+                    }
+                    if ($hasSinglePk && isset($existing[$pk])) {
+                        $prepared[$pk] = $existing[$pk];
+                        $updateRows[] = $prepared;
+                    } else {
+                        $this->updateExistingRowByConflictKeys($table, $info['conflict_keys'], $row);
+                        $imported++;
+                    }
+                    continue;
+                }
+
+                if ($action === 'duplicate') {
+                    unset($row[$pk]);
+                }
+
+                $prepared = $this->prepareDirectWriteRow($table, $row, isUpdate: false);
+                if ($prepared === []) {
+                    $errors++;
+                    continue;
+                }
+                $insertRows[] = $prepared;
+            } catch (Throwable $e) {
+                Log::warning('SmartImport bulk prepare error [' . $table . ']: ' . $e->getMessage());
+                $errors++;
+            }
+        }
+
+        $imported += $this->flushBulkInsertRows($table, $insertRows, $errors);
+        $imported += $this->flushBulkUpdateRows($table, $pk, $updateRows, $errors);
+
+        return compact('imported', 'skipped', 'errors');
+    }
+
+    private function prepareDirectWriteRow(string $table, array $row, bool $isUpdate): array
+    {
+        $clean = $this->sanitizeRow($row, $table);
+        if ($clean === []) {
+            return [];
+        }
+
+        return $this->injectAuditColumns($table, $clean, $isUpdate);
+    }
+
+    private function flushBulkInsertRows(string $table, array $rows, int &$errors): int
+    {
+        if ($rows === []) {
+            return 0;
+        }
+
+        $imported = 0;
+        foreach (array_chunk($rows, self::BULK_CHUNK_SIZE) as $chunk) {
+            $normalized = $this->normalizeRowsForBatch($table, $chunk);
+            if ($normalized === []) {
+                continue;
+            }
+
+            try {
+                DB::table($table)->insert($normalized);
+                $imported += count($normalized);
+            } catch (Throwable $e) {
+                Log::warning('SmartImport bulk insert chunk error [' . $table . ']: ' . $e->getMessage());
+                foreach ($normalized as $row) {
+                    try {
+                        DB::table($table)->insert($row);
+                        $imported++;
+                    } catch (Throwable $rowError) {
+                        Log::warning('SmartImport bulk insert fallback row error [' . $table . ']: ' . $rowError->getMessage());
+                        $errors++;
+                    }
+                }
+            }
+        }
+
+        return $imported;
+    }
+
+    private function flushBulkUpdateRows(string $table, string $pk, array $rows, int &$errors): int
+    {
+        if ($rows === []) {
+            return 0;
+        }
+
+        $imported = 0;
+        foreach (array_chunk($rows, self::BULK_CHUNK_SIZE) as $chunk) {
+            foreach ($this->groupRowsByColumnSignature($chunk) as $group) {
+                $normalized = $this->normalizeRowsForBatch($table, $group);
+                if ($normalized === []) {
+                    continue;
+                }
+
+                $updateColumns = array_values(array_filter(
+                    array_keys($normalized[0]),
+                    fn (string $column) => $column !== $pk
+                ));
+
+                if ($updateColumns === []) {
+                    $imported += count($normalized);
+                    continue;
+                }
+
+                try {
+                    DB::table($table)->upsert($normalized, [$pk], $updateColumns);
+                    $imported += count($normalized);
+                } catch (Throwable $e) {
+                    Log::warning('SmartImport bulk update chunk error [' . $table . ']: ' . $e->getMessage());
+                    foreach ($normalized as $row) {
+                        try {
+                            $rowPk = $row[$pk] ?? null;
+                            if ($rowPk === null) {
+                                $errors++;
+                                continue;
+                            }
+
+                            $update = $row;
+                            unset($update[$pk]);
+                            if ($update === []) {
+                                $imported++;
+                                continue;
+                            }
+
+                            DB::table($table)->where($pk, $rowPk)->update($update);
+                            $imported++;
+                        } catch (Throwable $rowError) {
+                            Log::warning('SmartImport bulk update fallback row error [' . $table . ']: ' . $rowError->getMessage());
+                            $errors++;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $imported;
+    }
+
+    /**
+     * Agrupa filas por conjunto exacto de columnas para evitar que un upsert
+     * masivo convierta columnas ausentes en NULL sobre filas existentes.
+     *
+     * @return array<string, array<int, array>>
+     */
+    private function groupRowsByColumnSignature(array $rows): array
+    {
+        $grouped = [];
+        foreach ($rows as $row) {
+            $columns = array_keys($row);
+            sort($columns);
+            $signature = implode('|', $columns);
+            $grouped[$signature][] = $row;
+        }
+
+        return $grouped;
+    }
+
+    private function normalizeRowsForBatch(string $table, array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $metadata = $this->tableMetadata($table);
+        $presentColumns = [];
+        foreach ($rows as $row) {
+            foreach (array_keys($row) as $column) {
+                $presentColumns[$column] = true;
+            }
+        }
+
+        $orderedColumns = [];
+        foreach ($metadata['columns'] as $column) {
+            if (isset($presentColumns[$column])) {
+                $orderedColumns[] = $column;
+            }
+        }
+
+        if ($orderedColumns === []) {
+            return [];
+        }
+
+        $template = array_fill_keys($orderedColumns, null);
+        return array_map(
+            static fn (array $row) => array_replace($template, $row),
+            $rows
+        );
+    }
+
+    private function reindexDatasetsWithOffsets(array $datasets, array &$rowIndexes): array
+    {
+        $reindexed = [];
+        foreach ($datasets as $table => $rows) {
+            foreach ($rows as $row) {
+                $rowIndexes[$table] = ($rowIndexes[$table] ?? 0);
+                $reindexed[$table][$rowIndexes[$table]] = $row;
+                $rowIndexes[$table]++;
+            }
+        }
+
+        return $reindexed;
+    }
+
+    private function mergeImportSummary(array $carry, array $chunk): array
+    {
+        $carry['imported'] = ($carry['imported'] ?? 0) + ($chunk['imported'] ?? 0);
+        $carry['skipped'] = ($carry['skipped'] ?? 0) + ($chunk['skipped'] ?? 0);
+        $carry['errors'] = ($carry['errors'] ?? 0) + ($chunk['errors'] ?? 0);
+
+        return $carry;
+    }
+
+    /**
+     * @return array{
+     *     columns: string[],
+     *     columns_flip: array<string, bool>,
+     *     has_created_at: bool,
+     *     has_updated_at: bool,
+     *     has_created_by: bool,
+     *     has_updated_by: bool
+     * }
+     */
+    private function tableMetadata(string $table): array
+    {
+        if (!isset($this->tableMetadataCache[$table])) {
+            $columns = Schema::getColumnListing($table);
+            $columnsFlip = array_fill_keys($columns, true);
+            $this->tableMetadataCache[$table] = [
+                'columns'        => $columns,
+                'columns_flip'   => $columnsFlip,
+                'has_created_at' => isset($columnsFlip['created_at']),
+                'has_updated_at' => isset($columnsFlip['updated_at']),
+                'has_created_by' => isset($columnsFlip['created_by']),
+                'has_updated_by' => isset($columnsFlip['updated_by']),
+            ];
+        }
+
+        return $this->tableMetadataCache[$table];
     }
 
     private function buildConflictPrompt(string $table, array $item): string
