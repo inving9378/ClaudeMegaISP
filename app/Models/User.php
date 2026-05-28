@@ -327,6 +327,16 @@ class User extends Authenticatable
         return $this->sucursal->name ?? null;
     }
 
+    public function avaiablesPromotions()
+    {
+        return $this->belongsToMany(
+            Promotion::class,
+            'users_avaiables_promotions',
+            'user_id',
+            'promotion_id'
+        );
+    }
+
     /**
      * @return LogOptions
      */

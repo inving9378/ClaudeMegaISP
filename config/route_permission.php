@@ -71,6 +71,10 @@ return [
         '/cliente/get-client-status/{id}',
         '/cliente/get-promotions/{id}',
         '/cliente/get-period-by-amount/{id}',
+        '/cliente/bulk-plan-promotion',
+        '/cliente/without-data-promotions',
+        '/cliente/with-data-promotions/{id}',
+        '/administracion/user/avaiables-promotions/{code}',
     ],
     'client_delete_client' => ['/cliente/destroy/{id}'],
     'client_edit_fecha_corte' => [
@@ -1077,8 +1081,107 @@ return [
         '/inventory/inventory_item_custom_model/editar/{id}',
         '/inventory/inventory_item_custom_model/update/{id}',
         '/inventory/inventory_item_custom_model/destroy/{id}',
-        '/inventory/inventory_item/add-custom'
+        '/inventory/inventory_item/add-custom',
+        '/inventory/supplier',
+        '/inventory/supplier/table',
+        '/inventory/supplier/show/{id}',
+        '/inventory/supplier/get-all',
+        '/inventory/supplier/get-by-id/{id}',
+        '/inventory/supplier-invoice',
+        '/inventory/supplier-invoice/table',
+        '/inventory/supplier-invoice/show/{id}',
+        '/inventory/supplier-invoice/receive/{id}',
+        '/inventory/supplier/{supplierId}/vendors',
+        '/inventory/supplier/{supplierId}/vendors/get-all',
+        '/inventory/supplier/{supplierId}/product-prices',
+        '/inventory/supplier/product-prices/get-price-for-item',
+        '/inventory/supplier/{supplierId}/table'
 
+    ],
+
+    // Suppliers
+    'inventory_supplier_view_supplier' => [
+        '/inventory/supplier',
+        '/inventory/supplier/show/{id}',
+        '/inventory/supplier/get-all',
+        '/inventory/supplier/get-by-id/{id}',
+        '/inventory/supplier/table',
+        '/inventory/supplier/{supplierId}/vendors',
+        '/inventory/supplier/{supplierId}/vendors/get-all',
+        '/inventory/supplier/{supplierId}/product-prices',
+        '/inventory/supplier/product-prices/get-price-for-item',
+    ],
+    'inventory_supplier_add_supplier' => [
+        '/inventory/supplier/add',
+        '/inventory/supplier/{supplierId}/vendors/add',
+        '/inventory/supplier/{supplierId}/product-prices/add',
+    ],
+    'inventory_supplier_edit_supplier' => [
+        '/inventory/supplier/update/{id}',
+        '/inventory/supplier/{supplierId}/vendors/update/{vendorId}',
+        '/inventory/supplier/{supplierId}/product-prices/update/{priceId}',
+    ],
+    'inventory_supplier_delete_supplier' => [
+        '/inventory/supplier/destroy/{id}',
+        '/inventory/supplier/{supplierId}/vendors/destroy/{vendorId}',
+        '/inventory/supplier/{supplierId}/product-prices/destroy/{priceId}',
+    ],
+
+    // Supplier Invoices
+    'inventory_supplier_invoice_view_supplier_invoice' => [
+        '/inventory/supplier-invoice',
+        '/inventory/supplier-invoice/create',
+        '/inventory/supplier-invoice/show/{id}',
+        '/inventory/supplier-invoice/table',
+        '/inventory/supplier-invoice/receive/{id}',
+    ],
+    'inventory_supplier_invoice_add_supplier_invoice' => [
+        '/inventory/supplier-invoice/add',
+    ],
+    'inventory_supplier_invoice_edit_supplier_invoice' => [
+        '/inventory/supplier-invoice/update/{id}',
+        '/inventory/supplier-invoice/receive/{id}',
+    ],
+    'inventory_supplier_invoice_delete_supplier_invoice' => [
+        '/inventory/supplier-invoice/destroy/{id}',
+    ],
+
+    // Supplier Vendors
+    'inventory_supplier_vendors_view_supplier_vendors' => [
+        '/inventory/supplier/{supplierId}/vendors',
+        '/inventory/supplier/{supplierId}/vendors/create',
+        '/inventory/supplier/{supplierId}/vendors/get-all',
+        '/inventory/supplier/{supplierId}/table'
+    ],
+    'inventory_supplier_vendors_add_supplier_vendors' => [
+        '/inventory/supplier/{supplierId}/vendors/add',
+    ],
+    'inventory_supplier_vendors_edit_supplier_vendors' => [
+        '/inventory/supplier/{supplierId}/vendors/update/{vendorId}',
+    ],
+    'inventory_supplier_vendors_delete_supplier_vendors' => [
+        '/inventory/supplier/{supplierId}/vendors/destroy/{vendorId}',
+    ],
+
+    // Inventory Valuation
+    'inventory_valuation_view_inventory_valuation' => [
+        '/inventory/inventory-valuation',
+        '/inventory/inventory-valuation/data',
+    ],
+
+    // Data Plan Promotions
+    'view_data_plan_promotion' => [
+        '/configuracion/data-plan-promotions',
+        '/configuracion/data-plan-promotions/data',
+    ],
+    'add_data_plan_promotion' => [
+        '/configuracion/data-plan-promotions/store',
+    ],
+    'edit_data_plan_promotion' => [
+        '/configuracion/data-plan-promotions/update/{id}',
+    ],
+    'delete_data_plan_promotion' => [
+        '/configuracion/data-plan-promotions/destroy/{id}',
     ],
 
     //Metodo de Pago

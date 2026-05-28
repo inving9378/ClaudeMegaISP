@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Tickets\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\ClientMainInformation;
 use App\Models\Ticket;
 use App\Models\User;
 use Carbon\Carbon;
@@ -107,12 +108,12 @@ class TicketController extends Controller
     {
         $ticket = $this->data['model']::find($id);
         $clientId = $ticket->customer_lead;
-        $clientData = Client::where('id', $clientId)->with('client_main_information')->first();
+        $clientData = ClientMainInformation::where('client_id',$clientId)->first();
         if ($clientData) return [
-            'name' => $clientData->client_main_information->client_name_with_fathers_names,
-            'email' => $clientData->client_main_information->email,
-            'phone' => $clientData->client_main_information->phone,
-            'id' => $clientData->id,
+            'name' => $clientData->client_name_with_fathers_names,
+            'email' => $clientData->email,
+            'phone' => $clientData->phone,
+            'id' => $clientData->client_id,
         ];
         return [];
     }

@@ -13,6 +13,7 @@ use App\Http\Repository\ModuleRepository;
 use App\Http\Requests\module\inventory\inventory_item_stock\InventoryItemStockCreateRequest;
 use App\Models\InventoryItemMedia;
 use App\Models\InventoryReservation;
+use App\Models\SupplierInvoice;
 use App\Services\FileUploadService;
 use App\Services\InventoryItemMediaService;
 use App\Services\InventoryService;
@@ -194,6 +195,12 @@ class InventoryItemStockController extends CrudModalController
                 $inventoryService->releaseReservation($model->id);
                 // Actualizar estado
                 $model->update(['status' => ComunConstantsController::INVENTORY_MOVEMENT_ACCEPTED]);
+
+                if (!empty($model->supplier_invoice_id)) {
+                    $supplierInvoice = SupplierInvoice::find($model->supplier_invoice_id);
+                    $supplierInvoice?->syncStatusFromMovements();
+                }
+
                 DB::commit();
                 return response()->json(['success' => true]);
             }

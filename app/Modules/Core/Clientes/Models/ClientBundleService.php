@@ -3,6 +3,8 @@
 namespace App\Modules\Core\Clientes\Models;
 
 use App\Models\BaseModel;
+use App\Models\ServiceInAddressList;
+use App\Models\Transaction;
 
 use App\Http\Traits\Models\Client\ClientBundleService\Scope\ScopeClientBundleService;
 use App\Models\Interface\ServiceInterface;

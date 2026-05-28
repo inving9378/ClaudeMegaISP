@@ -44,6 +44,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administra
         Route::post('/{id}/update', [UserController::class, 'update'])->name('user.update');
         Route::delete('/{id}/destroy', [UserController::class, 'destroy'])->name('user.destroy');
         Route::post('/{id}/inactive-or-active', [UserController::class, 'inactiveOrActive'])->name('user.inactive-or-active');
+        Route::get('/avaiables-promotions/{code}', [UserController::class, 'avaiablesPromotions']);
     });
 
     Route::prefix('addresses')->group(function () {

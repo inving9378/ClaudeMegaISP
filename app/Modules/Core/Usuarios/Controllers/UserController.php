@@ -14,6 +14,7 @@ use App\Models\State;
 use App\Models\Municipality;
 use App\Models\Colony;
 use App\Models\Sucursal;
+use App\Models\Promotion;
 use Illuminate\Support\Facades\DB;
 
 
@@ -326,5 +327,19 @@ class UserController extends Controller
         }
         $user->save();
         return response()->json(['message' => 'Usuario actualizado correctamente'], 200);
+    }
+
+    public function avaiablesPromotions($code)
+    {
+        $user = auth()->user();
+        $promotions = [];
+        if ($user->isAdmin() || $user->isSuperAdmin()) {
+            $promotions = Promotion::with(['promotionable'])->where('code', $code)->get();
+        } else {
+            $promotions = $user->avaiablesPromotions()->with(['promotionable'])->where('code', $code)->get();
+        }
+        return response()->json([
+            'promotions' => $promotions
+        ]);
     }
 }

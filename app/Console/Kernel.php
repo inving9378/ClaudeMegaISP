@@ -44,9 +44,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('smartolt:sync-critical')->everyTenMinutes()->withoutOverlapping();
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
-
-        // Regeneración semanal del manual de usuario vía Claude API
-        $schedule->command('manual:regenerate')->weekly()->sundays()->at('03:00')->withoutOverlapping();
     }
 
     protected function commands(): void

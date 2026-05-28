@@ -8,6 +8,11 @@ use App\Modules\Addons\Inventario\Controllers\InventoryItemType\InventoryItemTyp
 use App\Modules\Addons\Inventario\Controllers\InventoryMovement\InventoryMovementController;
 use App\Modules\Addons\Inventario\Controllers\InventoryStore\InventoryStoreController;
 use App\Modules\Addons\Inventario\Controllers\StoreZone\StoreZoneController;
+use App\Modules\Addons\Inventario\Controllers\Supplier\InventoryValuationController;
+use App\Modules\Addons\Inventario\Controllers\Supplier\SupplierController;
+use App\Modules\Addons\Inventario\Controllers\Supplier\SupplierInvoiceController;
+use App\Modules\Addons\Inventario\Controllers\Supplier\SupplierProductPriceController;
+use App\Modules\Addons\Inventario\Controllers\Supplier\SupplierVendorController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -109,5 +114,57 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
     Route::prefix('inventory_item_custom')->group(function () {
         Route::get('/items/{id}', [InventoryItemCustomController::class, 'getItemsByCustomModelId']);
         Route::post('/table', [InventoryItemCustomController::class, 'table']);
+    });
+
+    // --- Módulo de Proveedores ---
+    Route::prefix('supplier')->group(function () {
+        Route::get('/', [SupplierController::class, 'index']);
+        Route::get('/create', [SupplierController::class, 'create']);
+        Route::post('/add', [SupplierController::class, 'store']);
+        Route::post('/update/{id}', [SupplierController::class, 'update']);
+        Route::post('/destroy/{id}', [SupplierController::class, 'destroy']);
+        Route::post('/table', [SupplierController::class, 'table']);
+        Route::get('/show/{id}', [SupplierController::class, 'show']);
+        Route::get('/get-all', [SupplierController::class, 'getAll']);
+        Route::get('/get-by-id/{id}', [SupplierController::class, 'getById']);
+
+        // Vendedores del proveedor
+        Route::get('/{supplierId}/vendors', [SupplierVendorController::class, 'index']);
+        Route::get('/{supplierId}/vendors/create', [SupplierVendorController::class, 'create']);
+        Route::post('/{supplierId}/vendors/add', [SupplierVendorController::class, 'store']);
+        Route::post('/{supplierId}/vendors/update/{vendorId}', [SupplierVendorController::class, 'update']);
+        Route::post('/{supplierId}/vendors/destroy/{vendorId}', [SupplierVendorController::class, 'destroy']);
+        Route::get('/{supplierId}/vendors/get-all', [SupplierVendorController::class, 'getBySupplier']);
+        Route::post('/{supplierId}/table', [SupplierVendorController::class, 'table']);
+
+        // Catálogo de precios del proveedor
+        Route::get('/{supplierId}/product-prices', [SupplierProductPriceController::class, 'getAll']);
+        Route::post('/{supplierId}/product-prices/add', [SupplierProductPriceController::class, 'store']);
+        Route::post('/{supplierId}/product-prices/update/{priceId}', [SupplierProductPriceController::class, 'update']);
+        Route::post('/{supplierId}/product-prices/destroy/{priceId}', [SupplierProductPriceController::class, 'destroy']);
+        Route::get('/product-prices/get-price-for-item', [SupplierProductPriceController::class, 'getPriceForItem']);
+        Route::post('/{supplierId}/product-prices/table', [SupplierProductPriceController::class, 'table']);
+    });
+
+    // --- Facturas de proveedores ---
+    Route::prefix('supplier-invoice')->group(function () {
+        Route::get('/', [SupplierInvoiceController::class, 'index']);
+        Route::get('/create', [SupplierInvoiceController::class, 'create']);
+        Route::get('/by-supplier', [SupplierInvoiceController::class, 'getBySupplier']);
+        Route::get('/generate-number', [SupplierInvoiceController::class, 'generateNumber']);
+        Route::post('/add', [SupplierInvoiceController::class, 'store']);
+        Route::get('/show/{id}', [SupplierInvoiceController::class, 'show']);
+        Route::post('/update/{id}', [SupplierInvoiceController::class, 'update']);
+        Route::post('/destroy/{id}', [SupplierInvoiceController::class, 'destroy']);
+        Route::post('/table', [SupplierInvoiceController::class, 'table']);
+        Route::get('/receive/{id}', [SupplierInvoiceController::class, 'showReceive']);
+        Route::post('/receive/{id}', [SupplierInvoiceController::class, 'receive']);
+        Route::post('/deny/{id}', [SupplierInvoiceController::class, 'deny']);
+    });
+
+    // --- Valuación de inventario ---
+    Route::prefix('inventory-valuation')->group(function () {
+        Route::get('/', [InventoryValuationController::class, 'index']);
+        Route::get('/data', [InventoryValuationController::class, 'getData']);
     });
 });

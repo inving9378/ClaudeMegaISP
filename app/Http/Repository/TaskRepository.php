@@ -6,6 +6,7 @@ use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Models\ClientVozService;
 use App\Models\Task;
 use App\Models\Voise;
+use Carbon\Carbon;
 
 class TaskRepository
 {
@@ -39,5 +40,16 @@ class TaskRepository
     public function getTasksToUpdate()
     {
         return $this->model->whereDate('start_time', '<', now())->orWhereNull('start_time')->get();
+    }
+
+    public function getTasksByIdInArray($taskIds){
+        return $this->model->whereIn('id', $taskIds)->get();
+    }
+
+    public function getStartingTodayTasks($taskIds){
+        return $this->model->whereIn('id', $taskIds)
+            ->whereDate('start_time', Carbon::today())
+            ->pluck('id')
+            ->toArray();
     }
 }

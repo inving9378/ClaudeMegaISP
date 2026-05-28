@@ -1476,7 +1476,7 @@ export const fieldsJson = {
         {
             field: "scheduling_view_calendar",
             label: "Ver Calendario",
-            value: false,
+            value: false
         },
         {
             field: "calendar_filter_project",
@@ -1730,6 +1730,92 @@ export const fieldsJson = {
         {
             field: "inventory_item_custom_model_delete_inventory_item_custom_model",
             label: "Eliminar Articulos Custom",
+            value: false,
+            depend: "inventory_view_inventory",
+        },
+
+        // Proveedores
+        {
+            field: "inventory_supplier_view_supplier",
+            label: "Ver Proveedores",
+            value: false,
+            depend: "inventory_view_inventory",
+        },
+        {
+            field: "inventory_supplier_add_supplier",
+            label: "Agregar Proveedor",
+            value: false,
+            depend: "inventory_supplier_view_supplier",
+        },
+        {
+            field: "inventory_supplier_edit_supplier",
+            label: "Editar Proveedor",
+            value: false,
+            depend: "inventory_supplier_view_supplier",
+        },
+        {
+            field: "inventory_supplier_delete_supplier",
+            label: "Eliminar Proveedor",
+            value: false,
+            depend: "inventory_supplier_view_supplier",
+        },
+
+        // Facturas de Proveedores
+        {
+            field: "inventory_supplier_invoice_view_supplier_invoice",
+            label: "Ver Facturas de Proveedor",
+            value: false,
+            depend: "inventory_view_inventory",
+        },
+        {
+            field: "inventory_supplier_invoice_add_supplier_invoice",
+            label: "Agregar Factura de Proveedor",
+            value: false,
+            depend: "inventory_supplier_invoice_view_supplier_invoice",
+        },
+        {
+            field: "inventory_supplier_invoice_edit_supplier_invoice",
+            label: "Editar Factura de Proveedor",
+            value: false,
+            depend: "inventory_supplier_invoice_view_supplier_invoice",
+        },
+        {
+            field: "inventory_supplier_invoice_delete_supplier_invoice",
+            label: "Eliminar Factura de Proveedor",
+            value: false,
+            depend: "inventory_supplier_invoice_view_supplier_invoice",
+        },
+
+        // Contactos de Proveedores
+        {
+            field: "inventory_supplier_vendors_view_supplier_vendors",
+            label: "Ver Contactos de Proveedor",
+            value: false,
+            depend: "inventory_view_inventory",
+        },
+        {
+            field: "inventory_supplier_vendors_add_supplier_vendors",
+            label: "Agregar Contacto de Proveedor",
+            value: false,
+            depend: "inventory_supplier_vendors_view_supplier_vendors",
+        },
+        {
+            field: "inventory_supplier_vendors_edit_supplier_vendors",
+            label: "Editar Contacto de Proveedor",
+            value: false,
+            depend: "inventory_supplier_vendors_view_supplier_vendors",
+        },
+        {
+            field: "inventory_supplier_vendors_delete_supplier_vendors",
+            label: "Eliminar Contacto de Proveedor",
+            value: false,
+            depend: "inventory_supplier_vendors_view_supplier_vendors",
+        },
+
+        // Valuación de Inventario
+        {
+            field: "inventory_valuation_view_inventory_valuation",
+            label: "Ver Valuación de Inventario",
             value: false,
             depend: "inventory_view_inventory",
         },
@@ -2010,7 +2096,7 @@ export const fieldsJson = {
             value: false,
             depend: "documentation_view_documentation",
         },
-        
+
         // Sucursal
         {
             field: "view_sucursal",
@@ -2158,6 +2244,31 @@ export const fieldsJson = {
             value: false,
             depend: "company_information_view_company_information",
         },
+
+        {
+            field: "view_data_plan_promotion",
+            label: "Ver promociones",
+            value: false,
+            depend: "config_data_plan_promotion",
+        },
+        {
+            field: "add_data_plan_promotion",
+            label: "Agregar promoción",
+            value: false,
+            depend: "config_data_plan_promotion",
+        },
+        {
+            field: "edit_data_plan_promotion",
+            label: "Editar promoción",
+            value: false,
+            depend: "config_data_plan_promotion",
+        },
+        {
+            field: "delete_data_plan_promotion",
+            label: "Eliminar promoción",
+            value: false,
+            depend: "config_data_plan_promotion",
+        },
     ],
 
     message: [
@@ -2216,6 +2327,7 @@ export const fieldsJson = {
             depend: "release_view_release",
         },
     ],
+    promotions: [],
 };
 
 export const accordions = ref({
@@ -2387,6 +2499,22 @@ export const accordions = ref({
             title: "Almacen",
             filter: "inventory_store_view_inventory_store",
         },
+        {
+            title: "Proveedores",
+            filter: "inventory_supplier_view_supplier",
+        },
+        {
+            title: "Facturas de Proveedores",
+            filter: "inventory_supplier_invoice_view_supplier_invoice",
+        },
+        {
+            title: "Contactos de Proveedores",
+            filter: "inventory_supplier_vendors_view_supplier_vendors",
+        },
+        {
+            title: "Valuación de Inventario",
+            filter: "inventory_valuation_view_inventory_valuation",
+        },
     ],
     administration: [
         {
@@ -2461,6 +2589,10 @@ export const accordions = ref({
             filter: "config_view_system",
         },
         {
+            title: "Promociones de paquetes",
+            filter: "config_data_plan_promotion",
+        },
+        {
             title: "Principal",
             filter: "config_view_main",
         },
@@ -2513,6 +2645,12 @@ export const accordions = ref({
         {
             title: "Actualizaciones",
             filter: "release_view_release",
+        },
+    ],
+    promotions: [
+        {
+            title: "Promociones de datos",
+            filter: "data_plan_promotion",
         },
     ],
 });

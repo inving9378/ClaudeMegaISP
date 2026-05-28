@@ -17,7 +17,7 @@
                     :id="id"
                     :json="val"
                     :errors="dataForm.data.errors"
-                    :key="val"
+                    :key="val.field"
                     v-model="dataForm.data[val.field]"
                     @update-field="updateThisField"
                     @clear-error="clearError"
@@ -256,21 +256,26 @@ export default {
                 });
 
                 updateThisField({
-                    field: "location_id",
-                    value: response.data.location_id,
-                });
+                    field: "geo_data",
+                    value: response.data.geo_data,
+                })
+
             } else {
                 position.value = ",";
                 updateThisField({
                     field: "address",
                     value: null,
                 });
+                updateThisField({
+                    field: "geo_data",
+                    value: null,
+                })
             }
         };
 
         const getDataTemplate = async (value) => {
             const response = await axios.post(
-                `/configuracion/template-task/get-data-template/${value.value}`
+                `/configuracion/template-task/get-data-template/${value}`
             );
             updateThisField({
                 field: "description",

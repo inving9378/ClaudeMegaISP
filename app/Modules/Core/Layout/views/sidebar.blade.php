@@ -585,7 +585,9 @@
                     @canany(['inventory_view_inventory', 'inventory_item_view_inventory_item',
                         'inventory_item_type_view_inventory_item_type', 'inventory_movement_view_inventory_movement',
                         'inventory_store_view_inventory_store',
-                        'inventory_item_custom_model_view_inventory_item_custom_model'])
+                        'inventory_item_custom_model_view_inventory_item_custom_model',
+                        'inventory_supplier_view_supplier', 'inventory_supplier_add_supplier',
+                        'inventory_valuation_view_inventory_valuation'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="archive"></i>
                             <span data-key="t-gestion-red">Inventario</span>
@@ -672,6 +674,60 @@
                                     </li>
                                 @endcan
                             </ul>
+                        </li>
+                        <li>
+                            @canany(['inventory_supplier_view_supplier', 'inventory_supplier_add_supplier'])
+                                <a href="javascript: void(0);" class="has-arrow">
+                                    <i data-feather="truck"></i>
+                                    <span data-key="t-supplier">Proveedores</span>
+                                </a>
+                            @endcan
+                            <ul class="sub-menu" aria-expanded="false">
+                                @can('inventory_supplier_add_supplier')
+                                    <li>
+                                        <a href="{{ url('/inventory/supplier/create') }}">
+                                            <span><small><i class="fa fa-fw fa-plus"></i></small> Crear</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('inventory_supplier_view_supplier')
+                                    <li>
+                                        <a href="{{ url('/inventory/supplier') }}">
+                                            <span data-key="t-supplier-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('inventory_supplier_invoice_view_supplier_invoice')
+                                    <li>
+                                        <a href="javascript: void(0);" class="has-arrow">
+                                            <i data-feather="file-text"></i>
+                                            <span data-key="t-supplier-invoice">Facturas</span>
+                                        </a>
+                                        <ul class="sub-menu" aria-expanded="false">
+                                            @can('inventory_supplier_invoice_add_supplier_invoice')
+                                                <li>
+                                                    <a href="{{ url('/inventory/supplier-invoice/create') }}">
+                                                        <span><small><i class="fa fa-fw fa-plus"></i></small> Crear</span>
+                                                    </a>
+                                                </li>
+                                            @endcan
+                                            <li>
+                                                <a href="{{ url('/inventory/supplier-invoice') }}">
+                                                    <span><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </li>
+                        <li>
+                            @can('inventory_valuation_view_inventory_valuation')
+                                <a href="{{ url('/inventory/inventory-valuation') }}">
+                                    <i data-feather="bar-chart-2"></i>
+                                    <span data-key="t-valuation">Valuación Inventario</span>
+                                </a>
+                            @endcan
                         </li>
                     </ul>
                 </li>

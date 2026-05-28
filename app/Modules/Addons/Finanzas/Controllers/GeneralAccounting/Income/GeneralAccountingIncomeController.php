@@ -5,14 +5,17 @@ namespace App\Modules\Addons\Finanzas\Controllers\GeneralAccounting\Income;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\finance\GeneralAccountingIncomeDatatableHelper;
 use App\Services\Finance\GeneralAccounting\GeneralAccountingService;
+use App\Services\LogService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class GeneralAccountingIncomeController extends Controller
 {
 
+    private $logService;
     private $helper;
     public function __construct(GeneralAccountingIncomeDatatableHelper $helper)
     {
@@ -22,6 +25,7 @@ class GeneralAccountingIncomeController extends Controller
         $this->data['model'] = 'App\Models\\' . $model;
         $this->data['group'] = 'finance';
         $this->helper = $helper;
+        $this->logService = new LogService();
     }
 
     public function table(Request $request)
@@ -56,5 +60,16 @@ class GeneralAccountingIncomeController extends Controller
                 'message' => 'Ocurrio un error al procesar la solicitud',
             ], 500);
         }
+    }
+
+    public function destroy($operationId){
+        $model = $this->data['model']::where('operation_id', $operationId)->first();
+        if($model){
+            $operation = $model->operation;
+            if($operation) $operation->delete();
+            $model->delete();
+            $this->logService->log($model, 'Se ha eliminado la operacion '.$operationId);
+        }
+        return redirect()->back()->with('message', Str::title($this->data['module']) . ' Eliminado Correctamente');
     }
 }
