@@ -87,6 +87,7 @@ import MegaFamiliaPerfiles from "./components/module/megafamilia/MegaFamiliaPerf
 import MegaFamiliaDispositivos from "./components/module/megafamilia/MegaFamiliaDispositivos.vue";
 import MegaFamiliaTareas from "./components/module/megafamilia/MegaFamiliaTareas.vue";
 import MegaFamiliaUbicaciones from "./components/module/megafamilia/MegaFamiliaUbicaciones.vue";
+import MegaFamiliaGeofences from "./components/module/megafamilia/MegaFamiliaGeofences.vue";
 import MegaFamiliaReportes from "./components/module/megafamilia/MegaFamiliaReportes.vue";
 import MegaFamiliaAuditoria from "./components/module/megafamilia/MegaFamiliaAuditoria.vue";
 import MegaFamiliaMikrotik from "./components/module/megafamilia/MegaFamiliaMikrotik.vue";
