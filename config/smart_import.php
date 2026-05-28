@@ -64,6 +64,14 @@ return [
         'whatsapp_instances',
     ],
 
+    'foreign_key_normalization' => [
+        'enabled' => true,
+        'invalid_sentinel_values' => [0, '0'],
+        'fallbacks' => [
+            'users.id' => 'acting_user_or_first_existing',
+        ],
+    ],
+
     'overrides' => [
         'permissions' => [
             'module' => 'Administracion',
@@ -130,6 +138,21 @@ return [
 
         'plan_type_billings' => [
             'module' => 'Finanzas',
+            'mode' => 'raw',
+        ],
+
+        'cut_extras_incomes' => [
+            'module' => 'Cortes',
+            'mode' => 'raw',
+        ],
+
+        'cut_installations' => [
+            'module' => 'Cortes',
+            'mode' => 'raw',
+        ],
+
+        'cut_suppliers_expenses' => [
+            'module' => 'Cortes',
             'mode' => 'raw',
         ],
 

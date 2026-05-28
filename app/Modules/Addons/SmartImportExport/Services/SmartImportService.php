@@ -247,6 +247,7 @@ use App\Modules\Core\Configuracion\Models\FieldType;
 use App\Modules\Core\Layout\Models\AppLayoutConfiguration;
 use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -331,6 +332,27 @@ class SmartImportService
      */
     private array $targetForeignKeyDependencyCache = [];
 
+    /**
+     * Cache de metadata FK existente en la DB destino.
+     * @var array<string, array<string, array{column: string, referenced_table: string, referenced_column: string, nullable: bool}>>
+     */
+    private array $targetForeignKeyMetadataCache = [];
+
+    /**
+     * Cache de existencia de valores referenciados por FK.
+     * @var array<string, bool>
+     */
+    private array $referencedValueExistsCache = [];
+
+    /**
+     * Cache de fallback por referencia FK no-nullable.
+     * @var array<string, array{available: bool, value: mixed}>
+     */
+    private array $foreignKeyFallbackValueCache = [];
+
+    /** Profundidad de bloques con FOREIGN_KEY_CHECKS desactivado en la conexion actual. */
+    private int $foreignKeyChecksDisabledDepth = 0;
+
     /** Usuario que ejecuta el import en contexto async. */
     private ?int $actingUserId = null;
 
@@ -408,6 +430,12 @@ class SmartImportService
     public function setActingUserId(?int $userId): void
     {
         $this->actingUserId = $userId;
+        if ($userId !== null) {
+            try {
+                Auth::onceUsingId($userId);
+            } catch (Throwable) {
+            }
+        }
     }
 
     /**
@@ -821,11 +849,17 @@ class SmartImportService
         $this->sourceTableSchemas = $analysis['source_tables'] ?? $this->sourceTableSchemas;
         $plan = $this->buildExecutionPlan($analysis, $options);
         $summary = $this->initializeExecutionSummary($plan);
-        $this->preparePlannedTables($plan, $summary);
         $rowIndexes = [];
         $startedTables = [];
-        $this->executeSqlImportFromPath($path, $plan, $summary, $rowIndexes, $startedTables, $onTableStarted);
+
+        $this->withForeignKeyChecksDisabled(function () use ($path, &$plan, &$summary, &$rowIndexes, &$startedTables, $onTableStarted): void {
+            $this->preparePlannedTables($plan, $summary);
+            $this->executeSqlImportFromPath($path, $plan, $summary, $rowIndexes, $startedTables, $onTableStarted);
+        });
+
         $this->notifyEmptyPlannedTables($plan, $startedTables, $onTableStarted);
+        $this->repairAutoIncrementsForSummary($plan, $summary);
+        $this->auditForeignKeysForSummary($plan, $summary);
 
         return $summary;
     }
@@ -862,26 +896,31 @@ class SmartImportService
         $this->sourceTableSchemas = $analysis['source_tables'] ?? $this->sourceTableSchemas;
         $plan = $this->buildExecutionPlan($analysis, $options);
         $summary = $this->initializeExecutionSummary($plan);
-        $this->preparePlannedTables($plan, $summary);
         $rowIndexes = [];
         $startedTables = [];
 
         try {
-            foreach (File::allFiles($extractDir) as $extracted) {
-                $ext = strtolower($extracted->getExtension());
-                $pathname = $extracted->getPathname();
+            $this->withForeignKeyChecksDisabled(function () use ($extractDir, &$plan, &$summary, &$rowIndexes, &$startedTables, $onTableStarted): void {
+                $this->preparePlannedTables($plan, $summary);
 
-                if ($ext !== 'sql') {
-                    continue;
+                foreach (File::allFiles($extractDir) as $extracted) {
+                    $ext = strtolower($extracted->getExtension());
+                    $pathname = $extracted->getPathname();
+
+                    if ($ext !== 'sql') {
+                        continue;
+                    }
+
+                    $this->executeSqlImportFromPath($pathname, $plan, $summary, $rowIndexes, $startedTables, $onTableStarted);
                 }
-
-                $this->executeSqlImportFromPath($pathname, $plan, $summary, $rowIndexes, $startedTables, $onTableStarted);
-            }
+            });
         } finally {
             File::deleteDirectory($extractDir);
         }
 
         $this->notifyEmptyPlannedTables($plan, $startedTables, $onTableStarted);
+        $this->repairAutoIncrementsForSummary($plan, $summary);
+        $this->auditForeignKeysForSummary($plan, $summary);
 
         return $summary;
     }
@@ -1143,6 +1182,7 @@ class SmartImportService
                 'created'              => false,
                 'replaced'             => false,
                 'added_columns'        => [],
+                'auto_increment'       => null,
                 'warnings'             => [],
                 'target_exists_before' => (bool) ($plan['tables'][$table]['target_exists_before'] ?? false),
             ];
@@ -1221,6 +1261,8 @@ class SmartImportService
             return false;
         }
 
+        unset($this->targetTableExistsCache[$table], $this->tableMetadataCache[$table], $this->hasColumnCache[$table]);
+
         return Schema::hasTable($table);
     }
 
@@ -1278,16 +1320,53 @@ class SmartImportService
 
     private function clearExistingTable(string $table): void
     {
+        $this->withForeignKeyChecksDisabled(function () use ($table): void {
+            try {
+                DB::statement('TRUNCATE TABLE `' . str_replace('`', '``', $table) . '`');
+            } catch (Throwable $e) {
+                Log::warning('SmartImport truncate error [' . $table . ']: ' . $e->getMessage());
+                DB::table($table)->delete();
+            }
+        });
+    }
+
+    /**
+     * @template TReturn
+     * @param callable():TReturn $callback
+     * @return TReturn
+     */
+    private function withForeignKeyChecksDisabled(callable $callback): mixed
+    {
+        $this->disableForeignKeyChecks();
         try {
-            DB::statement('SET FOREIGN_KEY_CHECKS=0');
-            DB::statement('TRUNCATE TABLE `' . str_replace('`', '``', $table) . '`');
-        } catch (Throwable $e) {
-            Log::warning('SmartImport truncate error [' . $table . ']: ' . $e->getMessage());
-            DB::table($table)->delete();
+            return $callback();
         } finally {
+            $this->restoreForeignKeyChecks();
+        }
+    }
+
+    private function disableForeignKeyChecks(): void
+    {
+        if ($this->foreignKeyChecksDisabledDepth === 0) {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        }
+
+        $this->foreignKeyChecksDisabledDepth++;
+    }
+
+    private function restoreForeignKeyChecks(): void
+    {
+        if ($this->foreignKeyChecksDisabledDepth <= 0) {
+            $this->foreignKeyChecksDisabledDepth = 0;
+            return;
+        }
+
+        $this->foreignKeyChecksDisabledDepth--;
+        if ($this->foreignKeyChecksDisabledDepth === 0) {
             try {
                 DB::statement('SET FOREIGN_KEY_CHECKS=1');
-            } catch (Throwable) {
+            } catch (Throwable $e) {
+                Log::warning('SmartImport restore FK checks error: ' . $e->getMessage());
             }
         }
     }
@@ -1307,6 +1386,189 @@ class SmartImportService
         }
     }
 
+    private function repairAutoIncrementsForSummary(array $plan, array &$summary): void
+    {
+        foreach ($plan['ordered_tables'] as $table) {
+            if (($plan['tables'][$table]['disabled'] ?? false) || !Schema::hasTable($table)) {
+                continue;
+            }
+
+            $repair = $this->repairAutoIncrement($table);
+            if ($repair === null) {
+                continue;
+            }
+
+            $summary[$table]['auto_increment'] = $repair;
+            if (($repair['adjusted'] ?? false) === true) {
+                $summary[$table]['warnings'][] = 'auto_increment_ajustado';
+            } elseif (($repair['error'] ?? null) !== null) {
+                $summary[$table]['warnings'][] = 'auto_increment_no_se_pudo_ajustar';
+            }
+        }
+    }
+
+    /**
+     * Ajusta el contador AUTO_INCREMENT luego de merges con IDs explícitos.
+     * MySQL no siempre avanza el contador cuando un upsert actualiza el PK.
+     *
+     * @return array{column: string, max_id: int, previous_auto_increment: int|null, next_auto_increment: int, adjusted: bool, error?: string}|null
+     */
+    private function repairAutoIncrement(string $table): ?array
+    {
+        try {
+            $autoColumn = DB::selectOne(
+                "SELECT COLUMN_NAME AS column_name
+                 FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = ?
+                   AND EXTRA LIKE '%auto_increment%'
+                 LIMIT 1",
+                [$table]
+            );
+
+            $column = (string) ($autoColumn->column_name ?? '');
+            if ($column === '') {
+                return null;
+            }
+
+            $maxRow = DB::selectOne(sprintf(
+                'SELECT MAX(%s) AS max_id FROM %s',
+                $this->quoteIdentifier($column),
+                $this->quoteIdentifier($table)
+            ));
+            $maxId = $maxRow->max_id ?? null;
+            if ($maxId === null || !is_numeric($maxId)) {
+                return null;
+            }
+
+            $maxId = (int) $maxId;
+            $next = $maxId + 1;
+            $previous = $this->currentAutoIncrementValue($table);
+
+            if ($previous !== null && $previous > $maxId) {
+                return null;
+            }
+
+            DB::statement(sprintf(
+                'ALTER TABLE %s AUTO_INCREMENT = %d',
+                $this->quoteIdentifier($table),
+                $next
+            ));
+
+            return [
+                'column'                  => $column,
+                'max_id'                  => $maxId,
+                'previous_auto_increment' => $previous,
+                'next_auto_increment'     => $next,
+                'adjusted'                => true,
+            ];
+        } catch (Throwable $e) {
+            Log::warning('SmartImport auto increment repair error [' . $table . ']: ' . $e->getMessage());
+
+            return [
+                'column'                  => '',
+                'max_id'                  => 0,
+                'previous_auto_increment' => null,
+                'next_auto_increment'     => 0,
+                'adjusted'                => false,
+                'error'                   => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function currentAutoIncrementValue(string $table): ?int
+    {
+        try {
+            $create = DB::selectOne('SHOW CREATE TABLE ' . $this->quoteIdentifier($table));
+            $sql = (string) ($create->{'Create Table'} ?? '');
+            if ($sql !== '' && preg_match('/\bAUTO_INCREMENT=(\d+)/', $sql, $matches) === 1) {
+                return (int) $matches[1];
+            }
+        } catch (Throwable $e) {
+            Log::warning('SmartImport read auto increment error [' . $table . ']: ' . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    private function auditForeignKeysForSummary(array $plan, array &$summary): void
+    {
+        foreach ($plan['ordered_tables'] as $table) {
+            if (!Schema::hasTable($table)) {
+                continue;
+            }
+
+            foreach ($this->targetForeignKeyMetadata($table) as $foreignKey) {
+                $audit = $this->auditForeignKey($table, $foreignKey);
+                if ($audit === null || ($audit['orphaned_rows'] ?? 0) < 1) {
+                    continue;
+                }
+
+                $summary[$table]['foreign_key_warnings'][] = $audit;
+                $summary[$table]['warnings'][] = sprintf(
+                    'fk_huerfana: %s -> %s.%s; %d registros; ejemplos: %s',
+                    $audit['column'],
+                    $audit['referenced_table'],
+                    $audit['referenced_column'],
+                    $audit['orphaned_rows'],
+                    implode(', ', array_map('strval', $audit['sample_values']))
+                );
+            }
+        }
+    }
+
+    /**
+     * @param array{column: string, referenced_table: string, referenced_column: string, nullable: bool} $foreignKey
+     * @return array{column: string, referenced_table: string, referenced_column: string, orphaned_rows: int, sample_values: array<int, mixed>}|null
+     */
+    private function auditForeignKey(string $table, array $foreignKey): ?array
+    {
+        $column = $foreignKey['column'] ?? '';
+        $referencedTable = $foreignKey['referenced_table'] ?? '';
+        $referencedColumn = $foreignKey['referenced_column'] ?? '';
+        if ($column === '' || $referencedTable === '' || $referencedColumn === '') {
+            return null;
+        }
+
+        if (!Schema::hasTable($referencedTable)) {
+            return null;
+        }
+
+        try {
+            $childTable = $this->quoteIdentifier($table);
+            $parentTable = $this->quoteIdentifier($referencedTable);
+            $childColumn = $this->quoteIdentifier($column);
+            $parentColumn = $this->quoteIdentifier($referencedColumn);
+            $where = "child.{$childColumn} IS NOT NULL AND parent.{$parentColumn} IS NULL";
+            $join = "FROM {$childTable} child LEFT JOIN {$parentTable} parent ON child.{$childColumn} = parent.{$parentColumn}";
+
+            $countRow = DB::selectOne("SELECT COUNT(*) AS aggregate {$join} WHERE {$where}");
+            $count = (int) ($countRow->aggregate ?? 0);
+            if ($count < 1) {
+                return null;
+            }
+
+            $sampleRows = DB::select("SELECT DISTINCT child.{$childColumn} AS value {$join} WHERE {$where} LIMIT 5");
+            $sampleValues = array_map(static fn (object $row) => $row->value ?? null, $sampleRows);
+
+            return [
+                'column'            => $column,
+                'referenced_table'  => $referencedTable,
+                'referenced_column' => $referencedColumn,
+                'orphaned_rows'     => $count,
+                'sample_values'     => $sampleValues,
+            ];
+        } catch (Throwable $e) {
+            Log::warning('SmartImport FK audit error [' . $table . '.' . $column . ']: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private function quoteIdentifier(string $identifier): string
+    {
+        return '`' . str_replace('`', '``', $identifier) . '`';
+    }
+
     private function executeDirectInsertTable(string $table, array $rows): array
     {
         $insertRows = [];
@@ -1314,7 +1576,7 @@ class SmartImportService
 
         foreach ($rows as $row) {
             try {
-                $prepared = $this->prepareDirectWriteRow($table, $row, isUpdate: false);
+                $prepared = $this->prepareRawImportRow($table, $row);
                 if ($prepared === []) {
                     $errors++;
                     continue;
@@ -1326,7 +1588,7 @@ class SmartImportService
             }
         }
 
-        $imported = $this->flushBulkInsertRows($table, $insertRows, $errors);
+        $imported = $this->flushBulkInsertRows($table, $insertRows, $errors, normalizeForeignKeys: false);
 
         return [
             $table => [
@@ -1647,6 +1909,10 @@ class SmartImportService
                 || ($mode === self::GLOBAL_MODE_SKIP_EXISTING && !$targetExistedBefore)
             ) {
                 $chunkSummary = $this->executeDirectInsertTable($table, $rows);
+            } elseif ($mode === self::GLOBAL_MODE_SMART) {
+                $chunkSummary = [
+                    $table => $this->executeRawMergeTable($table, $tablePlan['info'], $rows),
+                ];
             } else {
                 $chunkSummary = $this->executeImport(
                     [$table => $rows],
@@ -2373,6 +2639,9 @@ class SmartImportService
         $this->tableMetadataCache = [];
         $this->targetTableExistsCache = [];
         $this->targetForeignKeyDependencyCache = [];
+        $this->targetForeignKeyMetadataCache = [];
+        $this->referencedValueExistsCache = [];
+        $this->foreignKeyFallbackValueCache = [];
     }
 
     private function buildAnalysisReport(array $datasets): array
@@ -2540,31 +2809,70 @@ class SmartImportService
 
     private function targetForeignKeyDependencies(string $table): array
     {
+        if (!isset($this->targetForeignKeyDependencyCache[$table])) {
+            $this->targetForeignKeyDependencyCache[$table] = array_values(array_unique(array_filter(array_map(
+                static fn (array $foreignKey) => $foreignKey['referenced_table'] ?? '',
+                $this->targetForeignKeyMetadata($table)
+            ))));
+        }
+
+        return $this->targetForeignKeyDependencyCache[$table];
+    }
+
+    /**
+     * @return array<string, array{column: string, referenced_table: string, referenced_column: string, nullable: bool}>
+     */
+    private function targetForeignKeyMetadata(string $table): array
+    {
         if (!$this->targetTableExistsCached($table)) {
             return [];
         }
 
-        if (!isset($this->targetForeignKeyDependencyCache[$table])) {
+        if (!isset($this->targetForeignKeyMetadataCache[$table])) {
             try {
                 $database = DB::connection()->getDatabaseName();
                 $rows = DB::select(
-                    'SELECT REFERENCED_TABLE_NAME AS referenced_table
-                     FROM information_schema.KEY_COLUMN_USAGE
-                     WHERE TABLE_SCHEMA = ?
-                       AND TABLE_NAME = ?
-                       AND REFERENCED_TABLE_NAME IS NOT NULL',
+                    'SELECT
+                        kcu.COLUMN_NAME AS column_name,
+                        kcu.REFERENCED_TABLE_NAME AS referenced_table,
+                        kcu.REFERENCED_COLUMN_NAME AS referenced_column,
+                        c.IS_NULLABLE AS is_nullable
+                     FROM information_schema.KEY_COLUMN_USAGE kcu
+                     INNER JOIN information_schema.COLUMNS c
+                        ON c.TABLE_SCHEMA = kcu.TABLE_SCHEMA
+                       AND c.TABLE_NAME = kcu.TABLE_NAME
+                       AND c.COLUMN_NAME = kcu.COLUMN_NAME
+                     WHERE kcu.TABLE_SCHEMA = ?
+                       AND kcu.TABLE_NAME = ?
+                       AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+                     ORDER BY kcu.ORDINAL_POSITION',
                     [$database, $table]
                 );
-                $this->targetForeignKeyDependencyCache[$table] = array_values(array_unique(array_filter(array_map(
-                    static fn ($row) => (string) ($row->referenced_table ?? ''),
-                    $rows
-                ))));
+
+                $metadata = [];
+                foreach ($rows as $row) {
+                    $column = (string) ($row->column_name ?? '');
+                    $referencedTable = (string) ($row->referenced_table ?? '');
+                    $referencedColumn = (string) ($row->referenced_column ?? '');
+                    if ($column === '' || $referencedTable === '' || $referencedColumn === '') {
+                        continue;
+                    }
+
+                    $metadata[$column] = [
+                        'column'            => $column,
+                        'referenced_table'  => $referencedTable,
+                        'referenced_column' => $referencedColumn,
+                        'nullable'          => strtoupper((string) ($row->is_nullable ?? 'NO')) === 'YES',
+                    ];
+                }
+
+                $this->targetForeignKeyMetadataCache[$table] = $metadata;
             } catch (Throwable) {
-                $this->targetForeignKeyDependencyCache[$table] = [];
+                $this->targetForeignKeyMetadataCache[$table] = [];
             }
         }
 
-        return $this->targetForeignKeyDependencyCache[$table];
+        return $this->targetForeignKeyMetadataCache[$table];
     }
 
     /**
@@ -2593,11 +2901,10 @@ class SmartImportService
     {
         if (($info['mode'] ?? 'model') === 'model') {
             $modelClass = $info['model'];
-            $modelClass::create($this->sanitizeRow($row, $table));
+            $modelClass::create($this->prepareModelWriteRow($table, $row));
             return;
         }
-        $clean = $this->sanitizeRow($row, $table);
-        $clean = $this->injectAuditColumns($table, $clean, isUpdate: false);
+        $clean = $this->prepareDirectWriteRow($table, $row, isUpdate: false);
         DB::table($table)->insert($clean);
     }
 
@@ -2607,12 +2914,21 @@ class SmartImportService
         if (($info['mode'] ?? 'model') === 'model') {
             $modelClass = $info['model'];
             $modelClass::query()->whereKey($existingId)
-                ->update($this->sanitizeRow($row, $table));
+                ->update($this->prepareModelWriteRow($table, $row));
             return;
         }
-        $clean = $this->sanitizeRow($row, $table);
-        $clean = $this->injectAuditColumns($table, $clean, isUpdate: true);
+        $clean = $this->prepareDirectWriteRow($table, $row, isUpdate: true);
         DB::table($table)->where($this->pkOf($table, $info), $existingId)->update($clean);
+    }
+
+    private function prepareModelWriteRow(string $table, array $row): array
+    {
+        $clean = $this->sanitizeRow($row, $table);
+        if ($clean === []) {
+            return [];
+        }
+
+        return $this->normalizeForeignKeysForRow($table, $clean);
     }
 
     /**
@@ -2686,7 +3002,7 @@ class SmartImportService
                 }
 
                 if ($action === 'replace' && $existing) {
-                    $prepared = $this->prepareDirectWriteRow($table, $row, isUpdate: true);
+                    $prepared = $this->prepareDirectWriteRow($table, $row, isUpdate: true, normalizeForeignKeys: false);
                     if ($prepared === []) {
                         $errors++;
                         continue;
@@ -2705,7 +3021,7 @@ class SmartImportService
                     unset($row[$pk]);
                 }
 
-                $prepared = $this->prepareDirectWriteRow($table, $row, isUpdate: false);
+                $prepared = $this->prepareDirectWriteRow($table, $row, isUpdate: false, normalizeForeignKeys: false);
                 if ($prepared === []) {
                     $errors++;
                     continue;
@@ -2723,17 +3039,357 @@ class SmartImportService
         return compact('imported', 'skipped', 'errors');
     }
 
-    private function prepareDirectWriteRow(string $table, array $row, bool $isUpdate): array
+    private function executeRawMergeTable(string $table, array $info, array $rows): array
+    {
+        $keys = $this->rawMergeKeys($table, $info);
+        $mergeRows = [];
+        $insertRows = [];
+        $imported = 0;
+        $skipped = 0;
+        $errors = 0;
+
+        foreach ($rows as $row) {
+            try {
+                $prepared = $this->prepareRawImportRow($table, $row);
+                if ($prepared === []) {
+                    $errors++;
+                    continue;
+                }
+
+                if ($keys !== [] && $this->rowHasAllKeys($prepared, $keys)) {
+                    $mergeRows[] = $prepared;
+                } else {
+                    $insertRows[] = $prepared;
+                }
+            } catch (Throwable $e) {
+                Log::warning('SmartImport raw merge prepare error [' . $table . ']: ' . $e->getMessage());
+                $errors++;
+            }
+        }
+
+        $imported += $this->flushBulkMergeRows($table, $mergeRows, $keys, $errors);
+        $imported += $this->flushBulkInsertRows($table, $insertRows, $errors, normalizeForeignKeys: false);
+
+        return compact('imported', 'skipped', 'errors');
+    }
+
+    private function rawMergeKeys(string $table, array $info): array
+    {
+        $keys = array_values(array_filter($info['conflict_keys'] ?? []));
+        if ($keys !== []) {
+            return $keys;
+        }
+
+        if ($this->targetTableExistsCached($table)) {
+            return $this->filterUsableConflictKeys($table, $this->inferConflictKeysFromTarget($table));
+        }
+
+        $sourceColumns = $this->sourceTableSchemas[$table]['columns']
+            ?? $this->dumpColumnsByTable[$table]
+            ?? [];
+
+        return in_array('id', $sourceColumns, true) ? ['id'] : [];
+    }
+
+    private function rowHasAllKeys(array $row, array $keys): bool
+    {
+        foreach ($keys as $key) {
+            if (!$this->hasConflictValue($row, $key)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function prepareRawImportRow(string $table, array $row): array
+    {
+        return $this->sanitizeRow($row, $table);
+    }
+
+    private function prepareDirectWriteRow(string $table, array $row, bool $isUpdate, bool $normalizeForeignKeys = true): array
     {
         $clean = $this->sanitizeRow($row, $table);
         if ($clean === []) {
             return [];
         }
 
-        return $this->injectAuditColumns($table, $clean, $isUpdate);
+        $clean = $this->injectAuditColumns($table, $clean, $isUpdate);
+
+        return $normalizeForeignKeys
+            ? $this->normalizeForeignKeysForRow($table, $clean)
+            : $clean;
     }
 
-    private function flushBulkInsertRows(string $table, array $rows, int &$errors): int
+    private function normalizeForeignKeysForRow(string $table, array $row): array
+    {
+        $rows = $this->normalizeForeignKeysForRows($table, [$row]);
+
+        return $rows[0] ?? $row;
+    }
+
+    private function normalizeForeignKeysForRows(string $table, array $rows): array
+    {
+        if (!$this->foreignKeyNormalizationEnabled() || $rows === []) {
+            return $rows;
+        }
+
+        $foreignKeys = $this->targetForeignKeyMetadata($table);
+        if ($foreignKeys === []) {
+            return $rows;
+        }
+
+        foreach ($foreignKeys as $column => $foreignKey) {
+            $checkReferencedExists = $foreignKey['referenced_table'] !== $table;
+            $values = [];
+            foreach ($rows as $row) {
+                if (!array_key_exists($column, $row)) {
+                    continue;
+                }
+
+                $value = $row[$column];
+                if ($this->isBlankForeignKeyValue($value) || !is_scalar($value)) {
+                    continue;
+                }
+
+                $values[$this->referencedValueCacheKey(
+                    $foreignKey['referenced_table'],
+                    $foreignKey['referenced_column'],
+                    $value
+                )] = $value;
+            }
+
+            if ($values === []) {
+                continue;
+            }
+
+            $existence = $checkReferencedExists
+                ? $this->referencedValuesExistenceMap(
+                    $foreignKey['referenced_table'],
+                    $foreignKey['referenced_column'],
+                    array_values($values)
+                )
+                : [];
+
+            foreach ($rows as $index => $row) {
+                if (!array_key_exists($column, $row)) {
+                    continue;
+                }
+
+                $value = $row[$column];
+                if ($this->isBlankForeignKeyValue($value) || !is_scalar($value)) {
+                    continue;
+                }
+
+                $cacheKey = $this->referencedValueCacheKey(
+                    $foreignKey['referenced_table'],
+                    $foreignKey['referenced_column'],
+                    $value
+                );
+                $isInvalid = $this->isInvalidForeignKeySentinel($value)
+                    || ($checkReferencedExists && !($existence[$cacheKey] ?? true));
+                if (!$isInvalid) {
+                    continue;
+                }
+
+                $replacement = $this->replacementForInvalidForeignKey($foreignKey);
+                if ($replacement['replace']) {
+                    $rows[$index][$column] = $replacement['value'];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    private function foreignKeyNormalizationEnabled(): bool
+    {
+        return (bool) config('smart_import.foreign_key_normalization.enabled', true);
+    }
+
+    private function isBlankForeignKeyValue(mixed $value): bool
+    {
+        return $value === null || $value === '';
+    }
+
+    private function isInvalidForeignKeySentinel(mixed $value): bool
+    {
+        foreach ($this->invalidForeignKeySentinelValues() as $sentinel) {
+            if ($value === $sentinel) {
+                return true;
+            }
+
+            if (is_scalar($value) && is_scalar($sentinel) && (string) $value === (string) $sentinel) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function invalidForeignKeySentinelValues(): array
+    {
+        $values = config('smart_import.foreign_key_normalization.invalid_sentinel_values', [0, '0']);
+
+        return is_array($values) ? $values : [0, '0'];
+    }
+
+    /**
+     * @param array{column: string, referenced_table: string, referenced_column: string, nullable: bool} $foreignKey
+     * @return array{replace: bool, value: mixed}
+     */
+    private function replacementForInvalidForeignKey(array $foreignKey): array
+    {
+        if ($foreignKey['nullable']) {
+            return ['replace' => true, 'value' => null];
+        }
+
+        $fallback = $this->foreignKeyFallbackValue(
+            $foreignKey['referenced_table'],
+            $foreignKey['referenced_column']
+        );
+
+        if ($fallback['available']) {
+            return ['replace' => true, 'value' => $fallback['value']];
+        }
+
+        return ['replace' => false, 'value' => null];
+    }
+
+    /**
+     * @return array{available: bool, value: mixed}
+     */
+    private function foreignKeyFallbackValue(string $referencedTable, string $referencedColumn): array
+    {
+        $reference = $referencedTable . '.' . $referencedColumn;
+        $fallbacks = config('smart_import.foreign_key_normalization.fallbacks', [
+            'users.id' => 'acting_user_or_first_existing',
+        ]);
+        $rule = is_array($fallbacks) ? ($fallbacks[$reference] ?? null) : null;
+        if ($rule === null || $rule === false) {
+            return ['available' => false, 'value' => null];
+        }
+
+        if (array_key_exists($reference, $this->foreignKeyFallbackValueCache)) {
+            return $this->foreignKeyFallbackValueCache[$reference];
+        }
+
+        $fallback = ['available' => false, 'value' => null];
+        try {
+            if ($rule === 'acting_user_or_first_existing') {
+                foreach ([$this->actingUserId, auth()->id()] as $candidate) {
+                    if ($candidate !== null && $this->referencedValueExistsCached($referencedTable, $referencedColumn, $candidate)) {
+                        $fallback = ['available' => true, 'value' => $candidate];
+                        break;
+                    }
+                }
+
+                if (!$fallback['available']) {
+                    $value = DB::table($referencedTable)->orderBy($referencedColumn)->value($referencedColumn);
+                    if ($value !== null && !$this->isInvalidForeignKeySentinel($value)) {
+                        $fallback = ['available' => true, 'value' => $value];
+                    }
+                }
+            } elseif ($rule === 'first_existing') {
+                $value = DB::table($referencedTable)->orderBy($referencedColumn)->value($referencedColumn);
+                if ($value !== null && !$this->isInvalidForeignKeySentinel($value)) {
+                    $fallback = ['available' => true, 'value' => $value];
+                }
+            } elseif (is_scalar($rule) && $this->referencedValueExistsCached($referencedTable, $referencedColumn, $rule)) {
+                $fallback = ['available' => true, 'value' => $rule];
+            }
+        } catch (Throwable) {
+            $fallback = ['available' => false, 'value' => null];
+        }
+
+        $this->foreignKeyFallbackValueCache[$reference] = $fallback;
+
+        return $fallback;
+    }
+
+    private function referencedValueExistsCached(string $referencedTable, string $referencedColumn, mixed $value): bool
+    {
+        $cacheKey = $this->referencedValueCacheKey($referencedTable, $referencedColumn, $value);
+        if (!array_key_exists($cacheKey, $this->referencedValueExistsCache)) {
+            if ($this->isInvalidForeignKeySentinel($value)) {
+                $this->referencedValueExistsCache[$cacheKey] = false;
+            } else {
+                try {
+                    $this->referencedValueExistsCache[$cacheKey] = DB::table($referencedTable)
+                        ->where($referencedColumn, $value)
+                        ->exists();
+                } catch (Throwable) {
+                    // Fallar abierto evita borrar una referencia si la consulta de validación no pudo ejecutarse.
+                    $this->referencedValueExistsCache[$cacheKey] = true;
+                }
+            }
+        }
+
+        return $this->referencedValueExistsCache[$cacheKey];
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function referencedValuesExistenceMap(string $referencedTable, string $referencedColumn, array $values): array
+    {
+        $existence = [];
+        $pending = [];
+
+        foreach ($values as $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $cacheKey = $this->referencedValueCacheKey($referencedTable, $referencedColumn, $value);
+            if ($this->isInvalidForeignKeySentinel($value)) {
+                $this->referencedValueExistsCache[$cacheKey] = false;
+            }
+
+            if (array_key_exists($cacheKey, $this->referencedValueExistsCache)) {
+                $existence[$cacheKey] = $this->referencedValueExistsCache[$cacheKey];
+                continue;
+            }
+
+            $pending[$cacheKey] = $value;
+        }
+
+        if ($pending !== []) {
+            $found = [];
+            try {
+                foreach (array_chunk($pending, self::BULK_CHUNK_SIZE, true) as $chunk) {
+                    $dbValues = DB::table($referencedTable)
+                        ->whereIn($referencedColumn, array_values($chunk))
+                        ->pluck($referencedColumn);
+
+                    foreach ($dbValues as $dbValue) {
+                        if (is_scalar($dbValue)) {
+                            $found[$this->referencedValueCacheKey($referencedTable, $referencedColumn, $dbValue)] = true;
+                        }
+                    }
+                }
+
+                foreach ($pending as $cacheKey => $value) {
+                    $this->referencedValueExistsCache[$cacheKey] = $found[$cacheKey] ?? false;
+                    $existence[$cacheKey] = $this->referencedValueExistsCache[$cacheKey];
+                }
+            } catch (Throwable) {
+                foreach ($pending as $cacheKey => $value) {
+                    $this->referencedValueExistsCache[$cacheKey] = true;
+                    $existence[$cacheKey] = true;
+                }
+            }
+        }
+
+        return $existence;
+    }
+
+    private function referencedValueCacheKey(string $referencedTable, string $referencedColumn, mixed $value): string
+    {
+        return $referencedTable . "\0" . $referencedColumn . "\0" . (string) $value;
+    }
+
+    private function flushBulkInsertRows(string $table, array $rows, int &$errors, bool $normalizeForeignKeys = true): int
     {
         if ($rows === []) {
             return 0;
@@ -2741,7 +3397,7 @@ class SmartImportService
 
         $imported = 0;
         foreach (array_chunk($rows, self::BULK_CHUNK_SIZE) as $chunk) {
-            $normalized = $this->normalizeRowsForBatch($table, $chunk);
+            $normalized = $this->normalizeRowsForBatch($table, $chunk, $normalizeForeignKeys);
             if ($normalized === []) {
                 continue;
             }
@@ -2766,7 +3422,47 @@ class SmartImportService
         return $imported;
     }
 
-    private function flushBulkUpdateRows(string $table, string $pk, array $rows, int &$errors): int
+    private function flushBulkMergeRows(string $table, array $rows, array $keys, int &$errors): int
+    {
+        if ($rows === [] || $keys === []) {
+            return 0;
+        }
+
+        $imported = 0;
+        foreach (array_chunk($rows, self::BULK_CHUNK_SIZE) as $chunk) {
+            foreach ($this->groupRowsByColumnSignature($chunk) as $group) {
+                $normalized = $this->normalizeRowsForBatch($table, $group, normalizeForeignKeys: false);
+                if ($normalized === []) {
+                    continue;
+                }
+
+                $updateColumns = array_keys($normalized[0]);
+                if ($updateColumns === []) {
+                    continue;
+                }
+
+                try {
+                    DB::table($table)->upsert($normalized, $keys, $updateColumns);
+                    $imported += count($normalized);
+                } catch (Throwable $e) {
+                    Log::warning('SmartImport raw merge chunk error [' . $table . ']: ' . $e->getMessage());
+                    foreach ($normalized as $row) {
+                        try {
+                            DB::table($table)->upsert([$row], $keys, array_keys($row));
+                            $imported++;
+                        } catch (Throwable $rowError) {
+                            Log::warning('SmartImport raw merge fallback row error [' . $table . ']: ' . $rowError->getMessage());
+                            $errors++;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $imported;
+    }
+
+    private function flushBulkUpdateRows(string $table, string $pk, array $rows, int &$errors, bool $normalizeForeignKeys = true): int
     {
         if ($rows === []) {
             return 0;
@@ -2775,7 +3471,7 @@ class SmartImportService
         $imported = 0;
         foreach (array_chunk($rows, self::BULK_CHUNK_SIZE) as $chunk) {
             foreach ($this->groupRowsByColumnSignature($chunk) as $group) {
-                $normalized = $this->normalizeRowsForBatch($table, $group);
+                $normalized = $this->normalizeRowsForBatch($table, $group, $normalizeForeignKeys);
                 if ($normalized === []) {
                     continue;
                 }
@@ -2843,7 +3539,7 @@ class SmartImportService
         return $grouped;
     }
 
-    private function normalizeRowsForBatch(string $table, array $rows): array
+    private function normalizeRowsForBatch(string $table, array $rows, bool $normalizeForeignKeys = true): array
     {
         if ($rows === []) {
             return [];
@@ -2869,10 +3565,14 @@ class SmartImportService
         }
 
         $template = array_fill_keys($orderedColumns, null);
-        return array_map(
+        $normalized = array_map(
             static fn (array $row) => array_replace($template, $row),
             $rows
         );
+
+        return $normalizeForeignKeys
+            ? $this->normalizeForeignKeysForRows($table, $normalized)
+            : $normalized;
     }
 
     private function reindexDatasetsWithOffsets(array $datasets, array &$rowIndexes): array
