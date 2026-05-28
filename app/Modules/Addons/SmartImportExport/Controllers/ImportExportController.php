@@ -45,6 +45,8 @@ class ImportExportController extends Controller
 
     public function upload(Request $request)
     {
+        set_time_limit(0);
+        ini_set('memory_limit', '8912M');
         // `extensions:` (Laravel 10.46+) valida por extensión del nombre del archivo.
         // `mimes:sql,...` rechazaba .sql porque no tiene MIME type estándar registrado
         // en Symfony MimeTypes, lo que causaba 422 ANTES de llegar a analyzeFile().
