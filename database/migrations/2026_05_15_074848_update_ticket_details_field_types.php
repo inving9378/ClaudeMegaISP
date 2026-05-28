@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Module;
-use App\Models\FieldType;
+use App\Modules\Core\Configuracion\Models\FieldType;
 use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
