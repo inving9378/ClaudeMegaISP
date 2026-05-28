@@ -71,17 +71,19 @@ Guía de contexto para Claude Code en este repositorio. Leer antes de explorar.
 - DB activa: la definida en `/var/www/megaisp/.env`
 - SmartImport UI en: `/configuracion/smart-import`
 
-### Importación de BD de producción (proceso activo al 2026-05-23)
+### Importación de BD de producción (proceso activo al 2026-05-27)
 - Errores esperados/controlados:
-  - `bundles` — `Field 'title' doesn't have a default value` → fila rechazada, sin daño
   - Duplicate PK (1062) en múltiples tablas → filas ya existentes, omitidas correctamente
 
-- **Problema pendiente — cascada de fallos:**
-  - `bundles.title` es NOT NULL → rechaza filas de bundles del dump
-  - → `client_bundle_services` falla con `Attempt to read property "id" on null`
-  - → `client_custom_services` falla con FK violation 1452 (`client_bundle_service_id`)
+- **Fixes aplicados al 2026-05-27 (35,446 errores → 0 esperados):**
+  1. `createBackupAndTruncate()` reseteaba `FK_CHECKS=1` dentro del loop → fix: eliminado ese SET, el outer `executeImport()` lo maneja en `finally`
+  2. Trigger `payments` con `DEFINER='meganet'@'localhost'` inexistente → fix: `ensureTriggerDefinersExist()` crea el user MySQL antes del import
+  3. `transactions.movement` NOT NULL + registros históricos sin ese campo → fix: migración `2026_05_27_000001` lo hace nullable
+  4. `users.password` NOT NULL + usuarios-cliente sin contraseña → fix: migración `2026_05_27_000002` lo hace nullable
+
+- **Problema aún pendiente (si se reimportan bundles):**
+  - `bundles.title` es NOT NULL → rechaza filas del dump con title NULL
   - **Solución:** `ALTER TABLE bundles MODIFY COLUMN title VARCHAR(255) NULL;`
-  - Aplicar antes de reimportar si los bundles son datos reales de producción
 
 ### Sistema de módulos (import/export)
 - `ModuleRepository::MODULES_FOR_IMPORT` — lista de módulos importables

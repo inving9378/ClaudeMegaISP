@@ -374,24 +374,18 @@
                     icon="play_circle"
                 >
                     <div v-if="!jobId" class="text-grey-6 q-pa-xl text-center">
-                        <i class="fas fa-hourglass-half fa-2x q-mb-md"></i>
-                        <div>Esperando inicio de la importación...</div>
+                        <q-circular-progress indeterminate size="40px" color="primary" class="q-mb-md" />
+                        <div class="text-body2">Iniciando importación...</div>
                     </div>
 
                     <div v-else>
-                        <!-- Barra de progreso -->
+                        <!-- Barra de progreso principal -->
                         <q-card flat bordered class="q-mb-md si-progress-card">
                             <q-card-section class="q-pa-md">
-                                <div class="row items-center q-mb-sm">
+                                <div class="row items-center q-mb-xs">
                                     <div class="col">
-                                        <span class="text-caption text-grey-6 text-uppercase text-weight-bold">
-                                            Estado
-                                        </span>
-                                        <q-badge
-                                            :color="jobStateColor"
-                                            :label="jobStatus.state"
-                                            class="q-ml-sm"
-                                        />
+                                        <span class="text-caption text-grey-6 text-uppercase text-weight-bold">Estado</span>
+                                        <q-badge :color="jobStateColor" :label="jobStateLabel" class="q-ml-sm" />
                                         <span v-if="jobStatus.current" class="q-ml-sm text-caption text-grey-7">
                                             · procesando
                                             <q-chip dense color="blue-1" text-color="blue-9" size="sm">
@@ -399,22 +393,35 @@
                                             </q-chip>
                                         </span>
                                     </div>
-                                    <div class="col-auto text-h6 text-weight-bold" :class="`text-${jobStateColor}`">
-                                        {{ jobStatus.progress || 0 }}%
+                                    <div class="col-auto row items-center q-gutter-sm">
+                                        <!-- Contador tablas -->
+                                        <span
+                                            v-if="jobStatus.tables && jobStatus.tables.length"
+                                            class="text-caption text-grey-6"
+                                        >
+                                            {{ tablesProcessed }}/{{ jobStatus.tables.length }} tablas
+                                        </span>
+                                        <div class="text-h6 text-weight-bold" :class="`text-${jobStateColor}`">
+                                            {{ jobStatus.progress || 0 }}%
+                                        </div>
                                     </div>
                                 </div>
                                 <q-linear-progress
                                     :value="(jobStatus.progress || 0) / 100"
                                     :color="jobStateColor"
-                                    size="10px"
+                                    size="12px"
                                     rounded
-                                    stripe
+                                    :stripe="jobStatus.state === 'running'"
                                     class="rounded-borders"
                                 />
+                                <!-- Tiempo transcurrido -->
+                                <div class="text-caption text-grey-5 q-mt-xs text-right">
+                                    {{ elapsedText }}
+                                </div>
                             </q-card-section>
                         </q-card>
 
-                        <!-- Log de ejecución -->
+                        <!-- Log de ejecución con auto-scroll -->
                         <q-card flat bordered class="q-mb-md">
                             <div class="row items-center q-pa-sm bg-grey-1 si-log-header">
                                 <i class="fas fa-terminal text-grey-6 q-mr-sm"></i>
@@ -422,13 +429,14 @@
                                     Log de ejecución
                                 </span>
                                 <q-space />
+                                <q-spinner-dots v-if="jobStatus.state === 'running'" color="primary" size="18px" class="q-mr-sm" />
                                 <q-badge v-if="jobStatus.log" color="grey-4" text-color="grey-8">
                                     {{ jobStatus.log.length }} líneas
                                 </q-badge>
                             </div>
-                            <q-scroll-area style="height: 340px">
+                            <div ref="logContainer" class="log-scroll-area">
                                 <pre class="log-pre">{{ (jobStatus.log || []).join('\n') }}</pre>
-                            </q-scroll-area>
+                            </div>
                         </q-card>
 
                         <!-- Resultado final -->
@@ -471,6 +479,17 @@
                             </div>
                         </div>
 
+                        <!-- Error detalle -->
+                        <q-banner
+                            v-if="jobStatus.state === 'failed'"
+                            dense
+                            rounded
+                            class="bg-negative text-white q-mb-md"
+                            icon="error"
+                        >
+                            {{ jobStatus.error || 'La importación falló. Revisa el log para más detalles.' }}
+                        </q-banner>
+
                         <div class="row justify-end">
                             <q-btn
                                 v-if="jobStatus.state === 'completed' || jobStatus.state === 'failed'"
@@ -489,7 +508,7 @@
 </template>
 
 <script>
-import { computed, onBeforeUnmount, reactive, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 
 export default {
     name: "SmartImport",
@@ -509,7 +528,10 @@ export default {
 
         const jobId = ref(null);
         const jobStatus = ref({ state: "idle", progress: 0, log: [] });
+        const logContainer = ref(null);
         let pollTimer = null;
+        let jobStartedAt = null;
+        const elapsedText = ref('');
 
         const defaultAction = reactive({});
         const perRowAction = reactive({});
@@ -574,6 +596,25 @@ export default {
                 failed: "negative",
             };
             return map[jobStatus.value.state] || "grey";
+        });
+
+        const jobStateLabel = computed(() => {
+            const map = {
+                queued: "En cola",
+                running: "Ejecutando",
+                completed: "Completado",
+                failed: "Fallido",
+                unknown: "Desconocido",
+            };
+            return map[jobStatus.value.state] || jobStatus.value.state;
+        });
+
+        const tablesProcessed = computed(() => {
+            const tables = jobStatus.value.tables || [];
+            const current = jobStatus.value.current;
+            if (!current) return 0;
+            const idx = tables.indexOf(current);
+            return idx >= 0 ? idx : 0;
         });
 
         function rowStatusColor(row) {
@@ -709,26 +750,54 @@ export default {
             }
         }
 
+        function scrollLogToBottom() {
+            nextTick(() => {
+                const el = logContainer.value;
+                if (el) el.scrollTop = el.scrollHeight;
+            });
+        }
+
+        function updateElapsed() {
+            if (!jobStartedAt) { elapsedText.value = ''; return; }
+            const secs = Math.floor((Date.now() - jobStartedAt) / 1000);
+            if (secs < 60) {
+                elapsedText.value = `${secs}s transcurridos`;
+            } else {
+                const m = Math.floor(secs / 60);
+                const s = secs % 60;
+                elapsedText.value = `${m}m ${s}s transcurridos`;
+            }
+        }
+
         function startPolling() {
             stopPolling();
+            jobStartedAt = Date.now();
+            // Polling adaptativo: cada 1s mientras corre, se detiene al terminar
             pollTimer = setInterval(async () => {
+                updateElapsed();
                 try {
                     const { data } = await axios.get(
                         `/configuracion/smart-import/status/${jobId.value}`
                     );
                     if (data.success) {
+                        const prev = jobStatus.value.log?.length || 0;
                         jobStatus.value = data.status;
-                        if (
-                            ["completed", "failed"].includes(data.status.state)
-                        ) {
+                        // Auto-scroll si llegaron líneas nuevas al log
+                        if ((data.status.log?.length || 0) > prev) {
+                            scrollLogToBottom();
+                        }
+                        if (["completed", "failed"].includes(data.status.state)) {
                             stopPolling();
+                            updateElapsed();
+                            scrollLogToBottom();
                         }
                     }
                 } catch (e) {
                     /* swallow — reintentos automáticos */
                 }
-            }, 2000);
+            }, 1000);
         }
+
         function stopPolling() {
             if (pollTimer) {
                 clearInterval(pollTimer);
@@ -749,6 +818,8 @@ export default {
             Object.keys(perRowAction).forEach((k) => delete perRowAction[k]);
             jobId.value = null;
             jobStatus.value = { state: "idle", progress: 0, log: [] };
+            jobStartedAt = null;
+            elapsedText.value = '';
         }
 
         onBeforeUnmount(() => stopPolling());
@@ -768,6 +839,8 @@ export default {
             aiRecommendations,
             jobId,
             jobStatus,
+            logContainer,
+            elapsedText,
             defaultAction,
             perRowAction,
             uploadUrl,
@@ -778,6 +851,8 @@ export default {
             hasConflicts,
             conflictCount,
             jobStateColor,
+            jobStateLabel,
+            tablesProcessed,
             rowStatusColor,
             rowStatusLabel,
             pretty,
@@ -898,14 +973,19 @@ export default {
     border-bottom: 1px solid var(--si-border);
     background: var(--si-header-bg);
 }
-.log-pre {
+.log-scroll-area {
+    height: 360px;
+    overflow-y: auto;
     background: #0d1117;
+    border-radius: 0 0 10px 10px;
+    scroll-behavior: smooth;
+}
+.log-pre {
     color: #8b949e;
     padding: 14px 16px;
     font-size: 12px;
     font-family: "Consolas", "JetBrains Mono", "Fira Code", monospace;
     margin: 0;
-    min-height: 100%;
     line-height: 1.7;
     white-space: pre-wrap;
     word-break: break-all;

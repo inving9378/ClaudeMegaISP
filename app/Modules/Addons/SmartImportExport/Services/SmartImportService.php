@@ -285,9 +285,38 @@ class SmartImportService
     /** Cache de Schema::getColumnListing() por tabla — evita N llamadas repetidas. */
     private array $columnCache = [];
 
+    /** Cache de columnas NOT NULL sin default por tabla (para coerción NULL → ''). */
+    private array $notNullCache = [];
+
+    /** Definiciones CREATE TRIGGER guardadas antes del import para restaurar al final. */
+    private array $savedTriggers = [];
+
+    /** True cuando el Job ya llamó beginBulkSession(); evita setup duplicado por tabla. */
+    private bool $bulkSessionActive = false;
+
+    /** Cache de Schema::hasTable() para evitar consultas repetidas durante el sort. */
+    private array $targetTableExistsCache = [];
+
+    /** Cache de dependencias FK por tabla (tabla → tablas de las que depende). */
+    private array $targetForeignKeyDependencyCache = [];
+
+    /**
+     * DDL completo (CREATE TABLE …;) extraído del dump por extractDumpColumns().
+     * Se usa en validateMapEntry() para crear automáticamente tablas que no
+     * existen en la BD destino antes de importar sus filas.
+     *
+     * @var array<string, string>
+     */
+    private array $dumpDDLByTable = [];
+
     public function setDumpColumns(array $dumpColumns): void
     {
         $this->dumpColumnsByTable = $dumpColumns;
+    }
+
+    public function setDumpDDL(array $ddl): void
+    {
+        $this->dumpDDLByTable = $ddl;
     }
 
     /**
@@ -675,6 +704,7 @@ class SmartImportService
             'format'       => $format,
             'datasets'     => $datasets,
             'dump_columns' => $this->dumpColumnsByTable, // pobladas por parseSql → handle schema drift
+            'dump_ddl'     => $this->dumpDDLByTable,     // DDL completo para crear tablas ausentes en destino
             'report'       => $this->sanitizeUtf8($report),
             'total_rows'   => $totalRows,
         ];
@@ -759,9 +789,10 @@ class SmartImportService
         $backupName = $prefix . substr($table, 0, max(1, $maxTbl));
 
         DB::statement("CREATE TABLE `{$backupName}` SELECT * FROM `{$table}`");
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        // FK_CHECKS ya fue desactivado por executeImport() para todo el import;
+        // no resetear a 1 aquí porque provocaría que los inserts de la tabla actual
+        // fallen con 1452 si sus padres aún no fueron procesados.
         DB::statement("TRUNCATE TABLE `{$table}`");
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
         return $backupName;
     }
@@ -771,12 +802,19 @@ class SmartImportService
         $summary   = [];
         $timestamp = now()->format('ymdHis'); // 12 chars, compartido entre todas las tablas del batch
 
-        // FK checks desactivados durante todo el import: el dump importa tablas en
-        // orden alfabético/de aparición, no por dependencias. Sin esto, inserts a
-        // tablas hijas (commissions_details, client_bundle_services, etc.) fallan
-        // con 1452 si la tabla padre aún no se procesó. MySQL no revalida los datos
-        // existentes cuando se reactiva FK_CHECKS al final.
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        // Desactivar todos los triggers durante el import: evita errores 1449
+        // (definer inexistente), lógica de auditoría duplicada y overhead por fila.
+        // Se restauran en el bloque finally.
+        $this->dropTriggersForImport();
+
+        // Si el Job ya inició una sesión bulk (beginBulkSession), no repetir el setup
+        // costoso por cada tabla. En uso directo (sin Job), inicializarlo aquí.
+        if (!$this->bulkSessionActive) {
+            $datasets = $this->sortDatasetsByDependency($datasets);
+            $this->preloadNotNullColumns(array_keys($datasets));
+            $this->dropTriggersForImport();
+            DB::statement("SET FOREIGN_KEY_CHECKS=0, unique_checks=0, time_zone='+00:00'");
+        }
 
         try {
         foreach ($datasets as $table => $rows) {
@@ -858,10 +896,13 @@ class SmartImportService
                         $errors++;
                         continue;
                     }
+                    // Regla global: columnas NOT NULL sin default que lleguen como NULL
+                    // del dump se sustituyen por '' para evitar error 1048.
+                    $clean = $this->coerceNullsToEmpty($clean, $table);
                     $clean = $this->injectAuditColumnsCached($table, $clean, $destColumns, false);
                     $insertBatch[] = $clean;
 
-                    if (count($insertBatch) >= 500) {
+                    if (count($insertBatch) >= 1000) {
                         [$ins, $err] = $this->flushInsertBatch($table, $insertBatch);
                         $imported += $ins;
                         $errors   += $err;
@@ -886,15 +927,124 @@ class SmartImportService
             $summary[$table] = $result;
         }
         } finally {
-            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+            // Solo limpiar sesión si no hay una sesión bulk activa manejada externamente
+            if (!$this->bulkSessionActive) {
+                DB::statement("SET FOREIGN_KEY_CHECKS=1, unique_checks=1, time_zone='SYSTEM'");
+                $this->restoreTriggersAfterImport();
+            }
         }
 
         return $summary;
     }
 
+    /**
+     * Inicia una sesión bulk para el Job: ordena tablas por dependencias FK,
+     * descarga triggers, precarga columnas NOT NULL y activa optimizaciones MySQL.
+     * Debe llamarse UNA sola vez antes del loop de tablas.
+     *
+     * @param array<string, array> $datasets  [tabla => filas] — se reordena in-place
+     */
+    public function beginBulkSession(array &$datasets): void
+    {
+        // Ordenar por dependencias FK antes de que el Job empiece su loop
+        $datasets = $this->sortDatasetsByDependency($datasets);
+
+        $this->preloadNotNullColumns(array_keys($datasets));
+        $this->dropTriggersForImport();
+        // time_zone=UTC: evita error 1292 en columnas TIMESTAMP cuando el dump
+        // tiene fechas en zonas con DST (ej. 2026-03-08 00:24:49 en America/Chicago).
+        // Durante el import queremos almacenar los valores tal cual vienen del dump.
+        DB::statement("SET FOREIGN_KEY_CHECKS=0, unique_checks=0, time_zone='+00:00'");
+
+        $this->bulkSessionActive = true;
+    }
+
+    /**
+     * Cierra la sesión bulk: restaura triggers y variables de sesión MySQL.
+     * Debe llamarse en el bloque finally del Job.
+     */
+    public function endBulkSession(): void
+    {
+        $this->bulkSessionActive = false;
+        DB::statement("SET FOREIGN_KEY_CHECKS=1, unique_checks=1, time_zone='SYSTEM'");
+        $this->restoreTriggersAfterImport();
+    }
+
     private function cachedColumns(string $table): array
     {
         return $this->columnCache[$table] ??= Schema::getColumnListing($table);
+    }
+
+    /**
+     * Precarga columnas NOT NULL (sin default, sin auto_increment) para TODAS las
+     * tablas del import en una sola query. Llamar al inicio de executeImport.
+     * Evita N queries lentas a information_schema durante el loop.
+     *
+     * @param string[] $tables
+     */
+    private function preloadNotNullColumns(array $tables): void
+    {
+        if (empty($tables)) return;
+
+        // Inicializar a [] para que cachedNotNullColumns no re-consulte tablas
+        // que simplemente no tienen columnas NOT NULL sin default.
+        foreach ($tables as $t) {
+            $this->notNullCache[$t] ??= [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($tables), '?'));
+        $rows = DB::select(
+            "SELECT TABLE_NAME, COLUMN_NAME
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME IN ({$placeholders})
+               AND IS_NULLABLE = 'NO'
+               AND COLUMN_DEFAULT IS NULL
+               AND EXTRA NOT LIKE '%auto_increment%'",
+            $tables
+        );
+
+        foreach ($rows as $row) {
+            $this->notNullCache[$row->TABLE_NAME][] = $row->COLUMN_NAME;
+        }
+    }
+
+    /**
+     * Devuelve columnas NOT NULL sin default de la tabla (resultado pre-cacheado
+     * por preloadNotNullColumns; sólo hace query individual si la tabla no fue
+     * precargada, como fallback de seguridad).
+     */
+    private function cachedNotNullColumns(string $table): array
+    {
+        return $this->notNullCache[$table] ??= array_column(
+            DB::select(
+                "SELECT COLUMN_NAME
+                 FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = ?
+                   AND IS_NULLABLE = 'NO'
+                   AND COLUMN_DEFAULT IS NULL
+                   AND EXTRA NOT LIKE '%auto_increment%'",
+                [$table]
+            ),
+            'COLUMN_NAME'
+        );
+    }
+
+    /**
+     * Sustituye NULL por '' en columnas que no aceptan NULL ni tienen default.
+     * Evita el error 1048 "Column X cannot be null" cuando el dump trae campos
+     * que fueron agregados al schema después de que esos registros fueron creados.
+     */
+    private function coerceNullsToEmpty(array $row, string $table): array
+    {
+        $notNull = $this->cachedNotNullColumns($table);
+        foreach ($notNull as $col) {
+            if (array_key_exists($col, $row) && $row[$col] === null) {
+                $row[$col] = '';
+            }
+        }
+        return $row;
     }
 
     /**
@@ -1558,15 +1708,17 @@ class SmartImportService
                 $chunk = fread($handle, 64 * 1024);
                 if ($chunk === false || $chunk === '') break;
                 $buf .= $chunk;
-                // Procesar todos los CREATE TABLE completos que estén en el buffer
+                // Procesar todos los CREATE TABLE completos que estén en el buffer.
+                // El patrón captura hasta el cierre ); del ENGINE= para obtener el DDL íntegro.
                 while (preg_match(
-                    '/CREATE\s+TABLE\s+`?(\w+)`?\s*\((.*?)\)\s*(?:ENGINE|TYPE)\s*=/is',
+                    '/(CREATE\s+TABLE\s+`?(\w+)`?\s*\((.*?)\)\s*(?:ENGINE|TYPE)\s*=[^;]*;)/is',
                     $buf,
                     $m,
                     PREG_OFFSET_CAPTURE
                 )) {
-                    $name = $m[1][0];
-                    $body = $m[2][0];
+                    $fullDDL = $m[1][0];
+                    $name    = $m[2][0];
+                    $body    = $m[3][0];
                     // Columnas: líneas que arrancan con backtick + identificador
                     // (filtra KEY/PRIMARY KEY/CONSTRAINT/etc que no arrancan con `)
                     if (preg_match_all('/^\s*`(\w+)`\s+\w/m', $body, $colM)) {
@@ -1574,6 +1726,8 @@ class SmartImportService
                             $result[$name] = $colM[1];
                         }
                     }
+                    // Guardar DDL completo para poder crear la tabla si no existe en destino
+                    $this->dumpDDLByTable[$name] = $fullDDL;
                     // Avanzar buffer past este match
                     $endPos = $m[0][1] + strlen($m[0][0]);
                     $buf = substr($buf, $endPos);
@@ -1592,26 +1746,51 @@ class SmartImportService
     /**
      * Valida que la entrada del map sea ejecutable. Devuelve null si OK,
      * o un string con la razón del skip ('tabla_no_mapeada', etc.).
+     *
+     * Tablas no mapeadas: si la tabla existe en la BD se importa igual usando
+     * defaults (pk='id', sin conflict_keys semánticos, modo raw). Solo se
+     * omiten si la tabla tampoco existe en la BD destino Y no tenemos DDL para crearla.
+     *
+     * Si la tabla no existe en la BD destino pero tenemos el DDL del dump,
+     * la creamos automáticamente con CREATE TABLE IF NOT EXISTS.
      */
     private function validateMapEntry(string $table, ?array $info): ?string
     {
-        if (!$info) {
-            return 'tabla_no_mapeada';
-        }
-        $mode = $info['mode'] ?? 'model';
+        $mode = $info ? ($info['mode'] ?? 'model') : null;
         if ($mode === 'model' && (empty($info['model']) || !class_exists($info['model']))) {
             return 'modelo_no_encontrado';
         }
-        if (!Schema::hasTable($table)) {
+
+        $this->targetTableExistsCache[$table] ??= Schema::hasTable($table);
+        if (!$this->targetTableExistsCache[$table]) {
+            // Intentar crear la tabla desde el DDL del dump
+            if (isset($this->dumpDDLByTable[$table])) {
+                try {
+                    // IF NOT EXISTS por seguridad ante condiciones de carrera
+                    $ddl = preg_replace(
+                        '/CREATE\s+TABLE\s+`?(\w+)`?/i',
+                        'CREATE TABLE IF NOT EXISTS `$1`',
+                        $this->dumpDDLByTable[$table],
+                        1
+                    );
+                    DB::unprepared($ddl);
+                    // Actualizar cache para evitar llamadas Schema::hasTable() posteriores
+                    $this->targetTableExistsCache[$table] = true;
+                    Log::info("SmartImport: tabla `{$table}` creada desde DDL del dump.");
+                    return null; // proceder con el import
+                } catch (\Throwable $e) {
+                    Log::warning("SmartImport CREATE TABLE [{$table}] falló: " . $e->getMessage());
+                }
+            }
             return 'tabla_destino_inexistente';
         }
         return null;
     }
 
-    /** PK de la tabla. Modelo Eloquent → getKeyName(); raw → 'id'. */
-    private function pkOf(string $table, array $info): string
+    /** PK de la tabla. Modelo Eloquent → getKeyName(); raw o sin map → 'id'. */
+    private function pkOf(string $table, ?array $info): string
     {
-        if (($info['mode'] ?? 'model') === 'model') {
+        if ($info && ($info['mode'] ?? 'model') === 'model') {
             return (new $info['model']())->getKeyName();
         }
         return 'id';
@@ -1631,20 +1810,25 @@ class SmartImportService
     }
 
     /** Update ramificado por modo. El PK nunca se actualiza: cambiar el id de una fila
-     *  a un valor que ya existe en otra fila provoca duplicate key 1062. */
-    private function updateRow(string $table, array $info, mixed $existingId, array $row): void
+     *  a un valor que ya existe en otra fila provoca duplicate key 1062.
+     *  created_at/created_by son inmutables: excluirlos evita error 1292 cuando el
+     *  dump trae fechas en zona horaria DST que MySQL rechaza en modo estricto. */
+    private function updateRow(string $table, ?array $info, mixed $existingId, array $row): void
     {
         $pk = $this->pkOf($table, $info);
-        if (($info['mode'] ?? 'model') === 'model') {
+        // Columnas que nunca deben cambiar en un UPDATE
+        $immutable = [$pk, 'created_at', 'created_by'];
+
+        if ($info && ($info['mode'] ?? 'model') === 'model') {
             $modelClass = $info['model'];
             $data = $this->sanitizeRow($row, $table);
-            unset($data[$pk]);
+            foreach ($immutable as $col) { unset($data[$col]); }
             $modelClass::query()->whereKey($existingId)->update($data);
             return;
         }
         $clean = $this->sanitizeRow($row, $table);
         $clean = $this->injectAuditColumns($table, $clean, isUpdate: true);
-        unset($clean[$pk]);
+        foreach ($immutable as $col) { unset($clean[$col]); }
         DB::table($table)->where($pk, $existingId)->update($clean);
     }
 
@@ -1705,5 +1889,180 @@ class SmartImportService
             'accion' => 'omitir',
             'razon'  => Str::limit($texto, 280),
         ];
+    }
+
+    /**
+     * Reordena el array de datasets según dependencias FK reales usando el
+     * algoritmo de Kahn (BFS topológico). Las tablas padre van antes que las
+     * hijas. Tablas con ciclos (o sin FKs) se dejan al final en orden original.
+     *
+     * @param  array<string, array> $datasets  [tabla => filas]
+     * @return array<string, array>            mismo contenido, orden ajustado
+     */
+    private function sortDatasetsByDependency(array $datasets): array
+    {
+        $tables   = array_keys($datasets);
+        $ordered  = $this->topologicalSortTables($tables);
+        $sorted   = [];
+        foreach ($ordered as $table) {
+            if (isset($datasets[$table])) {
+                $sorted[$table] = $datasets[$table];
+            }
+        }
+        // Por seguridad: incluir cualquier tabla que el sort no devolvió
+        foreach ($datasets as $table => $rows) {
+            if (!isset($sorted[$table])) {
+                $sorted[$table] = $rows;
+            }
+        }
+        return $sorted;
+    }
+
+    /**
+     * Algoritmo de Kahn: ordena tablas por sus dependencias FK.
+     * Las tablas de las que otros dependen van primero.
+     * Si hay ciclos, los nodos restantes se agregan al final.
+     *
+     * @param  string[] $tables
+     * @return string[]
+     */
+    private function topologicalSortTables(array $tables): array
+    {
+        $tables    = array_values(array_unique($tables));
+        $inDegree  = array_fill_keys($tables, 0);
+        $adjacency = array_fill_keys($tables, []);
+
+        foreach ($tables as $table) {
+            foreach ($this->fkDependenciesOf($table) as $dependency) {
+                if (!isset($inDegree[$dependency])) {
+                    continue; // padre no está en el dataset, no afecta el orden
+                }
+                $adjacency[$dependency][] = $table;
+                $inDegree[$table]++;
+            }
+        }
+
+        // Empezar por tablas sin dependencias dentro del dataset
+        $queue = [];
+        foreach ($tables as $t) {
+            if ($inDegree[$t] === 0) $queue[] = $t;
+        }
+
+        $ordered = [];
+        while ($queue !== []) {
+            $table    = array_shift($queue);
+            $ordered[] = $table;
+            foreach ($adjacency[$table] as $dependent) {
+                if (--$inDegree[$dependent] === 0) {
+                    $queue[] = $dependent;
+                }
+            }
+        }
+
+        // Tablas con ciclos o que el grafo no pudo colocar
+        foreach ($tables as $t) {
+            if (!in_array($t, $ordered, true)) $ordered[] = $t;
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * Devuelve las tablas de las que $table depende mediante FK
+     * (consultando information_schema en la BD destino).
+     * Resultado cacheado por tabla.
+     *
+     * @return string[]
+     */
+    private function fkDependenciesOf(string $table): array
+    {
+        // Verificar existencia con caché para evitar Schema::hasTable repetidos
+        $this->targetTableExistsCache[$table] ??= Schema::hasTable($table);
+        if (!$this->targetTableExistsCache[$table]) {
+            return [];
+        }
+
+        if (!isset($this->targetForeignKeyDependencyCache[$table])) {
+            try {
+                $db   = DB::connection()->getDatabaseName();
+                $rows = DB::select(
+                    'SELECT DISTINCT REFERENCED_TABLE_NAME AS ref
+                     FROM information_schema.KEY_COLUMN_USAGE
+                     WHERE TABLE_SCHEMA = ?
+                       AND TABLE_NAME   = ?
+                       AND REFERENCED_TABLE_NAME IS NOT NULL',
+                    [$db, $table]
+                );
+                $this->targetForeignKeyDependencyCache[$table] = array_values(array_filter(
+                    array_unique(array_map(fn($r) => (string) ($r->ref ?? ''), $rows)),
+                    fn($t) => $t !== '' && $t !== $table
+                ));
+            } catch (Throwable) {
+                $this->targetForeignKeyDependencyCache[$table] = [];
+            }
+        }
+
+        return $this->targetForeignKeyDependencyCache[$table];
+    }
+
+    /**
+     * Guarda la definición de todos los triggers de la BD y los elimina.
+     * Razones para desactivarlos durante el import:
+     *   1. Error 1449 si el DEFINER no existe en el servidor destino.
+     *   2. Lógica de auditoría/cascade que duplicaría datos ya incluidos en el dump.
+     *   3. Overhead por fila que ralentiza el import masivo.
+     * Los triggers se restauran en restoreTriggersAfterImport().
+     */
+    private function dropTriggersForImport(): void
+    {
+        try {
+            $triggers = DB::select(
+                "SELECT TRIGGER_NAME
+                 FROM information_schema.TRIGGERS
+                 WHERE TRIGGER_SCHEMA = DATABASE()"
+            );
+
+            foreach ($triggers as $row) {
+                $name = $row->TRIGGER_NAME;
+                try {
+                    $def = DB::selectOne("SHOW CREATE TRIGGER `{$name}`");
+                    // El campo se llama 'Create Trigger' (con espacio)
+                    $createSql = $def->{'Create Trigger'} ?? null;
+                    if ($createSql) {
+                        $this->savedTriggers[$name] = $createSql;
+                        DB::statement("DROP TRIGGER IF EXISTS `{$name}`");
+                    }
+                } catch (Throwable $e) {
+                    Log::warning("SmartImport dropTrigger [{$name}]: " . $e->getMessage());
+                }
+            }
+
+            if (!empty($this->savedTriggers)) {
+                Log::info('SmartImport: ' . count($this->savedTriggers) . ' triggers desactivados para el import.');
+            }
+        } catch (Throwable $e) {
+            Log::warning('SmartImport dropTriggersForImport: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Recrea los triggers guardados por dropTriggersForImport().
+     * Se llama en el bloque finally de executeImport() para garantizar
+     * que los triggers se restauren aunque el import falle a mitad.
+     */
+    private function restoreTriggersAfterImport(): void
+    {
+        foreach ($this->savedTriggers as $name => $createSql) {
+            try {
+                DB::statement($createSql);
+            } catch (Throwable $e) {
+                Log::warning("SmartImport restoreTrigger [{$name}]: " . $e->getMessage());
+            }
+        }
+
+        if (!empty($this->savedTriggers)) {
+            Log::info('SmartImport: ' . count($this->savedTriggers) . ' triggers restaurados.');
+        }
+        $this->savedTriggers = [];
     }
 }

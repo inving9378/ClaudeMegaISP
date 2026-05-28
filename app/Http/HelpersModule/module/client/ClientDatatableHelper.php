@@ -217,8 +217,12 @@ class ClientDatatableHelper
                 'join' => "'client_additional_information', 'clients.id', '=', 'client_additional_information.client_id'"
             ],
             'olt_power_dbm' => [
-                'column' => 'client_additional_information.olt_power_dbm',
-                'join' => "'client_additional_information', 'clients.id', '=', 'client_additional_information.client_id'"
+                'column' => 'olt_onus.signal_1490 as olt_power_dbm',
+                'join' => "'olt_onus', 'clients.id', '=', 'olt_onus.client_id'"
+            ],
+            'status_smart' => [
+                'column' => 'olt_onus.status as status_smart',
+                'join' => "'olt_onus', 'clients.id', '=', 'olt_onus.client_id'"
             ],
             'original_password' => [
                 'column' => 'client_additional_information.original_password',
@@ -700,6 +704,11 @@ class ClientDatatableHelper
 
                     if ($val == 'last_payment') {
                         $value->last_payment = (new FormatDateService($value->last_payment))->formatDate();
+                    }
+
+                    if ($val === 'status_smart') {
+                        $nestedData[$val] = $value->status_smart;
+                        continue;
                     }
 
                     $nestedData[$val] = view($dirColumn, [

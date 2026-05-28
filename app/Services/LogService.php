@@ -32,12 +32,43 @@ class LogService
     }
 
 
-    public function getLogs($model)
-    {
+    public function getLogs($model){
+        $repo = new UserRepository();
         $logsActivities = $model->activities()->orderBy('id', 'desc')->get();
+        $userIds = [];
         $logs = [];
+
         foreach ($logsActivities as $log) {
-            $array = [
+            $property = json_decode($log->properties, true);
+
+            if($log->event === 'created' && isset($property['attributes']['created_by'])) {
+                $userIds[] = $property['attributes']['created_by'];
+            }
+            else if($log->event === 'updated' && isset($property['attributes']['updated_by'])) {
+                $userIds[] = $property['attributes']['updated_by'];
+            }
+        }
+        $userIds = array_unique(array_filter($userIds));
+
+        $users = [];
+
+        if(!empty($userIds)) {
+            $users = $repo->getUsersNameByIdInArray($userIds);
+        }
+
+        foreach ($logsActivities as $log) {
+            $userName = 'Sistema';
+            $property = json_decode($log->properties, true);
+
+            if ($log->event === 'created' && isset($property['attributes']['created_by'])) {
+                $userId = (int) $property['attributes']['created_by'];
+                $userName = $users[$userId] ?? 'Sistema';
+            } elseif ($log->event === 'updated' && isset($property['attributes']['updated_by'])) {
+                $userId = (int) $property['attributes']['updated_by'];
+                $userName = $users[$userId] ?? 'Sistema';
+            }
+
+            $logs[] = [
                 "id" => $log->id,
                 "log_name" => $log->log_name,
                 "description" => $log->description,
@@ -51,9 +82,8 @@ class LogService
                 "client_id" => $log->client_id,
                 "created_at" => $log->created_at,
                 "updated_at" => $log->updated_at,
-                "user_name" => $this->getUserName($log),
+                "user_name"     => $userName,
             ];
-            array_push($logs, $array);
         }
         return $logs;
     }

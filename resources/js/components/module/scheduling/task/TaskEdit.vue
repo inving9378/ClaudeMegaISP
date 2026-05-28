@@ -62,7 +62,7 @@
                                                         >
                                                             <button
                                                                 v-if="
-                                                                    archived ==
+                                                                    isArchived ==
                                                                     0
                                                                 "
                                                                 class="btn btn-primary"
@@ -683,9 +683,6 @@ export default {
             type: String,
             default: null,
         },
-        observations: {
-            type: String,
-        },
         archived: {
             type: String,
         },
@@ -701,10 +698,11 @@ export default {
         const checks = ref([]);
         const nameListVerification = ref("");
         const checksChecked = ref([]);
-        const observations = ref({});
+        const observations = ref([]);
         const files = ref({});
         const dataTask = ref({});
 
+        const isArchived = ref(props.archived);
         const addedNote = ref(false);
         const hasPermission = reactive({
             data: new Permission({}),
@@ -713,16 +711,22 @@ export default {
         const logs = ref({});
 
         onMounted(async () => {
-            hasPermission.data = new Permission(await allViewHasPermission());
-            props.id
-                ? await getfieldsEditedWithMultipleModel(
+            // Permissions check and field loading run in parallel
+            const fieldsPromise = props.id
+                ? getfieldsEditedWithMultipleModel(
                       [{ task_left: "TaskLeft" }, { task_right: "TaskRight" }],
                       props.id
                   )
-                : await getfieldsWithMultipleModel([
+                : getfieldsWithMultipleModel([
                       { task_left: "TaskLeft" },
                       { task_right: "TaskRight" },
                   ]);
+
+            const [permissionsResult] = await Promise.all([
+                allViewHasPermission(),
+                fieldsPromise,
+            ]);
+            hasPermission.data = new Permission(permissionsResult);
 
             await nextTick();
             //esperar a que se cargue el DOM
@@ -740,6 +744,10 @@ export default {
         });
 
         const updateThisField = ({ field, value }) => {
+            if(field == 'client_main_information_id'){
+                getClientData(value);
+            }
+
             if (field == "status" || field == "priority") {
                 nextTick(() => {
                     updateColorField(value, field);
@@ -747,6 +755,26 @@ export default {
             }
             dataForm.data[field] = value;
         };
+
+        const getClientData = async (value) => {
+            if (value.value != null) {
+                try {
+                    const response = await axios.post(`/cliente/get-data-client-to-select-component/${value.value}`);
+                    updateThisField({field: "address", value: response.data.address});
+                    updateThisField({field: "geo_data", value: response.data.geo_data});
+                } catch (error) {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Error",
+                        text: "Ocurrio un error al obtener la informacion del cliente",
+                        showConfirmButton: true,
+                    });
+                }
+            } else {
+                updateThisField({field: "address", value: null});
+                updateThisField({field: "geo_data", value: null});
+            }
+        }
 
         const getListVerificationByTask = async () => {
             await axios["post"](
@@ -845,8 +873,13 @@ export default {
                 dataForm.data["status"] != dataTask.value.status &&
                 addedNote.value == false
             ) {
-                alert(
-                    "No puede cambiar el estado de la tarea sin agregar una nota"
+                Swal.fire(
+                    {
+                        title: "¡Error!",
+                        icon: "error",
+                        showConfirmButton: true,
+                        text: "No se puede cambiar el estado de una tarea sin agregar una nota"
+                    }
                 );
                 return;
             } else {
@@ -876,16 +909,30 @@ export default {
                 return;
             }
 
-            if (confirm("¿Seguro que desea archivar esta tarea?")) {
-                axios["post"](`/scheduling/task/archive/${props.id}`).then(
-                    (response) => {
-                        toastr.success(
-                            "Tarea archivada Correctamente",
-                            "Tareas"
-                        );
-                    }
-                );
-            }
+            Swal.fire(
+                {
+                    title: "¿Está seguro de que desea archivar esta tarea?",
+                    text: "Esta acción no se puede deshacer.",
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonText: "Sí, archivar",
+                    cancelButtonText: "No",
+                }
+            ).then(result => {
+                if(result.isConfirmed){
+                    axios["post"](`/scheduling/task/archive/${props.id}`).then(
+                        (response) => {
+                            toastr.success(
+                                "Tarea archivada Correctamente",
+                                "Tareas"
+                            );
+                            isArchived.value = 1;
+                        }
+                    );
+                    return;
+                }
+                return;
+            })
         };
 
         const observation = ref(null);
@@ -906,7 +953,7 @@ export default {
             axios["post"](`/scheduling/task/add_note/${props.id}`, {
                 observation: observation.value,
             }).then((response) => {
-                toastr.success("Tarea archivada Correctamente", "Tareas");
+                toastr.success("Nota Agregada Correctamente", "Tareas");
                 disabledObservation.value = false;
                 observation.value = null;
                 getNotesByTask();
@@ -1059,6 +1106,7 @@ export default {
             downloadFile,
             uploadFiles,
             removeFile,
+            isArchived,
         };
     },
 };

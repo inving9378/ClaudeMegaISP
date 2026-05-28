@@ -174,16 +174,9 @@ class ImportExportController extends Controller
 
         // El job rehidrata $datasets desde el cache usando el token; pasarlo aquí
         // serializaría 500MB+ en Queue::createPayload y revienta por OOM.
-        // El cleanup() del archivo y el Cache::forget() también viven en el job
-        // (finally), para que ocurran tras procesar — no aquí antes de despachar.
-        SmartImportJob::dispatch(
-            $jobId,
-            $token,
-            $options,
-            auth()->id(),
-            $log->id,
-            $truncateBefore,
-        );
+        // Se lanza en un proceso PHP de fondo para que este request devuelva
+        // job_id inmediatamente y el frontend pueda hacer polling del progreso.
+        $this->dispatchJobInBackground($jobId, $token, $options, auth()->id(), $log->id, $truncateBefore);
 
         return response()->json([
             'success' => true,
@@ -337,6 +330,64 @@ class ImportExportController extends Controller
     /* ============================================================
      |  Helpers
      * ============================================================ */
+
+    /**
+     * Lanza el SmartImportJob como proceso PHP independiente para que el
+     * request HTTP devuelva el job_id sin esperar a que termine el import.
+     *
+     * El payload se escribe en un archivo temporal (no en la línea de comandos)
+     * para evitar límites de longitud de argumento y problemas de quoting en
+     * Windows con caracteres especiales del base64 (+, /, =).
+     */
+    private function dispatchJobInBackground(
+        string $jobId,
+        string $token,
+        array  $options,
+        ?int   $userId,
+        ?int   $logId,
+        bool   $truncateBefore
+    ): void {
+        // Escribir parámetros en archivo temporal que el comando artisan leerá
+        $payloadFile = storage_path("app/smart_import/job_{$jobId}.json");
+        @mkdir(dirname($payloadFile), 0755, true);
+        file_put_contents($payloadFile, json_encode([
+            'job_id'          => $jobId,
+            'token'           => $token,
+            'options'         => $options,
+            'user_id'         => $userId,
+            'log_id'          => $logId,
+            'truncate_before' => $truncateBefore,
+        ]));
+
+        $php      = PHP_BINARY;
+        $artisan  = base_path('artisan');
+        $logFile  = storage_path('logs/smart-import-job.log');
+        $basePath = base_path();
+
+        // proc_open() permite fijar el cwd explícitamente, lo que garantiza que
+        // el proceso hijo encuentre el .env en base_path() sin importar desde
+        // dónde corra Apache. Usar 'file' para stdout/stderr evita pipes que
+        // bloquearían al GC; stdin se cierra inmediatamente para que el hijo
+        // no quede esperando input.
+        $descriptors = [
+            0 => ['pipe', 'r'],              // stdin  — se cierra enseguida
+            1 => ['file', $logFile, 'a'],    // stdout → log
+            2 => ['file', $logFile, 'a'],    // stderr → log
+        ];
+
+        $proc = proc_open(
+            [$php, $artisan, 'smart-import:run-job', $payloadFile],
+            $descriptors,
+            $pipes,
+            $basePath   // cwd: directorio raíz del proyecto → .env encontrado
+        );
+
+        if (is_resource($proc)) {
+            fclose($pipes[0]); // cerrar stdin — el hijo ya no necesita input
+            // NO llamar proc_close(): dejar que el proceso corra independiente.
+            // En Windows y Linux el hijo sobrevive al fin del request HTTP.
+        }
+    }
 
     private function cacheKey(string $token): string
     {

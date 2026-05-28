@@ -1181,4 +1181,34 @@ class OLTsService
     {
         return $this->makeRequest('get', sprintf('system/get_billing_details'));
     }
+
+    public function updateSpeedProfile($onuExternalId, $data)
+    {
+        return $this->makeRequest('post', 'onu/update_onu_speed_profiles/' . $onuExternalId, $data);
+    }
+
+    public function updateBulkSpeedProfile($data)
+    {
+        return $this->makeRequest('post', 'onu/bulk_update_speed_profiles', $data);
+    }
+
+    public function syncSpeedProfilesFromOnus($onus)
+    {
+        $success = 0;
+        $errors = 0;
+        foreach ($onus as $o) {
+            $response = $this->getOnuDetailsByExternalId($o->unique_external_id);
+            if ($response['success']) {
+                $o->service_ports = $response['onu_details']['service_ports'];
+                $o->save();
+                $success++;
+            } else {
+                $errors++;
+            }
+        }
+        return [
+            'success' => $success,
+            'errors' => $errors
+        ];
+    }
 }

@@ -28,7 +28,7 @@ class ConvertToClientRequest extends FormRequest
             'colony_id'=>'required',
             'connection_type'=>'required',
             'estado'=>'required',
-            'power_dbm'=>'nullable|numeric',
+            'power_dbm'=>'numeric',
             'seller_id'=>'required',
             'email' => 'required|unique:client_main_information,email,' . $request->route('id'),
             'medium_id'=>'required',

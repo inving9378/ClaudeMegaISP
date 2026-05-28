@@ -77,6 +77,15 @@ class SmartImportJob implements ShouldQueue
         // del dump no trae lista de columnas (mysqldump default).
         $service->setDumpColumns($analysis['dump_columns'] ?? []);
 
+        // Rehidratar el DDL completo de cada tabla — validateMapEntry() lo usa
+        // para crear automáticamente tablas que no existen en la BD destino.
+        $service->setDumpDDL($analysis['dump_ddl'] ?? []);
+
+        // Setup único de sesión bulk: ordena tablas por FK, drop triggers,
+        // precarga NOT NULL cols, activa FK_CHECKS=0 + unique_checks=0.
+        // Se hace UNA sola vez aquí en lugar de repetirlo por cada tabla.
+        $service->beginBulkSession($datasets);
+
         $totalTables = max(1, count($datasets));
         $processed = 0;
         $log = [];
@@ -149,6 +158,8 @@ class SmartImportJob implements ShouldQueue
                 'records_failed'    => $totals['errors'] ?? 0,
             ]);
         } finally {
+            // Restaurar triggers y variables MySQL sin importar si el import falló.
+            $service->endBulkSession();
             // Idempotente: el archivo temporal y el cache se limpian aún si handle() falló.
             if ($analysisFile) {
                 $service->cleanup($analysisFile);

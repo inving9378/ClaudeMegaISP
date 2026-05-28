@@ -148,6 +148,8 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/get-options-select/{id}', 'SearchModelController@searchWithoutId');
     Route::post('/get-long-options-select', 'SearchModelController@longOptions');
     Route::post('/get-options-client', 'SearchModelController@longOptionsClient');
+    Route::post('/get-options-client-task', 'SearchModelController@longOptionsClientTask');
+    Route::post('/get-options-client-prospect', 'SearchModelController@longOptionsClientProspect');
 
     // Rutas /has-permission-to-view y /all-view-has-permission migradas a app/Modules/Core/Usuarios/routes.php
 

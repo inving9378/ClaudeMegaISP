@@ -156,26 +156,36 @@ class SearchModelController extends Controller
         $text = $request->text;
         $id = $request->id;
         $filter = $request->filter;
+        $filters = $request->filters;
         $page = $request->page;
         $pageSize = $request->pageSize;
         $offset = ($page - 1) * $pageSize;
         $scope = $request->scope;
+
+        if ($filters && method_exists($model, 'scopeFilters')) {
+            $query = $model::filters(['id', $text], $filter, $filters)
+                ->select($id . ' as value', $text . ' as label');
+            $totalCount = (clone $query)->count();
+            $options = $query->offset($offset)->limit($pageSize)->get();
+            return [
+                'options' => $options,
+                'totalCount' => $totalCount,
+                'currentSelected' => isset($request->currentSelected)
+                    ? $model::select($id . ' as value', $text . ' as label')->where($id, $request->currentSelected)->first()
+                    : null,
+            ];
+        }
+
         if (isset($scope)) {
-            $options = $model::$scope()->toBase()->select($id . ' as value', $text . ' as label')->distinct();
+            $query = $model::$scope();
         } else {
-            $options = $model::toBase()->select($id . ' as value', $text . ' as label')->distinct();
+            $query = $model::query();
         }
         if (isset($filter)) {
-            $options = $options->where($text, 'like', '%' . $filter . '%');
+            $query = $query->where($text, 'like', '%' . $filter . '%');
         }
-
-        $totalCount = $model::distinct()->count($id);
-
-        $options = $options->offset($offset)->limit($pageSize)->get();
-
-        if (isset($request->currentSelected)) {
-        }
-
+        $totalCount = (clone $query)->distinct()->count($id);
+        $options = $query->toBase()->select($id . ' as value', $text . ' as label')->distinct()->offset($offset)->limit($pageSize)->get();
         return [
             'options' => $options,
             'totalCount' => $totalCount,
@@ -280,6 +290,120 @@ class SearchModelController extends Controller
                 ->join($stocksTable, "{$table}.id", '=', "{$stocksTable}.inventory_item_id")
                 ->selectRaw("`{$stocksTable}`.`{$id}` as value, CONCAT(`{$stocksTable}`.`{$id}`, ' - ', `{$table}`.`{$text}`) as label")
                 ->where("{$stocksTable}.{$id}", $currentSelected)
+                ->first()?->toArray();
+        }
+
+        return [
+            'options' => $options,
+            'totalCount' => $totalCount,
+            'currentSelected' => $current
+        ];
+    }
+
+    public function longOptionsClientTask(Request $request)
+    {
+        $validated = $request->validate([
+            'model' => 'required|string',
+            'text' => 'required|string',
+            'id' => 'required|string'
+        ]);
+
+        $filter = $request->filter;
+        $page = $request->page;
+        $pageSize = $request->pageSize;
+        $scope = $request->scope;
+        $append = $request->input('append');
+
+        ['model' => $model, 'text' => $text, 'id' => $id] = $validated;
+
+        $displayId = $request->input('display_id', $id);
+
+        $query = isset($scope) ? $model::$scope() : $model::query();
+
+        if (!empty($filter)) {
+            $query->where(function ($q) use ($text, $displayId, $filter) {
+                $q->where($text, 'like', '%' . $filter . '%')
+                    ->orWhere('father_last_name', 'like', '%' . $filter . '%')
+                    ->orWhere('mother_last_name', 'like', '%' . $filter . '%')
+                    ->orWhere($displayId, 'like', '%' . $filter . '%');
+            });
+        }
+
+        $totalCount = (clone $query)->count();
+
+        $records = $query->offset(($page - 1) * $pageSize)
+            ->limit($pageSize)
+            ->get();
+
+        $options = $records->map(function ($record) use ($id, $displayId, $append) {
+            $labelText = $append ? $record->$append : $record->name;
+            return [
+                'value' => $record->$id,
+                'label' => $record->$displayId . ' - ' . $labelText,
+            ];
+        })->toArray();
+
+        $current = null;
+        $currentSelected = $request->input('currentSelected');
+        if (isset($currentSelected)) {
+            $record = $model::find($currentSelected);
+            if ($record) {
+                $labelText = $append ? $record->$append : $record->name;
+                $current = [
+                    'value' => $record->$id,
+                    'label' => $record->$displayId . ' - ' . $labelText,
+                ];
+            }
+        }
+
+        return [
+            'options' => $options,
+            'totalCount' => $totalCount,
+            'currentSelected' => $current
+        ];
+    }
+
+    public function longOptionsClientProspect(Request $request)
+    {
+        $validated = $request->validate([
+            'model' => 'required|string',
+            'text' => 'required|string',
+            'id' => 'required|string'
+        ]);
+
+        $filter = $request->filter;
+        $page = $request->page;
+        $pageSize = $request->pageSize;
+        $scope = $request->scope;
+        $currentSelected = $request->input('currentSelected');
+
+        ['model' => $model, 'text' => $text, 'id' => $id] = $validated;
+
+        $query = isset($scope)
+            ? $model::$scope()->selectRaw("`{$id}` as value, CONCAT(`{$id}`, ' - ', `{$text}`, ' ', father_last_name, ' ', mother_last_name) as label")
+            : $model::selectRaw("`{$id}` as value, CONCAT(`{$id}`, ' - ', `{$text}`, ' ', father_last_name, ' ', mother_last_name) as label");
+
+        if (!empty($filter)) {
+            $query->where(function ($q) use ($id, $text, $filter) {
+                $q->where($id, 'like', '%' . $filter . '%')
+                    ->orWhere($text, 'like', '%' . $filter . '%')
+                    ->orWhere('father_last_name', 'like', '%' . $filter . '%')
+                    ->orWhere('mother_last_name', 'like', '%' . $filter . '%')
+                    ->orWhereRaw("CONCAT(`{$id}`, ' - ', `{$text}`, ' ', father_last_name, ' ', mother_last_name) LIKE ?", ['%' . $filter . '%']);
+            });
+        }
+
+        $totalCount = $query->toBase()->count();
+
+        $options = $query->offset(($page - 1) * $pageSize)
+            ->limit($pageSize)
+            ->get()
+            ->toArray();
+
+        $current = null;
+        if (isset($currentSelected)) {
+            $current = $model::selectRaw("`{$id}` as value, CONCAT(`{$id}`, ' - ', `{$text}`, ' ', father_last_name, ' ', mother_last_name) as label")
+                ->where($id, $currentSelected)
                 ->first()?->toArray();
         }
 

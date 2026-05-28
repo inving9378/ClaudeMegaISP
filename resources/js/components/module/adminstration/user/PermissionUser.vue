@@ -7,7 +7,7 @@
     >
         <template #body>
             <div class="d-flex flex-row-reverse">
-                <button class="btn btn-primary" @click="toggleAddAll">
+                <button class="btn btn-primary" @click="addAll = !addAll">
                     {{ textButtonAll }}
                 </button>
             </div>
@@ -78,6 +78,36 @@
                                         :data-bs-parent="`#accordion-${tab.ref}`"
                                     >
                                         <div class="accordion-body">
+                                            <template
+                                                v-if="tab.ref === 'promotions'"
+                                            >
+                                                <div
+                                                    class="form-check form-switch form-switch-md mx-3 mb-3"
+                                                    v-for="perm in allPromotions.filter(
+                                                        (p) =>
+                                                            p.code ===
+                                                            accordion.filter
+                                                    )"
+                                                    :key="perm.id"
+                                                >
+                                                    <input
+                                                        class="form-check-input"
+                                                        type="checkbox"
+                                                        :id="`flexSwitchCheckDefault-${perm.id}`"
+                                                        v-model="perm.value"
+                                                    />
+                                                    <label
+                                                        class="form-check-label"
+                                                        :for="`flexSwitchCheckDefault-${perm.id}`"
+                                                    >
+                                                        {{
+                                                            perm.promotionable
+                                                                .name
+                                                        }}
+                                                    </label>
+                                                </div>
+                                            </template>
+                                            <template v-else>
                                             <div
                                                 class="form-check form-switch form-switch-md mx-3 mb-3"
                                                 v-for="perm in fieldsJson[
@@ -104,6 +134,7 @@
                                                     {{ perm.label }}
                                                 </label>
                                             </div>
+                                            </template>
                                         </div>
                                     </div>
                                 </div>
@@ -168,11 +199,18 @@ const tabs = ref([
     { ref: "administration", active: false, title: "Administración" },
     { ref: "configuration", active: false, title: "Configuración" },
     { ref: "message", active: false, title: "Mensajes" },
-    { ref: "releases", active: false, title: "Actualizaciones" }
+    {
+        ref: "promotions",
+        active: false,
+        title: "Promociones",
+    },
+    { ref: "releases", active: false, title: "Actualizaciones" },
 ]);
 
 const fieldsJson = ref(importedFieldsJson);
 const permissions = ref([]);
+const allPromotions = ref([]);
+const avaiablesPromotions = ref([]);
 
 watch(
     () => props.userId,
@@ -188,21 +226,28 @@ const getPermissions = async () => {
     try {
         const response = await getPermissionsForUser(props.userId);
         permissions.value = response.permissions;
+        allPromotions.value = response.all_promotions;
+        avaiablesPromotions.value = response.avaiables_promotions;
         applyPermissions();
     } catch (error) {
         console.log(error);
     }
 };
 
+/**
+ * @description Aplique esta modificacion asi para que los datos se recorran una sola vez y no este el bug anteriormente presente
+ */
+
 const applyPermissions = () => {
-    permissions.value.forEach((permission) => {
+    const permSet = new Set(permissions.value);
         for (const tab in fieldsJson.value) {
             fieldsJson.value[tab].forEach((field) => {
-                if (field.field === permission) {
-                    field.value = true;
-                }
+            field.value = permSet.has(field.field);
             });
         }
+    let avaiables = avaiablesPromotions.value.map((p) => p.id);
+    allPromotions.value.forEach((p) => {
+        p.value = avaiables.includes(p.id);
     });
 };
 
@@ -221,26 +266,16 @@ const preparePermissionsData = () => {
 const textButtonAll = ref("Agregar Todos");
 const addAll = ref(false);
 
-const toggleAddAll = () => {
-    addAll.value = !addAll.value;
-};
-
-watch(addAll, () => {
-    if (addAll.value) {
-        textButtonAll.value = "Quitar Todos";
+watch(addAll, (n) => {
+    textButtonAll.value = n ? "Quitar Todos" : "Agregar Todos";
         for (const tabKey in fieldsJson.value) {
             fieldsJson.value[tabKey].forEach((field) => {
-                field.value = true;
+            field.value = n;
             });
         }
-    } else {
-        textButtonAll.value = "Agregar Todos";
-        for (const tabKey in fieldsJson.value) {
-            fieldsJson.value[tabKey].forEach((field) => {
-                field.value = false;
-            });
-        }
-    }
+    allPromotions.value.forEach((p) => {
+        p.value = n;
+    });
 });
 
 const updatePermissions = async () => {
@@ -248,6 +283,7 @@ const updatePermissions = async () => {
 
     const response = await updatePermissionByUser(props.userId, {
         permissions: permissionsToUpdate,
+        promotions: allPromotions.value.filter((p) => p.value).map((p) => p.id),
     });
     if (response.status == 200) {
         Swal.fire("¡Actualizado!", response.message, "success");

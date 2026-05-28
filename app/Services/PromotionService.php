@@ -16,7 +16,6 @@ use App\Models\Custom;
 use App\Models\Internet;
 use App\Models\Voise;
 use Carbon\Carbon;
-use Livewire\Features\SupportConsoleCommands\Commands\Upgrade\ThirdPartyUpgradeNotice;
 
 class PromotionService
 {
@@ -123,14 +122,11 @@ class PromotionService
     {
         $discount = 0;
         $model = $this->getModelByService($service);
-        // Verificar si el modelo es válido
         if (!$model) {
             return $price;
         }
         $discount = $this->getDiscount($model);
-        // Aplicar el descuento al precio
         $price = $price - $discount;
-        // Retornar el precio final
         return $price;
     }
 
@@ -178,11 +174,9 @@ class PromotionService
     {
         $price = $model->price;
         $discount = 0;
-        // Comprobar si hay un descuento fijo
         if (!empty($model['discount_value_fixed']) && $model['discount_value_fixed'] > 0) {
             $discount = $model['discount_value_fixed'];
         }
-        // Calcular el descuento porcentual si no hay un descuento fijo
         if (!empty($model['discount_value']) || $model['discount_value'] == 0) {
             $discount += $price * ($model['discount_value'] / 100);
         }
