@@ -32,7 +32,9 @@ class UserRepository
         return $this->model->leadProject()->get();
     }
 
-
+    public function getUsersNameByIdInArray($userIds){
+        return $this->model->whereIn('id',$userIds)->pluck('name', 'id')->toArray();
+    }
 
 
 

@@ -2,19 +2,11 @@
 
 namespace App\Modules\Core\Clientes\Models;
 
-use App\Models\Balance;
 use App\Models\BaseModel;
+use App\Models\Balance;
 use App\Models\BillingAddress;
 use App\Models\BoxZone;
-use App\Models\ClientAdditionalInformation;
-use App\Models\ClientBundleService;
-use App\Models\ClientCustomService;
-use App\Models\ClientGracePeriod;
-use App\Models\ClientInternetService;
-use App\Models\ClientInvoice;
-use App\Models\ClientMainInformation;
-use App\Models\ClientUser;
-use App\Models\ClientVozService;
+use App\Models\ClientPlanPromotion;
 use App\Models\CommissionDetail;
 use App\Models\DailyPingStatistic;
 use App\Models\DocumentClient;
@@ -393,6 +385,25 @@ class Client extends BaseModel
                 copy($from, $to);
             }
         }
+    }
+
+    public function dataPromotions()
+    {
+        return $this->hasMany(ClientPlanPromotion::class, 'client_id', 'id');
+    }
+
+    public function scopeWithoutActiveDataPromotion($query)
+    {
+        return $query->whereDoesntHave('dataPromotions', function ($q) {
+            $q->where('status', 'active');
+        });
+    }
+
+    public function scopeWithActiveDataPromotion($query)
+    {
+        return $query->whereHas('dataPromotions', function ($q) {
+            $q->where('status', 'active');
+        });
     }
 
     public function getRequestAndStoreMethod()

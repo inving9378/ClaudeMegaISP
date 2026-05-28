@@ -2,6 +2,9 @@
 
 namespace App\Modules\Core\Configuracion\Models;
 
+use App\Models\Colony;
+use App\Models\Municipality;
+use App\Models\State;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

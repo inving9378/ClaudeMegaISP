@@ -40,13 +40,13 @@
                 @change="dataForm.data.errors.clear($event.target.name)"
                 @keydown="dataForm.data.errors.clear($event.target.name)"
             >
-                <template v-for="val in fieldsJson">
+                <template v-if="domLoaded" v-for="val in fieldsJson">
                     <ComponentFormDefault
                         v-if="val.include"
                         :id="id"
                         :json="val"
                         :errors="dataForm.data.errors"
-                        :key="val"
+                        :key="val.field"
                         v-model="dataForm.data[val.field]"
                         @update-field="updateThisField"
                         @clear-error="clearError"
@@ -96,8 +96,10 @@ export default {
         let submitButtonAction = "Salvar Ticket";
         const userDataJson = ref({});
         const activeServiceExpiration = ref(0);
+        const domLoaded = ref(false);
 
         onMounted(async () => {
+            document.addEventListener("DOMContentLoaded", () => domLoaded.value = true);
             await getfieldsEdited("TicketDetails", props.id);
             await getUserDataJson();
             activeServiceExpiration.value = await getActiveServiceExpiration(
@@ -114,6 +116,7 @@ export default {
                 .submit("post", `/tickets/${props.action}`, props.action)
                 .then((response) => {
                     toastr.success("Ticket actualizado");
+                    window.location.reload();
                 });
             emit("reloadTicket");
         };
@@ -127,6 +130,7 @@ export default {
             updateThisField,
             submitButtonAction,
             activeServiceExpiration,
+            domLoaded
         };
     },
 };

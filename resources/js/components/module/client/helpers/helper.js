@@ -112,5 +112,79 @@ export const getLogActivities = async (id, module) => {
     return data;
 }
 
+export const getPromotions = async (id, params) => {
+    let data = null;
+    await axios["post"](`/cliente/${id}/plan-promotions`, params).then(
+        (response) => {
+            data = response.data;
+        }
+    );
+    return data;
+};
+
+export const cancelPromotion = async (id) => {
+    let data = null;
+    await axios["post"](`/cliente/cancel-promotion/${id}`).then((response) => {
+        data = response.data;
+    });
+    return data;
+};
+
+export const addPromotion = async (params) => {
+    let data = null;
+    await axios["post"](`/cliente/plan-promotions`, params).then((response) => {
+        data = response.data;
+    });
+    return data;
+};
+
+export const addMultiClientsToPromotion = async (params) => {
+    let data = null;
+    await axios["post"](`/cliente/bulk-plan-promotion`, params)
+        .then((response) => {
+            data = response.data;
+        })
+        .catch(() => {
+            data = null;
+        });
+    return data;
+};
+
+export const editPromotion = async (id, params) => {
+    let data = null;
+    await axios["put"](`/cliente/plan-promotions/${id}`, params).then(
+        (response) => {
+            data = response.data;
+        }
+    );
+    return data;
+};
+
+export const destroyPromotion = async (id) => {
+    let data = null;
+    await axios["delete"](`/cliente/plan-promotions/${id}`).then((response) => {
+        data = response.data;
+    });
+    return data;
+};
+
+export const clientWithPromotion = async () => {
+    let data = null;
+    await axios["get"](`/cliente/with-promotions`).then((response) => {
+        data = response.data;
+    });
+    return data;
+};
+
+export const clientsWithOutDataPromotion = async (params) => {
+    let data = null;
+    await axios["post"](`/cliente/without-data-promotions`, params).then(
+        (response) => {
+            data = response.data;
+        }
+    );
+    return data;
+};
+
 
 

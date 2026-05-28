@@ -29,6 +29,7 @@ use App\Modules\Addons\Vendedores\Controllers\Vendors\Billing\CommissionRuleCont
 use App\Modules\Addons\Vendedores\Controllers\Vendors\Billing\RangeSaleController;
 // Catálogos folded into Configuracion (decision 2026-05-20). Rutas siguen
 // expuestas bajo `administracion/*` para compatibilidad con frontend.
+use App\Modules\Core\Configuracion\Controllers\DataPlanPromotions\DataPlanPromotionsController;
 use App\Modules\Core\Configuracion\Controllers\Ift\IftController;
 use App\Modules\Core\Configuracion\Controllers\MethodOfPayment\MethodOfPaymentController;
 use App\Modules\Core\Configuracion\Controllers\Partner\PartnerController;
@@ -306,7 +307,15 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/logs/data', [SettingApiMovilController::class, 'logsData']);
             Route::get('/logs/csv', [SettingApiMovilController::class, 'logsCsv']);
         });
+
+    Route::prefix('data-plan-promotions')->group(function () {
+        Route::get('/', [DataPlanPromotionsController::class, 'index']);
+        Route::post('/data', [DataPlanPromotionsController::class, 'data']);
+        Route::post('/store', [DataPlanPromotionsController::class, 'store']);
+        Route::put('/update/{id}', [DataPlanPromotionsController::class, 'update']);
+        Route::delete('/destroy/{id}', [DataPlanPromotionsController::class, 'destroy']);
     });
+});
 
 // Catálogos legacy de Administration folded into Configuracion (2026-05-20)
 // URL prefix `administracion/*` preservado para compat con frontend.

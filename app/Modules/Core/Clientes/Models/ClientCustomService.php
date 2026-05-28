@@ -3,6 +3,9 @@
 namespace App\Modules\Core\Clientes\Models;
 
 use App\Models\BaseModel;
+use App\Models\MikrotikTariffTargetTail;
+use App\Models\ServiceInAddressList;
+use App\Models\Transaction;
 
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\Requests\module\client\ClientCustomServiceCreateRequest;

@@ -265,6 +265,17 @@
         @update-field="updateThisField"
     />
 
+    <SelectSrcComponent
+        v-if="json.type == 'select-src-component' && json.include"
+        :property="json"
+        :errors="errors"
+        :idModel="idModel"
+        @change="clearError(json.field)"
+        :modelValue="modelValue"
+        @update:modelValue="modelValue = $event"
+        @update-field="updateThisField"
+    />
+
     <Select2Component
         v-if="json.type == 'select-2-component' && json.include"
         :property="json"
@@ -289,6 +300,27 @@
 
     <SelectComponentClient
         v-if="json.type == 'select-component-client' && json.include"
+        :property="json"
+        :errors="errors"
+        :idModel="idModel"
+        @change="clearError(json.field)"
+        :modelValue="modelValue"
+        @update:modelValue="modelValue = $event"
+        @update-field="updateThisField"
+    />
+
+    <SelectComponentClientTask
+        v-if="json.type == 'select-component-client-task' && json.include"
+        :property="json"
+        :errors="errors"
+        :idModel="idModel"
+        @change="clearError(json.field)"
+        :modelValue="modelValue"
+        @update:modelValue="modelValue = $event"
+        @update-field="updateThisField"
+    />
+    <SelectComponentClientProspect
+        v-if="json.type == 'select-component-client-prospect' && json.include"
         :property="json"
         :errors="errors"
         :idModel="idModel"
@@ -469,9 +501,12 @@ import InputCheckboxWithInputs from "../shared/InputCheckboxWithInputs";
 import SelectComponetWithGroupInputs from "../shared/SelectComponetWithGroupInputs";
 import InputCheckboxAfterWithouValidationError from "../shared/InputCheckboxAfterWithouValidationError";
 import SelectComponent from "../shared/SelectComponent";
+import SelectSrcComponent from "../shared/SelectSrcComponent.vue";
 import Select2Component from "../shared/Select2Component";
 import SelectLongOptions from "../shared/SelectLongOptions";
 import SelectComponentClient from "../shared/SelectComponentClient.vue";
+import SelectComponentClientTask from "../shared/SelectComponentClientTask.vue";
+import SelectComponentClientProspect from "../shared/SelectComponentClientProspect.vue";
 import SelectComponentWithCheckbox from "../shared/SelectComponentWithCheckbox";
 import InputPasswordInModal from "../shared/InputPasswordInModal";
 import InputGroupGenerateUser from "../shared/InputGroupGenerateUser";
@@ -540,6 +575,7 @@ export default {
         InputCheckboxWithInputs,
         InputCheckboxAfterWithouValidationError,
         SelectComponent,
+        SelectSrcComponent,
         Select2Component,
         SelectLongOptions,
         SelectComponentWithCheckbox,
@@ -562,6 +598,8 @@ export default {
         InputFileImagen,
         SpanInput,
         SelectComponentClient,
+        SelectComponentClientTask,
+        SelectComponentClientProspect,
         InputScanner,
     },
     setup(props, { emit }) {

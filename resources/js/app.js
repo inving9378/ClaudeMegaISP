@@ -87,7 +87,6 @@ import MegaFamiliaPerfiles from "./components/module/megafamilia/MegaFamiliaPerf
 import MegaFamiliaDispositivos from "./components/module/megafamilia/MegaFamiliaDispositivos.vue";
 import MegaFamiliaTareas from "./components/module/megafamilia/MegaFamiliaTareas.vue";
 import MegaFamiliaUbicaciones from "./components/module/megafamilia/MegaFamiliaUbicaciones.vue";
-import MegaFamiliaGeofences from "./components/module/megafamilia/MegaFamiliaGeofences.vue";
 import MegaFamiliaReportes from "./components/module/megafamilia/MegaFamiliaReportes.vue";
 import MegaFamiliaAuditoria from "./components/module/megafamilia/MegaFamiliaAuditoria.vue";
 import MegaFamiliaMikrotik from "./components/module/megafamilia/MegaFamiliaMikrotik.vue";
@@ -303,6 +302,22 @@ import PaymentMethods from "./components/module/finance/PaymentMethods.vue";
 import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 
 
+import SupplierListar from "./components/module/inventory/supplier/SupplierListar.vue";
+import SupplierCrear from "./components/module/inventory/supplier/SupplierCrear.vue";
+import SupplierShow from "./components/module/inventory/supplier/SupplierShow.vue";
+import SupplierInvoiceListar from "./components/module/inventory/supplier_invoice/SupplierInvoiceListar.vue";
+import SupplierInvoiceCreate from "./components/module/inventory/supplier_invoice/SupplierInvoiceCreate.vue";
+import SupplierInvoiceShow from "./components/module/inventory/supplier_invoice/SupplierInvoiceShow.vue";
+import InventoryValuation from "./components/module/inventory/valuation/InventoryValuation.vue";
+import SupplierVendorCrear from "./components/module/inventory/supplier_vendor/SupplierVendorCrear.vue";
+import DataPlanPromotionTable from "./components/module/setting/data_plan_promotion/DataPlanPromotionTable.vue";
+
+//Promociones de cliente
+import PromotionsComponent from "./components/module/client/PromotionsComponent.vue";
+import ClientsToPromotionComponent from "./components/module/client/ClientsToPromotionComponent.vue";
+import ColorPicker from "./shared/ColorPicker.vue";
+
+
 const app = createApp({
     components: {
         //Dashboard
@@ -486,6 +501,20 @@ const app = createApp({
         MediaItem,
         InventoryItemCustomModelListar,
         InventoryItemCustomListar,
+        //Supplier / Proveedores
+        SupplierListar,
+        SupplierCrear,
+        SupplierShow,
+        SupplierInvoiceListar,
+        SupplierInvoiceCreate,
+        SupplierInvoiceShow,
+        InventoryValuation,
+        SupplierVendorCrear,
+        DataPlanPromotionTable,
+        //Promociones
+        PromotionsComponent,
+        ClientsToPromotionComponent,
+        ColorPicker,
         ///Vendedores
         SellerListar,
         ///Reglas

@@ -31,7 +31,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('tickets')-
     Route::post('/update/{id}', [TicketController::class, 'update']);
     Route::post('/mensaje/update/{id}', [TicketThreadController::class, 'update']);
     Route::post('/mensaje/add/{id}', [TicketThreadController::class, 'store']);
-    Route::get('/destroy/{id}', [TicketController::class, 'destroy']);
+    Route::post('/destroy/{id}', [TicketController::class, 'destroy']);
     Route::post('/table', [TicketController::class, 'table']);
     Route::get('/notifica/{id}', [TicketController::class, 'notificationsReadMarked']);
 

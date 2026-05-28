@@ -451,7 +451,7 @@ class TaskController extends Controller
 
     public function getNotesByTask($id)
     {
-        $observations = ObservationTask::where('task_id', $id)->orderBy('id', 'desc')->get();
+        $observations = ObservationTask::with('user')->where('task_id', $id)->orderBy('id', 'desc')->get();
         return response()->json([
             'observations' => $observations
         ]);

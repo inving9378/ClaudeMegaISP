@@ -50,17 +50,28 @@ export const getfieldsEditedWithMultipleModel = async (
     id,
     idModels = {}
 ) => {
-    let counter = 0;
-    let arrayFieldsValues = [];
-    for (let variable of model) {
-        let key = Object.keys(variable);
+    // Pre-compute the id for each model respecting cascading idModels overrides
+    let currentId = id;
+    const requests = model.map((variable) => {
+        const key = Object.keys(variable)[0];
         if (idModels[key]) {
-            id = idModels[key];
+            currentId = idModels[key];
         }
-        let result = await requestEditedFieldsById(variable[key], id);
-        fields.value[counter++] = result;
+        return { key, modelName: variable[key], id: currentId };
+    });
+
+    // Fetch all models in parallel instead of sequentially
+    const results = await Promise.all(
+        requests.map(({ modelName, id }) => requestEditedFieldsById(modelName, id))
+    );
+
+    const arrayFieldsValues = [];
+    results.forEach((result, index) => {
+        const { key } = requests[index];
+        fields.value[index] = result;
         arrayFieldsValues[key] = result;
-    }
+    });
+
     fieldsJson.value = arrayFieldsValues;
 
     // assign field to key in array
@@ -72,13 +83,21 @@ export const getfieldsEditedWithMultipleModel = async (
 };
 
 export const getfieldsWithMultipleModel = async (model) => {
-    let counter = 0;
-    for (let variable of model) {
-        let key = Object.keys(variable);
-        let result = await requestFieldsByModule(variable[key]);
-        fields.value[counter++] = result;
+    const requests = model.map((variable) => {
+        const key = Object.keys(variable)[0];
+        return { key, modelName: variable[key] };
+    });
+
+    // Fetch all models in parallel
+    const results = await Promise.all(
+        requests.map(({ modelName }) => requestFieldsByModule(modelName))
+    );
+
+    results.forEach((result, index) => {
+        const { key } = requests[index];
+        fields.value[index] = result;
         fieldsJson.value[key] = result;
-    }
+    });
 
     // assign field to key in array
     allFields.value = _.mapKeys(

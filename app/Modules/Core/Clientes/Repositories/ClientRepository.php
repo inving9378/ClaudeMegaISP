@@ -546,7 +546,7 @@ class ClientRepository
         $slopeCostForMonth = $this->getCostAllServiceSlope($clientId);
         $expirationDate = (new FormatDateService($client->fecha_corte))->formatDate();
         $fechaPago = (new FormatDateService($client->fecha_pago))->formatDate();
-        $balance = $client->balance->amount;
+        $balance = $client->balance->amount ?? 0;
 
         $comandConfigRepository = new CommandConfigRepository();
         $horaPlanificada = $comandConfigRepository->getHourlyToSuspendService();

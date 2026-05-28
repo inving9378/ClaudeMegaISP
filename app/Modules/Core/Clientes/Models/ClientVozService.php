@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Clientes\Models;
 
 use App\Models\BaseModel;
+use App\Models\Transaction;
 
 use App\Http\Requests\module\client\ClientVozServiceCreateRequest;
 use App\Http\Traits\Models\Client\ClientVozService\Scope\ScopeClientVozService;

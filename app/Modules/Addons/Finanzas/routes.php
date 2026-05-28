@@ -67,16 +67,19 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('finanzas')
         Route::prefix('income')->group(function () {
             Route::post('/table', [GeneralAccountingIncomeController::class, 'table']);
             Route::post('/add', [GeneralAccountingIncomeController::class, 'store']);
+            Route::post('/destroy/{id}', [GeneralAccountingIncomeController::class, 'destroy']);
         });
 
         Route::prefix('expense')->group(function () {
             Route::post('/table', [GeneralAccountingExpenseController::class, 'table']);
             Route::post('/add', [GeneralAccountingExpenseController::class, 'store']);
+            Route::post('/destroy/{id}', [GeneralAccountingExpenseController::class, 'destroy']);
         });
 
         Route::prefix('operation')->group(function () {
             Route::post('/add', [GeneralAccountingOperationController::class, 'store']);
             Route::post('/update/{id}', [GeneralAccountingOperationController::class, 'update']);
+            Route::post('/destroy/{id}', [GeneralAccountingOperationController::class, 'destroy']);
         });
 
         Route::prefix('category')->group(function () {
