@@ -2,7 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use App\Models\Module;
-use App\Models\FieldModule;
+use App\Modules\Core\Configuracion\Models\FieldModule;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 

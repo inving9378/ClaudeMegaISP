@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use App\Models\Module;
-use App\Models\FieldModule;
+use App\Modules\Core\Configuracion\Models\FieldModule;
 
 return new class extends Migration
 {
