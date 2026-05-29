@@ -298,6 +298,7 @@ class _EmbajadorMenuGrid extends StatelessWidget {
       ('Comisiones', Icons.account_balance_wallet, BrandColors.success, '/cliente/embajador/comisiones'),
       ('Notificaciones', Icons.notifications,   BrandColors.secondary, '/cliente/embajador/notificaciones'),
       ('Compartir', Icons.share,                BrandColors.accent,    '/cliente/embajador/share-masivo'),
+      ('Mi Red', Icons.account_tree_outlined,   BrandColors.warning,   '/cliente/embajador/red'),
     ];
 
     return GridView.builder(
