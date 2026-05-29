@@ -65,13 +65,34 @@
 
                 {{-- Marketing — addon-marketing 2026-05-25 --}}
                 <li>
-                    @canany(['marketing_view', 'marketing_campaigns_view', 'marketing_leads_view'])
+                    @canany(['marketing_view', 'marketing_campaigns_view', 'marketing_leads_view', 'view-marketing-leads', 'view-marketing-forms'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="trending-up"></i>
                             <span data-key="t-marketing">Marketing</span>
                         </a>
                     @endcanany
                     <ul class="sub-menu" aria-expanded="false">
+                        @canany(['view-marketing-leads', 'marketing_leads_view'])
+                            <li>
+                                <a href="{{ url('/marketing/leads') }}">
+                                    <span data-key="t-marketing-leads2"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span>
+                                </a>
+                            </li>
+                        @endcanany
+                        @canany(['view-conversations'])
+                            <li>
+                                <a href="{{ url('/marketing/conversations') }}">
+                                    <span data-key="t-marketing-conv"><small><i class="fa fa-fw fa-comments"></i></small> Conversaciones</span>
+                                </a>
+                            </li>
+                        @endcanany
+                        @canany(['view-marketing-forms', 'manage-marketing-forms'])
+                            <li>
+                                <a href="{{ url('/marketing/lead-forms') }}">
+                                    <span data-key="t-marketing-forms"><small><i class="fa fa-fw fa-wpforms"></i></small> Formularios</span>
+                                </a>
+                            </li>
+                        @endcanany
                         @can('marketing_campaigns_view')
                             <li>
                                 <a href="{{ url('/marketing') }}">
@@ -79,17 +100,66 @@
                                 </a>
                             </li>
                         @endcan
-                        @can('marketing_leads_view')
-                            <li>
-                                <a href="{{ url('/marketing') }}?tab=leads">
-                                    <span data-key="t-marketing-leads"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span>
-                                </a>
-                            </li>
-                        @endcan
                         @can('marketing_templates_manage')
                             <li>
                                 <a href="{{ url('/marketing') }}?tab=templates">
                                     <span data-key="t-marketing-tpl"><small><i class="fa fa-fw fa-file-alt"></i></small> Plantillas</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @canany(['view-video-templates', 'generate-video-content'])
+                            <li>
+                                <a href="{{ url('/marketing/video-templates') }}">
+                                    <span data-key="t-marketing-video"><small><i class="fa fa-fw fa-video"></i></small> Video</span>
+                                </a>
+                            </li>
+                        @endcanany
+                        @can('create-marketing-campaigns')
+                            <li>
+                                <a href="{{ url('/marketing/campaigns/generate') }}">
+                                    <span data-key="t-marketing-mv"><small><i class="fa fa-fw fa-magic"></i></small> Campaña IA</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('configure-brand-kit')
+                            <li>
+                                <a href="{{ url('/marketing/brand-kit') }}">
+                                    <span data-key="t-marketing-bk"><small><i class="fa fa-fw fa-palette"></i></small> Brand Kit</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('test-voices')
+                            <li>
+                                <a href="{{ url('/marketing/voice-comparator') }}">
+                                    <span data-key="t-marketing-vc"><small><i class="fa fa-fw fa-microphone"></i></small> Voces TTS</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('view-publishing-dashboard')
+                            <li>
+                                <a href="{{ url('/marketing/publishing') }}">
+                                    <span data-key="t-marketing-pub"><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Publicador</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('publish-content')
+                            <li>
+                                <a href="{{ url('/marketing/publishing/campaign') }}">
+                                    <span data-key="t-marketing-pubcam"><small><i class="fa fa-fw fa-paper-plane"></i></small> Publicar</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('manage-publication-queue')
+                            <li>
+                                <a href="{{ url('/marketing/publishing/queue') }}">
+                                    <span data-key="t-marketing-queue"><small><i class="fa fa-fw fa-list-ol"></i></small> Cola</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('manage-publishing-channels')
+                            <li>
+                                <a href="{{ url('/marketing/publishing/setup') }}">
+                                    <span data-key="t-marketing-setup"><small><i class="fa fa-fw fa-plug"></i></small> Canales</span>
                                 </a>
                             </li>
                         @endcan
@@ -740,6 +810,16 @@
                     @endcan
                 </li>
 
+                {{-- Integration Hub — addon-hub --}}
+                @canany(['view-integrations', 'manage-integrations'])
+                <li>
+                    <a href="{{ url('/integraciones') }}">
+                        <i data-feather="link"></i>
+                        <span data-key="t-hub">Integraciones</span>
+                    </a>
+                </li>
+                @endcanany
+
                 <li>
                     @can(['config_view_module'])
                         <a href="{{ url('/configuracion') }}" class="has-arrow">
@@ -749,6 +829,26 @@
                         </a>
                     @endcan
                 </li>
+
+                @canany(['embajadores.view', 'embajadores.configure'])
+                    <li>
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="award"></i>
+                            <span data-key="t-embajadores">Embajadores</span>
+                        </a>
+                        <ul class="sub-menu" aria-expanded="false">
+                            @can('embajadores.view')
+                                <li><a href="{{ url('/embajadores') }}"><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</a></li>
+                                <li><a href="{{ url('/embajadores/clientes') }}"><small><i class="fa fa-fw fa-handshake"></i></small> Embajadores</a></li>
+                                <li><a href="{{ url('/embajadores/comisiones') }}"><small><i class="fa fa-fw fa-coins"></i></small> Comisiones</a></li>
+                            @endcan
+                            @can('embajadores.configure')
+                                <li><a href="{{ url('/embajadores/tiers') }}"><small><i class="fa fa-fw fa-percentage"></i></small> Porcentajes</a></li>
+                                <li><a href="{{ url('/embajadores/configuracion') }}"><small><i class="fa fa-fw fa-cog"></i></small> Configuración</a></li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcanany
 
                 @hasanyrole('DESARROLLADOR|Administrador|Super Administrador|super-administrator|TECNICO')
                     @canany(['megafamilia_admin', 'megafamilia_support'])
@@ -779,6 +879,23 @@
                         </li>
                     @endcanany
                 @endhasanyrole
+
+                @canany(['cobranza.view', 'cobranza.configure'])
+                    <li>
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="phone-call"></i>
+                            <span data-key="t-cobranza">Cobranza Blaster</span>
+                        </a>
+                        <ul class="sub-menu" aria-expanded="false">
+                            @can('cobranza.view')
+                                <li><a href="{{ url('/cobranza/campanas') }}"><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Campañas</a></li>
+                            @endcan
+                            @can('cobranza.configure')
+                                <li><a href="{{ url('/cobranza/voip') }}"><small><i class="fa fa-fw fa-phone-square"></i></small> Config. VoIP</a></li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcanany
 
                 @role('DESARROLLADOR')
                     <li class="menu-item-desarrollador">

@@ -180,3 +180,171 @@ Comandos en: `app/Console/Commands/Active/`, `Commands/Olts/`, `Commands/Scripts
 ## GEO DATA
 
 Tablas `states`, `municipalities`, `colonies` populadas desde dumps SQL en `config/state_municipalities_and_colonies/`. Al importar dump nuevo: la tabla `colonies` requiere `ALTER TABLE` en vez de `CREATE TABLE`, y remover `PRIMARY KEY (id)` explícito — ver `README_DOC.md`.
+
+---
+
+## MÓDULO MARKETING (`app/Modules/Addons/Marketing/` + `app/Models/Marketing/` + `app/Http/Controllers/Marketing/`)
+
+### Estado al 2026-05-28
+| Fase | Contenido | Estado |
+|------|-----------|--------|
+| 1 — Fundación BD | 18 tablas `marketing_*`, 18 modelos, seeders, 42 permisos, módulo id=129 | ✅ Commit 3f77c69 |
+| 2 — Captura de leads | Webhook Meta Ads (HMAC), formulario embebible, LeadScoringService (Claude), LeadObserver | ✅ Commit 3f77c69 |
+| 3 — Agente IA + WhatsApp | Evolution API v2, 5 tools, ConversationUI, 44 tests | ✅ Funcionando en prod (bot respondió clientes reales) |
+| 4 — Motor de Video MVM | FFmpeg v5.1.9, 8 plantillas, Brand Kit UI, logo upload, overrides por video | ✅ Video generado, 22/22 tests |
+| 4.5a — Integration Hub | 3 tablas `api_integrations_*`, 6 providers, Trait con fallback 3 niveles, Vue UI `/integraciones` | ✅ Operativo |
+| 4.5b — Director Creativo IA | 6 nichos, CreativeDirectorService, KineticTextRenderer, BrollLibraryService | ⚠️ Código completo, bugs pendientes (ver abajo) |
+| 5 — Publicador multicanal | FB + IG + WhatsApp Status + Email | ⏸️ Pendiente |
+| 6 — Blaster cobranzas | TTS híbrido (fragmentos fijos pro + slots variables cacheados) | ⏸️ Pendiente |
+| 7 — CRM + Analytics + Multi-tenant | Vue Kanban, atribución, company_id | ⏸️ Pendiente |
+
+### Arquitectura híbrida (IMPORTANTE)
+- Fases 1-2: `app/Models/Marketing/` + `app/Http/Controllers/Marketing/` (standard Laravel)
+- Fases 3-4.5b: `app/Modules/Addons/Marketing/` (modular)
+- **NO unificar por ahora** — ambas conviven sin problema
+
+### WhatsApp / Evolution API
+- Instance: `meganet-ventas`
+- Número: `5215568175643`
+- Webhook URL: `http://192.168.105.11/webhooks/marketing/evolution`
+- Evolution corre en Docker, puerto 8080
+- **Bug conocido**: al borrar y recrear la instance, la sesión queda en conflict (`device_removed`). Fix: DELETE `/instance/logout/` → DELETE `/instance/delete/` → POST `/instance/create` → escanear QR limpio
+- **Bug conocido**: modal de Pareo QR en UI no renderiza imagen (solo parpadea). Workaround: `curl /instance/connect/meganet-ventas` → extraer base64 → copiar PNG a `public/qr-temp.png` → borrar después
+
+### Motor de Video MVM — Bugs en Fase 4.5b (pendientes de fix)
+1. **ENUM faltante**: `marketing_assets.type` no incluía `'broll'` → migración `2026_05_28_300001_add_broll_to_marketing_assets_type_enum.php` creada pero posiblemente colgada por lock. Verificar:
+   ```sql
+   SHOW COLUMNS FROM marketing_assets WHERE Field='type';
+   -- Debe terminar con ,'broll')
+   ```
+2. **Sin B-roll descargado**: `BrollLibraryService` necesita Pexels API key en Integration Hub. Sin ella cae a fondo de color sólido. Pexels es gratis en `pexels.com/api`.
+3. **Voz del nicho gamer**: cae a `nova` (femenina) en lugar de `echo`/`onyx`. Bug en mapeo `preferred_voice_id` del nicho.
+4. **Teléfono mal pronunciado**: OpenAI TTS lee números corridos. Solución pendiente: preprocesamiento con pausas SSML o espacios entre dígitos.
+5. **Bug validador Hub**: retorna `valid: false` pero el ternario en tinker lo invierte. El campo `last_validation_status` es el autoritativo.
+
+### Integration Hub (`/integraciones`)
+- Tabla `api_integrations`, `api_integration_logs`, `api_integration_usage`
+- 6 providers configurados: `anthropic`, `anthropic-legacy` (inactivo), `openai`, `evolution`, `pexels`, `google-maps`
+- Trait `UsesApiIntegration` aplicado a: `ClaudeApiClient`, `EvolutionApiService`, `OpenAiTtsDriver`
+- Fallback order: Hub → `.env` → `marketing_settings`
+- **NUNCA actualizar keys con `sed` inline** — usar `read -s` o editor interactivo
+
+### Modelos Claude válidos (2026-05-28)
+- `claude-opus-4-7` ✅ — usar este
+- `claude-sonnet-4-6` ✅ — alternativa
+- `claude-opus-4-8` ❌ — NO existe, CC lo inventó en un momento
+
+### Procedimiento seguro para API keys
+```bash
+# SIEMPRE así, nunca con la key inline en el comando:
+read -s -p "Pega tu key y presiona Enter: " NEWKEY
+echo ""
+# Validar contra el endpoint antes de guardar
+# Luego guardar vía tinker usando env() o el valor ya en .env
+unset NEWKEY
+```
+
+### Tests PHPUnit — WARNING
+`TestCase.php` corre `migrate:fresh --seed` que destruye datos de producción.
+Tests escritos pero NO ejecutar sin `APP_ENV=testing` + `DB_DATABASE=megaisp_test`.
+```bash
+mysql -e "CREATE DATABASE megaisp_test;"
+cp .env .env.testing
+sed -i 's/DB_DATABASE=megaisp$/DB_DATABASE=megaisp_test/' .env.testing
+```
+
+### Queue workers (supervisor)
+```
+/etc/supervisor/conf.d/megaisp-queue.conf       → default queue (bot WhatsApp)
+/etc/supervisor/conf.d/megaisp-video-render.conf → video-render queue (FFmpeg jobs, timeout=660)
+```
+Sin el worker `video-render`, los renders quedan en `pending` para siempre.
+
+### Archivos temporales a limpiar
+```bash
+rm -f /var/www/megaisp/public/qr-temp.png
+rm -f /var/www/megaisp/public/qr-scan.php
+rm -f /var/www/megaisp/public/test-*.mp4
+```
+
+### Blaster de cobranzas — diseño aprobado (Fase 6)
+- Template con slots: `Estimado {B}, su saldo vencido... liquide antes del {C}... número cliente {D}`
+- Fragmentos fijos → TTS pro OpenAI (una vez por template, cacheado)
+- Slots variables (nombre, fecha, número cliente) → TTS pro con cache por valor único
+- Costo estimado: ~$21 USD/mes para 10,000 llamadas/día con cache agresivo
+- Integración Asterisk AMI (ya parcialmente presente en repo)
+
+---
+
+## MÓDULO COBRANZA BLASTER (`app/Modules/Addons/CobranzaBlaster/`)
+
+### Estado al 2026-05-29
+| Componente | Estado |
+|------------|--------|
+| Asterisk 20.19.0 | ✅ `/usr/sbin/asterisk`, servicio systemd activo |
+| AMI puerto 5038 | ✅ `127.0.0.1:5038`, usuario `megaisp` |
+| 4 tablas BD | ✅ `cobranza_campanas`, `cobranza_llamadas`, `cobranza_llamada_eventos`, `voip_configuracion` |
+| AmiConnectionService | ✅ `Services/AmiConnectionService.php` |
+| CobranzaTtsService | ✅ OpenAI TTS → WAV 8kHz mono para Asterisk |
+| BlastCampanaJob | ✅ queue: `cobranza`, lotes de 50 llamadas |
+| ProcessCallResultJob | ✅ procesa eventos AMI → actualiza estados |
+| CobranzaCampanaService | ✅ carga morosos, activa/pausa campañas |
+| Queue workers | ✅ supervisor: `megaisp-cobranza` x2 RUNNING |
+| Cron | ✅ cada 5 min en `Kernel.php` — `cobranza:blast-activas` |
+| UI campañas | ✅ `/cobranza/campanas` — KPIs + tabla + modal nueva campaña |
+| UI VoIP config | ✅ `/cobranza/voip` — form SIP + test conexión |
+| Sidebar | ✅ permisos `cobranza.view` (511), `cobranza.configure` (512), `cobranza.manage` (513) |
+
+### Configs en servidor (fuera del repo)
+- `/etc/asterisk/manager.conf` — AMI config real (secret: ver `.env` → `AMI_SECRET`)
+- `/etc/asterisk/sip.conf` — troncal Servnet (completar desde `/cobranza/voip`)
+- `/etc/asterisk/extensions.conf` — dialplan blaster
+- `/etc/sudoers.d/asterisk-www-data` — permisos www-data para sip reload (pendiente configurar)
+
+### Variables .env requeridas
+```
+AMI_HOST=127.0.0.1
+AMI_PORT=5038
+AMI_USERNAME=megaisp
+AMI_SECRET=<ver .env del servidor>
+AMI_CONTEXT=cobranza-blaster
+BLASTER_HORA_INICIO=09:00
+BLASTER_HORA_FIN=20:00
+BLASTER_MAX_INTENTOS=3
+BLASTER_MINUTOS_ENTRE_INTENTOS=180
+```
+
+### Pendientes CRÍTICOS para producción
+1. **Credenciales Servnet** — ingresar en `/cobranza/voip` → "Guardar y aplicar" → verificar `sip show peers` = OK
+2. **Webhook AMI** — Asterisk → Laravel para eventos ANSWER/BUSY/NOANSWER/HANGUP
+   - Sin esto el blaster origina llamadas pero nunca actualiza estados
+   - Endpoint ya existe: `POST /webhooks/cobranza/ami-event` → `CobranzaWebhookController`
+   - Falta: configurar `manager.conf` para HTTP POST, o listener AMI en socket persistente
+3. **sudoers www-data** — `asterisk -rx sip reload` y `sip show peers` para que VoipConfiguracionController funcione
+4. **Prueba llamada real** — crear campaña con 1 cliente, verificar que Asterisk origina y audio llega
+
+### Pendientes MEDIOS
+5. **TTS fragmentos fijos cacheados** — pre-generar fragmentos estáticos + cachear slots variables por valor único
+6. **Dashboard embajador** — vista pública `/mi-red` para que el cliente vea sus referidos y comisiones
+
+### Flujo completo cuando esté 100% operativo
+```
+Cron 5min → CobranzaCampanaService::cargarMorosos()
+  → BlastCampanaJob → AmiConnectionService::originate()
+  → Asterisk llama al cliente vía Servnet
+  → Cliente contesta → escucha TTS OpenAI
+  → Presiona 1 → transferencia a agente
+  → Asterisk POST → /webhooks/cobranza/ami-event
+  → ProcessCallResultJob actualiza estado
+  → Si max_intentos sin pago → SuspendServiceJob (delay 24h)
+```
+
+### Módulos pendientes del sistema (próximas sesiones)
+| Módulo | Estado | Próximo paso |
+|--------|--------|--------------|
+| MegaFamilia | ✅ completo servidor | Importar BD prod → hashear passwords → Hash::check() |
+| Embajadores | ✅ completo | Verificar árbol visual en browser con datos demo |
+| Marketing Fase 5 | ✅ commiteado | Configurar credenciales Meta OAuth en Integration Hub |
+| CobranzaBlaster | ⚠️ falta webhook AMI + Servnet | Ver pendientes arriba |
+| Marketing Fase 6 | ⏸️ pendiente | Blaster TTS híbrido (ver diseño arriba) |
+| Marketing Fase 7 | ⏸️ pendiente | CRM Kanban + atribución + multi-tenant |

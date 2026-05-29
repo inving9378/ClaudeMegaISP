@@ -40,6 +40,11 @@ class Client extends BaseModel
 {
     use HasFactory, ClientTrait, Notifiable, ScopeClient, SoftDeletes;
 
+    protected static function newFactory()
+    {
+        return \Database\Factories\ClientFactory::new();
+    }
+
     public static function boot()
     {
         parent::boot();

@@ -15,6 +15,16 @@ import 'screens/cliente/new_ticket_screen.dart';
 import 'screens/cliente/perfil_screen.dart';
 import 'screens/cliente/pagos_screen.dart';
 import 'screens/cliente/tickets_screen.dart';
+import 'screens/embajador/comisiones_historial_screen.dart';
+import 'screens/embajador/followup_form_screen.dart';
+import 'screens/embajador/notificaciones_log_screen.dart';
+import 'screens/embajador/prospecto_detalle_screen.dart';
+import 'screens/embajador/prospecto_form_screen.dart';
+import 'screens/embajador/prospecto_import_screen.dart';
+import 'screens/embajador/prospectos_screen.dart';
+import 'screens/embajador/recompensas_screen.dart';
+import 'screens/embajador/red_multinivel_screen.dart';
+import 'screens/embajador/share_masivo_screen.dart';
 import 'screens/hijo/blocked_screen.dart';
 import 'screens/hijo/hijo_dashboard.dart';
 import 'screens/hijo/logros_screen.dart';
@@ -67,6 +77,21 @@ GoRouter buildRouter(BuildContext context) {
         GoRoute(path: 'perfil', builder: (_, __) => const PerfilScreen()),
         GoRoute(path: 'parental', builder: (_, __) => const ControlParentalScreen()),
         GoRoute(path: 'parental/:id', builder: (_, s) => ChildDetailScreen(childId: int.parse(s.pathParameters['id']!))),
+
+        // ── Embajadores Fase 4: CRM prospectos
+        GoRoute(path: 'embajador/prospectos', builder: (_, __) => const ProspectosScreen()),
+        GoRoute(path: 'embajador/prospectos/nuevo', builder: (_, __) => const ProspectoFormScreen()),
+        GoRoute(path: 'embajador/prospectos/import', builder: (_, __) => const ProspectoImportScreen()),
+        GoRoute(path: 'embajador/prospectos/:id', builder: (_, s) => ProspectoDetalleScreen(prospectId: int.parse(s.pathParameters['id']!))),
+        GoRoute(path: 'embajador/prospectos/:id/editar', builder: (_, s) => ProspectoFormScreen(prospectId: int.parse(s.pathParameters['id']!))),
+        GoRoute(path: 'embajador/prospectos/:id/seguimiento', builder: (_, s) => FollowupFormScreen(prospectId: int.parse(s.pathParameters['id']!))),
+
+        // ── Embajadores Fase 7: pantallas avanzadas
+        GoRoute(path: 'embajador/red', builder: (_, __) => const RedMultinivelScreen()),
+        GoRoute(path: 'embajador/recompensas', builder: (_, __) => const RecompensasScreen()),
+        GoRoute(path: 'embajador/comisiones', builder: (_, __) => const ComisionesHistorialScreen()),
+        GoRoute(path: 'embajador/notificaciones', builder: (_, __) => const NotificacionesLogScreen()),
+        GoRoute(path: 'embajador/share-masivo', builder: (_, __) => const ShareMasivoScreen()),
       ]),
 
       // -------- TECNICO

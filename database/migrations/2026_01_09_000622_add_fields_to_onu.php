@@ -14,6 +14,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasColumn('olt_onus', 'onu_type_id'))
         Schema::table('olt_onus', function (Blueprint $table) {
             $table->integer('onu_type_id')->nullable()->after('onu');
             $table->string('tr069')->nullable()->after('zone_name');

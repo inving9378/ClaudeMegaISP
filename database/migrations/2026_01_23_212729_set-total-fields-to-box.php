@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasColumn('cut_boxs', 'total_received'))
         Schema::table('cut_boxs', function (Blueprint $table) {
             $table->double('total_received')->after('user_id')->default(0);
             $table->double('total_extras')->after('total_received')->default(0);

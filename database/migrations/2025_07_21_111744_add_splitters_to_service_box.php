@@ -12,9 +12,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        $layers = MapLayer::where('dialog', 'service_box')->doesntHave('splitters')->get();
-        foreach ($layers as $l) {
-            $l->createSplitter();
+        try {
+            $layers = MapLayer::where('dialog', 'service_box')->doesntHave('splitters')->get();
+            foreach ($layers as $l) {
+                $l->createSplitter();
+            }
+        } catch (\Throwable $e) {
+            // Skip if relationship or data is unavailable on fresh install
         }
     }
 

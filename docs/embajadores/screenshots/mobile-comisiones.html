@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>MegaFamilia — Historial de Comisiones</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;display:flex;justify-content:center;padding:24px}
+  .phone{width:390px;background:#fff;border-radius:40px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25);border:8px solid #1a1a2e}
+  .status-bar{background:#1565c0;color:#fff;padding:12px 20px 8px;font-size:12px;display:flex;justify-content:space-between}
+  .appbar{background:#1565c0;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:12px}
+  .appbar-title{font-size:16px;font-weight:700}
+  .total-card{background:linear-gradient(135deg,#2e7d32,#1b5e20);margin:14px;border-radius:14px;padding:16px;color:#fff;text-align:center}
+  .total-label{font-size:11px;opacity:.8;text-transform:uppercase;letter-spacing:.5px}
+  .total-amount{font-size:32px;font-weight:700;margin:4px 0}
+  .total-sub{font-size:12px;opacity:.75}
+  .chart-section{padding:14px;border-bottom:1px solid #f3f4f6}
+  .chart-title{font-size:12px;font-weight:700;color:#374151;margin-bottom:10px}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:70px}
+  .bar-col{display:flex;flex-direction:column;align-items:center;flex:1}
+  .bar{background:#1565c0;border-radius:3px 3px 0 0;width:100%}
+  .bar-label{font-size:9px;color:#9aa5b4;margin-top:3px}
+  .bar-val{font-size:9px;color:#374151;font-weight:700;margin-bottom:2px}
+  .months-section{max-height:380px;overflow-y:auto}
+  .month-card{margin:10px 12px;border-radius:10px;border:1px solid #e8ecf0;overflow:hidden}
+  .month-header{background:#f7f9fc;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+  .month-name{font-size:13px;font-weight:700;color:#1a2332}
+  .month-total{font-size:15px;font-weight:700;color:#1565c0}
+  .month-sub{font-size:11px;color:#6b7280;margin-top:2px}
+  .month-sub-right{font-size:11px;color:#2e7d32}
+  .month-body{padding:10px 14px;background:#fff}
+  .status-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px;border-bottom:1px solid #f8f9fa}
+  .status-dot{width:8px;height:8px;border-radius:50%;margin-right:8px;display:inline-block}
+  .dot-applied{background:#2e7d32}
+  .dot-approved{background:#1565c0}
+  .dot-pending{background:#e65100}
+  .navbar{background:#fff;border-top:1px solid #e8ecf0;display:flex;padding:8px 0 20px}
+  .nav-item{flex:1;text-align:center;font-size:10px;color:#6b7280;padding:4px}
+  .nav-item.active{color:#1565c0}
+  .nav-icon{font-size:20px;display:block;margin-bottom:2px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>9:45</span><span>●●●● WiFi 🔋</span></div>
+  <div class="appbar">
+    <span style="font-size:20px">←</span>
+    <span class="appbar-title">Historial de Comisiones</span>
+  </div>
+
+  <div class="total-card">
+    <div class="total-label">Total acumulado (3 meses)</div>
+    <div class="total-amount">$1,587.27</div>
+    <div class="total-sub">Aplicado a tu balance de cliente</div>
+  </div>
+
+  <div class="chart-section">
+    <div class="chart-title">Comisiones por mes (simulación)</div>
+    <div class="bars">
+      <div class="bar-col">
+        <div class="bar-val">$529</div>
+        <div class="bar" style="height:60px"></div>
+        <div class="bar-label">Mar</div>
+      </div>
+      <div class="bar-col">
+        <div class="bar-val">$529</div>
+        <div class="bar" style="height:60px"></div>
+        <div class="bar-label">Abr</div>
+      </div>
+      <div class="bar-col">
+        <div class="bar-val">$529</div>
+        <div class="bar" style="height:60px;background:#42a5f5"></div>
+        <div class="bar-label">May</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="months-section">
+    <!-- Mayo -->
+    <div class="month-card">
+      <div class="month-header">
+        <div>
+          <div class="month-name">Mayo 2026</div>
+          <div class="month-sub">928 registros en mi red</div>
+        </div>
+        <div style="text-align:right">
+          <div class="month-total">$529.09</div>
+          <div class="month-sub-right">✓ Aplicado</div>
+        </div>
+      </div>
+      <div class="month-body">
+        <div class="status-row">
+          <span><span class="status-dot dot-applied"></span>Aplicadas a balance</span>
+          <span style="font-weight:700;color:#2e7d32">$395.70</span>
+        </div>
+        <div class="status-row">
+          <span><span class="status-dot dot-approved"></span>En proceso de aplicación</span>
+          <span style="font-weight:700;color:#1565c0">$133.39</span>
+        </div>
+        <div style="font-size:10px;color:#9aa5b4;margin-top:6px">L1: $44.90 · L2: $22.45 · L3: $13.47 · L4: $8.98 por referido</div>
+      </div>
+    </div>
+
+    <!-- Abril -->
+    <div class="month-card">
+      <div class="month-header">
+        <div>
+          <div class="month-name">Abril 2026</div>
+          <div class="month-sub">927 registros en mi red</div>
+        </div>
+        <div style="text-align:right">
+          <div class="month-total">$529.09</div>
+          <div class="month-sub-right">✓ Aplicado</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Marzo -->
+    <div class="month-card">
+      <div class="month-header">
+        <div>
+          <div class="month-name">Marzo 2026</div>
+          <div class="month-sub">927 registros en mi red</div>
+        </div>
+        <div style="text-align:right">
+          <div class="month-total">$529.09</div>
+          <div class="month-sub-right">✓ Aplicado</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="navbar">
+    <div class="nav-item"><span class="nav-icon">🏠</span>Inicio</div>
+    <div class="nav-item"><span class="nav-icon">🌐</span>Red</div>
+    <div class="nav-item active"><span class="nav-icon">💰</span>Ganancias</div>
+    <div class="nav-item"><span class="nav-icon">🔔</span>Notif.</div>
+    <div class="nav-item"><span class="nav-icon">⚙️</span>Perfil</div>
+  </div>
+</div>
+</body>
+</html>

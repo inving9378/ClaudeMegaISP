@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Payments\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\ClientInvoice;
+use App\Models\ClientMainInformation;
 use App\Models\Payment;
 use App\Modules\Addons\Payments\Models\PaymentClabe;
 use App\Modules\Addons\Payments\Models\PaymentProvider;
@@ -187,7 +188,16 @@ class MobilePaymentController extends Controller
     /** Cliente del usuario Sanctum autenticado, o null. */
     private function resolveClient(): ?Client
     {
-        return Client::where('user_id', Auth::id())->first();
+        $client = Client::where('user_id', Auth::id())->first();
+        if ($client) return $client;
+
+        $loginUser = optional(Auth::user())->login_user;
+        if (! $loginUser) return null;
+
+        $cmi = ClientMainInformation::where('user', $loginUser)->first();
+        if (! $cmi) return null;
+
+        return Client::find($cmi->client_id);
     }
 
     /** 18 dígitos → "646 180 123456789012" para display. */

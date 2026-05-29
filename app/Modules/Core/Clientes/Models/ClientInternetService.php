@@ -19,6 +19,11 @@ class ClientInternetService extends BaseModel implements ServiceInterface
 {
     use HasFactory, ScopeClientInternetService;
 
+    protected static function newFactory()
+    {
+        return \Database\Factories\ClientInternetServiceFactory::new();
+    }
+
     const IPV4_ASSIGNMENT_STATIC = 'IP Estatica';
     const IPV4_ASSIGNMENT_POOL_IP = 'Pool IP';
 

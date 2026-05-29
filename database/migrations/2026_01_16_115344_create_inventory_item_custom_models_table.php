@@ -13,7 +13,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('inventory_item_custom_models', function (Blueprint $table) {
+        if (!Schema::hasTable('inventory_item_custom_models')) Schema::create('inventory_item_custom_models', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->foreignId('inventory_item_type_id')->constrained();

@@ -1,7 +1,7 @@
 name: megafamilia
 description: "MegaFamilia — app móvil de MegaISP (control parental + autoservicio cliente + órdenes técnico)."
 publish_to: 'none'
-version: 0.3.0+3
+version: 0.3.4+7
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -40,6 +40,9 @@ dependencies:
 
   # Subida de comprobante SPEI desde galería/cámara (pagos)
   image_picker: ^1.0.7
+
+  # Lectura de agenda del dispositivo (importación de prospectos — Fase 4 Embajadores)
+  flutter_contacts: ^1.1.9+1
 
   # NOTA: firebase_core / firebase_messaging / google_maps_flutter omitidos
   # de v0.1 — requieren google-services.json y Maps API key. Se añaden en una
