@@ -59,6 +59,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('marketing:publish-due')->everyMinute()->withoutOverlapping();
         $schedule->job(new \App\Modules\Addons\Marketing\Jobs\RefreshMetaTokensJob())->dailyAt('03:45')->withoutOverlapping(30)->name('marketing:refresh-meta-tokens');
         $schedule->job(new \App\Modules\Addons\Marketing\Jobs\FetchAllMetricsJob())->everyFourHours()->withoutOverlapping(60)->name('marketing:fetch-all-metrics');
+
+        // CobranzaBlaster (Fase 6) — dispara el blast cada 5 minutos en campañas activas
+        $schedule->call(function () {
+            \App\Modules\Addons\CobranzaBlaster\Models\CobranzaCampana::activa()->get()
+                ->each(fn ($campana) => \App\Modules\Addons\CobranzaBlaster\Jobs\BlastCampanaJob::dispatch($campana->id));
+        })->everyFiveMinutes()->withoutOverlapping(10)->name('cobranza:blast-activas');
     }
 
     protected function commands(): void
