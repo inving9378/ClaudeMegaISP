@@ -54,6 +54,11 @@ class Kernel extends ConsoleKernel
         $schedule->job(new \App\Jobs\Referrals\WarnExpiringRewards)->dailyAt('09:00')->withoutOverlapping(30)->onOneServer()->name('embajadores:warn-expiring-rewards');
         // Stats diarias del programa de embajadores (snapshot del día anterior)
         $schedule->job(new \App\Jobs\Referrals\CalculateDailyStats)->dailyAt('02:30')->withoutOverlapping(30)->onOneServer()->name('embajadores:daily-stats');
+
+        // Marketing Publicador Multicanal (Fase 5)
+        $schedule->command('marketing:publish-due')->everyMinute()->withoutOverlapping();
+        $schedule->job(new \App\Modules\Addons\Marketing\Jobs\RefreshMetaTokensJob())->dailyAt('03:45')->withoutOverlapping(30)->name('marketing:refresh-meta-tokens');
+        $schedule->job(new \App\Modules\Addons\Marketing\Jobs\FetchAllMetricsJob())->everyFourHours()->withoutOverlapping(60)->name('marketing:fetch-all-metrics');
     }
 
     protected function commands(): void

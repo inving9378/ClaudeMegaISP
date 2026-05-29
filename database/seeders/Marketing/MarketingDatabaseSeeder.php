@@ -16,6 +16,8 @@ class MarketingDatabaseSeeder extends Seeder
             MarketingDefaultSettingsSeeder::class,
             MarketingModuleSeeder::class,
             MarketingPermissionsSeeder::class,
+            VideoEngineSettingsSeeder::class,
+            PlanPromoTemplateSeeder::class,
         ]);
     }
 }

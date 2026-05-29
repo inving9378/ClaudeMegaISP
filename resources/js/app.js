@@ -322,6 +322,12 @@ import MarketingBrandKitView from "./components/module/marketing/MarketingBrandK
 // Marketing Fase 4.5b — Director Creativo IA
 import MarketingCampaignGeneratorView from "./components/module/marketing/MarketingCampaignGeneratorView.vue";
 import VoiceComparatorView from "./components/module/marketing/VoiceComparatorView.vue";
+
+// Marketing Fase 5 — Publicador Multicanal
+import MarketingPublishingDashboardView from "./components/module/marketing/publishing/PublishingDashboardView.vue";
+import MarketingPublishCampaignView from "./components/module/marketing/publishing/PublishCampaignView.vue";
+import MarketingPublicationQueueView from "./components/module/marketing/publishing/PublicationQueueView.vue";
+import MarketingChannelsSetupView from "./components/module/marketing/publishing/ChannelsSetupView.vue";
 import IntegrationsHubView from "./components/module/hub/IntegrationsHubView.vue";
 import MessageDayDivider from "./components/module/marketing/MessageDayDivider.vue";
 import AgentToggleButton from "./components/module/marketing/AgentToggleButton.vue";
@@ -585,6 +591,12 @@ const app = createApp({
         // Marketing Fase 4.5b — Director Creativo IA
         'marketing-campaign-generator-view': MarketingCampaignGeneratorView,
         'voice-comparator-view': VoiceComparatorView,
+
+        // Marketing Fase 5 — Publicador Multicanal
+        'marketing-publishing-dashboard-view': MarketingPublishingDashboardView,
+        'marketing-publish-campaign-view': MarketingPublishCampaignView,
+        'marketing-publication-queue-view': MarketingPublicationQueueView,
+        'marketing-channels-setup-view': MarketingChannelsSetupView,
 
         //WhatsApp Agent — addon-whatsapp-agent (2026-05-22)
         'whatsapp-panel': WhatsAppPanel,
