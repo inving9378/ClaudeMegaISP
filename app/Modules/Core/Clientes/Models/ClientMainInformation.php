@@ -28,6 +28,11 @@ class ClientMainInformation extends BaseModel
 {
     use HasFactory, ScopeClientMainInformation, SoftDeletes;
 
+    protected static function newFactory()
+    {
+        return \Database\Factories\ClientMainInformationFactory::new();
+    }
+
     protected $guarded = [];
     protected $appends = ['client_name_with_fathers_names', 'partner_name', 'contract_months', 'contract_months_number', 'service', 'css_state'];
     protected $casts = [
