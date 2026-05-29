@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cliente_provider.dart';
 import 'providers/control_parental_provider.dart';
+import 'providers/embajador_provider.dart';
 import 'providers/hijo_provider.dart';
 import 'providers/tecnico_provider.dart';
 import 'router.dart';
@@ -47,6 +48,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => ControlParentalProvider(api: api)),
         ChangeNotifierProvider(create: (_) => TecnicoProvider(api: api)),
         ChangeNotifierProvider(create: (_) => HijoProvider(api: api)),
+        ChangeNotifierProvider(create: (_) => EmbajadorProvider(api: api)),
       ],
       child: const MegaFamiliaApp(),
     ),

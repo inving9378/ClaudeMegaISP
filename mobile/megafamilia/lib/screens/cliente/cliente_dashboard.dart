@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/cliente_provider.dart';
+import '../../providers/embajador_provider.dart';
 import '../../services/tour_service.dart';
 import '../../services/update_service.dart';
 import '../../theme.dart';
@@ -100,6 +101,8 @@ class _ClienteDashboardState extends State<ClienteDashboard> {
             KeyedSubtree(key: _tourKeys.pago, child: _QuickActionsGrid()),
             const SizedBox(height: 24),
             KeyedSubtree(key: _tourKeys.tickets, child: _RecentTickets()),
+            const SizedBox(height: 24),
+            _EmbajadorSection(),
           ],
         ),
       ),
@@ -256,6 +259,102 @@ class _RecentTickets extends StatelessWidget {
               ),
             )),
       ],
+    );
+  }
+}
+
+// ── Sección embajador ─────────────────────────────────────────────────────────
+
+class _EmbajadorSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Embajador Meganet',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            TextButton(
+              onPressed: () => context.go('/cliente/embajador/prospectos'),
+              child: const Text('Prospectos'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _EmbajadorMenuGrid(),
+      ],
+    );
+  }
+}
+
+class _EmbajadorMenuGrid extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final actions = <(String, IconData, Color, String)>[
+      ('Prospectos', Icons.people,              BrandColors.primary,   '/cliente/embajador/prospectos'),
+      ('Comisiones', Icons.account_balance_wallet, BrandColors.success, '/cliente/embajador/comisiones'),
+      ('Notificaciones', Icons.notifications,   BrandColors.secondary, '/cliente/embajador/notificaciones'),
+      ('Compartir', Icons.share,                BrandColors.accent,    '/cliente/embajador/share-masivo'),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 1.8),
+      itemCount: actions.length,
+      itemBuilder: (_, i) {
+        final (label, icon, color, route) = actions[i];
+        return _EmbajadorMenuCard(label: label, icon: icon, color: color, route: route);
+      },
+    );
+  }
+}
+
+class _EmbajadorMenuCard extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final String route;
+
+  const _EmbajadorMenuCard({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.route,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.go(route),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withAlpha(30),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    maxLines: 2),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -275,3 +275,290 @@ class Tarea {
         status: _str(j['status'].toString().isEmpty ? 'pending' : j['status']),
       );
 }
+
+// =============================================================================
+// EMBAJADORES — Fase 4: CRM de prospectos
+// =============================================================================
+
+class Followup {
+  final int id;
+  final String action;
+  final String notes;
+  final DateTime? nextActionDate;
+  final DateTime? createdAt;
+
+  Followup({
+    required this.id,
+    required this.action,
+    required this.notes,
+    this.nextActionDate,
+    this.createdAt,
+  });
+
+  factory Followup.fromJson(Map<String, dynamic> j) => Followup(
+        id: _int(j['id']),
+        action: _str(j['action']),
+        notes: _str(j['notes']),
+        nextActionDate: _date(j['next_action_date']),
+        createdAt: _date(j['created_at']),
+      );
+
+  String get actionLabel {
+    const m = {
+      'call': 'Llamada',
+      'whatsapp': 'WhatsApp',
+      'visit': 'Visita',
+      'sms': 'SMS',
+      'email': 'Correo',
+      'note': 'Nota',
+    };
+    return m[action] ?? action;
+  }
+}
+
+class Prospect {
+  final int id;
+  final String name;
+  final String phone;
+  final String? email;
+  final String? address;
+  final String source;
+  final String status;
+  final String? notes;
+  final DateTime? convertedAt;
+  final DateTime? lastContactAt;
+  final DateTime? createdAt;
+  final int? followupsCount;
+  final List<Followup> followups;
+
+  Prospect({
+    required this.id,
+    required this.name,
+    required this.phone,
+    this.email,
+    this.address,
+    required this.source,
+    required this.status,
+    this.notes,
+    this.convertedAt,
+    this.lastContactAt,
+    this.createdAt,
+    this.followupsCount,
+    this.followups = const [],
+  });
+
+  factory Prospect.fromJson(Map<String, dynamic> j) => Prospect(
+        id: _int(j['id']),
+        name: _str(j['name']),
+        phone: _str(j['phone']),
+        email: j['email']?.toString(),
+        address: j['address']?.toString(),
+        source: _str(j['source']),
+        status: _str(j['status']),
+        notes: j['notes']?.toString(),
+        convertedAt: _date(j['converted_at']),
+        lastContactAt: _date(j['last_contact_at']),
+        createdAt: _date(j['created_at']),
+        followupsCount: j['followups_count'] is int ? j['followups_count'] as int : null,
+        followups: (j['followups'] as List? ?? [])
+            .map((e) => Followup.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  String get statusLabel {
+    const m = {
+      'new': 'Nuevo',
+      'contacted': 'Contactado',
+      'interested': 'Interesado',
+      'quoted': 'Cotizado',
+      'converted': 'Convertido',
+      'lost': 'Perdido',
+    };
+    return m[status] ?? status;
+  }
+
+  // Color semáforo para chips de status
+  int get statusColorValue {
+    const colors = {
+      'new': 0xFF2196F3,        // azul
+      'contacted': 0xFFFF9800,  // naranja
+      'interested': 0xFF8BC34A, // verde claro
+      'quoted': 0xFF9C27B0,     // morado
+      'converted': 0xFF4CAF50,  // verde
+      'lost': 0xFF9E9E9E,       // gris
+    };
+    return colors[status] ?? 0xFF9E9E9E;
+  }
+}
+
+// =============================================================================
+// EMBAJADORES — Fase 7: Pantallas avanzadas
+// =============================================================================
+
+/// Nodo de la red multinivel (lista plana con parent_id para construir árbol).
+class RedNodo {
+  final int clientId;
+  final int parentId;
+  final String name;
+  final int depth;
+  final String status;
+
+  RedNodo({
+    required this.clientId,
+    required this.parentId,
+    required this.name,
+    required this.depth,
+    required this.status,
+  });
+
+  factory RedNodo.fromJson(Map<String, dynamic> j) => RedNodo(
+        clientId: _int(j['client_id']),
+        parentId: _int(j['parent_id']),
+        name: _str(j['name']),
+        depth: _int(j['depth']),
+        status: _str(j['status']),
+      );
+
+  String get statusLabel {
+    const m = {
+      'pending_threshold': 'Pendiente',
+      'active': 'Activo',
+      'cancelled': 'Cancelado',
+    };
+    return m[status] ?? status;
+  }
+
+  int get statusColor {
+    const colors = {
+      'active': 0xFF4CAF50,
+      'pending_threshold': 0xFFFF9800,
+      'cancelled': 0xFF9E9E9E,
+    };
+    return colors[status] ?? 0xFF9E9E9E;
+  }
+}
+
+/// Recompensa de mensualidad gratis (plan single_reward).
+class EmbajadorRecompensa {
+  final int id;
+  final String status;
+  final double planValue;
+  final DateTime? availableAt;
+  final DateTime? appliedAt;
+  final DateTime? expiresAt;
+  final String referidoName;
+
+  EmbajadorRecompensa({
+    required this.id,
+    required this.status,
+    required this.planValue,
+    this.availableAt,
+    this.appliedAt,
+    this.expiresAt,
+    required this.referidoName,
+  });
+
+  factory EmbajadorRecompensa.fromJson(Map<String, dynamic> j) => EmbajadorRecompensa(
+        id: _int(j['id']),
+        status: _str(j['status']),
+        planValue: _dbl(j['plan_value']),
+        availableAt: _date(j['available_at']),
+        appliedAt: _date(j['applied_at']),
+        expiresAt: _date(j['expires_at']),
+        referidoName: _str(j['referido_name']),
+      );
+
+  String get statusLabel {
+    const m = {
+      'pending': 'Pendiente',
+      'available': 'Disponible',
+      'applied': 'Aplicada',
+      'expired': 'Vencida',
+    };
+    return m[status] ?? status;
+  }
+
+  int get statusColor {
+    const colors = {
+      'pending': 0xFFFF9800,
+      'available': 0xFF4CAF50,
+      'applied': 0xFF2196F3,
+      'expired': 0xFF9E9E9E,
+    };
+    return colors[status] ?? 0xFF9E9E9E;
+  }
+
+  bool get isAvailable => status == 'available';
+}
+
+/// Resumen de comisiones por mes.
+class ComisionMes {
+  final int periodYear;
+  final int periodMonth;
+  final double total;
+  final int count;
+  final Map<String, double> byStatus;
+
+  ComisionMes({
+    required this.periodYear,
+    required this.periodMonth,
+    required this.total,
+    required this.count,
+    required this.byStatus,
+  });
+
+  factory ComisionMes.fromJson(Map<String, dynamic> j) => ComisionMes(
+        periodYear: _int(j['period_year']),
+        periodMonth: _int(j['period_month']),
+        total: _dbl(j['total']),
+        count: _int(j['count']),
+        byStatus: (j['by_status'] as Map? ?? {})
+            .map((k, v) => MapEntry(k.toString(), _dbl(v))),
+      );
+
+  String get periodLabel {
+    const meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                        'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    final m = periodMonth >= 1 && periodMonth <= 12 ? meses[periodMonth] : '$periodMonth';
+    return '$m $periodYear';
+  }
+}
+
+/// Entrada de historial de notificaciones WhatsApp.
+class NotifLog {
+  final int id;
+  final String eventType;
+  final String? bodySent;
+  final DateTime? sentAt;
+  final bool success;
+  final String? errorMessage;
+
+  NotifLog({
+    required this.id,
+    required this.eventType,
+    this.bodySent,
+    this.sentAt,
+    required this.success,
+    this.errorMessage,
+  });
+
+  factory NotifLog.fromJson(Map<String, dynamic> j) => NotifLog(
+        id: _int(j['id']),
+        eventType: _str(j['event_type']),
+        bodySent: j['body_sent']?.toString(),
+        sentAt: _date(j['sent_at']),
+        success: _bool(j['success']),
+        errorMessage: j['error_message']?.toString(),
+      );
+
+  String get eventLabel {
+    const m = {
+      'prospect_converted': 'Prospecto convertido',
+      'threshold_covered': 'Umbral alcanzado',
+      'commission_generated': 'Comisión generada',
+      'commissions_applied': 'Comisiones acreditadas',
+      'reward_expiring_soon': 'Recompensa por vencer',
+    };
+    return m[eventType] ?? eventType;
+  }
+}
