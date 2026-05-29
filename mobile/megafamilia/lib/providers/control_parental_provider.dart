@@ -26,6 +26,29 @@ class ControlParentalProvider extends ChangeNotifier {
     }
   }
 
+  Future<ChildProfile?> createProfile({
+    required String name,
+    int? age,
+    String? schoolLevel,
+    String? profileType,
+  }) async {
+    try {
+      final profile = await api.createPerfilHijo(
+        name: name,
+        age: age,
+        schoolLevel: schoolLevel,
+        profileType: profileType,
+      );
+      profiles = [profile, ...profiles];
+      notifyListeners();
+      return profile;
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> loadDetail(int id) async {
     try {
       final d = await api.getChildDetail(id);

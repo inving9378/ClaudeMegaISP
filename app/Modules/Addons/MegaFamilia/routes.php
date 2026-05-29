@@ -280,5 +280,24 @@ Route::prefix('api/megafamilia')->middleware('log_api_mobile')->group(function (
         Route::post('/requests/{id}/respond', [ApiController::class, 'respondRequest'])->whereNumber('id');
 
         Route::post('/locations', [ApiController::class, 'reportLocation']);
+
+        // ── Embajadores Meganet ──────────────────────────────────────────
+        Route::prefix('embajadores')->group(function () {
+            Route::get('/red',             [ApiController::class, 'embajadorRed']);
+            Route::get('/comisiones',      [ApiController::class, 'embajadorComisiones']);
+            Route::get('/recompensas',     [ApiController::class, 'embajadorRecompensas']);
+            Route::post('/recompensas/{id}/aplicar', [ApiController::class, 'embajadorAplicarRecompensa'])->whereNumber('id');
+            Route::get('/notifications-log', [ApiController::class, 'embajadorNotificationsLog']);
+            Route::post('/share-masivo',   [ApiController::class, 'embajadorShareMasivo']);
+            // prospects (import antes del {id} para evitar colisión de rutas)
+            Route::post('/prospects/import', [ApiController::class, 'embajadorImportProspectos']);
+            Route::get('/prospects',       [ApiController::class, 'embajadorProspectos']);
+            Route::post('/prospects',      [ApiController::class, 'embajadorStoreProspecto']);
+            Route::get('/prospects/{id}',  [ApiController::class, 'embajadorGetProspecto'])->whereNumber('id');
+            Route::put('/prospects/{id}',  [ApiController::class, 'embajadorUpdateProspecto'])->whereNumber('id');
+            Route::delete('/prospects/{id}', [ApiController::class, 'embajadorDeleteProspecto'])->whereNumber('id');
+            Route::get('/prospects/{id}/followups',  [ApiController::class, 'embajadorFollowups'])->whereNumber('id');
+            Route::post('/prospects/{id}/followups', [ApiController::class, 'embajadorAddFollowup'])->whereNumber('id');
+        });
     });
 });

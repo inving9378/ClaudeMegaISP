@@ -221,6 +221,21 @@ class ApiService {
     );
   }
 
+  Future<ChildProfile> createPerfilHijo({
+    required String name,
+    int? age,
+    String? schoolLevel,
+    String? profileType,
+  }) async {
+    final j = await _post('/profiles', {
+      'name': name,
+      if (age != null) 'age': age,
+      if (schoolLevel != null) 'school_level': schoolLevel,
+      if (profileType != null) 'profile_type': profileType,
+    }) as Map<String, dynamic>;
+    return ChildProfile.fromJson(j);
+  }
+
   Future<Map<String, dynamic>> getChildDetail(int id) async {
     return await _tryEndpoint(
       () async => await _get('/profiles/$id') as Map<String, dynamic>,
@@ -332,15 +347,20 @@ class ApiService {
     int page = 1,
     int perPage = 20,
   }) async {
-    final params = <String, String>{
-      'page': '$page',
-      'per_page': '$perPage',
-      if (search != null && search.isNotEmpty) 'search': search,
-      if (status != null && status.isNotEmpty) 'status': status,
-      if (source != null && source.isNotEmpty) 'source': source,
-    };
-    final query = params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
-    return await _get('/megafamilia/embajadores/prospects?$query') as Map<String, dynamic>;
+    return await _tryEndpoint(
+      () async {
+        final params = <String, String>{
+          'page': '$page',
+          'per_page': '$perPage',
+          if (search != null && search.isNotEmpty) 'search': search,
+          if (status != null && status.isNotEmpty) 'status': status,
+          if (source != null && source.isNotEmpty) 'source': source,
+        };
+        final query = params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
+        return await _get('/megafamilia/embajadores/prospects?$query') as Map<String, dynamic>;
+      },
+      fallback: () => {'data': <dynamic>[], 'last_page': 1, 'total': 0},
+    );
   }
 
   Future<Prospect> createProspecto(Map<String, dynamic> data) async {
@@ -381,11 +401,17 @@ class ApiService {
   // ------------------------------------------------ embajadores fase 7
 
   Future<Map<String, dynamic>> getRed() async {
-    return await _get('/megafamilia/embajadores/red') as Map<String, dynamic>;
+    return await _tryEndpoint(
+      () async => await _get('/megafamilia/embajadores/red') as Map<String, dynamic>,
+      fallback: () => {'nodes': <dynamic>[], 'total': 0},
+    );
   }
 
   Future<Map<String, dynamic>> getRecompensas({int page = 1}) async {
-    return await _get('/megafamilia/embajadores/recompensas?page=$page') as Map<String, dynamic>;
+    return await _tryEndpoint(
+      () async => await _get('/megafamilia/embajadores/recompensas?page=$page') as Map<String, dynamic>,
+      fallback: () => {'data': <dynamic>[], 'summary': <String, int>{}},
+    );
   }
 
   Future<Map<String, dynamic>> aplicarRecompensa(int id) async {
@@ -393,11 +419,17 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getComisionesHistorial() async {
-    return await _get('/megafamilia/embajadores/comisiones') as Map<String, dynamic>;
+    return await _tryEndpoint(
+      () async => await _get('/megafamilia/embajadores/comisiones') as Map<String, dynamic>,
+      fallback: () => {'data': <dynamic>[], 'grand_total': 0.0, 'plan_type': ''},
+    );
   }
 
   Future<Map<String, dynamic>> getNotificationsLog({int page = 1}) async {
-    return await _get('/megafamilia/embajadores/notifications-log?page=$page') as Map<String, dynamic>;
+    return await _tryEndpoint(
+      () async => await _get('/megafamilia/embajadores/notifications-log?page=$page') as Map<String, dynamic>,
+      fallback: () => {'data': <dynamic>[], 'last_page': 1},
+    );
   }
 
   Future<Map<String, dynamic>> shareMasivo(List<Map<String, dynamic>> contacts) async {

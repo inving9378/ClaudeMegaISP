@@ -20,6 +20,7 @@ use App\Modules\Addons\MegaFamilia\Models\ParentalTask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -860,5 +861,366 @@ class ApiController extends Controller
         $profile = ParentalProfile::where('account_id', $account->id)->where('id', $id)->first();
         abort_unless($profile, 404);
         return $profile;
+    }
+
+    // ---- EMBAJADORES --------------------------------------------------------
+
+    public function embajadorRed(): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) return response()->json(['nodes' => [], 'total' => 0]);
+
+        $rows = DB::table('referrals as r')
+            ->join('clients as c', 'c.id', '=', 'r.referred_client_id')
+            ->leftJoin('users as u', 'u.id', '=', 'c.user_id')
+            ->where('r.chain_path', 'LIKE', '/' . $client->id . '/%')
+            ->select([
+                'r.referred_client_id as client_id',
+                'r.embajador_id as parent_id',
+                'r.chain_depth as depth',
+                'r.status',
+                'r.referred_threshold_covered_at',
+                DB::raw("TRIM(CONCAT(COALESCE(u.name,''), ' ', COALESCE(u.father_last_name,''), ' ', COALESCE(u.mother_last_name,''))) as name"),
+            ])
+            ->get();
+
+        $nodes = $rows->map(function ($row) {
+            $status = $row->status === 'active'
+                ? ($row->referred_threshold_covered_at ? 'active' : 'pending_threshold')
+                : 'cancelled';
+            return [
+                'client_id' => $row->client_id,
+                'parent_id' => $row->parent_id,
+                'name'      => trim($row->name) ?: 'Cliente #' . $row->client_id,
+                'depth'     => (int) $row->depth,
+                'status'    => $status,
+            ];
+        });
+
+        return response()->json(['nodes' => $nodes, 'total' => $nodes->count()]);
+    }
+
+    public function embajadorProspectos(Request $request): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) return response()->json(['data' => [], 'last_page' => 1, 'total' => 0]);
+
+        $q = DB::table('referral_prospects')->where('embajador_id', $client->id);
+
+        if ($search = $request->input('search')) {
+            $q->where(function ($w) use ($search) {
+                $w->where('name', 'LIKE', "%$search%")
+                  ->orWhere('phone', 'LIKE', "%$search%")
+                  ->orWhere('email', 'LIKE', "%$search%");
+            });
+        }
+        if ($status = $request->input('status')) $q->where('status', $status);
+        if ($source = $request->input('source')) $q->where('source', $source);
+
+        $paginated = $q->orderByDesc('created_at')
+            ->paginate((int) $request->input('per_page', 20));
+
+        $data = collect($paginated->items())
+            ->map(fn($r) => $this->formatProspecto($r, $client->id));
+
+        return response()->json([
+            'data'      => $data,
+            'total'     => $paginated->total(),
+            'last_page' => $paginated->lastPage(),
+        ]);
+    }
+
+    public function embajadorGetProspecto(int $id): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        $prospect = DB::table('referral_prospects')
+            ->where('id', $id)->where('embajador_id', $client?->id)->first();
+        abort_unless($prospect, 404);
+
+        $followups = DB::table('prospect_followups')
+            ->where('prospect_id', $id)->orderByDesc('created_at')->get()->all();
+
+        return response()->json($this->formatProspecto($prospect, $client->id, $followups));
+    }
+
+    public function embajadorStoreProspecto(Request $request): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        abort_unless($client, 422, 'No hay cliente asociado');
+
+        $data = $request->validate([
+            'name'    => 'required|string|max:200',
+            'phone'   => 'required|string|max:30',
+            'email'   => 'nullable|email|max:200',
+            'address' => 'nullable|string|max:300',
+            'source'  => 'required|string|in:manual,contact,qr,link,whatsapp',
+            'notes'   => 'nullable|string|max:1000',
+        ]);
+
+        $id = DB::table('referral_prospects')->insertGetId(array_merge($data, [
+            'embajador_id' => $client->id,
+            'status'       => 'new',
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]));
+
+        $prospect = DB::table('referral_prospects')->where('id', $id)->first();
+        return response()->json($this->formatProspecto($prospect, $client->id), 201);
+    }
+
+    public function embajadorUpdateProspecto(Request $request, int $id): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        $prospect = DB::table('referral_prospects')
+            ->where('id', $id)->where('embajador_id', $client?->id)->first();
+        abort_unless($prospect, 404);
+
+        $data = $request->validate([
+            'name'    => 'sometimes|string|max:200',
+            'phone'   => 'sometimes|string|max:30',
+            'email'   => 'nullable|email|max:200',
+            'address' => 'nullable|string|max:300',
+            'source'  => 'sometimes|string|max:50',
+            'status'  => 'sometimes|string|in:new,contacted,interested,quoted,converted,lost',
+            'notes'   => 'nullable|string|max:1000',
+        ]);
+
+        DB::table('referral_prospects')->where('id', $id)
+            ->update(array_merge($data, ['updated_at' => now()]));
+        $updated = DB::table('referral_prospects')->where('id', $id)->first();
+        return response()->json($this->formatProspecto($updated, $client->id));
+    }
+
+    public function embajadorDeleteProspecto(int $id): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        $deleted = DB::table('referral_prospects')
+            ->where('id', $id)->where('embajador_id', $client?->id)->delete();
+        abort_unless($deleted, 404);
+        return response()->json(['success' => true]);
+    }
+
+    public function embajadorFollowups(int $id): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        $prospect = DB::table('referral_prospects')
+            ->where('id', $id)->where('embajador_id', $client?->id)->first();
+        abort_unless($prospect, 404);
+
+        $rows = DB::table('prospect_followups')
+            ->where('prospect_id', $id)->orderByDesc('created_at')->get();
+
+        return response()->json($rows->map(fn($r) => $this->formatFollowup($r)));
+    }
+
+    public function embajadorAddFollowup(Request $request, int $id): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        $prospect = DB::table('referral_prospects')
+            ->where('id', $id)->where('embajador_id', $client?->id)->first();
+        abort_unless($prospect, 404);
+
+        $data = $request->validate([
+            'action'           => 'required|string|in:call,whatsapp,visit,sms,email,note',
+            'notes'            => 'required|string|max:1000',
+            'next_action_date' => 'nullable|date',
+        ]);
+
+        $fid = DB::table('prospect_followups')->insertGetId(array_merge($data, [
+            'prospect_id'  => $id,
+            'embajador_id' => $client->id,
+            'created_at'   => now(),
+        ]));
+
+        DB::table('referral_prospects')->where('id', $id)
+            ->update(['last_contact_at' => now(), 'updated_at' => now()]);
+
+        $followup = DB::table('prospect_followups')->where('id', $fid)->first();
+        return response()->json($this->formatFollowup($followup), 201);
+    }
+
+    public function embajadorImportProspectos(Request $request): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        abort_unless($client, 422, 'No hay cliente asociado');
+
+        $contacts = $request->input('contacts', []);
+        $created  = 0;
+        $skipped  = 0;
+
+        foreach ($contacts as $c) {
+            $phone = preg_replace('/\D/', '', $c['phone'] ?? '');
+            if (empty($phone) || empty($c['name'])) { $skipped++; continue; }
+
+            $exists = DB::table('referral_prospects')
+                ->where('embajador_id', $client->id)->where('phone', $phone)->exists();
+            if ($exists) { $skipped++; continue; }
+
+            DB::table('referral_prospects')->insert([
+                'embajador_id' => $client->id,
+                'name'         => substr($c['name'], 0, 200),
+                'phone'        => $phone,
+                'email'        => isset($c['email']) ? substr($c['email'], 0, 200) : null,
+                'source'       => 'contact',
+                'status'       => 'new',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ]);
+            $created++;
+        }
+
+        return response()->json(['created' => $created, 'skipped' => $skipped]);
+    }
+
+    public function embajadorRecompensas(Request $request): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) return response()->json(['data' => [], 'summary' => (object) []]);
+
+        $paginated = DB::table('referral_rewards as rw')
+            ->join('referrals as r', 'r.id', '=', 'rw.referral_id')
+            ->join('clients as c', 'c.id', '=', 'r.referred_client_id')
+            ->leftJoin('users as u', 'u.id', '=', 'c.user_id')
+            ->where('rw.embajador_id', $client->id)
+            ->select([
+                'rw.id', 'rw.status',
+                'rw.plan_value_snapshot as plan_value',
+                'rw.available_at', 'rw.applied_at', 'rw.expires_at',
+                DB::raw("TRIM(CONCAT(COALESCE(u.name,''), ' ', COALESCE(u.father_last_name,''))) as referido_name"),
+            ])
+            ->orderByDesc('rw.created_at')
+            ->paginate((int) $request->input('per_page', 20));
+
+        $summary = DB::table('referral_rewards')
+            ->where('embajador_id', $client->id)
+            ->select('status', DB::raw('count(*) as cnt'))
+            ->groupBy('status')
+            ->pluck('cnt', 'status')
+            ->toArray();
+
+        return response()->json([
+            'data'    => $paginated->items(),
+            'summary' => $summary ?: (object) [],
+        ]);
+    }
+
+    public function embajadorAplicarRecompensa(int $id): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        $reward  = DB::table('referral_rewards')
+            ->where('id', $id)->where('embajador_id', $client?->id)->first();
+        abort_unless($reward, 404);
+        abort_if($reward->status !== 'available', 422, 'La recompensa no está disponible');
+
+        DB::table('referral_rewards')->where('id', $id)->update([
+            'status'     => 'applied',
+            'applied_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function embajadorComisiones(): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) return response()->json(['data' => [], 'grand_total' => 0, 'plan_type' => '']);
+
+        $profile = DB::table('client_referral_profiles')
+            ->where('client_id', $client->id)->first();
+
+        $rows = DB::table('referral_commissions')
+            ->where('beneficiary_id', $client->id)
+            ->select([
+                'period_year', 'period_month', 'status',
+                DB::raw('SUM(commission_amount) as total'),
+                DB::raw('COUNT(*) as count'),
+            ])
+            ->groupBy('period_year', 'period_month', 'status')
+            ->orderByDesc('period_year')->orderByDesc('period_month')
+            ->get();
+
+        $periods = [];
+        foreach ($rows as $row) {
+            $key = $row->period_year . '-' . $row->period_month;
+            if (! isset($periods[$key])) {
+                $periods[$key] = [
+                    'period_year'  => (int) $row->period_year,
+                    'period_month' => (int) $row->period_month,
+                    'total'        => 0.0,
+                    'count'        => 0,
+                    'by_status'    => [],
+                ];
+            }
+            $periods[$key]['total']                   += (float) $row->total;
+            $periods[$key]['count']                   += (int) $row->count;
+            $periods[$key]['by_status'][$row->status]  = (float) $row->total;
+        }
+
+        $grandTotal = array_sum(array_column(array_values($periods), 'total'));
+
+        return response()->json([
+            'data'        => array_values($periods),
+            'grand_total' => round($grandTotal, 2),
+            'plan_type'   => optional($profile)->plan_type ?? 'multilevel',
+        ]);
+    }
+
+    public function embajadorNotificationsLog(Request $request): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) return response()->json(['data' => [], 'last_page' => 1]);
+
+        $paginated = DB::table('referral_notification_logs')
+            ->where('client_id', $client->id)
+            ->orderByDesc('sent_at')
+            ->paginate((int) $request->input('per_page', 20));
+
+        return response()->json([
+            'data'      => $paginated->items(),
+            'last_page' => $paginated->lastPage(),
+        ]);
+    }
+
+    public function embajadorShareMasivo(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'shared'  => count($request->input('contacts', [])),
+        ]);
+    }
+
+    private function formatProspecto(object $r, int $clientId, array $followups = []): array
+    {
+        $followupsCount = empty($followups)
+            ? DB::table('prospect_followups')->where('prospect_id', $r->id)->count()
+            : count($followups);
+
+        return [
+            'id'              => $r->id,
+            'name'            => $r->name,
+            'phone'           => $r->phone,
+            'email'           => $r->email,
+            'address'         => $r->address,
+            'source'          => $r->source,
+            'status'          => $r->status,
+            'notes'           => $r->notes,
+            'converted_at'    => $r->converted_at,
+            'last_contact_at' => $r->last_contact_at,
+            'created_at'      => $r->created_at,
+            'followups_count' => $followupsCount,
+            'followups'       => array_map(fn($f) => $this->formatFollowup($f), $followups),
+        ];
+    }
+
+    private function formatFollowup(object $r): array
+    {
+        return [
+            'id'               => $r->id,
+            'action'           => $r->action,
+            'notes'            => $r->notes,
+            'next_action_date' => $r->next_action_date ?? null,
+            'created_at'       => $r->created_at,
+        ];
     }
 }
