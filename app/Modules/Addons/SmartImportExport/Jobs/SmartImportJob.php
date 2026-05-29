@@ -96,6 +96,18 @@ class SmartImportJob implements ShouldQueue
         }
         $analysisFile = $analysis['file'] ?? null;
 
+        // Extraer registros de migrations del dump para sincronizar post-import
+        // Laravel almacena los nombres SIN extensión .php en la tabla migrations
+        $dumpMigrations = [];
+        if (isset($analysis['datasets']['migrations'])) {
+            foreach ($analysis['datasets']['migrations'] as $row) {
+                if (isset($row['migration'], $row['batch'])) {
+                    $name = str_replace('.php', '', $row['migration']);
+                    $dumpMigrations[$name] = (int) $row['batch'];
+                }
+            }
+        }
+
         // Rehidratar el mapa de columnas del DUMP en el service — sanitizeRow
         // lo necesita para schema-drift-safe array_combine cuando el INSERT
         // del dump no trae lista de columnas (mysqldump default).
@@ -161,6 +173,9 @@ class SmartImportJob implements ShouldQueue
                     $carry['errors']   += $row['errors'] ?? 0;
                     return $carry;
                 }, ['imported' => 0, 'skipped' => 0, 'errors' => 0]);
+
+                $syncResult = $service->syncMigrationTable($dumpMigrations);
+                $log[] = "✓ Migraciones sincronizadas: {$syncResult['synced']} registros insertados (batch {$syncResult['batch']}).";
 
                 self::setStatus($this->jobId, [
                     'state'     => 'completed',
@@ -239,6 +254,9 @@ class SmartImportJob implements ShouldQueue
                 $carry['errors']   += $row['errors'] ?? 0;
                 return $carry;
             }, ['imported' => 0, 'skipped' => 0, 'errors' => 0]);
+
+            $syncResult = $service->syncMigrationTable($dumpMigrations);
+            $log[] = "✓ Migraciones sincronizadas: {$syncResult['synced']} registros insertados (batch {$syncResult['batch']}).";
 
             self::setStatus($this->jobId, [
                 'state'     => 'completed',

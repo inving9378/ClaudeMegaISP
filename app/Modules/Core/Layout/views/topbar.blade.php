@@ -37,22 +37,20 @@
                 </a>
             </div>
 
-            <span class="badge align-self-center ms-2 px-3 py-2 fw-bold"
+            <button type="button" class="btn btn-sm px-3 font-size-16 header-item" id="vertical-menu-btn">
+                <i class="fa fa-fw fa-bars"></i>
+            </button>
+
+            <span class="badge align-self-center ms-2 me-4 px-3 py-2 fw-bold"
                 style="background-color: #ff6b00; color: #fff; font-size: 13px; letter-spacing: 1px; border-radius: 4px; box-shadow: 0 0 8px rgba(255,107,0,0.5);"
                 title="Entorno de prueba">
                 CLAUDE TEST
             </span>
-
-            <button type="button" class="btn btn-sm px-3 font-size-16 header-item" id="vertical-menu-btn">
-                <i class="fa fa-fw fa-bars"></i>
-            </button>
         </div>
 
         <div class="d-flex">
-            <div class="dropdown d-sm-inline-block">
-                <Mode-Visual-Body user="{{ auth()->user()->id }}" configlayout="{{ json_encode($config) }}">
-                </Mode-Visual-Body>
-            </div>
+            <Mode-Visual-Body user="{{ auth()->user()->id }}" configlayout="{{ json_encode($config) }}">
+            </Mode-Visual-Body>
 
             <!-- MANUAL_TEST_OK -->
             @if(auth()->user()->can('manual_view'))
@@ -68,42 +66,8 @@
                 <i class="far fa-folder-open"></i>
             </button>
 
-            <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel" style="width: 350px;">
-                <div class="offcanvas-header bg-light border-bottom">
-                    <h5 id="offcanvasRightLabel" class="mb-0">
-
-                        {{-- Verificar permisos para mostrar hipervínculo o texto plano --}}
-                        @if(auth()->user()->can('documentation_add_documentation') ||
-                            auth()->user()->can('documentation_edit_documentation') ||
-                            auth()->user()->can('documentation_delete_documentation'))
-                            <a href="{{ url('/administracion/documentation/documentation_menu') }}"
-                                class="text-decoration-none"
-                                {{-- Ajuste para cambio de color al hacer mouseover --}}
-                                style="color: inherit; transition: color 0.2s ease;"
-                                onmouseover="this.style.color='#0d6efd'"
-                                onmouseout="this.style.color='inherit'"
-                                title="Ir a Administración de Documentación">
-                                <i class="far fa-folder-open me-2"></i>
-                                Documentación
-                            </a>
-                        @else
-                            <i class="far fa-folder-open me-2 text-primary"></i>
-                            Documentación
-                        @endif
-
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"
-                        aria-label="Cerrar"></button>
-                </div>
-                <div class="offcanvas-body p-0 bg-white">
-                    <documentation-tree-menu></documentation-tree-menu>
-                </div>
-            </div>
-
-
-
-            <div class="dropdown d-inline-block">
-                @isset($notifications)
+            @isset($notifications)
+                <div class="dropdown d-inline-block">
                     <button type="button" class="btn header-item noti-icon position-relative"
                         id="page-header-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true"
                         aria-expanded="false">
@@ -117,33 +81,73 @@
                             <Notification-Topbar notifications="{{ json_encode($notifications) }}"></Notification-Topbar>
                         </div>
                     @endif
-                @endisset
-
-                <div class="dropdown d-inline-block">
-                    <button type="button" class="btn header-item bg-soft-light border-start border-end"
-                        id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true"
-                        aria-expanded="false">
-                        <img class="rounded-circle header-profile-user" src="{{ auth()->user()->url_photography }}"
-                            alt="Header Avatar">
-                        <span
-                            class="d-none d-xl-inline-block ms-1 fw-medium">{{ \Illuminate\Support\Facades\Auth::user()->name }}</span>
-                        <i class="mdi mdi-chevron-down d-none d-xl-inline-block"></i>
-                    </button>
-                    <div class="dropdown-menu dropdown-menu-end">
-                        <!-- item-->
-                        <a class="dropdown-item" href="{{ url('/perfil/' . auth()->user()->id) }}"><i
-                                class="mdi mdi-face-profile font-size-16 align-middle me-1"></i> Perfil</a>
-                        <a class="dropdown-item" href="{{ route('logout') }}"
-                            onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                            <i class="mdi mdi-logout font-size-16 align-middle me-1"></i> Desconectar
-                        </a>
-
-                        <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                            @csrf
-                        </form>
-                    </div>
                 </div>
+            @endisset
 
+            <div class="dropdown d-inline-block">
+                <button type="button" class="btn header-item bg-soft-light border-start border-end"
+                    id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true"
+                    aria-expanded="false">
+                    <img class="rounded-circle header-profile-user" src="{{ auth()->user()->url_photography }}"
+                        alt="Header Avatar">
+                    <span
+                        class="d-none d-xl-inline-block ms-1 fw-medium">{{ \Illuminate\Support\Facades\Auth::user()->name }}</span>
+                    <i class="mdi mdi-chevron-down d-none d-xl-inline-block"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end">
+                    <!-- item-->
+                    <a class="dropdown-item" href="{{ url('/perfil/' . auth()->user()->id) }}"><i
+                            class="mdi mdi-face-profile font-size-16 align-middle me-1"></i> Perfil</a>
+                    <a class="dropdown-item" href="{{ route('logout') }}"
+                        onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                        <i class="mdi mdi-logout font-size-16 align-middle me-1"></i> Desconectar
+                    </a>
+
+                    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                        @csrf
+                    </form>
+                </div>
             </div>
         </div>
+    </div>
 </header>
+
+<style>
+/* Centrar verticalmente íconos en header-items directos del lado derecho */
+.navbar-header > .d-flex:last-child > .header-item {
+    display: flex;
+    align-items: center;
+}
+</style>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel" style="width: 350px;">
+    <div class="offcanvas-header bg-light border-bottom">
+        <h5 id="offcanvasRightLabel" class="mb-0">
+
+            {{-- Verificar permisos para mostrar hipervínculo o texto plano --}}
+            @if(auth()->user()->can('documentation_add_documentation') ||
+                auth()->user()->can('documentation_edit_documentation') ||
+                auth()->user()->can('documentation_delete_documentation'))
+                <a href="{{ url('/administracion/documentation/documentation_menu') }}"
+                    class="text-decoration-none"
+                    {{-- Ajuste para cambio de color al hacer mouseover --}}
+                    style="color: inherit; transition: color 0.2s ease;"
+                    onmouseover="this.style.color='#0d6efd'"
+                    onmouseout="this.style.color='inherit'"
+                    title="Ir a Administración de Documentación">
+                    <i class="far fa-folder-open me-2"></i>
+                    Documentación
+                </a>
+            @else
+                <i class="far fa-folder-open me-2 text-primary"></i>
+                Documentación
+            @endif
+
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"
+            aria-label="Cerrar"></button>
+    </div>
+    <div class="offcanvas-body p-0 bg-white">
+        <documentation-tree-menu></documentation-tree-menu>
+    </div>
+</div>
