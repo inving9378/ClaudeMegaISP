@@ -259,6 +259,7 @@ Route::prefix('api/megafamilia')->middleware('log_api_mobile')->group(function (
 
         Route::get('/profiles', [ApiController::class, 'profiles']);
         Route::post('/profiles', [ApiController::class, 'storeProfile']);
+        Route::get('/profiles/{id}', [ApiController::class, 'profileDetail'])->whereNumber('id');
         Route::get('/profiles/{id}/devices', [ApiController::class, 'profileDevices'])->whereNumber('id');
         Route::get('/profiles/{id}/tasks', [ApiController::class, 'profileTasks'])->whereNumber('id');
         Route::get('/profiles/{id}/location', [ApiController::class, 'profileLocation'])->whereNumber('id');
@@ -268,6 +269,11 @@ Route::prefix('api/megafamilia')->middleware('log_api_mobile')->group(function (
         Route::put('/devices/{id}/rules', [ApiController::class, 'updateDeviceRules'])->whereNumber('id');
 
         Route::post('/tasks/{id}/complete', [ApiController::class, 'completeTask'])->whereNumber('id');
+
+        Route::get('/tecnico/ordenes', [ApiController::class, 'tecnicoOrdenes']);
+        Route::put('/tecnico/ordenes/{id}', [ApiController::class, 'updateTecnicoOrden'])->whereNumber('id');
+
+        Route::get('/hijo/tareas', [ApiController::class, 'hijoTareas']);
 
         Route::post('/requests', [ApiController::class, 'storeRequest']);
         Route::get('/requests/pending', [ApiController::class, 'pendingRequests']);
