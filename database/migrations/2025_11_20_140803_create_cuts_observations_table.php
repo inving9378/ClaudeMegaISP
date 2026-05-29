@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('cuts_observations', function (Blueprint $table) {
+        if (!Schema::hasTable('cuts_observations')) Schema::create('cuts_observations', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('seller_id');
             $table->foreign('seller_id')->references('id')->on('sellers')->onDelete('cascade');

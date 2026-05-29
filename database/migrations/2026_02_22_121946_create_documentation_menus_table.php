@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('documentation_menus', function (Blueprint $table) {
+        if (!Schema::hasTable('documentation_menus')) Schema::create('documentation_menus', function (Blueprint $table) {
             $table->id();
             $table->string('title')->unique();
             $table->unsignedBigInteger('created_by')->nullable();

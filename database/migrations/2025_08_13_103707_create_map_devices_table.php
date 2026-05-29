@@ -18,6 +18,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('map_devices'))
         Schema::create('map_devices', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -34,6 +35,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        if (!Schema::hasTable('map_devices_ports'))
         Schema::create('map_devices_ports', function (Blueprint $table) {
             $table->id();
             $table->string('name')->nullable();
@@ -51,6 +53,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        if (!Schema::hasTable('map_devices_ports_connections'))
         Schema::create('map_devices_ports_connections', function (Blueprint $table) {
             $table->id();
             $table->morphs('from');
@@ -64,6 +67,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        try {
         $splitters = MapSplitter::where('splitter_users', false)->get();
         foreach ($splitters as $s) {
             $device = MapDevice::create([
@@ -294,6 +298,9 @@ return new class extends Migration
                     'note' => $p->note
                 ]);
             }
+        }
+        } catch (\Throwable $e) {
+            // Skip data migration if models or data are unavailable on fresh install
         }
     }
 

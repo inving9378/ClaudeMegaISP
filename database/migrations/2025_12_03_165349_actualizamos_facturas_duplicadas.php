@@ -18,6 +18,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        try {
         $duplicatedGroups = DB::table('invoices')
             ->select('client_id', 'period', DB::raw('COUNT(*) as total'))
             ->whereNotNull('period')
@@ -83,6 +84,9 @@ return new class extends Migration
             $transaction2?->delete();
             $payment?->delete();
         });
+        } catch (\Throwable $e) {
+            // Skip if data doesn't exist on fresh install
+        }
     }
 
     /**

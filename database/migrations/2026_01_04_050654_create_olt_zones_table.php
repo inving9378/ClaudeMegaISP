@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('olt_zones', function (Blueprint $table) {
+        if (!Schema::hasTable('olt_zones')) Schema::create('olt_zones', function (Blueprint $table) {
             $table->id();
             $table->integer('smartolt_id')->unique();
             $table->string('name')->unique();

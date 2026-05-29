@@ -23,9 +23,13 @@ return new class extends Migration
             $table->unsignedBigInteger('parent_id')->nullable()->change();
             $table->foreign('parent_id')->references('id')->on('map_proyects')->onDelete('set null');
         });
-        $projects = MapProyect::whereNull('parent_id')->orWhere('classification', 'client')->get();
-        foreach ($projects as $p) {
-            $p->delete();
+        try {
+            $projects = MapProyect::whereNull('parent_id')->orWhere('classification', 'client')->get();
+            foreach ($projects as $p) {
+                $p->delete();
+            }
+        } catch (\Throwable $e) {
+            // Skip if dependent tables don't exist on fresh install
         }
         Schema::table('map_layers', function (Blueprint $table) {
             $table->dropForeign(['project_id']);

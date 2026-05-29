@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('olt_uplink_ports', function (Blueprint $table) {
+        if (!Schema::hasTable('olt_uplink_ports')) Schema::create('olt_uplink_ports', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('type')->nullable();

@@ -13,20 +13,28 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('map_splitters', function (Blueprint $table) {
-            $table->boolean('splitter_users')->default(0)->after('box_id');
-        });
+        if (!Schema::hasColumn('map_splitters', 'splitter_users')) {
+            Schema::table('map_splitters', function (Blueprint $table) {
+                $table->boolean('splitter_users')->default(0)->after('box_id');
+            });
+        }
 
-        Schema::table('map_splitters_ports', function (Blueprint $table) {
-            $table->string('name')->nullable()->change();
-            $table->unsignedBigInteger('client_id')->nullable()->after('splitter_id');
-            $table->foreign('client_id')->references('id')->on('client_main_information')->cascadeOnDelete();
-        });
+        if (!Schema::hasColumn('map_splitters_ports', 'client_id')) {
+            Schema::table('map_splitters_ports', function (Blueprint $table) {
+                $table->string('name')->nullable()->change();
+                $table->unsignedBigInteger('client_id')->nullable()->after('splitter_id');
+                $table->foreign('client_id')->references('id')->on('client_main_information')->cascadeOnDelete();
+            });
+        }
 
-        $splitters_users = MapSplitter::where('splitter_users', true)->get()->pluck('box_id');
-        $layers = MapLayer::where('dialog', 'service_box')->whereNotIn('id', $splitters_users)->get();
-        foreach ($layers as $l) {
-            $l->createSplitter(true);
+        try {
+            $splitters_users = MapSplitter::where('splitter_users', true)->get()->pluck('box_id');
+            $layers = MapLayer::where('dialog', 'service_box')->whereNotIn('id', $splitters_users)->get();
+            foreach ($layers as $l) {
+                $l->createSplitter(true);
+            }
+        } catch (\Throwable $e) {
+            // Skip if model or data is unavailable on fresh install
         }
     }
 
