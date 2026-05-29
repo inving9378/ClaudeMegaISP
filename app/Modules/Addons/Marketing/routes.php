@@ -2,19 +2,34 @@
 
 use App\Modules\Addons\Marketing\Controllers\CampaignController;
 use App\Modules\Addons\Marketing\Controllers\ContentGeneratorController;
+use App\Modules\Addons\Marketing\Controllers\EvolutionWebhookController;
 use App\Modules\Addons\Marketing\Controllers\LeadController;
 use App\Modules\Addons\Marketing\Controllers\MarketingController;
+use App\Modules\Addons\Marketing\Controllers\MarketingConversationController;
+use App\Modules\Addons\Marketing\Controllers\MarketingBrandKitController;
+use App\Modules\Addons\Marketing\Controllers\MarketingGeneratedContentController;
+use App\Modules\Addons\Marketing\Controllers\MarketingMultivariantCampaignController;
+use App\Modules\Addons\Marketing\Controllers\MarketingVideoTemplateController;
 use App\Modules\Addons\Marketing\Controllers\MetaAdsWebhookController;
 use App\Modules\Addons\Marketing\Controllers\PublicLeadFormController;
 use App\Modules\Addons\Marketing\Controllers\MarketingLeadController;
 use App\Modules\Addons\Marketing\Controllers\MarketingLeadFormController;
+use App\Modules\Addons\Marketing\Controllers\VoiceComparatorController;
 use Illuminate\Support\Facades\Route;
 
 // ── PÚBLICAS: sin auth ────────────────────────────────────────────────────────
 Route::middleware(['web'])->group(function () {
+    // Logo serve — auth via permission inside controller
+    Route::get('/api/marketing/brand-kit/logo/serve', [MarketingBrandKitController::class, 'serveLogo'])
+        ->name('marketing.brand-kit.logo.serve');
+
     // Meta Ads webhook (GET verify + POST receive)
     Route::match(['get', 'post'], '/webhooks/marketing/meta-ads', [MetaAdsWebhookController::class, 'handle'])
         ->name('marketing.webhook.meta-ads');
+
+    // Evolution API webhook
+    Route::post('/webhooks/marketing/evolution', [EvolutionWebhookController::class, 'handle'])
+        ->name('marketing.webhook.evolution');
 
     // Formulario web embebible
     Route::prefix('public/marketing')->name('marketing.public.')->group(function () {
@@ -43,6 +58,69 @@ Route::middleware(['web', 'auth'])->prefix('api/marketing')->name('api.marketing
     Route::put('lead-forms/{id}', [MarketingLeadFormController::class, 'update'])->name('lead-forms.update');
     Route::delete('lead-forms/{id}', [MarketingLeadFormController::class, 'destroy'])->name('lead-forms.destroy');
     Route::get('lead-forms/{id}/embed-code', [MarketingLeadFormController::class, 'getEmbedCode'])->name('lead-forms.embed-code');
+
+    // Conversations API (Fase 3)
+    Route::prefix('conversations')->name('conversations.')->group(function () {
+        Route::get('/',                                 [MarketingConversationController::class, 'index'])->name('index');
+        Route::get('/{id}',                            [MarketingConversationController::class, 'show'])->name('show');
+        Route::get('/{id}/messages',                   [MarketingConversationController::class, 'messages'])->name('messages');
+        Route::post('/{id}/send-message',              [MarketingConversationController::class, 'sendMessage'])->name('send-message');
+        Route::post('/{id}/toggle-ai',                 [MarketingConversationController::class, 'toggleAi'])->name('toggle-ai');
+        Route::post('/{id}/assign',                    [MarketingConversationController::class, 'assign'])->name('assign');
+        Route::post('/{id}/close',                     [MarketingConversationController::class, 'close'])->name('close');
+        Route::post('/{id}/mark-as-read',              [MarketingConversationController::class, 'markAsRead'])->name('mark-as-read');
+    });
+
+    // Lead Sources API (for ConversationResolver lookups from Vue)
+    Route::get('lead-sources', fn () => response()->json(\App\Models\Marketing\LeadSource::all()))->name('lead-sources.index');
+
+    // Brand Kit API (Fase 4 — MVM)
+    Route::prefix('brand-kit')->name('brand-kit.')->group(function () {
+        Route::get('/',              [MarketingBrandKitController::class, 'show'])->name('show');
+        Route::put('/',              [MarketingBrandKitController::class, 'update'])->name('update');
+        Route::post('logo',          [MarketingBrandKitController::class, 'uploadLogo'])->name('logo.upload');
+        Route::delete('logo',        [MarketingBrandKitController::class, 'deleteLogo'])->name('logo.delete');
+        Route::put('integrations',   [MarketingBrandKitController::class, 'updateIntegrations'])->name('integrations.update');
+    });
+
+    // Video Templates API (Fase 4 — MVM)
+    Route::prefix('video-templates')->name('video-templates.')->group(function () {
+        Route::get('/',              [MarketingVideoTemplateController::class, 'index'])->name('index');
+        Route::get('/{id}',         [MarketingVideoTemplateController::class, 'show'])->name('show');
+        Route::get('/{id}/variables',[MarketingVideoTemplateController::class, 'variables'])->name('variables');
+    });
+
+    // Generated Video Content API (Fase 4 — MVM)
+    Route::prefix('generated-content')->name('generated-content.')->group(function () {
+        Route::get('/',              [MarketingGeneratedContentController::class, 'index'])->name('index');
+        Route::get('/{id}',          [MarketingGeneratedContentController::class, 'show'])->name('show');
+        Route::get('/{id}/progress', [MarketingGeneratedContentController::class, 'progress'])->name('progress');
+        Route::get('/{id}/download', [MarketingGeneratedContentController::class, 'download'])->name('download');
+        Route::post('/render',       [MarketingGeneratedContentController::class, 'render'])->name('render');
+        Route::delete('/{id}',       [MarketingGeneratedContentController::class, 'destroy'])->name('destroy');
+    });
+
+    // ── Multivariant Campaigns (Phase 4.5b) ──────────────────────────────────────
+    Route::prefix('multivariant-campaigns')->name('multivariant-campaigns.')->group(function () {
+        Route::get('/',                                    [MarketingMultivariantCampaignController::class, 'index'])->name('index');
+        Route::post('/',                                   [MarketingMultivariantCampaignController::class, 'store'])->name('store');
+        Route::get('/{id}',                                [MarketingMultivariantCampaignController::class, 'show'])->name('show');
+        Route::delete('/{id}',                             [MarketingMultivariantCampaignController::class, 'destroy'])->name('destroy');
+        Route::get('/{id}/progress',                       [MarketingMultivariantCampaignController::class, 'progress'])->name('progress');
+        Route::post('/{id}/regenerate-variant/{niche}',    [MarketingMultivariantCampaignController::class, 'regenerateVariant'])->name('regenerate-variant');
+    });
+
+    Route::prefix('niches')->name('niches.')->group(function () {
+        Route::get('/',     [MarketingMultivariantCampaignController::class, 'niches'])->name('index');
+        Route::put('/{id}', [MarketingMultivariantCampaignController::class, 'updateNiche'])->name('update');
+    });
+
+    // Voice Comparator (Fase 4.5b+)
+    Route::prefix('voice-comparator')->name('voice-comparator.')->group(function () {
+        Route::get('voices',          [VoiceComparatorController::class, 'listVoices'])->name('voices');
+        Route::post('generate-samples',[VoiceComparatorController::class, 'generateSamples'])->name('generate-samples');
+        Route::post('assign-niche',   [VoiceComparatorController::class, 'assignToNiche'])->name('assign-niche');
+    });
 });
 
 // ── STAFF: panel admin (Blade views) ─────────────────────────────────────────
@@ -53,10 +131,27 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // Vistas principales Fase 2
         Route::get('/leads', fn () => view('addon-marketing::leads'))->name('leads.view');
-        Route::get('/leads/{id}', fn () => view('addon-marketing::lead-detail'))->name('lead-detail.view');
-        Route::get('/forms', fn () => view('addon-marketing::lead-forms'))->name('forms.view');
-        Route::get('/forms/{id}', fn () => view('addon-marketing::lead-form-editor'))->name('form-editor.view');
-        Route::get('/forms/new', fn () => view('addon-marketing::lead-form-editor'))->name('form-new.view');
+        Route::get('/leads/{id}', fn () => view('addon-marketing::lead-detail', ['leadId' => request()->route('id')]))->name('lead-detail.view');
+        Route::get('/lead-forms', fn () => view('addon-marketing::lead-forms'))->name('lead-forms.view');
+        Route::get('/lead-forms/create', fn () => view('addon-marketing::lead-form-editor', ['formId' => null]))->name('lead-forms.create');
+        Route::get('/lead-forms/{id}/edit', fn () => view('addon-marketing::lead-form-editor', ['formId' => request()->route('id')]))->name('lead-forms.edit');
+
+        // Fase 3: Conversaciones
+        Route::get('/conversations', fn () => view('addon-marketing::conversations'))->name('conversations.view');
+        Route::get('/conversations/{id}', fn () => view('addon-marketing::conversations', ['conversationId' => request()->route('id')]))->name('conversations.detail');
+
+        // Fase 4: Motor de Video
+        Route::get('/video-templates', fn () => view('addon-marketing::video-templates'))->name('video-templates.view');
+        Route::get('/video-generator',  fn () => view('addon-marketing::video-generator'))->name('video-generator.view');
+        Route::get('/video-queue',       fn () => view('addon-marketing::video-queue'))->name('video-queue.view');
+        Route::get('/brand-kit',         fn () => view('addon-marketing::brand-kit'))->name('brand-kit.view');
+
+        // Fase 4.5b: Director Creativo IA
+        Route::get('/campaigns/generate', fn () => view('addon-marketing::campaign-generator'))->name('campaigns.generate');
+        Route::get('/campaigns/multivariant', fn () => view('addon-marketing::campaign-generator'))->name('campaigns.multivariant');
+
+        // Voice Comparator
+        Route::get('/voice-comparator', fn () => view('addon-marketing::voice-comparator'))->name('voice-comparator.view');
 
         // Legado (mantener compatible mientras se migra)
         Route::get('/', [MarketingController::class, 'index'])->name('index');

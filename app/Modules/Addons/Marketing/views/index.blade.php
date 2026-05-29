@@ -5,5 +5,5 @@
 @endsection
 
 @section('content')
-    <marketing-dashboard></marketing-dashboard>
+    <marketing-dashboard :auth-user-id="{{ auth()->id() ?? 'null' }}"></marketing-dashboard>
 @endsection
