@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Lectura de agenda: importación de prospectos (Fase 4 Embajadores) -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <application
         android:label="megafamilia"
         android:name="${applicationName}"
