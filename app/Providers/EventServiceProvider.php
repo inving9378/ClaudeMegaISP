@@ -59,6 +59,32 @@ class EventServiceProvider extends ServiceProvider
         ClientRegistered::class => [
             CalculateClientCommission::class,
         ],
+
+        // Embajadores Meganet — motor de comisiones + activación embajadores
+        \App\Events\InvoicePaid::class => [
+            \App\Listeners\Referrals\HandleInvoicePaid::class,
+            \App\Listeners\Referrals\AccumulateClientThreshold::class,
+        ],
+
+        // Embajadores Meganet — notificaciones WhatsApp
+        \App\Events\Referrals\EmbajadorActivated::class => [
+            \App\Listeners\Referrals\NotifyEmbajadorActivated::class,
+        ],
+        \App\Events\Referrals\ProspectConverted::class => [
+            \App\Listeners\Referrals\NotifyProspectConverted::class,
+        ],
+        \App\Events\Referrals\ReferralThresholdCovered::class => [
+            \App\Listeners\Referrals\NotifyThresholdCovered::class,
+        ],
+        \App\Events\Referrals\ReferralCommissionGenerated::class => [
+            \App\Listeners\Referrals\NotifyCommissionGenerated::class,
+        ],
+        \App\Events\Referrals\ReferralCommissionsApplied::class => [
+            \App\Listeners\Referrals\NotifyCommissionsApplied::class,
+        ],
+        \App\Events\Referrals\ReferralRewardExpiringSoon::class => [
+            \App\Listeners\Referrals\NotifyRewardExpiringSoon::class,
+        ],
     ];
 
     /**
