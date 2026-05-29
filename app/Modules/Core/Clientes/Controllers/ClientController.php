@@ -112,7 +112,9 @@ class ClientController extends Controller
         if ($request->import) { //TODO Quitar despues de la primera importacion
             $this->importData($request);
         } else {
-            $model = $this->data['model']::create();
+            $model = $this->data['model']::create(
+                array_filter(['referred_by_code' => $request->referred_by_code])
+            );
             $model = $model->clientCreateClientMainInformation($request)
                 ->clientCreateClientAdditionalInformation($request);
             $clientHelper = new ClientHelperController($model);

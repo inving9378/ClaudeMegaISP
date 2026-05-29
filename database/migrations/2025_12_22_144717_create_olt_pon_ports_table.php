@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('olt_pon_ports', function (Blueprint $table) {
+        if (!Schema::hasTable('olt_pon_ports')) Schema::create('olt_pon_ports', function (Blueprint $table) {
             $table->id();
             $table->integer('board');
             $table->integer('pon_port');

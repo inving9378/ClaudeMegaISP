@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Embajadores — Clientes Admin</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a2332;font-size:14px}
+  .topbar{background:#1565c0;color:#fff;height:56px;display:flex;align-items:center;padding:0 24px;font-size:15px;font-weight:600}
+  .topbar span{opacity:.7;font-size:13px;font-weight:400;margin-left:auto}
+  .sidebar{position:fixed;top:56px;left:0;width:220px;height:calc(100vh-56px);background:#fff;border-right:1px solid #e8ecf0;padding:16px 0}
+  .sidebar-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:#4a5568;font-size:13px}
+  .sidebar-item.active{background:#e3f2fd;color:#1565c0;border-left:3px solid #1565c0;font-weight:600}
+  .sidebar-section{font-size:10px;font-weight:700;color:#9aa5b4;text-transform:uppercase;letter-spacing:.8px;padding:16px 20px 6px}
+  .content{margin-left:220px;padding:24px;padding-top:80px}
+  .page-title{font-size:20px;font-weight:700;margin-bottom:4px}
+  .page-subtitle{color:#6b7280;font-size:13px;margin-bottom:20px}
+  .toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+  .search-box{flex:1;padding:9px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff}
+  .select-box{padding:9px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;color:#374151}
+  .card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:#f7f9fc;text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e8ecf0}
+  td{padding:12px 14px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+  tr:hover td{background:#f9fafb}
+  .chip{font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;display:inline-block}
+  .chip-multi{background:#e3f2fd;color:#1565c0}
+  .chip-single{background:#f3e5f5;color:#6a1b9a}
+  .chip-eligible{background:#e8f5e9;color:#2e7d32}
+  .chip-pending{background:#fff3e0;color:#e65100}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#1565c0;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;margin-right:8px}
+  .name-cell{display:flex;align-items:center}
+  .code{font-family:monospace;font-size:12px;color:#6b7280;background:#f3f4f6;padding:2px 6px;border-radius:4px}
+  .money{font-weight:700;font-family:monospace}
+  .pagination{display:flex;align-items:center;justify-content:between;padding:14px 16px;font-size:13px;color:#6b7280;border-top:1px solid #f3f4f6}
+  .btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none}
+  .btn-primary{background:#1565c0;color:#fff}
+  .btn-outline{background:#fff;color:#1565c0;border:1px solid #1565c0}
+  .progress{background:#e8ecf0;border-radius:4px;height:6px;overflow:hidden;width:80px;display:inline-block;vertical-align:middle}
+  .progress-fill{background:#1565c0;height:6px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="topbar">📊 Medussa MegaISP — Embajadores<span>admin@meganet.com</span></div>
+<div class="sidebar">
+  <div class="sidebar-section">Embajadores</div>
+  <div class="sidebar-item">📊 Dashboard</div>
+  <div class="sidebar-item active">👥 Embajadores</div>
+  <div class="sidebar-item">💰 Comisiones</div>
+  <div class="sidebar-item">⚙️ Configuración</div>
+  <div class="sidebar-item">🏷️ Tiers</div>
+</div>
+<div class="content">
+  <div class="page-title">Embajadores</div>
+  <div class="page-subtitle">200 embajadores registrados — 143 elegibles activos</div>
+
+  <div class="toolbar">
+    <input class="search-box" placeholder="🔍  Buscar por nombre, teléfono, código..." value="">
+    <select class="select-box"><option>Todos los planes</option><option>Multinivel</option><option>Plan A</option></select>
+    <select class="select-box"><option>Todos</option><option>Elegibles</option><option>En progreso</option></select>
+    <button class="btn btn-primary">Exportar CSV</button>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Embajador</th>
+          <th>Código Ref.</th>
+          <th>Plan</th>
+          <th>Estado</th>
+          <th>Threshold</th>
+          <th>Comisiones</th>
+          <th>Referidos</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div class="name-cell"><div class="avatar">M</div>Cliente #222756</div></td>
+          <td><span class="code">SIM0222756</span></td>
+          <td><span class="chip chip-multi">Multinivel</span></td>
+          <td><span class="chip chip-eligible">✓ Elegible</span></td>
+          <td><div class="progress"><div class="progress-fill" style="width:100%"></div></div> 100%</td>
+          <td class="money" style="color:#2e7d32">$1,587.27</td>
+          <td>3 activos</td>
+          <td><button class="btn btn-outline" style="font-size:11px">Ver detalle</button></td>
+        </tr>
+        <tr>
+          <td><div class="name-cell"><div class="avatar">A</div>Cliente #222782</div></td>
+          <td><span class="code">SIM0222782</span></td>
+          <td><span class="chip chip-multi">Multinivel</span></td>
+          <td><span class="chip chip-eligible">✓ Elegible</span></td>
+          <td><div class="progress"><div class="progress-fill" style="width:100%"></div></div> 100%</td>
+          <td class="money" style="color:#2e7d32">$1,514.88</td>
+          <td>3 activos</td>
+          <td><button class="btn btn-outline" style="font-size:11px">Ver detalle</button></td>
+        </tr>
+        <tr>
+          <td><div class="name-cell"><div class="avatar">R</div>Cliente #222787</div></td>
+          <td><span class="code">SIM0222787</span></td>
+          <td><span class="chip chip-multi">Multinivel</span></td>
+          <td><span class="chip chip-eligible">✓ Elegible</span></td>
+          <td><div class="progress"><div class="progress-fill" style="width:100%"></div></div> 100%</td>
+          <td class="money" style="color:#2e7d32">$1,483.41</td>
+          <td>3 activos</td>
+          <td><button class="btn btn-outline" style="font-size:11px">Ver detalle</button></td>
+        </tr>
+        <tr>
+          <td><div class="name-cell"><div class="avatar">L</div>Cliente #222777</div></td>
+          <td><span class="code">SIM0222777</span></td>
+          <td><span class="chip chip-multi">Multinivel</span></td>
+          <td><span class="chip chip-pending">⚠ Sin umbral</span></td>
+          <td><div class="progress"><div class="progress-fill" style="width:85%;background:#e65100"></div></div> 85%</td>
+          <td class="money" style="color:#2e7d32">$1,353.90</td>
+          <td>3 activos</td>
+          <td><button class="btn btn-outline" style="font-size:11px">Ver detalle</button></td>
+        </tr>
+        <tr>
+          <td><div class="name-cell"><div class="avatar">C</div>Cliente #222791</div></td>
+          <td><span class="code">SIM0222791</span></td>
+          <td><span class="chip chip-multi">Multinivel</span></td>
+          <td><span class="chip chip-eligible">✓ Elegible</span></td>
+          <td><div class="progress"><div class="progress-fill" style="width:100%"></div></div> 100%</td>
+          <td class="money" style="color:#2e7d32">$1,257.54</td>
+          <td>3 activos</td>
+          <td><button class="btn btn-outline" style="font-size:11px">Ver detalle</button></td>
+        </tr>
+        <tr>
+          <td><div class="name-cell"><div class="avatar">S</div>Cliente #222741</div></td>
+          <td><span class="code">SIM0222741</span></td>
+          <td><span class="chip chip-single">Plan A</span></td>
+          <td><span class="chip chip-eligible">✓ Elegible</span></td>
+          <td><div class="progress"><div class="progress-fill" style="width:100%"></div></div> 100%</td>
+          <td class="money" style="color:#6a1b9a">3 recompensas</td>
+          <td>3 activos</td>
+          <td><button class="btn btn-outline" style="font-size:11px">Ver detalle</button></td>
+        </tr>
+        <tr>
+          <td><div class="name-cell"><div class="avatar">P</div>Cliente #222742</div></td>
+          <td><span class="code">SIM0222742</span></td>
+          <td><span class="chip chip-multi">Multinivel</span></td>
+          <td><span class="chip chip-eligible">✓ Elegible</span></td>
+          <td><div class="progress"><div class="progress-fill" style="width:100%"></div></div> 100%</td>
+          <td class="money" style="color:#2e7d32">$856.20</td>
+          <td>3 activos</td>
+          <td><button class="btn btn-outline" style="font-size:11px">Ver detalle</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="pagination">
+      Mostrando 1–25 de 200 embajadores
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-outline" disabled>← Anterior</button>
+        <button class="btn btn-outline">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

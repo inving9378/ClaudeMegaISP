@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('client_payment_metadata'))
         Schema::create('client_payment_metadata', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('payment_id');
@@ -32,9 +33,11 @@ return new class extends Migration
             // Índices para mejor performance
             $table->index(['payment_id', 'client_id']);
         });
-        Schema::table('payments', function (Blueprint $table) {
-            $table->softDeletes();
-        });
+        if (!Schema::hasColumn('payments', 'deleted_at')) {
+            Schema::table('payments', function (Blueprint $table) {
+                $table->softDeletes();
+            });
+        }
     }
 
     /**

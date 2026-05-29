@@ -14,6 +14,9 @@ return new class extends Migration
     public function up(): void
     {
         $diana = CommissionRule::firstWhere('name', 'Diana');
+        if (!$diana) {
+            return;
+        }
         $diana->selected_fields = ['fixed_salary', 'minimum_sales', 'installation_cost'];
         $diana->fixed_salary = 2300;
         $diana->is_fixed_salary = true;

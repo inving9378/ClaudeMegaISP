@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('documentation_contents', function (Blueprint $table) {
+        if (!Schema::hasTable('documentation_contents')) Schema::create('documentation_contents', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('documentation_submenu_id');
             $table->text('content');

@@ -1,0 +1,9 @@
+{
+    "id": 140,
+    "name": "CobranzaBlaster",
+    "slug": "addon-cobranza-blaster",
+    "type": "addon",
+    "description": "Blaster de cobranzas vía Asterisk AMI — llamadas automáticas a clientes morosos",
+    "version": "1.0.0",
+    "active": true
+}

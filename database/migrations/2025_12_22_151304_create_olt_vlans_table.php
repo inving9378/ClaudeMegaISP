@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('olt_vlans', function (Blueprint $table) {
+        if (!Schema::hasTable('olt_vlans')) Schema::create('olt_vlans', function (Blueprint $table) {
             $table->id();
             $table->integer('smartolt_id')->unique();
             $table->string('vlan')->nullable();

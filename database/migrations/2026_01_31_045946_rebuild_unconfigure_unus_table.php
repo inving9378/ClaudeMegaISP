@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::dropIfExists('olt_unconfigured_onus');
-        Schema::create('olt_unconfigured_onus', function (Blueprint $table) {
+        if (!Schema::hasTable('olt_unconfigured_onus')) Schema::create('olt_unconfigured_onus', function (Blueprint $table) {
             $table->id();
             $table->string('sn')->unique();
             $table->integer('board');

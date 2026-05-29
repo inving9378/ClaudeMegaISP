@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('cut_installations', function (Blueprint $table) {
+        if (!Schema::hasTable('cut_installations')) Schema::create('cut_installations', function (Blueprint $table) {
             $table->id();
             $table->string('service_id');
             $table->double('service_amount')->default(0);

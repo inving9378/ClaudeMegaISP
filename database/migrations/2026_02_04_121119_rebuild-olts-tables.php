@@ -12,10 +12,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        \DB::statement('SET FOREIGN_KEY_CHECKS=0');
         $tables = ['olt_onus', 'olt_cards', 'olt_interruption_pons', 'olt_odbs', 'olt_pon_ports', 'olt_speed_profiles', 'olt_type_onus', 'olt_unconfigured_onus', 'olt_uplink_ports', 'olt_vlans', 'olt_zones', 'olts'];
         foreach ($tables as $t) {
             Schema::dropIfExists($t);
         }
+        \DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
         Schema::create('olts', function (Blueprint $table) {
             $table->id();

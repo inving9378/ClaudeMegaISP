@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embajadores — Dashboard Admin</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a2332;font-size:14px}
+  .topbar{background:#1565c0;color:#fff;height:56px;display:flex;align-items:center;padding:0 24px;gap:16px;font-size:15px;font-weight:600}
+  .topbar span{opacity:.7;font-size:13px;font-weight:400}
+  .sidebar{position:fixed;top:56px;left:0;width:220px;height:calc(100vh - 56px);background:#fff;border-right:1px solid #e8ecf0;padding:16px 0;overflow-y:auto}
+  .sidebar-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:#4a5568;font-size:13px;cursor:pointer;border-left:3px solid transparent}
+  .sidebar-item.active{background:#e3f2fd;color:#1565c0;border-left-color:#1565c0;font-weight:600}
+  .sidebar-item:hover:not(.active){background:#f7f9fc}
+  .sidebar-section{font-size:10px;font-weight:700;color:#9aa5b4;text-transform:uppercase;letter-spacing:.8px;padding:16px 20px 6px}
+  .content{margin-left:220px;padding:24px;padding-top:80px}
+  .page-title{font-size:20px;font-weight:700;color:#1a2332;margin-bottom:4px}
+  .page-subtitle{color:#6b7280;font-size:13px;margin-bottom:24px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px}
+  .kpi-card{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid}
+  .kpi-card.blue{border-left-color:#1565c0}
+  .kpi-card.green{border-left-color:#2e7d32}
+  .kpi-card.orange{border-left-color:#e65100}
+  .kpi-card.purple{border-left-color:#6a1b9a}
+  .kpi-card.teal{border-left-color:#00695c}
+  .kpi-label{font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+  .kpi-value{font-size:28px;font-weight:700;line-height:1}
+  .kpi-sub{font-size:11px;color:#9aa5b4;margin-top:6px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  .card{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+  .card-title{font-size:13px;font-weight:700;color:#1a2332;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+  .badge{font-size:10px;padding:3px 8px;border-radius:12px;font-weight:600}
+  .badge-blue{background:#e3f2fd;color:#1565c0}
+  .badge-green{background:#e8f5e9;color:#2e7d32}
+  .badge-orange{background:#fff3e0;color:#e65100}
+  .badge-gray{background:#f3f4f6;color:#4b5563}
+  .plan-bar{margin-bottom:10px}
+  .plan-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+  .plan-track{background:#f0f2f5;border-radius:4px;height:8px;overflow:hidden}
+  .plan-fill{height:8px;border-radius:4px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{background:#f7f9fc;text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e8ecf0}
+  td{padding:10px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+  .dot-green{background:#2e7d32}
+  .dot-orange{background:#e65100}
+  .dot-blue{background:#1565c0}
+  .chip{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block}
+  .chip-multilevel{background:#e3f2fd;color:#1565c0}
+  .chip-reward{background:#f3e5f5;color:#6a1b9a}
+  .data-note{font-size:11px;color:#9aa5b4;margin-top:12px;text-align:right}
+  .chart-bars{display:flex;align-items:flex-end;gap:6px;height:80px;margin-top:8px}
+  .bar-col{display:flex;flex-direction:column;align-items:center;flex:1}
+  .bar{background:#1565c0;border-radius:3px 3px 0 0;width:100%;min-height:4px}
+  .bar-label{font-size:9px;color:#9aa5b4;margin-top:4px}
+  .bar-val{font-size:9px;color:#4a5568;font-weight:600}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+  Medussa MegaISP
+  <span style="margin-left:auto">admin@meganet.com</span>
+</div>
+<div class="sidebar">
+  <div class="sidebar-section">Embajadores</div>
+  <div class="sidebar-item active">📊 Dashboard</div>
+  <div class="sidebar-item">👥 Embajadores</div>
+  <div class="sidebar-item">💰 Comisiones</div>
+  <div class="sidebar-item">🎁 Recompensas</div>
+  <div class="sidebar-item">⚙️ Configuración</div>
+  <div class="sidebar-item">🏷️ Tiers</div>
+</div>
+<div class="content">
+  <div class="page-title">Dashboard Embajadores</div>
+  <div class="page-subtitle">Datos de simulación — 605 clientes sintéticos • 3 meses de historial</div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-label">Total Embajadores</div>
+      <div class="kpi-value">200</div>
+      <div class="kpi-sub">en 4 niveles de red</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Embajadores Activos</div>
+      <div class="kpi-value">143</div>
+      <div class="kpi-sub">71.5% de elegibilidad</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Comisiones Mayo</div>
+      <div class="kpi-value">$20,306</div>
+      <div class="kpi-sub">928 registros este mes</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Pendientes Aprobación</div>
+      <div class="kpi-value">563</div>
+      <div class="kpi-sub">$12,546 en cola</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">Recompensas Disponibles</div>
+      <div class="kpi-value">144</div>
+      <div class="kpi-sub">mensualidades Plan A</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <div class="card-title">Distribución por Plan <span class="badge badge-gray">200 embajadores</span></div>
+      <div class="plan-bar">
+        <div class="plan-label"><span>Multinivel</span><span style="font-weight:700;color:#1565c0">122 (61%)</span></div>
+        <div class="plan-track"><div class="plan-fill" style="background:#1565c0;width:61%"></div></div>
+      </div>
+      <div class="plan-bar">
+        <div class="plan-label"><span>Plan A (Single Reward)</span><span style="font-weight:700;color:#6a1b9a">78 (39%)</span></div>
+        <div class="plan-track"><div class="plan-fill" style="background:#6a1b9a;width:39%"></div></div>
+      </div>
+      <div style="margin-top:16px">
+        <div class="card-title" style="margin-bottom:8px">Comisiones por nivel (3 meses)</div>
+        <div class="chart-bars">
+          <div class="bar-col">
+            <div class="bar-val">$31,576</div>
+            <div class="bar" style="height:80px;background:#1565c0"></div>
+            <div class="bar-label">Nivel 0</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar-val">$15,366</div>
+            <div class="bar" style="height:39px;background:#1976d2"></div>
+            <div class="bar-label">Nivel 1</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar-val">$9,140</div>
+            <div class="bar" style="height:23px;background:#42a5f5"></div>
+            <div class="bar-label">Nivel 2</div>
+          </div>
+          <div class="bar-col">
+            <div class="bar-val">$4,792</div>
+            <div class="bar" style="height:12px;background:#90caf9"></div>
+            <div class="bar-label">Nivel 3</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Resumen Financiero (3 meses)</div>
+      <table>
+        <tr><td style="color:#6b7280">Total facturado</td><td style="font-weight:700;text-align:right">$512,247</td></tr>
+        <tr><td style="color:#6b7280">Comisiones generadas</td><td style="font-weight:700;color:#e65100;text-align:right">$60,875</td></tr>
+        <tr><td style="color:#6b7280">% del facturado</td><td style="font-weight:700;color:#e65100;text-align:right">11.88%</td></tr>
+        <tr><td style="color:#6b7280">Aplicadas a balance</td><td style="font-weight:700;color:#2e7d32;text-align:right">$48,344</td></tr>
+        <tr><td style="color:#6b7280">Pendientes aprobación</td><td style="font-weight:700;color:#1565c0;text-align:right">$12,531</td></tr>
+        <tr><td style="color:#6b7280">Recompensas Plan A (valor)</td><td style="font-weight:700;color:#6a1b9a;text-align:right">$67,665</td></tr>
+      </table>
+      <div style="margin-top:16px;padding:12px;background:#fff8e1;border-radius:8px;font-size:12px;color:#e65100;border-left:3px solid #ffa000">
+        ⚠️ Costo de comisiones 11.88% — por encima del umbral recomendado 8-10%. Revisar tiers antes del lanzamiento.
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Comisiones Recientes — Pendientes de Aprobación</div>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Beneficiario</th><th>Plan referido</th><th>Nivel</th><th>Periodo</th><th>Monto</th><th>Estado</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>#1040996</td><td>Cliente #222760</td><td>Standard $449</td><td><span class="badge badge-gray">L4</span></td><td>Mayo 2026</td><td>$8.98</td><td><span class="chip chip-multilevel">approved</span></td></tr>
+        <tr><td>#1040995</td><td>Cliente #222805</td><td>Standard $449</td><td><span class="badge badge-gray">L3</span></td><td>Mayo 2026</td><td>$13.47</td><td><span class="chip chip-multilevel">approved</span></td></tr>
+        <tr><td>#1040994</td><td>Cliente #222939</td><td>Standard $449</td><td><span class="badge badge-gray">L2</span></td><td>Mayo 2026</td><td>$22.45</td><td><span class="chip chip-multilevel">approved</span></td></tr>
+        <tr><td>#1040993</td><td>Cliente #222939</td><td>Standard $449</td><td><span class="badge badge-gray">L1</span></td><td>Mayo 2026</td><td>$44.90</td><td><span class="chip chip-multilevel">approved</span></td></tr>
+        <tr><td>#1040992</td><td>Cliente #222760</td><td>Standard $449</td><td><span class="badge badge-gray">L4</span></td><td>Abril 2026</td><td>$8.98</td><td><span class="chip" style="background:#e8f5e9;color:#2e7d32">applied</span></td></tr>
+      </tbody>
+    </table>
+    <div class="data-note">Datos de simulación — 2,782 comisiones totales en BD</div>
+  </div>
+</div>
+</body>
+</html>

@@ -19,6 +19,85 @@ class _ControlParentalScreenState extends State<ControlParentalScreen> {
     Future.microtask(() => context.read<ControlParentalProvider>().loadProfiles());
   }
 
+  Future<void> _mostrarDialogoAgregarPerfil() async {
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController();
+    int edad = 8;
+    bool saving = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Agregar perfil'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nombre del hijo'),
+                  textCapitalization: TextCapitalization.words,
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Ingresa un nombre' : null,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Text('Edad:'),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: () { if (edad > 4) setS(() => edad--); },
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    Text('$edad años', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    IconButton(
+                      onPressed: () { if (edad < 17) setS(() => edad++); },
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setS(() => saving = true);
+                      final prov = context.read<ControlParentalProvider>();
+                      final result = await prov.createProfile(
+                        name: nameCtrl.text.trim(),
+                        age: edad,
+                        schoolLevel: edad <= 12 ? 'primaria' : (edad <= 15 ? 'secundaria' : 'preparatoria'),
+                        profileType: edad <= 10 ? 'nino' : (edad <= 14 ? 'preadolescente' : 'adolescente'),
+                      );
+                      if (!ctx.mounted) return;
+                      Navigator.of(ctx).pop();
+                      if (result == null && prov.error != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(prov.error!), backgroundColor: Colors.red),
+                        );
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.watch<ControlParentalProvider>();
@@ -77,7 +156,7 @@ class _ControlParentalScreenState extends State<ControlParentalScreen> {
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
-                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Añadir perfil — próximamente'))),
+                      onPressed: _mostrarDialogoAgregarPerfil,
                       icon: const Icon(Icons.add),
                       label: const Text('Añadir perfil'),
                     ),

@@ -13,11 +13,13 @@ return new class extends Migration
     public function up(): void
     {
         foreach ($this->tables as $t) {
-            Schema::table($t, function (Blueprint $table) {
-                $table->unsignedBigInteger('box_id')->after('created_by')->nullable();
-                $table->foreign('box_id')->references('id')->on('cut_boxs')->onDelete('cascade');
-                $table->dropConstrainedForeignId('seller_id');
-            });
+            if (!Schema::hasColumn($t, 'box_id')) {
+                Schema::table($t, function (Blueprint $table) {
+                    $table->unsignedBigInteger('box_id')->after('created_by')->nullable();
+                    $table->foreign('box_id')->references('id')->on('cut_boxs')->onDelete('cascade');
+                    $table->dropConstrainedForeignId('seller_id');
+                });
+            }
         }
     }
 
