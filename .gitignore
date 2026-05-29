@@ -33,3 +33,15 @@ dump-*.zip
 database/sql/seed_fase*.php
 public/qr-temp.png
 public/qr-scan.php
+
+# Backups y scripts one-off
+database/sql/backup_*.sql
+database/sql/generate_video_*.sh
+
+# Assets generados en runtime
+public/marketing/
+public/voice_samples/
+
+# Artefactos de fases de desarrollo
+storage/embajadores_fase*.json
+storage/marketing_fase*.json
