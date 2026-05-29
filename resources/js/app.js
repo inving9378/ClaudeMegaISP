@@ -95,6 +95,13 @@ import MegaFamiliaNotificaciones from "./components/module/megafamilia/MegaFamil
 import MegaFamiliaSoporte from "./components/module/megafamilia/MegaFamiliaSoporte.vue";
 import MegaFamiliaTerminos from "./components/module/megafamilia/MegaFamiliaTerminos.vue";
 import MegaFamiliaConfiguracion from "./components/module/megafamilia/MegaFamiliaConfiguracion.vue";
+// Embajadores Meganet (addon-embajadores) — programa de referidos multinivel
+import EmbajadoresDashboard from "./components/module/embajadores/EmbajadoresDashboard.vue";
+import EmbajadoresConfiguracion from "./components/module/embajadores/EmbajadoresConfiguracion.vue";
+import EmbajadoresTiers from "./components/module/embajadores/EmbajadoresTiers.vue";
+import EmbajadoresClientes from "./components/module/embajadores/EmbajadoresClientes.vue";
+import EmbajadoresComisiones from "./components/module/embajadores/EmbajadoresComisiones.vue";
+import EmbajadoresArbol from "./components/module/embajadores/EmbajadoresArbol.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -303,6 +310,21 @@ import LeadScoreBadge from "./components/module/marketing/LeadScoreBadge.vue";
 import LeadStatusBadge from "./components/module/marketing/LeadStatusBadge.vue";
 import LeadSourceChip from "./components/module/marketing/LeadSourceChip.vue";
 import LeadActivityTimeline from "./components/module/marketing/LeadActivityTimeline.vue";
+// Marketing Fase 3 — conversaciones WhatsApp
+import MarketingConversationsView from "./components/module/marketing/MarketingConversationsView.vue";
+import ConversationListItem from "./components/module/marketing/ConversationListItem.vue";
+import MessageBubble from "./components/module/marketing/MessageBubble.vue";
+// Marketing Fase 4 — Motor de Video Medussa (MVM)
+import MarketingVideoTemplatesView from "./components/module/marketing/MarketingVideoTemplatesView.vue";
+import MarketingVideoGeneratorView from "./components/module/marketing/MarketingVideoGeneratorView.vue";
+import MarketingVideoQueueView from "./components/module/marketing/MarketingVideoQueueView.vue";
+import MarketingBrandKitView from "./components/module/marketing/MarketingBrandKitView.vue";
+// Marketing Fase 4.5b — Director Creativo IA
+import MarketingCampaignGeneratorView from "./components/module/marketing/MarketingCampaignGeneratorView.vue";
+import VoiceComparatorView from "./components/module/marketing/VoiceComparatorView.vue";
+import IntegrationsHubView from "./components/module/hub/IntegrationsHubView.vue";
+import MessageDayDivider from "./components/module/marketing/MessageDayDivider.vue";
+import AgentToggleButton from "./components/module/marketing/AgentToggleButton.vue";
 
 //WhatsApp Agent — 2026-05-22
 import WhatsAppPanel from "./components/module/whatsapp/WhatsAppPanel.vue";
@@ -423,6 +445,12 @@ const app = createApp({
         'mega-familia-soporte': MegaFamiliaSoporte,
         'mega-familia-terminos': MegaFamiliaTerminos,
         'mega-familia-configuracion': MegaFamiliaConfiguracion,
+        'embajadores-dashboard': EmbajadoresDashboard,
+        'embajadores-configuracion': EmbajadoresConfiguracion,
+        'embajadores-tiers': EmbajadoresTiers,
+        'embajadores-clientes': EmbajadoresClientes,
+        'embajadores-comisiones': EmbajadoresComisiones,
+        'embajadores-arbol': EmbajadoresArbol,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
@@ -542,6 +570,21 @@ const app = createApp({
         'lead-status-badge': LeadStatusBadge,
         'lead-source-chip': LeadSourceChip,
         'lead-activity-timeline': LeadActivityTimeline,
+        // Marketing Fase 3
+        'marketing-conversations-view': MarketingConversationsView,
+        'conversation-list-item': ConversationListItem,
+        'message-bubble': MessageBubble,
+        'message-day-divider': MessageDayDivider,
+        'agent-toggle-button': AgentToggleButton,
+        // Marketing Fase 4 — MVM
+        'marketing-video-templates-view': MarketingVideoTemplatesView,
+        'marketing-video-generator-view': MarketingVideoGeneratorView,
+        'marketing-video-queue-view': MarketingVideoQueueView,
+        'marketing-brand-kit-view': MarketingBrandKitView,
+        'integrations-hub-view': IntegrationsHubView,
+        // Marketing Fase 4.5b — Director Creativo IA
+        'marketing-campaign-generator-view': MarketingCampaignGeneratorView,
+        'voice-comparator-view': VoiceComparatorView,
 
         //WhatsApp Agent — addon-whatsapp-agent (2026-05-22)
         'whatsapp-panel': WhatsAppPanel,
