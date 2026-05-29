@@ -47,6 +47,13 @@ class Kernel extends ConsoleKernel
 
         // Regeneración semanal del manual de usuario vía Claude API
         $schedule->command('manual:regenerate')->weekly()->sundays()->at('03:00')->withoutOverlapping();
+
+        // Programa de Embajadores: acreditar comisiones vencidas, expirar y alertar recompensas
+        $schedule->job(new \App\Jobs\Referrals\ApplyReferralCommissions)->dailyAt('03:15')->withoutOverlapping(60)->onOneServer();
+        $schedule->job(new \App\Jobs\Referrals\ExpireReferralRewards)->dailyAt('03:30')->withoutOverlapping(30)->onOneServer();
+        $schedule->job(new \App\Jobs\Referrals\WarnExpiringRewards)->dailyAt('09:00')->withoutOverlapping(30)->onOneServer()->name('embajadores:warn-expiring-rewards');
+        // Stats diarias del programa de embajadores (snapshot del día anterior)
+        $schedule->job(new \App\Jobs\Referrals\CalculateDailyStats)->dailyAt('02:30')->withoutOverlapping(30)->onOneServer()->name('embajadores:daily-stats');
     }
 
     protected function commands(): void
