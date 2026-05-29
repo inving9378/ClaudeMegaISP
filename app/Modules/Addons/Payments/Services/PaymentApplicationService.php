@@ -111,6 +111,7 @@ class PaymentApplicationService
                 'estado'       => $nuevoEstado ?: 'Pagado',
                 'payment_date' => now()->toDateString(),
             ]);
+            event(new \App\Events\InvoicePaid($invoice));
             Log::info('SPEI: factura aplicada', [
                 'client_id'  => $client->id,
                 'invoice_id' => $invoice->id,

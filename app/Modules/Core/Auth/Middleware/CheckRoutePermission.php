@@ -28,6 +28,7 @@ class CheckRoutePermission
         '/whatsapp/webhook/{slug}',
         '/payments/spei/webhook',
         '/webhooks/marketing/meta-ads',
+        '/webhooks/marketing/evolution',
         '/public/marketing/lead-form/{slug}',
         '/public/marketing/lead-form/{slug}/submit',
         '/public/marketing/embed.js',

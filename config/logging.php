@@ -100,6 +100,27 @@ return [
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],
+
+        'evolution' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/evolution-api.log'),
+            'level'  => 'debug',
+            'days'   => 7,
+        ],
+
+        'claude' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/claude-api.log'),
+            'level'  => 'debug',
+            'days'   => 7,
+        ],
+
+        'marketing' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/marketing.log'),
+            'level'  => 'debug',
+            'days'   => 14,
+        ],
     ],
 
 ];
