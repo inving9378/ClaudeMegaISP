@@ -273,3 +273,78 @@ rm -f /var/www/megaisp/public/test-*.mp4
 - Slots variables (nombre, fecha, número cliente) → TTS pro con cache por valor único
 - Costo estimado: ~$21 USD/mes para 10,000 llamadas/día con cache agresivo
 - Integración Asterisk AMI (ya parcialmente presente en repo)
+
+---
+
+## MÓDULO COBRANZA BLASTER (`app/Modules/Addons/CobranzaBlaster/`)
+
+### Estado al 2026-05-29
+| Componente | Estado |
+|------------|--------|
+| Asterisk 20.19.0 | ✅ `/usr/sbin/asterisk`, servicio systemd activo |
+| AMI puerto 5038 | ✅ `127.0.0.1:5038`, usuario `megaisp` |
+| 4 tablas BD | ✅ `cobranza_campanas`, `cobranza_llamadas`, `cobranza_llamada_eventos`, `voip_configuracion` |
+| AmiConnectionService | ✅ `Services/AmiConnectionService.php` |
+| CobranzaTtsService | ✅ OpenAI TTS → WAV 8kHz mono para Asterisk |
+| BlastCampanaJob | ✅ queue: `cobranza`, lotes de 50 llamadas |
+| ProcessCallResultJob | ✅ procesa eventos AMI → actualiza estados |
+| CobranzaCampanaService | ✅ carga morosos, activa/pausa campañas |
+| Queue workers | ✅ supervisor: `megaisp-cobranza` x2 RUNNING |
+| Cron | ✅ cada 5 min en `Kernel.php` — `cobranza:blast-activas` |
+| UI campañas | ✅ `/cobranza/campanas` — KPIs + tabla + modal nueva campaña |
+| UI VoIP config | ✅ `/cobranza/voip` — form SIP + test conexión |
+| Sidebar | ✅ permisos `cobranza.view` (511), `cobranza.configure` (512), `cobranza.manage` (513) |
+
+### Configs en servidor (fuera del repo)
+- `/etc/asterisk/manager.conf` — AMI config real (secret: ver `.env` → `AMI_SECRET`)
+- `/etc/asterisk/sip.conf` — troncal Servnet (completar desde `/cobranza/voip`)
+- `/etc/asterisk/extensions.conf` — dialplan blaster
+- `/etc/sudoers.d/asterisk-www-data` — permisos www-data para sip reload (pendiente configurar)
+
+### Variables .env requeridas
+```
+AMI_HOST=127.0.0.1
+AMI_PORT=5038
+AMI_USERNAME=megaisp
+AMI_SECRET=<ver .env del servidor>
+AMI_CONTEXT=cobranza-blaster
+BLASTER_HORA_INICIO=09:00
+BLASTER_HORA_FIN=20:00
+BLASTER_MAX_INTENTOS=3
+BLASTER_MINUTOS_ENTRE_INTENTOS=180
+```
+
+### Pendientes CRÍTICOS para producción
+1. **Credenciales Servnet** — ingresar en `/cobranza/voip` → "Guardar y aplicar" → verificar `sip show peers` = OK
+2. **Webhook AMI** — Asterisk → Laravel para eventos ANSWER/BUSY/NOANSWER/HANGUP
+   - Sin esto el blaster origina llamadas pero nunca actualiza estados
+   - Endpoint ya existe: `POST /webhooks/cobranza/ami-event` → `CobranzaWebhookController`
+   - Falta: configurar `manager.conf` para HTTP POST, o listener AMI en socket persistente
+3. **sudoers www-data** — `asterisk -rx sip reload` y `sip show peers` para que VoipConfiguracionController funcione
+4. **Prueba llamada real** — crear campaña con 1 cliente, verificar que Asterisk origina y audio llega
+
+### Pendientes MEDIOS
+5. **TTS fragmentos fijos cacheados** — pre-generar fragmentos estáticos + cachear slots variables por valor único
+6. **Dashboard embajador** — vista pública `/mi-red` para que el cliente vea sus referidos y comisiones
+
+### Flujo completo cuando esté 100% operativo
+```
+Cron 5min → CobranzaCampanaService::cargarMorosos()
+  → BlastCampanaJob → AmiConnectionService::originate()
+  → Asterisk llama al cliente vía Servnet
+  → Cliente contesta → escucha TTS OpenAI
+  → Presiona 1 → transferencia a agente
+  → Asterisk POST → /webhooks/cobranza/ami-event
+  → ProcessCallResultJob actualiza estado
+  → Si max_intentos sin pago → SuspendServiceJob (delay 24h)
+```
+
+### Módulos pendientes del sistema (próximas sesiones)
+| Módulo | Estado | Próximo paso |
+|--------|--------|--------------|
+| MegaFamilia | ✅ completo servidor | Importar BD prod → hashear passwords → Hash::check() |
+| Embajadores | ✅ completo | Verificar árbol visual en browser con datos demo |
+| Marketing Fase 5 | ✅ commiteado | Configurar credenciales Meta OAuth en Integration Hub |
+| CobranzaBlaster | ⚠️ falta webhook AMI + Servnet | Ver pendientes arriba |
+| Marketing Fase 6 | ⏸️ pendiente | Blaster TTS híbrido (ver diseño arriba) |
+| Marketing Fase 7 | ⏸️ pendiente | CRM Kanban + atribución + multi-tenant |
