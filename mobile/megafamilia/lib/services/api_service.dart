@@ -357,44 +357,44 @@ class ApiService {
           if (source != null && source.isNotEmpty) 'source': source,
         };
         final query = params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
-        return await _get('/megafamilia/embajadores/prospects?$query') as Map<String, dynamic>;
+        return await _get('/embajadores/prospects?$query') as Map<String, dynamic>;
       },
       fallback: () => {'data': <dynamic>[], 'last_page': 1, 'total': 0},
     );
   }
 
   Future<Prospect> createProspecto(Map<String, dynamic> data) async {
-    final j = await _post('/megafamilia/embajadores/prospects', data) as Map<String, dynamic>;
+    final j = await _post('/embajadores/prospects', data) as Map<String, dynamic>;
     return Prospect.fromJson(j);
   }
 
   Future<Prospect> getProspecto(int id) async {
-    final j = await _get('/megafamilia/embajadores/prospects/$id') as Map<String, dynamic>;
+    final j = await _get('/embajadores/prospects/$id') as Map<String, dynamic>;
     return Prospect.fromJson(j);
   }
 
   Future<Prospect> updateProspecto(int id, Map<String, dynamic> data) async {
-    final j = await _put('/megafamilia/embajadores/prospects/$id', data) as Map<String, dynamic>;
+    final j = await _put('/embajadores/prospects/$id', data) as Map<String, dynamic>;
     return Prospect.fromJson(j);
   }
 
   Future<void> marcarProspectoLost(int id) async {
-    await _delete('/megafamilia/embajadores/prospects/$id');
+    await _delete('/embajadores/prospects/$id');
   }
 
   Future<List<Followup>> getFollowups(int prospectId) async {
-    final r = await _get('/megafamilia/embajadores/prospects/$prospectId/followups') as List;
+    final r = await _get('/embajadores/prospects/$prospectId/followups') as List;
     return r.map((e) => Followup.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Followup> addFollowup(int prospectId, Map<String, dynamic> data) async {
-    final j = await _post('/megafamilia/embajadores/prospects/$prospectId/followups', data)
+    final j = await _post('/embajadores/prospects/$prospectId/followups', data)
         as Map<String, dynamic>;
     return Followup.fromJson(j);
   }
 
   Future<Map<String, dynamic>> importarProspectos(List<Map<String, dynamic>> contacts) async {
-    return await _post('/megafamilia/embajadores/prospects/import', {'contacts': contacts})
+    return await _post('/embajadores/prospects/import', {'contacts': contacts})
         as Map<String, dynamic>;
   }
 
@@ -402,38 +402,38 @@ class ApiService {
 
   Future<Map<String, dynamic>> getRed() async {
     return await _tryEndpoint(
-      () async => await _get('/megafamilia/embajadores/red') as Map<String, dynamic>,
+      () async => await _get('/embajadores/red') as Map<String, dynamic>,
       fallback: () => {'nodes': <dynamic>[], 'total': 0},
     );
   }
 
   Future<Map<String, dynamic>> getRecompensas({int page = 1}) async {
     return await _tryEndpoint(
-      () async => await _get('/megafamilia/embajadores/recompensas?page=$page') as Map<String, dynamic>,
+      () async => await _get('/embajadores/recompensas?page=$page') as Map<String, dynamic>,
       fallback: () => {'data': <dynamic>[], 'summary': <String, int>{}},
     );
   }
 
   Future<Map<String, dynamic>> aplicarRecompensa(int id) async {
-    return await _post('/megafamilia/embajadores/recompensas/$id/aplicar') as Map<String, dynamic>;
+    return await _post('/embajadores/recompensas/$id/aplicar') as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> getComisionesHistorial() async {
     return await _tryEndpoint(
-      () async => await _get('/megafamilia/embajadores/comisiones') as Map<String, dynamic>,
+      () async => await _get('/embajadores/comisiones') as Map<String, dynamic>,
       fallback: () => {'data': <dynamic>[], 'grand_total': 0.0, 'plan_type': ''},
     );
   }
 
   Future<Map<String, dynamic>> getNotificationsLog({int page = 1}) async {
     return await _tryEndpoint(
-      () async => await _get('/megafamilia/embajadores/notifications-log?page=$page') as Map<String, dynamic>,
+      () async => await _get('/embajadores/notifications-log?page=$page') as Map<String, dynamic>,
       fallback: () => {'data': <dynamic>[], 'last_page': 1},
     );
   }
 
   Future<Map<String, dynamic>> shareMasivo(List<Map<String, dynamic>> contacts) async {
-    return await _post('/megafamilia/embajadores/share-masivo', {'contacts': contacts})
+    return await _post('/embajadores/share-masivo', {'contacts': contacts})
         as Map<String, dynamic>;
   }
 

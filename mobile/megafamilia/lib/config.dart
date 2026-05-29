@@ -11,7 +11,7 @@ class AppConfig {
     defaultValue: 'http://192.168.105.11/downloads/megafamilia-v0_3_2.apk',
   );
   static const String appName = 'MegaFamilia';
-  static const String appVersion = '0.3.3';
+  static const String appVersion = '0.3.4';
 
   /// Si true, el ApiService inyecta datos mock cuando un endpoint falla.
   static const bool useMockFallback = bool.fromEnvironment('MOCK_FALLBACK', defaultValue: true);
