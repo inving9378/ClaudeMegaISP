@@ -5,6 +5,8 @@ namespace App\Modules\Addons\MegaFamilia\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\ClientMainInformation;
+use App\Models\ObservationTask;
+use App\Models\Task;
 use App\Models\Ticket;
 use App\Models\TicketThread;
 use App\Models\User;
@@ -146,10 +148,10 @@ class ApiController extends Controller
      */
     public function servicio(): JsonResponse
     {
-        $userId = Auth::id();
-        $client = Client::where('user_id', $userId)
-            ->with(['internet_service.internet', 'client_main_information'])
-            ->first();
+        $client = $this->resolveClientForCurrentUser();
+        if ($client) {
+            $client->load(['internet_service.internet', 'client_main_information']);
+        }
 
         if (! $client) {
             return response()->json([
@@ -170,7 +172,7 @@ class ApiController extends Controller
 
         return response()->json([
             'plan_name' => $internet->service_name ?? $internet->title ?? 'Plan ISP',
-            'speed' => $internet->download_speed ? ($internet->download_speed . ' Mbps') : '—',
+            'speed' => $this->formatSpeed($internet->download_speed),
             'estado' => $client->fecha_suspension ? 'suspendido' : 'activo',
             'next_payment_date' => $client->fecha_pago,
             'consumo_gb' => null,
@@ -260,7 +262,7 @@ class ApiController extends Controller
      */
     public function facturas(): JsonResponse
     {
-        $client = Client::where('user_id', Auth::id())->first();
+        $client = $this->resolveClientForCurrentUser();
         $rows = $client
             ? \DB::table('invoices')
                 ->where('client_id', $client->id)
@@ -319,15 +321,14 @@ class ApiController extends Controller
      */
     public function pagos(): JsonResponse
     {
-        $client = Client::where('user_id', Auth::id())->first();
+        $client = $this->resolveClientForCurrentUser();
         $rows = $client
-            ? \DB::table('invoices')
-                ->where('client_id', $client->id)
-                ->whereIn('status', ['paid', 'partially_paid'])
-                ->whereNotNull('payment_date')
-                ->orderByDesc('payment_date')
+            ? \DB::table('payments')
+                ->where('paymentable_id', $client->id)
+                ->where('paymentable_type', 'App\\Models\\Client')
+                ->orderByDesc('date')
                 ->limit(10)
-                ->get(['id', 'payment_date', 'total', 'payment_method'])
+                ->get(['id', 'date', 'amount', 'comment'])
             : collect();
 
         if ($rows->isEmpty()) {
@@ -337,9 +338,9 @@ class ApiController extends Controller
         return response()->json($rows->map(function ($r) {
             return [
                 'id' => $r->id,
-                'date' => $r->payment_date,
-                'amount' => (float) $r->total,
-                'method' => $r->payment_method ?: 'Transferencia',
+                'date' => $r->date,
+                'amount' => (float) $r->amount,
+                'method' => $r->comment ?: 'Transferencia',
             ];
         }));
     }
@@ -371,7 +372,7 @@ class ApiController extends Controller
             'reference' => 'nullable|string|max:64',
         ]);
 
-        $client = Client::where('user_id', Auth::id())->first();
+        $client = $this->resolveClientForCurrentUser();
         if (! $client) {
             return response()->json([
                 'success' => true,
@@ -399,9 +400,10 @@ class ApiController extends Controller
     public function account(): JsonResponse
     {
         $user = Auth::user();
-        $client = Client::where('user_id', $user->id)
-            ->with(['client_main_information', 'internet_service.internet'])
-            ->first();
+        $client = $this->resolveClientForCurrentUser();
+        if ($client) {
+            $client->load(['client_main_information', 'internet_service.internet']);
+        }
 
         if (! $client) {
             return response()->json($this->demoAccount($user));
@@ -423,7 +425,7 @@ class ApiController extends Controller
             'phone' => $info->phone ?? '—',
             'contract_number' => 'MGI-' . str_pad((string) $client->id, 6, '0', STR_PAD_LEFT),
             'plan_name' => $internet->service_name ?? $internet->title ?? 'Plan ISP',
-            'speed' => $internet->download_speed ? ($internet->download_speed . ' Mbps') : '—',
+            'speed' => $this->formatSpeed($internet->download_speed),
             'estado' => $client->fecha_suspension ? 'suspendido' : 'activo',
             'next_payment_date' => $client->fecha_pago ?: null,
             'balance' => 0,
@@ -443,9 +445,10 @@ class ApiController extends Controller
     public function profile(): JsonResponse
     {
         $user = Auth::user();
-        $client = Client::where('user_id', $user->id)
-            ->with('client_main_information')
-            ->first();
+        $client = $this->resolveClientForCurrentUser();
+        if ($client) {
+            $client->load('client_main_information');
+        }
         $info = optional(optional($client)->client_main_information);
 
         $name = trim(implode(' ', array_filter([
@@ -495,7 +498,36 @@ class ApiController extends Controller
     public function profiles(): JsonResponse
     {
         $account = $this->requireAccount();
-        return response()->json($account->profiles()->with('devices')->get());
+        return response()->json(
+            $account->profiles()->withCount('devices')->get()
+                ->map(fn ($p) => [
+                    'id'           => $p->id,
+                    'name'         => $p->name,
+                    'age'          => $p->age,
+                    'school_level' => $p->school_level,
+                    'profile_type' => $p->profile_type,
+                    'devices_count'=> $p->devices_count,
+                    'active'       => $p->active,
+                ])
+        );
+    }
+
+    public function profileDetail(int $id): JsonResponse
+    {
+        $profile = $this->requireProfile($id);
+        $rules   = $profile->rules;
+
+        return response()->json([
+            'id'                  => $profile->id,
+            'name'                => $profile->name,
+            'age'                 => $profile->age,
+            'school_level'        => $profile->school_level,
+            'profile_type'        => $profile->profile_type,
+            'time_minutes_today'  => 0,                                                  // tracking de dispositivo pendiente
+            'time_limit_minutes'  => $rules->daily_limit_minutes ?? 180,
+            'internet_paused'     => $rules ? (bool) $rules->internet_paused : false,
+            'apps'                => [],                                                 // app-usage tracking pendiente
+        ]);
     }
 
     public function storeProfile(Request $request): JsonResponse
@@ -657,7 +689,163 @@ class ApiController extends Controller
         return response()->json($latest->values());
     }
 
+    // ---- TECNICO ---------------------------------------------------------
+
+    /**
+     * Órdenes (tasks) asignadas al técnico autenticado. La asignación está
+     * en la tabla pivot `task_user`. Mapea los estados del modelo Task a los
+     * que espera la app: ToDo→pendiente, InProgress→en_proceso, Done→completada.
+     */
+    public function tecnicoOrdenes(): JsonResponse
+    {
+        $userId = Auth::id();
+
+        $tasks = \App\Models\Task::whereHas('users', fn ($q) => $q->where('users.id', $userId))
+            ->whereNotIn('status', ['Archivado'])
+            ->with(['client_main_information'])
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
+
+        return response()->json($tasks->map(fn ($t) => $this->taskToOrden($t)));
+    }
+
+    /**
+     * Actualiza estado de una orden. La app envía status en formato propio
+     * (pendiente/en_proceso/completada); lo convertimos al enum de Task.
+     * Solo puede actualizar tareas asignadas al técnico autenticado.
+     */
+    public function updateTecnicoOrden(Request $request, int $id): JsonResponse
+    {
+        $task = \App\Models\Task::whereHas(
+            'users', fn ($q) => $q->where('users.id', Auth::id())
+        )->findOrFail($id);
+
+        $data = $request->validate([
+            'status' => 'sometimes|string',
+            'notes'  => 'sometimes|nullable|string',
+        ]);
+
+        if (isset($data['status'])) {
+            $task->status = $this->mapOrdenStatusToTask($data['status']);
+            $task->save();
+        }
+
+        if (! empty($data['notes'])) {
+            \App\Models\ObservationTask::create([
+                'task_id'    => $task->id,
+                'created_by' => Auth::id(),
+                'observation'=> $data['notes'],
+            ]);
+        }
+
+        return response()->json(['success' => true, 'orden' => $this->taskToOrden($task->fresh())]);
+    }
+
+    private function taskToOrden(\App\Models\Task $t): array
+    {
+        $info = optional($t->client_main_information);
+        $type = $this->inferOrdenType($t->title ?? '');
+
+        $scheduledAt = null;
+        if ($t->start_date) {
+            $dt = $t->start_date . ($t->start_time ? ' ' . $t->start_time : '');
+            $scheduledAt = \Carbon\Carbon::parse($dt)->toIso8601String();
+        }
+
+        return [
+            'id'          => $t->id,
+            'number'      => 'OT-' . str_pad((string) $t->id, 4, '0', STR_PAD_LEFT),
+            'type'        => $type,
+            'client_name' => $info->name ? trim($info->name . ' ' . ($info->father_last_name ?? '')) : 'Cliente',
+            'client_phone'=> $info->phone ?? null,
+            'address'     => $t->address ?? ($info->address ?? ''),
+            'status'      => $this->mapTaskStatusToOrden($t->status ?? 'ToDo'),
+            'scheduled_at'=> $scheduledAt,
+            'notes'       => optional($t->latestNote)->observation ?? null,
+            'plan_name'   => null,
+        ];
+    }
+
+    private function inferOrdenType(string $title): string
+    {
+        $lower = mb_strtolower($title);
+        if (str_contains($lower, 'instalac')) return 'Instalación';
+        if (str_contains($lower, 'repar'))    return 'Reparación';
+        if (str_contains($lower, 'manteni'))  return 'Mantenimiento';
+        return $title ?: 'Instalación';
+    }
+
+    private function mapTaskStatusToOrden(string $status): string
+    {
+        return match ($status) {
+            'InProgress', 'inprogress' => 'en_proceso',
+            'Done', 'done'             => 'completada',
+            default                    => 'pendiente',
+        };
+    }
+
+    private function mapOrdenStatusToTask(string $status): string
+    {
+        return match (strtolower($status)) {
+            'en_proceso', 'inprogress' => 'InProgress',
+            'completada', 'done'       => 'Done',
+            default                    => 'ToDo',
+        };
+    }
+
+    // ---- HIJO ------------------------------------------------------------
+
+    /**
+     * Tareas visibles para el usuario hijo. Busca la cuenta parental del
+     * usuario autenticado; si no existe (cuando el hijo aún no tiene cuenta
+     * propia vinculada), regresa array vacío para que la UI muestre estado
+     * "Sin tareas" en lugar de error.
+     */
+    public function hijoTareas(): JsonResponse
+    {
+        $account = ParentalAccount::where('user_id', Auth::id())->first();
+        if (! $account) {
+            return response()->json([]);
+        }
+
+        $profileIds = $account->profiles()->pluck('id');
+        $tasks = ParentalTask::whereIn('profile_id', $profileIds)
+            ->whereNotIn('status', ['rejected'])
+            ->orderByDesc('id')
+            ->get(['id', 'title', 'description', 'reward_type', 'reward_value',
+                   'reward_detail', 'points', 'status']);
+
+        return response()->json($tasks);
+    }
+
     // ---- helpers ---------------------------------------------------------
+
+    /** Convierte Kbps a string legible: 102400 → "100 Mbps". */
+    private function formatSpeed(?int $kbps): string
+    {
+        if (! $kbps) return '—';
+        $mbps = (int) round($kbps / 1024);
+        return $mbps . ' Mbps';
+    }
+
+    /**
+     * Resuelve el Client del usuario autenticado. La FK directa `clients.user_id`
+     * sólo existe para ~1 registro; el flujo correcto es CMI.user → login_user.
+     */
+    private function resolveClientForCurrentUser(): ?Client
+    {
+        $client = Client::where('user_id', Auth::id())->first();
+        if ($client) return $client;
+
+        $loginUser = optional(Auth::user())->login_user;
+        if (! $loginUser) return null;
+
+        $cmi = ClientMainInformation::where('user', $loginUser)->first();
+        if (! $cmi) return null;
+
+        return Client::find($cmi->client_id);
+    }
 
     private function requireAccount(): ParentalAccount
     {
