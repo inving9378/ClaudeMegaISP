@@ -14,6 +14,8 @@ use App\Modules\Addons\Marketing\Controllers\MetaAdsWebhookController;
 use App\Modules\Addons\Marketing\Controllers\PublicLeadFormController;
 use App\Modules\Addons\Marketing\Controllers\MarketingLeadController;
 use App\Modules\Addons\Marketing\Controllers\MarketingLeadFormController;
+use App\Modules\Addons\Marketing\Controllers\MetaOAuthController;
+use App\Modules\Addons\Marketing\Controllers\PublishingController;
 use App\Modules\Addons\Marketing\Controllers\VoiceComparatorController;
 use Illuminate\Support\Facades\Route;
 
@@ -191,4 +193,40 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/{id}', [MarketingController::class, 'updateTemplate'])->name('update');
             Route::delete('/{id}', [MarketingController::class, 'destroyTemplate'])->name('destroy');
         });
+
+        // ── Fase 5: Publicador Multicanal — Vistas Blade ────────────────────
+        Route::get('/publishing', fn () => view('addon-marketing::publishing.dashboard'))->name('publishing.dashboard');
+        Route::get('/publishing/setup', fn () => view('addon-marketing::publishing.setup'))->name('publishing.setup');
+        Route::get('/publishing/queue', fn () => view('addon-marketing::publishing.queue'))->name('publishing.queue');
+        Route::get('/publishing/campaign', fn () => view('addon-marketing::publishing.campaign'))->name('publishing.campaign');
+
+        // Meta OAuth
+        Route::get('/meta/oauth/start', [MetaOAuthController::class, 'start'])->name('meta.oauth.start');
+        Route::get('/meta/oauth/callback', [MetaOAuthController::class, 'callback'])->name('meta.oauth.callback');
+    });
+
+// ── Fase 5: API de Publicación ───────────────────────────────────────────────
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->prefix('api/marketing/publishing')
+    ->name('api.marketing.publishing.')
+    ->group(function () {
+        // Canales
+        Route::get('channels', [PublishingController::class, 'listChannels'])->name('channels.index');
+        Route::post('channels/{id}/validate', [PublishingController::class, 'validateChannel'])->name('channels.validate');
+        Route::put('channels/{id}/config', [PublishingController::class, 'updateChannelConfig'])->name('channels.config');
+
+        // Smart routing
+        Route::get('campaigns/{id}/route', [PublishingController::class, 'routeCampaign'])->name('campaigns.route');
+
+        // Publicaciones
+        Route::post('campaigns/{id}/publish', [PublishingController::class, 'publishCampaign'])->name('campaigns.publish');
+        Route::get('publications', [PublishingController::class, 'listPublications'])->name('publications.index');
+        Route::get('publications/{id}', [PublishingController::class, 'showPublication'])->name('publications.show');
+        Route::post('publications/{id}/retry', [PublishingController::class, 'retryPublication'])->name('publications.retry');
+        Route::post('publications/{id}/cancel', [PublishingController::class, 'cancelPublication'])->name('publications.cancel');
+        Route::get('publications/{id}/metrics', [PublishingController::class, 'fetchMetrics'])->name('publications.metrics');
+
+        // Dashboard
+        Route::get('dashboard/stats', [PublishingController::class, 'dashboardStats'])->name('dashboard.stats');
+        Route::get('dashboard/recent', [PublishingController::class, 'dashboardRecent'])->name('dashboard.recent');
     });
