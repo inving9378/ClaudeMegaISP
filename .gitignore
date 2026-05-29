@@ -28,3 +28,8 @@ Docs
 .env.backup
 .claude/
 
+public/test-*.mp4
+dump-*.zip
+database/sql/seed_fase*.php
+public/qr-temp.png
+public/qr-scan.php
