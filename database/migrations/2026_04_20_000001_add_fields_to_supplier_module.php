@@ -1,9 +1,9 @@
 <?php
 
 use App\Models\Module;
+use App\Modules\Core\Configuracion\Models\FieldType;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Arr;
-use App\Http\Repository\FieldTypeRepository;
 
 return new class extends Migration
 {
@@ -17,8 +17,6 @@ return new class extends Migration
         if (!$module) {
             return;
         }
-
-        $fieldRepository = new FieldTypeRepository();
 
         $bootstrap_multiselect = [1, 2];
         $select2 = [4, 5];
@@ -90,7 +88,7 @@ return new class extends Migration
                 'name'        => 'status',
                 'label'       => 'Estado',
                 'placeholder' => 'Seleccione estado',
-                'type'        => $fieldRepository->getIdByName('select-2-component'),
+                'type'        => FieldType::where('name', 'select-2-component')->value('id'),
                 'include'     => true,
                 'position'    => 6,
                 'additional_field' => false,

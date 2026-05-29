@@ -81,6 +81,7 @@
                                             accept=".sql,.zip"
                                             class="smart-import-dropzone__input"
                                             @change="onFileChange"
+                                            @click.stop
                                         />
 
                                         <div v-if="uploadError" class="smart-import-dropzone__content">

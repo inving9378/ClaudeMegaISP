@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Repository\FieldTypeRepository;
 use App\Models\Module;
+use App\Modules\Core\Configuracion\Models\FieldType;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Arr;
 
@@ -37,8 +37,6 @@ return new class extends Migration
                     $colData
                 );
             }
-
-            $fieldRepository = new FieldTypeRepository();
 
             $fields = [
                 [
@@ -90,7 +88,7 @@ return new class extends Migration
                     'name'             => 'status',
                     'label'            => 'Estado',
                     'placeholder'      => 'Seleccione estado',
-                    'type'             => $fieldRepository->getIdByName('select-2-component'),
+                    'type'             => FieldType::where('name', 'select-2-component')->value('id'),
                     'position'         => 6,
                     'include'          => true,
                     'additional_field' => false,
