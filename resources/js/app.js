@@ -340,6 +340,10 @@ import WhatsAppInstanceManager from "./components/module/whatsapp/WhatsAppInstan
 import PaymentMethods from "./components/module/finance/PaymentMethods.vue";
 import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 
+// CobranzaBlaster (Fase 6) — 2026-05-29
+import CobranzaVoipConfig from "./components/module/cobranza/CobranzaVoipConfig.vue";
+import CobranzaCampanas from "./components/module/cobranza/CobranzaCampanas.vue";
+
 
 const app = createApp({
     components: {
@@ -605,6 +609,10 @@ const app = createApp({
         // Payments (SPEI / OpenPay)
         'payment-methods': PaymentMethods,
         'client-clabe-card': ClientClabeCard,
+
+        // CobranzaBlaster (Fase 6)
+        'cobranza-voip-config': CobranzaVoipConfig,
+        'cobranza-campanas':    CobranzaCampanas,
     },
 });
 

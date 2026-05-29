@@ -1,43 +1,53 @@
 <?php
 
-use App\Modules\Addons\CobranzaBlaster\Controllers\CobranzaCampanaController;
+use App\Modules\Addons\CobranzaBlaster\Controllers\CampanaController;
 use App\Modules\Addons\CobranzaBlaster\Controllers\CobranzaWebhookController;
+use App\Modules\Addons\CobranzaBlaster\Controllers\VoipConfiguracionController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['web', 'auth'])->prefix('cobranza-blaster')->group(function () {
+Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
 
-    Route::get('/', [CobranzaCampanaController::class, 'index'])
+    // ── Campañas — vistas ──────────────────────────────────────────────────────
+    Route::get('/', [CampanaController::class, 'index'])
         ->name('cobranza.index');
 
-    Route::get('/campanas', [CobranzaCampanaController::class, 'index'])
+    Route::get('/campanas', [CampanaController::class, 'index'])
         ->name('cobranza.campanas.index');
 
-    Route::post('/campanas', [CobranzaCampanaController::class, 'store'])
+    // ── Campañas — JSON ────────────────────────────────────────────────────────
+    Route::get('/campanas/data',        [CampanaController::class, 'data'])
+        ->name('cobranza.campanas.data');
+
+    Route::get('/campanas/kpis',        [CampanaController::class, 'kpis'])
+        ->name('cobranza.campanas.kpis');
+
+    Route::post('/campanas',            [CampanaController::class, 'store'])
         ->name('cobranza.campanas.store');
 
-    Route::get('/campanas/{campana}', [CobranzaCampanaController::class, 'show'])
-        ->name('cobranza.campanas.show');
-
-    Route::put('/campanas/{campana}', [CobranzaCampanaController::class, 'update'])
-        ->name('cobranza.campanas.update');
-
-    Route::post('/campanas/{campana}/activar', [CobranzaCampanaController::class, 'activar'])
+    Route::post('/campanas/{id}/activar', [CampanaController::class, 'activar'])
         ->name('cobranza.campanas.activar');
 
-    Route::post('/campanas/{campana}/pausar', [CobranzaCampanaController::class, 'pausar'])
+    Route::post('/campanas/{id}/pausar',  [CampanaController::class, 'pausar'])
         ->name('cobranza.campanas.pausar');
 
-    Route::post('/campanas/{campana}/completar', [CobranzaCampanaController::class, 'completar'])
-        ->name('cobranza.campanas.completar');
+    Route::delete('/campanas/{id}',       [CampanaController::class, 'destroy'])
+        ->name('cobranza.campanas.destroy');
 
-    Route::get('/campanas/{campana}/estadisticas', [CobranzaCampanaController::class, 'estadisticas'])
-        ->name('cobranza.campanas.estadisticas');
-
-    Route::get('/campanas/{campana}/llamadas', [CobranzaCampanaController::class, 'llamadas'])
+    Route::get('/campanas/{id}/llamadas', [CampanaController::class, 'llamadas'])
         ->name('cobranza.campanas.llamadas');
 
-    Route::post('/campanas/{campana}/excluir-llamada/{llamada}', [CobranzaCampanaController::class, 'excluirLlamada'])
-        ->name('cobranza.campanas.excluir-llamada');
+    // ── Configuración VoIP ────────────────────────────────────────────────────
+    Route::get('/voip',                [VoipConfiguracionController::class, 'index'])
+        ->name('cobranza.voip.index');
+
+    Route::get('/voip/configuracion',  [VoipConfiguracionController::class, 'show'])
+        ->name('cobranza.voip.show');
+
+    Route::post('/voip/configuracion', [VoipConfiguracionController::class, 'store'])
+        ->name('cobranza.voip.store');
+
+    Route::get('/voip/test',           [VoipConfiguracionController::class, 'testConexion'])
+        ->name('cobranza.voip.test');
 });
 
 // Webhook AMI — sin auth, solo accesible desde 127.0.0.1
