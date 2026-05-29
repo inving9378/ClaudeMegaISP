@@ -824,6 +824,23 @@
                     @endcanany
                 @endhasanyrole
 
+                @canany(['cobranza.view', 'cobranza.configure'])
+                    <li>
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="phone-call"></i>
+                            <span data-key="t-cobranza">Cobranza Blaster</span>
+                        </a>
+                        <ul class="sub-menu" aria-expanded="false">
+                            @can('cobranza.view')
+                                <li><a href="{{ url('/cobranza/campanas') }}"><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Campañas</a></li>
+                            @endcan
+                            @can('cobranza.configure')
+                                <li><a href="{{ url('/cobranza/voip') }}"><small><i class="fa fa-fw fa-phone-square"></i></small> Config. VoIP</a></li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcanany
+
                 @role('DESARROLLADOR')
                     <li class="menu-item-desarrollador">
                         <a href="{{ url('/devtools') }}" class="link-desarrollador">
