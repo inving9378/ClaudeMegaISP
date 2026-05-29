@@ -14,6 +14,11 @@ class ClientInvoice extends BaseModel
     use HasFactory;
     protected $guarded = [];
 
+    protected static function newFactory()
+    {
+        return \Database\Factories\ClientInvoiceFactory::new();
+    }
+
     public function getActivitylogOptions(): \Spatie\Activitylog\LogOptions
     {
         return \Spatie\Activitylog\LogOptions::defaults()
