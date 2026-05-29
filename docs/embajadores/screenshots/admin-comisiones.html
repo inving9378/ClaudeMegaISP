@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Embajadores — Comisiones Admin</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a2332;font-size:14px}
+  .topbar{background:#1565c0;color:#fff;height:56px;display:flex;align-items:center;padding:0 24px;font-size:15px;font-weight:600}
+  .topbar span{opacity:.7;font-size:13px;font-weight:400;margin-left:auto}
+  .sidebar{position:fixed;top:56px;left:0;width:220px;height:calc(100vh-56px);background:#fff;border-right:1px solid #e8ecf0;padding:16px 0}
+  .sidebar-item{padding:10px 20px;color:#4a5568;font-size:13px}
+  .sidebar-item.active{background:#e3f2fd;color:#1565c0;border-left:3px solid #1565c0;font-weight:600}
+  .sidebar-section{font-size:10px;font-weight:700;color:#9aa5b4;text-transform:uppercase;padding:16px 20px 6px}
+  .content{margin-left:220px;padding:24px;padding-top:80px}
+  .page-title{font-size:20px;font-weight:700;margin-bottom:4px}
+  .page-subtitle{color:#6b7280;font-size:13px;margin-bottom:20px}
+  .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .sum-card{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+  .sum-label{font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;margin-bottom:6px}
+  .sum-value{font-size:22px;font-weight:700}
+  .sum-count{font-size:11px;color:#9aa5b4;margin-top:4px}
+  .toolbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .select-box{padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:#fff}
+  .card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{background:#f7f9fc;text-align:left;padding:9px 12px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #e8ecf0}
+  td{padding:10px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+  tr:hover td{background:#f9fafb}
+  .chip{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600}
+  .chip-applied{background:#e8f5e9;color:#2e7d32}
+  .chip-approved{background:#e3f2fd;color:#1565c0}
+  .chip-pending{background:#fff3e0;color:#e65100}
+  .level-badge{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+  .l1{background:#1565c0} .l2{background:#1976d2} .l3{background:#42a5f5} .l4{background:#90caf9;color:#1565c0}
+  .money{font-family:monospace;font-weight:700}
+  .pagination{display:flex;align-items:center;padding:12px 14px;font-size:12px;color:#6b7280;border-top:1px solid #f3f4f6}
+  .btn{padding:5px 12px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #d1d5db;background:#fff}
+  .btn-approve{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7}
+  .btn-cancel{background:#fce4ec;color:#c62828;border-color:#ef9a9a}
+</style>
+</head>
+<body>
+<div class="topbar">📊 Medussa MegaISP — Embajadores<span>admin@meganet.com</span></div>
+<div class="sidebar">
+  <div class="sidebar-section">Embajadores</div>
+  <div class="sidebar-item">📊 Dashboard</div>
+  <div class="sidebar-item">👥 Embajadores</div>
+  <div class="sidebar-item active">💰 Comisiones</div>
+  <div class="sidebar-item">⚙️ Configuración</div>
+</div>
+<div class="content">
+  <div class="page-title">Comisiones</div>
+  <div class="page-subtitle">2,782 registros totales — $60,889.51 generado en 3 meses</div>
+
+  <div class="summary-grid">
+    <div class="sum-card">
+      <div class="sum-label">Aplicadas a Balance</div>
+      <div class="sum-value" style="color:#2e7d32">$48,344</div>
+      <div class="sum-count">2,219 comisiones</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-label">Aprobadas (por aplicar)</div>
+      <div class="sum-value" style="color:#1565c0">$12,546</div>
+      <div class="sum-count">563 comisiones</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-label">Pendientes</div>
+      <div class="sum-value" style="color:#e65100">$0</div>
+      <div class="sum-count">0 comisiones</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-label">Total Generado</div>
+      <div class="sum-value">$60,890</div>
+      <div class="sum-count">11.88% del facturado</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <select class="select-box"><option>Todos los estados</option><option>Pendiente</option><option selected>Aprobada</option><option>Aplicada</option></select>
+    <select class="select-box"><option>Todos los niveles</option><option>Nivel 1</option><option>Nivel 2</option><option>Nivel 3</option><option>Nivel 4</option></select>
+    <select class="select-box"><option>2026</option></select>
+    <select class="select-box"><option>Todos los meses</option><option>Mayo</option><option>Abril</option><option>Marzo</option></select>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Beneficiario</th><th>Referido (plan)</th><th>Nivel</th><th>Periodo</th><th>Base</th><th>%</th><th>Comisión</th><th>Estado</th><th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:#9aa5b4">1040996</td>
+          <td>Cliente #222760</td>
+          <td style="color:#6b7280">Standard $449</td>
+          <td><span class="level-badge l4">L4</span></td>
+          <td>May 2026</td>
+          <td class="money">$449</td>
+          <td style="color:#6b7280">2%</td>
+          <td class="money" style="color:#1565c0">$8.98</td>
+          <td><span class="chip chip-approved">aprobada</span></td>
+          <td><button class="btn btn-approve" style="font-size:10px">Aplicar</button></td>
+        </tr>
+        <tr>
+          <td style="color:#9aa5b4">1040995</td>
+          <td>Cliente #222805</td>
+          <td style="color:#6b7280">Standard $449</td>
+          <td><span class="level-badge l3">L3</span></td>
+          <td>May 2026</td>
+          <td class="money">$449</td>
+          <td style="color:#6b7280">3%</td>
+          <td class="money" style="color:#1565c0">$13.47</td>
+          <td><span class="chip chip-approved">aprobada</span></td>
+          <td><button class="btn btn-approve" style="font-size:10px">Aplicar</button></td>
+        </tr>
+        <tr>
+          <td style="color:#9aa5b4">1040994</td>
+          <td>Cliente #222939</td>
+          <td style="color:#6b7280">Standard $449</td>
+          <td><span class="level-badge l2">L2</span></td>
+          <td>May 2026</td>
+          <td class="money">$449</td>
+          <td style="color:#6b7280">5%</td>
+          <td class="money" style="color:#1565c0">$22.45</td>
+          <td><span class="chip chip-approved">aprobada</span></td>
+          <td><button class="btn btn-approve" style="font-size:10px">Aplicar</button></td>
+        </tr>
+        <tr>
+          <td style="color:#9aa5b4">1040993</td>
+          <td>Cliente #222939</td>
+          <td style="color:#6b7280">Standard $449</td>
+          <td><span class="level-badge l1">L1</span></td>
+          <td>May 2026</td>
+          <td class="money">$449</td>
+          <td style="color:#6b7280">10%</td>
+          <td class="money" style="color:#1565c0">$44.90</td>
+          <td><span class="chip chip-approved">aprobada</span></td>
+          <td><button class="btn btn-approve" style="font-size:10px">Aplicar</button></td>
+        </tr>
+        <tr>
+          <td style="color:#9aa5b4">1040992</td>
+          <td>Cliente #222760</td>
+          <td style="color:#6b7280">Standard $449</td>
+          <td><span class="level-badge l4">L4</span></td>
+          <td>Abr 2026</td>
+          <td class="money">$449</td>
+          <td style="color:#6b7280">2%</td>
+          <td class="money" style="color:#2e7d32">$8.98</td>
+          <td><span class="chip chip-applied">aplicada ✓</span></td>
+          <td style="color:#9aa5b4">—</td>
+        </tr>
+        <tr>
+          <td style="color:#9aa5b4">1040991</td>
+          <td>Cliente #222805</td>
+          <td style="color:#6b7280">Standard $449</td>
+          <td><span class="level-badge l3">L3</span></td>
+          <td>Abr 2026</td>
+          <td class="money">$449</td>
+          <td style="color:#6b7280">3%</td>
+          <td class="money" style="color:#2e7d32">$13.47</td>
+          <td><span class="chip chip-applied">aplicada ✓</span></td>
+          <td style="color:#9aa5b4">—</td>
+        </tr>
+        <tr>
+          <td style="color:#9aa5b4">1040989</td>
+          <td>Cliente #222939</td>
+          <td style="color:#6b7280">Standard $449</td>
+          <td><span class="level-badge l1">L1</span></td>
+          <td>Abr 2026</td>
+          <td class="money">$449</td>
+          <td style="color:#6b7280">10%</td>
+          <td class="money" style="color:#2e7d32">$44.90</td>
+          <td><span class="chip chip-applied">aplicada ✓</span></td>
+          <td style="color:#9aa5b4">—</td>
+        </tr>
+        <tr>
+          <td style="color:#9aa5b4">1040850</td>
+          <td>Cliente #222756</td>
+          <td style="color:#6b7280">Premium $599</td>
+          <td><span class="level-badge l1">L1</span></td>
+          <td>May 2026</td>
+          <td class="money">$599</td>
+          <td style="color:#6b7280">15%</td>
+          <td class="money" style="color:#2e7d32">$89.85</td>
+          <td><span class="chip chip-applied">aplicada ✓</span></td>
+          <td style="color:#9aa5b4">—</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="pagination">
+      Mostrando 1–25 de 2,782 comisiones
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn" disabled>←</button>
+        <button class="btn" style="background:#e3f2fd;color:#1565c0;border-color:#90caf9">1</button>
+        <button class="btn">2</button>
+        <button class="btn">3</button>
+        <span style="padding:0 4px">...</span>
+        <button class="btn">112</button>
+        <button class="btn">→</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
