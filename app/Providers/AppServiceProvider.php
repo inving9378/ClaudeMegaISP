@@ -47,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
         // View::share('configLayout', …) y View::share('logoMeganet', …)
         // se movieron a app/Modules/Core/Layout/ModuleServiceProvider::boot().
         Lead::observe(LeadObserver::class);
+        \App\Models\Marketing\Message::observe(\App\Observers\Marketing\MessageObserver::class);
 
         // Embajadores Meganet
         \App\Models\Client::observe(\App\Observers\ClientObserver::class);

@@ -37,6 +37,9 @@
             <q-tab name="campaigns" icon="campaign" label="Campañas" />
             <q-tab name="leads" icon="people" label="Leads" />
             <q-tab name="templates" icon="description" label="Plantillas" />
+            <q-tab name="conversations" icon="chat" label="Conversaciones">
+                <q-badge v-if="totalUnread > 0" color="negative" :label="totalUnread" floating rounded />
+            </q-tab>
         </q-tabs>
 
         <q-tab-panels v-model="activeTab" animated>
@@ -45,6 +48,9 @@
             </q-tab-panel>
             <q-tab-panel name="leads" class="q-pa-none">
                 <marketing-leads />
+            </q-tab-panel>
+            <q-tab-panel name="conversations" class="q-pa-none" style="height:calc(100vh - 200px)">
+                <marketing-conversations-view :auth-user-id="authUserId" />
             </q-tab-panel>
             <q-tab-panel name="templates" class="q-pa-none">
                 <!-- Tabla simple de plantillas -->
@@ -135,11 +141,15 @@
 <script>
 export default {
     name: 'MarketingDashboard',
+    props: {
+        authUserId: { type: Number, default: null },
+    },
     data() {
         return {
             activeTab: 'campaigns',
             stats: {},
             templates: [],
+            totalUnread: 0,
             loadingTemplates: false,
             showCreateDialog: false,
             showTemplateDialog: false,
@@ -198,8 +208,13 @@ export default {
     mounted() {
         this.loadStats();
         this.loadTemplates();
+        this.loadUnreadCount();
+        this.unreadInterval = setInterval(this.loadUnreadCount, 10000);
         const params = new URLSearchParams(window.location.search);
         if (params.get('tab')) this.activeTab = params.get('tab');
+    },
+    beforeUnmount() {
+        clearInterval(this.unreadInterval);
     },
     methods: {
         async loadStats() {
@@ -282,6 +297,14 @@ export default {
         },
         channelColor(channel) {
             return { whatsapp: 'positive', facebook: 'primary', instagram: 'purple' }[channel] || 'grey';
+        },
+        async loadUnreadCount() {
+            try {
+                const { data } = await axios.get('/api/marketing/conversations', { params: { per_page: 1 } });
+                // Sum unread from meta or load separately
+                const { data: all } = await axios.get('/api/marketing/conversations', { params: { per_page: 100 } });
+                this.totalUnread = (all.data || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
+            } catch {}
         },
     },
 };
