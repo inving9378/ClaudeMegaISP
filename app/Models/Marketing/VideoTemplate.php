@@ -15,12 +15,16 @@ class VideoTemplate extends Model
     protected $fillable = [
         'company_id', 'name', 'slug', 'description', 'category',
         'aspect_ratios', 'duration_seconds', 'schema', 'preview_thumbnail', 'active',
+        'engine_version', 'default_variables', 'estimated_render_seconds', 'requires_voiceover',
     ];
 
     protected $casts = [
-        'aspect_ratios' => 'array',
-        'schema' => 'array',
-        'active' => 'boolean',
+        'aspect_ratios'            => 'array',
+        'schema'                   => 'array',
+        'default_variables'        => 'array',
+        'active'                   => 'boolean',
+        'requires_voiceover'       => 'boolean',
+        'estimated_render_seconds' => 'integer',
     ];
 
     public function generatedContent(): MorphMany
