@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>MegaFamilia — Mi Red Multinivel</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;display:flex;justify-content:center;padding:24px}
+  .phone{width:390px;background:#fff;border-radius:40px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25);border:8px solid #1a1a2e}
+  .status-bar{background:#1565c0;color:#fff;padding:12px 20px 8px;font-size:12px;display:flex;justify-content:space-between}
+  .appbar{background:#1565c0;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:12px}
+  .appbar-title{font-size:16px;font-weight:700}
+  .summary-bar{background:#e3f2fd;padding:12px 16px;display:flex;gap:16px;font-size:12px}
+  .sumbar-item{text-align:center;flex:1}
+  .sumbar-val{font-size:18px;font-weight:700;color:#1565c0}
+  .sumbar-lbl{font-size:10px;color:#6b7280}
+  .body{padding:0 0 20px;max-height:580px;overflow-y:auto}
+  .node-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f3f4f6}
+  .node-item:hover{background:#f7f9fc}
+  .level-chip{min-width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+  .lc-0{background:#1a237e}
+  .lc-1{background:#1565c0}
+  .lc-2{background:#1976d2}
+  .lc-3{background:#42a5f5;color:#fff}
+  .lc-4{background:#90caf9;color:#1565c0}
+  .node-info{flex:1;min-width:0}
+  .node-name{font-size:13px;font-weight:600;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .node-sub{font-size:11px;color:#6b7280;margin-top:2px}
+  .node-status{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;white-space:nowrap}
+  .status-active{background:#e8f5e9;color:#2e7d32}
+  .status-pending{background:#fff3e0;color:#e65100}
+  .status-cancel{background:#fce4ec;color:#c62828}
+  .indent-1{padding-left:30px}
+  .indent-2{padding-left:54px}
+  .indent-3{padding-left:78px}
+  .indent-4{padding-left:102px}
+  .navbar{background:#fff;border-top:1px solid #e8ecf0;display:flex;padding:8px 0 20px}
+  .nav-item{flex:1;text-align:center;font-size:10px;color:#6b7280;cursor:pointer;padding:4px}
+  .nav-item.active{color:#1565c0}
+  .nav-icon{font-size:20px;display:block;margin-bottom:2px}
+  .children-badge{background:#e3f2fd;color:#1565c0;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:600;margin-left:auto}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>9:43</span><span>●●●● WiFi 🔋</span></div>
+  <div class="appbar">
+    <span style="font-size:20px;cursor:pointer">←</span>
+    <span class="appbar-title">Mi Red Multinivel</span>
+  </div>
+  <div class="summary-bar">
+    <div class="sumbar-item"><div class="sumbar-val">15</div><div class="sumbar-lbl">Nodos totales</div></div>
+    <div class="sumbar-item"><div class="sumbar-val">3</div><div class="sumbar-lbl">Niveles activos</div></div>
+    <div class="sumbar-item"><div class="sumbar-val">85%</div><div class="sumbar-lbl">Activos</div></div>
+  </div>
+  <div class="body">
+    <!-- Nivel 0 (yo) -->
+    <div class="node-item" style="background:#e8f5e9">
+      <div class="level-chip lc-0">TÚ</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222756 (Tú)</div>
+        <div class="node-sub">SIM0222756 · Multinivel</div>
+      </div>
+      <span class="node-status status-active">Activo</span>
+    </div>
+    <!-- Nivel 1 -->
+    <div class="node-item indent-1">
+      <div class="level-chip lc-1">L1</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222771</div>
+        <div class="node-sub">Plan Standard $449/mes</div>
+      </div>
+      <span class="children-badge">3 ref.</span>
+      <span class="node-status status-active" style="margin-left:6px">Activo</span>
+    </div>
+    <div class="node-item indent-2">
+      <div class="level-chip lc-2">L2</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222801</div>
+        <div class="node-sub">Plan Premium $599/mes</div>
+      </div>
+      <span class="node-status status-active">Activo</span>
+    </div>
+    <div class="node-item indent-3">
+      <div class="level-chip lc-3">L3</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222875</div>
+        <div class="node-sub">Plan Standard $449/mes</div>
+      </div>
+      <span class="node-status status-active">Activo</span>
+    </div>
+    <div class="node-item indent-3">
+      <div class="level-chip lc-3">L3</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222876</div>
+        <div class="node-sub">Plan Basic $270/mes</div>
+      </div>
+      <span class="node-status status-pending">En proceso</span>
+    </div>
+    <div class="node-item indent-3">
+      <div class="level-chip lc-3">L3</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222877</div>
+        <div class="node-sub">Plan Standard $449/mes</div>
+      </div>
+      <span class="node-status status-active">Activo</span>
+    </div>
+    <div class="node-item indent-2">
+      <div class="level-chip lc-2">L2</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222802</div>
+        <div class="node-sub">Plan Basic $270/mes</div>
+      </div>
+      <span class="node-status status-cancel">Cancelado</span>
+    </div>
+    <div class="node-item indent-2">
+      <div class="level-chip lc-2">L2</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222803</div>
+        <div class="node-sub">Plan Standard $449/mes</div>
+      </div>
+      <span class="node-status status-active">Activo</span>
+    </div>
+    <div class="node-item indent-1">
+      <div class="level-chip lc-1">L1</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222772</div>
+        <div class="node-sub">Plan Premium $599/mes</div>
+      </div>
+      <span class="children-badge">3 ref.</span>
+      <span class="node-status status-active" style="margin-left:6px">Activo</span>
+    </div>
+    <div class="node-item indent-1">
+      <div class="level-chip lc-1">L1</div>
+      <div class="node-info">
+        <div class="node-name">Cliente #222773</div>
+        <div class="node-sub">Plan Standard $449/mes</div>
+      </div>
+      <span class="children-badge">3 ref.</span>
+      <span class="node-status status-active" style="margin-left:6px">Activo</span>
+    </div>
+    <div style="padding:12px 14px;font-size:12px;color:#9aa5b4;text-align:center">
+      Árbol 5×3⁴ — 605 nodos totales en simulación
+    </div>
+  </div>
+  <div class="navbar">
+    <div class="nav-item"><span class="nav-icon">🏠</span>Inicio</div>
+    <div class="nav-item active"><span class="nav-icon">🌐</span>Red</div>
+    <div class="nav-item"><span class="nav-icon">💰</span>Ganancias</div>
+    <div class="nav-item"><span class="nav-icon">🔔</span>Notif.</div>
+    <div class="nav-item"><span class="nav-icon">⚙️</span>Perfil</div>
+  </div>
+</div>
+</body>
+</html>
