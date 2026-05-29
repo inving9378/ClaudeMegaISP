@@ -45,3 +45,7 @@ public/voice_samples/
 # Artefactos de fases de desarrollo
 storage/embajadores_fase*.json
 storage/marketing_fase*.json
+
+# Asterisk configs con credenciales — usar manager.conf.example como plantilla
+config/asterisk/manager.conf
+config/asterisk/sip.conf
