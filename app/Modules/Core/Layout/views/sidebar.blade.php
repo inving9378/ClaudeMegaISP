@@ -135,6 +135,34 @@
                                 </a>
                             </li>
                         @endcan
+                        @can('view-publishing-dashboard')
+                            <li>
+                                <a href="{{ url('/marketing/publishing') }}">
+                                    <span data-key="t-marketing-pub"><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Publicador</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('publish-content')
+                            <li>
+                                <a href="{{ url('/marketing/publishing/campaign') }}">
+                                    <span data-key="t-marketing-pubcam"><small><i class="fa fa-fw fa-paper-plane"></i></small> Publicar</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('manage-publication-queue')
+                            <li>
+                                <a href="{{ url('/marketing/publishing/queue') }}">
+                                    <span data-key="t-marketing-queue"><small><i class="fa fa-fw fa-list-ol"></i></small> Cola</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('manage-publishing-channels')
+                            <li>
+                                <a href="{{ url('/marketing/publishing/setup') }}">
+                                    <span data-key="t-marketing-setup"><small><i class="fa fa-fw fa-plug"></i></small> Canales</span>
+                                </a>
+                            </li>
+                        @endcan
                     </ul>
                 </li>
 
