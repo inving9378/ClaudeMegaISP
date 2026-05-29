@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('client_payment_metadata', function (Blueprint $table) {
-            $table->date('previous_fecha_fin_periodo_gracia')->after('previous_status')->nullable();
-        });
+        if (!Schema::hasColumn('client_payment_metadata', 'previous_fecha_fin_periodo_gracia')) {
+            Schema::table('client_payment_metadata', function (Blueprint $table) {
+                $table->date('previous_fecha_fin_periodo_gracia')->after('previous_status')->nullable();
+            });
+        }
     }
 
     /**

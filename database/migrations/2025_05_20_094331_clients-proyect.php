@@ -16,17 +16,24 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('map_proyects', function (Blueprint $table) {
-            $table->unsignedBigInteger('parent_id')->nullable()->after('name');
-            $table->foreign('parent_id')->references('id')->on('map_proyects')->cascadeOnDelete();
-            $table->string('classification')->default('project')->after('parent_id');
-        });
+        if (!Schema::hasColumn('map_proyects', 'parent_id')) {
+            Schema::table('map_proyects', function (Blueprint $table) {
+                $table->unsignedBigInteger('parent_id')->nullable()->after('name');
+                $table->foreign('parent_id')->references('id')->on('map_proyects')->cascadeOnDelete();
+                $table->string('classification')->default('project')->after('parent_id');
+            });
+        }
 
-        Schema::table('map_layers', function (Blueprint $table) {
-            $table->string('classification')->default('project')->after('project_id');
-        });
+        if (!Schema::hasColumn('map_layers', 'classification')) {
+            Schema::table('map_layers', function (Blueprint $table) {
+                $table->string('classification')->default('project')->after('project_id');
+            });
+        }
 
-        $user = User::firstWhere('email', 'admin@admin.com');
+        $user = User::firstWhere('email', 'admin@admin.com') ?? User::first();
+        if (!$user) {
+            return;
+        }
         $p = MapProyect::create([
             'name' => 'Red',
             'classification' => 'network',

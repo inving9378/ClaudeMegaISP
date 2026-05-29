@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('olt_onus', function (Blueprint $table) {
-            $table->string('unique_external_id')->nullable()->after('sn');
-        });
+        if (Schema::hasTable('olt_onus') && !Schema::hasColumn('olt_onus', 'unique_external_id')) {
+            Schema::table('olt_onus', function (Blueprint $table) {
+                $table->string('unique_external_id')->nullable()->after('sn');
+            });
+        }
     }
 
     /**
