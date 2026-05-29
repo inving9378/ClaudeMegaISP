@@ -1,0 +1,8 @@
+{
+    "slug": "addon-hub",
+    "name": "Integration Hub",
+    "type": "addon",
+    "version": "1.0.0",
+    "description": "Centro de gestión de API keys y proveedores externos",
+    "active": true
+}
