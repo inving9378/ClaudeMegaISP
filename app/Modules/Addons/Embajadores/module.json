@@ -1,0 +1,9 @@
+{
+    "slug": "addon-embajadores",
+    "name": "Embajadores Meganet",
+    "version": "1.0.0",
+    "description": "Programa de lealtad por recomendación: referidos, comisiones multinivel (5 niveles) y mensualidades gratis para clientes embajadores.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true
+}
