@@ -17,17 +17,19 @@ class GeneratedContent extends Model
     protected $fillable = [
         'company_id', 'type', 'template_id', 'template_type', 'source_lead_id',
         'source_campaign_id', 'source_plan_id', 'input_variables', 'output_path',
-        'output_url', 'output_text', 'status', 'generation_engine',
+        'thumbnail_path', 'output_url', 'output_text', 'status', 'generation_engine',
         'generation_cost_usd', 'generation_metadata', 'failure_reason',
-        'generated_at', 'used_at',
+        'generated_at', 'used_at', 'render_progress', 'render_stage', 'render_log',
     ];
 
     protected $casts = [
-        'input_variables' => 'array',
-        'generation_metadata' => 'array',
-        'generation_cost_usd' => 'decimal:4',
-        'generated_at' => 'datetime',
-        'used_at' => 'datetime',
+        'input_variables'    => 'array',
+        'generation_metadata'=> 'array',
+        'render_log'         => 'array',
+        'generation_cost_usd'=> 'decimal:4',
+        'render_progress'    => 'integer',
+        'generated_at'       => 'datetime',
+        'used_at'            => 'datetime',
     ];
 
     public function template(): MorphTo
