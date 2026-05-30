@@ -5,7 +5,9 @@ namespace App\Modules\Core\ModuleManager\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Core\ModuleManager\Models\MigrationLog;
 use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
+use App\Modules\Core\ModuleManager\Services\ModuleLifecycleService;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
+use App\Modules\Core\ModuleManager\Services\ModuleRegistry as ModuleRegistryService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -192,13 +194,15 @@ class ModuleManagerController extends Controller
             $rows[] = [
                 'slug' => $slug,
                 'name' => $manifest['name'] ?? $slug,
-                'version' => $manifest['version'] ?? '0.0.0',
+                'manifest_version'   => $manifest['version'] ?? '0.0.0',
+                'installed_version'  => $reg ? ($reg->installed_version ?? null) : null,
                 'type' => $manifest['type'] ?? 'addon',
                 'description' => $manifest['description'] ?? '',
                 '_dir' => $dir,
                 'active' => $reg ? (bool) $reg->active : ($manifest['active'] ?? true),
                 'migrated' => $this->isMigrated($dir),
                 'files_count' => $this->countModuleFiles($dir),
+                'dir_size_kb' => $this->dirSizeKb($dir),
                 'total_cost' => $log ? (float) $log->total_cost : 0.0,
                 'total_input_tokens' => $log ? (int) $log->total_input : 0,
                 'total_output_tokens' => $log ? (int) $log->total_output : 0,
@@ -245,6 +249,21 @@ class ModuleManagerController extends Controller
         return $count;
     }
 
+    private function dirSizeKb(string $dir): float
+    {
+        if (! is_dir($dir)) {
+            return 0.0;
+        }
+        $bytes = 0;
+        $iter  = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS));
+        foreach ($iter as $file) {
+            if ($file->isFile()) {
+                $bytes += $file->getSize();
+            }
+        }
+        return round($bytes / 1024, 1);
+    }
+
     private function findModule(string $slug): ?array
     {
         foreach (app(ModuleManagerService::class)->manifests() as $m) {
@@ -263,5 +282,88 @@ class ModuleManagerController extends Controller
             ->limit(20)
             ->get(['id', 'status', 'input_tokens', 'output_tokens', 'cost_usd', 'started_at', 'completed_at']);
         return response()->json(['success' => true, 'history' => $rows]);
+    }
+
+    // ── Ciclo de vida ────────────────────────────────────────────────────────
+
+    public function installPreview(string $slug): JsonResponse
+    {
+        try {
+            $lifecycle  = app(ModuleLifecycleService::class);
+            $manifest   = null;
+            foreach (app(ModuleManagerService::class)->manifests() as $m) {
+                if (($m['slug'] ?? null) === $slug) { $manifest = $m; break; }
+            }
+            if (! $manifest) {
+                return response()->json(['success' => false, 'error' => "Módulo '{$slug}' no encontrado."], 404);
+            }
+            return response()->json(['success' => true, 'manifest' => $manifest]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function installModule(Request $request, string $slug): JsonResponse
+    {
+        try {
+            $force  = (bool) $request->boolean('force', false);
+            $result = app(ModuleLifecycleService::class)->install($slug, $force);
+            return response()->json($result);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 404);
+        } catch (\LogicException $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 422);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage(), 'type' => 'dependency'], 422);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function upgradeModule(string $slug): JsonResponse
+    {
+        try {
+            $result = app(ModuleLifecycleService::class)->upgrade($slug);
+            return response()->json($result);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function uninstallPreview(string $slug): JsonResponse
+    {
+        try {
+            $preview = app(ModuleLifecycleService::class)->previewUninstall($slug);
+            return response()->json(['success' => true, 'preview' => $preview]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function uninstallModule(Request $request, string $slug): JsonResponse
+    {
+        try {
+            $keepData = (bool) $request->boolean('keep_data', false);
+            $result   = app(ModuleLifecycleService::class)->uninstall($slug, $keepData);
+            return response()->json($result);
+        } catch (\LogicException $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /** Devuelve menú, tarjetas admin, secciones config compiladas por ModuleRegistry. */
+    public function registryData(): JsonResponse
+    {
+        $registry = app(ModuleRegistryService::class);
+        return response()->json([
+            'menu'            => $registry->getMenu(),
+            'admin_cards'     => $registry->getAdminCards(),
+            'config_sections' => $registry->getConfigSections(),
+            'api_endpoints'   => $registry->getApiEndpoints(),
+            'client_tabs'     => $registry->getClientTabs(),
+            'service_types'   => $registry->getServiceTypes(),
+        ]);
     }
 }

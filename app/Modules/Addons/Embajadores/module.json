@@ -5,5 +5,92 @@
     "description": "Programa de lealtad por recomendación: referidos, comisiones multinivel (5 niveles) y mensualidades gratis para clientes embajadores.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "embajadores.view",               "description": "Ver el panel de embajadores y su árbol de referidos" },
+        { "name": "embajadores.configure",           "description": "Configurar reglas, niveles y porcentajes del programa" },
+        { "name": "embajadores.tiers.manage",        "description": "Gestionar niveles de embajador (bronce, plata, oro)" },
+        { "name": "embajadores.rewards.manage",      "description": "Gestionar recompensas y créditos del programa" },
+        { "name": "embajadores.commissions.approve", "description": "Aprobar comisiones generadas por referidos" },
+        { "name": "embajadores.commissions.cancel",  "description": "Cancelar o rechazar comisiones pendientes" },
+        { "name": "embajadores.payouts.generate",    "description": "Generar liquidaciones mensuales de comisiones" }
+    ],
+
+    "menu": [
+        {
+            "label": "Embajadores",
+            "icon": "users",
+            "permission": "embajadores.view",
+            "url": "/embajadores",
+            "children": [
+                { "label": "Dashboard",  "url": "/embajadores",           "permission": "embajadores.view" },
+                { "label": "Clientes",   "url": "/embajadores/clientes",  "permission": "embajadores.view" },
+                { "label": "Métricas",   "url": "/embajadores/metrics",   "permission": "embajadores.view" },
+                { "label": "Video",      "url": "/embajadores/video",     "permission": "embajadores.view" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Embajadores Meganet",
+            "description": "Programa de referidos multinivel: comisiones, créditos y mensualidades gratis.",
+            "icon": "users",
+            "url": "/embajadores",
+            "permission": "embajadores.view"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "embajadores_programa",
+            "label": "Embajadores — Reglas del Programa",
+            "type": "general",
+            "category": "Ventas",
+            "icon": "award",
+            "url": "/embajadores",
+            "permission": "embajadores.configure",
+            "description": "Porcentajes de comisión por nivel, periodo de garantía (15 días) y condiciones de vencimiento (12 meses).",
+            "doc": {
+                "terms": [
+                    { "term": "Nivel de referido", "definition": "Posición en el árbol multinivel (nivel 1 = referido directo, nivel 5 = bisnieto)." },
+                    { "term": "Garantía 15 días", "definition": "Comisión queda pendiente hasta que el referido pasa 15 días activo sin cancelar." },
+                    { "term": "Vencimiento 12 meses", "definition": "Las comisiones acumuladas vencen si no se generan nuevos referidos en 12 meses." }
+                ],
+                "steps": [
+                    "Definir el porcentaje de crédito por cada uno de los 5 niveles.",
+                    "Configurar el periodo de garantía (default: 15 días).",
+                    "Activar o desactivar el vencimiento automático de créditos a los 12 meses."
+                ],
+                "actions": ["Guardar reglas", "Ver árbol de referidos", "Generar liquidación mensual"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",  "path": "/embajadores/dashboard/summary",    "description": "KPIs del programa",             "scope": "embajadores.view",               "permission": "embajadores.view" },
+        { "method": "GET",  "path": "/embajadores/clientes/data",        "description": "Lista embajadores (JSON)",       "scope": "embajadores.view",               "permission": "embajadores.view" },
+        { "method": "GET",  "path": "/embajadores/clientes/{id}/tree",   "description": "Árbol de referidos de cliente",  "scope": "embajadores.view",               "permission": "embajadores.view" },
+        { "method": "GET",  "path": "/embajadores/metrics/data",         "description": "Métricas del programa",          "scope": "embajadores.view",               "permission": "embajadores.view" }
+    ],
+
+    "ai": {
+        "knowledge": "Embajadores Meganet es el programa de referidos del ISP. Los clientes (embajadores) ganan créditos en su mensualidad por cada nuevo cliente que refieran. Tiene 5 niveles de profundidad con porcentajes configurables. La comisión entra en garantía 15 días y se aplica mensualmente. Los créditos vencen a los 12 meses sin actividad.",
+        "example_intents": [
+            "ver cuántos referidos tiene un cliente",
+            "aprobar comisiones de embajadores pendientes",
+            "generar liquidación de comisiones del mes",
+            "configurar los porcentajes por nivel del programa"
+        ],
+        "sensitive_actions": ["embajadores.commissions.approve", "embajadores.payouts.generate"]
+    },
+
+    "client_tab": {
+        "label": "Embajador",
+        "component": "EmbajadoresClientTab",
+        "permission": "embajadores.view"
+    },
+
+    "service_type": null
 }

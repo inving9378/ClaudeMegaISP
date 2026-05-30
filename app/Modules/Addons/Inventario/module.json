@@ -2,8 +2,113 @@
     "slug": "addon-inventario",
     "name": "Inventario",
     "version": "0.1.0",
-    "description": "Inventario de equipos y materiales.",
+    "description": "Control de inventario de equipos y materiales: ítems, tipos, stock, movimientos, almacenes y zonas.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "inventory_view_inventory",                               "description": "Ver el módulo de inventario" },
+        { "name": "inventory_item_view_inventory_item",                    "description": "Ver ítems de inventario" },
+        { "name": "inventory_item_add_inventory_item",                     "description": "Agregar ítem al inventario" },
+        { "name": "inventory_item_edit_inventory_item",                    "description": "Editar ítem de inventario" },
+        { "name": "inventory_item_delete_inventory_item",                  "description": "Eliminar ítem de inventario" },
+        { "name": "inventory_item_type_view_inventory_item_type",          "description": "Ver tipos de ítem" },
+        { "name": "inventory_item_type_add_inventory_item_type",           "description": "Crear tipo de ítem" },
+        { "name": "inventory_item_type_edit_inventory_item_type",          "description": "Editar tipo de ítem" },
+        { "name": "inventory_item_type_delete_inventory_item_type",        "description": "Eliminar tipo de ítem" },
+        { "name": "inventory_item_stock_view_inventory_item_stock",        "description": "Ver stock de ítems" },
+        { "name": "inventory_item_stock_add_inventory_item_stock",         "description": "Agregar stock" },
+        { "name": "inventory_item_stock_edit_inventory_item_stock",        "description": "Editar stock" },
+        { "name": "inventory_item_stock_delete_inventory_item_stock",      "description": "Eliminar registro de stock" },
+        { "name": "inventory_movement_view_inventory_movement",            "description": "Ver movimientos de inventario" },
+        { "name": "inventory_movement_add_inventory_movement",             "description": "Registrar movimiento" },
+        { "name": "inventory_movement_edit_inventory_movement",            "description": "Editar movimiento" },
+        { "name": "inventory_movement_delete_inventory_movement",          "description": "Eliminar movimiento" },
+        { "name": "inventory_store_view_inventory_store",                  "description": "Ver almacenes" },
+        { "name": "inventory_store_add_inventory_store",                   "description": "Crear almacén" },
+        { "name": "inventory_store_edit_inventory_store",                  "description": "Editar almacén" },
+        { "name": "inventory_store_delete_inventory_store",                "description": "Eliminar almacén" },
+        { "name": "inventory_item_custom_model_view_inventory_item_custom_model",   "description": "Ver modelos personalizados de ítem" },
+        { "name": "inventory_item_custom_model_add_inventory_item_custom_model",    "description": "Crear modelo personalizado" },
+        { "name": "inventory_item_custom_model_edit_inventory_item_custom_model",   "description": "Editar modelo personalizado" },
+        { "name": "inventory_item_custom_model_delete_inventory_item_custom_model", "description": "Eliminar modelo personalizado" },
+        { "name": "store_zone_view_store_zone",   "description": "Ver zonas de almacén" },
+        { "name": "store_zone_add_store_zone",    "description": "Crear zona de almacén" },
+        { "name": "store_zone_edit_store_zone",   "description": "Editar zona de almacén" },
+        { "name": "store_zone_delete_store_zone", "description": "Eliminar zona de almacén" }
+    ],
+
+    "menu": [
+        {
+            "label": "Inventario",
+            "icon": "package",
+            "permission": "inventory_view_inventory",
+            "url": "/inventory/inventory_item",
+            "children": [
+                { "label": "Ítems",        "url": "/inventory/inventory_item",       "permission": "inventory_item_view_inventory_item" },
+                { "label": "Tipos",        "url": "/inventory/inventory_item_type",  "permission": "inventory_item_type_view_inventory_item_type" },
+                { "label": "Stock",        "url": "/inventory/inventory_item_stock", "permission": "inventory_item_stock_view_inventory_item_stock" },
+                { "label": "Movimientos",  "url": "/inventory/inventory_movement",   "permission": "inventory_movement_view_inventory_movement" },
+                { "label": "Almacenes",    "url": "/inventory/inventory_store",      "permission": "inventory_store_view_inventory_store" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Inventario",
+            "description": "Control de equipos y materiales: stock, movimientos y almacenes.",
+            "icon": "package",
+            "url": "/inventory/inventory_item",
+            "permission": "inventory_view_inventory"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "inventario_general",
+            "label": "Inventario — Almacenes y Zonas",
+            "type": "herramientas",
+            "category": "Herramientas",
+            "icon": "package",
+            "url": "/inventory/inventory_store",
+            "permission": "inventory_store_add_inventory_store",
+            "description": "Configura almacenes, zonas de almacenamiento y modelos de ítem personalizados.",
+            "doc": {
+                "terms": [
+                    { "term": "Almacén", "definition": "Ubicación física donde se guardan los equipos y materiales." },
+                    { "term": "Zona", "definition": "Sub-área dentro de un almacén (pasillo, estante, gaveta)." },
+                    { "term": "Movimiento", "definition": "Entrada, salida o transferencia de ítems entre almacenes." }
+                ],
+                "steps": [
+                    "Crear almacenes con su ubicación.",
+                    "Definir zonas dentro de cada almacén.",
+                    "Registrar ítems con su tipo y stock inicial.",
+                    "Usar movimientos para registrar entradas/salidas."
+                ],
+                "actions": ["Crear almacén", "Agregar ítem", "Registrar movimiento", "Ver stock actual"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/inventory/inventory_item",       "description": "Lista ítems",        "scope": "inventory_item_view_inventory_item",  "permission": "inventory_item_view_inventory_item" },
+        { "method": "GET", "path": "/inventory/inventory_item_stock", "description": "Stock actual",       "scope": "inventory_item_stock_view_inventory_item_stock", "permission": "inventory_item_stock_view_inventory_item_stock" },
+        { "method": "GET", "path": "/inventory/inventory_movement",   "description": "Movimientos",        "scope": "inventory_movement_view_inventory_movement", "permission": "inventory_movement_view_inventory_movement" }
+    ],
+
+    "ai": {
+        "knowledge": "Inventario controla el stock de equipos (ONUs, cables, splitters, routers) y materiales del ISP. Tiene ítems categorizados por tipo, stock por almacén y movimientos de entrada/salida/transferencia. Soporta modelos personalizados por ítem y organización por zonas dentro del almacén.",
+        "example_intents": [
+            "ver el stock de ONUs disponibles",
+            "registrar entrada de equipos al almacén",
+            "ver movimientos de inventario del mes",
+            "cuántos routers quedan en el almacén central"
+        ],
+        "sensitive_actions": ["inventory_item_delete_inventory_item", "inventory_movement_delete_inventory_movement"]
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

@@ -114,8 +114,13 @@ export default {
         onMounted(async () => {
             hasPermission.data = new Permission(await allViewHasPermission());
             showLoading("showTextDef");
-            await getfieldsEdited("BillingReminder", 1);
-            hideLoading();
+            try {
+                await getfieldsEdited("BillingReminder", 1);
+            } catch (e) {
+                console.error('BillingReminderEdit: error cargando campos', e);
+            } finally {
+                hideLoading();
+            }
         });
 
         const updateThisField = ({ field, value }) => {

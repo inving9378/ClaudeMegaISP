@@ -2,8 +2,85 @@
     "slug": "addon-payments",
     "name": "Pagos SPEI / OpenPay",
     "version": "0.1.0",
-    "description": "Cobros automáticos vía CLABE virtual con OpenPay. Webhook entrante valida firma, aplica pago al cliente, activa servicio en MikroTik/OLT y notifica por WhatsApp. Diseñado para soportar Stripe, Conekta y otros proveedores en el futuro.",
+    "description": "Cobros automáticos vía CLABE virtual con OpenPay: webhook, validación de firma, aplicación de pago y activación de servicio.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "payments_view_providers",   "description": "Ver proveedores de pago configurados" },
+        { "name": "payments_manage_providers", "description": "Configurar proveedores de pago (OpenPay, Stripe, Conekta)" },
+        { "name": "payments_view_receipts",    "description": "Ver y descargar recibos de pago" },
+        { "name": "payments_view_webhooks_log","description": "Ver log de webhooks de pago recibidos" },
+        { "name": "payments_assign_clabe",     "description": "Asignar CLABE virtual a un cliente" }
+    ],
+
+    "menu": [
+        {
+            "label": "Pagos Online",
+            "icon": "credit-card",
+            "permission": "payments_view_providers",
+            "url": "/finanzas/payment-providers",
+            "children": [
+                { "label": "Proveedores",  "url": "/finanzas/payment-providers",  "permission": "payments_view_providers" },
+                { "label": "Recibos",      "url": "/finanzas/metodos-pago",       "permission": "payments_view_receipts" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Pagos SPEI / OpenPay",
+            "description": "CLABE virtual por cliente: cobros automáticos por transferencia bancaria.",
+            "icon": "credit-card",
+            "url": "/finanzas/payment-providers",
+            "permission": "payments_view_providers"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "payments_openpay",
+            "label": "Pagos — OpenPay / SPEI",
+            "type": "api_key",
+            "category": "Finanzas",
+            "icon": "credit-card",
+            "url": "/finanzas/payment-providers",
+            "permission": "payments_manage_providers",
+            "description": "Credenciales OpenPay para cobros por CLABE virtual (SPEI). Cada cliente recibe una CLABE única y al hacer transferencia se aplica el pago automáticamente.",
+            "doc": {
+                "terms": [
+                    { "term": "CLABE virtual", "definition": "Número de cuenta bancaria único por cliente que permite recibir transferencias SPEI." },
+                    { "term": "Webhook OpenPay", "definition": "Notificación POST que OpenPay envía cuando se recibe una transferencia." }
+                ],
+                "steps": [
+                    "Obtener Merchant ID y API Key de sandbox/producción en dashboard.openpay.mx.",
+                    "Ingresarlos en la configuración del proveedor OpenPay.",
+                    "Configurar el webhook en OpenPay apuntando a /webhooks/payments/openpay.",
+                    "Asignar CLABE a cada cliente desde su ficha o desde Pagos → Asignar CLABE."
+                ],
+                "actions": ["Configurar OpenPay", "Asignar CLABE a cliente", "Ver log de webhooks"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/finanzas/payment-providers",  "description": "Lista proveedores de pago", "scope": "payments_view_providers",   "permission": "payments_view_providers" },
+        { "method": "GET", "path": "/finanzas/clients/{id}/clabe", "description": "CLABE asignada al cliente", "scope": "payments_assign_clabe",     "permission": "payments_assign_clabe" },
+        { "method": "GET", "path": "/finanzas/payments/{id}/receipt","description": "Recibo de pago",           "scope": "payments_view_receipts",    "permission": "payments_view_receipts" }
+    ],
+
+    "ai": {
+        "knowledge": "Payments gestiona cobros automáticos vía transferencia bancaria SPEI. Cada cliente tiene una CLABE virtual única asignada. Cuando el cliente transfiere, OpenPay notifica vía webhook, el sistema valida la firma, aplica el pago al cliente y reactiva el servicio en MikroTik/OLT automáticamente. También soportará Stripe y Conekta en el futuro.",
+        "example_intents": [
+            "ver los pagos recibidos por SPEI hoy",
+            "asignar CLABE a un cliente",
+            "ver el log de webhooks de OpenPay",
+            "configurar las credenciales de OpenPay"
+        ],
+        "sensitive_actions": ["payments_manage_providers"]
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

@@ -73,6 +73,8 @@ import ApiMovilTokens from "./components/module/setting/api-movil/ApiMovilTokens
 import ApiMovilDocs from "./components/module/setting/api-movil/ApiMovilDocs.vue";
 import ApiMovilLogs from "./components/module/setting/api-movil/ApiMovilLogs.vue";
 import ModuleManager from "./components/module/admin/modules/ModuleManager.vue";
+import AdminPanel from "./components/module/admin/AdminPanel.vue";
+import ModuleConfigPanel from "./components/module/setting/ModuleConfigPanel.vue";
 import DevtoolsPanel from "./components/module/devtools/DevtoolsPanel.vue";
 
 // MegaFamilia (addon-megafamilia) — 1 dashboard + 17 scaffolds
@@ -102,6 +104,9 @@ import EmbajadoresTiers from "./components/module/embajadores/EmbajadoresTiers.v
 import EmbajadoresClientes from "./components/module/embajadores/EmbajadoresClientes.vue";
 import EmbajadoresComisiones from "./components/module/embajadores/EmbajadoresComisiones.vue";
 import EmbajadoresArbol from "./components/module/embajadores/EmbajadoresArbol.vue";
+
+// War Room Ejecutivo (addon-warroom)
+import WarroomDashboard from "./components/module/warroom/WarroomDashboard.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -446,6 +451,8 @@ const app = createApp({
         CommandConfig,
         FieldModuleListar,
         'module-manager': ModuleManager,
+        'admin-panel': AdminPanel,
+        'module-config-panel': ModuleConfigPanel,
         'devtools-panel': DevtoolsPanel,
         'manual-index': ManualIndex,
         'api-movil-config': ApiMovilConfig,
@@ -477,6 +484,7 @@ const app = createApp({
         'embajadores-clientes': EmbajadoresClientes,
         'embajadores-comisiones': EmbajadoresComisiones,
         'embajadores-arbol': EmbajadoresArbol,
+        'warroom-dashboard': WarroomDashboard,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,

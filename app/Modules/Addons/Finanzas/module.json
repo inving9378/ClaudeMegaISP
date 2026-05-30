@@ -2,8 +2,126 @@
     "slug": "addon-finanzas",
     "name": "Finanzas",
     "version": "0.1.0",
-    "description": "Facturación, pagos y contabilidad.",
+    "description": "Facturación, pagos, transacciones y contabilidad general del ISP.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "finance_view_invoices",                   "description": "Ver facturas de clientes" },
+        { "name": "finance_view_billing",                    "description": "Ver módulo de facturación" },
+        { "name": "finance_edit_billing",                    "description": "Editar datos de facturación" },
+        { "name": "finance_delete_billing",                  "description": "Eliminar registros de facturación" },
+        { "name": "finance_export_billing",                  "description": "Exportar reportes de facturación" },
+        { "name": "finance_view_payments",                   "description": "Ver pagos de clientes" },
+        { "name": "finance_edit_payments",                   "description": "Editar pagos" },
+        { "name": "finance_delete_payments",                 "description": "Eliminar pagos" },
+        { "name": "finance_export_payments",                 "description": "Exportar reporte de pagos" },
+        { "name": "finance_view_transactions",               "description": "Ver transacciones" },
+        { "name": "finance_edit_transactions",               "description": "Editar transacciones" },
+        { "name": "finance_delete_transactions",             "description": "Eliminar transacciones" },
+        { "name": "finance_export_transactions",             "description": "Exportar transacciones" },
+        { "name": "finance_view_general_accounting",         "description": "Ver módulo de contabilidad general" },
+        { "name": "finance_view_general_accounting_income",  "description": "Ver ingresos contables" },
+        { "name": "finance_add_general_accounting_income",   "description": "Registrar ingreso contable" },
+        { "name": "finance_edit_general_accounting_income",  "description": "Editar ingreso contable" },
+        { "name": "finance_delete_general_accounting_income","description": "Eliminar ingreso contable" },
+        { "name": "finance_view_general_accounting_expense", "description": "Ver gastos contables" },
+        { "name": "finance_add_general_accounting_expense",  "description": "Registrar gasto contable" },
+        { "name": "finance_edit_general_accounting_expense", "description": "Editar gasto contable" },
+        { "name": "finance_delete_general_accounting_expense","description": "Eliminar gasto contable" }
+    ],
+
+    "menu": [
+        {
+            "label": "Finanzas",
+            "icon": "dollar-sign",
+            "permission": "finance_view_billing",
+            "url": "/finanzas/facturas",
+            "children": [
+                { "label": "Facturas",       "url": "/finanzas/facturas",           "permission": "finance_view_invoices" },
+                { "label": "Pagos",          "url": "/finanzas/pagos",              "permission": "finance_view_payments" },
+                { "label": "Transacciones",  "url": "/finanzas/transacciones",      "permission": "finance_view_transactions" },
+                { "label": "Contabilidad",   "url": "/finanzas/general-accounting", "permission": "finance_view_general_accounting" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Finanzas",
+            "description": "Facturación, pagos, transacciones y contabilidad general del ISP.",
+            "icon": "dollar-sign",
+            "url": "/finanzas/facturas",
+            "permission": "finance_view_billing"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "finanzas_facturacion",
+            "label": "Finanzas — Facturación",
+            "type": "pagos",
+            "category": "Finanzas",
+            "icon": "file-text",
+            "url": "/finanzas/facturas",
+            "permission": "finance_edit_billing",
+            "description": "Configuración de facturación: días de corte, generación de proformas y recordatorios de cobro.",
+            "doc": {
+                "terms": [
+                    { "term": "Proforma", "definition": "Factura preliminar generada automáticamente antes del corte de cobro." },
+                    { "term": "Día de corte", "definition": "Día del mes en que se genera la factura y se intenta cobrar al cliente." }
+                ],
+                "steps": [
+                    "Configurar el día de corte mensual.",
+                    "Activar la generación automática de proformas (cron 03:00).",
+                    "Configurar recordatorios de cobro por WhatsApp o email."
+                ],
+                "actions": ["Ver facturas", "Generar proformas manuales", "Exportar reporte"]
+            }
+        },
+        {
+            "key": "finanzas_contabilidad",
+            "label": "Finanzas — Contabilidad General",
+            "type": "pagos",
+            "category": "Finanzas",
+            "icon": "bar-chart",
+            "url": "/finanzas/general-accounting",
+            "permission": "finance_view_general_accounting",
+            "description": "Registro manual de ingresos y gastos operativos para el estado de resultados.",
+            "doc": {
+                "terms": [
+                    { "term": "Ingreso contable", "definition": "Cualquier entrada de dinero no automatizada (ej. ventas de equipos, servicios extra)." },
+                    { "term": "Gasto operativo", "definition": "Egresos del ISP: renta, salarios, servicios, insumos." }
+                ],
+                "steps": [
+                    "Registrar ingresos y gastos del período.",
+                    "Ver el balance en el dashboard de contabilidad.",
+                    "Exportar el estado de resultados para contabilidad."
+                ],
+                "actions": ["Registrar ingreso", "Registrar gasto", "Ver dashboard", "Exportar"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/finanzas/facturas",           "description": "Lista facturas",        "scope": "finance_view_invoices",          "permission": "finance_view_invoices" },
+        { "method": "GET", "path": "/finanzas/pagos",              "description": "Lista pagos",           "scope": "finance_view_payments",          "permission": "finance_view_payments" },
+        { "method": "GET", "path": "/finanzas/transacciones",      "description": "Lista transacciones",   "scope": "finance_view_transactions",      "permission": "finance_view_transactions" },
+        { "method": "GET", "path": "/finanzas/general-accounting", "description": "Contabilidad general",  "scope": "finance_view_general_accounting", "permission": "finance_view_general_accounting" }
+    ],
+
+    "ai": {
+        "knowledge": "Finanzas centraliza la información económica del ISP: facturas generadas por cliente, pagos recibidos, transacciones y contabilidad general. El módulo de facturación genera proformas automáticas (cron 03:00) y registra los pagos vinculándolos a cada cliente.",
+        "example_intents": [
+            "ver los pagos de hoy",
+            "cuánto facturó el ISP este mes",
+            "ver las facturas pendientes de cobro",
+            "registrar un gasto operativo"
+        ],
+        "sensitive_actions": ["finance_delete_billing", "finance_delete_payments", "finance_delete_transactions"]
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

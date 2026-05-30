@@ -5,5 +5,74 @@
     "description": "Manual de usuario generado automáticamente vía Claude API. Documentación viva por módulo con versionado y regeneración bajo demanda.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "manual_view",     "description": "Ver el manual de usuario del sistema" },
+        { "name": "manual_generate", "description": "Regenerar el manual con Claude API" }
+    ],
+
+    "menu": [
+        {
+            "label": "Manual",
+            "icon": "book-open",
+            "permission": "manual_view",
+            "url": "/manual"
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Manual de Usuario",
+            "description": "Documentación del sistema generada automáticamente con Claude AI.",
+            "icon": "book-open",
+            "url": "/manual",
+            "permission": "manual_view"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "manual_generacion",
+            "label": "Manual — Documentación Automática",
+            "type": "herramientas",
+            "category": "Herramientas",
+            "icon": "book-open",
+            "url": "/manual",
+            "permission": "manual_generate",
+            "description": "Genera y actualiza el manual de usuario del sistema usando Claude API. La documentación refleja los módulos activos.",
+            "doc": {
+                "terms": [
+                    { "term": "Documentación viva", "definition": "Manual que se regenera automáticamente cuando el sistema cambia, en lugar de mantenerse manualmente." },
+                    { "term": "Sección de módulo", "definition": "Capítulo del manual dedicado a un módulo específico con sus funciones y pasos de uso." }
+                ],
+                "steps": [
+                    "Acceder a /manual para ver la documentación actual.",
+                    "Usar 'Regenerar' para actualizar el manual con los cambios recientes.",
+                    "El manual se organiza por módulos y funciones del sistema."
+                ],
+                "actions": ["Ver manual", "Regenerar sección", "Buscar en documentación"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/manual",                 "description": "Vista del manual",            "scope": "manual_view",     "permission": "manual_view" },
+        { "method": "GET", "path": "/api/manual/sections",    "description": "Lista secciones del manual",  "scope": "manual_view",     "permission": "manual_view" },
+        { "method": "GET", "path": "/api/manual/sections/{slug}","description": "Contenido de una sección", "scope": "manual_view",     "permission": "manual_view" }
+    ],
+
+    "ai": {
+        "knowledge": "Manual de Usuario genera automáticamente la documentación del sistema con Claude API. El manual se organiza en secciones por módulo y se puede regenerar bajo demanda cuando el sistema evoluciona. Permite a los usuarios aprender a usar cada módulo sin documentación manual.",
+        "example_intents": [
+            "ver el manual del sistema",
+            "cómo funciona el módulo de facturación",
+            "regenerar la documentación",
+            "buscar ayuda sobre tickets"
+        ],
+        "sensitive_actions": ["manual_generate"]
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

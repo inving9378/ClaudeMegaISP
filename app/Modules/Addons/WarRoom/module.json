@@ -1,0 +1,86 @@
+{
+    "slug": "addon-warroom",
+    "name": "War Room Ejecutivo",
+    "version": "1.0.0",
+    "description": "Dashboard ejecutivo para juntas operativas con control de tiempo, KPIs por área, insights IA y planes de ataque en vivo.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+
+    "permissions": [
+        { "name": "warroom.view",                  "description": "Ver el War Room ejecutivo" },
+        { "name": "warroom.meeting.create",        "description": "Iniciar una junta en el War Room" },
+        { "name": "warroom.meeting.moderate",      "description": "Moderar junta: pasar puntos, controlar tiempo" },
+        { "name": "warroom.meeting.delete",        "description": "Eliminar juntas del historial" },
+        { "name": "warroom.action_items.assign",   "description": "Asignar planes de acción a responsables" },
+        { "name": "warroom.insights.regenerate",   "description": "Regenerar insights IA del período" },
+        { "name": "warroom.snapshots.regenerate",  "description": "Forzar regeneración de snapshots de KPIs" }
+    ],
+
+    "menu": [
+        {
+            "label": "War Room",
+            "icon": "activity",
+            "permission": "warroom.view",
+            "url": "/warroom"
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "War Room Ejecutivo",
+            "description": "Dashboard de junta ejecutiva: KPIs en vivo, insights IA y planes de ataque.",
+            "icon": "activity",
+            "url": "/warroom",
+            "permission": "warroom.view"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "warroom_general",
+            "label": "War Room — Configuración",
+            "type": "scheduling",
+            "category": "Scheduling",
+            "icon": "activity",
+            "url": "/warroom",
+            "permission": "warroom.meeting.create",
+            "description": "Configuración del War Room: áreas de KPI, frecuencia de snapshots e insights automáticos.",
+            "doc": {
+                "terms": [
+                    { "term": "Snapshot", "definition": "Captura periódica de KPIs del negocio (ventas, cobros, tickets, red) para el historial de la junta." },
+                    { "term": "Insight IA", "definition": "Análisis generado por Claude sobre las métricas del período para identificar problemas y oportunidades." },
+                    { "term": "Plan de ataque", "definition": "Acciones concretas acordadas en la junta, asignadas a un responsable con fecha límite." }
+                ],
+                "steps": [
+                    "Seleccionar las áreas de KPI a monitorear en el War Room.",
+                    "Configurar la frecuencia de snapshots (diario, semanal, mensual).",
+                    "Al iniciar junta, el War Room muestra KPIs en vivo e insights IA del período."
+                ],
+                "actions": ["Iniciar junta", "Ver KPIs", "Asignar plan de ataque", "Regenerar insights"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/warroom",                              "description": "Dashboard War Room",         "scope": "warroom.view",                 "permission": "warroom.view" },
+        { "method": "GET", "path": "/warroom/api/kpis/{view}/{period}",     "description": "KPIs por área y período",    "scope": "warroom.view",                 "permission": "warroom.view" },
+        { "method": "GET", "path": "/warroom/api/insights/{view}/{period}", "description": "Insights IA del período",    "scope": "warroom.view",                 "permission": "warroom.view" },
+        { "method": "GET", "path": "/warroom/api/meetings/active",          "description": "Junta activa en curso",      "scope": "warroom.meeting.moderate",     "permission": "warroom.meeting.moderate" },
+        { "method": "GET", "path": "/warroom/api/action-items",             "description": "Planes de ataque pendientes","scope": "warroom.action_items.assign",  "permission": "warroom.action_items.assign" }
+    ],
+
+    "ai": {
+        "knowledge": "War Room Ejecutivo es un dashboard para juntas operativas del ISP. Muestra KPIs en tiempo real (ventas, cobros, tickets abiertos, estado de la red, morosos), genera insights automáticos con Claude y registra los planes de ataque acordados. Tiene control de tiempo por punto de agenda.",
+        "example_intents": [
+            "abrir el war room para la junta",
+            "ver los KPIs de ventas del mes",
+            "regenerar los insights de esta semana",
+            "asignar un plan de acción al equipo técnico"
+        ],
+        "sensitive_actions": ["warroom.snapshots.regenerate", "warroom.insights.regenerate"]
+    },
+
+    "client_tab": null,
+    "service_type": null
+}

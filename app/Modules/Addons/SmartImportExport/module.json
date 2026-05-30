@@ -5,5 +5,141 @@
     "description": "Importación inteligente con detección de conflictos por IA, exportación selectiva por módulos y bitácora persistente.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "permissions": [
+        { "name": "smart_import_view",    "description": "Ver el módulo de importación" },
+        { "name": "smart_import_execute", "description": "Ejecutar importaciones masivas" },
+        { "name": "smart_export_view",    "description": "Ver el módulo de exportación" },
+        { "name": "smart_export_execute", "description": "Ejecutar exportaciones de datos" }
+    ],
+
+    "menu": [
+        {
+            "label": "Import / Export",
+            "icon": "database",
+            "permission": "smart_import_view",
+            "url": "/configuracion/smart-import",
+            "children": [
+                { "label": "Importar",    "url": "/configuracion/smart-import",        "permission": "smart_import_view" },
+                { "label": "Exportar",    "url": "/configuracion/smart-export",        "permission": "smart_export_view" },
+                { "label": "Historial",   "url": "/configuracion/smart-import-export", "permission": "smart_import_view" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Smart Import / Export",
+            "description": "Importación masiva con IA y exportación selectiva por módulos.",
+            "icon": "database",
+            "url": "/configuracion/smart-import",
+            "permission": "smart_import_view"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "smart_import",
+            "label": "Smart Import",
+            "type": "herramientas",
+            "category": "Herramientas",
+            "icon": "database",
+            "url": "/configuracion/smart-import",
+            "permission": "config_view_tools",
+            "description": "Importación masiva de datos (clientes, servicios, pagos) desde archivos CSV/Excel con mapeo de columnas.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Smart Import",
+                        "definition": "Herramienta que importa datos masivos con detección automática de columnas y validación de registros."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Smart Import.",
+                    "Selecciona el módulo destino.",
+                    "Carga el archivo CSV o Excel.",
+                    "Mapea las columnas y ejecuta la importación."
+                ],
+                "actions": [
+                    "Cargar archivo",
+                    "Mapear columnas",
+                    "Ejecutar importación",
+                    "Ver historial"
+                ]
+            }
+        },
+        {
+            "key": "smart_export",
+            "label": "Smart Export",
+            "type": "herramientas",
+            "category": "Herramientas",
+            "icon": "file-export",
+            "url": "/configuracion/smart-export",
+            "permission": "config_view_tools",
+            "description": "Exportación de datos del sistema a CSV/Excel con filtros y selección de campos.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Smart Export",
+                        "definition": "Herramienta que exporta cualquier listado del sistema a CSV o Excel."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Smart Export.",
+                    "Selecciona el módulo y aplica filtros.",
+                    "Elige los campos a exportar y descarga."
+                ],
+                "actions": [
+                    "Configurar exportación",
+                    "Descargar archivo"
+                ]
+            }
+        },
+        {
+            "key": "smart_import_export",
+            "label": "Smart Import-Export",
+            "type": "herramientas",
+            "category": "Herramientas",
+            "icon": "history",
+            "url": "/configuracion/smart-import-export",
+            "permission": "config_view_tools",
+            "description": "Historial y configuración centralizada de operaciones de importación y exportación.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Historial SmartIE",
+                        "definition": "Registro de todas las operaciones de importación y exportación con su estado y errores."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Smart Import-Export.",
+                    "Revisa el historial de operaciones.",
+                    "Gestiona las plantillas de importación guardadas."
+                ],
+                "actions": [
+                    "Ver historial",
+                    "Gestionar plantillas"
+                ]
+            }
+        }
+    ],
+    "api_endpoints": [
+        { "method": "GET",  "path": "/configuracion/smart-import",        "description": "Panel de importación",  "scope": "smart_import_view",    "permission": "smart_import_view" },
+        { "method": "GET",  "path": "/configuracion/smart-export/modules","description": "Módulos exportables",   "scope": "smart_export_view",    "permission": "smart_export_view" },
+        { "method": "GET",  "path": "/configuracion/smart-import-export", "description": "Historial operaciones", "scope": "smart_import_view",    "permission": "smart_import_view" }
+    ],
+
+    "ai": {
+        "knowledge": "Smart Import/Export permite importar datos masivos desde CSV/Excel (clientes, servicios, pagos) con detección automática de columnas y validación de conflictos asistida por IA. La exportación es selectiva por módulo. El historial registra todas las operaciones con su estado y errores.",
+        "example_intents": [
+            "importar una lista de clientes desde Excel",
+            "exportar todos los pagos del mes",
+            "ver el historial de importaciones",
+            "descargar el resultado de una exportación"
+        ],
+        "sensitive_actions": ["smart_import_execute", "smart_export_execute"]
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

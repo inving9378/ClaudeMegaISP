@@ -114,8 +114,13 @@ export default {
         onMounted(async () => {
             hasPermission.data = new Permission(await allViewHasPermission());
             showLoading("showTextDef");
-            await getfieldsEdited("CompanyInformation", 1);
-            hideLoading();
+            try {
+                await getfieldsEdited("CompanyInformation", 1);
+            } catch (e) {
+                console.error('CompanyInformationEdit: error cargando campos', e);
+            } finally {
+                hideLoading();
+            }
         });
 
         const updateThisField = ({ field, value }) => {
