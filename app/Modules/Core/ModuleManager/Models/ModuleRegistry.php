@@ -11,7 +11,7 @@ class ModuleRegistry extends Model
     protected $fillable = [
         'slug',
         'name',
-        'version',
+        'installed_version',
         'type',
         'active',
         'installed_at',

@@ -2,8 +2,830 @@
     "slug": "core-configuracion",
     "name": "Configuración",
     "version": "0.1.0",
-    "description": "Datos de empresa, monedas y ajustes base.",
+    "description": "Ajustes globales del sistema: empresa, pagos, notificaciones, API móvil y catálogos operativos.",
     "type": "core",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "permissions": [
+        {
+            "name": "config_view_system",
+            "description": "Ver sección Sistema en Configuración"
+        },
+        {
+            "name": "config_view_main",
+            "description": "Ver sección Principal en Configuración"
+        },
+        {
+            "name": "config_view_finance",
+            "description": "Ver sección Finanzas en Configuración"
+        },
+        {
+            "name": "config_view_finance_notification",
+            "description": "Ver notificaciones financieras en Configuración"
+        },
+        {
+            "name": "config_view_network_management",
+            "description": "Ver sección Red en Configuración"
+        },
+        {
+            "name": "config_view_helpdesk",
+            "description": "Ver sección Helpdesk en Configuración"
+        },
+        {
+            "name": "config_view_scheduling",
+            "description": "Ver Actividades Programadas en Configuración"
+        },
+        {
+            "name": "config_view_potencial_customer",
+            "description": "Ver sección Clientes Potenciales en Configuración"
+        },
+        {
+            "name": "config_view_inventory",
+            "description": "Ver sección Inventario en Configuración"
+        },
+        {
+            "name": "config_view_integrations",
+            "description": "Ver sección API/Integraciones en Configuración"
+        },
+        {
+            "name": "config_view_voice",
+            "description": "Ver sección Voz en Configuración"
+        },
+        {
+            "name": "config_view_tools",
+            "description": "Ver sección Herramientas en Configuración"
+        },
+        {
+            "name": "config_view_sales",
+            "description": "Ver sección Ventas en Configuración"
+        },
+        {
+            "name": "config_view_google_maps",
+            "description": "Ver sección Mapas en Configuración"
+        },
+        {
+            "name": "config_view_messages",
+            "description": "Ver sección Mensajería en Configuración"
+        },
+        {
+            "name": "config_view_module",
+            "description": "Ver módulos en Configuración"
+        },
+        {
+            "name": "nomenclature_view_nomenclature",
+            "description": "Ver nomenclaturas"
+        },
+        {
+            "name": "nomenclature_add_nomenclature",
+            "description": "Crear nomenclaturas"
+        },
+        {
+            "name": "nomenclature_edit_nomenclature",
+            "description": "Editar nomenclaturas"
+        },
+        {
+            "name": "nomenclature_delete_nomenclature",
+            "description": "Eliminar nomenclaturas"
+        },
+        {
+            "name": "service_in_address_list_view_service_in_address_list",
+            "description": "Ver servicios en address list"
+        },
+        {
+            "name": "service_in_address_list_add_service_in_address_list",
+            "description": "Crear servicios en address list"
+        },
+        {
+            "name": "service_in_address_list_edit_service_in_address_list",
+            "description": "Editar servicios en address list"
+        },
+        {
+            "name": "service_in_address_list_delete_service_in_address_list",
+            "description": "Eliminar servicios en address list"
+        },
+        {
+            "name": "method_payment_view_method_payment",
+            "description": "Ver métodos de pago"
+        },
+        {
+            "name": "method_payment_add_method_payment",
+            "description": "Agregar métodos de pago"
+        },
+        {
+            "name": "method_payment_edit_method_payment",
+            "description": "Editar métodos de pago"
+        },
+        {
+            "name": "method_payment_delete_method_payment",
+            "description": "Eliminar métodos de pago"
+        },
+        {
+            "name": "method_payment_export_method_payment",
+            "description": "Exportar métodos de pago"
+        }
+    ],
+    "menu": [
+        {
+            "label": "Configuración",
+            "icon": "settings",
+            "permission": "config_view_system",
+            "url": "/configuracion",
+            "children": []
+        }
+    ],
+    "admin_cards": [
+        {
+            "title": "Configuración General",
+            "description": "Ajustes de empresa, pagos, notificaciones y catálogos del sistema.",
+            "icon": "cog",
+            "url": "/configuracion",
+            "permission": "config_view_system"
+        }
+    ],
+    "config_sections": [
+        {
+            "key": "empresa_info",
+            "label": "Información de la Empresa",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "building",
+            "url": "/configuracion/company-information",
+            "permission": "config_view_system",
+            "description": "Datos fiscales, logo y razón social que aparecen en facturas y documentos.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Razón social",
+                        "definition": "Nombre legal que aparece en todos los documentos generados."
+                    },
+                    {
+                        "term": "Logo",
+                        "definition": "Imagen que encabeza facturas y reportes exportados."
+                    },
+                    {
+                        "term": "RFC / NIT",
+                        "definition": "Identificador fiscal requerido para facturación electrónica."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Información de la Empresa.",
+                    "Edita los campos: razón social, dirección, RFC.",
+                    "Sube el logo en PNG o JPG.",
+                    "Guarda."
+                ],
+                "actions": [
+                    "Editar datos de empresa",
+                    "Cambiar logo"
+                ]
+            }
+        },
+        {
+            "key": "campos_adicionales",
+            "label": "Campos Adicionales",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "clipboard-list",
+            "url": "/configuracion/additional-fields",
+            "permission": "config_view_system",
+            "description": "Campos personalizados que extienden los formularios de clientes, servicios y otros módulos.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Campo adicional",
+                        "definition": "Atributo extra que el operador puede añadir a cualquier entidad."
+                    },
+                    {
+                        "term": "Módulo destino",
+                        "definition": "El formulario al que se añade el campo (cliente, servicio, ticket…)."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Campos Adicionales.",
+                    "Selecciona el módulo destino.",
+                    "Define nombre, tipo y si es obligatorio.",
+                    "Guarda."
+                ],
+                "actions": [
+                    "Crear campo",
+                    "Editar campo",
+                    "Eliminar campo",
+                    "Reordenar"
+                ]
+            }
+        },
+        {
+            "key": "credencial",
+            "label": "Configuración de Credencial",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "id-card",
+            "url": "/configuracion/credencial/modificar-credencial",
+            "permission": "config_view_sales",
+            "description": "Imagen corporativa (firma, membrete) que se estampa en documentos oficiales.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Credencial",
+                        "definition": "Imagen de firma o membrete institucional."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Configuración de Credencial.",
+                    "Sube la imagen.",
+                    "Guarda."
+                ],
+                "actions": [
+                    "Subir imagen de credencial"
+                ]
+            }
+        },
+        {
+            "key": "metodos_pago",
+            "label": "Métodos de Pago",
+            "type": "pagos",
+            "category": "Finanzas",
+            "icon": "credit-card",
+            "url": "/configuracion/metodos-de-pago",
+            "permission": "method_payment_view_method_payment",
+            "description": "Formas de cobro aceptadas: efectivo, transferencia, tarjeta, etc.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Método de pago",
+                        "definition": "Canal por el que el cliente liquida su factura (efectivo, SPEI, tarjeta…)."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Métodos de Pago.",
+                    "Agrega el método con nombre y actívalo.",
+                    "Aparecerá en el formulario de registro de pago."
+                ],
+                "actions": [
+                    "Agregar método",
+                    "Editar",
+                    "Activar / Desactivar",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "deuda_custom",
+            "label": "Pago de Deuda (Custom)",
+            "type": "pagos",
+            "category": "Finanzas",
+            "icon": "user-cog",
+            "url": "/configuracion/debitcustom",
+            "permission": "config_view_finance",
+            "description": "Reglas de cobro automático para clientes con plan personalizado: día de corte y tolerancia.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Día de corte",
+                        "definition": "Fecha del mes en que vence la factura del cliente custom."
+                    },
+                    {
+                        "term": "Tolerancia",
+                        "definition": "Días de gracia antes de aplicar suspensión automática."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Pago de Deuda (Custom).",
+                    "Define reglas de corte y tolerancia.",
+                    "Guarda."
+                ],
+                "actions": [
+                    "Editar reglas"
+                ]
+            }
+        },
+        {
+            "key": "deuda_recurrente",
+            "label": "Pago de Deuda (Recurrente)",
+            "type": "pagos",
+            "category": "Finanzas",
+            "icon": "sync-alt",
+            "url": null,
+            "modal": "debtpaymentclient",
+            "permission": "config_view_finance",
+            "description": "Reglas de cobro para clientes con facturación recurrente: tolerancia y acciones ante mora.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Cliente recurrente",
+                        "definition": "Cliente con factura mensual fija generada automáticamente."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Pago de Deuda (Recurrente).",
+                    "Define tolerancia y acción al vencer.",
+                    "Guarda."
+                ],
+                "actions": [
+                    "Editar reglas"
+                ]
+            }
+        },
+        {
+            "key": "nomenclatura",
+            "label": "Nomenclatura",
+            "type": "general",
+            "category": "Red",
+            "icon": "tags",
+            "url": "/configuracion/nomenclature",
+            "permission": "nomenclature_view_nomenclature",
+            "description": "Catálogo de nombres cortos para etiquetar equipos y nodos de red.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Nomenclatura",
+                        "definition": "Código o prefijo estándar para identificar tipos de equipo."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Nomenclatura.",
+                    "Agrega la sigla y descripción.",
+                    "Úsala al registrar equipos en Gestión de Red."
+                ],
+                "actions": [
+                    "Agregar nomenclatura",
+                    "Editar",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "servicios_address_list",
+            "label": "Servicios en Address List",
+            "type": "general",
+            "category": "Red",
+            "icon": "network-wired",
+            "url": "/configuracion/service_in_address_list",
+            "permission": "service_in_address_list_view_service_in_address_list",
+            "description": "Asigna servicios de internet a address lists de MikroTik para QoS y firewall.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Address List",
+                        "definition": "Lista de IPs en MikroTik que agrupa clientes para políticas de red uniformes."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Servicios en Address List.",
+                    "Asocia cada servicio con su lista en MikroTik.",
+                    "Guarda. Aplica en la siguiente sincronización."
+                ],
+                "actions": [
+                    "Agregar asociación",
+                    "Editar",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "workflow",
+            "label": "Flujos de Trabajo",
+            "type": "scheduling",
+            "category": "Scheduling",
+            "icon": "project-diagram",
+            "url": "/configuracion/work-flow",
+            "permission": "config_view_scheduling",
+            "description": "Secuencias automáticas de acciones disparadas por eventos del sistema.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Workflow",
+                        "definition": "Flujo automatizado de acciones que se ejecuta al ocurrir un evento."
+                    },
+                    {
+                        "term": "Disparador",
+                        "definition": "Evento que inicia el flujo (factura vencida, alta de cliente…)."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Flujos de Trabajo.",
+                    "Crea el flujo con disparador y pasos.",
+                    "Actívalo."
+                ],
+                "actions": [
+                    "Crear flujo",
+                    "Editar",
+                    "Activar / Desactivar",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "equipos",
+            "label": "Equipos",
+            "type": "scheduling",
+            "category": "Scheduling",
+            "icon": "users",
+            "url": "/configuracion/team",
+            "permission": "config_view_scheduling",
+            "description": "Grupos de agentes para asignación automática de tickets y tareas.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Equipo",
+                        "definition": "Grupo de usuarios con una cola de trabajo compartida."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Equipos.",
+                    "Crea el equipo y agrega miembros.",
+                    "Asígnalo como responsable en tickets."
+                ],
+                "actions": [
+                    "Crear equipo",
+                    "Agregar miembros",
+                    "Editar",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "plantillas_tarea",
+            "label": "Plantillas de Tareas",
+            "type": "scheduling",
+            "category": "Scheduling",
+            "icon": "copy",
+            "url": "/configuracion/template-task",
+            "permission": "config_view_scheduling",
+            "description": "Modelos reutilizables de tareas con pasos predefinidos.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Plantilla de tarea",
+                        "definition": "Esqueleto de tarea con pasos, responsable y tiempo estimado."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Plantillas de Tareas.",
+                    "Define nombre, pasos y responsable por defecto.",
+                    "Al crear una tarea, selecciona la plantilla."
+                ],
+                "actions": [
+                    "Crear plantilla",
+                    "Editar",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "plantillas_verificacion",
+            "label": "Plantillas de Verificación",
+            "type": "scheduling",
+            "category": "Scheduling",
+            "icon": "check-square",
+            "url": "/configuracion/list-template-verification",
+            "permission": "config_view_scheduling",
+            "description": "Listas de chequeo para instalaciones o visitas técnicas.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Plantilla de verificación",
+                        "definition": "Checklist de pasos para una visita técnica o instalación."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Plantillas de Verificación.",
+                    "Crea la lista con sus ítems.",
+                    "Asóciala al crear una tarea de campo."
+                ],
+                "actions": [
+                    "Crear plantilla",
+                    "Editar ítems",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "tareas_programadas",
+            "label": "Tareas Programadas",
+            "type": "scheduling",
+            "category": "Scheduling",
+            "icon": "clock",
+            "url": "/configuracion/command",
+            "permission": "config_view_scheduling",
+            "description": "Comandos del sistema que se ejecutan automáticamente a intervalos definidos.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Tarea programada",
+                        "definition": "Comando ejecutado por el scheduler en el intervalo configurado."
+                    },
+                    {
+                        "term": "Frecuencia",
+                        "definition": "Cada cuánto corre: minutos, horas, diaria, semanal."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Tareas Programadas.",
+                    "Selecciona la tarea y ajusta su frecuencia.",
+                    "Activa o desactiva."
+                ],
+                "actions": [
+                    "Editar frecuencia",
+                    "Activar / Desactivar"
+                ]
+            }
+        },
+        {
+            "key": "email_smtp",
+            "label": "Configuración de Email (SMTP)",
+            "type": "notificaciones",
+            "category": "Mensajería",
+            "icon": "envelope",
+            "url": "/configuracion/email-setting/editar/1",
+            "permission": "config_view_messages",
+            "description": "Servidor SMTP desde el que el sistema envía notificaciones y facturas por correo.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Host SMTP",
+                        "definition": "Servidor de correo saliente (smtp.gmail.com, smtp.sendgrid.net…)."
+                    },
+                    {
+                        "term": "Puerto",
+                        "definition": "Puerto de conexión: 465 (SSL) o 587 (TLS)."
+                    },
+                    {
+                        "term": "Remitente",
+                        "definition": "Dirección de correo que el cliente ve como emisor."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Email.",
+                    "Ingresa host, puerto, usuario y contraseña.",
+                    "Define nombre y dirección del remitente.",
+                    "Guarda y usa 'Enviar correo de prueba'."
+                ],
+                "actions": [
+                    "Editar configuración SMTP",
+                    "Enviar correo de prueba"
+                ]
+            }
+        },
+        {
+            "key": "finance_notification",
+            "label": "Notificaciones Financieras",
+            "type": "notificaciones",
+            "category": "Mensajería",
+            "icon": "bell",
+            "url": "/configuracion/finance-notification",
+            "permission": "config_view_finance_notification",
+            "description": "Alertas automáticas de pago, vencimiento y mora enviadas a clientes.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Alerta de vencimiento",
+                        "definition": "Notificación enviada días antes de que venza la factura."
+                    },
+                    {
+                        "term": "Canal",
+                        "definition": "Medio por el que se envía: correo o WhatsApp."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Notificaciones Financieras.",
+                    "Activa los tipos de alerta.",
+                    "Configura canal y texto del mensaje.",
+                    "Guarda."
+                ],
+                "actions": [
+                    "Activar / Desactivar alertas",
+                    "Editar mensaje",
+                    "Elegir canal"
+                ]
+            }
+        },
+        {
+            "key": "billing_reminder",
+            "label": "Recordatorio de Facturación",
+            "type": "notificaciones",
+            "category": "Mensajería",
+            "icon": "calendar-alt",
+            "url": "/configuracion/billing-reminder/editar/1",
+            "permission": "config_view_messages",
+            "description": "Recordatorio periódico enviado a clientes próximos a su fecha de factura.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Días antes",
+                        "definition": "Anticipación con que se envía el recordatorio antes del cobro."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Recordatorio de Facturación.",
+                    "Define días de anticipación y mensaje.",
+                    "Actívalo."
+                ],
+                "actions": [
+                    "Editar recordatorio",
+                    "Activar / Desactivar"
+                ]
+            }
+        },
+        {
+            "key": "api_movil_config",
+            "label": "API Móvil — Configuración",
+            "type": "api_key",
+            "category": "API",
+            "icon": "mobile-alt",
+            "url": "/configuracion/api-movil",
+            "permission": "config_view_integrations",
+            "description": "Parámetros globales de la API que consume la app móvil: endpoints habilitados y políticas de acceso.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "API Móvil",
+                        "definition": "Interfaz REST que usa la aplicación móvil para consultar datos."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → API Móvil → Configuración.",
+                    "Ajusta versión y parámetros.",
+                    "Guarda."
+                ],
+                "actions": [
+                    "Editar configuración de API"
+                ]
+            }
+        },
+        {
+            "key": "api_movil_tokens",
+            "label": "API Móvil — Tokens",
+            "type": "api_key",
+            "category": "API",
+            "icon": "key",
+            "url": "/configuracion/api-movil/tokens",
+            "permission": "config_view_integrations",
+            "description": "Tokens de autenticación vigentes emitidos para dispositivos móviles.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Token activo",
+                        "definition": "Credencial que un dispositivo usa para autenticarse en la API."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → API Móvil → Tokens.",
+                    "Revisa los activos.",
+                    "Revoca los que ya no deban tener acceso."
+                ],
+                "actions": [
+                    "Ver tokens",
+                    "Revocar token"
+                ]
+            }
+        },
+        {
+            "key": "api_movil_docs",
+            "label": "API Móvil — Documentación",
+            "type": "api_key",
+            "category": "API",
+            "icon": "book",
+            "url": "/configuracion/api-movil/docs",
+            "permission": "config_view_integrations",
+            "description": "Referencia de endpoints con ejemplos de request/response.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Endpoint",
+                        "definition": "Ruta de la API que expone un recurso o acción."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → API Móvil → Documentación.",
+                    "Consulta la lista de endpoints.",
+                    "Usa los ejemplos para integrar."
+                ],
+                "actions": [
+                    "Consultar endpoints"
+                ]
+            }
+        },
+        {
+            "key": "api_movil_logs",
+            "label": "API Móvil — Logs de Acceso",
+            "type": "api_key",
+            "category": "API",
+            "icon": "list-alt",
+            "url": "/configuracion/api-movil/logs",
+            "permission": "config_view_integrations",
+            "description": "Registro de llamadas a la API móvil: quién consultó qué, cuándo y con qué resultado.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Log de acceso",
+                        "definition": "Entrada con IP, endpoint, método HTTP, código y timestamp."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → API Móvil → Logs.",
+                    "Filtra por fecha, token o endpoint.",
+                    "Revisa errores 4xx/5xx."
+                ],
+                "actions": [
+                    "Filtrar logs",
+                    "Exportar logs"
+                ]
+            }
+        },
+        {
+            "key": "medios_venta",
+            "label": "Medios de Venta",
+            "type": "general",
+            "category": "Ventas",
+            "icon": "poll",
+            "url": "/configuracion/medios-de-venta",
+            "permission": "config_view_sales",
+            "description": "Canales de captación de clientes: redes sociales, referidos, puerta a puerta, etc.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Medio de venta",
+                        "definition": "Canal por el que se captó al cliente."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Medios de Venta.",
+                    "Agrega o edita los medios disponibles.",
+                    "Estos aparecen al dar de alta un cliente."
+                ],
+                "actions": [
+                    "Agregar medio",
+                    "Editar",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "tipos_vendedores",
+            "label": "Tipos de Vendedores",
+            "type": "general",
+            "category": "Ventas",
+            "icon": "user-tie",
+            "url": "/configuracion/tipos-vendedores",
+            "permission": "config_view_sales",
+            "description": "Categorías de vendedores: independiente, empleado, distribuidor, etc.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Tipo de vendedor",
+                        "definition": "Categoría que define la modalidad de relación laboral o comercial del vendedor."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Tipos de Vendedores.",
+                    "Define los tipos que aplican al negocio."
+                ],
+                "actions": [
+                    "Agregar tipo",
+                    "Editar",
+                    "Eliminar"
+                ]
+            }
+        },
+        {
+            "key": "estados_vendedores",
+            "label": "Estados de Vendedores",
+            "type": "general",
+            "category": "Ventas",
+            "icon": "traffic-light",
+            "url": "/configuracion/estados-vendedores",
+            "permission": "config_view_sales",
+            "description": "Estados posibles de un vendedor: activo, inactivo, suspendido, etc.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Estado de vendedor",
+                        "definition": "Situación actual del vendedor en el sistema (activo, suspendido…)."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Estados de Vendedores.",
+                    "Define los estados del ciclo de vida del vendedor."
+                ],
+                "actions": [
+                    "Agregar estado",
+                    "Editar",
+                    "Eliminar"
+                ]
+            }
+        }
+    ],
+    "api_endpoints": [],
+    "ai": {
+        "knowledge": "El módulo Configuración centraliza los ajustes globales del sistema: empresa, pagos, notificaciones, API móvil y catálogos operativos.",
+        "example_intents": [
+            "cambia el servidor de correo SMTP",
+            "activa las notificaciones de facturación",
+            "muestra los tokens de API activos",
+            "cambia el método de pago predeterminado"
+        ],
+        "sensitive_actions": []
+    },
+    "client_tab": null,
+    "service_type": null
 }

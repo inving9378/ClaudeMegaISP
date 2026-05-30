@@ -2,8 +2,71 @@
     "slug": "addon-devtools",
     "name": "DevTools",
     "version": "0.1.0",
-    "description": "Panel split-screen para desarrolladores: chat con Claude + terminal web (ttyd) en un solo viewport. Sólo accesible al rol DESARROLLADOR.",
+    "description": "Panel split-screen para desarrolladores: chat con Claude + terminal web (ttyd). Solo accesible al rol DESARROLLADOR.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [],
+
+    "menu": [
+        {
+            "label": "DevTools",
+            "icon": "terminal",
+            "permission": null,
+            "url": "/devtools"
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "DevTools",
+            "description": "Panel de desarrollo: chat Claude + terminal web. Solo para DESARROLLADOR.",
+            "icon": "terminal",
+            "url": "/devtools",
+            "permission": null
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "devtools_panel",
+            "label": "DevTools — Panel de Desarrollo",
+            "type": "herramientas",
+            "category": "Herramientas",
+            "icon": "terminal",
+            "url": "/devtools",
+            "permission": null,
+            "description": "Acceso al panel de desarrollo con chat Claude y terminal web integrada. Exclusivo del rol DESARROLLADOR.",
+            "doc": {
+                "terms": [
+                    { "term": "ttyd", "definition": "Terminal web en el navegador que permite ejecutar comandos del servidor sin SSH." },
+                    { "term": "Panel split", "definition": "Vista dividida: chat Claude a la izquierda, terminal a la derecha." }
+                ],
+                "steps": [
+                    "Acceder a /devtools desde el rol DESARROLLADOR.",
+                    "El panel se divide en chat Claude (izquierda) y terminal (derecha).",
+                    "Usar el contexto del sistema para preguntar sobre el código o ejecutar comandos."
+                ],
+                "actions": ["Abrir panel DevTools", "Ver contexto del sistema", "Ver ítems de navegación"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/devtools",         "description": "Panel DevTools",        "scope": "developer", "permission": null },
+        { "method": "GET", "path": "/devtools/context", "description": "Contexto del sistema",  "scope": "developer", "permission": null }
+    ],
+
+    "ai": {
+        "knowledge": "DevTools es una herramienta interna para el equipo de desarrollo del ISP. Proporciona un panel split con chat Claude y terminal web (ttyd). Solo accesible para usuarios con rol DESARROLLADOR. Útil para depuración, consultas al código y ejecución de comandos artisan.",
+        "example_intents": [
+            "abrir el panel de desarrollo",
+            "ver el contexto del sistema"
+        ],
+        "sensitive_actions": []
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

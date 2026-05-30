@@ -774,6 +774,15 @@
                     @endcan
                 </li>
 
+                @can('warroom.view')
+                    <li>
+                        <a href="{{ url('/warroom') }}" class="{{ request()->is('warroom*') ? 'active' : '' }}">
+                            <i data-feather="target"></i>
+                            <span data-key="t-warroom">War Room</span>
+                        </a>
+                    </li>
+                @endcan
+
                 @canany(['embajadores.view', 'embajadores.configure'])
                     <li>
                         <a href="javascript: void(0);" class="has-arrow">
@@ -840,6 +849,38 @@
                         </ul>
                     </li>
                 @endcanany
+
+                {{-- Addons instalados: se mezclan con el núcleo sin sección separada --}}
+                @foreach ($addonMenuItems ?? [] as $item)
+                    @if (!empty($item['permission']) && !auth()->user()?->can($item['permission']))
+                        @continue
+                    @endif
+                    <li>
+                        @if (!empty($item['children']))
+                            <a href="javascript: void(0);" class="has-arrow">
+                                <i data-feather="{{ $item['icon'] ?? 'package' }}"></i>
+                                <span>{{ $item['label'] }}</span>
+                            </a>
+                            <ul class="sub-menu" aria-expanded="false">
+                                @foreach ($item['children'] as $child)
+                                    @if (!empty($child['permission']) && !auth()->user()?->can($child['permission']))
+                                        @continue
+                                    @endif
+                                    <li>
+                                        <a href="{{ url($child['url'] ?? '#') }}">
+                                            <span><small><i class="fa fa-fw fa-circle"></i></small> {{ $child['label'] }}</span>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <a href="{{ url($item['url'] ?? '#') }}">
+                                <i data-feather="{{ $item['icon'] ?? 'package' }}"></i>
+                                <span>{{ $item['label'] }}</span>
+                            </a>
+                        @endif
+                    </li>
+                @endforeach
 
                 @role('DESARROLLADOR')
                     <li class="menu-item-desarrollador">

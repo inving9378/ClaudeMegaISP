@@ -2,8 +2,110 @@
     "slug": "addon-planes",
     "name": "Planes",
     "version": "0.1.0",
-    "description": "Planes Internet, VoIP, Custom y Bundles.",
+    "description": "Catálogo de planes: Internet, VoIP, Custom y Bundles (Paquetes).",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "plan_view_internet",   "description": "Ver planes de Internet" },
+        { "name": "plan_add_internet",    "description": "Crear plan de Internet" },
+        { "name": "plan_edit_internet",   "description": "Editar plan de Internet" },
+        { "name": "plan_delete_internet", "description": "Eliminar plan de Internet" },
+        { "name": "plan_export_internet", "description": "Exportar planes de Internet" },
+        { "name": "plan_view_voz",        "description": "Ver planes VoIP" },
+        { "name": "plan_add_voz",         "description": "Crear plan VoIP" },
+        { "name": "plan_edit_voz",        "description": "Editar plan VoIP" },
+        { "name": "plan_delete_voz",      "description": "Eliminar plan VoIP" },
+        { "name": "plan_export_voz",      "description": "Exportar planes VoIP" },
+        { "name": "plan_view_custom",     "description": "Ver planes personalizados" },
+        { "name": "plan_add_custom",      "description": "Crear plan personalizado" },
+        { "name": "plan_edit_custom",     "description": "Editar plan personalizado" },
+        { "name": "plan_delete_custom",   "description": "Eliminar plan personalizado" },
+        { "name": "plan_export_custom",   "description": "Exportar planes personalizados" },
+        { "name": "plan_view_package",    "description": "Ver paquetes (bundles)" },
+        { "name": "plan_add_package",     "description": "Crear paquete" },
+        { "name": "plan_edit_package",    "description": "Editar paquete" },
+        { "name": "plan_delete_package",  "description": "Eliminar paquete" },
+        { "name": "plan_export_package",  "description": "Exportar paquetes" }
+    ],
+
+    "menu": [
+        {
+            "label": "Planes",
+            "icon": "grid",
+            "permission": "plan_view_internet",
+            "url": "/planes/internet",
+            "children": [
+                { "label": "Internet",  "url": "/planes/internet",  "permission": "plan_view_internet" },
+                { "label": "VoIP",      "url": "/planes/voz",       "permission": "plan_view_voz" },
+                { "label": "Custom",    "url": "/planes/custom",    "permission": "plan_view_custom" },
+                { "label": "Paquetes",  "url": "/planes/paquetes",  "permission": "plan_view_package" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Planes",
+            "description": "Catálogo de planes: Internet, VoIP, Custom y Bundles.",
+            "icon": "grid",
+            "url": "/planes/internet",
+            "permission": "plan_view_internet"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "planes_catalogo",
+            "label": "Planes — Catálogo de Servicios",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "grid",
+            "url": "/planes/internet",
+            "permission": "plan_add_internet",
+            "description": "Gestión del catálogo de planes contratables: Internet, VoIP, servicios personalizados y bundles.",
+            "doc": {
+                "terms": [
+                    { "term": "Bundle", "definition": "Paquete que combina múltiples servicios (Internet + VoIP) en un solo plan con precio combinado." },
+                    { "term": "Plan Custom", "definition": "Servicio a medida que no cabe en las categorías estándar (ej. enlace dedicado, colocación)." }
+                ],
+                "steps": [
+                    "Crear planes de Internet con velocidad, precio y periodo de facturación.",
+                    "Agregar planes VoIP con extensiones y minutos incluidos.",
+                    "Crear bundles combinando los planes existentes con un precio especial.",
+                    "Los planes disponibles aparecen al asignar un servicio a un cliente."
+                ],
+                "actions": ["Crear plan Internet", "Crear plan VoIP", "Crear bundle", "Exportar catálogo"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/planes/internet",  "description": "Lista planes Internet", "scope": "plan_view_internet", "permission": "plan_view_internet" },
+        { "method": "GET", "path": "/planes/voz",       "description": "Lista planes VoIP",     "scope": "plan_view_voz",      "permission": "plan_view_voz" },
+        { "method": "GET", "path": "/planes/custom",    "description": "Lista planes Custom",   "scope": "plan_view_custom",   "permission": "plan_view_custom" },
+        { "method": "GET", "path": "/planes/paquetes",  "description": "Lista bundles",         "scope": "plan_view_package",  "permission": "plan_view_package" }
+    ],
+
+    "ai": {
+        "knowledge": "Planes gestiona el catálogo de servicios contratables del ISP. Tiene 4 tipos: Internet (con velocidad y tecnología de acceso), VoIP (telefonía IP), Custom (servicios a medida como enlaces dedicados) y Paquetes/Bundles (combos con precio especial). Al asignar un servicio a un cliente se elige de este catálogo.",
+        "example_intents": [
+            "ver los planes de Internet disponibles",
+            "crear un nuevo plan de 100 Mbps",
+            "qué bundles tiene el ISP",
+            "editar el precio del plan básico"
+        ],
+        "sensitive_actions": ["plan_delete_internet", "plan_delete_package"]
+    },
+
+    "client_tab": null,
+
+    "service_type": {
+        "key": "internet",
+        "label": "Internet",
+        "price_configurable": true,
+        "supports_promotions": true,
+        "bundleable": true
+    }
 }

@@ -15,6 +15,7 @@ use App\Modules\Core\Configuracion\Controllers\Rules\RuleController;
 use App\Modules\Core\Configuracion\Controllers\ServiceInAddressList\ServiceInAddressListController;
 use App\Modules\Core\Configuracion\Controllers\SettingAdditionalFieldController;
 use App\Modules\Core\Configuracion\Controllers\SettingApiMovilController;
+use App\Modules\Core\Configuracion\Controllers\ModuleConfigPanelController;
 use App\Modules\Core\Configuracion\Controllers\SettingController;
 use App\Modules\Core\Configuracion\Controllers\SettingDebitPaymentCustomController;
 use App\Modules\Core\Configuracion\Controllers\StatusSeller\StatusSellerController;
@@ -54,6 +55,11 @@ use Illuminate\Support\Facades\Route;
  * pertenecen a otros módulos (Mapas, Vendors) y siguen viviendo allí — sólo
  * se montan bajo este prefijo por motivos históricos de UI.
  */
+
+// Panel dinámico — nueva ruta paralela (Opción B: convive con el panel actual)
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->get('/admin/configuracion-nueva', [ModuleConfigPanelController::class, 'index'])
+    ->name('admin.config.panel-nueva');
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
     ->prefix('configuracion')

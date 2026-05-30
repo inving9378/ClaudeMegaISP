@@ -3,8 +3,11 @@
 namespace App\Modules\Core\ModuleManager;
 
 use App\Modules\BaseModuleServiceProvider;
+use App\Modules\Core\ModuleManager\Console\ModuleLifecycleCommand;
 use App\Modules\Core\ModuleManager\Console\ModuleListCommand;
+use App\Modules\Core\ModuleManager\Services\ModuleLifecycleService;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
+use App\Modules\Core\ModuleManager\Services\ModuleRegistry;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
 {
@@ -17,10 +20,13 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         parent::register();
 
         $this->app->singleton(ModuleManagerService::class, fn () => new ModuleManagerService());
+        $this->app->singleton(ModuleRegistry::class, fn () => ModuleRegistry::instance());
+        $this->app->singleton(ModuleLifecycleService::class, fn () => new ModuleLifecycleService());
 
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ModuleListCommand::class,
+                ModuleLifecycleCommand::class,
             ]);
         }
     }

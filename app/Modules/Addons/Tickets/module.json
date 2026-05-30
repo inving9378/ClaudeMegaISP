@@ -2,8 +2,102 @@
     "slug": "addon-tickets",
     "name": "Tickets",
     "version": "0.1.0",
-    "description": "Soporte y mesa de ayuda.",
+    "description": "Mesa de ayuda y soporte técnico: tickets abiertos, cerrados y reciclados con dashboard de KPIs.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "ticket_view_dashboard",   "description": "Ver el dashboard de tickets con KPIs" },
+        { "name": "ticket_view_open",        "description": "Ver tickets abiertos" },
+        { "name": "ticket_add_open",         "description": "Crear tickets" },
+        { "name": "ticket_edit_open",        "description": "Editar tickets abiertos" },
+        { "name": "ticket_delete_open",      "description": "Eliminar tickets abiertos" },
+        { "name": "ticket_export_open",      "description": "Exportar tickets abiertos" },
+        { "name": "ticket_view_close",       "description": "Ver tickets cerrados" },
+        { "name": "ticket_add_close",        "description": "Cerrar tickets" },
+        { "name": "ticket_edit_close",       "description": "Editar tickets cerrados" },
+        { "name": "ticket_delete_close",     "description": "Eliminar tickets cerrados" },
+        { "name": "ticket_export_close",     "description": "Exportar tickets cerrados" },
+        { "name": "ticket_view_recycling",   "description": "Ver papelera de tickets" },
+        { "name": "ticket_add_recycling",    "description": "Mover tickets a papelera" },
+        { "name": "ticket_edit_recycling",   "description": "Editar tickets en papelera" },
+        { "name": "ticket_delete_recycling", "description": "Eliminar definitivamente tickets" },
+        { "name": "ticket_export_recycling", "description": "Exportar papelera de tickets" }
+    ],
+
+    "menu": [
+        {
+            "label": "Tickets",
+            "icon": "tag",
+            "permission": "ticket_view_dashboard",
+            "url": "/tickets",
+            "children": [
+                { "label": "Dashboard",  "url": "/tickets",           "permission": "ticket_view_dashboard" },
+                { "label": "Abiertos",   "url": "/tickets/abiertos",  "permission": "ticket_view_open" },
+                { "label": "Cerrados",   "url": "/tickets/cerrados",  "permission": "ticket_view_close" },
+                { "label": "Papelera",   "url": "/tickets/reciclados","permission": "ticket_view_recycling" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Tickets",
+            "description": "Mesa de ayuda: soporte técnico, seguimiento de incidencias y KPIs.",
+            "icon": "tag",
+            "url": "/tickets",
+            "permission": "ticket_view_dashboard"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "tickets_general",
+            "label": "Tickets — Configuración",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "tag",
+            "url": "/tickets",
+            "permission": "ticket_add_open",
+            "description": "Parámetros del sistema de tickets: prioridades, categorías y SLAs.",
+            "doc": {
+                "terms": [
+                    { "term": "SLA", "definition": "Tiempo máximo comprometido para resolver un ticket según su prioridad." },
+                    { "term": "Reciclado", "definition": "Estado intermedio antes de eliminar un ticket permanentemente." }
+                ],
+                "steps": [
+                    "Definir las categorías de ticket (falla de señal, instalación, facturación).",
+                    "Asignar SLAs por prioridad (alta, media, baja).",
+                    "Configurar las notificaciones de vencimiento de SLA."
+                ],
+                "actions": ["Crear ticket", "Ver dashboard", "Exportar reporte", "Cerrar ticket"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",  "path": "/tickets",           "description": "Dashboard de tickets",   "scope": "ticket_view_dashboard", "permission": "ticket_view_dashboard" },
+        { "method": "GET",  "path": "/tickets/abiertos",  "description": "Lista tickets abiertos", "scope": "ticket_view_open",      "permission": "ticket_view_open" },
+        { "method": "GET",  "path": "/tickets/cerrados",  "description": "Lista tickets cerrados", "scope": "ticket_view_close",     "permission": "ticket_view_close" }
+    ],
+
+    "ai": {
+        "knowledge": "Tickets es la mesa de ayuda del ISP. Gestiona incidencias de clientes (fallas, instalaciones pendientes, consultas de facturación). Tiene tres estados: abierto, cerrado y reciclado. El dashboard muestra KPIs de tiempo de resolución y volumen por categoría.",
+        "example_intents": [
+            "ver los tickets abiertos de hoy",
+            "crear un ticket para un cliente con falla",
+            "cuántos tickets se cerraron esta semana",
+            "ver los tickets de un cliente específico"
+        ],
+        "sensitive_actions": ["ticket_delete_recycling"]
+    },
+
+    "client_tab": {
+        "label": "Tickets",
+        "component": "TicketsClientTab",
+        "permission": "ticket_view_open"
+    },
+
+    "service_type": null
 }

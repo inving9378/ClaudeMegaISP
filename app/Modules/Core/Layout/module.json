@@ -5,5 +5,12 @@
     "description": "Plantillas maestras, topbar, sidebar y modo oscuro.",
     "type": "core",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "menu": [],
+    "admin_cards": [],
+    "config_sections": [],
+    "api_endpoints": [],
+    "ai": [],
+    "client_tab": null,
+    "service_type": null
 }

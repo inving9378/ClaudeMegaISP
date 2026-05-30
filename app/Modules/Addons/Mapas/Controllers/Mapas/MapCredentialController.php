@@ -10,7 +10,7 @@ class MapCredentialController extends Controller
 {
     public function index()
     {
-        return view('meganet.module.setting.maps.update-api-key');
+        return view('core-configuracion::maps.update-api-key');
     }
 
     public function store(Request $request)

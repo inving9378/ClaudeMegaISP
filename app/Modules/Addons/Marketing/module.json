@@ -1,20 +1,154 @@
 {
     "slug": "addon-marketing",
-    "name": "Marketing",
+    "name": "Marketing IA",
     "version": "1.0.0",
-    "description": "Campañas de marketing con IA, generación de contenido y gestión de leads para ISP",
+    "description": "Campañas de marketing con IA: leads, generación de contenido, video MVM, publicación multicanal y agente WhatsApp",
     "type": "addon",
-    "dependencies": [],
+    "dependencies": [
+        { "slug": "addon-whatsapp-agent", "min_version": "1.0.0" }
+    ],
     "active": true,
+
     "permissions": [
-        "marketing_view",
-        "marketing_campaigns_view",
-        "marketing_campaigns_create",
-        "marketing_campaigns_edit",
-        "marketing_campaigns_approve",
-        "marketing_content_generate",
-        "marketing_leads_view",
-        "marketing_leads_manage",
-        "marketing_templates_manage"
-    ]
+        { "name": "connect-meta-account",         "description": "Conectar cuenta de Meta Ads (Facebook/Instagram)" },
+        { "name": "create-marketing-campaigns",   "description": "Crear campañas de marketing" },
+        { "name": "delete-marketing-campaigns",   "description": "Eliminar campañas de marketing" },
+        { "name": "generate-video-content",       "description": "Generar videos con el motor MVM" },
+        { "name": "delete-video-content",         "description": "Eliminar videos generados" },
+        { "name": "download-video",               "description": "Descargar videos generados" },
+        { "name": "manage-brand-assets",          "description": "Gestionar Brand Kit (logo, colores, tipografías)" },
+        { "name": "manage-integrations",          "description": "Configurar integraciones de API del módulo" },
+        { "name": "manage-marketing-niches",      "description": "Definir nichos y configuración del Director Creativo IA" },
+        { "name": "manage-publication-queue",     "description": "Gestionar la cola de publicación" },
+        { "name": "manage-publishing-channels",   "description": "Configurar canales de publicación (FB, IG, WA)" },
+        { "name": "manage-video-settings",        "description": "Configurar plantillas y ajustes del motor de video" },
+        { "name": "publish-content",              "description": "Publicar contenido en redes sociales" }
+    ],
+
+    "menu": [
+        {
+            "label": "Marketing IA",
+            "icon": "trending-up",
+            "permission": "create-marketing-campaigns",
+            "url": "/marketing",
+            "children": [
+                { "label": "Dashboard",    "url": "/marketing",                    "permission": "create-marketing-campaigns" },
+                { "label": "Leads",        "url": "/marketing/leads",             "permission": "create-marketing-campaigns" },
+                { "label": "Campañas",     "url": "/marketing/campanas",          "permission": "create-marketing-campaigns" },
+                { "label": "Contenido",    "url": "/marketing/contenido",         "permission": "generate-video-content" },
+                { "label": "Video MVM",    "url": "/marketing/video",             "permission": "generate-video-content" },
+                { "label": "Publicación",  "url": "/marketing/publicar",          "permission": "publish-content" },
+                { "label": "Brand Kit",    "url": "/marketing/brand-kit",         "permission": "manage-brand-assets" },
+                { "label": "Integraciones","url": "/integraciones",               "permission": "manage-integrations" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Marketing IA",
+            "description": "Leads, campañas, generación de video y publicación multicanal con IA.",
+            "icon": "trending-up",
+            "url": "/marketing",
+            "permission": "create-marketing-campaigns"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "marketing_meta_ads",
+            "label": "Marketing — Meta Ads (Facebook/Instagram)",
+            "type": "api_key",
+            "category": "Mensajería",
+            "icon": "facebook",
+            "url": "/integraciones",
+            "permission": "manage-integrations",
+            "description": "Credenciales de la app Meta para recibir leads de Facebook Ads e Instagram y publicar contenido.",
+            "doc": {
+                "terms": [
+                    { "term": "Meta Lead Ads", "definition": "Formularios de captación de leads directamente en Facebook/Instagram." },
+                    { "term": "Webhook Meta", "definition": "Canal por el que Meta envía leads nuevos en tiempo real." }
+                ],
+                "steps": [
+                    "Crear app en developers.facebook.com con permisos leads_retrieval y pages_manage_posts.",
+                    "Copiar App ID y App Secret al Integration Hub.",
+                    "Conectar la cuenta Meta desde el botón 'Conectar Facebook/Instagram'.",
+                    "Verificar que el webhook /webhooks/marketing/meta-ads recibe eventos."
+                ],
+                "actions": ["Conectar cuenta Meta", "Ver leads capturados", "Desconectar cuenta"]
+            }
+        },
+        {
+            "key": "marketing_openai_tts",
+            "label": "Marketing — OpenAI TTS (Video MVM)",
+            "type": "api_key",
+            "category": "API",
+            "icon": "mic",
+            "url": "/integraciones",
+            "permission": "manage-integrations",
+            "description": "API key de OpenAI usada por el motor de video MVM para generar voz (text-to-speech) en los videos.",
+            "doc": {
+                "terms": [
+                    { "term": "TTS", "definition": "Text-to-Speech — conversión de texto a voz natural." },
+                    { "term": "Motor MVM", "definition": "Motor de video de Medussa: combina plantilla + voz + B-roll + texto animado." }
+                ],
+                "steps": [
+                    "Obtener API key en platform.openai.com.",
+                    "Ingresarla en Integration Hub bajo el proveedor 'openai'.",
+                    "Opcionalmente configurar Pexels API key para B-roll automático."
+                ],
+                "actions": ["Configurar OpenAI", "Configurar Pexels B-roll", "Generar video de prueba"]
+            }
+        },
+        {
+            "key": "marketing_niches",
+            "label": "Marketing — Nichos y Director Creativo IA",
+            "type": "general",
+            "category": "Ventas",
+            "icon": "target",
+            "url": "/marketing/niches",
+            "permission": "manage-marketing-niches",
+            "description": "Configura nichos de mercado y el Director Creativo IA que genera conceptos y guiones de video.",
+            "doc": {
+                "terms": [
+                    { "term": "Nicho", "definition": "Segmento de mercado con tono, voz y estilo visual específicos (ej. gamer, familiar, empresarial)." },
+                    { "term": "Director Creativo IA", "definition": "Servicio que genera conceptos creativos, guiones y selección de B-roll basándose en el nicho." }
+                ],
+                "steps": [
+                    "Seleccionar o crear un nicho de mercado.",
+                    "Ajustar el tono, voz preferida y paleta de colores.",
+                    "El Director Creativo IA usará estos parámetros en cada generación."
+                ],
+                "actions": ["Crear nicho", "Editar configuración", "Generar concepto de prueba"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",  "path": "/api/marketing/leads",               "description": "Lista leads captados",          "scope": "create-marketing-campaigns", "permission": "create-marketing-campaigns" },
+        { "method": "POST", "path": "/api/marketing/campaigns",           "description": "Crear campaña",                 "scope": "create-marketing-campaigns", "permission": "create-marketing-campaigns" },
+        { "method": "POST", "path": "/api/marketing/content/generate",    "description": "Generar video/contenido IA",    "scope": "generate-video-content",     "permission": "generate-video-content" },
+        { "method": "POST", "path": "/api/marketing/publish",             "description": "Publicar en redes sociales",    "scope": "publish-content",            "permission": "publish-content" },
+        { "method": "POST", "path": "/webhooks/marketing/meta-ads",       "description": "Webhook Meta Lead Ads",         "scope": "public",                     "permission": null },
+        { "method": "POST", "path": "/webhooks/marketing/evolution",      "description": "Webhook Evolution (bot mktg)",  "scope": "public",                     "permission": null }
+    ],
+
+    "ai": {
+        "knowledge": "Marketing IA es el módulo de crecimiento del ISP. Captura leads desde Facebook/Instagram Lead Ads con scoring automático por Claude. Tiene un agente WhatsApp que califica prospectos. Genera videos de marketing con el motor MVM (FFmpeg + OpenAI TTS + B-roll Pexels). Publica en Facebook, Instagram, WhatsApp Status y Email. Incluye Brand Kit, Director Creativo IA por nichos y cola de publicación.",
+        "example_intents": [
+            "ver leads nuevos de hoy",
+            "generar un video de marketing para el plan gamer",
+            "publicar contenido en Instagram",
+            "configurar Meta Ads"
+        ],
+        "sensitive_actions": ["publish-content", "delete-marketing-campaigns", "delete-video-content"]
+    },
+
+    "client_tab": {
+        "label": "Leads",
+        "component": "MarketingLeadClientTab",
+        "permission": "create-marketing-campaigns"
+    },
+
+    "service_type": null
 }

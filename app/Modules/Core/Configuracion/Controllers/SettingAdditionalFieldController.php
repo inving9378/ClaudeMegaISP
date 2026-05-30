@@ -128,7 +128,7 @@ class SettingAdditionalFieldController extends Controller
                 // Verifica si existe una traducción para el módulo y si no, usa el nombre original
                 $translatedName = $translateModules[$moduleName] ?? $moduleName;
 
-                $arrayReturn[$translateModules[$groupKey]][$moduleId] = $translatedName;
+                $arrayReturn[$translateModules[$groupKey] ?? $groupKey][$moduleId] = $translatedName;
             }
         }
         return $arrayReturn;

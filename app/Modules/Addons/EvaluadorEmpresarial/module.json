@@ -2,8 +2,83 @@
     "slug": "addon-evaluador-empresarial",
     "name": "Evaluador Empresarial",
     "version": "0.1.0",
-    "description": "Cuestionario público para evaluar necesidades empresariales y captar leads. Incluye dashboard staff.",
+    "description": "Cuestionario público para evaluar necesidades de conectividad empresarial y captar leads. Incluye dashboard staff con estadísticas.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "evaluador_view_evaluacion",   "description": "Ver evaluaciones y resultados del panel staff" },
+        { "name": "evaluador_view_estadisticas", "description": "Ver estadísticas y métricas del evaluador" },
+        { "name": "evaluador_export_evaluacion", "description": "Exportar evaluaciones a Excel/PDF" }
+    ],
+
+    "menu": [
+        {
+            "label": "Evaluador Empresarial",
+            "icon": "clipboard",
+            "permission": "evaluador_view_evaluacion",
+            "url": "/admin/evaluaciones-panel",
+            "children": [
+                { "label": "Evaluaciones",    "url": "/admin/evaluaciones",            "permission": "evaluador_view_evaluacion" },
+                { "label": "Estadísticas",    "url": "/admin/evaluaciones/estadisticas","permission": "evaluador_view_estadisticas" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Evaluador Empresarial",
+            "description": "Cuestionario de necesidades para captar leads empresariales y analizar su perfil de conectividad.",
+            "icon": "clipboard",
+            "url": "/admin/evaluaciones-panel",
+            "permission": "evaluador_view_evaluacion"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "evaluador_general",
+            "label": "Evaluador Empresarial — Configuración",
+            "type": "general",
+            "category": "Ventas",
+            "icon": "clipboard",
+            "url": "/admin/evaluaciones-panel",
+            "permission": "evaluador_view_evaluacion",
+            "description": "Cuestionario de captación de leads empresariales: evalúa necesidades de conectividad y entrega un resultado personalizado.",
+            "doc": {
+                "terms": [
+                    { "term": "Evaluación", "definition": "Cuestionario completado por un prospecto empresarial con sus necesidades de internet y conectividad." },
+                    { "term": "Token de resultado", "definition": "URL única generada al finalizar la evaluación que el prospecto puede compartir o guardar." }
+                ],
+                "steps": [
+                    "El prospecto accede a /evaluador-empresarial y completa el cuestionario.",
+                    "Al terminar recibe su resultado con el plan recomendado y un token único.",
+                    "El equipo de ventas ve la evaluación en /admin/evaluaciones con todos los datos."
+                ],
+                "actions": ["Ver evaluaciones", "Ver estadísticas", "Exportar resultados", "Ver resultado de evaluación"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/evaluador-empresarial",             "description": "Cuestionario público",     "scope": "public",                       "permission": null },
+        { "method": "GET", "path": "/admin/evaluaciones",                "description": "Lista evaluaciones staff", "scope": "evaluador_view_evaluacion",    "permission": "evaluador_view_evaluacion" },
+        { "method": "GET", "path": "/admin/evaluaciones/estadisticas",   "description": "Estadísticas",             "scope": "evaluador_view_estadisticas",  "permission": "evaluador_view_estadisticas" },
+        { "method": "GET", "path": "/admin/evaluaciones/exportar",       "description": "Exportar evaluaciones",    "scope": "evaluador_export_evaluacion",  "permission": "evaluador_export_evaluacion" }
+    ],
+
+    "ai": {
+        "knowledge": "Evaluador Empresarial es un cuestionario web público que captura leads empresariales. El prospecto responde sobre su empresa, número de usuarios, necesidades de conectividad y presupuesto. Al terminar recibe un resultado personalizado con el plan recomendado. El equipo de ventas ve todas las evaluaciones en el panel admin con estadísticas.",
+        "example_intents": [
+            "ver las evaluaciones empresariales recientes",
+            "cuántas evaluaciones se completaron este mes",
+            "exportar las evaluaciones a Excel",
+            "ver los resultados del evaluador empresarial"
+        ],
+        "sensitive_actions": []
+    },
+
+    "client_tab": null,
+    "service_type": null
 }
