@@ -2,8 +2,85 @@
     "slug": "addon-mensajes",
     "name": "Mensajes",
     "version": "0.1.0",
-    "description": "Inbox, recordatorios y correos de cobranza (factura, proforma, pagos).",
+    "description": "Inbox interno, recordatorios de cobro y correos transaccionales (factura, proforma, pagos).",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "inbox_view_inbox",   "description": "Ver bandeja de entrada (inbox)" },
+        { "name": "inbox_add_inbox",    "description": "Redactar y enviar mensajes internos" },
+        { "name": "inbox_edit_inbox",   "description": "Editar mensajes propios" },
+        { "name": "inbox_delete_inbox", "description": "Eliminar mensajes del inbox" },
+        { "name": "inbox_send_message", "description": "Enviar mensajes a otros usuarios del sistema" },
+        { "name": "labels_view_labels", "description": "Ver etiquetas de mensajes" }
+    ],
+
+    "menu": [
+        {
+            "label": "Mensajes",
+            "icon": "mail",
+            "permission": "inbox_view_inbox",
+            "url": "/message/inbox",
+            "children": [
+                { "label": "Inbox",          "url": "/message/inbox",         "permission": "inbox_view_inbox" },
+                { "label": "Recordatorios",  "url": "/message/reminder",      "permission": "inbox_view_inbox" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Mensajes",
+            "description": "Inbox interno y correos transaccionales: facturas, proformas y recordatorios de pago.",
+            "icon": "mail",
+            "url": "/message/inbox",
+            "permission": "inbox_view_inbox"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "mensajes_notificaciones",
+            "label": "Mensajes — Correos de Cobranza",
+            "type": "notificaciones",
+            "category": "Sistema",
+            "icon": "mail",
+            "url": "/message/invoice_email",
+            "permission": "inbox_view_inbox",
+            "description": "Plantillas de correo para facturas, proformas y recordatorios de pago que se envían automáticamente a los clientes.",
+            "doc": {
+                "terms": [
+                    { "term": "Correo de proforma", "definition": "Email que se envía al cliente cuando se genera la proforma antes del corte." },
+                    { "term": "Correo de factura", "definition": "Email con la factura o recibo de pago confirmado." },
+                    { "term": "Recordatorio", "definition": "Email programado para clientes con saldo pendiente (antes y después del vencimiento)." }
+                ],
+                "steps": [
+                    "Editar la plantilla de correo de proforma con los datos del ISP.",
+                    "Configurar los días de anticipación para el recordatorio de cobro.",
+                    "Verificar que el servidor SMTP en Configuración → Email esté activo."
+                ],
+                "actions": ["Editar plantilla de factura", "Editar recordatorio", "Enviar correo de prueba"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",  "path": "/message/inbox",    "description": "Bandeja de entrada",  "scope": "inbox_view_inbox",   "permission": "inbox_view_inbox" },
+        { "method": "POST", "path": "/message/inbox",    "description": "Enviar mensaje",       "scope": "inbox_send_message", "permission": "inbox_send_message" }
+    ],
+
+    "ai": {
+        "knowledge": "Mensajes gestiona la comunicación interna del ISP y los correos transaccionales hacia clientes. El inbox permite mensajes entre usuarios del sistema. Los módulos de correo (invoice_email, proforma_invoice_email, reminder) configuran los emails automáticos que se envían en el ciclo de facturación.",
+        "example_intents": [
+            "ver los mensajes sin leer",
+            "configurar la plantilla de correo de cobranza",
+            "enviar recordatorio de pago a clientes morosos",
+            "ver los recordatorios configurados"
+        ],
+        "sensitive_actions": []
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

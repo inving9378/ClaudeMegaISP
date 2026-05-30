@@ -1,0 +1,78 @@
+{
+    "slug": "addon-demo",
+    "name": "Demo",
+    "version": "1.1.0",
+    "description": "Módulo de demostración del sistema modular. Instalar/desinstalar para probar el kit base.",
+    "type": "addon",
+    "dependencies": [
+        {
+            "slug": "core-configuracion",
+            "min_version": "0.1.0"
+        }
+    ],
+    "active": false,
+    "permissions": [
+        {
+            "name": "demo_view",
+            "description": "Ver módulo Demo"
+        },
+        {
+            "name": "demo_manage",
+            "description": "Gestionar items del módulo Demo"
+        }
+    ],
+    "menu": [
+        {
+            "label": "Demo",
+            "icon": "star",
+            "permission": "demo_view",
+            "url": "/demo",
+            "children": [
+                {
+                    "label": "Items",
+                    "url": "/demo/items",
+                    "permission": "demo_view"
+                }
+            ]
+        }
+    ],
+    "admin_cards": [
+        {
+            "title": "Demo",
+            "description": "Módulo de demostración — instalar/desinstalar para probar el sistema modular.",
+            "icon": "star",
+            "url": "/demo/items",
+            "permission": "demo_view"
+        }
+    ],
+    "config_sections": [
+        {
+            "key": "demo_settings",
+            "label": "Configuración Demo",
+            "type": "general",
+            "category": "System",
+            "permission": "demo_manage",
+            "url": "/demo/config",
+            "description": "Ajustes del módulo de demostración."
+        }
+    ],
+    "api_endpoints": [
+        {
+            "method": "GET",
+            "path": "/api/demo/items",
+            "description": "Lista todos los items demo.",
+            "scope": "demo.read",
+            "permission": "demo_view"
+        }
+    ],
+    "ai": {
+        "knowledge": "El módulo Demo es un addon de ejemplo para probar el sistema modular de Medussa.",
+        "example_intents": [
+            "muestra los items demo",
+            "crea un item demo"
+        ],
+        "sensitive_actions": []
+    },
+    "client_tab": null,
+    "service_type": null
+}

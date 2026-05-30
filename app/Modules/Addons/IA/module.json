@@ -1,9 +1,118 @@
 {
     "slug": "addon-ia",
-    "name": "IA",
+    "name": "Asistente IA",
     "version": "0.1.0",
-    "description": "Asistente IA / Claude integrado.",
+    "description": "Asistente IA multi-proveedor (Claude, OpenAI, Gemini) con historial, proyectos, prompts y sesiones de trabajo",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "ia_view_chat",          "description": "Acceder al chat IA y ver historial" },
+        { "name": "ia_add_chat",           "description": "Enviar mensajes y crear conversaciones" },
+        { "name": "ia_edit_chat",          "description": "Editar conversaciones propias" },
+        { "name": "ia_delete_chat",        "description": "Eliminar conversaciones" },
+        { "name": "ia_view_prompts",       "description": "Ver biblioteca de prompts guardados" },
+        { "name": "ia_manage_prompts",     "description": "Crear, editar y eliminar prompts" },
+        { "name": "ia_manage_proyectos",   "description": "Gestionar proyectos de trabajo IA" },
+        { "name": "ia_manage_tareas",      "description": "Gestionar tareas dentro de proyectos" },
+        { "name": "ia_manage_notas",       "description": "Crear y editar notas de contexto" },
+        { "name": "ia_manage_memoria",     "description": "Gestionar memoria persistente del asistente" },
+        { "name": "ia_manage_sesiones",    "description": "Crear y revisar sesiones de trabajo" },
+        { "name": "ia_manage_proveedores", "description": "Configurar proveedores IA y API keys" }
+    ],
+
+    "menu": [
+        {
+            "label": "Asistente IA",
+            "icon": "cpu",
+            "permission": "ia_view_chat",
+            "url": "/ia",
+            "children": [
+                { "label": "Chat",       "url": "/ia",              "permission": "ia_view_chat" },
+                { "label": "Historial",  "url": "/ia/historial",    "permission": "ia_view_chat" },
+                { "label": "Prompts",    "url": "/ia/prompts",      "permission": "ia_view_prompts" },
+                { "label": "Proyectos",  "url": "/ia/proyectos",    "permission": "ia_manage_proyectos" },
+                { "label": "Sesiones",   "url": "/ia/sesiones",     "permission": "ia_manage_sesiones" },
+                { "label": "Proveedores","url": "/ia/proveedores",  "permission": "ia_manage_proveedores" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Asistente IA",
+            "description": "Chat IA multi-proveedor con historial, proyectos y prompts guardados.",
+            "icon": "cpu",
+            "url": "/ia",
+            "permission": "ia_view_chat"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "ia_proveedores",
+            "label": "IA — Proveedores y API Keys",
+            "type": "api_key",
+            "category": "API",
+            "icon": "key",
+            "url": "/ia/proveedores",
+            "permission": "ia_manage_proveedores",
+            "description": "Configura las API keys de Claude (Anthropic), OpenAI y Gemini usadas por el asistente.",
+            "doc": {
+                "terms": [
+                    { "term": "Proveedor", "definition": "Empresa que ofrece el modelo de lenguaje (Anthropic, OpenAI, Google)." },
+                    { "term": "Modelo activo", "definition": "Modelo seleccionado para nuevas conversaciones (ej. claude-sonnet-4-6)." }
+                ],
+                "steps": [
+                    "Ingresar la API key de cada proveedor que quieras habilitar.",
+                    "Seleccionar el modelo predeterminado por proveedor.",
+                    "Guardar — el asistente usará las credenciales en la siguiente conversación."
+                ],
+                "actions": ["Agregar proveedor", "Cambiar modelo activo", "Ver uso de tokens"]
+            }
+        },
+        {
+            "key": "ia_configuracion",
+            "label": "IA — Configuración General",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "settings",
+            "url": "/ia/configuracion",
+            "permission": "ia_manage_proveedores",
+            "description": "Parámetros generales del asistente: temperatura, contexto del sistema y límites de uso.",
+            "doc": {
+                "terms": [
+                    { "term": "Temperatura", "definition": "Controla la creatividad de las respuestas (0 = determinista, 1 = creativo)." },
+                    { "term": "System prompt", "definition": "Instrucciones base que el asistente recibe en cada conversación." }
+                ],
+                "steps": [
+                    "Ajustar temperatura y tokens máximos según el uso esperado.",
+                    "Editar el system prompt base para personalizar el asistente al ISP.",
+                    "Guardar y probar en el chat."
+                ],
+                "actions": ["Guardar configuración", "Restaurar defaults", "Ver dashboard de tokens"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",  "path": "/ia/historial/tabla",              "description": "Historial de conversaciones",     "scope": "ia_view_chat",          "permission": "ia_view_chat" },
+        { "method": "POST", "path": "/ia/conversaciones/{id}/enviar",   "description": "Enviar mensaje al asistente",      "scope": "ia_add_chat",           "permission": "ia_add_chat" },
+        { "method": "GET",  "path": "/ia/configuracion/uso-tokens",     "description": "Dashboard de uso de tokens",       "scope": "ia_manage_proveedores", "permission": "ia_manage_proveedores" }
+    ],
+
+    "ai": {
+        "knowledge": "El módulo IA es el asistente interno del ISP. Usa Claude, OpenAI o Gemini según la configuración. Soporta proyectos (agrupación de conversaciones), tareas, notas de contexto, memoria persistente, sesiones de trabajo y una biblioteca de prompts reutilizables.",
+        "example_intents": [
+            "abrir el chat con el asistente IA",
+            "ver el historial de conversaciones de IA",
+            "configurar la API key de Claude",
+            "crear un proyecto de IA"
+        ],
+        "sensitive_actions": []
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

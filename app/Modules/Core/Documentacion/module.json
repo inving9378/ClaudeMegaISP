@@ -5,5 +5,12 @@
     "description": "Sistema de documentación interna: menús, submenús y contenido jerárquico.",
     "type": "core",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "menu": [],
+    "admin_cards": [],
+    "config_sections": [],
+    "api_endpoints": [],
+    "ai": [],
+    "client_tab": null,
+    "service_type": null
 }

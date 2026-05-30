@@ -2,8 +2,119 @@
     "slug": "addon-scheduling",
     "name": "Scheduling",
     "version": "0.1.0",
-    "description": "Gestión de proyectos y tareas con calendario, notas y archivos adjuntos.",
+    "description": "Gestión de proyectos, tareas y calendario con plantillas, notas y archivos adjuntos.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+
+    "permissions": [
+        { "name": "scheduling_view_scheduling",       "description": "Acceder al módulo de scheduling" },
+        { "name": "scheduling_view_calendar",         "description": "Ver el calendario de tareas" },
+        { "name": "scheduling_project_view_project",  "description": "Ver proyectos" },
+        { "name": "scheduling_project_create",        "description": "Crear proyectos" },
+        { "name": "scheduling_project_update",        "description": "Editar proyectos" },
+        { "name": "scheduling_project_delete",        "description": "Eliminar proyectos" },
+        { "name": "scheduling_task_view_task",        "description": "Ver tareas de scheduling" },
+        { "name": "scheduling_task_create",           "description": "Crear tareas de scheduling" },
+        { "name": "scheduling_task_update",           "description": "Editar tareas de scheduling" },
+        { "name": "scheduling_task_delete",           "description": "Eliminar tareas de scheduling" },
+        { "name": "task_view_task",                   "description": "Ver tareas generales" },
+        { "name": "task_add_task",                    "description": "Crear tareas generales" },
+        { "name": "task_edit_task",                   "description": "Editar tareas generales" },
+        { "name": "task_delete_task",                 "description": "Eliminar tareas generales" },
+        { "name": "task_archive_task",                "description": "Archivar tareas" },
+        { "name": "task_view_archived_task",          "description": "Ver tareas archivadas" },
+        { "name": "task_view_full_task",              "description": "Ver detalle completo de tarea" },
+        { "name": "task_export_task",                 "description": "Exportar tareas" },
+        { "name": "task_filter_assigned_to",          "description": "Filtrar tareas por asignado" },
+        { "name": "task_filter_project",              "description": "Filtrar tareas por proyecto" },
+        { "name": "task_filter_status",               "description": "Filtrar tareas por estado" },
+        { "name": "task_filter_partner",              "description": "Filtrar tareas por partner" },
+        { "name": "task_filter_filter",               "description": "Usar filtros avanzados en tareas" },
+        { "name": "templatetask_view_templatetask",   "description": "Ver plantillas de tareas" },
+        { "name": "templatetask_add_templatetask",    "description": "Crear plantillas de tareas" },
+        { "name": "templatetask_edit_templatetask",   "description": "Editar plantillas de tareas" },
+        { "name": "templatetask_delete_templatetask", "description": "Eliminar plantillas de tareas" },
+        { "name": "templatetask_export_templatetask", "description": "Exportar plantillas de tareas" },
+        { "name": "calendar_filter_assigned_to",      "description": "Filtrar calendario por asignado" },
+        { "name": "calendar_filter_project",          "description": "Filtrar calendario por proyecto" },
+        { "name": "calendar_filter_status",           "description": "Filtrar calendario por estado" },
+        { "name": "calendar_filter_partner",          "description": "Filtrar calendario por partner" },
+        { "name": "calendar_filter_filter",           "description": "Usar filtros avanzados en calendario" }
+    ],
+
+    "menu": [
+        {
+            "label": "Scheduling",
+            "icon": "calendar",
+            "permission": "scheduling_view_scheduling",
+            "url": "/scheduling/task",
+            "children": [
+                { "label": "Tareas",      "url": "/scheduling/task",            "permission": "scheduling_task_view_task" },
+                { "label": "Proyectos",   "url": "/scheduling/project",         "permission": "scheduling_project_view_project" },
+                { "label": "Calendario",  "url": "/scheduling/task/calendar",   "permission": "scheduling_view_calendar" },
+                { "label": "Plantillas",  "url": "/scheduling/task-templates",  "permission": "templatetask_view_templatetask" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Scheduling",
+            "description": "Proyectos, tareas y calendario para el equipo de instalaciones y soporte.",
+            "icon": "calendar",
+            "url": "/scheduling/task",
+            "permission": "scheduling_view_scheduling"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "scheduling_general",
+            "label": "Scheduling — Configuración",
+            "type": "scheduling",
+            "category": "Scheduling",
+            "icon": "calendar",
+            "url": "/scheduling/task",
+            "permission": "scheduling_project_create",
+            "description": "Parámetros de scheduling: estado inicial de tareas, notificaciones de vencimiento y asignación automática.",
+            "doc": {
+                "terms": [
+                    { "term": "Plantilla de tarea", "definition": "Conjunto predefinido de subtareas que se aplica a un proyecto tipo (ej. instalación FTTH)." },
+                    { "term": "Asignado", "definition": "Técnico o usuario responsable de completar la tarea." }
+                ],
+                "steps": [
+                    "Crear plantillas de tareas para los flujos más comunes.",
+                    "Al crear un proyecto, seleccionar la plantilla para pre-poblar las tareas.",
+                    "Asignar tareas al técnico responsable desde el calendario."
+                ],
+                "actions": ["Crear proyecto", "Ver calendario", "Exportar tareas", "Crear plantilla"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",  "path": "/scheduling/project",        "description": "Lista proyectos",    "scope": "scheduling_project_view_project", "permission": "scheduling_project_view_project" },
+        { "method": "GET",  "path": "/scheduling/task",           "description": "Lista tareas",       "scope": "scheduling_task_view_task",       "permission": "scheduling_task_view_task" },
+        { "method": "GET",  "path": "/scheduling/task/calendar",  "description": "Vista calendario",  "scope": "scheduling_view_calendar",        "permission": "scheduling_view_calendar" }
+    ],
+
+    "ai": {
+        "knowledge": "Scheduling gestiona proyectos y tareas del equipo del ISP (instalaciones, mantenimientos, soporte). Tiene un calendario visual, plantillas de tareas reutilizables, archivos adjuntos y filtros por técnico, proyecto y estado. Las tareas se pueden archivar y exportar.",
+        "example_intents": [
+            "ver las tareas de hoy",
+            "asignar una instalación al técnico",
+            "crear un proyecto de mantenimiento",
+            "ver el calendario de la semana"
+        ],
+        "sensitive_actions": []
+    },
+
+    "client_tab": {
+        "label": "Tareas",
+        "component": "SchedulingClientTab",
+        "permission": "scheduling_task_view_task"
+    },
+
+    "service_type": null
 }

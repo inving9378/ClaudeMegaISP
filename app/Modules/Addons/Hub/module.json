@@ -1,8 +1,79 @@
 {
     "slug": "addon-hub",
     "name": "Integration Hub",
-    "type": "addon",
     "version": "1.0.0",
-    "description": "Centro de gestión de API keys y proveedores externos",
-    "active": true
+    "description": "Centro de gestión de API keys y proveedores externos: Anthropic, OpenAI, Evolution, Pexels, Google Maps.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+
+    "permissions": [
+        { "name": "manage-integrations", "description": "Gestionar integraciones: ver y configurar API keys de proveedores externos" }
+    ],
+
+    "menu": [
+        {
+            "label": "Integraciones",
+            "icon": "link",
+            "permission": "manage-integrations",
+            "url": "/integraciones"
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Integration Hub",
+            "description": "Gestión centralizada de API keys: Claude, OpenAI, Evolution WhatsApp, Pexels, Google Maps.",
+            "icon": "link",
+            "url": "/integraciones",
+            "permission": "manage-integrations"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "hub_integraciones",
+            "label": "Integration Hub — Proveedores API",
+            "type": "api_key",
+            "category": "API",
+            "icon": "link",
+            "url": "/integraciones",
+            "permission": "manage-integrations",
+            "description": "Configura y valida las API keys de todos los proveedores externos del sistema desde un solo lugar.",
+            "doc": {
+                "terms": [
+                    { "term": "Proveedor", "definition": "Servicio externo con el que se integra el sistema (Anthropic, OpenAI, Evolution API, Pexels, Google Maps)." },
+                    { "term": "Fallback", "definition": "Jerarquía de 3 niveles: Hub → .env → configuración del módulo. El Hub toma prioridad." },
+                    { "term": "Validación", "definition": "El Hub puede verificar automáticamente si la API key funciona antes de guardarla." }
+                ],
+                "steps": [
+                    "Ir a /integraciones.",
+                    "Seleccionar el proveedor (ej. Anthropic / Claude).",
+                    "Pegar la API key y hacer clic en 'Validar'.",
+                    "Si la validación pasa, guardar. Los módulos usarán esta key automáticamente."
+                ],
+                "actions": ["Agregar API key", "Validar clave", "Ver log de uso", "Ver log de errores"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET", "path": "/api/hub/providers",           "description": "Lista proveedores disponibles",      "scope": "manage-integrations", "permission": "manage-integrations" },
+        { "method": "GET", "path": "/api/hub/integrations",        "description": "Integraciones configuradas",         "scope": "manage-integrations", "permission": "manage-integrations" },
+        { "method": "GET", "path": "/api/hub/integrations/{id}/logs","description": "Log de llamadas de una integración","scope": "manage-integrations", "permission": "manage-integrations" }
+    ],
+
+    "ai": {
+        "knowledge": "Integration Hub centraliza todas las API keys del sistema en un solo lugar. Tiene proveedores configurados: anthropic (Claude), openai (TTS para video), evolution (WhatsApp), pexels (B-roll para video), google-maps (mapas). Las claves del Hub tienen prioridad sobre .env y sobre la configuración individual de cada módulo.",
+        "example_intents": [
+            "configurar la API key de Claude",
+            "ver el uso de API de OpenAI",
+            "actualizar la clave de Evolution WhatsApp",
+            "ver el log de errores de las integraciones"
+        ],
+        "sensitive_actions": ["manage-integrations"]
+    },
+
+    "client_tab": null,
+    "service_type": null
 }

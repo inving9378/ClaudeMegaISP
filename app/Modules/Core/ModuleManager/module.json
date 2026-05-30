@@ -5,5 +5,54 @@
     "description": "Registro y orquestación dinámica de módulos Core y Addons.",
     "type": "core",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "menu": [],
+    "admin_cards": [
+        {
+            "title": "Add-ons",
+            "description": "Gestiona módulos instalables del sistema.",
+            "icon": "puzzle-piece",
+            "url": "/admin/modules",
+            "permission": "admin_modules"
+        }
+    ],
+    "config_sections": [
+        {
+            "key": "addons_panel",
+            "label": "Gestión de Add-ons",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "puzzle-piece",
+            "url": "/admin/modules",
+            "permission": "config_view_system",
+            "description": "Instala, actualiza y desinstala módulos del sistema. Lista el estado de cada addon.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Add-on",
+                        "definition": "Módulo opcional que extiende el sistema sin modificar el núcleo."
+                    },
+                    {
+                        "term": "Estado migrado",
+                        "definition": "Indica si el módulo ya fue actualizado al estándar actual."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Add-ons.",
+                    "Selecciona el módulo a instalar, actualizar o desinstalar.",
+                    "Sigue el asistente de ciclo de vida."
+                ],
+                "actions": [
+                    "Instalar módulo",
+                    "Actualizar módulo",
+                    "Desinstalar módulo",
+                    "Activar / Desactivar"
+                ]
+            }
+        }
+    ],
+    "api_endpoints": [],
+    "ai": [],
+    "client_tab": null,
+    "service_type": null
 }

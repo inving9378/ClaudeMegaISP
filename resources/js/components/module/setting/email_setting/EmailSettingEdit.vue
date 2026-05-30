@@ -114,8 +114,13 @@ export default {
         onMounted(async () => {
             hasPermission.data = new Permission(await allViewHasPermission());
             showLoading("showTextDef");
-            await getfieldsEdited("EmailSetting", 1);
-            hideLoading();
+            try {
+                await getfieldsEdited("EmailSetting", 1);
+            } catch (e) {
+                console.error('EmailSettingEdit: error cargando campos', e);
+            } finally {
+                hideLoading();
+            }
         });
 
         const updateThisField = ({ field, value }) => {

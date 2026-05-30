@@ -11,7 +11,7 @@ class RangeSaleController extends Controller
 {
     public function index()
     {
-        return view('meganet.module.setting.range-sales.index');
+        return view('core-configuracion::range-sales.index');
     }
 
     public function getListRangesSales()

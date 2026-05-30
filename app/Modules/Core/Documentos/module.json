@@ -5,5 +5,70 @@
     "description": "Plantillas de documentos (contratos, recibos, facturas) y sus tipos.",
     "type": "core",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "menu": [],
+    "admin_cards": [],
+    "config_sections": [
+        {
+            "key": "plantillas_doc",
+            "label": "Plantillas de Documentos",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "file-alt",
+            "url": "/administracion/document_template",
+            "permission": "config_view_system",
+            "description": "Plantillas reutilizables para contratos, recibos, facturas y cartas.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Plantilla",
+                        "definition": "Documento base con variables que se rellenan al generar el documento final."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Plantillas.",
+                    "Crea o edita la plantilla con el editor de contenido.",
+                    "Usa las variables disponibles ({{nombre_cliente}}, {{monto}}…)."
+                ],
+                "actions": [
+                    "Crear plantilla",
+                    "Editar",
+                    "Eliminar",
+                    "Vista previa"
+                ]
+            }
+        },
+        {
+            "key": "tipos_plantillas",
+            "label": "Tipos de Plantillas",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "file-alt",
+            "url": "/administracion/document_type_template",
+            "permission": "config_view_system",
+            "description": "Categorías de documentos: contrato, factura, recibo, carta. Agrupan las plantillas por propósito.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Tipo de plantilla",
+                        "definition": "Categoría que agrupa plantillas con el mismo propósito (contratos, recibos…)."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Tipos de Plantillas.",
+                    "Crea los tipos que necesites.",
+                    "Al crear una plantilla, selecciona su tipo."
+                ],
+                "actions": [
+                    "Crear tipo",
+                    "Editar",
+                    "Eliminar"
+                ]
+            }
+        }
+    ],
+    "api_endpoints": [],
+    "ai": [],
+    "client_tab": null,
+    "service_type": null
 }

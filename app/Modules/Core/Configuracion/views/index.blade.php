@@ -1,27 +1,23 @@
 @extends('core-layout::master')
 @section('title')
-    @lang('translation.Dashboard')
+    Configuración del Sistema
 @endsection
 
 @section('content')
-    <Breadcrumb :list=[{title:"Pagina"},{title:"Configuracion",active:"active"}]></Breadcrumb>
+    <Breadcrumb :list='[{"title":"Inicio"},{"title":"Configuración","active":"active"}]'></Breadcrumb>
+
     <div class="row">
-        <div class="col-lg-12">
+        <div class="col-12">
             <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Configuración del Sistema</h5>
+                    <small class="text-muted">Secciones cargadas desde el registro de módulos activos</small>
+                </div>
                 <div class="card-body">
-                    <div class="row justify-content-center mt-3">
-                        <div class="col-xl-5 col-lg-8">
-                            <div class="text-center">
-                                <h5>Configuracion</h5>
-                            </div>
-                        </div>
-                    </div>
-                    <hr>
+                    <debt-payment-client id="debtpaymentclient"></debt-payment-client>
+                    <module-config-panel base-url="{{ url('/') }}"></module-config-panel>
                 </div>
             </div>
         </div>
     </div>
-    <debt-payment-client id="debtpaymentclient"></debt-payment-client>
-    <Index-Setting url="{{ url('/') }}">
-    </Index-Setting>
 @endsection

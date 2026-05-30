@@ -1,9 +1,268 @@
 {
     "slug": "addon-vendedores",
     "name": "Vendedores",
-    "version": "0.1.0",
-    "description": "Vendedores, comisiones y cobros.",
+    "version": "1.0.0",
+    "description": "Gestión de vendedores, comisiones, cortes de caja, prospectos y estadísticas de ventas.",
     "type": "addon",
-    "dependencies": [],
-    "active": true
+    "dependencies": [
+        { "slug": "core-configuracion", "min_version": "0.1.0" }
+    ],
+    "active": true,
+
+    "permissions": [
+        { "name": "seller_view_panel",                    "description": "Ver el panel de vendedores" },
+        { "name": "seller_view_dashboard",                "description": "Ver dashboard de ventas" },
+        { "name": "seller_view_seller",                   "description": "Ver listado de vendedores" },
+        { "name": "seller_add_seller",                    "description": "Registrar nuevo vendedor" },
+        { "name": "seller_edit_seller",                   "description": "Editar datos de vendedor" },
+        { "name": "seller_delete_seller",                 "description": "Eliminar vendedor" },
+        { "name": "seller_view_sales",                    "description": "Ver reporte de ventas" },
+        { "name": "seller_view_statics",                  "description": "Ver estadísticas de vendedor" },
+        { "name": "seller_view_billing",                  "description": "Ver facturación de vendedor" },
+        { "name": "seller_view_prospects",                "description": "Ver prospectos asignados" },
+        { "name": "seller_cuts",                          "description": "Ver cortes de caja" },
+        { "name": "seller_cuts_close_box",                "description": "Cerrar caja del vendedor" },
+        { "name": "seller_cuts_add_installation",         "description": "Agregar instalación en corte" },
+        { "name": "seller_cuts_edit_installation",        "description": "Editar instalación en corte" },
+        { "name": "seller_cuts_delete_installation",      "description": "Eliminar instalación en corte" },
+        { "name": "seller_cuts_add_expenses",             "description": "Agregar gastos en corte" },
+        { "name": "seller_cuts_edit_expenses",            "description": "Editar gastos en corte" },
+        { "name": "seller_cuts_delete_expenses",          "description": "Eliminar gastos en corte" },
+        { "name": "seller_cuts_add_extra_icome",          "description": "Agregar ingresos extra en corte" },
+        { "name": "seller_cuts_edit_extra_icome",         "description": "Editar ingresos extra en corte" },
+        { "name": "seller_cuts_delete_extra_icome",       "description": "Eliminar ingresos extra en corte" },
+        { "name": "seller_cuts_add_comments",             "description": "Agregar comentarios en corte" },
+        { "name": "seller_cuts_edit_comments",            "description": "Editar comentarios en corte" },
+        { "name": "seller_cuts_delete_comments",          "description": "Eliminar comentarios en corte" },
+        { "name": "seller_add_payment",                   "description": "Registrar pago de vendedor" },
+        { "name": "seller_edit_payment",                  "description": "Editar pago de vendedor" },
+        { "name": "seller_delete_payment",                "description": "Eliminar pago de vendedor" },
+        { "name": "seller_download_payment",              "description": "Descargar comprobante de pago" },
+        { "name": "seller_follow_payment_client",         "description": "Seguimiento de pagos por cliente" },
+        { "name": "seller_view_all_payments_for_seller",  "description": "Ver todos los pagos de un vendedor" },
+        { "name": "seller_view_all_transactions_for_seller","description": "Ver todas las transacciones de un vendedor" },
+        { "name": "selleritems_view_selleritems",         "description": "Ver catálogo de artículos de vendedor" },
+        { "name": "selleritems_add_selleritems",          "description": "Agregar artículos al catálogo" },
+        { "name": "selleritems_edit_selleritems",         "description": "Editar artículos del catálogo" },
+        { "name": "selleritems_delete_selleritems",       "description": "Eliminar artículos del catálogo" }
+    ],
+
+    "menu": [
+        {
+            "label": "Vendedores",
+            "icon": "briefcase",
+            "permission": "seller_view_panel",
+            "url": "/vendedores",
+            "children": [
+                { "label": "Dashboard",    "url": "/vendedores",              "permission": "seller_view_dashboard" },
+                { "label": "Vendedores",   "url": "/sellers/seller",          "permission": "seller_view_seller" },
+                { "label": "Cortes",       "url": "/sellers/cuts",            "permission": "seller_cuts" },
+                { "label": "Prospectos",   "url": "/sellers/prospectos",      "permission": "seller_view_prospects" },
+                { "label": "Estadísticas", "url": "/sellers/statistics",      "permission": "seller_view_statics" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Vendedores",
+            "description": "Fuerza de ventas: comisiones, cortes de caja y estadísticas por vendedor.",
+            "icon": "briefcase",
+            "url": "/vendedores",
+            "permission": "seller_view_panel"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "vendedores_reglas",
+            "label": "Vendedores — Reglas de Comisiones",
+            "type": "general",
+            "category": "Ventas",
+            "icon": "dollar-sign",
+            "url": "/configuracion/rules",
+            "permission": "seller_cuts_close_box",
+            "description": "Reglas que determinan cómo se calculan las comisiones de vendedores por plan y periodo.",
+            "doc": {
+                "terms": [
+                    { "term": "Regla de comisión", "definition": "Criterio (porcentaje, monto fijo, por plan) que define cuánto gana el vendedor por cada venta." },
+                    { "term": "Bono mensual", "definition": "Pago adicional que se activa si el vendedor supera un umbral de ventas definido en la regla." },
+                    { "term": "Comisión distribuidor", "definition": "Porcentaje que se transfiere al distribuidor o supervisor cuando aplica la regla." }
+                ],
+                "steps": [
+                    "Ve a Configuración → Reglas de Comisiones.",
+                    "Crea o edita las reglas para cada tipo de plan.",
+                    "Asigna la regla al vendedor desde su perfil.",
+                    "Las reglas se aplican automáticamente al liquidar comisiones."
+                ],
+                "actions": ["Crear regla", "Editar regla", "Eliminar regla", "Asignar a vendedor"]
+            }
+        },
+        {
+            "key": "vendedores_rangos",
+            "label": "Vendedores — Rangos de Venta",
+            "type": "general",
+            "category": "Ventas",
+            "icon": "bar-chart-2",
+            "url": "/configuracion/rangos-venta",
+            "permission": "seller_cuts_close_box",
+            "description": "Rangos de volumen de ventas que clasifican a los vendedores en categorías (bronce, plata, oro).",
+            "doc": {
+                "terms": [
+                    { "term": "Rango de venta", "definition": "Categoría que se asigna al vendedor según el volumen de ventas alcanzado en el período." },
+                    { "term": "Umbral", "definition": "Cantidad mínima de ventas necesaria para alcanzar o mantener un rango." }
+                ],
+                "steps": [
+                    "Ve a Configuración → Rangos de Venta.",
+                    "Define los umbrales de cada rango (mínimo y máximo de ventas).",
+                    "Guarda. El sistema reclasificará vendedores al cierre de cada período."
+                ],
+                "actions": ["Crear rango", "Editar rango", "Eliminar rango"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",    "path": "/sellers/seller",                                              "description": "Lista vendedores con rol Vendedor (incluye estatus y tipo)",         "scope": "seller_view_seller",                     "permission": "seller_view_seller" },
+        { "method": "POST",   "path": "/sellers/seller/add",                                          "description": "Registra un nuevo vendedor",                                         "scope": "seller_add_seller",                      "permission": "seller_add_seller" },
+        { "method": "POST",   "path": "/sellers/seller/update/{id}",                                  "description": "Actualiza estatus y tipo del vendedor",                              "scope": "seller_edit_seller",                     "permission": "seller_edit_seller" },
+        { "method": "POST",   "path": "/sellers/seller/destroy/{id}",                                 "description": "Elimina un vendedor",                                                "scope": "seller_delete_seller",                   "permission": "seller_delete_seller" },
+        { "method": "GET",    "path": "/sellers/cuts/get-user-current-box/{id}",                      "description": "Retorna la caja activa del vendedor (período actual)",                "scope": "seller_cuts",                            "permission": "seller_cuts" },
+        { "method": "POST",   "path": "/sellers/cuts/close-user-current-box/{id}",                    "description": "Cierra la caja mensual del vendedor y calcula comisión final",        "scope": "seller_cuts_close_box",                  "permission": "seller_cuts_close_box" },
+        { "method": "POST",   "path": "/sellers/cuts/{id}",                                           "description": "Lista los cortes históricos del vendedor",                           "scope": "seller_cuts",                            "permission": "seller_cuts" },
+        { "method": "GET",    "path": "/vendedores/data",                                             "description": "Lista todos los vendors del sistema",                                "scope": "seller_view_seller",                     "permission": "seller_view_seller" },
+        { "method": "GET",    "path": "/vendedores/{id}/getDataById",                                 "description": "Datos completos de un vendor por ID",                                "scope": "seller_view_seller",                     "permission": "seller_view_seller" },
+        { "method": "GET",    "path": "/vendedores/prospectos",                                       "description": "Lista prospectos asignados al vendedor autenticado",                 "scope": "seller_view_prospects",                  "permission": "seller_view_prospects" },
+        { "method": "GET",    "path": "/vendedores/ventas/total-sales",                               "description": "Total de ventas del período",                                        "scope": "seller_view_sales",                      "permission": "seller_view_sales" },
+        { "method": "GET",    "path": "/vendedores/ventas/rankingSales/{startDate}/{endDate}",        "description": "Ranking de vendedores por ventas en el rango de fechas",             "scope": "seller_view_statics",                    "permission": "seller_view_statics" },
+        { "method": "POST",   "path": "/vendedores/payments/{id}/getMontlyCommissionsBySeller",       "description": "Comisiones mensuales calculadas para el vendedor",                   "scope": "seller_view_billing",                    "permission": "seller_view_billing" },
+        { "method": "GET",    "path": "/vendedores/payments-sellers/{id}/get-all-payments-of-seller", "description": "Historial completo de pagos liquidados al vendedor",                "scope": "seller_view_all_payments_for_seller",    "permission": "seller_view_all_payments_for_seller" },
+        { "method": "POST",   "path": "/vendedores/payments-sellers/create",                          "description": "Registra un pago al vendedor",                                       "scope": "seller_add_payment",                     "permission": "seller_add_payment" },
+        { "method": "DELETE", "path": "/vendedores/payments-sellers/{id}/destroy",                    "description": "Elimina un pago registrado al vendedor",                             "scope": "seller_delete_payment",                  "permission": "seller_delete_payment" }
+    ],
+
+    "ai": {
+        "knowledge": "Vendedores gestiona la fuerza de ventas del ISP. Cada vendedor tiene un panel con sus ventas, prospectos asignados y un corte de caja mensual donde se registran instalaciones, gastos y pagos. Las comisiones se calculan automáticamente según las reglas configuradas en Configuración → Reglas de Comisiones. Los rangos de venta clasifican a los vendedores en categorías (bronce, plata, oro) según su volumen mensual.",
+        "example_intents": [
+            "ver las ventas del vendedor de este mes",
+            "cerrar la caja de un vendedor",
+            "ver cuántos prospectos tiene asignados un vendedor",
+            "descargar el reporte de comisiones",
+            "quién es el mejor vendedor del mes",
+            "cuánto le debo a un vendedor"
+        ],
+        "actions": [
+            { "description": "Listar vendedores activos",                                    "endpoint": "GET /sellers/seller",                                               "scope": "seller_view_seller" },
+            { "description": "Ver caja activa de un vendedor",                               "endpoint": "GET /sellers/cuts/get-user-current-box/{id}",                       "scope": "seller_cuts" },
+            { "description": "Ver prospectos del vendedor autenticado",                      "endpoint": "GET /vendedores/prospectos",                                        "scope": "seller_view_prospects" },
+            { "description": "Consultar total de ventas del período",                        "endpoint": "GET /vendedores/ventas/total-sales",                                "scope": "seller_view_sales" },
+            { "description": "Ver ranking de vendedores en un rango de fechas",              "endpoint": "GET /vendedores/ventas/rankingSales/{startDate}/{endDate}",          "scope": "seller_view_statics" },
+            { "description": "Consultar comisiones mensuales de un vendedor",               "endpoint": "POST /vendedores/payments/{id}/getMontlyCommissionsBySeller",       "scope": "seller_view_billing" },
+            { "description": "Ver historial de pagos liquidados a un vendedor",              "endpoint": "GET /vendedores/payments-sellers/{id}/get-all-payments-of-seller",  "scope": "seller_view_all_payments_for_seller" }
+        ],
+        "sensitive_actions": ["seller_cuts_close_box", "seller_delete_seller", "seller_delete_payment"]
+    },
+
+    "screens": [
+        {
+            "key": "vendedores_dashboard",
+            "label": "Dashboard de Vendedores",
+            "url": "/vendedores",
+            "permission": "seller_view_dashboard",
+            "terms": [
+                { "term": "Corte de caja", "definition": "Resumen mensual de instalaciones, gastos e ingresos extra del vendedor; se cierra una vez al mes." },
+                { "term": "Comisión acumulada", "definition": "Monto calculado hasta el momento según la regla activa; se liquida al cerrar el corte." },
+                { "term": "Prospecto", "definition": "Cliente potencial asignado al vendedor para seguimiento hasta convertirse en cliente activo." }
+            ],
+            "steps": [
+                "Accede desde Vendedores → Dashboard.",
+                "Revisa los KPIs: ventas del mes, prospectos activos y comisión acumulada.",
+                "Haz clic en un vendedor para ir a su perfil de seguimiento.",
+                "Usa los filtros de fecha para comparar períodos anteriores."
+            ],
+            "actions": ["Ver detalle de vendedor", "Ir a estadísticas", "Ver ranking"]
+        },
+        {
+            "key": "vendedores_lista",
+            "label": "Lista de Vendedores",
+            "url": "/sellers/seller",
+            "permission": "seller_view_seller",
+            "terms": [
+                { "term": "Estatus", "definition": "Estado operativo del vendedor: Activo, Inactivo o Suspendido." },
+                { "term": "Tipo", "definition": "Clasificación del vendedor: Interno (empleado) o Externo (freelance/distribuidor)." },
+                { "term": "Saldo", "definition": "Balance pendiente de pago al vendedor según comisiones no liquidadas." }
+            ],
+            "steps": [
+                "Accede desde Vendedores → Vendedores.",
+                "Usa el buscador para filtrar por nombre o estatus.",
+                "Haz clic en 'Editar' para cambiar el estatus o tipo del vendedor.",
+                "Haz clic en el nombre para ir al seguimiento individual."
+            ],
+            "actions": ["Registrar vendedor", "Editar vendedor", "Ver seguimiento", "Descargar credencial PDF"]
+        },
+        {
+            "key": "vendedores_cortes",
+            "label": "Cortes de Caja",
+            "url": "/sellers/cuts",
+            "permission": "seller_cuts",
+            "terms": [
+                { "term": "Caja", "definition": "Registro mensual donde se acumulan las instalaciones, gastos y pagos del vendedor." },
+                { "term": "Instalación", "definition": "Alta de cliente que genera comisión; se registra dentro del corte del período." },
+                { "term": "Gasto a proveedor", "definition": "Egreso que se descuenta de la comisión (materiales, herramientas, etc.)." },
+                { "term": "Ingreso extra", "definition": "Entrada adicional no ligada a instalación (bonos manuales, ajustes)." }
+            ],
+            "steps": [
+                "Accede desde Vendedores → Cortes.",
+                "Selecciona el vendedor y el período.",
+                "Agrega instalaciones, gastos e ingresos extra según corresponda.",
+                "Cuando el período cierra, haz clic en 'Cerrar caja' para calcular la comisión final.",
+                "Descarga el PDF del corte para el comprobante del vendedor."
+            ],
+            "actions": ["Ver caja activa", "Agregar instalación", "Agregar gasto", "Agregar ingreso extra", "Agregar comentario", "Cerrar caja", "Descargar PDF"]
+        },
+        {
+            "key": "vendedores_prospectos",
+            "label": "Prospectos",
+            "url": "/sellers/prospectos",
+            "permission": "seller_view_prospects",
+            "terms": [
+                { "term": "Prospecto", "definition": "Persona interesada en contratar el servicio; aún no es cliente activo." },
+                { "term": "Seguimiento", "definition": "Historial de contactos y acciones realizadas sobre el prospecto." },
+                { "term": "Conversión", "definition": "Momento en que el prospecto firma contrato y se convierte en cliente facturado." }
+            ],
+            "steps": [
+                "Accede desde Vendedores → Prospectos.",
+                "Revisa el listado de prospectos asignados con su estatus.",
+                "Haz clic en un prospecto para ver o agregar seguimientos.",
+                "Actualiza el estatus cuando el prospecto avance o se pierda."
+            ],
+            "actions": ["Ver seguimiento", "Actualizar estatus", "Filtrar por período"]
+        },
+        {
+            "key": "vendedores_estadisticas",
+            "label": "Estadísticas de Ventas",
+            "url": "/sellers/statistics",
+            "permission": "seller_view_statics",
+            "terms": [
+                { "term": "Medio de venta", "definition": "Canal por el que llegó la venta (referido, llamada, campaña, etc.)." },
+                { "term": "Ranking", "definition": "Posición del vendedor respecto a sus pares en el período seleccionado." }
+            ],
+            "steps": [
+                "Accede desde Vendedores → Estadísticas.",
+                "Selecciona el rango de fechas a analizar.",
+                "Revisa ventas por vendedor, por medio de venta y la evolución mensual.",
+                "Usa el ranking para identificar al vendedor del mes."
+            ],
+            "actions": ["Filtrar por fecha", "Ver ranking", "Ver ventas por medio", "Comparar períodos"],
+            "screenshot_placeholder": "[Captura: gráfica de ventas por vendedor con selector de fechas]",
+            "video_placeholder": "[Segmento de video: recorrido por dashboard → estadísticas → ranking]"
+        }
+    ],
+
+    "client_tab": {
+        "deferred": true,
+        "reason": "Infraestructura de ficha de cliente extensible pendiente (contrato 3.7). Vendedores tiene relación real con clientes (seller → hasMany ClientMainInformation); cuando exista la infra, registrar pestaña con historial de instalaciones y comisiones del cliente."
+    },
+
+    "service_type": null
 }

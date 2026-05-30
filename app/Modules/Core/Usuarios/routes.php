@@ -25,6 +25,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administra
     Route::get('/', [AdministracionController::class, 'index']);
     Route::get('/clean-all-client-service', [AdministracionController::class, 'clearAllClientServices']);
     Route::get('/add-clients-imported-to-mikrotik', [AdministracionController::class, 'addClientsImportedToMikrotik']);
+    Route::get('/set-state-municipality-and-colony', [AdministracionController::class, 'setStateMunicipalitiesAndColonies']);
     Route::get('/suspend_clients', [AdministracionController::class, 'suspendProcess']);
     Route::get('/billing_services', [AdministracionController::class, 'billigProcess']);
     Route::post('/active-schedule-process', [AdministracionController::class, 'activeCommands']);
