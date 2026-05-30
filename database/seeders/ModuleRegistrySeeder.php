@@ -28,11 +28,11 @@ class ModuleRegistrySeeder extends Seeder
             ModuleRegistry::updateOrCreate(
                 ['slug' => $slug],
                 [
-                    'name'         => $manifest['name'] ?? $slug,
-                    'version'      => $manifest['version'] ?? '0.1.0',
-                    'type'         => $manifest['type'] ?? 'addon',
-                    'active'       => (bool) ($manifest['active'] ?? true),
-                    'installed_at' => $now,
+                    'name'              => $manifest['name'] ?? $slug,
+                    'installed_version' => $manifest['version'] ?? '0.1.0',
+                    'type'              => $manifest['type'] ?? 'addon',
+                    'active'            => (bool) ($manifest['active'] ?? true),
+                    'installed_at'      => $now,
                 ]
             );
         }

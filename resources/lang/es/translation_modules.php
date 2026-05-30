@@ -56,6 +56,7 @@ return [
     "Clients"=>"Clientes",
     "Ticket"=>"Ticket",
     "Administration"=>"Administración",
+    "Administracion"=>"Administración",
     "Services"=>"Servicios",
     "Billing"=>"Pagos",
     "Net"=>"Redes",

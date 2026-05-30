@@ -6,11 +6,108 @@
     "type": "addon",
     "dependencies": [],
     "active": true,
+
     "permissions": [
-        "whatsapp_view_conversations",
-        "whatsapp_send_messages",
-        "whatsapp_manage_instances",
-        "whatsapp_view_logs",
-        "whatsapp_use_ia"
-    ]
+        { "name": "whatsapp_view_conversations",  "description": "Ver conversaciones de WhatsApp" },
+        { "name": "whatsapp_send_messages",        "description": "Enviar mensajes y responder chats" },
+        { "name": "whatsapp_manage_instances",     "description": "Crear, conectar y eliminar instancias de WhatsApp" },
+        { "name": "whatsapp_view_logs",            "description": "Ver logs de mensajes y webhooks" },
+        { "name": "whatsapp_use_ia",               "description": "Usar asistencia IA para sugerir respuestas" }
+    ],
+
+    "menu": [
+        {
+            "label": "WhatsApp",
+            "icon": "message-circle",
+            "permission": "whatsapp_view_conversations",
+            "url": "/whatsapp",
+            "children": [
+                { "label": "Conversaciones", "url": "/whatsapp",           "permission": "whatsapp_view_conversations" },
+                { "label": "Instancias",     "url": "/whatsapp/instances", "permission": "whatsapp_manage_instances" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "WhatsApp Agent",
+            "description": "Chat multiagente con clientes vía WhatsApp + asistente IA.",
+            "icon": "message-circle",
+            "url": "/whatsapp",
+            "permission": "whatsapp_view_conversations"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "whatsapp_evolution_api",
+            "label": "WhatsApp — Evolution API",
+            "type": "api_key",
+            "category": "Mensajería",
+            "icon": "message-circle",
+            "url": "/whatsapp/instances",
+            "permission": "whatsapp_manage_instances",
+            "description": "URL base y API key de Evolution API para gestionar instancias de WhatsApp.",
+            "doc": {
+                "terms": [
+                    { "term": "Evolution API", "definition": "Middleware open-source que expone una API REST sobre WhatsApp Web." },
+                    { "term": "Instancia", "definition": "Sesión de WhatsApp vinculada a un número de teléfono real (QR scan)." }
+                ],
+                "steps": [
+                    "Ingresar la URL de Evolution API (ej. http://localhost:8080).",
+                    "Copiar el API key global de Evolution y pegarlo aquí.",
+                    "Crear una instancia y escanear el QR para vincular el número."
+                ],
+                "actions": ["Crear instancia", "Escanear QR", "Desconectar instancia"]
+            }
+        },
+        {
+            "key": "whatsapp_webhook",
+            "label": "WhatsApp — Webhook entrante",
+            "type": "webhook",
+            "category": "Mensajería",
+            "icon": "zap",
+            "url": "/whatsapp/instances",
+            "permission": "whatsapp_manage_instances",
+            "description": "URL webhook que Evolution debe apuntar para recibir mensajes en tiempo real.",
+            "doc": {
+                "terms": [
+                    { "term": "Webhook", "definition": "Endpoint POST que Evolution llama cada vez que llega un mensaje nuevo." }
+                ],
+                "steps": [
+                    "Copiar la URL: /whatsapp/webhook/{slug-de-instancia}.",
+                    "Pegarla en la configuración de webhook de la instancia en Evolution.",
+                    "Verificar que los eventos MESSAGES_UPSERT estén habilitados."
+                ],
+                "actions": ["Copiar URL webhook", "Probar evento"]
+            }
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",  "path": "/whatsapp/api/conversations",              "description": "Lista conversaciones activas",  "scope": "whatsapp_view_conversations", "permission": "whatsapp_view_conversations" },
+        { "method": "POST", "path": "/whatsapp/api/conversations/{id}/send",    "description": "Enviar mensaje a conversación",  "scope": "whatsapp_send_messages",       "permission": "whatsapp_send_messages" },
+        { "method": "POST", "path": "/whatsapp/api/conversations/{id}/ia-assist","description": "Sugerir respuesta con IA",       "scope": "whatsapp_use_ia",              "permission": "whatsapp_use_ia" },
+        { "method": "GET",  "path": "/whatsapp/api/instances",                  "description": "Lista instancias registradas",   "scope": "whatsapp_manage_instances",    "permission": "whatsapp_manage_instances" },
+        { "method": "POST", "path": "/whatsapp/webhook/{slug}",                 "description": "Webhook Evolution (público)",    "scope": "public",                       "permission": null }
+    ],
+
+    "ai": {
+        "knowledge": "WhatsApp Agent centraliza conversaciones de WhatsApp de todos los números del ISP. Permite que vendedores y soporte respondan desde un panel web. El asistente IA puede sugerir respuestas y agendar instalaciones directamente desde el chat.",
+        "example_intents": [
+            "ver conversaciones de WhatsApp pendientes",
+            "cuántos mensajes sin leer hay",
+            "agendar instalación desde WhatsApp",
+            "configurar nueva instancia de WhatsApp"
+        ],
+        "sensitive_actions": ["eliminar_instancia", "cerrar_conversacion"]
+    },
+
+    "client_tab": {
+        "label": "WhatsApp",
+        "component": "WhatsAppClientTab",
+        "permission": "whatsapp_view_conversations"
+    },
+
+    "service_type": null
 }

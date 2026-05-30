@@ -5,5 +5,126 @@
     "description": "Mapas de red, FTTH y proyectos.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "permissions": [
+        { "name": "maps_view_maps",           "description": "Ver el mapa de red" },
+        { "name": "maps_client_add",          "description": "Agregar cliente en el mapa" },
+        { "name": "maps_client_edit",         "description": "Editar ubicación de cliente" },
+        { "name": "maps_client_remove",       "description": "Quitar cliente del mapa" },
+        { "name": "maps_pole_add",            "description": "Agregar poste al mapa" },
+        { "name": "maps_pole_edit",           "description": "Editar poste" },
+        { "name": "maps_pole_remove",         "description": "Eliminar poste" },
+        { "name": "maps_route_add",           "description": "Trazar ruta de fibra" },
+        { "name": "maps_route_edit",          "description": "Editar ruta de fibra" },
+        { "name": "maps_route_remove",        "description": "Eliminar ruta de fibra" },
+        { "name": "maps_building_add",        "description": "Agregar edificio al mapa" },
+        { "name": "maps_building_edit",       "description": "Editar edificio" },
+        { "name": "maps_building_remove",     "description": "Eliminar edificio" },
+        { "name": "maps_site_add",            "description": "Agregar sitio de red" },
+        { "name": "maps_site_edit",           "description": "Editar sitio de red" },
+        { "name": "maps_site_remove",         "description": "Eliminar sitio de red" },
+        { "name": "maps_region_add",          "description": "Agregar región al mapa" },
+        { "name": "maps_region_edit",         "description": "Editar región" },
+        { "name": "maps_region_remove",       "description": "Eliminar región" },
+        { "name": "maps_note_add",            "description": "Agregar nota en el mapa" },
+        { "name": "maps_note_edit",           "description": "Editar nota" },
+        { "name": "maps_note_remove",         "description": "Eliminar nota del mapa" },
+        { "name": "maps_pack_add",            "description": "Agregar punto de distribución (NAP)" },
+        { "name": "maps_pack_edit",           "description": "Editar NAP" },
+        { "name": "maps_pack_remove",         "description": "Eliminar NAP" },
+        { "name": "maps_cupboard_add",        "description": "Agregar gabinete" },
+        { "name": "maps_cupboard_edit",       "description": "Editar gabinete" },
+        { "name": "maps_cupboard_remove",     "description": "Eliminar gabinete" },
+        { "name": "maps_folder_add",          "description": "Agregar caja de empalme" },
+        { "name": "maps_folder_edit",         "description": "Editar caja de empalme" },
+        { "name": "maps_folder_remove",       "description": "Eliminar caja de empalme" },
+        { "name": "maps_junction_box_add",    "description": "Agregar caja de distribución" },
+        { "name": "maps_junction_box_edit",   "description": "Editar caja de distribución" },
+        { "name": "maps_junction_box_remove", "description": "Eliminar caja de distribución" },
+        { "name": "maps_service_box_add",     "description": "Agregar caja de servicio" },
+        { "name": "maps_service_box_edit",    "description": "Editar caja de servicio" },
+        { "name": "maps_service_box_remove",  "description": "Eliminar caja de servicio" },
+        { "name": "maps_source_add",          "description": "Agregar fuente de señal" },
+        { "name": "maps_source_edit",         "description": "Editar fuente de señal" },
+        { "name": "maps_source_remove",       "description": "Eliminar fuente de señal" },
+        { "name": "maps_kmz_load",            "description": "Cargar archivo KMZ/KML al mapa" },
+        { "name": "maps_kmz_edit",            "description": "Editar capas KMZ" },
+        { "name": "maps_kmz_remove",          "description": "Eliminar capas KMZ" },
+        { "name": "maps_change_classification","description": "Cambiar clasificación de elementos del mapa" }
+    ],
+
+    "menu": [
+        {
+            "label": "Mapas",
+            "icon": "map",
+            "permission": "maps_view_maps",
+            "url": "/mapas",
+            "children": [
+                { "label": "Mapa de Red", "url": "/mapas",      "permission": "maps_view_maps" },
+                { "label": "Zonas",       "url": "/maps/zones", "permission": "maps_view_maps" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Mapas de Red",
+            "description": "Mapa GIS de la red FTTH: postes, rutas de fibra, NAPs, clientes y zonas.",
+            "icon": "map",
+            "url": "/mapas",
+            "permission": "maps_view_maps"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "mapas_credenciales",
+            "label": "Credenciales Leaflet Map",
+            "type": "api_key",
+            "category": "API",
+            "icon": "map",
+            "url": "/configuracion/credenciales-google-maps",
+            "permission": "config_view_google_maps",
+            "description": "Clave de API de Google Maps usada en el mapa de red del sistema.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "API Key Maps",
+                        "definition": "Clave generada en Google Cloud Console para habilitar el mapa interactivo."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Credenciales Leaflet Map.",
+                    "Ingresa tu API key de Google Maps.",
+                    "Guarda y verifica que el mapa de red cargue correctamente."
+                ],
+                "actions": [
+                    "Actualizar API key"
+                ]
+            }
+        }
+    ],
+    "api_endpoints": [
+        { "method": "GET", "path": "/mapas",      "description": "Vista principal del mapa", "scope": "maps_view_maps", "permission": "maps_view_maps" },
+        { "method": "GET", "path": "/maps/zones", "description": "Zonas de cobertura",       "scope": "maps_view_maps", "permission": "maps_view_maps" }
+    ],
+
+    "ai": {
+        "knowledge": "Mapas de Red es el GIS del ISP. Muestra en un mapa interactivo (Leaflet + Google Maps) toda la infraestructura de fibra: postes, rutas de fibra, NAPs (cajas de distribución), gabinetes, cajas de empalme, edificios, regiones y la ubicación de cada cliente. Permite trazar rutas de fibra, cargar archivos KMZ/KML y ver el estado de cada elemento.",
+        "example_intents": [
+            "ver el mapa de red",
+            "dónde está ubicado un cliente en el mapa",
+            "agregar un poste nuevo al mapa",
+            "cargar un plano de red en KMZ"
+        ],
+        "sensitive_actions": ["maps_kmz_load", "maps_kmz_remove"]
+    },
+
+    "client_tab": {
+        "label": "Mapa",
+        "component": "MapasClientTab",
+        "permission": "maps_view_maps"
+    },
+
+    "service_type": null
 }

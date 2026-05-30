@@ -5,5 +5,90 @@
     "description": "Plataforma de control parental: licencias por plan, perfiles de hijos, dispositivos, reglas, geofences, alertas, tareas y app móvil.",
     "type": "addon",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "permissions": [
+        { "name": "megafamilia_view",    "description": "Ver el panel de MegaFamilia (clientes y licencias)" },
+        { "name": "megafamilia_support", "description": "Soporte: ver perfiles, dispositivos y alertas de clientes" },
+        { "name": "megafamilia_admin",   "description": "Administrar MegaFamilia: configurar, activar/desactivar licencias" }
+    ],
+
+    "menu": [
+        {
+            "label": "MegaFamilia",
+            "icon": "shield",
+            "permission": "megafamilia_view",
+            "url": "/megafamilia",
+            "children": [
+                { "label": "Dashboard",  "url": "/megafamilia",          "permission": "megafamilia_view" },
+                { "label": "Clientes",   "url": "/megafamilia/clientes", "permission": "megafamilia_support" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "MegaFamilia",
+            "description": "Control parental para clientes: perfiles, dispositivos, reglas y geofences.",
+            "icon": "shield",
+            "url": "/megafamilia",
+            "permission": "megafamilia_view"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "megafamilia_panel",
+            "label": "MegaFamilia — Control Parental",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "shield",
+            "url": "/megafamilia",
+            "permission": "megafamilia_admin",
+            "description": "Control parental y servicios familiares para clientes del ISP.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "MegaFamilia",
+                        "definition": "Módulo de control parental que los clientes gestionan desde su app móvil."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → MegaFamilia.",
+                    "Administra los servicios y configuración del módulo."
+                ],
+                "actions": [
+                    "Gestionar clientes MegaFamilia"
+                ]
+            }
+        }
+    ],
+    "api_endpoints": [
+        { "method": "GET", "path": "/megafamilia",          "description": "Dashboard MegaFamilia",  "scope": "megafamilia_view",    "permission": "megafamilia_view" },
+        { "method": "GET", "path": "/megafamilia/clientes", "description": "Lista clientes activos", "scope": "megafamilia_support", "permission": "megafamilia_support" }
+    ],
+
+    "ai": {
+        "knowledge": "MegaFamilia es el servicio de control parental del ISP. Los clientes lo gestionan desde la app móvil (Android). Permite crear perfiles de hijos, agregar dispositivos por MAC, definir reglas de acceso (horarios, bloqueo de categorías), geofences y tareas familiares. Las licencias se activan por plan de internet.",
+        "example_intents": [
+            "ver los clientes con MegaFamilia activo",
+            "activar MegaFamilia para un cliente",
+            "ver las alertas del módulo parental",
+            "descargar la app MegaFamilia"
+        ],
+        "sensitive_actions": ["megafamilia_admin"]
+    },
+
+    "client_tab": {
+        "label": "MegaFamilia",
+        "component": "MegaFamiliaClientTab",
+        "permission": "megafamilia_support"
+    },
+
+    "service_type": {
+        "key": "megafamilia",
+        "label": "MegaFamilia",
+        "price_configurable": false,
+        "supports_promotions": false,
+        "bundleable": true
+    }
 }

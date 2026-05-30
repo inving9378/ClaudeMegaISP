@@ -1,300 +1,459 @@
 <template>
     <div class="module-manager">
-        <!-- KPI cards -->
-        <div class="row mt-3">
-            <div class="col-md-3">
-                <div class="card stat-card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <i class="fa fa-cubes fa-2x text-secondary me-3"></i>
-                            <div>
-                                <div class="text-muted small">Total módulos</div>
-                                <div class="h3 m-0">{{ stats.total }}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+
+        <!-- Header + búsqueda -->
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+                <h4 class="mb-0">Gestión de Add-ons</h4>
+                <p class="text-muted small mb-0">Instala, actualiza y desinstala módulos del sistema.</p>
             </div>
-            <div class="col-md-3">
-                <div class="card stat-card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <i class="fa fa-check-circle fa-2x text-success me-3"></i>
-                            <div>
-                                <div class="text-muted small">Migrados</div>
-                                <div class="h3 m-0 text-success">{{ stats.migrated }}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card stat-card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <i class="fa fa-clock fa-2x text-warning me-3"></i>
-                            <div>
-                                <div class="text-muted small">Pendientes</div>
-                                <div class="h3 m-0 text-warning">{{ stats.pending }}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card stat-card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <i class="fa fa-dollar-sign fa-2x text-primary me-3"></i>
-                            <div>
-                                <div class="text-muted small">Créditos usados</div>
-                                <div class="h3 m-0">${{ stats.cost.toFixed(4) }} USD</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="d-flex gap-2 align-items-center">
+                <input
+                    v-model="search"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Buscar módulo…"
+                    style="width:220px"
+                />
+                <button class="btn btn-sm btn-outline-secondary" @click="reload">
+                    <i class="fa fa-sync-alt" :class="{ 'fa-spin': loading }"></i>
+                </button>
             </div>
         </div>
 
-        <!-- Module table -->
-        <div class="card mt-3">
-            <div class="card-body">
-                <h5 class="card-title">Módulos del sistema</h5>
+        <!-- KPI chips -->
+        <div class="d-flex gap-3 mb-3 flex-wrap">
+            <div class="kpi-chip">
+                <span class="kpi-val">{{ stats.totalAddons }}</span>
+                <span class="kpi-label">Add-ons disponibles</span>
+            </div>
+            <div class="kpi-chip kpi-success">
+                <span class="kpi-val">{{ stats.installed }}</span>
+                <span class="kpi-label">Instalados</span>
+            </div>
+            <div class="kpi-chip kpi-warning" v-if="stats.upgradeable > 0">
+                <span class="kpi-val">{{ stats.upgradeable }}</span>
+                <span class="kpi-label">Con actualización</span>
+            </div>
+            <div class="kpi-chip">
+                <span class="kpi-val">{{ stats.totalFiles }}</span>
+                <span class="kpi-label">Archivos totales</span>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="btn-group btn-group-sm mb-3">
+            <button
+                v-for="f in filters"
+                :key="f.key"
+                class="btn"
+                :class="activeFilter === f.key ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="activeFilter = f.key"
+            >{{ f.label }} <span class="badge ms-1" :class="activeFilter === f.key ? 'bg-light text-primary' : 'bg-secondary'">{{ f.count }}</span>
+            </button>
+        </div>
+
+        <!-- Tabla addons -->
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:28px"></th>
+                            <th>Módulo</th>
+                            <th>Versión</th>
+                            <th>Descripción</th>
+                            <th>Archivos</th>
+                            <th>Estado</th>
+                            <th class="text-end" style="min-width:180px">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template v-for="m in filteredModules" :key="m.slug">
+                            <!-- Fila principal -->
+                            <tr :class="{ 'table-success-subtle': m.active }">
+                                <td class="chev-cell" @click="toggleExpand(m.slug)">
+                                    <i class="fa fa-fw" :class="expanded[m.slug] ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">{{ m.name }}</div>
+                                    <code class="text-muted" style="font-size:11px">{{ m.slug }}</code>
+                                </td>
+                                <td>
+                                    <span v-if="m.installed_version" class="badge bg-success">v{{ m.installed_version }}</span>
+                                    <span v-else class="badge bg-light text-muted border">v{{ m.manifest_version }}</span>
+                                    <span v-if="hasUpgrade(m)" class="badge bg-warning text-dark ms-1" title="Actualización disponible">
+                                        ↑ {{ m.manifest_version }}
+                                    </span>
+                                </td>
+                                <td class="text-muted small" style="max-width:300px">
+                                    {{ m.description || '—' }}
+                                </td>
+                                <td class="text-muted small">
+                                    <span>{{ m.files_count }} arch.</span><br>
+                                    <span>{{ m.dir_size_kb }} KB</span>
+                                </td>
+                                <td>
+                                    <span v-if="m.type === 'core'" class="badge bg-secondary">
+                                        <i class="fa fa-lock me-1"></i>Core
+                                    </span>
+                                    <span v-else-if="m.active" class="badge bg-success">
+                                        <i class="fa fa-check-circle me-1"></i>Instalado
+                                    </span>
+                                    <span v-else class="badge bg-light text-secondary border">
+                                        No instalado
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex gap-1 justify-content-end flex-wrap">
+                                        <!-- Instalar -->
+                                        <button
+                                            v-if="!m.active && m.type !== 'core'"
+                                            class="btn btn-sm btn-primary"
+                                            :disabled="busy === m.slug"
+                                            @click="confirmInstall(m)"
+                                        >
+                                            <i class="fa fa-download me-1"></i>Instalar
+                                        </button>
+                                        <!-- Actualizar -->
+                                        <button
+                                            v-if="m.active && hasUpgrade(m)"
+                                            class="btn btn-sm btn-warning"
+                                            :disabled="busy === m.slug"
+                                            @click="doUpgrade(m)"
+                                        >
+                                            <i class="fa fa-arrow-up me-1"></i>Actualizar
+                                        </button>
+                                        <!-- Desinstalar -->
+                                        <button
+                                            v-if="m.active && m.type !== 'core'"
+                                            class="btn btn-sm btn-outline-danger"
+                                            :disabled="busy === m.slug"
+                                            @click="confirmUninstall(m)"
+                                        >
+                                            <i class="fa fa-trash me-1"></i>Desinstalar
+                                        </button>
+                                        <span v-if="busy === m.slug" class="text-muted small align-self-center">
+                                            <i class="fa fa-spinner fa-spin"></i>
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Fila expandida — detalles -->
+                            <tr v-if="expanded[m.slug]" class="expanded-row">
+                                <td></td>
+                                <td colspan="6">
+                                    <div class="row g-3 py-1">
+                                        <div class="col-md-4">
+                                            <div class="small text-muted mb-1">Identidad</div>
+                                            <div><strong>Slug:</strong> <code>{{ m.slug }}</code></div>
+                                            <div><strong>Versión manifiesto:</strong> {{ m.manifest_version }}</div>
+                                            <div><strong>Versión instalada:</strong> {{ m.installed_version || '—' }}</div>
+                                            <div><strong>Tipo:</strong> {{ m.type }}</div>
+                                            <div><strong>Archivos:</strong> {{ m.files_count }} ({{ m.dir_size_kb }} KB)</div>
+                                        </div>
+                                        <div class="col-md-4" v-if="details[m.slug]">
+                                            <div class="small text-muted mb-1">Áreas declaradas</div>
+                                            <div><i class="fa fa-fw fa-bars text-muted"></i> Menú: {{ details[m.slug].menu_count }} item(s)</div>
+                                            <div><i class="fa fa-fw fa-th-large text-muted"></i> Config: {{ details[m.slug].config_count }} sección(es)</div>
+                                            <div><i class="fa fa-fw fa-key text-muted"></i> Permisos: {{ details[m.slug].perm_count }}</div>
+                                            <div><i class="fa fa-fw fa-plug text-muted"></i> Endpoints: {{ details[m.slug].endpoint_count }}</div>
+                                        </div>
+                                        <div class="col-md-4" v-if="details[m.slug] && details[m.slug].dependencies.length">
+                                            <div class="small text-muted mb-1">Dependencias</div>
+                                            <div v-for="dep in details[m.slug].dependencies" :key="dep.slug" class="small">
+                                                <i class="fa fa-link text-muted me-1"></i>
+                                                <code>{{ dep.slug }}</code>
+                                                <span class="text-muted"> ≥ {{ dep.min_version }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+
+                        <tr v-if="filteredModules.length === 0">
+                            <td colspan="7" class="text-center text-muted py-4">
+                                Sin resultados para "{{ search }}"
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Sección core (colapsable) -->
+        <div class="mt-3">
+            <button class="btn btn-sm btn-link text-muted p-0" @click="showCore = !showCore">
+                <i class="fa fa-fw" :class="showCore ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                Módulos core del sistema ({{ coreModules.length }})
+            </button>
+            <div v-if="showCore" class="card mt-2">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead>
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
                             <tr>
-                                <th></th>
                                 <th>Módulo</th>
-                                <th>Tipo</th>
-                                <th>Migración</th>
+                                <th>Versión</th>
+                                <th>Archivos</th>
                                 <th>Estado</th>
-                                <th>Créditos</th>
-                                <th class="text-end">Acción</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <template v-for="m in modules" :key="m.slug">
-                                <tr>
-                                    <td class="chev-cell" @click="toggleExpand(m.slug)">
-                                        <i class="fa" :class="expanded[m.slug] ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold">{{ m.name }}</div>
-                                        <div class="text-muted small">{{ m.slug }} · v{{ m.version }}</div>
-                                    </td>
-                                    <td>
-                                        <span class="badge" :class="m.type === 'core' ? 'bg-secondary' : 'bg-info'">
-                                            {{ m.type }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="badge" :class="m.migrated ? 'bg-success' : 'bg-warning text-dark'">
-                                            {{ m.migrated ? 'Migrado' : 'Pendiente' }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span v-if="m.type === 'core'" class="text-muted" title="Los módulos core no se pueden desactivar">
-                                            <i class="fa fa-lock"></i>
-                                        </span>
-                                        <q-toggle
-                                            v-else
-                                            :model-value="m.active"
-                                            color="primary"
-                                            :disable="togglingSlug === m.slug"
-                                            @update:model-value="toggleActive(m)"
-                                        />
-                                    </td>
-                                    <td>
-                                        <div>${{ m.total_cost.toFixed(4) }}</div>
-                                        <div class="text-muted small">{{ m.runs }} ejecucion(es)</div>
-                                    </td>
-                                    <td class="text-end">
-                                        <button
-                                            v-if="!m.migrated"
-                                            class="btn btn-sm btn-primary"
-                                            :disabled="migratingSlug === m.slug"
-                                            @click="migrate(m)"
-                                        >
-                                            <span v-if="migratingSlug === m.slug">
-                                                <i class="fa fa-spinner fa-spin"></i>
-                                                Procesando…
-                                            </span>
-                                            <span v-else>
-                                                <i class="fa fa-play"></i>
-                                                Migrar
-                                            </span>
-                                        </button>
-                                        <span v-else class="text-success">
-                                            <i class="fa fa-check-circle"></i>
-                                            Hecho
-                                        </span>
-                                    </td>
-                                </tr>
-                                <tr v-if="expanded[m.slug]" class="expanded-row">
-                                    <td></td>
-                                    <td colspan="6">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <strong>Descripción:</strong>
-                                                <p class="mb-1">{{ m.description || '—' }}</p>
-                                                <div><strong>Archivos en el módulo:</strong> {{ m.files_count }}</div>
-                                                <div><strong>Versión:</strong> {{ m.version }}</div>
-                                                <div><strong>Slug:</strong> <code>{{ m.slug }}</code></div>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <strong>Historial:</strong>
-                                                <div v-if="loadingHistory[m.slug]" class="text-muted small">Cargando…</div>
-                                                <div v-else-if="!history[m.slug] || history[m.slug].length === 0" class="text-muted small">
-                                                    Sin ejecuciones.
-                                                </div>
-                                                <table v-else class="table table-sm mt-1">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Fecha</th>
-                                                            <th>Estado</th>
-                                                            <th>Tokens</th>
-                                                            <th>Costo</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <tr v-for="h in history[m.slug]" :key="h.id">
-                                                            <td>{{ formatDate(h.started_at) }}</td>
-                                                            <td>
-                                                                <span class="badge" :class="statusBadge(h.status)">
-                                                                    {{ h.status }}
-                                                                </span>
-                                                            </td>
-                                                            <td>{{ h.input_tokens }} / {{ h.output_tokens }}</td>
-                                                            <td>${{ Number(h.cost_usd).toFixed(4) }}</td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                        <div v-if="lastPlan[m.slug]" class="mt-2">
-                                            <strong>Última propuesta de Claude:</strong>
-                                            <pre class="claude-plan">{{ lastPlan[m.slug] }}</pre>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </template>
+                            <tr v-for="m in coreModules" :key="m.slug">
+                                <td>
+                                    <div class="fw-semibold">{{ m.name }}</div>
+                                    <code class="text-muted" style="font-size:11px">{{ m.slug }}</code>
+                                </td>
+                                <td><span class="badge bg-secondary">v{{ m.installed_version || m.manifest_version }}</span></td>
+                                <td class="text-muted small">{{ m.files_count }} arch. · {{ m.dir_size_kb }} KB</td>
+                                <td><span class="badge bg-secondary"><i class="fa fa-lock me-1"></i>Core</span></td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
+
+        <!-- Modal de confirmación install -->
+        <div v-if="modal.show && modal.action === 'install'" class="modal-overlay" @click.self="modal.show=false">
+            <div class="modal-box">
+                <h5>Instalar <strong>{{ modal.module.name }}</strong></h5>
+                <p class="text-muted small">v{{ modal.module.manifest_version }} · {{ modal.module.files_count }} archivos</p>
+                <p class="mb-1">{{ modal.module.description }}</p>
+                <div v-if="modal.module.dependencies && modal.module.dependencies.length" class="alert alert-info py-2 small">
+                    <strong>Dependencias:</strong>
+                    <span v-for="d in modal.module.dependencies" :key="d.slug"> <code>{{ d.slug }}</code> ≥ {{ d.min_version }}</span>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" @click="modal.show=false">Cancelar</button>
+                    <button class="btn btn-sm btn-primary" :disabled="busy === modal.module.slug" @click="doInstall(modal.module)">
+                        <i class="fa fa-download me-1"></i>Confirmar instalación
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de confirmación uninstall -->
+        <div v-if="modal.show && modal.action === 'uninstall'" class="modal-overlay" @click.self="modal.show=false">
+            <div class="modal-box">
+                <h5>Desinstalar <strong>{{ modal.module.name }}</strong></h5>
+                <div v-if="modal.preview" class="alert alert-warning py-2 small">
+                    <i class="fa fa-exclamation-triangle me-1"></i>
+                    Afectará <strong>{{ modal.preview.roles }}</strong> rol(es) y
+                    <strong>{{ modal.preview.users }}</strong> usuario(s).
+                </div>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" v-model="modal.keepData" id="chk-keep-data">
+                    <label class="form-check-label small" for="chk-keep-data">
+                        Conservar tablas y datos (recomendado para módulos con datos de producción)
+                    </label>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" @click="modal.show=false">Cancelar</button>
+                    <button class="btn btn-sm btn-danger" :disabled="busy === modal.module.slug" @click="doUninstall(modal.module)">
+                        <i class="fa fa-trash me-1"></i>Confirmar desinstalación
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </div>
 </template>
 
 <script>
+import { darkMode } from "../../../../hook/appConfig.js";
+
 export default {
     name: 'ModuleManager',
+    setup() {
+        return { darkMode };
+    },
     props: {
-        initialModules: { type: Array, required: true },
-        totalModules: { type: Number, required: true },
-        migratedCount: { type: Number, required: true },
-        pendingCount: { type: Number, required: true },
-        totalCostUsd: { type: [Number, String], required: true },
-        csrfToken: { type: String, required: true },
+        initialModules: { type: Array,  required: true },
+        totalModules:   { type: Number, required: true },
+        migratedCount:  { type: Number, required: true },
+        pendingCount:   { type: Number, required: true },
+        totalCostUsd:   { type: [Number, String], required: true },
+        csrfToken:      { type: String, required: true },
     },
     data() {
+        const mods = this.initialModules.map(m => ({ ...m, dir_size_kb: Number(m.dir_size_kb) || 0 }));
         return {
-            modules: this.initialModules.map((m) => ({
-                ...m,
-                total_cost: Number(m.total_cost) || 0,
-                runs: Number(m.runs) || 0,
-            })),
-            stats: {
-                total: this.totalModules,
-                migrated: this.migratedCount,
-                pending: this.pendingCount,
-                cost: Number(this.totalCostUsd) || 0,
-            },
-            expanded: {},
-            history: {},
-            loadingHistory: {},
-            lastPlan: {},
-            migratingSlug: null,
-            togglingSlug: null,
+            modules:      mods,
+            search:       '',
+            activeFilter: 'addons',
+            expanded:     {},
+            details:      {},
+            showCore:     false,
+            busy:         null,
+            loading:      false,
+            modal: { show: false, action: null, module: null, preview: null, keepData: true },
         };
     },
+    computed: {
+        addonModules() {
+            return this.modules.filter(m => m.type !== 'core');
+        },
+        coreModules() {
+            return this.modules.filter(m => m.type === 'core');
+        },
+        stats() {
+            const addons    = this.addonModules;
+            const installed = addons.filter(m => m.active);
+            return {
+                totalAddons:  addons.length,
+                installed:    installed.length,
+                upgradeable:  addons.filter(m => this.hasUpgrade(m)).length,
+                totalFiles:   addons.reduce((s, m) => s + (m.files_count || 0), 0),
+            };
+        },
+        filters() {
+            const addons = this.addonModules;
+            return [
+                { key: 'addons',       label: 'Add-ons',      count: addons.length },
+                { key: 'installed',    label: 'Instalados',   count: addons.filter(m => m.active).length },
+                { key: 'available',    label: 'No instalados',count: addons.filter(m => !m.active).length },
+                { key: 'upgradeable',  label: 'Actualizar',   count: addons.filter(m => this.hasUpgrade(m)).length },
+            ];
+        },
+        filteredModules() {
+            let list = this.addonModules;
+            if (this.activeFilter === 'installed')   list = list.filter(m => m.active);
+            if (this.activeFilter === 'available')   list = list.filter(m => !m.active);
+            if (this.activeFilter === 'upgradeable') list = list.filter(m => this.hasUpgrade(m));
+            if (this.search.trim()) {
+                const q = this.search.toLowerCase();
+                list = list.filter(m =>
+                    m.name.toLowerCase().includes(q) ||
+                    m.slug.toLowerCase().includes(q) ||
+                    (m.description || '').toLowerCase().includes(q)
+                );
+            }
+            return list;
+        },
+    },
     methods: {
+        hasUpgrade(m) {
+            if (!m.active || !m.installed_version || !m.manifest_version) return false;
+            return this.versionGt(m.manifest_version, m.installed_version);
+        },
+        versionGt(a, b) {
+            const pa = a.split('.').map(Number);
+            const pb = b.split('.').map(Number);
+            for (let i = 0; i < 3; i++) {
+                if ((pa[i] || 0) > (pb[i] || 0)) return true;
+                if ((pa[i] || 0) < (pb[i] || 0)) return false;
+            }
+            return false;
+        },
         toggleExpand(slug) {
             this.expanded[slug] = !this.expanded[slug];
-            if (this.expanded[slug] && this.history[slug] === undefined) {
-                this.fetchHistory(slug);
+            if (this.expanded[slug] && !this.details[slug]) {
+                this.loadDetails(slug);
             }
         },
-        async fetchHistory(slug) {
-            this.loadingHistory[slug] = true;
-            try {
-                const { data } = await axios.get(`/admin/modules/${slug}/history`);
-                this.history[slug] = data.history || [];
-            } catch (e) {
-                this.history[slug] = [];
-            } finally {
-                this.loadingHistory[slug] = false;
-            }
+        loadDetails(slug) {
+            const m = this.modules.find(x => x.slug === slug);
+            if (!m) return;
+            this.details[slug] = {
+                menu_count:     (m.menu || []).length,
+                config_count:   (m.config_sections || []).length,
+                perm_count:     (m.permissions || []).length,
+                endpoint_count: (m.api_endpoints || []).length,
+                dependencies:   m.dependencies || [],
+            };
         },
-        async migrate(m) {
-            this.migratingSlug = m.slug;
+        async confirmInstall(m) {
+            this.modal = { show: true, action: 'install', module: m, preview: null, keepData: true };
+        },
+        async confirmUninstall(m) {
+            this.modal = { show: true, action: 'uninstall', module: m, preview: null, keepData: true };
             try {
-                const { data } = await axios.post(`/admin/modules/${m.slug}/migrate`, {}, {
-                    headers: { 'X-CSRF-TOKEN': this.csrfToken },
-                });
+                const { data } = await axios.get(`/admin/modules/${m.slug}/uninstall/preview`);
+                if (data.success) this.modal.preview = data.preview;
+            } catch (e) { /* preview opcional */ }
+        },
+        async doInstall(m) {
+            this.busy = m.slug;
+            this.modal.show = false;
+            try {
+                const { data } = await axios.post(
+                    `/admin/modules/${m.slug}/install`,
+                    {},
+                    { headers: { 'X-CSRF-TOKEN': this.csrfToken } }
+                );
                 if (data.success) {
-                    this.lastPlan[m.slug] = data.plan;
-                    m.total_cost = Number(m.total_cost) + Number(data.cost_usd);
-                    m.runs = Number(m.runs) + 1;
-                    this.stats.cost += Number(data.cost_usd);
-                    if (this.expanded[m.slug]) {
-                        await this.fetchHistory(m.slug);
+                    m.active = true;
+                    m.installed_version = m.manifest_version;
+                    this.notify(`${m.name} instalado correctamente.`, 'positive');
+                } else {
+                    this.notify(data.error || 'Error al instalar', 'negative');
+                }
+            } catch (e) {
+                this.notify(e.response?.data?.error || e.message, 'negative');
+            } finally {
+                this.busy = null;
+            }
+        },
+        async doUpgrade(m) {
+            this.busy = m.slug;
+            try {
+                const { data } = await axios.post(
+                    `/admin/modules/${m.slug}/upgrade`,
+                    {},
+                    { headers: { 'X-CSRF-TOKEN': this.csrfToken } }
+                );
+                if (data.success || data.action === 'already_up_to_date') {
+                    m.installed_version = m.manifest_version;
+                    this.notify(`${m.name} actualizado a v${m.manifest_version}.`, 'positive');
+                } else {
+                    this.notify(data.error || 'Error al actualizar', 'negative');
+                }
+            } catch (e) {
+                this.notify(e.response?.data?.error || e.message, 'negative');
+            } finally {
+                this.busy = null;
+            }
+        },
+        async doUninstall(m) {
+            this.busy = m.slug;
+            this.modal.show = false;
+            try {
+                const { data } = await axios.delete(
+                    `/admin/modules/${m.slug}/uninstall`,
+                    {
+                        data: { keep_data: this.modal.keepData ? '1' : '0' },
+                        headers: { 'X-CSRF-TOKEN': this.csrfToken },
                     }
-                    this.notify('Plan generado por Claude. Costo: $' + Number(data.cost_usd).toFixed(4), 'positive');
-                } else {
-                    this.notify(data.error || 'Falló la migración', 'negative');
-                }
-            } catch (e) {
-                this.notify(e.response?.data?.error || e.message, 'negative');
-            } finally {
-                this.migratingSlug = null;
-            }
-        },
-        async toggleActive(m) {
-            this.togglingSlug = m.slug;
-            try {
-                const { data } = await axios.post(`/admin/modules/${m.slug}/toggle`, {}, {
-                    headers: { 'X-CSRF-TOKEN': this.csrfToken },
-                });
+                );
                 if (data.success) {
-                    m.active = data.active;
+                    m.active = false;
+                    if (!this.modal.keepData) m.installed_version = null;
+                    this.notify(`${m.name} desinstalado.`, 'positive');
                 } else {
-                    this.notify(data.error || 'No se pudo cambiar el estado', 'negative');
+                    this.notify(data.error || 'Error al desinstalar', 'negative');
                 }
             } catch (e) {
                 this.notify(e.response?.data?.error || e.message, 'negative');
             } finally {
-                this.togglingSlug = null;
+                this.busy = null;
             }
         },
-        statusBadge(status) {
-            return {
-                completed: 'bg-success',
-                running: 'bg-info',
-                pending: 'bg-secondary',
-                failed: 'bg-danger',
-            }[status] || 'bg-secondary';
-        },
-        formatDate(ts) {
-            if (!ts) return '—';
-            return new Date(ts).toLocaleString('es-MX');
+        async reload() {
+            this.loading = true;
+            try {
+                window.location.reload();
+            } finally {
+                this.loading = false;
+            }
         },
         notify(message, type) {
-            if (this.$q && this.$q.notify) {
-                this.$q.notify({ message, color: type === 'positive' ? 'green' : 'red', position: 'top-right', timeout: 3500 });
+            if (this.$q?.notify) {
+                this.$q.notify({ message, color: type === 'positive' ? 'green-7' : 'red-7', position: 'top-right', timeout: 4000 });
             } else {
-                window.alert(message);
+                alert(message);
             }
         },
     },
@@ -302,17 +461,49 @@ export default {
 </script>
 
 <style scoped>
-.module-manager .stat-card { border: 1px solid #eef0f4; }
-.module-manager .chev-cell { cursor: pointer; width: 28px; color: #6c757d; }
-.module-manager .expanded-row { background: #fafbfc; }
-.module-manager .claude-plan {
-    white-space: pre-wrap;
-    background: #1e1e2e;
-    color: #cdd6f4;
-    padding: 1rem;
-    border-radius: 6px;
-    max-height: 320px;
-    overflow-y: auto;
-    font-size: 12px;
+/* KPI chips */
+.kpi-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 20px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    min-width: 110px;
 }
+.kpi-chip.kpi-success { border-color: #d1e7dd; background: #f0fdf4; }
+.kpi-chip.kpi-warning { border-color: #fff3cd; background: #fffbeb; }
+.kpi-val  { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+.kpi-label{ font-size: 11px; color: #6c757d; }
+
+/* Tabla */
+.chev-cell { cursor: pointer; width: 28px; color: #adb5bd; }
+.table-success-subtle { background: rgba(25, 135, 84, 0.04); }
+.expanded-row { background: #f8f9fa; }
+.expanded-row td { padding: 12px 16px; }
+
+/* Modal overlay */
+.modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+}
+.modal-box {
+    background: #fff;
+    border-radius: 10px;
+    padding: 24px;
+    width: 440px;
+    max-width: 95vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+.modal-box h5 { margin-bottom: 4px; }
+
+/* Dark mode — responde al toggle de Medussa ([data-layout-mode=dark]), no al SO */
+[data-layout-mode=dark] .kpi-chip            { background:#1e1e2e; border-color:#313244; }
+[data-layout-mode=dark] .kpi-chip.kpi-success{ background:#0d2218; border-color:#1a4731; }
+[data-layout-mode=dark] .kpi-chip.kpi-warning{ background:#231a00; border-color:#4d3800; }
+[data-layout-mode=dark] .expanded-row        { background:#1a1a2e; }
+[data-layout-mode=dark] .modal-box           { background:#1e1e2e; color:#cdd6f4; }
 </style>

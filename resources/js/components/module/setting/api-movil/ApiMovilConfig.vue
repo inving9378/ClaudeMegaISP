@@ -82,7 +82,7 @@ export default {
         return {
             config: null,
             availableRoles: ['cliente', 'tecnico', 'hijo', 'padre', 'admin'],
-            loading: false,
+            loading: true,
             errorMsg: '',
             saving: false,
             savedAt: '',

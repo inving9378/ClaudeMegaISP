@@ -5,5 +5,43 @@
     "description": "Entidades geográficas y administrativas: estado, municipio, colonia, sucursal, ubicación.",
     "type": "core",
     "dependencies": [],
-    "active": true
+    "active": true,
+    "menu": [],
+    "admin_cards": [],
+    "config_sections": [
+        {
+            "key": "repoblar_geo",
+            "label": "Repoblar Estado / Municipio / Colonia",
+            "type": "herramientas",
+            "category": "Herramientas",
+            "icon": "globe",
+            "url": "/administracion/set-state-municipality-and-colony",
+            "permission": "config_view_tools",
+            "description": "Recarga los catálogos geográficos (estados, municipios, colonias) desde los archivos oficiales.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Catálogo geográfico",
+                        "definition": "Tabla de estados, municipios y colonias usada en las fichas de clientes."
+                    },
+                    {
+                        "term": "Repoblar",
+                        "definition": "Volver a cargar el catálogo desde el archivo fuente, sin borrar registros existentes."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Repoblar Estado/Municipio/Colonia.",
+                    "Selecciona el catálogo a actualizar.",
+                    "Confirma la operación."
+                ],
+                "actions": [
+                    "Repoblar catálogo geográfico"
+                ]
+            }
+        }
+    ],
+    "api_endpoints": [],
+    "ai": [],
+    "client_tab": null,
+    "service_type": null
 }
