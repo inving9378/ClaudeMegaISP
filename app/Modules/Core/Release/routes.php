@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Core\Release\Controllers\AuditController;
 use App\Modules\Core\Release\Controllers\ReleaseController;
 use App\Modules\Core\Release\Controllers\ReleaseDescriptionController;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::get('/{version}', [ReleaseController::class, 'show']);
     Route::post('/store', [ReleaseController::class, 'store']);
     Route::post('/update/{id}', [ReleaseController::class, 'update']);
+
+    // Audit report
+    Route::get('/audit/report',           [AuditController::class, 'generate']);
+    Route::get('/audit/plan',             [AuditController::class, 'planIndex']);
+    Route::post('/audit/plan/{id}/toggle',[AuditController::class, 'planToggle']);
+    Route::post('/audit/plan/{id}/note',  [AuditController::class, 'planNote']);
 
     Route::get('/{releaseId}/descriptions', [ReleaseDescriptionController::class, 'index']);
     Route::post('/description/store', [ReleaseDescriptionController::class, 'store']);
