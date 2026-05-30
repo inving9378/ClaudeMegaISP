@@ -1,5 +1,25 @@
 <template>
     <div class="container my-5 release-timeline">
+
+        <!-- ── Tabs ── -->
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'historial' }" href="#" @click.prevent="tab = 'historial'">
+                    <i class="bi bi-clock-history me-1"></i> Historial de versiones
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'reporte' }" href="#" @click.prevent="tab = 'reporte'">
+                    <i class="bi bi-clipboard-data me-1"></i> Reporte
+                </a>
+            </li>
+        </ul>
+
+        <!-- ── Tab: Reporte ── -->
+        <audit-report v-if="tab === 'reporte'" />
+
+        <!-- ── Tab: Historial ── -->
+        <template v-if="tab === 'historial'">
         <div class="d-flex justify-content-between align-items-center mb-5">
             <h2 class="fw-bold">Historial de versiones</h2>
             <button
@@ -95,6 +115,8 @@
         </div>
 
         <releases-crud ref="crudModal" :id="currentId" @save="refreshList" />
+        </template><!-- /tab historial -->
+
     </div>
 </template>
 
@@ -102,18 +124,20 @@
 import { ref, onMounted, onBeforeUnmount, reactive } from "vue";
 import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
+import AuditReport from "./AuditReport.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
 import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud },
+    components: { ReleasesCrud, AuditReport },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
     },
     setup(props) {
+        const tab = ref('historial');
         const releases = ref(JSON.parse(props.releases));
         const nextPageUrl = ref(props.next_page_url);
         const isLoading = ref(false);
@@ -209,6 +233,7 @@ export default {
         };
 
         return {
+            tab,
             releases,
             crudModal,
             currentId,
