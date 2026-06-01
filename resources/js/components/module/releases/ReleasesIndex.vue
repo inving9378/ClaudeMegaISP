@@ -13,10 +13,18 @@
                     <i class="bi bi-clipboard-data me-1"></i> Reporte
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'roadmap' }" href="#" @click.prevent="tab = 'roadmap'">
+                    <i class="bi bi-map me-1"></i> Hoja de ruta
+                </a>
+            </li>
         </ul>
 
         <!-- ── Tab: Reporte ── -->
         <audit-report v-if="tab === 'reporte'" />
+
+        <!-- ── Tab: Hoja de ruta ── -->
+        <roadmap-tab v-if="tab === 'roadmap'" />
 
         <!-- ── Tab: Historial ── -->
         <template v-if="tab === 'historial'">
@@ -125,13 +133,14 @@ import { ref, onMounted, onBeforeUnmount, reactive } from "vue";
 import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
 import AuditReport from "./AuditReport.vue";
+import RoadmapTab from "./RoadmapTab.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
 import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport },
+    components: { ReleasesCrud, AuditReport, RoadmapTab },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
