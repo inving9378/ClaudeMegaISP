@@ -153,6 +153,10 @@ Route::middleware(['web', 'auth'])->prefix('megafamilia')->group(function () {
 
     // ----- Admin + soporte (permission: megafamilia_support OR megafamilia_admin) -----
     Route::middleware('permission:megafamilia_admin|megafamilia_support')->group(function () {
+        // Pestaña en la ficha de cliente ISP (infra de ficha extensible — roadmap #5)
+        Route::get('clientes/por-cliente-isp/{clientIspId}', [ClientesController::class, 'porClienteIsp'])
+            ->whereNumber('clientIspId');
+
         Route::prefix('alertas')->group(function () {
             Route::get('/', [AlertasController::class, 'index']);
             Route::get('/data', [AlertasController::class, 'data']);

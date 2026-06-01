@@ -10,9 +10,12 @@ class SidebarComposer
     public function compose(View $view): void
     {
         try {
-            $view->with('addonMenuItems', ModuleRegistry::instance()->getMenu());
+            $registry = ModuleRegistry::instance();
+            $view->with('addonMenuItems',   $registry->getMenu());
+            $view->with('sidebarSubmenu',   $registry->getSubmenuItemsFor('finanzas'));
         } catch (\Throwable) {
             $view->with('addonMenuItems', []);
+            $view->with('sidebarSubmenu', []);
         }
     }
 }

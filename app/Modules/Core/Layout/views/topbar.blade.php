@@ -37,6 +37,12 @@
                 </a>
             </div>
 
+            <!-- CLAUDE TEST badge -->
+            <span class="badge text-white px-3 py-1 rounded-pill fw-bold align-self-center ms-2"
+                  style="background-color: #FF7A00; font-size: 11px; letter-spacing: 0.5px;">
+                CLAUDE TEST
+            </span>
+
             <button type="button" class="btn btn-sm px-3 font-size-16 header-item" id="vertical-menu-btn">
                 <i class="fa fa-fw fa-bars"></i>
             </button>

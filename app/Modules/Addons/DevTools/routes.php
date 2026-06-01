@@ -11,15 +11,15 @@ use Illuminate\Support\Facades\Route;
  *                       Claude chat + ttyd iframe.
  * - /devtools/chat      backend del chat (POST con historial).
  *
- * Sólo accesible al rol DESARROLLADOR (Spatie). `web` necesario porque
+ * Accesible a los roles DESARROLLADOR y super-administrator (Spatie). `web` necesario porque
  * loadRoutesFrom() no aplica el grupo automáticamente —
  * memory/feedback_module_routes_web_middleware.md.
  *
  * NO se incluye `check_route_permission` para que cualquier DESARROLLADOR
- * pueda entrar sin permisos por URL adicionales.
+ * o super-administrator pueda entrar sin permisos por URL adicionales.
  */
 
-Route::middleware(['web', 'auth', 'role:DESARROLLADOR'])
+Route::middleware(['web', 'auth', 'role:DESARROLLADOR|super-administrator'])
     ->prefix('devtools')
     ->group(function () {
         Route::get('/', [DevToolsController::class, 'index'])->name('devtools.index');

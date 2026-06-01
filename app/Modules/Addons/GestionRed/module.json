@@ -6,32 +6,96 @@
     "type": "addon",
     "dependencies": [],
     "active": true,
-
     "permissions": [
-        { "name": "ipv4_view_ipv4",       "description": "Ver redes IPv4" },
-        { "name": "ipv4_add_ipv4",        "description": "Crear subredes IPv4" },
-        { "name": "ipv4_edit_ipv4",       "description": "Editar subredes IPv4" },
-        { "name": "ipv4_delete_ipv4",     "description": "Eliminar subredes IPv4" },
-        { "name": "ipv4_export_ipv4",     "description": "Exportar subredes IPv4" },
-        { "name": "router_view_router",   "description": "Ver listado de routers MikroTik" },
-        { "name": "router_add_router",    "description": "Agregar router MikroTik" },
-        { "name": "router_edit_router",   "description": "Editar router MikroTik" },
-        { "name": "router_delete_router", "description": "Eliminar router MikroTik" },
-        { "name": "router_export_router", "description": "Exportar lista de routers" },
-        { "name": "olt_view",             "description": "Ver panel de OLTs" },
-        { "name": "olt_add",              "description": "Agregar OLT" },
-        { "name": "olt_edit",             "description": "Editar OLT" },
-        { "name": "olt_remove",           "description": "Eliminar OLT" },
-        { "name": "onu_add",              "description": "Agregar ONU" },
-        { "name": "onu_edit",             "description": "Editar ONU" },
-        { "name": "onu_remove",           "description": "Eliminar ONU" },
-        { "name": "onu_enable_disable",   "description": "Habilitar o deshabilitar ONU" },
-        { "name": "onu_reboot",           "description": "Reiniciar ONU remotamente" },
-        { "name": "onu_resync",           "description": "Resincronizar ONU" },
-        { "name": "onu_default",          "description": "Restaurar ONU a valores de fábrica" },
-        { "name": "onu_type_add",         "description": "Agregar tipo de ONU al catálogo" }
+        {
+            "name": "ipv4_view_ipv4",
+            "description": "Ver redes IPv4"
+        },
+        {
+            "name": "ipv4_add_ipv4",
+            "description": "Crear subredes IPv4"
+        },
+        {
+            "name": "ipv4_edit_ipv4",
+            "description": "Editar subredes IPv4"
+        },
+        {
+            "name": "ipv4_delete_ipv4",
+            "description": "Eliminar subredes IPv4"
+        },
+        {
+            "name": "ipv4_export_ipv4",
+            "description": "Exportar subredes IPv4"
+        },
+        {
+            "name": "router_view_router",
+            "description": "Ver listado de routers MikroTik"
+        },
+        {
+            "name": "router_add_router",
+            "description": "Agregar router MikroTik"
+        },
+        {
+            "name": "router_edit_router",
+            "description": "Editar router MikroTik"
+        },
+        {
+            "name": "router_delete_router",
+            "description": "Eliminar router MikroTik"
+        },
+        {
+            "name": "router_export_router",
+            "description": "Exportar lista de routers"
+        },
+        {
+            "name": "olt_view",
+            "description": "Ver panel de OLTs"
+        },
+        {
+            "name": "olt_add",
+            "description": "Agregar OLT"
+        },
+        {
+            "name": "olt_edit",
+            "description": "Editar OLT"
+        },
+        {
+            "name": "olt_remove",
+            "description": "Eliminar OLT"
+        },
+        {
+            "name": "onu_add",
+            "description": "Agregar ONU"
+        },
+        {
+            "name": "onu_edit",
+            "description": "Editar ONU"
+        },
+        {
+            "name": "onu_remove",
+            "description": "Eliminar ONU"
+        },
+        {
+            "name": "onu_enable_disable",
+            "description": "Habilitar o deshabilitar ONU"
+        },
+        {
+            "name": "onu_reboot",
+            "description": "Reiniciar ONU remotamente"
+        },
+        {
+            "name": "onu_resync",
+            "description": "Resincronizar ONU"
+        },
+        {
+            "name": "onu_default",
+            "description": "Restaurar ONU a valores de fábrica"
+        },
+        {
+            "name": "onu_type_add",
+            "description": "Agregar tipo de ONU al catálogo"
+        }
     ],
-
     "menu": [
         {
             "label": "Red",
@@ -39,14 +103,19 @@
             "permission": "router_view_router",
             "url": "/red/router/listar",
             "children": [
-                { "label": "Routers",    "url": "/red/router/listar", "permission": "router_view_router" },
-                { "label": "Red IPv4",   "url": "/red/ipv4/listar",   "permission": "ipv4_view_ipv4" },
-                { "label": "OLTs",       "url": "/olts",              "permission": "olt_view" },
-                { "label": "ONUs",       "url": "/olts/onus",         "permission": "onu_add" }
+                {
+                    "label": "Routers",
+                    "url": "/red/router/listar",
+                    "permission": "router_view_router"
+                },
+                {
+                    "label": "Red IPv4",
+                    "url": "/red/ipv4/listar",
+                    "permission": "ipv4_view_ipv4"
+                }
             ]
         }
     ],
-
     "admin_cards": [
         {
             "title": "Gestión de Red",
@@ -56,7 +125,6 @@
             "permission": "router_view_router"
         }
     ],
-
     "config_sections": [
         {
             "key": "red_mikrotik",
@@ -69,15 +137,25 @@
             "description": "Credenciales de acceso RouterOS API para sincronización automática con MikroTik.",
             "doc": {
                 "terms": [
-                    { "term": "RouterOS API", "definition": "API binaria de MikroTik usada para gestionar colas, IP pools y estados de cliente." },
-                    { "term": "ROUTER_LOCAL", "definition": "Flag en .env que habilita la integración MikroTik real." }
+                    {
+                        "term": "RouterOS API",
+                        "definition": "API binaria de MikroTik usada para gestionar colas, IP pools y estados de cliente."
+                    },
+                    {
+                        "term": "ROUTER_LOCAL",
+                        "definition": "Flag en .env que habilita la integración MikroTik real."
+                    }
                 ],
                 "steps": [
                     "Ingresar IP, usuario y contraseña de cada router MikroTik.",
                     "Verificar conectividad desde 'Probar conexión'.",
                     "El sync corre automáticamente cada 5 minutos vía cron."
                 ],
-                "actions": ["Agregar router", "Probar conexión", "Forzar sync"]
+                "actions": [
+                    "Agregar router",
+                    "Probar conexión",
+                    "Forzar sync"
+                ]
             }
         },
         {
@@ -91,26 +169,59 @@
             "description": "Credenciales y configuración de SmartOLT para gestión de OLTs y ONUs de fibra.",
             "doc": {
                 "terms": [
-                    { "term": "OLT", "definition": "Optical Line Terminal — equipo central de la red GPON/EPON." },
-                    { "term": "ONU", "definition": "Optical Network Unit — dispositivo en casa del cliente que termina la fibra." }
+                    {
+                        "term": "OLT",
+                        "definition": "Optical Line Terminal — equipo central de la red GPON/EPON."
+                    },
+                    {
+                        "term": "ONU",
+                        "definition": "Optical Network Unit — dispositivo en casa del cliente que termina la fibra."
+                    }
                 ],
                 "steps": [
                     "Ingresar credenciales de SmartOLT API.",
                     "Agregar OLTs con sus datos de conexión.",
                     "El sync de ONUs corre cada 10 min vía cron."
                 ],
-                "actions": ["Agregar OLT", "Sincronizar ONUs", "Reboot ONU", "Resincronizar ONU"]
+                "actions": [
+                    "Agregar OLT",
+                    "Sincronizar ONUs",
+                    "Reboot ONU",
+                    "Resincronizar ONU"
+                ]
             }
         }
     ],
-
     "api_endpoints": [
-        { "method": "GET",  "path": "/red/ipv4/listar",            "description": "Lista subredes IPv4",     "scope": "ipv4_view_ipv4",     "permission": "ipv4_view_ipv4" },
-        { "method": "GET",  "path": "/red/router/listar",          "description": "Lista routers MikroTik", "scope": "router_view_router",  "permission": "router_view_router" },
-        { "method": "GET",  "path": "/olts",                       "description": "Panel de OLTs",          "scope": "olt_view",            "permission": "olt_view" },
-        { "method": "GET",  "path": "/olts/dashboard",             "description": "Dashboard OLT",         "scope": "olt_view",            "permission": "olt_view" }
+        {
+            "method": "GET",
+            "path": "/red/ipv4/listar",
+            "description": "Lista subredes IPv4",
+            "scope": "ipv4_view_ipv4",
+            "permission": "ipv4_view_ipv4"
+        },
+        {
+            "method": "GET",
+            "path": "/red/router/listar",
+            "description": "Lista routers MikroTik",
+            "scope": "router_view_router",
+            "permission": "router_view_router"
+        },
+        {
+            "method": "GET",
+            "path": "/olts",
+            "description": "Panel de OLTs",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "GET",
+            "path": "/olts/dashboard",
+            "description": "Dashboard OLT",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        }
     ],
-
     "ai": {
         "knowledge": "Gestión de Red maneja routers MikroTik (sincronización de colas y estados), subredes IPv4 (pools de IPs por zona), OLTs de fibra óptica (GPON/EPON) y ONUs de clientes. Integra con SmartOLT para gestión remota de ONUs y con RouterOS para control de ancho de banda.",
         "example_intents": [
@@ -119,9 +230,12 @@
             "agregar una nueva subred IPv4",
             "ver el dashboard de OLTs"
         ],
-        "sensitive_actions": ["onu_reboot", "onu_default", "onu_enable_disable"]
+        "sensitive_actions": [
+            "onu_reboot",
+            "onu_default",
+            "onu_enable_disable"
+        ]
     },
-
     "client_tab": null,
     "service_type": null
 }

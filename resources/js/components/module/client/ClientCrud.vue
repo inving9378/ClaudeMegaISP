@@ -39,6 +39,12 @@
             label="Promociones"
             v-if="tabs.includes('promotions')"
         />
+        <q-tab
+            v-for="mt in moduleTabsList"
+            :key="mt.name"
+            :name="mt.name"
+            :label="mt.label"
+        />
     </q-tabs>
     <q-tab-panels v-model="currentTab" animated :dark="darkMode">
         <q-tab-panel name="information" v-if="tabs.includes('information')">
@@ -71,13 +77,21 @@
         <q-tab-panel name="promotions">
             <promotions-component :client-id="id" />
         </q-tab-panel>
+
+        <q-tab-panel
+            v-for="mt in moduleTabsList"
+            :key="mt.name"
+            :name="mt.name"
+        >
+            <component :is="mt.component" :id="id" :client-id="Number(id)" />
+        </q-tab-panel>
     </q-tab-panels>
 </template>
 
 <script setup>
 import InformationClientCrud from "./InformationClientCrud";
 import ClientService from "./service/ClientService.vue";
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch, computed, getCurrentInstance } from "vue";
 import { editModal, showEditModal } from "../../../hook/modalHook";
 import ClientBilling from "./billing/ClientBilling.vue";
 import DocumentClientCrud from "./document/DocumentClientCrud";
@@ -94,6 +108,10 @@ const props = defineProps({
         default: null,
     },
     tabs: String,
+    moduleTabs: {
+        type: String,
+        default: "[]",
+    },
     authuserid: Number | String,
     action: String,
 });
@@ -102,6 +120,38 @@ const currentTab = ref(null);
 const tabs = ref(JSON.parse(props.tabs));
 const percentage = tabs.value ? `${100 / tabs.value.length}%` : null;
 const typeBilling = ref("");
+
+// ── Infra de ficha de cliente extensible ──────────────────────────────────
+// Pestañas declaradas por módulos addon (client_tab en module.json), ya
+// filtradas por permiso en el backend. Sólo montamos las cuyo componente Vue
+// está registrado globalmente; así una declaración cuyo componente aún no
+// existe (p.ej. tabs `deferred`) no rompe la ficha — simplemente no aparece.
+const instance = getCurrentInstance();
+const isRegistered = (name) => {
+    if (!name) return false;
+    const comps = instance?.appContext?.components || {};
+    return Boolean(comps[name]);
+};
+
+const parseModuleTabs = () => {
+    let raw = [];
+    try {
+        raw = JSON.parse(props.moduleTabs || "[]");
+    } catch (e) {
+        console.warn("ClientCrud: moduleTabs JSON inválido", e);
+        return [];
+    }
+    return raw
+        .filter((t) => isRegistered(t.component))
+        .map((t) => ({
+            name: `mod-${t.module || t.component}`,
+            label: t.label,
+            component: t.component,
+            module: t.module,
+        }));
+};
+
+const moduleTabsList = ref(parseModuleTabs());
 
 const availableTabs = computed(() => {
     return tabs.value.map((tabName) => allTabs[tabName]).filter(Boolean);

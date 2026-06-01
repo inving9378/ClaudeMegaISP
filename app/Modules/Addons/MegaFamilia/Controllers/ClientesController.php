@@ -46,6 +46,26 @@ class ClientesController extends Controller
         return response()->json($account);
     }
 
+    /**
+     * Resumen de la cuenta MegaFamilia de un cliente ISP, para la pestaña
+     * de la ficha de cliente (infra de ficha extensible — roadmap #5).
+     * Devuelve `account: null` si el cliente no tiene cuenta MegaFamilia.
+     */
+    public function porClienteIsp(int $clientIspId): JsonResponse
+    {
+        $account = ParentalAccount::with([
+            'plan:id,name,slug',
+            'user:id,name,email',
+            'profiles' => fn ($q) => $q->withCount('devices'),
+            'license',
+        ])
+            ->withCount(['profiles', 'devices'])
+            ->where('client_isp_id', $clientIspId)
+            ->first();
+
+        return response()->json(['account' => $account]);
+    }
+
     public function activate(int $id): JsonResponse
     {
         ParentalAccount::findOrFail($id)->update(['status' => 'active']);

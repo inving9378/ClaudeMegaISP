@@ -488,6 +488,28 @@
                     </div>
                     <!-- end card -->
                 </div>
+                <div
+                    class="col-md-3"
+                    v-if="hasPermission.data.canView('release_view_release')"
+                >
+                    <div class="cursor-pointer">
+                        <a :href="`${url}/releases`">
+                            <div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-warning m-0">
+                                        <i
+                                            class="bi bi-clipboard-data fa-fw fa-1x circle-icon"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center"
+                                        >Reporte del Sistema</span
+                                    >
+                                </div>
+                            </div></a
+                        ><!-- end card body -->
+                    </div>
+                    <!-- end card -->
+                </div>
                 <div class="col-md-3">
                     <div class="cursor-pointer disabled">
                         <a :href="`${url}/`"
