@@ -733,6 +733,39 @@
             }
         },
         {
+            "key": "catalogo_api",
+            "label": "Catálogo de API",
+            "type": "api_key",
+            "category": "API",
+            "icon": "shield-lock",
+            "url": "/configuracion/api/catalogo",
+            "permission": "configuracion_admin",
+            "description": "Endpoints publicados por módulos y llaves de acceso con scope granular.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Scope",
+                        "definition": "Permiso específico que una llave de API puede usar (ej: roadmap_view, cobranza.manage)."
+                    },
+                    {
+                        "term": "Personal Access Token",
+                        "definition": "Llave generada por Sanctum con una lista de abilities (scopes) acotados."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Catálogo de API.",
+                    "Revisa los endpoints disponibles por módulo.",
+                    "Click en 'Nueva llave', selecciona los scopes y genera.",
+                    "Copia el token — no se muestra de nuevo."
+                ],
+                "actions": [
+                    "Ver catálogo de endpoints",
+                    "Generar llave con scope",
+                    "Revocar llave"
+                ]
+            }
+        },
+        {
             "key": "medios_venta",
             "label": "Medios de Venta",
             "type": "general",
