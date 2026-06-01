@@ -181,6 +181,13 @@ class Client extends BaseModel
         return $this->hasMany(Transaction::class);
     }
 
+    // Los registros polimórficos en BD usan 'App\Models\Client' (clase proxy).
+    // Sin este override, instancias del namespace modular no encuentran sus morphs.
+    public function getMorphClass(): string
+    {
+        return \App\Models\Client::class;
+    }
+
     public function balance()
     {
         return $this->morphOne(Balance::class, 'balanceable');
