@@ -14,6 +14,7 @@ use App\Modules\Core\Configuracion\Controllers\Nomenclature\NomenclatureControll
 use App\Modules\Core\Configuracion\Controllers\Rules\RuleController;
 use App\Modules\Core\Configuracion\Controllers\ServiceInAddressList\ServiceInAddressListController;
 use App\Modules\Core\Configuracion\Controllers\SettingAdditionalFieldController;
+use App\Modules\Core\Configuracion\Controllers\CatalogoApiController;
 use App\Modules\Core\Configuracion\Controllers\SettingApiMovilController;
 use App\Modules\Core\Configuracion\Controllers\ModuleConfigPanelController;
 use App\Modules\Core\Configuracion\Controllers\SettingController;
@@ -292,6 +293,17 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/', [ConfigFinanceNotificationController::class, 'index']);
             Route::post('/get-data-tabs', [ConfigFinanceNotificationController::class, 'getDataTabs']);
             Route::post('/update/{id}', [ConfigFinanceNotificationController::class, 'update']);
+        });
+
+        // Vista web del catálogo de API
+        Route::get('/api/catalogo', fn() => view('core-configuracion::catalogo-api.index'));
+
+        // Catálogo de API — endpoints publicados por módulos + gestión de llaves con scope
+        Route::group(['prefix' => 'api/catalogo'], function () {
+            Route::get('/catalog', [CatalogoApiController::class, 'catalog']);
+            Route::get('/keys', [CatalogoApiController::class, 'index']);
+            Route::post('/keys', [CatalogoApiController::class, 'store']);
+            Route::delete('/keys/{id}', [CatalogoApiController::class, 'destroy'])->whereNumber('id');
         });
 
         // API Móvil — configuración, tokens Sanctum activos, docs auto-
