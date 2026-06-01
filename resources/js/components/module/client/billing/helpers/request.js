@@ -86,9 +86,11 @@ export const getTaskEvents = async (filters = null) => {
 
 export const requestBillingInformationBlock = async (client_id) => {
     let data = {}
-    await axios["post"](`/cliente/billing/get-billing-information-block/${client_id}`, {}).then((response) => {
-        data = response.data;
-    });
+    await axios["post"](`/cliente/billing/get-billing-information-block/${client_id}`, {})
+        .then((response) => {
+            data = response.data;
+        })
+        .catch(() => {});
     return data;
 }
 

@@ -423,9 +423,13 @@ export default {
         };
 
         const getBillingInformationBlock = async () => {
-            data.value = await requestBillingInformationBlock(props.id);
-            fechaCorte.value = data.value.expiration_date;
-            fechaPago.value = data.value.fecha_pago;
+            try {
+                data.value = await requestBillingInformationBlock(props.id);
+                fechaCorte.value = data.value.expiration_date;
+                fechaPago.value = data.value.fecha_pago;
+            } catch (e) {
+                console.error("Error al cargar información de facturación:", e);
+            }
         };
 
         watch(

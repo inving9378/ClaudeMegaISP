@@ -310,12 +310,13 @@ export default {
                 })
                 .catch((error) => {
                     console.log(error);
-                    Swal.fire(
-                        "Error",
-                        error.response?.data?.message ||
-                            "Ocurrido un error inesperado.",
-                        "error"
-                    );
+                    // Form.js rechaza con error.response.data en 500, no con el objeto Axios
+                    const msg =
+                        error?.error ||
+                        error?.message ||
+                        error?.response?.data?.message ||
+                        "Ocurrió un error inesperado.";
+                    Swal.fire("Error", msg, "error");
                     emit("cleanModal");
                 })
                 .finally(() => {
