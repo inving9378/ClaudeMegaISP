@@ -1,0 +1,166 @@
+{
+    "slug": "addon-roadmap",
+    "name": "Hoja de ruta",
+    "version": "1.1.0",
+    "description": "Tablero de planeación del proyecto: items con estado, prioridad, versión objetivo y prompt para Claude Code. Vive como pestaña en Reporte del Sistema.",
+    "type": "addon",
+    "dependencies": [
+        {
+            "slug": "core-release",
+            "min_version": "0.1.0"
+        }
+    ],
+    "active": false,
+    "permissions": [
+        {
+            "name": "roadmap_view",
+            "description": "Ver la hoja de ruta del proyecto"
+        },
+        {
+            "name": "roadmap_manage",
+            "description": "Crear, editar y mover items de la hoja de ruta"
+        }
+    ],
+    "menu": [],
+    "sidebar": {
+        "location": "hidden"
+    },
+    "admin_cards": [
+        {
+            "title": "Hoja de ruta",
+            "description": "Tablero de planeación con items, estado y prompts para Claude Code.",
+            "icon": "map",
+            "url": "/releases",
+            "permission": "roadmap_view"
+        }
+    ],
+    "config_sections": [],
+    "api_endpoints": [
+        {
+            "method": "GET",
+            "path": "/api/roadmap/items",
+            "description": "Lista items con filtros ?status= ?version=",
+            "scope": "roadmap_view",
+            "permission": "roadmap_view"
+        },
+        {
+            "method": "POST",
+            "path": "/api/roadmap/items",
+            "description": "Crear nuevo item (siempre nace en pending)",
+            "scope": "roadmap_manage",
+            "permission": "roadmap_manage"
+        },
+        {
+            "method": "PATCH",
+            "path": "/api/roadmap/items/{id}",
+            "description": "Actualizar title/description/priority/prompt/position",
+            "scope": "roadmap_manage",
+            "permission": "roadmap_manage"
+        },
+        {
+            "method": "POST",
+            "path": "/api/roadmap/items/{id}/start",
+            "description": "Pasar a in_progress (aplica regla 1 en curso)",
+            "scope": "roadmap_manage",
+            "permission": "roadmap_manage"
+        },
+        {
+            "method": "POST",
+            "path": "/api/roadmap/items/{id}/complete",
+            "description": "Marcar como done",
+            "scope": "roadmap_manage",
+            "permission": "roadmap_manage"
+        },
+        {
+            "method": "POST",
+            "path": "/api/roadmap/items/{id}/cancel",
+            "description": "Marcar como cancelled",
+            "scope": "roadmap_manage",
+            "permission": "roadmap_manage"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/roadmap/items/{id}",
+            "description": "Eliminar item",
+            "scope": "roadmap_manage",
+            "permission": "roadmap_manage"
+        }
+    ],
+    "ai": {
+        "knowledge": "La Hoja de ruta es el tablero de planeación del sistema Medussa. Cada item tiene un estado (pending/in_progress/done/cancelled), prioridad (alta/media/baja), versión objetivo y un prompt para Claude Code. Regla: solo puede haber una tarea en in_progress a la vez. El botón de lanzar copia el prompt al portapapeles para pegarlo en Claude Code.",
+        "example_intents": [
+            "ver qué está en progreso",
+            "qué sigue en la hoja de ruta",
+            "marcar la tarea actual como hecha",
+            "agregar un item a la hoja de ruta",
+            "cuántas tareas pendientes hay para v1.0"
+        ],
+        "actions": [
+            {
+                "description": "Listar todos los items de la hoja de ruta",
+                "endpoint": "GET /api/roadmap/items",
+                "scope": "roadmap_view"
+            },
+            {
+                "description": "Crear nuevo item en pending",
+                "endpoint": "POST /api/roadmap/items",
+                "scope": "roadmap_manage"
+            },
+            {
+                "description": "Actualizar prompt o prioridad de un item",
+                "endpoint": "PATCH /api/roadmap/items/{id}",
+                "scope": "roadmap_manage"
+            },
+            {
+                "description": "Pasar un item a in_progress",
+                "endpoint": "POST /api/roadmap/items/{id}/start",
+                "scope": "roadmap_manage"
+            },
+            {
+                "description": "Marcar item como completado",
+                "endpoint": "POST /api/roadmap/items/{id}/complete",
+                "scope": "roadmap_manage"
+            }
+        ],
+        "sensitive_actions": [
+            "roadmap_manage"
+        ]
+    },
+    "screens": [
+        {
+            "key": "roadmap_tab",
+            "label": "Hoja de ruta",
+            "url": "/releases",
+            "permission": "roadmap_view",
+            "terms": [
+                {
+                    "term": "Item en progreso",
+                    "definition": "Tarea actualmente en ejecución. Solo puede haber una a la vez."
+                },
+                {
+                    "term": "Prompt",
+                    "definition": "Texto que se copia al portapapeles para iniciar una sesión de Claude Code sobre esa tarea."
+                },
+                {
+                    "term": "Versión objetivo",
+                    "definition": "La versión del sistema en la que se planea completar la tarea (ej. v0.9, v1.0)."
+                }
+            ],
+            "steps": [
+                "Abre Actualizaciones → pestaña Hoja de ruta.",
+                "El item en progreso aparece destacado arriba.",
+                "Haz clic en la flecha → para copiar el prompt al portapapeles.",
+                "Pega el prompt en Claude Code para retomar esa tarea.",
+                "Cuando termines, haz clic en el círculo de estado para marcarla como Hecha."
+            ],
+            "actions": [
+                "Ver items",
+                "Agregar item",
+                "Cambiar estado",
+                "Copiar prompt"
+            ]
+        }
+    ],
+    "client_tab": null,
+    "service_type": null
+}
