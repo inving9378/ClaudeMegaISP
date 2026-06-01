@@ -48,11 +48,12 @@
 
             <!-- MANUAL_TEST_OK -->
             @if(auth()->user()->can('manual_view'))
-                <a href="{{ url('/manual') }}"
+                <button type="button"
                     class="btn header-item"
-                    title="Manual de Usuario">
-                    <i data-feather="book-open"></i>
-                </a>
+                    title="Manual de Usuario"
+                    onclick="window.location.href='{{ url('/manual') }}'">
+                    <i class="fas fa-book-open"></i>
+                </button>
             @endif
 
             <button class="btn header-item" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasRight"
