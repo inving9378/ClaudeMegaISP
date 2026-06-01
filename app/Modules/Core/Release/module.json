@@ -7,7 +7,15 @@
     "dependencies": [],
     "active": true,
     "menu": [],
-    "admin_cards": [],
+    "admin_cards": [
+        {
+            "title": "Reporte del Sistema",
+            "description": "Versiones liberadas y hoja de ruta del sistema",
+            "icon": "clipboard-data",
+            "url": "/releases",
+            "permission": "release_view_release"
+        }
+    ],
     "config_sections": [],
     "api_endpoints": [],
     "ai": [],

@@ -501,9 +501,19 @@ export default {
 .modal-box h5 { margin-bottom: 4px; }
 
 /* Dark mode — responde al toggle de Medussa ([data-layout-mode=dark]), no al SO */
-[data-layout-mode=dark] .kpi-chip            { background:#1e1e2e; border-color:#313244; }
+[data-layout-mode=dark] .kpi-chip            { background:#2a2d3e; border-color:#3a3d50; }
 [data-layout-mode=dark] .kpi-chip.kpi-success{ background:#0d2218; border-color:#1a4731; }
 [data-layout-mode=dark] .kpi-chip.kpi-warning{ background:#231a00; border-color:#4d3800; }
-[data-layout-mode=dark] .expanded-row        { background:#1a1a2e; }
-[data-layout-mode=dark] .modal-box           { background:#1e1e2e; color:#cdd6f4; }
+[data-layout-mode=dark] .expanded-row        { background:#1e2433; }
+[data-layout-mode=dark] .expanded-row td     { border-color:#2e3547; }
+[data-layout-mode=dark] .modal-box           { background:#252836; color:#cdd6f4; border:1px solid #3a3d50; }
+/* thead.table-light no tiene cobertura global — override manual */
+[data-layout-mode=dark] thead.table-light    { background:#262b38 !important; color:#adb5bd !important; }
+[data-layout-mode=dark] thead.table-light th { border-color:#333a4d !important; color:#8b95a8 !important; background:#262b38 !important; }
+/* code slugs */
+[data-layout-mode=dark] code                 { background:#1a1e2a; color:#7dd3fc; border-radius:3px; padding:1px 4px; }
+/* badge sin color instalado */
+[data-layout-mode=dark] .badge.bg-light      { background:#2e3547 !important; color:#adb5bd !important; border-color:#3a4060 !important; }
+/* fila activa (verde claro demasiado brillante en oscuro) */
+[data-layout-mode=dark] .table-success-subtle{ background:rgba(25,135,84,.08) !important; }
 </style>

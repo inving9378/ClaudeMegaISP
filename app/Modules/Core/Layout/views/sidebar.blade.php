@@ -4,9 +4,10 @@
 
         <!--- Sidemenu -->
         <div id="sidebar-menu">
-            <!-- Left Menu Start -->
             <ul class="metismenu list-unstyled" id="side-menu">
                 <li class="menu-title" data-key="t-menu">Menu</li>
+
+                {{-- 1. Dashboard --}}
                 @can('dashboard_view_dashboard')
                     <li>
                         <a href="{{ url('/') }}">
@@ -16,584 +17,113 @@
                     </li>
                 @endcan
 
-                @can('release_view_release')
-                    <li>
-                        <a href="{{ url('/releases') }}">
-                            <i data-feather="package"></i>
-                            <span data-key="t-dashboard">Actualizaciones</span>
-                        </a>
-                    </li>
-                @endcan
-
-                {{-- Inteligencia Artificial — portado desde MEGANET 2026-05-19 --}}
-                <li>
-                    @canany(['ia_view_chat', 'ia_view_prompts', 'ia_manage_proveedores'])
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="cpu"></i>
-                            <span data-key="t-ia">Inteligencia Artificial</span>
-                        </a>
-                    @endcanany
-                    <ul class="sub-menu" aria-expanded="false">
-                        @can('ia_view_chat')
-                            <li>
-                                <a href="{{ url('/ia') }}">
-                                    <span data-key="t-ia-asistente"><small><i class="fa fa-fw fa-comments"></i></small> Asistente IA</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="{{ url('/ia/historial') }}">
-                                    <span data-key="t-ia-historial"><small><i class="fa fa-fw fa-clock-rotate-left"></i></small> Historial</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('ia_view_prompts')
-                            <li>
-                                <a href="{{ url('/ia/prompts') }}">
-                                    <span data-key="t-ia-prompts"><small><i class="fa fa-fw fa-bookmark"></i></small> Mis Prompts</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('ia_manage_proveedores')
-                            <li>
-                                <a href="{{ url('/ia/configuracion') }}">
-                                    <span data-key="t-ia-config"><small><i class="fa fa-fw fa-gear"></i></small> Configuración IA</span>
-                                </a>
-                            </li>
-                        @endcan
-                    </ul>
-                </li>
-
-                {{-- Marketing — addon-marketing 2026-05-25 --}}
-                <li>
-                    @canany(['marketing_view', 'marketing_campaigns_view', 'marketing_leads_view', 'view-marketing-leads', 'view-marketing-forms'])
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="trending-up"></i>
-                            <span data-key="t-marketing">Marketing</span>
-                        </a>
-                    @endcanany
-                    <ul class="sub-menu" aria-expanded="false">
-                        @canany(['view-marketing-leads', 'marketing_leads_view'])
-                            <li>
-                                <a href="{{ url('/marketing/leads') }}">
-                                    <span data-key="t-marketing-leads2"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span>
-                                </a>
-                            </li>
-                        @endcanany
-                        @canany(['view-conversations'])
-                            <li>
-                                <a href="{{ url('/marketing/conversations') }}">
-                                    <span data-key="t-marketing-conv"><small><i class="fa fa-fw fa-comments"></i></small> Conversaciones</span>
-                                </a>
-                            </li>
-                        @endcanany
-                        @canany(['view-marketing-forms', 'manage-marketing-forms'])
-                            <li>
-                                <a href="{{ url('/marketing/lead-forms') }}">
-                                    <span data-key="t-marketing-forms"><small><i class="fa fa-fw fa-wpforms"></i></small> Formularios</span>
-                                </a>
-                            </li>
-                        @endcanany
-                        @can('marketing_campaigns_view')
-                            <li>
-                                <a href="{{ url('/marketing') }}">
-                                    <span data-key="t-marketing-camp"><small><i class="fa fa-fw fa-bullhorn"></i></small> Campañas</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('marketing_templates_manage')
-                            <li>
-                                <a href="{{ url('/marketing') }}?tab=templates">
-                                    <span data-key="t-marketing-tpl"><small><i class="fa fa-fw fa-file-alt"></i></small> Plantillas</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @canany(['view-video-templates', 'generate-video-content'])
-                            <li>
-                                <a href="{{ url('/marketing/video-templates') }}">
-                                    <span data-key="t-marketing-video"><small><i class="fa fa-fw fa-video"></i></small> Video</span>
-                                </a>
-                            </li>
-                        @endcanany
-                        @can('create-marketing-campaigns')
-                            <li>
-                                <a href="{{ url('/marketing/campaigns/generate') }}">
-                                    <span data-key="t-marketing-mv"><small><i class="fa fa-fw fa-magic"></i></small> Campaña IA</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('configure-brand-kit')
-                            <li>
-                                <a href="{{ url('/marketing/brand-kit') }}">
-                                    <span data-key="t-marketing-bk"><small><i class="fa fa-fw fa-palette"></i></small> Brand Kit</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('test-voices')
-                            <li>
-                                <a href="{{ url('/marketing/voice-comparator') }}">
-                                    <span data-key="t-marketing-vc"><small><i class="fa fa-fw fa-microphone"></i></small> Voces TTS</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('view-publishing-dashboard')
-                            <li>
-                                <a href="{{ url('/marketing/publishing') }}">
-                                    <span data-key="t-marketing-pub"><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Publicador</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('publish-content')
-                            <li>
-                                <a href="{{ url('/marketing/publishing/campaign') }}">
-                                    <span data-key="t-marketing-pubcam"><small><i class="fa fa-fw fa-paper-plane"></i></small> Publicar</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('manage-publication-queue')
-                            <li>
-                                <a href="{{ url('/marketing/publishing/queue') }}">
-                                    <span data-key="t-marketing-queue"><small><i class="fa fa-fw fa-list-ol"></i></small> Cola</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('manage-publishing-channels')
-                            <li>
-                                <a href="{{ url('/marketing/publishing/setup') }}">
-                                    <span data-key="t-marketing-setup"><small><i class="fa fa-fw fa-plug"></i></small> Canales</span>
-                                </a>
-                            </li>
-                        @endcan
-                    </ul>
-                </li>
-
-                {{-- WhatsApp Agent — addon-whatsapp-agent 2026-05-22 --}}
-                <li>
-                    @canany(['whatsapp_view_conversations', 'whatsapp_manage_instances'])
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="message-circle"></i>
-                            <span data-key="t-whatsapp">WhatsApp</span>
-                        </a>
-                    @endcanany
-                    <ul class="sub-menu" aria-expanded="false">
-                        @can('whatsapp_view_conversations')
-                            <li>
-                                <a href="{{ url('/whatsapp') }}">
-                                    <span data-key="t-whatsapp-conv"><small><i class="fa fa-fw fa-whatsapp"></i></small> Conversaciones</span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('whatsapp_manage_instances')
-                            <li>
-                                <a href="{{ url('/whatsapp/instances') }}">
-                                    <span data-key="t-whatsapp-inst"><small><i class="fa fa-fw fa-mobile-screen"></i></small> Instancias</span>
-                                </a>
-                            </li>
-                        @endcan
-                    </ul>
-                </li>
-
+                {{-- 2. Planes --}}
                 <li>
                     @canany(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="grid"></i>
-                            <span data-key="t-apps">Planes</span>
+                            <span data-key="t-planes">Planes</span>
                         </a>
                     @endcanany
                     <ul class="sub-menu" aria-expanded="false">
                         @can('plan_view_internet')
                             <li>
-                                <a href="{{ url('internet') }}">
-                                    <span data-key="t-internet"><small><i class="fa fa-fw fa-wifi"></i></small>
-                                        Internet</span>
+                                <a href="{{ url('/internet') }}">
+                                    <span data-key="t-internet"><small><i class="fa fa-fw fa-wifi"></i></small> Internet</span>
                                 </a>
                             </li>
                         @endcan
                         @can('plan_view_voz')
                             <li>
-                                <a href="{{ url('voz') }}">
+                                <a href="{{ url('/voz') }}">
                                     <span data-key="t-voz"><small><i class="fa fa-fw fa-phone"></i></small> Voz</span>
                                 </a>
                             </li>
                         @endcan
                         @can('plan_view_custom')
                             <li>
-                                <a href="{{ url('custom') }}">
-                                    <span data-key="t-custom"><small><i class="fa fa-fw fa-sitemap"></i></small>
-                                        Personalizado</span>
+                                <a href="{{ url('/custom') }}">
+                                    <span data-key="t-custom"><small><i class="fa fa-fw fa-sitemap"></i></small> Personalizado</span>
                                 </a>
                             </li>
                         @endcan
                         @can('plan_view_package')
                             <li>
-                                <a href="{{ url('paquetes') }}">
-                                    <span data-key="t-paquetes"><small><i
-                                                class="fa fa-fw fa-object-group"></i></small>Paquetes</span>
+                                <a href="{{ url('/paquetes') }}">
+                                    <span data-key="t-paquetes"><small><i class="fa fa-fw fa-object-group"></i></small> Paquetes</span>
                                 </a>
                             </li>
                         @endcan
                     </ul>
                 </li>
 
+                {{-- 3. Clientes potenciales (CRM) --}}
                 @can('crm_view_crm')
                     <li>
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="user-x"></i>
-                            <span data-key="t-crm">Clientes pontenciales</span>
+                            <span data-key="t-crm">Clientes potenciales</span>
                         </a>
                         <ul class="sub-menu" aria-expanded="false">
                             @can('crm_add_crm')
                                 <li>
                                     <a href="{{ url('/crm/crear') }}">
-                                        <span data-key="t-crm-crear"><small><i class="fa fa-fw fa-user"></i></small>
-                                            Crear</span>
+                                        <span data-key="t-crm-crear"><small><i class="fa fa-fw fa-user"></i></small> Crear</span>
                                     </a>
                                 </li>
                             @endcan
                             @can('crm_view_crm')
                                 <li>
                                     <a href="{{ url('/crm/listar') }}">
-                                        <span data-key="t-crm-listar"><small><i class="fa fa-fw fa-list"></i></small>
-                                            Listar</span>
+                                        <span data-key="t-crm-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                     </a>
                                 </li>
                             @endcan
                         </ul>
                     </li>
                 @endcan
+
+                {{-- 4. Clientes --}}
                 <li>
                     @canany(['client_view_dashboard', 'client_view_client', 'client_add_client'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="user-check"></i>
-                            <span data-key="t-cliente">Cliente</span>
+                            <span data-key="t-cliente">Clientes</span>
                         </a>
-                    @endcan
+                    @endcanany
                     <ul class="sub-menu" aria-expanded="false">
                         @can('client_view_dashboard')
                             <li>
                                 <a href="{{ url('/cliente/') }}">
-                                    <span data-key="t-cliente-dashboard">
-                                        <small>
-                                            <i class="fas fa-table"></i>
-                                        </small>
-                                        Dashboard
-                                    </span>
+                                    <span data-key="t-cliente-dashboard"><small><i class="fas fa-table"></i></small> Dashboard</span>
                                 </a>
                             </li>
                         @endcan
                         @can('client_add_client')
                             <li>
                                 <a href="{{ url('/cliente/crear') }}">
-                                    <span data-key="t-cliente-crear"><small><i class="fa fa-fw fa-user"></i></small>
-                                        Crear</span>
+                                    <span data-key="t-cliente-crear"><small><i class="fa fa-fw fa-user"></i></small> Crear</span>
                                 </a>
                             </li>
                         @endcan
                         @can('client_view_client')
                             <li>
                                 <a href="{{ url('/cliente/listar') }}">
-                                    <span data-key="t-cliente-listar"><small><i class="fa fa-fw fa-list"></i></small>
-                                        Listar</span>
+                                    <span data-key="t-cliente-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                 </a>
                             </li>
                         @endcan
                     </ul>
                 </li>
 
-                <li>
-                    @canany(['seller_view_dashboard', 'seller_view_seller', 'seller_view_panel'])
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="users"></i>
-                            <span data-key="t-vendedores">Vendedores</span>
-                        </a>
-                    @endcan
-                    <ul class="sub-menu" aria-expanded="false">
-                        @can('seller_view_dashboard')
-                            <li>
-                                <a href="{{ url('/vendedores/dashboard') }}">
-                                    <span data-key="t-vendedores-crear"><small>
-                                            <i class="fas fa-chart-bar"></i>
-                                        </small>Dashboard
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                        <li>
-                            @can('seller_view_seller')
-                                <a href="{{ url('/sellers/seller') }}">
-                                    <span data-key="t-vendedores-crear"><small>
-                                            <i class="fas fa-users"></i>
-                                        </small>Lista de vendedores
-                                    </span>
-                                </a>
-                            @endcan
-                        </li>
-                        <li>
-                            @can('seller_view_panel')
-                                <a href="{{ url('/vendedores/seguimiento-me') }}">
-                                    <span data-key="t-vendedores-crear"><small>
-                                            <i class="far fa-id-card"></i>
-                                        </small>Mi panel
-                                    </span>
-                                </a>
-                            @endcan
-                        </li>
-                    </ul>
-                </li>
-
-
-                <li>
-                    @canany(['ticket_view_dashboard', 'ticket_view_open', 'ticket_view_close', 'ticket_view_recycling'])
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="grid"></i>
-                            <span data-key="t-cliente">Ticket</span>
-                        </a>
-                    @endcan
-                    <ul class="sub-menu" aria-expanded="false">
-                        @can('ticket_view_dashboard')
-                            <li>
-                                <a href="{{ url('/tickets/') }}">
-                                    <span data-key="t-ticket-dashboard">
-                                        <small>
-                                            <i class="fas fa-table"></i>
-                                        </small>
-                                        Dashboard
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('ticket_view_open')
-                            <li>
-                                <a href="{{ url('/tickets/abiertos') }}">
-                                    <span data-key="t-ticket-abierto">
-                                        <small>
-                                            <i class="fas fa-ticket-alt"></i>
-                                        </small>
-                                        Listar
-                                        nuevo/abierto
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('ticket_view_close')
-                            <li>
-                                <a href="{{ url('/tickets/cerrados') }}">
-                                    <span data-key="t-ticket-cerrado">
-                                        <small>
-                                            <i class="fas fa-check-circle"></i>
-                                        </small>
-                                        Listar cerrados
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('ticket_view_recycling')
-                            <li>
-                                <a href="{{ url('/tickets/reciclados') }}">
-                                    <span data-key="t-ticket-reciclaje">
-                                        <small>
-                                            <i class="fas fa-trash"></i>
-                                        </small>Listar reciclados
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                    </ul>
-                </li>
-
-                <li>
-                    @canany(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments', 'payments_manage_providers'])
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="grid"></i>
-                            <span data-key="t-cliente">Finanzas</span>
-                        </a>
-                    @endcan
-                    <ul class="sub-menu" aria-expanded="false">
-                        @can('finance_view_transactions')
-                            <li>
-                                <a href="{{ url('/finanzas/transacciones') }}">
-                                    <span data-key="t-ticket-dashboard">
-                                        <small>
-                                            <i class="fas fa-hand-holding-usd"></i>
-                                        </small>
-                                        Transacciones
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('finance_view_billing')
-                            <li>
-                                <a href="{{ url('/finanzas/facturas') }}">
-                                    <span data-key="t-ticket-abierto">
-                                        <small>
-                                            <i class="fas fa-file-invoice-dollar"></i>
-                                        </small>
-                                        Facturas
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('finance_view_payments')
-                            <li>
-                                <a href="{{ url('/finanzas/pagos') }}">
-                                    <span data-key="t-ticket-cerrado">
-                                        <small>
-                                            <i class="fas fa-credit-card"></i>
-                                        </small>
-                                        Pagos
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-
-                        @can('finance_view_invoices')
-                            <li>
-                                <a href="{{ url('/finanzas/invoices') }}">
-                                    <span data-key="t-invoice-proforma">
-                                        <small>
-                                            <i class="fas fa-file-invoice-dollar"></i>
-                                        </small>
-                                        Facturas Proforma
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('finance_view_general_accounting')
-                            <li>
-                                <a href="{{ url('/finanzas/general-accounting') }}">
-                                    <span data-key="t-invoice-proforma">
-                                        <small>
-                                            <i class="fas fa-file-invoice-dollar"></i>
-                                        </small>
-                                        Contabilidad General
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                        @can('payments_manage_providers')
-                            <li>
-                                <a href="{{ url('/finanzas/metodos-pago') }}">
-                                    <span data-key="t-payments-providers">
-                                        <small>
-                                            <i class="fas fa-university"></i>
-                                        </small>
-                                        Métodos de Pago SPEI
-                                    </span>
-                                </a>
-                            </li>
-                        @endcan
-                    </ul>
-                </li>
-                @can('inbox_view_inbox')
-                    <li>
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="mail"></i>
-                            <span data-key="t-cliente">Mensajes</span>
-                        </a>
-                        <ul class="sub-menu" aria-expanded="false">
-                            <li>
-                                <a href="{{ url('/message/inbox') }}">
-                                    <span data-key="t-ticket-dashboard">
-                                        <small>
-                                            <i class="fas fa-inbox"></i> <!-- Cambiado aquí -->
-                                        </small>
-                                        Inbox
-                                    </span>
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                @endcan
-
-                @can('scheduling_view_scheduling')
-                    <li>
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="calendar"></i>
-                            <span data-key="t-cliente">Tareas Programadas</span>
-                        </a>
-                        <ul class="sub-menu" aria-expanded="false">
-                            @can('scheduling_project_view_project')
-                                <li>
-                                    <a href="{{ url('/scheduling/project') }}">
-                                        <span data-key="t-ticket-dashboard">
-                                            <small>
-                                                <i class="fas fa-project-diagram"></i>
-                                            </small>
-                                            Proyectos
-                                        </span>
-                                    </a>
-                                </li>
-                            @endcan
-
-                            @can('task_view_task')
-                                <li>
-                                    <a href="{{ url('/scheduling/task') }}">
-                                        <span data-key="t-ticket-dashboard">
-                                            <small>
-                                                <i class="fas fa-tasks"></i>
-                                            </small>
-                                            Tareas
-                                        </span>
-                                    </a>
-                                </li>
-                            @endcan
-
-                            @can('scheduling_view_calendar')
-                                <li>
-                                    <a href="{{ url('/scheduling/task/calendar') }}">
-                                        <span data-key="t-ticket-dashboard">
-                                            <small>
-                                                <i class="fas fa-calendar"></i>
-                                            </small>
-                                            Calendario
-                                        </span>
-                                    </a>
-                                </li>
-                            @endcan
-
-
-                            @can('task_view_archived_task')
-                                <li>
-                                    <a href="{{ url('/scheduling/task/show-archived') }}">
-                                        <span data-key="t-ticket-dashboard">
-                                            <small>
-                                                <i class="fas fa-archive"></i>
-                                            </small>
-                                            Archivados
-                                        </span>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcan
-
-                @canany(['maps_view_maps'])
-                    <li>
-
-                        <a href="{{ url('/mapas/') }}">
-                            <i data-feather="map"></i>
-                            <span data-key="t-cliente">Mapas</span>
-                        </a>
-
-                    </li>
-                @endcan
-
-                @canany(['olt_view'])
-                    <li>
-                        <a href="/olts">
-                            <i data-feather="server"></i>
-                            <span data-key="t-olts">OLTs</span>
-                        </a>
-                    </li>
-                @endcan
-
+                {{-- 5. Gestión de red (sin OLTs — son item primario en posición 8) --}}
                 <li>
                     @canany(['router_view_router', 'ipv4_view_ipv4', 'router_add_router', 'ipv4_add_ipv4'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="box"></i>
                             <span data-key="t-gestion-red">Gestión de red</span>
                         </a>
-                    @endcan
+                    @endcanany
                     <ul class="sub-menu" aria-expanded="false">
                         <li>
                             @canany(['router_add_router', 'router_view_router'])
@@ -601,21 +131,19 @@
                                     <i data-feather="box"></i>
                                     <span data-key="t-router">Enrutadores</span>
                                 </a>
-                            @endcan
+                            @endcanany
                             <ul class="sub-menu" aria-expanded="false">
                                 @can('router_add_router')
                                     <li>
                                         <a href="{{ url('/red/router/crear') }}">
-                                            <span data-key="t-router-crear"><small><i
-                                                        class="fa fa-fw fa-puzzle-piece"></i></small> Add</span>
+                                            <span data-key="t-router-crear"><small><i class="fa fa-fw fa-puzzle-piece"></i></small> Add</span>
                                         </a>
                                     </li>
                                 @endcan
                                 @can('router_view_router')
                                     <li>
                                         <a href="{{ url('/red/router/listar') }}">
-                                            <span data-key="t-router-listar"><small><i
-                                                        class="fa fa-fw fa-list"></i></small> Listar</span>
+                                            <span data-key="t-router-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -625,58 +153,227 @@
                             @canany(['ipv4_add_ipv4', 'ipv4_view_ipv4'])
                                 <a href="javascript: void(0);" class="has-arrow">
                                     <i data-feather="box"></i>
-                                    <span data-key="t-ipv4">Redes Ipv4</span>
+                                    <span data-key="t-ipv4">Redes IPv4</span>
                                 </a>
-                            @endcan
+                            @endcanany
                             <ul class="sub-menu" aria-expanded="false">
                                 @can('ipv4_add_ipv4')
                                     <li>
                                         <a href="{{ url('/red/ipv4/crear') }}">
-                                            <span data-key="t-ipv4-crear"><small><i
-                                                        class="fa fa-fw fa-puzzle-piece"></i></small> Add</span>
+                                            <span data-key="t-ipv4-crear"><small><i class="fa fa-fw fa-puzzle-piece"></i></small> Add</span>
                                         </a>
                                     </li>
                                 @endcan
                                 @can('ipv4_view_ipv4')
                                     <li>
                                         <a href="{{ url('/red/ipv4/listar') }}">
-                                            <span data-key="t-ipv4-listar"><small><i class="fa fa-fw fa-list"></i></small>
-                                                Listar</span>
+                                            <span data-key="t-ipv4-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                         </a>
                                     </li>
                                 @endcan
                             </ul>
-
                         </li>
                     </ul>
                 </li>
 
+                {{--
+                    6. Finanzas — incluye Marketing como sub-sección (addon-marketing,
+                    sidebar.location=submenu, sidebar.parent=finanzas).
+                    $sidebarSubmenu viene de SidebarComposer → ModuleRegistry::getSubmenuItemsFor('finanzas').
+                    El bloque de Marketing hardcodeado actúa como fallback y fuente de verdad de permisos
+                    hasta que el módulo exporte exactamente los mismos children en su module.json.
+                --}}
+                <li>
+                    @canany(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments',
+                             'finance_view_invoices', 'finance_view_general_accounting', 'payments_manage_providers',
+                             'view-marketing-leads', 'marketing_leads_view', 'view-conversations',
+                             'view-marketing-forms', 'manage-marketing-forms', 'marketing_campaigns_view',
+                             'marketing_templates_manage', 'view-video-templates', 'generate-video-content',
+                             'create-marketing-campaigns', 'configure-brand-kit', 'test-voices',
+                             'view-publishing-dashboard', 'publish-content', 'manage-publication-queue',
+                             'manage-publishing-channels'])
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="grid"></i>
+                            <span data-key="t-finanzas">Finanzas</span>
+                        </a>
+                    @endcanany
+                    <ul class="sub-menu" aria-expanded="false">
+
+                        {{-- Finanzas core --}}
+                        @can('finance_view_transactions')
+                            <li>
+                                <a href="{{ url('/finanzas/transacciones') }}">
+                                    <span data-key="t-finanzas-tx"><small><i class="fas fa-hand-holding-usd"></i></small> Transacciones</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('finance_view_billing')
+                            <li>
+                                <a href="{{ url('/finanzas/facturas') }}">
+                                    <span data-key="t-finanzas-fact"><small><i class="fas fa-file-invoice-dollar"></i></small> Facturas</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('finance_view_payments')
+                            <li>
+                                <a href="{{ url('/finanzas/pagos') }}">
+                                    <span data-key="t-finanzas-pagos"><small><i class="fas fa-credit-card"></i></small> Pagos</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('finance_view_invoices')
+                            <li>
+                                <a href="{{ url('/finanzas/invoices') }}">
+                                    <span data-key="t-finanzas-proforma"><small><i class="fas fa-file-invoice-dollar"></i></small> Facturas Proforma</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('finance_view_general_accounting')
+                            <li>
+                                <a href="{{ url('/finanzas/general-accounting') }}">
+                                    <span data-key="t-finanzas-cont"><small><i class="fas fa-file-invoice-dollar"></i></small> Contabilidad General</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('payments_manage_providers')
+                            <li>
+                                <a href="{{ url('/finanzas/metodos-pago') }}">
+                                    <span data-key="t-finanzas-spei"><small><i class="fas fa-university"></i></small> Métodos de Pago SPEI</span>
+                                </a>
+                            </li>
+                        @endcan
+
+                        {{-- Marketing — location:submenu, parent:finanzas (addon-marketing) --}}
+                        @canany(['view-marketing-leads', 'marketing_leads_view', 'view-conversations',
+                                 'view-marketing-forms', 'manage-marketing-forms', 'marketing_campaigns_view',
+                                 'marketing_templates_manage', 'view-video-templates', 'generate-video-content',
+                                 'create-marketing-campaigns', 'configure-brand-kit', 'test-voices',
+                                 'view-publishing-dashboard', 'publish-content', 'manage-publication-queue',
+                                 'manage-publishing-channels'])
+                            <li class="sidebar-section-divider">
+                                <span class="sidebar-section-label">Marketing</span>
+                            </li>
+                            @canany(['view-marketing-leads', 'marketing_leads_view'])
+                                <li>
+                                    <a href="{{ url('/marketing/leads') }}">
+                                        <span data-key="t-mkt-leads"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span>
+                                    </a>
+                                </li>
+                            @endcanany
+                            @can('view-conversations')
+                                <li>
+                                    <a href="{{ url('/marketing/conversations') }}">
+                                        <span data-key="t-mkt-conv"><small><i class="fa fa-fw fa-comments"></i></small> Conversaciones</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @canany(['view-marketing-forms', 'manage-marketing-forms'])
+                                <li>
+                                    <a href="{{ url('/marketing/lead-forms') }}">
+                                        <span data-key="t-mkt-forms"><small><i class="fa fa-fw fa-wpforms"></i></small> Formularios</span>
+                                    </a>
+                                </li>
+                            @endcanany
+                            @can('marketing_campaigns_view')
+                                <li>
+                                    <a href="{{ url('/marketing') }}">
+                                        <span data-key="t-mkt-camp"><small><i class="fa fa-fw fa-bullhorn"></i></small> Campañas</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('marketing_templates_manage')
+                                <li>
+                                    <a href="{{ url('/marketing') }}?tab=templates">
+                                        <span data-key="t-mkt-tpl"><small><i class="fa fa-fw fa-file-alt"></i></small> Plantillas</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @canany(['view-video-templates', 'generate-video-content'])
+                                <li>
+                                    <a href="{{ url('/marketing/video-templates') }}">
+                                        <span data-key="t-mkt-video"><small><i class="fa fa-fw fa-video"></i></small> Video</span>
+                                    </a>
+                                </li>
+                            @endcanany
+                            @can('create-marketing-campaigns')
+                                <li>
+                                    <a href="{{ url('/marketing/campaigns/generate') }}">
+                                        <span data-key="t-mkt-ia"><small><i class="fa fa-fw fa-magic"></i></small> Campaña IA</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('configure-brand-kit')
+                                <li>
+                                    <a href="{{ url('/marketing/brand-kit') }}">
+                                        <span data-key="t-mkt-bk"><small><i class="fa fa-fw fa-palette"></i></small> Brand Kit</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('test-voices')
+                                <li>
+                                    <a href="{{ url('/marketing/voice-comparator') }}">
+                                        <span data-key="t-mkt-vc"><small><i class="fa fa-fw fa-microphone"></i></small> Voces TTS</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('view-publishing-dashboard')
+                                <li>
+                                    <a href="{{ url('/marketing/publishing') }}">
+                                        <span data-key="t-mkt-pub"><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Publicador</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('publish-content')
+                                <li>
+                                    <a href="{{ url('/marketing/publishing/campaign') }}">
+                                        <span data-key="t-mkt-pubcam"><small><i class="fa fa-fw fa-paper-plane"></i></small> Publicar</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('manage-publication-queue')
+                                <li>
+                                    <a href="{{ url('/marketing/publishing/queue') }}">
+                                        <span data-key="t-mkt-queue"><small><i class="fa fa-fw fa-list-ol"></i></small> Cola</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('manage-publishing-channels')
+                                <li>
+                                    <a href="{{ url('/marketing/publishing/setup') }}">
+                                        <span data-key="t-mkt-setup"><small><i class="fa fa-fw fa-plug"></i></small> Canales</span>
+                                    </a>
+                                </li>
+                            @endcan
+                        @endcanany
+
+                    </ul>
+                </li>
+
+                {{-- 7. Inventario --}}
                 <li>
                     @canany(['inventory_view_inventory', 'inventory_item_view_inventory_item',
-                        'inventory_item_type_view_inventory_item_type', 'inventory_movement_view_inventory_movement',
-                        'inventory_store_view_inventory_store',
-                        'inventory_item_custom_model_view_inventory_item_custom_model',
-                        'inventory_supplier_view_supplier', 'inventory_supplier_add_supplier',
-                        'inventory_valuation_view_inventory_valuation'])
+                             'inventory_item_type_view_inventory_item_type', 'inventory_movement_view_inventory_movement',
+                             'inventory_store_view_inventory_store', 'inventory_item_custom_model_view_inventory_item_custom_model',
+                             'inventory_supplier_view_supplier', 'inventory_supplier_add_supplier',
+                             'inventory_valuation_view_inventory_valuation'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="archive"></i>
-                            <span data-key="t-gestion-red">Inventario</span>
+                            <span data-key="t-inventario">Inventario</span>
                         </a>
-                    @endcan
+                    @endcanany
                     <ul class="sub-menu" aria-expanded="false">
                         <li>
                             @canany(['inventory_store_view_inventory_store'])
                                 <a href="javascript: void(0);" class="has-arrow">
                                     <i data-feather="layers"></i>
-                                    <span data-key="t-router">Almacenes</span>
+                                    <span data-key="t-almacenes">Almacenes</span>
                                 </a>
-                            @endcan
+                            @endcanany
                             <ul class="sub-menu" aria-expanded="false">
                                 @can('inventory_store_view_inventory_store')
                                     <li>
                                         <a href="{{ url('/inventory/inventory_store') }}">
-                                            <span data-key="t-router-listar"><small><i
-                                                        class="fa fa-fw fa-list"></i></small> Listar</span>
+                                            <span data-key="t-almacenes-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -686,42 +383,38 @@
                             @canany(['inventory_item_view_inventory_item'])
                                 <a href="javascript: void(0);" class="has-arrow">
                                     <i data-feather="layers"></i>
-                                    <span data-key="t-router">Tipo de Artículos</span>
+                                    <span data-key="t-tipos-art">Tipo de Artículos</span>
                                 </a>
-                            @endcan
+                            @endcanany
                             <ul class="sub-menu" aria-expanded="false">
                                 @can('inventory_item_view_inventory_item')
                                     <li>
                                         <a href="{{ url('/inventory/inventory_item_type') }}">
-                                            <span data-key="t-router-listar"><small><i
-                                                        class="fa fa-fw fa-list"></i></small> Listar</span>
+                                            <span data-key="t-tipos-art-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                         </a>
                                     </li>
                                 @endcan
                             </ul>
                         </li>
                         <li>
-                            @canany(['inventory_item_view_inventory_item',
-                                'inventory_item_custom_model_view_inventory_item_custom_model'])
+                            @canany(['inventory_item_view_inventory_item', 'inventory_item_custom_model_view_inventory_item_custom_model'])
                                 <a href="javascript: void(0);" class="has-arrow">
                                     <i data-feather="package"></i>
-                                    <span data-key="t-router">Artículos</span>
+                                    <span data-key="t-articulos">Artículos</span>
                                 </a>
-                            @endcan
+                            @endcanany
                             <ul class="sub-menu" aria-expanded="false">
                                 @can('inventory_item_view_inventory_item')
                                     <li>
                                         <a href="{{ url('/inventory/inventory_item_stock') }}">
-                                            <span data-key="t-router-listar"><small><i
-                                                        class="fa fa-fw fa-list"></i></small> Listar</span>
+                                            <span data-key="t-articulos-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                         </a>
                                     </li>
                                 @endcan
                                 @can('inventory_item_custom_model_view_inventory_item_custom_model')
                                     <li>
                                         <a href="{{ url('/inventory/inventory_item_custom_model') }}">
-                                            <span data-key="t-router-listar"><small><i
-                                                        class="fa fa-fw fa-list"></i></small> Articulos Custom</span>
+                                            <span data-key="t-articulos-custom"><small><i class="fa fa-fw fa-list"></i></small> Artículos Custom</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -731,15 +424,14 @@
                             @canany(['inventory_movement_view_inventory_movement'])
                                 <a href="javascript: void(0);" class="has-arrow">
                                     <i data-feather="shuffle"></i>
-                                    <span data-key="t-router">Movimientos</span>
+                                    <span data-key="t-movimientos">Movimientos</span>
                                 </a>
-                            @endcan
+                            @endcanany
                             <ul class="sub-menu" aria-expanded="false">
                                 @can('inventory_movement_view_inventory_movement')
                                     <li>
                                         <a href="{{ url('/inventory/inventory_movement') }}">
-                                            <span data-key="t-router-listar"><small><i
-                                                        class="fa fa-fw fa-list"></i></small> Listar</span>
+                                            <span data-key="t-movimientos-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -749,9 +441,9 @@
                             @canany(['inventory_supplier_view_supplier', 'inventory_supplier_add_supplier'])
                                 <a href="javascript: void(0);" class="has-arrow">
                                     <i data-feather="truck"></i>
-                                    <span data-key="t-supplier">Proveedores</span>
+                                    <span data-key="t-proveedores">Proveedores</span>
                                 </a>
-                            @endcan
+                            @endcanany
                             <ul class="sub-menu" aria-expanded="false">
                                 @can('inventory_supplier_add_supplier')
                                     <li>
@@ -763,7 +455,7 @@
                                 @can('inventory_supplier_view_supplier')
                                     <li>
                                         <a href="{{ url('/inventory/supplier') }}">
-                                            <span data-key="t-supplier-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
+                                            <span data-key="t-proveedores-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -771,7 +463,7 @@
                                     <li>
                                         <a href="javascript: void(0);" class="has-arrow">
                                             <i data-feather="file-text"></i>
-                                            <span data-key="t-supplier-invoice">Facturas</span>
+                                            <span data-key="t-fact-prov">Facturas</span>
                                         </a>
                                         <ul class="sub-menu" aria-expanded="false">
                                             @can('inventory_supplier_invoice_add_supplier_invoice')
@@ -791,74 +483,64 @@
                                 @endcan
                             </ul>
                         </li>
-                        <li>
-                            @can('inventory_valuation_view_inventory_valuation')
+                        @can('inventory_valuation_view_inventory_valuation')
+                            <li>
                                 <a href="{{ url('/inventory/inventory-valuation') }}">
                                     <i data-feather="bar-chart-2"></i>
-                                    <span data-key="t-valuation">Valuación Inventario</span>
+                                    <span data-key="t-valuacion">Valuación Inventario</span>
                                 </a>
-                            @endcan
-                        </li>
+                            </li>
+                        @endcan
                     </ul>
                 </li>
-                <li>
-                    @can(['admin_view_module'])
-                        <a href="{{ url('/administracion') }}" class="has-arrow">
-                            <i data-feather="command"></i>
-                            <span data-key="t-administracion">Administración</span>
-                        </a>
-                    @endcan
-                </li>
 
-                {{-- Integration Hub — addon-hub --}}
-                @canany(['view-integrations', 'manage-integrations'])
-                <li>
-                    <a href="{{ url('/integraciones') }}">
-                        <i data-feather="link"></i>
-                        <span data-key="t-hub">Integraciones</span>
-                    </a>
-                </li>
-                @endcanany
-
-                <li>
-                    @can(['config_view_module'])
-                        <a href="{{ url('/configuracion') }}" class="has-arrow">
-                            <i data-feather="tool"></i>
-                            <span data-key="t-configuracion">
-                                Configuración</span>
-                        </a>
-                    @endcan
-                </li>
-
-                @can('warroom.view')
+                {{-- 8. OLTs — standalone (extraído de Gestión de red) --}}
+                @can('olt_view')
                     <li>
-                        <a href="{{ url('/warroom') }}" class="{{ request()->is('warroom*') ? 'active' : '' }}">
-                            <i data-feather="target"></i>
-                            <span data-key="t-warroom">War Room</span>
+                        <a href="{{ url('/olts') }}">
+                            <i data-feather="server"></i>
+                            <span data-key="t-olts">OLTs</span>
                         </a>
                     </li>
                 @endcan
 
-                @canany(['embajadores.view', 'embajadores.configure'])
+                {{-- 9. Mapas --}}
+                @can('maps_view_maps')
+                    <li>
+                        <a href="{{ url('/mapas/') }}">
+                            <i data-feather="map"></i>
+                            <span data-key="t-mapas">Mapas</span>
+                        </a>
+                    </li>
+                @endcan
+
+                {{-- 10. Cobranza --}}
+                @canany(['cobranza.view', 'cobranza.configure'])
                     <li>
                         <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="award"></i>
-                            <span data-key="t-embajadores">Embajadores</span>
+                            <i data-feather="phone-call"></i>
+                            <span data-key="t-cobranza">Cobranza</span>
                         </a>
                         <ul class="sub-menu" aria-expanded="false">
-                            @can('embajadores.view')
-                                <li><a href="{{ url('/embajadores') }}"><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</a></li>
-                                <li><a href="{{ url('/embajadores/clientes') }}"><small><i class="fa fa-fw fa-handshake"></i></small> Embajadores</a></li>
-                                <li><a href="{{ url('/embajadores/comisiones') }}"><small><i class="fa fa-fw fa-coins"></i></small> Comisiones</a></li>
+                            @can('cobranza.view')
+                                <li>
+                                    <a href="{{ url('/cobranza/campanas') }}">
+                                        <span><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Campañas</span>
+                                    </a>
+                                </li>
                             @endcan
-                            @can('embajadores.configure')
-                                <li><a href="{{ url('/embajadores/tiers') }}"><small><i class="fa fa-fw fa-percentage"></i></small> Porcentajes</a></li>
-                                <li><a href="{{ url('/embajadores/configuracion') }}"><small><i class="fa fa-fw fa-cog"></i></small> Configuración</a></li>
+                            @can('cobranza.configure')
+                                <li>
+                                    <a href="{{ url('/cobranza/voip') }}">
+                                        <span><small><i class="fa fa-fw fa-phone-square"></i></small> Config. VoIP</span>
+                                    </a>
+                                </li>
                             @endcan
                         </ul>
                     </li>
                 @endcanany
 
+                {{-- 11. MegaFamilia --}}
                 @hasanyrole('DESARROLLADOR|Administrador|Super Administrador|super-administrator|TECNICO')
                     @canany(['megafamilia_admin', 'megafamilia_support'])
                         <li>
@@ -868,84 +550,95 @@
                             </a>
                             <ul class="sub-menu" aria-expanded="false">
                                 @can('megafamilia_admin')
-                                    <li><a href="{{ url('/megafamilia') }}"><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</a></li>
-                                    <li><a href="{{ url('/megafamilia/clientes') }}"><small><i class="fa fa-fw fa-users"></i></small> Clientes</a></li>
-                                    <li><a href="{{ url('/megafamilia/licencias') }}"><small><i class="fa fa-fw fa-key"></i></small> Licencias</a></li>
-                                    <li><a href="{{ url('/megafamilia/planes') }}"><small><i class="fa fa-fw fa-layer-group"></i></small> Planes</a></li>
-                                    <li><a href="{{ url('/megafamilia/perfiles') }}"><small><i class="fa fa-fw fa-child"></i></small> Perfiles</a></li>
+                                    <li><a href="{{ url('/megafamilia') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/clientes') }}"><span><small><i class="fa fa-fw fa-users"></i></small> Clientes</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/licencias') }}"><span><small><i class="fa fa-fw fa-key"></i></small> Licencias</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/planes') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Planes</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/perfiles') }}"><span><small><i class="fa fa-fw fa-child"></i></small> Perfiles</span></a></li>
                                 @endcan
-                                <li><a href="{{ url('/megafamilia/dispositivos') }}"><small><i class="fa fa-fw fa-mobile-screen"></i></small> Dispositivos</a></li>
-                                <li><a href="{{ url('/megafamilia/solicitudes') }}"><small><i class="fa fa-fw fa-inbox"></i></small> Solicitudes</a></li>
-                                <li><a href="{{ url('/megafamilia/alertas') }}"><small><i class="fa fa-fw fa-bell"></i></small> Alertas</a></li>
-                                <li><a href="{{ url('/megafamilia/tareas') }}"><small><i class="fa fa-fw fa-tasks"></i></small> Tareas</a></li>
-                                <li><a href="{{ url('/megafamilia/ubicaciones') }}"><small><i class="fa fa-fw fa-map-marker-alt"></i></small> Ubicaciones</a></li>
-                                <li><a href="{{ url('/megafamilia/geofences') }}"><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geofences</a></li>
-                                <li><a href="{{ url('/megafamilia/reportes') }}"><small><i class="fa fa-fw fa-chart-bar"></i></small> Reportes</a></li>
+                                <li><a href="{{ url('/megafamilia/dispositivos') }}"><span><small><i class="fa fa-fw fa-mobile-screen"></i></small> Dispositivos</span></a></li>
+                                <li><a href="{{ url('/megafamilia/solicitudes') }}"><span><small><i class="fa fa-fw fa-inbox"></i></small> Solicitudes</span></a></li>
+                                <li><a href="{{ url('/megafamilia/alertas') }}"><span><small><i class="fa fa-fw fa-bell"></i></small> Alertas</span></a></li>
+                                <li><a href="{{ url('/megafamilia/tareas') }}"><span><small><i class="fa fa-fw fa-tasks"></i></small> Tareas</span></a></li>
+                                <li><a href="{{ url('/megafamilia/ubicaciones') }}"><span><small><i class="fa fa-fw fa-map-marker-alt"></i></small> Ubicaciones</span></a></li>
+                                <li><a href="{{ url('/megafamilia/geofences') }}"><span><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geofences</span></a></li>
+                                <li><a href="{{ url('/megafamilia/reportes') }}"><span><small><i class="fa fa-fw fa-chart-bar"></i></small> Reportes</span></a></li>
                                 @can('megafamilia_admin')
-                                    <li><a href="{{ url('/megafamilia/configuracion') }}"><small><i class="fa fa-fw fa-cog"></i></small> Configuración</a></li>
+                                    <li><a href="{{ url('/megafamilia/configuracion') }}"><span><small><i class="fa fa-fw fa-cog"></i></small> Configuración</span></a></li>
                                 @endcan
                             </ul>
                         </li>
                     @endcanany
                 @endhasanyrole
 
-                @canany(['cobranza.view', 'cobranza.configure'])
+                {{-- 12. Embajadores --}}
+                @canany(['embajadores.view', 'embajadores.configure'])
                     <li>
                         <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="phone-call"></i>
-                            <span data-key="t-cobranza">Cobranza Blaster</span>
+                            <i data-feather="award"></i>
+                            <span data-key="t-embajadores">Embajadores</span>
                         </a>
                         <ul class="sub-menu" aria-expanded="false">
-                            @can('cobranza.view')
-                                <li><a href="{{ url('/cobranza/campanas') }}"><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Campañas</a></li>
+                            @can('embajadores.view')
+                                <li><a href="{{ url('/embajadores') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
+                                <li><a href="{{ url('/embajadores/clientes') }}"><span><small><i class="fa fa-fw fa-handshake"></i></small> Embajadores</span></a></li>
+                                <li><a href="{{ url('/embajadores/comisiones') }}"><span><small><i class="fa fa-fw fa-coins"></i></small> Comisiones</span></a></li>
                             @endcan
-                            @can('cobranza.configure')
-                                <li><a href="{{ url('/cobranza/voip') }}"><small><i class="fa fa-fw fa-phone-square"></i></small> Config. VoIP</a></li>
+                            @can('embajadores.configure')
+                                <li><a href="{{ url('/embajadores/tiers') }}"><span><small><i class="fa fa-fw fa-percentage"></i></small> Porcentajes</span></a></li>
+                                <li><a href="{{ url('/embajadores/configuracion') }}"><span><small><i class="fa fa-fw fa-cog"></i></small> Configuración</span></a></li>
                             @endcan
                         </ul>
                     </li>
                 @endcanany
 
-                {{-- Addons instalados: se mezclan con el núcleo sin sección separada --}}
-                @foreach ($addonMenuItems ?? [] as $item)
-                    @if (!empty($item['permission']) && !auth()->user()?->can($item['permission']))
-                        @continue
-                    @endif
+                {{-- 13. War Room — location:primary (addon-warroom) --}}
+                @can('warroom.view')
                     <li>
-                        @if (!empty($item['children']))
-                            <a href="javascript: void(0);" class="has-arrow">
-                                <i data-feather="{{ $item['icon'] ?? 'package' }}"></i>
-                                <span>{{ $item['label'] }}</span>
-                            </a>
-                            <ul class="sub-menu" aria-expanded="false">
-                                @foreach ($item['children'] as $child)
-                                    @if (!empty($child['permission']) && !auth()->user()?->can($child['permission']))
-                                        @continue
-                                    @endif
-                                    <li>
-                                        <a href="{{ url($child['url'] ?? '#') }}">
-                                            <span><small><i class="fa fa-fw fa-circle"></i></small> {{ $child['label'] }}</span>
-                                        </a>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @else
-                            <a href="{{ url($item['url'] ?? '#') }}">
-                                <i data-feather="{{ $item['icon'] ?? 'package' }}"></i>
-                                <span>{{ $item['label'] }}</span>
-                            </a>
-                        @endif
+                        <a href="{{ url('/warroom') }}" class="{{ request()->is('warroom*') ? 'active' : '' }}">
+                            <i data-feather="target"></i>
+                            <span data-key="t-warroom">War Room</span>
+                        </a>
                     </li>
-                @endforeach
+                @endcan
 
-                @role('DESARROLLADOR')
+                {{-- 14. Administración --}}
+                @can('admin_view_module')
+                    <li>
+                        <a href="{{ url('/administracion') }}" class="has-arrow">
+                            <i data-feather="command"></i>
+                            <span data-key="t-administracion">Administración</span>
+                        </a>
+                    </li>
+                @endcan
+
+                {{-- 15. Configuración --}}
+                @can('config_view_module')
+                    <li>
+                        <a href="{{ url('/configuracion') }}" class="has-arrow">
+                            <i data-feather="tool"></i>
+                            <span data-key="t-configuracion">Configuración</span>
+                        </a>
+                    </li>
+                @endcan
+
+                {{-- Desarrollador — accordion, rol DESARROLLADOR o super-administrator (addon-devtools, location:developer) --}}
+                @hasanyrole('DESARROLLADOR|super-administrator')
                     <li class="menu-item-desarrollador">
-                        <a href="{{ url('/devtools') }}" class="link-desarrollador">
+                        <a href="javascript: void(0);" class="has-arrow link-desarrollador">
                             <i data-feather="code"></i>
                             <span data-key="t-desarrollador">Desarrollador</span>
                         </a>
+                        <ul class="sub-menu" aria-expanded="false">
+                            <li>
+                                <a href="{{ url('/devtools') }}">
+                                    <span data-key="t-devtools"><small><i class="fa fa-fw fa-terminal"></i></small> DevTools</span>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
-                @endrole
+                @endhasanyrole
+
             </ul>
         </div>
         <!-- Sidebar -->
@@ -953,8 +646,27 @@
 </div>
 
 <style>
-    /* Enlace "Desarrollador" — sólo visible con role:DESARROLLADOR. Naranja
-       acento para diferenciarlo visualmente del resto del menú. */
+    /* Separador de sección dentro de un sub-menu (ej. "Marketing" dentro de Finanzas) */
+    #side-menu .sidebar-section-divider {
+        padding: 10px 20px 4px;
+        pointer-events: none;
+        list-style: none;
+    }
+    #side-menu .sidebar-section-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--bs-secondary-color, #6c757d);
+        opacity: 0.75;
+    }
+    [data-layout-mode="dark"] #side-menu .sidebar-section-label,
+    [data-topbar="dark"] #side-menu .sidebar-section-label {
+        color: rgba(255, 255, 255, 0.4);
+        opacity: 1;
+    }
+
+    /* Desarrollador — acento naranja, solo visible con role:DESARROLLADOR */
     #side-menu .menu-item-desarrollador > a.link-desarrollador {
         color: #ff8c00 !important;
         font-weight: 600;
@@ -970,5 +682,8 @@
     }
     #side-menu .menu-item-desarrollador > a.link-desarrollador:hover svg {
         color: #ffffff;
+    }
+    [data-layout-mode="dark"] #side-menu .menu-item-desarrollador > a.link-desarrollador {
+        background: rgba(255, 140, 0, 0.10);
     }
 </style>

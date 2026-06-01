@@ -1,10 +1,12 @@
 {
     "slug": "addon-mapas",
     "name": "Mapas",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "Mapas de red, FTTH y proyectos.",
     "type": "addon",
-    "dependencies": [],
+    "dependencies": [
+        { "slug": "core-configuracion", "min_version": "0.1.0" }
+    ],
     "active": true,
     "permissions": [
         { "name": "maps_view_maps",           "description": "Ver el mapa de red" },
@@ -117,13 +119,57 @@
             "agregar un poste nuevo al mapa",
             "cargar un plano de red en KMZ"
         ],
+        "actions": [
+            { "description": "Abrir el mapa de red FTTH",                 "endpoint": "GET /mapas",            "scope": "maps_view_maps" },
+            { "description": "Ver las zonas de cobertura",                "endpoint": "GET /maps/zones",       "scope": "maps_view_maps" },
+            { "description": "Listar los clientes ubicados en el mapa",   "endpoint": "POST /maps/get-clients", "scope": "maps_view_maps" }
+        ],
         "sensitive_actions": ["maps_kmz_load", "maps_kmz_remove"]
     },
 
+    "screens": [
+        {
+            "key": "mapas_mapa_red",
+            "label": "Mapa de Red",
+            "url": "/mapas",
+            "permission": "maps_view_maps",
+            "terms": [
+                { "term": "NAP", "definition": "Caja de distribución (Network Access Point) desde donde se derivan las acometidas de fibra hacia los clientes." },
+                { "term": "Poste", "definition": "Soporte físico de la red aérea; sostiene rutas de fibra, gabinetes y cajas de empalme." },
+                { "term": "Ruta de fibra", "definition": "Trazo georreferenciado del cable de fibra entre dos puntos de la red." },
+                { "term": "Caja de empalme", "definition": "Punto donde se fusionan o derivan hilos de fibra entre tramos de la red." },
+                { "term": "KMZ/KML", "definition": "Formato de capas geográficas que puede importarse al mapa para visualizar planos de red externos." }
+            ],
+            "steps": [
+                "Accede desde Mapas → Mapa de Red.",
+                "Usa el buscador y las capas para mostrar postes, rutas, NAPs y clientes.",
+                "Haz clic en un elemento para ver su ficha o editarlo según tus permisos.",
+                "Para agregar infraestructura, selecciona el tipo de elemento y haz clic sobre el mapa.",
+                "Para importar un plano externo, carga un archivo KMZ/KML desde las herramientas del mapa."
+            ],
+            "actions": ["Agregar poste", "Trazar ruta de fibra", "Agregar NAP", "Ubicar cliente", "Cargar KMZ/KML", "Editar elemento"]
+        },
+        {
+            "key": "mapas_zonas",
+            "label": "Zonas de Cobertura",
+            "url": "/maps/zones",
+            "permission": "maps_view_maps",
+            "terms": [
+                { "term": "Zona de cobertura", "definition": "Área geográfica donde el ISP presta o planea prestar servicio FTTH." },
+                { "term": "Región", "definition": "Agrupación territorial usada para organizar zonas y clientes en el mapa." }
+            ],
+            "steps": [
+                "Accede desde Mapas → Zonas.",
+                "Revisa las zonas de cobertura dibujadas sobre el mapa.",
+                "Consulta los clientes asociados a cada zona."
+            ],
+            "actions": ["Ver zonas", "Consultar clientes por zona"]
+        }
+    ],
+
     "client_tab": {
-        "label": "Mapa",
-        "component": "MapasClientTab",
-        "permission": "maps_view_maps"
+        "deferred": true,
+        "reason": "Infraestructura de ficha de cliente extensible pendiente (contrato 3.7). El componente MapasClientTab aún no existe. Mapas sí tiene relación real con clientes (cada cliente se ubica como punto en el mapa de red); cuando exista la infra, registrar pestaña con la ubicación del cliente, su NAP de conexión y la ruta de fibra que lo alimenta."
     },
 
     "service_type": null

@@ -250,6 +250,7 @@ class ClientController extends Controller
         $this->includeLibraryDinamic($this->data['model']);
         $this->data['id'] = $id;
         $this->data['tabs'] = $this->getTabs();
+        $this->data['moduleTabs'] = $this->getModuleTabs();
         $client_name = Client::findOrFail($id)->clientFullName();
         $this->data['breadcrumb'] = json_encode([
             ['title' => "Dashboard", 'a' => '/cliente'],
@@ -276,6 +277,54 @@ class ClientController extends Controller
             $tabs[] = 'statistics';
    //     }
         return json_encode($tabs);
+    }
+
+    /**
+     * Pestañas de ficha de cliente aportadas por módulos addon activos.
+     *
+     * Lee las declaraciones `client_tab` (no diferidas) que ModuleRegistry
+     * compila desde los module.json, y las filtra por el permiso que cada
+     * pestaña declara. Es la "infra de ficha de cliente extensible": un módulo
+     * sólo necesita declarar su client_tab + registrar su componente Vue para
+     * que aparezca aquí, sin tocar ClientController ni ClientCrud.vue.
+     *
+     * @return string JSON: [{label, component, permission, module}]
+     */
+    public function getModuleTabs()
+    {
+        $registry = app(\App\Modules\Core\ModuleManager\Services\ModuleRegistry::class);
+        $user     = $this->userAutenticated();
+        $isAdmin  = $user->isAdmin();
+        $out      = [];
+
+        foreach ($registry->getClientTabs() as $tab) {
+            $component = $tab['component'] ?? null;
+            if (empty($component)) {
+                continue; // declaración inválida: sin componente no hay nada que montar
+            }
+
+            $perm = $tab['permission'] ?? null;
+            if (! $isAdmin && ! empty($perm)) {
+                try {
+                    if (! $user->hasPermissionTo($perm)) {
+                        continue;
+                    }
+                } catch (\Throwable $e) {
+                    // El permiso declarado aún no existe en BD: ocultar la pestaña
+                    // a no-admins en lugar de romper la ficha completa.
+                    continue;
+                }
+            }
+
+            $out[] = [
+                'label'      => $tab['label'] ?? ($tab['_module'] ?? 'Módulo'),
+                'component'  => $component,
+                'permission' => $perm,
+                'module'     => $tab['_module'] ?? null,
+            ];
+        }
+
+        return json_encode($out);
     }
 
     /**

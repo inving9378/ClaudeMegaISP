@@ -57,6 +57,7 @@ import IndexAdministration from "./components/module/adminstration/IndexAdminist
 import DocumentTemplateListar from "./components/module/adminstration/document_template/DocumentTemplateListar.vue";
 
 //Configuracion
+import CatalogoApiPanel from "./components/module/configuracion/CatalogoApiPanel.vue";
 import DebtPaymentClient from "./components/module/setting/DebtPaymentClient";
 import DebitCustomListar from "./components/module/setting/DebitCustomListar";
 import CommandConfig from "./components/module/setting/CommandConfig";
@@ -97,6 +98,8 @@ import MegaFamiliaNotificaciones from "./components/module/megafamilia/MegaFamil
 import MegaFamiliaSoporte from "./components/module/megafamilia/MegaFamiliaSoporte.vue";
 import MegaFamiliaTerminos from "./components/module/megafamilia/MegaFamiliaTerminos.vue";
 import MegaFamiliaConfiguracion from "./components/module/megafamilia/MegaFamiliaConfiguracion.vue";
+// Pestaña en la ficha de cliente (infra de ficha extensible — roadmap #5)
+import MegaFamiliaClientTab from "./components/module/megafamilia/MegaFamiliaClientTab.vue";
 // Embajadores Meganet (addon-embajadores) — programa de referidos multinivel
 import EmbajadoresDashboard from "./components/module/embajadores/EmbajadoresDashboard.vue";
 import EmbajadoresConfiguracion from "./components/module/embajadores/EmbajadoresConfiguracion.vue";
@@ -283,6 +286,7 @@ import InvoiceListar from "./components/module/finance/invoice/InvoiceListar.vue
 import GeneralAccountingIndex from "./components/module/finance/general_accounting/GeneralAccountingIndex.vue";
 import ReleasesIndex from "./components/module/releases/ReleasesIndex.vue";
 import ReleasesDescription from "./components/module/releases/ReleasesDescription.vue";
+import RoadmapTab from "./components/module/releases/RoadmapTab.vue";
 import InventoryItemCustomModelListar from "./components/module/inventory/inventory_item_custom_model/InventoryItemCustomModelListar.vue";
 import InventoryItemCustomListar from "./components/module/inventory/inventory_item_custom/InventoryItemCustomListar.vue";
 
@@ -402,6 +406,7 @@ const app = createApp({
         GoogleMap,
         LeafletMap,
 
+        CatalogoApiPanel,
         DebtPaymentClient,
 
         //Administracion
@@ -586,6 +591,7 @@ const app = createApp({
         //RELEASES
         ReleasesIndex,
         ReleasesDescription,
+        RoadmapTab,
 
         //IA — portado desde MEGANET 2026-05-19
         'ia-chat-index': IAChatIndex,
@@ -738,6 +744,14 @@ Quasar.iconSet = Quasar.iconSet.fontawesomeV5;
 
 app.directive("hasPermission", hasPermission);
 app.directive("table-resizable", QTableResizable);
+
+// Pestañas de ficha de cliente aportadas por módulos (infra extensible — roadmap #5).
+// DEBEN registrarse como componentes GLOBALES (no en el `components` del root):
+// 1) así ClientCrud — un descendiente — puede resolverlas vía <component :is>;
+// 2) así aparecen en appContext.components, que es lo que ClientCrud consulta para
+//    montar sólo las pestañas cuyo componente realmente existe.
+// El nombre debe coincidir EXACTO con `client_tab.component` del module.json.
+app.component("MegaFamiliaClientTab", MegaFamiliaClientTab);
 
 app.use(VueApexCharts);
 

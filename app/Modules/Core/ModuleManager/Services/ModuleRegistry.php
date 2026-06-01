@@ -95,6 +95,19 @@ class ModuleRegistry
     }
 
     /**
+     * Children de menú de los módulos con sidebar.location=submenu y
+     * sidebar.parent=$parent. Usado para inyectar secciones (ej. Marketing
+     * dentro de Finanzas) sin hardcodear la jerarquía en el Blade.
+     *
+     * Retorna array plano de items: cada uno tiene label, url, permission,
+     * icon y _module.
+     */
+    public function getSubmenuItemsFor(string $parent): array
+    {
+        return $this->compiled()['sidebar_submenu'][$parent] ?? [];
+    }
+
+    /**
      * Ayuda contextual por pantalla de todos los módulos activos (lista plana).
      * Filtra por URL si se provee.
      */
@@ -127,11 +140,23 @@ class ModuleRegistry
         $clientTabsDeferred = [];
         $serviceTypes      = [];
         $screens           = [];
+        $sidebarSubmenu    = [];
 
         foreach ($manifests as $manifest) {
             $slug = $manifest['slug'] ?? null;
             if ($slug === null || ! in_array($slug, $activeSlugs, true)) {
                 continue;
+            }
+
+            // sidebar.location=submenu: agrupa children por parent slug
+            $sidebarDecl = $manifest['sidebar'] ?? [];
+            if (($sidebarDecl['location'] ?? '') === 'submenu' && ! empty($sidebarDecl['parent'])) {
+                $parentKey = $sidebarDecl['parent'];
+                foreach ($manifest['menu'] ?? [] as $item) {
+                    foreach ($item['children'] ?? [] as $child) {
+                        $sidebarSubmenu[$parentKey][] = array_merge($child, ['_module' => $slug]);
+                    }
+                }
             }
 
             foreach ($manifest['menu'] ?? [] as $item) {
@@ -191,6 +216,7 @@ class ModuleRegistry
             'client_tabs_deferred' => $clientTabsDeferred,
             'service_types'        => $serviceTypes,
             'screens'              => $screens,
+            'sidebar_submenu'      => $sidebarSubmenu,
         ];
 
         return $this->compiled;

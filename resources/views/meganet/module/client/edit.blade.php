@@ -14,6 +14,7 @@
         <client-crud
             action="update/{{$id}}"
             tabs="{{ $tabs }}"
+            module-tabs="{{ $moduleTabs }}"
             id="{{ $id }}"
             authuserid="{{ $authuserid }}"
         ></client-crud>

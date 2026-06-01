@@ -29,7 +29,7 @@ class DevToolsController extends Controller
         }
 
         return view('addon-devtools::index', [
-            'ttydUrl' => env('TTYD_URL', 'http://127.0.0.1:7681'),
+            'ttydUrl' => $this->resolveTtydUrl(),
             'csrfToken' => csrf_token(),
         ]);
     }
@@ -286,9 +286,19 @@ class DevToolsController extends Controller
     // Helpers
     // ---------------------------------------------------------------------
 
+    private function resolveTtydUrl(): string
+    {
+        $env = env('TTYD_URL', '');
+        if ($env !== '') {
+            return $env;
+        }
+        $host = request()->getHost();
+        return "http://{$host}:7681";
+    }
+
     private function isAuthorized(): bool
     {
-        return Auth::check() && Auth::user()->hasRole('DESARROLLADOR');
+        return Auth::check() && Auth::user()->hasAnyRole(['DESARROLLADOR', 'super-administrator']);
     }
 
     /**
