@@ -32,8 +32,8 @@ class WarRoomSeeder extends Seeder
             Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
-        $rol = Role::where('name', 'ADMINISTRADOR_COMPLETO')->first();
-        if ($rol) {
+        $roles = Role::whereIn('name', ['ADMINISTRADOR_COMPLETO', 'DESARROLLADOR', 'super-administrator'])->get();
+        foreach ($roles as $rol) {
             $rol->givePermissionTo($permissions);
         }
     }
