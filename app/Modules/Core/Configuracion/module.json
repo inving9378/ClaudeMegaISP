@@ -140,6 +140,27 @@
             "icon": "cog",
             "url": "/configuracion",
             "permission": "config_view_system"
+        },
+        {
+            "title": "Socios",
+            "description": "Socios comerciales / partners del negocio.",
+            "icon": "handshake",
+            "url": "/administracion/socios",
+            "permission": "admin_view_meganet"
+        },
+        {
+            "title": "IFT",
+            "description": "Catálogo IFT (Instituto Federal de Telecomunicaciones).",
+            "icon": "broadcast-tower",
+            "url": "/administracion/ift",
+            "permission": "ift_view_ift"
+        },
+        {
+            "title": "Métodos de Pago",
+            "description": "Catálogo de métodos de pago del sistema.",
+            "icon": "credit-card",
+            "url": "/administracion/metotdo-de-pago",
+            "permission": "method_payment_view_method_payment"
         }
     ],
     "config_sections": [

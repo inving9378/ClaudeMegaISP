@@ -7,7 +7,15 @@
     "dependencies": [],
     "active": true,
     "menu": [],
-    "admin_cards": [],
+    "admin_cards": [
+        {
+            "title": "Documentación",
+            "description": "Documentación interna: menús, submenús y contenido jerárquico.",
+            "icon": "book",
+            "url": "/administracion/documentation/documentation_menu",
+            "permission": "documentation_view_documentation"
+        }
+    ],
     "config_sections": [],
     "api_endpoints": [],
     "ai": [],

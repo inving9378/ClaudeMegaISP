@@ -31,7 +31,7 @@
         {
             "title": "CobranzaBlaster",
             "description": "Campañas de llamadas automáticas a morosos vía Asterisk AMI.",
-            "icon": "phone-call",
+            "icon": "phone",
             "url": "/cobranza/campanas",
             "permission": "cobranza.view"
         }

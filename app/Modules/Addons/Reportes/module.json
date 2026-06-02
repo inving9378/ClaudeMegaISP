@@ -22,7 +22,7 @@
         {
             "title": "Reportes",
             "description": "Reportes operativos y novedades del sistema.",
-            "icon": "file-text",
+            "icon": "file-alt",
             "url": "/reportes",
             "permission": "release_view_release"
         }

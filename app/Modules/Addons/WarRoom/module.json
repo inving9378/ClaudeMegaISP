@@ -48,7 +48,7 @@
         {
             "title": "War Room Ejecutivo",
             "description": "Dashboard de junta ejecutiva: KPIs en vivo, insights IA y planes de ataque.",
-            "icon": "activity",
+            "icon": "bullseye",
             "url": "/warroom",
             "permission": "warroom.view"
         }

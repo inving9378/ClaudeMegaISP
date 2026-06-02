@@ -49,7 +49,7 @@
         {
             "title": "Planes",
             "description": "Catálogo de planes: Internet, VoIP, Custom y Bundles.",
-            "icon": "grid",
+            "icon": "th-large",
             "url": "/planes/internet",
             "permission": "plan_view_internet"
         }

@@ -59,7 +59,7 @@
         {
             "title": "Inventario",
             "description": "Control de equipos y materiales: stock, movimientos y almacenes.",
-            "icon": "package",
+            "icon": "box",
             "url": "/inventory/inventory_item",
             "permission": "inventory_view_inventory"
         }

@@ -6,6 +6,21 @@
 @section('content')
     <Breadcrumb :list=[{title:"Pagina"},{title:"Administracion",active:"active"}]></Breadcrumb>
 
+    {{-- item #43: switch reversible — true = panel dinámico (ModuleRegistry::getAdminCards),
+         false = panel viejo hardcodeado. Cambiar esta única línea para revertir. --}}
+    @php $useDynamicAdminPanel = true; @endphp
+
+    @if($useDynamicAdminPanel)
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <admin-panel csrf-token="{{ csrf_token() }}"></admin-panel>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @else
     <div class="row">
         <div class="col-lg-12">
             <div class="card">
@@ -129,5 +144,6 @@
     >
 
     </Index-Administration>
+    @endif
 
 @endsection

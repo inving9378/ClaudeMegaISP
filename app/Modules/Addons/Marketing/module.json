@@ -119,7 +119,7 @@
         {
             "title": "Marketing IA",
             "description": "Leads, campañas, generación de video y publicación multicanal con IA.",
-            "icon": "trending-up",
+            "icon": "chart-line",
             "url": "/marketing",
             "permission": "create-marketing-campaigns"
         }

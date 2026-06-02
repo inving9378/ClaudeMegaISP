@@ -11,7 +11,7 @@
         {
             "title": "Reporte del Sistema",
             "description": "Versiones liberadas y hoja de ruta del sistema",
-            "icon": "clipboard-data",
+            "icon": "clipboard-list",
             "url": "/releases",
             "permission": "release_view_release"
         }

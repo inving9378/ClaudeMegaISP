@@ -43,7 +43,7 @@
         {
             "title": "Asistente IA",
             "description": "Chat IA multi-proveedor con historial, proyectos y prompts guardados.",
-            "icon": "cpu",
+            "icon": "microchip",
             "url": "/ia",
             "permission": "ia_view_chat"
         }
