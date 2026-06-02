@@ -148,8 +148,11 @@ class CreateFilesToRectifyMikrotikCommand extends Command
         $device_login = $router->mikrotik->login_api;
         $device_password = $router->mikrotik->password_api;
         if (config('app.env') !== "production") {
-            $device_login = 'admin';
-            $device_password = 'inving9378';
+            // Credenciales de dev fuera del código (ver item #41 — rotar credencial MikroTik).
+            // Definir MIKROTIK_DEV_LOGIN / MIKROTIK_DEV_PASSWORD en .env; sin ellas se usa
+            // la credencial real del router (login_api/password_api) ya cargada arriba.
+            $device_login = env('MIKROTIK_DEV_LOGIN', $device_login);
+            $device_password = env('MIKROTIK_DEV_PASSWORD', $device_password);
         }
 
         // Ruta remota en Mikrotik donde deseas almacenar el archivo
