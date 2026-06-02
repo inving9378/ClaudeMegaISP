@@ -27,6 +27,12 @@
         <q-btn class="btn-danger m-2" @click="showScripts">
             Scripts Ejecutables
         </q-btn>
+        <q-btn
+            class="btn-secondary m-2"
+            @click="toggleContainerAdministration(5)"
+        >
+            Módulos
+        </q-btn>
     </div>
 
     <div class="container-administration">
@@ -941,6 +947,44 @@
                 </div>
             </div>
         </div>
+
+        <!-- Módulos instalados — leídos de ModuleRegistry::getAdminCards() (item #44 → #69) -->
+        <div
+            class="item-administration row"
+            style="border-left-color: #6c757d"
+            v-show="selectedDiv === 5 || selectedDiv === 0"
+        >
+            <h3>Módulos instalados</h3>
+            <p v-if="loadingModules" class="text-muted">Cargando módulos…</p>
+            <p v-else-if="moduleCards.length === 0" class="text-muted">
+                No hay módulos con tarjetas de administración instalados.
+            </p>
+            <div v-else class="row d-flex">
+                <div
+                    class="col-md-3"
+                    v-for="card in moduleCards"
+                    :key="card._module + '_' + card.title"
+                >
+                    <div class="cursor-pointer">
+                        <a :href="card.url || '#'">
+                            <div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-secondary m-0">
+                                        <i
+                                            class="fa fa-fw fa-1x circle-icon fa-puzzle-piece"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center">{{
+                                        card.title
+                                    }}</span>
+                                </div>
+                            </div></a
+                        ><!-- end card body -->
+                    </div>
+                    <!-- end card -->
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -979,12 +1023,31 @@ export default {
             window.open("/administracion/show_scripts");
         };
 
+        // Tarjetas de módulos instalados desde ModuleRegistry (item #44 → #69)
+        const moduleCards = ref([]);
+        const loadingModules = ref(true);
+        const loadModuleCards = async () => {
+            try {
+                const { data } = await axios.get(
+                    "/admin/administracion/cards"
+                );
+                moduleCards.value = data.cards || [];
+            } catch (e) {
+                console.error("IndexAdministration: error cargando módulos", e);
+            } finally {
+                loadingModules.value = false;
+            }
+        };
+        onMounted(loadModuleCards);
+
         return {
             toggleContainerAdministration,
             selectedDiv,
             disabled,
             showScripts,
             hasPermission,
+            moduleCards,
+            loadingModules,
         };
     },
 };

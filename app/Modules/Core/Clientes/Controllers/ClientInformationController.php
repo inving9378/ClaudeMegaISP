@@ -176,7 +176,7 @@ class ClientInformationController extends Controller
             // Sincronizar users.password al cambiar la password del cliente
             if (! empty($newPassword)) {
                 User::where('login_user', optional($client->client_main_information)->user)
-                    ->update(['password' => base64_encode($newPassword)]);
+                    ->update(['password' => \App\Services\Security\PasswordService::make($newPassword)]);
             }
 
             DB::commit();

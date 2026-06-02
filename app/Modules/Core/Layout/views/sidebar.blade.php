@@ -628,6 +628,61 @@
                     </li>
                 @endcan
 
+                {{--
+                    13.5 Módulos dinámicos desde ModuleRegistry::getMenu() (item #44 → #68).
+                    $addonMenuItems lo inyecta SidebarComposer. Renderiza los módulos
+                    activos que NO están hardcodeados arriba (lista $sidebarHardcoded),
+                    evitando duplicados. Cualquier addon nuevo aparece aquí solo, sin
+                    tocar este blade. Cuando un módulo migre a 100% registry, borrar su
+                    bloque hardcodeado y quitar su slug de $sidebarHardcoded.
+                --}}
+                @php
+                    $sidebarHardcoded = [
+                        'addon-planes', 'addon-finanzas', 'addon-marketing', 'addon-payments',
+                        'addon-gestion-red', 'addon-inventario', 'addon-mapas',
+                        'addon-cobranza-blaster', 'addon-megafamilia', 'addon-embajadores',
+                        'addon-flotas', 'addon-warroom', 'addon-devtools', 'core-configuracion',
+                    ];
+                    $authUser = auth()->user();
+                    $canSee = fn ($perm) => empty($perm) || ($authUser && $authUser->can($perm));
+                    $addonDynamic = collect($addonMenuItems ?? [])
+                        ->reject(fn ($m) => in_array($m['_module'] ?? '', $sidebarHardcoded, true))
+                        ->filter(fn ($m) => $canSee($m['permission'] ?? null))
+                        ->values();
+                @endphp
+                @if($addonDynamic->isNotEmpty())
+                    <li class="menu-title" data-key="t-modulos">Módulos</li>
+                    @foreach($addonDynamic as $mod)
+                        @php
+                            $children = collect($mod['children'] ?? [])
+                                ->filter(fn ($c) => $canSee($c['permission'] ?? null))
+                                ->values();
+                        @endphp
+                        <li>
+                            @if($children->count() > 1)
+                                <a href="javascript: void(0);" class="has-arrow">
+                                    <i data-feather="{{ $mod['icon'] ?? 'box' }}"></i>
+                                    <span>{{ $mod['label'] ?? $mod['_module'] }}</span>
+                                </a>
+                                <ul class="sub-menu" aria-expanded="false">
+                                    @foreach($children as $child)
+                                        <li>
+                                            <a href="{{ url($child['url'] ?? '#') }}">
+                                                <span><small><i class="fa fa-fw fa-angle-right"></i></small> {{ $child['label'] ?? '' }}</span>
+                                            </a>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @else
+                                <a href="{{ url($mod['url'] ?? '#') }}">
+                                    <i data-feather="{{ $mod['icon'] ?? 'box' }}"></i>
+                                    <span>{{ $mod['label'] ?? $mod['_module'] }}</span>
+                                </a>
+                            @endif
+                        </li>
+                    @endforeach
+                @endif
+
                 {{-- 14. Administración --}}
                 @can('admin_view_module')
                     <li>

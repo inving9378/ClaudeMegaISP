@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\CobranzaBlaster\Jobs;
 
+use App\Modules\Addons\CobranzaBlaster\Models\CobranzaCampana;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamada;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamadaEvento;
 use App\Modules\Core\Clientes\Services\SuspendService;
@@ -72,14 +73,14 @@ class ProcessCallResultJob implements ShouldQueue
         ]);
     }
 
-    private function handleFallida(CobranzaLlamada $llamada, $campana, SuspendService $suspendService): void
+    private function handleFallida(CobranzaLlamada $llamada, CobranzaCampana $campana, SuspendService $suspendService): void
     {
         $llamada->update(['estado' => 'fallida']);
 
         if ($llamada->intentos >= $campana->max_intentos && $llamada->client) {
             // Delegar suspensión al SuspendService existente con 24h de gracia
             dispatch(function () use ($llamada, $suspendService) {
-                $suspendService->suspendClient($llamada->client);
+                $suspendService->suspendServiceByClient($llamada->client);
             })->delay(now()->addHours(24))->onQueue('cobranza');
 
             Log::info("Cobranza: cliente #{$llamada->client_id} programado para suspensión en 24h tras {$llamada->intentos} intentos fallidos.");
