@@ -15,6 +15,7 @@ use App\Models\Municipality;
 use App\Models\Colony;
 use App\Models\Sucursal;
 use App\Models\Promotion;
+use App\Services\Security\PasswordService;
 use Illuminate\Support\Facades\DB;
 
 
@@ -76,7 +77,10 @@ class UserController extends Controller
     public function getData($id)
     {
         $user = User::find($id);
-        $password = base64_decode($user->password);
+        // Sólo se puede "mostrar" la contraseña mientras siga en legacy base64.
+        // Una vez migrada a bcrypt es irreversible → se devuelve vacío y el
+        // admin sólo puede resetearla escribiendo una nueva.
+        $password = PasswordService::legacyPlain($user->password) ?? '';
         $seller = $user->seller;
         return response()->json(['user' => $user, 'password' => $password, 'seller' => $seller]);
     }
@@ -127,7 +131,7 @@ class UserController extends Controller
             $user->photography = $nameImage ?? null;
             $user->login_user = $request->login_user;
             $user->is_seller = $request->is_seller;
-            $user->password = base64_encode($request->password);
+            $user->password = PasswordService::make($request->password);
             $user->sucursal_id = $request->sucursal;
             $user->color = $request->color;
 
@@ -166,7 +170,8 @@ class UserController extends Controller
     {
         $userModel = User::find($id);
         $user = $id;
-        $password = base64_decode($userModel->password);
+        // Vacío si ya es bcrypt (irreversible); sólo legacy base64 es visible.
+        $password = PasswordService::legacyPlain($userModel->password) ?? '';
         $seller = $userModel->seller;
         $sucursals = Sucursal::all();
         return view('meganet.module.administration.user.edit', compact('user', 'password', 'seller', 'sucursals'));
@@ -190,7 +195,7 @@ class UserController extends Controller
             'code_postal' => 'required',
             'rfc' => 'required',
             'login_user'       => 'required|unique:users,login_user,' . $user->id,
-            'password' => 'required|min:8'
+            'password' => 'nullable|min:8'
         ]);
 
 
@@ -220,7 +225,10 @@ class UserController extends Controller
             $user->rfc = $request->rfc;
             $user->login_user = $request->login_user;
             $user->is_seller = $request->is_seller;
-            $user->password = base64_encode($request->password);
+            // Sólo cambia la contraseña si el form trae una nueva y distinta.
+            if ($request->filled('password') && ! PasswordService::check($request->password, $user->password)) {
+                $user->password = PasswordService::make($request->password);
+            }
             $user->color = $request->color;
             $user->sucursal_id = $request->sucursal_id;
             $user->save();

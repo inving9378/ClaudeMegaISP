@@ -67,16 +67,23 @@ class AmiConnectionService
     public function originate(string $telefono, string $audioPath, int $llamadaId, string $clienteNombre): array
     {
         $actionId = 'blaster-' . $llamadaId . '-' . time();
+        // ChannelId fija el Uniqueid del canal originado (Asterisk >= 12). Así
+        // conocemos el uniqueid ANTES de marcar y podemos correlacionar cada
+        // evento (Newstate/Hangup/DTMF) con la fila de cobranza_llamadas sin
+        // depender del timing del evento OriginateResponse (que es asíncrono).
+        $channelId = 'cob-' . $llamadaId . '-' . time();
+        $channel   = 'SIP/servnet-trunk/' . $telefono;
 
         $action = implode("\r\n", [
             'Action: Originate',
-            'Channel: SIP/servnet-trunk/' . $telefono,
+            'Channel: ' . $channel,
+            'ChannelId: ' . $channelId,
             'Context: ' . env('AMI_CONTEXT', 'cobranza-blaster'),
             'Exten: s',
             'Priority: 1',
             'Timeout: 30000',
             'CallerID: Meganet Telecomunicaciones <5551234567>',
-            'Variable: COBRANZA_CLIENT_ID=' . $llamadaId,
+            'Variable: COBRANZA_LLAMADA_ID=' . $llamadaId,
             'Variable: COBRANZA_NOMBRE=' . $clienteNombre,
             'Variable: COBRANZA_AUDIO=' . $audioPath,
             'ActionID: ' . $actionId,
@@ -96,7 +103,9 @@ class AmiConnectionService
         return [
             'success'  => $success,
             'actionid' => $actionId,
-            'uniqueid' => $parsed['Uniqueid'] ?? null,
+            'channel'  => $channel,
+            // Uniqueid determinista: el ChannelId que asignamos arriba.
+            'uniqueid' => $channelId,
         ];
     }
 
@@ -141,5 +150,47 @@ class AmiConnectionService
             }
         }
         return $result;
+    }
+
+    /**
+     * Lee un único bloque (evento o respuesta) del stream AMI.
+     *
+     * Devuelve el bloque parseado como array asociativo, o null si no llegó
+     * nada dentro de $timeoutSeconds (para que el daemon pueda revisar señales
+     * o reconectar). Pensado para el listener persistente cobranza:ami-listener.
+     */
+    public function readEvent(int $timeoutSeconds = 1): ?array
+    {
+        if (!$this->isConnected()) {
+            return null;
+        }
+
+        // Esperar actividad sin bloquear indefinidamente.
+        $read   = [$this->socket];
+        $write  = $except = [];
+        $ready  = @stream_select($read, $write, $except, $timeoutSeconds);
+
+        if ($ready === false || $ready === 0) {
+            return null;
+        }
+
+        $raw   = '';
+        $first = true;
+
+        // Cada mensaje AMI termina en una línea en blanco (\r\n).
+        while (($line = fgets($this->socket, 4096)) !== false) {
+            if ($line === "\r\n" || $line === "\n") {
+                break;
+            }
+            $raw .= $line;
+            // Tras la primera línea ya hay datos; si el socket se vacía paramos.
+            $first = false;
+        }
+
+        if ($raw === '' && $first) {
+            return null;
+        }
+
+        return $this->parseResponse($raw);
     }
 }

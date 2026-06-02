@@ -110,15 +110,28 @@ class ApiController extends Controller
         // Busca el cliente por email en client_main_information
         $cmi = ClientMainInformation::where('email', $data['email'])->first();
 
-        if (! $cmi || $cmi->password === null || $data['password'] !== $cmi->password) {
+        if (! $cmi) {
             return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
         }
 
-        // Obtiene el usuario ISP asociado por login_user = cmi.user
+        // Obtiene el usuario ISP asociado por login_user = cmi.user. La
+        // verificación de credenciales se hace contra `users.password`
+        // (mismo mecanismo que el login web), NO contra el plano de CMI.
         $user = User::where('login_user', $cmi->user)->first();
 
         if (! $user) {
             return response()->json(['success' => false, 'error' => 'Usuario del sistema no encontrado'], 404);
+        }
+
+        // Verificación híbrida: acepta bcrypt y el legacy base64.
+        if (! \App\Services\Security\PasswordService::check($data['password'], $user->password)) {
+            return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
+        }
+
+        // Upgrade-on-login: si seguía en base64 legacy, re-hashea a bcrypt.
+        if (\App\Services\Security\PasswordService::needsRehash($user->password)) {
+            $user->password = \App\Services\Security\PasswordService::make($data['password']);
+            $user->saveQuietly();
         }
 
         $token = $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken;

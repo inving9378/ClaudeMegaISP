@@ -35,7 +35,7 @@
                         </a>
                     </div>
                     <div class="row">
-                        <div class="col d-flex justify-content-end">
+                        <div class="col d-flex flex-wrap align-items-center justify-content-end gap-2 dt-toolbar">
                             <template v-if="lengthButtons">
                                 <q-btn v-for="(button, key) in buttons" :key="key" no-caps :class="button.class || 'btn btn-outline-info'
                                     " :id="button.id" :icon="button.iclass" :label="button.text"
@@ -123,7 +123,8 @@
                                 style="margin-right: 15px" />
                             <q-btn icon="mdi-history" class="btn btn-outline-info" style="margin-right: 25px"
                                 @click="reloadDataTable" />
-                            <q-input dense v-model="search" placeholder="Buscar..." outlined :dark="darkMode">
+                            <q-input class="dt-search" dense v-model="search" placeholder="Buscar..." outlined
+                                :dark="darkMode">
                             </q-input>
                             <q-btn flat round dense :icon="props.inFullscreen
                                 ? 'fullscreen_exit'
@@ -993,4 +994,29 @@ const getTdClass = (row, col) => {
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Buscador y acciones de la tabla: en escritorio se mantienen alineados a la
+   derecha en un solo renglón; en celular se reacomodan y el buscador ocupa
+   todo el ancho para que no se vea aplastado ni desbordado. */
+.dt-search {
+    min-width: 200px;
+}
+
+@media (max-width: 575.98px) {
+    .dt-toolbar {
+        justify-content: stretch !important;
+    }
+
+    /* Anular los márgenes fijos (15px/25px) que descuadraban la barra en
+       pantallas chicas; el espaciado lo da el gap del contenedor flex. */
+    .dt-toolbar > * {
+        margin-right: 0 !important;
+    }
+
+    .dt-search {
+        order: -1;
+        flex: 1 1 100%;
+        min-width: 100%;
+    }
+}
+</style>

@@ -91,7 +91,12 @@ class UserController extends Controller
             $request->all();
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request, 'sync');
 
-        $input['password'] =  base64_encode($request->password);
+        // Sólo re-hashea si llega una contraseña nueva; si no, se deja intacta.
+        if ($request->filled('password')) {
+            $input['password'] = \App\Services\Security\PasswordService::make($request->password);
+        } else {
+            unset($input['password']);
+        }
         //TODO EJEMPLO DE COMO GUARDAR UNA IMAGEN
         if ($request->hasFile('photography')) {
             $photography = $request->file('photography');

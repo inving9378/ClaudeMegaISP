@@ -5,6 +5,7 @@ namespace App\Modules\Core\Auth\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
+use App\Services\Security\PasswordService;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -81,10 +82,15 @@ class LoginController extends Controller
         $user = User::where('email', $request->email)
             ->orWhere('login_user', $request->email)
             ->first();
-        // Verificación del password en base64
-        if ($user && base64_encode($request->password) === $user->password) {
+        // Verificación híbrida: acepta bcrypt y el legacy base64.
+        if ($user && PasswordService::check($request->password, $user->password)) {
             if (!$user->active) {
                 return false;
+            }
+            // Upgrade-on-login: si seguía en base64 legacy, re-hashea a bcrypt.
+            if (PasswordService::needsRehash($user->password)) {
+                $user->password = PasswordService::make($request->password);
+                $user->saveQuietly();
             }
             if ($user->isCounter()) {
                 $user->createBox();

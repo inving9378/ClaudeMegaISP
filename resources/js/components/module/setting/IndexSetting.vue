@@ -101,6 +101,12 @@
         >
             Mensajeria
         </q-btn>
+        <q-btn
+            class="btn-secondary m-2"
+            @click="toggleContainerAdministration(16)"
+        >
+            Módulos
+        </q-btn>
     </div>
 
     <div class="container-administration">
@@ -2260,6 +2266,48 @@
                 </div>
             </div>
         </div>
+
+        <!-- Configuración de Módulos — leída de ModuleRegistry::getConfigSections() (item #44 → #70) -->
+        <div
+            class="item-administration row"
+            style="border-left-color: #6c757d"
+            v-show="selectedDiv === 16 || selectedDiv === 0"
+        >
+            <h3>Configuración de Módulos</h3>
+            <p v-if="loadingModuleSections" class="text-muted">
+                Cargando secciones de módulos…
+            </p>
+            <p
+                v-else-if="moduleSections.length === 0"
+                class="text-muted"
+            >
+                Ningún módulo activo declara secciones de configuración.
+            </p>
+            <div v-else class="row d-flex">
+                <div
+                    class="col-md-3"
+                    v-for="section in moduleSections"
+                    :key="section._module + '_' + (section.title || section.label)"
+                >
+                    <div class="cursor-pointer">
+                        <a :href="section.url ? `${url}${section.url}` : '#'">
+                            <div class="card-body position-relative">
+                                <div class="faq-count d-flex">
+                                    <h5 class="text-secondary m-0">
+                                        <i
+                                            class="fa fa-fw fa-1x circle-icon fa-sliders-h"
+                                        ></i>
+                                    </h5>
+                                    <span class="ms-1 align-self-center">{{
+                                        section.title || section.label
+                                    }}</span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -2292,10 +2340,37 @@ export default {
             }
         };
 
+        // Secciones de configuración aportadas por módulos addon (item #44 → #70).
+        // Solo se muestran las de addons; las core ya están hardcodeadas arriba.
+        const moduleSections = ref([]);
+        const loadingModuleSections = ref(true);
+        const loadModuleSections = async () => {
+            try {
+                const { data } = await axios.get(
+                    "/api/modules/config-sections"
+                );
+                moduleSections.value = (data.sections_flat || []).filter(
+                    (s) =>
+                        typeof s._module === "string" &&
+                        s._module.startsWith("addon-")
+                );
+            } catch (e) {
+                console.error(
+                    "IndexSetting: error cargando secciones de módulos",
+                    e
+                );
+            } finally {
+                loadingModuleSections.value = false;
+            }
+        };
+        onMounted(loadModuleSections);
+
         return {
             toggleContainerAdministration,
             selectedDiv,
             hasPermission,
+            moduleSections,
+            loadingModuleSections,
         };
     },
 };

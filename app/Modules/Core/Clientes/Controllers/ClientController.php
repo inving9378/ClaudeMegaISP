@@ -204,7 +204,7 @@ class ClientController extends Controller
         $user->phone = $clientMainInformation->phone;
         $user->location = $clientMainInformation->location;
         $user->login_user = $clientMainInformation->user;
-        $user->password = base64_encode($clientMainInformation->password);
+        $user->password = \App\Services\Security\PasswordService::make($clientMainInformation->password);
         $user->client_id = $clientMainInformation->client_id;
         $user->save();
 
