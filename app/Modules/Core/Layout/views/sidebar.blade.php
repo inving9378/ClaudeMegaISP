@@ -19,7 +19,7 @@
 
                 {{-- 2. Planes --}}
                 <li>
-                    @canany(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package'])
+                    @canany(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package', 'plan_view_catalog'])
                         <a href="javascript: void(0);" class="has-arrow">
                             <i data-feather="grid"></i>
                             <span data-key="t-planes">Planes</span>
@@ -51,6 +51,13 @@
                             <li>
                                 <a href="{{ url('/paquetes') }}">
                                     <span data-key="t-paquetes"><small><i class="fa fa-fw fa-object-group"></i></small> Paquetes</span>
+                                </a>
+                            </li>
+                        @endcan
+                        @can('plan_view_catalog')
+                            <li>
+                                <a href="{{ url('/planes/catalogo') }}">
+                                    <span data-key="t-catalogo-servicios"><small><i class="fa fa-fw fa-cubes"></i></small> Servicios contratables</span>
                                 </a>
                             </li>
                         @endcan
@@ -587,6 +594,25 @@
                             @can('embajadores.configure')
                                 <li><a href="{{ url('/embajadores/tiers') }}"><span><small><i class="fa fa-fw fa-percentage"></i></small> Porcentajes</span></a></li>
                                 <li><a href="{{ url('/embajadores/configuracion') }}"><span><small><i class="fa fa-fw fa-cog"></i></small> Configuración</span></a></li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcanany
+
+                {{-- 12.5 Flotas (addon-flotas) --}}
+                @canany(['fleet.view', 'fleet.gps.view'])
+                    <li>
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="truck"></i>
+                            <span data-key="t-flotas">Flotas</span>
+                        </a>
+                        <ul class="sub-menu" aria-expanded="false">
+                            @can('fleet.view')
+                                <li><a href="{{ url('/flotas') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
+                                <li><a href="{{ url('/flotas/vehiculos') }}"><span><small><i class="fa fa-fw fa-car"></i></small> Vehículos</span></a></li>
+                            @endcan
+                            @can('fleet.gps.view')
+                                <li><a href="{{ url('/flotas/mapa') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa</span></a></li>
                             @endcan
                         </ul>
                     </li>

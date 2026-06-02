@@ -93,6 +93,57 @@
         "sensitive_actions": ["ticket_delete_recycling"]
     },
 
+    "screens": [
+        {
+            "key": "tickets_dashboard",
+            "label": "Tickets — Dashboard",
+            "url": "/tickets",
+            "permission": "ticket_view_dashboard",
+            "terms": [
+                { "term": "Ticket", "definition": "Solicitud de soporte o incidencia registrada por un cliente o agente para darle seguimiento." },
+                { "term": "Estado", "definition": "Etapa del ticket: abierto, cerrado o reciclado (papelera)." },
+                { "term": "KPI", "definition": "Indicador de desempeño de la mesa de ayuda: tickets abiertos, tiempo de resolución, carga por agente." }
+            ],
+            "steps": [
+                "Accede desde el menú Tickets → Dashboard.",
+                "Revisa los KPIs y el resumen de tickets por estado.",
+                "Entra a 'Abiertos' para atender los pendientes."
+            ],
+            "actions": ["Ver KPIs", "Filtrar por estado", "Abrir ticket"]
+        },
+        {
+            "key": "tickets_abiertos",
+            "label": "Tickets — Abiertos",
+            "url": "/tickets/abiertos",
+            "permission": "ticket_view_open",
+            "terms": [
+                { "term": "Asignación", "definition": "Agente responsable de atender el ticket." },
+                { "term": "Prioridad", "definition": "Urgencia del ticket; ordena la atención de la cola." }
+            ],
+            "steps": [
+                "Accede desde Tickets → Abiertos.",
+                "Crea un ticket con 'Nuevo' o abre uno existente para responder.",
+                "Asigna responsable y prioridad, registra la respuesta y cierra cuando se resuelva."
+            ],
+            "actions": ["Nuevo ticket", "Asignar agente", "Responder", "Cerrar ticket", "Exportar"]
+        },
+        {
+            "key": "tickets_cerrados",
+            "label": "Tickets — Cerrados",
+            "url": "/tickets/cerrados",
+            "permission": "ticket_view_close",
+            "terms": [
+                { "term": "Reapertura", "definition": "Acción de volver a abrir un ticket cerrado cuando el problema reaparece." }
+            ],
+            "steps": [
+                "Accede desde Tickets → Cerrados.",
+                "Consulta el historial de tickets resueltos.",
+                "Reabre un ticket si el problema persiste."
+            ],
+            "actions": ["Consultar cerrados", "Reabrir ticket", "Exportar"]
+        }
+    ],
+
     "client_tab": {
         "label": "Tickets",
         "component": "TicketsClientTab",

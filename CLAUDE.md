@@ -348,3 +348,78 @@ Cron 5min → CobranzaCampanaService::cargarMorosos()
 | CobranzaBlaster | ⚠️ falta webhook AMI + Servnet | Ver pendientes arriba |
 | Marketing Fase 6 | ⏸️ pendiente | Blaster TTS híbrido (ver diseño arriba) |
 | Marketing Fase 7 | ⏸️ pendiente | CRM Kanban + atribución + multi-tenant |
+| Flotas (item #60/#61) | ✅ Fase 1 + Fase 2.1/2.2 (tracking GPS con MockDriver) | Validar visualmente tracking; Fase 2.3 = TCP listener + hardware real |
+
+---
+
+## MÓDULO FLOTAS (item #60) — `app/Modules/Addons/Flotas/`
+
+Gestión de flota vehicular. **Uso interno Meganet + producto SaaS vendible a clientes ISP.**
+Módulo modular estándar (`module.json` id=200, slug `addon-flotas`, activo).
+
+### Estado — Fase 1 ✅ 100% TERMINADA (backend + UI)
+| Capa | Contenido | Estado |
+|------|-----------|--------|
+| BD | 8 tablas `fleet_*` (vehicles, providers, assignments, maintenances, maintenance_files, documents, fuel_log, photos) | ✅ migración `2026_06_01_180000_create_fleet_tables.php` |
+| Modelos | 8 modelos con accessors (display_name, status doc, days_until_expiration, cost_per_liter, is_active) | ✅ |
+| Controllers | Vehicle, Maintenance, Document, Provider, FuelLog, Photo, **Assignment (nuevo)** | ✅ |
+| Permisos | `fleet.view/manage/assign/maintenance.manage/documents.manage/fuel.manage/providers.manage` | ✅ |
+| UI Vue 3 | 3 pantallas Bootstrap 5 + bi-icons (NO Quasar — consistente con la pantalla form ya existente) | ✅ |
+
+### Bitácora
+- **Sesión UI (2026-06-01)** — UI completa. Backend ya existía de sesión previa (8 tablas, modelos, controllers, `FleetVehicleForm.vue`). En esta sesión:
+  - **Backend wiring:** `FleetAssignmentController` (historial + alta que cierra la asignación previa con `until`), endpoint buscable `GET /api/vehiculos/data/operadores`, ruta web `/flotas/nuevo` (declarada ANTES de `/{id}`) + `views/flotas/create.blade.php`.
+  - **Pantalla 1** `FleetVehicleForm.vue` (ya existía) — verificada y conectada; `loadUsers()` ahora usa `/api/vehiculos/data/operadores`.
+  - **Pantalla 2** `FleetVehicleShow.vue` — header + 4 tarjetas de salud + 8 pestañas (Info con edición inline + GPS, Asignación con timeline + cambio, Mantenimientos con form inline/multi-select/drag&drop/proveedor nuevo, Documentos con semáforo, Combustible con km/L calculado, Tracking GPS, Historial agregado, Fotos 2x2 + zoom) + barra fija inferior. Status de documentos y km/L se calculan **lado cliente** (el `show()` del vehículo no añade esos accessors).
+  - **Pantalla 3** `FleetDashboard.vue` — 5 métricas, "Requieren atención", lista de vehículos con filtros/orden, mapa placeholder, gastos del año por categoría (barras). Trae mantenimientos+combustible+documentos completos para calcular categorías y variación mes vs mes anterior. Exporta CSV cliente-side.
+  - Registrados en `app.js`: `fleet-dashboard`, `fleet-vehicle-form`, `fleet-vehicle-show`. `npm run dev` ✅ compila.
+
+### Navegación
+- `/flotas` → FleetDashboard · `/flotas/nuevo` → FleetVehicleForm · `/flotas/{id}` → FleetVehicleShow · `/flotas/{id}?tab=mantenimientos` → pestaña directa
+
+### Archivos relevantes (.vue)
+- `resources/js/components/module/flotas/FleetVehicleForm.vue`
+- `resources/js/components/module/flotas/FleetVehicleShow.vue`
+- `resources/js/components/module/flotas/FleetDashboard.vue`
+
+### Notas / deuda Fase 2
+- **Fotos:** se guardan en disco `local` (privado) sin ruta pública para servirlas → la galería usa `/storage/{path}` con fallback `@error`. Falta endpoint/симлink de servido en Fase 2.
+- **Multi-tenancy permisos:** los addons (MegaFamilia/Embajadores/WarRoom/Flotas) NO tienen entradas en `config/route_permission.php`; funcionan por bypass admin/DESARROLLADOR + `authorize()` en controller. Si se vende a un cliente ISP no-admin, agregar patrones `flotas/*` a ese config.
+- **GPS / mapa / "en movimiento":** placeholders Fase 1. Tracking en vivo = Fase 2.
+- **OCR documentos:** placeholder "Detección automática con IA (Fase 7)" visible, sin implementar.
+- Menú `module.json` apunta a `/flotas/mantenimientos|documentos|proveedores` que aún caen en `/{id}` (404) — vistas dedicadas pendientes (fuera de alcance Fase 1).
+
+### Fase 2 — Tracking GPS (item #61)
+
+**Bitácora — Sesión 2026-06-01 (Sub-fases 2.1 y 2.2 completadas):**
+BD + abstracción de drivers + MockDriver + UI de tracking funcional con datos simulados. NO requiere hardware aún; cuando llegue un GPS Ruptela físico solo se añade su driver (implementa `GpsDriverInterface`) sin tocar el resto.
+
+**Estado:** ✅ BD + abstracción + MockDriver + UI listos. Falta **2.3** (TCP listener real + drivers Ruptela/Concox reales + eventos en tiempo real con WebSocket).
+
+**2.1 — BD + Abstracción:**
+- Migración `2026_06_01_190000_create_fleet_gps_tables.php`: `fleet_devices`, `fleet_positions` (índice compuesto `vehicle_id+recorded_at`), `fleet_device_events`. Soft deletes en las 3.
+- Modelos: `FleetDevice` (BaseModel), `FleetPosition` y `FleetDeviceEvent` (Model plano — sin LogsActivity por alto volumen). Relaciones GPS añadidas a `FleetVehicle` (`device`, `positions`, `lastPosition`).
+- Abstracción: `Services/Gps/GpsDriverInterface.php` (parse/name/supports), `Services/Gps/Position.php` (DTO), `Services/Gps/Drivers/MockDriver.php` (genera trayectos realistas: paradas 10%, speed 0-80, rumbo a la deriva, 0-100 m/ping desde CDMX).
+- Comando `php artisan flotas:simulate-gps {vehicle_id} --interval=30 --duration=3600` (registrado en `ModuleServiceProvider::boot`).
+- `Services/FleetPositionService.php`: `saveBatch` (insert por chunks + actualiza `last_seen_at`/`total_pings`), `getLastPosition`, `getHistory`, `getCurrentPositions` (multi-tenant), `liveStatus` (moving/stopped/idle/offline por antigüedad del ping).
+- Permisos `fleet.gps.view` / `fleet.gps.manage` en `module.json` + creados en BD y asignados a `super-administrator` + `DESARROLLADOR`.
+
+**2.2 — UI:**
+- `Controllers/FleetGpsController.php`: `status` (último + device + stats hoy con Haversine), `history`, `fleet` (mapa global), `activateDevice` (crea `fleet_device` + `has_gps=true`).
+- Rutas en `routes.php`: web `/flotas/mapa` (declarada ANTES de `/{id}`), API `api/vehiculos/{id}/gps[/history|/device]` y `api/gps/flota`.
+- `FleetVehicleShow.vue` — pestaña **Tracking GPS** reemplaza el placeholder: mapa Leaflet (OSM) 60% + panel 40% (Estado actual / Dispositivo / Estadísticas hoy / botones Centrar·GPX·Configurar), selector de rango (6h/24h/7d/personalizado), polyline azul, marker, polling 30s con pausa. Wizard de activación con dropdown de marca.
+- `FleetMap.vue` (nuevo, registrado en `app.js` como `fleet-map`) — mapa global full-height + sidebar de vehículos + filtros (todos/en movimiento/alertas) + pins por estado (verde/amarillo/gris/rojo) + popup + polling 30s. Blade `views/flotas/mapa.blade.php`.
+- **Leaflet vía npm** (`import L from "leaflet"`), NO CDN — consistente con `LeafletMap.vue` existente. Markers con `L.circleMarker` (evita el bug de iconos rotos de webpack). OSM tiles, sin API key.
+
+**Datos de prueba:** `database/seeders/FleetGpsSeeder.php` → sembró 2880 pings (24h cada 30s) en el vehículo 1 (`nisan frontier`). Ejecutar: `php artisan db:seed --class=FleetGpsSeeder`.
+
+**Verificado:** migración ✅, endpoints HTTP 200 (status/history/flota) con authorize del nuevo permiso, comando suma pings y actualiza `total_pings`, `npm run dev` compila ✅. **Pendiente: validación visual con Irving en browser** (pestaña tracking + `/flotas/mapa` + polling).
+
+**Fix navegación (2026-06-01):** botón "Ver mapa" y pestaña "Tracking" visibles.
+- `FleetDashboard.vue`: el botón "Ver mapa" del header era un placeholder (`openMap` → toast "disponible en Fase 2"); ahora es link real `:href="${baseUrl}/mapa"` (`btn-outline-primary`). Función `openMap` eliminada.
+- `FleetVehicleShow.vue`: la pestaña "Tracking GPS" ya estaba en el array `tabs` y se renderiza en la barra; `goTab('gps')` fija `?tab=gps` en la URL. Sin cambios necesarios, solo verificado.
+
+**Fix sidebar Flotas (2026-06-01):** el módulo no aparecía en el sidebar izquierdo.
+- **Causa raíz:** el sidebar (`app/Modules/Core/Layout/views/sidebar.blade.php`) es **Blade estático**: cada módulo está hardcodeado con `@canany`/`@can`. El `getMenu()` del ModuleRegistry (que SÍ incluye Flotas) **no se itera en el blade** (`addonMenuItems` se ignora; solo se consume `sidebarSubmenu` para hijos `location:submenu` bajo finanzas). Flotas nunca se agregó a mano → no se renderizaba. (Prueba: MegaFamilia **no tiene** campo `sidebar` en su module.json y SÍ aparece, porque está hardcodeado; Flotas **sí lo tiene** y no aparecía → el campo `sidebar` del module.json es irrelevante para el render.)
+- **Fix:** se agregó el bloque Flotas en `sidebar.blade.php` (~línea 602, entre Embajadores y War Room), guardado por `@canany(['fleet.view','fleet.gps.view'])`, con links a Dashboard `/flotas`, Vehículos `/flotas/vehiculos` y Mapa `/flotas/mapa` (solo rutas que funcionan; mantenimientos/documentos/proveedores siguen 404). Verificado renderizando el sidebar como admin: HTML incluye los 3 enlaces.
+- ⚠️ **Nota técnica para futuros addons:** el sidebar NO es dinámico desde `module.json`. Aunque declares `sidebar`/`menu` en el manifest, **hay que agregar el bloque a mano en `sidebar.blade.php`** para que aparezca. Solo los hijos `location:submenu`+`parent:finanzas` se renderizan dinámicamente vía `SidebarComposer`/`getSubmenuItemsFor('finanzas')`.

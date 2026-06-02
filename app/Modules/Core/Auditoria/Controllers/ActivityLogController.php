@@ -4,7 +4,6 @@ namespace App\Modules\Core\Auditoria\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\administration\activity_log\ActivityLogDatatableHelper;
-use App\Http\HelpersModule\module\log_activity\LogActivityDatatableHelper;
 use App\Models\LogActivity;
 use Illuminate\Http\Request;
 

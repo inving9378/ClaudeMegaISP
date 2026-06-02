@@ -122,6 +122,74 @@
         "sensitive_actions": ["finance_delete_billing", "finance_delete_payments", "finance_delete_transactions"]
     },
 
+    "screens": [
+        {
+            "key": "finanzas_facturas",
+            "label": "Finanzas — Facturas",
+            "url": "/finanzas/facturas",
+            "permission": "finance_view_invoices",
+            "terms": [
+                { "term": "Factura", "definition": "Documento que detalla los cargos de un cliente por su servicio en un periodo." },
+                { "term": "Proforma", "definition": "Factura preliminar generada automáticamente cada mes antes de su emisión definitiva." },
+                { "term": "Saldo vencido", "definition": "Monto adeudado cuya fecha de pago ya pasó." }
+            ],
+            "steps": [
+                "Accede desde Finanzas → Facturas.",
+                "Filtra por cliente, periodo o estado de pago.",
+                "Abre una factura para ver su detalle, registrar pago o exportarla."
+            ],
+            "actions": ["Filtrar facturas", "Ver detalle", "Registrar pago", "Exportar"]
+        },
+        {
+            "key": "finanzas_pagos",
+            "label": "Finanzas — Pagos",
+            "url": "/finanzas/pagos",
+            "permission": "finance_view_payments",
+            "terms": [
+                { "term": "Pago", "definition": "Abono que un cliente realiza para liquidar total o parcialmente una factura." },
+                { "term": "Método de pago", "definition": "Forma en que se recibe el pago: efectivo, transferencia, tarjeta, SPEI, etc." },
+                { "term": "Caja", "definition": "Punto de registro de ingresos en efectivo del personal." }
+            ],
+            "steps": [
+                "Accede desde Finanzas → Pagos.",
+                "Registra un nuevo pago seleccionando cliente, factura y método.",
+                "Consulta el historial y exporta el corte cuando lo necesites."
+            ],
+            "actions": ["Registrar pago", "Filtrar por método", "Exportar corte"]
+        },
+        {
+            "key": "finanzas_transacciones",
+            "label": "Finanzas — Transacciones",
+            "url": "/finanzas/transacciones",
+            "permission": "finance_view_transactions",
+            "terms": [
+                { "term": "Transacción", "definition": "Movimiento financiero registrado en el sistema (ingreso o egreso)." }
+            ],
+            "steps": [
+                "Accede desde Finanzas → Transacciones.",
+                "Revisa el listado de movimientos financieros.",
+                "Filtra por fecha o tipo y exporta para conciliación."
+            ],
+            "actions": ["Filtrar transacciones", "Exportar"]
+        },
+        {
+            "key": "finanzas_contabilidad",
+            "label": "Finanzas — Contabilidad General",
+            "url": "/finanzas/general-accounting",
+            "permission": "finance_view_general_accounting",
+            "terms": [
+                { "term": "Ingreso", "definition": "Entrada de dinero a la empresa (cobros, ventas)." },
+                { "term": "Gasto", "definition": "Salida de dinero por costos operativos." }
+            ],
+            "steps": [
+                "Accede desde Finanzas → Contabilidad.",
+                "Registra ingresos y gastos operativos.",
+                "Consulta el balance general del periodo."
+            ],
+            "actions": ["Registrar ingreso", "Registrar gasto", "Ver balance"]
+        }
+    ],
+
     "client_tab": null,
     "service_type": null
 }

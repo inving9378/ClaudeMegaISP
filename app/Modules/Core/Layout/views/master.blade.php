@@ -42,6 +42,9 @@
 
         @include('core-layout::right-sidebar')
         <!-- /Right-bar -->
+
+        {{-- Ayuda contextual por pantalla (panel flotante estilo Splynx) --}}
+        <help-float url="{{ url('/') }}"></help-float>
     </div>
     <!-- JAVASCRIPT -->
     @include('core-layout::vendor-scripts')

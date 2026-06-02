@@ -111,7 +111,7 @@ class VoiceComparatorController extends Controller
 
         return response()->json([
             'success' => true,
-            'niche'   => $niche->fresh(['id', 'slug', 'name', 'preferred_voice_id', 'preferred_voice_model']),
+            'niche'   => $niche->only(['id', 'slug', 'name', 'preferred_voice_id', 'preferred_voice_model']),
         ]);
     }
 }

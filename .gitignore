@@ -26,6 +26,7 @@ Docs
 .env
 .env.testing
 .env.backup
+.env.pilot
 .claude/
 
 public/test-*.mp4

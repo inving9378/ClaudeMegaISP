@@ -109,6 +109,74 @@
         "sensitive_actions": ["inventory_item_delete_inventory_item", "inventory_movement_delete_inventory_movement"]
     },
 
+    "screens": [
+        {
+            "key": "inventario_items",
+            "label": "Inventario — Ítems",
+            "url": "/inventory/inventory_item",
+            "permission": "inventory_item_view_inventory_item",
+            "terms": [
+                { "term": "Ítem", "definition": "Artículo de inventario: equipo, material o insumo que la empresa controla." },
+                { "term": "Número de serie", "definition": "Identificador único de un equipo (ONU, router) para rastrearlo individualmente." },
+                { "term": "Tipo de ítem", "definition": "Categoría que agrupa ítems con características comunes." }
+            ],
+            "steps": [
+                "Accede desde Inventario → Ítems.",
+                "Agrega un ítem nuevo con su tipo, modelo y número de serie.",
+                "Edita o consulta la ubicación y estado de cada ítem."
+            ],
+            "actions": ["Agregar ítem", "Editar ítem", "Buscar por serie", "Asignar a almacén"]
+        },
+        {
+            "key": "inventario_stock",
+            "label": "Inventario — Stock",
+            "url": "/inventory/inventory_item_stock",
+            "permission": "inventory_item_stock_view_inventory_item_stock",
+            "terms": [
+                { "term": "Stock", "definition": "Cantidad disponible de un ítem en un almacén." },
+                { "term": "Existencias", "definition": "Total de unidades físicas registradas de un ítem." }
+            ],
+            "steps": [
+                "Accede desde Inventario → Stock.",
+                "Consulta las existencias por almacén.",
+                "Ajusta el stock cuando hagas un conteo físico."
+            ],
+            "actions": ["Consultar stock", "Ajustar existencias", "Filtrar por almacén"]
+        },
+        {
+            "key": "inventario_movimientos",
+            "label": "Inventario — Movimientos",
+            "url": "/inventory/inventory_movement",
+            "permission": "inventory_movement_view_inventory_movement",
+            "terms": [
+                { "term": "Movimiento", "definition": "Entrada, salida o traslado de ítems entre almacenes o hacia un cliente/técnico." },
+                { "term": "Traslado", "definition": "Movimiento de un ítem de un almacén a otro." }
+            ],
+            "steps": [
+                "Accede desde Inventario → Movimientos.",
+                "Registra una entrada, salida o traslado de ítems.",
+                "Consulta el historial de movimientos para auditar el inventario."
+            ],
+            "actions": ["Registrar movimiento", "Trasladar entre almacenes", "Consultar historial"]
+        },
+        {
+            "key": "inventario_almacenes",
+            "label": "Inventario — Almacenes",
+            "url": "/inventory/inventory_store",
+            "permission": "inventory_store_view_inventory_store",
+            "terms": [
+                { "term": "Almacén", "definition": "Ubicación física donde se resguarda el inventario (central, sucursal, vehículo de técnico)." },
+                { "term": "Zona de almacén", "definition": "Subdivisión interna de un almacén para organizar ítems." }
+            ],
+            "steps": [
+                "Accede desde Inventario → Almacenes.",
+                "Crea o edita almacenes y sus zonas.",
+                "Asigna ítems a cada almacén."
+            ],
+            "actions": ["Crear almacén", "Editar zonas", "Asignar ítems"]
+        }
+    ],
+
     "client_tab": null,
     "service_type": null
 }
