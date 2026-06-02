@@ -11,6 +11,40 @@
     "config_sections": [],
     "api_endpoints": [],
     "ai": [],
+    "screens": [
+        {
+            "key": "crm_listar",
+            "label": "CRM — Clientes potenciales",
+            "url": "/crm/listar",
+            "permission": "crm_view_crm",
+            "terms": [
+                { "term": "Prospecto / Lead", "definition": "Cliente potencial interesado en contratar, aún no dado de alta como cliente." },
+                { "term": "Seguimiento", "definition": "Registro de las interacciones comerciales con el prospecto hasta cerrarlo." },
+                { "term": "Conversión", "definition": "Paso de prospecto a cliente activo cuando contrata un servicio." }
+            ],
+            "steps": [
+                "Accede desde Clientes potenciales → Listar.",
+                "Filtra y abre un prospecto para registrar el seguimiento comercial.",
+                "Cuando contrate, conviértelo en cliente para dar de alta su servicio."
+            ],
+            "actions": ["Buscar prospecto", "Registrar seguimiento", "Convertir a cliente", "Exportar"]
+        },
+        {
+            "key": "crm_crear",
+            "label": "CRM — Nuevo prospecto",
+            "url": "/crm/crear",
+            "permission": "crm_add_crm",
+            "terms": [
+                { "term": "Origen del lead", "definition": "Canal por el que llegó el prospecto: referido, campaña, web, WhatsApp." }
+            ],
+            "steps": [
+                "Accede desde Clientes potenciales → Crear.",
+                "Captura los datos de contacto y el origen del prospecto.",
+                "Guarda y asígnale un responsable de seguimiento."
+            ],
+            "actions": ["Capturar contacto", "Definir origen", "Asignar responsable", "Guardar"]
+        }
+    ],
     "client_tab": null,
     "service_type": null
 }

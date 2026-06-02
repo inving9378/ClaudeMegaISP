@@ -1,0 +1,75 @@
+{
+    "id": 200,
+    "slug": "addon-flotas",
+    "name": "Flotas",
+    "version": "1.0.0",
+    "description": "Gestión de flota vehicular: registro, mantenimientos, documentos, asignaciones y combustible. Uso interno Meganet + producto SaaS vendible a clientes ISP.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+
+    "permissions": [
+        { "name": "fleet.view",                "description": "Ver flota: lista de vehículos y detalles" },
+        { "name": "fleet.manage",              "description": "Crear, editar y eliminar vehículos" },
+        { "name": "fleet.assign",              "description": "Cambiar asignaciones de operador" },
+        { "name": "fleet.maintenance.manage",  "description": "Registrar y editar mantenimientos" },
+        { "name": "fleet.documents.manage",    "description": "Gestionar documentos y vencimientos" },
+        { "name": "fleet.fuel.manage",         "description": "Registrar cargas de combustible" },
+        { "name": "fleet.providers.manage",    "description": "Gestionar proveedores y talleres" },
+        { "name": "fleet.gps.view",            "description": "Ver tracking GPS y mapa de flota" },
+        { "name": "fleet.gps.manage",          "description": "Configurar dispositivos GPS" }
+    ],
+
+    "menu": [
+        {
+            "label": "Flotas",
+            "icon": "truck",
+            "permission": "fleet.view",
+            "url": "/flotas",
+            "children": [
+                { "label": "Dashboard",     "url": "/flotas",             "permission": "fleet.view" },
+                { "label": "Vehículos",     "url": "/flotas/vehiculos",   "permission": "fleet.view" },
+                { "label": "Mantenimientos","url": "/flotas/mantenimientos","permission": "fleet.maintenance.manage" },
+                { "label": "Documentos",    "url": "/flotas/documentos",  "permission": "fleet.documents.manage" },
+                { "label": "Proveedores",   "url": "/flotas/proveedores", "permission": "fleet.providers.manage" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Flotas",
+            "description": "Gestión de flota vehicular: vehículos, mantenimientos, documentos y combustible.",
+            "icon": "truck",
+            "url": "/flotas",
+            "permission": "fleet.view"
+        }
+    ],
+
+    "sidebar": {
+        "location": "main"
+    },
+
+    "config_sections": [
+        {
+            "key": "flotas_config",
+            "label": "Flotas — Configuración",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "truck",
+            "url": "/flotas",
+            "permission": "fleet.manage",
+            "description": "Módulo de gestión de flota vehicular interna y SaaS para clientes ISP."
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",    "path": "/api/flotas/vehiculos",           "description": "Listar vehículos (con filtros)", "scope": "fleet.view",               "permission": "fleet.view" },
+        { "method": "POST",   "path": "/api/flotas/vehiculos",           "description": "Crear vehículo",                 "scope": "fleet.manage",              "permission": "fleet.manage" },
+        { "method": "GET",    "path": "/api/flotas/vehiculos/{id}",      "description": "Detalle de vehículo",             "scope": "fleet.view",               "permission": "fleet.view" },
+        { "method": "PATCH",  "path": "/api/flotas/vehiculos/{id}",      "description": "Actualizar vehículo",             "scope": "fleet.manage",              "permission": "fleet.manage" },
+        { "method": "DELETE", "path": "/api/flotas/vehiculos/{id}",      "description": "Eliminar vehículo (soft)",        "scope": "fleet.manage",              "permission": "fleet.manage" },
+        { "method": "POST",   "path": "/api/flotas/mantenimientos",      "description": "Crear mantenimiento",             "scope": "fleet.maintenance.manage",  "permission": "fleet.maintenance.manage" },
+        { "method": "GET",    "path": "/api/flotas/documentos/alertas",  "description": "Documentos por vencer",           "scope": "fleet.documents.manage",    "permission": "fleet.documents.manage" }
+    ]
+}

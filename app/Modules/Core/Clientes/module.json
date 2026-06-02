@@ -11,6 +11,57 @@
     "config_sections": [],
     "api_endpoints": [],
     "ai": [],
+    "screens": [
+        {
+            "key": "clientes_dashboard",
+            "label": "Clientes — Dashboard",
+            "url": "/cliente",
+            "permission": "client_view_dashboard",
+            "terms": [
+                { "term": "Cliente", "definition": "Persona o empresa que tiene contratado uno o más servicios del ISP." },
+                { "term": "Estado del cliente", "definition": "Situación del servicio: activo, suspendido, bloqueado por morosidad o baja." },
+                { "term": "Moroso", "definition": "Cliente con saldo vencido pendiente de pago." }
+            ],
+            "steps": [
+                "Accede desde el menú Clientes → Dashboard.",
+                "Revisa los indicadores: total, activos, bloqueados y nuevos del mes.",
+                "Entra a 'Listar' para buscar un cliente o a 'Crear' para dar de alta uno nuevo."
+            ],
+            "actions": ["Ver indicadores", "Listar clientes", "Crear cliente"]
+        },
+        {
+            "key": "clientes_listar",
+            "label": "Clientes — Listado",
+            "url": "/cliente/listar",
+            "permission": "client_view_client",
+            "terms": [
+                { "term": "Ficha de cliente", "definition": "Vista con todos los datos del cliente: servicios, pagos, red, tickets y documentos." },
+                { "term": "Filtro", "definition": "Criterio para acotar el listado (estado, colonia, plan, vendedor)." }
+            ],
+            "steps": [
+                "Accede desde Clientes → Listar.",
+                "Usa los filtros y el buscador para localizar al cliente.",
+                "Haz clic en un cliente para abrir su ficha y gestionarlo."
+            ],
+            "actions": ["Buscar cliente", "Filtrar", "Abrir ficha", "Exportar"]
+        },
+        {
+            "key": "clientes_crear",
+            "label": "Clientes — Alta",
+            "url": "/cliente/crear",
+            "permission": "client_add_client",
+            "terms": [
+                { "term": "Domicilio de instalación", "definition": "Dirección georreferenciada donde se presta el servicio." },
+                { "term": "Servicio contratado", "definition": "Plan (Internet, VoIP, Custom o Paquete) que el cliente adquiere al darse de alta." }
+            ],
+            "steps": [
+                "Accede desde Clientes → Crear.",
+                "Captura los datos personales, el domicilio y el contacto.",
+                "Asigna el o los servicios contratados y guarda el alta."
+            ],
+            "actions": ["Capturar datos", "Asignar domicilio", "Contratar servicio", "Guardar"]
+        }
+    ],
     "client_tab": null,
     "service_type": null
 }

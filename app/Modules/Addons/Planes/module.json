@@ -99,6 +99,73 @@
         "sensitive_actions": ["plan_delete_internet", "plan_delete_package"]
     },
 
+    "screens": [
+        {
+            "key": "planes_internet",
+            "label": "Planes — Internet",
+            "url": "/planes/internet",
+            "permission": "plan_view_internet",
+            "terms": [
+                { "term": "Plan de Internet", "definition": "Paquete de servicio FTTH con velocidad de bajada/subida y precio definidos." },
+                { "term": "Velocidad", "definition": "Capacidad contratada del plan, normalmente en Mbps de bajada y subida." },
+                { "term": "Perfil MikroTik", "definition": "Configuración en el router que limita la velocidad según el plan del cliente." }
+            ],
+            "steps": [
+                "Accede desde Planes → Internet.",
+                "Crea un plan con su velocidad, precio y promociones.",
+                "Edita o desactiva planes existentes según tu oferta comercial."
+            ],
+            "actions": ["Crear plan", "Editar plan", "Definir promoción", "Exportar"]
+        },
+        {
+            "key": "planes_voz",
+            "label": "Planes — VoIP",
+            "url": "/planes/voz",
+            "permission": "plan_view_voz",
+            "terms": [
+                { "term": "Plan VoIP", "definition": "Servicio de telefonía por internet con minutos y tarifas definidas." },
+                { "term": "DID", "definition": "Número telefónico asignado al cliente para recibir llamadas." }
+            ],
+            "steps": [
+                "Accede desde Planes → VoIP.",
+                "Crea un plan de voz con sus tarifas y minutos incluidos.",
+                "Asócialo al catálogo de servicios contratables."
+            ],
+            "actions": ["Crear plan VoIP", "Editar tarifas", "Exportar"]
+        },
+        {
+            "key": "planes_custom",
+            "label": "Planes — Custom",
+            "url": "/planes/custom",
+            "permission": "plan_view_custom",
+            "terms": [
+                { "term": "Plan Custom", "definition": "Servicio personalizado que no encaja en Internet o VoIP estándar." }
+            ],
+            "steps": [
+                "Accede desde Planes → Custom.",
+                "Define un servicio personalizado con su precio.",
+                "Úsalo al contratar servicios especiales para un cliente."
+            ],
+            "actions": ["Crear plan custom", "Editar precio", "Exportar"]
+        },
+        {
+            "key": "planes_paquetes",
+            "label": "Planes — Paquetes",
+            "url": "/planes/paquetes",
+            "permission": "plan_view_package",
+            "terms": [
+                { "term": "Paquete (Bundle)", "definition": "Combinación de varios planes (ej. Internet + VoIP) vendida como una sola oferta." },
+                { "term": "Precio del paquete", "definition": "Tarifa única del bundle, normalmente con descuento frente a contratar los planes por separado." }
+            ],
+            "steps": [
+                "Accede desde Planes → Paquetes.",
+                "Crea un paquete combinando planes existentes.",
+                "Define el precio del paquete y sus promociones."
+            ],
+            "actions": ["Crear paquete", "Agregar planes al paquete", "Definir precio", "Exportar"]
+        }
+    ],
+
     "client_tab": null,
 
     "service_type": {

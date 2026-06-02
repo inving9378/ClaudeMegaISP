@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Addons\Planes\Controllers\BundleController;
+use App\Modules\Addons\Planes\Controllers\CatalogoController;
 use App\Modules\Addons\Planes\Controllers\CustomController;
 use App\Modules\Addons\Planes\Controllers\InternetController;
 use App\Modules\Addons\Planes\Controllers\VozController;
@@ -62,5 +63,14 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () 
         Route::post('/update/{id}', [CustomController::class, 'update']);
         Route::post('/destroy/{id}', [CustomController::class, 'destroy']);
         Route::post('/table', [CustomController::class, 'table']);
+    });
+
+    // Motor de servicios contratables (Item #006): catálogo unificado
+    // manifiesto + overlay administrable.
+    Route::prefix('planes/catalogo')->group(function () {
+        Route::get('/', [CatalogoController::class, 'index'])->name('planes.catalogo');
+        Route::get('/data', [CatalogoController::class, 'data']);
+        Route::post('/sync', [CatalogoController::class, 'sync']);
+        Route::post('/{key}', [CatalogoController::class, 'update']);
     });
 });

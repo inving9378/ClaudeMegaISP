@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Manual\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Manual\Models\ManualSection;
 use App\Modules\Addons\Manual\Services\ManualGeneratorService;
+use App\Modules\Core\ModuleManager\Services\ModuleRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -78,6 +79,95 @@ class ManualController extends Controller
         }
 
         return response()->json($section);
+    }
+
+    /**
+     * Ayuda contextual para la pantalla actual (panel lateral estilo Splynx).
+     *
+     * Recibe ?url=/ruta/actual y devuelve los bloques de ayuda declarados por
+     * el módulo dueño de esa pantalla: glosario (terms), pasos (steps) y
+     * acciones disponibles (actions).
+     *
+     * Fuente primaria: `screens[]` de los manifests (ModuleRegistry::getScreenHelp).
+     * Fallback: el bloque `doc` de `config_sections[]` cuya url coincida.
+     * Si no hay coincidencia exacta, se usa el match de prefijo más largo
+     * (p. ej. /cliente/123 → ayuda declarada para /cliente).
+     */
+    public function help(Request $request, ModuleRegistry $registry): JsonResponse
+    {
+        $url = $this->normalizePath((string) $request->query('url', ''));
+
+        if ($url === '') {
+            return response()->json(['found' => false, 'manual_url' => '/manual']);
+        }
+
+        // 1. Match exacto contra screens declaradas.
+        $screen = $this->matchHelp($registry->getScreenHelp(), $url);
+
+        // 2. Fallback: bloque doc de config_sections.
+        if ($screen === null) {
+            $sections = array_map(function ($section) {
+                return array_merge($section['doc'] ?? [], [
+                    'label' => $section['label'] ?? ($section['title'] ?? null),
+                    'url'   => $section['url'] ?? null,
+                ]);
+            }, $registry->getConfigSectionsFlat());
+
+            $screen = $this->matchHelp($sections, $url);
+        }
+
+        if ($screen === null) {
+            return response()->json(['found' => false, 'manual_url' => '/manual']);
+        }
+
+        return response()->json([
+            'found'      => true,
+            'label'      => $screen['label'] ?? 'Ayuda de la pantalla',
+            'terms'      => array_values($screen['terms'] ?? []),
+            'steps'      => array_values($screen['steps'] ?? []),
+            'actions'    => array_values($screen['actions'] ?? []),
+            'manual_url' => '/manual',
+        ]);
+    }
+
+    /**
+     * Encuentra el bloque de ayuda cuyo url calce mejor con $path.
+     * Prefiere coincidencia exacta; si no, el prefijo declarado más largo.
+     */
+    private function matchHelp(array $candidates, string $path): ?array
+    {
+        $best = null;
+        $bestLen = -1;
+
+        foreach ($candidates as $candidate) {
+            $candUrl = $this->normalizePath((string) ($candidate['url'] ?? ''));
+            if ($candUrl === '') {
+                continue;
+            }
+
+            $isExact  = $candUrl === $path;
+            $isPrefix = $candUrl !== '/' && str_starts_with($path, $candUrl . '/');
+
+            if (($isExact || $isPrefix) && strlen($candUrl) > $bestLen) {
+                $best = $candidate;
+                $bestLen = strlen($candUrl);
+                if ($isExact) {
+                    break;
+                }
+            }
+        }
+
+        return $best;
+    }
+
+    private function normalizePath(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            return '';
+        }
+        $path = '/' . ltrim($path, '/');
+        return $path === '/' ? '/' : rtrim($path, '/');
     }
 
     public function generate(Request $request, ManualGeneratorService $service): JsonResponse

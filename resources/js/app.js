@@ -58,6 +58,7 @@ import DocumentTemplateListar from "./components/module/adminstration/document_t
 
 //Configuracion
 import CatalogoApiPanel from "./components/module/configuracion/CatalogoApiPanel.vue";
+import CatalogoServiciosPanel from "./components/module/planes/CatalogoServiciosPanel.vue";
 import DebtPaymentClient from "./components/module/setting/DebtPaymentClient";
 import DebitCustomListar from "./components/module/setting/DebitCustomListar";
 import CommandConfig from "./components/module/setting/CommandConfig";
@@ -110,6 +111,12 @@ import EmbajadoresArbol from "./components/module/embajadores/EmbajadoresArbol.v
 
 // War Room Ejecutivo (addon-warroom)
 import WarroomDashboard from "./components/module/warroom/WarroomDashboard.vue";
+
+// Flotas (addon-flotas) — gestión de flota vehicular
+import FleetDashboard from "./components/module/flotas/FleetDashboard.vue";
+import FleetVehicleForm from "./components/module/flotas/FleetVehicleForm.vue";
+import FleetVehicleShow from "./components/module/flotas/FleetVehicleShow.vue";
+import FleetMap from "./components/module/flotas/FleetMap.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -298,6 +305,8 @@ import IAConfiguracion from "./components/module/ia/IAConfiguracion.vue";
 
 //Manual de Usuario (addon-manual)
 import ManualIndex from "./components/module/manual/ManualIndex.vue";
+//Ayuda contextual por pantalla (panel flotante estilo Splynx)
+import HelpFloat from "./components/ayuda/HelpFloat.vue";
 
 //Evaluador Empresarial — portado desde MEGANET 2026-05-22
 import EvaluadorEmpresarial from "./components/module/sellers/EvaluadorEmpresarial.vue";
@@ -407,6 +416,7 @@ const app = createApp({
         LeafletMap,
 
         CatalogoApiPanel,
+        'catalogo-servicios-panel': CatalogoServiciosPanel,
         DebtPaymentClient,
 
         //Administracion
@@ -460,6 +470,7 @@ const app = createApp({
         'module-config-panel': ModuleConfigPanel,
         'devtools-panel': DevtoolsPanel,
         'manual-index': ManualIndex,
+        'help-float': HelpFloat,
         'api-movil-config': ApiMovilConfig,
         'api-movil-tokens': ApiMovilTokens,
         'api-movil-docs': ApiMovilDocs,
@@ -490,6 +501,10 @@ const app = createApp({
         'embajadores-comisiones': EmbajadoresComisiones,
         'embajadores-arbol': EmbajadoresArbol,
         'warroom-dashboard': WarroomDashboard,
+        'fleet-dashboard': FleetDashboard,
+        'fleet-vehicle-form': FleetVehicleForm,
+        'fleet-vehicle-show': FleetVehicleShow,
+        'fleet-map': FleetMap,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
