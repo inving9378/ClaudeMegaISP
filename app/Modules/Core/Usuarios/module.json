@@ -7,7 +7,22 @@
     "dependencies": [],
     "active": true,
     "menu": [],
-    "admin_cards": [],
+    "admin_cards": [
+        {
+            "title": "Administradores",
+            "description": "Usuarios del sistema, accesos y vendedores asociados.",
+            "icon": "users",
+            "url": "/administracion/user",
+            "permission": "user_view_user"
+        },
+        {
+            "title": "Roles y Permisos",
+            "description": "Roles del sistema y los permisos asignados a cada uno.",
+            "icon": "user-shield",
+            "url": "/administracion/rol",
+            "permission": "role_view_role"
+        }
+    ],
     "config_sections": [],
     "api_endpoints": [],
     "ai": [],

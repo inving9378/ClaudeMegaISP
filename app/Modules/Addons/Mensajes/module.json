@@ -33,7 +33,7 @@
         {
             "title": "Mensajes",
             "description": "Inbox interno y correos transaccionales: facturas, proformas y recordatorios de pago.",
-            "icon": "mail",
+            "icon": "envelope",
             "url": "/message/inbox",
             "permission": "inbox_view_inbox"
         }

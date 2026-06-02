@@ -7,7 +7,15 @@
     "dependencies": [],
     "active": true,
     "menu": [],
-    "admin_cards": [],
+    "admin_cards": [
+        {
+            "title": "Bitácora de Actividad",
+            "description": "Registro de auditoría de cambios y acciones en el sistema.",
+            "icon": "history",
+            "url": "/administracion/activity_log",
+            "permission": "admin_view_information"
+        }
+    ],
     "config_sections": [],
     "api_endpoints": [],
     "ai": [],

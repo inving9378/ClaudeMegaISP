@@ -1222,10 +1222,9 @@ export default {
     /* ── Fila del item: spacing ajustado ── */
     .rdm-item-row { padding: 10px; gap: 8px; }
 
-    /* ── Círculo de estado: tap target ≥ 44×44 px ── */
+    /* ── Círculo de estado: tap target real ≥ 44×44 px (guía del patrón) ── */
     .rdm-status-btn {
-        width: 36px; height: 36px; font-size: 16px;
-        /* El área táctil visible es 36px; el área de toque real con padding es 44px */
+        width: 44px; height: 44px; font-size: 18px;
     }
 
     /* ── Botón lanzar: tap target ≥ 44×44 px ── */

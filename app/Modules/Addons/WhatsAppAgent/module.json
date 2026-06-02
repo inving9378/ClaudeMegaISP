@@ -32,7 +32,7 @@
         {
             "title": "WhatsApp Agent",
             "description": "Chat multiagente con clientes vía WhatsApp + asistente IA.",
-            "icon": "message-circle",
+            "icon": "comment-dots",
             "url": "/whatsapp",
             "permission": "whatsapp_view_conversations"
         }

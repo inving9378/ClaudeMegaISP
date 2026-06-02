@@ -7,7 +7,43 @@
     "dependencies": [],
     "active": true,
     "menu": [],
-    "admin_cards": [],
+    "admin_cards": [
+        {
+            "title": "Ubicaciones",
+            "description": "Catálogo de ubicaciones administrativas.",
+            "icon": "map-marker-alt",
+            "url": "/administracion/ubicacion",
+            "permission": "admin_view_meganet"
+        },
+        {
+            "title": "Sucursales",
+            "description": "Sucursales de la empresa.",
+            "icon": "building",
+            "url": "/administracion/sucursal",
+            "permission": "view_sucursal"
+        },
+        {
+            "title": "Estados",
+            "description": "Catálogo geográfico de estados.",
+            "icon": "globe",
+            "url": "/administracion/estado",
+            "permission": "state_view_state"
+        },
+        {
+            "title": "Municipios",
+            "description": "Catálogo geográfico de municipios.",
+            "icon": "map",
+            "url": "/administracion/municipio",
+            "permission": "municipality_view_municipality"
+        },
+        {
+            "title": "Colonias",
+            "description": "Catálogo geográfico de colonias.",
+            "icon": "map-pin",
+            "url": "/administracion/colonia",
+            "permission": "colony_view_colony"
+        }
+    ],
     "config_sections": [
         {
             "key": "repoblar_geo",

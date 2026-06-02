@@ -29,7 +29,7 @@
         {
             "title": "MegaFamilia",
             "description": "Control parental para clientes: perfiles, dispositivos, reglas y geofences.",
-            "icon": "shield",
+            "icon": "shield-alt",
             "url": "/megafamilia",
             "permission": "megafamilia_view"
         }
