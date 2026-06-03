@@ -116,6 +116,14 @@ import WarroomDashboard from "./components/module/warroom/WarroomDashboard.vue";
 import FleetDashboard from "./components/module/flotas/FleetDashboard.vue";
 import FleetVehicleForm from "./components/module/flotas/FleetVehicleForm.vue";
 import FleetVehicleShow from "./components/module/flotas/FleetVehicleShow.vue";
+import FleetTabInfo from "./components/module/flotas/FleetTabInfo.vue";
+import FleetTabAsignacion from "./components/module/flotas/FleetTabAsignacion.vue";
+import FleetTabMantenimientos from "./components/module/flotas/FleetTabMantenimientos.vue";
+import FleetTabDocumentos from "./components/module/flotas/FleetTabDocumentos.vue";
+import FleetTabCombustible from "./components/module/flotas/FleetTabCombustible.vue";
+import FleetTabGps from "./components/module/flotas/FleetTabGps.vue";
+import FleetTabHistorial from "./components/module/flotas/FleetTabHistorial.vue";
+import FleetTabFotos from "./components/module/flotas/FleetTabFotos.vue";
 import FleetMap from "./components/module/flotas/FleetMap.vue";
 import FleetGeofenceList from "./components/module/flotas/FleetGeofenceList.vue";
 import FleetGeofenceForm from "./components/module/flotas/FleetGeofenceForm.vue";
@@ -777,6 +785,16 @@ app.directive("table-resizable", QTableResizable);
 //    montar sólo las pestañas cuyo componente realmente existe.
 // El nombre debe coincidir EXACTO con `client_tab.component` del module.json.
 app.component("MegaFamiliaClientTab", MegaFamiliaClientTab);
+
+// Fleet tab sub-components: deben ser globales porque los usa FleetVehicleShow (descendiente)
+app.component("fleet-tab-info",           FleetTabInfo);
+app.component("fleet-tab-asignacion",     FleetTabAsignacion);
+app.component("fleet-tab-mantenimientos", FleetTabMantenimientos);
+app.component("fleet-tab-documentos",     FleetTabDocumentos);
+app.component("fleet-tab-combustible",    FleetTabCombustible);
+app.component("fleet-tab-gps",            FleetTabGps);
+app.component("fleet-tab-historial",      FleetTabHistorial);
+app.component("fleet-tab-fotos",          FleetTabFotos);
 
 app.use(VueApexCharts);
 

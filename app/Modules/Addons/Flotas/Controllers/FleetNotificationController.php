@@ -2,7 +2,6 @@
 
 namespace App\Modules\Addons\Flotas\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Modules\Addons\Flotas\Models\FleetGeofence;
 use App\Modules\Addons\Flotas\Models\FleetGeofenceEvent;
 use App\Modules\Addons\Flotas\Models\FleetNotificationLog;
@@ -13,7 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 // Sub-fase 3.3 — Preferencias de alerta del usuario + log de notificaciones.
-class FleetNotificationController extends Controller
+class FleetNotificationController extends FleetBaseController
 {
     // GET /flotas/api/vehiculos/{id}/notification-preference — preferencia del usuario actual para este vehículo
     public function myPreference(int $id): JsonResponse
@@ -153,12 +152,4 @@ class FleetNotificationController extends Controller
         return response()->json(['success' => true, 'results' => $results]);
     }
 
-    private function clientId(): ?int
-    {
-        $user = auth()->user();
-        if ($user->hasRole(['super-administrator', 'DESARROLLADOR'])) {
-            return null;
-        }
-        return $user->client_id ?? null;
-    }
 }

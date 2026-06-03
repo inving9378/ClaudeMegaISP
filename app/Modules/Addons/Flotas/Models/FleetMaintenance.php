@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Flotas\Models;
 
 use App\Models\BaseModel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FleetMaintenance extends BaseModel
@@ -41,5 +42,12 @@ class FleetMaintenance extends BaseModel
     public function files()
     {
         return $this->hasMany(FleetMaintenanceFile::class, 'maintenance_id');
+    }
+
+    public function scopeForClient(Builder $q, ?int $clientId): Builder
+    {
+        return $q->whereHas('vehicle', fn($v) => $clientId
+            ? $v->where('client_id', $clientId)
+            : $v->whereNull('client_id'));
     }
 }

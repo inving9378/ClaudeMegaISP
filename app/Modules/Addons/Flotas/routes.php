@@ -111,12 +111,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // ── API: Documentos ────────────────────────────────────────────────────
         Route::prefix('api/documentos')->group(function () {
-            Route::get('/',        [FleetDocumentController::class, 'index']);
-            Route::post('/',       [FleetDocumentController::class, 'store']);
-            Route::get('/{id}',    [FleetDocumentController::class, 'show']);
-            Route::patch('/{id}',  [FleetDocumentController::class, 'update']);
-            Route::delete('/{id}', [FleetDocumentController::class, 'destroy']);
-            Route::get('/alertas/proximos', [FleetDocumentController::class, 'proximos']);
+            Route::get('/',                  [FleetDocumentController::class, 'index']);
+            Route::post('/',                 [FleetDocumentController::class, 'store']);
+            Route::get('/alertas/proximos',  [FleetDocumentController::class, 'proximos']); // ANTES de /{id}
+            Route::get('/{id}',              [FleetDocumentController::class, 'show']);
+            Route::patch('/{id}',            [FleetDocumentController::class, 'update']);
+            Route::delete('/{id}',           [FleetDocumentController::class, 'destroy']);
         });
 
         // ── API: Proveedores ───────────────────────────────────────────────────
