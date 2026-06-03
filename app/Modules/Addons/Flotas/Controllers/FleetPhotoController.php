@@ -21,7 +21,7 @@ class FleetPhotoController extends FleetBaseController
 
         $this->vehicleForClient($request->vehicle_id);
 
-        $path = Storage::disk('local')->putFile(
+        $path = Storage::disk('public')->putFile(
             "fleet/photos/{$request->vehicle_id}",
             $request->file('photo')
         );
@@ -41,7 +41,7 @@ class FleetPhotoController extends FleetBaseController
         $this->authorize('fleet.manage');
 
         $photo = FleetPhoto::forClient($this->clientId())->findOrFail($id);
-        Storage::disk('local')->delete($photo->file_path);
+        Storage::disk('public')->delete($photo->file_path);
         $photo->delete();
 
         return response()->json(['ok' => true]);

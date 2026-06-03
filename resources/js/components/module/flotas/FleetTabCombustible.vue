@@ -66,7 +66,7 @@ export default {
         const { fmtMoney, fmtKm, fmtDate } = useFleetFormatters();
 
         const computed_log = computed(() => {
-            const logs = (props.vehicle?.fuelLog ?? []).slice().sort((a, b) => new Date(a.refuel_date) - new Date(b.refuel_date));
+            const logs = (props.vehicle?.fuel_log ?? []).slice().sort((a, b) => new Date(a.refuel_date) - new Date(b.refuel_date));
             let prevKm = null;
             return logs.map((f) => {
                 let km_l = null;

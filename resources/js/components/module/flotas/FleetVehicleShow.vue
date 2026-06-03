@@ -266,7 +266,7 @@ export default {
             maintenances: (vehicle.value?.maintenances ?? []).length,
             documents:    (vehicle.value?.documents ?? []).length,
             assignments:  assignments.value.length,
-            fuel:         (vehicle.value?.fuelLog ?? []).length,
+            fuel:         (vehicle.value?.fuel_log ?? []).length,
             photos:       (vehicle.value?.photos ?? []).length,
         }));
         function openDeleteModal() { moreOpen.value = false; showDeleteModal.value = true; }
