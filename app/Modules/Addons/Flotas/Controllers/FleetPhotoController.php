@@ -2,14 +2,12 @@
 
 namespace App\Modules\Addons\Flotas\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Modules\Addons\Flotas\Models\FleetPhoto;
-use App\Modules\Addons\Flotas\Models\FleetVehicle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
-class FleetPhotoController extends Controller
+class FleetPhotoController extends FleetBaseController
 {
     public function store(Request $request): JsonResponse
     {
@@ -18,10 +16,10 @@ class FleetPhotoController extends Controller
         $request->validate([
             'vehicle_id' => 'required|integer',
             'photo_type' => 'nullable|in:front,side,rear,dashboard,general',
-            'photo'      => 'required|image|max:5120', // 5MB
+            'photo'      => 'required|image|max:5120',
         ]);
 
-        FleetVehicle::where(fn($q) => $this->scopeClient($q))->findOrFail($request->vehicle_id);
+        $this->vehicleForClient($request->vehicle_id);
 
         $path = Storage::disk('local')->putFile(
             "fleet/photos/{$request->vehicle_id}",
@@ -42,19 +40,10 @@ class FleetPhotoController extends Controller
     {
         $this->authorize('fleet.manage');
 
-        $photo = FleetPhoto::whereHas('vehicle', fn($v) => $this->scopeClient($v))->findOrFail($id);
+        $photo = FleetPhoto::forClient($this->clientId())->findOrFail($id);
         Storage::disk('local')->delete($photo->file_path);
         $photo->delete();
 
         return response()->json(['ok' => true]);
-    }
-
-    private function scopeClient($q)
-    {
-        $user = auth()->user();
-        if ($user->hasRole(['super-administrator', 'DESARROLLADOR'])) {
-            return $q->whereNull('client_id');
-        }
-        return $q->where('client_id', $user->client_id ?? 0);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Flotas\Models;
 
 use App\Models\BaseModel;
+use Illuminate\Database\Eloquent\Builder;
 
 class FleetFuelLog extends BaseModel
 {
@@ -27,5 +28,12 @@ class FleetFuelLog extends BaseModel
     public function getCostPerLiterAttribute(): ?float
     {
         return $this->liters > 0 ? round($this->cost / $this->liters, 2) : null;
+    }
+
+    public function scopeForClient(Builder $q, ?int $clientId): Builder
+    {
+        return $q->whereHas('vehicle', fn($v) => $clientId
+            ? $v->where('client_id', $clientId)
+            : $v->whereNull('client_id'));
     }
 }

@@ -2,20 +2,18 @@
 
 namespace App\Modules\Addons\Flotas\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Modules\Addons\Flotas\Models\FleetFuelLog;
-use App\Modules\Addons\Flotas\Models\FleetVehicle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class FleetFuelLogController extends Controller
+class FleetFuelLogController extends FleetBaseController
 {
     public function index(Request $request): JsonResponse
     {
         $this->authorize('fleet.view');
 
         $q = FleetFuelLog::with('vehicle')
-            ->whereHas('vehicle', fn($v) => $this->scopeClient($v))
+            ->forClient($this->clientId())
             ->orderByDesc('refuel_date');
 
         if ($request->filled('vehicle_id')) {
@@ -43,7 +41,7 @@ class FleetFuelLogController extends Controller
             'station_name' => 'nullable|string|max:150',
         ]);
 
-        FleetVehicle::where(fn($q) => $this->scopeClient($q))->findOrFail($data['vehicle_id']);
+        $this->vehicleForClient($data['vehicle_id']);
 
         $entry = FleetFuelLog::create($data);
 
@@ -54,17 +52,8 @@ class FleetFuelLogController extends Controller
     {
         $this->authorize('fleet.fuel.manage');
 
-        FleetFuelLog::whereHas('vehicle', fn($v) => $this->scopeClient($v))->findOrFail($id)->delete();
+        FleetFuelLog::forClient($this->clientId())->findOrFail($id)->delete();
 
         return response()->json(['ok' => true]);
-    }
-
-    private function scopeClient($q)
-    {
-        $user = auth()->user();
-        if ($user->hasRole(['super-administrator', 'DESARROLLADOR'])) {
-            return $q->whereNull('client_id');
-        }
-        return $q->where('client_id', $user->client_id ?? 0);
     }
 }

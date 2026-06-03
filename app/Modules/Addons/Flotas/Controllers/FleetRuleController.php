@@ -2,7 +2,6 @@
 
 namespace App\Modules\Addons\Flotas\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Modules\Addons\Flotas\Models\FleetGeofenceRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -10,7 +9,7 @@ use Illuminate\Validation\Rule;
 
 // Sub-fase 3.4 — Reglas de alerta del usuario (capa opt-in sobre 3.3).
 // Multi-tenancy estricto: cada usuario solo ve/gestiona SUS propias reglas.
-class FleetRuleController extends Controller
+class FleetRuleController extends FleetBaseController
 {
     // GET /flotas/api/reglas — reglas del usuario actual
     public function index(): JsonResponse
@@ -123,12 +122,4 @@ class FleetRuleController extends Controller
         ];
     }
 
-    private function clientId(): ?int
-    {
-        $user = auth()->user();
-        if ($user->hasRole(['super-administrator', 'DESARROLLADOR'])) {
-            return null;
-        }
-        return $user->client_id ?? null;
-    }
 }

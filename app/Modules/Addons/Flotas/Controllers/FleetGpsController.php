@@ -2,7 +2,6 @@
 
 namespace App\Modules\Addons\Flotas\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Modules\Addons\Flotas\Models\FleetDevice;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
 use App\Modules\Addons\Flotas\Services\FleetPositionService;
@@ -10,7 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class FleetGpsController extends Controller
+class FleetGpsController extends FleetBaseController
 {
     public function __construct(private FleetPositionService $positions)
     {
@@ -199,12 +198,4 @@ class FleetGpsController extends Controller
         return $r * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
-    private function clientId(): ?int
-    {
-        $user = auth()->user();
-        if ($user->hasRole(['super-administrator', 'DESARROLLADOR'])) {
-            return null; // ve flota interna Meganet
-        }
-        return $user->client_id ?? null;
-    }
 }

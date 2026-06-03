@@ -2,7 +2,6 @@
 
 namespace App\Modules\Addons\Flotas\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Modules\Addons\Flotas\Models\FleetGeofence;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
 use Illuminate\Http\JsonResponse;
@@ -10,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 // Sub-fase 3.1 — CRUD de geocercas + asignación de vehículos (sin detección automática).
-class FleetGeofenceController extends Controller
+class FleetGeofenceController extends FleetBaseController
 {
     // GET /flotas/api/geocercas — lista con filtros (type, active, vehicle_id)
     public function index(Request $request): JsonResponse
@@ -196,12 +195,4 @@ class FleetGeofenceController extends Controller
         ];
     }
 
-    private function clientId(): ?int
-    {
-        $user = auth()->user();
-        if ($user->hasRole(['super-administrator', 'DESARROLLADOR'])) {
-            return null; // ve la flota interna Meganet
-        }
-        return $user->client_id ?? null;
-    }
 }

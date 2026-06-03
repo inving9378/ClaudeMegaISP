@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Flotas\Models;
 
 use App\Models\BaseModel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FleetProvider extends BaseModel
@@ -18,5 +19,10 @@ class FleetProvider extends BaseModel
     public function maintenances()
     {
         return $this->hasMany(FleetMaintenance::class, 'provider_id');
+    }
+
+    public function scopeForClient(Builder $q, ?int $clientId): Builder
+    {
+        return $clientId ? $q->where('client_id', $clientId) : $q->whereNull('client_id');
     }
 }
