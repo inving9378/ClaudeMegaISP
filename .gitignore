@@ -27,6 +27,9 @@ Docs
 .env.testing
 .env.backup*
 .env.pilot
+*.vue.backup*
+*.php.backup*
+*.backup-*
 .claude/
 
 public/test-*.mp4

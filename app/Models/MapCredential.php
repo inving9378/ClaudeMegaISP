@@ -15,4 +15,14 @@ class MapCredential extends Model
         'latitude',
         'longitude',
     ];
+
+    protected $hidden = ['api_key'];
+
+    public function getApiKeyPreviewAttribute(): ?string
+    {
+        if (!$this->api_key) {
+            return null;
+        }
+        return '••••••••••••' . substr($this->api_key, -3);
+    }
 }

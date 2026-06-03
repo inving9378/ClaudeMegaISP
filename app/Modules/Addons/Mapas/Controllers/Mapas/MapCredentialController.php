@@ -33,8 +33,15 @@ class MapCredentialController extends Controller
 
     public function edit()
     {
-        $mapCredential = MapCredential::all();
-        return response()->json($mapCredential);
+        $credentials = MapCredential::all()->map(fn($m) => [
+            'id'              => $m->id,
+            'latitude'        => $m->latitude,
+            'longitude'       => $m->longitude,
+            'zoom'            => $m->zoom,
+            'api_key_preview' => $m->api_key_preview,
+            'has_key'         => (bool) $m->getAttributes()['api_key'] ?? false,
+        ]);
+        return response()->json($credentials);
     }
 
     public function update(Request $request, $id)
@@ -49,7 +56,9 @@ class MapCredentialController extends Controller
         $mapCredential->latitude = $request->latitude;
         $mapCredential->longitude = $request->longitude;
         $mapCredential->zoom = $request->zoom;
-        $mapCredential->api_key = $request->api_key;
+        if ($request->filled('api_key')) {
+            $mapCredential->api_key = $request->api_key;
+        }
         $mapCredential->save();
 
         return response()->json(['status' => 200, 'message' => 'Credenciales actualizadas correctamente']);

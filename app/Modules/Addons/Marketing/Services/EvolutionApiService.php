@@ -138,15 +138,14 @@ class EvolutionApiService
 
         Log::channel('evolution')->info('Evolution API', [
             'status' => $status,
-            'body'   => $response->json(),
+            'keys'   => array_keys($response->json() ?? []),
         ]);
 
         if ($status >= 400) {
             Log::channel('evolution')->error('Evolution API error', [
                 'status' => $status,
-                'body'   => $response->body(),
             ]);
-            throw new \RuntimeException("Evolution API error {$status}: " . $response->body());
+            throw new \RuntimeException("Evolution API error {$status}");
         }
 
         return $response->json() ?? [];

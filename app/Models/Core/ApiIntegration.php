@@ -79,10 +79,6 @@ class ApiIntegration extends BaseModel
 
     private function buildPreview(string $key): string
     {
-        $len = strlen($key);
-        if ($len <= 8) {
-            return str_repeat('*', $len);
-        }
-        return substr($key, 0, 8) . '...' . substr($key, -4);
+        return '••••••••••••' . substr($key, -3);
     }
 }

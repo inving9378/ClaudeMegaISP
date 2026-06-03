@@ -15,6 +15,8 @@ class Setting extends Model
         'company_id', 'key', 'value', 'encrypted', 'group',
     ];
 
+    protected $hidden = ['value'];
+
     protected $casts = [
         'encrypted' => 'boolean',
     ];
