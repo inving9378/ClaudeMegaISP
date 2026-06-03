@@ -22,6 +22,7 @@ public/perfiles
 public/uploads
 public/downloads/
 *.apk
+mobile/
 Docs
 .env
 .env.testing
