@@ -43,9 +43,19 @@
                 <div class="form-group">
                     <label for="name">Api Key</label>
                     <input
+                        v-if="mapsForm.has_key"
                         type="text"
+                        class="form-control mb-1"
+                        :value="mapsForm.api_key_preview"
+                        disabled
+                        title="Key configurada"
+                    />
+                    <input
+                        type="password"
                         class="form-control"
-                        v-model="mapsForm.api_key"
+                        v-model="mapsForm.new_api_key"
+                        :placeholder="mapsForm.has_key ? 'Nueva key (dejar vacío para no cambiar)' : 'Ingresa tu API Key'"
+                        autocomplete="new-password"
                     />
                 </div>
             </div>
@@ -101,7 +111,9 @@ const addressClient = ref();
 const mapsForm = ref({
     id: undefined,
     zoom: 16,
-    api_key: null,
+    new_api_key: '',
+    api_key_preview: null,
+    has_key: false,
     latitude: null,
     longitude: null,
 });
@@ -243,17 +255,22 @@ function updateForm(map) {
         ? parseFloat(map.longitude)
         : null;
     mapsForm.value.zoom = map?.zoom ?? null;
-    mapsForm.value.api_key = map?.api_key ?? null;
+    mapsForm.value.api_key_preview = map?.api_key_preview ?? null;
+    mapsForm.value.has_key = map?.has_key ?? false;
+    mapsForm.value.new_api_key = '';
 }
 
 const handleSave = async () => {
     try {
-        await updateMap(mapsForm.value.id, {
+        const payload = {
             latitude: mapsForm.value.latitude.toString(),
             longitude: mapsForm.value.longitude.toString(),
             zoom: mapsForm.value.zoom,
-            api_key: mapsForm.value.api_key,
-        });
+        };
+        if (mapsForm.value.new_api_key) {
+            payload.api_key = mapsForm.value.new_api_key;
+        }
+        await updateMap(mapsForm.value.id, payload);
         Swal.fire(
             "¡Actualizado!",
             "Posición guardada correctamente",
