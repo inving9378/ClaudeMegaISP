@@ -321,6 +321,8 @@ export default {
                 })
                 .finally(() => {
                     hideLoading();
+                    // Reactiva el botón aunque el AJAX falle, para permitir reintento.
+                    disabledButton.value = false;
                     emit("cleanModal");
                 });
         };

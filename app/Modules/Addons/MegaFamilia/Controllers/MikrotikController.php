@@ -8,19 +8,37 @@ use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
 use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
 use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRule;
+use App\Modules\Addons\MegaFamilia\Services\MegaFamiliaSettingsService;
 use App\Services\MikrotikService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Integración MegaFamilia ↔ MikroTik (corte/reanudación de internet).
- * Settings cacheados en `megafamilia:mikrotik`.
+ * Settings persistidos en `megafamilia_settings` (prefijo `mikrotik_`) vía
+ * MegaFamiliaSettingsService (item #73, Sesión 3); el cache es solo acelerador.
  */
 class MikrotikController extends Controller
 {
-    private const KEY = 'megafamilia:mikrotik';
+    private const PREFIX = 'mikrotik_';
+    private const SENSITIVE = ['password'];
+
+    public function __construct(private MegaFamiliaSettingsService $settings)
+    {
+    }
+
+    /** Settings de mikrotik como array de keys "desnudas" (sin el prefijo `mikrotik_`). */
+    private function mikrotikSettings(): array
+    {
+        $out = [];
+        foreach ($this->settings->all() as $k => $v) {
+            if (str_starts_with($k, self::PREFIX)) {
+                $out[substr($k, strlen(self::PREFIX))] = $v;
+            }
+        }
+        return $out;
+    }
 
     public function index()
     {
@@ -40,7 +58,7 @@ class MikrotikController extends Controller
             'password'              => null,
             'last_test'             => null,
             'last_reachable'        => null,
-        ], Cache::get(self::KEY, [])));
+        ], $this->mikrotikSettings()));
     }
 
     public function update(Request $request): JsonResponse
@@ -55,8 +73,9 @@ class MikrotikController extends Controller
             'username'              => 'sometimes|nullable|string|max:120',
             'password'              => 'sometimes|nullable|string|max:255',
         ]);
-        $current = Cache::get(self::KEY, []);
-        Cache::forever(self::KEY, array_merge($current, $data));
+        foreach ($data as $key => $value) {
+            $this->settings->set(self::PREFIX . $key, $value, in_array($key, self::SENSITIVE, true));
+        }
         return response()->json(['success' => true]);
     }
 
@@ -118,12 +137,9 @@ class MikrotikController extends Controller
         }
 
         $latency = round((microtime(true) - $started) * 1000);
-        $current = Cache::get(self::KEY, []);
-        Cache::forever(self::KEY, array_merge($current, [
-            'last_test'      => now()->toIso8601String(),
-            'last_reachable' => $anyOk,
-            'last_latency_ms'=> $latency,
-        ]));
+        $this->settings->set(self::PREFIX . 'last_test', now()->toIso8601String());
+        $this->settings->set(self::PREFIX . 'last_reachable', $anyOk);
+        $this->settings->set(self::PREFIX . 'last_latency_ms', $latency);
 
         return response()->json([
             'success'    => true,
@@ -140,7 +156,7 @@ class MikrotikController extends Controller
      */
     public function addressList(MikrotikService $svc): JsonResponse
     {
-        $cfg = Cache::get(self::KEY, []);
+        $cfg = $this->mikrotikSettings();
         $listName = $cfg['address_list_block'] ?? 'megafamilia-blocked';
         $routerId = $cfg['router_id'] ?? null;
 
@@ -202,7 +218,7 @@ class MikrotikController extends Controller
      */
     public function sync(MikrotikService $svc): JsonResponse
     {
-        $cfg = Cache::get(self::KEY, []);
+        $cfg = $this->mikrotikSettings();
         $listName = $cfg['address_list_block'] ?? 'megafamilia-blocked';
 
         $rules = ParentalRule::where('internet_paused', true)->get(['profile_id']);

@@ -117,6 +117,11 @@ import FleetDashboard from "./components/module/flotas/FleetDashboard.vue";
 import FleetVehicleForm from "./components/module/flotas/FleetVehicleForm.vue";
 import FleetVehicleShow from "./components/module/flotas/FleetVehicleShow.vue";
 import FleetMap from "./components/module/flotas/FleetMap.vue";
+import FleetGeofenceList from "./components/module/flotas/FleetGeofenceList.vue";
+import FleetGeofenceForm from "./components/module/flotas/FleetGeofenceForm.vue";
+import FleetGeofenceShow from "./components/module/flotas/FleetGeofenceShow.vue";
+import FleetNotificationLog from "./components/module/flotas/FleetNotificationLog.vue";
+import FleetRuleList from "./components/module/flotas/FleetRuleList.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -505,6 +510,11 @@ const app = createApp({
         'fleet-vehicle-form': FleetVehicleForm,
         'fleet-vehicle-show': FleetVehicleShow,
         'fleet-map': FleetMap,
+        'fleet-geofence-list': FleetGeofenceList,
+        'fleet-geofence-form': FleetGeofenceForm,
+        'fleet-geofence-show': FleetGeofenceShow,
+        'fleet-notification-log': FleetNotificationLog,
+        'fleet-rule-list': FleetRuleList,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,

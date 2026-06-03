@@ -85,7 +85,6 @@ export default {
                 emit("updateInformation");
                 cleanForm();
                 $(`#modaleditUpdaeCourt`).modal("hide");
-                hideLoading();
             } catch (error) {
                 if (
                     error.response &&
@@ -98,6 +97,7 @@ export default {
                         "Ocurrió un error al realizar la solicitud.";
                 }
                 errorEditId.value = true;
+            } finally {
                 hideLoading();
             }
         };

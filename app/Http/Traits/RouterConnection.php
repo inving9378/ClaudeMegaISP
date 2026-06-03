@@ -83,6 +83,13 @@ trait RouterConnection
             $idByNameHostpot = null;
             $idByNameInSecret = null;
             if (!$connected) {
+                // Bypass QA/desarrollo: si MIKROTIK_REQUIRED_FOR_SERVICE=false, no bloquea
+                // la creación del servicio aunque no haya conexión al router. En producción
+                // (default true) el comportamiento es idéntico al actual.
+                if (!config('app.mikrotik_required_for_service', true)) {
+                    \Log::warning('Mikrotik bypass activo (MIKROTIK_REQUIRED_FOR_SERVICE=false): servicio permitido sin conexión al router ' . $routerId . '. Sincronizar manualmente cuando el Mikrotik esté disponible.');
+                    return; // se omite la validación de nombre en Mikrotik (no hay conexión que consultar)
+                }
                 return throw ValidationException::withMessages([$filedRouter => ['No Existe Conexion con el mikrotik']]);
             }
             $idByNameInSecret = $this->getIdByName($connected, '/ppp/secret/', $nameClient);

@@ -53,45 +53,6 @@
             "permission": "warroom.view"
         }
     ],
-    "config_sections": [
-        {
-            "key": "warroom_general",
-            "label": "War Room — Configuración",
-            "type": "scheduling",
-            "category": "Scheduling",
-            "icon": "activity",
-            "url": "/warroom",
-            "permission": "warroom.meeting.create",
-            "description": "Configuración del War Room: áreas de KPI, frecuencia de snapshots e insights automáticos.",
-            "doc": {
-                "terms": [
-                    {
-                        "term": "Snapshot",
-                        "definition": "Captura periódica de KPIs del negocio (ventas, cobros, tickets, red) para el historial de la junta."
-                    },
-                    {
-                        "term": "Insight IA",
-                        "definition": "Análisis generado por Claude sobre las métricas del período para identificar problemas y oportunidades."
-                    },
-                    {
-                        "term": "Plan de ataque",
-                        "definition": "Acciones concretas acordadas en la junta, asignadas a un responsable con fecha límite."
-                    }
-                ],
-                "steps": [
-                    "Seleccionar las áreas de KPI a monitorear en el War Room.",
-                    "Configurar la frecuencia de snapshots (diario, semanal, mensual).",
-                    "Al iniciar junta, el War Room muestra KPIs en vivo e insights IA del período."
-                ],
-                "actions": [
-                    "Iniciar junta",
-                    "Ver KPIs",
-                    "Asignar plan de ataque",
-                    "Regenerar insights"
-                ]
-            }
-        }
-    ],
     "api_endpoints": [
         {
             "method": "GET",

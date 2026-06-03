@@ -5,18 +5,24 @@ namespace App\Modules\Addons\MegaFamilia\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
 use App\Modules\Addons\MegaFamilia\Services\FcmService;
+use App\Modules\Addons\MegaFamilia\Services\MegaFamiliaSettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 
 /**
- * Settings globales del módulo. Cache::forever bajo key `megafamilia:settings`.
- * Las secciones (firebase, general, limits) se mergean en el mismo array.
+ * Settings globales del módulo. Persistencia en tabla `megafamilia_settings`
+ * vía MegaFamiliaSettingsService (item #73); el cache es solo acelerador.
+ * Las secciones (firebase, general, limits) comparten el mismo namespace de keys.
  */
 class ConfiguracionController extends Controller
 {
-    private const KEY = 'megafamilia:settings';
+    // Settings sensibles que se guardan cifrados (Crypt) en BD.
+    private const SENSITIVE = ['firebase_server_key'];
+
+    public function __construct(private MegaFamiliaSettingsService $settings)
+    {
+    }
 
     public function index()
     {
@@ -25,12 +31,11 @@ class ConfiguracionController extends Controller
 
     public function get(): JsonResponse
     {
-        $settings = array_merge($this->defaults(), Cache::get(self::KEY, []));
-        $mikrotik = Cache::get('megafamilia:mikrotik', []);
+        $settings = array_merge($this->defaults(), $this->settings->all());
         $settings['mikrotik_status'] = [
-            'enabled'   => $mikrotik['enabled'] ?? false,
-            'last_test' => $mikrotik['last_test'] ?? null,
-            'reachable' => $mikrotik['last_reachable'] ?? null,
+            'enabled'   => $this->settings->get('mikrotik_enabled', false),
+            'last_test' => $this->settings->get('mikrotik_last_test'),
+            'reachable' => $this->settings->get('mikrotik_last_reachable'),
         ];
         return response()->json($settings);
     }
@@ -43,8 +48,9 @@ class ConfiguracionController extends Controller
         $data = $request->validate($rules);
         unset($data['section']);
 
-        $current = Cache::get(self::KEY, $this->defaults());
-        Cache::forever(self::KEY, array_merge($current, $data));
+        foreach ($data as $key => $value) {
+            $this->settings->set($key, $value, in_array($key, self::SENSITIVE, true));
+        }
         return response()->json(['success' => true, 'section' => $section]);
     }
 

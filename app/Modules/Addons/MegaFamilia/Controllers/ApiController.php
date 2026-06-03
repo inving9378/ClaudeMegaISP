@@ -5,8 +5,10 @@ namespace App\Modules\Addons\MegaFamilia\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\ClientMainInformation;
+use App\Models\File;
 use App\Models\ObservationTask;
 use App\Models\Task;
+use App\Models\TaskClosure;
 use App\Models\Ticket;
 use App\Models\TicketThread;
 use App\Models\User;
@@ -716,7 +718,7 @@ class ApiController extends Controller
 
         $tasks = \App\Models\Task::whereHas('users', fn ($q) => $q->where('users.id', $userId))
             ->whereNotIn('status', ['Archivado'])
-            ->with(['client_main_information'])
+            ->with(['client_main_information', 'closure'])
             ->orderByDesc('id')
             ->limit(50)
             ->get();
@@ -725,19 +727,30 @@ class ApiController extends Controller
     }
 
     /**
-     * Actualiza estado de una orden. La app envía status en formato propio
-     * (pendiente/en_proceso/completada); lo convertimos al enum de Task.
-     * Solo puede actualizar tareas asignadas al técnico autenticado.
+     * Actualiza/cierra una orden desde la app del técnico. Persiste:
+     *   - status   → enum de Task (pendiente/en_proceso/completada)
+     *   - notes    → ObservationTask
+     *   - photo    → archivo multipart (campo `photo`) guardado como File
+     *                polimórfico de la tarea (visible en el visor de archivos)
+     *   - signature→ imagen base64 (data URI o crudo) guardada como PNG + File
+     *   - latitude/longitude/gps_accuracy → geolocalización del cierre
+     * Los datos de cierre (GPS + paths firma/foto) viven en `task_closures`
+     * (una fila por tarea, upsert). Solo el técnico asignado puede actualizar.
      */
     public function updateTecnicoOrden(Request $request, int $id): JsonResponse
     {
-        $task = \App\Models\Task::whereHas(
+        $task = Task::whereHas(
             'users', fn ($q) => $q->where('users.id', Auth::id())
         )->findOrFail($id);
 
         $data = $request->validate([
-            'status' => 'sometimes|string',
-            'notes'  => 'sometimes|nullable|string',
+            'status'       => 'sometimes|string',
+            'notes'        => 'sometimes|nullable|string',
+            'photo'        => 'sometimes|file|image|max:10240',
+            'signature'    => 'sometimes|nullable|string',
+            'latitude'     => 'sometimes|nullable|numeric|between:-90,90',
+            'longitude'    => 'sometimes|nullable|numeric|between:-180,180',
+            'gps_accuracy' => 'sometimes|nullable|numeric|min:0',
         ]);
 
         if (isset($data['status'])) {
@@ -746,14 +759,112 @@ class ApiController extends Controller
         }
 
         if (! empty($data['notes'])) {
-            \App\Models\ObservationTask::create([
+            ObservationTask::create([
                 'task_id'    => $task->id,
                 'created_by' => Auth::id(),
                 'observation'=> $data['notes'],
             ]);
         }
 
-        return response()->json(['success' => true, 'orden' => $this->taskToOrden($task->fresh())]);
+        $directory = 'task/' . $task->id . '/closure';
+        $photoPath = null;
+        $signaturePath = null;
+
+        // --- Foto del cierre (multipart) -> File polimórfico ---------------
+        // Se guarda en el disco `public` vía Storage (maneja la creación de
+        // directorios con permisos correctos para www-data, a diferencia del
+        // mkdir manual de uploadImage); queda servible por URL `/storage/...`.
+        if ($request->hasFile('photo')) {
+            $photo  = $request->file('photo');
+            $ext    = strtolower($photo->getClientOriginalExtension() ?: 'jpg');
+            $stored = $photo->storeAs(
+                'uploads/' . $directory,
+                'foto_' . time() . '_' . Str::random(6) . '.' . $ext,
+                'public'
+            );
+            if ($stored) {
+                // Path relativo (no URL absoluta): el cliente antepone su propia
+                // base URL (el host por el que entró). Evita atar el path a un
+                // APP_URL/IP fijo — clave para acceso multi-host y producto SaaS.
+                $photoPath = '/storage/' . ltrim($stored, '/');
+                $task->files()->create([
+                    'name'          => 'Foto de cierre - ' . $photo->getClientOriginalName(),
+                    'type'          => $photo->getClientMimeType() ?: 'image/jpeg',
+                    'path'          => $photoPath,
+                    'size'          => $photo->getSize() ?? 0,
+                    'preview'       => 0,
+                    'fileable_type' => Task::class,
+                ]);
+            }
+        }
+
+        // --- Firma (base64) -> PNG en disco public + File ------------------
+        if (! empty($data['signature'])) {
+            $signaturePath = $this->storeSignature($data['signature'], $directory);
+            if ($signaturePath) {
+                $task->files()->create([
+                    'name'          => 'Firma de cierre',
+                    'type'          => 'image/png',
+                    'path'          => $signaturePath,
+                    'size'          => 0,
+                    'preview'       => 0,
+                    'fileable_type' => Task::class,
+                ]);
+            }
+        }
+
+        // --- Cierre: GPS + metadatos (una fila por tarea) ------------------
+        $hasGps     = array_key_exists('latitude', $data) && array_key_exists('longitude', $data)
+                      && $data['latitude'] !== null && $data['longitude'] !== null;
+        $isClosing  = isset($data['status']) && $task->status === 'Done';
+
+        if ($hasGps || $photoPath || $signaturePath || $isClosing || ! empty($data['notes'])) {
+            $closure = $task->closure ?: new TaskClosure(['task_id' => $task->id]);
+            $closure->closed_by = Auth::id();
+            if ($hasGps) {
+                $closure->latitude     = $data['latitude'];
+                $closure->longitude    = $data['longitude'];
+                $closure->gps_accuracy = $data['gps_accuracy'] ?? $closure->gps_accuracy;
+            }
+            if (! empty($data['notes']))   $closure->notes = $data['notes'];
+            if ($photoPath)                $closure->photo_path = $photoPath;
+            if ($signaturePath)            $closure->signature_path = $signaturePath;
+            if ($isClosing || ! $closure->closed_at) $closure->closed_at = now();
+            $closure->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'orden'   => $this->taskToOrden($task->fresh()),
+            'closure' => optional($task->fresh()->closure)->only([
+                'latitude', 'longitude', 'gps_accuracy', 'notes',
+                'signature_path', 'photo_path', 'closed_at',
+            ]),
+        ]);
+    }
+
+    /**
+     * Decodifica una firma en base64 (acepta data URI `data:image/png;base64,`
+     * o base64 crudo) y la guarda como PNG en el disco public. Devuelve el
+     * path público (`/storage/...`) o null si la decodificación falla.
+     */
+    private function storeSignature(string $signature, string $directory): ?string
+    {
+        if (preg_match('/^data:image\/(\w+);base64,/', $signature, $m)) {
+            $signature = substr($signature, strpos($signature, ',') + 1);
+        }
+        $signature = str_replace(' ', '+', $signature);
+        $binary = base64_decode($signature, true);
+        if ($binary === false || $binary === '') {
+            return null;
+        }
+
+        $relative = "uploads/{$directory}/firma_" . time() . '_' . Str::random(6) . '.png';
+        \Illuminate\Support\Facades\Storage::disk('public')->put($relative, $binary);
+
+        // Path relativo (ver nota en updateTecnicoOrden): el cliente le antepone
+        // su base URL. Servible en {host}/storage/uploads/task/{id}/closure/...
+        return '/storage/' . ltrim($relative, '/');
     }
 
     private function taskToOrden(\App\Models\Task $t): array
@@ -778,6 +889,8 @@ class ApiController extends Controller
             'scheduled_at'=> $scheduledAt,
             'notes'       => optional($t->latestNote)->observation ?? null,
             'plan_name'   => null,
+            'closed'      => $t->relationLoaded('closure') ? (bool) $t->closure : (bool) $t->closure()->exists(),
+            'closed_at'   => optional($t->closure)->closed_at?->toIso8601String(),
         ];
     }
 

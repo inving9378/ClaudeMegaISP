@@ -97,6 +97,11 @@ class Task extends Model
         return $this->hasMany(ObservationTask::class, 'task_id');
     }
 
+    public function closure()
+    {
+        return $this->hasOne(TaskClosure::class, 'task_id');
+    }
+
     public function latestNote()
     {
         return $this->hasOne(ObservationTask::class, 'task_id')->latestOfMany();

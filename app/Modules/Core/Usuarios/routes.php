@@ -65,6 +65,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administra
     });
 
     Route::prefix('permisos')->group(function () {
+        Route::get('/catalog', [PermissionController::class, 'catalog']);
         Route::get('/get-permission-for-role/{id}', [PermissionController::class, 'get']);
         Route::post('/update-permission-for-role/{id}', [PermissionController::class, 'update']);
         Route::get('/get-permission-for-user/{id}', [PermissionController::class, 'getPermissionUser']);

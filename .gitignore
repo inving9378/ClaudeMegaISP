@@ -25,7 +25,7 @@ public/downloads/
 Docs
 .env
 .env.testing
-.env.backup
+.env.backup*
 .env.pilot
 .claude/
 

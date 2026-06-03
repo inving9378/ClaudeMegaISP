@@ -2121,12 +2121,6 @@ export const fieldsJson = {
             value: false,
             depend: "view_sucursal",
         },
-        {
-            field: "export_sucursal",
-            label: "Exportar datos de la tabla",
-            value: false,
-            depend: "view_sucursal",
-        },
     ],
 
     configuration: [
@@ -2328,6 +2322,133 @@ export const fieldsJson = {
         },
     ],
     promotions: [],
+
+    // ===================================================================
+    // Módulos adicionales (item #71) — permisos que existían en BD pero
+    // no se exponían en la sección de permisos. Etiquetas curadas en español.
+    // ===================================================================
+    marketing: [
+        // Campañas
+        { field: "view-marketing-campaigns", label: "Ver campañas", value: false },
+        { field: "create-marketing-campaigns", label: "Crear campañas", value: false, depend: "view-marketing-campaigns" },
+        { field: "delete-marketing-campaigns", label: "Eliminar campañas", value: false, depend: "view-marketing-campaigns" },
+        { field: "regenerate-marketing-variants", label: "Regenerar variantes", value: false, depend: "view-marketing-campaigns" },
+        { field: "manage-marketing-niches", label: "Gestionar nichos", value: false, depend: "view-marketing-campaigns" },
+        // Video
+        { field: "view-video-templates", label: "Ver plantillas de video", value: false },
+        { field: "view-video-content", label: "Ver contenido de video", value: false, depend: "view-video-templates" },
+        { field: "generate-video-content", label: "Generar contenido de video", value: false, depend: "view-video-templates" },
+        { field: "download-video", label: "Descargar video", value: false, depend: "view-video-templates" },
+        { field: "delete-video-content", label: "Eliminar contenido de video", value: false, depend: "view-video-templates" },
+        { field: "manage-video-settings", label: "Gestionar ajustes de video", value: false, depend: "view-video-templates" },
+        { field: "manage-brand-assets", label: "Gestionar recursos de marca", value: false, depend: "view-video-templates" },
+        { field: "test-voices", label: "Probar voces", value: false, depend: "view-video-templates" },
+        // Publicación
+        { field: "view-publishing-dashboard", label: "Ver panel de publicación", value: false },
+        { field: "view-publication-metrics", label: "Ver métricas de publicación", value: false, depend: "view-publishing-dashboard" },
+        { field: "publish-content", label: "Publicar contenido", value: false, depend: "view-publishing-dashboard" },
+        { field: "schedule-publications", label: "Programar publicaciones", value: false, depend: "view-publishing-dashboard" },
+        { field: "manage-publishing-channels", label: "Gestionar canales de publicación", value: false, depend: "view-publishing-dashboard" },
+        { field: "manage-publication-queue", label: "Gestionar cola de publicación", value: false, depend: "view-publishing-dashboard" },
+        { field: "connect-meta-account", label: "Conectar cuenta Meta", value: false, depend: "view-publishing-dashboard" },
+        // Integraciones (Integration Hub)
+        { field: "view-integrations", label: "Ver integraciones", value: false },
+        { field: "manage-integrations", label: "Gestionar integraciones", value: false, depend: "view-integrations" },
+        { field: "validate-integrations", label: "Validar integraciones", value: false, depend: "view-integrations" },
+        { field: "view-integration-logs", label: "Ver logs de integración", value: false, depend: "view-integrations" },
+        { field: "rotate-integration-keys", label: "Rotar llaves de integración", value: false, depend: "view-integrations" },
+        { field: "apikey_view_apikey", label: "Ver API keys", value: false, depend: "view-integrations" },
+    ],
+    embajadores: [
+        { field: "embajadores.view", label: "Ver embajadores", value: false },
+        { field: "embajadores.configure", label: "Configurar programa", value: false, depend: "embajadores.view" },
+        { field: "embajadores.tiers.manage", label: "Gestionar niveles", value: false, depend: "embajadores.view" },
+        { field: "embajadores.rewards.manage", label: "Gestionar recompensas", value: false, depend: "embajadores.view" },
+        { field: "embajadores.commissions.approve", label: "Aprobar comisiones", value: false, depend: "embajadores.view" },
+        { field: "embajadores.commissions.cancel", label: "Cancelar comisiones", value: false, depend: "embajadores.view" },
+        { field: "embajadores.payouts.generate", label: "Generar pagos", value: false, depend: "embajadores.view" },
+    ],
+    fleet: [
+        // Vehículos
+        { field: "fleet.view", label: "Ver flota", value: false },
+        { field: "fleet.manage", label: "Gestionar vehículos", value: false, depend: "fleet.view" },
+        { field: "fleet.assign", label: "Asignar operadores", value: false, depend: "fleet.view" },
+        { field: "fleet.maintenance.manage", label: "Gestionar mantenimientos", value: false, depend: "fleet.view" },
+        { field: "fleet.documents.manage", label: "Gestionar documentos", value: false, depend: "fleet.view" },
+        { field: "fleet.fuel.manage", label: "Gestionar combustible", value: false, depend: "fleet.view" },
+        { field: "fleet.providers.manage", label: "Gestionar proveedores", value: false, depend: "fleet.view" },
+        // GPS y geocercas
+        { field: "fleet.gps.view", label: "Ver tracking GPS", value: false },
+        { field: "fleet.gps.manage", label: "Gestionar dispositivos GPS", value: false, depend: "fleet.gps.view" },
+        { field: "fleet.geofences.view", label: "Ver geocercas", value: false, depend: "fleet.gps.view" },
+        { field: "fleet.geofences.manage", label: "Gestionar geocercas", value: false, depend: "fleet.gps.view" },
+        { field: "fleet.notifications.view", label: "Ver registro de notificaciones", value: false, depend: "fleet.gps.view" },
+        { field: "fleet.rules.view", label: "Ver reglas de alertas", value: false, depend: "fleet.gps.view" },
+        { field: "fleet.rules.manage", label: "Gestionar reglas de alertas", value: false, depend: "fleet.gps.view" },
+    ],
+    cobranza: [
+        { field: "cobranza.view", label: "Ver campañas de cobranza", value: false },
+        { field: "cobranza.manage", label: "Gestionar campañas", value: false, depend: "cobranza.view" },
+        { field: "cobranza.configure", label: "Configurar VoIP", value: false, depend: "cobranza.view" },
+    ],
+    whatsapp: [
+        { field: "whatsapp_view_conversations", label: "Ver conversaciones", value: false },
+        { field: "whatsapp_send_messages", label: "Enviar mensajes", value: false, depend: "whatsapp_view_conversations" },
+        { field: "whatsapp_manage_instances", label: "Gestionar instancias", value: false, depend: "whatsapp_view_conversations" },
+        { field: "whatsapp_use_ia", label: "Usar IA", value: false, depend: "whatsapp_view_conversations" },
+        { field: "whatsapp_view_logs", label: "Ver logs", value: false, depend: "whatsapp_view_conversations" },
+    ],
+    ia: [
+        { field: "ia_view_chat", label: "Ver chat IA", value: false },
+        { field: "ia_add_chat", label: "Crear chat", value: false, depend: "ia_view_chat" },
+        { field: "ia_edit_chat", label: "Editar chat", value: false, depend: "ia_view_chat" },
+        { field: "ia_delete_chat", label: "Eliminar chat", value: false, depend: "ia_view_chat" },
+        { field: "ia_view_prompts", label: "Ver prompts", value: false, depend: "ia_view_chat" },
+        { field: "ia_manage_prompts", label: "Gestionar prompts", value: false, depend: "ia_view_chat" },
+        { field: "ia_manage_memoria", label: "Gestionar memoria", value: false, depend: "ia_view_chat" },
+        { field: "ia_manage_notas", label: "Gestionar notas", value: false, depend: "ia_view_chat" },
+        { field: "ia_manage_proveedores", label: "Gestionar proveedores IA", value: false, depend: "ia_view_chat" },
+        { field: "ia_manage_proyectos", label: "Gestionar proyectos", value: false, depend: "ia_view_chat" },
+        { field: "ia_manage_sesiones", label: "Gestionar sesiones", value: false, depend: "ia_view_chat" },
+        { field: "ia_manage_tareas", label: "Gestionar tareas IA", value: false, depend: "ia_view_chat" },
+    ],
+    warroom: [
+        { field: "warroom.view", label: "Ver War Room", value: false },
+        { field: "warroom.meeting.create", label: "Crear reunión", value: false, depend: "warroom.view" },
+        { field: "warroom.meeting.delete", label: "Eliminar reunión", value: false, depend: "warroom.view" },
+        { field: "warroom.meeting.moderate", label: "Moderar reunión", value: false, depend: "warroom.view" },
+        { field: "warroom.action_items.assign", label: "Asignar tareas de acción", value: false, depend: "warroom.view" },
+        { field: "warroom.insights.regenerate", label: "Regenerar insights", value: false, depend: "warroom.view" },
+        { field: "warroom.snapshots.regenerate", label: "Regenerar snapshots", value: false, depend: "warroom.view" },
+    ],
+    evaluador: [
+        { field: "evaluador_view_evaluacion", label: "Ver evaluaciones", value: false },
+        { field: "evaluador_export_evaluacion", label: "Exportar evaluaciones", value: false, depend: "evaluador_view_evaluacion" },
+        { field: "evaluador_view_estadisticas", label: "Ver estadísticas", value: false, depend: "evaluador_view_evaluacion" },
+    ],
+    payments: [
+        { field: "payments_view_providers", label: "Ver proveedores de pago", value: false },
+        { field: "payments_manage_providers", label: "Gestionar proveedores de pago", value: false, depend: "payments_view_providers" },
+        { field: "payments_view_receipts", label: "Ver recibos", value: false, depend: "payments_view_providers" },
+        { field: "payments_view_webhooks_log", label: "Ver log de webhooks", value: false, depend: "payments_view_providers" },
+        { field: "payments_assign_clabe", label: "Asignar CLABE", value: false, depend: "payments_view_providers" },
+    ],
+    partners: [
+        { field: "partners_view_partners", label: "Ver socios", value: false },
+        { field: "partners_add_partners", label: "Agregar socio", value: false, depend: "partners_view_partners" },
+        { field: "partners_edit_partners", label: "Editar socio", value: false, depend: "partners_view_partners" },
+        { field: "partners_delete_partners", label: "Eliminar socio", value: false, depend: "partners_view_partners" },
+        { field: "partners_export_partners", label: "Exportar socios", value: false, depend: "partners_view_partners" },
+    ],
+    megafamilia: [
+        { field: "megafamilia_view", label: "Ver MegaFamilia", value: false },
+        { field: "megafamilia_support", label: "Soporte", value: false, depend: "megafamilia_view" },
+        { field: "megafamilia_admin", label: "Administrar", value: false, depend: "megafamilia_view" },
+    ],
+    roadmap: [
+        { field: "roadmap_view", label: "Ver roadmap", value: false },
+        { field: "roadmap_manage", label: "Gestionar roadmap", value: false, depend: "roadmap_view" },
+    ],
 };
 
 export const accordions = ref({
@@ -2653,4 +2774,97 @@ export const accordions = ref({
             filter: "data_plan_promotion",
         },
     ],
+
+    // ===== Módulos adicionales (item #71) =====
+    marketing: [
+        { title: "Campañas", filter: "view-marketing-campaigns" },
+        { title: "Video", filter: "view-video-templates" },
+        { title: "Publicación", filter: "view-publishing-dashboard" },
+        { title: "Integraciones", filter: "view-integrations" },
+    ],
+    embajadores: [{ title: "Embajadores", filter: "embajadores.view" }],
+    fleet: [
+        { title: "Vehículos", filter: "fleet.view" },
+        { title: "GPS y geocercas", filter: "fleet.gps.view" },
+    ],
+    cobranza: [{ title: "Cobranza Blaster", filter: "cobranza.view" }],
+    whatsapp: [{ title: "WhatsApp", filter: "whatsapp_view_conversations" }],
+    ia: [{ title: "Asistente IA", filter: "ia_view_chat" }],
+    warroom: [{ title: "War Room", filter: "warroom.view" }],
+    evaluador: [{ title: "Evaluador empresarial", filter: "evaluador_view_evaluacion" }],
+    payments: [{ title: "Pagos", filter: "payments_view_providers" }],
+    partners: [{ title: "Socios", filter: "partners_view_partners" }],
+    megafamilia: [{ title: "MegaFamilia", filter: "megafamilia_view" }],
+    roadmap: [{ title: "Roadmap", filter: "roadmap_view" }],
 });
+
+// ===================================================================
+// Item #71 — Pestañas de módulos adicionales + pestaña dinámica "Otros".
+// ===================================================================
+
+// Pestañas curadas que se agregan a la sección de permisos (rol y usuario),
+// después de las pestañas originales. Etiquetas en español.
+export const extraModuleTabs = [
+    { ref: "marketing", title: "Marketing" },
+    { ref: "embajadores", title: "Embajadores" },
+    { ref: "fleet", title: "Flotas" },
+    { ref: "cobranza", title: "Cobranza" },
+    { ref: "whatsapp", title: "WhatsApp" },
+    { ref: "ia", title: "IA" },
+    { ref: "warroom", title: "War Room" },
+    { ref: "evaluador", title: "Evaluador" },
+    { ref: "payments", title: "Pagos" },
+    { ref: "partners", title: "Socios" },
+    { ref: "megafamilia", title: "MegaFamilia" },
+    { ref: "roadmap", title: "Roadmap" },
+];
+
+// Convierte un nombre de permiso técnico (fleet.gps.view / whatsapp_send_messages)
+// en una etiqueta legible para la pestaña "Otros".
+export const prettyPermissionLabel = (name) => {
+    const text = String(name).replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
+    return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+/**
+ * Construye la pestaña dinámica "Otros / Sin categorizar" a partir del
+ * catálogo completo de permisos de BD: toma todo permiso que NO esté ya
+ * curado en fieldsJson y lo agrupa por prefijo (módulo) en acordeones.
+ * Así ningún permiso (presente o futuro) queda fuera de la sección.
+ *
+ * @param {string[]} catalogNames  nombres de permisos desde el backend
+ * @returns {{fields: object[], accordions: object[]}}
+ */
+export const buildUncategorizedTab = (catalogNames) => {
+    const covered = new Set();
+    for (const key in fieldsJson) {
+        if (key === "otros") continue; // no recontar lo ya inyectado
+        fieldsJson[key].forEach((f) => covered.add(f.field));
+    }
+
+    const groups = {};
+    (catalogNames || []).forEach((name) => {
+        if (covered.has(name)) return;
+        const prefix = name.includes(".") ? name.split(".")[0] : name.split("_")[0];
+        (groups[prefix] = groups[prefix] || []).push(name);
+    });
+
+    const fields = [];
+    const accs = [];
+    Object.keys(groups)
+        .sort()
+        .forEach((prefix) => {
+            const anchor = groups[prefix][0];
+            accs.push({ title: prettyPermissionLabel(prefix), filter: anchor });
+            groups[prefix].forEach((name, i) => {
+                fields.push({
+                    field: name,
+                    label: prettyPermissionLabel(name),
+                    value: false,
+                    ...(i === 0 ? {} : { depend: anchor }),
+                });
+            });
+        });
+
+    return { fields, accordions: accs };
+};

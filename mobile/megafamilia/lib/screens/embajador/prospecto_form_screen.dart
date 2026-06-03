@@ -74,6 +74,7 @@ class _ProspectoFormScreenState extends State<ProspectoFormScreen> {
       if (_addressCtrl.text.trim().isNotEmpty) 'address': _addressCtrl.text.trim(),
       if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
       if (_esEdicion) 'status': _status,
+      if (!_esEdicion) 'source': 'manual',
     };
 
     final prov = context.read<EmbajadorProvider>();

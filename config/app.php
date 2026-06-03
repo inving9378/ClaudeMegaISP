@@ -15,6 +15,15 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    // Coordenadas de la oficina central — stat "distancia a oficina" en la ficha de cliente.
+    // Si quedan vacías, la stat muestra "Configura coords de oficina" (degradación elegante).
+    'office_lat' => env('OFFICE_LAT'),
+    'office_lng' => env('OFFICE_LNG'),
+
+    // Si false, permite crear servicios sin conexión a Mikrotik (QA/desarrollo).
+    // En producción debe ser true. Default true (sin la var → comportamiento actual).
+    'mikrotik_required_for_service' => env('MIKROTIK_REQUIRED_FOR_SERVICE', true),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

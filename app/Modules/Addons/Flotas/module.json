@@ -17,7 +17,12 @@
         { "name": "fleet.fuel.manage",         "description": "Registrar cargas de combustible" },
         { "name": "fleet.providers.manage",    "description": "Gestionar proveedores y talleres" },
         { "name": "fleet.gps.view",            "description": "Ver tracking GPS y mapa de flota" },
-        { "name": "fleet.gps.manage",          "description": "Configurar dispositivos GPS" }
+        { "name": "fleet.gps.manage",          "description": "Configurar dispositivos GPS" },
+        { "name": "fleet.geofences.view",      "description": "Ver geocercas" },
+        { "name": "fleet.geofences.manage",    "description": "Crear, editar y eliminar geocercas" },
+        { "name": "fleet.notifications.view",  "description": "Ver el log de notificaciones de flota" },
+        { "name": "fleet.rules.view",          "description": "Ver reglas de alertas de geocerca" },
+        { "name": "fleet.rules.manage",        "description": "Crear, editar y eliminar reglas de alertas" }
     ],
 
     "menu": [
@@ -31,7 +36,8 @@
                 { "label": "Vehículos",     "url": "/flotas/vehiculos",   "permission": "fleet.view" },
                 { "label": "Mantenimientos","url": "/flotas/mantenimientos","permission": "fleet.maintenance.manage" },
                 { "label": "Documentos",    "url": "/flotas/documentos",  "permission": "fleet.documents.manage" },
-                { "label": "Proveedores",   "url": "/flotas/proveedores", "permission": "fleet.providers.manage" }
+                { "label": "Proveedores",   "url": "/flotas/proveedores", "permission": "fleet.providers.manage" },
+                { "label": "Geocercas",     "url": "/flotas/geocercas",   "permission": "fleet.geofences.view" }
             ]
         }
     ],

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/tecnico_provider.dart';
+import '../../services/update_service.dart';
 import '../../theme.dart';
 import '../../utils/fechas.dart';
 import '../../widgets/widgets.dart';
@@ -21,6 +22,7 @@ class _TecnicoDashboardState extends State<TecnicoDashboard> {
   void initState() {
     super.initState();
     Future.microtask(() => context.read<TecnicoProvider>().loadOrdenes());
+    Future.delayed(const Duration(seconds: 2), () => UpdateService().showUpdateDialogIfNeeded(context));
   }
 
   @override

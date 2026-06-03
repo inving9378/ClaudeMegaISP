@@ -17,6 +17,8 @@
             module-tabs="{{ $moduleTabs }}"
             id="{{ $id }}"
             authuserid="{{ $authuserid }}"
+            office-lat="{{ config('app.office_lat') }}"
+            office-lng="{{ config('app.office_lng') }}"
         ></client-crud>
 
         @can('payments_assign_clabe')

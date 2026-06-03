@@ -8,6 +8,9 @@ use App\Modules\Addons\Flotas\Controllers\FleetFuelLogController;
 use App\Modules\Addons\Flotas\Controllers\FleetPhotoController;
 use App\Modules\Addons\Flotas\Controllers\FleetAssignmentController;
 use App\Modules\Addons\Flotas\Controllers\FleetGpsController;
+use App\Modules\Addons\Flotas\Controllers\FleetGeofenceController;
+use App\Modules\Addons\Flotas\Controllers\FleetNotificationController;
+use App\Modules\Addons\Flotas\Controllers\FleetRuleController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -20,6 +23,19 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/vehiculos',  fn() => view('addon-flotas::flotas.index'));
         Route::get('/nuevo',      fn() => view('addon-flotas::flotas.create'));
         Route::get('/mapa',       fn() => view('addon-flotas::flotas.mapa')); // ANTES de /{id}
+
+        // Geocercas (Sub-fase 3.1) — TODAS antes de /{id} para que no las capture como id.
+        Route::get('/geocercas',              fn() => view('addon-flotas::flotas.geocercas.index'));
+        Route::get('/geocercas/nueva',        fn() => view('addon-flotas::flotas.geocercas.form'));
+        Route::get('/geocercas/{id}/editar',  fn() => view('addon-flotas::flotas.geocercas.form'));
+        Route::get('/geocercas/{id}',         fn() => view('addon-flotas::flotas.geocercas.show'));
+
+        // Log de notificaciones (Sub-fase 3.3) — antes de /{id}.
+        Route::get('/notificaciones-log',     fn() => view('addon-flotas::flotas.notificaciones'));
+
+        // Reglas de alertas (Sub-fase 3.4) — antes de /{id}.
+        Route::get('/reglas',                 fn() => view('addon-flotas::flotas.reglas'));
+
         Route::get('/{id}',       fn() => view('addon-flotas::flotas.show'));
 
         // ── API: Vehículos ─────────────────────────────────────────────────────
@@ -40,6 +56,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/{id}/gps',          [FleetGpsController::class, 'status']);
             Route::get('/{id}/gps/history',  [FleetGpsController::class, 'history']);
             Route::post('/{id}/gps/device',  [FleetGpsController::class, 'activateDevice']);
+            Route::get('/{id}/geofence-events', [FleetGpsController::class, 'geofenceEvents']);
+
+            // Preferencias de alerta del usuario (Sub-fase 3.3)
+            Route::get('/{id}/notification-preference',  [FleetNotificationController::class, 'myPreference']);
+            Route::post('/{id}/notification-preference', [FleetNotificationController::class, 'savePreference']);
 
             Route::get('/{id}',      [FleetVehicleController::class, 'show']);
             Route::patch('/{id}',    [FleetVehicleController::class, 'update']);
@@ -50,6 +71,32 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // ── API: GPS / Flota en mapa ───────────────────────────────────────────
         Route::prefix('api/gps')->group(function () {
             Route::get('/flota', [FleetGpsController::class, 'fleet']);
+        });
+
+        // ── API: Log de notificaciones (Sub-fase 3.3) ───────────────────────────
+        Route::prefix('api/notificaciones-log')->group(function () {
+            Route::get('/',            [FleetNotificationController::class, 'log']);
+            Route::post('/{id}/resend',[FleetNotificationController::class, 'resend']);
+        });
+
+        // ── API: Reglas de alertas (Sub-fase 3.4) ───────────────────────────────
+        Route::prefix('api/reglas')->group(function () {
+            Route::get('/',           [FleetRuleController::class, 'index']);
+            Route::post('/',          [FleetRuleController::class, 'store']);
+            Route::put('/{id}',       [FleetRuleController::class, 'update']);
+            Route::delete('/{id}',    [FleetRuleController::class, 'destroy']);
+            Route::post('/{id}/toggle',[FleetRuleController::class, 'toggle']);
+        });
+
+        // ── API: Geocercas (Sub-fase 3.1) ───────────────────────────────────────
+        Route::prefix('api/geocercas')->group(function () {
+            Route::get('/',        [FleetGeofenceController::class, 'index']);
+            Route::post('/',       [FleetGeofenceController::class, 'store']);
+            Route::get('/{id}',    [FleetGeofenceController::class, 'show']);
+            Route::put('/{id}',    [FleetGeofenceController::class, 'update']);
+            Route::patch('/{id}',  [FleetGeofenceController::class, 'update']);
+            Route::delete('/{id}', [FleetGeofenceController::class, 'destroy']);
+            Route::post('/{id}/vehiculos', [FleetGeofenceController::class, 'assignVehicles']);
         });
 
         // ── API: Mantenimientos ────────────────────────────────────────────────

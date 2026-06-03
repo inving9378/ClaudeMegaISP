@@ -4,7 +4,7 @@ namespace App\Console\Commands\Scripts;
 
 use App\Http\Repository\ClientRepository;
 use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
-use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client;
 use App\Models\Invoice;
 use App\Services\Finance\Invoice\InvoiceService;
 use Carbon\Carbon;

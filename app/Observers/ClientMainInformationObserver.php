@@ -106,6 +106,13 @@ class ClientMainInformationObserver
 
     public function createNewUserRoleClient($clientMainInformation)
     {
+        // Guarda null: sin contraseña no se crea usuario de portal. PasswordService::make()
+        // exige string (no acepta null tras la migración LFPDPPP). Consistente con la guarda
+        // de updateUserIfIsDifferent(). El usuario de portal se crea al asignar contraseña.
+        if (empty($clientMainInformation->password)) {
+            return;
+        }
+
         $user = new User();
         $user->name = $clientMainInformation->name;
         $user->email = $clientMainInformation->email;

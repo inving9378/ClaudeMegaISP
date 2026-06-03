@@ -380,7 +380,19 @@ export default {
                     toastr.success("Pago");
                     initComponent(props.action);
                     emit("cleanModal");
-                    disabledButton.value = true;
+                })
+                .catch((error) => {
+                    const msg =
+                        error?.error ||
+                        error?.message ||
+                        error?.response?.data?.message ||
+                        "Ocurrió un error inesperado.";
+                    toastr.error(msg);
+                })
+                .finally(() => {
+                    // Reactiva el botón pase lo que pase para que el operador
+                    // pueda reintentar si el AJAX falló (antes quedaba colgado).
+                    disabledButton.value = false;
                 });
         };
 

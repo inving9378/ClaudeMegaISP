@@ -51,6 +51,8 @@
             <InformationClientCrud
                 :action="`update/${id}`"
                 :id="id"
+                :office-lat="officeLat"
+                :office-lng="officeLng"
                 @getTypeOfBilling="getTypeOfBilling"
             />
         </q-tab-panel>
@@ -114,6 +116,8 @@ const props = defineProps({
     },
     authuserid: Number | String,
     action: String,
+    officeLat: { type: String, default: null },
+    officeLng: { type: String, default: null },
 });
 
 const currentTab = ref(null);

@@ -2,7 +2,6 @@
 
 namespace App\Modules\Addons\MegaFamilia\Services;
 
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -14,13 +13,17 @@ use Illuminate\Support\Facades\Log;
  * envíos de "fan-out" a tokens conocidos. Cuando se requiera HTTP v1, esta
  * clase se reemplaza pero el resto del módulo no debería cambiar.
  *
- * Server key se lee desde Cache::get('megafamilia:settings').firebase_server_key
- * (que escribe ConfiguracionController), o como fallback de env FCM_SERVER_KEY.
+ * Server key se lee vía MegaFamiliaSettingsService (BD persistente, item #73),
+ * o como fallback de env FCM_SERVER_KEY.
  */
 class FcmService
 {
     private const ENDPOINT = 'https://fcm.googleapis.com/fcm/send';
     private const BATCH_SIZE = 1000; // FCM legacy registration_ids cap
+
+    public function __construct(private MegaFamiliaSettingsService $settings)
+    {
+    }
 
     public function send(array $tokens, string $title, string $body, array $data = []): array
     {
@@ -77,8 +80,7 @@ class FcmService
 
     private function serverKey(): ?string
     {
-        $settings = Cache::get('megafamilia:settings', []);
-        $key = $settings['firebase_server_key'] ?? null;
+        $key = $this->settings->get('firebase_server_key');
         if (! $key) {
             $key = env('FCM_SERVER_KEY');
         }

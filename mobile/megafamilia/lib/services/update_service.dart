@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -64,7 +65,7 @@ class UpdateService {
             Uri.parse('${AppConfig.apiBaseUrl}/app-version'),
             headers: const {'Accept': 'application/json'},
           )
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 4));
       if (res.statusCode != 200) return null;
 
       final info = AppVersionInfo.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -75,6 +76,39 @@ class UpdateService {
       // Falla silenciosa — el chequeo de actualización no debe romper la app.
       return null;
     }
+  }
+
+  /// Comprueba si hay actualización y, si la hay, muestra el diálogo estándar.
+  /// Llámalo desde el initState de cualquier dashboard tras autenticarse.
+  /// No hace nada si no hay update o si el context ya no está montado.
+  Future<void> showUpdateDialogIfNeeded(BuildContext context) async {
+    final info = await checkForUpdate();
+    if (info == null || !context.mounted) return;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: !info.mandatory,
+      builder: (_) => AlertDialog(
+        title: const Text('Actualización disponible'),
+        content: Text(
+          'Hay una versión nueva (${info.version}) lista para instalar.'
+          '${info.releaseNotes != null && info.releaseNotes!.isNotEmpty ? "\n\n${info.releaseNotes}" : ""}'
+          '\n\nAl tocar "Descargar", el sistema bajará el APK y te pedirá actualizar la app — no necesitas desinstalar.',
+        ),
+        actions: [
+          if (!info.mandatory)
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Más tarde'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Descargar'),
+          ),
+        ],
+      ),
+    );
+    if (accepted == true) await openApkUrl(info.apkUrl);
   }
 
   /// Abre la URL del APK en el navegador del sistema. Android descarga el
