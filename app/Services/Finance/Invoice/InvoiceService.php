@@ -3,7 +3,7 @@
 namespace App\Services\Finance\Invoice;
 
 use App\Http\Repository\ClientRepository;
-use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use Carbon\Carbon;

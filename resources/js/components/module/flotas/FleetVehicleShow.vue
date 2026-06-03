@@ -637,6 +637,39 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Eventos de geocercas recientes (Sub-fase 3.2) -->
+                        <div class="flt-gps-card flt-geo-events mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <h6 class="mb-0"><i class="bi bi-bounding-box-circles me-1 text-primary"></i>Eventos de geocercas recientes</h6>
+                                <div class="d-flex align-items-center gap-2">
+                                    <a v-if="activeRulesCount > 0" :href="`${baseUrl}/reglas`" class="badge bg-primary text-decoration-none">
+                                        <i class="bi bi-funnel me-1"></i>{{ activeRulesCount }} regla(s) activa(s)
+                                    </a>
+                                    <a v-else :href="`${baseUrl}/reglas`" class="text-muted small text-decoration-none">
+                                        <i class="bi bi-funnel me-1"></i>Sin reglas — recibes todas las alertas
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-primary" @click="openAlertPrefs">
+                                        <i class="bi bi-bell me-1"></i>Configurar mis alertas
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-if="!geofenceEvents.length" class="text-muted small">
+                                <i class="bi bi-info-circle me-1"></i>Sin eventos de geocercas registrados aún.
+                                Los eventos aparecerán automáticamente cuando el vehículo entre o salga de una geocerca asignada.
+                            </div>
+                            <div v-else class="flt-geo-ev-list">
+                                <button type="button" class="flt-geo-ev" v-for="e in geofenceEvents" :key="e.id"
+                                        :class="{ disabled: e.lat == null }" @click="focusGeofenceEvent(e)">
+                                    <i class="bi" :class="e.type === 'enter' ? 'bi-arrow-right-circle-fill text-success' : 'bi-arrow-left-circle-fill text-warning'"></i>
+                                    <span class="flex-grow-1 text-truncate">
+                                        {{ e.type === 'enter' ? 'Entró a' : 'Salió de' }}
+                                        <strong>{{ e.geofence_name }}</strong>
+                                    </span>
+                                    <span class="text-muted small flt-geo-ev-time">{{ relativeTime(e.occurred_at) }}</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <!-- SIN GPS: wizard de activación -->
                     <div v-else class="flt-empty">
@@ -744,6 +777,146 @@
         <div v-if="zoom" class="flt-zoom" @click="zoom = null">
             <img :src="photoUrl(zoom)" @error="onImgError" />
         </div>
+
+        <!-- ── Modal de confirmación: eliminar vehículo ─────────────────── -->
+        <div v-if="showDeleteModal" class="modal fade show flt-delete-modal" tabindex="-1" style="display:block"
+             @click.self="!deleting && (showDeleteModal = false)">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>¿Eliminar este vehículo?
+                        </h5>
+                        <button type="button" class="btn-close" :disabled="deleting" @click="showDeleteModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3" v-if="vehicle">
+                            Estás a punto de eliminar
+                            <strong>{{ vehicle.brand }} {{ vehicle.model }}<span v-if="vehicle.year"> {{ vehicle.year }}</span></strong>
+                            con placas <strong>{{ vehicle.plates || 'sin placas' }}</strong>.
+                        </p>
+                        <p class="mb-2">Esta acción también marcará como eliminados:</p>
+                        <ul class="flt-delete-list">
+                            <li><i class="bi bi-tools me-2 text-muted"></i>{{ deleteCounts.maintenances }} mantenimiento(s) registrado(s)</li>
+                            <li><i class="bi bi-file-earmark-text me-2 text-muted"></i>{{ deleteCounts.documents }} documento(s)</li>
+                            <li><i class="bi bi-person me-2 text-muted"></i>{{ deleteCounts.assignments }} asignación(es)</li>
+                            <li><i class="bi bi-fuel-pump me-2 text-muted"></i>{{ deleteCounts.fuel }} carga(s) de combustible</li>
+                            <li><i class="bi bi-images me-2 text-muted"></i>{{ deleteCounts.photos }} foto(s)</li>
+                        </ul>
+                        <div class="alert alert-light border small mb-0 mt-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Los datos quedarán en base de datos por seguridad (soft delete).
+                            Si te equivocas, contacta al administrador para restaurarlos.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-secondary" :disabled="deleting" @click="showDeleteModal = false">Cancelar</button>
+                        <button class="btn btn-danger" :disabled="deleting" @click="executeDelete">
+                            <i class="bi bi-trash me-1"></i>{{ deleting ? 'Eliminando…' : 'Sí, eliminar' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div v-if="showDeleteModal" class="modal-backdrop fade show"></div>
+
+        <!-- ── Modal: configurar mis alertas (Sub-fase 3.3) ─────────────── -->
+        <div v-if="showAlertModal" class="modal fade show flt-delete-modal" tabindex="-1" style="display:block"
+             @click.self="showAlertModal = false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-bell me-2 text-primary"></i>Mis alertas de este vehículo</h5>
+                        <button type="button" class="btn-close" @click="showAlertModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="alertPrefs.loading" class="text-center text-muted py-3">
+                            <div class="spinner-border spinner-border-sm me-2"></div>Cargando…
+                        </div>
+                        <template v-else>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="alertActive" v-model="alertPrefs.active">
+                                <label class="form-check-label fw-semibold" for="alertActive">Recibir alertas de este vehículo</label>
+                            </div>
+
+                            <fieldset :disabled="!alertPrefs.active" :class="{ 'opacity-50': !alertPrefs.active }">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Geocercas</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="alertAllGeo" v-model="alertPrefs.all_geofences">
+                                        <label class="form-check-label" for="alertAllGeo">Todas las geocercas del vehículo</label>
+                                    </div>
+                                    <select v-if="!alertPrefs.all_geofences" class="form-select form-select-sm mt-2" multiple size="4" v-model="alertPrefs.geofence_ids">
+                                        <option v-for="g in alertPrefs.geofences" :key="g.id" :value="g.id">{{ g.name }}</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Tipos de evento</label>
+                                    <div class="d-flex gap-3">
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" id="evEnter" value="enter" v-model="alertPrefs.event_types"><label class="form-check-label" for="evEnter">Entrada</label></div>
+                                        <div class="form-check"><input class="form-check-input" type="checkbox" id="evExit" value="exit" v-model="alertPrefs.event_types"><label class="form-check-label" for="evExit">Salida</label></div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <label class="form-label fw-semibold">Canales</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="chEmail" value="email" v-model="alertPrefs.channels">
+                                        <label class="form-check-label" for="chEmail">Email <span class="text-muted small">→ {{ alertPrefs.user_email || 'sin email' }}</span></label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="chWa" value="whatsapp" v-model="alertPrefs.channels">
+                                        <label class="form-check-label" for="chWa">WhatsApp <span class="text-muted small">→ {{ alertPrefs.user_phone || 'sin teléfono' }}</span></label>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </template>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-secondary" @click="showAlertModal = false">Cancelar</button>
+                        <button class="btn btn-primary" :disabled="alertPrefs.saving" @click="saveAlertPrefs">
+                            <i class="bi bi-check2 me-1"></i>{{ alertPrefs.saving ? 'Guardando…' : 'Guardar' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div v-if="showAlertModal" class="modal-backdrop fade show"></div>
+
+        <!-- ── Modal: instrucciones para apuntar el GPS físico (Sub-fase 2.3a) ── -->
+        <div v-if="gpsInstructions" class="modal fade show flt-delete-modal" tabindex="-1" style="display:block"
+             @click.self="gpsInstructions = null">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-broadcast me-2 text-primary"></i>Configura tu GPS</h5>
+                        <button type="button" class="btn-close" @click="gpsInstructions = null"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">Dispositivo registrado. Ahora configura el GPS apuntando al servidor:</p>
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr><td class="text-muted">Servidor (IP)</td><td><strong>{{ gpsInstructions.ip }}</strong></td></tr>
+                                <tr><td class="text-muted">Puerto</td><td><strong>{{ gpsInstructions.port }}</strong></td></tr>
+                                <tr><td class="text-muted">Protocolo</td><td><strong>{{ gpsInstructions.protocol }}</strong></td></tr>
+                                <tr><td class="text-muted">IMEI</td><td><strong>{{ gpsInstructions.imei }}</strong></td></tr>
+                            </tbody>
+                        </table>
+                        <div class="alert alert-light border small mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Usa el <strong>Ruptela Configurator</strong> (Server IP + Puerto + TCP). Cuando el
+                            dispositivo se conecte por primera vez, su estado pasará a <em>activo</em> y el
+                            recorrido aparecerá en esta pestaña automáticamente.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" @click="gpsInstructions = null">Entendido</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div v-if="gpsInstructions" class="modal-backdrop fade show"></div>
 
         <!-- Toast -->
         <transition name="flt-toast-fade">
@@ -1043,14 +1216,31 @@ export default {
             finally { savingInfo.value = false; }
         }
 
-        // Eliminar vehículo
-        async function confirmDelete() {
-            if (!window.confirm('¿Eliminar este vehículo? Esta acción se puede revertir desde la base de datos (soft delete).')) return;
+        // Eliminar vehículo — modal de confirmación
+        const showDeleteModal = ref(false);
+        const deleting = ref(false);
+        // Contadores reales tomados de los datos ya cargados en la ficha
+        const deleteCounts = computed(() => ({
+            maintenances: (vehicle.value?.maintenances ?? []).length,
+            documents:    (vehicle.value?.documents ?? []).length,
+            assignments:  assignments.value.length,
+            fuel:         (vehicle.value?.fuelLog ?? []).length,
+            photos:       (vehicle.value?.photos ?? []).length,
+        }));
+        function confirmDelete() {
+            moreOpen.value = false;       // cierra el dropdown si vino de ahí
+            showDeleteModal.value = true; // NO elimina: solo abre el modal
+        }
+        async function executeDelete() {
+            deleting.value = true;
             try {
                 await axios.delete(`${props.baseUrl}/api/vehiculos/${vehicleId}`);
-                ok('Vehículo eliminado.');
-                setTimeout(() => { window.location.href = props.baseUrl; }, 700);
-            } catch (e) { err(e, 'No se pudo eliminar el vehículo.'); }
+                ok('Vehículo eliminado correctamente.');
+                setTimeout(() => { window.location.href = props.baseUrl; }, 800);
+            } catch (e) {
+                err(e, 'No se pudo eliminar el vehículo.');
+                deleting.value = false; // el modal sigue abierto para reintentar
+            }
         }
 
         // Asignación
@@ -1326,8 +1516,91 @@ export default {
 
         async function refreshGps() {
             gpsRefreshing.value = true;
-            try { await Promise.all([loadGpsStatus(), loadGpsHistory()]); }
+            try { await Promise.all([loadGpsStatus(), loadGpsHistory(), loadGeofenceEvents(), loadRulesCount()]); }
             finally { gpsRefreshing.value = false; }
+        }
+
+        // ── Reglas activas del usuario (Sub-fase 3.4) ─────────────────────
+        const activeRulesCount = ref(0);
+        async function loadRulesCount() {
+            try {
+                const { data } = await axios.get(`${props.baseUrl}/api/reglas`);
+                activeRulesCount.value = (data?.rules ?? []).filter((r) => r.active).length;
+            } catch (e) {
+                activeRulesCount.value = 0;
+            }
+        }
+
+        // ── Eventos de geocercas (Sub-fase 3.2) ───────────────────────────
+        const geofenceEvents = ref([]);
+        async function loadGeofenceEvents() {
+            try {
+                const { data } = await axios.get(`${props.baseUrl}/api/vehiculos/${vehicleId}/geofence-events`, { params: { limit: 20 } });
+                geofenceEvents.value = data?.events ?? [];
+            } catch (e) {
+                geofenceEvents.value = [];
+            }
+        }
+        function relativeTime(iso) {
+            if (!iso) return '—';
+            const diff = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+            if (diff < 1) return 'ahora';
+            if (diff < 60) return `hace ${diff} min`;
+            const h = Math.round(diff / 60);
+            if (h < 24) return `hace ${h} h`;
+            return `hace ${Math.round(h / 24)} d`;
+        }
+        function focusGeofenceEvent(e) {
+            if (e?.lat == null || !gpsMap) return;
+            gpsMap.setView([e.lat, e.lng], 15, { animate: true });
+        }
+
+        // Preferencias de alerta del usuario (Sub-fase 3.3)
+        const showAlertModal = ref(false);
+        const alertPrefs = reactive({
+            loading: false, saving: false,
+            active: false, all_geofences: true, geofence_ids: [],
+            event_types: ['enter', 'exit'], channels: ['email'],
+            geofences: [], user_email: '', user_phone: '',
+        });
+        async function openAlertPrefs() {
+            showAlertModal.value = true;
+            alertPrefs.loading = true;
+            try {
+                const { data } = await axios.get(`${props.baseUrl}/api/vehiculos/${vehicleId}/notification-preference`);
+                alertPrefs.active = data?.active ?? false;
+                alertPrefs.all_geofences = data?.all_geofences ?? true;
+                alertPrefs.geofence_ids = data?.geofence_ids ?? [];
+                alertPrefs.event_types = data?.event_types ?? ['enter', 'exit'];
+                alertPrefs.channels = data?.channels ?? ['email'];
+                alertPrefs.geofences = data?.geofences ?? [];
+                alertPrefs.user_email = data?.user_email ?? '';
+                alertPrefs.user_phone = data?.user_phone ?? '';
+            } catch (e) {
+                err(e, 'No se pudieron cargar tus preferencias.');
+            } finally {
+                alertPrefs.loading = false;
+            }
+        }
+        async function saveAlertPrefs() {
+            if (alertPrefs.active && !alertPrefs.event_types.length) { err(null, 'Selecciona al menos un tipo de evento.'); return; }
+            if (alertPrefs.active && !alertPrefs.channels.length) { err(null, 'Selecciona al menos un canal.'); return; }
+            alertPrefs.saving = true;
+            try {
+                await axios.post(`${props.baseUrl}/api/vehiculos/${vehicleId}/notification-preference`, {
+                    active: alertPrefs.active,
+                    all_geofences: alertPrefs.all_geofences,
+                    geofence_ids: alertPrefs.geofence_ids,
+                    event_types: alertPrefs.event_types,
+                    channels: alertPrefs.channels,
+                });
+                ok('Preferencias guardadas.');
+                showAlertModal.value = false;
+            } catch (e) {
+                err(e, 'No se pudieron guardar tus preferencias.');
+            } finally {
+                alertPrefs.saving = false;
+            }
         }
 
         function setGpsRange(key) {
@@ -1372,14 +1645,19 @@ ${pts}
             if (!gpsForm.imei?.trim()) { err(null, 'El IMEI es obligatorio.'); return; }
             savingGps.value = true;
             try {
-                await axios.post(`${props.baseUrl}/api/vehiculos/${vehicleId}/gps/device`, { ...gpsForm });
+                const { data } = await axios.post(`${props.baseUrl}/api/vehiculos/${vehicleId}/gps/device`, { ...gpsForm });
                 showGpsForm.value = false;
                 ok('Tracking GPS activado.');
+                // Dispositivo físico → mostrar instrucciones para apuntarlo al listener TCP (Sub-fase 2.3a).
+                if (data?.listener) {
+                    gpsInstructions.value = { ...data.listener, imei: gpsForm.imei };
+                }
                 await loadVehicle();
                 ensureGpsMap();
             } catch (e) { err(e, 'No se pudo activar el GPS.'); }
             finally { savingGps.value = false; }
         }
+        const gpsInstructions = ref(null);
 
         // Inicializa el mapa cuando se entra a la pestaña GPS.
         watch(activeTab, (tab) => { if (tab === 'gps') ensureGpsMap(); });
@@ -1445,7 +1723,8 @@ ${pts}
             fmtMoney, fmtKm, fmtDate, statusLabel, maintTypeLabel, maintIcon, docTypeLabels, docIcon, worksCatalog, vehicleIcon,
             // header / info
             currentAssignment, currentOperatorName, infoFields,
-            editInfo, savingInfo, editForm, startEditInfo, cancelEditInfo, saveInfo, confirmDelete,
+            editInfo, savingInfo, editForm, startEditInfo, cancelEditInfo, saveInfo,
+            confirmDelete, executeDelete, showDeleteModal, deleting, deleteCounts,
             // salud
             nextServiceText, nextServiceBanner, docsAlertCount, docsAlertColorClass, maintYearCount, spendYear,
             // mantenimientos
@@ -1463,6 +1742,14 @@ ${pts}
             gpsMapEl, gpsLast, gpsDevice, gpsStats, gpsHistory, gpsRange, gpsRanges, gpsCustom,
             gpsRefreshing, gpsPaused, gpsError, gpsLastSeen, gpsStatusColor, gpsStatusLabel,
             headingCardinal, setGpsRange, refreshGps, loadGpsHistory, centerGps, downloadGpx, toggleGpsPause,
+            // geocercas (Sub-fase 3.2)
+            geofenceEvents, relativeTime, focusGeofenceEvent,
+            // alertas (Sub-fase 3.3)
+            showAlertModal, alertPrefs, openAlertPrefs, saveAlertPrefs,
+            // instrucciones GPS físico (Sub-fase 2.3a)
+            gpsInstructions,
+            // reglas activas (Sub-fase 3.4)
+            activeRulesCount,
             // asignacion
             showAssignForm, savingAssign, assignForm, saveAssignment,
             // historial
@@ -1487,6 +1774,12 @@ ${pts}
 .flt-gps-card h6 { font-weight: 700; font-size: .9rem; margin-bottom: 10px; }
 .flt-gps-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: .88rem; }
 .flt-gps-row span { color: #6b7280; }
+.flt-geo-events .flt-geo-ev-list { display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow-y: auto; }
+.flt-geo-ev { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: #fff; border: 1px solid #eef0f3; border-radius: 8px; padding: 8px 10px; font-size: .88rem; cursor: pointer; }
+.flt-geo-ev:hover { background: #f8fafc; border-color: #cbd5e1; }
+.flt-geo-ev.disabled { cursor: default; opacity: .7; }
+.flt-geo-ev i { font-size: 1.05rem; flex-shrink: 0; }
+.flt-geo-ev-time { flex-shrink: 0; white-space: nowrap; }
 .spin { display: inline-block; animation: flt-spin 1s linear infinite; }
 @keyframes flt-spin { to { transform: rotate(360deg); } }
 .flt-center { text-align: center; }
@@ -1588,6 +1881,14 @@ ${pts}
 .flt-photo-empty i { font-size: 24px; }
 .flt-zoom { position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 30px; }
 .flt-zoom img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+
+/* Modal eliminar — sobre la barra fija (1000), debajo del toast (10001) */
+.flt-delete-modal { z-index: 9999; }
+.flt-delete-modal .modal-content { border: none; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+.flt-delete-modal .modal-title { font-size: 1.05rem; font-weight: 700; }
+.modal-backdrop.show { z-index: 9998; opacity: .5; }
+.flt-delete-list { list-style: none; padding: 0; margin: 0; }
+.flt-delete-list li { padding: 4px 0; font-size: .9rem; }
 
 /* Fixed bar */
 .flt-fixed-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e5e7eb; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,.05); }

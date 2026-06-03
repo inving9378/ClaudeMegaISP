@@ -20,16 +20,6 @@
         }
     ],
 
-    "admin_cards": [
-        {
-            "title": "Integration Hub",
-            "description": "Gestión centralizada de API keys: Claude, OpenAI, Evolution WhatsApp, Pexels, Google Maps.",
-            "icon": "link",
-            "url": "/integraciones",
-            "permission": "manage-integrations"
-        }
-    ],
-
     "config_sections": [
         {
             "key": "hub_integraciones",

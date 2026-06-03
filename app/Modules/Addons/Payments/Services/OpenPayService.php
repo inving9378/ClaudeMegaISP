@@ -2,7 +2,7 @@
 
 namespace App\Modules\Addons\Payments\Services;
 
-use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Addons\Payments\Models\PaymentProvider;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Exception\GuzzleException;

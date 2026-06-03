@@ -58,7 +58,7 @@ class ApiService {
 
   Future<dynamic> _get(String path) async {
     try {
-      final res = await _client.get(_u(path), headers: _headers()).timeout(const Duration(seconds: 15));
+      final res = await _client.get(_u(path), headers: _headers()).timeout(const Duration(seconds: 8));
       return _decode(res);
     } on TimeoutException {
       throw ApiException(0, 'La conexión está muy lenta');
@@ -71,7 +71,7 @@ class ApiService {
     try {
       final res = await _client
           .post(_u(path), headers: _headers(jsonBody: true), body: body != null ? jsonEncode(body) : null)
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 10));
       return _decode(res);
     } on TimeoutException {
       throw ApiException(0, 'La conexión está muy lenta');
@@ -84,7 +84,7 @@ class ApiService {
     try {
       final res = await _client
           .put(_u(path), headers: _headers(jsonBody: true), body: body != null ? jsonEncode(body) : null)
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 10));
       return _decode(res);
     } on TimeoutException {
       throw ApiException(0, 'La conexión está muy lenta');
@@ -95,7 +95,7 @@ class ApiService {
 
   Future<dynamic> _delete(String path) async {
     try {
-      final res = await _client.delete(_u(path), headers: _headers()).timeout(const Duration(seconds: 15));
+      final res = await _client.delete(_u(path), headers: _headers()).timeout(const Duration(seconds: 8));
       return _decode(res);
     } on TimeoutException {
       throw ApiException(0, 'La conexión está muy lenta');

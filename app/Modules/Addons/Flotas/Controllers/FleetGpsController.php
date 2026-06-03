@@ -86,6 +86,10 @@ class FleetGpsController extends Controller
             'sim_carrier' => 'nullable|string|max:50',
         ]);
 
+        // Un dispositivo físico (no mock) arranca en 'pending_first_connection':
+        // el listener TCP lo pasará a 'active' cuando se conecte por primera vez (Sub-fase 2.3a).
+        $isMock = $data['brand'] === 'mock';
+
         $device = FleetDevice::create([
             'vehicle_id'   => $vehicle->id,
             'imei'         => $data['imei'],
@@ -93,7 +97,7 @@ class FleetGpsController extends Controller
             'model'        => $data['model'] ?? null,
             'sim_number'   => $data['sim_number'] ?? null,
             'sim_carrier'  => $data['sim_carrier'] ?? null,
-            'status'       => 'active',
+            'status'       => $isMock ? 'active' : 'pending_first_connection',
             'installed_at' => now(),
         ]);
 
@@ -106,7 +110,45 @@ class FleetGpsController extends Controller
             'gps_carrier' => $data['sim_carrier'] ?? null,
         ]);
 
-        return response()->json(['ok' => true, 'device' => $device], 201);
+        // Instrucciones para apuntar el dispositivo físico al listener TCP.
+        $listener = $isMock ? null : [
+            'ip'   => env('GPS_LISTENER_PUBLIC_IP', '[IP pública del servidor]'),
+            'port' => 5027,
+            'protocol' => 'TCP',
+        ];
+
+        return response()->json(['ok' => true, 'device' => $device, 'listener' => $listener], 201);
+    }
+
+    // GET /flotas/api/vehiculos/{id}/geofence-events?limit=20 — últimos eventos de geocercas
+    public function geofenceEvents(Request $request, int $id): JsonResponse
+    {
+        $this->authorize('fleet.geofences.view');
+
+        $vehicle = FleetVehicle::forClient($this->clientId())->findOrFail($id);
+        $limit = min(100, max(1, (int) $request->input('limit', 20)));
+
+        $events = \App\Modules\Addons\Flotas\Models\FleetGeofenceEvent::with([
+                'geofence:id,name,color',
+                'position:id,lat,lng',
+            ])
+            ->where('vehicle_id', $vehicle->id)
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get()
+            ->map(fn($e) => [
+                'id'            => $e->id,
+                'type'          => $e->event_type, // 'enter' | 'exit'
+                'geofence_id'   => $e->geofence_id,
+                'geofence_name' => $e->geofence?->name ?? 'Geocerca eliminada',
+                'color'         => $e->geofence?->color,
+                'lat'           => $e->position ? (float) $e->position->lat : null,
+                'lng'           => $e->position ? (float) $e->position->lng : null,
+                'occurred_at'   => $e->occurred_at?->toIso8601String(),
+            ]);
+
+        return response()->json(['events' => $events]);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

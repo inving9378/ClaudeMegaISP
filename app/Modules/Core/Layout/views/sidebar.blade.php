@@ -614,19 +614,20 @@
                             @can('fleet.gps.view')
                                 <li><a href="{{ url('/flotas/mapa') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa</span></a></li>
                             @endcan
+                            @can('fleet.geofences.view')
+                                <li><a href="{{ url('/flotas/geocercas') }}"><span><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geocercas</span></a></li>
+                            @endcan
+                            @can('fleet.notifications.view')
+                                <li><a href="{{ url('/flotas/notificaciones-log') }}"><span><small><i class="fa fa-fw fa-bell"></i></small> Notificaciones</span></a></li>
+                            @endcan
+                            @can('fleet.rules.view')
+                                <li><a href="{{ url('/flotas/reglas') }}"><span><small><i class="fa fa-fw fa-filter"></i></small> Reglas de alertas</span></a></li>
+                            @endcan
                         </ul>
                     </li>
                 @endcanany
 
-                {{-- 13. War Room — location:primary (addon-warroom) --}}
-                @can('warroom.view')
-                    <li>
-                        <a href="{{ url('/warroom') }}" class="{{ request()->is('warroom*') ? 'active' : '' }}">
-                            <i data-feather="target"></i>
-                            <span data-key="t-warroom">War Room</span>
-                        </a>
-                    </li>
-                @endcan
+                {{-- 13. War Room — accesible desde el panel de Administración (/administracion), no como ítem suelto del sidebar. --}}
 
                 {{--
                     13.5 Módulos dinámicos desde ModuleRegistry::getMenu() (item #44 → #68).
@@ -643,10 +644,17 @@
                         'addon-cobranza-blaster', 'addon-megafamilia', 'addon-embajadores',
                         'addon-flotas', 'addon-warroom', 'addon-devtools', 'core-configuracion',
                     ];
+                    // Módulos accesibles solo desde los paneles Configuración / Administración:
+                    // no se muestran como ítem suelto en el sidebar (evita duplicar la navegación).
+                    $sidebarSuppressed = [
+                        'addon-whatsapp-agent', 'addon-smart-import-export', 'addon-hub',
+                        'addon-evaluador-empresarial', 'addon-manual',
+                    ];
                     $authUser = auth()->user();
                     $canSee = fn ($perm) => empty($perm) || ($authUser && $authUser->can($perm));
                     $addonDynamic = collect($addonMenuItems ?? [])
                         ->reject(fn ($m) => in_array($m['_module'] ?? '', $sidebarHardcoded, true))
+                        ->reject(fn ($m) => in_array($m['_module'] ?? '', $sidebarSuppressed, true))
                         ->filter(fn ($m) => $canSee($m['permission'] ?? null))
                         ->values();
                 @endphp

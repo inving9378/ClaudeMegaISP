@@ -31,43 +31,22 @@ class _ClienteDashboardState extends State<ClienteDashboard> {
       final p = context.read<ClienteProvider>();
       p.loadServicio();
       p.loadTickets();
-      await _checkUpdate();
+      // Tours primero — no bloqueamos el init esperando el check de update
       if (!mounted) return;
-      // 1. Si vienes de una actualización, muestra el changelog primero.
       await UpdateTour(context).show();
       if (!mounted) return;
-      // 2. Si es la primera vez (o tras reset), muestra el tour de bienvenida.
       if (await TourService().shouldShowTour('home')) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) HomeTour(context, _tourKeys).show();
         });
       }
     });
+    // Update check corre independiente, no bloquea el init
+    Future.delayed(const Duration(seconds: 2), () => _checkUpdate());
   }
 
   Future<void> _checkUpdate() async {
-    final info = await UpdateService().checkForUpdate();
-    if (info == null || !mounted) return;
-    final accepted = await showDialog<bool>(
-      context: context,
-      barrierDismissible: !info.mandatory,
-      builder: (_) => AlertDialog(
-        title: const Text('Actualización disponible'),
-        content: Text(
-          'Hay una versión nueva (${info.version}) lista para instalar.'
-          '${info.releaseNotes != null && info.releaseNotes!.isNotEmpty ? "\n\n${info.releaseNotes}" : ""}'
-          '\n\nAl tocar "Descargar", el sistema bajará el APK y te pedirá actualizar la app — no necesitas desinstalar.',
-        ),
-        actions: [
-          if (!info.mandatory)
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Más tarde')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Descargar')),
-        ],
-      ),
-    );
-    if (accepted == true) {
-      await UpdateService().openApkUrl(info.apkUrl);
-    }
+    await UpdateService().showUpdateDialogIfNeeded(context);
   }
 
   @override

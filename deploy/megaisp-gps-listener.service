@@ -1,0 +1,17 @@
+[Unit]
+Description=MegaISP Flotas GPS Listener (TCP) — Ruptela/Concox/GT06
+After=mysql.service network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/megaisp
+ExecStart=/usr/bin/php /var/www/megaisp/artisan flotas:gps-listen --host=0.0.0.0 --port=5027
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/megaisp-gps-listener.log
+StandardError=append:/var/log/megaisp-gps-listener.error.log
+
+[Install]
+WantedBy=multi-user.target

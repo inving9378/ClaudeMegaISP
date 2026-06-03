@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/hijo_provider.dart';
+import '../../services/update_service.dart';
 import '../../theme.dart';
 
 class HijoDashboard extends StatefulWidget {
@@ -20,6 +21,7 @@ class _HijoDashboardState extends State<HijoDashboard> {
   void initState() {
     super.initState();
     Future.microtask(() => context.read<HijoProvider>().loadTareas());
+    Future.delayed(const Duration(seconds: 2), () => UpdateService().showUpdateDialogIfNeeded(context));
   }
 
   @override

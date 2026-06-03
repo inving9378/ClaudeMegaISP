@@ -24,6 +24,20 @@ class PermissionController extends Controller
         return response()->json($permissions);
     }
 
+    /**
+     * Catálogo completo de permisos existentes en BD.
+     *
+     * Alimenta la pestaña dinámica "Otros / Sin categorizar" de la UI de
+     * permisos: el frontend compara este catálogo contra los permisos
+     * curados en constants.js y expone cualquier permiso no cubierto (módulos
+     * nuevos o futuros) sin tener que editar el front manualmente. Item #71.
+     */
+    public function catalog()
+    {
+        $permissions = Permission::orderBy('name')->pluck('name');
+        return response()->json(['permissions' => $permissions], 200);
+    }
+
     public function get($role_id)
     {
         $role = Role::find($role_id);

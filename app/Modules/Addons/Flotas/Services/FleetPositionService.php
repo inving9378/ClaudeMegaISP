@@ -6,9 +6,11 @@ use App\Modules\Addons\Flotas\Models\FleetDevice;
 use App\Modules\Addons\Flotas\Models\FleetPosition;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
 use App\Modules\Addons\Flotas\Services\Gps\Position;
+use App\Modules\Addons\Flotas\Services\GeofenceDetectionService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class FleetPositionService
 {
@@ -26,17 +28,39 @@ class FleetPositionService
 
         $rows = array_map(fn(Position $p) => $p->toAttributes($vehicleId, $deviceId), $positions);
 
-        // Insert en chunks para no exceder límites de placeholders/paquete.
-        foreach (array_chunk($rows, 500) as $chunk) {
-            FleetPosition::insert($chunk);
-        }
+        // Marca para recuperar exactamente las filas insertadas en este batch.
+        $beforeId = (int) (FleetPosition::max('id') ?? 0);
 
-        $last = end($rows);
-        FleetDevice::where('id', $deviceId)->update([
-            'last_seen_at' => $last['recorded_at'],
-            'total_pings'  => DB::raw('total_pings + ' . count($rows)),
-            'status'       => 'active',
-        ]);
+        DB::transaction(function () use ($rows, $deviceId) {
+            // Insert en chunks para no exceder límites de placeholders/paquete.
+            foreach (array_chunk($rows, 500) as $chunk) {
+                FleetPosition::insert($chunk);
+            }
+
+            $last = end($rows);
+            FleetDevice::where('id', $deviceId)->update([
+                'last_seen_at' => $last['recorded_at'],
+                'total_pings'  => DB::raw('total_pings + ' . count($rows)),
+                'status'       => 'active',
+            ]);
+        });
+
+        // Detección de geocercas (Sub-fase 3.2) — DESPUÉS del commit y en try/catch:
+        // es un efecto secundario reprocesable (flotas:reprocess-geofences); un fallo aquí
+        // NUNCA debe tumbar la ingestión de pings GPS.
+        // NOTA: si con muchos pings (>2s) esto se vuelve lento, mover a queue job (Sub-fase 3.3).
+        try {
+            $inserted = FleetPosition::where('id', '>', $beforeId)
+                ->where('vehicle_id', $vehicleId)
+                ->orderBy('recorded_at')->orderBy('id')
+                ->get();
+
+            if ($inserted->isNotEmpty()) {
+                app(GeofenceDetectionService::class)->processBatch($inserted);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Flotas: detección de geocercas falló en saveBatch: ' . $e->getMessage());
+        }
 
         return count($rows);
     }

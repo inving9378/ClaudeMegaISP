@@ -370,31 +370,45 @@ class Client extends BaseModel
             ]);
 
             $file = $documentCrm->file;
-            $fileName = Str::afterLast($file->path, "/");
-            $clientId = $this->id;
-            $path = '/storage/client/' . $clientId . '/document/' . $document->id . '/' . $fileName;
+            // La relación file() es morphOne opcional: un documento CRM puede no tener
+            // archivo (huérfano). Sin esta guarda, $file->path revienta la conversión
+            // entera (DB::transaction la revierte). El documento ya se creó arriba; aquí
+            // solo se copia/registra el archivo cuando existe.
+            if ($file) {
+                $fileName = Str::afterLast($file->path, "/");
+                $clientId = $this->id;
+                $path = '/storage/client/' . $clientId . '/document/' . $document->id . '/' . $fileName;
 
-            // create new file
-            $document->file()->create([
-                'name' => $file->name,
-                'type' => $file->type,
-                'path' => $path,
-                'size' => $file->size,
-                'preview' => $file->preview,
-            ]);
+                // create new file
+                $document->file()->create([
+                    'name' => $file->name,
+                    'type' => $file->type,
+                    'path' => $path,
+                    'size' => $file->size,
+                    'preview' => $file->preview,
+                ]);
 
-            // copy file to new dir
-            $cleanFrom = Str::after($file->path, '/storage');
-            $from = storage_path() . '/app/public' . $cleanFrom;
-            $cleanTo = Str::after($path, '/storage');
-            $to = storage_path() . '/app/public' . $cleanTo;
-            if (file_exists($from)) {
-                if (!file_exists(dirname($to))) {
-                    if (!mkdir($concurrentDirectory = dirname($to), 0777, true) && !is_dir($concurrentDirectory)) {
-                        throw new \RuntimeException(sprintf('Directory "%s" was not created', $concurrentDirectory));
+                // copy file to new dir
+                $cleanFrom = Str::after($file->path, '/storage');
+                $from = storage_path() . '/app/public' . $cleanFrom;
+                $cleanTo = Str::after($path, '/storage');
+                $to = storage_path() . '/app/public' . $cleanTo;
+                if (file_exists($from)) {
+                    if (!file_exists(dirname($to))) {
+                        if (!mkdir($concurrentDirectory = dirname($to), 0777, true) && !is_dir($concurrentDirectory)) {
+                            throw new \RuntimeException(sprintf('Directory "%s" was not created', $concurrentDirectory));
+                        }
                     }
+                    copy($from, $to);
                 }
-                copy($from, $to);
+            } else {
+                \Log::warning('Documento CRM huérfano (sin archivo asociado) al convertir prospecto', [
+                    'crm_id' => $crm->id,
+                    'document_crm_id' => $documentCrm->id,
+                    'document_title' => $documentCrm->title ?? null,
+                    'client_id' => $this->id,
+                    'action' => 'archivo omitido — documento se creó sin file copy',
+                ]);
             }
         }
     }

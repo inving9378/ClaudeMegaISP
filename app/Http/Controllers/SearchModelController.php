@@ -14,6 +14,7 @@ use App\Http\Repository\CustomRepository;
 use App\Http\Repository\InternetRepository;
 use App\Http\Repository\VoiseRepository;
 use App\Models\ClientBundleService;
+use App\Support\Security\QueryGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -26,8 +27,10 @@ class SearchModelController extends Controller
             if ($model == 'App\Models\SpecialModelClientServices') {
                 return $this->getClientServicesByClient($request);
             }
-            $text = $request->text;
-            $id = $request->id;
+            // Hardening: el modelo, columnas y scope llegan del cliente → validar.
+            $model = QueryGuard::model($model);
+            $text = QueryGuard::identifier($request->text, true);
+            $id = QueryGuard::identifier($request->id, true);
             if (isset($request->filter)) {
                 foreach ($request->filter as $key => $filter) {
                     if ($key == 0) {
@@ -35,12 +38,15 @@ class SearchModelController extends Controller
                         continue;
                     }
                     if (isset($filter['or_where'])) {
-                        $model = $model->orWhere($filter['or_where'], $filter['value']);
+                        $column = QueryGuard::identifier($filter['or_where']);
+                        $model = $model->orWhere($column, $filter['value'] ?? null);
                         continue;
                     }
                     if (isset($filter['or_where_field_relation'])) {
-                        $model = $model->orWhereHas($filter['or_where_field_relation'], function ($query) use ($filter) {
-                            $query->where($filter['field'], $filter['value']);
+                        $relation = QueryGuard::relation($filter['or_where_field_relation']);
+                        $field = QueryGuard::identifier($filter['field'] ?? null);
+                        $model = $model->orWhereHas($relation, function ($query) use ($field, $filter) {
+                            $query->where($field, $filter['value'] ?? null);
                         });
                     }
 
@@ -49,11 +55,11 @@ class SearchModelController extends Controller
                 return $model->get()->pluck($text, $id);
             }
             if (isset($request->scope)) {
-                $scope = $request->scope;
+                $scope = QueryGuard::scope($model, $request->scope, false);
                 return $model::$scope()->get()->pluck($text, $id);
             }
             if (isset($request->append)) {
-                $append = $request->append;
+                $append = QueryGuard::identifier($request->append);
                 return $model::get()->pluck($append, $id);
             }
             return $model::get()->pluck($text, $id);
@@ -64,22 +70,26 @@ class SearchModelController extends Controller
     public function searchWithoutId(Request $request, $id)
     {
         if (count($request->all())) {
-            $model = $request->model;
-            $text = $request->text;
-            $keyId = $request->id;
+            $model = QueryGuard::model($request->model);
+            $text = QueryGuard::identifier($request->text, true);
+            $keyId = QueryGuard::identifier($request->id, true);
             if (isset($request->filter)) {
                 foreach ($request->filter as $key => $filter) {
                     if ($key == 0) {
                         if (isset($filter['field_relation'])) {
-                            $model = $model::whereHas($filter['field_relation'], function ($query) use ($filter) {
-                                $query->where($filter['field'], $filter['value']);
+                            $relation = QueryGuard::relation($filter['field_relation']);
+                            $field = QueryGuard::identifier($filter['field'] ?? null);
+                            $model = $model::whereHas($relation, function ($query) use ($field, $filter) {
+                                $query->where($field, $filter['value'] ?? null);
                             });
                         } else {
-                            $model = $model::where($filter['field'], $filter['value']);
+                            $field = QueryGuard::identifier($filter['field'] ?? null);
+                            $model = $model::where($field, $filter['value'] ?? null);
                         }
                         continue;
                     }
-                    $model = $model->where($filter['field'], $filter['value']);
+                    $field = QueryGuard::identifier($filter['field'] ?? null);
+                    $model = $model->where($field, $filter['value'] ?? null);
                 }
                 return $model->get()->pluck($text, $keyId);
             }
@@ -91,22 +101,20 @@ class SearchModelController extends Controller
 
     protected function getModelFilterByRelationOrByField($model, $filter, $firstLoad = false)
     {
-        if ($firstLoad) {
-            if (isset($filter['field_relation'])) {
-                $model = $model::whereHas($filter['field_relation'], function ($query) use ($filter) {
-                    $query->where($filter['field'], $filter['value']);
-                });
-            } else {
-                $model = $model::where($filter['field'], $filter['value']);
-            }
+        if (isset($filter['field_relation'])) {
+            $relation = QueryGuard::relation($filter['field_relation']);
+            $field = QueryGuard::identifier($filter['field'] ?? null);
+            $callback = function ($query) use ($field, $filter) {
+                $query->where($field, $filter['value'] ?? null);
+            };
+            $model = $firstLoad
+                ? $model::whereHas($relation, $callback)
+                : $model->whereHas($relation, $callback);
         } else {
-            if (isset($filter['field_relation'])) {
-                $model = $model->whereHas($filter['field_relation'], function ($query) use ($filter) {
-                    $query->where($filter['field'], $filter['value']);
-                });
-            } else {
-                $model = $model->where($filter['field'], $filter['value']);
-            }
+            $field = QueryGuard::identifier($filter['field'] ?? null);
+            $model = $firstLoad
+                ? $model::where($field, $filter['value'] ?? null)
+                : $model->where($field, $filter['value'] ?? null);
         }
         return $model;
     }
@@ -152,15 +160,15 @@ class SearchModelController extends Controller
 
     public function longOptions(Request $request)
     {
-        $model = $request->model;
-        $text = $request->text;
-        $id = $request->id;
+        $model = QueryGuard::model($request->model);
+        $text = QueryGuard::identifier($request->text, true);
+        $id = QueryGuard::identifier($request->id, true);
         $filter = $request->filter;
         $filters = $request->filters;
         $page = $request->page;
         $pageSize = $request->pageSize;
         $offset = ($page - 1) * $pageSize;
-        $scope = $request->scope;
+        $scope = QueryGuard::scope($model, $request->scope);
 
         if ($filters && method_exists($model, 'scopeFilters')) {
             $query = $model::filters(['id', $text], $filter, $filters)
@@ -207,7 +215,11 @@ class SearchModelController extends Controller
         $offset = ($page - 1) * $pageSize;
         $scope = $request->scope;
 
-        ['model' => $model, 'text' => $text, 'id' => $id] = $validated;
+        // Hardening: model/text/id se interpolan en selectRaw/CONCAT → validar identificadores.
+        $model = QueryGuard::model($validated['model']);
+        $text = QueryGuard::identifier($validated['text']);
+        $id = QueryGuard::identifier($validated['id']);
+        $scope = QueryGuard::scope($model, $scope);
 
         if ($model === 'App\Models\InventoryItem') {
             return $this->getFilterInventoryItem($model, $text, $id, $page, $pageSize, $scope, $request);
@@ -254,6 +266,10 @@ class SearchModelController extends Controller
         $filter_where = $request->input('filter_where');
         $currentSelected = $request->input('currentSelected');
 
+        // $model/$text/$id ya validados por el caller (longOptionsClient). $scope se
+        // valida aquí porque se invoca como método estático ($model::$scope()).
+        $scope = QueryGuard::scope($model, $scope, false);
+
         // Resolvemos los nombres de las tablas
         $modelInstance = new $model;
         $table = $modelInstance->getTable();
@@ -273,8 +289,9 @@ class SearchModelController extends Controller
             });
         }
         if (!empty($filter_where)) {
-            foreach ($filter_where as $filter) {
-                $query->where($filter['field'], $filter['value']);
+            foreach ($filter_where as $singleFilter) {
+                $field = QueryGuard::identifier($singleFilter['field'] ?? null);
+                $query->where($field, $singleFilter['value'] ?? null);
             }
         }
 
@@ -314,9 +331,13 @@ class SearchModelController extends Controller
         $scope = $request->scope;
         $append = $request->input('append');
 
-        ['model' => $model, 'text' => $text, 'id' => $id] = $validated;
+        $model = QueryGuard::model($validated['model']);
+        $text = QueryGuard::identifier($validated['text']);
+        $id = QueryGuard::identifier($validated['id']);
+        $scope = QueryGuard::scope($model, $scope);
+        $append = QueryGuard::identifier($append, true);
 
-        $displayId = $request->input('display_id', $id);
+        $displayId = QueryGuard::identifier($request->input('display_id'), true) ?? $id;
 
         $query = isset($scope) ? $model::$scope() : $model::query();
 
@@ -377,7 +398,10 @@ class SearchModelController extends Controller
         $scope = $request->scope;
         $currentSelected = $request->input('currentSelected');
 
-        ['model' => $model, 'text' => $text, 'id' => $id] = $validated;
+        $model = QueryGuard::model($validated['model']);
+        $text = QueryGuard::identifier($validated['text']);
+        $id = QueryGuard::identifier($validated['id']);
+        $scope = QueryGuard::scope($model, $scope);
 
         $query = isset($scope)
             ? $model::$scope()->selectRaw("`{$id}` as value, CONCAT(`{$id}`, ' - ', `{$text}`, ' ', father_last_name, ' ', mother_last_name) as label")

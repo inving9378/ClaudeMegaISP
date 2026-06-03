@@ -27,16 +27,6 @@
         }
     ],
 
-    "admin_cards": [
-        {
-            "title": "Smart Import / Export",
-            "description": "Importación masiva con IA y exportación selectiva por módulos.",
-            "icon": "database",
-            "url": "/configuracion/smart-import",
-            "permission": "smart_import_view"
-        }
-    ],
-
     "config_sections": [
         {
             "key": "smart_import",

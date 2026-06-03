@@ -40,6 +40,16 @@ export const deleteRol = async (id) => {
     return response;
 }
 
+export const getPermissionsCatalog = async () => {
+    let data = { permissions: [] };
+    await axios["get"](`/administracion/permisos/catalog`).then((response) => {
+        data = response.data;
+    }).catch((error) => {
+        console.log(error);
+    });
+    return data;
+}
+
 export const getPermissionsForRole= async (id) => {
     let data = [];
     await axios["get"](`/administracion/permisos/get-permission-for-role/${id}`).then((response) => {

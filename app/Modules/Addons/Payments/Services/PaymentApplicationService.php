@@ -2,7 +2,7 @@
 
 namespace App\Modules\Addons\Payments\Services;
 
-use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client;
 use App\Models\ClientInternetService;
 use App\Models\ClientInvoice;
 use App\Models\MethodOfPayment;

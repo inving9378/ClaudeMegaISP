@@ -21,6 +21,9 @@ class Kernel extends HttpKernel
         \App\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
         \App\Http\Middleware\ConvertNullStrings::class,
+        // WAF ligero anti-inyección SQL — aplica a TODAS las rutas (web, api y módulos).
+        // Config: config/sql_guard.php. Defensa primaria por identificador: App\Support\Security\QueryGuard.
+        \App\Http\Middleware\SqlInjectionProtection::class,
     ];
 
     /**
@@ -74,5 +77,9 @@ class Kernel extends HttpKernel
 
         // Registra cada hit a /api/megafamilia/* en api_mobile_logs (terminable).
         'log_api_mobile' => \App\Modules\Core\Configuracion\Middleware\LogApiMobileAccess::class,
+
+        // Fuerza Accept: application/json para rutas API fuera del grupo `api`
+        // de Laravel. Sin esto, los errores de validación y auth devuelven 302.
+        'force_json' => \App\Http\Middleware\ForceJsonResponse::class,
     ];
 }

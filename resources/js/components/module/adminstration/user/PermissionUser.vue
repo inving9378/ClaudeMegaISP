@@ -153,11 +153,14 @@
 </template>
 
 <script setup>
-import { watch, ref } from "vue";
+import { watch, ref, onMounted } from "vue";
 import {
     fieldsJson as importedFieldsJson,
     accordions,
+    extraModuleTabs,
+    buildUncategorizedTab,
 } from "../rol/helper/constants.js";
+import { getPermissionsCatalog } from "../rol/helper/request";
 
 import Swal from "sweetalert2";
 import Modal from "../../../../shared/ModalSimple.vue";
@@ -205,6 +208,7 @@ const tabs = ref([
         title: "Promociones",
     },
     { ref: "releases", active: false, title: "Actualizaciones" },
+    ...extraModuleTabs.map((t) => ({ ...t, active: false })),
 ]);
 
 const fieldsJson = ref(importedFieldsJson);
@@ -250,6 +254,21 @@ const applyPermissions = () => {
         p.value = avaiables.includes(p.id);
     });
 };
+
+// Pestaña dinámica "Otros": expone cualquier permiso de BD no curado (item #71)
+const loadCatalog = async () => {
+    const { permissions: catalog } = await getPermissionsCatalog();
+    const { fields, accordions: accs } = buildUncategorizedTab(catalog);
+    if (!fields.length) return;
+    fieldsJson.value.otros = fields;
+    accordions.value.otros = accs;
+    if (!tabs.value.some((t) => t.ref === "otros")) {
+        tabs.value.push({ ref: "otros", active: false, title: "Otros / Sin categorizar" });
+    }
+    if (permissions.value.length) applyPermissions();
+};
+
+onMounted(loadCatalog);
 
 const preparePermissionsData = () => {
     let permissionsData = [];
