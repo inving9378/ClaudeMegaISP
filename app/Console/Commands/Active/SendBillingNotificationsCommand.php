@@ -3,6 +3,7 @@
 namespace App\Console\Commands\Active;
 
 use App\Mail\BillingMail;
+use App\Models\BillingConfig;
 use App\Models\BillingNotification;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -28,6 +29,11 @@ class SendBillingNotificationsCommand extends Command
     {
         $dryRun = $this->option('dry-run');
         $limit  = (int) $this->option('limit');
+
+        if (BillingConfig::current()->envio_pausado && ! $dryRun) {
+            $this->info('Envío de notificaciones PAUSADO (billing_config.envio_pausado=true). Los documentos siguen generándose.');
+            return self::SUCCESS;
+        }
 
         $this->info("Buscando notificaciones pendientes (dry-run=" . ($dryRun ? 'si' : 'no') . ", limit={$limit})...");
 
