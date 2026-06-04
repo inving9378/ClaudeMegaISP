@@ -555,9 +555,10 @@ export default {
       })[0];
     };
 
-    const currentSortColumn = ref(null);
+    const currentSortColumn = ref('id');
 
     const pagination = ref({
+      sortBy: 'id',
       descending: false,
       page: 1,
       rowsPerPage: 50,
