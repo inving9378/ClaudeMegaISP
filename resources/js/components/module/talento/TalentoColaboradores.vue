@@ -54,6 +54,13 @@
             <td>
               <div class="fw-semibold">{{ col.user?.name }}</div>
               <div class="small text-muted">{{ col.user?.email }}</div>
+              <!-- Roles Spatie (solo lectura) — la gestión vive en Administradores -->
+              <div v-if="col.user?.role_names?.length" class="mt-1">
+                <span v-for="r in col.user.role_names" :key="r"
+                      class="badge bg-light text-secondary border me-1" style="font-size:10px;">
+                  {{ r }}
+                </span>
+              </div>
             </td>
             <td>
               <span class="badge" :class="col.type === 'interno' ? 'bg-primary-subtle text-primary' : 'bg-secondary-subtle text-secondary'">
@@ -64,12 +71,18 @@
             <td>{{ col.supervisor?.user?.name ?? '—' }}</td>
             <td class="small">{{ formatDate(col.hire_date) }}</td>
             <td><span class="badge" :class="statusBadge(col.status)">{{ statusLabel(col.status) }}</span></td>
-            <td>
+            <td class="text-end">
               <button v-if="canManage" @click="openModal(col)" class="btn btn-xs btn-outline-primary me-1">
                 <i class="fa fa-pen"></i>
               </button>
               <a :href="`/talento/custodia`" class="btn btn-xs btn-outline-secondary me-1" title="Custodia">
                 <i class="fa fa-boxes"></i>
+              </a>
+              <!-- Cross-link: gestión de acceso en Administradores -->
+              <a :href="`/administracion/user/${col.user_id}/editar`"
+                 class="btn btn-xs btn-outline-info" title="Gestión de acceso (Administradores)"
+                 target="_blank">
+                <i class="fa fa-key"></i>
               </a>
             </td>
           </tr>
@@ -127,7 +140,24 @@
               </div>
               <div v-else class="col-12">
                 <label class="form-label">Usuario</label>
-                <input type="text" class="form-control" :value="modal.user_name" disabled>
+                <div class="d-flex align-items-center gap-2">
+                  <input type="text" class="form-control" :value="modal.user_name" disabled>
+                  <!-- Cross-link: gestión de acceso en Administradores -->
+                  <a :href="`/administracion/user/${modal.user_id}/editar`"
+                     class="btn btn-sm btn-outline-info flex-shrink-0" target="_blank"
+                     title="Editar acceso, roles y permisos en Administradores">
+                    <i class="fa fa-key me-1"></i>Acceso
+                  </a>
+                </div>
+                <!-- Roles Spatie actuales (solo lectura) -->
+                <div v-if="modal.role_names?.length" class="mt-2">
+                  <small class="text-muted me-2">Roles:</small>
+                  <span v-for="r in modal.role_names" :key="r"
+                        class="badge bg-light text-secondary border me-1">{{ r }}</span>
+                  <small class="text-muted fst-italic">
+                    (Gestión de roles en <a href="/administracion/user" target="_blank">Administradores</a>)
+                  </small>
+                </div>
               </div>
 
               <!-- Tipo -->
@@ -285,10 +315,13 @@ export default {
           department: col.department ?? '', supervisor_id: col.supervisor_id,
           hire_date: col.hire_date ? col.hire_date.substring(0,10) : '',
           base_salary: col.base_salary ?? '', notes: col.notes ?? '',
+          // Roles Spatie (solo lectura — se gestionan en Administradores)
+          role_names: col.user?.role_names ?? [],
         };
       } else {
         this.modal = { show: true, id: null, user_id: null, user_name: '', type: 'interno', status: 'active',
-                       department: '', supervisor_id: null, hire_date: '', base_salary: '', notes: '' };
+                       department: '', supervisor_id: null, hire_date: '', base_salary: '', notes: '',
+                       role_names: [] };
       }
     },
     closeModal() { this.modal.show = false; },

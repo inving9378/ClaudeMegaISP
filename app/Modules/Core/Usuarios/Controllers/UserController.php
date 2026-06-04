@@ -52,8 +52,15 @@ class UserController extends Controller
             ->orderBy('id')
             ->paginate(49);
 
+        // Enrich: mark which users have a Talento collaborator profile (read-only join)
+        $colaboradorMap = \Illuminate\Support\Facades\DB::table('talento_colaboradores')
+            ->whereNull('deleted_at')
+            ->pluck('id', 'user_id');  // [user_id => colaborador_id]
+
         foreach ($users as $user) {
             $user->role_names = $user->getRoleNames();
+            // Aditivo: colaborador_id si existe perfil en Talento (null si no)
+            $user->talento_colaborador_id = $colaboradorMap->get($user->id);
         }
 
         return response()->json($users);
