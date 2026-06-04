@@ -43,7 +43,10 @@ class CompanyInformation extends Model
         'updated_by',
         'logo',
         'url_logo',
-        'url_portal'
+        'url_portal',
+        'company_street',
+        'company_external_number',
+        'company_internal_number',
     ];
 
     protected $appends = ['state_name','colony_name','municipality_name'];
