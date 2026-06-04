@@ -1,20 +1,28 @@
 {
     "slug": "addon-talento",
     "name": "Talento Meganet",
-    "version": "1.0.0",
-    "description": "Control de personal unificado: identidad del colaborador, custodia de material, vinculación de dispositivos y roadmap de capacidades.",
+    "version": "2.0.0",
+    "description": "Control de personal unificado: identidad, órdenes de trabajo, compensación, ledger de pagos y roadmap.",
     "type": "addon",
     "dependencies": [],
     "active": true,
 
     "permissions": [
-        { "name": "talento.view",              "description": "Ver el módulo de talento y listado de colaboradores" },
-        { "name": "talento.manage",            "description": "Crear y editar perfiles de colaboradores" },
-        { "name": "talento.custody.view",      "description": "Ver material en custodia por colaborador (solo lectura)" },
-        { "name": "talento.devices.view",      "description": "Ver dispositivos vinculados de un colaborador" },
-        { "name": "talento.devices.manage",    "description": "Gestionar vinculación y revocación de dispositivos" },
-        { "name": "talento.roadmap.view",      "description": "Ver roadmap de fases del módulo Talento" },
-        { "name": "talento.roadmap.manage",    "description": "Editar items del roadmap" }
+        { "name": "talento.view",                  "description": "Ver el módulo de talento y listado de colaboradores" },
+        { "name": "talento.manage",                "description": "Crear y editar perfiles de colaboradores" },
+        { "name": "talento.custody.view",          "description": "Ver material en custodia por colaborador (solo lectura)" },
+        { "name": "talento.devices.view",          "description": "Ver dispositivos vinculados de un colaborador" },
+        { "name": "talento.devices.manage",        "description": "Gestionar vinculación y revocación de dispositivos" },
+        { "name": "talento.roadmap.view",          "description": "Ver roadmap de fases del módulo Talento" },
+        { "name": "talento.roadmap.manage",        "description": "Editar items del roadmap" },
+        { "name": "talento.work_orders.view",      "description": "Ver órdenes de trabajo" },
+        { "name": "talento.work_orders.manage",    "description": "Crear y editar órdenes de trabajo" },
+        { "name": "talento.work_orders.validate",  "description": "Validar órdenes de trabajo completadas" },
+        { "name": "talento.compensation.view",     "description": "Ver reglas de compensación y asignaciones" },
+        { "name": "talento.compensation.manage",   "description": "Crear reglas y asignarlas a colaboradores" },
+        { "name": "talento.liquidation.view",      "description": "Ver liquidaciones semanales" },
+        { "name": "talento.liquidation.manage",    "description": "Calcular y cerrar liquidaciones" },
+        { "name": "talento.ledger.view",           "description": "Ver el ledger de asientos contables del colaborador" }
     ],
 
     "menu": [
@@ -24,10 +32,13 @@
             "permission": "talento.view",
             "url": "/talento",
             "children": [
-                { "label": "Colaboradores", "url": "/talento",            "permission": "talento.view" },
-                { "label": "Custodia",      "url": "/talento/custodia",   "permission": "talento.custody.view" },
-                { "label": "Dispositivos",  "url": "/talento/dispositivos","permission": "talento.devices.view" },
-                { "label": "Roadmap",       "url": "/talento/roadmap",    "permission": "talento.roadmap.view" }
+                { "label": "Colaboradores",    "url": "/talento",                    "permission": "talento.view" },
+                { "label": "Órdenes de trabajo","url": "/talento/ordenes",           "permission": "talento.work_orders.view" },
+                { "label": "Compensación",     "url": "/talento/compensacion",       "permission": "talento.compensation.view" },
+                { "label": "Liquidaciones",    "url": "/talento/liquidaciones",      "permission": "talento.liquidation.view" },
+                { "label": "Custodia",         "url": "/talento/custodia",           "permission": "talento.custody.view" },
+                { "label": "Dispositivos",     "url": "/talento/dispositivos",       "permission": "talento.devices.view" },
+                { "label": "Roadmap",          "url": "/talento/roadmap",            "permission": "talento.roadmap.view" }
             ]
         }
     ],
@@ -35,7 +46,7 @@
     "admin_cards": [
         {
             "title": "Talento Meganet",
-            "description": "Control de personal: colaboradores, custodia de material y dispositivos.",
+            "description": "Control de personal: colaboradores, órdenes de trabajo, compensación y liquidaciones.",
             "icon": "users",
             "url": "/talento",
             "permission": "talento.view"
@@ -43,25 +54,29 @@
     ],
 
     "api_endpoints": [
-        { "method": "GET",  "path": "/talento/data",                      "description": "Lista colaboradores (JSON)",         "permission": "talento.view" },
-        { "method": "GET",  "path": "/talento/{id}",                      "description": "Perfil de colaborador",              "permission": "talento.view" },
-        { "method": "POST", "path": "/talento",                           "description": "Crear colaborador",                  "permission": "talento.manage" },
-        { "method": "PUT",  "path": "/talento/{id}",                      "description": "Editar colaborador",                 "permission": "talento.manage" },
-        { "method": "GET",  "path": "/talento/{id}/custodia",             "description": "Material en custodia (solo lectura)","permission": "talento.custody.view" },
-        { "method": "GET",  "path": "/talento/{id}/dispositivos",         "description": "Dispositivos del colaborador",       "permission": "talento.devices.view" },
-        { "method": "POST", "path": "/talento/{id}/dispositivos",         "description": "Vincular dispositivo",               "permission": "talento.devices.manage" },
-        { "method": "DELETE","path": "/talento/{id}/dispositivos/{devId}","description": "Revocar dispositivo",               "permission": "talento.devices.manage" },
-        { "method": "GET",  "path": "/talento/roadmap",                   "description": "Items del roadmap",                  "permission": "talento.roadmap.view" }
+        { "method": "GET",  "path": "/talento/api/colaboradores",                        "description": "Lista colaboradores",               "permission": "talento.view" },
+        { "method": "POST", "path": "/talento/api/colaboradores",                        "description": "Crear colaborador",                 "permission": "talento.manage" },
+        { "method": "GET",  "path": "/talento/api/ordenes",                              "description": "Lista órdenes de trabajo",          "permission": "talento.work_orders.view" },
+        { "method": "POST", "path": "/talento/api/ordenes",                              "description": "Crear orden de trabajo",            "permission": "talento.work_orders.manage" },
+        { "method": "PUT",  "path": "/talento/api/ordenes/{id}/status",                 "description": "Cambiar estado de orden",           "permission": "talento.work_orders.manage" },
+        { "method": "POST", "path": "/talento/api/ordenes/{id}/validate",               "description": "Validar orden completada",          "permission": "talento.work_orders.validate" },
+        { "method": "GET",  "path": "/talento/api/reglas",                               "description": "Lista reglas de compensación",      "permission": "talento.compensation.view" },
+        { "method": "POST", "path": "/talento/api/colaboradores/{id}/regla",            "description": "Asignar regla a colaborador",       "permission": "talento.compensation.manage" },
+        { "method": "GET",  "path": "/talento/api/liquidaciones",                        "description": "Lista liquidaciones",               "permission": "talento.liquidation.view" },
+        { "method": "POST", "path": "/talento/api/liquidaciones/calcular",              "description": "Calcular liquidación",              "permission": "talento.liquidation.manage" },
+        { "method": "POST", "path": "/talento/api/liquidaciones/{id}/cerrar",           "description": "Cerrar liquidación",               "permission": "talento.liquidation.manage" },
+        { "method": "GET",  "path": "/talento/api/colaboradores/{id}/avance",           "description": "Avance semanal del colaborador (app)","permission": "talento.liquidation.view" }
     ],
 
     "ai": {
-        "knowledge": "Talento Meganet es el módulo de control de personal. Registra a los colaboradores (internos y externos) vinculados a usuarios del sistema. Controla el material en custodia (consumiendo Inventario), los dispositivos móviles autorizados (device binding con sesión única) y el roadmap de fases del módulo.",
+        "knowledge": "Talento Meganet controla el personal: identidad de colaboradores, órdenes de trabajo técnico (instalaciones, garantías), motor de compensación semanal (sueldo base + sobreproducción), ledger inmutable y liquidaciones de corte sabatino.",
         "example_intents": [
-            "ver qué material tiene asignado un técnico",
-            "ver los colaboradores activos",
-            "revocar el dispositivo de un colaborador",
-            "ver el estado del roadmap de Talento"
+            "ver órdenes pendientes del técnico",
+            "calcular la liquidación semanal",
+            "asignar una regla de compensación",
+            "ver el avance de unidades de un colaborador",
+            "validar una orden de trabajo"
         ],
-        "sensitive_actions": ["talento.devices.manage", "talento.manage"]
+        "sensitive_actions": ["talento.liquidation.manage", "talento.work_orders.validate", "talento.compensation.manage"]
     }
 }
