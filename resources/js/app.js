@@ -143,6 +143,8 @@ import TalentoAsistencia from "./components/module/talento/TalentoAsistencia.vue
 import TalentoMapaVivo from "./components/module/talento/TalentoMapaVivo.vue";
 import TalentoSitios from "./components/module/talento/TalentoSitios.vue";
 import TalentoCampo from "./components/module/talento/TalentoCampo.vue";
+import TalentoCajas from "./components/module/talento/TalentoCajas.vue";
+import TalentoRutas from "./components/module/talento/TalentoRutas.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -549,6 +551,8 @@ const app = createApp({
         'talento-mapa-vivo': TalentoMapaVivo,
         'talento-sitios': TalentoSitios,
         'talento-campo': TalentoCampo,
+        'talento-cajas': TalentoCajas,
+        'talento-rutas': TalentoRutas,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
