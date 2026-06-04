@@ -15,6 +15,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoWarrantyController;
 use App\Modules\Addons\Talento\Controllers\TalentoRouteController;
 use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
 use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
+use App\Modules\Addons\Talento\Controllers\TalentoPenaltyController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -37,6 +38,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/rutas',          [TalentoRouteController::class,       'index']);
         Route::get('/proyectos',      [TalentoProjectController::class,     'index']);
         Route::get('/calidad',        fn() => view('addon-talento::talento.calidad'));
+        Route::get('/penalizaciones', [TalentoPenaltyController::class, 'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -216,6 +218,22 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/inspecciones/{id}',    [TalentoQualityController::class, 'showInspection']);
             Route::post('/inspecciones/{id}/ia',    [TalentoQualityController::class, 'runIaAnalysis']);
             Route::post('/inspecciones/{id}/validate', [TalentoQualityController::class, 'supervisorValidate']);
+
+            // ── Penalizaciones — Catálogo ─────────────────────────────────
+            Route::get('/penalty-types',            [TalentoPenaltyController::class, 'typesIndex']);
+            Route::post('/penalty-types',           [TalentoPenaltyController::class, 'storeType']);
+            Route::put('/penalty-types/{id}',       [TalentoPenaltyController::class, 'updateType']);
+            Route::post('/penalty-types/{id}/image',[TalentoPenaltyController::class, 'uploadTypeImage']);
+
+            // ── Penalizaciones — Aplicación ───────────────────────────────
+            Route::get('/penalties',                [TalentoPenaltyController::class, 'penaltiesIndex']);
+            Route::post('/penalties',               [TalentoPenaltyController::class, 'applyPenalty']);
+            Route::get('/penalties/{id}',           [TalentoPenaltyController::class, 'showPenalty']);
+
+            // ── Penalizaciones — Apelaciones ──────────────────────────────
+            Route::get('/penalty-appeals',              [TalentoPenaltyController::class, 'appealsIndex']);
+            Route::post('/penalties/{id}/appeal',       [TalentoPenaltyController::class, 'submitAppeal']);
+            Route::post('/penalty-appeals/{id}/resolve',[TalentoPenaltyController::class, 'resolveAppeal']);
         });
     });
 
@@ -227,3 +245,7 @@ Route::middleware(['web', 'auth'])
 Route::middleware(['web', 'auth'])
     ->get('/talento/inspection-photo/{id}', [TalentoQualityController::class, 'servePhoto'])
     ->name('talento.inspection.photo');
+
+Route::middleware(['web', 'auth'])
+    ->get('/talento/penalty-evidence/{id}', [TalentoPenaltyController::class, 'serveEvidencePhoto'])
+    ->name('talento.penalty.evidence');

@@ -26,7 +26,11 @@
         { "name": "talento.projects.view",         "description": "Ver proyectos de planta externa y pool de actividades" },
         { "name": "talento.projects.manage",       "description": "Crear/editar proyectos, actividades y reportar producción" },
         { "name": "talento.quality.view",          "description": "Ver inspecciones de caja y catálogo de estándares" },
-        { "name": "talento.quality.manage",        "description": "Crear inspecciones, correr análisis IA, validar como supervisor" }
+        { "name": "talento.quality.manage",        "description": "Crear inspecciones, correr análisis IA, validar como supervisor" },
+        { "name": "talento.penalties.view",        "description": "Ver penalizaciones y catálogo de tipos" },
+        { "name": "talento.penalties.manage",      "description": "Aplicar penalizaciones con evidencia fotográfica" },
+        { "name": "talento.penalties.appeal",      "description": "Enviar apelaciones de penalizaciones propias" },
+        { "name": "talento.penalties.resolve",     "description": "Resolver apelaciones (revisor distinto del aplicador)" }
     ],
 
     "menu": [
@@ -44,7 +48,8 @@
                 { "label": "Dispositivos",     "url": "/talento/dispositivos",       "permission": "talento.devices.view" },
                 { "label": "Roadmap",          "url": "/talento/roadmap",            "permission": "talento.roadmap.view" },
                 { "label": "Proyectos",        "url": "/talento/proyectos",          "permission": "talento.projects.view" },
-                { "label": "Calidad de caja",  "url": "/talento/calidad",            "permission": "talento.quality.view" }
+                { "label": "Calidad de caja",  "url": "/talento/calidad",            "permission": "talento.quality.view" },
+                { "label": "Penalizaciones",   "url": "/talento/penalizaciones",     "permission": "talento.penalties.view" }
             ]
         }
     ],
