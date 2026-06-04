@@ -12,12 +12,14 @@ class BillingConfig extends Model
         'notification_window_hours',
         'send_prefactura_email',
         'send_ticket_email',
+        'envio_pausado',
     ];
 
     protected $casts = [
         'notification_window_hours' => 'integer',
         'send_prefactura_email'     => 'boolean',
         'send_ticket_email'         => 'boolean',
+        'envio_pausado'             => 'boolean',
     ];
 
     /**
