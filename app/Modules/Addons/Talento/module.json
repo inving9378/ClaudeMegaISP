@@ -43,7 +43,11 @@
         { "name": "talento.academy.manage",       "description": "Crear cursos, materiales y exámenes" },
         { "name": "talento.academy.evaluate",     "description": "Registrar evaluaciones prácticas y certificaciones" },
         { "name": "talento.levels.view",          "description": "Ver niveles y elegibilidad de colaboradores" },
-        { "name": "talento.levels.manage",        "description": "Crear niveles, promover colaboradores, configurar gating" }
+        { "name": "talento.levels.manage",        "description": "Crear niveles, promover colaboradores, configurar gating" },
+        { "name": "talento.dashboard.view",       "description": "Ver dashboards de producción, técnico y supervisor" },
+        { "name": "talento.escalafon.view",       "description": "Ver tabla de posiciones/escalafón" },
+        { "name": "talento.escalafon.manage",     "description": "Configurar pesos del puntaje compuesto" },
+        { "name": "talento.embajadores.view",     "description": "Ver cross-link colaborador↔embajador/vendedor (solo lectura)" }
     ],
 
     "menu": [
@@ -67,7 +71,10 @@
                 { "label": "Préstamos",        "url": "/talento/finiquito",          "permission": "talento.loans.view" },
                 { "label": "Finiquito",        "url": "/talento/finiquito",          "permission": "talento.settlement.view" },
                 { "label": "Academia",         "url": "/talento/academia",           "permission": "talento.academy.view" },
-                { "label": "Niveles",          "url": "/talento/niveles",            "permission": "talento.levels.view" }
+                { "label": "Niveles",          "url": "/talento/niveles",            "permission": "talento.levels.view" },
+                { "label": "Dashboard",        "url": "/talento/dashboard",          "permission": "talento.dashboard.view" },
+                { "label": "Escalafón",        "url": "/talento/escalafon",          "permission": "talento.escalafon.view" },
+                { "label": "Embajadores",      "url": "/talento/embajadores-colabs", "permission": "talento.embajadores.view" }
             ]
         }
     ],

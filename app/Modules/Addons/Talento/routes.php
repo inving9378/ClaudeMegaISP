@@ -20,6 +20,9 @@ use App\Modules\Addons\Talento\Controllers\TalentoCredentialController;
 use App\Modules\Addons\Talento\Controllers\TalentoLoanSettlementController;
 use App\Modules\Addons\Talento\Controllers\TalentoAcademyController;
 use App\Modules\Addons\Talento\Controllers\TalentoLevelController;
+use App\Modules\Addons\Talento\Controllers\TalentoDashboardController;
+use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
+use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -47,6 +50,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/finiquito',      [TalentoLoanSettlementController::class, 'index']);
         Route::get('/academia',       [TalentoAcademyController::class, 'index']);
         Route::get('/niveles',        [TalentoLevelController::class, 'index']);
+        Route::get('/dashboard',      [TalentoDashboardController::class, 'index']);
+        Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
+        Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -309,6 +315,22 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/work-order-types/{id}/level',         [TalentoLevelController::class, 'setWorkOrderTypeLevel']);
             Route::get('/activity-types-config',               [TalentoLevelController::class, 'activityTypes']);
             Route::put('/activity-types/{id}/level',           [TalentoLevelController::class, 'setActivityTypeLevel']);
+
+            // ── Dashboard / Escalafón ─────────────────────────────────────
+            Route::get('/dashboard/info-cards',                [TalentoDashboardController::class, 'infoCards']);
+            Route::get('/dashboard/daily-production',          [TalentoDashboardController::class, 'dailyProduction']);
+            Route::get('/dashboard/tecnico/{id}',              [TalentoDashboardController::class, 'tecnicoPreview']);
+            Route::post('/dashboard/simulate-pay',             [TalentoDashboardController::class, 'simulatePay']);
+            Route::get('/dashboard/equipo/{id}',               [TalentoDashboardController::class, 'equipoPreview']);
+
+            // ── Escalafón ─────────────────────────────────────────────────
+            Route::get('/escalafon',                           [TalentoEscalafonController::class, 'ranking']);
+            Route::get('/escalafon/config',                    [TalentoEscalafonController::class, 'getConfig']);
+            Route::put('/escalafon/config',                    [TalentoEscalafonController::class, 'saveConfig']);
+
+            // ── Embajadores cross-link ────────────────────────────────────
+            Route::get('/colaboradores/{id}/embajador-data',   [TalentoEmbajadoresController::class, 'embajadorData']);
+            Route::get('/colaboradores/{id}/seller-data',      [TalentoEmbajadoresController::class, 'sellerData']);
         });
     });
 

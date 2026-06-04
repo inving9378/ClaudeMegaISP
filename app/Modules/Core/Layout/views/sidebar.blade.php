@@ -704,6 +704,15 @@
                         @can('talento.levels.view')
                             <li><a href="{{ url('/talento/niveles') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Niveles</span></a></li>
                         @endcan
+                        @can('talento.dashboard.view')
+                            <li><a href="{{ url('/talento/dashboard') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
+                        @endcan
+                        @can('talento.escalafon.view')
+                            <li><a href="{{ url('/talento/escalafon') }}"><span><small><i class="fa fa-fw fa-trophy"></i></small> Escalafón</span></a></li>
+                        @endcan
+                        @can('talento.embajadores.view')
+                            <li><a href="{{ url('/talento/embajadores-colabs') }}"><span><small><i class="fa fa-fw fa-link"></i></small> Roles múltiples</span></a></li>
+                        @endcan
                         @can('talento.location.view')
                             <li><a href="{{ url('/talento/mapa-en-vivo') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa en vivo</span></a></li>
                         @endcan

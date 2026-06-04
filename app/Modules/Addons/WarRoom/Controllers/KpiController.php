@@ -4,9 +4,13 @@ namespace App\Modules\Addons\WarRoom\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Referrals\ReferralCommission;
+use App\Modules\Addons\Talento\Models\TalentoAttendance;
+use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class KpiController extends Controller
 {
@@ -22,6 +26,7 @@ class KpiController extends Controller
             'ventas'      => $this->ventasKpis($period, $previous),
             'red'         => $this->redKpis($period, $previous),
             'marketing'   => $this->marketingKpis($period, $previous),
+            'talento'     => $this->talentoKpis($period, $previous),
             default       => ['error' => 'Vista no reconocida'],
         };
 
@@ -370,6 +375,74 @@ class KpiController extends Controller
             ->whereYear('created_at', $y)
             ->whereMonth('created_at', $m)
             ->sum('commission_amount');
+    }
+
+    // ── Vista: Talento (panel resumen para War Room) ─────────────────────────────
+
+    private function talentoKpis(string $current, string $previous): array
+    {
+        // Guard: if Talento tables don't exist yet, return placeholder
+        if (!Schema::hasTable('talento_colaboradores')) {
+            return ['available' => false];
+        }
+
+        [$cy, $cm] = explode('-', $current);
+        $today = now()->toDateString();
+
+        $activeColabs = TalentoColaborador::where('status', 'active')->count();
+
+        $checkedInToday = TalentoAttendance::whereDate('check_in_at', $today)
+            ->whereNull('check_out_at')
+            ->count();
+
+        $ordersToday = TalentoWorkOrder::whereDate('created_at', $today)->count();
+        $ordersValidatedToday = TalentoWorkOrder::whereDate('validated_at', $today)
+            ->where('status', 'validated')
+            ->count();
+
+        // Alerts: credentials
+        $credAlerts = 0;
+        if (Schema::hasTable('talento_credentials')) {
+            $credAlerts = DB::table('talento_credentials')
+                ->whereIn('status', ['expiring', 'expired'])
+                ->count();
+        }
+
+        // Alerts: deviations unnotified
+        $desvioAlerts = 0;
+        if (Schema::hasTable('talento_route_deviations')) {
+            $desvioAlerts = DB::table('talento_route_deviations')
+                ->where('supervisor_notified', false)
+                ->count();
+        }
+
+        // Top performers (by validated units this month)
+        $topPerformers = [];
+        if (Schema::hasTable('talento_work_orders')) {
+            $topPerformers = DB::table('talento_work_orders as wo')
+                ->join('talento_colaboradores as tc', 'wo.colaborador_id', 'tc.id')
+                ->join('users', 'tc.user_id', 'users.id')
+                ->where('wo.status', 'validated')
+                ->whereYear('wo.validated_at', $cy)
+                ->whereMonth('wo.validated_at', $cm)
+                ->select('users.name', DB::raw('SUM(wo.points) as total_units'))
+                ->groupBy('users.id', 'users.name')
+                ->orderByDesc('total_units')
+                ->limit(5)
+                ->get()
+                ->toArray();
+        }
+
+        return [
+            'available'           => true,
+            'period_current'      => $current,
+            'active_colaboradores'=> $activeColabs,
+            'checked_in_today'    => $checkedInToday,
+            'orders_today'        => $ordersToday,
+            'validated_today'     => $ordersValidatedToday,
+            'alerts'              => ['credentials' => $credAlerts, 'desvios' => $desvioAlerts],
+            'top_performers'      => $topPerformers,
+        ];
     }
 
     private function ingresosDaily(string $period): array
