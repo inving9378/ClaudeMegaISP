@@ -130,6 +130,12 @@ import FleetGeofenceForm from "./components/module/flotas/FleetGeofenceForm.vue"
 import FleetGeofenceShow from "./components/module/flotas/FleetGeofenceShow.vue";
 import FleetNotificationLog from "./components/module/flotas/FleetNotificationLog.vue";
 import FleetRuleList from "./components/module/flotas/FleetRuleList.vue";
+import FleetClientPlanTab from "./components/module/flotas/FleetClientPlanTab.vue";
+import FleetSubscriptionDashboard from "./components/module/flotas/FleetSubscriptionDashboard.vue";
+import TalentoColaboradores from "./components/module/talento/TalentoColaboradores.vue";
+import TalentoCustodia from "./components/module/talento/TalentoCustodia.vue";
+import TalentoDispositivos from "./components/module/talento/TalentoDispositivos.vue";
+import TalentoRoadmap from "./components/module/talento/TalentoRoadmap.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -523,6 +529,12 @@ const app = createApp({
         'fleet-geofence-show': FleetGeofenceShow,
         'fleet-notification-log': FleetNotificationLog,
         'fleet-rule-list': FleetRuleList,
+        'FleetClientPlanTab': FleetClientPlanTab,
+        'fleet-subscription-dashboard': FleetSubscriptionDashboard,
+        'talento-colaboradores': TalentoColaboradores,
+        'talento-custodia': TalentoCustodia,
+        'talento-dispositivos': TalentoDispositivos,
+        'talento-roadmap': TalentoRoadmap,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
