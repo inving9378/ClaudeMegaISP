@@ -147,6 +147,22 @@ class TalentoWorkOrderController extends Controller
             'validated_by' => auth()->id(),
         ]);
 
+        // Fase 4b: fire health bonus evaluation and warranty window refresh (async-safe: catch any failure)
+        try {
+            app(\App\Modules\Addons\Talento\Services\HealthBonusService::class)->evaluate($order->id);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Health bonus evaluation failed', ['order_id' => $order->id, 'err' => $e->getMessage()]);
+        }
+
+        // Refresh warranty window for billable installations/repairs
+        if ($order->is_billable && $order->client_id) {
+            try {
+                app(\App\Modules\Addons\Talento\Services\WarrantyWindowService::class)->refreshWindow($order);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Warranty window refresh failed', ['order_id' => $order->id, 'err' => $e->getMessage()]);
+            }
+        }
+
         return response()->json($order->load('validatedBy'));
     }
 

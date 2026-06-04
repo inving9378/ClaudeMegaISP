@@ -10,6 +10,9 @@ use App\Modules\Addons\Talento\Controllers\TalentoLiquidacionController;
 use App\Modules\Addons\Talento\Controllers\TalentoAttendanceController;
 use App\Modules\Addons\Talento\Controllers\TalentoWorkSiteController;
 use App\Modules\Addons\Talento\Controllers\TalentoFieldFlowController;
+use App\Modules\Addons\Talento\Controllers\TalentoCajaController;
+use App\Modules\Addons\Talento\Controllers\TalentoWarrantyController;
+use App\Modules\Addons\Talento\Controllers\TalentoRouteController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -28,6 +31,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/mapa-en-vivo',   fn() => view('addon-talento::talento.mapa_vivo'));
         Route::get('/sitios',         fn() => view('addon-talento::talento.sitios'));
         Route::get('/campo',          [TalentoFieldFlowController::class,   'index']);
+        Route::get('/cajas',          [TalentoCajaController::class,        'index']);
+        Route::get('/rutas',          [TalentoRouteController::class,       'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -137,6 +142,29 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // Estado completo del flujo de campo
             Route::get('/campo/{workOrderId}/estado',          [TalentoFieldFlowController::class, 'fieldFlowState']);
+
+            // ── Cajas / Baselines / Health Bonus (Fase 4b) ───────────────────
+            Route::get('/cajas',                        [TalentoCajaController::class, 'data']);
+            Route::get('/cajas/latest',                 [TalentoCajaController::class, 'latestPerCaja']);
+            Route::post('/cajas',                       [TalentoCajaController::class, 'store']);
+            Route::get('/cajas/settings',               [TalentoCajaController::class, 'getSettings']);
+            Route::put('/cajas/settings',               [TalentoCajaController::class, 'updateSettings']);
+            Route::get('/cajas/bonus-log',              [TalentoCajaController::class, 'bonusLog']);
+            Route::post('/cajas/bonus-log/{workOrderId}/evaluate', [TalentoCajaController::class, 'evaluateBonus']);
+
+            // ── Ventana de garantía (Fase 4b) ─────────────────────────────────
+            Route::get('/warranty/classify',            [TalentoWarrantyController::class, 'classify']);
+            Route::get('/warranty',                     [TalentoWarrantyController::class, 'data']);
+            Route::post('/warranty/{workOrderId}/override', [TalentoWarrantyController::class, 'override']);
+            Route::get('/warranty/{workOrderId}/overrides', [TalentoWarrantyController::class, 'overrides']);
+
+            // ── Rutas de planta interna (Fase 4b) ─────────────────────────────
+            Route::get('/rutas',                        [TalentoRouteController::class, 'data']);
+            Route::post('/rutas',                       [TalentoRouteController::class, 'store']);
+            Route::get('/rutas/{id}',                   [TalentoRouteController::class, 'show']);
+            Route::post('/rutas/{id}/activar',          [TalentoRouteController::class, 'activate']);
+            Route::post('/rutas/{id}/analizar-desvios', [TalentoRouteController::class, 'analyzeDeviations']);
+            Route::put('/rutas/{id}/stops/reordenar',   [TalentoRouteController::class, 'reorderStops']);
         });
     });
 
