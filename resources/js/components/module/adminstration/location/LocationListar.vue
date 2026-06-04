@@ -61,7 +61,7 @@ export default {
         })
 
         const closeModal = () => {
-            $('#crudlocation').modal('hide');
+            const _mh = window.bootstrap.Modal.getInstance(document.getElementById('crudlocation')); if (_mh) _mh.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = 'Crear Ubicacion';
             action.value = '/administracion/ubicacion/add';
@@ -69,7 +69,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $('#crudlocation').modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudlocation')).show();
             title.value = 'Editar Ubicacion';
             action.value = `/administracion/ubicacion/update/${idItem}`;
         };

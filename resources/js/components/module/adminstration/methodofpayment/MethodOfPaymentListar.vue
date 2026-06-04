@@ -61,7 +61,7 @@ export default {
         })
 
         const closeModal = () => {
-            $('#crudmethodofpayment').modal('hide');
+            const _mh = window.bootstrap.Modal.getInstance(document.getElementById('crudmethodofpayment')); if (_mh) _mh.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = 'Crear Método de Pago';
             action.value = '/administracion/metotdo-de-pago/add';
@@ -69,7 +69,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $('#crudmethodofpayment').modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudmethodofpayment')).show();
             title.value = 'Editar Método de Pago';
             action.value = `/administracion/metotdo-de-pago/update/${idItem}`;
         };

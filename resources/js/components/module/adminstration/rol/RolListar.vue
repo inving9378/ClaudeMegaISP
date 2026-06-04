@@ -90,23 +90,23 @@ export default {
 
         const closeModal = (modal) => {
             if (modal == 'crudrole'){
-                $('#crudrole').modal('hide');
+                const _mh = window.bootstrap.Modal.getInstance(document.getElementById('crudrole')); if (_mh) _mh.hide();
                 title.value = 'Crear Rol';
                 action.value = '/administracion/rol/add';
                 datatable.table.reload();
             }else{
-                $('#permissionrole').modal('hide');
+                const _mh2 = window.bootstrap.Modal.getInstance(document.getElementById('permissionrole')); if (_mh2) _mh2.hide();
             }
         };
 
         const showEditModal = (idItem, modal) => {
-            $(`#${modal}`).modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById(modal)).show();
             title.value = 'Editar Rol';
             action.value = `/administracion/rol/update/${idItem}`;
         };
 
         const showSetPermissionModal = (idItem, modal) => {
-            $(`#${modal}`).modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById(modal)).show();
             rol.value = idItem;
         }
 

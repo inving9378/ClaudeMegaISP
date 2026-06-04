@@ -61,7 +61,7 @@ export default {
         })
 
         const closeModal = () => {
-            $('#crudsocio').modal('hide');
+            const _mh = window.bootstrap.Modal.getInstance(document.getElementById('crudsocio')); if (_mh) _mh.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = 'Crear Socio';
             action.value = '/administracion/socios/add';
@@ -69,7 +69,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $('#crudsocio').modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudsocio')).show();
             title.value = 'Editar Socio';
             action.value = `/administracion/socios/update/${idItem}`;
         };

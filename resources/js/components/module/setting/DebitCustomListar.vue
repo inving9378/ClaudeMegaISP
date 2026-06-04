@@ -61,7 +61,7 @@ export default {
         })
 
         const closeModal = () => {
-            $('#cruddebitcustom').modal('hide');
+            const _mh = window.bootstrap.Modal.getInstance(document.getElementById('cruddebitcustom')); if (_mh) _mh.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = 'Crear';
             action.value = '/configuracion/debitcustom/add';
@@ -69,7 +69,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $('#cruddebitcustom').modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('cruddebitcustom')).show();
             title.value = 'Editar';
             action.value = `/configuracion/debitcustom/update/${idItem}`;
         };

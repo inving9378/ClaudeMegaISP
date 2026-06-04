@@ -9,8 +9,12 @@ export const disabledLoading = () => {
 };
 
 export const enableLoadingModal = () => {
-    $('#loadingComponentModal').modal('show');
+    const el = document.getElementById('loadingComponentModal');
+    if (el) window.bootstrap.Modal.getOrCreateInstance(el).show();
 };
 export const disabledLoadingModal = () => {
-    $('#loadingComponentModal').modal('hide');
+    const el = document.getElementById('loadingComponentModal');
+    if (!el) return;
+    const m = window.bootstrap.Modal.getInstance(el);
+    if (m) m.hide();
 };

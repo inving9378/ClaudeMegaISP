@@ -361,9 +361,8 @@ export default {
         });
 
         // Show success modal
-        if (typeof $ !== 'undefined') {
-          $('#campaignCreatedModal').modal('show');
-        }
+        const _mEl = document.getElementById('campaignCreatedModal');
+        if (_mEl) window.bootstrap.Modal.getOrCreateInstance(_mEl).show();
 
         this.loadCampaigns();
         // Reset form

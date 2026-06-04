@@ -8,12 +8,17 @@ class Modal {
         this.id = id;
     }
 
-    show(){
-        $(`#${this.id}`).modal('show');
+    show() {
+        const el = document.getElementById(this.id);
+        if (!el) return;
+        window.bootstrap.Modal.getOrCreateInstance(el).show();
     }
 
-    hide(){
-        $(`#${this.id}`).modal('hide');
+    hide() {
+        const el = document.getElementById(this.id);
+        if (!el) return;
+        const m = window.bootstrap.Modal.getInstance(el);
+        if (m) m.hide();
     }
 }
 

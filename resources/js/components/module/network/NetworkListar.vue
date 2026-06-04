@@ -55,7 +55,7 @@ export default {
             });
 
             const showEditModal = (idItem, modal) => {
-                $(`#${modal}`).modal('show');
+                window.bootstrap.Modal.getOrCreateInstance(document.getElementById(modal)).show();
                 title.value = 'Editar red';
                 action.value = `/red/ipv4/update/${idItem}`;
             };
@@ -63,7 +63,7 @@ export default {
 
         const closeModal = (modal) => {
             if (modal == 'crudred'){
-                $('#crudred').modal('hide');
+                const _mh = window.bootstrap.Modal.getInstance(document.getElementById('crudred')); if (_mh) _mh.hide();
             }
         };
 
