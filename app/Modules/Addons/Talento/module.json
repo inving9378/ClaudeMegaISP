@@ -22,7 +22,9 @@
         { "name": "talento.compensation.manage",   "description": "Crear reglas y asignarlas a colaboradores" },
         { "name": "talento.liquidation.view",      "description": "Ver liquidaciones semanales" },
         { "name": "talento.liquidation.manage",    "description": "Calcular y cerrar liquidaciones" },
-        { "name": "talento.ledger.view",           "description": "Ver el ledger de asientos contables del colaborador" }
+        { "name": "talento.ledger.view",           "description": "Ver el ledger de asientos contables del colaborador" },
+        { "name": "talento.projects.view",         "description": "Ver proyectos de planta externa y pool de actividades" },
+        { "name": "talento.projects.manage",       "description": "Crear/editar proyectos, actividades y reportar producción" }
     ],
 
     "menu": [
@@ -38,7 +40,8 @@
                 { "label": "Liquidaciones",    "url": "/talento/liquidaciones",      "permission": "talento.liquidation.view" },
                 { "label": "Custodia",         "url": "/talento/custodia",           "permission": "talento.custody.view" },
                 { "label": "Dispositivos",     "url": "/talento/dispositivos",       "permission": "talento.devices.view" },
-                { "label": "Roadmap",          "url": "/talento/roadmap",            "permission": "talento.roadmap.view" }
+                { "label": "Roadmap",          "url": "/talento/roadmap",            "permission": "talento.roadmap.view" },
+                { "label": "Proyectos",        "url": "/talento/proyectos",          "permission": "talento.projects.view" }
             ]
         }
     ],
