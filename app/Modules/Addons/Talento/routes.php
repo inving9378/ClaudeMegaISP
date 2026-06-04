@@ -16,6 +16,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoRouteController;
 use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
 use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
 use App\Modules\Addons\Talento\Controllers\TalentoPenaltyController;
+use App\Modules\Addons\Talento\Controllers\TalentoCredentialController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -39,6 +40,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/proyectos',      [TalentoProjectController::class,     'index']);
         Route::get('/calidad',        fn() => view('addon-talento::talento.calidad'));
         Route::get('/penalizaciones', [TalentoPenaltyController::class, 'index']);
+        Route::get('/credenciales',   [TalentoCredentialController::class, 'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -234,6 +236,19 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/penalty-appeals',              [TalentoPenaltyController::class, 'appealsIndex']);
             Route::post('/penalties/{id}/appeal',       [TalentoPenaltyController::class, 'submitAppeal']);
             Route::post('/penalty-appeals/{id}/resolve',[TalentoPenaltyController::class, 'resolveAppeal']);
+
+            // ── Credenciales ──────────────────────────────────────────────
+            Route::get('/credentials/expiring',              [TalentoCredentialController::class, 'allExpiring']);
+            Route::get('/credentials/funds-alert',           [TalentoCredentialController::class, 'allFundsAlert']);
+            Route::get('/colaboradores/{id}/credentials',    [TalentoCredentialController::class, 'listForColaborador']);
+            Route::post('/credentials',                      [TalentoCredentialController::class, 'store']);
+            Route::put('/credentials/{id}',                  [TalentoCredentialController::class, 'update']);
+
+            // ── Fondos ────────────────────────────────────────────────────
+            Route::get('/colaboradores/{id}/funds',          [TalentoCredentialController::class, 'listFunds']);
+            Route::post('/funds',                            [TalentoCredentialController::class, 'storeFund']);
+            Route::post('/funds/{id}/authorize',             [TalentoCredentialController::class, 'authorizeFund']);
+            Route::post('/funds/{id}/spent',                 [TalentoCredentialController::class, 'markFundSpent']);
         });
     });
 
@@ -249,3 +264,7 @@ Route::middleware(['web', 'auth'])
 Route::middleware(['web', 'auth'])
     ->get('/talento/penalty-evidence/{id}', [TalentoPenaltyController::class, 'serveEvidencePhoto'])
     ->name('talento.penalty.evidence');
+
+Route::middleware(['web', 'auth'])
+    ->get('/talento/credential-doc/{id}', [TalentoCredentialController::class, 'serveDocument'])
+    ->name('talento.credential.doc');

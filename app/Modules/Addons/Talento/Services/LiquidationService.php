@@ -6,6 +6,7 @@ use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Services\ProjectActivityService;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
+use App\Modules\Addons\Talento\Models\TalentoFund;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoLiquidation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
@@ -14,6 +15,10 @@ use Illuminate\Support\Facades\DB;
 
 class LiquidationService
 {
+    public function __construct(private ?FundService $fundService = null)
+    {
+        $this->fundService = $fundService ?? app(FundService::class);
+    }
     /**
      * Calculate (or recalculate) a draft liquidation for a collaborator and period.
      * Period defaults to the most recent complete Saturday-to-Saturday week.
@@ -99,11 +104,17 @@ class LiquidationService
             ->whereNotIn('concept', ['salary_base', 'overproduction'])
             ->sum('amount');
 
-        $grossPay = round($basePaid + $overproductionPaid + $otherCredits - $otherDebits, 2);
+        // Fondos de ahorro (Fase 6b): authorized + accumulating → debit 'fund_contribution'
+        // Se pre-calcula aquí para reflejarlo en gross_pay; se escribe dentro de la transacción.
+        $fundDeductions = $this->fundService->deductionsForPeriod($colaboradorId, $periodStart, $periodEnd);
+        $fundTotal      = array_sum($fundDeductions);
+
+        $grossPay = round($basePaid + $overproductionPaid + $otherCredits - $otherDebits - $fundTotal, 2);
 
         return DB::transaction(function () use (
             $colaboradorId, $periodStart, $periodEnd, $existing,
-            $totalUnits, $basePaid, $overproductionPaid, $otherCredits, $otherDebits, $grossPay
+            $totalUnits, $basePaid, $overproductionPaid, $otherCredits, $otherDebits, $grossPay,
+            $fundDeductions
         ) {
             $liq = TalentoLiquidation::updateOrCreate(
                 [
@@ -159,6 +170,18 @@ class LiquidationService
                     'notes'          => "Sobreproducción: {$totalUnits} unidades",
                     'created_by'     => auth()->id(),
                 ]);
+            }
+
+            // Fase 6b: apartar aportaciones de fondos de ahorro autorizados
+            if (!empty($fundDeductions)) {
+                $this->fundService->applyDeductions(
+                    $colaboradorId,
+                    $fundDeductions,
+                    $periodStart,
+                    $periodEnd,
+                    $liq->id,
+                    auth()->id()
+                );
             }
 
             return $liq->fresh();

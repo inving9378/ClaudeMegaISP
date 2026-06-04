@@ -30,7 +30,11 @@
         { "name": "talento.penalties.view",        "description": "Ver penalizaciones y catálogo de tipos" },
         { "name": "talento.penalties.manage",      "description": "Aplicar penalizaciones con evidencia fotográfica" },
         { "name": "talento.penalties.appeal",      "description": "Enviar apelaciones de penalizaciones propias" },
-        { "name": "talento.penalties.resolve",     "description": "Resolver apelaciones (revisor distinto del aplicador)" }
+        { "name": "talento.penalties.resolve",     "description": "Resolver apelaciones (revisor distinto del aplicador)" },
+        { "name": "talento.credentials.view",     "description": "Ver credenciales y alertas de vencimiento" },
+        { "name": "talento.credentials.manage",   "description": "Registrar y actualizar credenciales de colaboradores" },
+        { "name": "talento.funds.view",           "description": "Ver fondos de ahorro forzoso" },
+        { "name": "talento.funds.manage",         "description": "Crear fondos, autorizar descuentos y marcar como spent" }
     ],
 
     "menu": [
@@ -49,7 +53,8 @@
                 { "label": "Roadmap",          "url": "/talento/roadmap",            "permission": "talento.roadmap.view" },
                 { "label": "Proyectos",        "url": "/talento/proyectos",          "permission": "talento.projects.view" },
                 { "label": "Calidad de caja",  "url": "/talento/calidad",            "permission": "talento.quality.view" },
-                { "label": "Penalizaciones",   "url": "/talento/penalizaciones",     "permission": "talento.penalties.view" }
+                { "label": "Penalizaciones",   "url": "/talento/penalizaciones",     "permission": "talento.penalties.view" },
+                { "label": "Credenciales",     "url": "/talento/credenciales",       "permission": "talento.credentials.view" }
             ]
         }
     ],
