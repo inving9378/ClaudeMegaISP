@@ -683,6 +683,9 @@
                         @can('talento.routes.view')
                             <li><a href="{{ url('/talento/rutas') }}"><span><small><i class="fa fa-fw fa-route"></i></small> Rutas planta</span></a></li>
                         @endcan
+                        @can('talento.projects.view')
+                            <li><a href="{{ url('/talento/proyectos') }}"><span><small><i class="fa fa-fw fa-project-diagram"></i></small> Proyectos</span></a></li>
+                        @endcan
                         @can('talento.location.view')
                             <li><a href="{{ url('/talento/mapa-en-vivo') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa en vivo</span></a></li>
                         @endcan
