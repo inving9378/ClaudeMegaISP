@@ -7,15 +7,19 @@ use App\Modules\Addons\Talento\Models\TalentoActivityType;
 use App\Modules\Addons\Talento\Models\TalentoProject;
 use App\Modules\Addons\Talento\Models\TalentoProjectActivity;
 use App\Modules\Addons\Talento\Models\TalentoProjectActivityReport;
+use App\Modules\Addons\Talento\Models\TalentoProjectDeviation;
+use App\Modules\Addons\Talento\Services\CorridorDeviationService;
 use App\Modules\Addons\Talento\Services\ProjectActivityService;
 use App\Modules\Addons\Talento\Services\ProjectBonusService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class TalentoProjectController extends Controller
 {
     public function __construct(
-        private ProjectActivityService $activityService,
-        private ProjectBonusService    $bonusService
+        private ProjectActivityService   $activityService,
+        private ProjectBonusService      $bonusService,
+        private CorridorDeviationService $corridorService
     ) {}
 
     // ── Vista ────────────────────────────────────────────────────────────────
@@ -312,5 +316,62 @@ class TalentoProjectController extends Controller
             'external_points'  => round($points, 2),
             'projects'         => $projects,
         ]);
+    }
+
+    // ── Corredor ─────────────────────────────────────────────────────────────
+
+    /** GET /api/proyectos/{id}/corredor — devuelve corridor_path actual */
+    public function getCorridor($id)
+    {
+        $project = TalentoProject::findOrFail($id);
+        return response()->json([
+            'project_id'     => $project->id,
+            'corridor_path'  => $project->corridor_path ?? [],
+        ]);
+    }
+
+    /** PUT /api/proyectos/{id}/corredor — guarda el trazado dibujado en el mapa */
+    public function saveCorridor(Request $request, $id)
+    {
+        $project = TalentoProject::findOrFail($id);
+        $data = $request->validate([
+            'corridor_path'   => 'required|array|min:2',
+            'corridor_path.*' => 'array|size:2',
+        ]);
+
+        $project->update(['corridor_path' => $data['corridor_path']]);
+        return response()->json(['ok' => true, 'points' => count($data['corridor_path'])]);
+    }
+
+    /** POST /api/proyectos/{id}/corredor/analizar — corre detección de desvíos */
+    public function analyzeCorridor(Request $request, $id)
+    {
+        $project = TalentoProject::findOrFail($id);
+        if (empty($project->corridor_path)) {
+            return response()->json(['error' => 'El proyecto no tiene corredor trazado.'], 422);
+        }
+
+        $from = Carbon::parse($request->from ?? now()->subDays(7)->startOfDay());
+        $to   = Carbon::parse($request->to   ?? now()->endOfDay());
+
+        $created = $this->corridorService->analyze($project, $from, $to);
+
+        return response()->json([
+            'analyzed_from'   => $from->toDateString(),
+            'analyzed_to'     => $to->toDateString(),
+            'deviations_found'=> count($created),
+        ]);
+    }
+
+    /** GET /api/proyectos/{id}/corredor/desvios — lista desvíos del proyecto */
+    public function listDeviations(Request $request, $id)
+    {
+        $deviations = TalentoProjectDeviation::with(['colaborador.user'])
+            ->where('project_id', $id)
+            ->orderByDesc('detected_at')
+            ->limit(100)
+            ->get();
+
+        return response()->json($deviations);
     }
 }

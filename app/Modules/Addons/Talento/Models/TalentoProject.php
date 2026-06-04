@@ -13,14 +13,15 @@ class TalentoProject extends BaseModel
 
     protected $fillable = [
         'name', 'description', 'status', 'lead_colaborador_id',
-        'start_date', 'end_date', 'bonus_amount', 'bonus_scale',
+        'start_date', 'end_date', 'bonus_amount', 'bonus_scale', 'corridor_path',
     ];
 
     protected $casts = [
-        'start_date'   => 'date',
-        'end_date'     => 'date',
-        'bonus_amount' => 'decimal:2',
-        'bonus_scale'  => 'array',
+        'start_date'    => 'date',
+        'end_date'      => 'date',
+        'bonus_amount'  => 'decimal:2',
+        'bonus_scale'   => 'array',
+        'corridor_path' => 'array',
     ];
 
     public function lead()

@@ -194,6 +194,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // Bono de proyecto
             Route::post('/proyectos/{id}/bono',         [TalentoProjectController::class, 'awardBonus']);
 
+            // Corredor del proyecto
+            Route::get('/proyectos/{id}/corredor',              [TalentoProjectController::class, 'getCorridor']);
+            Route::put('/proyectos/{id}/corredor',              [TalentoProjectController::class, 'saveCorridor']);
+            Route::post('/proyectos/{id}/corredor/analizar',    [TalentoProjectController::class, 'analyzeCorridor']);
+            Route::get('/proyectos/{id}/corredor/desvios',      [TalentoProjectController::class, 'listDeviations']);
+
             // Avance por colaborador
             Route::get('/colaboradores/{id}/proyecto-avance', [TalentoProjectController::class, 'colaboradorProgress']);
 
