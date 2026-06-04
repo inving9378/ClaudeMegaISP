@@ -695,6 +695,9 @@
                         @can('talento.credentials.view')
                             <li><a href="{{ url('/talento/credenciales') }}"><span><small><i class="fa fa-fw fa-id-card"></i></small> Credenciales</span></a></li>
                         @endcan
+                        @can('talento.loans.view')
+                            <li><a href="{{ url('/talento/finiquito') }}"><span><small><i class="fa fa-fw fa-hand-holding-usd"></i></small> Préstamos y finiquito</span></a></li>
+                        @endcan
                         @can('talento.location.view')
                             <li><a href="{{ url('/talento/mapa-en-vivo') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa en vivo</span></a></li>
                         @endcan

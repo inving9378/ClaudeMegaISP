@@ -34,7 +34,11 @@
         { "name": "talento.credentials.view",     "description": "Ver credenciales y alertas de vencimiento" },
         { "name": "talento.credentials.manage",   "description": "Registrar y actualizar credenciales de colaboradores" },
         { "name": "talento.funds.view",           "description": "Ver fondos de ahorro forzoso" },
-        { "name": "talento.funds.manage",         "description": "Crear fondos, autorizar descuentos y marcar como spent" }
+        { "name": "talento.funds.manage",         "description": "Crear fondos, autorizar descuentos y marcar como spent" },
+        { "name": "talento.loans.view",           "description": "Ver préstamos y adelantos" },
+        { "name": "talento.loans.manage",         "description": "Registrar préstamos, autorizar descuentos de nómina" },
+        { "name": "talento.settlement.view",      "description": "Ver finiquitos" },
+        { "name": "talento.settlement.manage",    "description": "Crear, editar y cerrar finiquitos" }
     ],
 
     "menu": [
@@ -54,7 +58,9 @@
                 { "label": "Proyectos",        "url": "/talento/proyectos",          "permission": "talento.projects.view" },
                 { "label": "Calidad de caja",  "url": "/talento/calidad",            "permission": "talento.quality.view" },
                 { "label": "Penalizaciones",   "url": "/talento/penalizaciones",     "permission": "talento.penalties.view" },
-                { "label": "Credenciales",     "url": "/talento/credenciales",       "permission": "talento.credentials.view" }
+                { "label": "Credenciales",     "url": "/talento/credenciales",       "permission": "talento.credentials.view" },
+                { "label": "Préstamos",        "url": "/talento/finiquito",          "permission": "talento.loans.view" },
+                { "label": "Finiquito",        "url": "/talento/finiquito",          "permission": "talento.settlement.view" }
             ]
         }
     ],

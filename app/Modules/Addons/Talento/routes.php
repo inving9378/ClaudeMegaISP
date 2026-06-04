@@ -17,6 +17,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
 use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
 use App\Modules\Addons\Talento\Controllers\TalentoPenaltyController;
 use App\Modules\Addons\Talento\Controllers\TalentoCredentialController;
+use App\Modules\Addons\Talento\Controllers\TalentoLoanSettlementController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -41,6 +42,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/calidad',        fn() => view('addon-talento::talento.calidad'));
         Route::get('/penalizaciones', [TalentoPenaltyController::class, 'index']);
         Route::get('/credenciales',   [TalentoCredentialController::class, 'index']);
+        Route::get('/finiquito',      [TalentoLoanSettlementController::class, 'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -249,6 +251,19 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/funds',                            [TalentoCredentialController::class, 'storeFund']);
             Route::post('/funds/{id}/authorize',             [TalentoCredentialController::class, 'authorizeFund']);
             Route::post('/funds/{id}/spent',                 [TalentoCredentialController::class, 'markFundSpent']);
+
+            // ── Préstamos ─────────────────────────────────────────────────
+            Route::get('/loans',                             [TalentoLoanSettlementController::class, 'loansIndex']);
+            Route::post('/loans',                            [TalentoLoanSettlementController::class, 'storeLoan']);
+            Route::post('/loans/{id}/authorize',             [TalentoLoanSettlementController::class, 'authorizeLoan']);
+            Route::get('/colaboradores/{id}/loans',          [TalentoLoanSettlementController::class, 'loansForColaborador']);
+
+            // ── Finiquito ─────────────────────────────────────────────────
+            Route::get('/settlements',                               [TalentoLoanSettlementController::class, 'settlementsIndex']);
+            Route::post('/colaboradores/{id}/settlement/draft',      [TalentoLoanSettlementController::class, 'draftSettlement']);
+            Route::get('/settlements/{id}',                          [TalentoLoanSettlementController::class, 'showSettlement']);
+            Route::put('/settlement-items/{id}',                     [TalentoLoanSettlementController::class, 'updateSettlementItem']);
+            Route::post('/settlements/{id}/close',                   [TalentoLoanSettlementController::class, 'closeSettlement']);
         });
     });
 
