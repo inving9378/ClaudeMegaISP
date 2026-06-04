@@ -139,6 +139,9 @@ import TalentoRoadmap from "./components/module/talento/TalentoRoadmap.vue";
 import TalentoOrdenes from "./components/module/talento/TalentoOrdenes.vue";
 import TalentoCompensacion from "./components/module/talento/TalentoCompensacion.vue";
 import TalentoLiquidaciones from "./components/module/talento/TalentoLiquidaciones.vue";
+import TalentoAsistencia from "./components/module/talento/TalentoAsistencia.vue";
+import TalentoMapaVivo from "./components/module/talento/TalentoMapaVivo.vue";
+import TalentoSitios from "./components/module/talento/TalentoSitios.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -541,6 +544,9 @@ const app = createApp({
         'talento-ordenes': TalentoOrdenes,
         'talento-compensacion': TalentoCompensacion,
         'talento-liquidaciones': TalentoLiquidaciones,
+        'talento-asistencia': TalentoAsistencia,
+        'talento-mapa-vivo': TalentoMapaVivo,
+        'talento-sitios': TalentoSitios,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,

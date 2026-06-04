@@ -631,7 +631,7 @@
                 @endcanany
 
                 {{-- 12.8 Talento Meganet (addon-talento) --}}
-                @canany(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.custody.view','talento.devices.view','talento.roadmap.view'])
+                @canany(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.roadmap.view'])
                 <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="users"></i>
@@ -649,6 +649,15 @@
                         @endcan
                         @can('talento.liquidation.view')
                             <li><a href="{{ url('/talento/liquidaciones') }}"><span><small><i class="fa fa-fw fa-file-invoice-dollar"></i></small> Liquidaciones</span></a></li>
+                        @endcan
+                        @can('talento.attendance.view')
+                            <li><a href="{{ url('/talento/asistencia') }}"><span><small><i class="fa fa-fw fa-calendar-check"></i></small> Asistencia</span></a></li>
+                        @endcan
+                        @can('talento.location.view')
+                            <li><a href="{{ url('/talento/mapa-en-vivo') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa en vivo</span></a></li>
+                        @endcan
+                        @can('talento.work_sites.view')
+                            <li><a href="{{ url('/talento/sitios') }}"><span><small><i class="fa fa-fw fa-map-pin"></i></small> Sitios de checada</span></a></li>
                         @endcan
                         @can('talento.custody.view')
                             <li><a href="{{ url('/talento/custodia') }}"><span><small><i class="fa fa-fw fa-boxes"></i></small> Custodia</span></a></li>

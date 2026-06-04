@@ -24,6 +24,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/compensacion',   [TalentoCompensacionController::class, 'index']);
         Route::get('/liquidaciones',  [TalentoLiquidacionController::class,  'index']);
         Route::get('/asistencia',     [TalentoAttendanceController::class,   'index']);
+        Route::get('/mapa-en-vivo',   fn() => view('addon-talento::talento.mapa_vivo'));
         Route::get('/sitios',         fn() => view('addon-talento::talento.sitios'));
 
         // ── API JSON ─────────────────────────────────────────────────────────
