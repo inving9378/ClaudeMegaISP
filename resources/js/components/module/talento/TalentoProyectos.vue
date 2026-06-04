@@ -55,7 +55,7 @@
     <!-- ── DETAIL ── -->
     <template v-else>
       <div class="d-flex align-items-center gap-3 mb-3">
-        <button @click="detail=null" class="btn btn-sm btn-outline-secondary"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+        <button @click="detail=null; destroyCorridorMap()" class="btn btn-sm btn-outline-secondary"><i class="fa fa-arrow-left me-1"></i>Volver</button>
         <h5 class="mb-0">{{ detail.name }}
           <span class="ms-2 badge" :class="statusColor(detail.status)">{{ statusLabel(detail.status) }}</span>
         </h5>
@@ -141,6 +141,103 @@
             <div class="text-end">
               <div class="fw-bold text-primary">{{ fmt2(cs.points) }} pts</div>
               <div class="text-muted" style="font-size:11px;">{{ fmt2(cs.quantity) }} ud</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SECCIÓN CORREDOR ── -->
+      <div class="mt-4 border rounded">
+        <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light rounded-top"
+             style="cursor:pointer" @click="corridorOpen = !corridorOpen">
+          <h6 class="mb-0 text-uppercase text-muted small">
+            <i class="fa fa-route me-1 text-primary"></i>Corredor de línea
+            <span v-if="corridor.path?.length" class="badge bg-primary ms-2">{{ corridor.path.length }} pts</span>
+          </h6>
+          <i class="fa" :class="corridorOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </div>
+
+        <div v-if="corridorOpen" class="p-3">
+          <!-- Mapa Leaflet -->
+          <div class="position-relative mb-2">
+            <div ref="corridorMap" style="height:400px;border-radius:4px;z-index:1;"></div>
+            <!-- controles sobre el mapa -->
+            <div class="position-absolute top-0 end-0 m-2 d-flex gap-1" style="z-index:500;">
+              <button v-if="corridor.editMode" @click="clearCorridor"
+                      class="btn btn-xs btn-danger shadow-sm" title="Limpiar trazado">
+                <i class="fa fa-trash"></i>
+              </button>
+              <button v-if="corridor.editMode && corridor.draft?.length >= 2"
+                      @click="finishDraw"
+                      class="btn btn-xs btn-success shadow-sm">
+                <i class="fa fa-check me-1"></i>Terminar
+              </button>
+            </div>
+            <div v-if="corridor.editMode" class="position-absolute bottom-0 start-0 m-2 px-2 py-1 bg-white rounded shadow-sm small" style="z-index:500;pointer-events:none;">
+              <i class="fa fa-mouse-pointer me-1 text-primary"></i>Click para agregar punto · Doble-clic para terminar
+            </div>
+          </div>
+
+          <!-- Controles bajo el mapa -->
+          <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+            <span class="small text-muted">
+              <i class="fa fa-map-pin me-1"></i>
+              <span v-if="corridor.draft?.length">{{ corridor.draft.length }} puntos (borrando)</span>
+              <span v-else-if="corridor.path?.length">{{ corridor.path.length }} puntos guardados</span>
+              <span v-else>Sin corredor trazado</span>
+            </span>
+            <button v-if="corridor.draft?.length >= 2 && corridor.editMode"
+                    @click="saveCorridor" class="btn btn-sm btn-primary ms-auto" :disabled="corridor.saving">
+              <span v-if="corridor.saving"><span class="spinner-border spinner-border-sm me-1"></span>Guardando…</span>
+              <span v-else><i class="fa fa-save me-1"></i>Guardar corredor</span>
+            </button>
+            <button v-if="!corridor.editMode" @click="startEdit"
+                    class="btn btn-sm btn-outline-primary ms-auto">
+              <i class="fa fa-pen me-1"></i>{{ corridor.path?.length ? 'Redibujar' : 'Trazar corredor' }}
+            </button>
+            <button v-if="corridor.editMode" @click="cancelEdit" class="btn btn-sm btn-outline-secondary">
+              Cancelar
+            </button>
+          </div>
+
+          <!-- Tabla desvíos -->
+          <div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h6 class="text-uppercase text-muted small mb-0">
+                <i class="fa fa-exclamation-triangle text-warning me-1"></i>Desvíos detectados
+              </h6>
+              <button @click="analyzeDeviations" class="btn btn-xs btn-outline-warning" :disabled="corridor.analyzing">
+                <span v-if="corridor.analyzing"><span class="spinner-border spinner-border-sm me-1"></span>Analizando…</span>
+                <span v-else><i class="fa fa-search me-1"></i>Analizar últimos 7 días</span>
+              </button>
+            </div>
+            <div v-if="corridor.loadingDeviations" class="text-center py-3">
+              <div class="spinner-border spinner-border-sm text-warning"></div>
+            </div>
+            <div v-else-if="corridor.deviations?.length" class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead class="table-light">
+                  <tr><th>Técnico</th><th>Fecha</th><th>Duración</th><th>Distancia max.</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="dev in corridor.deviations" :key="dev.id"
+                      style="cursor:pointer" @click="focusDeviation(dev)"
+                      :class="{ 'table-warning': dev.id === corridor.focusedDevId }">
+                    <td class="small fw-semibold">{{ dev.colaborador?.user?.name ?? '—' }}</td>
+                    <td class="small">{{ fmtDate(dev.detected_at) }}</td>
+                    <td class="small">{{ dev.sustained_minutes }} min</td>
+                    <td class="small">
+                      <span :class="dev.deviation_m > 600 ? 'text-danger fw-bold' : 'text-warning'">
+                        {{ Math.round(dev.deviation_m) }} m
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else class="text-muted small fst-italic py-2">
+              Sin desvíos detectados.
+              <span v-if="!corridor.path?.length"> Traza el corredor primero.</span>
             </div>
           </div>
         </div>
@@ -364,6 +461,8 @@
 </template>
 
 <script>
+import L from 'leaflet';
+
 export default {
   name: 'TalentoProyectos',
   data() {
@@ -385,6 +484,24 @@ export default {
       actModal: { show: false, activity_type_id: null, planned_quantity: 1, location_notes: '', saving: false, error: '' },
       reportModal: { show: false, activity: null, quantity: 1, report_date: today, colaborador_ids: [], notes: '', saving: false, error: '' },
       reportsListModal: { show: false, activity: null, reports: [], loading: false },
+
+      // Corredor
+      corridorOpen: false,
+      corridor: {
+        path: [],          // puntos guardados [[lat,lng],...]
+        draft: [],         // puntos en edición
+        editMode: false,
+        saving: false,
+        analyzing: false,
+        loadingDeviations: false,
+        deviations: [],
+        focusedDevId: null,
+      },
+      _corridorMap: null,       // instancia L.Map
+      _corridorPolyline: null,  // polyline del corredor guardado
+      _corridorDraftLine: null, // polyline del draft
+      _corridorMarkers: [],     // circleMarkers de puntos del draft
+      _deviationMarkers: [],    // markers rojos de desvíos
     };
   },
   computed: {
@@ -419,9 +536,21 @@ export default {
       this.colaboradores = data?.data ?? [];
     },
     async openDetail(id) {
+      this.destroyCorridorMap();
       this.detail = null;
+      this.corridorOpen = false;
+      this.corridor = { path: [], draft: [], editMode: false, saving: false,
+                        analyzing: false, loadingDeviations: false, deviations: [], focusedDevId: null };
       const { data } = await axios.get(`/talento/api/proyectos/${id}`);
       this.detail = data;
+    },
+
+    destroyCorridorMap() {
+      if (this._corridorMap) { this._corridorMap.remove(); this._corridorMap = null; }
+      this._corridorPolyline = null;
+      this._corridorDraftLine = null;
+      this._corridorMarkers = [];
+      this._deviationMarkers = [];
     },
     openCreate() {
       const today = new Date().toISOString().substring(0,10);
@@ -527,6 +656,190 @@ export default {
     fmt1(n) { return Number(n??0).toFixed(1); },
     fmt2(n) { return Number(n??0).toFixed(2); },
     fmt3(n) { return Number(n??0).toFixed(3); },
+
+    // ── Corredor ────────────────────────────────────────────────────────────
+    async toggleCorridor() {
+      this.corridorOpen = !this.corridorOpen;
+      if (this.corridorOpen) {
+        await this.$nextTick();
+        this.initCorridorMap();
+      }
+    },
+
+    async loadCorridor() {
+      const { data } = await axios.get(`/talento/api/proyectos/${this.detail.id}/corredor`);
+      this.corridor.path = data?.corridor_path ?? [];
+      this.corridor.draft = [];
+      this.renderCorridorOnMap();
+      await this.loadDeviations();
+    },
+
+    initCorridorMap() {
+      if (this._corridorMap) return; // ya inicializado
+      if (!this.$refs.corridorMap) return;
+
+      // Centro CDMX como fallback
+      const center = this.corridor.path?.length
+        ? this.corridor.path[Math.floor(this.corridor.path.length / 2)]
+        : [19.432, -99.133];
+
+      this._corridorMap = L.map(this.$refs.corridorMap, { doubleClickZoom: false }).setView(center, 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(this._corridorMap);
+
+      this._corridorMap.on('click', (e) => {
+        if (!this.corridor.editMode) return;
+        const pt = [e.latlng.lat, e.latlng.lng];
+        this.corridor.draft.push(pt);
+        this.updateDraftVisuals();
+      });
+
+      this._corridorMap.on('dblclick', () => {
+        if (!this.corridor.editMode) return;
+        if (this.corridor.draft.length >= 2) this.finishDraw();
+      });
+
+      this.renderCorridorOnMap();
+    },
+
+    renderCorridorOnMap() {
+      if (!this._corridorMap) return;
+
+      // Limpiar polyline guardada
+      if (this._corridorPolyline) { this._corridorPolyline.remove(); this._corridorPolyline = null; }
+
+      if (this.corridor.path?.length >= 2) {
+        this._corridorPolyline = L.polyline(this.corridor.path, { color: '#0d6efd', weight: 4, opacity: 0.8 })
+          .addTo(this._corridorMap);
+        this._corridorMap.fitBounds(this._corridorPolyline.getBounds(), { padding: [30, 30] });
+      }
+
+      this.renderDeviationMarkers();
+    },
+
+    updateDraftVisuals() {
+      if (!this._corridorMap) return;
+
+      // Limpiar markers del draft
+      this._corridorMarkers.forEach(m => m.remove());
+      this._corridorMarkers = [];
+      if (this._corridorDraftLine) { this._corridorDraftLine.remove(); this._corridorDraftLine = null; }
+
+      const pts = this.corridor.draft;
+      if (!pts.length) return;
+
+      pts.forEach((pt, i) => {
+        const m = L.circleMarker(pt, {
+          radius: i === 0 ? 8 : 5,
+          color: '#0d6efd', fillColor: '#0d6efd', fillOpacity: 1,
+        }).addTo(this._corridorMap);
+        this._corridorMarkers.push(m);
+      });
+
+      if (pts.length >= 2) {
+        this._corridorDraftLine = L.polyline(pts, { color: '#0d6efd', weight: 3, dashArray: '6,4' })
+          .addTo(this._corridorMap);
+      }
+    },
+
+    renderDeviationMarkers() {
+      if (!this._corridorMap) return;
+      this._deviationMarkers.forEach(m => m.remove());
+      this._deviationMarkers = [];
+
+      (this.corridor.deviations ?? []).forEach(dev => {
+        const m = L.circleMarker([dev.detected_lat, dev.detected_lng], {
+          radius: 9, color: '#dc3545', fillColor: '#dc3545', fillOpacity: 0.7, weight: 2,
+        }).bindPopup(
+          `<strong>${dev.colaborador?.user?.name ?? '?'}</strong><br>${dev.sustained_minutes} min · ${Math.round(dev.deviation_m)} m`
+        ).addTo(this._corridorMap);
+        this._deviationMarkers.push(m);
+      });
+    },
+
+    startEdit() {
+      this.corridor.editMode = true;
+      this.corridor.draft = [...(this.corridor.path ?? [])];
+      if (this._corridorMap) this._corridorMap.getContainer().style.cursor = 'crosshair';
+      this.updateDraftVisuals();
+    },
+
+    cancelEdit() {
+      this.corridor.editMode = false;
+      this.corridor.draft = [];
+      if (this._corridorMap) this._corridorMap.getContainer().style.cursor = '';
+      this._corridorMarkers.forEach(m => m.remove()); this._corridorMarkers = [];
+      if (this._corridorDraftLine) { this._corridorDraftLine.remove(); this._corridorDraftLine = null; }
+    },
+
+    clearCorridor() {
+      this.corridor.draft = [];
+      this.updateDraftVisuals();
+    },
+
+    finishDraw() {
+      // Termina la edición y deja el draft listo para guardar (no lo guarda aún)
+      if (this._corridorMap) this._corridorMap.getContainer().style.cursor = '';
+      // Mantiene editMode=true para que aparezca "Guardar corredor"
+    },
+
+    async saveCorridor() {
+      this.corridor.saving = true;
+      try {
+        await axios.put(`/talento/api/proyectos/${this.detail.id}/corredor`, {
+          corridor_path: this.corridor.draft,
+        });
+        this.corridor.path = [...this.corridor.draft];
+        this.corridor.editMode = false;
+        this.corridor.draft = [];
+        if (this._corridorMap) this._corridorMap.getContainer().style.cursor = '';
+        this._corridorMarkers.forEach(m => m.remove()); this._corridorMarkers = [];
+        if (this._corridorDraftLine) { this._corridorDraftLine.remove(); this._corridorDraftLine = null; }
+        this.renderCorridorOnMap();
+      } finally { this.corridor.saving = false; }
+    },
+
+    async loadDeviations() {
+      this.corridor.loadingDeviations = true;
+      try {
+        const { data } = await axios.get(`/talento/api/proyectos/${this.detail.id}/corredor/desvios`);
+        this.corridor.deviations = data ?? [];
+        this.renderDeviationMarkers();
+      } finally { this.corridor.loadingDeviations = false; }
+    },
+
+    async analyzeDeviations() {
+      this.corridor.analyzing = true;
+      try {
+        const { data } = await axios.post(`/talento/api/proyectos/${this.detail.id}/corredor/analizar`);
+        alert(`Análisis completado. Desvíos encontrados: ${data.deviations_found}`);
+        await this.loadDeviations();
+      } catch (e) {
+        alert(e.response?.data?.error ?? 'Error al analizar.');
+      } finally { this.corridor.analyzing = false; }
+    },
+
+    focusDeviation(dev) {
+      this.corridor.focusedDevId = dev.id;
+      if (this._corridorMap) {
+        this._corridorMap.setView([dev.detected_lat, dev.detected_lng], 16);
+      }
+    },
+  },
+  watch: {
+    // Cuando el usuario abre la sección corredor, inicia el mapa
+    corridorOpen(val) {
+      if (val) {
+        this.$nextTick(() => {
+          this.initCorridorMap();
+          if (this.detail?.id && !this.corridor.path?.length && !this._corridorPolyline) {
+            this.loadCorridor();
+          }
+        });
+      }
+    },
   },
 };
 </script>
