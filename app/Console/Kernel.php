@@ -60,11 +60,29 @@ class Kernel extends ConsoleKernel
         $schedule->job(new \App\Modules\Addons\Marketing\Jobs\RefreshMetaTokensJob())->dailyAt('03:45')->withoutOverlapping(30)->name('marketing:refresh-meta-tokens');
         $schedule->job(new \App\Modules\Addons\Marketing\Jobs\FetchAllMetricsJob())->everyFourHours()->withoutOverlapping(60)->name('marketing:fetch-all-metrics');
 
+        // Flotas Fase 6.1 — Mantenimiento de suscripciones SaaS (trials, expiración, conteo vencidos)
+        $schedule->command('flotas:check-subscriptions')
+            ->dailyAt('07:00')
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        // Flotas Fase 4 — Alertas de vencimiento de documentos (cron diario 08:00)
+        $schedule->command('flotas:check-document-expirations')
+            ->dailyAt('08:00')
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        // Talento Fase 6b — Alertas de vencimiento de credenciales (cron diario 07:00)
+        $schedule->command('talento:check-credential-expirations')
+            ->dailyAt('07:00')
+            ->withoutOverlapping()
+            ->onOneServer();
+
         // CobranzaBlaster (Fase 6) — dispara el blast cada 5 minutos en campañas activas
         $schedule->call(function () {
             \App\Modules\Addons\CobranzaBlaster\Models\CobranzaCampana::activa()->get()
                 ->each(fn ($campana) => \App\Modules\Addons\CobranzaBlaster\Jobs\BlastCampanaJob::dispatch($campana->id));
-        })->everyFiveMinutes()->withoutOverlapping(10)->name('cobranza:blast-activas');
+        })->everyFiveMinutes()->name('cobranza:blast-activas')->withoutOverlapping(10);
     }
 
     protected function commands(): void

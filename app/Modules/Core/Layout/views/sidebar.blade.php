@@ -692,6 +692,9 @@
                         @can('talento.penalties.view')
                             <li><a href="{{ url('/talento/penalizaciones') }}"><span><small><i class="fa fa-fw fa-gavel"></i></small> Penalizaciones</span></a></li>
                         @endcan
+                        @can('talento.credentials.view')
+                            <li><a href="{{ url('/talento/credenciales') }}"><span><small><i class="fa fa-fw fa-id-card"></i></small> Credenciales</span></a></li>
+                        @endcan
                         @can('talento.location.view')
                             <li><a href="{{ url('/talento/mapa-en-vivo') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa en vivo</span></a></li>
                         @endcan
