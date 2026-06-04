@@ -1,0 +1,67 @@
+{
+    "slug": "addon-talento",
+    "name": "Talento Meganet",
+    "version": "1.0.0",
+    "description": "Control de personal unificado: identidad del colaborador, custodia de material, vinculación de dispositivos y roadmap de capacidades.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+
+    "permissions": [
+        { "name": "talento.view",              "description": "Ver el módulo de talento y listado de colaboradores" },
+        { "name": "talento.manage",            "description": "Crear y editar perfiles de colaboradores" },
+        { "name": "talento.custody.view",      "description": "Ver material en custodia por colaborador (solo lectura)" },
+        { "name": "talento.devices.view",      "description": "Ver dispositivos vinculados de un colaborador" },
+        { "name": "talento.devices.manage",    "description": "Gestionar vinculación y revocación de dispositivos" },
+        { "name": "talento.roadmap.view",      "description": "Ver roadmap de fases del módulo Talento" },
+        { "name": "talento.roadmap.manage",    "description": "Editar items del roadmap" }
+    ],
+
+    "menu": [
+        {
+            "label": "Talento",
+            "icon": "users",
+            "permission": "talento.view",
+            "url": "/talento",
+            "children": [
+                { "label": "Colaboradores", "url": "/talento",            "permission": "talento.view" },
+                { "label": "Custodia",      "url": "/talento/custodia",   "permission": "talento.custody.view" },
+                { "label": "Dispositivos",  "url": "/talento/dispositivos","permission": "talento.devices.view" },
+                { "label": "Roadmap",       "url": "/talento/roadmap",    "permission": "talento.roadmap.view" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Talento Meganet",
+            "description": "Control de personal: colaboradores, custodia de material y dispositivos.",
+            "icon": "users",
+            "url": "/talento",
+            "permission": "talento.view"
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",  "path": "/talento/data",                      "description": "Lista colaboradores (JSON)",         "permission": "talento.view" },
+        { "method": "GET",  "path": "/talento/{id}",                      "description": "Perfil de colaborador",              "permission": "talento.view" },
+        { "method": "POST", "path": "/talento",                           "description": "Crear colaborador",                  "permission": "talento.manage" },
+        { "method": "PUT",  "path": "/talento/{id}",                      "description": "Editar colaborador",                 "permission": "talento.manage" },
+        { "method": "GET",  "path": "/talento/{id}/custodia",             "description": "Material en custodia (solo lectura)","permission": "talento.custody.view" },
+        { "method": "GET",  "path": "/talento/{id}/dispositivos",         "description": "Dispositivos del colaborador",       "permission": "talento.devices.view" },
+        { "method": "POST", "path": "/talento/{id}/dispositivos",         "description": "Vincular dispositivo",               "permission": "talento.devices.manage" },
+        { "method": "DELETE","path": "/talento/{id}/dispositivos/{devId}","description": "Revocar dispositivo",               "permission": "talento.devices.manage" },
+        { "method": "GET",  "path": "/talento/roadmap",                   "description": "Items del roadmap",                  "permission": "talento.roadmap.view" }
+    ],
+
+    "ai": {
+        "knowledge": "Talento Meganet es el módulo de control de personal. Registra a los colaboradores (internos y externos) vinculados a usuarios del sistema. Controla el material en custodia (consumiendo Inventario), los dispositivos móviles autorizados (device binding con sesión única) y el roadmap de fases del módulo.",
+        "example_intents": [
+            "ver qué material tiene asignado un técnico",
+            "ver los colaboradores activos",
+            "revocar el dispositivo de un colaborador",
+            "ver el estado del roadmap de Talento"
+        ],
+        "sensitive_actions": ["talento.devices.manage", "talento.manage"]
+    }
+}

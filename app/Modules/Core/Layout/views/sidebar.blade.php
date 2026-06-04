@@ -623,8 +623,35 @@
                             @can('fleet.rules.view')
                                 <li><a href="{{ url('/flotas/reglas') }}"><span><small><i class="fa fa-fw fa-filter"></i></small> Reglas de alertas</span></a></li>
                             @endcan
+                            @can('fleet.subscriptions.manage')
+                                <li><a href="{{ url('/flotas/suscripciones') }}"><span><small><i class="fa fa-fw fa-credit-card"></i></small> Suscripciones</span></a></li>
+                            @endcan
                         </ul>
                     </li>
+                @endcanany
+
+                {{-- 12.8 Talento Meganet (addon-talento) --}}
+                @canany(['talento.view','talento.custody.view','talento.devices.view','talento.roadmap.view'])
+                <li>
+                    <a href="javascript: void(0);" class="has-arrow">
+                        <i data-feather="users"></i>
+                        <span data-key="t-talento">Talento</span>
+                    </a>
+                    <ul class="sub-menu" aria-expanded="false">
+                        @can('talento.view')
+                            <li><a href="{{ url('/talento') }}"><span><small><i class="fa fa-fw fa-id-badge"></i></small> Colaboradores</span></a></li>
+                        @endcan
+                        @can('talento.custody.view')
+                            <li><a href="{{ url('/talento/custodia') }}"><span><small><i class="fa fa-fw fa-boxes"></i></small> Custodia</span></a></li>
+                        @endcan
+                        @can('talento.devices.view')
+                            <li><a href="{{ url('/talento/dispositivos') }}"><span><small><i class="fa fa-fw fa-mobile-alt"></i></small> Dispositivos</span></a></li>
+                        @endcan
+                        @can('talento.roadmap.view')
+                            <li><a href="{{ url('/talento/roadmap') }}"><span><small><i class="fa fa-fw fa-road"></i></small> Roadmap</span></a></li>
+                        @endcan
+                    </ul>
+                </li>
                 @endcanany
 
                 {{-- 13. War Room — accesible desde el panel de Administración (/administracion), no como ítem suelto del sidebar. --}}
@@ -642,7 +669,7 @@
                         'addon-planes', 'addon-finanzas', 'addon-marketing', 'addon-payments',
                         'addon-gestion-red', 'addon-inventario', 'addon-mapas',
                         'addon-cobranza-blaster', 'addon-megafamilia', 'addon-embajadores',
-                        'addon-flotas', 'addon-warroom', 'addon-devtools', 'core-configuracion',
+                        'addon-flotas', 'addon-talento', 'addon-warroom', 'addon-devtools', 'core-configuracion',
                     ];
                     // Módulos accesibles solo desde los paneles Configuración / Administración:
                     // no se muestran como ítem suelto en el sidebar (evita duplicar la navegación).
