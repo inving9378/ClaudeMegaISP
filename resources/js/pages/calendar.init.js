@@ -16,7 +16,14 @@ File: Calendar init js
 
 
                        
-            var addEvent=$("#event-modal");
+            var addEvent = {
+                modal: function(action) {
+                    const el = document.getElementById('event-modal');
+                    if (!el) return;
+                    if (action === 'show') window.bootstrap.Modal.getOrCreateInstance(el).show();
+                    else if (action === 'hide') { const m = window.bootstrap.Modal.getInstance(el); if (m) m.hide(); }
+                }
+            };
             var modalTitle = $("#modal-title");
             var formEvent = $("#form-event");
             var selectedEvent = null;

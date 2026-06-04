@@ -110,7 +110,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#ip_calculadora").modal('hide');
+            const _mh = window.bootstrap.Modal.getInstance(document.getElementById('ip_calculadora')); if (_mh) _mh.hide();
         };
 
         const useThisRed = (data) => {

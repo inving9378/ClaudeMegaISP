@@ -85,7 +85,7 @@ export default {
                 )
                 .then((response) => {
                     toastr.success('Configuracion actualizada correctamente.')
-                    $(`#${props.id}`).modal('hide');
+                    const _mh = window.bootstrap.Modal.getInstance(document.getElementById(props.id)); if (_mh) _mh.hide();
                 });
         };
 

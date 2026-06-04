@@ -61,7 +61,7 @@ export default {
         })
 
         const closeModal = () => {
-            $('#crudift').modal('hide');
+            const _mh = window.bootstrap.Modal.getInstance(document.getElementById('crudift')); if (_mh) _mh.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = 'Crear Ift';
             action.value = '/administracion/ift/add';
@@ -69,7 +69,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $('#crudift').modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudift')).show();
             title.value = 'Editar Ift';
             action.value = `/administracion/ift/update/${idItem}`;
         };

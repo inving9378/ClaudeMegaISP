@@ -23,7 +23,7 @@
    <ViewTotalPayment :idClient="id" :payments="payment" />
 
     <ClientCrudPayment
-        v-if="showCrud"
+        v-show="showCrud"
         :module="'cliente/billing/payment'"
         :action="action"
         :idClient="id"

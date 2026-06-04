@@ -55,7 +55,8 @@ export default {
 
         const showInfo = (item) => {
             emit('show-information', item);
-            $('.modal-center.modal-activity').modal('show');
+            const actEl = document.querySelector('.modal-center.modal-activity');
+            if (actEl) window.bootstrap.Modal.getOrCreateInstance(actEl).show();
         }
         return {data, showInfo}
     }

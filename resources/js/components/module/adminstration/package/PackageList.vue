@@ -61,7 +61,7 @@ export default {
         })
 
         const closeModal = () => {
-            $('#crudpackage').modal('hide');
+            const _mh = window.bootstrap.Modal.getInstance(document.getElementById('crudpackage')); if (_mh) _mh.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = 'Crear Paquete';
             action.value = '/administracion/package/add';
@@ -69,7 +69,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $('#crudpackage').modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudpackage')).show();
             title.value = 'Editar Paquete';
             action.value = `/administracion/package/update/${idItem}`;
         };

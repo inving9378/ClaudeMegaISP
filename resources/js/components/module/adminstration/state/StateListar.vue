@@ -61,7 +61,7 @@ export default {
         })
 
         const closeModal = () => {
-            $('#crudstate').modal('hide');
+            const _mh = window.bootstrap.Modal.getInstance(document.getElementById('crudstate')); if (_mh) _mh.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = 'Crear Estado';
             action.value = '/administracion/estado/add';
@@ -69,7 +69,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $('#crudstate').modal('show');
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudstate')).show();
             title.value = 'Editar State';
             action.value = `/administracion/estado/update/${idItem}`;
         };
