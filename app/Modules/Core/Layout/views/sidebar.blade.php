@@ -631,7 +631,7 @@
                 @endcanany
 
                 {{-- 12.8 Talento Meganet (addon-talento) --}}
-                @canany(['talento.view','talento.custody.view','talento.devices.view','talento.roadmap.view'])
+                @canany(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.custody.view','talento.devices.view','talento.roadmap.view'])
                 <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="users"></i>
@@ -640,6 +640,15 @@
                     <ul class="sub-menu" aria-expanded="false">
                         @can('talento.view')
                             <li><a href="{{ url('/talento') }}"><span><small><i class="fa fa-fw fa-id-badge"></i></small> Colaboradores</span></a></li>
+                        @endcan
+                        @can('talento.work_orders.view')
+                            <li><a href="{{ url('/talento/ordenes') }}"><span><small><i class="fa fa-fw fa-clipboard-list"></i></small> Órdenes de trabajo</span></a></li>
+                        @endcan
+                        @can('talento.compensation.view')
+                            <li><a href="{{ url('/talento/compensacion') }}"><span><small><i class="fa fa-fw fa-coins"></i></small> Compensación</span></a></li>
+                        @endcan
+                        @can('talento.liquidation.view')
+                            <li><a href="{{ url('/talento/liquidaciones') }}"><span><small><i class="fa fa-fw fa-file-invoice-dollar"></i></small> Liquidaciones</span></a></li>
                         @endcan
                         @can('talento.custody.view')
                             <li><a href="{{ url('/talento/custodia') }}"><span><small><i class="fa fa-fw fa-boxes"></i></small> Custodia</span></a></li>
