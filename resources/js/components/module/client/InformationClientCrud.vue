@@ -14,7 +14,7 @@
                         <h5 class="cic-title">
                             {{ headerName || "Cliente" }}
                             <span class="text-muted fw-normal">· #{{ id }}</span>
-                            <span class="badge cic-estado ms-1" v-if="dataForm.data.estado">{{ dataForm.data.estado }}</span>
+                            <span class="badge cic-estado ms-1" v-if="dataForm.data.estado" :class="clientStatusMeta(dataForm.data.estado).bsClass">{{ dataForm.data.estado }}</span>
                         </h5>
                         <div class="cic-subline">
                             <span v-if="planLabel"><i class="mdi mdi-package-variant me-1"></i>Plan {{ planLabel }}</span>
@@ -341,6 +341,7 @@ import ClientRecentActivity from "./components/ClientRecentActivity.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
 import { allViewHasPermission } from "../../../helpers/Request";
+import { clientStatusMeta } from "../../../helpers/clientStatus";
 import { getOnuByClient, getSignal } from "../olts/helper/request";
 import { formatDate } from "@fullcalendar/core/index.js";
 import { message } from "../../../helpers/toastMsg";
@@ -733,7 +734,7 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-avatar { width: 52px; height: 52px; border-radius: 12px; background: #eef2ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0; }
 .cic-header-main { flex: 1 1 280px; min-width: 0; }
 .cic-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
-.cic-estado { background: #6366f1; }
+.cic-estado { /* color driven by Bootstrap bg-* class from clientStatusMeta */ }
 .cic-subline { display: flex; flex-wrap: wrap; gap: 14px; color: #6b7280; font-size: 0.82rem; margin-top: 3px; }
 .cic-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cic-balance { margin-right: 6px; }

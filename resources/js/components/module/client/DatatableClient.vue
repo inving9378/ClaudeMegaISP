@@ -165,6 +165,11 @@
                     </q-tooltip>
                   </q-icon>
                 </span>
+                <span v-else-if="col.name === 'client_main_information.estado' && props.row[col.name]">
+                  <span class="badge" :class="clientStatusMeta(props.row[col.name]).bsClass">
+                    {{ props.row[col.name] }}
+                  </span>
+                </span>
                 <span v-html="props.row[col.name]" v-else></span>
               </q-td>
             </template>
@@ -290,6 +295,7 @@ import {
 import { deleteRowDatatable } from "../../../hook/datatableHook";
 import ComponentFormDefault from "../../../components/ComponentFormDefault";
 import Form from "../../../helpers/Form";
+import { clientStatusMeta } from "../../../helpers/clientStatus";
 
 import ModalCentrado from "../../../shared/ModalCentrado.vue";
 import SelectFilter from "./helpers/SelectFilter.vue";
