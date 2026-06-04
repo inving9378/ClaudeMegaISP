@@ -24,6 +24,12 @@ class AppServiceProvider extends ServiceProvider
             return new MikrotikService();
         });
 
+        // Timbrado CFDI 4.0 — stub hasta que se integre un PAC real
+        $this->app->singleton(
+            \App\Services\Finance\Timbrado\TimbradoServiceInterface::class,
+            \App\Services\Finance\Timbrado\NullTimbradoService::class
+        );
+
         $this->app->singleton('SmartOlt', function () {
             $data = [
                 'base_uri' => "https://" . config('services.smartolt.domain') . ".smartolt.com/api/",
