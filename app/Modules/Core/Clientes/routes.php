@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Core\Clientes\Controllers\ClientBillingAddressController;
+use App\Modules\Core\Clientes\Controllers\ClientFiscalDataController;
 use App\Modules\Core\Clientes\Controllers\ClientBillingConfigurationController;
 use App\Modules\Core\Clientes\Controllers\ClientBillingRemindersConfigurationController;
 use App\Modules\Core\Clientes\Controllers\ClientBundleServiceController;
@@ -152,6 +153,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/get-billing-information-block/{id}', [ClientBillingConfigurationController::class, 'getBillingInformationBlock']);
             Route::post('/get-payment-method/{id}', [ClientBillingConfigurationController::class, 'getPaymentMethod']);
             Route::post('/get-type-of-billing-by-client-id/{id}', [ClientBillingConfigurationController::class, 'getTypeOfBillingByClientId']);
+
+            // Datos fiscales CFDI 4.0
+            Route::get('/datos-fiscales/{clientId}', [ClientFiscalDataController::class, 'show']);
+            Route::post('/datos-fiscales/{clientId}', [ClientFiscalDataController::class, 'upsert']);
+            Route::get('/datos-fiscales/{clientId}/constancia', [ClientFiscalDataController::class, 'downloadConstancia']);
+            Route::post('/datos-fiscales/{clientId}/timbrar', [ClientFiscalDataController::class, 'timbrar']);
 
             // Pagos
             Route::prefix('payment')->group(function () {
