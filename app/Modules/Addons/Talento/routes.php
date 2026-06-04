@@ -9,6 +9,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoCompensacionController;
 use App\Modules\Addons\Talento\Controllers\TalentoLiquidacionController;
 use App\Modules\Addons\Talento\Controllers\TalentoAttendanceController;
 use App\Modules\Addons\Talento\Controllers\TalentoWorkSiteController;
+use App\Modules\Addons\Talento\Controllers\TalentoFieldFlowController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -26,6 +27,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/asistencia',     [TalentoAttendanceController::class,   'index']);
         Route::get('/mapa-en-vivo',   fn() => view('addon-talento::talento.mapa_vivo'));
         Route::get('/sitios',         fn() => view('addon-talento::talento.sitios'));
+        Route::get('/campo',          [TalentoFieldFlowController::class,   'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -106,5 +108,39 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Ubicación en vivo ─────────────────────────────────────────────
             Route::get('/ubicacion/en-vivo',              [TalentoAttendanceController::class, 'liveAll']);
             Route::get('/ubicacion/{colaboradorId}/ruta',  [TalentoAttendanceController::class, 'liveLocation']);
+
+            // ── Flujo de campo (Fase 4a) ──────────────────────────────────────
+            // Media
+            Route::post('/campo/{workOrderId}/media',          [TalentoFieldFlowController::class, 'uploadMedia']);
+            Route::get('/campo/{workOrderId}/media',           [TalentoFieldFlowController::class, 'listMedia']);
+
+            // IA Validation
+            Route::post('/campo/{workOrderId}/ia-validacion',  [TalentoFieldFlowController::class, 'runIaValidation']);
+            Route::get('/campo/{workOrderId}/ia-validacion',   [TalentoFieldFlowController::class, 'getIaValidation']);
+            Route::post('/campo/ia-validacion/{validationId}/override', [TalentoFieldFlowController::class, 'overrideIaValidation']);
+
+            // Firmas
+            Route::post('/campo/{workOrderId}/firma',          [TalentoFieldFlowController::class, 'storeSignature']);
+            Route::get('/campo/{workOrderId}/firmas',          [TalentoFieldFlowController::class, 'getSignatures']);
+
+            // Accept
+            Route::post('/campo/{workOrderId}/aceptar',        [TalentoFieldFlowController::class, 'accept']);
+
+            // Activación
+            Route::post('/campo/{workOrderId}/activar',        [TalentoFieldFlowController::class, 'confirmActivation']);
+            Route::get('/campo/{workOrderId}/activacion',      [TalentoFieldFlowController::class, 'getActivation']);
+
+            // Onboarding + Encuesta
+            Route::post('/campo/{workOrderId}/onboarding',     [TalentoFieldFlowController::class, 'onboard']);
+            Route::get('/campo/{workOrderId}/encuesta',        [TalentoFieldFlowController::class, 'getSurvey']);
+            Route::post('/campo/{workOrderId}/encuesta',       [TalentoFieldFlowController::class, 'submitSurvey']);
+
+            // Estado completo del flujo de campo
+            Route::get('/campo/{workOrderId}/estado',          [TalentoFieldFlowController::class, 'fieldFlowState']);
         });
     });
+
+// Media serve — named route (no auth middleware on the path, auth done in controller)
+Route::middleware(['web', 'auth'])
+    ->get('/talento/media/{id}', [TalentoFieldFlowController::class, 'serveMedia'])
+    ->name('talento.media.serve');
