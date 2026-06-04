@@ -489,19 +489,33 @@ class MikrotikSyncCommand extends Command
 
     private function generatePPPSecretsContent(): string
     {
-        if (empty($this->servicesToAddPPPSecret)) {
+        if (empty($this->servicesToAddPPPSecret) && empty($this->servicesToRemovePPPSecret)) {
             return '';
         }
 
-        $content = "/ppp secret\n";
+        $content = '';
+
+        // Primero eliminar, luego agregar
+        foreach ($this->servicesToRemovePPPSecret as $service) {
+            $name = $service->getNameClient();
+            $content .= sprintf(
+                '/ppp secret remove [find name="%s"]' . PHP_EOL,
+                $name
+            );
+        }
 
         foreach ($this->servicesToAddPPPSecret as $service) {
+            $name = $service->getNameClient();
+            $password = $service->password;
+            $ip = $service->network_ip_used_by->ip;
+            $comment = 'Meganet_' . $service->id;
             $content .= sprintf(
-                'add name="%s" password="%s" service=any profile=default remote-address=%s disabled=no comment="%s"' . PHP_EOL,
-                $service->getNameClient(),
-                $service->password,
-                $service->network_ip_used_by->ip,
-                'Meganet_' . $service->id
+                ':if ([:len [/ppp secret find name="%s"]] = 0) do={ /ppp secret add name="%s" password="%s" service=any profile=default remote-address=%s disabled=no comment="%s" }' . PHP_EOL,
+                $name,
+                $name,
+                $password,
+                $ip,
+                $comment
             );
         }
 
@@ -510,17 +524,29 @@ class MikrotikSyncCommand extends Command
 
     private function generateAddressListContent(): string
     {
-        if (empty($this->servicesToAddAddressList)) {
+        if (empty($this->servicesToAddAddressList) && empty($this->servicesToRemoveAddressList)) {
             return '';
         }
 
-        $content = "/ip firewall address-list\n";
+        $content = '';
+
+        // Primero eliminar, luego agregar
+        foreach ($this->servicesToRemoveAddressList as $service) {
+            $ip = $service->network_ip_used_by->ip;
+            $content .= sprintf(
+                '/ip firewall address-list remove [find list="MgNet_Morosos" address=%s]' . PHP_EOL,
+                $ip
+            );
+        }
 
         foreach ($this->servicesToAddAddressList as $service) {
+            $ip = $service->network_ip_used_by->ip;
+            $comment = 'Meganet_' . $service->id;
             $content .= sprintf(
-                'add list="MgNet_Morosos" address=%s disabled=no comment="%s"' . PHP_EOL,
-                $service->network_ip_used_by->ip,
-                'Meganet_' . $service->id
+                ':if ([:len [/ip firewall address-list find list="MgNet_Morosos" address=%s]] = 0) do={ /ip firewall address-list add list="MgNet_Morosos" address=%s disabled=no comment="%s" }' . PHP_EOL,
+                $ip,
+                $ip,
+                $comment
             );
         }
 
@@ -648,18 +674,12 @@ class MikrotikSyncCommand extends Command
         $lines = explode(PHP_EOL, $content);
         $chunks = array_chunk($lines, 100);
 
-        $firstLine = $lines[0] ?? '';
-
         foreach ($chunks as $index => $chunk) {
             try {
                 $this->getConnection(); // Reconnect if needed
 
                 $scriptName = self::SCRIPT_NAME_SECRET . '_part' . ($index + 1);
                 $scriptContent = implode(PHP_EOL, $chunk);
-
-                if ($index > 0 && !empty($firstLine)) {
-                    $scriptContent = "/ppp secret\n" . $scriptContent;
-                }
 
                 $logMsg = "Uploading PPP Secrets part " . ($index + 1) . " of " . count($chunks);
                 $this->logInfo($logMsg);
@@ -701,7 +721,6 @@ class MikrotikSyncCommand extends Command
         $content = file_get_contents($filePath);
         $lines = explode(PHP_EOL, $content);
         $chunks = array_chunk($lines, 100);
-        $firstLine = $lines[0] ?? '';
 
         foreach ($chunks as $index => $chunk) {
             try {
@@ -709,10 +728,6 @@ class MikrotikSyncCommand extends Command
 
                 $scriptName = self::SCRIPT_NAME_ADDRESS_LIST . '_part' . ($index + 1);
                 $scriptContent = implode(PHP_EOL, $chunk);
-
-                if ($index > 0 && !empty($firstLine)) {
-                    $scriptContent = "/ip firewall address-list\n" . $scriptContent;
-                }
 
                 $logMsg = "Uploading Address List part " . ($index + 1) . " of " . count($chunks);
                 $this->logInfo($logMsg);
