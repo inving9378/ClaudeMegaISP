@@ -193,6 +193,8 @@
 </template>
 
 <script>
+import Chart from 'chart.js/auto';
+
 export default {
   name: 'TalentoDashboard',
   data() {
@@ -273,7 +275,6 @@ export default {
 
       if (!datasets.length) return;
 
-      if (typeof Chart === 'undefined') return;
       this.chartInstance = new Chart(this.$refs.prodChart, {
         type: 'line',
         data: { labels, datasets },
