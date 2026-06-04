@@ -45,7 +45,7 @@
                                     <tr v-for="c in (msg.action_data.clientes||msg.action_data.morosos)" :key="c.id">
                                         <td><a :href="`${url}/cliente/${c.id}`" target="_blank">{{c.name}} {{c.father_last_name}}</a></td>
                                         <td>{{c.phone}}</td>
-                                        <td><span :class="`badge bg-${c.estado==='Activo'?'success':'danger'}`">{{c.estado}}</span></td>
+                                        <td><span class="badge" :class="clientStatusMeta(c.estado).bsClass">{{c.estado}}</span></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -89,6 +89,7 @@
 <script>
 import { ref, nextTick } from 'vue';
 import axios from 'axios';
+import { clientStatusMeta } from '../../helpers/clientStatus';
 export default {
     name: 'IaChatFloat',
     props: { url: String },
@@ -126,7 +127,7 @@ export default {
                 messages.value.push({role:'assistant',content:'❌ Error de conexión. Verifica CLAUDE_API_KEY en .env',timestamp:new Date()});
             }finally{isTyping.value=false;scroll();nextTick(()=>inputRef.value?.focus());}
         };
-        return {isOpen,isExpanded,isTyping,inputText,messages,messagesContainer,inputRef,suggestions,toggleChat,sendSuggestion,send,fmt,ft,fm,sc};
+        return {isOpen,isExpanded,isTyping,inputText,messages,messagesContainer,inputRef,suggestions,toggleChat,sendSuggestion,send,fmt,ft,fm,sc,clientStatusMeta};
     }
 };
 </script>
@@ -189,6 +190,7 @@ code{background:#1e293b;color:#7dd3fc;padding:1px 5px;border-radius:4px;font-siz
 <script>
 import { ref, nextTick } from 'vue';
 import axios from 'axios';
+import { clientStatusMeta } from '../../helpers/clientStatus';
 export default {
     name: 'IaChatFloat',
     props: { url: String },
@@ -226,7 +228,7 @@ export default {
                 messages.value.push({role:'assistant',content:'❌ Error de conexión. Verifica CLAUDE_API_KEY en .env',timestamp:new Date()});
             }finally{isTyping.value=false;scroll();nextTick(()=>inputRef.value?.focus());}
         };
-        return {isOpen,isExpanded,isTyping,inputText,messages,messagesContainer,inputRef,suggestions,toggleChat,sendSuggestion,send,fmt,ft,fm,sc};
+        return {isOpen,isExpanded,isTyping,inputText,messages,messagesContainer,inputRef,suggestions,toggleChat,sendSuggestion,send,fmt,ft,fm,sc,clientStatusMeta};
     }
 };
 </script>

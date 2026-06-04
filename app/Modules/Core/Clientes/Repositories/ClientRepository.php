@@ -16,6 +16,8 @@ use App\Modules\Core\Clientes\Models\Client;
 use App\Services\ClientService\BillingExpirationService;
 use App\Services\FormatDateService;
 use App\Services\IvaInformationService;
+use App\Http\Repository\PaymentRepository;
+use App\Modules\Core\Configuracion\Repositories\CommandConfigRepository;
 use App\Services\PromotionService;
 use Spatie\Activitylog\Models\Activity;
 
