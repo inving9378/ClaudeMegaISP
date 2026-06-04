@@ -15,9 +15,12 @@ use Illuminate\Support\Facades\DB;
 
 class LiquidationService
 {
-    public function __construct(private ?FundService $fundService = null)
-    {
+    public function __construct(
+        private ?FundService $fundService = null,
+        private ?LoanService $loanService = null
+    ) {
         $this->fundService = $fundService ?? app(FundService::class);
+        $this->loanService = $loanService ?? app(LoanService::class);
     }
     /**
      * Calculate (or recalculate) a draft liquidation for a collaborator and period.
@@ -105,16 +108,19 @@ class LiquidationService
             ->sum('amount');
 
         // Fondos de ahorro (Fase 6b): authorized + accumulating → debit 'fund_contribution'
-        // Se pre-calcula aquí para reflejarlo en gross_pay; se escribe dentro de la transacción.
         $fundDeductions = $this->fundService->deductionsForPeriod($colaboradorId, $periodStart, $periodEnd);
         $fundTotal      = array_sum($fundDeductions);
 
-        $grossPay = round($basePaid + $overproductionPaid + $otherCredits - $otherDebits - $fundTotal, 2);
+        // Préstamos activos + autorizados (Fase 6c): → debit 'loan_repayment'
+        $loanDeductions = $this->loanService->deductionsForPeriod($colaboradorId);
+        $loanTotal      = array_sum($loanDeductions);
+
+        $grossPay = round($basePaid + $overproductionPaid + $otherCredits - $otherDebits - $fundTotal - $loanTotal, 2);
 
         return DB::transaction(function () use (
             $colaboradorId, $periodStart, $periodEnd, $existing,
             $totalUnits, $basePaid, $overproductionPaid, $otherCredits, $otherDebits, $grossPay,
-            $fundDeductions
+            $fundDeductions, $loanDeductions
         ) {
             $liq = TalentoLiquidation::updateOrCreate(
                 [
@@ -180,6 +186,17 @@ class LiquidationService
                     $periodStart,
                     $periodEnd,
                     $liq->id,
+                    auth()->id()
+                );
+            }
+
+            // Fase 6c: abonos a préstamos autorizados
+            if (!empty($loanDeductions)) {
+                $this->loanService->applyDeductions(
+                    $colaboradorId,
+                    $loanDeductions,
+                    $periodStart,
+                    $periodEnd,
                     auth()->id()
                 );
             }
