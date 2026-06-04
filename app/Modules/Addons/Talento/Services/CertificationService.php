@@ -65,4 +65,43 @@ class CertificationService
         $cert->update(['status' => 'revoked']);
         return $cert->fresh();
     }
+
+    /**
+     * Return the academy progress for a collaborator (consumed by LevelService).
+     * Mirrors TalentoAcademyController::progressForColaborador().
+     */
+    public function progressForColaborador(int $colaboradorId): array
+    {
+        $certs = TalentoCertification::where('colaborador_id', $colaboradorId)
+            ->where('status', 'active')->count();
+        $total = TalentoCourse::where('active', true)->count();
+
+        $courses = TalentoCourse::with(['exams' => fn($q) => $q->where('active', true)])
+            ->where('active', true)
+            ->get()
+            ->map(function ($c) use ($colaboradorId) {
+                $examPassed = $c->exams->first()
+                    ? TalentoExamAttempt::where('exam_id', $c->exams->first()->id)
+                        ->where('colaborador_id', $colaboradorId)->where('passed', true)->exists()
+                    : false;
+                $practicalOk = TalentoPracticalEvaluation::where('course_id', $c->id)
+                    ->where('colaborador_id', $colaboradorId)->where('result', 'approved')->exists();
+                $certified = TalentoCertification::where('course_id', $c->id)
+                    ->where('colaborador_id', $colaboradorId)->where('status', 'active')->exists();
+                return [
+                    'course_id'    => $c->id,
+                    'title'        => $c->title,
+                    'exam_passed'  => $examPassed,
+                    'practical_ok' => $practicalOk,
+                    'certified'    => $certified,
+                ];
+            })->toArray();
+
+        return [
+            'certified_count' => $certs,
+            'total_courses'   => $total,
+            'completion_pct'  => $total > 0 ? round(($certs / $total) * 100, 1) : 0,
+            'courses'         => $courses,
+        ];
+    }
 }

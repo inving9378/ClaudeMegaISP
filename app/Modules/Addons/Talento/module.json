@@ -41,7 +41,9 @@
         { "name": "talento.settlement.manage",    "description": "Crear, editar y cerrar finiquitos" },
         { "name": "talento.academy.view",         "description": "Ver catálogo de cursos y material" },
         { "name": "talento.academy.manage",       "description": "Crear cursos, materiales y exámenes" },
-        { "name": "talento.academy.evaluate",     "description": "Registrar evaluaciones prácticas y certificaciones" }
+        { "name": "talento.academy.evaluate",     "description": "Registrar evaluaciones prácticas y certificaciones" },
+        { "name": "talento.levels.view",          "description": "Ver niveles y elegibilidad de colaboradores" },
+        { "name": "talento.levels.manage",        "description": "Crear niveles, promover colaboradores, configurar gating" }
     ],
 
     "menu": [
@@ -64,7 +66,8 @@
                 { "label": "Credenciales",     "url": "/talento/credenciales",       "permission": "talento.credentials.view" },
                 { "label": "Préstamos",        "url": "/talento/finiquito",          "permission": "talento.loans.view" },
                 { "label": "Finiquito",        "url": "/talento/finiquito",          "permission": "talento.settlement.view" },
-                { "label": "Academia",         "url": "/talento/academia",           "permission": "talento.academy.view" }
+                { "label": "Academia",         "url": "/talento/academia",           "permission": "talento.academy.view" },
+                { "label": "Niveles",          "url": "/talento/niveles",            "permission": "talento.levels.view" }
             ]
         }
     ],

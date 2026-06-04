@@ -22,6 +22,11 @@ class TalentoWorkOrderType extends BaseModel
         return $this->hasMany(TalentoWorkOrder::class, 'type_id');
     }
 
+    public function requiredLevel()
+    {
+        return $this->belongsTo(TalentoLevel::class, 'required_level_id');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('active', true);

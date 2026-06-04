@@ -701,6 +701,9 @@
                         @can('talento.academy.view')
                             <li><a href="{{ url('/talento/academia') }}"><span><small><i class="fa fa-fw fa-graduation-cap"></i></small> Academia</span></a></li>
                         @endcan
+                        @can('talento.levels.view')
+                            <li><a href="{{ url('/talento/niveles') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Niveles</span></a></li>
+                        @endcan
                         @can('talento.location.view')
                             <li><a href="{{ url('/talento/mapa-en-vivo') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa en vivo</span></a></li>
                         @endcan
