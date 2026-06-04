@@ -131,7 +131,7 @@ class TalentoWorkOrderController extends Controller
         return response()->json($order);
     }
 
-    public function validate(Request $request, $id)
+    public function validateOrder(Request $request, $id)
     {
         $this->authorize('talento.work_orders.validate');
 

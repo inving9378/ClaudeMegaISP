@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
@@ -49,8 +50,20 @@ class LiquidationService
             ->whereBetween('validated_at', [$periodStart->startOfDay(), $periodEnd->endOfDay()])
             ->sum('points');
 
-        // Base pay: always the full base salary (floor)
-        $basePaid = $baseSalary;
+        // Attendance impact on base pay (Fase 3)
+        // Count calendar working days in period (Mon-Sat default if shift not configured)
+        $periodDays    = $periodStart->diffInDays($periodEnd) + 1;
+        $absentDays    = TalentoAttendance::where('colaborador_id', $colaboradorId)
+            ->where('day_type', 'absent')
+            ->forPeriod($periodStart->startOfDay(), $periodEnd->endOfDay())
+            ->count();
+        // no_work_company days → base is protected (not deducted)
+        $baseProration = $periodDays > 0 && $absentDays > 0
+            ? max(0.0, round($baseSalary * (1 - ($absentDays / $periodDays)), 2))
+            : $baseSalary;
+
+        // Base pay: prorated if absences exist, protected on company-non-work days
+        $basePaid = $baseProration;
 
         // Overproduction: only for units above quota
         $overproductionPaid = 0.0;
