@@ -6,17 +6,23 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
-use App\Modules\Addons\Talento\Services\DashboardService;
-use App\Modules\Addons\Talento\Services\CompensationService;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderMedia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Gateway para la app móvil "Talento Equipo" (React Native).
  *
- * Auth: Sanctum token (Bearer). Login provisionado por admin.
+ * Auth: Sanctum Bearer token. Login provisionado por admin.
  * Todas las rutas son stateless (sin CSRF, sin sesión web).
+ *
+ * Tablas reales usadas:
+ *  - talento_work_order_media  (evidencias, con potencia_dbm/gps_accuracy_m/source vía migración 970010)
+ *  - talento_ledger_entries    (compensación)
+ *  - talento_work_order_types  (columna: name)
+ *  - settings                  (health bonus: talento_health_bonus_amount, talento_health_bonus_max_loss_db)
  */
 class TalentoMobileApiController extends Controller
 {
@@ -48,7 +54,7 @@ class TalentoMobileApiController extends Controller
             ], 403);
         }
 
-        // Revocar tokens móviles anteriores de este usuario (un dispositivo activo a la vez)
+        // Un dispositivo activo a la vez
         $user->tokens()->where('name', 'talento-mobile')->delete();
 
         $token = $user->createToken('talento-mobile')->plainTextToken;
@@ -85,10 +91,9 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $hoy = now()->toDateString();
         $registro = DB::table('talento_attendances')
             ->where('colaborador_id', $colaborador->id)
-            ->whereDate('check_in_at', $hoy)
+            ->whereDate('check_in_at', now()->toDateString())
             ->orderByDesc('id')
             ->first();
 
@@ -96,13 +101,21 @@ class TalentoMobileApiController extends Controller
             return response()->json(['check_in_at' => null, 'check_out_at' => null]);
         }
 
+        $siteName = null;
+        if ($registro->check_in_site_id) {
+            $siteName = DB::table('talento_work_sites')
+                ->where('id', $registro->check_in_site_id)
+                ->value('name');
+        }
+
         return response()->json([
             'id'           => $registro->id,
             'check_in_at'  => $registro->check_in_at,
             'check_out_at' => $registro->check_out_at,
-            'geocerca'     => $registro->work_site_name ?? null,
-            'lat'          => $registro->lat,
-            'lng'          => $registro->lng,
+            'geocerca'     => $siteName,
+            'lat'          => $registro->check_in_lat,
+            'lng'          => $registro->check_in_lng,
+            'flagged'      => (bool)$registro->check_in_flagged,
         ]);
     }
 
@@ -117,10 +130,9 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $hoy = now()->toDateString();
         $existing = DB::table('talento_attendances')
             ->where('colaborador_id', $colaborador->id)
-            ->whereDate('check_in_at', $hoy)
+            ->whereDate('check_in_at', now()->toDateString())
             ->whereNull('check_out_at')
             ->exists();
 
@@ -128,37 +140,29 @@ class TalentoMobileApiController extends Controller
             return response()->json(['message' => 'Ya tienes un check-in activo hoy.'], 422);
         }
 
-        // Validar geocerca en servidor (radio configurado en talento_work_sites)
-        $site = $this->nearestWorkSite($request->lat, $request->lng);
+        $site         = $this->nearestWorkSite($request->lat, $request->lng);
+        $withinSite   = $site !== null;
 
         $id = DB::table('talento_attendances')->insertGetId([
-            'colaborador_id'  => $colaborador->id,
-            'check_in_at'     => now(),
-            'lat'             => $request->lat,
-            'lng'             => $request->lng,
-            'accuracy'        => $request->accuracy,
-            'work_site_id'    => $site?->id,
-            'work_site_name'  => $site?->name,
-            'source'          => 'mobile',
-            'created_at'      => now(),
-            'updated_at'      => now(),
+            'colaborador_id'         => $colaborador->id,
+            'check_in_at'            => now(),
+            'check_in_lat'           => $request->lat,
+            'check_in_lng'           => $request->lng,
+            'check_in_site_id'       => $site?->id,
+            'check_in_within_geofence' => $withinSite,
+            'check_in_flagged'       => ! $withinSite,
+            'check_in_flag_reason'   => $withinSite ? null : 'Fuera de geocerca (app móvil)',
+            'day_type'               => 'worked',
+            'status'                 => 'open',
+            'created_at'             => now(),
+            'updated_at'             => now(),
         ]);
-
-        if (! $site) {
-            return response()->json([
-                'message'      => 'Check-in registrado fuera de geocerca.',
-                'id'           => $id,
-                'check_in_at'  => now()->toISOString(),
-                'geocerca'     => null,
-                'flagged'      => true,
-            ], 201);
-        }
 
         return response()->json([
             'id'          => $id,
             'check_in_at' => now()->toISOString(),
-            'geocerca'    => $site->name,
-            'flagged'     => false,
+            'geocerca'    => $site?->name,
+            'flagged'     => ! $withinSite,
         ], 201);
     }
 
@@ -171,7 +175,7 @@ class TalentoMobileApiController extends Controller
             ->where('colaborador_id', $colaborador->id)
             ->whereDate('check_in_at', now()->toDateString())
             ->whereNull('check_out_at')
-            ->update(['check_out_at' => now(), 'updated_at' => now()]);
+            ->update(['check_out_at' => now(), 'status' => 'closed', 'updated_at' => now()]);
 
         if (! $updated) {
             return response()->json(['message' => 'Sin check-in activo para cerrar.'], 422);
@@ -187,10 +191,10 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ots = TalentoWorkOrder::with('type')
+        $ots = TalentoWorkOrder::with(['type'])
             ->where('colaborador_id', $colaborador->id)
-            ->whereDate('scheduled_date', now()->toDateString())
-            ->orderBy('scheduled_date')
+            ->whereDate('scheduled_at', now()->toDateString())
+            ->orderBy('scheduled_at')
             ->get()
             ->map(fn($o) => $this->otSummary($o));
 
@@ -202,7 +206,7 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ot = TalentoWorkOrder::with(['type', 'evidences'])
+        $ot = TalentoWorkOrder::with(['type'])
             ->where('id', $id)
             ->where('colaborador_id', $colaborador->id)
             ->first();
@@ -211,7 +215,14 @@ class TalentoMobileApiController extends Controller
             return response()->json(['message' => 'OT no encontrada.'], 404);
         }
 
-        return response()->json(['ot' => $this->otDetail($ot)]);
+        // Cargar evidencias (media) de esta OT
+        $evidencias = DB::table('talento_work_order_media')
+            ->where('work_order_id', $ot->id)
+            ->orderByDesc('created_at')
+            ->get(['id', 'created_at', 'potencia_dbm', 'watermark_applied', 'location_flagged'])
+            ->toArray();
+
+        return response()->json(['ot' => $this->otDetail($ot, $evidencias)]);
     }
 
     public function otEvidencia(Request $request, int $id)
@@ -235,32 +246,47 @@ class TalentoMobileApiController extends Controller
             return response()->json(['message' => 'OT no encontrada.'], 404);
         }
 
-        // Guardar foto en disco privado, cifrada si está disponible la llave
-        $path = $request->file('foto')->store(
-            "talento/evidencias/ot_{$id}",
-            'local'
-        );
+        // Guardar foto en disco privado (la marca de agua ya viene quemada desde la app)
+        $file  = $request->file('foto');
+        $dir   = "talento/media/{$ot->id}";
+        $name  = Str::uuid() . '.' . ($file->getClientOriginalExtension() ?: 'jpg');
+        $path  = $file->storeAs($dir, $name, 'local');
 
-        $potencia = $request->input('potencia_dbm') !== null
-            ? (float) $request->input('potencia_dbm')
-            : null;
+        $lat      = $request->input('lat') !== null ? (float)$request->input('lat') : null;
+        $lng      = $request->input('lng') !== null ? (float)$request->input('lng') : null;
+        $accuracy = $request->input('accuracy') !== null ? (float)$request->input('accuracy') : null;
+        $potencia = $request->input('potencia_dbm') !== null ? (float)$request->input('potencia_dbm') : null;
 
-        $evidenciaId = DB::table('talento_field_evidences')->insertGetId([
-            'work_order_id' => $ot->id,
-            'colaborador_id'=> $colaborador->id,
-            'file_path'     => $path,
-            'lat'           => $request->input('lat'),
-            'lng'           => $request->input('lng'),
-            'accuracy'      => $request->input('accuracy'),
-            'potencia_dbm'  => $potencia,
-            'source'        => 'mobile',
-            'created_at'    => now(),
-            'updated_at'    => now(),
+        // Calcular distancia al sitio de la OT para flag de ubicación
+        $locationFlagged = false;
+        $distanceM       = null;
+        if ($ot->latitude && $ot->longitude && $lat && $lng) {
+            $distanceM = $this->haversineMeters($lat, $lng, (float)$ot->latitude, (float)$ot->longitude);
+            $flaggedRadius = (float)(DB::table('settings')->where('key', 'talento_media_flagged_radius_m')->value('value') ?? 500);
+            $locationFlagged = $distanceM > $flaggedRadius;
+        }
+
+        $mediaId = DB::table('talento_work_order_media')->insertGetId([
+            'work_order_id'      => $ot->id,
+            'type'               => 'completion',
+            'file_path'          => $path,
+            'captured_lat'       => $lat,
+            'captured_lng'       => $lng,
+            'captured_at'        => now(),
+            'captured_in_app'    => true,
+            'watermark_applied'  => true,   // quemada por la app antes de subir
+            'location_flagged'   => $locationFlagged,
+            'location_distance_m'=> $distanceM,
+            'potencia_dbm'       => $potencia,  // columna añadida en migración 970010
+            'gps_accuracy_m'     => $accuracy,
+            'source'             => 'mobile',
+            'created_by'         => $request->user()->id,
+            'created_at'         => now(),
         ]);
 
-        // Actualizar OT a en_curso si sigue pendiente
-        if ($ot->status === 'pendiente') {
-            $ot->update(['status' => 'en_curso']);
+        // Avanzar estado a in_progress si sigue en pending
+        if ($ot->status === 'pending') {
+            $ot->update(['status' => 'in_progress']);
         }
 
         $saludRed = null;
@@ -269,8 +295,8 @@ class TalentoMobileApiController extends Controller
         }
 
         return response()->json([
-            'evidencia_id' => $evidenciaId,
-            'salud_red'    => $saludRed,
+            'media_id'  => $mediaId,
+            'salud_red' => $saludRed,
         ], 201);
     }
 
@@ -281,48 +307,59 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        // Semana actual (lunes-domingo)
-        $lunes   = now()->startOfWeek()->toDateString();
-        $domingo = now()->endOfWeek()->toDateString();
+        // Semana actual lunes-domingo
+        $inicio = now()->startOfWeek()->toDateString();
+        $fin    = now()->endOfWeek()->toDateString();
 
-        // Unidades completadas esta semana
+        // OTs completadas o validadas esta semana
         $unidades = TalentoWorkOrder::where('colaborador_id', $colaborador->id)
-            ->where('status', 'completada')
-            ->whereBetween('validated_at', [$lunes.' 00:00:00', $domingo.' 23:59:59'])
+            ->whereIn('status', ['completed', 'validated'])
+            ->whereBetween('completed_at', [$inicio . ' 00:00:00', $fin . ' 23:59:59'])
             ->count();
 
-        // Cuota semanal del colaborador (de talento_compensation_rules o config)
+        // Cuota semanal — talento_compensation_rules (global por target_type)
         $cuota = DB::table('talento_compensation_rules')
-            ->where('colaborador_id', $colaborador->id)
             ->where('active', true)
-            ->value('weekly_quota') ?? 0;
+            ->where(function ($q) use ($colaborador) {
+                $q->where('target_type', 'all')
+                  ->orWhere('target_type', $colaborador->tipo ?? $colaborador->role_type ?? 'technician');
+            })
+            ->orderByDesc('id')
+            ->value('weekly_quota_units') ?? 0;
 
-        // Movimientos del ledger esta semana
-        $movimientos = DB::table('talento_compensation_ledger')
+        // Movimientos del ledger esta semana (tabla: talento_ledger_entries)
+        $movimientos = DB::table('talento_ledger_entries')
             ->where('colaborador_id', $colaborador->id)
-            ->whereBetween('created_at', [$lunes.' 00:00:00', $domingo.' 23:59:59'])
+            ->where(function ($q) use ($inicio, $fin) {
+                $q->whereBetween('period_start', [$inicio, $fin])
+                  ->orWhereBetween('period_end',   [$inicio, $fin]);
+            })
             ->orderByDesc('created_at')
-            ->get(['id', 'tipo', 'concepto', 'monto', 'categoria', 'created_at as fecha'])
+            ->get([
+                'id',
+                'type as tipo',
+                'concept as concepto',
+                'amount as monto',
+                'reference_type as categoria',
+                'created_at as fecha',
+            ])
+            ->map(fn($m) => array_merge((array)$m, [
+                'tipo' => strtoupper($m->tipo), // credit→CREDIT, debit→DEBIT para la app
+            ]))
             ->toArray();
 
-        // Proyectado = suma de CREDITs - suma de DEBITs
+        // Proyectado = CREDITs - DEBITs
         $proyectado = collect($movimientos)->reduce(function ($carry, $m) {
-            $m = (object) $m;
+            $m = (object)$m;
             return $carry + ($m->tipo === 'CREDIT' ? (float)$m->monto : -(float)$m->monto);
         }, 0.0);
 
-        // Puntos del escalafón (acumulados históricos)
-        $puntos = DB::table('talento_level_assignments')
-            ->where('colaborador_id', $colaborador->id)
-            ->value('accumulated_points') ?? 0;
-
         return response()->json([
-            'periodo_inicio' => $lunes,
-            'periodo_fin'    => $domingo,
-            'corte'          => $domingo,
+            'periodo_inicio' => $inicio,
+            'periodo_fin'    => $fin,
+            'corte'          => $fin,
             'unidades'       => $unidades,
-            'cuota'          => $cuota,
-            'puntos'         => $puntos,
+            'cuota'          => (int)$cuota,
             'proyectado'     => round($proyectado, 2),
             'movimientos'    => $movimientos,
         ]);
@@ -345,84 +382,94 @@ class TalentoMobileApiController extends Controller
     private function colaboradorPayload(TalentoColaborador $col): array
     {
         return [
-            'id'        => $col->id,
-            'nombre'    => $col->nombre_completo ?? ($col->nombre.' '.($col->apellido ?? '')),
-            'tipo'      => $col->tipo ?? $col->role_type,
-            'email'     => $col->user?->email,
-            'telefono'  => $col->telefono,
-            'foto_url'  => $col->foto_url ?? null,
+            'id'       => $col->id,
+            'nombre'   => trim(($col->nombre ?? '') . ' ' . ($col->apellido ?? '')),
+            'tipo'     => $col->tipo ?? $col->role_type ?? 'technician',
+            'email'    => $col->user?->email,
+            'telefono' => $col->telefono,
         ];
     }
 
     private function otSummary(TalentoWorkOrder $ot): array
     {
+        // Cliente: work_order → client_id → clients → user_id → users.name / users.address
+        $clientName = null;
+        $clientAddress = null;
+        if ($ot->client_id) {
+            $client = DB::table('clients')->where('id', $ot->client_id)->first(['user_id']);
+            if ($client?->user_id) {
+                $user = DB::table('users')->where('id', $client->user_id)->first(['name', 'address']);
+                $clientName    = $user?->name;
+                $clientAddress = $user?->address;
+            }
+        }
+
         return [
             'id'        => $ot->id,
-            'folio'     => $ot->folio,
-            'tipo'      => $ot->type?->nombre ?? $ot->type_name ?? '—',
+            'folio'     => $ot->id,   // sin columna folio dedicada — usamos id
+            'tipo'      => $ot->type?->name ?? '—',
             'status'    => $ot->status,
-            'cliente'   => $ot->client_name ?? $ot->cliente,
-            'direccion' => $ot->address ?? $ot->direccion,
+            'cliente'   => $clientName,
+            'direccion' => $clientAddress,
         ];
     }
 
-    private function otDetail(TalentoWorkOrder $ot): array
+    private function otDetail(TalentoWorkOrder $ot, array $evidencias): array
     {
         return array_merge($this->otSummary($ot), [
-            'notas'                    => $ot->notas ?? $ot->notes,
-            'equipo'                   => $ot->equipment_model ?? $ot->equipo,
-            'onu_serial'               => $ot->onu_serial,
-            'potencia_referencia_dbm'  => $ot->potencia_referencia_dbm,
-            'telefono'                 => $ot->client_phone ?? $ot->telefono,
-            'referencia'               => $ot->address_reference ?? $ot->referencia,
-            'evidencias'               => $ot->evidences?->map(fn($e) => [
-                'id'           => $e->id,
-                'created_at'   => $e->created_at,
-                'potencia_dbm' => $e->potencia_dbm,
-            ])->toArray() ?? [],
+            'notas'                   => $ot->notes,
+            'scheduled_at'            => $ot->scheduled_at,
+            'potencia_referencia_dbm' => null, // no está en work_orders; dejar para cuando se agregue
+            'evidencias'              => $evidencias,
         ]);
     }
 
-    /** Haversine simplificado — retorna el sitio más cercano dentro de su radio. */
     private function nearestWorkSite(float $lat, float $lng)
     {
+        // Columnas reales: latitude, longitude, radius_m (talento_work_sites)
         $sites = DB::table('talento_work_sites')
             ->where('active', true)
-            ->get(['id', 'name', 'lat', 'lng', 'radius_meters']);
+            ->get(['id', 'name', 'latitude', 'longitude', 'radius_m']);
 
         foreach ($sites as $site) {
-            $dlat = deg2rad($lat - $site->lat);
-            $dlng = deg2rad($lng - $site->lng);
-            $a = sin($dlat / 2) ** 2
-                + cos(deg2rad($site->lat)) * cos(deg2rad($lat)) * sin($dlng / 2) ** 2;
-            $dist = 6371000 * 2 * asin(sqrt($a));
-            if ($dist <= ($site->radius_meters ?? 300)) {
+            if ($this->haversineMeters($lat, $lng, (float)$site->latitude, (float)$site->longitude)
+                    <= ($site->radius_m ?? 300)) {
                 return $site;
             }
         }
         return null;
     }
 
-    private function calcularSaludRed(float $potencia, TalentoWorkOrder $ot): ?array
+    private function haversineMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
-        // Compara contra la potencia de referencia de la OT; si no tiene, usa -15 dBm como umbral
-        $referencia = $ot->potencia_referencia_dbm ?? -15.0;
-        $perdida    = $referencia - $potencia; // positivo = señal peor que referencia
+        $dlat = deg2rad($lat1 - $lat2);
+        $dlng = deg2rad($lng1 - $lng2);
+        $a    = sin($dlat / 2) ** 2
+              + cos(deg2rad($lat2)) * cos(deg2rad($lat1)) * sin($dlng / 2) ** 2;
+        return 6371000 * 2 * asin(sqrt($a));
+    }
 
-        // Bono básico: si la pérdida <= 3 dB = bono verde, <= 6 = bono amarillo, > 6 = sin bono
-        // Las reglas exactas se definen en talento_compensation_rules (Fase 4b del backend)
-        $bono = match(true) {
-            $perdida <= 3  => DB::table('talento_health_bonus_config')->value('bono_verde')  ?? 50,
-            $perdida <= 6  => DB::table('talento_health_bonus_config')->value('bono_amarillo') ?? 25,
-            default        => 0,
-        };
+    private function calcularSaludRed(float $potencia, TalentoWorkOrder $ot): array
+    {
+        // Umbral de pérdida aceptable desde settings (Fase 4b: talento_health_bonus_max_loss_db)
+        $maxLoss = (float)(DB::table('settings')
+            ->where('key', 'talento_health_bonus_max_loss_db')
+            ->value('value') ?? 1.0);
+        $bonusMonto = (float)(DB::table('settings')
+            ->where('key', 'talento_health_bonus_amount')
+            ->value('value') ?? 30);
+
+        // Sin referencia en la OT; comparamos contra el umbral directamente
+        // (la referencia óptima en fibra óptica es ~0 dB pérdida; negativo ya implica pérdida)
+        $perdida = abs($potencia); // dBm negativo → pérdida en dB
+        $bono    = $perdida <= $maxLoss ? $bonusMonto : 0;
 
         return [
-            'potencia_medida_dbm'   => $potencia,
-            'potencia_referencia_dbm' => $referencia,
-            'perdida_db'            => round($perdida, 2),
-            'calidad'               => $perdida <= 3 ? 'buena' : ($perdida <= 6 ? 'aceptable' : 'deficiente'),
-            'bono'                  => $bono,
+            'potencia_medida_dbm' => $potencia,
+            'max_loss_db'         => $maxLoss,
+            'perdida_estimada_db' => round($perdida, 2),
+            'calidad'             => $perdida <= $maxLoss ? 'buena' : ($perdida <= $maxLoss * 3 ? 'aceptable' : 'deficiente'),
+            'bono'                => $bono,
         ];
     }
 }
