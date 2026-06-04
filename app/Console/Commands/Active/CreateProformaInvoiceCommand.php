@@ -7,6 +7,7 @@ use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationReposit
 use App\Modules\Core\Clientes\Models\Client;
 use App\Models\Invoice;
 use App\Services\Finance\Invoice\InvoiceService;
+use App\Services\Finance\Billing\BillingDocumentService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -123,6 +124,15 @@ class CreateProformaInvoiceCommand extends Command
         $proforma = $this->invoiceService->createProformaInvoice($data);
 
         $this->info("Proforma creada para cliente {$cliente->id}: {$proforma->number}");
+
+        // Genera PDF + registro BillingNotification en_espera (ventana ≥12 h desde billing_config).
+        // Respeta billing_config.send_prefactura_email: si está en off, el registro se crea
+        // pero send_by_email=false y el command de envío lo ignora.
+        try {
+            (new BillingDocumentService())->generarPrefactura($proforma);
+        } catch (\Throwable $e) {
+            Log::error("[CreateProformaInvoiceCommand] Error generando doc prefactura para invoice#{$proforma->id}: " . $e->getMessage());
+        }
 
         return $proforma;
     }

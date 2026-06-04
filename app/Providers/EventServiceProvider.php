@@ -41,6 +41,7 @@ use App\Models\Balance;
 use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Observers\BillingConfigurationObserver;
 use App\Observers\ClientBalanceObserver;
+use App\Observers\PaymentBillingObserver;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -98,6 +99,7 @@ class EventServiceProvider extends ServiceProvider
         CrmMainInformation::observe(CrmMainInformationObserver::class);
         ClientMainInformation::observe(ClientMainInformationObserver::class);
         Payment::observe(PaymentObserver::class);
+        Payment::observe(PaymentBillingObserver::class);
         Mikrotik::observe(MikrotikObserver::class);
         Network::observe(NetworkDeleteInMikrotikObserver::class);
         ClientInternetService::observe(ClientInternetServiceObserver::class);
