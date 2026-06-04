@@ -71,6 +71,9 @@
             <q-tab name="marketing"   :class="['wr-tab-marketing',   currentView==='marketing'   ? 'wr-tab-active':'']">
                 <span class="wr-tab-inner"><i class="ti ti-brand-whatsapp me-1"></i>Marketing</span>
             </q-tab>
+            <q-tab name="talento"     :class="['wr-tab-talento',     currentView==='talento'     ? 'wr-tab-active':'']">
+                <span class="wr-tab-inner"><i class="ti ti-users me-1"></i>Talento</span>
+            </q-tab>
         </q-tabs>
 
         <!-- ── Contenido de cada vista ────────────────────────────────────────── -->
@@ -92,6 +95,9 @@
             </q-tab-panel>
             <q-tab-panel name="marketing"   class="wr-panel-content">
                 <ViewMarketing   :period="currentPeriod" />
+            </q-tab-panel>
+            <q-tab-panel name="talento"     class="wr-panel-content">
+                <ViewTalento     :period="currentPeriod" />
             </q-tab-panel>
         </q-tab-panels>
 
@@ -155,6 +161,7 @@ import ViewOperaciones from './views/ViewOperaciones.vue';
 import ViewVentas from './views/ViewVentas.vue';
 import ViewRed from './views/ViewRed.vue';
 import ViewMarketing from './views/ViewMarketing.vue';
+import ViewTalento from './views/ViewTalento.vue';
 
 defineProps({
     csrfToken: String,
