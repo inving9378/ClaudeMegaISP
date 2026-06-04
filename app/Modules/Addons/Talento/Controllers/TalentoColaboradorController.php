@@ -28,6 +28,13 @@ class TalentoColaboradorController extends Controller
             ->orderBy('id', 'desc')
             ->paginate($request->per_page ?? 25);
 
+        // Enrich each user with their Spatie roles (read-only) for the list
+        $q->each(function ($col) {
+            if ($col->user) {
+                $col->user->role_names = $col->user->getRoleNames();
+            }
+        });
+
         return response()->json($q);
     }
 
@@ -57,6 +64,11 @@ class TalentoColaboradorController extends Controller
 
         $colaborador = TalentoColaborador::with(['user', 'supervisor.user', 'subordinados.user'])
             ->findOrFail($id);
+
+        // Enrich with Spatie roles (read-only display — roles are managed in Administradores)
+        if ($colaborador->user) {
+            $colaborador->user->role_names = $colaborador->user->getRoleNames();
+        }
 
         return response()->json($colaborador);
     }
