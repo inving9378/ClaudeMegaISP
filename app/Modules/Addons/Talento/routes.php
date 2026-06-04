@@ -13,6 +13,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoFieldFlowController;
 use App\Modules\Addons\Talento\Controllers\TalentoCajaController;
 use App\Modules\Addons\Talento\Controllers\TalentoWarrantyController;
 use App\Modules\Addons\Talento\Controllers\TalentoRouteController;
+use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -33,6 +34,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/campo',          [TalentoFieldFlowController::class,   'index']);
         Route::get('/cajas',          [TalentoCajaController::class,        'index']);
         Route::get('/rutas',          [TalentoRouteController::class,       'index']);
+        Route::get('/proyectos',      [TalentoProjectController::class,     'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -165,6 +167,33 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/rutas/{id}/activar',          [TalentoRouteController::class, 'activate']);
             Route::post('/rutas/{id}/analizar-desvios', [TalentoRouteController::class, 'analyzeDeviations']);
             Route::put('/rutas/{id}/stops/reordenar',   [TalentoRouteController::class, 'reorderStops']);
+
+            // ── Proyectos planta externa (Fase 5a) ────────────────────────────
+            // Tipos de actividad
+            Route::get('/activity-types',       [TalentoProjectController::class, 'activityTypes']);
+            Route::post('/activity-types',      [TalentoProjectController::class, 'storeActivityType']);
+            Route::put('/activity-types/{id}',  [TalentoProjectController::class, 'updateActivityType']);
+
+            // Proyectos CRUD
+            Route::get('/proyectos',                    [TalentoProjectController::class, 'data']);
+            Route::post('/proyectos',                   [TalentoProjectController::class, 'store']);
+            Route::get('/proyectos/{id}',               [TalentoProjectController::class, 'show']);
+            Route::put('/proyectos/{id}',               [TalentoProjectController::class, 'update']);
+
+            // Pool de actividades del proyecto
+            Route::post('/proyectos/{id}/actividades',         [TalentoProjectController::class, 'addActivity']);
+            Route::put('/proyectos/{id}/actividades/{actId}',  [TalentoProjectController::class, 'updateActivity']);
+
+            // Reportes diarios
+            Route::get('/proyectos/{id}/actividades/{actId}/reportes',  [TalentoProjectController::class, 'listReports']);
+            Route::post('/proyectos/{id}/actividades/{actId}/reportes', [TalentoProjectController::class, 'submitReport']);
+            Route::post('/project-reports/{reportId}/approve',          [TalentoProjectController::class, 'approveReport']);
+
+            // Bono de proyecto
+            Route::post('/proyectos/{id}/bono',         [TalentoProjectController::class, 'awardBonus']);
+
+            // Avance por colaborador
+            Route::get('/colaboradores/{id}/proyecto-avance', [TalentoProjectController::class, 'colaboradorProgress']);
         });
     });
 

@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Talento\Services;
 
 use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Services\ProjectActivityService;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoLiquidation;
@@ -45,10 +46,20 @@ class LiquidationService
         $weeklyQuota      = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units'] ?? 0) : 0;
 
         // Sum validated, billable, positive-points orders in the period (validated_at in [start, end])
-        $totalUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
+        $internalUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
             ->validatedBillable()
             ->whereBetween('validated_at', [$periodStart->startOfDay(), $periodEnd->endOfDay()])
             ->sum('points');
+
+        // Fase 5a: add points from external project activities in same period (1/N split, report_date in period)
+        $externalPoints = app(ProjectActivityService::class)->pointsForColaboradorInPeriod(
+            $colaboradorId,
+            $periodStart->toDateString(),
+            $periodEnd->toDateString()
+        );
+
+        // Single quota: internal OT points + external project activity points
+        $totalUnits = (int) round($internalUnits + $externalPoints);
 
         // Attendance impact on base pay (Fase 3)
         // Count calendar working days in period (Mon-Sat default if shift not configured)
