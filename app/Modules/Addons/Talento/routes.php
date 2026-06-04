@@ -18,6 +18,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
 use App\Modules\Addons\Talento\Controllers\TalentoPenaltyController;
 use App\Modules\Addons\Talento\Controllers\TalentoCredentialController;
 use App\Modules\Addons\Talento\Controllers\TalentoLoanSettlementController;
+use App\Modules\Addons\Talento\Controllers\TalentoAcademyController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -43,6 +44,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/penalizaciones', [TalentoPenaltyController::class, 'index']);
         Route::get('/credenciales',   [TalentoCredentialController::class, 'index']);
         Route::get('/finiquito',      [TalentoLoanSettlementController::class, 'index']);
+        Route::get('/academia',       [TalentoAcademyController::class, 'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -264,6 +266,32 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/settlements/{id}',                          [TalentoLoanSettlementController::class, 'showSettlement']);
             Route::put('/settlement-items/{id}',                     [TalentoLoanSettlementController::class, 'updateSettlementItem']);
             Route::post('/settlements/{id}/close',                   [TalentoLoanSettlementController::class, 'closeSettlement']);
+
+            // ── Academia — Cursos ─────────────────────────────────────────
+            Route::get('/courses',                    [TalentoAcademyController::class, 'courses']);
+            Route::post('/courses',                   [TalentoAcademyController::class, 'storeCourse']);
+            Route::get('/courses/{id}',               [TalentoAcademyController::class, 'showCourse']);
+            Route::put('/courses/{id}',               [TalentoAcademyController::class, 'updateCourse']);
+            Route::post('/courses/{id}/materials',    [TalentoAcademyController::class, 'storeMaterial']);
+            Route::delete('/course-materials/{id}',   [TalentoAcademyController::class, 'destroyMaterial']);
+
+            // ── Academia — Exámenes (admin/evaluador) ─────────────────────
+            Route::post('/courses/{id}/exams',        [TalentoAcademyController::class, 'storeExam']);
+            Route::post('/exams/{id}/questions',      [TalentoAcademyController::class, 'storeQuestion']);
+
+            // ── Academia — Exámenes (colaborador) ────────────────────────
+            Route::get('/exams/{id}/take',            [TalentoAcademyController::class, 'examForStudent']);
+            Route::post('/exams/{id}/submit',         [TalentoAcademyController::class, 'submitExam']);
+            Route::get('/exams/{id}/my-attempts',     [TalentoAcademyController::class, 'myAttempts']);
+
+            // ── Academia — Evaluaciones prácticas ────────────────────────
+            Route::post('/courses/{id}/practical',    [TalentoAcademyController::class, 'storePractical']);
+
+            // ── Academia — Certificaciones ────────────────────────────────
+            Route::get('/my-certifications',                          [TalentoAcademyController::class, 'myCertifications']);
+            Route::get('/colaboradores/{id}/certifications',          [TalentoAcademyController::class, 'certificationsForColaborador']);
+            Route::get('/colaboradores/{id}/academy-progress',        [TalentoAcademyController::class, 'progressForColaborador']);
+            Route::post('/certifications/{id}/revoke',                [TalentoAcademyController::class, 'revokeCertification']);
         });
     });
 
@@ -283,3 +311,7 @@ Route::middleware(['web', 'auth'])
 Route::middleware(['web', 'auth'])
     ->get('/talento/credential-doc/{id}', [TalentoCredentialController::class, 'serveDocument'])
     ->name('talento.credential.doc');
+
+Route::middleware(['web', 'auth'])
+    ->get('/talento/practical-evidence/{id}', [TalentoAcademyController::class, 'serveEvidencePractical'])
+    ->name('talento.practical.evidence');
