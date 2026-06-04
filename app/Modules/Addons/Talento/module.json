@@ -24,7 +24,9 @@
         { "name": "talento.liquidation.manage",    "description": "Calcular y cerrar liquidaciones" },
         { "name": "talento.ledger.view",           "description": "Ver el ledger de asientos contables del colaborador" },
         { "name": "talento.projects.view",         "description": "Ver proyectos de planta externa y pool de actividades" },
-        { "name": "talento.projects.manage",       "description": "Crear/editar proyectos, actividades y reportar producción" }
+        { "name": "talento.projects.manage",       "description": "Crear/editar proyectos, actividades y reportar producción" },
+        { "name": "talento.quality.view",          "description": "Ver inspecciones de caja y catálogo de estándares" },
+        { "name": "talento.quality.manage",        "description": "Crear inspecciones, correr análisis IA, validar como supervisor" }
     ],
 
     "menu": [
@@ -41,7 +43,8 @@
                 { "label": "Custodia",         "url": "/talento/custodia",           "permission": "talento.custody.view" },
                 { "label": "Dispositivos",     "url": "/talento/dispositivos",       "permission": "talento.devices.view" },
                 { "label": "Roadmap",          "url": "/talento/roadmap",            "permission": "talento.roadmap.view" },
-                { "label": "Proyectos",        "url": "/talento/proyectos",          "permission": "talento.projects.view" }
+                { "label": "Proyectos",        "url": "/talento/proyectos",          "permission": "talento.projects.view" },
+                { "label": "Calidad de caja",  "url": "/talento/calidad",            "permission": "talento.quality.view" }
             ]
         }
     ],
