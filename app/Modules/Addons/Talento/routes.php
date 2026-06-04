@@ -23,6 +23,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoLevelController;
 use App\Modules\Addons\Talento\Controllers\TalentoDashboardController;
 use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
+use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -354,3 +355,30 @@ Route::middleware(['web', 'auth'])
 Route::middleware(['web', 'auth'])
     ->get('/talento/practical-evidence/{id}', [TalentoAcademyController::class, 'serveEvidencePractical'])
     ->name('talento.practical.evidence');
+
+// ══════════════════════════════════════════════════════════════════════════════
+// App móvil "Talento Equipo" — API stateless con Sanctum Bearer token
+// Prefijo: /talento/api/  (mismo que la SPA pero sin web/session middleware)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Login público (sin token)
+Route::post('/talento/api/auth/login', [TalentoMobileApiController::class, 'login'])
+    ->middleware([]);
+
+// Rutas protegidas con Sanctum
+Route::middleware(['auth:sanctum'])
+    ->prefix('talento/api')
+    ->group(function () {
+        Route::post('/auth/logout',          [TalentoMobileApiController::class, 'logout']);
+        Route::get('/me',                    [TalentoMobileApiController::class, 'me']);
+
+        Route::get('/asistencia/hoy',        [TalentoMobileApiController::class, 'asistenciaHoy']);
+        Route::post('/asistencia/checkin',   [TalentoMobileApiController::class, 'checkin']);
+        Route::post('/asistencia/checkout',  [TalentoMobileApiController::class, 'checkout']);
+
+        Route::get('/ots/hoy',               [TalentoMobileApiController::class, 'otsHoy']);
+        Route::get('/ots/{id}',              [TalentoMobileApiController::class, 'otShow']);
+        Route::post('/ots/{id}/evidencia',   [TalentoMobileApiController::class, 'otEvidencia']);
+
+        Route::get('/compensacion/semana',   [TalentoMobileApiController::class, 'compensacionSemana']);
+    });
