@@ -250,6 +250,15 @@
                             </li>
                         @endcan
 
+                        {{-- Facturación — Notificaciones pendientes --}}
+                        @can('facturacion.notif.gestionar')
+                            <li>
+                                <a href="{{ url('/finanzas/notificaciones-pendientes') }}">
+                                    <span data-key="t-finanzas-notif"><small><i class="fas fa-paper-plane"></i></small> Notificaciones pendientes</span>
+                                </a>
+                            </li>
+                        @endcan
+
                         {{-- Marketing — location:submenu, parent:finanzas (addon-marketing) --}}
                         @canany(['view-marketing-leads', 'marketing_leads_view', 'view-conversations',
                                  'view-marketing-forms', 'manage-marketing-forms', 'marketing_campaigns_view',
@@ -643,6 +652,9 @@
                             @endcan
                             @can('fleet.rules.view')
                                 <li><a href="{{ url('/flotas/reglas') }}"><span><small><i class="fa fa-fw fa-filter"></i></small> Reglas de alertas</span></a></li>
+                            @endcan
+                            @can('fleet.documents.view')
+                                <li><a href="{{ url('/flotas/documentos') }}"><span><small><i class="fa fa-fw fa-folder-open"></i></small> Documentos</span></a></li>
                             @endcan
                             @can('fleet.subscriptions.manage')
                                 <li><a href="{{ url('/flotas/suscripciones') }}"><span><small><i class="fa fa-fw fa-credit-card"></i></small> Suscripciones</span></a></li>
