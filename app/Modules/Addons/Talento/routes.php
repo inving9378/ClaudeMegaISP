@@ -7,6 +7,8 @@ use App\Modules\Addons\Talento\Controllers\TalentoRoadmapController;
 use App\Modules\Addons\Talento\Controllers\TalentoWorkOrderController;
 use App\Modules\Addons\Talento\Controllers\TalentoCompensacionController;
 use App\Modules\Addons\Talento\Controllers\TalentoLiquidacionController;
+use App\Modules\Addons\Talento\Controllers\TalentoAttendanceController;
+use App\Modules\Addons\Talento\Controllers\TalentoWorkSiteController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -21,6 +23,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/ordenes',        [TalentoWorkOrderController::class,    'index']);
         Route::get('/compensacion',   [TalentoCompensacionController::class, 'index']);
         Route::get('/liquidaciones',  [TalentoLiquidacionController::class,  'index']);
+        Route::get('/asistencia',     [TalentoAttendanceController::class,   'index']);
+        Route::get('/sitios',         fn() => view('addon-talento::talento.sitios'));
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -65,7 +69,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'show']);
             Route::put('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'update']);
             Route::put('/ordenes/{id}/status',              [TalentoWorkOrderController::class, 'changeStatus']);
-            Route::post('/ordenes/{id}/validate',           [TalentoWorkOrderController::class, 'validate']);
+            Route::post('/ordenes/{id}/validate',           [TalentoWorkOrderController::class, 'validateOrder']);
             Route::post('/ordenes/{id}/actividades',        [TalentoWorkOrderController::class, 'addActivity']);
 
             // ── Reglas de compensación ────────────────────────────────────────
@@ -78,5 +82,28 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/liquidaciones/calcular',[TalentoLiquidacionController::class, 'calcular']);
             Route::get('/liquidaciones/{id}',     [TalentoLiquidacionController::class, 'show']);
             Route::post('/liquidaciones/{id}/cerrar', [TalentoLiquidacionController::class, 'cerrar']);
+
+            // ── Work Sites ────────────────────────────────────────────────────
+            Route::get('/sitios',             [TalentoWorkSiteController::class, 'data']);
+            Route::post('/sitios',            [TalentoWorkSiteController::class, 'store']);
+            Route::put('/sitios/{id}',        [TalentoWorkSiteController::class, 'update']);
+            Route::delete('/sitios/{id}',     [TalentoWorkSiteController::class, 'destroy']);
+            Route::get('/sitios/config/radio',  [TalentoWorkSiteController::class, 'defaultRadius']);
+            Route::put('/sitios/config/radio',  [TalentoWorkSiteController::class, 'updateDefaultRadius']);
+
+            // ── Asistencia — App endpoints ────────────────────────────────────
+            Route::post('/asistencia/check-in',  [TalentoAttendanceController::class, 'checkIn']);
+            Route::post('/asistencia/check-out', [TalentoAttendanceController::class, 'checkOut']);
+            Route::post('/asistencia/ping',      [TalentoAttendanceController::class, 'ping']);
+
+            // ── Asistencia — Admin endpoints ──────────────────────────────────
+            Route::get('/asistencia',              [TalentoAttendanceController::class, 'data']);
+            Route::get('/asistencia/{id}',         [TalentoAttendanceController::class, 'show']);
+            Route::put('/asistencia/{id}',         [TalentoAttendanceController::class, 'updateAdmin']);
+            Route::post('/asistencia/{id}/extension', [TalentoAttendanceController::class, 'addExtension']);
+
+            // ── Ubicación en vivo ─────────────────────────────────────────────
+            Route::get('/ubicacion/en-vivo',              [TalentoAttendanceController::class, 'liveAll']);
+            Route::get('/ubicacion/{colaboradorId}/ruta',  [TalentoAttendanceController::class, 'liveLocation']);
         });
     });
