@@ -14,6 +14,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoCajaController;
 use App\Modules\Addons\Talento\Controllers\TalentoWarrantyController;
 use App\Modules\Addons\Talento\Controllers\TalentoRouteController;
 use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
+use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -35,6 +36,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/cajas',          [TalentoCajaController::class,        'index']);
         Route::get('/rutas',          [TalentoRouteController::class,       'index']);
         Route::get('/proyectos',      [TalentoProjectController::class,     'index']);
+        Route::get('/calidad',        fn() => view('addon-talento::talento.calidad'));
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -194,6 +196,20 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // Avance por colaborador
             Route::get('/colaboradores/{id}/proyecto-avance', [TalentoProjectController::class, 'colaboradorProgress']);
+
+            // ── Calidad de caja — Estándares ──────────────────────────────
+            Route::get('/standards',            [TalentoQualityController::class, 'standardsIndex']);
+            Route::post('/standards',           [TalentoQualityController::class, 'storeStandard']);
+            Route::put('/standards/{id}',       [TalentoQualityController::class, 'updateStandard']);
+            Route::post('/standards/{id}/image',[TalentoQualityController::class, 'uploadStandardImage']);
+            Route::delete('/standards/{id}',    [TalentoQualityController::class, 'destroyStandard']);
+
+            // ── Calidad de caja — Inspecciones ────────────────────────────
+            Route::get('/inspecciones',         [TalentoQualityController::class, 'inspectionsIndex']);
+            Route::post('/inspecciones',        [TalentoQualityController::class, 'storeInspection']);
+            Route::get('/inspecciones/{id}',    [TalentoQualityController::class, 'showInspection']);
+            Route::post('/inspecciones/{id}/ia',    [TalentoQualityController::class, 'runIaAnalysis']);
+            Route::post('/inspecciones/{id}/validate', [TalentoQualityController::class, 'supervisorValidate']);
         });
     });
 
@@ -201,3 +217,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 Route::middleware(['web', 'auth'])
     ->get('/talento/media/{id}', [TalentoFieldFlowController::class, 'serveMedia'])
     ->name('talento.media.serve');
+
+Route::middleware(['web', 'auth'])
+    ->get('/talento/inspection-photo/{id}', [TalentoQualityController::class, 'servePhoto'])
+    ->name('talento.inspection.photo');
