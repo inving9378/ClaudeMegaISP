@@ -7,6 +7,7 @@ use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderActivity;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
+use App\Modules\Addons\Talento\Services\LevelService;
 use Illuminate\Http\Request;
 
 class TalentoWorkOrderController extends Controller
@@ -51,6 +52,19 @@ class TalentoWorkOrderController extends Controller
         ]);
 
         $type = TalentoWorkOrderType::findOrFail($data['type_id']);
+
+        // Gating por nivel (Fase 7b): si el tipo requiere un nivel, validar rank del colaborador
+        if ($type->required_level_id) {
+            $colaborador = TalentoColaborador::findOrFail($data['colaborador_id']);
+            $levelSvc = app(LevelService::class);
+            if (!$levelSvc->satisfiesRequirement($colaborador->level_id, $type->required_level_id)) {
+                $reqLevel = \App\Modules\Addons\Talento\Models\TalentoLevel::find($type->required_level_id);
+                return response()->json([
+                    'error' => "El colaborador no tiene el nivel requerido para este tipo de orden ({$reqLevel?->name}).",
+                    'required_level' => $reqLevel,
+                ], 422);
+            }
+        }
 
         $order = TalentoWorkOrder::create(array_merge($data, [
             'points'     => $type->points,

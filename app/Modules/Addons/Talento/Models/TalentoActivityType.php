@@ -16,6 +16,11 @@ class TalentoActivityType extends BaseModel
         'active'          => 'boolean',
     ];
 
+    public function requiredLevel()
+    {
+        return $this->belongsTo(TalentoLevel::class, 'required_level_id');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('active', true);

@@ -8,7 +8,9 @@ use App\Modules\Addons\Talento\Models\TalentoProject;
 use App\Modules\Addons\Talento\Models\TalentoProjectActivity;
 use App\Modules\Addons\Talento\Models\TalentoProjectActivityReport;
 use App\Modules\Addons\Talento\Models\TalentoProjectDeviation;
+use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Services\CorridorDeviationService;
+use App\Modules\Addons\Talento\Services\LevelService;
 use App\Modules\Addons\Talento\Services\ProjectActivityService;
 use App\Modules\Addons\Talento\Services\ProjectBonusService;
 use Carbon\Carbon;
@@ -197,6 +199,22 @@ class TalentoProjectController extends Controller
             'colaborador_ids.*'=> 'exists:talento_colaboradores,id',
             'notes'           => 'nullable|string',
         ]);
+
+        // Gating por nivel (Fase 7b): verificar nivel de cada colaborador participante
+        $activity    = TalentoProjectActivity::with('activityType')->find($actId);
+        $reqLevelId  = $activity?->activityType?->required_level_id;
+        if ($reqLevelId) {
+            $levelSvc = app(LevelService::class);
+            foreach ($data['colaborador_ids'] as $colId) {
+                $col = TalentoColaborador::find($colId);
+                if (!$levelSvc->satisfiesRequirement($col?->level_id, $reqLevelId)) {
+                    $reqLevel = \App\Modules\Addons\Talento\Models\TalentoLevel::find($reqLevelId);
+                    return response()->json([
+                        'error' => "El colaborador #{$colId} no tiene el nivel requerido ({$reqLevel?->name}) para este tipo de actividad.",
+                    ], 422);
+                }
+            }
+        }
 
         try {
             $report = $this->activityService->submitReport(
