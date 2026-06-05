@@ -386,12 +386,15 @@ Route::middleware(['auth:sanctum'])
         Route::post('/asistencia/checkin',   [TalentoMobileApiController::class, 'checkin']);
         Route::post('/asistencia/checkout',  [TalentoMobileApiController::class, 'checkout']);
 
+        Route::get('/ots/historial',                   [TalentoMobileApiController::class, 'otHistorial']);
         Route::get('/ots/hoy',                        [TalentoMobileApiController::class, 'otsHoy']);
         Route::get('/ots/{id}',                       [TalentoMobileApiController::class, 'otShow']);
         Route::get('/ots/{id}/tipos-evidencia',       [TalentoMobileApiController::class, 'tiposEvidencia']);
         Route::post('/ots/{id}/evidencia',            [TalentoMobileApiController::class, 'otEvidencia']);
         Route::post('/ots/{id}/iniciar',              [TalentoMobileApiController::class, 'iniciarOT']);
         Route::post('/ots/{id}/completar',            [TalentoMobileApiController::class, 'completarOT']);
+        Route::post('/ots/{id}/incidencia',           [TalentoMobileApiController::class, 'reportarIncidencia']);
+        Route::put('/ots/{id}/nota',                  [TalentoMobileApiController::class, 'guardarNota']);
 
         Route::get('/compensacion/semana',   [TalentoMobileApiController::class, 'compensacionSemana']);
     });
