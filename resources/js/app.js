@@ -83,6 +83,7 @@ import ApiMovilDocs from "./components/module/setting/api-movil/ApiMovilDocs.vue
 import ApiMovilLogs from "./components/module/setting/api-movil/ApiMovilLogs.vue";
 import ModuleManager from "./components/module/admin/modules/ModuleManager.vue";
 import ModuleVisibilityConfig from "./components/admin/ModuleVisibilityConfig.vue";
+import ChangePasswordForm from "./components/profile/ChangePasswordForm.vue";
 import AdminPanel from "./components/module/admin/AdminPanel.vue";
 import ModuleConfigPanel from "./components/module/setting/ModuleConfigPanel.vue";
 import DevtoolsPanel from "./components/module/devtools/DevtoolsPanel.vue";
@@ -164,6 +165,7 @@ import TalentoNiveles from "./components/module/talento/TalentoNiveles.vue";
 import TalentoDashboard from "./components/module/talento/TalentoDashboard.vue";
 import TalentoEscalafon from "./components/module/talento/TalentoEscalafon.vue";
 import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.vue";
+import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -514,6 +516,7 @@ const app = createApp({
         FieldModuleListar,
         'module-manager': ModuleManager,
         'module-visibility-config': ModuleVisibilityConfig,
+        'change-password-form': ChangePasswordForm,
         'admin-panel': AdminPanel,
         'module-config-panel': ModuleConfigPanel,
         'devtools-panel': DevtoolsPanel,
@@ -584,6 +587,7 @@ const app = createApp({
         'talento-dashboard': TalentoDashboard,
         'talento-escalafon': TalentoEscalafon,
         'talento-embajadores': TalentoEmbajadores,
+        'talento-evidencia-config': TalentoEvidenciaConfig,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
