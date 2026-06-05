@@ -222,7 +222,7 @@ class TalentoMobileApiController extends Controller
             ->orderByDesc('m.created_at')
             ->get([
                 'm.id', 'm.created_at', 'm.potencia_dbm',
-                'm.evidence_type_id as type_id', 'et.nombre as tipo_nombre',
+                'm.evidence_type_id as type_id', 'et.name as tipo_nombre',
                 'm.watermark_applied', 'm.location_flagged',
             ])
             ->toArray();
@@ -232,7 +232,7 @@ class TalentoMobileApiController extends Controller
             ->join('talento_evidence_types as et', 'et.id', '=', 'r.evidence_type_id')
             ->where('r.ot_type_id', $ot->type_id)
             ->whereNull('r.condition')
-            ->get(['et.id', 'et.nombre', 'et.es_firma'])
+            ->get(['et.id', 'et.name as nombre', 'et.es_firma'])
             ->toArray();
 
         return response()->json(['ot' => $this->otDetail($ot, $evidencias, $requeridas)]);
