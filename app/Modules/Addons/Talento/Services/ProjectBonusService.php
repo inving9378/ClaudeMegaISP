@@ -23,13 +23,13 @@ class ProjectBonusService
      */
     public function award(int $projectId): array
     {
-        $project = TalentoProject::with('activities.reports.participants')->findOrFail($projectId);
+        $project = TalentoProject::with('projectActivities.reports.participants')->findOrFail($projectId);
 
         // 1. Compute overall progress
         $totalPlanned  = 0.0;
         $totalApproved = 0.0;
 
-        foreach ($project->activities as $act) {
+        foreach ($project->projectActivities as $act) {
             $totalPlanned  += (float)$act->planned_quantity;
             foreach ($act->reports as $r) {
                 if (in_array($r->status, ['approved', 'capped'])) {

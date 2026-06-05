@@ -178,7 +178,7 @@
                 </div>
             </div>
         </div>
-        <div v-if="showDeleteModal" class="modal-backdrop fade show"></div>
+        <div v-if="showDeleteModal" class="modal-backdrop fade show flt-delete-backdrop"></div>
 
         <!-- Toast -->
         <transition name="flt-toast-fade">
@@ -406,7 +406,10 @@ export default {
 @keyframes flt-spin { to { transform: rotate(360deg); } }
 .flt-delete-modal { z-index: 9999; }
 .flt-delete-modal .modal-content { border: none; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
-.modal-backdrop.show { z-index: 9998; opacity: .5; }
+/* Clase propia (NO la global .modal-backdrop): este <style> NO es scoped, y usar
+   .modal-backdrop aquí leakeaba z-index:9998 a TODA la app, tapando ModalSimple/Swal
+   en /administracion/user, /cliente/editar, etc. */
+.flt-delete-backdrop.show { z-index: 9998; opacity: .5; }
 .flt-delete-list { list-style: none; padding: 0; margin: 0; }
 .flt-delete-list li { padding: 4px 0; font-size: .9rem; }
 .flt-fixed-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e5e7eb; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,.05); }

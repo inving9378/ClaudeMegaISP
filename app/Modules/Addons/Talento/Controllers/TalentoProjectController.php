@@ -74,26 +74,26 @@ class TalentoProjectController extends Controller
 
         $project = TalentoProject::with([
             'lead.user',
-            'activities.activityType',
-            'activities.reports.participants.colaborador.user',
+            'projectActivities.activityType',
+            'projectActivities.reports.participants.colaborador.user',
         ])->findOrFail($id);
 
         // Compute progress per activity
-        $project->activities->each(function ($act) {
+        $project->projectActivities->each(function ($act) {
             $act->approved_total  = $act->approvedTotal();
             $act->remaining       = $act->remaining();
             $act->progress_pct    = $act->progressPct();
         });
 
         // Overall project progress
-        $totalPlanned  = $project->activities->sum('planned_quantity');
-        $totalApproved = $project->activities->sum('approved_total');
+        $totalPlanned  = $project->projectActivities->sum('planned_quantity');
+        $totalApproved = $project->projectActivities->sum('approved_total');
         $project->overall_pct = $totalPlanned > 0
             ? round(min(100, $totalApproved / $totalPlanned * 100), 1) : 0;
 
         // Per-collaborator production summary
         $colPoints = [];
-        foreach ($project->activities as $act) {
+        foreach ($project->projectActivities as $act) {
             foreach ($act->reports as $r) {
                 if (!in_array($r->status, ['approved', 'capped'])) continue;
                 foreach ($r->participants as $p) {
@@ -323,7 +323,7 @@ class TalentoProjectController extends Controller
         $points = $this->activityService->pointsForColaboradorInPeriod($colaboradorId, $from, $to);
 
         // Active projects where this collaborator has reports
-        $projects = TalentoProject::whereHas('activities.reports.participants', fn($q) =>
+        $projects = TalentoProject::whereHas('projectActivities.reports.participants', fn($q) =>
             $q->where('colaborador_id', $colaboradorId)
         )->get(['id', 'name', 'status', 'end_date']);
 

@@ -29,7 +29,7 @@ class TalentoProject extends BaseModel
         return $this->belongsTo(TalentoColaborador::class, 'lead_colaborador_id');
     }
 
-    public function activities()
+    public function projectActivities()
     {
         return $this->hasMany(TalentoProjectActivity::class, 'project_id');
     }
