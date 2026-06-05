@@ -2,16 +2,15 @@
 
 namespace App\Models;
 
+use App\Http\Traits\SmartOltTrait;
 use App\Services\OLTsService;
-use App\Traits\CleanSignals;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 class Olt extends Model
 {
-    use HasFactory, CleanSignals;
+    use HasFactory, SmartOltTrait;
 
     public $incrementing = false;
 
@@ -311,6 +310,7 @@ class Olt extends Model
                             'address' => $obj['address'],
                             'mode' => $obj['mode'],
                             'name' => $obj['name'],
+                            'client_id' => $this->extractClientId($obj['name']),
                             'onu' => $obj['onu'],
                             'pon_type' => $obj['pon_type'],
                             'onu_type_id' => $obj['onu_type_id'],
@@ -372,6 +372,7 @@ class Olt extends Model
                             'address',
                             'mode',
                             'name',
+                            'client_id',
                             'onu',
                             'onu_type_id',
                             'onu_type_name',
@@ -434,6 +435,13 @@ class Olt extends Model
         $response = $service->getOutagePONsByOlt($this->id);
         if ($response['success']) {
             $objects = $response['response'];
+            if (empty($objects)) return $response;
+            // La API puede devolver un objeto directo cuando hay un solo resultado
+            if (isset($objects['board'])) {
+                $objects = [$objects];
+            }
+            // Filtrar cualquier elemento que no sea un array (enteros, nulls, etc.)
+            $objects = array_values(array_filter($objects, fn($item) => is_array($item)));
             if (empty($objects)) return $response;
             return DB::transaction(function () use ($objects) {
                 $now = now();
