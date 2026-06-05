@@ -565,6 +565,100 @@ class TalentoMobileApiController extends Controller
         ]);
     }
 
+    // ── Incidencia ("No puedo completar") ────────────────────────────────────
+
+    public function reportarIncidencia(Request $request, int $id)
+    {
+        $request->validate([
+            'motivo' => 'required|in:cliente_ausente,sin_acceso,falta_material,olt_sin_senal,riesgo,otro',
+            'nota'   => 'nullable|string|max:1000',
+            'lat'    => 'nullable|numeric',
+            'lng'    => 'nullable|numeric',
+        ]);
+
+        if ($request->input('motivo') === 'otro' && empty(trim($request->input('nota', '')))) {
+            return response()->json(['message' => 'El campo nota es obligatorio cuando el motivo es "otro".', 'code' => 'NOTA_REQUERIDA'], 422);
+        }
+
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $ot = TalentoWorkOrder::where('id', $id)
+            ->where('colaborador_id', $colaborador->id)
+            ->first();
+
+        if (! $ot) return response()->json(['message' => 'OT no encontrada.'], 404);
+        if (! in_array($ot->status, ['pending', 'in_progress'])) {
+            return response()->json(['message' => "No se puede reportar incidencia en estado '{$ot->status}'."], 422);
+        }
+
+        $incidentId = DB::table('talento_work_order_incidents')->insertGetId([
+            'work_order_id' => $ot->id,
+            'motivo'        => $request->input('motivo'),
+            'nota'          => $request->input('nota') ?: null,
+            'lat'           => $request->input('lat') !== null ? (float)$request->input('lat') : null,
+            'lng'           => $request->input('lng') !== null ? (float)$request->input('lng') : null,
+            'server_at'     => now(),
+            'created_by'    => $request->user()->id,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ]);
+
+        $ot->update(['status' => 'incidencia']);
+
+        return response()->json([
+            'incident_id' => $incidentId,
+            'status'      => 'incidencia',
+        ], 201);
+    }
+
+    // ── Nota del técnico (edición libre) ─────────────────────────────────────
+
+    public function guardarNota(Request $request, int $id)
+    {
+        $request->validate(['nota_tecnico' => 'nullable|string|max:1000']);
+
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $ot = TalentoWorkOrder::where('id', $id)
+            ->where('colaborador_id', $colaborador->id)
+            ->first();
+
+        if (! $ot) return response()->json(['message' => 'OT no encontrada.'], 404);
+
+        $ot->update(['nota_tecnico' => $request->input('nota_tecnico') ?: null]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    // ── Historial de OTs ──────────────────────────────────────────────────────
+
+    public function otHistorial(Request $request)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $estado = $request->query('estado'); // filtro opcional
+        $fecha  = $request->query('fecha');  // filtro opcional YYYY-MM-DD
+
+        $query = TalentoWorkOrder::with(['type'])
+            ->where('colaborador_id', $colaborador->id)
+            ->orderByDesc('scheduled_at');
+
+        if ($estado) $query->where('status', $estado);
+        if ($fecha)  $query->whereDate('scheduled_at', $fecha);
+
+        $ots = $query->paginate(20);
+
+        return response()->json([
+            'data'         => $ots->map(fn($o) => $this->otSummary($o)),
+            'current_page' => $ots->currentPage(),
+            'last_page'    => $ots->lastPage(),
+            'total'        => $ots->total(),
+        ]);
+    }
+
     // ── Compensación ──────────────────────────────────────────────────────────
 
     public function compensacionSemana(Request $request)
