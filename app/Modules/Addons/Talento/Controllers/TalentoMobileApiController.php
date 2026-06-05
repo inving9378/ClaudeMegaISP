@@ -225,14 +225,64 @@ class TalentoMobileApiController extends Controller
         return response()->json(['ot' => $this->otDetail($ot, $evidencias)]);
     }
 
+    public function tiposEvidencia(Request $request, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $ot = TalentoWorkOrder::where('id', $id)
+            ->where('colaborador_id', $colaborador->id)
+            ->first();
+
+        if (! $ot) {
+            return response()->json(['message' => 'OT no encontrada.'], 404);
+        }
+
+        // Todos los tipos de evidencia activos
+        $tipos = DB::table('talento_evidence_types')
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'permite_varias', 'requiere_justificacion', 'es_lectura_dbm', 'es_firma'])
+            ->map(fn($t) => [
+                'id'                    => $t->id,
+                'name'                  => $t->name,
+                'permite_varias'        => (bool)$t->permite_varias,
+                'requiere_justificacion'=> (bool)$t->requiere_justificacion,
+                'es_lectura_dbm'        => (bool)$t->es_lectura_dbm,
+                'es_firma'              => (bool)$t->es_firma,
+            ]);
+
+        // Tipos obligatorios para este tipo de OT (condition=null = siempre requeridos)
+        $requeridos = DB::table('talento_ot_type_evidence_requirements')
+            ->where('ot_type_id', $ot->type_id)
+            ->whereNull('condition')
+            ->pluck('evidence_type_id')
+            ->values();
+
+        // Tipos ya subidos para esta OT
+        $subidos = DB::table('talento_work_order_media')
+            ->where('work_order_id', $ot->id)
+            ->whereNotNull('evidence_type_id')
+            ->pluck('evidence_type_id')
+            ->values();
+
+        return response()->json([
+            'tipos'     => $tipos,
+            'requeridos'=> $requeridos,
+            'subidos'   => $subidos,
+        ]);
+    }
+
     public function otEvidencia(Request $request, int $id)
     {
         $request->validate([
-            'foto'         => 'required|file|mimes:jpg,jpeg|max:10240',
-            'lat'          => 'nullable|numeric',
-            'lng'          => 'nullable|numeric',
-            'accuracy'     => 'nullable|numeric',
-            'potencia_dbm' => 'nullable|numeric',
+            'foto'              => 'required|file|mimes:jpg,jpeg|max:10240',
+            'evidence_type_id'  => 'required|integer|exists:talento_evidence_types,id',
+            'lat'               => 'required|numeric',
+            'lng'               => 'required|numeric',
+            'accuracy'          => 'nullable|numeric',
+            'potencia_dbm'      => 'nullable|numeric',
+            'justificacion'     => 'nullable|string|max:500',
+            'is_mock_location'  => 'nullable|boolean',
         ]);
 
         $colaborador = $this->resolveColaborador($request);
@@ -246,58 +296,153 @@ class TalentoMobileApiController extends Controller
             return response()->json(['message' => 'OT no encontrada.'], 404);
         }
 
-        // Guardar foto en disco privado (la marca de agua ya viene quemada desde la app)
-        $file  = $request->file('foto');
-        $dir   = "talento/media/{$ot->id}";
-        $name  = Str::uuid() . '.' . ($file->getClientOriginalExtension() ?: 'jpg');
-        $path  = $file->storeAs($dir, $name, 'local');
+        $evTypeId = (int)$request->input('evidence_type_id');
+        $evType   = DB::table('talento_evidence_types')->where('id', $evTypeId)->first();
 
-        $lat      = $request->input('lat') !== null ? (float)$request->input('lat') : null;
-        $lng      = $request->input('lng') !== null ? (float)$request->input('lng') : null;
+        // Tipo "Otro" (requiere_justificacion=true) exige justificacion
+        if ($evType->requiere_justificacion && empty(trim($request->input('justificacion', '')))) {
+            return response()->json([
+                'message' => 'Este tipo de evidencia requiere una justificación.',
+                'code'    => 'JUSTIFICACION_REQUERIDA',
+            ], 422);
+        }
+
+        // Anti-duplicado: solo un upload por tipo salvo permite_varias
+        if (! $evType->permite_varias) {
+            $existe = DB::table('talento_work_order_media')
+                ->where('work_order_id', $ot->id)
+                ->where('evidence_type_id', $evTypeId)
+                ->exists();
+
+            if ($existe) {
+                return response()->json([
+                    'message' => "Ya existe evidencia de tipo '{$evType->name}' para esta OT.",
+                    'code'    => 'TIPO_DUPLICADO',
+                ], 422);
+            }
+        }
+
+        $lat      = (float)$request->input('lat');
+        $lng      = (float)$request->input('lng');
         $accuracy = $request->input('accuracy') !== null ? (float)$request->input('accuracy') : null;
         $potencia = $request->input('potencia_dbm') !== null ? (float)$request->input('potencia_dbm') : null;
+        $isMock   = (bool)$request->input('is_mock_location', false);
 
-        // Calcular distancia al sitio de la OT para flag de ubicación
+        // Calcular distancia al sitio de la OT
         $locationFlagged = false;
         $distanceM       = null;
-        if ($ot->latitude && $ot->longitude && $lat && $lng) {
+        if ($ot->latitude && $ot->longitude) {
             $distanceM = $this->haversineMeters($lat, $lng, (float)$ot->latitude, (float)$ot->longitude);
             $flaggedRadius = (float)(DB::table('settings')->where('key', 'talento_media_flagged_radius_m')->value('value') ?? 500);
             $locationFlagged = $distanceM > $flaggedRadius;
         }
 
+        // Guardar foto en disco privado (marca de agua ya quemada en la app)
+        $file = $request->file('foto');
+        $dir  = "talento/media/{$ot->id}";
+        $name = Str::uuid() . '.jpg';
+        $path = $file->storeAs($dir, $name, 'local');
+
         $mediaId = DB::table('talento_work_order_media')->insertGetId([
-            'work_order_id'      => $ot->id,
-            'type'               => 'completion',
-            'file_path'          => $path,
-            'captured_lat'       => $lat,
-            'captured_lng'       => $lng,
-            'captured_at'        => now(),
-            'captured_in_app'    => true,
-            'watermark_applied'  => true,   // quemada por la app antes de subir
-            'location_flagged'   => $locationFlagged,
-            'location_distance_m'=> $distanceM,
-            'potencia_dbm'       => $potencia,  // columna añadida en migración 970010
-            'gps_accuracy_m'     => $accuracy,
-            'source'             => 'mobile',
-            'created_by'         => $request->user()->id,
-            'created_at'         => now(),
+            'work_order_id'       => $ot->id,
+            'evidence_type_id'    => $evTypeId,
+            'type'                => 'completion',
+            'file_path'           => $path,
+            'captured_lat'        => $lat,
+            'captured_lng'        => $lng,
+            'captured_at'         => now(),
+            'server_captured_at'  => now(),
+            'captured_in_app'     => true,
+            'watermark_applied'   => true,
+            'location_flagged'    => $locationFlagged,
+            'is_mock_location'    => $isMock,
+            'location_distance_m' => $distanceM,
+            'potencia_dbm'        => $potencia,
+            'gps_accuracy_m'      => $accuracy,
+            'justificacion'       => $request->input('justificacion') ?: null,
+            'source'              => 'mobile',
+            'created_by'          => $request->user()->id,
+            'created_at'          => now(),
         ]);
 
-        // Avanzar estado a in_progress si sigue en pending
         if ($ot->status === 'pending') {
             $ot->update(['status' => 'in_progress']);
         }
 
-        $saludRed = null;
-        if ($potencia !== null) {
-            $saludRed = $this->calcularSaludRed($potencia, $ot);
-        }
+        $saludRed = $potencia !== null ? $this->calcularSaludRed($potencia, $ot) : null;
 
         return response()->json([
             'media_id'  => $mediaId,
             'salud_red' => $saludRed,
         ], 201);
+    }
+
+    // ── Transiciones de estado OT ─────────────────────────────────────────────
+
+    public function iniciarOT(Request $request, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $ot = TalentoWorkOrder::where('id', $id)
+            ->where('colaborador_id', $colaborador->id)
+            ->first();
+
+        if (! $ot) {
+            return response()->json(['message' => 'OT no encontrada.'], 404);
+        }
+        if ($ot->status !== 'pending') {
+            return response()->json(['message' => "La OT ya está en estado '{$ot->status}'."], 422);
+        }
+
+        $ot->update([
+            'status'     => 'in_progress',
+            'started_at' => now(),
+        ]);
+
+        return response()->json(['status' => $ot->status, 'started_at' => $ot->started_at]);
+    }
+
+    public function completarOT(Request $request, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $ot = TalentoWorkOrder::where('id', $id)
+            ->where('colaborador_id', $colaborador->id)
+            ->first();
+
+        if (! $ot) {
+            return response()->json(['message' => 'OT no encontrada.'], 404);
+        }
+        if ($ot->status !== 'in_progress') {
+            return response()->json(['message' => "Solo se puede completar una OT en curso (estado actual: '{$ot->status}')."], 422);
+        }
+
+        // Exige al menos 1 evidencia antes de completar.
+        $evidencias = DB::table('talento_work_order_media')
+            ->where('work_order_id', $ot->id)
+            ->count();
+
+        if ($evidencias === 0) {
+            return response()->json([
+                'message' => 'Debes subir al menos una evidencia antes de completar la OT.',
+                'code'    => 'NO_EVIDENCIA',
+            ], 422);
+        }
+
+        // Completar NO escribe en el ledger — los puntos/pago se acreditan
+        // únicamente cuando un admin valida la OT (status validated) desde la web.
+        $ot->update([
+            'status'       => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        return response()->json([
+            'status'       => $ot->status,
+            'completed_at' => $ot->completed_at,
+            'evidencias'   => $evidencias,
+        ]);
     }
 
     // ── Compensación ──────────────────────────────────────────────────────────
@@ -392,25 +537,42 @@ class TalentoMobileApiController extends Controller
 
     private function otSummary(TalentoWorkOrder $ot): array
     {
-        // Cliente: work_order → client_id → clients → user_id → users.name / users.address
-        $clientName = null;
+        // Cliente: primero via client_main_information (tiene nombre completo y dirección),
+        // fallback a clients→users para clientes migrados con user_id.
+        $clientName    = null;
         $clientAddress = null;
+        $clientPhone   = null;
         if ($ot->client_id) {
-            $client = DB::table('clients')->where('id', $ot->client_id)->first(['user_id']);
-            if ($client?->user_id) {
-                $user = DB::table('users')->where('id', $client->user_id)->first(['name', 'address']);
-                $clientName    = $user?->name;
-                $clientAddress = $user?->address;
+            $info = DB::table('client_main_information')
+                ->where('client_id', $ot->client_id)
+                ->first(['name', 'father_last_name', 'mother_last_name', 'address', 'phone']);
+            if ($info) {
+                $clientName    = trim(implode(' ', array_filter([
+                    $info->name,
+                    $info->father_last_name,
+                    $info->mother_last_name,
+                ]))) ?: null;
+                $clientAddress = $info->address ?: null;
+                $clientPhone   = $info->phone   ?: null;
+            } else {
+                // fallback legacy: clients.user_id → users
+                $client = DB::table('clients')->where('id', $ot->client_id)->first(['user_id']);
+                if ($client?->user_id) {
+                    $user = DB::table('users')->where('id', $client->user_id)->first(['name', 'address']);
+                    $clientName    = $user?->name;
+                    $clientAddress = $user?->address;
+                }
             }
         }
 
         return [
             'id'        => $ot->id,
-            'folio'     => $ot->id,   // sin columna folio dedicada — usamos id
+            'folio'     => $ot->id,
             'tipo'      => $ot->type?->name ?? '—',
             'status'    => $ot->status,
             'cliente'   => $clientName,
             'direccion' => $clientAddress,
+            'telefono'  => $clientPhone,
         ];
     }
 
