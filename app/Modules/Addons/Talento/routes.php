@@ -127,9 +127,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // ── Asistencia — Admin endpoints ──────────────────────────────────
             Route::get('/asistencia',              [TalentoAttendanceController::class, 'data']);
-            Route::get('/asistencia/{id}',         [TalentoAttendanceController::class, 'show']);
-            Route::put('/asistencia/{id}',         [TalentoAttendanceController::class, 'updateAdmin']);
-            Route::post('/asistencia/{id}/extension', [TalentoAttendanceController::class, 'addExtension']);
+            Route::get('/asistencia/{id}',         [TalentoAttendanceController::class, 'show'])->where('id', '[0-9]+');
+            Route::put('/asistencia/{id}',         [TalentoAttendanceController::class, 'updateAdmin'])->where('id', '[0-9]+');
+            Route::post('/asistencia/{id}/extension', [TalentoAttendanceController::class, 'addExtension'])->where('id', '[0-9]+');
 
             // ── Ubicación en vivo ─────────────────────────────────────────────
             Route::get('/ubicacion/en-vivo',              [TalentoAttendanceController::class, 'liveAll']);

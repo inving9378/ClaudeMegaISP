@@ -50,7 +50,7 @@ class TalentoWorkOrder extends BaseModel
         return $this->belongsTo(User::class, 'validated_by');
     }
 
-    public function activities()
+    public function workActivities()
     {
         return $this->hasMany(TalentoWorkOrderActivity::class, 'work_order_id');
     }

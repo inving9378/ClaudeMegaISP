@@ -124,6 +124,16 @@
                                         >
                                             <i class="fa fa-arrow-up me-1"></i>Actualizar
                                         </button>
+                                        <!-- Configurar visibilidad -->
+                                        <button
+                                            v-if="canManageVisibility && m.active"
+                                            class="btn btn-sm btn-outline-secondary"
+                                            :disabled="busy === m.slug"
+                                            title="Configurar visibilidad"
+                                            @click="openVisibilityConfig(m)"
+                                        >
+                                            <i class="fa fa-eye me-1"></i>Visibilidad
+                                        </button>
                                         <!-- Desinstalar -->
                                         <button
                                             v-if="m.active && m.type !== 'core'"
@@ -259,14 +269,24 @@
             </div>
         </div>
 
+        <!-- Modal de visibilidad (Fase 3) -->
+        <module-visibility-config
+            v-model="visibilityModal.show"
+            :module-key="visibilityModal.moduleKey"
+        />
+
     </div>
 </template>
 
 <script>
 import { darkMode } from "../../../../hook/appConfig.js";
+import ModuleVisibilityConfig from "../../../admin/ModuleVisibilityConfig.vue";
 
 export default {
     name: 'ModuleManager',
+    components: {
+        ModuleVisibilityConfig,
+    },
     setup() {
         return { darkMode };
     },
@@ -290,9 +310,15 @@ export default {
             busy:         null,
             loading:      false,
             modal: { show: false, action: null, module: null, preview: null, keepData: true },
+            visibilityModal: { show: false, moduleKey: '' },
         };
     },
     computed: {
+        canManageVisibility() {
+            return this.$store?.getters?.hasPermission
+                ? this.$store.getters.hasPermission('module.visibility.manage')
+                : false;
+        },
         addonModules() {
             return this.modules.filter(m => m.type !== 'core');
         },
@@ -364,6 +390,14 @@ export default {
                 endpoint_count: (m.api_endpoints || []).length,
                 dependencies:   m.dependencies || [],
             };
+        },
+        // Los manifiestos usan slug con prefijo (addon-/core-), pero la tabla
+        // module_sidebar_config usa la clave sin prefijo (ej. addon-flotas -> flotas).
+        moduleKeyFromSlug(slug) {
+            return (slug || '').replace(/^(addon-|core-)/, '');
+        },
+        openVisibilityConfig(m) {
+            this.visibilityModal = { show: true, moduleKey: this.moduleKeyFromSlug(m.slug) };
         },
         async confirmInstall(m) {
             this.modal = { show: true, action: 'install', module: m, preview: null, keepData: true };

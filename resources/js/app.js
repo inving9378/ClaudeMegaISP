@@ -82,6 +82,7 @@ import ApiMovilTokens from "./components/module/setting/api-movil/ApiMovilTokens
 import ApiMovilDocs from "./components/module/setting/api-movil/ApiMovilDocs.vue";
 import ApiMovilLogs from "./components/module/setting/api-movil/ApiMovilLogs.vue";
 import ModuleManager from "./components/module/admin/modules/ModuleManager.vue";
+import ModuleVisibilityConfig from "./components/admin/ModuleVisibilityConfig.vue";
 import AdminPanel from "./components/module/admin/AdminPanel.vue";
 import ModuleConfigPanel from "./components/module/setting/ModuleConfigPanel.vue";
 import DevtoolsPanel from "./components/module/devtools/DevtoolsPanel.vue";
@@ -512,6 +513,7 @@ const app = createApp({
         CommandConfig,
         FieldModuleListar,
         'module-manager': ModuleManager,
+        'module-visibility-config': ModuleVisibilityConfig,
         'admin-panel': AdminPanel,
         'module-config-panel': ModuleConfigPanel,
         'devtools-panel': DevtoolsPanel,

@@ -79,7 +79,7 @@ class TalentoWorkOrderController extends Controller
     {
         $this->authorize('talento.work_orders.view');
         return response()->json(
-            TalentoWorkOrder::with(['colaborador.user', 'type', 'assignedBy', 'validatedBy', 'activities.recordedBy'])
+            TalentoWorkOrder::with(['colaborador.user', 'type', 'assignedBy', 'validatedBy', 'workActivities.recordedBy'])
                 ->findOrFail($id)
         );
     }

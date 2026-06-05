@@ -22,15 +22,19 @@
         @endcan
         @can('client_view_client')
             <li>
-                <a href="{{ url('/cliente/listar') }}"
-                   hx-get="{{ url('/cliente/listar') }}"
-                   hx-target="#htmx-main"
-                   hx-swap="outerHTML"
-                   hx-select="#htmx-main"
-                   hx-push-url="true">
+                <a href="{{ url('/cliente/listar') }}">
                     <span data-key="t-cliente-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                 </a>
             </li>
         @endcan
+
+        {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
+        @foreach($item->dynamic_children ?? collect() as $child)
+            <li>
+                <a href="{{ url('/' . $child->module_key) }}">
+                    <span>@if($child->sidebar_icon)<small><i class="{{ $child->sidebar_icon }}"></i></small> @endif{{ $child->sidebar_label ?? $child->module_key }}</span>
+                </a>
+            </li>
+        @endforeach
     </ul>
 </li>
