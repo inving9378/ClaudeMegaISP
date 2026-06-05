@@ -24,6 +24,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoDashboardController;
 use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
+use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -54,6 +55,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/dashboard',      [TalentoDashboardController::class, 'index']);
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
         Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
+        Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -332,6 +334,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Embajadores cross-link ────────────────────────────────────
             Route::get('/colaboradores/{id}/embajador-data',   [TalentoEmbajadoresController::class, 'embajadorData']);
             Route::get('/colaboradores/{id}/seller-data',      [TalentoEmbajadoresController::class, 'sellerData']);
+
+            // ── Config: evidencias por tipo de OT ─────────────────────────
+            Route::get('/config/evidencias',       [TalentoEvidenciaConfigController::class, 'catalogo']);
+            Route::post('/config/evidencias/toggle', [TalentoEvidenciaConfigController::class, 'toggle']);
         });
     });
 
