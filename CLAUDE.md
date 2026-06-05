@@ -550,10 +550,44 @@ Además, el usuario admin (id 1) tiene email/teléfono placeholder (`admin@admin
 
 ---
 
-## App de campo Talento — definición v1
+## App de campo Talento — ciclo de campo completo v1.6
 
 **Stack:** React Native 0.74.5 · Laravel Sanctum (Bearer) · `/home/meganet/TalentoEquipo`
-**APK actual:** talento-v1.3.apk (versionCode 4) · `http://192.168.105.11/downloads/talento-v1.3.apk`
+**APK actual:** talento-v1.6.apk (versionCode 106) · `http://192.168.105.11/downloads/talento-v1.6.apk`
+
+### Funcionalidades implementadas (v1.6, 2026-06-05)
+
+| Sub-paso | Descripción | Commit app | Commit backend |
+|----------|-------------|-----------|----------------|
+| 1 | completarOT con checklist real + gate dBm desde `talento_dbm_thresholds` | — | 2dffdc0 |
+| 2 | Firma cliente como evidencia tipo es_firma (vía EvidenciaScreen) | 1db358b | — |
+| 3 | POST /ots/{id}/incidencia + `talento_work_order_incidents` + status 'incidencia' | — | 1928802 |
+| 4 | PUT /ots/{id}/nota + columna nota_tecnico | — | 1928802 |
+| 5 | CierreScreen: checklist obligatorias, semáforo dBm, nota técnica | 1db358b | aaa850f |
+| 6 | "No puedo completar" modal con 6 motivos → POST incidencia | 1db358b | — |
+| 7 | Botón "Cómo llegar" → geo:/maps con coords/dirección | 1db358b | — |
+| 8 | Tarjeta cliente: nombre, dirección, teléfono, plan, referencia | 1db358b | — |
+| 9 | OrdenesScreen: historial paginado, filtros estado/fecha, read-only si cerrada | 1db358b | — |
+| 10 | Logout en header + 401 → triggerLogout limpio, sin Alert debug | 10e227a/737be43 | — |
+| 11 | Camera-only (VisionCamera, sin galería) — ya estaba correcto | — | — |
+| 12 | APK v1.6/106, version_codes DB corregidos (1.4→104, 1.5→105, 1.6→106) | fd57d31 | — |
+| Config ev. | Pantalla web admin `/talento/config/evidencias` — matriz 15×5 checkboxes | — | f853841/318c24c |
+
+### Pendientes para próximas versiones
+
+- **Pad de firma digital**: requiere `react-native-signature-canvas` (+ `react-native-webview`). Actualmente la firma se captura como foto (VisionCamera, type_id=9).
+- **Mi Semana completa**: desglose por OT, gráfico semanal, histórico de compensación.
+- **Escáner serial ONT/router**: QR/código de barras → autofill campo serial en evidencia.
+- **Modo offline**: cache de OTs del día, outbox de evidencias, sincronización al reconectar.
+- **Notificaciones push (FCM)**: alertar al técnico cuando se valida una OT o se asigna una nueva.
+- **dbm_tier en evidencias**: backend debe incluir dbm_tier en la respuesta de otEvidencia para que CierreScreen lo muestre correctamente (actualmente usa dbmEv.dbm_tier).
+
+### Notas de integración
+
+- `evidencias_requeridas` viene en `GET /ots/{id}` → array `[{id, nombre, es_firma}]`
+- `evidencias` incluye `type_id` y `tipo_nombre` (JOIN con talento_evidence_types)
+- El semáforo dBm en CierreScreen lee `evidencias[].dbm_tier`; si el backend no lo incluye, el semáforo no aparece (no bloquea)
+- `nota_tecnico` se guarda vía PUT /ots/{id}/nota (también incluido en POST /completar)
 
 ### Catálogo de tipos de evidencia (`talento_evidence_types`)
 
@@ -636,8 +670,8 @@ Umbrales en `talento_dbm_thresholds` (config propia, NO en tabla `settings`).
 
 | Fase | Contenido | Estado |
 |------|-----------|--------|
-| A | Modelo de datos: `talento_evidence_types`, extensión tipos OT (`inicia_garantia`), `talento_ot_type_evidence_requirements`, `talento_dbm_thresholds` | ✅ **DONE** (2026-06-05) |
-| B | Validación de cierre: enforza anti-basura, valida obligatorias, bloquea por dBm | ⏳ siguiente prompt |
-| C | UI evidencia: selector de tipo, captura, preview, indicador de progreso en OT Detalle | ⏳ |
-| D | Bono de salud de red: cálculo con umbrales, escritura en ledger al validar | ⏳ |
-| E | Firma cliente: canvas firma, integración con `es_firma`, PDF cierre | ⏳ |
+| A | Modelo de datos: `talento_evidence_types`, tipos OT, `talento_ot_type_evidence_requirements`, `talento_dbm_thresholds` | ✅ DONE (2026-06-05) |
+| B | Validación de cierre: checklist obligatorias + gate dBm | ✅ DONE (2026-06-05) |
+| C | UI evidencia: EvidenciaScreen (selector tipo, VisionCamera, watermark, GPS) + CierreScreen | ✅ DONE (2026-06-05) |
+| D | Bono de salud de red: cálculo con umbrales, escritura en ledger al validar | ✅ DONE (Fase 4b) |
+| E | Firma cliente: foto de firma vía VisionCamera (type_id=9). Pad digital pendiente (react-native-webview) | ⚠️ parcial |
