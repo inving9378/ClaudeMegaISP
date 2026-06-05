@@ -547,3 +547,97 @@ Además, el usuario admin (id 1) tiene email/teléfono placeholder (`admin@admin
 **Arquitectura:** `RuleEvaluator` es opt-in — usuarios sin reglas no se ven afectados. Sumar condiciones futuras (velocidad, etc.) = extender `ruleMatches()`.
 
 **Próximo paso (Fase 3 cerrada salvo extras):** opcional 3.x = tz por usuario / condiciones de velocidad; o saltar a Fase 4 (Documentos avanzados / OCR). Push/FCM = item #72.
+
+---
+
+## App de campo Talento — definición v1
+
+**Stack:** React Native 0.74.5 · Laravel Sanctum (Bearer) · `/home/meganet/TalentoEquipo`
+**APK actual:** talento-v1.3.apk (versionCode 4) · `http://192.168.105.11/downloads/talento-v1.3.apk`
+
+### Catálogo de tipos de evidencia (`talento_evidence_types`)
+
+| id | Nombre | varias | req_just | lectura_dbm | es_firma |
+|----|--------|--------|----------|-------------|---------|
+| 1 | Fachada (número visible) | | | | |
+| 2 | NAP + puerto | | | | |
+| 3 | Roseta / conector óptico | | | | |
+| 4 | Equipo instalado (ONT/router) | | | | |
+| 5 | Serial (etiqueta) | | | | |
+| 6 | Lectura dBm | | | ✓ | |
+| 7 | Tendido / cableado | ✓ | | | |
+| 8 | Speedtest | | | | |
+| 9 | Firma cliente | | | | ✓ |
+| 10 | Empalme / fusión | ✓ | | | |
+| 11 | Foto antes | | | | |
+| 12 | Foto después | | | | |
+| 13 | Equipo retirado + serial | | | | |
+| 14 | Punto desconectado / sellado | | | | |
+| 15 | Otro | ✓ | ✓ | | |
+
+### Tipos de OT y puntos (`talento_work_order_types`)
+
+| id | Nombre | pts | billable | inicia_garantia | requires_validation |
+|----|--------|-----|----------|-----------------|---------------------|
+| 1 | Instalación nueva | **9** | ✓ | ✓ | ✓ |
+| 2 | Soporte/reparación (garantía) | 3 | ✓ | | |
+| 3 | Cambio de equipo | 0 | ✗ | | |
+| 4 | Reubicación | 0 | ✗ | | |
+| 5 | Baja / retiro | 0 | ✗ | | |
+
+Los **puntos viven en `talento_work_order_types.points`** y se snapshottean en `talento_work_orders.points` al crear la OT. El ledger de compensación solo se escribe cuando un admin valida (status `validated`).
+
+### Matriz de evidencias obligatorias (`talento_ot_type_evidence_requirements`)
+
+| Tipo OT | Evidencias obligatorias (ids) | Notas |
+|---------|-------------------------------|-------|
+| Instalación nueva (1) | 1,2,3,4,5,6,8,9 | — |
+| Soporte/reparación (2) | 11,12,6 | +5 si hubo cambio de equipo (condicional) |
+| Cambio de equipo (3) | 13,4,5,6 | — |
+| Reubicación (4) | 1,2,6,9 | — |
+| Baja/retiro (5) | 13,14,4 | — |
+
+### Umbrales dBm
+
+| Rango | Categoría | Efecto |
+|-------|-----------|--------|
+| >= -8 | Sobrepotencia | **Bloquea cierre** |
+| -9 a -18 | Aviso | Acepta, marca alerta |
+| -19 a -23 | Excelente | Alimenta bono de salud de red |
+| -24 a -26.99 | Cumplió | Alimenta bono de salud de red |
+| <= -27 | Baja señal | **Bloquea cierre** (revisar) |
+
+Umbrales en `talento_dbm_thresholds` (config propia, NO en tabla `settings`).
+
+### Reglas anti-basura (se enforzan en Fase B, NO en Fase A)
+
+1. Un tipo de evidencia **una sola vez** por OT, salvo `permite_varias=true`
+2. **GPS obligatorio** (lat/lng) por cada evidencia subida
+3. Tipo "Otro" (id=15) **exige** campo `justificacion` no vacío
+4. No se puede completar si faltan evidencias **obligatorias** del tipo de OT
+5. `potencia_dbm` es campo numérico separado con validación de umbrales (bloquea en sobrepotencia y baja señal)
+
+### Recomendaciones priorizadas
+
+**v1 (implementar ahora):**
+- Catálogo de tipos de evidencia con flags (esta Fase A)
+- Tipos de OT actualizados con puntos reales e `inicia_garantia`
+- Matriz de requeridos por tipo de OT
+- Umbrales dBm en tabla propia
+- Validación de cierre en backend (Fase B)
+
+**v1.1 (siguiente ciclo):**
+- Firma digital del cliente (canvas en app)
+- Notificación push al validar (FCM)
+- Preview de evidencias en OT Detalle
+- Modo offline con sincronización al reconectar
+
+### Fases del módulo de evidencia
+
+| Fase | Contenido | Estado |
+|------|-----------|--------|
+| A | Modelo de datos: `talento_evidence_types`, extensión tipos OT (`inicia_garantia`), `talento_ot_type_evidence_requirements`, `talento_dbm_thresholds` | ✅ **DONE** (2026-06-05) |
+| B | Validación de cierre: enforza anti-basura, valida obligatorias, bloquea por dBm | ⏳ siguiente prompt |
+| C | UI evidencia: selector de tipo, captura, preview, indicador de progreso en OT Detalle | ⏳ |
+| D | Bono de salud de red: cálculo con umbrales, escritura en ledger al validar | ⏳ |
+| E | Firma cliente: canvas firma, integración con `es_firma`, PDF cierre | ⏳ |
