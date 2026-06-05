@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Core\Configuracion\Controllers\ModuleVisibilityController;
 use App\Modules\Core\Configuracion\Controllers\BillingReminder\BillingReminderController;
 use App\Modules\Core\Configuracion\Controllers\CommandConfigController;
 use App\Modules\Core\Configuracion\Controllers\Commission\ComissionController;
@@ -367,4 +368,14 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/destroy/{id}', [MethodOfPaymentController::class, 'destroy']);
             Route::post('/table', [MethodOfPaymentController::class, 'table']);
         });
+    });
+
+// Visibilidad de módulos en sidebar — requiere permiso específico
+Route::middleware(['web', 'auth', 'permission:module.visibility.manage'])
+    ->prefix('admin/modules/visibility')
+    ->name('admin.modules.visibility.')
+    ->group(function () {
+        Route::get('/',             [ModuleVisibilityController::class, 'index'])->name('index');
+        Route::get('/{moduleKey}',  [ModuleVisibilityController::class, 'show'])->name('show');
+        Route::put('/{moduleKey}',  [ModuleVisibilityController::class, 'update'])->name('update');
     });

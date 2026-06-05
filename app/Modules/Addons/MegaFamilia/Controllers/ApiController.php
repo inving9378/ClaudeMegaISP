@@ -104,55 +104,155 @@ class ApiController extends Controller
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'email'       => 'required|email',
+            // Acepta email real O login_user (username del cliente web).
+            'email'       => 'required|string',
             'password'    => 'required|string',
             'device_name' => 'sometimes|string',
         ]);
 
-        // Busca el cliente por email en client_main_information
-        $cmi = ClientMainInformation::where('email', $data['email'])->first();
+        $input = $data['email'];
+
+        // ── RUTA 1: staff ISP (conductor, técnico) ───────────────────────────
+        // Solo aplica si el input tiene formato de email Y el usuario encontrado
+        // tiene un rol de staff — evita interceptar clientes cuyos emails
+        // coinciden con cuentas de sistema (ej. admin@... reutilizado como CMI).
+        $staffRoles = ['conductor', 'TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA'];
+
+        $staffUser = null;
+        if (filter_var($input, FILTER_VALIDATE_EMAIL)) {
+            $staffUser = User::where('email', $input)
+                ->whereHas('roles', fn ($q) => $q->whereIn('name', $staffRoles))
+                ->first();
+        }
+
+        if ($staffUser) {
+            if (! \App\Services\Security\PasswordService::check($data['password'], $staffUser->password)) {
+                return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
+            }
+            // Upgrade-on-login: re-hashea base64 legacy a bcrypt.
+            if (\App\Services\Security\PasswordService::needsRehash($staffUser->password)) {
+                $staffUser->password = \App\Services\Security\PasswordService::make($data['password']);
+                $staffUser->saveQuietly();
+            }
+            return $this->issueToken($staffUser, null, $data['device_name'] ?? 'mobile');
+        }
+
+        // ── RUTA 2: cliente final ────────────────────────────────────────────
+        // Acepta email CMI o login_user (campo "Usuario Web" del panel admin).
+        $cmi = ClientMainInformation::where('email', $input)
+            ->orWhere('user', $input)
+            ->first();
 
         if (! $cmi) {
             return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
         }
 
-        // Obtiene el usuario ISP asociado por login_user = cmi.user. La
-        // verificación de credenciales se hace contra `users.password`
-        // (mismo mecanismo que el login web), NO contra el plano de CMI.
         $user = User::where('login_user', $cmi->user)->first();
 
-        if (! $user) {
-            return response()->json(['success' => false, 'error' => 'Usuario del sistema no encontrado'], 404);
+        if ($user) {
+            // Cliente con users row: verifica bcrypt/base64 (creados por seeder o migración).
+            // Fallback a plain de CMI para clientes cuyo bcrypt no coincide pero sí su web password.
+            $passwordOk = \App\Services\Security\PasswordService::check($data['password'], $user->password)
+                || ($data['password'] === $cmi->password);
+
+            if (! $passwordOk) {
+                return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
+            }
+
+            return $this->issueToken($user, $cmi, $data['device_name'] ?? 'mobile');
         }
 
-        // Verificación híbrida: acepta bcrypt y el legacy base64.
-        if (! \App\Services\Security\PasswordService::check($data['password'], $user->password)) {
+        // Sin users row: verificar plain antes de auto-crear (evita crear filas con password incorrecto).
+        if (empty($cmi->password) || $data['password'] !== $cmi->password) {
             return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
         }
 
-        // Upgrade-on-login: si seguía en base64 legacy, re-hashea a bcrypt.
-        if (\App\Services\Security\PasswordService::needsRehash($user->password)) {
-            $user->password = \App\Services\Security\PasswordService::make($data['password']);
-            $user->saveQuietly();
+        // Primer login exitoso de un cliente sin users row → crear la fila automáticamente.
+        try {
+            $user = $this->autoCreateUserFromCmi($cmi, $data['password']);
+        } catch (\Throwable $e) {
+            \Log::error('megafamilia_auto_create_failed', ['cmi_id' => $cmi->id, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'error'   => 'No se pudo crear el usuario. Contacte al administrador.',
+                'code'    => 'auto_create_failed',
+            ], 500);
         }
 
-        $token = $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken;
+        return $this->issueToken($user, $cmi, $data['device_name'] ?? 'mobile');
+    }
 
-        $client = Client::find($cmi->client_id);
+    private function autoCreateUserFromCmi(ClientMainInformation $cmi, string $plainPassword): User
+    {
+        return DB::transaction(function () use ($cmi, $plainPassword) {
+            // Defensa ante race condition: re-verificar dentro de la transacción.
+            $existing = User::where('login_user', $cmi->user)->lockForUpdate()->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            // Patrón observado en clientes existentes (diagnóstico 2026-06-03):
+            // - login_user = cmi.user
+            // - email      = cmi.email
+            // - name       = cmi.name  (solo primer nombre)
+            // - client_id  = (string) cmi.client_id
+            // - Sin rol Spatie — resolveRoleForLogin() devuelve 'cliente' por defecto
+            // client_id no está en $fillable — se asigna directamente tras create().
+            $user = User::create([
+                'login_user' => $cmi->user,
+                'email'      => $cmi->email,
+                'name'       => $cmi->name,
+                'password'   => Hash::make($plainPassword),
+            ]);
+            $user->client_id = (string) $cmi->client_id;
+            $user->saveQuietly();
+
+            return $user;
+        });
+    }
+
+    private function issueToken(User $user, ?ClientMainInformation $cmi, string $deviceName): JsonResponse
+    {
+        // Si no llegó CMI (ruta staff), intentar resolverlo igual para el payload.
+        if (! $cmi) {
+            $cmi = ClientMainInformation::where('user', $user->login_user)->first();
+        }
+
+        $client = $cmi ? Client::find($cmi->client_id) : null;
+        $role   = $this->resolveRoleForLogin($user);
+        $token  = $user->createToken($deviceName)->plainTextToken;
 
         return response()->json([
-            'success'    => true,
-            'token'      => $token,
-            'role'       => 'cliente',
-            'user'       => [
+            'success' => true,
+            'token'   => $token,
+            'role'    => $role,
+            'user'    => [
                 'id'        => $user->id,
-                'name'      => trim($cmi->name . ' ' . $cmi->father_last_name),
-                'email'     => $cmi->email,
-                'client_id' => $cmi->client_id,
-                'role'      => 'cliente',
+                'name'      => $cmi
+                    ? trim(($cmi->name ?? '') . ' ' . ($cmi->father_last_name ?? ''))
+                    : $user->name,
+                'email'     => $cmi?->email ?? $user->email,
+                'client_id' => $cmi?->client_id ?? $user->client_id,
+                'role'      => $role,
             ],
-            'client'     => $client ? $client->only('id', 'active') : null,
+            'client'  => $client ? $client->only('id', 'active') : null,
         ]);
+    }
+
+    /**
+     * Prioridad de rol para la respuesta mobile:
+     * conductor > tecnico > hijo/nino/... > cliente/padre > default(cliente)
+     * Los roles admin se mapean a 'cliente' porque se redirigen a la web.
+     */
+    private function resolveRoleForLogin(User $user): string
+    {
+        $priority = ['conductor', 'TECNICO', 'tecnico', 'nino', 'preadolescente', 'adolescente', 'hijo', 'padre', 'DESARROLLADOR'];
+        foreach ($priority as $r) {
+            if ($user->hasRole($r)) {
+                return strtolower($r);
+            }
+        }
+        return 'cliente';
     }
 
     // ---- CLIENT DASHBOARD (mobile home) ----------------------------------

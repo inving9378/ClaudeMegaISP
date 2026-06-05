@@ -15,6 +15,15 @@ export const enableLoadingModal = () => {
 export const disabledLoadingModal = () => {
     const el = document.getElementById('loadingComponentModal');
     if (!el) return;
-    const m = window.bootstrap.Modal.getInstance(el);
-    if (m) m.hide();
+    const m = window.bootstrap?.Modal?.getInstance(el);
+    if (m) {
+        m.hide();
+    } else {
+        // Instancia Bootstrap perdida: limpiar manualmente para no bloquear la UI
+        el.classList.remove('show');
+        el.style.display = 'none';
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+    }
 };

@@ -140,7 +140,7 @@ import Modal from "../../../../shared/ModalSimple.vue";
 const props = defineProps({
     roleId: {
         type: Number,
-        required: true,
+        default: 0,
     },
     roleName: {
         type: String,

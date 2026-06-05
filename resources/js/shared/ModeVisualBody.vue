@@ -52,16 +52,21 @@ export default {
                     user_id: props.user,
                 })
                 .then((response) => {
-                    mode.value = response.data.color_mode;
-                    if (mode.value == "dark") {
-                        mode.value = "light";
-                    } else {
-                        mode.value = "dark";
-                    }
-                    darkMode.value = mode.value !== "dark";
+                    const savedMode = response.data.color_mode; // "dark" o "light" recién guardado
+                    // Aplicar tema visualmente sin reload
+                    document.body.setAttribute('data-layout-mode', savedMode);
+                    document.body.setAttribute('data-topbar', savedMode);
+                    document.body.setAttribute('data-sidebar', savedMode);
+                    // Sincronizar radio del right-sidebar si está abierto
+                    const radio = document.getElementById('layout-mode-' + savedMode);
+                    if (radio) radio.checked = true;
+
+                    // Preparar el siguiente clic (toggle)
+                    mode.value = savedMode === "dark" ? "light" : "dark";
+                    darkMode.value = savedMode === "dark";
                     setTimeout(() => {
                         disabledLoadingModal();
-                    }, 1000);
+                    }, 400);
                 })
                 .catch((error) => {
                     console.log(error);

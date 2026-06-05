@@ -27,11 +27,11 @@
             <h6 class="mt-4 mb-3 pt-2">Tipo de diseño</h6>
 
             <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="layout-mode" id="layout-mode-light" value="light">
+                <input class="form-check-input" type="radio" name="layout-mode" id="layout-mode-light" value="light" onchange="changeLayoutMode('light')">
                 <label class="form-check-label" for="layout-mode-light">Claro</label>
             </div>
             <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="layout-mode" id="layout-mode-dark" value="dark">
+                <input class="form-check-input" type="radio" name="layout-mode" id="layout-mode-dark" value="dark" onchange="changeLayoutMode('dark')">
                 <label class="form-check-label" for="layout-mode-dark">Oscuro</label>
             </div>
 
@@ -129,4 +129,11 @@
     </div> <!-- end slimscroll-menu-->
 </div>
 
-<div class="rightbar-overlay"></div>
+{{--
+    Removido 2026-06-04: era controlado por bundle viejo assets/js/app.js (abril 17, eliminado).
+    Sin ese bundle la clase .right-bar-enabled quedaba atascada en body y este overlay
+    (z-index 9998, position absolute, 100vw×100vh) bloqueaba clicks a todos los modales.
+    Si se necesita el panel "Customizar Sitio" del tema Minia: restaurar este div Y agregar
+    el JS controlador del toggle .right-bar-enabled.
+    <div class="rightbar-overlay"></div>
+--}}

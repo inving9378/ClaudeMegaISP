@@ -1,4 +1,11 @@
 require("./bootstrap");
+
+// Fix 2026-06-04: el bundle viejo del tema Minia controlaba .right-bar-enabled.
+// Al eliminarlo, la clase puede quedar atascada en body activando un overlay z-index 9998.
+document.addEventListener('DOMContentLoaded', () => {
+    document.body.classList.remove('right-bar-enabled');
+});
+
 import { createApp } from "vue";
 import store from "./store";
 import hasPermission from "./directives/hasPermission";
@@ -130,6 +137,7 @@ import FleetGeofenceForm from "./components/module/flotas/FleetGeofenceForm.vue"
 import FleetGeofenceShow from "./components/module/flotas/FleetGeofenceShow.vue";
 import FleetNotificationLog from "./components/module/flotas/FleetNotificationLog.vue";
 import FleetRuleList from "./components/module/flotas/FleetRuleList.vue";
+import FleetDocumentsDashboard from "./components/module/flotas/FleetDocumentsDashboard.vue";
 import FleetClientPlanTab from "./components/module/flotas/FleetClientPlanTab.vue";
 import FleetSubscriptionDashboard from "./components/module/flotas/FleetSubscriptionDashboard.vue";
 import TalentoColaboradores from "./components/module/talento/TalentoColaboradores.vue";
@@ -548,6 +556,7 @@ const app = createApp({
         'fleet-geofence-show': FleetGeofenceShow,
         'fleet-notification-log': FleetNotificationLog,
         'fleet-rule-list': FleetRuleList,
+        'fleet-documents-dashboard': FleetDocumentsDashboard,
         'FleetClientPlanTab': FleetClientPlanTab,
         'fleet-subscription-dashboard': FleetSubscriptionDashboard,
         'talento-colaboradores': TalentoColaboradores,
@@ -854,6 +863,7 @@ store
     .dispatch("fetchPermissions")
     .then(() => {
         app.mount("#init-vue");
+        window.__megaVueApp = app;
     })
     .catch((error) => {
         console.error("Error:", error);

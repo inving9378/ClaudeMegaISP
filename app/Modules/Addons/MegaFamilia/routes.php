@@ -1,6 +1,8 @@
 <?php
 
 use App\Modules\Addons\MegaFamilia\Controllers\AlertasController;
+use App\Modules\Addons\MegaFamilia\Controllers\ConductorApiController;
+use App\Modules\Addons\MegaFamilia\Controllers\ClienteFlotasApiController;
 use App\Modules\Addons\MegaFamilia\Controllers\ApiController;
 use App\Modules\Addons\MegaFamilia\Controllers\AppVersionController;
 use App\Modules\Addons\MegaFamilia\Controllers\AuditoriaController;
@@ -302,6 +304,33 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
             Route::delete('/prospects/{id}', [ApiController::class, 'embajadorDeleteProspecto'])->whereNumber('id');
             Route::get('/prospects/{id}/followups',  [ApiController::class, 'embajadorFollowups'])->whereNumber('id');
             Route::post('/prospects/{id}/followups', [ApiController::class, 'embajadorAddFollowup'])->whereNumber('id');
+        });
+
+        // ── Flotas — Conductor (vista del vehículo asignado) ─────────────
+        Route::middleware('role:conductor|role:super-administrator|role:DESARROLLADOR')
+            ->prefix('conductor')
+            ->group(function () {
+                Route::get('/vehiculo',               [ConductorApiController::class, 'vehiculo']);
+                Route::get('/posicion-actual',        [ConductorApiController::class, 'posicionActual']);
+                Route::get('/historial-posiciones',   [ConductorApiController::class, 'historialPosiciones']);
+                Route::get('/geocercas',              [ConductorApiController::class, 'geocercas']);
+                Route::get('/eventos-geocerca',       [ConductorApiController::class, 'eventosGeocerca']);
+                Route::get('/documentos',             [ConductorApiController::class, 'documentos']);
+                Route::get('/mantenimientos',         [ConductorApiController::class, 'mantenimientos']);
+                Route::post('/posicion',              [ConductorApiController::class, 'reportarPosicion']);
+            });
+
+        // ── Flotas — Cliente dueño (vista multi-vehículo) ────────────────
+        Route::prefix('cliente/flotas')->group(function () {
+            Route::get('/tiene-flotas',                                     [ClienteFlotasApiController::class, 'tieneFlotas']);
+            Route::get('/vehiculos',                                        [ClienteFlotasApiController::class, 'vehiculos']);
+            Route::get('/vehiculos/{id}',                                   [ClienteFlotasApiController::class, 'vehiculoDetalle'])->whereNumber('id');
+            Route::get('/vehiculos/{id}/historial-posiciones',              [ClienteFlotasApiController::class, 'historialPosiciones'])->whereNumber('id');
+            Route::get('/vehiculos/{id}/eventos-geocerca',                  [ClienteFlotasApiController::class, 'eventosGeocerca'])->whereNumber('id');
+            Route::get('/vehiculos/{id}/documentos',                        [ClienteFlotasApiController::class, 'documentos'])->whereNumber('id');
+            Route::get('/vehiculos/{id}/mantenimientos',                    [ClienteFlotasApiController::class, 'mantenimientos'])->whereNumber('id');
+            Route::get('/geocercas',                                        [ClienteFlotasApiController::class, 'geocercas']);
+            Route::get('/resumen',                                          [ClienteFlotasApiController::class, 'resumen']);
         });
     });
 });

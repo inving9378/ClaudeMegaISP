@@ -70,6 +70,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administra
         Route::post('/update-permission-for-role/{id}', [PermissionController::class, 'update']);
         Route::get('/get-permission-for-user/{id}', [PermissionController::class, 'getPermissionUser']);
         Route::post('/update-permission-for-user/{id}', [PermissionController::class, 'updatePermissionUser']);
+        Route::post('/sync-roles', [PermissionController::class, 'syncRoles']); // solo super-administrator
     });
 });
 

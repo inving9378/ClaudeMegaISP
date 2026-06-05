@@ -11,6 +11,7 @@ use App\Modules\Addons\Flotas\Controllers\FleetGpsController;
 use App\Modules\Addons\Flotas\Controllers\FleetGeofenceController;
 use App\Modules\Addons\Flotas\Controllers\FleetNotificationController;
 use App\Modules\Addons\Flotas\Controllers\FleetRuleController;
+use App\Modules\Addons\Flotas\Controllers\FleetSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -35,6 +36,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // Reglas de alertas (Sub-fase 3.4) — antes de /{id}.
         Route::get('/reglas',                 fn() => view('addon-flotas::flotas.reglas'));
+
+        // Dashboard global de documentos (Sub-fase 4.1b) — antes de /{id}.
+        Route::get('/documentos',             fn() => view('addon-flotas::flotas.documentos'));
 
         Route::get('/{id}',       fn() => view('addon-flotas::flotas.show'));
 
@@ -111,12 +115,16 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // ── API: Documentos ────────────────────────────────────────────────────
         Route::prefix('api/documentos')->group(function () {
-            Route::get('/',                  [FleetDocumentController::class, 'index']);
-            Route::post('/',                 [FleetDocumentController::class, 'store']);
-            Route::get('/alertas/proximos',  [FleetDocumentController::class, 'proximos']); // ANTES de /{id}
-            Route::get('/{id}',              [FleetDocumentController::class, 'show']);
-            Route::patch('/{id}',            [FleetDocumentController::class, 'update']);
-            Route::delete('/{id}',           [FleetDocumentController::class, 'destroy']);
+            Route::get('/',                       [FleetDocumentController::class, 'index']);
+            Route::post('/',                      [FleetDocumentController::class, 'store']);
+            Route::get('/alertas/proximos',       [FleetDocumentController::class, 'proximos']);    // ANTES de /{id}
+            Route::get('/dashboard/all',          [FleetDocumentController::class, 'dashboard']);   // ANTES de /{id}
+            Route::get('/{id}',                   [FleetDocumentController::class, 'show']);
+            Route::post('/{id}',                  [FleetDocumentController::class, 'update']);      // multipart/form-data no admite PATCH en algunos navegadores
+            Route::patch('/{id}',                 [FleetDocumentController::class, 'update']);
+            Route::delete('/{id}',                [FleetDocumentController::class, 'destroy']);
+            Route::get('/{id}/descargar',         [FleetDocumentController::class, 'download']);    // segmento literal — no choca con /{id}
+            Route::get('/{id}/renovar/prefill',   [FleetDocumentController::class, 'renew']);       // prefill para renovación
         });
 
         // ── API: Proveedores ───────────────────────────────────────────────────
@@ -139,4 +147,21 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/',       [FleetPhotoController::class, 'store']);
             Route::delete('/{id}', [FleetPhotoController::class, 'destroy']);
         });
+
+        // ── Suscripciones SaaS (Fase 6) ────────────────────────────────────────
+        // Vista web del dashboard de suscripciones (ANTES de la ruta API para evitar colisión)
+        Route::get('suscripciones', fn () => view('addon-flotas::flotas.suscripciones.index'))
+            ->middleware('permission:fleet.subscriptions.manage');
+
+        Route::middleware('permission:fleet.subscriptions.manage')
+            ->prefix('api/suscripciones')
+            ->group(function () {
+                Route::get('dashboard',                         [FleetSubscriptionController::class, 'index']);
+                Route::get('catalog',                           [FleetSubscriptionController::class, 'catalog']);
+                Route::get('client/{clientId}',                 [FleetSubscriptionController::class, 'forClient'])->whereNumber('clientId');
+                Route::post('client/{clientId}/start-trial',    [FleetSubscriptionController::class, 'startTrial'])->whereNumber('clientId');
+                Route::post('client/{clientId}/change-plan',    [FleetSubscriptionController::class, 'changePlan'])->whereNumber('clientId');
+                Route::post('client/{clientId}/cancel',         [FleetSubscriptionController::class, 'cancel'])->whereNumber('clientId');
+                // confirmPayment → NO routeado hasta Fase 6.2 (integración con módulo Pagos)
+            });
     });

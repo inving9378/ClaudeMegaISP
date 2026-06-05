@@ -8,10 +8,11 @@ use App\Modules\Addons\Flotas\Services\FleetSubscriptionService;
 use App\Modules\Addons\Flotas\Support\FleetPlans;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Administración comercial de las suscripciones SaaS de Flotas.
- * Lo opera Meganet (admin) desde la ficha del cliente ISP — por eso filtra por client_id de la ruta.
+ * Operado por Meganet (admin). Todas las acciones de cobro real son Fase 6.2.
  */
 class FleetSubscriptionController extends Controller
 {
@@ -19,18 +20,45 @@ class FleetSubscriptionController extends Controller
     {
     }
 
-    // GET /flotas/api/suscripciones/catalogo — planes disponibles
+    // GET /flotas/suscripciones/dashboard — lista paginada con KPIs
+    public function index(Request $request): JsonResponse
+    {
+        $this->authorize('fleet.subscriptions.manage');
+
+        $query = FleetSubscription::withTrashed(false)
+            ->with('client:id,name')
+            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            ->when($request->plan,   fn ($q, $p) => $q->where('plan', $p))
+            ->latest('id');
+
+        $subs = $query->paginate(25);
+
+        $kpis = DB::table('fleet_subscriptions')
+            ->whereNull('deleted_at')
+            ->selectRaw("
+                COUNT(*) AS total,
+                SUM(status = 'active')  AS activas,
+                SUM(status = 'trial')   AS en_trial,
+                SUM(status IN ('cancelled','expired')) AS bajas,
+                COALESCE(SUM(CASE WHEN status = 'active' THEN monthly_price ELSE 0 END), 0) AS mrr
+            ")
+            ->first();
+
+        return response()->json(['kpis' => $kpis, 'subscriptions' => $subs, 'plans' => FleetPlans::all()]);
+    }
+
+    // GET /flotas/suscripciones/catalog
     public function catalog(): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->authorize('fleet.subscriptions.manage');
 
         return response()->json(['plans' => $this->service->catalog()]);
     }
 
-    // GET /flotas/api/suscripciones/cliente/{clientId} — suscripción actual del cliente
+    // GET /flotas/suscripciones/client/{clientId}
     public function forClient(int $clientId): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->authorize('fleet.subscriptions.manage');
 
         $sub = $this->service->forClient($clientId);
         if ($sub) {
@@ -45,10 +73,10 @@ class FleetSubscriptionController extends Controller
         ]);
     }
 
-    // POST /flotas/api/suscripciones/cliente/{clientId}/activar — inicia trial (o reactiva)
-    public function activate(Request $request, int $clientId): JsonResponse
+    // POST /flotas/suscripciones/client/{clientId}/start-trial
+    public function startTrial(Request $request, int $clientId): JsonResponse
     {
-        $this->authorize('fleet.manage');
+        $this->authorize('fleet.subscriptions.manage');
 
         $data = $request->validate([
             'plan' => ['required', 'string', 'in:' . implode(',', FleetPlans::keys())],
@@ -59,43 +87,43 @@ class FleetSubscriptionController extends Controller
         return response()->json(['ok' => true, 'subscription' => $sub], 201);
     }
 
-    // POST /flotas/api/suscripciones/{id}/plan — cambia el plan
-    public function changePlan(Request $request, int $id): JsonResponse
+    // POST /flotas/suscripciones/client/{clientId}/change-plan
+    public function changePlan(Request $request, int $clientId): JsonResponse
     {
-        $this->authorize('fleet.manage');
+        $this->authorize('fleet.subscriptions.manage');
 
         $data = $request->validate([
             'plan' => ['required', 'string', 'in:' . implode(',', FleetPlans::keys())],
         ]);
 
-        $sub = $this->service->changePlan($this->find($id), $data['plan']);
+        $sub = $this->service->forClient($clientId);
+        if (! $sub) {
+            // Si no tiene suscripción, iniciar trial en el plan indicado
+            $sub = $this->service->startTrial($clientId, $data['plan']);
+            return response()->json(['ok' => true, 'subscription' => $sub], 201);
+        }
+
+        $sub = $this->service->changePlan($sub, $data['plan']);
 
         return response()->json(['ok' => true, 'subscription' => $sub]);
     }
 
-    // POST /flotas/api/suscripciones/{id}/confirmar-pago — convierte trial en suscripción pagada
-    public function confirmPayment(int $id): JsonResponse
+    // POST /flotas/suscripciones/client/{clientId}/cancel
+    public function cancel(Request $request, int $clientId): JsonResponse
     {
-        $this->authorize('fleet.manage');
-
-        $sub = $this->service->activate($this->find($id));
-
-        return response()->json(['ok' => true, 'subscription' => $sub]);
-    }
-
-    // POST /flotas/api/suscripciones/{id}/cancelar
-    public function cancel(Request $request, int $id): JsonResponse
-    {
-        $this->authorize('fleet.manage');
+        $this->authorize('fleet.subscriptions.manage');
 
         $data = $request->validate(['reason' => 'nullable|string|max:255']);
-        $sub  = $this->service->cancel($this->find($id), $data['reason'] ?? null);
+
+        $sub = $this->service->forClient($clientId);
+        if (! $sub) {
+            return response()->json(['ok' => false, 'error' => 'Sin suscripción activa'], 404);
+        }
+
+        $sub = $this->service->cancel($sub, $data['reason'] ?? null);
 
         return response()->json(['ok' => true, 'subscription' => $sub]);
     }
 
-    private function find(int $id): FleetSubscription
-    {
-        return FleetSubscription::findOrFail($id);
-    }
+    // confirmPayment() existe pero NO está routeado — reservado para Fase 6.2 (integración Pagos).
 }
