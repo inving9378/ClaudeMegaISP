@@ -377,6 +377,31 @@ class TalentoMobileApiController extends Controller
         ], 201);
     }
 
+    // ── Auto-update ───────────────────────────────────────────────────────────
+
+    public function latestRelease(Request $request)
+    {
+        $currentCode = (int)$request->query('version_code', 0);
+
+        $latest = DB::table('talento_app_releases')
+            ->where('active', true)
+            ->orderByDesc('version_code')
+            ->first();
+
+        if (! $latest || $latest->version_code <= $currentCode) {
+            return response()->json(['update_available' => false]);
+        }
+
+        return response()->json([
+            'update_available' => true,
+            'version_name'     => $latest->version_name,
+            'version_code'     => $latest->version_code,
+            'apk_url'          => $latest->apk_url,
+            'changelog'        => $latest->changelog,
+            'is_mandatory'     => (bool)$latest->is_mandatory,
+        ]);
+    }
+
     // ── Transiciones de estado OT ─────────────────────────────────────────────
 
     public function iniciarOT(Request $request, int $id)
