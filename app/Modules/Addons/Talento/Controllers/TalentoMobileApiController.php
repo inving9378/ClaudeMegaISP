@@ -225,6 +225,34 @@ class TalentoMobileApiController extends Controller
         return response()->json(['ot' => $this->otDetail($ot, $evidencias)]);
     }
 
+    // ── Branding dinámico ─────────────────────────────────────────────────────
+
+    public function appBranding()
+    {
+        $info = DB::table('company_information')->first([
+            'company_name', 'url_logo', 'talento_app_logo',
+        ]);
+
+        $logoUrl = null;
+        if ($info) {
+            // talento_app_logo sobreescribe url_logo si está configurado
+            $raw = $info->talento_app_logo ?: $info->url_logo;
+            if ($raw) {
+                // Si ya es URL absoluta la usamos tal cual; si es ruta relativa, la prefijamos
+                // Prefijo: host real de la request (accesible desde el teléfono)
+                $base = request()->getSchemeAndHttpHost();
+                $logoUrl = str_starts_with($raw, 'http')
+                    ? $raw
+                    : $base . '/' . ltrim($raw, '/');
+            }
+        }
+
+        return response()->json([
+            'company_name' => $info?->company_name ?? 'Talento Equipo',
+            'logo_url'     => $logoUrl,
+        ]);
+    }
+
     public function tiposEvidencia(Request $request, int $id)
     {
         $colaborador = $this->resolveColaborador($request);

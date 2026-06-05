@@ -365,9 +365,9 @@ Route::middleware(['web', 'auth'])
 Route::post('/talento/api/auth/login', [TalentoMobileApiController::class, 'login'])
     ->middleware([]);
 
-// Consulta de última release (pública — no requiere token)
-Route::get('/talento/api/app/latest', [TalentoMobileApiController::class, 'latestRelease'])
-    ->middleware([]);
+// Rutas públicas de la app (sin auth — se usan en login/splash)
+Route::get('/talento/api/app/latest',   [TalentoMobileApiController::class, 'latestRelease'])  ->middleware([]);
+Route::get('/talento/api/app/branding', [TalentoMobileApiController::class, 'appBranding'])    ->middleware([]);
 
 // Rutas protegidas con Sanctum
 Route::middleware(['auth:sanctum'])
