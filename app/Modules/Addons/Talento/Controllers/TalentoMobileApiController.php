@@ -215,14 +215,27 @@ class TalentoMobileApiController extends Controller
             return response()->json(['message' => 'OT no encontrada.'], 404);
         }
 
-        // Cargar evidencias (media) de esta OT
-        $evidencias = DB::table('talento_work_order_media')
-            ->where('work_order_id', $ot->id)
-            ->orderByDesc('created_at')
-            ->get(['id', 'created_at', 'potencia_dbm', 'watermark_applied', 'location_flagged'])
+        // Cargar evidencias con nombre del tipo
+        $evidencias = DB::table('talento_work_order_media as m')
+            ->leftJoin('talento_evidence_types as et', 'et.id', '=', 'm.evidence_type_id')
+            ->where('m.work_order_id', $ot->id)
+            ->orderByDesc('m.created_at')
+            ->get([
+                'm.id', 'm.created_at', 'm.potencia_dbm',
+                'm.evidence_type_id as type_id', 'et.nombre as tipo_nombre',
+                'm.watermark_applied', 'm.location_flagged',
+            ])
             ->toArray();
 
-        return response()->json(['ot' => $this->otDetail($ot, $evidencias)]);
+        // Evidencias obligatorias para este tipo de OT (condition=null → siempre requeridas)
+        $requeridas = DB::table('talento_ot_type_evidence_requirements as r')
+            ->join('talento_evidence_types as et', 'et.id', '=', 'r.evidence_type_id')
+            ->where('r.ot_type_id', $ot->type_id)
+            ->whereNull('r.condition')
+            ->get(['et.id', 'et.nombre', 'et.es_firma'])
+            ->toArray();
+
+        return response()->json(['ot' => $this->otDetail($ot, $evidencias, $requeridas)]);
     }
 
     // ── Branding dinámico ─────────────────────────────────────────────────────
@@ -790,13 +803,15 @@ class TalentoMobileApiController extends Controller
         ];
     }
 
-    private function otDetail(TalentoWorkOrder $ot, array $evidencias): array
+    private function otDetail(TalentoWorkOrder $ot, array $evidencias, array $requeridas = []): array
     {
         return array_merge($this->otSummary($ot), [
             'notas'                   => $ot->notes,
+            'nota_tecnico'            => $ot->nota_tecnico,
             'scheduled_at'            => $ot->scheduled_at,
-            'potencia_referencia_dbm' => null, // no está en work_orders; dejar para cuando se agregue
+            'potencia_referencia_dbm' => null,
             'evidencias'              => $evidencias,
+            'evidencias_requeridas'   => $requeridas,
         ]);
     }
 
