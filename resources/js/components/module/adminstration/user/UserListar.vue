@@ -391,7 +391,7 @@ const pagination = ref({
     rowsNumber: 0,
 });
 
-const idUser = ref(null);
+const idUser = ref(0);
 const userName = ref("");
 const showModalPermissions = ref(false);
 onMounted(async () => {

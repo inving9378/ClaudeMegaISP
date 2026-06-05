@@ -277,13 +277,16 @@ class UserController extends Controller
 
             $user->syncRoles($roles);
 
-            if (isset($request->rule_id)) {
-                $user->seller->updateRule($request->rule_id);
+            // Solo actualizar regla de comisión si llega un ID numérico válido y el usuario tiene vendedor.
+            // isset($request->rule_id) era insuficiente: FormData convierte null → string "null", que
+            // pasaba el isset y causaba FK violation → rollback silencioso de TODO (incluido el password).
+            if (is_numeric($request->input('rule_id')) && $user->seller) {
+                $user->seller->updateRule($request->input('rule_id'));
             }
 
             DB::commit();
             return response()->json(['status' => 200, 'message' => 'Administrador actualizado correctamente']);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['status' => 500, 'message' => $e->getMessage()]);
         }

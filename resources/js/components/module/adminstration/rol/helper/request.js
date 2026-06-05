@@ -66,6 +66,17 @@ export const requestPermissionForRole = async (rol) => {
     return fields;
 }
 
+export const syncRolesToBasePermissions = async () => {
+    let data = { ok: false, report: {}, total: 0, message: '' };
+    await axios["post"](`/administracion/permisos/sync-roles`, {}).then((res) => {
+        data = res.data;
+    }).catch((error) => {
+        console.log(error);
+        throw error;
+    });
+    return data;
+}
+
 export const updatePermissionByRole = async (id, data) => {
     let response = {};
     await axios["post"](`/administracion/permisos/update-permission-for-role/${id}`, data).then((res) => {

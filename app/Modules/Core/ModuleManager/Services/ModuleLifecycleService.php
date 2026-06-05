@@ -5,6 +5,7 @@ namespace App\Modules\Core\ModuleManager\Services;
 use App\Modules\Contracts\ModuleDefinition;
 use App\Modules\Core\ModuleManager\Models\ModuleMigration;
 use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
+use App\Modules\Core\Security\Services\PermissionSyncService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -333,11 +334,17 @@ class ModuleLifecycleService
     private function registerPermissions(array $manifest): void
     {
         $permissions = $manifest['permissions'] ?? [];
+        $syncService = app(PermissionSyncService::class);
+
         foreach ($permissions as $perm) {
             Permission::firstOrCreate(
                 ['name' => $perm['name'], 'guard_name' => 'web'],
                 ['description' => $perm['description'] ?? '']
             );
+
+            // Auto-sync al rol base: super-administrator + DESARROLLADOR siempre;
+            // permisos .view también a todos los demás roles (decisión 2026-06-04).
+            $syncService->syncPermissionToBaseRoles($perm['name']);
         }
     }
 

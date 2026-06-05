@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Module;
 use App\Models\Promotion;
 use App\Models\User;
+use App\Modules\Core\Security\Services\PermissionSyncService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +19,28 @@ class PermissionController extends Controller
 {
 
     public function __construct() {}
+
+    /**
+     * POST /administracion/permisos/sync-roles
+     * Solo super-administrator. Sincroniza todos los permisos faltantes a roles base.
+     */
+    public function syncRoles(PermissionSyncService $sync): JsonResponse
+    {
+        if (!auth()->user()?->hasRole('super-administrator')) {
+            return response()->json(['error' => 'No autorizado.'], 403);
+        }
+
+        $report = $sync->syncAllPermissionsToBaseRoles();
+
+        return response()->json([
+            'ok'      => true,
+            'report'  => $report,
+            'total'   => array_sum($report),
+            'message' => array_sum($report) === 0
+                ? 'Todo ya estaba sincronizado. No se requirieron cambios.'
+                : 'Sincronización completada: ' . array_sum($report) . ' permisos asignados.',
+        ]);
+    }
 
     public function userPermissions()
     {

@@ -734,13 +734,17 @@ const update = async (e) => {
                 formData.append(key, value);
             });
             const response = await updateUser(data.id, formData);
-            Swal.fire("¡Actualizado!", response.message, "success").then(
-                (result) => {
-                    if (result.isConfirmed) {
-                        window.location.href = "/administracion/user";
+            if (response.status === 200) {
+                Swal.fire("¡Actualizado!", response.message, "success").then(
+                    (result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = "/administracion/user";
+                        }
                     }
-                }
-            );
+                );
+            } else {
+                Swal.fire("¡Error!", response.message || "Error al actualizar el usuario", "error");
+            }
         } else {
             Swal.fire(
                 "¡Error!",

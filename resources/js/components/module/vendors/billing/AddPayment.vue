@@ -961,6 +961,7 @@ const store = async () => {
         showLoading("showTextDef");
         const reloaded = getReloadedData();
         const response = await createPayment(formData.value);
+        hideLoading();
         if (response !== null && response.success) {
             Swal.fire({
                 title: "¡Creado!",
@@ -985,10 +986,9 @@ const store = async () => {
         } else {
             Swal.fire("¡Error!", "Hubo un error al agregar el pago", "error");
         }
-        hideLoading();
     } catch (error) {
-        Swal.fire("¡Error!", "Hubo un error al agregar el pago", "error");
         hideLoading();
+        Swal.fire("¡Error!", "Hubo un error al agregar el pago", "error");
     }
 };
 
@@ -1035,12 +1035,12 @@ const showDetails = async () => {
                 showDetailModal.value = true;
                 hideLoading();
             } catch (error) {
+                hideLoading();
                 Swal.fire(
                     "¡Error!",
                     "Hubo un error al tratar de obtener la vista previa del pago",
                     "error"
                 );
-                hideLoading();
             }
         }
     } else {

@@ -172,7 +172,7 @@ import {
 const props = defineProps({
     userId: {
         type: Number,
-        required: true,
+        default: 0,
     },
     userName: {
         type: String,
@@ -219,7 +219,7 @@ const avaiablesPromotions = ref([]);
 watch(
     () => props.userId,
     (newUserId, oldUserId) => {
-        if (newUserId !== oldUserId) {
+        if (newUserId && newUserId !== oldUserId) {
             getPermissions();
         }
     },

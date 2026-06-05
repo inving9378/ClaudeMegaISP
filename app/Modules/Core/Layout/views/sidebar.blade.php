@@ -7,17 +7,26 @@
             <ul class="metismenu list-unstyled" id="side-menu">
                 <li class="menu-title" data-key="t-menu">Menu</li>
 
-                {{-- 1. Dashboard --}}
-                @can('dashboard_view_dashboard')
-                    <li>
-                        <a href="{{ url('/') }}">
-                            <i data-feather="home"></i>
-                            <span data-key="t-dashboard">Dashboard</span>
-                        </a>
-                    </li>
-                @endcan
+                {{-- 1. Dashboard — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['dashboard']))
+                    @include('module-sidebar.dashboard', ['item' => $sidebarItems['dashboard']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @can('dashboard_view_dashboard')
+                        <li>
+                            <a href="{{ url('/') }}">
+                                <i data-feather="home"></i>
+                                <span data-key="t-dashboard">Dashboard</span>
+                            </a>
+                        </li>
+                    @endcan
+                @endif
 
-                {{-- 2. Planes --}}
+                {{-- 2. Planes — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['planes']))
+                    @include('module-sidebar.planes', ['item' => $sidebarItems['planes']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
                 <li>
                     @canany(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package', 'plan_view_catalog'])
                         <a href="javascript: void(0);" class="has-arrow">
@@ -64,7 +73,13 @@
                     </ul>
                 </li>
 
-                {{-- 3. Clientes potenciales (CRM) --}}
+                @endif
+
+                {{-- 3. Clientes potenciales (CRM) — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['crm']))
+                    @include('module-sidebar.crm', ['item' => $sidebarItems['crm']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
                 @can('crm_view_crm')
                     <li>
                         <a href="javascript: void(0);" class="has-arrow">
@@ -90,7 +105,13 @@
                     </li>
                 @endcan
 
-                {{-- 4. Clientes --}}
+                @endif
+
+                {{-- 4. Clientes — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['clientes']))
+                    @include('module-sidebar.clientes', ['item' => $sidebarItems['clientes']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
                 <li>
                     @canany(['client_view_dashboard', 'client_view_client', 'client_add_client'])
                         <a href="javascript: void(0);" class="has-arrow">
@@ -115,7 +136,12 @@
                         @endcan
                         @can('client_view_client')
                             <li>
-                                <a href="{{ url('/cliente/listar') }}">
+                                <a href="{{ url('/cliente/listar') }}"
+                                   hx-get="{{ url('/cliente/listar') }}"
+                                   hx-target="#htmx-main"
+                                   hx-swap="outerHTML"
+                                   hx-select="#htmx-main"
+                                   hx-push-url="true">
                                     <span data-key="t-cliente-listar"><small><i class="fa fa-fw fa-list"></i></small> Listar</span>
                                 </a>
                             </li>
@@ -123,7 +149,14 @@
                     </ul>
                 </li>
 
-                {{-- 5. Gestión de red (sin OLTs — son item primario en posición 8) --}}
+                @endif
+
+                {{-- 5. Gestión de red — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['gestion-red']))
+                    @include('module-sidebar.gestion-red', ['item' => $sidebarItems['gestion-red']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                {{-- Gestión de red (sin OLTs — son item primario en posición 8) --}}
                 <li>
                     @canany(['router_view_router', 'ipv4_view_ipv4', 'router_add_router', 'ipv4_add_ipv4'])
                         <a href="javascript: void(0);" class="has-arrow">
@@ -183,6 +216,13 @@
                     </ul>
                 </li>
 
+                @endif
+
+                {{-- 6. Finanzas (incluye Marketing como sub_item) — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['finanzas']))
+                    @include('module-sidebar.finanzas', ['item' => $sidebarItems['finanzas']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
                 {{--
                     6. Finanzas — incluye Marketing como sub-sección (addon-marketing,
                     sidebar.location=submenu, sidebar.parent=finanzas).
@@ -365,7 +405,13 @@
                     </ul>
                 </li>
 
-                {{-- 7. Inventario --}}
+                @endif
+
+                {{-- 7. Inventario — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['inventario']))
+                    @include('module-sidebar.inventario', ['item' => $sidebarItems['inventario']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
                 <li>
                     @canany(['inventory_view_inventory', 'inventory_item_view_inventory_item',
                              'inventory_item_type_view_inventory_item_type', 'inventory_movement_view_inventory_movement',
@@ -510,160 +556,201 @@
                     </ul>
                 </li>
 
-                {{-- 8. OLTs — standalone (extraído de Gestión de red) --}}
-                @can('olt_view')
-                    <li>
-                        <a href="{{ url('/olts') }}">
-                            <i data-feather="server"></i>
-                            <span data-key="t-olts">OLTs</span>
-                        </a>
-                    </li>
-                @endcan
+                @endif
 
-                {{-- 9. Mapas --}}
-                @can('maps_view_maps')
-                    <li>
-                        <a href="{{ url('/mapas/') }}">
-                            <i data-feather="map"></i>
-                            <span data-key="t-mapas">Mapas</span>
-                        </a>
-                    </li>
-                @endcan
+                {{-- 8. OLTs — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['olts']))
+                    @include('module-sidebar.olts', ['item' => $sidebarItems['olts']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @can('olt_view')
+                        <li>
+                            <a href="{{ url('/olts') }}">
+                                <i data-feather="server"></i>
+                                <span data-key="t-olts">OLTs</span>
+                            </a>
+                        </li>
+                    @endcan
+                @endif
 
-                {{-- 10. Cobranza --}}
-                @canany(['cobranza.view', 'cobranza.configure'])
-                    <li>
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="phone-call"></i>
-                            <span data-key="t-cobranza">Cobranza</span>
-                        </a>
-                        <ul class="sub-menu" aria-expanded="false">
-                            @can('cobranza.view')
-                                <li>
-                                    <a href="{{ url('/cobranza/campanas') }}">
-                                        <span><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Campañas</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('cobranza.configure')
-                                <li>
-                                    <a href="{{ url('/cobranza/voip') }}">
-                                        <span><small><i class="fa fa-fw fa-phone-square"></i></small> Config. VoIP</span>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcanany
+                {{-- 9. Mapas — renderizado dinámico (Fase 2.1) --}}
+                @if(isset($sidebarItems['mapas']))
+                    @include('module-sidebar.mapas', ['item' => $sidebarItems['mapas']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer no inyectó datos --}}
+                    @can('maps_view_maps')
+                        <li>
+                            <a href="{{ url('/mapas/') }}">
+                                <i data-feather="map"></i>
+                                <span data-key="t-mapas">Mapas</span>
+                            </a>
+                        </li>
+                    @endcan
+                @endif
 
-                {{-- 11. MegaFamilia --}}
-                @hasanyrole('DESARROLLADOR|Administrador|Super Administrador|super-administrator|TECNICO')
-                    @canany(['megafamilia_admin', 'megafamilia_support'])
+                {{-- 10. Cobranza — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['cobranza-blaster']))
+                    @include('module-sidebar.cobranza-blaster', ['item' => $sidebarItems['cobranza-blaster']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @canany(['cobranza.view', 'cobranza.configure'])
                         <li>
                             <a href="javascript: void(0);" class="has-arrow">
-                                <i data-feather="shield"></i>
-                                <span data-key="t-megafamilia">MegaFamilia</span>
+                                <i data-feather="phone-call"></i>
+                                <span data-key="t-cobranza">Cobranza</span>
                             </a>
                             <ul class="sub-menu" aria-expanded="false">
-                                @can('megafamilia_admin')
-                                    <li><a href="{{ url('/megafamilia') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
-                                    <li><a href="{{ url('/megafamilia/clientes') }}"><span><small><i class="fa fa-fw fa-users"></i></small> Clientes</span></a></li>
-                                    <li><a href="{{ url('/megafamilia/licencias') }}"><span><small><i class="fa fa-fw fa-key"></i></small> Licencias</span></a></li>
-                                    <li><a href="{{ url('/megafamilia/planes') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Planes</span></a></li>
-                                    <li><a href="{{ url('/megafamilia/perfiles') }}"><span><small><i class="fa fa-fw fa-child"></i></small> Perfiles</span></a></li>
+                                @can('cobranza.view')
+                                    <li>
+                                        <a href="{{ url('/cobranza/campanas') }}">
+                                            <span><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Campañas</span>
+                                        </a>
+                                    </li>
                                 @endcan
-                                <li><a href="{{ url('/megafamilia/dispositivos') }}"><span><small><i class="fa fa-fw fa-mobile-screen"></i></small> Dispositivos</span></a></li>
-                                <li><a href="{{ url('/megafamilia/solicitudes') }}"><span><small><i class="fa fa-fw fa-inbox"></i></small> Solicitudes</span></a></li>
-                                <li><a href="{{ url('/megafamilia/alertas') }}"><span><small><i class="fa fa-fw fa-bell"></i></small> Alertas</span></a></li>
-                                <li><a href="{{ url('/megafamilia/tareas') }}"><span><small><i class="fa fa-fw fa-tasks"></i></small> Tareas</span></a></li>
-                                <li><a href="{{ url('/megafamilia/ubicaciones') }}"><span><small><i class="fa fa-fw fa-map-marker-alt"></i></small> Ubicaciones</span></a></li>
-                                <li><a href="{{ url('/megafamilia/geofences') }}"><span><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geofences</span></a></li>
-                                <li><a href="{{ url('/megafamilia/reportes') }}"><span><small><i class="fa fa-fw fa-chart-bar"></i></small> Reportes</span></a></li>
-                                @can('megafamilia_admin')
-                                    <li><a href="{{ url('/megafamilia/configuracion') }}"><span><small><i class="fa fa-fw fa-cog"></i></small> Configuración</span></a></li>
+                                @can('cobranza.configure')
+                                    <li>
+                                        <a href="{{ url('/cobranza/voip') }}">
+                                            <span><small><i class="fa fa-fw fa-phone-square"></i></small> Config. VoIP</span>
+                                        </a>
+                                    </li>
                                 @endcan
                             </ul>
                         </li>
                     @endcanany
-                @endhasanyrole
+                @endif
 
-                {{-- 11.9 Scheduling (addon-scheduling) --}}
-                @canany(['scheduling_view_scheduling', 'scheduling_task_view_task'])
-                    <li>
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="check-square"></i>
-                            <span data-key="t-scheduling">Scheduling</span>
-                        </a>
-                        <ul class="sub-menu" aria-expanded="false">
-                            @can('scheduling_task_view_task')
-                                <li><a href="{{ url('/scheduling/task') }}"><span><small><i class="fa fa-fw fa-tasks"></i></small> Tareas</span></a></li>
-                            @endcan
-                            @can('scheduling_project_view_project')
-                                <li><a href="{{ url('/scheduling/project') }}"><span><small><i class="fa fa-fw fa-project-diagram"></i></small> Proyectos</span></a></li>
-                            @endcan
-                            @can('scheduling_view_calendar')
-                                <li><a href="{{ url('/scheduling/task/calendar') }}"><span><small><i class="fa fa-fw fa-calendar-alt"></i></small> Calendario</span></a></li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcanany
+                {{-- 11. MegaFamilia — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['megafamilia']))
+                    @include('module-sidebar.megafamilia', ['item' => $sidebarItems['megafamilia']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @hasanyrole('DESARROLLADOR|Administrador|Super Administrador|super-administrator|TECNICO')
+                        @canany(['megafamilia_admin', 'megafamilia_support'])
+                            <li>
+                                <a href="javascript: void(0);" class="has-arrow">
+                                    <i data-feather="shield"></i>
+                                    <span data-key="t-megafamilia">MegaFamilia</span>
+                                </a>
+                                <ul class="sub-menu" aria-expanded="false">
+                                    @can('megafamilia_admin')
+                                        <li><a href="{{ url('/megafamilia') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
+                                        <li><a href="{{ url('/megafamilia/clientes') }}"><span><small><i class="fa fa-fw fa-users"></i></small> Clientes</span></a></li>
+                                        <li><a href="{{ url('/megafamilia/licencias') }}"><span><small><i class="fa fa-fw fa-key"></i></small> Licencias</span></a></li>
+                                        <li><a href="{{ url('/megafamilia/planes') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Planes</span></a></li>
+                                        <li><a href="{{ url('/megafamilia/perfiles') }}"><span><small><i class="fa fa-fw fa-child"></i></small> Perfiles</span></a></li>
+                                    @endcan
+                                    <li><a href="{{ url('/megafamilia/dispositivos') }}"><span><small><i class="fa fa-fw fa-mobile-screen"></i></small> Dispositivos</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/solicitudes') }}"><span><small><i class="fa fa-fw fa-inbox"></i></small> Solicitudes</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/alertas') }}"><span><small><i class="fa fa-fw fa-bell"></i></small> Alertas</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/tareas') }}"><span><small><i class="fa fa-fw fa-tasks"></i></small> Tareas</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/ubicaciones') }}"><span><small><i class="fa fa-fw fa-map-marker-alt"></i></small> Ubicaciones</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/geofences') }}"><span><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geofences</span></a></li>
+                                    <li><a href="{{ url('/megafamilia/reportes') }}"><span><small><i class="fa fa-fw fa-chart-bar"></i></small> Reportes</span></a></li>
+                                    @can('megafamilia_admin')
+                                        <li><a href="{{ url('/megafamilia/configuracion') }}"><span><small><i class="fa fa-fw fa-cog"></i></small> Configuración</span></a></li>
+                                    @endcan
+                                </ul>
+                            </li>
+                        @endcanany
+                    @endhasanyrole
+                @endif
 
-                {{-- 12. Embajadores --}}
-                @canany(['embajadores.view', 'embajadores.configure'])
-                    <li>
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="award"></i>
-                            <span data-key="t-embajadores">Embajadores</span>
-                        </a>
-                        <ul class="sub-menu" aria-expanded="false">
-                            @can('embajadores.view')
-                                <li><a href="{{ url('/embajadores') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
-                                <li><a href="{{ url('/embajadores/clientes') }}"><span><small><i class="fa fa-fw fa-handshake"></i></small> Embajadores</span></a></li>
-                                <li><a href="{{ url('/embajadores/comisiones') }}"><span><small><i class="fa fa-fw fa-coins"></i></small> Comisiones</span></a></li>
-                            @endcan
-                            @can('embajadores.configure')
-                                <li><a href="{{ url('/embajadores/tiers') }}"><span><small><i class="fa fa-fw fa-percentage"></i></small> Porcentajes</span></a></li>
-                                <li><a href="{{ url('/embajadores/configuracion') }}"><span><small><i class="fa fa-fw fa-cog"></i></small> Configuración</span></a></li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcanany
+                {{-- 11.9 Scheduling — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['scheduling']))
+                    @include('module-sidebar.scheduling', ['item' => $sidebarItems['scheduling']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @canany(['scheduling_view_scheduling', 'scheduling_task_view_task'])
+                        <li>
+                            <a href="javascript: void(0);" class="has-arrow">
+                                <i data-feather="check-square"></i>
+                                <span data-key="t-scheduling">Scheduling</span>
+                            </a>
+                            <ul class="sub-menu" aria-expanded="false">
+                                @can('scheduling_task_view_task')
+                                    <li><a href="{{ url('/scheduling/task') }}"><span><small><i class="fa fa-fw fa-tasks"></i></small> Tareas</span></a></li>
+                                @endcan
+                                @can('scheduling_project_view_project')
+                                    <li><a href="{{ url('/scheduling/project') }}"><span><small><i class="fa fa-fw fa-project-diagram"></i></small> Proyectos</span></a></li>
+                                @endcan
+                                @can('scheduling_view_calendar')
+                                    <li><a href="{{ url('/scheduling/task/calendar') }}"><span><small><i class="fa fa-fw fa-calendar-alt"></i></small> Calendario</span></a></li>
+                                @endcan
+                            </ul>
+                        </li>
+                    @endcanany
+                @endif
 
-                {{-- 12.5 Flotas (addon-flotas) --}}
-                @canany(['fleet.view', 'fleet.gps.view'])
-                    <li>
-                        <a href="javascript: void(0);" class="has-arrow">
-                            <i data-feather="truck"></i>
-                            <span data-key="t-flotas">Flotas</span>
-                        </a>
-                        <ul class="sub-menu" aria-expanded="false">
-                            @can('fleet.view')
-                                <li><a href="{{ url('/flotas') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
-                                <li><a href="{{ url('/flotas/vehiculos') }}"><span><small><i class="fa fa-fw fa-car"></i></small> Vehículos</span></a></li>
-                            @endcan
-                            @can('fleet.gps.view')
-                                <li><a href="{{ url('/flotas/mapa') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa</span></a></li>
-                            @endcan
-                            @can('fleet.geofences.view')
-                                <li><a href="{{ url('/flotas/geocercas') }}"><span><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geocercas</span></a></li>
-                            @endcan
-                            @can('fleet.notifications.view')
-                                <li><a href="{{ url('/flotas/notificaciones-log') }}"><span><small><i class="fa fa-fw fa-bell"></i></small> Notificaciones</span></a></li>
-                            @endcan
-                            @can('fleet.rules.view')
-                                <li><a href="{{ url('/flotas/reglas') }}"><span><small><i class="fa fa-fw fa-filter"></i></small> Reglas de alertas</span></a></li>
-                            @endcan
-                            @can('fleet.documents.view')
-                                <li><a href="{{ url('/flotas/documentos') }}"><span><small><i class="fa fa-fw fa-folder-open"></i></small> Documentos</span></a></li>
-                            @endcan
-                            @can('fleet.subscriptions.manage')
-                                <li><a href="{{ url('/flotas/suscripciones') }}"><span><small><i class="fa fa-fw fa-credit-card"></i></small> Suscripciones</span></a></li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcanany
+                {{-- 12. Embajadores — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['embajadores']))
+                    @include('module-sidebar.embajadores', ['item' => $sidebarItems['embajadores']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @canany(['embajadores.view', 'embajadores.configure'])
+                        <li>
+                            <a href="javascript: void(0);" class="has-arrow">
+                                <i data-feather="award"></i>
+                                <span data-key="t-embajadores">Embajadores</span>
+                            </a>
+                            <ul class="sub-menu" aria-expanded="false">
+                                @can('embajadores.view')
+                                    <li><a href="{{ url('/embajadores') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
+                                    <li><a href="{{ url('/embajadores/clientes') }}"><span><small><i class="fa fa-fw fa-handshake"></i></small> Embajadores</span></a></li>
+                                    <li><a href="{{ url('/embajadores/comisiones') }}"><span><small><i class="fa fa-fw fa-coins"></i></small> Comisiones</span></a></li>
+                                @endcan
+                                @can('embajadores.configure')
+                                    <li><a href="{{ url('/embajadores/tiers') }}"><span><small><i class="fa fa-fw fa-percentage"></i></small> Porcentajes</span></a></li>
+                                    <li><a href="{{ url('/embajadores/configuracion') }}"><span><small><i class="fa fa-fw fa-cog"></i></small> Configuración</span></a></li>
+                                @endcan
+                            </ul>
+                        </li>
+                    @endcanany
+                @endif
 
-                {{-- 12.8 Talento Meganet (addon-talento) --}}
+                {{-- 12.5 Flotas — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['flotas']))
+                    @include('module-sidebar.flotas', ['item' => $sidebarItems['flotas']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @canany(['fleet.view', 'fleet.gps.view'])
+                        <li>
+                            <a href="javascript: void(0);" class="has-arrow">
+                                <i data-feather="truck"></i>
+                                <span data-key="t-flotas">Flotas</span>
+                            </a>
+                            <ul class="sub-menu" aria-expanded="false">
+                                @can('fleet.view')
+                                    <li><a href="{{ url('/flotas') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
+                                    <li><a href="{{ url('/flotas/vehiculos') }}"><span><small><i class="fa fa-fw fa-car"></i></small> Vehículos</span></a></li>
+                                @endcan
+                                @can('fleet.gps.view')
+                                    <li><a href="{{ url('/flotas/mapa') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa</span></a></li>
+                                @endcan
+                                @can('fleet.geofences.view')
+                                    <li><a href="{{ url('/flotas/geocercas') }}"><span><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geocercas</span></a></li>
+                                @endcan
+                                @can('fleet.notifications.view')
+                                    <li><a href="{{ url('/flotas/notificaciones-log') }}"><span><small><i class="fa fa-fw fa-bell"></i></small> Notificaciones</span></a></li>
+                                @endcan
+                                @can('fleet.rules.view')
+                                    <li><a href="{{ url('/flotas/reglas') }}"><span><small><i class="fa fa-fw fa-filter"></i></small> Reglas de alertas</span></a></li>
+                                @endcan
+                                @can('fleet.documents.view')
+                                    <li><a href="{{ url('/flotas/documentos') }}"><span><small><i class="fa fa-fw fa-folder-open"></i></small> Documentos</span></a></li>
+                                @endcan
+                                @can('fleet.subscriptions.manage')
+                                    <li><a href="{{ url('/flotas/suscripciones') }}"><span><small><i class="fa fa-fw fa-credit-card"></i></small> Suscripciones</span></a></li>
+                                @endcan
+                            </ul>
+                        </li>
+                    @endcanany
+                @endif
+
+                {{-- 12.8 Talento Meganet — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['talento']))
+                    @include('module-sidebar.talento', ['item' => $sidebarItems['talento']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
                 @canany(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.roadmap.view'])
                 <li>
                     <a href="javascript: void(0);" class="has-arrow">
@@ -744,6 +831,8 @@
                 </li>
                 @endcanany
 
+                @endif
+
                 {{-- 13. War Room — accesible desde el panel de Administración (/administracion), no como ítem suelto del sidebar. --}}
 
                 {{--
@@ -808,42 +897,57 @@
                     @endforeach
                 @endif
 
-                {{-- 14. Administración --}}
-                @can('admin_view_module')
-                    <li>
-                        <a href="{{ url('/administracion') }}" class="has-arrow">
-                            <i data-feather="command"></i>
-                            <span data-key="t-administracion">Administración</span>
-                        </a>
-                    </li>
-                @endcan
+                {{-- 14. Administración — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['administracion']))
+                    @include('module-sidebar.administracion', ['item' => $sidebarItems['administracion']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @can('admin_view_module')
+                        <li>
+                            <a href="{{ url('/administracion') }}" class="has-arrow">
+                                <i data-feather="command"></i>
+                                <span data-key="t-administracion">Administración</span>
+                            </a>
+                        </li>
+                    @endcan
+                @endif
 
-                {{-- 15. Configuración --}}
-                @can('config_view_module')
-                    <li>
-                        <a href="{{ url('/configuracion') }}" class="has-arrow">
-                            <i data-feather="tool"></i>
-                            <span data-key="t-configuracion">Configuración</span>
-                        </a>
-                    </li>
-                @endcan
+                {{-- 15. Configuración — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['configuracion']))
+                    @include('module-sidebar.configuracion', ['item' => $sidebarItems['configuracion']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @can('config_view_module')
+                        <li>
+                            <a href="{{ url('/configuracion') }}" class="has-arrow">
+                                <i data-feather="tool"></i>
+                                <span data-key="t-configuracion">Configuración</span>
+                            </a>
+                        </li>
+                    @endcan
+                @endif
 
-                {{-- Desarrollador — accordion, rol DESARROLLADOR o super-administrator (addon-devtools, location:developer) --}}
-                @hasanyrole('DESARROLLADOR|super-administrator')
-                    <li class="menu-item-desarrollador">
-                        <a href="javascript: void(0);" class="has-arrow link-desarrollador">
-                            <i data-feather="code"></i>
-                            <span data-key="t-desarrollador">Desarrollador</span>
-                        </a>
-                        <ul class="sub-menu" aria-expanded="false">
-                            <li>
-                                <a href="{{ url('/devtools') }}">
-                                    <span data-key="t-devtools"><small><i class="fa fa-fw fa-terminal"></i></small> DevTools</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                @endhasanyrole
+                {{-- Desarrollador — Fase 2.2 dinámico --}}
+                @if(isset($sidebarItems['devtools']))
+                    @include('module-sidebar.devtools', ['item' => $sidebarItems['devtools']->first()])
+                @else
+                    {{-- Fallback hardcodeado por si el composer falla --}}
+                    @hasanyrole('DESARROLLADOR|super-administrator')
+                        <li class="menu-item-desarrollador">
+                            <a href="javascript: void(0);" class="has-arrow link-desarrollador">
+                                <i data-feather="code"></i>
+                                <span data-key="t-desarrollador">Desarrollador</span>
+                            </a>
+                            <ul class="sub-menu" aria-expanded="false">
+                                <li>
+                                    <a href="{{ url('/devtools') }}">
+                                        <span data-key="t-devtools"><small><i class="fa fa-fw fa-terminal"></i></small> DevTools</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    @endhasanyrole
+                @endif
 
             </ul>
         </div>
