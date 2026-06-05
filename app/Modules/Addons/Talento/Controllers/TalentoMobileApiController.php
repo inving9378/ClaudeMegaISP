@@ -458,6 +458,10 @@ class TalentoMobileApiController extends Controller
 
     public function completarOT(Request $request, int $id)
     {
+        $request->validate([
+            'nota_tecnico' => 'nullable|string|max:1000',
+        ]);
+
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
@@ -472,29 +476,92 @@ class TalentoMobileApiController extends Controller
             return response()->json(['message' => "Solo se puede completar una OT en curso (estado actual: '{$ot->status}')."], 422);
         }
 
-        // Exige al menos 1 evidencia antes de completar.
-        $evidencias = DB::table('talento_work_order_media')
-            ->where('work_order_id', $ot->id)
-            ->count();
+        // ── 1. Checklist de evidencias obligatorias ──────────────────────────
+        $requeridos = DB::table('talento_ot_type_evidence_requirements')
+            ->where('ot_type_id', $ot->type_id)
+            ->whereNull('condition')
+            ->pluck('evidence_type_id')
+            ->map(fn($v) => (int)$v);
 
-        if ($evidencias === 0) {
+        $subidos = DB::table('talento_work_order_media')
+            ->where('work_order_id', $ot->id)
+            ->whereNotNull('evidence_type_id')
+            ->pluck('evidence_type_id')
+            ->map(fn($v) => (int)$v)
+            ->unique();
+
+        $faltantes = $requeridos->diff($subidos);
+
+        if ($faltantes->isNotEmpty()) {
+            $nombres = DB::table('talento_evidence_types')
+                ->whereIn('id', $faltantes)
+                ->pluck('name', 'id');
+
             return response()->json([
-                'message' => 'Debes subir al menos una evidencia antes de completar la OT.',
-                'code'    => 'NO_EVIDENCIA',
+                'message'  => 'Faltan evidencias obligatorias antes de completar la OT.',
+                'code'     => 'EVIDENCIAS_FALTANTES',
+                'faltantes'=> $faltantes->map(fn($evId) => [
+                    'evidence_type_id' => $evId,
+                    'name'             => $nombres[$evId] ?? "Tipo #{$evId}",
+                ])->values(),
             ], 422);
+        }
+
+        // ── 2. Gate dBm ────────────────────────────────────────────────────────
+        // Si el tipo de OT exige lectura dBm, verificar el valor subido
+        $requiereDbm = DB::table('talento_ot_type_evidence_requirements')
+            ->join('talento_evidence_types', 'talento_evidence_types.id', '=', 'talento_ot_type_evidence_requirements.evidence_type_id')
+            ->where('talento_ot_type_evidence_requirements.ot_type_id', $ot->type_id)
+            ->whereNull('talento_ot_type_evidence_requirements.condition')
+            ->where('talento_evidence_types.es_lectura_dbm', true)
+            ->exists();
+
+        $dbmTier = null;
+        if ($requiereDbm) {
+            $ultimoDbm = DB::table('talento_work_order_media')
+                ->where('work_order_id', $ot->id)
+                ->whereNotNull('potencia_dbm')
+                ->orderByDesc('created_at')
+                ->value('potencia_dbm');
+
+            if ($ultimoDbm !== null) {
+                $valor = (float) $ultimoDbm;
+                $umbral = DB::table('talento_dbm_thresholds')
+                    ->where(function ($q) use ($valor) {
+                        $q->whereNull('dbm_min')->orWhere('dbm_min', '<=', $valor);
+                    })
+                    ->where(function ($q) use ($valor) {
+                        $q->whereNull('dbm_max')->orWhere('dbm_max', '>=', $valor);
+                    })
+                    ->orderBy('sort_order')
+                    ->first();
+
+                if ($umbral && $umbral->accion === 'bloquea') {
+                    return response()->json([
+                        'message'  => $umbral->mensaje,
+                        'code'     => 'DBM_BLOQUEADO',
+                        'categoria'=> $umbral->categoria,
+                        'dbm'      => $valor,
+                    ], 422);
+                }
+                $dbmTier = $umbral ? ['categoria' => $umbral->categoria, 'mensaje' => $umbral->mensaje] : null;
+            }
+        }
+
+        // ── 3. Guardar nota si viene ───────────────────────────────────────────
+        $updates = ['status' => 'completed', 'completed_at' => now()];
+        if ($request->filled('nota_tecnico')) {
+            $updates['nota_tecnico'] = $request->input('nota_tecnico');
         }
 
         // Completar NO escribe en el ledger — los puntos/pago se acreditan
         // únicamente cuando un admin valida la OT (status validated) desde la web.
-        $ot->update([
-            'status'       => 'completed',
-            'completed_at' => now(),
-        ]);
+        $ot->update($updates);
 
         return response()->json([
             'status'       => $ot->status,
             'completed_at' => $ot->completed_at,
-            'evidencias'   => $evidencias,
+            'dbm_tier'     => $dbmTier,
         ]);
     }
 
