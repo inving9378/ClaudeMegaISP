@@ -12,7 +12,7 @@
                 </div>
             </div>
         </div>
-        <div id="init-vue">
+        <div>
             <talento-dispositivos></talento-dispositivos>
         </div>
     </div>

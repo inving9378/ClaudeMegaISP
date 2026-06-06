@@ -98,6 +98,8 @@
                     <!-- item-->
                     <a class="dropdown-item" href="{{ url('/perfil/' . auth()->user()->id) }}"><i
                             class="mdi mdi-face-profile font-size-16 align-middle me-1"></i> Perfil</a>
+                    <a class="dropdown-item" href="{{ route('profile.password.show') }}"><i
+                            class="mdi mdi-lock-reset font-size-16 align-middle me-1"></i> Cambiar mi contraseña</a>
                     <a class="dropdown-item" href="{{ route('logout') }}"
                         onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                         <i class="mdi mdi-logout font-size-16 align-middle me-1"></i> Desconectar

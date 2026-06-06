@@ -292,10 +292,31 @@ class UserController extends Controller
         }
     }
 
-    public function changePassword()
+    public function showPasswordForm()
     {
+        return view('profile.password');
+    }
+
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password'     => 'required|min:8|confirmed',
+        ]);
+
         $user = Auth::user();
-        return view('core-layout::change-password');
+
+        // Verificación con PasswordService::check — acepta bcrypt y legacy base64
+        // (mismo patrón que LoginController y UserController::update).
+        if (! PasswordService::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'Contraseña actual incorrecta.'], 422);
+        }
+
+        // PasswordService::make siempre produce bcrypt → además avanza la migración LFPDPPP.
+        $user->password = PasswordService::make($request->new_password);
+        $user->save();
+
+        return response()->json(['message' => 'Contraseña actualizada correctamente.']);
     }
 
     public function destroy($id)

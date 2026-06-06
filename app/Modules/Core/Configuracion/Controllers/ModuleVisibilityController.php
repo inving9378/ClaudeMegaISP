@@ -45,6 +45,7 @@ class ModuleVisibilityController extends Controller
             'sidebar_position'          => ['sometimes', 'integer', 'min:1'],
             'sidebar_icon'              => ['sometimes', 'nullable', 'string', 'max:80'],
             'sidebar_label'             => ['sometimes', 'required', 'string', 'max:100'],
+            'sidebar_url'               => ['sometimes', 'nullable', 'string', 'max:255'],
             'config_moved'              => ['sometimes', 'boolean'],
             'admin_section'             => [
                 'sometimes', 'nullable', 'string', 'max:80',

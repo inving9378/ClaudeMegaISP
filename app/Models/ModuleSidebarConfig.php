@@ -11,7 +11,7 @@ class ModuleSidebarConfig extends Model
     protected $fillable = [
         'module_key', 'show_in_sidebar', 'sidebar_location', 'sidebar_parent',
         'sidebar_section', 'sidebar_position', 'sidebar_icon', 'sidebar_label',
-        'config_moved', 'admin_section', 'configuracion_subsection', 'is_core',
+        'sidebar_url', 'config_moved', 'admin_section', 'configuracion_subsection', 'is_core',
     ];
 
     protected $casts = [

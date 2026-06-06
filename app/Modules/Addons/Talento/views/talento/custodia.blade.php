@@ -12,7 +12,7 @@
                 </div>
             </div>
         </div>
-        <div id="init-vue">
+        <div>
             <talento-custodia></talento-custodia>
         </div>
     </div>

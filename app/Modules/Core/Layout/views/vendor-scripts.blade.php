@@ -1,61 +1,3 @@
-<script src="{{ URL::asset('assets/libs/htmx/htmx.min.js') }}" defer></script>
-<script>
-    // ─── HTMX integration ───────────────────────────────────────────────────
-    // Problema arquitectónico: el app Vue global se monta en #init-vue que envuelve
-    // TODO (topbar + sidebar + #htmx-main). No podemos unmount antes del swap porque
-    // Vue limpiaría #htmx-main del DOM antes de que HTMX lo reemplace.
-    //
-    // Solución: dejar que HTMX haga el outerHTML swap primero (mientras Vue está
-    // montado pero con vdom desincronizado), luego hacer snapshot → unmount →
-    // restaurar → remount. Todo ocurre sincrónicamente en htmx:afterSwap; el
-    // navegador no repinta hasta que el handler termina → sin flash visible.
-
-    document.body.addEventListener('htmx:configRequest', function(e) {
-        var meta = document.querySelector('meta[name="csrf-token"]');
-        if (meta) e.detail.headers['X-CSRF-TOKEN'] = meta.content;
-    });
-
-    document.body.addEventListener('htmx:afterSwap', function(e) {
-        if (!e.detail.target || e.detail.target.id !== 'htmx-main') return;
-        var initVue = document.getElementById('init-vue');
-        if (!initVue || !window.__megaVueApp) return;
-
-        // 1. Capturar DOM actual: shell estático (topbar+sidebar ya renderizados)
-        //    + nuevo #htmx-main del servidor (contiene tags Vue sin instanciar).
-        var snapshot = initVue.innerHTML;
-
-        // 2. Desmontar Vue — limpia los hijos de #init-vue en el vdom.
-        try { window.__megaVueApp.unmount(); } catch(ex) {}
-
-        // 3. Restaurar el HTML capturado para que Vue tenga template al remontar.
-        initVue.innerHTML = snapshot;
-
-        // 4. Remontar — Vue instancia los tags de componentes en el nuevo #htmx-main.
-        //    Topbar/sidebar quedan como HTML estático (sin reactivity) pero visuales.
-        try { window.__megaVueApp.mount('#init-vue'); } catch(ex) {}
-
-        // 5. Re-inicializar MetisMenu (Vue recreó el DOM del sidebar; permierde jQuery data).
-        if (typeof jQuery !== 'undefined') {
-            jQuery('#side-menu').metisMenu();
-            if (typeof window.__attachSidebarPersistence === 'function') {
-                window.__attachSidebarPersistence();
-            }
-            // Re-marcar link activo
-            var cur = window.location.href.split(/[?#]/)[0];
-            jQuery('#sidebar-menu a').each(function() {
-                if (this.href === cur) {
-                    jQuery(this).addClass('active');
-                    jQuery(this).parent().addClass('active');
-                    jQuery(this).parent().parent().prev().addClass('active');
-                    jQuery(this).parent().parent().parent().parent().prev().addClass('active');
-                }
-            });
-        }
-
-        // 6. Re-inicializar Feather icons en el contenido nuevo.
-        if (typeof feather !== 'undefined') feather.replace();
-    });
-</script>
 <script src="{{ URL::asset('plugins/quasar/js/vue.global.prod.js') }}"></script>
 <script src="{{ URL::asset('plugins/quasar/js/quasar.umd.prod.js') }}"></script>
 <script src="{{ URL::asset('plugins/quasar/icon-set/fontawesome-v5.umd.prod.js') }}"></script>
@@ -133,7 +75,7 @@
         $("#side-menu").metisMenu();
 
         // Adjuntar listeners de persistencia de estado — expuesta como función global
-        // para que htmx:afterSwap pueda re-adjuntarlos tras el remount de Vue.
+        // reutilizable (persiste el estado abierto/cerrado de los submenús del sidebar).
         window.__attachSidebarPersistence = function() {
             $('#side-menu').off('shown.metisMenu hidden.metisMenu')
                 .on('shown.metisMenu hidden.metisMenu', 'ul', function (e) {

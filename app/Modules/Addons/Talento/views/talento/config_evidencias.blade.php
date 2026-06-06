@@ -6,7 +6,7 @@
         <div class="page-title-box">
             <h4 class="mb-0">Talento &mdash; Configuración de evidencias por tipo de OT</h4>
         </div>
-        <div id="init-vue"><talento-evidencia-config></talento-evidencia-config></div>
+        <div><talento-evidencia-config></talento-evidencia-config></div>
     </div>
 </div>
 @endsection
