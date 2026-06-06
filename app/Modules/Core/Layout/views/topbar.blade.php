@@ -37,12 +37,6 @@
                 </a>
             </div>
 
-            <!-- CLAUDE TEST badge -->
-            <span class="badge text-white px-3 py-1 rounded-pill fw-bold align-self-center ms-2"
-                  style="background-color: #FF7A00; font-size: 11px; letter-spacing: 0.5px;">
-                CLAUDE TEST
-            </span>
-
             <button type="button" class="btn btn-sm px-3 font-size-16 header-item" id="vertical-menu-btn">
                 <i class="fa fa-fw fa-bars"></i>
             </button>
@@ -54,11 +48,12 @@
 
             <!-- MANUAL_TEST_OK -->
             @if(auth()->user()->can('manual_view'))
-                <a href="{{ url('/manual') }}"
+                <button type="button"
                     class="btn header-item"
-                    title="Manual de Usuario">
-                    <i data-feather="book-open"></i>
-                </a>
+                    title="Manual de Usuario"
+                    onclick="window.location.href='{{ url('/manual') }}'">
+                    <i class="fas fa-book-open"></i>
+                </button>
             @endif
 
             <button class="btn header-item" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasRight"
@@ -98,8 +93,6 @@
                     <!-- item-->
                     <a class="dropdown-item" href="{{ url('/perfil/' . auth()->user()->id) }}"><i
                             class="mdi mdi-face-profile font-size-16 align-middle me-1"></i> Perfil</a>
-                    <a class="dropdown-item" href="{{ route('profile.password.show') }}"><i
-                            class="mdi mdi-lock-reset font-size-16 align-middle me-1"></i> Cambiar mi contraseña</a>
                     <a class="dropdown-item" href="{{ route('logout') }}"
                         onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                         <i class="mdi mdi-logout font-size-16 align-middle me-1"></i> Desconectar
