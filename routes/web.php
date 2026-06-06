@@ -161,6 +161,12 @@ Route::group(['middleware' => ['auth']], function () {
         Route::post('/get-perfil-by-id/{id}', 'UserController@getPerfilById');
     });
 
+    // Self-service: cambio de la PROPIA contraseña (cualquier usuario autenticado,
+    // sin check_route_permission). Usa el UserController del módulo Usuarios donde
+    // vive PasswordService. Path en inglés para no chocar con el wildcard /perfil/{id}.
+    Route::get('/profile/password', [\App\Modules\Core\Usuarios\Controllers\UserController::class, 'showPasswordForm'])->name('profile.password.show');
+    Route::post('/profile/change-password', [\App\Modules\Core\Usuarios\Controllers\UserController::class, 'changePassword'])->name('profile.password.change');
+
     Route::post('/get-user-authenticated', 'HelperController@getUserAuthenticated');
 
     Route::post('/get-default-value/{date}', 'Utils\DefaultValueController@getDefaultValue');

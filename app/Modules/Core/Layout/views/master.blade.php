@@ -22,7 +22,7 @@
         </div>
         <div id="layout-wrapper" class="main-content">
             <div class="page-content">
-                <div class="container-fluid" id="htmx-main">
+                <div class="container-fluid">
                     @if (session()->has('success'))
                         <Message-Response message="{{ session()->get('success') }}">
                         </Message-Response>

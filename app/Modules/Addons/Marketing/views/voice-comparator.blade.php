@@ -1,7 +1,7 @@
 @extends('core-layout::master')
 
 @section('content')
-<div id="init-vue">
+<div>
     <voice-comparator-view></voice-comparator-view>
 </div>
 @endsection

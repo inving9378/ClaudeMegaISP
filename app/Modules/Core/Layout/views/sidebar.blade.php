@@ -88,6 +88,11 @@
                     @include('module-sidebar.talento', ['item' => $sidebarItems['talento']->first()])
                 @endif
 
+                {{-- Marketing — Fase 2.2b: liberado de Finanzas, ahora top-level con partial propio --}}
+                @if(isset($sidebarItems['marketing']))
+                    @include('module-sidebar.marketing', ['item' => $sidebarItems['marketing']->first()])
+                @endif
+
                 {{-- 13. War Room — accesible desde el panel de Administración (/administracion), no como ítem suelto del sidebar. --}}
 
                 {{--

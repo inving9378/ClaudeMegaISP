@@ -12,7 +12,7 @@
                 </div>
             </div>
         </div>
-        <div id="init-vue">
+        <div>
             <talento-roadmap></talento-roadmap>
         </div>
     </div>

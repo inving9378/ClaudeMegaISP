@@ -6,7 +6,7 @@
 
 @section('content')
     <Breadcrumb :list='[{"title":"Inicio"},{"title":"Cobranza Blaster"},{"title":"Configuración VoIP","active":"active"}]'></Breadcrumb>
-    <div id="init-vue">
+    <div>
         <cobranza-voip-config
             csrf-token="{{ csrf_token() }}"
             base-url="{{ url('/cobranza') }}"

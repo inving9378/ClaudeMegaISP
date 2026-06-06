@@ -1,7 +1,7 @@
 @extends('core-layout::master')
 
 @section('content')
-<div id="init-vue">
+<div>
     <marketing-publish-campaign-view></marketing-publish-campaign-view>
 </div>
 @endsection

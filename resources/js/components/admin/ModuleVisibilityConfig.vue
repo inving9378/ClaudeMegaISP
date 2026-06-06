@@ -136,6 +136,18 @@
                             />
                         </div>
                     </div>
+
+                    <div class="form-field">
+                        <label class="form-label">URL del módulo</label>
+                        <q-input
+                            v-model="sidebarUrl"
+                            outlined dense
+                            placeholder="/cobranza/campanas"
+                            hint="Ruta a la que navega el item del sidebar (sobre todo si es sub-ítem de otro módulo)."
+                            :error="!!errors.sidebar_url"
+                            :error-message="firstError('sidebar_url')"
+                        />
+                    </div>
                 </div>
 
                 <!-- Bloque sidebar OFF -->
@@ -286,6 +298,7 @@ export default {
             sidebarPosition: 99,
             sidebarIcon: '',
             sidebarLabel: '',
+            sidebarUrl: '',
             configMoved: false,
             adminSection: '',
             configuracionSubsection: '',
@@ -340,6 +353,7 @@ export default {
                 this.sidebarPosition         = data.sidebar_position ?? 99;
                 this.sidebarIcon             = data.sidebar_icon || '';
                 this.sidebarLabel            = data.sidebar_label || '';
+                this.sidebarUrl              = data.sidebar_url || '';
                 this.configMoved             = !!data.config_moved;
                 this.adminSection            = data.admin_section || '';
                 this.configuracionSubsection = data.configuracion_subsection || '';
@@ -368,6 +382,7 @@ export default {
                     sidebar_position: this.sidebarPosition,
                     sidebar_icon:     this.sidebarIcon,
                     sidebar_label:    this.sidebarLabel,
+                    sidebar_url:      this.sidebarUrl || null,
                     config_moved:     this.configMoved,
                     admin_section:    !this.showInSidebar ? this.adminSection : null,
                     configuracion_subsection: (this.configMoved || !this.showInSidebar) ? this.configuracionSubsection : null,

@@ -32,16 +32,21 @@ class BackupDB extends Command
         set_time_limit(0);
         ini_set('memory_limit', '8912M');
         $now = Carbon::now()->toDateString() . '-' . Carbon::now()->timestamp;
-        $db = env('DB_DATABASE', 'forge');
-        $user = env('DB_USERNAME', 'forge');
-        $pass = env('DB_PASSWORD', '');
+        // Usar config() en vez de env(): con la config cacheada (config:cache)
+        // env() devuelve null fuera de los archivos de config y caería a los
+        // defaults 'forge'/'' provocando "Access denied for user 'forge'".
+        $host = config('database.connections.mysql.host', '127.0.0.1');
+        $port = config('database.connections.mysql.port', '3306');
+        $db = config('database.connections.mysql.database', 'forge');
+        $user = config('database.connections.mysql.username', 'forge');
+        $pass = config('database.connections.mysql.password', '');
         $backupPath = storage_path('backup');
         $sqlFile = $backupPath . '/dump-' . $now . '.sql';
         $zipFile = $backupPath . '/dump-' . $now . '.zip';
 
         try {
             // Create SQL dump
-            $dump = new IMysqldump\Mysqldump('mysql:host=localhost;dbname=' . $db, $user, $pass);
+            $dump = new IMysqldump\Mysqldump('mysql:host=' . $host . ';port=' . $port . ';dbname=' . $db, $user, $pass);
             $dump->start($sqlFile);
 
             // Compress the SQL dump into a ZIP file

@@ -7,7 +7,7 @@
 @endsection
 
 @section('content')
-<div id="init-vue">
+<div>
     <integrations-hub-view></integrations-hub-view>
 </div>
 @endsection

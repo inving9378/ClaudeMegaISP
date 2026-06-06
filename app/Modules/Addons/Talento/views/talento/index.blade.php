@@ -12,7 +12,7 @@
                 </div>
             </div>
         </div>
-        <div id="init-vue">
+        <div>
             <talento-colaboradores></talento-colaboradores>
         </div>
     </div>
