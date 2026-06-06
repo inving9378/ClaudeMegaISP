@@ -350,6 +350,12 @@ class SmartImportService
      */
     private array $foreignKeyFallbackValueCache = [];
 
+    /**
+     * Cache de columnas de la PRIMARY KEY del destino por tabla.
+     * @var array<string, string[]>
+     */
+    private array $primaryKeyColumnsCache = [];
+
     /** Profundidad de bloques con FOREIGN_KEY_CHECKS desactivado en la conexion actual. */
     private int $foreignKeyChecksDisabledDepth = 0;
 
@@ -2470,6 +2476,38 @@ class SmartImportService
         return [];
     }
 
+    /**
+     * Columnas de la PRIMARY KEY del destino (estrictamente PRIMARY, sin caer
+     * a otras únicas). Usada para decidir si un merge keyeado por una llave de
+     * negocio debe descartar la PK del dump antes del upsert.
+     *
+     * @return string[]
+     */
+    private function primaryKeyColumns(string $table): array
+    {
+        if (array_key_exists($table, $this->primaryKeyColumnsCache)) {
+            return $this->primaryKeyColumnsCache[$table];
+        }
+
+        $columns = [];
+        try {
+            $indexes = DB::select('SHOW INDEX FROM `' . str_replace('`', '``', $table) . '`');
+            $bySeq = [];
+            foreach ($indexes as $index) {
+                if ((string) ($index->Key_name ?? '') !== 'PRIMARY') {
+                    continue;
+                }
+                $bySeq[(int) ($index->Seq_in_index ?? 1)] = (string) ($index->Column_name ?? '');
+            }
+            ksort($bySeq);
+            $columns = array_values(array_filter($bySeq));
+        } catch (Throwable) {
+            $columns = [];
+        }
+
+        return $this->primaryKeyColumnsCache[$table] = $columns;
+    }
+
     private function hasColumnCached(string $table, string $column): bool
     {
         if (!isset($this->hasColumnCache[$table][$column])) {
@@ -2642,6 +2680,7 @@ class SmartImportService
         $this->targetForeignKeyMetadataCache = [];
         $this->referencedValueExistsCache = [];
         $this->foreignKeyFallbackValueCache = [];
+        $this->primaryKeyColumnsCache = [];
     }
 
     private function buildAnalysisReport(array $datasets): array
@@ -3428,12 +3467,31 @@ class SmartImportService
             return 0;
         }
 
+        // Cuando el merge se identifica por una llave de NEGOCIO distinta de la
+        // PK (ej. permissions/roles por name+guard_name), NO debemos forzar el
+        // `id` del dump: su numeración puede diferir de la del destino y el
+        // upsert chocaría por PRIMARY contra la única de negocio (error 1062).
+        // Descartando la PK, el upsert matchea por la llave de negocio y el
+        // registro existente conserva su propio id; los nuevos reciben uno por
+        // auto-increment. Para las tablas cuya identidad ES la PK (la mayoría,
+        // resueltas a ['id'] por resolveConflictIdentity) este array queda
+        // vacío y el id se preserva como siempre — sin regresión de id-drift.
+        $primaryKeyToStrip = array_values(array_diff($this->primaryKeyColumns($table), $keys));
+
         $imported = 0;
         foreach (array_chunk($rows, self::BULK_CHUNK_SIZE) as $chunk) {
             foreach ($this->groupRowsByColumnSignature($chunk) as $group) {
                 $normalized = $this->normalizeRowsForBatch($table, $group, normalizeForeignKeys: false);
                 if ($normalized === []) {
                     continue;
+                }
+
+                if ($primaryKeyToStrip !== []) {
+                    foreach ($normalized as $rowIndex => $row) {
+                        foreach ($primaryKeyToStrip as $pkColumn) {
+                            unset($normalized[$rowIndex][$pkColumn]);
+                        }
+                    }
                 }
 
                 $updateColumns = array_keys($normalized[0]);

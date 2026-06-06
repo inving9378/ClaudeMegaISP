@@ -88,6 +88,11 @@ Guía de contexto para Claude Code en este repositorio. Leer antes de explorar.
 - Modelos implementan `getRequestAndStoreMethod()` para integración con SmartImport
 - Reglas de validación en `ComunConstantsController::RULES`
 
+### SmartImport — consistencia del merge inteligente (2026-06-06)
+- Modo SMART = upsert por identidad: tablas identidad-por-PK (clients, bundles, client_bundle_services…) mergean por `id` y lo **preservan**; tablas de catálogo (`permissions`, `roles`, `migrations`, `system_settings`, marcadas `identity_priority=>override` en `config/smart_import.php`) mergean por **llave de negocio**.
+- **Fix 1062**: `flushBulkMergeRows` descartaba mal la PK — ahora, si el merge va por llave de negocio (la PK no está en `$keys`), **descarta la PK del dump** antes del upsert (helper `primaryKeyColumns()`), evitando el choque `ON DUPLICATE` entre PRIMARY y la única de negocio. Detalle completo + verificación en `app/Modules/Addons/SmartImportExport/CHANGELOG-merge-consistency.md`.
+- Pendiente decisión: remapeo de `permission_id`/`role_id` en pivotes del dump (ver changelog).
+
 ---
 
 ## MÓDULOS IMPORTANTES
