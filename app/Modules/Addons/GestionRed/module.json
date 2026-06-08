@@ -163,7 +163,7 @@
             "label": "SmartOLT — Integración OLT",
             "type": "api_key",
             "category": "Red",
-            "icon": "radio",
+            "icon": "broadcast-tower",
             "url": "/olts",
             "permission": "olt_add",
             "description": "Credenciales y configuración de SmartOLT para gestión de OLTs y ONUs de fibra.",

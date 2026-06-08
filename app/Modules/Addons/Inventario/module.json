@@ -71,7 +71,7 @@
             "label": "Inventario — Almacenes y Zonas",
             "type": "herramientas",
             "category": "Herramientas",
-            "icon": "package",
+            "icon": "box",
             "url": "/inventory/inventory_store",
             "permission": "inventory_store_add_inventory_store",
             "description": "Configura almacenes, zonas de almacenamiento y modelos de ítem personalizados.",

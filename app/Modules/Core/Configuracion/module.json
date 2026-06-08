@@ -758,7 +758,7 @@
             "label": "Catálogo de API",
             "type": "api_key",
             "category": "API",
-            "icon": "shield-lock",
+            "icon": "lock",
             "url": "/configuracion/api/catalogo",
             "permission": "configuracion_admin",
             "description": "Endpoints publicados por módulos y llaves de acceso con scope granular.",

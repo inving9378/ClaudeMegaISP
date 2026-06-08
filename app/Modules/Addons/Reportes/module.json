@@ -34,7 +34,7 @@
             "label": "Reportes — Novedades del Sistema",
             "type": "herramientas",
             "category": "Herramientas",
-            "icon": "file-text",
+            "icon": "file-alt",
             "url": "/reportes",
             "permission": "release_view_release",
             "description": "Gestión de notas de versión (release notes) y changelog interno del sistema.",

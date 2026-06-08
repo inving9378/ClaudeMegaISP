@@ -51,6 +51,7 @@
             "label": "Configuración Demo",
             "type": "general",
             "category": "System",
+            "icon": "flask",
             "permission": "demo_manage",
             "url": "/demo/config",
             "description": "Ajustes del módulo de demostración."

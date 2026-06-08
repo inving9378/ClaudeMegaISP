@@ -2,21 +2,23 @@
     <div class="admin-panel">
 
         <!-- Barra de filtro por categoría -->
-        <div class="admin-filter-bar mb-3 d-flex flex-wrap gap-2 align-items-center">
-            <q-btn
-                :class="['btn-filter', activeCategory === null ? 'active' : '']"
-                :dark="darkMode"
+        <div class="config-filter-bar mb-4">
+            <button
+                :class="['cfg-pill', activeCategory === null ? 'active' : '']"
                 @click="activeCategory = null"
-                size="sm"
-            >Todas <span class="filter-count">{{ cards.length }}</span></q-btn>
-            <q-btn
+            >
+                Todas
+                <span class="cfg-pill-count">{{ cards.length }}</span>
+            </button>
+            <button
                 v-for="cat in categories"
                 :key="cat"
-                :class="['btn-filter', activeCategory === cat ? 'active' : '']"
-                :dark="darkMode"
+                :class="['cfg-pill', activeCategory === cat ? 'active' : '']"
                 @click="activeCategory = cat"
-                size="sm"
-            >{{ cat }} <span class="filter-count">{{ countByCategory(cat) }}</span></q-btn>
+            >
+                {{ cat }}
+                <span class="cfg-pill-count">{{ countByCategory(cat) }}</span>
+            </button>
         </div>
 
         <!-- Estado de carga -->
@@ -25,11 +27,9 @@
             <p class="mt-2 text-muted small">Cargando secciones…</p>
         </div>
 
-        <div v-else-if="visibleGroups.length === 0" class="card">
-            <div class="card-body text-center text-muted py-5">
-                <i class="fa fa-th-large fa-3x mb-3 d-block opacity-25"></i>
-                No hay módulos con tarjetas de administración instalados.
-            </div>
+        <div v-else-if="visibleGroups.length === 0" class="config-empty">
+            <i class="fa fa-th-large fa-2x mb-2 opacity-25"></i>
+            <p class="mb-0 text-muted small">No hay módulos con tarjetas de administración instalados.</p>
         </div>
 
         <!-- Grupos por categoría -->
@@ -40,17 +40,16 @@
                 class="admin-group mb-4"
             >
                 <!-- Encabezado del grupo -->
-                <div class="admin-group-header d-flex align-items-center mb-3">
-                    <span class="admin-group-badge me-2" :style="{ background: catColor(group.category) }">
+                <div class="config-group-header mb-3">
+                    <span class="cfg-group-badge" :style="{ background: catColor(group.category) }">
                         <i :class="'fa fa-fw fa-' + catIcon(group.category)"></i>
                     </span>
-                    <h6 class="mb-0 fw-semibold">
-                        {{ group.category }}
-                        <span class="text-muted fw-normal ms-1 small">({{ group.cards.length }})</span>
-                    </h6>
+                    <span class="cfg-group-title">{{ group.category }}</span>
+                    <span class="cfg-group-count">{{ group.cards.length }}</span>
+                    <span class="cfg-group-line"></span>
                 </div>
 
-                <!-- Tarjetas de la categoría -->
+                <!-- Tarjetas -->
                 <div class="row g-3">
                     <div
                         v-for="card in group.cards"
@@ -58,7 +57,7 @@
                         class="col-xl-3 col-lg-4 col-md-6"
                     >
                         <a :href="card.url || '#'" class="text-decoration-none">
-                            <div class="card h-100 admin-card">
+                            <div class="card h-100 admin-card" :style="{ '--accent': catColor(group.category) }">
                                 <div class="card-body d-flex align-items-start gap-3 p-3">
                                     <div class="admin-card-icon" :style="{ background: catColor(group.category) }">
                                         <i :class="'fa fa-fw fa-' + (card.icon || 'cube')"></i>
@@ -86,7 +85,6 @@
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
 
-// Metadatos de cada categoría: etiqueta (la propia key), icono FA5 y color del badge.
 const CATEGORY_META = {
     'Sistema':            { icon: 'cog',             color: '#556ee6' },
     'Usuarios':           { icon: 'users',           color: '#50a5f1' },
@@ -99,14 +97,11 @@ const CATEGORY_META = {
     'Otros':              { icon: 'th-large',        color: '#adb5bd' },
 };
 
-// Orden determinista de las categorías en la vista.
 const CATEGORY_ORDER = [
     'Sistema', 'Usuarios', 'Finanzas', 'Red', 'Localización',
     'Operación', 'IA y Marketing', 'Auditoría y Docs', 'Otros',
 ];
 
-// Categoría por defecto según el slug del módulo. Un módulo nuevo que declare
-// "category" en su admin_card del module.json tiene prioridad sobre este mapa.
 const SLUG_CATEGORY = {
     'addon-cobranza-blaster':      'Finanzas',
     'addon-demo':                  'Sistema',
@@ -143,8 +138,6 @@ const SLUG_CATEGORY = {
     'core-usuarios':               'Usuarios',
 };
 
-// Overrides por URL para módulos que agrupan varias tarjetas en categorías distintas
-// (p.ej. core-configuracion declara Socios/IFT/Métodos de Pago además de su propia config).
 const URL_CATEGORY = {
     '/administracion/socios':            'Finanzas',
     '/administracion/ift':               'Localización',
@@ -158,7 +151,6 @@ export default {
         csrfToken: { type: String, default: '' },
     },
 
-    // darkMode (ref de appConfig) expuesto al template; el resto usa Options API.
     setup() {
         return { darkMode };
     },
@@ -172,7 +164,6 @@ export default {
     },
 
     computed: {
-        // Categorías presentes, en el orden determinista definido arriba.
         categories() {
             const present = new Set(this.cards.map(c => this.cardCategory(c)));
             return CATEGORY_ORDER.filter(c => present.has(c));
@@ -183,7 +174,6 @@ export default {
             return this.cards.filter(c => this.cardCategory(c) === this.activeCategory);
         },
 
-        // Tarjetas agrupadas por categoría, en orden determinista.
         visibleGroups() {
             const groups = {};
             for (const card of this.filteredCards) {
@@ -213,7 +203,6 @@ export default {
             }
         },
 
-        // Resolución de categoría: card.category (manifest) > URL override > slug map > 'Otros'.
         cardCategory(card) {
             if (card.category && CATEGORY_META[card.category]) return card.category;
             if (card.url && URL_CATEGORY[card.url]) return URL_CATEGORY[card.url];
@@ -224,13 +213,8 @@ export default {
             return this.cards.filter(c => this.cardCategory(c) === cat).length;
         },
 
-        catIcon(cat) {
-            return CATEGORY_META[cat]?.icon || 'th-large';
-        },
-
-        catColor(cat) {
-            return CATEGORY_META[cat]?.color || '#adb5bd';
-        },
+        catIcon(cat)  { return CATEGORY_META[cat]?.icon  || 'th-large'; },
+        catColor(cat) { return CATEGORY_META[cat]?.color || '#adb5bd'; },
 
         moduleBadge(slug) {
             return (slug || '').replace(/^(core|addon)-/, '').replace(/-/g, ' ');
@@ -241,83 +225,144 @@ export default {
 
 <style scoped>
 /* ── Barra de filtro ─────────────────────────────────────────────────────── */
-.admin-filter-bar {
+.config-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 14px;
     border-bottom: 1px solid rgba(0,0,0,.08);
-    padding-bottom: 12px;
 }
-[data-layout-mode=dark] .admin-filter-bar {
+[data-layout-mode=dark] .config-filter-bar {
     border-bottom-color: rgba(255,255,255,.1);
 }
 
-.btn-filter {
-    background: transparent;
-    border: 1px solid rgba(0,0,0,.15);
+.cfg-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 14px;
     border-radius: 20px;
-    padding: 3px 12px;
-    font-size: 0.78rem;
-    transition: all .15s;
+    font-size: 0.76rem;
+    font-weight: 500;
+    border: 1.5px solid rgba(0,0,0,.12);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+    line-height: 1.4;
 }
-.btn-filter:hover,
-.btn-filter.active {
+.cfg-pill:hover {
+    border-color: var(--bs-primary, #556ee6);
+    color: var(--bs-primary, #556ee6);
+}
+.cfg-pill.active {
     background: var(--bs-primary, #556ee6);
-    color: #fff !important;
-    border-color: transparent;
-}
-.btn-filter.active .filter-count,
-.btn-filter:hover .filter-count {
-    background: rgba(255,255,255,.25);
+    border-color: var(--bs-primary, #556ee6);
     color: #fff;
 }
-[data-layout-mode=dark] .btn-filter {
+[data-layout-mode=dark] .cfg-pill {
     border-color: rgba(255,255,255,.18);
 }
-.filter-count {
-    display: inline-block;
+[data-layout-mode=dark] .cfg-pill:hover {
+    border-color: var(--bs-primary, #556ee6);
+    color: var(--bs-primary, #556ee6);
+}
+
+.cfg-pill-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 18px;
     padding: 0 5px;
-    margin-left: 4px;
     border-radius: 10px;
     background: rgba(0,0,0,.08);
     font-size: 0.68rem;
     line-height: 16px;
-    text-align: center;
+    transition: background .15s, color .15s;
 }
-[data-layout-mode=dark] .filter-count {
+.cfg-pill.active .cfg-pill-count {
+    background: rgba(255,255,255,.25);
+    color: #fff;
+}
+[data-layout-mode=dark] .cfg-pill-count {
     background: rgba(255,255,255,.12);
 }
 
 /* ── Encabezado del grupo ───────────────────────────────────────────────── */
-.admin-group-header {
-    border-bottom: 1px solid rgba(0,0,0,.06);
-    padding-bottom: 6px;
-}
-[data-layout-mode=dark] .admin-group-header {
-    border-bottom-color: rgba(255,255,255,.08);
-}
-.admin-group-badge {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+.config-group-header {
     display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cfg-group-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     color: #fff;
-    font-size: 0.85rem;
+    font-size: 0.72rem;
     flex-shrink: 0;
 }
 
+.cfg-group-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+
+.cfg-group-count {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 20px;
+    background: rgba(0,0,0,.07);
+    color: #74788d;
+    flex-shrink: 0;
+}
+[data-layout-mode=dark] .cfg-group-count {
+    background: rgba(255,255,255,.1);
+    color: #adb5bd;
+}
+
+.cfg-group-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(0,0,0,.07);
+}
+[data-layout-mode=dark] .cfg-group-line {
+    background: rgba(255,255,255,.08);
+}
+
 /* ── Tarjeta ─────────────────────────────────────────────────────────────── */
-/* .card del sistema gestiona el fondo en modo claro/oscuro — no sobreescribir. */
 .admin-card {
     position: relative;
-    transition: box-shadow 0.15s, transform 0.15s;
-    border: 1px solid rgba(0,0,0,.08);
+    border-radius: 10px;
+    transition: box-shadow .18s, transform .18s;
     overflow: hidden;
 }
+.admin-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent, #556ee6);
+    opacity: 0;
+    transition: opacity .18s;
+    border-radius: 10px 10px 0 0;
+}
 .admin-card:hover {
-    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    box-shadow: 0 4px 18px rgba(0,0,0,.13);
     transform: translateY(-2px);
 }
+.admin-card:hover::before {
+    opacity: 1;
+}
+
 .admin-card-icon {
     width: 42px;
     height: 42px;
@@ -329,17 +374,28 @@ export default {
     font-size: 1.1rem;
     flex-shrink: 0;
 }
+
 .admin-card-desc {
-    line-clamp: 2;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
     display: -webkit-box;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-clamp: 2;
 }
+
 .admin-card-module {
     padding: 4px 12px 8px;
     font-size: 0.68rem;
     color: #adb5bd;
     text-transform: capitalize;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.config-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 0;
 }
 </style>

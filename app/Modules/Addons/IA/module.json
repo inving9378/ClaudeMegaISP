@@ -77,7 +77,7 @@
             "label": "IA — Configuración General",
             "type": "general",
             "category": "Sistema",
-            "icon": "settings",
+            "icon": "cog",
             "url": "/ia/configuracion",
             "permission": "ia_manage_proveedores",
             "description": "Parámetros generales del asistente: temperatura, contexto del sistema y límites de uso.",
