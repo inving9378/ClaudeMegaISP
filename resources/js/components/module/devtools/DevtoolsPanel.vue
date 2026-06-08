@@ -302,11 +302,11 @@
                     <button
                         class="dt-icon-btn dt-terminal-copy-btn"
                         @click="copyTerminal"
-                        :title="terminalCopied ? 'Terminal enfocada — Ctrl+Shift+C para copiar' : 'Copiar terminal'"
+                        :title="terminalCopied ? 'Copiado al portapapeles' : 'Copiar todo el buffer'"
                         :class="{ 'dt-copied': terminalCopied }"
                     >
                         <i :class="terminalCopied ? 'fas fa-check' : 'fas fa-copy'"></i>
-                        <span v-if="terminalCopied" class="dt-copy-hint">Ctrl+Shift+C</span>
+                        <span v-if="terminalCopied" class="dt-copy-hint">Copiado</span>
                     </button>
                     <button class="dt-icon-btn" @click="probeTtyd" title="Reintentar conexión">
                         <i class="fas fa-sync"></i>
@@ -353,7 +353,7 @@ import { renderMarkdown, bindCodeCopyButtons } from "../../../composables/useMar
 export default {
     name: "DevtoolsPanel",
     props: {
-        ttydUrl: { type: String, default: "http://127.0.0.1:7681" },
+        ttydUrl: { type: String, default: "/ttyd/" },
         csrfToken: { type: String, required: true },
         userName: { type: String, default: "Dev" },
     },
@@ -759,30 +759,53 @@ export default {
             dragging.value = false;
         };
 
-        // Botón "Copiar terminal" — enfoca el iframe para que los atajos
-        // de teclado de xterm.js (Ctrl+Shift+C) funcionen de inmediato,
-        // y muestra el hint del atajo. El clipboard write real lo hace
-        // xterm.js internamente gracias al atributo allow="clipboard-write".
+        // Same-origin: el nginx proxy /ttyd/ sirve ttyd en el mismo origen,
+        // permitiendo acceder a iframe.contentWindow.term (xterm.js).
+        const effectiveTtydUrl = computed(() => props.ttydUrl);
+
+        // "Copiar todo el buffer" — selectAll → getSelection → clipboard.
+        // Funciona porque el iframe ya es same-origin vía /ttyd/.
         const terminalCopied = ref(false);
-        const copyTerminal = () => {
-            if (terminalIframe.value) {
-                terminalIframe.value.focus();
+        const copyTerminal = async () => {
+            const term = terminalIframe.value?.contentWindow?.term;
+            if (!term) return;
+            term.selectAll();
+            const text = term.getSelection();
+            term.clearSelection();
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                terminalCopied.value = true;
+                setTimeout(() => { terminalCopied.value = false; }, 2500);
+            } catch (e) {
+                // clipboard denegado — silencioso
             }
-            terminalCopied.value = true;
-            setTimeout(() => { terminalCopied.value = false; }, 2500);
+        };
+
+        // Hook "copiar al seleccionar": cuando xterm cambia la selección,
+        // copia automáticamente al portapapeles sin ningún gesto extra.
+        let selectionHookRetries = 0;
+        const hookCopyOnSelect = () => {
+            const cw = terminalIframe.value?.contentWindow;
+            if (!cw) return;
+            const term = cw.term;
+            if (!term) {
+                // xterm.js aún no está listo — reintentar hasta 20 veces (10 s)
+                if (selectionHookRetries++ < 20) {
+                    setTimeout(hookCopyOnSelect, 500);
+                }
+                return;
+            }
+            selectionHookRetries = 0;
+            term.onSelectionChange(() => {
+                const sel = term.getSelection();
+                if (sel) {
+                    navigator.clipboard.writeText(sel).catch(() => {});
+                }
+            });
         };
 
         const ttydReachable = ref(null);
-        const effectiveTtydUrl = computed(() => {
-            const placeholder = "http://127.0.0.1:7681";
-            if (props.ttydUrl && props.ttydUrl !== placeholder) {
-                return props.ttydUrl;
-            }
-            if (typeof window !== "undefined" && window.location?.hostname) {
-                return `http://${window.location.hostname}:7681`;
-            }
-            return props.ttydUrl;
-        });
         const probeTtyd = async () => {
             ttydReachable.value = null;
             try {
@@ -792,7 +815,12 @@ export default {
                 ttydReachable.value = false;
             }
         };
-        const onIframeLoad = () => { ttydReachable.value = true; };
+        const onIframeLoad = () => {
+            ttydReachable.value = true;
+            selectionHookRetries = 0;
+            // Pequeño delay: la terminal puede tardar ~1s en montar después de load
+            setTimeout(hookCopyOnSelect, 800);
+        };
         const onIframeError = () => { ttydReachable.value = false; };
 
         const close = () => {

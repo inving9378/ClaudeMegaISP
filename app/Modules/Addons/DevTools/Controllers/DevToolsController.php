@@ -288,12 +288,14 @@ class DevToolsController extends Controller
 
     private function resolveTtydUrl(): string
     {
+        // TTYD_URL env permite override (ej. dev remoto en otro host).
+        // Por defecto usamos el proxy nginx /ttyd/ que sirve ttyd same-origin,
+        // eliminando la restricción cross-origin que impedía acceder a window.term.
         $env = env('TTYD_URL', '');
         if ($env !== '') {
             return $env;
         }
-        $host = request()->getHost();
-        return "http://{$host}:7681";
+        return '/ttyd/';
     }
 
     private function isAuthorized(): bool
