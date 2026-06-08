@@ -109,7 +109,7 @@
         </div>
 
         <div class="mt-3">
-            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" />
+            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" :status="insightsStatus" />
         </div>
     </div>
 </template>
@@ -126,7 +126,7 @@ const props = defineProps({
 });
 
 const { kpis, loading, fetchKpis } = useKpis('red');
-const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('red');
+const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('red');
 
 const onusDeltaDir = computed(() => {
     const pct = kpis.value?.onus?.pct_up ?? 0;

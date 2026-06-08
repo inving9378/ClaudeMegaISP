@@ -53,7 +53,7 @@
         </div>
 
         <div class="mt-3">
-            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" />
+            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" :status="insightsStatus" />
         </div>
     </div>
 </template>
@@ -71,7 +71,7 @@ const props = defineProps({
 });
 
 const { kpis, loading, fetchKpis } = useKpis('ventas');
-const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('ventas');
+const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('ventas');
 
 // ── Gráfica clientes nuevos semanal ──────────────────────────────────────────
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];

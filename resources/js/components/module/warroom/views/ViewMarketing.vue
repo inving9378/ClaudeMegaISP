@@ -74,7 +74,7 @@
         </div>
 
         <div class="mt-3">
-            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" />
+            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" :status="insightsStatus" />
         </div>
     </div>
 </template>
@@ -92,7 +92,7 @@ const props = defineProps({
 });
 
 const { kpis, loading, fetchKpis } = useKpis('marketing');
-const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('marketing');
+const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('marketing');
 
 const conversionLabel = computed(() => {
     const captados = kpis.value?.leads_captados ?? 0;

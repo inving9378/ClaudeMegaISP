@@ -65,7 +65,7 @@
             </div>
 
             <div class="mt-3">
-                <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" />
+                <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" :status="insightsStatus" />
             </div>
         </template>
     </div>
@@ -83,7 +83,7 @@ const props = defineProps({
 });
 
 const { kpis, loading, fetchKpis } = useKpis('talento');
-const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('talento');
+const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('talento');
 
 const totalAlerts = computed(() => {
     if (!kpis.value?.alerts) return 0;

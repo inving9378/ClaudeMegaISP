@@ -158,6 +158,7 @@
                 :insights="insights"
                 :loading="insightsLoading"
                 :source="insightsSource"
+                :status="insightsStatus"
                 :can-regenerate="true"
                 @regenerate="triggerRegenerate"
             />
@@ -194,7 +195,7 @@ const props = defineProps({
 });
 
 const { kpis, loading, fetchKpis } = useKpis('resumen');
-const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('resumen');
+const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('resumen');
 const actionItems = ref([]);
 
 // ── Labels de período ────────────────────────────────────────────────────────

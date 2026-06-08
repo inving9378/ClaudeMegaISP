@@ -87,7 +87,7 @@
         </div>
 
         <div class="mt-3">
-            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" />
+            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" :status="insightsStatus" />
         </div>
     </div>
 </template>
@@ -105,7 +105,7 @@ const props = defineProps({
 });
 
 const { kpis, loading, fetchKpis } = useKpis('operaciones');
-const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('operaciones');
+const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('operaciones');
 
 function deltaDir(current, previous, invert = false) {
     if (!previous) return 'neutral';
