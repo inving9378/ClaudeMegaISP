@@ -79,13 +79,6 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->onOneServer();
 
-        // War Room — insights cada hora (caché caliente para los 7 dashboards)
-        $schedule->command('warroom:refresh --skip-snapshot')
-            ->hourly()
-            ->withoutOverlapping(55)
-            ->onOneServer()
-            ->name('warroom:refresh-insights');
-
         // War Room — snapshot diario de KPIs al cierre del día (23:55)
         $schedule->command('warroom:refresh --skip-insights')
             ->dailyAt('23:55')
