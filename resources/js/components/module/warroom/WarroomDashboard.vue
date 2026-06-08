@@ -45,37 +45,19 @@
             </div>
         </div>
 
-        <!-- ── Tabs de secciones ──────────────────────────────────────────────── -->
-        <q-tabs
-            v-model="currentView"
-            align="left"
-            dense
-            class="wr-tabs"
-            active-color="white"
-            indicator-color="transparent"
-        >
-            <q-tab name="resumen"     class="wr-tab-resumen">
-                <span class="wr-tab-inner"><i class="ti ti-target-arrow me-1"></i>Resumen</span>
-            </q-tab>
-            <q-tab name="finanzas"    class="wr-tab-finanzas">
-                <span class="wr-tab-inner"><i class="ti ti-coin me-1"></i>Finanzas</span>
-            </q-tab>
-            <q-tab name="operaciones" class="wr-tab-operaciones">
-                <span class="wr-tab-inner"><i class="ti ti-tools me-1"></i>Operaciones</span>
-            </q-tab>
-            <q-tab name="ventas"      class="wr-tab-ventas">
-                <span class="wr-tab-inner"><i class="ti ti-trending-up me-1"></i>Ventas</span>
-            </q-tab>
-            <q-tab name="red"         class="wr-tab-red">
-                <span class="wr-tab-inner"><i class="ti ti-network me-1"></i>Red</span>
-            </q-tab>
-            <q-tab name="marketing"   class="wr-tab-marketing">
-                <span class="wr-tab-inner"><i class="ti ti-brand-whatsapp me-1"></i>Marketing</span>
-            </q-tab>
-            <q-tab name="talento"     class="wr-tab-talento">
-                <span class="wr-tab-inner"><i class="ti ti-users me-1"></i>Talento</span>
-            </q-tab>
-        </q-tabs>
+        <!-- ── Tabs de secciones (flex-wrap — todas visibles) ───────────────── -->
+        <div class="wr-tabs-nav">
+            <button
+                v-for="tab in TABS"
+                :key="tab.name"
+                class="wr-tab-btn"
+                :class="[`wr-tab-${tab.name}`, { 'wr-tab-active': currentView === tab.name }]"
+                @click="currentView = tab.name"
+            >
+                <i :class="`ti ${tab.icon}`"></i>
+                <span class="wr-tab-label">{{ tab.label }}</span>
+            </button>
+        </div>
 
         <!-- ── Contenido de cada vista ────────────────────────────────────────── -->
         <q-tab-panels v-model="currentView" animated class="wr-panels">
@@ -168,6 +150,17 @@ defineProps({
     csrfToken: String,
     baseUrl:   String,
 });
+
+// ── Definición de tabs ───────────────────────────────────────────────────────
+const TABS = [
+    { name: 'resumen',     icon: 'ti-target-arrow', label: 'Resumen' },
+    { name: 'finanzas',    icon: 'ti-coin',          label: 'Finanzas' },
+    { name: 'operaciones', icon: 'ti-tools',          label: 'Operaciones' },
+    { name: 'ventas',      icon: 'ti-trending-up',    label: 'Ventas' },
+    { name: 'red',         icon: 'ti-network',        label: 'Red' },
+    { name: 'marketing',   icon: 'ti-brand-whatsapp', label: 'Marketing' },
+    { name: 'talento',     icon: 'ti-users',          label: 'Talento' },
+];
 
 // ── Estado de período y tab ──────────────────────────────────────────────────
 const now           = new Date();
@@ -302,71 +295,66 @@ onUnmounted(() => {
     margin: 0;
 }
 
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
-.warroom-container .wr-tabs {
+/* ── Tabs personalizados (flex-wrap — todos visibles) ─────────────────── */
+.warroom-container .wr-tabs-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--wr-border);
     border-radius: 8px 8px 0 0;
-    /* overflow scroll en pantallas chicas */
-    overflow: hidden;
+    padding: 5px 8px;
 }
 
-.warroom-container .wr-tabs .q-tabs__content {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    scrollbar-width: none;
-}
-.warroom-container .wr-tabs .q-tabs__content::-webkit-scrollbar { display: none; }
-
-.warroom-container .wr-tabs .q-tab {
-    color: var(--wr-text-muted);
+.warroom-container .wr-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 12px;
     font-size: 12px;
     letter-spacing: 0.3px;
-    min-height: 40px;
-    min-width: 80px;
-    flex-shrink: 0;
-    /* posición relativa para el ::after de color */
+    color: var(--wr-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
     position: relative;
+    transition: color 0.15s, background 0.15s;
 }
 
-/* Ocultar el indicador uniforme de Quasar; lo reemplazamos por ::after */
-.warroom-container .wr-tabs .q-tab__indicator { display: none !important; }
+.warroom-container .wr-tab-btn:hover {
+    background: rgba(255,255,255,0.06);
+    color: var(--wr-text);
+}
 
-/* Indicador propio: línea en la parte inferior por pestaña activa */
-.warroom-container .wr-tabs .q-tab--active::after {
+/* Indicador: línea inferior en la pestaña activa */
+.warroom-container .wr-tab-btn.wr-tab-active::after {
     content: '';
     position: absolute;
     bottom: 0;
-    left: 12px;
-    right: 12px;
-    height: 3px;
-    border-radius: 3px 3px 0 0;
+    left: 10px;
+    right: 10px;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
     transition: background 0.2s;
 }
 
-/* Acento de color por sección */
-.warroom-container .wr-tabs .wr-tab-resumen.q-tab--active::after     { background: #8b80f8; }
-.warroom-container .wr-tabs .wr-tab-finanzas.q-tab--active::after    { background: #1D9E75; }
-.warroom-container .wr-tabs .wr-tab-operaciones.q-tab--active::after { background: #EF9F27; }
-.warroom-container .wr-tabs .wr-tab-ventas.q-tab--active::after      { background: #4d9ee8; }
-.warroom-container .wr-tabs .wr-tab-red.q-tab--active::after         { background: #35c4a0; }
-.warroom-container .wr-tabs .wr-tab-marketing.q-tab--active::after   { background: #e87aaa; }
-.warroom-container .wr-tabs .wr-tab-talento.q-tab--active::after     { background: #f5c842; }
-
-/* Texto de la pestaña activa con color del acento */
-.warroom-container .wr-tabs .wr-tab-resumen.q-tab--active     { color: #c5bfff !important; }
-.warroom-container .wr-tabs .wr-tab-finanzas.q-tab--active    { color: #5ddbb3 !important; }
-.warroom-container .wr-tabs .wr-tab-operaciones.q-tab--active { color: #f5c47a !important; }
-.warroom-container .wr-tabs .wr-tab-ventas.q-tab--active      { color: #80b8f0 !important; }
-.warroom-container .wr-tabs .wr-tab-red.q-tab--active         { color: #5ddbb3 !important; }
-.warroom-container .wr-tabs .wr-tab-marketing.q-tab--active   { color: #f0a3be !important; }
-.warroom-container .wr-tabs .wr-tab-talento.q-tab--active     { color: #f5d47a !important; }
-
-.warroom-container .wr-tab-inner {
-    display: flex;
-    align-items: center;
-    font-size: 12px;
-}
+/* Acento de color por sección (línea + texto) */
+.warroom-container .wr-tab-btn.wr-tab-resumen.wr-tab-active     { color: #c5bfff; }
+.warroom-container .wr-tab-btn.wr-tab-resumen.wr-tab-active::after     { background: #8b80f8; }
+.warroom-container .wr-tab-btn.wr-tab-finanzas.wr-tab-active    { color: #5ddbb3; }
+.warroom-container .wr-tab-btn.wr-tab-finanzas.wr-tab-active::after    { background: #1D9E75; }
+.warroom-container .wr-tab-btn.wr-tab-operaciones.wr-tab-active { color: #f5c47a; }
+.warroom-container .wr-tab-btn.wr-tab-operaciones.wr-tab-active::after { background: #EF9F27; }
+.warroom-container .wr-tab-btn.wr-tab-ventas.wr-tab-active      { color: #80b8f0; }
+.warroom-container .wr-tab-btn.wr-tab-ventas.wr-tab-active::after      { background: #4d9ee8; }
+.warroom-container .wr-tab-btn.wr-tab-red.wr-tab-active         { color: #5ddbb3; }
+.warroom-container .wr-tab-btn.wr-tab-red.wr-tab-active::after         { background: #35c4a0; }
+.warroom-container .wr-tab-btn.wr-tab-marketing.wr-tab-active   { color: #f0a3be; }
+.warroom-container .wr-tab-btn.wr-tab-marketing.wr-tab-active::after   { background: #e87aaa; }
+.warroom-container .wr-tab-btn.wr-tab-talento.wr-tab-active     { color: #f5d47a; }
+.warroom-container .wr-tab-btn.wr-tab-talento.wr-tab-active::after     { background: #f5c842; }
 
 .warroom-container .wr-panels {
     background: transparent;
