@@ -16,10 +16,14 @@ class KpiController extends Controller
 {
     public function show(string $view, ?string $period = null): JsonResponse
     {
-        $period   = $period ?? now()->format('Y-m');
-        $previous = Carbon::createFromFormat('Y-m', $period)->subMonth()->format('Y-m');
+        return response()->json($this->raw($view, $period ?? now()->format('Y-m')));
+    }
 
-        $data = match ($view) {
+    /** Retorna el array de KPIs sin envolver en JsonResponse (para uso en comandos/jobs). */
+    public function raw(string $view, string $period): array
+    {
+        $previous = Carbon::createFromFormat('Y-m', $period)->subMonth()->format('Y-m');
+        return match ($view) {
             'resumen'     => $this->resumenKpis($period, $previous),
             'finanzas'    => $this->finanzasKpis($period, $previous),
             'operaciones' => $this->operacionesKpis($period, $previous),
@@ -27,10 +31,8 @@ class KpiController extends Controller
             'red'         => $this->redKpis($period, $previous),
             'marketing'   => $this->marketingKpis($period, $previous),
             'talento'     => $this->talentoKpis($period, $previous),
-            default       => ['error' => 'Vista no reconocida'],
+            default       => [],
         };
-
-        return response()->json($data);
     }
 
     // ── Vista: Resumen ───────────────────────────────────────────────────────────

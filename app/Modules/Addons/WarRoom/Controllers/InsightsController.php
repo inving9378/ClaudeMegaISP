@@ -3,14 +3,19 @@
 namespace App\Modules\Addons\WarRoom\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\WarRoom\Jobs\RefreshInsightsJob;
 use App\Modules\Addons\WarRoom\Models\InsightsCache;
-use App\Modules\Addons\WarRoom\Services\InsightsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class InsightsController extends Controller
 {
-    public function __construct(private InsightsService $insightsService) {}
+    /**
+     * TTL que se considera "fresco" para peticiones HTTP (2 horas).
+     * El scheduler refresca cada hora, así que en la mayoría de cargas
+     * el cache tendrá < 1h de antigüedad y se sirve al instante.
+     */
+    private const FRESH_TTL_MINUTES = 120;
 
     public function show(string $view, ?string $period = null): JsonResponse
     {
@@ -20,17 +25,25 @@ class InsightsController extends Controller
             ->where('period', $period)
             ->first();
 
-        if ($cached && $cached->isFresh(60)) {
-            return response()->json(['insights' => $cached->insights, 'source' => $cached->source, 'cached' => true]);
+        // Cache fresco → servir inmediatamente
+        if ($cached && $cached->isFresh(self::FRESH_TTL_MINUTES)) {
+            return response()->json([
+                'insights' => $cached->insights,
+                'source'   => $cached->source,
+                'cached'   => true,
+                'status'   => 'ready',
+            ]);
         }
 
-        // Auto-generar si no hay cache válido
-        try {
-            $result = $this->insightsService->generate($view, $period);
-            return response()->json(['insights' => $result->insights, 'source' => $result->source, 'cached' => false]);
-        } catch (\Throwable $e) {
-            return response()->json(['insights' => [], 'source' => null, 'cached' => false, 'error' => 'No se pudieron generar insights'], 500);
-        }
+        // Cache stale o vacío → disparar job en background, devolver lo que hay
+        RefreshInsightsJob::dispatch($view, $period)->onQueue('default');
+
+        return response()->json([
+            'insights' => $cached?->insights ?? [],
+            'source'   => $cached?->source,
+            'cached'   => false,
+            'status'   => 'generating',
+        ]);
     }
 
     public function regenerate(Request $request, string $view, ?string $period = null): JsonResponse
@@ -41,11 +54,8 @@ class InsightsController extends Controller
 
         InsightsCache::where('view_key', $view)->where('period', $period)->delete();
 
-        try {
-            $result = $this->insightsService->generate($view, $period);
-            return response()->json(['insights' => $result->insights, 'source' => $result->source, 'regenerated' => true]);
-        } catch (\Throwable $e) {
-            return response()->json(['error' => 'Error al regenerar insights: ' . $e->getMessage()], 500);
-        }
+        RefreshInsightsJob::dispatch($view, $period)->onQueue('default');
+
+        return response()->json(['queued' => true, 'status' => 'generating']);
     }
 }
