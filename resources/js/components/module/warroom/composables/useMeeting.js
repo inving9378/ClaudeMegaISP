@@ -109,6 +109,9 @@ export function useMeeting() {
             const { data } = await axios.post(`/warroom/api/meetings/${meeting.value.id}/end`);
             meeting.value = null;
             aiSuggestion.value = null;
+            elapsedTotalSeconds.value   = 0;
+            elapsedSectionSeconds.value = 0;
+            if (timer)           clearInterval(timer);
             if (suggestionTimer) clearInterval(suggestionTimer);
             return data; // { meeting, summary }
         } finally {
@@ -138,6 +141,15 @@ export function useMeeting() {
         if (p < 80)  return 'positive';
         if (p < 100) return 'warning';
         return 'negative';
+    });
+
+    // Cuenta regresiva total: positivo = tiempo restante, negativo = excedente
+    const countdownSeconds = computed(() => {
+        if (!meeting.value?.sections) return 0;
+        const totalPlanned = meeting.value.sections.reduce(
+            (sum, s) => sum + (s.time_planned_seconds ?? 0), 0
+        );
+        return totalPlanned - elapsedTotalSeconds.value;
     });
 
     const etaEnd = computed(() => {
@@ -173,7 +185,7 @@ export function useMeeting() {
     return {
         meeting, loading, currentSection, aiSuggestion,
         elapsedTotalSeconds, elapsedSectionSeconds,
-        sectionProgress, sectionColor, etaEnd,
+        sectionProgress, sectionColor, countdownSeconds, etaEnd,
         nextSection, previousSection, pause, resume, end, loadActive, formatTime,
     };
 }
