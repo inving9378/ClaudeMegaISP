@@ -61,7 +61,7 @@ class InsightsService
             ],
             'marketing' => [
                 'publicaciones'    => DB::table('marketing_publications')->where('status', 'published')->whereYear('created_at', $cy)->whereMonth('created_at', $cm)->count(),
-                'campanias_activas'=> DB::table('marketing_campaigns')->where('status', 'active')->count(),
+                'campanias_activas'=> DB::table('marketing_campaigns')->where('status', 'active')->whereNull('deleted_at')->count(),
                 'leads_captados'   => DB::table('marketing_leads')->whereYear('created_at', $cy)->whereMonth('created_at', $cm)->count(),
                 'leads_ganados'    => DB::table('marketing_leads')->whereYear('created_at', $cy)->whereMonth('created_at', $cm)->where('status', 'won')->count(),
             ],
