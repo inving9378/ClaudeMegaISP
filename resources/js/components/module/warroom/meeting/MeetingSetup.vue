@@ -170,15 +170,16 @@ const defaultScheduled = new Date(now.getTime() - now.getTimezoneOffset() * 6000
     .toISOString().slice(0, 16);
 
 const SECTION_META = {
-    resumen:     { label: 'Resumen ejecutivo',     icon: 'ti-target-arrow', color: '#534AB7' },
-    finanzas:    { label: 'Finanzas',              icon: 'ti-coin',         color: '#1D9E75' },
-    operaciones: { label: 'Operaciones',           icon: 'ti-tools',        color: '#BA7517' },
-    ventas:      { label: 'Ventas y Embajadores',  icon: 'ti-trending-up',  color: '#185FA5' },
-    red:         { label: 'Red e Infraestructura', icon: 'ti-network',      color: '#1D9E75' },
-    marketing:   { label: 'Marketing',             icon: 'ti-brand-whatsapp', color: '#D4537E' },
+    resumen:     { label: 'Resumen ejecutivo',     icon: 'ti-target-arrow',    color: '#534AB7' },
+    finanzas:    { label: 'Finanzas',              icon: 'ti-coin',            color: '#1D9E75' },
+    operaciones: { label: 'Operaciones',           icon: 'ti-tools',           color: '#BA7517' },
+    ventas:      { label: 'Ventas y Embajadores',  icon: 'ti-trending-up',     color: '#185FA5' },
+    red:         { label: 'Red e Infraestructura', icon: 'ti-network',         color: '#1D9E75' },
+    marketing:   { label: 'Marketing',             icon: 'ti-brand-whatsapp',  color: '#D4537E' },
+    talento:     { label: 'Talento',               icon: 'ti-users',           color: '#EF9F27' },
 };
 
-const DEFAULT_TIMES = { resumen: 7, finanzas: 10, operaciones: 12, ventas: 10, red: 8, marketing: 5 };
+const DEFAULT_TIMES = { resumen: 7, finanzas: 10, operaciones: 12, ventas: 10, red: 8, marketing: 5, talento: 8 };
 
 const form = ref({
     name:         '',
