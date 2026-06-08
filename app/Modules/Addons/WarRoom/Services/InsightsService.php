@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class InsightsService
 {
@@ -65,6 +66,12 @@ class InsightsService
                 'leads_captados'   => DB::table('marketing_leads')->whereYear('created_at', $cy)->whereMonth('created_at', $cm)->count(),
                 'leads_ganados'    => DB::table('marketing_leads')->whereYear('created_at', $cy)->whereMonth('created_at', $cm)->where('status', 'won')->count(),
             ],
+            'talento' => Schema::hasTable('talento_colaboradores') ? [
+                'colaboradores_activos' => DB::table('talento_colaboradores')->where('status', 'active')->count(),
+                'ots_validadas_mes'     => DB::table('talento_work_orders')->where('status', 'validated')->whereYear('validated_at', $cy)->whereMonth('validated_at', $cm)->count(),
+                'ots_creadas_mes'       => DB::table('talento_work_orders')->whereYear('created_at', $cy)->whereMonth('created_at', $cm)->count(),
+                'pendientes_validar'    => DB::table('talento_work_orders')->whereIn('status', ['completed', 'pending_validation'])->count(),
+            ] : [],
             default => [],
         };
     }
@@ -130,6 +137,7 @@ class InsightsService
             'red' => $this->redRules($kpis),
             'ventas' => $this->ventasRules($kpis),
             'marketing' => $this->marketingRules($kpis),
+            'talento'   => $this->talentoRules($kpis),
             default => [
                 ['type' => 'atencion', 'text' => 'No hay datos suficientes para generar insights automáticos en este periodo.'],
             ],
@@ -199,6 +207,27 @@ class InsightsService
             ['type' => 'positivo',     'text' => "{$k['publicaciones']} publicaciones enviadas este periodo."],
             ['type' => 'atencion',     'text' => "{$k['leads_captados']} leads captados, {$k['leads_ganados']} convertidos. Revisar tasa de conversión."],
             ['type' => 'oportunidad',  'text' => "{$k['campanias_activas']} campañas activas. Optimizar segmentación para aumentar leads ganados."],
+        ];
+    }
+
+    private function talentoRules(array $k): array
+    {
+        if (empty($k)) {
+            return [['type' => 'atencion', 'text' => 'Talento no disponible en esta instancia.']];
+        }
+        $activos    = $k['colaboradores_activos'] ?? 0;
+        $validadas  = $k['ots_validadas_mes'] ?? 0;
+        $creadas    = $k['ots_creadas_mes'] ?? 0;
+        $pendientes = $k['pendientes_validar'] ?? 0;
+        $tasaValid  = $creadas > 0 ? round(($validadas / $creadas) * 100, 1) : 0;
+
+        $tipoEquipo = $activos >= 5 ? 'positivo' : 'atencion';
+        $tipoValid  = $tasaValid >= 70 ? 'positivo' : 'atencion';
+
+        return [
+            ['type' => $tipoEquipo, 'text' => "{$activos} colaboradores activos en campo este periodo."],
+            ['type' => $tipoValid,  'text' => "{$validadas} de {$creadas} OTs validadas ({$tasaValid}%). " . ($pendientes > 0 ? "{$pendientes} pendientes de validar." : "Sin pendientes.")],
+            ['type' => 'oportunidad', 'text' => 'Revisar OTs con tiempo de cierre elevado para identificar cuellos de botella operativos.'],
         ];
     }
 

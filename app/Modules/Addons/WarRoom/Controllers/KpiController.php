@@ -657,6 +657,17 @@ class KpiController extends Controller
                 ->toArray();
         }
 
+        $weeklySeriesTalento = $this->weeklySeriesHelper(
+            $current,
+            $previous,
+            fn ($y, $m, $d1, $d2) => (int) DB::table('talento_work_orders')
+                ->where('status', 'validated')
+                ->whereYear('validated_at', $y)
+                ->whereMonth('validated_at', $m)
+                ->whereRaw('DAY(validated_at) BETWEEN ? AND ?', [$d1, $d2])
+                ->count()
+        );
+
         return [
             'available'           => true,
             'period_current'      => $current,
@@ -666,6 +677,7 @@ class KpiController extends Controller
             'validated_today'     => $ordersValidatedToday,
             'alerts'              => ['credentials' => $credAlerts, 'desvios' => $desvioAlerts],
             'top_performers'      => $topPerformers,
+            'weekly_series'       => $weeklySeriesTalento,
         ];
     }
 
