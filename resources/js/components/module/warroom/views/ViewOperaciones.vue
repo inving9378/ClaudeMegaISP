@@ -19,6 +19,26 @@
                 icon="ti-chart-pie"
                 :loading="loading"
             />
+            <KpiCard
+                label="Pendientes (ToDo + En progreso)"
+                :value="kpis?.tickets_pendientes?.current"
+                :previousValue="kpis?.tickets_pendientes?.previous"
+                :delta="deltaStr(kpis?.tickets_pendientes?.current, kpis?.tickets_pendientes?.previous)"
+                :deltaDirection="deltaDir(kpis?.tickets_pendientes?.current, kpis?.tickets_pendientes?.previous, true)"
+                accent="orange"
+                icon="ti-clock-pause"
+                :loading="loading"
+            />
+            <KpiCard
+                label="Cerrados este mes"
+                :value="kpis?.tickets_cerrados?.current"
+                :previousValue="kpis?.tickets_cerrados?.previous"
+                :delta="deltaStr(kpis?.tickets_cerrados?.current, kpis?.tickets_cerrados?.previous)"
+                :deltaDirection="deltaDir(kpis?.tickets_cerrados?.current, kpis?.tickets_cerrados?.previous)"
+                accent="green"
+                icon="ti-circle-check"
+                :loading="loading"
+            />
         </div>
 
         <!-- Por estado -->

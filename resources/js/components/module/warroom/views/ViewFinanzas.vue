@@ -22,6 +22,24 @@
                 size="hero"
                 :loading="loading"
             />
+            <KpiCard
+                label="Tasa de cobro"
+                :value="kpis?.tasa_cobro != null ? `${kpis.tasa_cobro}%` : null"
+                :delta="kpis?.tasa_cobro != null ? (kpis.tasa_cobro >= 80 ? 'Saludable' : 'Bajo objetivo') : null"
+                :deltaDirection="kpis?.tasa_cobro != null ? (kpis.tasa_cobro >= 80 ? 'up' : 'down') : 'neutral'"
+                accent="green"
+                icon="ti-percent"
+                :loading="loading"
+            />
+            <KpiCard
+                label="Cartera vencida"
+                :value="formatCurrency(kpis?.cartera_vencida?.amount)"
+                :delta="kpis?.cartera_vencida?.count ? `${kpis.cartera_vencida.count} facturas vencidas` : null"
+                :deltaDirection="(kpis?.cartera_vencida?.count ?? 0) > 0 ? 'down' : 'neutral'"
+                accent="orange"
+                icon="ti-alert-triangle"
+                :loading="loading"
+            />
         </div>
 
         <!-- Top deudores -->

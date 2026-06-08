@@ -22,7 +22,7 @@ Route::middleware(['web', 'auth'])->prefix('warroom')->group(function () {
 
         // KPIs
         Route::get('/api/kpis/{view}/{period?}', [KpiController::class, 'show'])
-            ->where('view', 'resumen|finanzas|operaciones|ventas|red|marketing');
+            ->where('view', 'resumen|finanzas|operaciones|ventas|red|marketing|talento');
 
         // Insights
         Route::get('/api/insights/{view}/{period?}', [InsightsController::class, 'show']);
