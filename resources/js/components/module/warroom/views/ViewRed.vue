@@ -29,8 +29,10 @@
                 :loading="loading"
             />
             <KpiCard
-                label="OLTs activas"
-                :value="kpis?.olts?.activas != null ? `${kpis.olts.activas} / ${kpis.olts.total}` : null"
+                label="PPPoE configurados"
+                :value="kpis?.ppoe_activos"
+                :delta="kpis?.olts?.activas != null ? `${kpis.olts.activas}/${kpis.olts.total} OLTs activas` : null"
+                delta-direction="neutral"
                 accent="blue"
                 icon="ti-server"
                 :loading="loading"
@@ -76,6 +78,36 @@
             </div>
         </div>
 
+        <!-- Uso por OLT (datos reales de puertos PON) -->
+        <div class="wr-panel mt-3">
+            <div class="wr-section-title"><i class="ti ti-server me-1"></i> Uso por OLT — ONUs activas / total</div>
+            <template v-if="loading">
+                <q-skeleton v-for="i in 3" :key="i" type="text" class="mb-2" :width="`${80 - i * 10}%`" />
+            </template>
+            <div v-else-if="!kpis?.olt_uso?.length" class="wr-empty">Sin datos de puertos PON disponibles.</div>
+            <div v-else class="wr-status-bars mt-1">
+                <div v-for="olt in kpis.olt_uso" :key="olt.olt_name" class="wr-status-row">
+                    <span class="wr-status-label" style="min-width:140px; flex-shrink:0;">{{ olt.olt_name }}</span>
+                    <div class="wr-status-bar-wrap">
+                        <div class="wr-status-bar" :style="{ width: oltBarWidth(olt) + '%', background: oltBarColor(olt.pct_up) }"></div>
+                    </div>
+                    <span class="wr-status-count" style="width:100px; text-align:right; flex-shrink:0;">
+                        {{ olt.online_onus }}/{{ olt.total_onus }}
+                        <span class="wr-text-dim" style="font-size:10px;"> ({{ olt.pct_up }}%)</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfica tickets de red semanal — 3 meses comparados -->
+        <div class="wr-panel mt-3" v-if="!loading && weeklyChartSeries.length">
+            <div class="wr-section-title mb-2">
+                <i class="ti ti-chart-line me-1"></i>
+                Tickets de red por semana — comparativo 3 meses
+            </div>
+            <apexchart type="line" height="160" :options="weeklyChartOptions" :series="weeklyChartSeries" />
+        </div>
+
         <div class="mt-3">
             <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" />
         </div>
@@ -107,6 +139,55 @@ function onuBarWidth(count) {
     const total = kpis.value?.onus?.total || 1;
     return Math.round((count / total) * 100);
 }
+
+function oltBarWidth(olt) {
+    return olt.total_onus > 0 ? Math.round((olt.online_onus / olt.total_onus) * 100) : 0;
+}
+
+function oltBarColor(pctUp) {
+    if (pctUp >= 90) return 'var(--wr-green)';
+    if (pctUp >= 70) return '#f0a500';
+    return 'var(--wr-orange)';
+}
+
+// ── Gráfica tickets de red semanal ───────────────────────────────────────────
+const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function periodLabel(p) {
+    const [y, m] = p.split('-');
+    return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
+}
+
+const weeklyChartSeries = computed(() => {
+    if (!kpis.value?.weekly_series?.series) return [];
+    return kpis.value.weekly_series.series.map(s => ({
+        name: periodLabel(s.period),
+        data: s.data,
+    }));
+});
+
+const weeklyChartOptions = computed(() => ({
+    chart: { background: 'transparent', toolbar: { show: false }, animations: { enabled: false } },
+    theme: { mode: 'dark' },
+    colors: ['#1D9E75', '#534AB7', '#6b6b85'],
+    stroke: { curve: 'smooth', width: [3, 1.5, 1] },
+    xaxis: {
+        categories: kpis.value?.weekly_series?.labels ?? ['Sem 1','Sem 2','Sem 3','Sem 4'],
+        labels: { style: { colors: '#6b6b85', fontSize: '11px' } },
+        axisBorder: { show: false },
+        axisTicks: { show: false },
+    },
+    yaxis: {
+        labels: {
+            style: { colors: '#6b6b85', fontSize: '10px' },
+            formatter: v => `${Math.round(v)}`,
+        },
+    },
+    grid: { borderColor: 'rgba(255,255,255,0.06)', strokeDashArray: 4 },
+    tooltip: { theme: 'dark', y: { formatter: v => `${Math.round(v)} tickets` } },
+    legend: { labels: { colors: '#9999b0' }, fontSize: '11px' },
+    dataLabels: { enabled: false },
+    markers: { size: 4, strokeWidth: 0 },
+}));
 
 async function load() {
     await Promise.all([fetchKpis(props.period), fetchInsights(props.period)]);
