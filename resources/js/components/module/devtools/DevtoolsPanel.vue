@@ -298,14 +298,35 @@
                     <i class="fas fa-terminal"></i> Terminal
                     <small class="dt-terminal-url">{{ effectiveTtydUrl }}</small>
                 </span>
-                <button class="dt-icon-btn" @click="probeTtyd" title="Reintentar conexión">
-                    <i class="fas fa-sync"></i>
-                </button>
+                <div class="dt-terminal-header-btns">
+                    <button
+                        class="dt-icon-btn dt-terminal-copy-btn"
+                        @click="copyTerminal"
+                        :title="terminalCopied ? 'Terminal enfocada — Ctrl+Shift+C para copiar' : 'Copiar terminal'"
+                        :class="{ 'dt-copied': terminalCopied }"
+                    >
+                        <i :class="terminalCopied ? 'fas fa-check' : 'fas fa-copy'"></i>
+                        <span v-if="terminalCopied" class="dt-copy-hint">Ctrl+Shift+C</span>
+                    </button>
+                    <button class="dt-icon-btn" @click="probeTtyd" title="Reintentar conexión">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                </div>
             </div>
             <div class="dt-terminal-body">
+                <!-- Overlay transparente mientras se arrastra el divisor:
+                     evita que el iframe capture el mouseup y deje dragging=true atascado. -->
+                <div
+                    v-if="dragging"
+                    class="dt-terminal-drag-overlay"
+                    @mouseup="endDrag"
+                    @mousemove="onDrag"
+                ></div>
                 <iframe
                     v-if="ttydReachable !== false"
+                    ref="terminalIframe"
                     :src="effectiveTtydUrl"
+                    allow="clipboard-write clipboard-read"
                     @load="onIframeLoad"
                     @error="onIframeError"
                 ></iframe>
@@ -721,6 +742,7 @@ export default {
         // 8. TERMINAL ttyd + DIVIDER drag
         // =============================================================
         const rootRef = ref(null);
+        const terminalIframe = ref(null);
         const terminalPct = ref(38);
         const dragging = ref(false);
         const startDrag = (e) => {
@@ -735,6 +757,19 @@ export default {
         };
         const endDrag = () => {
             dragging.value = false;
+        };
+
+        // Botón "Copiar terminal" — enfoca el iframe para que los atajos
+        // de teclado de xterm.js (Ctrl+Shift+C) funcionen de inmediato,
+        // y muestra el hint del atajo. El clipboard write real lo hace
+        // xterm.js internamente gracias al atributo allow="clipboard-write".
+        const terminalCopied = ref(false);
+        const copyTerminal = () => {
+            if (terminalIframe.value) {
+                terminalIframe.value.focus();
+            }
+            terminalCopied.value = true;
+            setTimeout(() => { terminalCopied.value = false; }, 2500);
         };
 
         const ttydReachable = ref(null);
@@ -869,14 +904,19 @@ export default {
             feedbackMessage,
             // terminal + drag
             rootRef,
+            terminalIframe,
             terminalPct,
             dragging,
             startDrag,
+            onDrag,
+            endDrag,
             effectiveTtydUrl,
             ttydReachable,
             probeTtyd,
             onIframeLoad,
             onIframeError,
+            terminalCopied,
+            copyTerminal,
             // misc
             close,
         };
@@ -1490,15 +1530,47 @@ export default {
     opacity: 0.4;
     cursor: not-allowed;
 }
+.dt-terminal-header-btns {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.dt-terminal-copy-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+}
+.dt-terminal-copy-btn.dt-copied {
+    color: var(--dt-success);
+    border-color: var(--dt-success);
+}
+.dt-copy-hint {
+    font-size: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--dt-success);
+    white-space: nowrap;
+}
 .dt-terminal-body {
     flex: 1;
     position: relative;
     background: #000;
+    user-select: text;
 }
 .dt-terminal-body iframe {
     width: 100%;
     height: 100%;
     border: 0;
+}
+/* Overlay transparente activo solo mientras se arrastra el divisor.
+   Impide que el iframe capture el mouseup y deje dragging atascado. */
+.dt-terminal-drag-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    cursor: col-resize;
+    background: transparent;
 }
 .dt-ttyd-setup {
     padding: 2rem;
