@@ -10,6 +10,7 @@
             :elapsed-section-seconds="elapsedSectionSeconds"
             :section-progress="sectionProgress"
             :section-color="sectionColor"
+            :countdown-seconds="countdownSeconds"
             :ai-suggestion="aiSuggestion"
             :loading="meetingLoading"
             @next-section="nextSection"
@@ -51,27 +52,27 @@
             dense
             class="wr-tabs"
             active-color="white"
-            indicator-color="white"
+            indicator-color="transparent"
         >
-            <q-tab name="resumen"     :class="['wr-tab-resumen',     currentView==='resumen'     ? 'wr-tab-active':'']">
+            <q-tab name="resumen"     class="wr-tab-resumen">
                 <span class="wr-tab-inner"><i class="ti ti-target-arrow me-1"></i>Resumen</span>
             </q-tab>
-            <q-tab name="finanzas"    :class="['wr-tab-finanzas',    currentView==='finanzas'    ? 'wr-tab-active':'']">
+            <q-tab name="finanzas"    class="wr-tab-finanzas">
                 <span class="wr-tab-inner"><i class="ti ti-coin me-1"></i>Finanzas</span>
             </q-tab>
-            <q-tab name="operaciones" :class="['wr-tab-operaciones', currentView==='operaciones' ? 'wr-tab-active':'']">
+            <q-tab name="operaciones" class="wr-tab-operaciones">
                 <span class="wr-tab-inner"><i class="ti ti-tools me-1"></i>Operaciones</span>
             </q-tab>
-            <q-tab name="ventas"      :class="['wr-tab-ventas',      currentView==='ventas'      ? 'wr-tab-active':'']">
+            <q-tab name="ventas"      class="wr-tab-ventas">
                 <span class="wr-tab-inner"><i class="ti ti-trending-up me-1"></i>Ventas</span>
             </q-tab>
-            <q-tab name="red"         :class="['wr-tab-red',         currentView==='red'         ? 'wr-tab-active':'']">
+            <q-tab name="red"         class="wr-tab-red">
                 <span class="wr-tab-inner"><i class="ti ti-network me-1"></i>Red</span>
             </q-tab>
-            <q-tab name="marketing"   :class="['wr-tab-marketing',   currentView==='marketing'   ? 'wr-tab-active':'']">
+            <q-tab name="marketing"   class="wr-tab-marketing">
                 <span class="wr-tab-inner"><i class="ti ti-brand-whatsapp me-1"></i>Marketing</span>
             </q-tab>
-            <q-tab name="talento"     :class="['wr-tab-talento',     currentView==='talento'     ? 'wr-tab-active':'']">
+            <q-tab name="talento"     class="wr-tab-talento">
                 <span class="wr-tab-inner"><i class="ti ti-users me-1"></i>Talento</span>
             </q-tab>
         </q-tabs>
@@ -177,7 +178,7 @@ const currentView   = ref('resumen');
 const {
     meeting, loading: meetingLoading, currentSection, aiSuggestion,
     elapsedTotalSeconds, elapsedSectionSeconds,
-    sectionProgress, sectionColor,
+    sectionProgress, sectionColor, countdownSeconds,
     nextSection, previousSection, pause, end, loadActive, formatTime,
 } = useMeeting();
 
@@ -306,18 +307,60 @@ onUnmounted(() => {
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--wr-border);
     border-radius: 8px 8px 0 0;
+    /* overflow scroll en pantallas chicas */
+    overflow: hidden;
 }
+
+.warroom-container .wr-tabs .q-tabs__content {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+}
+.warroom-container .wr-tabs .q-tabs__content::-webkit-scrollbar { display: none; }
 
 .warroom-container .wr-tabs .q-tab {
     color: var(--wr-text-muted);
     font-size: 12px;
     letter-spacing: 0.3px;
     min-height: 40px;
+    min-width: 80px;
+    flex-shrink: 0;
+    /* posición relativa para el ::after de color */
+    position: relative;
 }
 
-.warroom-container .wr-tabs .q-tab--active {
-    color: #fff;
+/* Ocultar el indicador uniforme de Quasar; lo reemplazamos por ::after */
+.warroom-container .wr-tabs .q-tab__indicator { display: none !important; }
+
+/* Indicador propio: línea en la parte inferior por pestaña activa */
+.warroom-container .wr-tabs .q-tab--active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 12px;
+    right: 12px;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    transition: background 0.2s;
 }
+
+/* Acento de color por sección */
+.warroom-container .wr-tabs .wr-tab-resumen.q-tab--active::after     { background: #8b80f8; }
+.warroom-container .wr-tabs .wr-tab-finanzas.q-tab--active::after    { background: #1D9E75; }
+.warroom-container .wr-tabs .wr-tab-operaciones.q-tab--active::after { background: #EF9F27; }
+.warroom-container .wr-tabs .wr-tab-ventas.q-tab--active::after      { background: #4d9ee8; }
+.warroom-container .wr-tabs .wr-tab-red.q-tab--active::after         { background: #35c4a0; }
+.warroom-container .wr-tabs .wr-tab-marketing.q-tab--active::after   { background: #e87aaa; }
+.warroom-container .wr-tabs .wr-tab-talento.q-tab--active::after     { background: #f5c842; }
+
+/* Texto de la pestaña activa con color del acento */
+.warroom-container .wr-tabs .wr-tab-resumen.q-tab--active     { color: #c5bfff !important; }
+.warroom-container .wr-tabs .wr-tab-finanzas.q-tab--active    { color: #5ddbb3 !important; }
+.warroom-container .wr-tabs .wr-tab-operaciones.q-tab--active { color: #f5c47a !important; }
+.warroom-container .wr-tabs .wr-tab-ventas.q-tab--active      { color: #80b8f0 !important; }
+.warroom-container .wr-tabs .wr-tab-red.q-tab--active         { color: #5ddbb3 !important; }
+.warroom-container .wr-tabs .wr-tab-marketing.q-tab--active   { color: #f0a3be !important; }
+.warroom-container .wr-tabs .wr-tab-talento.q-tab--active     { color: #f5d47a !important; }
 
 .warroom-container .wr-tab-inner {
     display: flex;
