@@ -45,7 +45,7 @@
             "label": "Mensajes — Correos de Cobranza",
             "type": "notificaciones",
             "category": "Sistema",
-            "icon": "mail",
+            "icon": "envelope",
             "url": "/message/invoice_email",
             "permission": "inbox_view_inbox",
             "description": "Plantillas de correo para facturas, proformas y recordatorios de pago que se envían automáticamente a los clientes.",

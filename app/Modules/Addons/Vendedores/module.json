@@ -103,7 +103,7 @@
             "label": "Vendedores — Rangos de Venta",
             "type": "general",
             "category": "Ventas",
-            "icon": "bar-chart-2",
+            "icon": "chart-bar",
             "url": "/configuracion/rangos-venta",
             "permission": "seller_cuts_close_box",
             "description": "Rangos de volumen de ventas que clasifican a los vendedores en categorías (bronce, plata, oro).",

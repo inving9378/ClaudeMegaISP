@@ -61,7 +61,7 @@
             "label": "Planes — Catálogo de Servicios",
             "type": "general",
             "category": "Sistema",
-            "icon": "grid",
+            "icon": "th",
             "url": "/planes/internet",
             "permission": "plan_add_internet",
             "description": "Gestión del catálogo de planes contratables: Internet, VoIP, servicios personalizados y bundles.",

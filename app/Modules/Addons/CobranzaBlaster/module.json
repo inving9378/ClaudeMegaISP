@@ -65,7 +65,7 @@
             "label": "Blaster — Horarios y Reintentos",
             "type": "scheduling",
             "category": "Scheduling",
-            "icon": "settings",
+            "icon": "cog",
             "url": "/cobranza/campanas",
             "permission": "cobranza.configure",
             "description": "Horario de marcado, máximo de intentos e intervalo entre reintentos.",

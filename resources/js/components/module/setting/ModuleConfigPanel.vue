@@ -2,21 +2,17 @@
     <div class="module-config-panel">
 
         <!-- Barra de filtro por categoría -->
-        <div class="config-filter-bar mb-3 d-flex flex-wrap gap-2 align-items-center">
-            <q-btn
-                :class="['btn-filter', activeCategory === null ? 'active' : '']"
-                :dark="darkMode"
+        <div class="config-filter-bar mb-4">
+            <button
+                :class="['cfg-pill', activeCategory === null ? 'active' : '']"
                 @click="activeCategory = null"
-                size="sm"
-            >Todas</q-btn>
-            <q-btn
+            >Todas</button>
+            <button
                 v-for="cat in categories"
                 :key="cat"
-                :class="['btn-filter', activeCategory === cat ? 'active' : '']"
-                :dark="darkMode"
+                :class="['cfg-pill', activeCategory === cat ? 'active' : '']"
                 @click="activeCategory = cat"
-                size="sm"
-            >{{ cat }}</q-btn>
+            >{{ cat }}</button>
         </div>
 
         <!-- Estado de carga -->
@@ -25,11 +21,9 @@
             <p class="mt-2 text-muted small">Cargando secciones…</p>
         </div>
 
-        <div v-else-if="visibleGroups.length === 0" class="card">
-            <div class="card-body text-center text-muted py-5">
-                <i class="fa fa-cog fa-3x mb-3 d-block opacity-25"></i>
-                No hay secciones de configuración disponibles.
-            </div>
+        <div v-else-if="visibleGroups.length === 0" class="config-empty">
+            <i class="fa fa-cog fa-2x mb-2 opacity-25"></i>
+            <p class="mb-0 text-muted small">No hay secciones de configuración disponibles.</p>
         </div>
 
         <!-- Grupos por type -->
@@ -40,18 +34,17 @@
                 class="config-group mb-4"
             >
                 <!-- Encabezado del grupo -->
-                <div class="config-group-header d-flex align-items-center mb-2">
-                    <span class="config-group-badge me-2" :style="{ background: typeColor(group.type) }">
+                <div class="config-group-header mb-3">
+                    <span class="cfg-group-badge" :style="{ background: typeColor(group.type) }">
                         <i :class="'fa fa-fw fa-' + typeIcon(group.type)"></i>
                     </span>
-                    <h6 class="mb-0 fw-semibold text-capitalize">
-                        {{ typeLabel(group.type) }}
-                        <span class="text-muted fw-normal ms-1 small">({{ group.sections.length }})</span>
-                    </h6>
+                    <span class="cfg-group-title">{{ typeLabel(group.type) }}</span>
+                    <span class="cfg-group-count">{{ group.sections.length }}</span>
+                    <span class="cfg-group-line"></span>
                 </div>
 
-                <!-- Tiles de la sección -->
-                <div class="row g-2">
+                <!-- Tiles -->
+                <div class="row g-3">
                     <div
                         v-for="section in group.sections"
                         :key="section.key"
@@ -64,15 +57,15 @@
                             class="config-tile card text-decoration-none"
                             :title="section.description || ''"
                         >
-                            <div class="card-body p-2 d-flex align-items-center gap-2">
-                                <h6 class="config-tile-icon m-0" :style="{ color: typeColor(section.type) }">
+                            <div class="card-body text-center px-2 py-3">
+                                <div class="cfg-icon-wrap mb-2" :style="{ background: iconBg(section.type), color: typeColor(section.type) }">
                                     <i :class="'fa fa-fw fa-' + (section.icon || 'cog')"></i>
-                                </h6>
-                                <span class="config-tile-label small lh-sm">{{ section.label }}</span>
+                                </div>
+                                <p class="cfg-tile-label mb-0">{{ section.label }}</p>
                             </div>
-                            <div v-if="section._module && section._module !== 'core-configuracion'" class="config-tile-module">
+                            <span v-if="section._module && section._module !== 'core-configuracion'" class="cfg-module-badge">
                                 {{ moduleBadge(section._module) }}
-                            </div>
+                            </span>
                         </a>
                     </div>
                 </div>
@@ -86,13 +79,13 @@
 import { darkMode } from "../../../hook/appConfig.js";
 
 const TYPE_META = {
-    general:      { label: 'General',        icon: 'cog',          color: '#556ee6' },
-    pagos:        { label: 'Pagos',           icon: 'credit-card',  color: '#f1b44c' },
-    notificaciones:{ label: 'Notificaciones', icon: 'bell',         color: '#34c38f' },
-    scheduling:   { label: 'Programación',   icon: 'clock',        color: '#ffa726' },
-    api_key:      { label: 'API / Claves',   icon: 'key',          color: '#50a5f1' },
-    herramientas: { label: 'Herramientas',   icon: 'tools',        color: '#74788d' },
-    webhook:      { label: 'Webhooks',       icon: 'plug',         color: '#e83e8c' },
+    general:        { label: 'General',        icon: 'cog',          color: '#556ee6', bg: 'rgba(85,110,230,.13)' },
+    pagos:          { label: 'Pagos',           icon: 'credit-card',  color: '#f1b44c', bg: 'rgba(241,180,76,.13)' },
+    notificaciones: { label: 'Notificaciones',  icon: 'bell',         color: '#34c38f', bg: 'rgba(52,195,143,.13)' },
+    scheduling:     { label: 'Programación',    icon: 'clock',        color: '#ffa726', bg: 'rgba(255,167,38,.13)' },
+    api_key:        { label: 'API / Claves',    icon: 'key',          color: '#50a5f1', bg: 'rgba(80,165,241,.13)' },
+    herramientas:   { label: 'Herramientas',    icon: 'tools',        color: '#74788d', bg: 'rgba(116,120,141,.13)' },
+    webhook:        { label: 'Webhooks',        icon: 'plug',         color: '#e83e8c', bg: 'rgba(232,62,140,.13)' },
 };
 
 export default {
@@ -102,8 +95,6 @@ export default {
         baseUrl: { type: String, default: '' },
     },
 
-    // Exponer darkMode (ref de appConfig) al template via setup().
-    // El resto del componente usa Options API; Vue permite mezclar ambos estilos.
     setup() {
         return { darkMode };
     },
@@ -117,19 +108,16 @@ export default {
     },
 
     computed: {
-        // Categorías únicas, ordenadas
         categories() {
             const cats = [...new Set(this.sectionsFlat.map(s => s.category).filter(Boolean))];
             return cats.sort();
         },
 
-        // Secciones filtradas por categoría activa
         filteredSections() {
             if (!this.activeCategory) return this.sectionsFlat;
             return this.sectionsFlat.filter(s => s.category === this.activeCategory);
         },
 
-        // Agrupadas por type, orden determinista
         visibleGroups() {
             const groups = {};
             for (const section of this.filteredSections) {
@@ -137,14 +125,14 @@ export default {
                 if (!groups[t]) groups[t] = { type: t, sections: [] };
                 groups[t].sections.push(section);
             }
-            // Orden preferido de tipos
             const order = ['general', 'pagos', 'notificaciones', 'api_key', 'scheduling', 'herramientas', 'webhook'];
-            const sorted = Object.values(groups).sort((a, b) => {
-                const ia = order.indexOf(a.type);
-                const ib = order.indexOf(b.type);
-                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-            });
-            return sorted.filter(g => g.sections.length > 0);
+            return Object.values(groups)
+                .sort((a, b) => {
+                    const ia = order.indexOf(a.type);
+                    const ib = order.indexOf(b.type);
+                    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                })
+                .filter(g => g.sections.length > 0);
         },
     },
 
@@ -164,17 +152,10 @@ export default {
             }
         },
 
-        typeLabel(type) {
-            return TYPE_META[type]?.label || type;
-        },
-
-        typeIcon(type) {
-            return TYPE_META[type]?.icon || 'cog';
-        },
-
-        typeColor(type) {
-            return TYPE_META[type]?.color || '#74788d';
-        },
+        typeLabel(type)  { return TYPE_META[type]?.label  || type; },
+        typeIcon(type)   { return TYPE_META[type]?.icon   || 'cog'; },
+        typeColor(type)  { return TYPE_META[type]?.color  || '#74788d'; },
+        iconBg(type)     { return TYPE_META[type]?.bg     || 'rgba(116,120,141,.13)'; },
 
         moduleBadge(slug) {
             return slug.replace(/^(core|addon)-/, '').replace(/-/g, ' ');
@@ -186,86 +167,161 @@ export default {
 <style scoped>
 /* ── Barra de filtro ─────────────────────────────────────────────────────── */
 .config-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 14px;
     border-bottom: 1px solid rgba(0,0,0,.08);
-    padding-bottom: 12px;
 }
 [data-layout-mode=dark] .config-filter-bar {
     border-bottom-color: rgba(255,255,255,.1);
 }
 
-/* q-btn de filtro: Quasar aplica tema oscuro via :dark="darkMode" en el markup;
-   aquí solo manejamos el estado activo y el borde en modo claro */
-.btn-filter {
-    background: transparent;
-    border: 1px solid rgba(0,0,0,.15);
+.cfg-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 14px;
     border-radius: 20px;
-    padding: 3px 12px;
-    font-size: 0.78rem;
-    transition: all .15s;
+    font-size: 0.76rem;
+    font-weight: 500;
+    border: 1.5px solid rgba(0,0,0,.12);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+    line-height: 1.4;
 }
-.btn-filter:hover,
-.btn-filter.active {
+.cfg-pill:hover {
+    border-color: var(--bs-primary, #556ee6);
+    color: var(--bs-primary, #556ee6);
+}
+.cfg-pill.active {
     background: var(--bs-primary, #556ee6);
-    color: #fff !important;
-    border-color: transparent;
+    border-color: var(--bs-primary, #556ee6);
+    color: #fff;
 }
-[data-layout-mode=dark] .btn-filter {
+[data-layout-mode=dark] .cfg-pill {
     border-color: rgba(255,255,255,.18);
+}
+[data-layout-mode=dark] .cfg-pill:hover {
+    border-color: var(--bs-primary, #556ee6);
+    color: var(--bs-primary, #556ee6);
 }
 
 /* ── Encabezado del grupo ───────────────────────────────────────────────── */
 .config-group-header {
-    border-bottom: 1px solid rgba(0,0,0,.06);
-    padding-bottom: 6px;
-}
-[data-layout-mode=dark] .config-group-header {
-    border-bottom-color: rgba(255,255,255,.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.config-group-badge {
-    width: 28px;
-    height: 28px;
-    border-radius: 7px;
-    display: flex;
+.cfg-group-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     color: #fff;
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     flex-shrink: 0;
 }
 
-/* ── Tile de sección ────────────────────────────────────────────────────── */
-/* La clase .card del markup garantiza que el fondo lo gestione el CSS global:
-   [data-layout-mode=dark] .card { background-color: #202c33 !important }
-   NO sobreescribir background aquí. */
+.cfg-group-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+
+.cfg-group-count {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 20px;
+    background: rgba(0,0,0,.07);
+    color: #74788d;
+    flex-shrink: 0;
+}
+[data-layout-mode=dark] .cfg-group-count {
+    background: rgba(255,255,255,.1);
+    color: #adb5bd;
+}
+
+.cfg-group-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(0,0,0,.07);
+}
+[data-layout-mode=dark] .cfg-group-line {
+    background: rgba(255,255,255,.08);
+}
+
+/* ── Tile ───────────────────────────────────────────────────────────────── */
 .config-tile {
     display: block;
     position: relative;
-    /* sin background propio — lo hereda de .card del sistema */
-    transition: box-shadow .15s, transform .15s;
+    border-radius: 10px;
+    transition: box-shadow .18s, transform .18s;
     overflow: hidden;
-    min-height: 52px;
+    min-height: 90px;
 }
 .config-tile:hover {
-    box-shadow: 0 3px 12px rgba(0,0,0,.12);
-    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.13);
+    transform: translateY(-2px);
 }
-
-.config-tile-icon { font-size: 1.1rem; flex-shrink: 0; }
-
-/* Sin color propio — hereda el color de texto de Bootstrap/.card en ambos modos */
-.config-tile-label {
-    font-size: 0.78rem;
-    line-height: 1.2;
-    word-break: break-word;
-}
-
-.config-tile-module {
+/* acento superior de color al hacer hover */
+.config-tile::before {
+    content: '';
     position: absolute;
-    bottom: 2px;
-    right: 4px;
-    font-size: 0.62rem;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity .18s;
+    border-radius: 10px 10px 0 0;
+}
+.config-tile:hover::before {
+    opacity: .35;
+}
+
+.cfg-icon-wrap {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.cfg-tile-label {
+    font-size: 0.74rem;
+    font-weight: 500;
+    line-height: 1.3;
+    word-break: break-word;
+    /* hereda el color de texto del tema */
+}
+
+/* badge del módulo en esquina inferior derecha */
+.cfg-module-badge {
+    position: absolute;
+    bottom: 4px;
+    right: 6px;
+    font-size: 0.6rem;
     color: #adb5bd;
     text-transform: capitalize;
+    line-height: 1;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.config-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 0;
 }
 </style>
