@@ -10,13 +10,6 @@ use Illuminate\Http\Request;
 
 class InsightsController extends Controller
 {
-    /**
-     * TTL que se considera "fresco" para peticiones HTTP (2 horas).
-     * El scheduler refresca cada hora, así que en la mayoría de cargas
-     * el cache tendrá < 1h de antigüedad y se sirve al instante.
-     */
-    private const FRESH_TTL_MINUTES = 120;
-
     public function show(string $view, ?string $period = null): JsonResponse
     {
         $period = $period ?? now()->format('Y-m');
@@ -25,8 +18,8 @@ class InsightsController extends Controller
             ->where('period', $period)
             ->first();
 
-        // Cache fresco → servir inmediatamente
-        if ($cached && $cached->isFresh(self::FRESH_TTL_MINUTES)) {
+        // Cualquier cache existente → servir tal cual, sin regenerar
+        if ($cached) {
             return response()->json([
                 'insights' => $cached->insights,
                 'source'   => $cached->source,
@@ -35,12 +28,12 @@ class InsightsController extends Controller
             ]);
         }
 
-        // Cache stale o vacío → disparar job en background, devolver lo que hay
+        // Sin cache → generar una vez en background
         RefreshInsightsJob::dispatch($view, $period)->onQueue('default');
 
         return response()->json([
-            'insights' => $cached?->insights ?? [],
-            'source'   => $cached?->source,
+            'insights' => [],
+            'source'   => null,
             'cached'   => false,
             'status'   => 'generating',
         ]);
