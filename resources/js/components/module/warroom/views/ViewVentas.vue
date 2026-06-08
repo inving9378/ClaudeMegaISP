@@ -43,6 +43,15 @@
             />
         </div>
 
+        <!-- Gráfica clientes nuevos semanal — 3 meses comparados -->
+        <div class="wr-panel mt-3" v-if="!loading && weeklyChartSeries.length">
+            <div class="wr-section-title mb-2">
+                <i class="ti ti-chart-line me-1"></i>
+                Clientes nuevos por semana — comparativo 3 meses
+            </div>
+            <apexchart type="line" height="160" :options="weeklyChartOptions" :series="weeklyChartSeries" />
+        </div>
+
         <div class="mt-3">
             <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" />
         </div>
@@ -50,7 +59,7 @@
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import KpiCard from '../shared/KpiCard.vue';
 import InsightsBlock from '../shared/InsightsBlock.vue';
 import { useKpis } from '../composables/useKpis.js';
@@ -63,6 +72,45 @@ const props = defineProps({
 
 const { kpis, loading, fetchKpis } = useKpis('ventas');
 const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('ventas');
+
+// ── Gráfica clientes nuevos semanal ──────────────────────────────────────────
+const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function periodLabel(p) {
+    const [y, m] = p.split('-');
+    return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
+}
+
+const weeklyChartSeries = computed(() => {
+    if (!kpis.value?.weekly_series?.series) return [];
+    return kpis.value.weekly_series.series.map(s => ({
+        name: periodLabel(s.period),
+        data: s.data,
+    }));
+});
+
+const weeklyChartOptions = computed(() => ({
+    chart: { background: 'transparent', toolbar: { show: false }, animations: { enabled: false } },
+    theme: { mode: 'dark' },
+    colors: ['#1D9E75', '#534AB7', '#6b6b85'],
+    stroke: { curve: 'smooth', width: [3, 1.5, 1] },
+    xaxis: {
+        categories: kpis.value?.weekly_series?.labels ?? ['Sem 1','Sem 2','Sem 3','Sem 4'],
+        labels: { style: { colors: '#6b6b85', fontSize: '11px' } },
+        axisBorder: { show: false },
+        axisTicks: { show: false },
+    },
+    yaxis: {
+        labels: {
+            style: { colors: '#6b6b85', fontSize: '10px' },
+            formatter: v => `${Math.round(v)}`,
+        },
+    },
+    grid: { borderColor: 'rgba(255,255,255,0.06)', strokeDashArray: 4 },
+    tooltip: { theme: 'dark', y: { formatter: v => `${Math.round(v)} clientes` } },
+    legend: { labels: { colors: '#9999b0' }, fontSize: '11px' },
+    dataLabels: { enabled: false },
+    markers: { size: 4, strokeWidth: 0 },
+}));
 
 async function load() {
     await Promise.all([fetchKpis(props.period), fetchInsights(props.period)]);
