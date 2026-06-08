@@ -34,8 +34,8 @@
             <KpiCard
                 label="Cartera vencida"
                 :value="formatCurrency(kpis?.cartera_vencida?.amount)"
-                :delta="kpis?.cartera_vencida?.count ? `${kpis.cartera_vencida.count} facturas vencidas` : null"
-                :deltaDirection="(kpis?.cartera_vencida?.count ?? 0) > 0 ? 'down' : 'neutral'"
+                :delta="kpis?.cartera_vencida?.facturas ? `${kpis.cartera_vencida.facturas} facturas vencidas` : null"
+                :deltaDirection="(kpis?.cartera_vencida?.facturas ?? 0) > 0 ? 'down' : 'neutral'"
                 accent="orange"
                 icon="ti-alert-triangle"
                 :loading="loading"
