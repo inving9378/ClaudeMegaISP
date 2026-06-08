@@ -1,49 +1,58 @@
 # War Room — Auditoría y Completado de Vistas
 **Fecha:** 2026-06-08  
-**Commits:** 40f2087 (Finanzas) · 4c4b8a1 (Operaciones) · 80361d3 (Ventas) · 8b483f6 (Red) · 8116d46 (Marketing)
+**Commits sesión anterior:** 40f2087 (Finanzas) · 4c4b8a1 (Operaciones) · 80361d3 (Ventas) · 8b483f6 (Red) · 8116d46 (Marketing)  
+**Commits sesión final:** d2e2ef4 (fix Finanzas delta) · b4864aa (Talento completo)
 
 ---
 
-## Estado de cada vista (paso 0 — HEAD antes de cambios)
+## Estado final de cada vista (HEAD post-cierre)
 
-| Vista | KPIs antes | Gráfica antes | Paneles antes |
-|-------|-----------|--------------|--------------|
-| **Resumen** | ✅ 5 reales (3 hero: Ingresos/Clientes/Comisiones + Por cobrar + Tickets abiertos) | ✅ Overlay ingresos diarios 2 líneas (ApexCharts) | Top performers, Riesgos/Oportunidades, Activity feed, Insights, Action items |
-| **Finanzas** | ✅ 4 reales: MRR, Por cobrar, Tasa cobro %, Cartera vencida | ❌ | Top deudores, Cash flow 4 sem |
-| **Operaciones** | ⚠️ 4 (KPI #2 "Por estado" era label calculado sin delta real; tiempo_promedio ausente) | ❌ | by_status barras, by_priority chips |
-| **Ventas** | ⚠️ 4 (Clientes nuevos+Comisiones con delta; Embajadores activos+Referidos sin delta) | ❌ | — |
-| **Red** | ✅ 4 reales (clientes_activos, onus online/caídas, olts activas) | ❌ | Estado ONUs; sin PPPoE ni uso por OLT |
-| **Marketing** | ✅ 4 reales (publicaciones/campañas/leads) | ❌ | "Canal de mensajes": texto placeholder honesto sobre Evolution API |
-| **Talento** | ✅ 4 operativos (activos/asistencia hoy/OTs hoy/validadas hoy) | — apropiado | Alertas, top performers, links — completo |
+| Vista | KPIs | Gráfica | Paneles adicionales | Estado |
+|-------|------|---------|---------------------|--------|
+| **Resumen** | 5 reales (3 hero: Ingresos/Clientes/Comisiones + Por cobrar + Tickets abiertos) | ✅ Overlay ingresos diarios 2 líneas (área) | Top performers, Riesgos/Oportunidades, Activity feed, Insights, Action items | ✅ Completo |
+| **Finanzas** | 4 reales: MRR, Por cobrar, Tasa cobro %, Cartera vencida | ✅ MRR semanal × 3 meses | Top deudores, Cash flow 4 sem, Insights | ✅ Completo |
+| **Operaciones** | 4 reales: Tickets mes, Tiempo prom. resolución, Pendientes, Cerrados | ✅ Tickets cerrados/semana × 3 meses | Por estado, Por prioridad, Insights | ✅ Completo |
+| **Ventas** | 4 reales: Clientes nuevos, Comisiones, Embajadores activos, Referidos mes | ✅ Clientes nuevos/semana × 3 meses | Insights | ✅ Completo |
+| **Red** | 4 reales: Clientes activos, ONUs online, ONUs caídas, PPPoE configurados | ✅ Tickets de red/semana × 3 meses | Estado ONUs, Uso por OLT, Insights | ✅ Completo |
+| **Marketing** | 4 reales: Publicaciones, Campañas activas, Leads captados, Leads ganados | ✅ Leads captados/semana × 3 meses | Canal de mensajes (desglose real), Insights | ✅ Completo |
+| **Talento** | 4 operativos: Colaboradores activos, Asistencia hoy, Órdenes hoy, OTs validadas hoy | ✅ OTs validadas/semana × 3 meses | Alertas, Top performers, Links, **Insights** | ✅ Completo |
 
 ---
 
-## Qué se agregó por vista
+## Estado de cada vista ANTES de esta sesión (para referencia)
 
-### Finanzas (commit 40f2087)
-- **Gráfica ApexCharts line** antes de "Top deudores": MRR semanal × 3 meses (este mes verde w=3, anterior azul w=1.5, hace 2 meses gris w=1)
-- **Backend:** `weeklySeriesHelper` privado; `finanzasKpis()` incluye `weekly_series` (MRR pagado agrupado por DAY BETWEEN Sem 1-4, 3 períodos)
-- **KPIs confirmados OK** — tasa_cobro y cartera_vencida ya existían; no se rehizo
+| Vista | KPIs antes | Gráfica antes | Notas |
+|-------|-----------|--------------|-------|
+| **Resumen** | ✅ 5 reales | ✅ Overlay ingresos diarios 2 líneas | Ya completo |
+| **Finanzas** | ✅ 4 reales | ✅ MRR semanal 3 meses (sesión anterior) | Bug: delta cartera_vencida usaba `.count` en vez de `.facturas` → texto del delta no aparecía |
+| **Operaciones** | ✅ 4 reales | ✅ Tickets cerrados semanal (sesión anterior) | Ya completo |
+| **Ventas** | ✅ 4 reales | ✅ Clientes nuevos semanal (sesión anterior) | Ya completo |
+| **Red** | ✅ 4 reales | ✅ Tickets de red semanal (sesión anterior) | Ya completo |
+| **Marketing** | ✅ 4 reales | ✅ Leads semanal (sesión anterior) | Ya completo |
+| **Talento** | ✅ 4 operativos | ❌ Sin gráfica | Sin InsightsBlock. Backend no retornaba weekly_series. InsightsService no tenía caso 'talento'. |
 
-### Operaciones (commit 4c4b8a1)
-- **KPI reemplazado:** "Por estado" (label calculado sin valor numérico comparativo) → **"Tiempo prom. resolución"** (avg TIMESTAMPDIFF HOUR, tasks Done del período, current+previous; formato h o d si ≥48h; invert=true porque menor es mejor)
-- **Gráfica ApexCharts line** antes de "Por estado" panel: tickets cerrados por semana × 3 meses
-- **Backend:** `tiempo_promedio` (current+previous) + `weekly_series` en `operacionesKpis()`
+---
 
-### Ventas (commit 80361d3)
-- **Gráfica ApexCharts line** antes de InsightsBlock: clientes nuevos por semana × 3 meses
-- **Backend:** `weekly_series` en `ventasKpis()` (clients.created_at agrupado por semana)
+## Cambios de esta sesión (commits d2e2ef4 + b4864aa)
 
-### Red (commit 8b483f6)
-- **KPI #4 cambiado:** "OLTs activas" → **"PPPoE configurados"** (5,407 cuentas de mikrotik_client_ppoes; OLTs activas/total pasa al delta de este KPI)
-- **Panel nuevo "Uso por OLT":** tabla con barras coloreadas por uptime para cada OLT real (datos de olt_pon_ports + olts); color verde ≥90%, ámbar ≥70%, naranja <70%
-- **Gráfica ApexCharts line:** tickets sin internet por semana × 3 meses (proxy de incidencias de red)
-- **Backend:** `ppoe_activos` + `olt_uso` (SUM online_onus/onus_count + COUNT ports, agrupado por OLT) + `weekly_series`
+### Fix Finanzas (d2e2ef4)
+- `ViewFinanzas.vue`: `kpis?.cartera_vencida?.count` → `kpis?.cartera_vencida?.facturas`
+- El backend retorna la clave `facturas` (no `count`) en el objeto `cartera_vencida`. El delta text ("N facturas vencidas") no se mostraba por este typo.
 
-### Marketing (commit 8116d46)
-- **Panel "Canal de mensajes" reemplazado:** lista real de 6 canales configurados (WhatsApp, Facebook, Instagram, Email, SMS, Voz) con conteo de publicaciones del mes (actualmente 0 — datos honestos, no placeholder falso); nota explícita de que apertura/entrega requiere integración Evolution API
-- **Gráfica ApexCharts line:** leads captados por semana × 3 meses
-- **Backend:** `canal_desglose` (LEFT JOIN marketing_channels + marketing_publications del mes) + `weekly_series` (marketing_leads.created_at)
+### Talento completo (b4864aa)
+
+**Backend `KpiController::talentoKpis()`:**
+- Agrega `weekly_series` usando `weeklySeriesHelper` con OTs validadas (status='validated', grouped by DAY(validated_at) por semana) × 3 meses
+
+**Backend `InsightsService`:**
+- `fetchKpis('talento')`: retorna colaboradores_activos, ots_validadas_mes, ots_creadas_mes, pendientes_validar; con guard `Schema::hasTable` por si Talento no está instalado
+- `generateWithRules('talento')`: nuevo método `talentoRules()` → 3 insights: equipo activo, tasa de validación, oportunidad de mejora
+- `use Illuminate\Support\Facades\Schema` agregado al archivo
+
+**Frontend `ViewTalento.vue`:**
+- Misma estructura de gráfica que las demás vistas: ApexCharts line, 3 series (verde w=3 / azul w=1.5 / gris w=1), eje X Sem 1-4
+- `InsightsBlock` agregado debajo de top performers (misma sección que otras vistas)
+- `useInsights('talento')` agregado al composable
 
 ---
 
@@ -51,16 +60,15 @@
 
 | Área | Pendiente | Razón |
 |------|-----------|-------|
-| OLT/MikroTik en vivo | Métricas en tiempo real (throughput, latencia, % utilización por puerto) | Requiere integración activa con SmartOLT/RouterOS API; fuera de alcance de esta tarea |
+| OLT/MikroTik en vivo | Métricas en tiempo real (throughput, latencia, % utilización por puerto activo) | Requiere integración activa con SmartOLT/RouterOS API; los datos de BD (olt_onus, olt_pon_ports) ya se usan; la capa "en vivo" es tarea aparte |
 | Marketing — apertura/entrega | Tasa de apertura, entrega, clics por canal | Requiere Evolution API analytics (actualmente no expuesto en API) |
-| Resumen — gráfica 3 períodos | Tiene gráfica diaria 2 líneas; no se actualizó a semanal 3 líneas | Ya tiene gráfica funcional; task spec excluye vistas que ya tienen gráfica |
-| Talento — gráfica semanal | No se agregó gráfica | KPIs son "hoy" (operativos), no acumulados mensuales; no aplica comparativo semanal |
+| Resumen — gráfica 3 períodos | Tiene gráfica overlay diaria 2 líneas (área); no se migró a semanal 3 líneas | Ya tiene gráfica funcional y distinta; la overlay diaria es más útil para el Resumen |
 | Insights background | Regeneración automática periódica de insights por vista | Job/snapshot scheduling — tarea separada |
 | KPI Snapshots | Guardar snapshot de KPIs en warroom_kpi_snapshots para histórico | Requiere job programado |
 
 ---
 
-## Esquema de la gráfica comparativa (patrón reutilizado)
+## Esquema de la gráfica comparativa (patrón reutilizado en todas las vistas)
 
 ```
 Series 0 — este mes:      color #1D9E75, stroke.width = 3 (más gruesa y brillante)
@@ -79,11 +87,13 @@ Implementado en: `weeklySeriesHelper()` en KpiController (3 períodos × 4 seman
 
 | Vista | Tabla principal | Columnas clave |
 |-------|----------------|----------------|
-| Finanzas | client_invoices | estado='Pagado', payment_date (varchar) |
-| Operaciones | tasks | status='Done', created_at, updated_at (timestamp) |
+| Finanzas | client_invoices | estado='Pagado', payment_date; también estado IN ('Atrasado','impagado') para cartera vencida |
+| Operaciones | tasks | status='Done', created_at, updated_at; TIMESTAMPDIFF(HOUR) para tiempo promedio |
 | Ventas | clients | created_at, deleted_at |
-| Red (PPPoE) | mikrotik_client_ppoes | COUNT total (sin campo status) |
+| Red (PPPoE) | mikrotik_client_ppoes | COUNT total (sin campo status) — 5,407+ registros |
 | Red (OLTs) | olt_pon_ports + olts | online_onus_count, onus_count, olt_id → name |
-| Red (gráfica) | tasks | title LIKE '%sin internet%' (proxy) |
+| Red (gráfica) | tasks | title LIKE '%sin internet%' (proxy de incidencias de red) |
 | Marketing | marketing_channels + marketing_publications | LEFT JOIN channel_id, status='published' |
 | Marketing (gráfica) | marketing_leads | created_at |
+| Talento | talento_work_orders | status='validated', validated_at (gráfica semanal) |
+| Talento (insights) | talento_colaboradores + talento_work_orders | status='active'; status IN ('completed','pending_validation') |
