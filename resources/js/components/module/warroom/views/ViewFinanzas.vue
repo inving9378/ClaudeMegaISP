@@ -42,6 +42,15 @@
             />
         </div>
 
+        <!-- Gráfica MRR semanal — 3 meses comparados -->
+        <div class="wr-panel mt-3" v-if="!loading && weeklyChartSeries.length">
+            <div class="wr-section-title mb-2">
+                <i class="ti ti-chart-line me-1"></i>
+                MRR semanal — comparativo 3 meses
+            </div>
+            <apexchart type="line" height="160" :options="weeklyChartOptions" :series="weeklyChartSeries" />
+        </div>
+
         <!-- Top deudores -->
         <div class="wr-panel mt-3">
             <div class="wr-section-title"><i class="ti ti-alert-circle me-1"></i> Top deudores</div>
@@ -117,6 +126,45 @@ function formatDate(d) {
     const date = new Date(d + 'T00:00:00');
     return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
 }
+
+// ── Gráfica MRR semanal ──────────────────────────────────────────────────────
+const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function periodLabel(p) {
+    const [y, m] = p.split('-');
+    return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
+}
+
+const weeklyChartSeries = computed(() => {
+    if (!kpis.value?.weekly_series?.series) return [];
+    return kpis.value.weekly_series.series.map(s => ({
+        name: periodLabel(s.period),
+        data: s.data,
+    }));
+});
+
+const weeklyChartOptions = computed(() => ({
+    chart: { background: 'transparent', toolbar: { show: false }, animations: { enabled: false } },
+    theme: { mode: 'dark' },
+    colors: ['#1D9E75', '#534AB7', '#6b6b85'],
+    stroke: { curve: 'smooth', width: [3, 1.5, 1] },
+    xaxis: {
+        categories: kpis.value?.weekly_series?.labels ?? ['Sem 1','Sem 2','Sem 3','Sem 4'],
+        labels: { style: { colors: '#6b6b85', fontSize: '11px' } },
+        axisBorder: { show: false },
+        axisTicks: { show: false },
+    },
+    yaxis: {
+        labels: {
+            style: { colors: '#6b6b85', fontSize: '10px' },
+            formatter: v => v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`,
+        },
+    },
+    grid: { borderColor: 'rgba(255,255,255,0.06)', strokeDashArray: 4 },
+    tooltip: { theme: 'dark', y: { formatter: v => `$${v.toLocaleString('es-MX')}` } },
+    legend: { labels: { colors: '#9999b0' }, fontSize: '11px' },
+    dataLabels: { enabled: false },
+    markers: { size: 4, strokeWidth: 0 },
+}));
 
 async function load() {
     await Promise.all([fetchKpis(props.period), fetchInsights(props.period)]);

@@ -229,6 +229,17 @@ class KpiController extends Controller
             ->orderBy('document_date')
             ->get();
 
+        $weeklySeriesFin = $this->weeklySeriesHelper(
+            $current,
+            $previous,
+            fn ($y, $m, $d1, $d2) => (float) DB::table('client_invoices')
+                ->where('estado', 'Pagado')
+                ->whereYear('payment_date', $y)
+                ->whereMonth('payment_date', $m)
+                ->whereRaw('DAY(payment_date) BETWEEN ? AND ?', [$d1, $d2])
+                ->sum('total')
+        );
+
         return [
             'period_current'   => $current,
             'period_previous'  => $previous,
@@ -244,6 +255,7 @@ class KpiController extends Controller
                 'amount' => DB::table('client_invoices')->where('estado', '!=', 'Pagado')->sum('total'),
                 'count'  => DB::table('client_invoices')->where('estado', '!=', 'Pagado')->count(),
             ],
+            'weekly_series'    => $weeklySeriesFin,
         ];
     }
 
@@ -300,14 +312,45 @@ class KpiController extends Controller
             ->groupBy('priority')
             ->pluck('total', 'priority');
 
+        // Tiempo promedio de resolución (horas) — tickets Done del período
+        $tiempoPromedio = round((float) DB::table('tasks')
+            ->where('status', 'Done')
+            ->whereNull('deleted_at')
+            ->whereYear('updated_at', $cy)
+            ->whereMonth('updated_at', $cm)
+            ->whereRaw('TIMESTAMPDIFF(HOUR, created_at, updated_at) > 0')
+            ->avg(DB::raw('TIMESTAMPDIFF(HOUR, created_at, updated_at)')), 1);
+
+        $tiempoPromedioPrev = round((float) DB::table('tasks')
+            ->where('status', 'Done')
+            ->whereNull('deleted_at')
+            ->whereYear('updated_at', $py)
+            ->whereMonth('updated_at', $pm)
+            ->whereRaw('TIMESTAMPDIFF(HOUR, created_at, updated_at) > 0')
+            ->avg(DB::raw('TIMESTAMPDIFF(HOUR, created_at, updated_at)')), 1);
+
+        $weeklySeriesOp = $this->weeklySeriesHelper(
+            $current,
+            $previous,
+            fn ($y, $m, $d1, $d2) => (int) DB::table('tasks')
+                ->where('status', 'Done')
+                ->whereNull('deleted_at')
+                ->whereYear('updated_at', $y)
+                ->whereMonth('updated_at', $m)
+                ->whereRaw('DAY(updated_at) BETWEEN ? AND ?', [$d1, $d2])
+                ->count()
+        );
+
         return [
-            'period_current'      => $current,
-            'period_previous'     => $previous,
-            'tickets'             => ['current' => $ticketsCurrent,  'previous' => $ticketsPrevious],
-            'tickets_pendientes'  => ['current' => $ticketsPendientes, 'previous' => $ticketsPendientesPrev],
-            'tickets_cerrados'    => ['current' => $ticketsCerrados,   'previous' => $ticketsCerradosPrev],
-            'by_status'           => $byStatus,
-            'by_priority'         => $byPriority,
+            'period_current'         => $current,
+            'period_previous'        => $previous,
+            'tickets'                => ['current' => $ticketsCurrent,  'previous' => $ticketsPrevious],
+            'tickets_pendientes'     => ['current' => $ticketsPendientes, 'previous' => $ticketsPendientesPrev],
+            'tickets_cerrados'       => ['current' => $ticketsCerrados,   'previous' => $ticketsCerradosPrev],
+            'tiempo_promedio'        => ['current' => $tiempoPromedio,    'previous' => $tiempoPromedioPrev],
+            'by_status'              => $byStatus,
+            'by_priority'            => $byPriority,
+            'weekly_series'          => $weeklySeriesOp,
         ];
     }
 
@@ -332,6 +375,17 @@ class KpiController extends Controller
             ->whereMonth('created_at', $cm)
             ->count();
 
+        $weeklySeriesVen = $this->weeklySeriesHelper(
+            $current,
+            $previous,
+            fn ($y, $m, $d1, $d2) => (int) DB::table('clients')
+                ->whereNull('deleted_at')
+                ->whereYear('created_at', $y)
+                ->whereMonth('created_at', $m)
+                ->whereRaw('DAY(created_at) BETWEEN ? AND ?', [$d1, $d2])
+                ->count()
+        );
+
         return [
             'period_current'       => $current,
             'period_previous'      => $previous,
@@ -339,6 +393,7 @@ class KpiController extends Controller
             'comisiones'           => ['current' => $comisiones, 'previous' => $this->comisionesDelPeriodo($previous)],
             'embajadores_activos'  => $embajadoresActivos,
             'referidos_del_mes'    => $referidosDelMes,
+            'weekly_series'        => $weeklySeriesVen,
         ];
     }
 
@@ -364,8 +419,30 @@ class KpiController extends Controller
         $oltsActivas = DB::table('olts')->where('status', 'active')->count();
         $oltsTotal   = DB::table('olts')->count();
 
-        // Tickets de red (búsqueda por keywords — frágil, pero es lo disponible
-        // hasta que tickets tengan categoría propia)
+        // PPPoE configurados (cuentas en mikrotik)
+        $ppoeActivos = DB::table('mikrotik_client_ppoes')->count();
+
+        // Uso real por OLT desde puertos PON
+        $oltUso = DB::table('olt_pon_ports as p')
+            ->join('olts as o', 'p.olt_id', '=', 'o.id')
+            ->select(
+                'o.name as olt_name',
+                DB::raw('SUM(CAST(p.online_onus_count AS UNSIGNED)) as online_onus'),
+                DB::raw('SUM(CAST(p.onus_count AS UNSIGNED)) as total_onus'),
+                DB::raw('COUNT(p.id) as total_ports')
+            )
+            ->groupBy('o.id', 'o.name')
+            ->orderBy('o.name')
+            ->get()
+            ->map(fn ($r) => [
+                'olt_name'    => $r->olt_name,
+                'online_onus' => (int) $r->online_onus,
+                'total_onus'  => (int) $r->total_onus,
+                'total_ports' => (int) $r->total_ports,
+                'pct_up'      => $r->total_onus > 0 ? round(($r->online_onus / $r->total_onus) * 100, 1) : 0,
+            ]);
+
+        // Tickets de red (búsqueda por keywords — hasta que tickets tengan categoría propia)
         $ticketsSinInternet = DB::table('tasks')
             ->whereYear('created_at', $cy)
             ->whereMonth('created_at', $cm)
@@ -380,11 +457,28 @@ class KpiController extends Controller
             })
             ->count();
 
+        $weeklySeriesRed = $this->weeklySeriesHelper(
+            $current,
+            $previous,
+            fn ($y, $m, $d1, $d2) => (int) DB::table('tasks')
+                ->whereNull('deleted_at')
+                ->whereYear('created_at', $y)
+                ->whereMonth('created_at', $m)
+                ->whereRaw('DAY(created_at) BETWEEN ? AND ?', [$d1, $d2])
+                ->where(fn ($q) => $q
+                    ->where('title', 'like', '%sin internet%')
+                    ->orWhere('title', 'like', '%sin servicio%')
+                    ->orWhere('description', 'like', '%sin internet%'))
+                ->count()
+        );
+
         return [
             'period_current'       => $current,
             'period_previous'      => $previous,
             'clientes_activos'     => DB::table('clients')->whereNull('deleted_at')->count(),
             'tickets_sin_internet' => $ticketsSinInternet,
+            'ppoe_activos'         => $ppoeActivos,
+            'olt_uso'              => $oltUso,
             'onus'                 => [
                 'total'   => $onusTotal,
                 'online'  => $onusOnline,
@@ -395,6 +489,7 @@ class KpiController extends Controller
                 'activas' => $oltsActivas,
                 'total'   => $oltsTotal,
             ],
+            'weekly_series'        => $weeklySeriesRed,
         ];
     }
 
@@ -433,6 +528,32 @@ class KpiController extends Controller
             ->where('status', 'won')
             ->count();
 
+        // Desglose por canal (canales configurados con conteo real de publicaciones del mes)
+        $canalDesglose = DB::table('marketing_channels as ch')
+            ->leftJoin('marketing_publications as p', function ($join) use ($cy, $cm) {
+                $join->on('p.channel_id', '=', 'ch.id')
+                    ->where('p.status', 'published')
+                    ->whereYear('p.created_at', $cy)
+                    ->whereMonth('p.created_at', $cm)
+                    ->whereNull('p.deleted_at');
+            })
+            ->where('ch.active', true)
+            ->whereNull('ch.deleted_at')
+            ->select('ch.name', 'ch.code', DB::raw('COUNT(p.id) as publicaciones'))
+            ->groupBy('ch.id', 'ch.name', 'ch.code')
+            ->orderByDesc('publicaciones')
+            ->get();
+
+        $weeklySeriesMkt = $this->weeklySeriesHelper(
+            $current,
+            $previous,
+            fn ($y, $m, $d1, $d2) => (int) DB::table('marketing_leads')
+                ->whereYear('created_at', $y)
+                ->whereMonth('created_at', $m)
+                ->whereRaw('DAY(created_at) BETWEEN ? AND ?', [$d1, $d2])
+                ->count()
+        );
+
         return [
             'period_current'        => $current,
             'period_previous'       => $previous,
@@ -443,6 +564,8 @@ class KpiController extends Controller
             'campanias_activas'     => $campanias,
             'leads_captados'        => $leadsCaptados,
             'leads_ganados'         => $leadsGanados,
+            'canal_desglose'        => $canalDesglose,
+            'weekly_series'         => $weeklySeriesMkt,
         ];
     }
 
@@ -563,5 +686,26 @@ class KpiController extends Controller
             $days[(int)$row->day] = (float)$row->total;
         }
         return $days;
+    }
+
+    /**
+     * Construye 3 series semanales (mes actual, mes anterior, hace 2 meses) × 4 semanas.
+     * Sem 1 = días 1-7, Sem 2 = 8-14, Sem 3 = 15-21, Sem 4 = 22-fin de mes.
+     */
+    private function weeklySeriesHelper(string $current, string $prev1, callable $aggregator): array
+    {
+        $prev2   = Carbon::createFromFormat('Y-m', $current)->subMonths(2)->format('Y-m');
+        $series  = [];
+        foreach ([$current, $prev1, $prev2] as $period) {
+            [$y, $m] = explode('-', $period);
+            $data = [];
+            for ($week = 1; $week <= 4; $week++) {
+                $d1     = ($week - 1) * 7 + 1;
+                $d2     = $week < 4 ? $week * 7 : 31;
+                $data[] = $aggregator($y, $m, $d1, $d2);
+            }
+            $series[] = ['period' => $period, 'data' => $data];
+        }
+        return ['labels' => ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'], 'series' => $series];
     }
 }
