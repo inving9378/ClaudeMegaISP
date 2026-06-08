@@ -92,7 +92,7 @@
         </div>
 
         <div class="mt-3">
-            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" />
+            <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" :status="insightsStatus" />
         </div>
     </div>
 </template>
@@ -110,7 +110,7 @@ const props = defineProps({
 });
 
 const { kpis, loading, fetchKpis } = useKpis('finanzas');
-const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('finanzas');
+const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('finanzas');
 
 const maxDeuda = computed(() => {
     if (!kpis.value?.cashflow_proximo?.length) return 1;
