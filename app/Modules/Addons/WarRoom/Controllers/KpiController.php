@@ -419,6 +419,7 @@ class KpiController extends Controller
 
         $campanias = DB::table('marketing_campaigns')
             ->where('status', 'active')
+            ->whereNull('deleted_at')
             ->count();
 
         // Leads
