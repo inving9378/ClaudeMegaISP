@@ -1,13 +1,23 @@
 <template>
     <div class="wr-meeting-bar">
 
-        <!-- ── Fila 1: estado + nombre + timer total ─────────────────────────── -->
+        <!-- ── Fila 1: estado + nombre + countdown + timer total ───────────────── -->
         <div class="wr-mbar-top">
             <div class="wr-mbar-live">
                 <span class="wr-mbar-dot"></span>
                 EN CURSO
             </div>
             <div class="wr-mbar-name">{{ meeting.name }}</div>
+
+            <!-- Reloj en retroceso (Frente 3) -->
+            <div class="wr-mbar-countdown" :class="countdownClass">
+                <i class="ti me-1" :class="countdownSeconds < 0 ? 'ti-alarm' : 'ti-hourglass'"></i>
+                {{ formatCountdown(countdownSeconds) }}
+                <span class="wr-mbar-countdown-label">
+                    {{ countdownSeconds < 0 ? 'excedente' : (countdownSeconds <= 300 ? 'último tramo' : 'restante') }}
+                </span>
+            </div>
+
             <div class="wr-mbar-total-timer">
                 <i class="ti ti-clock me-1"></i>
                 {{ formatTime(elapsedTotalSeconds) }}
@@ -77,10 +87,10 @@
                     :disable="loading"
                     class="wr-mbar-btn"
                 />
-                <q-btn flat dense icon="ti ti-flag" label="Finalizar"
+                <q-btn flat dense icon="ti ti-flag" label="Finalizar junta"
                     color="negative" @click="$emit('end')"
                     :disable="loading"
-                    class="wr-mbar-btn"
+                    class="wr-mbar-btn wr-mbar-btn-end"
                 />
             </div>
         </div>
@@ -133,6 +143,7 @@ const props = defineProps({
     elapsedSectionSeconds: { type: Number,  default: 0 },
     sectionProgress:       { type: Number,  default: 0 },
     sectionColor:          { type: String,  default: 'positive' },
+    countdownSeconds:      { type: Number,  default: 0 },
     aiSuggestion:          { type: String,  default: null },
     loading:               { type: Boolean, default: false },
 });
@@ -146,6 +157,7 @@ const SECTION_META = {
     ventas:      { label: 'Ventas y Embajadores',  icon: 'ti-trending-up' },
     red:         { label: 'Red e Infraestructura', icon: 'ti-network' },
     marketing:   { label: 'Marketing',             icon: 'ti-brand-whatsapp' },
+    talento:     { label: 'Talento',               icon: 'ti-users' },
 };
 
 const sectionLabel = computed(() => SECTION_META[props.currentSection?.section_key]?.label ?? 'Junta en curso');
@@ -165,6 +177,23 @@ const totalPlannedSeconds = computed(() =>
     (props.meeting.sections ?? []).reduce((s, sec) => s + (sec.time_planned_seconds ?? 0), 0)
 );
 const totalPlannedStr = computed(() => formatMins(totalPlannedSeconds.value));
+
+// ── Countdown ─────────────────────────────────────────────────────────────
+const WARNING_THRESHOLD = 5 * 60; // últimos 5 minutos → ámbar
+
+const countdownClass = computed(() => {
+    const s = props.countdownSeconds;
+    if (s < 0)              return 'wr-countdown-overtime'; // rojo
+    if (s <= WARNING_THRESHOLD) return 'wr-countdown-warn';  // ámbar
+    return 'wr-countdown-ok';                                // verde
+});
+
+function formatCountdown(seconds) {
+    const abs = Math.abs(seconds);
+    const m   = Math.floor(abs / 60).toString().padStart(2, '0');
+    const s   = (abs % 60).toString().padStart(2, '0');
+    return seconds < 0 ? `+${m}:${s}` : `${m}:${s}`;
+}
 
 const etaString = computed(() => {
     const start = new Date(props.meeting.started_at);
@@ -290,6 +319,30 @@ function formatMins(totalSeconds) {
 
 .warroom-container .wr-mbar-progress-hint { font-size: 11px; }
 
+/* Countdown (Frente 3) */
+.warroom-container .wr-mbar-countdown {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 19px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.5px;
+    transition: color 0.5s;
+    flex-shrink: 0;
+}
+.warroom-container .wr-mbar-countdown-label {
+    font-size: 10px;
+    font-weight: 400;
+    margin-left: 2px;
+    opacity: 0.75;
+    align-self: flex-end;
+    margin-bottom: 2px;
+}
+.warroom-container .wr-countdown-ok       { color: #1D9E75; }
+.warroom-container .wr-countdown-warn     { color: #EF9F27; animation: wr-pulse 1.8s ease-in-out infinite; }
+.warroom-container .wr-countdown-overtime { color: #e05252; animation: wr-pulse 1s   ease-in-out infinite; }
+
 /* Controles */
 .warroom-container .wr-mbar-controls {
     display: flex;
@@ -299,6 +352,7 @@ function formatMins(totalSeconds) {
 }
 
 .warroom-container .wr-mbar-btn { justify-content: flex-start; min-width: 110px; font-size: 12px; }
+.warroom-container .wr-mbar-btn-end { font-weight: 600; }
 
 /* Agenda */
 .warroom-container .wr-mbar-agenda {
