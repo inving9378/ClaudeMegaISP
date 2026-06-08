@@ -4,11 +4,14 @@ namespace App\Modules\Addons\WarRoom\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\WarRoom\Models\InsightsCache;
+use App\Modules\Addons\WarRoom\Services\InsightsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class InsightsController extends Controller
 {
+    public function __construct(private InsightsService $insightsService) {}
+
     public function show(string $view, ?string $period = null): JsonResponse
     {
         $period = $period ?? now()->format('Y-m');
@@ -21,8 +24,13 @@ class InsightsController extends Controller
             return response()->json(['insights' => $cached->insights, 'source' => $cached->source, 'cached' => true]);
         }
 
-        // Sin cache — devolver vacío y que el frontend lo pida al endpoint de regenerar
-        return response()->json(['insights' => [], 'source' => null, 'cached' => false]);
+        // Auto-generar si no hay cache válido
+        try {
+            $result = $this->insightsService->generate($view, $period);
+            return response()->json(['insights' => $result->insights, 'source' => $result->source, 'cached' => false]);
+        } catch (\Throwable $e) {
+            return response()->json(['insights' => [], 'source' => null, 'cached' => false, 'error' => 'No se pudieron generar insights'], 500);
+        }
     }
 
     public function regenerate(Request $request, string $view, ?string $period = null): JsonResponse
@@ -33,6 +41,11 @@ class InsightsController extends Controller
 
         InsightsCache::where('view_key', $view)->where('period', $period)->delete();
 
-        return response()->json(['queued' => true]);
+        try {
+            $result = $this->insightsService->generate($view, $period);
+            return response()->json(['insights' => $result->insights, 'source' => $result->source, 'regenerated' => true]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Error al regenerar insights: ' . $e->getMessage()], 500);
+        }
     }
 }

@@ -2,8 +2,11 @@
     <div class="wr-view wr-view-marketing">
         <div class="wr-kpi-grid wr-kpi-grid-2">
             <KpiCard
-                label="Mensajes WhatsApp enviados"
-                :value="kpis?.mensajes_enviados"
+                label="Publicaciones enviadas"
+                :value="kpis?.mensajes_enviados?.current"
+                :previousValue="kpis?.mensajes_enviados?.previous"
+                :delta="deltaStr(kpis?.mensajes_enviados?.current, kpis?.mensajes_enviados?.previous)"
+                :deltaDirection="deltaDir(kpis?.mensajes_enviados?.current, kpis?.mensajes_enviados?.previous)"
                 accent="pink"
                 icon="ti-brand-whatsapp"
                 size="hero"
@@ -15,6 +18,22 @@
                 accent="pink"
                 icon="ti-speakerphone"
                 size="hero"
+                :loading="loading"
+            />
+            <KpiCard
+                label="Leads captados"
+                :value="kpis?.leads_captados"
+                accent="pink"
+                icon="ti-user-plus"
+                :loading="loading"
+            />
+            <KpiCard
+                label="Leads ganados (won)"
+                :value="kpis?.leads_ganados"
+                :delta="conversionLabel"
+                delta-direction="neutral"
+                accent="green"
+                icon="ti-trophy"
                 :loading="loading"
             />
         </div>
@@ -34,11 +53,12 @@
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import KpiCard from '../shared/KpiCard.vue';
 import InsightsBlock from '../shared/InsightsBlock.vue';
 import { useKpis } from '../composables/useKpis.js';
 import { useInsights } from '../composables/useInsights.js';
+import { deltaStr, deltaDir } from '../utils.js';
 
 const props = defineProps({
     period: { type: String, required: true },
@@ -46,6 +66,13 @@ const props = defineProps({
 
 const { kpis, loading, fetchKpis } = useKpis('marketing');
 const { insights, loading: insightsLoading, source: insightsSource, fetchInsights } = useInsights('marketing');
+
+const conversionLabel = computed(() => {
+    const captados = kpis.value?.leads_captados ?? 0;
+    const ganados  = kpis.value?.leads_ganados  ?? 0;
+    if (!captados) return null;
+    return `${Math.round((ganados / captados) * 100)}% conversión`;
+});
 
 async function load() {
     await Promise.all([fetchKpis(props.period), fetchInsights(props.period)]);

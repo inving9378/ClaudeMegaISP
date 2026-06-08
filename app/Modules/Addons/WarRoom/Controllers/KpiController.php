@@ -200,6 +200,17 @@ class KpiController extends Controller
             ->whereMonth('payment_date', $pm)
             ->sum('total');
 
+        // Tasa de cobro: % del monto total facturado que fue cobrado (acumulado)
+        $totalFacturado = (float) DB::table('client_invoices')->sum('total');
+        $totalCobrado   = (float) DB::table('client_invoices')->where('estado', 'Pagado')->sum('total');
+        $tasaCobro      = $totalFacturado > 0 ? round(($totalCobrado / $totalFacturado) * 100, 1) : 0;
+
+        // Cartera vencida: facturas atrasadas o impagadas
+        $carteraVencida = DB::table('client_invoices')
+            ->whereIn('estado', ['Atrasado', 'impagado'])
+            ->select(DB::raw('SUM(total) as monto'), DB::raw('COUNT(*) as facturas'))
+            ->first();
+
         $topDeudores = DB::table('client_invoices')
             ->join('clients', 'client_invoices.client_id', '=', 'clients.id')
             ->join('users', 'clients.user_id', '=', 'users.id')
@@ -222,6 +233,11 @@ class KpiController extends Controller
             'period_current'   => $current,
             'period_previous'  => $previous,
             'mrr'              => ['current' => $mrr, 'previous' => $mrrPrev],
+            'tasa_cobro'       => $tasaCobro,
+            'cartera_vencida'  => [
+                'amount'   => (float) ($carteraVencida->monto ?? 0),
+                'facturas' => (int)   ($carteraVencida->facturas ?? 0),
+            ],
             'top_deudores'     => $topDeudores,
             'cashflow_proximo' => $cashflowProximo,
             'por_cobrar'       => [
@@ -241,6 +257,33 @@ class KpiController extends Controller
         $ticketsCurrent  = DB::table('tasks')->whereYear('created_at', $cy)->whereMonth('created_at', $cm)->whereNull('deleted_at')->count();
         $ticketsPrevious = DB::table('tasks')->whereYear('created_at', $py)->whereMonth('created_at', $pm)->whereNull('deleted_at')->count();
 
+        // Tickets pendientes (abiertos actualmente, sin filtro de mes)
+        $ticketsPendientes = DB::table('tasks')
+            ->whereNull('deleted_at')
+            ->whereIn('status', ['ToDo', 'InProgress'])
+            ->count();
+
+        $ticketsPendientesPrev = DB::table('tasks')
+            ->whereNull('deleted_at')
+            ->where('updated_at', '<=', Carbon::createFromFormat('Y-m', $previous)->endOfMonth())
+            ->whereIn('status', ['ToDo', 'InProgress'])
+            ->count();
+
+        // Tickets cerrados (Done) en el período
+        $ticketsCerrados = DB::table('tasks')
+            ->whereYear('updated_at', $cy)
+            ->whereMonth('updated_at', $cm)
+            ->whereNull('deleted_at')
+            ->where('status', 'Done')
+            ->count();
+
+        $ticketsCerradosPrev = DB::table('tasks')
+            ->whereYear('updated_at', $py)
+            ->whereMonth('updated_at', $pm)
+            ->whereNull('deleted_at')
+            ->where('status', 'Done')
+            ->count();
+
         $byStatus = DB::table('tasks')
             ->whereYear('created_at', $cy)
             ->whereMonth('created_at', $cm)
@@ -258,11 +301,13 @@ class KpiController extends Controller
             ->pluck('total', 'priority');
 
         return [
-            'period_current'  => $current,
-            'period_previous' => $previous,
-            'tickets'         => ['current' => $ticketsCurrent, 'previous' => $ticketsPrevious],
-            'by_status'       => $byStatus,
-            'by_priority'     => $byPriority,
+            'period_current'      => $current,
+            'period_previous'     => $previous,
+            'tickets'             => ['current' => $ticketsCurrent,  'previous' => $ticketsPrevious],
+            'tickets_pendientes'  => ['current' => $ticketsPendientes, 'previous' => $ticketsPendientesPrev],
+            'tickets_cerrados'    => ['current' => $ticketsCerrados,   'previous' => $ticketsCerradosPrev],
+            'by_status'           => $byStatus,
+            'by_priority'         => $byPriority,
         ];
     }
 
@@ -303,6 +348,24 @@ class KpiController extends Controller
     {
         [$cy, $cm] = explode('-', $current);
 
+        // ONUs por estado (datos reales de OLT)
+        $onuStats = DB::table('olt_onus')
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $onusOnline  = (int) ($onuStats['Online']       ?? 0);
+        $onusOffline = (int) ($onuStats['Offline']      ?? 0) +
+                       (int) ($onuStats['Power fail']   ?? 0) +
+                       (int) ($onuStats['LOS']          ?? 0);
+        $onusTotal   = DB::table('olt_onus')->count();
+
+        // OLTs activas
+        $oltsActivas = DB::table('olts')->where('status', 'active')->count();
+        $oltsTotal   = DB::table('olts')->count();
+
+        // Tickets de red (búsqueda por keywords — frágil, pero es lo disponible
+        // hasta que tickets tengan categoría propia)
         $ticketsSinInternet = DB::table('tasks')
             ->whereYear('created_at', $cy)
             ->whereMonth('created_at', $cm)
@@ -310,6 +373,9 @@ class KpiController extends Controller
             ->where(function ($q) {
                 $q->where('title', 'like', '%sin internet%')
                   ->orWhere('title', 'like', '%sin servicio%')
+                  ->orWhere('title', 'like', '%sin señal%')
+                  ->orWhere('title', 'like', '%sin conexion%')
+                  ->orWhere('title', 'like', '%corte%')
                   ->orWhere('description', 'like', '%sin internet%');
             })
             ->count();
@@ -317,8 +383,18 @@ class KpiController extends Controller
         return [
             'period_current'       => $current,
             'period_previous'      => $previous,
-            'tickets_sin_internet' => $ticketsSinInternet,
             'clientes_activos'     => DB::table('clients')->whereNull('deleted_at')->count(),
+            'tickets_sin_internet' => $ticketsSinInternet,
+            'onus'                 => [
+                'total'   => $onusTotal,
+                'online'  => $onusOnline,
+                'offline' => $onusOffline,
+                'pct_up'  => $onusTotal > 0 ? round(($onusOnline / $onusTotal) * 100, 1) : 0,
+            ],
+            'olts'                 => [
+                'activas' => $oltsActivas,
+                'total'   => $oltsTotal,
+            ],
         ];
     }
 
@@ -327,21 +403,45 @@ class KpiController extends Controller
     private function marketingKpis(string $current, string $previous): array
     {
         [$cy, $cm] = explode('-', $current);
+        [$py, $pm] = explode('-', $previous);
 
-        $mensajesEnviados = DB::table('marketing_messages')
+        // Publicaciones enviadas (marketing_publications, no marketing_messages que son IA chat)
+        $publicacionesActual  = DB::table('marketing_publications')
+            ->where('status', 'published')
             ->whereYear('created_at', $cy)
             ->whereMonth('created_at', $cm)
+            ->count();
+        $publicacionesAnterior = DB::table('marketing_publications')
+            ->where('status', 'published')
+            ->whereYear('created_at', $py)
+            ->whereMonth('created_at', $pm)
             ->count();
 
         $campanias = DB::table('marketing_campaigns')
             ->where('status', 'active')
             ->count();
 
+        // Leads
+        $leadsCaptados = DB::table('marketing_leads')
+            ->whereYear('created_at', $cy)
+            ->whereMonth('created_at', $cm)
+            ->count();
+        $leadsGanados  = DB::table('marketing_leads')
+            ->whereYear('created_at', $cy)
+            ->whereMonth('created_at', $cm)
+            ->where('status', 'won')
+            ->count();
+
         return [
-            'period_current'   => $current,
-            'period_previous'  => $previous,
-            'mensajes_enviados' => $mensajesEnviados,
-            'campanias_activas' => $campanias,
+            'period_current'        => $current,
+            'period_previous'       => $previous,
+            'mensajes_enviados'     => [
+                'current'  => $publicacionesActual,
+                'previous' => $publicacionesAnterior,
+            ],
+            'campanias_activas'     => $campanias,
+            'leads_captados'        => $leadsCaptados,
+            'leads_ganados'         => $leadsGanados,
         ];
     }
 
