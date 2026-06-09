@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Modules\Addons\WarRoom\Controllers\ActionItemController;
 use App\Modules\Addons\WarRoom\Controllers\DashboardController;
+use App\Modules\Addons\WarRoom\Controllers\DesempenoController;
 use App\Modules\Addons\WarRoom\Controllers\InsightsController;
 use App\Modules\Addons\WarRoom\Controllers\KpiController;
 use App\Modules\Addons\WarRoom\Controllers\MeetingController;
@@ -37,6 +38,9 @@ Route::middleware(['web', 'auth'])->prefix('warroom')->group(function () {
         Route::post('/api/meetings/{meeting}/resume', [MeetingController::class, 'resume']);
         Route::post('/api/meetings/{meeting}/end', [MeetingController::class, 'end']);
         Route::get('/api/meetings/{meeting}/suggestion', [MeetingController::class, 'getSuggestion']);
+
+        // Desempeño de colaboradores
+        Route::get('/api/desempeno', [DesempenoController::class, 'show']);
 
         // Action Items
         Route::get('/api/action-items', [ActionItemController::class, 'index']);
