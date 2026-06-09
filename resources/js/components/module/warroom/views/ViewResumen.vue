@@ -20,6 +20,7 @@
             </div>
 
             <warroom-line-series
+                ref="lineSeriesRef"
                 :series="dailySeries"
                 :labels="daysLabels"
                 :loading="loading"
@@ -42,6 +43,137 @@
                     <div class="wr-daily-card-avg">
                         Prom. {{ formatCurrency(s.promedio_diario) }}/día
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Comparativa 3 meses ──────────────────────────────────────────── -->
+        <div class="wr-panel mt-3">
+            <!-- Toggles de meses -->
+            <div class="wr-compare-header mb-3">
+                <span class="wr-section-title">
+                    <i class="ti ti-columns-3 me-1"></i>Comparativa mensual
+                </span>
+                <div class="wr-compare-toggles">
+                    <label
+                        v-for="col in compareColumns"
+                        :key="col.key"
+                        class="wr-compare-toggle"
+                    >
+                        <input type="checkbox" v-model="mesesActivos" :value="col.key" />
+                        <span class="wr-compare-dot" :style="{ color: col.color }">●</span>
+                        {{ col.label }}
+                    </label>
+                </div>
+            </div>
+
+            <!-- Columnas -->
+            <div class="wr-compare-cols">
+                <div
+                    v-for="col in compareColumns.filter(c => mesesActivos.includes(c.key))"
+                    :key="col.key"
+                    class="wr-compare-col"
+                >
+                    <div class="wr-compare-col-title" :style="{ color: col.color }">● {{ col.label }}</div>
+
+                    <template v-if="col.loading">
+                        <q-skeleton v-for="i in 5" :key="i" class="wr-skel-value mb-2" />
+                    </template>
+                    <template v-else-if="col.kpis">
+                        <!-- Ingresos — conectado al daily chart -->
+                        <div class="wr-cmp-card"
+                            :class="{ 'wr-cmp-card-faded': !metricasVisibles[`${col.key}-ingresos`] }"
+                            :style="{ borderLeftColor: col.color }">
+                            <div class="wr-cmp-label-row">
+                                <span class="wr-cmp-label">Ingresos</span>
+                                <input type="checkbox"
+                                    :checked="metricasVisibles[`${col.key}-ingresos`]"
+                                    @change="toggleMetrica(`${col.key}-ingresos`)"
+                                    class="wr-cmp-check"
+                                    title="Mostrar/ocultar en gráfica" />
+                            </div>
+                            <div class="wr-cmp-value" :style="{ color: col.color }">
+                                {{ formatCurrency(col.kpis.ingresos?.current) }}
+                            </div>
+                            <div class="wr-cmp-delta" :class="`wr-delta-${deltaDir(col.kpis.ingresos?.current, col.kpis.ingresos?.previous)}`">
+                                {{ deltaStr(col.kpis.ingresos?.current, col.kpis.ingresos?.previous) }} vs {{ col.vsLabel }}
+                            </div>
+                        </div>
+                        <!-- Clientes -->
+                        <div class="wr-cmp-card"
+                            :class="{ 'wr-cmp-card-faded': !metricasVisibles[`${col.key}-clientes`] }"
+                            style="border-left-color: #639922">
+                            <div class="wr-cmp-label-row">
+                                <span class="wr-cmp-label">Clientes nuevos</span>
+                                <input type="checkbox"
+                                    :checked="metricasVisibles[`${col.key}-clientes`]"
+                                    @change="toggleMetrica(`${col.key}-clientes`)"
+                                    class="wr-cmp-check" />
+                            </div>
+                            <div class="wr-cmp-value" style="color: #639922">
+                                {{ col.kpis.clientes_nuevos?.current ?? 0 }}
+                            </div>
+                            <div class="wr-cmp-delta" :class="`wr-delta-${deltaDir(col.kpis.clientes_nuevos?.current, col.kpis.clientes_nuevos?.previous)}`">
+                                {{ deltaStr(col.kpis.clientes_nuevos?.current, col.kpis.clientes_nuevos?.previous) }} vs {{ col.vsLabel }}
+                            </div>
+                        </div>
+                        <!-- Comisiones -->
+                        <div class="wr-cmp-card"
+                            :class="{ 'wr-cmp-card-faded': !metricasVisibles[`${col.key}-comisiones`] }"
+                            style="border-left-color: #A32D2D">
+                            <div class="wr-cmp-label-row">
+                                <span class="wr-cmp-label">Comisiones embajadores</span>
+                                <input type="checkbox"
+                                    :checked="metricasVisibles[`${col.key}-comisiones`]"
+                                    @change="toggleMetrica(`${col.key}-comisiones`)"
+                                    class="wr-cmp-check" />
+                            </div>
+                            <div class="wr-cmp-value" style="color: #A32D2D">
+                                {{ formatCurrency(col.kpis.comisiones_embajadores?.current) }}
+                            </div>
+                            <div class="wr-cmp-delta" :class="`wr-delta-${deltaDir(col.kpis.comisiones_embajadores?.current, col.kpis.comisiones_embajadores?.previous)}`">
+                                {{ deltaStr(col.kpis.comisiones_embajadores?.current, col.kpis.comisiones_embajadores?.previous) }} vs {{ col.vsLabel }}
+                            </div>
+                        </div>
+                        <!-- Por cobrar -->
+                        <div class="wr-cmp-card"
+                            :class="{ 'wr-cmp-card-faded': !metricasVisibles[`${col.key}-porcobrar`] }"
+                            style="border-left-color: #BA7517">
+                            <div class="wr-cmp-label-row">
+                                <span class="wr-cmp-label">Por cobrar</span>
+                                <input type="checkbox"
+                                    :checked="metricasVisibles[`${col.key}-porcobrar`]"
+                                    @change="toggleMetrica(`${col.key}-porcobrar`)"
+                                    class="wr-cmp-check" />
+                            </div>
+                            <div class="wr-cmp-value" style="color: #BA7517">
+                                {{ formatCurrency(col.kpis.por_cobrar?.amount) }}
+                            </div>
+                            <div class="wr-cmp-delta wr-delta-neutral">
+                                {{ col.kpis.por_cobrar?.count ?? 0 }} facturas
+                            </div>
+                        </div>
+                        <!-- Tickets -->
+                        <div class="wr-cmp-card"
+                            :class="{ 'wr-cmp-card-faded': !metricasVisibles[`${col.key}-tickets`] }"
+                            style="border-left-color: #3C3489">
+                            <div class="wr-cmp-label-row">
+                                <span class="wr-cmp-label">Tickets abiertos</span>
+                                <input type="checkbox"
+                                    :checked="metricasVisibles[`${col.key}-tickets`]"
+                                    @change="toggleMetrica(`${col.key}-tickets`)"
+                                    class="wr-cmp-check" />
+                            </div>
+                            <div class="wr-cmp-value" style="color: #3C3489">
+                                {{ col.kpis.tickets_abiertos ?? 0 }}
+                            </div>
+                        </div>
+                    </template>
+                    <div v-else class="wr-empty-muted">Sin datos</div>
+                </div>
+
+                <div v-if="!compareColumns.some(c => mesesActivos.includes(c.key))" class="wr-empty-muted">
+                    Selecciona al menos un mes para comparar.
                 </div>
             </div>
         </div>
@@ -236,10 +368,81 @@ const { kpis, loading, fetchKpis } = useKpis('resumen');
 const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('resumen');
 const actionItems = ref([]);
 
-const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MONTHS_ES      = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MONTHS_ES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const periodLabel = computed(() => {
     const [y, m] = from.value.slice(0, 7).split('-');
     return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
+});
+
+// ── Comparativa 3 meses ───────────────────────────────────────────────────
+const prevPeriod1 = computed(() => {
+    const [y, m] = from.value.slice(0, 7).split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+});
+const prevPeriod2 = computed(() => {
+    const [y, m] = from.value.slice(0, 7).split('-').map(Number);
+    const d = new Date(y, m - 3, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+});
+
+const { kpis: kpisM1, loading: loadingM1, fetchKpis: fetchKpisM1 } = useKpis('resumen');
+const { kpis: kpisM2, loading: loadingM2, fetchKpis: fetchKpisM2 } = useKpis('resumen');
+
+const mesesActivos = ref(['m0', 'm1', 'm2']);
+
+const COMPARE_COLORS = ['#534AB7', '#1D9E75', '#854F0B'];
+
+// ── Visibilidad por métrica (checkboxes en tarjetas) ──────────────────────
+const METRIC_IDS = ['ingresos', 'clientes', 'comisiones', 'porcobrar', 'tickets'];
+
+const metricasVisibles = ref(
+    Object.fromEntries(
+        ['m0', 'm1', 'm2'].flatMap(c =>
+            METRIC_IDS.map(m => [`${c}-${m}`, true])
+        )
+    )
+);
+
+const lineSeriesRef = ref(null);
+
+function toggleMetrica(key) {
+    metricasVisibles.value[key] = !metricasVisibles.value[key];
+    if (key.endsWith('-ingresos')) {
+        const colKey = key.split('-')[0];
+        const idx = ['m0', 'm1', 'm2'].indexOf(colKey);
+        if (idx >= 0 && lineSeriesRef.value) {
+            const inst = lineSeriesRef.value;
+            const visible = metricasVisibles.value[key];
+            if (inst.chart) {
+                const meta = inst.chart.getDatasetMeta(idx);
+                if (meta) {
+                    meta.hidden = !visible;
+                    inst.visibleSet = { ...inst.visibleSet, [idx]: visible };
+                    inst.chart.update('none');
+                }
+            }
+        }
+    }
+}
+
+const compareColumns = computed(() => {
+    const periods  = [from.value.slice(0, 7), prevPeriod1.value, prevPeriod2.value];
+    const kpisArr  = [kpis.value, kpisM1.value, kpisM2.value];
+    const loadings = [loading.value, loadingM1.value, loadingM2.value];
+    return periods.map((p, i) => {
+        const [y, m] = p.split('-').map(Number);
+        const vsM = i < 2 ? periods[i + 1].split('-').map(Number)[1] : null;
+        return {
+            key:     `m${i}`,
+            label:   `${MONTHS_ES_FULL[m - 1]} ${y}`,
+            color:   COMPARE_COLORS[i],
+            vsLabel: vsM ? MONTHS_ES[vsM - 1] : 'anterior',
+            kpis:    kpisArr[i],
+            loading: loadings[i],
+        };
+    });
 });
 
 // ── Gráfico diario ────────────────────────────────────────────────────────
@@ -260,6 +463,8 @@ async function load() {
         fetchKpis(period),
         fetchInsights(period),
         loadActionItems(),
+        fetchKpisM1(prevPeriod1.value),
+        fetchKpisM2(prevPeriod2.value),
     ]);
 }
 
@@ -292,6 +497,100 @@ onMounted(load);
 </script>
 
 <style>
+/* ── Comparativa 3 meses ──────────────────────────────────────────────────── */
+.warroom-container .wr-compare-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.warroom-container .wr-compare-toggles {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.warroom-container .wr-compare-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--wr-text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+.warroom-container .wr-compare-toggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: var(--wr-purple);
+}
+.warroom-container .wr-compare-dot { font-size: 14px; }
+
+.warroom-container .wr-compare-cols {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.warroom-container .wr-compare-col {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.warroom-container .wr-compare-col-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 4px;
+}
+.warroom-container .wr-cmp-card {
+    background: rgba(255,255,255,0.03);
+    border-left: 3px solid var(--wr-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    transition: opacity 0.2s;
+}
+.warroom-container .wr-cmp-card-faded {
+    opacity: 0.3;
+}
+.warroom-container .wr-cmp-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    gap: 6px;
+}
+.warroom-container .wr-cmp-label {
+    font-size: 10px;
+    color: var(--wr-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.warroom-container .wr-cmp-check {
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+    flex-shrink: 0;
+    accent-color: var(--wr-purple);
+}
+.warroom-container .wr-cmp-value {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+.warroom-container .wr-cmp-delta {
+    font-size: 10px;
+}
+.warroom-container .wr-delta-up   { color: #1D9E75; }
+.warroom-container .wr-delta-down { color: #e05252; }
+.warroom-container .wr-delta-neutral { color: var(--wr-text-dim); }
+
 /* ── Tarjetas resumen ingresos diarios ────────────────────────────────────── */
 .warroom-container .wr-daily-cards {
     display: grid;
