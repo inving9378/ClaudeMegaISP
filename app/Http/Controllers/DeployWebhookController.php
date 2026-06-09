@@ -4,14 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Models\DeploymentLog;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 
 class DeployWebhookController extends Controller
 {
     /**
      * Recibe la llamada del servidor local tras hacer git push.
-     * Despacha el deploy como proceso en background y devuelve el log_id para polling.
+     *
+     * NO ejecuta el deploy aquí: solo registra un DeploymentLog en estado `pending`
+     * con el payload (version/title/summary) y devuelve el log_id de inmediato.
+     * El comando programado `remote:deploy-run-pending` (Kernel, cada minuto) detecta
+     * los logs pendientes y corre el deploy real. El local hace polling a /status.
+     *
+     * Este desacople evita por completo ejecutar trabajo después de cerrar la respuesta
+     * HTTP (fastcgi_finish_request / app()->terminating() / shell_exec), que en este host
+     * nunca funcionó. El trigger confiable es el cron por minuto, ya operativo.
      */
     public function handle(Request $request)
     {
@@ -27,46 +34,17 @@ class DeployWebhookController extends Controller
             'triggered_by' => 1,
             'status'       => 'pending',
             'steps'        => [],
+            'payload'      => [
+                'version'      => $request->input('version', ''),
+                'title'        => $request->input('title', ''),
+                'summary'      => $request->input('summary', ''),
+                'release_date' => $request->input('release_date', now()->toDateString()),
+            ],
         ]);
 
-        $version     = $request->input('version', '');
-        $title       = $request->input('title', '');
-        $summary     = $request->input('summary', '');
-        $releaseDate = $request->input('release_date', now()->toDateString());
+        Log::info("DeployWebhook: deploy encolado — log #{$log->id}, version={$log->payload['version']}");
 
-        // Ejecutar el deploy DESPUÉS de enviar la respuesta HTTP al cliente.
-        // app()->terminating() corre tras fastcgi_finish_request() en PHP-FPM,
-        // por lo que el request se cierra inmediatamente sin bloquear nginx.
-        // Esto evita depender de queue workers, shell_exec o PHP_BINARY.
-        $deployArgs = [
-            'logId'          => $log->id,
-            '--version'      => $version,
-            '--title'        => $title,
-            '--summary'      => $summary,
-            '--release-date' => $releaseDate,
-        ];
-
-        Log::info("DeployWebhook: deploy iniciado — log #{$log->id}, version={$version}");
-
-        // StreamedResponse: envía la respuesta JSON al cliente, cierra la conexión HTTP
-        // con fastcgi_finish_request() y LUEGO corre el deploy — sin depender de queue
-        // workers, shell_exec ni nohup. ignore_user_abort evita que nginx mate el proceso.
-        $payload = ['dispatched' => true, 'log_id' => $log->id];
-
-        return response()->stream(function () use ($payload, $deployArgs) {
-            echo json_encode($payload);
-            if (ob_get_level() > 0) ob_flush();
-            flush();
-            if (function_exists('fastcgi_finish_request')) {
-                fastcgi_finish_request(); // Cierra la conexión HTTP — nginx ya no espera
-            }
-            ignore_user_abort(true);
-            set_time_limit(0);
-            Artisan::call('remote:deploy', $deployArgs);
-        }, 200, [
-            'Content-Type'    => 'application/json',
-            'X-Accel-Buffering' => 'no',
-        ]);
+        return response()->json(['dispatched' => true, 'log_id' => $log->id]);
     }
 
     /**

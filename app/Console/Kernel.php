@@ -56,6 +56,13 @@ class Kernel extends ConsoleKernel
         // Stats diarias del programa de embajadores (snapshot del día anterior)
         $schedule->job(new \App\Jobs\Referrals\CalculateDailyStats)->dailyAt('02:30')->withoutOverlapping(30)->onOneServer()->name('embajadores:daily-stats');
 
+        // Deploy remoto — ejecuta los DeploymentLogs pendientes creados por el webhook.
+        // Trigger confiable vía el cron por minuto (no depende de fastcgi/colas/workers).
+        $schedule->command('remote:deploy-run-pending')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->runInBackground();
+
         // Marketing Publicador Multicanal (Fase 5)
         $schedule->command('marketing:publish-due')->everyMinute()->withoutOverlapping();
         $schedule->job(new \App\Modules\Addons\Marketing\Jobs\RefreshMetaTokensJob())->dailyAt('03:45')->withoutOverlapping(30)->name('marketing:refresh-meta-tokens');
