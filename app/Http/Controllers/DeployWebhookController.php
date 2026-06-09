@@ -12,7 +12,7 @@ class DeployWebhookController extends Controller
 {
     /**
      * Recibe la llamada del servidor local tras hacer git push.
-     * Ejecuta: git pull → migrate → optimize → queue:restart → guarda release en DB remota.
+     * Ejecuta: git pull → npm build → migrate → optimize → queue:restart → guarda release en DB remota.
      */
     public function handle(Request $request)
     {
@@ -23,8 +23,9 @@ class DeployWebhookController extends Controller
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 401);
         }
 
-        $startedAt = now();
-        $steps     = [];
+        $startedAt  = now();
+        $steps      = [];
+        $npmScript  = env('DEPLOY_NPM_SCRIPT', 'prod');
 
         try {
             // 1. git pull
@@ -38,13 +39,16 @@ class DeployWebhookController extends Controller
                 ], 500);
             }
 
-            // 2. migrate
+            // 2. npm build
+            $steps[] = $this->runShell('npm_build', "Compilar assets (npm run {$npmScript})", "npm run {$npmScript}", 600);
+
+            // 3. migrate
             $steps[] = $this->runArtisan('migrate', 'Ejecutar migraciones', 'migrate', ['--force' => true]);
 
-            // 3. optimize
+            // 4. optimize
             $steps[] = $this->runArtisan('optimize', 'Optimizar cachés', 'optimize');
 
-            // 4. queue:restart
+            // 5. queue:restart
             $steps[] = $this->runArtisan('queue_restart', 'Reiniciar workers', 'queue:restart');
 
             // 5. Guardar release en la DB de este servidor
