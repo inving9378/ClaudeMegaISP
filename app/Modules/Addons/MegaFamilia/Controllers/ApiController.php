@@ -56,12 +56,14 @@ class ApiController extends Controller
             ->first();
 
         if ($latest) {
-            $apkPath = public_path($latest->file_path);
-            $sha256  = is_file($apkPath) ? hash_file('sha256', $apkPath) : null;
-            $builtAt = is_file($apkPath) ? date('c', filemtime($apkPath)) : null;
+            $apkPath    = public_path($latest->file_path);
+            $sha256     = is_file($apkPath) ? hash_file('sha256', $apkPath) : null;
+            $builtAt    = is_file($apkPath) ? date('c', filemtime($apkPath)) : null;
+            $clientCode = (int) request()->query('version_code', 0);
+            $hasUpdate  = $latest->version_code > $clientCode;
 
             return response()->json([
-                'has_update'   => true,
+                'has_update'   => $hasUpdate,
                 'version'      => $latest->version_name,
                 'version_name' => $latest->version_name,
                 'version_code' => $latest->version_code,
