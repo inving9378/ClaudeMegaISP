@@ -55,10 +55,12 @@ class KpiController extends Controller
                 'previous' => $this->comisionesDelPeriodo($previous),
             ],
             'por_cobrar' => [
-                'amount' => DB::table('client_invoices')->where('estado', '!=', 'Pagado')->sum('total'),
-                'count'  => DB::table('client_invoices')->where('estado', '!=', 'Pagado')->count(),
+                'amount'     => (float) DB::table('client_invoices')->whereNotIn('estado', self::ESTADOS_PAGADO)->sum('total'),
+                'count'      => (int)   DB::table('client_invoices')->whereNotIn('estado', self::ESTADOS_PAGADO)->count(),
+                'vencida'    => (float) DB::table('client_invoices')->whereIn('estado', ['Atrasado', 'impagado'])->sum('total'),
+                'por_vencer' => (float) DB::table('client_invoices')->whereNotIn('estado', array_merge(self::ESTADOS_PAGADO, ['Atrasado', 'impagado', 'Archivado']))->sum('total'),
             ],
-            'tickets_abiertos'     => DB::table('tasks')->where('status', '!=', 'Done')->whereNull('deleted_at')->count(),
+            'tickets_abiertos'     => DB::table('tasks')->whereIn('status', ['ToDo', 'InProgress'])->whereNull('deleted_at')->count(),
             'daily_current'        => $this->ingresosDaily($current),
             'daily_previous'       => $this->ingresosDaily($previous),
             'top_performers'       => $this->topPerformers($current),
@@ -146,7 +148,7 @@ class KpiController extends Controller
         }
 
         $ticketsViejos = DB::table('tasks')
-            ->where('status', '!=', 'Done')
+            ->whereIn('status', ['ToDo', 'InProgress'])
             ->whereNull('deleted_at')
             ->where('created_at', '<=', now()->subDays(5)->format('Y-m-d H:i:s'))
             ->count();
@@ -221,7 +223,7 @@ class KpiController extends Controller
         $topDeudores = DB::table('client_invoices')
             ->join('clients', 'client_invoices.client_id', '=', 'clients.id')
             ->join('users', 'clients.user_id', '=', 'users.id')
-            ->where('client_invoices.estado', '!=', 'Pagado')
+            ->whereNotIn('client_invoices.estado', self::ESTADOS_PAGADO)
             ->select('users.name', DB::raw('SUM(client_invoices.total) as deuda'), DB::raw('COUNT(*) as facturas'))
             ->groupBy('users.name')
             ->orderByDesc('deuda')
@@ -229,7 +231,7 @@ class KpiController extends Controller
             ->get();
 
         $cashflowProximo = DB::table('client_invoices')
-            ->where('estado', '!=', 'Pagado')
+            ->whereNotIn('estado', self::ESTADOS_PAGADO)
             ->whereRaw("$dd IS NOT NULL")
             ->whereRaw("$dd BETWEEN ? AND ?", [now()->toDateString(), now()->addWeeks(4)->toDateString()])
             ->select(DB::raw("DATE_FORMAT($dd,'%Y-%m-%d') as due_date"), DB::raw('SUM(total) as monto'), DB::raw('COUNT(*) as facturas'))
@@ -260,8 +262,10 @@ class KpiController extends Controller
             'top_deudores'     => $topDeudores,
             'cashflow_proximo' => $cashflowProximo,
             'por_cobrar'       => [
-                'amount' => DB::table('client_invoices')->where('estado', '!=', 'Pagado')->sum('total'),
-                'count'  => DB::table('client_invoices')->where('estado', '!=', 'Pagado')->count(),
+                'amount'     => (float) DB::table('client_invoices')->whereNotIn('estado', self::ESTADOS_PAGADO)->sum('total'),
+                'count'      => (int)   DB::table('client_invoices')->whereNotIn('estado', self::ESTADOS_PAGADO)->count(),
+                'vencida'    => (float) DB::table('client_invoices')->whereIn('estado', ['Atrasado', 'impagado'])->sum('total'),
+                'por_vencer' => (float) DB::table('client_invoices')->whereNotIn('estado', array_merge(self::ESTADOS_PAGADO, ['Atrasado', 'impagado', 'Archivado']))->sum('total'),
             ],
             'weekly_series'    => $weeklySeriesFin,
         ];
@@ -283,11 +287,8 @@ class KpiController extends Controller
             ->whereIn('status', ['ToDo', 'InProgress'])
             ->count();
 
-        $ticketsPendientesPrev = DB::table('tasks')
-            ->whereNull('deleted_at')
-            ->where('updated_at', '<=', Carbon::createFromFormat('Y-m', $previous)->endOfMonth())
-            ->whereIn('status', ['ToDo', 'InProgress'])
-            ->count();
+        // No existe snapshot histórico de tickets abiertos en un mes pasado
+        $ticketsPendientesPrev = null;
 
         // Tickets cerrados (Done) en el período
         $ticketsCerrados = DB::table('tasks')
