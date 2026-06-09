@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Talento;
 
 use App\Modules\Addons\Talento\Console\CheckCredentialExpirationsCommand;
+use App\Modules\Addons\Talento\Console\SyncColaboradoresCommand;
 use App\Modules\BaseModuleServiceProvider;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
@@ -18,6 +19,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 CheckCredentialExpirationsCommand::class,
+                SyncColaboradoresCommand::class,
             ]);
         }
     }
