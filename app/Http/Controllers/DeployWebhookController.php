@@ -2,17 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Release;
+use App\Models\DeploymentLog;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\Process\Process;
 
 class DeployWebhookController extends Controller
 {
     /**
      * Recibe la llamada del servidor local tras hacer git push.
-     * Ejecuta: git pull → npm build → migrate → optimize → queue:restart → guarda release en DB remota.
+     * Despacha el deploy como proceso en background y devuelve el log_id para polling.
      */
     public function handle(Request $request)
     {
@@ -23,143 +21,65 @@ class DeployWebhookController extends Controller
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 401);
         }
 
-        $startedAt  = now();
-        $steps      = [];
-        $npmScript  = 'prod';
+        $log = DeploymentLog::create([
+            'release_id'   => null,
+            'triggered_by' => 1,
+            'status'       => 'pending',
+            'steps'        => [],
+        ]);
 
-        try {
-            // 1. git pull
-            $steps[] = $this->runShell('git_pull', 'Git pull origin main', 'git pull origin main', 60);
+        $version     = $request->input('version', '');
+        $title       = $request->input('title', '');
+        $summary     = $request->input('summary', '');
+        $releaseDate = $request->input('release_date', now()->toDateString());
 
-            if (!$steps[0]['success']) {
-                return response()->json([
-                    'success' => false,
-                    'steps'   => $steps,
-                    'error'   => 'git pull falló — revisa conflictos en el servidor remoto.',
-                ], 500);
-            }
+        $logFile = storage_path("logs/remote-deploy-{$log->id}.log");
 
-            // 2. npm build
-            $steps[] = $this->runShell('npm_build', "Compilar assets (npm run {$npmScript})", "npm run {$npmScript}", 600);
+        $cmd = sprintf(
+            'nohup %s %s remote:deploy %d --version=%s --title=%s --summary=%s --release-date=%s > %s 2>&1 &',
+            PHP_BINARY,
+            escapeshellarg(base_path('artisan')),
+            $log->id,
+            escapeshellarg($version),
+            escapeshellarg($title),
+            escapeshellarg($summary),
+            escapeshellarg($releaseDate),
+            escapeshellarg($logFile)
+        );
 
-            // 3. migrate
-            $steps[] = $this->runArtisan('migrate', 'Ejecutar migraciones', 'migrate', ['--force' => true]);
+        shell_exec($cmd);
 
-            // 4. optimize
-            $steps[] = $this->runArtisan('optimize', 'Optimizar cachés', 'optimize');
+        Log::info("DeployWebhook: deploy iniciado — log #{$log->id}, version={$version}");
 
-            // 5. queue:restart
-            $steps[] = $this->runArtisan('queue_restart', 'Reiniciar workers', 'queue:restart');
-
-            // 5. Guardar release en la DB de este servidor
-            $version = $request->input('version');
-            if ($version) {
-                $existing = Release::where('version', $version)->first();
-                if (!$existing) {
-                    Release::create([
-                        'version'      => $version,
-                        'title'        => $request->input('title'),
-                        'summary'      => $request->input('summary'),
-                        'release_date' => $request->input('release_date', now()->toDateString()),
-                        'created_by'   => 1,
-                    ]);
-                    $releaseMsg = "Release {$version} creada en DB remota.";
-                } else {
-                    $releaseMsg = "Release {$version} ya existía en DB remota — sin cambios.";
-                }
-                $steps[] = [
-                    'key'         => 'save_release',
-                    'name'        => 'Guardar release en DB remota',
-                    'success'     => true,
-                    'output'      => $releaseMsg,
-                    'duration_ms' => 0,
-                ];
-            }
-
-            Log::info('DeployWebhook: deploy completado para ' . ($version ?? 'desconocido') . ' en ' . now()->diffInSeconds($startedAt) . 's');
-
-            return response()->json([
-                'success'          => true,
-                'steps'            => $steps,
-                'duration_seconds' => now()->diffInSeconds($startedAt),
-            ]);
-
-        } catch (\Throwable $e) {
-            Log::error('DeployWebhook error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'steps'   => $steps,
-                'error'   => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    private function buildShellEnv(): array
-    {
-        // Heredar el env del proceso padre (PHP-FPM) y sobreescribir lo necesario.
-        // NO pasar array vacío — Process::fromShellCommandline reemplaza el env completo
-        // y entonces PATH desaparece y ningún binario (git/npm) se encuentra.
-        $parentEnv = getenv();
-
-        return array_merge($parentEnv, [
-            'PATH'               => ($parentEnv['PATH'] ?? '') . ':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-            'HOME'               => '/root',
-            'GIT_CONFIG_COUNT'   => '1',
-            'GIT_CONFIG_KEY_0'   => 'safe.directory',
-            'GIT_CONFIG_VALUE_0' => base_path(),
+        return response()->json([
+            'dispatched' => true,
+            'log_id'     => $log->id,
         ]);
     }
 
-    private function runShell(string $key, string $name, string $command, int $timeout = 60): array
+    /**
+     * Devuelve el estado actual del deploy remoto para polling.
+     */
+    public function status(int $id, Request $request)
     {
-        $startedAt = microtime(true);
-        $output    = '';
-        $success   = false;
+        $secret = config('deployment.webhook_secret', '');
 
-        try {
-            $process = Process::fromShellCommandline($command, base_path(), $this->buildShellEnv(), null, $timeout);
-            $process->run(fn($type, $buf) => $output .= $buf);
-            $success = $process->isSuccessful();
-            if (!$success && empty(trim($output))) {
-                $output = sprintf(
-                    "[exit %d] Sin output — posible binario no encontrado. PATH=%s",
-                    $process->getExitCode() ?? -1,
-                    $this->buildShellEnv()['PATH'] ?? 'N/A'
-                );
-            }
-        } catch (\Throwable $e) {
-            $output = get_class($e) . ': ' . $e->getMessage();
+        if (empty($secret) || $request->header('X-Deploy-Token') !== $secret) {
+            return response()->json(['message' => 'No autorizado.'], 401);
         }
 
-        return [
-            'key'         => $key,
-            'name'        => $name,
-            'success'     => $success,
-            'output'      => mb_substr(trim($output), -2000),
-            'duration_ms' => (int) ((microtime(true) - $startedAt) * 1000),
-        ];
-    }
-
-    private function runArtisan(string $key, string $name, string $command, array $params = []): array
-    {
-        $startedAt = microtime(true);
-        $success   = false;
-        $output    = '';
-
-        try {
-            $exitCode = Artisan::call($command, $params);
-            $output   = Artisan::output();
-            $success  = $exitCode === 0;
-        } catch (\Throwable $e) {
-            $output = $e->getMessage();
+        $log = DeploymentLog::find($id);
+        if (!$log) {
+            return response()->json(['message' => 'Log no encontrado.'], 404);
         }
 
-        return [
-            'key'         => $key,
-            'name'        => $name,
-            'success'     => $success,
-            'output'      => mb_substr(trim($output), -2000),
-            'duration_ms' => (int) ((microtime(true) - $startedAt) * 1000),
-        ];
+        return response()->json([
+            'status'           => $log->status,
+            'steps'            => $log->steps ?? [],
+            'error_message'    => $log->error_message,
+            'duration_seconds' => $log->duration_seconds,
+            'started_at'       => $log->started_at,
+            'finished_at'      => $log->finished_at,
+        ]);
     }
 }

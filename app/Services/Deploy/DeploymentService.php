@@ -132,20 +132,61 @@ class DeploymentService
             'release_date' => $release?->release_date,
         ];
 
+        // — Paso 1: disparar el deploy remoto —
         try {
-            $response = Http::timeout($step['timeout'] ?? 120)
+            $trigger = Http::timeout(30)
                 ->withHeader('X-Deploy-Token', $secret)
                 ->post("{$remoteUrl}/api/webhook/deploy", $payload);
-
-            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
-            $body       = $response->json();
-            $output     = json_encode($body, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-
-            return [$response->successful() ? 0 : 1, $output ?: $response->body(), $durationMs];
         } catch (\Throwable $e) {
             $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
             return [1, 'Error de conexión con servidor remoto: ' . $e->getMessage(), $durationMs];
         }
+
+        if (!$trigger->successful()) {
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+            return [1, "Webhook rechazado ({$trigger->status()}): " . $trigger->body(), $durationMs];
+        }
+
+        $remoteLogId = $trigger->json('log_id');
+        if (!$remoteLogId) {
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+            return [1, 'El servidor remoto no devolvió log_id. Respuesta: ' . $trigger->body(), $durationMs];
+        }
+
+        // — Paso 2: polling hasta que el deploy remoto termine —
+        $maxWait    = max(60, ($step['timeout'] ?? 700) - 30);
+        $deadline   = microtime(true) + $maxWait;
+        $lastOutput = "Deploy remoto iniciado (log #{$remoteLogId}). Esperando resultados...";
+        $pollUrl    = "{$remoteUrl}/api/webhook/deploy/{$remoteLogId}/status";
+
+        while (microtime(true) < $deadline) {
+            sleep(5);
+
+            try {
+                $poll = Http::timeout(15)
+                    ->withHeader('X-Deploy-Token', $secret)
+                    ->get($pollUrl);
+
+                if (!$poll->successful()) continue;
+
+                $data         = $poll->json();
+                $remoteStatus = $data['status'] ?? 'unknown';
+                $lastOutput   = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+                // Actualizar output del paso en el log local (visible en el modal)
+                $log->updateStep('remote_deploy', ['output' => $lastOutput]);
+
+                if (in_array($remoteStatus, ['success', 'failed'])) {
+                    $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+                    return [$remoteStatus === 'success' ? 0 : 1, $lastOutput, $durationMs];
+                }
+            } catch (\Throwable $e) {
+                $lastOutput .= "\n[poll error: {$e->getMessage()}]";
+            }
+        }
+
+        $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+        return [1, "Timeout ({$maxWait}s) esperando al servidor remoto.\n{$lastOutput}", $durationMs];
     }
 
     private function interpolate(string $text, string $version, string $title, string $message): string
