@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Talento\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Models\TalentoRoleDepartment;
 use Illuminate\Http\Request;
 
 class TalentoColaboradorController extends Controller
@@ -109,6 +110,15 @@ class TalentoColaboradorController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    public function roleDepartments()
+    {
+        $this->authorize('talento.manage');
+
+        return response()->json(
+            TalentoRoleDepartment::pluck('department', 'role_name')
+        );
+    }
+
     public function usersDisponibles(Request $request)
     {
         $this->authorize('talento.manage');
@@ -119,9 +129,14 @@ class TalentoColaboradorController extends Controller
             ->when($request->search, fn($q, $s) =>
                 $q->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%")
             )
+            ->with('roles:name')
             ->select('id', 'name', 'email')
             ->limit(30)
-            ->get();
+            ->get()
+            ->map(fn($u) => array_merge(
+                $u->only('id', 'name', 'email'),
+                ['role_names' => $u->roles->pluck('name')->values()->all()]
+            ));
 
         return response()->json($users);
     }

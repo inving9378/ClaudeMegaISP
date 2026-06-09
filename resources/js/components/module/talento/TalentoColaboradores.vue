@@ -189,6 +189,9 @@
               <div class="col-md-4">
                 <label class="form-label">Departamento</label>
                 <input v-model="modal.department" type="text" class="form-control" placeholder="Ej. Técnico, Ventas…">
+                <div v-if="!modal.id && modal.department" class="form-text text-success">
+                  <i class="fa fa-magic me-1"></i>Autodetectado del rol — puedes editarlo.
+                </div>
               </div>
 
               <!-- Supervisor -->
@@ -261,12 +264,14 @@ export default {
       userSearchTimeout: null,
       searchTimeout: null,
       canManage: false,
+      roleDepartments: {},
     };
   },
   mounted() {
     this.checkPermission();
     this.load();
     this.loadSupervisores();
+    this.loadRoleDepartments();
   },
   methods: {
     async checkPermission() {
@@ -336,11 +341,30 @@ export default {
         this.userSuggestions = data ?? [];
       } catch {}
     },
+    async loadRoleDepartments() {
+      try {
+        const { data } = await axios.get('/talento/api/colaboradores/role-departments');
+        this.roleDepartments = data ?? {};
+      } catch {}
+    },
     selectUser(u) {
       this.modal.user_id = u.id;
       this.modal.user_name = u.name;
       this.userSearch = u.name;
       this.userSuggestions = [];
+      // Pre-rellenar department según rol (prioridad: TECNICO_PLANTA > TECNICO_INSTALADOR > TECNICO > otros)
+      const priority = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO'];
+      const roleNames = u.role_names ?? [];
+      let inferred = null;
+      for (const r of priority) {
+        if (roleNames.includes(r) && this.roleDepartments[r]) { inferred = this.roleDepartments[r]; break; }
+      }
+      if (!inferred) {
+        for (const r of roleNames) {
+          if (this.roleDepartments[r]) { inferred = this.roleDepartments[r]; break; }
+        }
+      }
+      if (inferred) this.modal.department = inferred;
     },
     async save() {
       this.errors = {};
