@@ -29,6 +29,10 @@
                 <PeriodSelector v-model="currentPeriod" />
             </div>
             <div class="wr-header-right">
+                <button class="wr-btn-history" @click="historyOpen = true" title="Ver actas guardadas">
+                    <i class="ti ti-archive me-1"></i>
+                    Actas
+                </button>
                 <button
                     v-if="!meeting"
                     class="wr-btn-start"
@@ -155,6 +159,11 @@
             @close="closeSummary"
         />
 
+        <!-- ── Historial de actas ─────────────────────────────────────────────── -->
+        <q-dialog v-model="historyOpen">
+            <MeetingHistoryView @close="historyOpen = false" />
+        </q-dialog>
+
     </div>
 </template>
 
@@ -165,6 +174,7 @@ import { useMeeting } from './composables/useMeeting.js';
 import MeetingControlBar from './meeting/MeetingControlBar.vue';
 import MeetingSetup from './meeting/MeetingSetup.vue';
 import MeetingLivePanel from './meeting/MeetingLivePanel.vue';
+import MeetingHistoryView from './meeting/MeetingHistoryView.vue';
 import MeetingSummary from './meeting/MeetingSummary.vue';
 import ActionItemQuickCreate from './meeting/ActionItemQuickCreate.vue';
 import PeriodSelector from './shared/PeriodSelector.vue';
@@ -211,6 +221,9 @@ const {
 watch(() => meeting.value?.current_section_key, newKey => {
     if (newKey) currentView.value = newKey;
 });
+
+// ── Historial de actas ───────────────────────────────────────────────────────
+const historyOpen = ref(false);
 
 // ── Panel lateral vivo ───────────────────────────────────────────────────────
 const panelOpen = ref(false);
@@ -536,6 +549,29 @@ onUnmounted(() => {
 .warroom-container .wr-period-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ── Start button ─────────────────────────────────────────────────────── */
+.warroom-container .wr-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.warroom-container .wr-btn-history {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: var(--wr-text-muted);
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+}
+.warroom-container .wr-btn-history:hover {
+    background: rgba(255,255,255,0.10);
+    color: var(--wr-text);
+}
+
 .warroom-container .wr-btn-start {
     background: var(--wr-purple);
     border: none;
