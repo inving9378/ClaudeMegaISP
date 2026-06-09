@@ -227,6 +227,53 @@
                 </p>
             </div>
 
+            <!-- ── Evolución por equipo ──────────────────────────────────────── -->
+            <div class="wr-panel mt-3">
+                <warroom-line-series
+                    :series="serieSeries"
+                    :labels="serieLabels"
+                    :loading="serieLoading"
+                    title="Evolución por equipo"
+                    v-model:granularidad="serieGranularidad"
+                    :show-controls="true"
+                >
+                    <template #controls>
+                        <!-- Equipo -->
+                        <div class="wr-desemp-ctrl-group">
+                            <label class="wr-ctrl-label"><i class="ti ti-building me-1"></i>Equipo</label>
+                            <select class="wr-select" v-model="serieDepartment" @change="loadSerie">
+                                <option value="">Todos</option>
+                                <option v-for="d in availableDepartments" :key="d" :value="d">{{ d }}</option>
+                                <option v-if="hasSinEquipo" value="__none__">Sin equipo</option>
+                            </select>
+                        </div>
+                        <!-- Factor -->
+                        <div class="wr-desemp-ctrl-group">
+                            <label class="wr-ctrl-label"><i class="ti ti-chart-line me-1"></i>Actividad</label>
+                            <select class="wr-select" v-model="serieFactor" @change="loadSerie">
+                                <option value="total">Total (todas)</option>
+                                <optgroup label="Órdenes de trabajo">
+                                    <option value="ots">OTs validadas</option>
+                                </optgroup>
+                                <optgroup label="Actividades">
+                                    <option value="asistencias">Asistencias</option>
+                                    <option value="inspecciones_caja">Inspecciones caja</option>
+                                    <option value="bonos_salud_red">Bonos salud red</option>
+                                    <option value="activaciones_olt">Activaciones OLT</option>
+                                    <option value="evaluaciones">Evaluaciones</option>
+                                    <option value="extensiones_turno">Extensiones de turno</option>
+                                </optgroup>
+                                <optgroup label="Incidencias / riesgo">
+                                    <option value="penalizaciones">Penalizaciones</option>
+                                    <option value="desvios_ruta">Desvíos de ruta</option>
+                                    <option value="incidencias_ot">Incidencias de OT</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                    </template>
+                </warroom-line-series>
+            </div>
+
         </template>
     </div>
 </template>
@@ -256,6 +303,14 @@ const chartType          = ref('bar');
 const chartCanvas        = ref(null);
 const selectedDepartment = ref('');  // '' = Todos, '__none__' = sin equipo
 let   chartInstance      = null;
+
+// ── Serie temporal ────────────────────────────────────────────────────────────
+const serieLoading       = ref(false);
+const serieLabels        = ref([]);
+const serieSeries        = ref([]);
+const serieDepartment    = ref('');
+const serieFactor        = ref('total');
+const serieGranularidad  = ref('semana');
 
 // ── Departamentos disponibles ─────────────────────────────────────────────────
 const availableDepartments = computed(() => data.value?.departments ?? []);
@@ -350,12 +405,14 @@ async function load() {
             if (selectedColIds.value.length === 0) {
                 const firstDept = resp.departments?.[0] ?? '';
                 selectedDepartment.value = firstDept;
+                serieDepartment.value    = firstDept;
                 const pool = firstDept
                     ? resp.colaboradores.filter(c => c.department === firstDept)
                     : resp.colaboradores;
                 selectedColIds.value = pool.map(c => c.colaborador_id);
             }
         }
+        loadSerie();
     } catch {
         data.value = null;
     } finally {
@@ -490,6 +547,36 @@ function handleOutsideClick(e) {
         colSelectorOpen.value = false;
     }
 }
+
+// ── Carga de serie temporal ────────────────────────────────────────────────────
+async function loadSerie() {
+    serieLoading.value = true;
+    try {
+        const { data: resp } = await axios.get('/warroom/api/desempeno/serie', {
+            params: {
+                department:    serieDepartment.value,
+                factor:        serieFactor.value,
+                granularidad:  serieGranularidad.value,
+                from:          from.value,
+                to:            to.value,
+            },
+        });
+        if (resp.available) {
+            serieLabels.value = resp.labels ?? [];
+            serieSeries.value = resp.series ?? [];
+        } else {
+            serieLabels.value = [];
+            serieSeries.value = [];
+        }
+    } catch {
+        serieLabels.value = [];
+        serieSeries.value = [];
+    } finally {
+        serieLoading.value = false;
+    }
+}
+
+watch(serieGranularidad, () => loadSerie());
 
 // ── Watchers que disparan re-render de Chart.js ───────────────────────────────
 watch([filteredData, selectedMetric, chartType], async () => {
