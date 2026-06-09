@@ -102,6 +102,8 @@ class DeployWebhookController extends Controller
 
         try {
             $env = [
+                'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                'HOME'               => '/root',
                 'GIT_CONFIG_COUNT'   => '1',
                 'GIT_CONFIG_KEY_0'   => 'safe.directory',
                 'GIT_CONFIG_VALUE_0' => base_path(),
