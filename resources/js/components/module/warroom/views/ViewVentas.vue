@@ -1,6 +1,34 @@
 <template>
     <div class="wr-view wr-view-ventas">
-        <div class="wr-kpi-grid wr-kpi-grid-3">
+
+        <!-- ── Controles unificados ──────────────────────────────────────────── -->
+        <WarroomViewControls
+            v-model:from="from"
+            v-model:to="to"
+            v-model:granularidad="granularidad"
+            :loading="loading"
+            @refresh="load"
+            @update:from="load"
+            @update:to="load"
+        />
+
+        <!-- ── Clientes nuevos semanales ─────────────────────────────────────── -->
+        <div class="wr-panel mt-3">
+            <div class="wr-section-title mb-2">
+                <i class="ti ti-chart-line me-1"></i>
+                Clientes nuevos por semana — comparativo 3 meses
+            </div>
+            <warroom-line-series
+                :series="serieSeries"
+                :labels="serieLabels"
+                :loading="loading"
+                v-model:granularidad="granularidad"
+                :show-controls="false"
+            />
+        </div>
+
+        <!-- ── KPIs ──────────────────────────────────────────────────────────── -->
+        <div class="wr-kpi-grid wr-kpi-grid-3 mt-3">
             <KpiCard
                 label="Clientes nuevos"
                 :value="kpis?.clientes_nuevos?.current"
@@ -43,15 +71,7 @@
             />
         </div>
 
-        <!-- Gráfica clientes nuevos semanal — 3 meses comparados -->
-        <div class="wr-panel mt-3" v-if="!loading && weeklyChartSeries.length">
-            <div class="wr-section-title mb-2">
-                <i class="ti ti-chart-line me-1"></i>
-                Clientes nuevos por semana — comparativo 3 meses
-            </div>
-            <apexchart type="line" height="160" :options="weeklyChartOptions" :series="weeklyChartSeries" />
-        </div>
-
+        <!-- ── Insights ──────────────────────────────────────────────────────── -->
         <div class="mt-3">
             <InsightsBlock :insights="insights" :loading="insightsLoading" :source="insightsSource" :status="insightsStatus" />
         </div>
@@ -59,63 +79,40 @@
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import KpiCard from '../shared/KpiCard.vue';
 import InsightsBlock from '../shared/InsightsBlock.vue';
+import WarroomViewControls from '../shared/WarroomViewControls.vue';
+import WarroomLineSeries from './WarroomLineSeries.vue';
 import { useKpis } from '../composables/useKpis.js';
 import { useInsights } from '../composables/useInsights.js';
-import { deltaStr, deltaDir, formatCurrency } from '../utils.js';
+import { deltaStr, deltaDir, formatCurrency, transformWeeklySeries } from '../utils.js';
 
 const props = defineProps({
     period: { type: String, required: true },
 });
 
+const now  = new Date();
+const from = ref(props.period + '-01');
+const to   = ref(now.toISOString().slice(0, 10));
+const granularidad = ref('semana');
+
 const { kpis, loading, fetchKpis } = useKpis('ventas');
 const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('ventas');
 
-// ── Gráfica clientes nuevos semanal ──────────────────────────────────────────
-const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-function periodLabel(p) {
-    const [y, m] = p.split('-');
-    return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
-}
-
-const weeklyChartSeries = computed(() => {
-    if (!kpis.value?.weekly_series?.series) return [];
-    return kpis.value.weekly_series.series.map(s => ({
-        name: periodLabel(s.period),
-        data: s.data,
-    }));
-});
-
-const weeklyChartOptions = computed(() => ({
-    chart: { background: 'transparent', toolbar: { show: false }, animations: { enabled: false } },
-    theme: { mode: 'dark' },
-    colors: ['#1D9E75', '#534AB7', '#6b6b85'],
-    stroke: { curve: 'smooth', width: [3, 1.5, 1] },
-    xaxis: {
-        categories: kpis.value?.weekly_series?.labels ?? ['Sem 1','Sem 2','Sem 3','Sem 4'],
-        labels: { style: { colors: '#6b6b85', fontSize: '11px' } },
-        axisBorder: { show: false },
-        axisTicks: { show: false },
-    },
-    yaxis: {
-        labels: {
-            style: { colors: '#6b6b85', fontSize: '10px' },
-            formatter: v => `${Math.round(v)}`,
-        },
-    },
-    grid: { borderColor: 'rgba(255,255,255,0.06)', strokeDashArray: 4 },
-    tooltip: { theme: 'dark', y: { formatter: v => `${Math.round(v)} clientes` } },
-    legend: { labels: { colors: '#9999b0' }, fontSize: '11px' },
-    dataLabels: { enabled: false },
-    markers: { size: 4, strokeWidth: 0 },
-}));
+const serieData   = computed(() => transformWeeklySeries(kpis.value?.weekly_series));
+const serieLabels = computed(() => serieData.value.labels);
+const serieSeries = computed(() => serieData.value.series);
 
 async function load() {
-    await Promise.all([fetchKpis(props.period), fetchInsights(props.period)]);
+    const period = from.value.slice(0, 7);
+    await Promise.all([fetchKpis(period), fetchInsights(period)]);
 }
 
+watch(() => props.period, (val) => {
+    from.value = val + '-01';
+    load();
+});
+
 onMounted(load);
-watch(() => props.period, load);
 </script>
