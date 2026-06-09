@@ -9,6 +9,7 @@ return new class extends Migration
         'TECNICO_INSTALADOR' => 'Planta externa',
         'TECNICO'            => 'Planta externa',
         'TECNICO_PLANTA'     => 'Planta interna',
+        'Mostrador'          => 'Mostrador',
         'Vendedor'           => 'Ventas',
     ];
 
