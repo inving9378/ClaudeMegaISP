@@ -131,7 +131,7 @@ class KpiController extends Controller
             ->whereNotExists(function ($q) use ($since45, $pd45) {
                 $q->from('client_invoices as ci')
                   ->whereColumn('ci.client_id', 'c.id')
-                  ->where('ci.estado', 'Pagado')
+                  ->whereIn('ci.estado', self::ESTADOS_PAGADO)
                   ->whereRaw("$pd45 >= ?", [$since45]);
             })
             ->count();
@@ -196,20 +196,20 @@ class KpiController extends Controller
         $dd = $this->parsedDate('document_date');
 
         $mrr = DB::table('client_invoices')
-            ->where('estado', 'Pagado')
+            ->whereIn('estado', self::ESTADOS_PAGADO)
             ->whereRaw("YEAR($pd) = ?", [$cy])
             ->whereRaw("MONTH($pd) = ?", [$cm])
             ->sum('total');
 
         $mrrPrev = DB::table('client_invoices')
-            ->where('estado', 'Pagado')
+            ->whereIn('estado', self::ESTADOS_PAGADO)
             ->whereRaw("YEAR($pd) = ?", [$py])
             ->whereRaw("MONTH($pd) = ?", [$pm])
             ->sum('total');
 
-        // Tasa de cobro: % del monto total facturado que fue cobrado (acumulado)
+        // Tasa de cobro histórica: % del total facturado alguna vez que fue cobrado
         $totalFacturado = (float) DB::table('client_invoices')->sum('total');
-        $totalCobrado   = (float) DB::table('client_invoices')->where('estado', 'Pagado')->sum('total');
+        $totalCobrado   = (float) DB::table('client_invoices')->whereIn('estado', self::ESTADOS_PAGADO)->sum('total');
         $tasaCobro      = $totalFacturado > 0 ? round(($totalCobrado / $totalFacturado) * 100, 1) : 0;
 
         // Cartera vencida: facturas atrasadas o impagadas
@@ -241,7 +241,7 @@ class KpiController extends Controller
             $current,
             $previous,
             fn ($y, $m, $d1, $d2) => (float) DB::table('client_invoices')
-                ->where('estado', 'Pagado')
+                ->whereIn('estado', self::ESTADOS_PAGADO)
                 ->whereRaw("YEAR({$this->parsedDate('payment_date')}) = ?", [$y])
                 ->whereRaw("MONTH({$this->parsedDate('payment_date')}) = ?", [$m])
                 ->whereRaw("DAY({$this->parsedDate('payment_date')}) BETWEEN ? AND ?", [$d1, $d2])
@@ -596,12 +596,14 @@ class KpiController extends Controller
         END";
     }
 
+    private const ESTADOS_PAGADO = ['Pagado', 'Pagar (del saldo de la cuenta)'];
+
     private function ingresosDelPeriodo(string $period): float
     {
         [$y, $m] = explode('-', $period);
         $pd = $this->parsedDate('payment_date');
         return (float) DB::table('client_invoices')
-            ->where('estado', 'Pagado')
+            ->whereIn('estado', self::ESTADOS_PAGADO)
             ->whereRaw("YEAR($pd) = ?", [$y])
             ->whereRaw("MONTH($pd) = ?", [$m])
             ->sum('total');
@@ -712,7 +714,7 @@ class KpiController extends Controller
         [$y, $m] = explode('-', $period);
         $pd = $this->parsedDate('payment_date');
         $rows = DB::table('client_invoices')
-            ->where('estado', 'Pagado')
+            ->whereIn('estado', self::ESTADOS_PAGADO)
             ->whereRaw("YEAR($pd) = ?", [$y])
             ->whereRaw("MONTH($pd) = ?", [$m])
             ->select(DB::raw("DAY($pd) as day"), DB::raw('SUM(total) as total'))
