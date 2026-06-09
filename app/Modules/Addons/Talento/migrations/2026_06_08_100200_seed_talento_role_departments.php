@@ -5,12 +5,12 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
+    // Solo roles de PUESTO. 'Vendedor' es capacidad transversal de comisión → no define department.
     private const MAPPINGS = [
         'TECNICO_INSTALADOR' => 'Planta externa',
         'TECNICO'            => 'Planta externa',
         'TECNICO_PLANTA'     => 'Planta interna',
         'Mostrador'          => 'Mostrador',
-        'Vendedor'           => 'Ventas',
     ];
 
     public function up(): void
