@@ -18,7 +18,11 @@ class DeployJob implements ShouldQueue
     public int $timeout = 600;
     public int $tries   = 1;
 
-    public function __construct(public DeploymentLog $log) {}
+    public function __construct(
+        public DeploymentLog $log,
+        public string $version,
+        public string $title = ''
+    ) {}
 
     public function handle(DeploymentService $service): void
     {
@@ -32,7 +36,7 @@ class DeployJob implements ShouldQueue
         }
 
         try {
-            $service->run($this->log);
+            $service->run($this->log, $this->version, $this->title);
         } finally {
             DeploymentLock::release();
         }

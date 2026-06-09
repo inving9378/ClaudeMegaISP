@@ -8,7 +8,6 @@ use App\Models\DeploymentLog;
 use App\Models\Release;
 use App\Models\ReleaseDescription;
 use App\Services\BackupDb\BackupDbTestService;
-use App\Services\Git\GitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -101,25 +100,16 @@ class ReleaseController extends Controller
             DB::beginTransaction();
             $release = Release::create($data);
 
-            $gitService = new GitService();
-            $okGit = $gitService->createGitTag($data['version']);
-            if ($okGit) {
-                Log::info("Tag creado exitosamente para versión {$data['version']}");
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ocurrio un error al crear el tag de git.',
-                ], 500);
-                Log::warning("No se pudo crear el tag para versión {$data['version']}");
-            }
-
             $deployLog = DeploymentLog::create([
                 'release_id'   => $release->id,
                 'triggered_by' => auth()->user()->id,
                 'status'       => 'pending',
             ]);
 
-            DeployJob::dispatch($deployLog)->onConnection('database')->onQueue('deploy');
+            // El DeployJob se encarga de: npm build → git add → git commit → git tag → git push → migrate → optimize
+            DeployJob::dispatch($deployLog, $release->version, $release->title ?? '')
+                ->onConnection('database')
+                ->onQueue('deploy');
 
             DB::commit();
             return response()->json([
