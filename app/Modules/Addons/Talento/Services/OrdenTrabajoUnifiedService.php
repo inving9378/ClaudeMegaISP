@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Talento\Services;
 use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -671,7 +672,7 @@ class OrdenTrabajoUnifiedService
             'scheduled_at'   => $scheduledAt,
             'notes'          => $task->description,
             'nota_tecnico'   => $task->nota_tecnico,
-            'validated_at'   => null,
+            'validated_at'   => $task->validated_at,
             'validated_by'   => null,
             'created_at'     => $task->created_at,
             'updated_at'     => $task->updated_at,
@@ -790,6 +791,217 @@ class OrdenTrabajoUnifiedService
         }
 
         return null;
+    }
+
+    // ── Admin SPA — WRITE ────────────────────────────────────────────────────────
+
+    public function actualizarAdmin(int $id, array $data): array
+    {
+        $task = Task::where('id', $id)->where('tipo', 'campo')->whereNotNull('talento_type_id')->first();
+        if ($task) {
+            $currentOtStatus = self::TASK_STATUS_MAP[$task->status] ?? $task->status;
+            if (in_array($currentOtStatus, ['validated', 'cancelled'])) {
+                return ['success' => false, 'message' => 'No se puede editar una orden validada o cancelada.', 'status_code' => 422];
+            }
+
+            $updates = ['updated_by' => auth()->id() ?? 0, 'updated_at' => now()];
+
+            if (isset($data['type_id'])) {
+                $type = TalentoWorkOrderType::find($data['type_id']);
+                if ($type) {
+                    $updates['talento_type_id'] = $data['type_id'];
+                    $updates['points']          = $type->points;
+                    $updates['is_billable']     = $type->is_billable ? 1 : 0;
+                }
+            }
+            if (isset($data['scheduled_at'])) {
+                $dt = \Carbon\Carbon::parse($data['scheduled_at']);
+                $updates['start_date'] = $dt->toDateString();
+                $updates['start_time'] = $dt->format('H:i:s');
+            }
+            if (array_key_exists('notes', $data)) {
+                $updates['description'] = $data['notes'];
+            }
+            if (isset($data['client_id'])) {
+                $updates['client_main_information_id'] = DB::table('client_main_information')
+                    ->where('client_id', $data['client_id'])->value('id');
+            }
+            if (isset($data['olt_onu_id'])) {
+                $updates['olt_onu_id'] = $data['olt_onu_id'];
+            }
+            if (isset($data['colaborador_id'])) {
+                $userId = $this->getUserId((int) $data['colaborador_id']);
+                if ($userId) {
+                    $task->users()->sync([$userId]);
+                }
+            }
+
+            DB::table('tasks')->where('id', $id)->update($updates);
+            return ['success' => true, 'data' => $this->showForAdmin($id)];
+        }
+
+        $wo = TalentoWorkOrder::find($id);
+        if ($wo && !$wo->trashed()) {
+            if (in_array($wo->status, ['validated', 'cancelled'])) {
+                return ['success' => false, 'message' => 'No se puede editar una orden validada o cancelada.', 'status_code' => 422];
+            }
+            if (isset($data['type_id']) && $data['type_id'] != $wo->type_id) {
+                $type = TalentoWorkOrderType::find($data['type_id']);
+                if ($type) {
+                    $data['points']      = $type->points;
+                    $data['is_billable'] = $type->is_billable;
+                }
+            }
+            $wo->update($data);
+            return ['success' => true, 'data' => $wo->fresh()->load('colaborador.user', 'type')];
+        }
+
+        return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
+    }
+
+    public function cambiarEstadoAdmin(int $id, string $newOtStatus): array
+    {
+        $transitions = [
+            'pending'     => ['in_progress', 'cancelled'],
+            'in_progress' => ['completed', 'cancelled'],
+            'completed'   => [],
+            'validated'   => [],
+            'cancelled'   => [],
+        ];
+
+        $otToTask = [
+            'pending'     => 'ToDo',
+            'in_progress' => 'InProgress',
+            'completed'   => 'Done',
+            'cancelled'   => 'Archivado',
+        ];
+
+        $task = Task::where('id', $id)->where('tipo', 'campo')->whereNotNull('talento_type_id')->first();
+        if ($task) {
+            $currentOtStatus = self::TASK_STATUS_MAP[$task->status] ?? 'cancelled';
+            if (!in_array($newOtStatus, $transitions[$currentOtStatus] ?? [])) {
+                return ['success' => false, 'message' => "Transición inválida: {$currentOtStatus} → {$newOtStatus}", 'status_code' => 422];
+            }
+
+            $newTaskStatus = $otToTask[$newOtStatus] ?? 'ToDo';
+            $updates = [
+                'status'     => $newTaskStatus,
+                'updated_at' => now(),
+                'updated_by' => auth()->id() ?? 0,
+            ];
+            if ($newTaskStatus === 'Done') {
+                $updates['finish_at'] = now()->toDateTimeString();
+            }
+
+            DB::table('tasks')->where('id', $id)->update($updates);
+            return ['success' => true, 'data' => $this->showForAdmin($id)];
+        }
+
+        $wo = TalentoWorkOrder::find($id);
+        if ($wo && !$wo->trashed()) {
+            if (!in_array($newOtStatus, $transitions[$wo->status] ?? [])) {
+                return ['success' => false, 'message' => "Transición inválida: {$wo->status} → {$newOtStatus}", 'status_code' => 422];
+            }
+            $timestamps = [
+                'in_progress' => ['started_at'   => now()],
+                'completed'   => ['completed_at' => now()],
+            ];
+            $wo->update(array_merge(['status' => $newOtStatus], $timestamps[$newOtStatus] ?? []));
+            return ['success' => true, 'data' => $wo->fresh()];
+        }
+
+        return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
+    }
+
+    public function validarAdmin(int $id): array
+    {
+        $task = Task::where('id', $id)->where('tipo', 'campo')->whereNotNull('talento_type_id')->first();
+        if ($task) {
+            // Idempotencia: validated_at ya seteado → no re-acreditar
+            if ($task->validated_at !== null) {
+                return ['success' => false, 'message' => 'OT ya validada.', 'status_code' => 422];
+            }
+
+            // Acepta InProgress o Done (Done = completada en términos de OT)
+            if (!in_array($task->status, ['InProgress', 'Done'])) {
+                return ['success' => false, 'message' => 'Solo se pueden validar órdenes completadas.', 'status_code' => 422];
+            }
+
+            $now = now();
+            DB::table('tasks')->where('id', $id)->update([
+                'status'       => 'Done',
+                'validated_at' => $now,
+                'finish_at'    => $task->finish_at ?? $now->toDateTimeString(),
+                'updated_at'   => $now,
+                'updated_by'   => auth()->id() ?? 0,
+            ]);
+
+            try {
+                app(\App\Modules\Addons\Talento\Services\HealthBonusService::class)->evaluateTask($task->fresh());
+            } catch (\Throwable $e) {
+                Log::warning('Health bonus evaluation failed for task', ['task_id' => $id, 'err' => $e->getMessage()]);
+            }
+            // WarrantyWindowService requiere TalentoWorkOrder model — skip para tasks (Capa 6.1)
+
+            return ['success' => true, 'data' => $this->showForAdmin($id)];
+        }
+
+        $wo = TalentoWorkOrder::find($id);
+        if ($wo && !$wo->trashed()) {
+            if ($wo->status !== 'completed') {
+                return ['success' => false, 'message' => 'Solo se pueden validar órdenes con estado completada.', 'status_code' => 422];
+            }
+            $wo->update([
+                'status'       => 'validated',
+                'validated_at' => now(),
+                'validated_by' => auth()->id(),
+            ]);
+            try {
+                app(\App\Modules\Addons\Talento\Services\HealthBonusService::class)->evaluate($wo->id);
+            } catch (\Throwable $e) {
+                Log::warning('Health bonus evaluation failed', ['order_id' => $wo->id, 'err' => $e->getMessage()]);
+            }
+            if ($wo->is_billable && $wo->client_id) {
+                try {
+                    app(\App\Modules\Addons\Talento\Services\WarrantyWindowService::class)->refreshWindow($wo->fresh());
+                } catch (\Throwable $e) {
+                    Log::warning('Warranty window refresh failed', ['order_id' => $wo->id, 'err' => $e->getMessage()]);
+                }
+            }
+            return ['success' => true, 'data' => $wo->fresh()->load('validatedBy')];
+        }
+
+        return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
+    }
+
+    public function agregarActividadAdmin(int $id, array $data): array
+    {
+        $task = Task::where('id', $id)->where('tipo', 'campo')->whereNotNull('talento_type_id')->first();
+        if ($task) {
+            // TalentoWorkOrderActivity.fillable no incluye tarea_id → usar DB::table
+            $activityId = DB::table('talento_work_order_activities')->insertGetId([
+                'work_order_id'    => null,
+                'tarea_id'         => $task->id,
+                'description'      => $data['description'],
+                'duration_minutes' => $data['duration_minutes'] ?? 0,
+                'recorded_by'      => auth()->id() ?? 0,
+                'created_at'       => now(),
+            ]);
+            return ['success' => true, 'data' => (array) DB::table('talento_work_order_activities')->find($activityId)];
+        }
+
+        $wo = TalentoWorkOrder::find($id);
+        if ($wo && !$wo->trashed()) {
+            $activity = \App\Modules\Addons\Talento\Models\TalentoWorkOrderActivity::create([
+                'work_order_id'    => $wo->id,
+                'description'      => $data['description'],
+                'duration_minutes' => $data['duration_minutes'] ?? 0,
+                'recorded_by'      => auth()->id() ?? 0,
+            ]);
+            return ['success' => true, 'data' => $activity->toArray()];
+        }
+
+        return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
     }
 
     // ── Helpers privados ──────────────────────────────────────────────────────
