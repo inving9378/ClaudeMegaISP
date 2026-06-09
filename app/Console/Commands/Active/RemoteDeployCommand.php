@@ -10,8 +10,11 @@ use Symfony\Component\Process\Process;
 
 class RemoteDeployCommand extends Command
 {
+    // OJO: la opción NO puede llamarse --version: colisiona con la opción global
+    // reservada -V/--version de Symfony Console, que imprime el banner y aborta
+    // el comando sin ejecutar handle(). Por eso se usa --app-version.
     protected $signature = 'remote:deploy {logId}
-                            {--version=}
+                            {--app-version=}
                             {--title=}
                             {--summary=}
                             {--release-date=}';
@@ -26,7 +29,7 @@ class RemoteDeployCommand extends Command
             return 1;
         }
 
-        $version     = $this->option('version') ?? '';
+        $version     = $this->option('app-version') ?? '';
         $title       = $this->option('title') ?? '';
         $summary     = $this->option('summary') ?? '';
         $releaseDate = $this->option('release-date') ?? now()->toDateString();
