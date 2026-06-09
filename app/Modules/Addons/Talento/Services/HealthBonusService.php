@@ -2,7 +2,9 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoCajaBaseline;
+use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoHealthBonusLog;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
@@ -73,6 +75,130 @@ class HealthBonusService
                 'amount'         => $bonusAmount,
                 'reference_type' => TalentoWorkOrder::class,
                 'reference_id'   => $order->id,
+                'period_start'   => $periodStart,
+                'period_end'     => $periodEnd,
+                'notes'          => "Bono salud red — pérdida {$lossDb} dB (caja {$cajaRef})",
+                'created_by'     => auth()->id(),
+            ]);
+        }
+
+        return $log;
+    }
+
+    /**
+     * Evaluate and potentially award the health bonus for a validated task (tipo=campo).
+     * Same business logic as evaluate() but resolves fields from Task instead of TalentoWorkOrder.
+     */
+    public function evaluateTask(Task $task): TalentoHealthBonusLog
+    {
+        // Resolve colaborador via task_user pivot
+        $userId      = $task->users()->value('users.id');
+        $colaborador = $userId ? TalentoColaborador::where('user_id', $userId)->first() : null;
+
+        if (! $colaborador) {
+            throw new \RuntimeException("Task {$task->id} sin colaborador vinculado; bono salud omitido.");
+        }
+
+        $bonusAmount = (float) (DB::table('settings')->where('key', 'talento_health_bonus_amount')->value('value') ?? 30);
+        $maxLossDb   = (float) (DB::table('settings')->where('key', 'talento_health_bonus_max_loss_db')->value('value') ?? 1.0);
+
+        // Resolve client_id via client_main_information
+        $clientId = $task->client_main_information_id
+            ? DB::table('client_main_information')->where('id', $task->client_main_information_id)->value('client_id')
+            : null;
+
+        // Resolve caja_ref: olt_onu → odb_name, fallback client ONU
+        $cajaRef = null;
+        if ($task->olt_onu_id) {
+            $odb = DB::table('olt_onus')->where('id', $task->olt_onu_id)->value('odb_name');
+            $cajaRef = ($odb !== null && $odb !== '') ? (string)$odb : null;
+        }
+        if (! $cajaRef && $clientId) {
+            $odb = DB::table('olt_onus')->where('client_id', $clientId)
+                ->whereNotNull('odb_name')->where('odb_name', '!=', '')->value('odb_name');
+            $cajaRef = $odb ? (string)$odb : null;
+        }
+
+        $baseline    = $cajaRef ? TalentoCajaBaseline::latestFor($cajaRef) : null;
+        $baselinePwr = $baseline ? (float)$baseline->baseline_power_dbm : null;
+
+        // Resolve client power: olt_onu signal → client additional → none
+        $clientPwr   = null;
+        $powerSource = 'none';
+        if ($task->olt_onu_id) {
+            $sig = DB::table('olt_onus')->where('id', $task->olt_onu_id)
+                ->select('signal_1310', 'signal_1490')->first();
+            if ($sig) {
+                $val = $sig->signal_1310 ?? $sig->signal_1490;
+                if ($val !== null && is_numeric($val) && (float)$val < 0) {
+                    $clientPwr = (float)$val; $powerSource = 'olt_onu';
+                }
+            }
+        }
+        if ($clientPwr === null && $clientId) {
+            $sig = DB::table('olt_onus')->where('client_id', $clientId)
+                ->whereNotNull('signal_1310')->orderBy('last_synced_at', 'desc')->first();
+            if ($sig && is_numeric($sig->signal_1310) && (float)$sig->signal_1310 < 0) {
+                $clientPwr = (float)$sig->signal_1310; $powerSource = 'olt_onu';
+            }
+        }
+        if ($clientPwr === null && $clientId) {
+            $raw = DB::table('client_additional_information')->where('client_id', $clientId)->value('power_dbm');
+            if ($raw !== null) {
+                $val = (float)$raw;
+                if ($val < 0) { $clientPwr = $val; $powerSource = 'client_additional'; }
+            }
+        }
+
+        if ($baselinePwr === null || $clientPwr === null) {
+            return TalentoHealthBonusLog::create([
+                'tarea_id'           => $task->id,
+                'colaborador_id'     => $colaborador->id,
+                'caja_ref'           => $cajaRef,
+                'baseline_power_dbm' => $baselinePwr,
+                'client_power_dbm'   => $clientPwr,
+                'loss_db'            => null,
+                'max_loss_db'        => $maxLossDb,
+                'bonus_awarded'      => false,
+                'bonus_amount'       => 0,
+                'power_source'       => $powerSource,
+                'skip_reason'        => $baselinePwr === null ? 'Sin baseline de caja' : 'Sin señal del cliente',
+            ]);
+        }
+
+        $lossDb    = round($baselinePwr - $clientPwr, 2);
+        $qualifies = $lossDb <= $maxLossDb;
+        $awarded   = $qualifies && (bool)$task->is_billable;
+
+        $log = TalentoHealthBonusLog::create([
+            'tarea_id'           => $task->id,
+            'colaborador_id'     => $colaborador->id,
+            'caja_ref'           => $cajaRef,
+            'baseline_power_dbm' => $baselinePwr,
+            'client_power_dbm'   => $clientPwr,
+            'loss_db'            => $lossDb,
+            'max_loss_db'        => $maxLossDb,
+            'bonus_awarded'      => $awarded,
+            'bonus_amount'       => $awarded ? $bonusAmount : 0.0,
+            'power_source'       => $powerSource,
+            'skip_reason'        => ! $qualifies
+                ? "Pérdida {$lossDb} dB > máximo {$maxLossDb} dB"
+                : (! $task->is_billable ? 'Orden no pagable — bono no aplica' : null),
+        ]);
+
+        if ($awarded) {
+            $periodStart = $task->validated_at
+                ? \Carbon\Carbon::parse($task->validated_at)->startOfWeek(\Carbon\Carbon::SATURDAY)->toDateString()
+                : now()->startOfWeek(\Carbon\Carbon::SATURDAY)->toDateString();
+            $periodEnd = \Carbon\Carbon::parse($periodStart)->addDays(6)->toDateString();
+
+            TalentoLedgerEntry::create([
+                'colaborador_id' => $colaborador->id,
+                'type'           => 'credit',
+                'concept'        => 'bonus',
+                'amount'         => $bonusAmount,
+                'reference_type' => Task::class,
+                'reference_id'   => $task->id,
                 'period_start'   => $periodStart,
                 'period_end'     => $periodEnd,
                 'notes'          => "Bono salud red — pérdida {$lossDb} dB (caja {$cajaRef})",
