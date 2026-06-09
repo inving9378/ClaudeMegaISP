@@ -120,6 +120,7 @@ import EmbajadoresArbol from "./components/module/embajadores/EmbajadoresArbol.v
 
 // War Room Ejecutivo (addon-warroom)
 import WarroomDashboard from "./components/module/warroom/WarroomDashboard.vue";
+import WarroomLineSeries from "./components/module/warroom/views/WarroomLineSeries.vue";
 
 // Flotas (addon-flotas) — gestión de flota vehicular
 import FleetDashboard from "./components/module/flotas/FleetDashboard.vue";
@@ -552,6 +553,7 @@ const app = createApp({
         'embajadores-comisiones': EmbajadoresComisiones,
         'embajadores-arbol': EmbajadoresArbol,
         'warroom-dashboard': WarroomDashboard,
+        'warroom-line-series': WarroomLineSeries,
         'fleet-dashboard': FleetDashboard,
         'fleet-vehicle-form': FleetVehicleForm,
         'fleet-vehicle-show': FleetVehicleShow,
