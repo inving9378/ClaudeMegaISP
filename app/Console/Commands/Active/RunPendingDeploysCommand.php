@@ -40,7 +40,7 @@ class RunPendingDeploysCommand extends Command
 
             Artisan::call('remote:deploy', [
                 'logId'          => $log->id,
-                '--version'      => $p['version'] ?? '',
+                '--app-version'  => $p['version'] ?? '',
                 '--title'        => $p['title'] ?? '',
                 '--summary'      => $p['summary'] ?? '',
                 '--release-date' => $p['release_date'] ?? now()->toDateString(),

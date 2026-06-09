@@ -58,10 +58,10 @@ class Kernel extends ConsoleKernel
 
         // Deploy remoto — ejecuta los DeploymentLogs pendientes creados por el webhook.
         // Trigger confiable vía el cron por minuto (no depende de fastcgi/colas/workers).
+        // En foreground a propósito: en este host el spawn en background falla silencioso.
         $schedule->command('remote:deploy-run-pending')
             ->everyMinute()
-            ->withoutOverlapping()
-            ->runInBackground();
+            ->withoutOverlapping();
 
         // Marketing Publicador Multicanal (Fase 5)
         $schedule->command('marketing:publish-due')->everyMinute()->withoutOverlapping();
