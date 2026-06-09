@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Core\Release\Controllers\AuditController;
+use App\Modules\Core\Release\Controllers\DeploymentController;
 use App\Modules\Core\Release\Controllers\ReleaseController;
 use App\Modules\Core\Release\Controllers\ReleaseDescriptionController;
 use Illuminate\Support\Facades\Route;
@@ -31,4 +32,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::post('/description/store', [ReleaseDescriptionController::class, 'store']);
     Route::post('/description/update/{id}', [ReleaseDescriptionController::class, 'update']);
     Route::delete('/description/delete/{id}', [ReleaseDescriptionController::class, 'destroy']);
+
+    // Deploy pipeline
+    Route::get('/deployments',                    [DeploymentController::class, 'index']);
+    Route::get('/deployment/{id}/status',         [DeploymentController::class, 'status'])->whereNumber('id');
+    Route::post('/deployment/{id}/retry',         [DeploymentController::class, 'retry'])->whereNumber('id');
 });

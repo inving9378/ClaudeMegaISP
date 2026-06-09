@@ -122,7 +122,18 @@
             <p class="text-muted mt-2">Cargando más versiones...</p>
         </div>
 
-        <releases-crud ref="crudModal" :id="currentId" @save="refreshList" />
+        <releases-crud
+            ref="crudModal"
+            :id="currentId"
+            @save="refreshList"
+            @deploy-started="onDeployStarted"
+        />
+        <deploy-progress-modal
+            ref="deployModal"
+            :deployment-id="activeDeploymentId"
+            :version="activeDeploymentVersion"
+            @closed="onDeployClosed"
+        />
         </template><!-- /tab historial -->
 
     </div>
@@ -134,13 +145,14 @@ import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
 import AuditReport from "./AuditReport.vue";
 import RoadmapTab from "./RoadmapTab.vue";
+import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
 import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
@@ -152,7 +164,10 @@ export default {
         const isLoading = ref(false);
 
         const crudModal = ref(null);
+        const deployModal = ref(null);
         const currentId = ref(null);
+        const activeDeploymentId = ref(null);
+        const activeDeploymentVersion = ref(null);
         const copiedVersion = ref(null);
         const hasPermission = reactive({
             data: new Permission({}),
@@ -201,6 +216,17 @@ export default {
                 year: "numeric",
             });
 
+        const onDeployStarted = ({ deploymentId, version }) => {
+            activeDeploymentId.value = deploymentId;
+            activeDeploymentVersion.value = version;
+            deployModal.value.open();
+        };
+
+        const onDeployClosed = (finalStatus) => {
+            activeDeploymentId.value = null;
+            activeDeploymentVersion.value = null;
+        };
+
         const goToVersion = (release) => {
             window.location.href = `/releases/${release.version}`;
         };
@@ -245,9 +271,14 @@ export default {
             tab,
             releases,
             crudModal,
+            deployModal,
             currentId,
+            activeDeploymentId,
+            activeDeploymentVersion,
             showModal,
             refreshList,
+            onDeployStarted,
+            onDeployClosed,
             formatDate,
             goToVersion,
             isLoading,

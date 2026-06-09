@@ -3,6 +3,8 @@
 namespace App\Modules\Core\Release\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\DeployJob;
+use App\Models\DeploymentLog;
 use App\Models\Release;
 use App\Models\ReleaseDescription;
 use App\Services\BackupDb\BackupDbTestService;
@@ -110,11 +112,21 @@ class ReleaseController extends Controller
                 ], 500);
                 Log::warning("No se pudo crear el tag para versión {$data['version']}");
             }
+
+            $deployLog = DeploymentLog::create([
+                'release_id'   => $release->id,
+                'triggered_by' => auth()->user()->id,
+                'status'       => 'pending',
+            ]);
+
+            DeployJob::dispatch($deployLog)->onConnection('database')->onQueue('deploy');
+
             DB::commit();
             return response()->json([
-                'success' => true,
-                'message' => 'La version se ha creado con exito.',
-                'model' => $release
+                'success'       => true,
+                'message'       => 'Versión creada. El deploy ha sido iniciado.',
+                'model'         => $release,
+                'deployment_id' => $deployLog->id,
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();

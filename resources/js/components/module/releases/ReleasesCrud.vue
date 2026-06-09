@@ -66,7 +66,7 @@ import Swal from "sweetalert2";
 
 export default {
     name: "ReleasesCrud",
-    emits: ["save"],
+    emits: ["save", "deploy-started"],
     components: { ComponentFormDefault },
     props: {
         id: {
@@ -142,9 +142,17 @@ export default {
                 .then((response) => {
                     const { success, message } = response;
                     if (success) {
-                        Swal.fire("Éxito", message, "success");
                         closeModal();
                         emit("save", response.model);
+                        // Si la respuesta trae deployment_id es una release nueva → abrir modal deploy
+                        if (response.deployment_id) {
+                            emit("deploy-started", {
+                                deploymentId: response.deployment_id,
+                                version: response.model?.version,
+                            });
+                        } else {
+                            Swal.fire("Éxito", message, "success");
+                        }
                     } else {
                         Swal.fire("Error", message, "error");
                         loading.value = false;
