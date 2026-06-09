@@ -3,6 +3,7 @@
 namespace App\Services\Deploy;
 
 use App\Models\DeploymentLog;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
@@ -14,10 +15,13 @@ class DeploymentService
 
         $configSteps = collect(config('deployment.steps'))
             ->filter(fn($s) => $s['enabled'] ?? true)
-            ->map(fn($s) => array_merge($s, [
-                'name'    => $this->interpolate($s['name'],    $version, $title, $commitMessage),
-                'command' => $this->interpolate($s['command'], $version, $title, $commitMessage),
-            ]))
+            ->map(function ($s) use ($version, $title, $commitMessage) {
+                $s['name'] = $this->interpolate($s['name'], $version, $title, $commitMessage);
+                if (isset($s['command'])) {
+                    $s['command'] = $this->interpolate($s['command'], $version, $title, $commitMessage);
+                }
+                return $s;
+            })
             ->values()
             ->all();
 
@@ -38,7 +42,19 @@ class DeploymentService
         ]);
 
         foreach ($configSteps as $step) {
-            // Caso especial: si el tag ya existe localmente, skip el paso git_tag
+            // Skip si DEPLOY_REMOTE_URL no está definido
+            if (($step['skip_if_no_remote'] ?? false) && empty(config('deployment.remote_url'))) {
+                $log->updateStep($step['key'], [
+                    'status'      => 'skipped',
+                    'output'      => 'DEPLOY_REMOTE_URL no configurado — paso omitido.',
+                    'exit_code'   => 0,
+                    'duration_ms' => 0,
+                    'ran_at'      => now()->toIso8601String(),
+                ]);
+                continue;
+            }
+
+            // Skip si el tag ya existe localmente
             if (($step['skip_if_tag_exists'] ?? false) && $this->tagExists($version)) {
                 $log->updateStep($step['key'], [
                     'status'      => 'skipped',
@@ -55,7 +71,9 @@ class DeploymentService
                 'ran_at' => now()->toIso8601String(),
             ]);
 
-            [$exitCode, $output, $durationMs] = $this->executeStep($step);
+            [$exitCode, $output, $durationMs] = ($step['type'] ?? 'shell') === 'http'
+                ? $this->executeHttpDeploy($step, $version, $title, $log)
+                : $this->executeStep($step);
 
             // Caso especial: git commit con "nothing to commit" (exit 1) → skip, no error
             if ($exitCode === 1 && ($step['skip_on_nothing_to_commit'] ?? false)) {
@@ -98,6 +116,36 @@ class DeploymentService
             'finished_at'      => now(),
             'duration_seconds' => (int) now()->diffInSeconds($log->started_at),
         ]);
+    }
+
+    private function executeHttpDeploy(array $step, string $version, string $title, DeploymentLog $log): array
+    {
+        $remoteUrl = rtrim(config('deployment.remote_url'), '/');
+        $secret    = config('deployment.webhook_secret', '');
+        $startedAt = microtime(true);
+
+        $release = $log->release;
+        $payload = [
+            'version'      => $version,
+            'title'        => $title,
+            'summary'      => $release?->summary,
+            'release_date' => $release?->release_date,
+        ];
+
+        try {
+            $response = Http::timeout($step['timeout'] ?? 120)
+                ->withHeader('X-Deploy-Token', $secret)
+                ->post("{$remoteUrl}/api/webhook/deploy", $payload);
+
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+            $body       = $response->json();
+            $output     = json_encode($body, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+            return [$response->successful() ? 0 : 1, $output ?: $response->body(), $durationMs];
+        } catch (\Throwable $e) {
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+            return [1, 'Error de conexión con servidor remoto: ' . $e->getMessage(), $durationMs];
+        }
     }
 
     private function interpolate(string $text, string $version, string $title, string $message): string

@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-
 class ReleaseController extends Controller
 {
 
@@ -106,15 +105,12 @@ class ReleaseController extends Controller
                 'status'       => 'pending',
             ]);
 
-            // El DeployJob se encarga de: npm build → git add → git commit → git tag → git push → migrate → optimize
-            DeployJob::dispatch($deployLog, $release->version, $release->title ?? '')
-                ->onConnection('database')
-                ->onQueue('deploy');
+            $this->dispatchDeploy($deployLog, $release->version, $release->title ?? '');
 
             DB::commit();
             return response()->json([
                 'success'       => true,
-                'message'       => 'Versión creada. El deploy ha sido iniciado.',
+                'message'       => 'Versión creada. El pipeline de release ha sido iniciado.',
                 'model'         => $release,
                 'deployment_id' => $deployLog->id,
             ], 200);
@@ -126,6 +122,34 @@ class ReleaseController extends Controller
                 'message' => 'Ocurrio un error al crear la version.',
             ], 500);
         }
+    }
+
+    /**
+     * Elige cómo ejecutar el deploy según el entorno:
+     * - Con worker (queue.default = database): encola el job → progreso en vivo vía polling
+     * - Sin worker (queue.default = sync, ej. local): lanza artisan en background → mismo polling
+     */
+    private function dispatchDeploy(DeploymentLog $deployLog, string $version, string $title): void
+    {
+        if (config('queue.default') !== 'sync') {
+            DeployJob::dispatch($deployLog, $version, $title)
+                ->onConnection('database')
+                ->onQueue('deploy');
+            return;
+        }
+
+        // Local sin worker: proceso artisan en background (nohup)
+        $artisan = base_path('artisan');
+        $logFile = storage_path('logs/deploy-' . $deployLog->id . '.log');
+        $cmd     = sprintf(
+            'nohup %s %s release:deploy %d > %s 2>&1 &',
+            PHP_BINARY,
+            escapeshellarg($artisan),
+            $deployLog->id,
+            escapeshellarg($logFile)
+        );
+        shell_exec($cmd);
+        Log::info("Deploy #{$deployLog->id} lanzado como proceso background (local).");
     }
 
     public function update(Request $request, $id)
