@@ -1,3 +1,77 @@
+/* ============================================================================
+ * Sistema Medussa — Tokens canónicos de color (Tema 0)
+ *
+ * Fuente única de verdad para colores en TODO el sistema.
+ *
+ * USO:
+ *   color: var(--text-primary);
+ *   background: var(--bg-surface);
+ *   border: 1px solid var(--border-default);
+ *
+ * MECANISMO:
+ *   El atributo data-layout-mode="dark"|"light" vive en <body>.
+ *   El toggle (ModeVisualBody.vue) lo cambia y persiste en BD.
+ *   Estas variables cambian automáticamente según el modo activo.
+ *
+ * EXCLUSIONES (módulos con tema fijo intencional):
+ *   - War Room (--wr-*): conservar su sistema actual hasta Tema 6
+ *   - WhatsApp Panel: conservar #0b141a fijo hasta Tema 5
+ *   - megafamilia.css (--mf-*): refactor a referencias globales en Tema 0.5
+ *
+ * Generado: 2026-06-09 — Tema 0
+ * ============================================================================ */
+
+:root,
+[data-layout-mode="light"] {
+    /* === Backgrounds === */
+    --bg-primary:     #ffffff;
+    --bg-secondary:   #f8f9fa;
+    --bg-surface:     #f1f3f5;
+    --bg-hover:       #e9ecef;
+
+    /* === Text === */
+    --text-primary:   #212529;
+    --text-secondary: #6c757d;
+
+    /* === Borders & Effects === */
+    --border-default: #dee2e6;
+    --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.08);
+
+    /* === Accent (de marca) === */
+    --accent:         var(--bs-primary, #556ee6);
+
+    /* === Semantic === */
+    --success:        #10b981;
+    --warning:        #f59e0b;
+    --danger:         #ef4444;
+    --info:           #3b82f6;
+}
+
+[data-layout-mode="dark"] {
+    /* === Backgrounds === */
+    --bg-primary:     #1e2433;
+    --bg-secondary:   #252836;
+    --bg-surface:     #2a2d3e;
+    --bg-hover:       #343948;
+
+    /* === Text === */
+    --text-primary:   #cdd6f4;
+    --text-secondary: #adb5bd;
+
+    /* === Borders & Effects === */
+    --border-default: #3a3d50;
+    --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.3);
+
+    /* === Accent (de marca) === */
+    --accent:         var(--bs-primary, #6c84f7);
+
+    /* === Semantic === */
+    --success:        #34d399;
+    --warning:        #fbbf24;
+    --danger:         #f87171;
+    --info:           #60a5fa;
+}
+
 .q-inner-loading {
     z-index: 999;
 }

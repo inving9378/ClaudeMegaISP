@@ -111,7 +111,10 @@ export function useMeeting() {
     }
 
     async function end() {
-        if (!meeting.value) return;
+        if (!meeting.value?.id) {
+            console.error('[useMeeting] end() sin meeting activo', meeting.value);
+            return;
+        }
         loading.value = true;
         try {
             const { data } = await axios.post(`/warroom/api/meetings/${meeting.value.id}/end`);

@@ -221,12 +221,13 @@ class KpiController extends Controller
             ->select(DB::raw('SUM(total) as monto'), DB::raw('COUNT(*) as facturas'))
             ->first();
 
-        $topDeudores = DB::table('client_invoices')
-            ->join('clients', 'client_invoices.client_id', '=', 'clients.id')
-            ->join('users', 'clients.user_id', '=', 'users.id')
-            ->whereNotIn('client_invoices.estado', self::ESTADOS_PAGADO)
-            ->select('users.name', DB::raw('SUM(client_invoices.total) as deuda'), DB::raw('COUNT(*) as facturas'))
-            ->groupBy('users.name')
+        $topDeudores = DB::table('client_invoices as ci')
+            ->join('clients as c', 'ci.client_id', '=', 'c.id')
+            ->join('users as u', DB::raw('CAST(u.client_id AS UNSIGNED)'), '=', 'c.id')
+            ->whereNotIn('ci.estado', self::ESTADOS_PAGADO)
+            ->whereNull('c.deleted_at')
+            ->select('u.name', DB::raw('SUM(ci.total) as deuda'), DB::raw('COUNT(*) as facturas'))
+            ->groupBy('u.id', 'u.name')
             ->orderByDesc('deuda')
             ->limit(10)
             ->get();
