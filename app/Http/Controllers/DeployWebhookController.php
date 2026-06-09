@@ -94,6 +94,22 @@ class DeployWebhookController extends Controller
         }
     }
 
+    private function buildShellEnv(): array
+    {
+        // Heredar el env del proceso padre (PHP-FPM) y sobreescribir lo necesario.
+        // NO pasar array vacío — Process::fromShellCommandline reemplaza el env completo
+        // y entonces PATH desaparece y ningún binario (git/npm) se encuentra.
+        $parentEnv = getenv();
+
+        return array_merge($parentEnv, [
+            'PATH'               => ($parentEnv['PATH'] ?? '') . ':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+            'HOME'               => '/root',
+            'GIT_CONFIG_COUNT'   => '1',
+            'GIT_CONFIG_KEY_0'   => 'safe.directory',
+            'GIT_CONFIG_VALUE_0' => base_path(),
+        ]);
+    }
+
     private function runShell(string $key, string $name, string $command, int $timeout = 60): array
     {
         $startedAt = microtime(true);
@@ -101,18 +117,18 @@ class DeployWebhookController extends Controller
         $success   = false;
 
         try {
-            $env = [
-                'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-                'HOME'               => '/root',
-                'GIT_CONFIG_COUNT'   => '1',
-                'GIT_CONFIG_KEY_0'   => 'safe.directory',
-                'GIT_CONFIG_VALUE_0' => base_path(),
-            ];
-            $process = Process::fromShellCommandline($command, base_path(), $env, null, $timeout);
+            $process = Process::fromShellCommandline($command, base_path(), $this->buildShellEnv(), null, $timeout);
             $process->run(fn($type, $buf) => $output .= $buf);
             $success = $process->isSuccessful();
+            if (!$success && empty(trim($output))) {
+                $output = sprintf(
+                    "[exit %d] Sin output — posible binario no encontrado. PATH=%s",
+                    $process->getExitCode() ?? -1,
+                    $this->buildShellEnv()['PATH'] ?? 'N/A'
+                );
+            }
         } catch (\Throwable $e) {
-            $output = $e->getMessage();
+            $output = get_class($e) . ': ' . $e->getMessage();
         }
 
         return [
