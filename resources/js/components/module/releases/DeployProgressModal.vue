@@ -20,8 +20,8 @@
                             <i v-else class="bi bi-rocket-takeoff text-white"></i>
                         </span>
                         <h6 class="mb-0 text-white fw-semibold">{{ headerTitle }}</h6>
-                        <span v-if="version" class="badge bg-white bg-opacity-25 text-white ms-auto fw-normal">
-                            {{ version }}
+                        <span v-if="activeVersion" class="badge bg-white bg-opacity-25 text-white ms-auto fw-normal">
+                            {{ activeVersion }}
                         </span>
                     </div>
                 </div>
@@ -209,6 +209,12 @@ export default {
         const outputVisible = ref({});
         const retrying      = ref(false);
 
+        // Estado interno: NO depender de los props, que se actualizan en el
+        // siguiente tick. open() recibe el id/version directo del padre para
+        // que el primer poll() salga sí o sí (evita el spinner infinito).
+        const activeId      = ref(props.deploymentId);
+        const activeVersion = ref(props.version);
+
         let pollTimer = null;
 
         // ── Computed ─────────────────────────────────────────────────────────
@@ -285,10 +291,10 @@ export default {
         // ── Métodos ───────────────────────────────────────────────────────────
 
         const poll = async () => {
-            if (!props.deploymentId) return;
+            if (!activeId.value) return;
             try {
                 const { data } = await axios.get(
-                    `/releases/deployment/${props.deploymentId}/status`
+                    `/releases/deployment/${activeId.value}/status`
                 );
                 overallStatus.value = data.status;
                 steps.value         = data.steps ?? [];
@@ -305,7 +311,10 @@ export default {
             }
         };
 
-        const open = () => {
+        const open = (id = null, ver = null) => {
+            // Tomar el id/version del argumento (inmediato) o caer al prop.
+            activeId.value      = id ?? props.deploymentId;
+            activeVersion.value = ver ?? props.version;
             overallStatus.value = "pending";
             steps.value         = [];
             errorMessage.value  = null;
@@ -323,11 +332,11 @@ export default {
         };
 
         const retry = async () => {
-            if (!props.deploymentId) return;
+            if (!activeId.value) return;
             retrying.value = true;
             try {
                 const { data } = await axios.post(
-                    `/releases/deployment/${props.deploymentId}/retry`
+                    `/releases/deployment/${activeId.value}/retry`
                 );
                 if (data.success) {
                     overallStatus.value = "pending";
@@ -382,7 +391,7 @@ export default {
 
         return {
             overallStatus, steps, errorMessage, durationSecs,
-            outputVisible, retrying,
+            outputVisible, retrying, activeVersion,
             isRunning, isDone, isFailed,
             headerBg, summaryBg, headerTitle, totalDuration,
             progressPercent, progressLabel, progressBarClass, progressTextClass,
