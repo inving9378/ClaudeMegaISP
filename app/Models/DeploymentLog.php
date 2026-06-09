@@ -9,13 +9,14 @@ class DeploymentLog extends Model
     protected $table = 'deployment_logs';
 
     protected $fillable = [
-        'release_id', 'triggered_by', 'status', 'steps',
+        'release_id', 'triggered_by', 'status', 'steps', 'payload',
         'started_at', 'finished_at', 'duration_seconds',
         'error_message', 'rollback_to_version',
     ];
 
     protected $casts = [
         'steps'       => 'array',
+        'payload'     => 'array',
         'started_at'  => 'datetime',
         'finished_at' => 'datetime',
     ];
