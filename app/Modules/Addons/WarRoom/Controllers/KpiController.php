@@ -124,13 +124,15 @@ class KpiController extends Controller
         $items = [];
 
         // ── Riesgos ────────────────────────────────────────────────────────
+        $since45 = now()->subDays(45)->toDateString();
+        $pd45    = $this->parsedDate('ci.payment_date');
         $sinPago45 = DB::table('clients as c')
             ->whereNull('c.deleted_at')
-            ->whereNotExists(function ($q) {
+            ->whereNotExists(function ($q) use ($since45, $pd45) {
                 $q->from('client_invoices as ci')
                   ->whereColumn('ci.client_id', 'c.id')
                   ->where('ci.estado', 'Pagado')
-                  ->where('ci.payment_date', '>=', now()->subDays(45)->format('Y-m-d'));
+                  ->whereRaw("$pd45 >= ?", [$since45]);
             })
             ->count();
 
@@ -190,16 +192,19 @@ class KpiController extends Controller
         [$cy, $cm] = explode('-', $current);
         [$py, $pm] = explode('-', $previous);
 
+        $pd = $this->parsedDate('payment_date');
+        $dd = $this->parsedDate('document_date');
+
         $mrr = DB::table('client_invoices')
             ->where('estado', 'Pagado')
-            ->whereYear('payment_date', $cy)
-            ->whereMonth('payment_date', $cm)
+            ->whereRaw("YEAR($pd) = ?", [$cy])
+            ->whereRaw("MONTH($pd) = ?", [$cm])
             ->sum('total');
 
         $mrrPrev = DB::table('client_invoices')
             ->where('estado', 'Pagado')
-            ->whereYear('payment_date', $py)
-            ->whereMonth('payment_date', $pm)
+            ->whereRaw("YEAR($pd) = ?", [$py])
+            ->whereRaw("MONTH($pd) = ?", [$pm])
             ->sum('total');
 
         // Tasa de cobro: % del monto total facturado que fue cobrado (acumulado)
@@ -225,10 +230,11 @@ class KpiController extends Controller
 
         $cashflowProximo = DB::table('client_invoices')
             ->where('estado', '!=', 'Pagado')
-            ->whereBetween('document_date', [now()->format('Y-m-d'), now()->addWeeks(4)->format('Y-m-d')])
-            ->select(DB::raw('document_date as due_date, SUM(total) as monto, COUNT(*) as facturas'))
-            ->groupBy('document_date')
-            ->orderBy('document_date')
+            ->whereRaw("$dd IS NOT NULL")
+            ->whereRaw("$dd BETWEEN ? AND ?", [now()->toDateString(), now()->addWeeks(4)->toDateString()])
+            ->select(DB::raw("DATE_FORMAT($dd,'%Y-%m-%d') as due_date"), DB::raw('SUM(total) as monto'), DB::raw('COUNT(*) as facturas'))
+            ->groupBy(DB::raw("DATE_FORMAT($dd,'%Y-%m-%d')"))
+            ->orderBy('due_date')
             ->get();
 
         $weeklySeriesFin = $this->weeklySeriesHelper(
@@ -236,9 +242,9 @@ class KpiController extends Controller
             $previous,
             fn ($y, $m, $d1, $d2) => (float) DB::table('client_invoices')
                 ->where('estado', 'Pagado')
-                ->whereYear('payment_date', $y)
-                ->whereMonth('payment_date', $m)
-                ->whereRaw('DAY(payment_date) BETWEEN ? AND ?', [$d1, $d2])
+                ->whereRaw("YEAR({$this->parsedDate('payment_date')}) = ?", [$y])
+                ->whereRaw("MONTH({$this->parsedDate('payment_date')}) = ?", [$m])
+                ->whereRaw("DAY({$this->parsedDate('payment_date')}) BETWEEN ? AND ?", [$d1, $d2])
                 ->sum('total')
         );
 
@@ -573,13 +579,31 @@ class KpiController extends Controller
 
     // ── Helpers compartidos ──────────────────────────────────────────────────────
 
+    /**
+     * Expresión SQL que parsea payment_date / document_date con formato MIXTO.
+     * - DD/MM/YYYY  (histórico hasta May-2024) detectado por REGEXP
+     * - YYYY-MM-DD  (sistema actual Jun-2024+)
+     * NULL / "0" / vacío / malformado → NULL (compatible con NO_ZERO_DATE strict mode).
+     */
+    private function parsedDate(string $col = 'payment_date'): string
+    {
+        return "CASE
+            WHEN {$col} REGEXP '^[0-3][0-9]/[01][0-9]/[0-9]{4}\$'
+                THEN STR_TO_DATE({$col},'%d/%m/%Y')
+            WHEN {$col} REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                THEN CAST({$col} AS DATE)
+            ELSE NULL
+        END";
+    }
+
     private function ingresosDelPeriodo(string $period): float
     {
         [$y, $m] = explode('-', $period);
+        $pd = $this->parsedDate('payment_date');
         return (float) DB::table('client_invoices')
             ->where('estado', 'Pagado')
-            ->whereYear('payment_date', $y)
-            ->whereMonth('payment_date', $m)
+            ->whereRaw("YEAR($pd) = ?", [$y])
+            ->whereRaw("MONTH($pd) = ?", [$m])
             ->sum('total');
     }
 
@@ -686,12 +710,13 @@ class KpiController extends Controller
     private function ingresosDaily(string $period): array
     {
         [$y, $m] = explode('-', $period);
+        $pd = $this->parsedDate('payment_date');
         $rows = DB::table('client_invoices')
             ->where('estado', 'Pagado')
-            ->whereYear('payment_date', $y)
-            ->whereMonth('payment_date', $m)
-            ->select(DB::raw('DAY(payment_date) as day'), DB::raw('SUM(total) as total'))
-            ->groupBy(DB::raw('DAY(payment_date)'))
+            ->whereRaw("YEAR($pd) = ?", [$y])
+            ->whereRaw("MONTH($pd) = ?", [$m])
+            ->select(DB::raw("DAY($pd) as day"), DB::raw('SUM(total) as total'))
+            ->groupBy(DB::raw("DAY($pd)"))
             ->orderBy('day')
             ->get();
 
