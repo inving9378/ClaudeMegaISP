@@ -25,7 +25,7 @@ class DeployWebhookController extends Controller
 
         $startedAt  = now();
         $steps      = [];
-        $npmScript  = env('DEPLOY_NPM_SCRIPT', 'prod');
+        $npmScript  = 'prod';
 
         try {
             // 1. git pull
