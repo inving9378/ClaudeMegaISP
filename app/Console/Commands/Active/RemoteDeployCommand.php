@@ -35,7 +35,11 @@ class RemoteDeployCommand extends Command
         $releaseDate = $this->option('release-date') ?? now()->toDateString();
 
         $stepDefs = [
-            ['key' => 'git_pull',      'name' => 'Git pull origin main',           'type' => 'shell',   'cmd' => 'git pull origin main', 'timeout' => 120, 'critical' => true],
+            // fetch + reset --hard en vez de pull: el remoto compila assets (npm run prod) que
+            // ensucian archivos trackeados (public/js, mix-manifest) y romperían un merge. El
+            // reset descarta esos cambios locales y sincroniza exacto con origin/main. Solo toca
+            // archivos TRACKEADOS — .env, storage y subidas (untracked/gitignored) quedan intactos.
+            ['key' => 'git_pull',      'name' => 'Sincronizar con origin/main (fetch + reset)', 'type' => 'shell', 'cmd' => 'git fetch origin main && git reset --hard origin/main', 'timeout' => 120, 'critical' => true],
             ['key' => 'npm_build',     'name' => 'Compilar assets (npm run prod)',  'type' => 'shell',   'cmd' => 'npm run prod',         'timeout' => 600, 'critical' => false],
             ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'artisan', 'cmd' => 'migrate',              'timeout' => 120, 'critical' => false, 'params' => ['--force' => true]],
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
