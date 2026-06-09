@@ -5,6 +5,7 @@ use App\Modules\Addons\WarRoom\Controllers\ActionItemController;
 use App\Modules\Addons\WarRoom\Controllers\DashboardController;
 use App\Modules\Addons\WarRoom\Controllers\DesempenoController;
 use App\Modules\Addons\WarRoom\Controllers\DesempenoSerieController;
+use App\Modules\Addons\WarRoom\Controllers\MeetingHistoryController;
 use App\Modules\Addons\WarRoom\Controllers\MeetingNoteController;
 use App\Modules\Addons\WarRoom\Controllers\InsightsController;
 use App\Modules\Addons\WarRoom\Controllers\KpiController;
@@ -33,6 +34,8 @@ Route::middleware(['web', 'auth'])->prefix('warroom')->group(function () {
 
         // Meetings
         Route::get('/api/meetings/active', [MeetingController::class, 'active']);
+        Route::get('/api/meetings', [MeetingHistoryController::class, 'index']);
+        Route::get('/api/meetings/{meeting}/detalle', [MeetingHistoryController::class, 'show']);
         Route::get('/api/meetings/{meeting}/notes', [MeetingNoteController::class, 'index']);
         Route::post('/api/meetings/{meeting}/notes', [MeetingNoteController::class, 'store']);
         Route::post('/api/meetings/start', [MeetingController::class, 'start']);
