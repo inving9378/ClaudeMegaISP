@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Modules\Addons\WarRoom\Controllers\ActionItemController;
 use App\Modules\Addons\WarRoom\Controllers\DashboardController;
 use App\Modules\Addons\WarRoom\Controllers\DesempenoController;
+use App\Modules\Addons\WarRoom\Controllers\DesempenoSerieController;
 use App\Modules\Addons\WarRoom\Controllers\InsightsController;
 use App\Modules\Addons\WarRoom\Controllers\KpiController;
 use App\Modules\Addons\WarRoom\Controllers\MeetingController;
@@ -41,6 +42,7 @@ Route::middleware(['web', 'auth'])->prefix('warroom')->group(function () {
 
         // Desempeño de colaboradores
         Route::get('/api/desempeno', [DesempenoController::class, 'show']);
+        Route::get('/api/desempeno/serie', [DesempenoSerieController::class, 'show']);
 
         // Action Items
         Route::get('/api/action-items', [ActionItemController::class, 'index']);
