@@ -119,13 +119,31 @@ class TalentoMobileApiController extends Controller
     public function checkin(Request $request)
     {
         $request->validate([
-            'lat'      => 'required|numeric',
-            'lng'      => 'required|numeric',
-            'accuracy' => 'nullable|numeric',
+            'lat'         => 'required|numeric',
+            'lng'         => 'required|numeric',
+            'accuracy'    => 'nullable|numeric',
+            'client_uuid' => 'nullable|string|max:36',
         ]);
 
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
+
+        // Idempotencia: si ya existe un registro con este client_uuid, devolver el previo
+        if ($request->client_uuid) {
+            $prev = DB::table('talento_attendances')
+                ->where('client_uuid', $request->client_uuid)
+                ->first();
+            if ($prev) {
+                return response()->json([
+                    'id'          => $prev->id,
+                    'check_in_at' => $prev->check_in_at,
+                    'geocerca'    => $prev->check_in_site_id
+                        ? DB::table('talento_work_sites')->where('id', $prev->check_in_site_id)->value('name')
+                        : null,
+                    'flagged'     => (bool)$prev->check_in_flagged,
+                ], 200);
+            }
+        }
 
         $existing = DB::table('talento_attendances')
             ->where('colaborador_id', $colaborador->id)
@@ -137,22 +155,23 @@ class TalentoMobileApiController extends Controller
             return response()->json(['message' => 'Ya tienes un check-in activo hoy.'], 422);
         }
 
-        $site         = $this->nearestWorkSite($request->lat, $request->lng);
-        $withinSite   = $site !== null;
+        $site       = $this->nearestWorkSite($request->lat, $request->lng);
+        $withinSite = $site !== null;
 
         $id = DB::table('talento_attendances')->insertGetId([
-            'colaborador_id'         => $colaborador->id,
-            'check_in_at'            => now(),
-            'check_in_lat'           => $request->lat,
-            'check_in_lng'           => $request->lng,
-            'check_in_site_id'       => $site?->id,
+            'client_uuid'              => $request->client_uuid,
+            'colaborador_id'           => $colaborador->id,
+            'check_in_at'              => now(),
+            'check_in_lat'             => $request->lat,
+            'check_in_lng'             => $request->lng,
+            'check_in_site_id'         => $site?->id,
             'check_in_within_geofence' => $withinSite,
-            'check_in_flagged'       => ! $withinSite,
-            'check_in_flag_reason'   => $withinSite ? null : 'Fuera de geocerca (app móvil)',
-            'day_type'               => 'worked',
-            'status'                 => 'open',
-            'created_at'             => now(),
-            'updated_at'             => now(),
+            'check_in_flagged'         => ! $withinSite,
+            'check_in_flag_reason'     => $withinSite ? null : 'Fuera de geocerca (app móvil)',
+            'day_type'                 => 'worked',
+            'status'                   => 'open',
+            'created_at'               => now(),
+            'updated_at'               => now(),
         ]);
 
         return response()->json([
@@ -314,15 +333,32 @@ class TalentoMobileApiController extends Controller
             'potencia_dbm'     => 'nullable|numeric',
             'justificacion'    => 'nullable|string|max:500',
             'is_mock_location' => 'nullable|boolean',
+            'client_uuid'      => 'nullable|string|max:36',
         ]);
 
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
+        // Idempotencia: si ya existe un media con este client_uuid, devolver el previo
+        if ($request->client_uuid) {
+            $prev = DB::table('talento_work_order_media')
+                ->where('client_uuid', $request->client_uuid)
+                ->first();
+            if ($prev) {
+                return response()->json([
+                    'media_id'  => $prev->id,
+                    'salud_red' => null,
+                ], 200);
+            }
+        }
+
         $result = $this->unified->subirEvidencia(
             $id,
             $colaborador->id,
-            $request->only(['evidence_type_id', 'lat', 'lng', 'accuracy', 'potencia_dbm', 'justificacion', 'is_mock_location']),
+            array_merge(
+                $request->only(['evidence_type_id', 'lat', 'lng', 'accuracy', 'potencia_dbm', 'justificacion', 'is_mock_location']),
+                ['client_uuid' => $request->client_uuid]
+            ),
             $request->file('foto'),
             $request->user()->id
         );
@@ -417,10 +453,11 @@ class TalentoMobileApiController extends Controller
     public function reportarIncidencia(Request $request, int $id)
     {
         $request->validate([
-            'motivo' => 'required|in:cliente_ausente,sin_acceso,falta_material,olt_sin_senal,riesgo,otro',
-            'nota'   => 'nullable|string|max:1000',
-            'lat'    => 'nullable|numeric',
-            'lng'    => 'nullable|numeric',
+            'motivo'      => 'required|in:cliente_ausente,sin_acceso,falta_material,olt_sin_senal,riesgo,otro',
+            'nota'        => 'nullable|string|max:1000',
+            'lat'         => 'nullable|numeric',
+            'lng'         => 'nullable|numeric',
+            'client_uuid' => 'nullable|string|max:36',
         ]);
 
         if ($request->input('motivo') === 'otro' && empty(trim($request->input('nota', '')))) {
@@ -430,10 +467,26 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
+        // Idempotencia: si ya existe una incidencia con este client_uuid, devolver la previa
+        if ($request->client_uuid) {
+            $prev = DB::table('talento_work_order_incidents')
+                ->where('client_uuid', $request->client_uuid)
+                ->first();
+            if ($prev) {
+                return response()->json([
+                    'incident_id' => $prev->id,
+                    'status'      => 'incidencia',
+                ], 200);
+            }
+        }
+
         $result = $this->unified->reportarIncidencia(
             $id,
             $colaborador->id,
-            $request->only(['motivo', 'nota', 'lat', 'lng']),
+            array_merge(
+                $request->only(['motivo', 'nota', 'lat', 'lng']),
+                ['client_uuid' => $request->client_uuid]
+            ),
             $request->user()->id
         );
 
