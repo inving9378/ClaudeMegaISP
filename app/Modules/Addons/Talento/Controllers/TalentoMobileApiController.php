@@ -606,14 +606,70 @@ class TalentoMobileApiController extends Controller
             return $carry + ($m->tipo === 'CREDIT' ? (float)$m->monto : -(float)$m->monto);
         }, 0.0);
 
+        // ── Bono de salud de red ──────────────────────────────────────────────
+        // Promedio de potencia dBm de evidencias tipo lectura_dbm de la semana
+        $avgDbm = DB::table('talento_work_order_media as m')
+            ->join('talento_evidence_types as et', 'et.id', '=', 'm.evidence_type_id')
+            ->where(function ($q) use ($colaborador) {
+                $q->whereIn('m.work_order_id', function ($sub) use ($colaborador) {
+                    $sub->select('id')->from('talento_work_orders')
+                        ->where('colaborador_id', $colaborador->id);
+                })->orWhereNotNull('m.tarea_id');
+            })
+            ->where('et.es_lectura_dbm', true)
+            ->whereNotNull('m.potencia_dbm')
+            ->whereBetween('m.created_at', [$inicio . ' 00:00:00', $fin . ' 23:59:59'])
+            ->avg('m.potencia_dbm');
+
+        $bonoSaludTier  = null;
+        $bonoSaludMonto = 0;
+        if ($avgDbm !== null) {
+            $umbral = DB::table('talento_dbm_thresholds')
+                ->where(fn($q) => $q->whereNull('dbm_min')->orWhere('dbm_min', '<=', $avgDbm))
+                ->where(fn($q) => $q->whereNull('dbm_max')->orWhere('dbm_max', '>=', $avgDbm))
+                ->orderByDesc('id')
+                ->first();
+            if ($umbral) {
+                $bonoSaludTier = $umbral->categoria;
+                if ($umbral->aplica_bono) {
+                    $bonoSaludMonto = (float)(DB::table('settings')
+                        ->where('key', 'talento_health_bonus_amount')
+                        ->value('value') ?? 30);
+                }
+            }
+        }
+
+        // ── Reversiones / garantía (ventana 6 meses) ─────────────────────────
+        $reversiones = DB::table('talento_ledger_entries')
+            ->where('colaborador_id', $colaborador->id)
+            ->where('type', 'debit')
+            ->whereIn('reference_type', ['garantia', 'reversion', 'warranty', 'chargeback'])
+            ->where('created_at', '>=', now()->subMonths(6)->toDateString())
+            ->orderByDesc('created_at')
+            ->get([
+                'id',
+                'concept as concepto',
+                'amount as monto',
+                'reference_type as tipo',
+                'created_at as fecha',
+                'notes',
+            ])
+            ->toArray();
+
         return response()->json([
-            'periodo_inicio' => $inicio,
-            'periodo_fin'    => $fin,
-            'corte'          => $fin,
-            'unidades'       => $unidades,
-            'cuota'          => (int)$cuota,
-            'proyectado'     => round($proyectado, 2),
-            'movimientos'    => $movimientos,
+            'periodo_inicio'   => $inicio,
+            'periodo_fin'      => $fin,
+            'corte'            => $fin,
+            'unidades'         => $unidades,
+            'cuota'            => (int)$cuota,
+            'proyectado'       => round($proyectado, 2),
+            'movimientos'      => $movimientos,
+            'bono_salud_red'   => [
+                'dbm_promedio' => $avgDbm !== null ? round((float)$avgDbm, 2) : null,
+                'tier'         => $bonoSaludTier,
+                'monto'        => $bonoSaludMonto,
+            ],
+            'reversiones'      => $reversiones,
         ]);
     }
 
