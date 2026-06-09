@@ -119,10 +119,10 @@ export function useMeeting() {
             aiSuggestion.value = null;
             elapsedTotalSeconds.value   = 0;
             elapsedSectionSeconds.value = 0;
-            // NO limpiar el timer principal: si el usuario abre una nueva junta
-            // en la misma sesión, el interval ya está corriendo y funcionará.
-            // El callback es no-op mientras meeting===null.
             return data; // { meeting, summary }
+        } catch (err) {
+            console.error('[WarRoom] Error al finalizar junta:', err?.response?.data ?? err);
+            throw err;
         } finally {
             loading.value = false;
         }

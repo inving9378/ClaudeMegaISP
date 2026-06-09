@@ -1,6 +1,5 @@
 <template>
-    <transition name="wlp-slide">
-        <div v-if="visible" class="wlp-panel">
+    <div v-show="visible" class="wlp-panel">
 
             <!-- ── Header ──────────────────────────────────────────────────── -->
             <div class="wlp-header">
@@ -145,8 +144,7 @@
                 </button>
             </div>
 
-        </div>
-    </transition>
+    </div>
 </template>
 
 <script setup>
@@ -281,17 +279,11 @@ async function submitNote() {
     display: flex;
     flex-direction: column;
     min-height: 400px;
-    max-height: calc(100vh - 120px);
-    overflow: hidden;
-    position: sticky;
-    top: 0;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-self: flex-start;
 }
-
-/* ── Slide transition ─────────────────────────────────────────────────────── */
-.wlp-slide-enter-active,
-.wlp-slide-leave-active { transition: width 0.25s ease, opacity 0.2s ease; overflow: hidden; }
-.wlp-slide-enter-from,
-.wlp-slide-leave-to    { width: 0 !important; opacity: 0; }
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
 .wlp-header {
