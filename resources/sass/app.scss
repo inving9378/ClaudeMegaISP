@@ -36,6 +36,9 @@
 @use "modals";
 @use "customs";
 
+// Tokens canónicos dark/light (Tema 0) — fuente única de verdad de color
+@import "../css/dark-light-tokens.css";
+
 @import url("base/quasar/_quasar.scss");
 
 .task-status-done {
