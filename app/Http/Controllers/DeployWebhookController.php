@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\RemoteDeployJob;
 use App\Models\DeploymentLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 
 class DeployWebhookController extends Controller
@@ -34,37 +34,22 @@ class DeployWebhookController extends Controller
         $summary     = $request->input('summary', '');
         $releaseDate = $request->input('release_date', now()->toDateString());
 
-        // Usar queue si está disponible (remote tiene supervisor workers con QUEUE_CONNECTION=database)
-        // Fallback a nohup para entornos con queue=sync (local dev)
-        if (config('queue.default') !== 'sync') {
-            RemoteDeployJob::dispatch($log->id, $version, $title, $summary, $releaseDate)
-                ->onConnection(config('queue.default'))
-                ->onQueue('default');
-        } else {
-            // PHP_BINARY en FPM apunta al daemon (/usr/sbin/php-fpm8.2), no al CLI.
-            // Detectar el intérprete CLI real.
-            $phpBin = PHP_BINARY;
-            if (str_contains($phpBin, 'fpm') || str_contains($phpBin, 'cgi') || !is_executable($phpBin)) {
-                $v = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
-                foreach (["/usr/bin/php{$v}", '/usr/bin/php', 'php'] as $candidate) {
-                    if (@is_executable($candidate)) { $phpBin = $candidate; break; }
-                }
-            }
+        // Ejecutar el deploy DESPUÉS de enviar la respuesta HTTP al cliente.
+        // app()->terminating() corre tras fastcgi_finish_request() en PHP-FPM,
+        // por lo que el request se cierra inmediatamente sin bloquear nginx.
+        // Esto evita depender de queue workers, shell_exec o PHP_BINARY.
+        $logId       = $log->id;
+        $deployArgs  = [
+            'logId'          => $logId,
+            '--version'      => $version,
+            '--title'        => $title,
+            '--summary'      => $summary,
+            '--release-date' => $releaseDate,
+        ];
 
-            $logFile = sys_get_temp_dir() . "/remote-deploy-{$log->id}.log";
-            $cmd = sprintf(
-                'nohup %s %s remote:deploy %d --version=%s --title=%s --summary=%s --release-date=%s > %s 2>&1 &',
-                $phpBin,
-                escapeshellarg(base_path('artisan')),
-                $log->id,
-                escapeshellarg($version),
-                escapeshellarg($title),
-                escapeshellarg($summary),
-                escapeshellarg($releaseDate),
-                escapeshellarg($logFile)
-            );
-            shell_exec($cmd);
-        }
+        app()->terminating(function () use ($deployArgs) {
+            Artisan::call('remote:deploy', $deployArgs);
+        });
 
         Log::info("DeployWebhook: deploy iniciado — log #{$log->id}, version={$version}");
 
