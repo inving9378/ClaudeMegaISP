@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DeployWebhookController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsController;
 // use App\Http\Controllers\PaymentTestController;
 use Illuminate\Http\Request;
@@ -28,7 +29,11 @@ Route::get('/bd-reset', function () {
 });
 
 Route::get('/health', function(){
-   return "Everything is Ok";
+   return "Everything is Ok kakasdas";
 });
+
+// Webhook de deploy — llamado por el servidor local tras hacer git push.
+// No requiere auth de sesión; protegido por X-Deploy-Token (DEPLOY_WEBHOOK_SECRET en .env).
+Route::post('/webhook/deploy', [DeployWebhookController::class, 'handle']);
 
 //Route::get('/payments/{id}', [PaymentTestController::class, 'payments']);

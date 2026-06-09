@@ -11,6 +11,8 @@
  * Flags especiales:
  *   skip_on_nothing_to_commit — exit-code 1 en este paso = skip, no error (para git commit)
  *   skip_if_tag_exists        — si el tag ya existe localmente, el paso se marca skip
+ *   skip_if_no_remote         — omite el paso si DEPLOY_REMOTE_URL no está configurado
+ *   type: 'http'              — el paso llama al webhook del servidor remoto (no es shell)
  */
 
 return [
@@ -59,8 +61,17 @@ return [
             'enabled'  => true,
         ],
         [
+            'key'               => 'remote_deploy',
+            'name'              => 'Desplegar en servidor remoto',
+            'type'              => 'http',
+            'timeout'           => 120,
+            'critical'          => false,
+            'enabled'           => true,
+            'skip_if_no_remote' => true,
+        ],
+        [
             'key'      => 'migrate',
-            'name'     => 'Ejecutar migraciones',
+            'name'     => 'Ejecutar migraciones (local)',
             'command'  => 'php artisan migrate --force',
             'timeout'  => 60,
             'critical' => true,
@@ -88,5 +99,12 @@ return [
         'author_name'  => env('GIT_AUTHOR_NAME', 'MegaISP Release'),
         'author_email' => env('GIT_AUTHOR_EMAIL', 'releases@meganet.com'),
     ],
+
+    // URL base del servidor remoto donde se desplegará (ej: http://192.168.105.11)
+    // Dejar vacío para omitir el paso remote_deploy
+    'remote_url'     => env('DEPLOY_REMOTE_URL', ''),
+
+    // Token secreto compartido entre local y remoto para autenticar el webhook
+    'webhook_secret' => env('DEPLOY_WEBHOOK_SECRET', ''),
 
 ];
