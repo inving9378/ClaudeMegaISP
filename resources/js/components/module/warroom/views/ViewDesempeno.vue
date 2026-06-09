@@ -21,42 +21,7 @@
                     <input type="date" class="wr-date-input" v-model="to" @change="load" />
                 </div>
 
-                <!-- Selector de métrica -->
-                <div class="wr-desemp-ctrl-group wr-ctrl-grow">
-                    <label class="wr-ctrl-label"><i class="ti ti-chart-bar me-1"></i>Métrica</label>
-                    <select class="wr-select" v-model="selectedMetric">
-                        <optgroup label="Órdenes de trabajo">
-                            <option value="ots_validadas.count">OTs validadas (cantidad)</option>
-                            <option value="ots_validadas.pts">OTs validadas (puntos)</option>
-                            <option value="ots_billables.count">OTs billables (cantidad)</option>
-                            <option value="ots_billables.pts">OTs billables (puntos)</option>
-                        </optgroup>
-                        <optgroup label="Actividades">
-                            <option value="actividad_proyecto">Actividad proyecto (pts)</option>
-                            <option value="asistencias">Asistencias (días)</option>
-                            <option value="inspecciones_caja.total">Inspecciones caja</option>
-                            <option value="bonos_salud_red.eligible">Bonos salud red (elegibles)</option>
-                            <option value="activaciones_olt">Activaciones OLT</option>
-                            <option value="evaluaciones">Evaluaciones prácticas</option>
-                            <option value="extensiones_turno">Extensiones de turno</option>
-                        </optgroup>
-                        <optgroup label="Incidencias / riesgo">
-                            <option value="penalizaciones">Penalizaciones</option>
-                            <option value="desvios_ruta">Desvíos de ruta</option>
-                            <option value="incidencias_ot">Incidencias de OT</option>
-                        </optgroup>
-                        <optgroup label="Score escalafón">
-                            <option value="score">Score compuesto (0-100)</option>
-                            <option value="components.quota">Componente: Cuota</option>
-                            <option value="components.quality">Componente: Calidad</option>
-                            <option value="components.health_bonus">Componente: Bono salud</option>
-                            <option value="components.normas">Componente: Normas</option>
-                            <option value="components.attendance">Componente: Asistencia</option>
-                        </optgroup>
-                    </select>
-                </div>
-
-                <!-- Selector de Equipo / Departamento -->
+                <!-- Selector de Equipo / Departamento (tabla) -->
                 <div class="wr-desemp-ctrl-group">
                     <label class="wr-ctrl-label"><i class="ti ti-building me-1"></i>Equipo</label>
                     <select class="wr-select" v-model="selectedDepartment" @change="onDepartmentChange">
@@ -91,44 +56,57 @@
                     </div>
                 </div>
 
-                <!-- Tipo de gráfica -->
-                <div class="wr-desemp-ctrl-group">
-                    <label class="wr-ctrl-label"><i class="ti ti-chart-dots me-1"></i>Tipo</label>
-                    <div class="wr-chart-type-btns">
-                        <button :class="['wr-chart-type-btn', chartType === 'bar' && 'active']"
-                                @click="setChartType('bar')" title="Barras">
-                            <i class="ti ti-chart-bar"></i>
-                        </button>
-                        <button :class="['wr-chart-type-btn', chartType === 'line' && 'active']"
-                                @click="setChartType('line')" title="Líneas">
-                            <i class="ti ti-chart-line"></i>
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Refresh -->
                 <button class="wr-btn-refresh" @click="load" :disabled="loading" title="Actualizar">
                     <i :class="['ti', loading ? 'ti-loader-2 wr-spin' : 'ti-refresh']"></i>
                 </button>
             </div>
 
-            <!-- ── Gráfica Chart.js ──────────────────────────────────────────── -->
+            <!-- ── Evolución por equipo ──────────────────────────────────────── -->
             <div class="wr-panel mt-3">
-                <div class="wr-section-title mb-2">
-                    <i class="ti ti-chart-bar me-1"></i>
-                    {{ metricLabel }} — {{ selectedDepartment && selectedDepartment !== '__none__' ? selectedDepartment : (selectedDepartment === '__none__' ? 'Sin equipo' : 'todos los equipos') }}
-                    <span class="wr-period-badge ms-2">{{ from }} → {{ to }}</span>
-                </div>
-
-                <div v-if="loading" class="wr-chart-placeholder">
-                    <i class="ti ti-loader-2 wr-spin"></i> Cargando...
-                </div>
-                <div v-else-if="filteredData.length === 0" class="wr-chart-placeholder wr-empty-muted">
-                    Sin colaboradores activos en el período.
-                </div>
-                <div v-else class="wr-chart-wrap">
-                    <canvas ref="chartCanvas" height="220"></canvas>
-                </div>
+                <warroom-line-series
+                    :series="serieSeries"
+                    :labels="serieLabels"
+                    :loading="serieLoading"
+                    title="Evolución por equipo"
+                    v-model:granularidad="serieGranularidad"
+                    :show-controls="true"
+                >
+                    <template #controls>
+                        <!-- Equipo -->
+                        <div class="wr-desemp-ctrl-group">
+                            <label class="wr-ctrl-label"><i class="ti ti-building me-1"></i>Equipo</label>
+                            <select class="wr-select" v-model="serieDepartment" @change="loadSerie">
+                                <option value="">Todos</option>
+                                <option v-for="d in availableDepartments" :key="d" :value="d">{{ d }}</option>
+                                <option v-if="hasSinEquipo" value="__none__">Sin equipo</option>
+                            </select>
+                        </div>
+                        <!-- Factor -->
+                        <div class="wr-desemp-ctrl-group">
+                            <label class="wr-ctrl-label"><i class="ti ti-chart-line me-1"></i>Actividad</label>
+                            <select class="wr-select" v-model="serieFactor" @change="loadSerie">
+                                <option value="total">Total (todas)</option>
+                                <optgroup label="Órdenes de trabajo">
+                                    <option value="ots">OTs validadas</option>
+                                </optgroup>
+                                <optgroup label="Actividades">
+                                    <option value="asistencias">Asistencias</option>
+                                    <option value="inspecciones_caja">Inspecciones caja</option>
+                                    <option value="bonos_salud_red">Bonos salud red</option>
+                                    <option value="activaciones_olt">Activaciones OLT</option>
+                                    <option value="evaluaciones">Evaluaciones</option>
+                                    <option value="extensiones_turno">Extensiones de turno</option>
+                                </optgroup>
+                                <optgroup label="Incidencias / riesgo">
+                                    <option value="penalizaciones">Penalizaciones</option>
+                                    <option value="desvios_ruta">Desvíos de ruta</option>
+                                    <option value="incidencias_ot">Incidencias de OT</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                    </template>
+                </warroom-line-series>
             </div>
 
             <!-- ── Tabla comparativa ─────────────────────────────────────────── -->
@@ -227,52 +205,6 @@
                 </p>
             </div>
 
-            <!-- ── Evolución por equipo ──────────────────────────────────────── -->
-            <div class="wr-panel mt-3">
-                <warroom-line-series
-                    :series="serieSeries"
-                    :labels="serieLabels"
-                    :loading="serieLoading"
-                    title="Evolución por equipo"
-                    v-model:granularidad="serieGranularidad"
-                    :show-controls="true"
-                >
-                    <template #controls>
-                        <!-- Equipo -->
-                        <div class="wr-desemp-ctrl-group">
-                            <label class="wr-ctrl-label"><i class="ti ti-building me-1"></i>Equipo</label>
-                            <select class="wr-select" v-model="serieDepartment" @change="loadSerie">
-                                <option value="">Todos</option>
-                                <option v-for="d in availableDepartments" :key="d" :value="d">{{ d }}</option>
-                                <option v-if="hasSinEquipo" value="__none__">Sin equipo</option>
-                            </select>
-                        </div>
-                        <!-- Factor -->
-                        <div class="wr-desemp-ctrl-group">
-                            <label class="wr-ctrl-label"><i class="ti ti-chart-line me-1"></i>Actividad</label>
-                            <select class="wr-select" v-model="serieFactor" @change="loadSerie">
-                                <option value="total">Total (todas)</option>
-                                <optgroup label="Órdenes de trabajo">
-                                    <option value="ots">OTs validadas</option>
-                                </optgroup>
-                                <optgroup label="Actividades">
-                                    <option value="asistencias">Asistencias</option>
-                                    <option value="inspecciones_caja">Inspecciones caja</option>
-                                    <option value="bonos_salud_red">Bonos salud red</option>
-                                    <option value="activaciones_olt">Activaciones OLT</option>
-                                    <option value="evaluaciones">Evaluaciones</option>
-                                    <option value="extensiones_turno">Extensiones de turno</option>
-                                </optgroup>
-                                <optgroup label="Incidencias / riesgo">
-                                    <option value="penalizaciones">Penalizaciones</option>
-                                    <option value="desvios_ruta">Desvíos de ruta</option>
-                                    <option value="incidencias_ot">Incidencias de OT</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                    </template>
-                </warroom-line-series>
-            </div>
 
         </template>
     </div>
@@ -281,7 +213,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
 import axios from 'axios';
-import { Chart } from 'chart.js/auto';
 import WarroomLineSeries from './WarroomLineSeries.vue';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -299,11 +230,7 @@ const data               = ref(null);
 const allColaboradores   = ref([]);
 const selectedColIds     = ref([]);
 const colSelectorOpen    = ref(false);
-const selectedMetric     = ref('score');
-const chartType          = ref('bar');
-const chartCanvas        = ref(null);
 const selectedDepartment = ref('');  // '' = Todos, '__none__' = sin equipo
-let   chartInstance      = null;
 
 // ── Serie temporal ────────────────────────────────────────────────────────────
 const serieLoading       = ref(false);
@@ -359,31 +286,6 @@ const groupedData = computed(() => {
     });
 });
 
-// ── Label de la métrica seleccionada ─────────────────────────────────────────
-const METRIC_LABELS = {
-    'ots_validadas.count':    'OTs validadas (cantidad)',
-    'ots_validadas.pts':      'OTs validadas (puntos)',
-    'ots_billables.count':    'OTs billables (cantidad)',
-    'ots_billables.pts':      'OTs billables (puntos)',
-    'actividad_proyecto':     'Actividad proyecto (pts)',
-    'asistencias':            'Asistencias',
-    'inspecciones_caja.total':'Inspecciones caja',
-    'bonos_salud_red.eligible':'Bonos salud red (elegibles)',
-    'activaciones_olt':       'Activaciones OLT',
-    'evaluaciones':           'Evaluaciones prácticas',
-    'extensiones_turno':      'Extensiones de turno',
-    'penalizaciones':         'Penalizaciones',
-    'desvios_ruta':           'Desvíos de ruta',
-    'incidencias_ot':         'Incidencias de OT',
-    'score':                  'Score compuesto',
-    'components.quota':       'Componente: Cuota',
-    'components.quality':     'Componente: Calidad',
-    'components.health_bonus':'Componente: Bono salud',
-    'components.normas':      'Componente: Normas',
-    'components.attendance':  'Componente: Asistencia',
-};
-const metricLabel = computed(() => METRIC_LABELS[selectedMetric.value] ?? selectedMetric.value);
-
 // ── Label del multi-select ─────────────────────────────────────────────────
 const selectedColLabel = computed(() => {
     const n = selectedColIds.value.length;
@@ -421,20 +323,6 @@ async function load() {
     }
 }
 
-// ── Helpers de métrica ────────────────────────────────────────────────────────
-function getMetricValue(col) {
-    const key = selectedMetric.value;
-    if (key === 'score') return col.score ?? 0;
-    const parts = key.split('.');
-    if (parts.length === 1) {
-        return col.metrics?.[parts[0]] ?? 0;
-    }
-    if (parts[0] === 'components') {
-        return col.components?.[parts[1]] ?? 0;
-    }
-    return col.metrics?.[parts[0]]?.[parts[1]] ?? 0;
-}
-
 function passRate(insp) {
     return insp.total > 0 ? Math.round((insp.passed / insp.total) * 100) : 0;
 }
@@ -443,73 +331,6 @@ function scoreClass(score) {
     if (score >= 75) return 'text-success fw-bold';
     if (score >= 45) return 'text-warning fw-semibold';
     return 'text-danger';
-}
-
-// ── Chart.js ──────────────────────────────────────────────────────────────────
-const PALETTE = [
-    '#534AB7','#1D9E75','#BA7517','#D4537E','#185FA5',
-    '#8b80f8','#5ddbb3','#f5c47a','#f0a3be','#80b8f0',
-];
-
-function renderChart() {
-    if (chartInstance) {
-        chartInstance.destroy();
-        chartInstance = null;
-    }
-    if (!chartCanvas.value || filteredData.value.length === 0) return;
-
-    const labels = filteredData.value.map(c => c.name.split(' ')[0]);
-    const values = filteredData.value.map(c => getMetricValue(c));
-    const colors = filteredData.value.map((_, i) => PALETTE[i % PALETTE.length]);
-
-    const ctx = chartCanvas.value.getContext('2d');
-    chartInstance = new Chart(ctx, {
-        type: chartType.value,
-        data: {
-            labels,
-            datasets: [{
-                label: metricLabel.value,
-                data: values,
-                backgroundColor: chartType.value === 'bar'
-                    ? colors.map(c => c + 'cc')
-                    : 'transparent',
-                borderColor: colors,
-                borderWidth: chartType.value === 'bar' ? 1 : 2,
-                pointBackgroundColor: colors,
-                pointRadius: chartType.value === 'line' ? 5 : 0,
-                tension: 0.35,
-                fill: false,
-            }],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: '#1a1a2e',
-                    titleColor: '#e8e8f0',
-                    bodyColor: '#9999b0',
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    borderWidth: 1,
-                    callbacks: {
-                        label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}`,
-                    },
-                },
-            },
-            scales: {
-                x: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#9999b0', font: { size: 11 } },
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#9999b0', font: { size: 10 }, precision: 0 },
-                },
-            },
-        },
-    });
 }
 
 // ── Department selector ───────────────────────────────────────────────────────
@@ -535,11 +356,7 @@ function clearCols() {
     colSelectorOpen.value = false;
 }
 function onColSelectionChange() {
-    // keep dropdown open; chart will update via watcher
-}
-
-function setChartType(type) {
-    chartType.value = type;
+    // keep dropdown open; table updates reactively via filteredData
 }
 
 // ── Click fuera cierra el dropdown ────────────────────────────────────────────
@@ -579,12 +396,6 @@ async function loadSerie() {
 
 watch(serieGranularidad, () => loadSerie());
 
-// ── Watchers que disparan re-render de Chart.js ───────────────────────────────
-watch([filteredData, selectedMetric, chartType], async () => {
-    await nextTick();
-    renderChart();
-});
-
 // Sync from/to cuando cambia el period de la pestaña padre
 watch(() => props.period, (val) => {
     from.value = val + '-01';
@@ -597,7 +408,6 @@ onMounted(() => {
 });
 onUnmounted(() => {
     document.removeEventListener('click', handleOutsideClick);
-    if (chartInstance) chartInstance.destroy();
 });
 </script>
 
@@ -644,28 +454,6 @@ onUnmounted(() => {
 .wr-select:focus { border-color: rgba(83,74,183,0.7); }
 .wr-select option,
 .wr-select optgroup { background: #1a1a2e; color: #e8e8f0; }
-
-/* ── Chart type buttons ──────────────────────────────────────────────────── */
-.wr-chart-type-btns {
-    display: flex;
-    gap: 4px;
-}
-.wr-chart-type-btn {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 5px;
-    color: var(--wr-text-muted, #9999b0);
-    padding: 5px 9px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.wr-chart-type-btn:hover,
-.wr-chart-type-btn.active {
-    background: rgba(83,74,183,0.35);
-    border-color: rgba(83,74,183,0.6);
-    color: #c5bfff;
-}
 
 .wr-btn-refresh {
     background: rgba(255,255,255,0.05);
@@ -755,21 +543,6 @@ onUnmounted(() => {
 }
 .wr-ms-action-btn:hover { background: rgba(255,255,255,0.1); color: #e8e8f0; }
 
-/* ── Chart wrapper ────────────────────────────────────────────────────────── */
-.wr-chart-wrap {
-    width: 100%;
-    padding: 4px 0;
-}
-.wr-chart-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 160px;
-    color: var(--wr-text-muted, #9999b0);
-    font-size: 13px;
-    gap: 8px;
-}
-
 /* ── Tabla ────────────────────────────────────────────────────────────────── */
 .wr-desemp-table {
     font-size: 12px;
@@ -791,14 +564,6 @@ onUnmounted(() => {
 
 .wr-score-col { font-weight: 600; }
 .wr-pass-rate { font-size: 10px; color: var(--wr-text-muted, #9999b0); margin-left: 2px; }
-.wr-period-badge {
-    font-size: 10px;
-    background: rgba(255,255,255,0.07);
-    border-radius: 4px;
-    padding: 2px 7px;
-    color: var(--wr-text-muted, #9999b0);
-    font-weight: 400;
-}
 
 /* ── Agrupación por departamento ─────────────────────────────────────────── */
 .wr-dept-header td {
