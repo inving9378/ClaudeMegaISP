@@ -41,10 +41,20 @@ class DeployWebhookController extends Controller
                 ->onConnection(config('queue.default'))
                 ->onQueue('default');
         } else {
+            // PHP_BINARY en FPM apunta al daemon (/usr/sbin/php-fpm8.2), no al CLI.
+            // Detectar el intérprete CLI real.
+            $phpBin = PHP_BINARY;
+            if (str_contains($phpBin, 'fpm') || str_contains($phpBin, 'cgi') || !is_executable($phpBin)) {
+                $v = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+                foreach (["/usr/bin/php{$v}", '/usr/bin/php', 'php'] as $candidate) {
+                    if (@is_executable($candidate)) { $phpBin = $candidate; break; }
+                }
+            }
+
             $logFile = sys_get_temp_dir() . "/remote-deploy-{$log->id}.log";
             $cmd = sprintf(
                 'nohup %s %s remote:deploy %d --version=%s --title=%s --summary=%s --release-date=%s > %s 2>&1 &',
-                PHP_BINARY,
+                $phpBin,
                 escapeshellarg(base_path('artisan')),
                 $log->id,
                 escapeshellarg($version),
