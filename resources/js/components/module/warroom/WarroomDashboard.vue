@@ -415,15 +415,13 @@ onUnmounted(() => {
 /* ── Body flex (contenido + panel lateral) ───────────────────────────── */
 .warroom-container .wr-body {
     display: flex;
-    align-items: stretch;
-    min-height: 0;
-    overflow: hidden;
+    align-items: flex-start;
+    gap: 0;
 }
 
 .warroom-container .wr-main-content {
     flex: 1;
     min-width: 0;
-    overflow: auto;
 }
 
 .warroom-container .wr-panels {
