@@ -282,6 +282,7 @@
 import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
 import axios from 'axios';
 import { Chart } from 'chart.js/auto';
+import WarroomLineSeries from './WarroomLineSeries.vue';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 const props = defineProps({
