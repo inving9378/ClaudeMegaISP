@@ -373,6 +373,7 @@ Route::post('/talento/api/auth/login', [TalentoMobileApiController::class, 'logi
     ->middleware([]);
 
 // Rutas públicas de la app (sin auth — se usan en login/splash)
+Route::get('/talento/api/health',       [TalentoMobileApiController::class, 'health'])         ->middleware([]);
 Route::get('/talento/api/app/latest',   [TalentoMobileApiController::class, 'latestRelease'])  ->middleware([]);
 Route::get('/talento/api/app/branding', [TalentoMobileApiController::class, 'appBranding'])    ->middleware([]);
 
