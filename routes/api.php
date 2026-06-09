@@ -27,4 +27,8 @@ Route::get('/bd-reset', function () {
     return redirect()->back();
 });
 
+Route::get('/health', function(){
+   return "Everything is Ok";
+});
+
 //Route::get('/payments/{id}', [PaymentTestController::class, 'payments']);
