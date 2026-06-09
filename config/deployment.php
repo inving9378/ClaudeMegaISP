@@ -48,7 +48,7 @@ return [
             'key'      => 'git_push',
             'name'     => 'Publicar en GitHub (push + tag)',
             'command'  => 'git push origin main --follow-tags',
-            'timeout'  => 60,
+            'timeout'  => 180,
             'critical' => true,
             'enabled'  => true,
         ],
