@@ -38,24 +38,34 @@ class DeployWebhookController extends Controller
         // app()->terminating() corre tras fastcgi_finish_request() en PHP-FPM,
         // por lo que el request se cierra inmediatamente sin bloquear nginx.
         // Esto evita depender de queue workers, shell_exec o PHP_BINARY.
-        $logId       = $log->id;
-        $deployArgs  = [
-            'logId'          => $logId,
+        $deployArgs = [
+            'logId'          => $log->id,
             '--version'      => $version,
             '--title'        => $title,
             '--summary'      => $summary,
             '--release-date' => $releaseDate,
         ];
 
-        app()->terminating(function () use ($deployArgs) {
-            Artisan::call('remote:deploy', $deployArgs);
-        });
-
         Log::info("DeployWebhook: deploy iniciado — log #{$log->id}, version={$version}");
 
-        return response()->json([
-            'dispatched' => true,
-            'log_id'     => $log->id,
+        // StreamedResponse: envía la respuesta JSON al cliente, cierra la conexión HTTP
+        // con fastcgi_finish_request() y LUEGO corre el deploy — sin depender de queue
+        // workers, shell_exec ni nohup. ignore_user_abort evita que nginx mate el proceso.
+        $payload = ['dispatched' => true, 'log_id' => $log->id];
+
+        return response()->stream(function () use ($payload, $deployArgs) {
+            echo json_encode($payload);
+            if (ob_get_level() > 0) ob_flush();
+            flush();
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request(); // Cierra la conexión HTTP — nginx ya no espera
+            }
+            ignore_user_abort(true);
+            set_time_limit(0);
+            Artisan::call('remote:deploy', $deployArgs);
+        }, 200, [
+            'Content-Type'    => 'application/json',
+            'X-Accel-Buffering' => 'no',
         ]);
     }
 
