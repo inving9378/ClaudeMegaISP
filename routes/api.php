@@ -28,10 +28,6 @@ Route::get('/bd-reset', function () {
     return redirect()->back();
 });
 
-Route::get('/health', function(){
-   return "Everything is Ok 2345678";
-});
-
 // Webhook de deploy — llamado por el servidor local tras hacer git push.
 // No requiere auth de sesión; protegido por X-Deploy-Token (DEPLOY_WEBHOOK_SECRET en .env).
 Route::post('/webhook/deploy', [DeployWebhookController::class, 'handle']);
