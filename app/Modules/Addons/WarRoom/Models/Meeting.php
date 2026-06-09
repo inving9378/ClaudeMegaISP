@@ -55,6 +55,11 @@ class Meeting extends Model
         return $this->hasMany(ActionItem::class, 'meeting_id');
     }
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(MeetingNote::class, 'meeting_id')->orderBy('created_at');
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────────
 
     public function currentSection(): ?MeetingSection
