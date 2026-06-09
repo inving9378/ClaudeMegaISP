@@ -277,10 +277,14 @@ async function submitNote() {
     flex-shrink: 0;
     background: #0c0c1e;
     border-left: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0 0 8px 0;
     display: flex;
     flex-direction: column;
-    height: 100%;
+    min-height: 400px;
+    max-height: calc(100vh - 120px);
     overflow: hidden;
+    position: sticky;
+    top: 0;
 }
 
 /* ── Slide transition ─────────────────────────────────────────────────────── */
