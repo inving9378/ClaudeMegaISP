@@ -29,7 +29,7 @@ Route::get('/bd-reset', function () {
 });
 
 Route::get('/health', function(){
-   return "Everything is Ok kakasdas";
+   return "Everything is Ok bitch";
 });
 
 // Webhook de deploy — llamado por el servidor local tras hacer git push.

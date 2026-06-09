@@ -1,0 +1,23 @@
+0 verbose cli /usr/bin/node /usr/bin/npm
+1 info using npm@10.8.2
+2 info using node@v20.20.2
+3 silly config load:file:/usr/lib/node_modules/npm/npmrc
+4 silly config load:file:/home/PROJECTS/ClaudeMegaISP/.npmrc
+5 silly config load:file:/usr/etc/npmrc
+6 verbose title npm run prod
+7 verbose argv "run" "prod"
+8 verbose logfile logs-max:10 dir:/home/PROJECTS/ClaudeMegaISP/.npm/_logs/2026-06-09T18_49_15_834Z-
+9 verbose logfile /home/PROJECTS/ClaudeMegaISP/.npm/_logs/2026-06-09T18_49_15_834Z-debug-0.log
+10 silly logfile done cleaning log files
+11 http fetch GET 200 https://registry.npmjs.org/npm 365ms
+12 verbose cwd /home/PROJECTS/ClaudeMegaISP
+13 verbose os Linux 6.17.0-35-generic
+14 verbose node v20.20.2
+15 verbose npm  v10.8.2
+16 notice
+16 notice New major version of npm available! 10.8.2 -> 11.16.0
+16 notice Changelog: https://github.com/npm/cli/releases/tag/v11.16.0
+16 notice To update run: npm install -g npm@11.16.0
+16 notice  { force: true, [Symbol(proc-log.meta)]: true }
+17 verbose exit 0
+18 info ok
