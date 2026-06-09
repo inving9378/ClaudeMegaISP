@@ -10,7 +10,7 @@ class TalentoHealthBonusLog extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'work_order_id', 'colaborador_id', 'caja_ref',
+        'work_order_id', 'tarea_id', 'colaborador_id', 'caja_ref',
         'baseline_power_dbm', 'client_power_dbm', 'loss_db', 'max_loss_db',
         'bonus_awarded', 'bonus_amount', 'power_source', 'skip_reason',
     ];
