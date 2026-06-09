@@ -11,24 +11,27 @@ class GitService
     {
         try {
             $repo = new GitRepository(base_path());
-            // Verificamos si el tag ya existe
-            $existingTags = $repo->getTags();
-            if ($existingTags && in_array($version, $existingTags)) {
-                Log::warning("⚠️ El tag {$version} ya existe, se omitió su creación.");
-                return false;
+            $existingTags = $repo->getTags() ?? [];
+
+            if (in_array($version, $existingTags)) {
+                Log::warning("⚠️ El tag {$version} ya existe localmente.");
+            } else {
+                $repo->createTag($version);
+                Log::info("✅ Tag {$version} creado correctamente.");
             }
 
-            // Crear el tag
-            $repo->createTag($version);
-            Log::info("✅ Tag {$version} creado correctamente.");
-
-            // Subir el tag al remoto
-            $repo->run('push', 'origin', $version);
-            Log::info("✅ Tag {$version} enviado correctamente al remoto.");
+            // Push es best-effort: si falla (ej. SSH no disponible en el proceso web)
+            // no bloquea la creación de la release. El tag queda en local.
+            try {
+                $repo->run('push', 'origin', $version);
+                Log::info("✅ Tag {$version} enviado al remoto.");
+            } catch (\Throwable $e) {
+                Log::warning("⚠️ Tag {$version} creado localmente pero no se pudo subir al remoto (push manual requerido): " . $e->getMessage());
+            }
 
             return true;
         } catch (\Throwable $e) {
-            Log::error("❌ Error al crear o subir tag {$version}: " . $e->getMessage());
+            Log::error("❌ Error al crear tag {$version}: " . $e->getMessage());
             return false;
         }
     }
