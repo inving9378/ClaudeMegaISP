@@ -147,6 +147,7 @@ class OrdenTrabajoUnifiedService
                 'm.evidence_type_id as type_id', 'et.name as tipo_nombre',
                 'm.watermark_applied', 'm.location_flagged',
             ])
+            ->map(fn($e) => $this->enrichEvidenciaWithTier($e))
             ->toArray();
 
         $requeridas = DB::table('talento_ot_type_evidence_requirements as r')
@@ -180,6 +181,7 @@ class OrdenTrabajoUnifiedService
                 'm.evidence_type_id as type_id', 'et.name as tipo_nombre',
                 'm.watermark_applied', 'm.location_flagged',
             ])
+            ->map(fn($e) => $this->enrichEvidenciaWithTier($e))
             ->toArray();
 
         $requeridas = $typeId
@@ -223,7 +225,7 @@ class OrdenTrabajoUnifiedService
             ->whereDate('scheduled_at', $today)
             ->orderBy('scheduled_at')
             ->get()
-            ->map(fn($o) => $this->summaryFromWorkOrder($o));
+            ->map(fn($o) => $this->summaryFromWorkOrder($o))->toBase();
 
         $fromTasks = ($userId)
             ? Task::with(['talentoType'])
@@ -715,7 +717,7 @@ class OrdenTrabajoUnifiedService
             ->map(fn($o) => array_merge($o->toArray(), [
                 '_source'  => 'work_order',
                 '_sort_ts' => $o->scheduled_at ? $o->scheduled_at->timestamp : 0,
-            ]));
+            ]))->toBase();
 
         $taskQuery = Task::with(['talentoType', 'users'])
             ->where('tipo', 'campo')
@@ -889,6 +891,26 @@ class OrdenTrabajoUnifiedService
                 ? ['categoria' => $umbral->categoria, 'mensaje' => $umbral->mensaje]
                 : null,
         ];
+    }
+
+    /**
+     * Añade dbm_tier a un registro de evidencia si tiene potencia_dbm.
+     * Permite que CierreScreen muestre el semáforo correctamente.
+     */
+    private function enrichEvidenciaWithTier(object $ev): object
+    {
+        if ($ev->potencia_dbm === null) {
+            return $ev;
+        }
+        $umbral = DB::table('talento_dbm_thresholds')
+            ->where(fn($q) => $q->whereNull('dbm_min')->orWhere('dbm_min', '<=', $ev->potencia_dbm))
+            ->where(fn($q) => $q->whereNull('dbm_max')->orWhere('dbm_max', '>=', $ev->potencia_dbm))
+            ->orderByDesc('id')
+            ->first();
+
+        $result = (array)$ev;
+        $result['dbm_tier'] = $umbral ? (array)$umbral : null;
+        return (object)$result;
     }
 
     private function calcularSaludRed(float $potencia): array
