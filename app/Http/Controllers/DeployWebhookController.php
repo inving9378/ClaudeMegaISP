@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RemoteDeployJob;
 use App\Models\DeploymentLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -33,25 +34,27 @@ class DeployWebhookController extends Controller
         $summary     = $request->input('summary', '');
         $releaseDate = $request->input('release_date', now()->toDateString());
 
-        // Limpiar cache de artisan para que detecte nuevos comandos tras git pull
-        @shell_exec(PHP_BINARY . ' ' . escapeshellarg(base_path('artisan')) . ' optimize:clear 2>/dev/null');
-
-        // Log en /tmp para evitar problemas de permisos con www-data
-        $logFile = sys_get_temp_dir() . "/remote-deploy-{$log->id}.log";
-
-        $cmd = sprintf(
-            'nohup %s %s remote:deploy %d --version=%s --title=%s --summary=%s --release-date=%s > %s 2>&1 &',
-            PHP_BINARY,
-            escapeshellarg(base_path('artisan')),
-            $log->id,
-            escapeshellarg($version),
-            escapeshellarg($title),
-            escapeshellarg($summary),
-            escapeshellarg($releaseDate),
-            escapeshellarg($logFile)
-        );
-
-        shell_exec($cmd);
+        // Usar queue si está disponible (remote tiene supervisor workers con QUEUE_CONNECTION=database)
+        // Fallback a nohup para entornos con queue=sync (local dev)
+        if (config('queue.default') !== 'sync') {
+            RemoteDeployJob::dispatch($log->id, $version, $title, $summary, $releaseDate)
+                ->onConnection(config('queue.default'))
+                ->onQueue('default');
+        } else {
+            $logFile = sys_get_temp_dir() . "/remote-deploy-{$log->id}.log";
+            $cmd = sprintf(
+                'nohup %s %s remote:deploy %d --version=%s --title=%s --summary=%s --release-date=%s > %s 2>&1 &',
+                PHP_BINARY,
+                escapeshellarg(base_path('artisan')),
+                $log->id,
+                escapeshellarg($version),
+                escapeshellarg($title),
+                escapeshellarg($summary),
+                escapeshellarg($releaseDate),
+                escapeshellarg($logFile)
+            );
+            shell_exec($cmd);
+        }
 
         Log::info("DeployWebhook: deploy iniciado — log #{$log->id}, version={$version}");
 
