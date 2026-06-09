@@ -15,8 +15,8 @@ class SyncColaboradoresCommand extends Command
 
     private const SYSTEM_ROLES = ['super-administrator', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR'];
 
-    // Prioridad de roles técnicos: índice menor = mayor prioridad
-    private const PRIORITY = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO', 'Vendedor'];
+    // Prioridad de roles: índice menor = mayor prioridad
+    private const PRIORITY = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO', 'Mostrador', 'Vendedor'];
 
     // user_id del colaborador de prueba — nunca se toca
     private const PROTECTED_USER_ID = 4818;
@@ -79,15 +79,19 @@ class SyncColaboradoresCommand extends Command
             $existing = TalentoColaborador::withTrashed()->where('user_id', $user->id)->first();
 
             if ($existing) {
-                $changed = $existing->department !== $department;
                 if ($existing->trashed()) {
-                    $existing->restore();
-                    $existing->update(['status' => 'active', 'department' => $department]);
-                    $result = 'restaurado';
-                    $totalAltas++;
-                } elseif ($changed) {
+                    // Soft-deleted manualmente → NO restaurar; solo reportar
+                    $totalSkipped++;
+                    $rows[] = [$user->id, $user->name, implode(',', $roleNames), 'omitido', '—', 'Soft-deleted manualmente; restauración requiere intervención manual'];
+                    continue;
+                }
+                // inactive / suspended → respeta el status manual; solo actualiza department si cambió
+                $changed = $existing->department !== $department;
+                if ($changed) {
                     $existing->update(['department' => $department]);
-                    $result = 'department actualizado';
+                    $result = in_array($existing->status, ['inactive', 'suspended'])
+                        ? 'department actualizado (status manual conservado)'
+                        : 'department actualizado';
                     $totalUpdates++;
                 } else {
                     $result = 'sin cambios';
