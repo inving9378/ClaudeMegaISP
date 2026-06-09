@@ -97,7 +97,12 @@ class DeployWebhookController extends Controller
         $success   = false;
 
         try {
-            $process = Process::fromShellCommandline($command, base_path(), null, null, $timeout);
+            $env = [
+                'GIT_CONFIG_COUNT'   => '1',
+                'GIT_CONFIG_KEY_0'   => 'safe.directory',
+                'GIT_CONFIG_VALUE_0' => base_path(),
+            ];
+            $process = Process::fromShellCommandline($command, base_path(), $env, null, $timeout);
             $process->run(fn($type, $buf) => $output .= $buf);
             $success = $process->isSuccessful();
         } catch (\Throwable $e) {

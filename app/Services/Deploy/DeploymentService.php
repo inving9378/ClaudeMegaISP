@@ -159,7 +159,7 @@ class DeploymentService
 
     private function tagExists(string $version): bool
     {
-        $process = Process::fromShellCommandline("git tag -l {$version}", base_path());
+        $process = Process::fromShellCommandline("git tag -l {$version}", base_path(), $this->buildEnv());
         $process->run();
         return trim($process->getOutput()) === $version;
     }
@@ -202,6 +202,10 @@ class DeploymentService
             'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
             'HOME'               => base_path(),
             'COMPOSER_HOME'      => sys_get_temp_dir() . '/composer',
+            // Permite que el proceso PHP opere git aunque el dueño del directorio sea distinto
+            'GIT_CONFIG_COUNT'   => '1',
+            'GIT_CONFIG_KEY_0'   => 'safe.directory',
+            'GIT_CONFIG_VALUE_0' => base_path(),
             // Identidad git para el commit automático
             'GIT_AUTHOR_NAME'    => $gitConfig['author_name']  ?? 'MegaISP Release',
             'GIT_AUTHOR_EMAIL'   => $gitConfig['author_email'] ?? 'releases@meganet.com',
