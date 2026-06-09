@@ -38,11 +38,11 @@ class ActionItemObserver
     {
         try {
             $user = $item->assignee;
-            if (! $user?->cellphone) {
+            if (! $user?->phone) {
                 return;
             }
 
-            $jid  = EvolutionApiService::phoneToJid($user->cellphone);
+            $jid  = EvolutionApiService::phoneToJid($user->phone);
             $date = $item->meeting?->started_at?->format('d/m') ?? now()->format('d/m');
             $text = "📋 *Nueva tarea de la junta del {$date}*\n\n"
                   . "{$item->description}\n\n"

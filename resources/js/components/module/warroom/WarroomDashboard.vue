@@ -42,16 +42,21 @@
                     <i class="ti ti-broadcast me-1"></i>
                     Iniciar junta
                 </button>
-                <button
-                    v-else
-                    class="wr-meeting-badge wr-meeting-badge-btn"
-                    @click="panelOpen = !panelOpen"
-                    :title="panelOpen ? 'Ocultar panel de junta' : 'Abrir panel de junta'"
-                >
-                    <i class="ti ti-radio-active me-1"></i>
-                    Junta en curso
-                    <i class="ti ms-1" :class="panelOpen ? 'ti-layout-sidebar-right-collapse' : 'ti-layout-sidebar-right-expand'"></i>
-                </button>
+                <template v-else>
+                    <button
+                        class="wr-meeting-badge wr-meeting-badge-btn"
+                        @click="panelOpen = !panelOpen"
+                        :title="panelOpen ? 'Ocultar panel de junta' : 'Abrir panel de junta'"
+                    >
+                        <i class="ti ti-radio-active me-1"></i>
+                        Junta en curso
+                        <i class="ti ms-1" :class="panelOpen ? 'ti-layout-sidebar-right-collapse' : 'ti-layout-sidebar-right-expand'"></i>
+                    </button>
+                    <button class="wr-btn-end-meeting" @click="confirmEnd" :disabled="meetingLoading" title="Finalizar junta">
+                        <i class="ti ti-flag-3 me-1"></i>
+                        Finalizar
+                    </button>
+                </template>
             </div>
         </div>
 
@@ -232,13 +237,14 @@ const panelOpen = ref(false);
 watch(() => meeting.value?.status, (status) => {
     if (status === 'in_progress') panelOpen.value = true;
     if (!status || status === 'ended') panelOpen.value = false;
-});
+}, { immediate: true });
 
 // ── Setup modal ──────────────────────────────────────────────────────────────
 const setupOpen = ref(false);
 
 function onMeetingStarted(data) {
     meeting.value = data;
+    panelOpen.value = true;
     elapsedTotalSeconds.value = 0;
     elapsedSectionSeconds.value = 0;
     if (data.current_section_key) currentView.value = data.current_section_key;
@@ -252,11 +258,16 @@ const summaryData    = ref(null);
 function confirmEnd() { confirmEndOpen.value = true; }
 
 async function doEnd() {
-    confirmEndOpen.value = false;
-    const result = await end();
-    if (result) {
-        summaryData.value = result;
-        summaryOpen.value = true;
+    try {
+        confirmEndOpen.value = false;
+        const result = await end();
+        if (result) {
+            summaryData.value = result;
+            summaryOpen.value = true;
+        }
+    } catch (err) {
+        console.error('[WarRoom] doEnd falló:', err?.response?.data ?? err);
+        alert('No se pudo finalizar la junta. Revisa la consola para más detalles.');
     }
 }
 
@@ -442,6 +453,7 @@ onUnmounted(() => {
 .warroom-container .wr-kpi-grid-1 { grid-template-columns: 1fr; }
 .warroom-container .wr-kpi-grid-2 { grid-template-columns: repeat(2, 1fr); }
 .warroom-container .wr-kpi-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.warroom-container .wr-kpi-grid-4 { grid-template-columns: repeat(4, 1fr); }
 
 /* ── KPI Card ─────────────────────────────────────────────────────────── */
 .warroom-container .wr-kpi-card {
@@ -585,6 +597,24 @@ onUnmounted(() => {
 
 .warroom-container .wr-btn-start:hover:not(:disabled) { opacity: 0.85; }
 .warroom-container .wr-btn-start:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.warroom-container .wr-btn-end-meeting {
+    background: rgba(224,82,82,0.12);
+    border: 1px solid rgba(224,82,82,0.4);
+    border-radius: 6px;
+    color: #e88;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex; align-items: center;
+    transition: all 0.15s;
+}
+.warroom-container .wr-btn-end-meeting:hover:not(:disabled) {
+    background: rgba(224,82,82,0.22);
+    color: #ffaaaa;
+}
+.warroom-container .wr-btn-end-meeting:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .warroom-container .wr-meeting-badge {
     background: rgba(29,158,117,0.15);

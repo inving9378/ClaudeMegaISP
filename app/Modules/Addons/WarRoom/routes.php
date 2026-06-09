@@ -21,7 +21,7 @@ Route::middleware(['web', 'auth'])->prefix('warroom')->group(function () {
 
         // Lookups
         Route::get('/api/users', fn () => response()->json(
-            User::select('id', 'name', 'email', 'cellphone')->orderBy('name')->get()
+            User::select('id', 'name', 'email', 'phone')->orderBy('name')->get()
         ));
 
         // KPIs

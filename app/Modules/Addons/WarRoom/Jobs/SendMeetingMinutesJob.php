@@ -31,7 +31,7 @@ class SendMeetingMinutesJob implements ShouldQueue
 
         foreach ($meeting->attendees->where('present', true) as $attendee) {
             $user = $attendee->user;
-            if (! $user?->cellphone) {
+            if (! $user?->phone) {
                 continue;
             }
 
@@ -41,7 +41,7 @@ class SendMeetingMinutesJob implements ShouldQueue
                     ->values();
 
                 $message = $this->buildMessage($meeting, $user, $myTasks);
-                $jid     = EvolutionApiService::phoneToJid($user->cellphone);
+                $jid     = EvolutionApiService::phoneToJid($user->phone);
                 $evolution->sendText($jid, $message);
             } catch (\Throwable $e) {
                 Log::warning("WarRoom minutas: fallo envío a user {$user->id}", ['err' => $e->getMessage()]);
