@@ -219,7 +219,9 @@ export default {
         const onDeployStarted = ({ deploymentId, version }) => {
             activeDeploymentId.value = deploymentId;
             activeDeploymentVersion.value = version;
-            deployModal.value.open();
+            // Pasar id/version directo: el prop del modal se actualiza recién
+            // en el próximo tick, así el primer poll() arranca de inmediato.
+            deployModal.value.open(deploymentId, version);
         };
 
         const onDeployClosed = (finalStatus) => {
