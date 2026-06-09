@@ -82,6 +82,9 @@
             <q-tab-panel name="talento"     class="wr-panel-content">
                 <ViewTalento     :period="currentPeriod" />
             </q-tab-panel>
+            <q-tab-panel name="desempeno"   class="wr-panel-content">
+                <ViewDesempeno   :period="currentPeriod" />
+            </q-tab-panel>
         </q-tab-panels>
 
         <!-- ── Setup modal ───────────────────────────────────────────────────── -->
@@ -145,6 +148,7 @@ import ViewVentas from './views/ViewVentas.vue';
 import ViewRed from './views/ViewRed.vue';
 import ViewMarketing from './views/ViewMarketing.vue';
 import ViewTalento from './views/ViewTalento.vue';
+import ViewDesempeno from './views/ViewDesempeno.vue';
 
 defineProps({
     csrfToken: String,
@@ -159,7 +163,8 @@ const TABS = [
     { name: 'ventas',      icon: 'ti-trending-up',    label: 'Ventas' },
     { name: 'red',         icon: 'ti-network',        label: 'Red' },
     { name: 'marketing',   icon: 'ti-brand-whatsapp', label: 'Marketing' },
-    { name: 'talento',     icon: 'ti-users',          label: 'Talento' },
+    { name: 'talento',    icon: 'ti-users',          label: 'Talento' },
+    { name: 'desempeno',  icon: 'ti-chart-bar',       label: 'Desempeño' },
 ];
 
 // ── Estado de período y tab ──────────────────────────────────────────────────
@@ -355,6 +360,8 @@ onUnmounted(() => {
 .warroom-container .wr-tab-btn.wr-tab-marketing.wr-tab-active::after   { background: #e87aaa; }
 .warroom-container .wr-tab-btn.wr-tab-talento.wr-tab-active     { color: #f5d47a; }
 .warroom-container .wr-tab-btn.wr-tab-talento.wr-tab-active::after     { background: #f5c842; }
+.warroom-container .wr-tab-btn.wr-tab-desempeno.wr-tab-active   { color: #a5d4ff; }
+.warroom-container .wr-tab-btn.wr-tab-desempeno.wr-tab-active::after   { background: #4da8e0; }
 
 .warroom-container .wr-panels {
     background: transparent;
