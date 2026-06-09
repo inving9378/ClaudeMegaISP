@@ -1,0 +1,19 @@
+tabla	total	activas
+work_orders	3	3
+tasks tipo=campo	2	2
+media	0	NULL
+incidents	1	1
+signatures	0	NULL
+activations	0	NULL
+activities	0	NULL
+health_bonus	0	NULL
+surveys	0	NULL
+route_stops	0	NULL
+warranty_ov	0	NULL
+responsibility	0	NULL
+ia_validations	0	NULL
+--- Detalle OTs a migrar ---
+id	type_id	status	colaborador_id	client_id	points	is_billable	nota_tecnico	started_at	completed_at	validated_at	created_at	updated_at
+1	1	incidencia	1	4981	3	1	NULL	2026-06-05 14:26:59	NULL	NULL	2026-06-05 13:48:22	2026-06-07 10:27:41
+2	4	completed	1	NULL	0	0	NULL	2026-06-07 10:30:44	2026-06-07 10:31:31	NULL	2026-06-07 10:29:44	2026-06-07 10:31:31
+3	1	in_progress	1	NULL	9	1	NULL	2026-06-07 10:33:28	NULL	NULL	2026-06-07 10:32:23	2026-06-07 10:33:28

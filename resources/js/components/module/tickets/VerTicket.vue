@@ -63,6 +63,15 @@
                                                 @click="reciclerTicket"
                                                 >Mover a reciclaje</a
                                             >
+                                            <div class="dropdown-divider"></div>
+                                            <a
+                                                class="dropdown-item"
+                                                href="#"
+                                                @click.prevent="showCrearTarea = true"
+                                            >
+                                                <i class="fa fa-tasks me-1"></i>
+                                                Generar tarea de esta solicitud
+                                            </a>
                                         </div>
                                     </div>
                                 </div>
@@ -149,6 +158,33 @@
         :action="`update/${vId}`"
         @cleanModal="cleanModal"
     />
+
+    <CrearTareaModal
+        v-model="showCrearTarea"
+        :ticket="fieldsJson"
+        :threads="fieldsJsonThread"
+        @created="onTareaCreada"
+    />
+
+    <!-- Toast de éxito post-creación -->
+    <div
+        v-if="tareaCreada"
+        class="position-fixed bottom-0 end-0 m-3 alert alert-success shadow d-flex align-items-center gap-2"
+        style="z-index: 9999; min-width: 300px"
+    >
+        <i class="fa fa-check-circle"></i>
+        <span>
+            Tarea #{{ tareaCreada.id }} creada correctamente.
+            <a :href="`/scheduling/task/editar/${tareaCreada.id}`" class="ms-1 fw-bold">
+                Ver tarea →
+            </a>
+        </span>
+        <button
+            type="button"
+            class="btn-close ms-auto"
+            @click="tareaCreada = null"
+        ></button>
+    </div>
 </template>
 
 <script>
@@ -158,6 +194,7 @@ import TicketDetails from "./component/TicketDetails";
 import TicketModalEdit from "./component/TicketModalEdit";
 import TicketNewThread from "./component/TicketNewThread.vue";
 import TicketSatisfactionModal from "./component/TicketSatisfactionModal.vue"; // Importar el nuevo componente
+import CrearTareaModal from "../scheduling/CrearTareaModal.vue";
 import Modal from "../../../helpers/modal";
 import {
     requestTicketData,
@@ -182,7 +219,8 @@ export default {
         TicketModalEdit,
         Modal,
         TicketNewThread,
-        TicketSatisfactionModal, // Registrar el nuevo componente
+        TicketSatisfactionModal,
+        CrearTareaModal,
     },
     setup(props) {
         const fieldsJson = ref({});
@@ -192,7 +230,9 @@ export default {
         const setAnswer = ref();
         const message = ref();
         const file = ref();
-        const satisfactionModal = ref(); // Referencia al modal de satisfacción
+        const satisfactionModal = ref();
+        const showCrearTarea = ref(false);
+        const tareaCreada = ref(null);
         const dataForm = reactive({
             data: new Form({ file, message }),
         });
@@ -286,6 +326,14 @@ export default {
             $("#file").click();
         };
 
+        const onTareaCreada = (task) => {
+            tareaCreada.value = task;
+            showCrearTarea.value = false;
+            setTimeout(() => {
+                if (tareaCreada.value?.id === task.id) tareaCreada.value = null;
+            }, 8000);
+        };
+
         const onSubmit = async () => {
             disabledButton.value = true;
             await dataForm.data
@@ -324,7 +372,10 @@ export default {
             disabledButton,
             clearError,
             satisfactionModal,
-            status
+            status,
+            showCrearTarea,
+            tareaCreada,
+            onTareaCreada,
         };
     },
 };

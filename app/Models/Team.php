@@ -20,6 +20,12 @@ class Team extends BaseModel
         return $this->belongsToMany(User::class, 'team_user', 'team_id', 'user_id');
     }
 
+    public function projects()
+    {
+        return $this->belongsToMany(\App\Models\Project::class, 'project_team')
+                    ->withTimestamps();
+    }
+
     public function scopeFilters($query, $columns, $search = null, $filter = null)
     {
         if (isset($search)) {

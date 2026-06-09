@@ -26,13 +26,14 @@ class TaskCreateRequest extends FormRequest
     public function rules(Request $request)
     {
         return [
-            'template_verification' => 'required',
-            'project_id' => 'required',
-            'title' => 'required',
-            'status' => 'required',
-            'assigned_to' => 'required',
-            'priority'=>'required',
-            'description' => 'required',
+            'template_verification' => 'nullable',
+            'project_id'            => 'required',
+            'title'                 => 'required',
+            'status'                => 'required',
+            'assigned_to'           => 'required',
+            'priority'              => 'required',
+            'description'           => 'required',
+            'ticket_id'             => 'nullable|integer|exists:tickets,id',
         ];
     }
 

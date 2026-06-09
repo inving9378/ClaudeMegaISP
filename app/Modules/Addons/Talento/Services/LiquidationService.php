@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Services\ProjectActivityService;
@@ -53,11 +54,29 @@ class LiquidationService
         $baseSalary       = $ruleSnapshot ? (float)($ruleSnapshot['base_salary'] ?? 0) : 0.0;
         $weeklyQuota      = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units'] ?? 0) : 0;
 
-        // Sum validated, billable, positive-points orders in the period (validated_at in [start, end])
-        $internalUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
+        // Source 1: legacy OTs en talento_work_orders
+        $woUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
             ->validatedBillable()
             ->whereBetween('validated_at', [$periodStart->startOfDay(), $periodEnd->endOfDay()])
             ->sum('points');
+
+        // Source 2: tasks tipo=campo validadas (Capa 4.4)
+        // Asignación via task_user pivot; validated_at se setea al pasar a Done.
+        $taskUnits = 0;
+        $taskUserId = TalentoColaborador::where('id', $colaboradorId)->value('user_id');
+        if ($taskUserId) {
+            $taskUnits = (int) Task::where('tipo', 'campo')
+                ->whereNotNull('talento_type_id')
+                ->where('is_billable', true)
+                ->where('points', '>', 0)
+                ->where('status', 'Done')
+                ->whereNotNull('validated_at')
+                ->whereBetween('validated_at', [$periodStart->startOfDay(), $periodEnd->endOfDay()])
+                ->whereHas('users', fn($q) => $q->where('users.id', $taskUserId))
+                ->sum('points');
+        }
+
+        $internalUnits = $woUnits + $taskUnits;
 
         // Fase 5a: add points from external project activities in same period (1/N split, report_date in period)
         $externalPoints = app(ProjectActivityService::class)->pointsForColaboradorInPeriod(

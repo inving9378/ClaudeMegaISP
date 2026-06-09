@@ -99,7 +99,7 @@
                 <div class="modal-header">
                     <h6 class="m-auto">{{ title }}</h6>
                 </div>
-                <TaskCrud :action="action" :key="reloadCrud" @close-modal="closeModal"></TaskCrud>
+                <TaskCrud :action="action" :key="reloadCrud" :fromTicketId="fromTicketId" @close-modal="closeModal"></TaskCrud>
             </div>
         </div>
     </div>
@@ -107,7 +107,7 @@
 
 <script>
 import Datatable from "../../../base/shared/Datatable.vue";
-import { onMounted, reactive, ref,watch } from "vue";
+import { onMounted, nextTick, reactive, ref, watch } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import TaskCrud from "./TaskCrud.vue";
 import SelectComponentWithCheckbox from "../../../../shared/SelectComponentWithCheckbox.vue";
@@ -165,6 +165,7 @@ export default {
         const finish_at = ref("");
         const isReady = ref(false);
         const showCrud = ref(false);
+        const fromTicketId = ref(null);
 
         onMounted(async () => {
             hasPermission.data = new Permission(await allViewHasPermission());
@@ -191,6 +192,16 @@ export default {
 
             isReady.value = true;
             removeCssToButtonQuasar();
+
+            // Abrir modal pre-llenado si viene desde un Ticket
+            const fromTicketParam = new URLSearchParams(window.location.search).get('from_ticket');
+            if (fromTicketParam) {
+                fromTicketId.value = parseInt(fromTicketParam);
+                await nextTick();
+                showCrud.value = true;
+                await nextTick();
+                showModal();
+            }
         });
 
         const hasShowArchived = () => {
@@ -291,7 +302,8 @@ export default {
             finish_at,
             getModelValueFilter,
             isReady,
-            showCrud
+            showCrud,
+            fromTicketId,
         };
     },
 };

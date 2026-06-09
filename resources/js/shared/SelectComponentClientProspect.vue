@@ -104,8 +104,17 @@ export default {
 
         watch(
             () => props.modelValue,
-            (n, o) => {
-                setModelValue();
+            async (n, o) => {
+                if (!n) { model.value = null; return; }
+                const opt = currentOptions.value.find(
+                    (o) => o.value.toString() === n.toString()
+                );
+                if (opt) {
+                    model.value = opt;
+                } else {
+                    // Valor no está en la página actual, recargar con currentSelected
+                    await setDataFromServer();
+                }
             }
         );
 

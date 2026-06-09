@@ -21,6 +21,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('scheduling
         Route::post('/update/{id}', [ProjectController::class, 'update']);
         Route::post('/add', [ProjectController::class, 'store']);
         Route::post('/destroy/{id}', [ProjectController::class, 'destroy']);
+        // Team mapping — Capa 2.3a
+        Route::get('/{project}/users', [ProjectController::class, 'usersForProject']);
+        Route::get('/{project}/teams', [ProjectController::class, 'getTeams']);
+        Route::post('/{project}/teams', [ProjectController::class, 'syncTeams']);
     });
 
     Route::prefix('task')->group(function () {

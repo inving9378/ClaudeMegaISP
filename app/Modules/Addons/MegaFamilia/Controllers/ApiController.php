@@ -334,7 +334,7 @@ class ApiController extends Controller
         $user = Auth::user();
 
         $t = new Ticket();
-        $t->topic = $data['subject'];
+        $t->topic = '[MegaFamilia] ' . $data['subject'];
         $t->estado = 'Nuevo';
         $t->group = 'Cualquier';
         $t->type = 'Pregunta';
@@ -342,6 +342,7 @@ class ApiController extends Controller
         $t->reporter = $user->name;
         $t->reporter_id = $user->id;
         $t->reporter_type = User::class;
+        $t->customer_lead = $this->resolveClientIspId($user);
         $t->save();
 
         if (! empty($data['description'])) {
@@ -1448,5 +1449,20 @@ class ApiController extends Controller
             'next_action_date' => $r->next_action_date ?? null,
             'created_at'       => $r->created_at,
         ];
+    }
+
+    /** Resuelve el client_id ISP a partir del usuario MegaFamilia. */
+    private function resolveClientIspId(User $user): ?int
+    {
+        // 1. FK directa en parental_accounts
+        $clientId = ParentalAccount::where('user_id', $user->id)->value('client_isp_id');
+        if ($clientId) return (int) $clientId;
+
+        // 2. clients.user_id (algunos clientes ISP tienen user creado)
+        $clientId = Client::where('user_id', $user->id)->value('id');
+        if ($clientId) return (int) $clientId;
+
+        // 3. Coincidencia por email
+        return ClientMainInformation::where('email', $user->email)->value('client_id');
     }
 }

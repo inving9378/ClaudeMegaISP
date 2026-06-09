@@ -108,13 +108,34 @@ class TicketController extends Controller
     {
         $ticket = $this->data['model']::find($id);
         $clientId = $ticket->customer_lead;
-        $clientData = ClientMainInformation::where('client_id',$clientId)->first();
+        $clientData = ClientMainInformation::where('client_id', $clientId)->first();
         if ($clientData) return [
             'name' => $clientData->client_name_with_fathers_names,
             'email' => $clientData->email,
             'phone' => $clientData->phone,
             'id' => $clientData->client_id,
         ];
+
+        // Fallback para tickets sin customer_lead: buscar cliente por email del reporter
+        if ($ticket->reporter_id) {
+            $user = User::find($ticket->reporter_id, ['id', 'name', 'email', 'phone']);
+            if ($user?->email) {
+                $clientData = ClientMainInformation::where('email', $user->email)->first();
+                if ($clientData) return [
+                    'name'  => $clientData->client_name_with_fathers_names,
+                    'email' => $clientData->email,
+                    'phone' => $clientData->phone,
+                    'id'    => $clientData->client_id,
+                ];
+            }
+            if ($user) return [
+                'name'  => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'id'    => null,
+            ];
+        }
+
         return [];
     }
 

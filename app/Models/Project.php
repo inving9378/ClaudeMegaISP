@@ -23,6 +23,12 @@ class Project extends BaseModel
         'workflow',
     ];
 
+    public function teams()
+    {
+        return $this->belongsToMany(\App\Models\Team::class, 'project_team')
+                    ->withTimestamps();
+    }
+
     public function partners()
     {
         return $this->morphToMany(

@@ -1,0 +1,25 @@
+{
+    "total": 4,
+    "items": [
+        {
+            "id": 1681,
+            "status": "pending",
+            "_source": "task"
+        },
+        {
+            "id": 3,
+            "status": "in_progress",
+            "_source": "work_order"
+        },
+        {
+            "id": 2,
+            "status": "completed",
+            "_source": "work_order"
+        },
+        {
+            "id": 1,
+            "status": "incidencia",
+            "_source": "work_order"
+        }
+    ]
+}

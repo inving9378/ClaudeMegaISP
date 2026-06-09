@@ -1,0 +1,6 @@
+Keys: ['data', 'current_page', 'last_page', 'total']
+Items: 4
+  id=1681 status=pending _source=?
+  id=1684 status=in_progress _source=?
+  id=1683 status=completed _source=?
+  id=1682 status=in_progress _source=?

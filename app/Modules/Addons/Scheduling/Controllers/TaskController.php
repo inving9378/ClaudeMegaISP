@@ -243,17 +243,19 @@ class TaskController extends Controller
 
         if ($model) {
             $array = [
-                'id' => $model->id,
-                'status' => $model->status,
-                'archived' => $model->archived,
+                'id'          => $model->id,
+                'status'      => $model->status,
+                'archived'    => $model->archived,
                 'archived_at' => $model->archived_at,
                 'archived_by' => $model->archived_by,
-                'created_at' => (new FormatDateService($model->created_at))->formatDateWithTime(),
-                'updated_at' => (new FormatDateService($model->updated_at))->formatDateWithTime(),
-                'created_by' => $model->created_by_name,
-                'finish_at' => (new FormatDateService($model->finish_at))->formatDateWithTime(),
-                'logs' => $logs,
-                'files' => $model->files
+                'created_at'  => (new FormatDateService($model->created_at))->formatDateWithTime(),
+                'updated_at'  => (new FormatDateService($model->updated_at))->formatDateWithTime(),
+                'created_by'  => $model->created_by_name,
+                'finish_at'   => (new FormatDateService($model->finish_at))->formatDateWithTime(),
+                'logs'        => $logs,
+                'files'       => $model->files,
+                'ticket_id'   => $model->ticket_id,
+                'ticket_topic'=> $model->ticket?->topic,
             ];
             return $array;
         }
