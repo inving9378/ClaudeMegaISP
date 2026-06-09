@@ -26,6 +26,7 @@ class MeetingController extends Controller
 
         $request->validate([
             'name'         => 'nullable|string|max:120',
+            'meeting_type' => 'nullable|in:ordinaria,acta',
             'scheduled_at' => 'nullable|date',
             'attendee_ids' => 'nullable|array',
             'sections'     => 'nullable|array',
@@ -39,6 +40,7 @@ class MeetingController extends Controller
 
         $meeting = Meeting::create([
             'name'                     => $request->name ?? 'Junta operativa',
+            'meeting_type'             => $request->meeting_type ?? 'ordinaria',
             'scheduled_at'             => $request->scheduled_at,
             'started_at'               => now(),
             'status'                   => 'in_progress',

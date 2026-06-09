@@ -26,6 +26,23 @@
                                 <label class="wr-setup-label">Nombre de la junta</label>
                                 <input v-model="form.name" class="wr-setup-input" type="text" maxlength="120" />
                             </div>
+                            <div class="wr-setup-field">
+                                <label class="wr-setup-label">Tipo de junta</label>
+                                <div class="wr-setup-type-btns">
+                                    <button
+                                        type="button"
+                                        class="wr-setup-type-btn"
+                                        :class="{ active: form.meeting_type === 'ordinaria' }"
+                                        @click="form.meeting_type = 'ordinaria'"
+                                    ><i class="ti ti-list-check me-1"></i>Ordinaria</button>
+                                    <button
+                                        type="button"
+                                        class="wr-setup-type-btn"
+                                        :class="{ active: form.meeting_type === 'acta' }"
+                                        @click="form.meeting_type = 'acta'"
+                                    ><i class="ti ti-file-description me-1"></i>Acta</button>
+                                </div>
+                            </div>
                             <div class="wr-setup-field-row">
                                 <div class="wr-setup-field">
                                     <label class="wr-setup-label">Fecha y hora</label>
@@ -183,6 +200,7 @@ const DEFAULT_TIMES = { resumen: 7, finanzas: 10, operaciones: 12, ventas: 10, r
 
 const form = ref({
     name:         '',
+    meeting_type: 'ordinaria',
     scheduled_at: defaultScheduled,
     attendees:    {},
     sections: Object.entries(SECTION_META).map(([key, meta]) => ({
@@ -240,6 +258,7 @@ async function submit() {
     try {
         const payload = {
             name:         form.value.name,
+            meeting_type: form.value.meeting_type,
             scheduled_at: form.value.scheduled_at,
             settings:     form.value.settings,
             attendee_ids: Object.entries(form.value.attendees)
@@ -456,4 +475,24 @@ async function submit() {
 }
 
 .wr-setup-loading { font-size: 12px; color: #6b6b85; padding: 8px 0; }
+
+/* Tipo de junta */
+.wr-setup-type-btns { display: flex; gap: 6px; }
+.wr-setup-type-btn {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #9999b0;
+    font-size: 12px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+}
+.wr-setup-type-btn.active {
+    background: rgba(83,74,183,0.25);
+    border-color: #534AB7;
+    color: #c5bfff;
+}
 </style>
