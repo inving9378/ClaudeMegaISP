@@ -20,9 +20,9 @@ return [
     'steps' => [
         [
             'key'      => 'npm_build',
-            'name'     => 'Compilar assets (npm run prod)',
+            'name'     => 'Compilar assets (npm run {npm_script})',
             'command'  => 'npm run prod',
-            'timeout'  => 240,
+            'timeout'  => 10000,
             'critical' => true,
             'enabled'  => true,
         ],
