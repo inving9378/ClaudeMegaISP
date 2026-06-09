@@ -21,7 +21,13 @@
         <div v-else class="row align-items-center g-3">
           <!-- QR -->
           <div class="col-auto">
-            <canvas ref="qrCanvas" style="border-radius:8px;border:1px solid #e0e0e0;"></canvas>
+            <img
+              v-if="release && release.apk_url"
+              :src="`https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=2&data=${encodeURIComponent(release.apk_url)}`"
+              width="180" height="180"
+              alt="QR descarga APK"
+              style="border-radius:8px;border:1px solid #e0e0e0;"
+            />
           </div>
           <!-- Info -->
           <div class="col">
@@ -119,7 +125,7 @@
 </template>
 
 <script>
-import QRCode from 'qrcode';
+// QR generado via img tag (api.qrserver.com) — no requiere paquete npm
 
 export default {
   name: 'TalentoDispositivos',
@@ -152,14 +158,8 @@ export default {
         this.loadingRelease = false;
       }
     },
-    async renderQr(url) {
-      const canvas = this.$refs.qrCanvas;
-      if (!canvas) return;
-      await QRCode.toCanvas(canvas, url, {
-        width: 180,
-        margin: 2,
-        color: { dark: '#1a1a1a', light: '#ffffff' },
-      });
+    renderQr() {
+      // El QR se renderiza vía binding en el template — no requiere lógica aquí
     },
     copyApkUrl() {
       if (!this.release?.apk_url) return;
