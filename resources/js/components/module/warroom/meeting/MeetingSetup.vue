@@ -112,9 +112,10 @@
                     </div>
                     <div class="wr-agenda-table">
                         <div class="wr-agenda-header">
+                            <span></span>
                             <span>Sección</span>
                             <span>Presentador</span>
-                            <span>Minutos</span>
+                            <span>Min</span>
                             <span>Incluir</span>
                         </div>
                         <div
@@ -123,6 +124,19 @@
                             class="wr-agenda-row"
                             :class="{ 'wr-agenda-row-disabled': !sec.active }"
                         >
+                            <!-- Botones de reorden -->
+                            <div class="wr-agenda-order-btns">
+                                <button type="button" class="wr-agenda-order-btn"
+                                    :disabled="idx === 0"
+                                    @click="moveSection(idx, -1)" title="Subir">
+                                    <i class="ti ti-chevron-up"></i>
+                                </button>
+                                <button type="button" class="wr-agenda-order-btn"
+                                    :disabled="idx === form.sections.length - 1"
+                                    @click="moveSection(idx, 1)" title="Bajar">
+                                    <i class="ti ti-chevron-down"></i>
+                                </button>
+                            </div>
                             <div class="wr-agenda-name">
                                 <i :class="`ti ${sec.icon} me-1`" :style="{ color: sec.color }"></i>
                                 {{ sec.label }}
@@ -236,6 +250,14 @@ async function loadUsers() {
     } finally {
         loadingUsers.value = false;
     }
+}
+
+// ── Reordenar secciones ──────────────────────────────────────────────────────
+function moveSection(idx, dir) {
+    const arr = form.value.sections;
+    const target = idx + dir;
+    if (target < 0 || target >= arr.length) return;
+    [arr[idx], arr[target]] = [arr[target], arr[idx]];
 }
 
 // Regenerar nombre de junta con fecha al abrir
@@ -434,10 +456,10 @@ async function submit() {
 .wr-attendee-name { font-size: 12px; color: #e8e8f0; }
 
 /* Agenda */
-.wr-agenda-table { display: flex; flex-direction: column; gap: 6px; }
+.wr-agenda-table { display: flex; flex-direction: column; gap: 4px; }
 .wr-agenda-header {
     display: grid;
-    grid-template-columns: 2fr 2fr 80px 60px;
+    grid-template-columns: 36px 2fr 2fr 70px 54px;
     gap: 8px;
     font-size: 10px;
     text-transform: uppercase;
@@ -447,16 +469,36 @@ async function submit() {
 }
 .wr-agenda-row {
     display: grid;
-    grid-template-columns: 2fr 2fr 80px 60px;
+    grid-template-columns: 36px 2fr 2fr 70px 54px;
     gap: 8px;
     align-items: center;
-    padding: 5px 4px;
+    padding: 4px 4px;
     border-radius: 5px;
     transition: background 0.12s;
 }
 .wr-agenda-row:hover { background: rgba(255,255,255,0.03); }
 .wr-agenda-row-disabled { opacity: 0.4; }
 .wr-agenda-name { font-size: 12px; color: #e8e8f0; display: flex; align-items: center; }
+
+/* Botones de reorden de la agenda */
+.wr-agenda-order-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.wr-agenda-order-btn {
+    background: none;
+    border: none;
+    color: #6b6b85;
+    padding: 1px 3px;
+    cursor: pointer;
+    font-size: 11px;
+    border-radius: 3px;
+    line-height: 1;
+    transition: color 0.12s, background 0.12s;
+}
+.wr-agenda-order-btn:hover:not(:disabled) { color: #c5bfff; background: rgba(83,74,183,0.2); }
+.wr-agenda-order-btn:disabled { opacity: 0.2; cursor: default; }
 
 /* Footer */
 .wr-setup-footer {
