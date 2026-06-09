@@ -78,6 +78,7 @@
         "leaflet.markercluster": "^1.5.3",
         "moment": "^2.30.1",
         "prunecluster": "^2.1.0",
+        "qrcode": "^1.5.4",
         "spin": "^0.0.1",
         "sweetalert2": "^11.10.6",
         "toastr": "^2.1.4",
