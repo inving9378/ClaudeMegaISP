@@ -56,6 +56,16 @@
                     </select>
                 </div>
 
+                <!-- Selector de Equipo / Departamento -->
+                <div class="wr-desemp-ctrl-group">
+                    <label class="wr-ctrl-label"><i class="ti ti-building me-1"></i>Equipo</label>
+                    <select class="wr-select" v-model="selectedDepartment" @change="onDepartmentChange">
+                        <option value="">Todos los equipos</option>
+                        <option v-for="d in availableDepartments" :key="d" :value="d">{{ d }}</option>
+                        <option v-if="hasSinEquipo" value="__none__">Sin equipo</option>
+                    </select>
+                </div>
+
                 <!-- Multi-select colaboradores -->
                 <div class="wr-desemp-ctrl-group wr-ctrl-grow">
                     <label class="wr-ctrl-label"><i class="ti ti-users me-1"></i>Colaboradores</label>
@@ -65,13 +75,13 @@
                             <i class="ti ti-chevron-down ms-auto"></i>
                         </div>
                         <div v-if="colSelectorOpen" class="wr-multiselect-dropdown">
-                            <label class="wr-ms-item" v-for="col in allColaboradores" :key="col.colaborador_id">
+                            <label class="wr-ms-item" v-for="col in visibleColaboradores" :key="col.colaborador_id">
                                 <input type="checkbox"
                                     :value="col.colaborador_id"
                                     v-model="selectedColIds"
                                     @change="onColSelectionChange" />
                                 <span>{{ col.name }}</span>
-                                <span v-if="col.level" class="wr-ms-badge">{{ col.level }}</span>
+                                <span v-if="col.department" class="wr-ms-badge">{{ col.department }}</span>
                             </label>
                             <div class="wr-ms-actions">
                                 <button class="wr-ms-action-btn" @click="selectAllCols">Todos</button>
@@ -106,7 +116,7 @@
             <div class="wr-panel mt-3">
                 <div class="wr-section-title mb-2">
                     <i class="ti ti-chart-bar me-1"></i>
-                    {{ metricLabel }} — comparativo colaboradores
+                    {{ metricLabel }} — {{ selectedDepartment && selectedDepartment !== '__none__' ? selectedDepartment : (selectedDepartment === '__none__' ? 'Sin equipo' : 'todos los equipos') }}
                     <span class="wr-period-badge ms-2">{{ from }} → {{ to }}</span>
                 </div>
 
@@ -132,6 +142,7 @@
                         <thead>
                             <tr>
                                 <th>Colaborador</th>
+                                <th v-if="!selectedDepartment">Equipo</th>
                                 <th>Nivel</th>
                                 <th>OTs val.</th>
                                 <th>Pts OTs</th>
@@ -150,35 +161,60 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="col in filteredData" :key="col.colaborador_id">
-                                <td class="fw-semibold">{{ col.name }}</td>
-                                <td class="text-muted small">{{ col.level ?? '—' }}</td>
-                                <td>{{ col.metrics.ots_validadas.count }}</td>
-                                <td>{{ col.metrics.ots_validadas.pts }}</td>
-                                <td>{{ col.metrics.actividad_proyecto }}</td>
-                                <td>{{ col.metrics.asistencias }}</td>
-                                <td>
-                                    {{ col.metrics.inspecciones_caja.total }}
-                                    <span v-if="col.metrics.inspecciones_caja.total > 0" class="wr-pass-rate">
-                                        {{ passRate(col.metrics.inspecciones_caja) }}%
-                                    </span>
-                                </td>
-                                <td>{{ col.metrics.bonos_salud_red.eligible }}</td>
-                                <td>{{ col.metrics.activaciones_olt }}</td>
-                                <td :class="col.metrics.penalizaciones > 0 ? 'text-danger' : ''">
-                                    {{ col.metrics.penalizaciones }}
-                                </td>
-                                <td :class="col.metrics.desvios_ruta > 0 ? 'text-warning' : ''">
-                                    {{ col.metrics.desvios_ruta }}
-                                </td>
-                                <td>{{ col.metrics.incidencias_ot }}</td>
-                                <td>{{ col.metrics.extensiones_turno }}</td>
-                                <td>{{ col.metrics.evaluaciones }}</td>
-                                <td class="wr-score-col">
-                                    <span :class="scoreClass(col.score)">{{ col.score }}</span>
-                                </td>
-                                <td>{{ '★'.repeat(col.stars) }}</td>
-                            </tr>
+                            <template v-if="selectedDepartment">
+                                <!-- Vista plana intra-equipo -->
+                                <tr v-for="col in filteredData" :key="col.colaborador_id">
+                                    <td class="fw-semibold">{{ col.name }}</td>
+                                    <td class="text-muted small">{{ col.level ?? '—' }}</td>
+                                    <td>{{ col.metrics.ots_validadas.count }}</td>
+                                    <td>{{ col.metrics.ots_validadas.pts }}</td>
+                                    <td>{{ col.metrics.actividad_proyecto }}</td>
+                                    <td>{{ col.metrics.asistencias }}</td>
+                                    <td>{{ col.metrics.inspecciones_caja.total }}<span v-if="col.metrics.inspecciones_caja.total > 0" class="wr-pass-rate"> {{ passRate(col.metrics.inspecciones_caja) }}%</span></td>
+                                    <td>{{ col.metrics.bonos_salud_red.eligible }}</td>
+                                    <td>{{ col.metrics.activaciones_olt }}</td>
+                                    <td :class="col.metrics.penalizaciones > 0 ? 'text-danger' : ''">{{ col.metrics.penalizaciones }}</td>
+                                    <td :class="col.metrics.desvios_ruta > 0 ? 'text-warning' : ''">{{ col.metrics.desvios_ruta }}</td>
+                                    <td>{{ col.metrics.incidencias_ot }}</td>
+                                    <td>{{ col.metrics.extensiones_turno }}</td>
+                                    <td>{{ col.metrics.evaluaciones }}</td>
+                                    <td class="wr-score-col"><span :class="scoreClass(col.score)">{{ col.score }}</span></td>
+                                    <td>{{ '★'.repeat(col.stars) }}</td>
+                                </tr>
+                            </template>
+                            <template v-else>
+                                <!-- Vista agrupada por equipo (Todos) -->
+                                <template v-for="group in groupedData" :key="group.department">
+                                    <tr class="wr-dept-header">
+                                        <td colspan="17" class="wr-dept-header-cell">
+                                            <i class="ti ti-building me-1"></i>
+                                            {{ group.department }}
+                                            <span class="wr-dept-count ms-2">{{ group.items.length }} colaborador{{ group.items.length !== 1 ? 'es' : '' }}</span>
+                                        </td>
+                                    </tr>
+                                    <tr v-for="col in group.items" :key="col.colaborador_id">
+                                        <td class="fw-semibold">{{ col.name }}</td>
+                                        <td>
+                                            <span class="wr-dept-badge">{{ col.department || 'Sin equipo' }}</span>
+                                        </td>
+                                        <td class="text-muted small">{{ col.level ?? '—' }}</td>
+                                        <td>{{ col.metrics.ots_validadas.count }}</td>
+                                        <td>{{ col.metrics.ots_validadas.pts }}</td>
+                                        <td>{{ col.metrics.actividad_proyecto }}</td>
+                                        <td>{{ col.metrics.asistencias }}</td>
+                                        <td>{{ col.metrics.inspecciones_caja.total }}<span v-if="col.metrics.inspecciones_caja.total > 0" class="wr-pass-rate"> {{ passRate(col.metrics.inspecciones_caja) }}%</span></td>
+                                        <td>{{ col.metrics.bonos_salud_red.eligible }}</td>
+                                        <td>{{ col.metrics.activaciones_olt }}</td>
+                                        <td :class="col.metrics.penalizaciones > 0 ? 'text-danger' : ''">{{ col.metrics.penalizaciones }}</td>
+                                        <td :class="col.metrics.desvios_ruta > 0 ? 'text-warning' : ''">{{ col.metrics.desvios_ruta }}</td>
+                                        <td>{{ col.metrics.incidencias_ot }}</td>
+                                        <td>{{ col.metrics.extensiones_turno }}</td>
+                                        <td>{{ col.metrics.evaluaciones }}</td>
+                                        <td class="wr-score-col"><span :class="scoreClass(col.score)">{{ col.score }}</span></td>
+                                        <td>{{ '★'.repeat(col.stars) }}</td>
+                                    </tr>
+                                </template>
+                            </template>
                         </tbody>
                     </table>
                 </div>
@@ -210,21 +246,61 @@ const now   = new Date();
 const from  = ref(props.period + '-01');
 const to    = ref(now.toISOString().slice(0, 10));
 
-const loading       = ref(false);
-const data          = ref(null);
-const allColaboradores = ref([]);
-const selectedColIds   = ref([]);
-const colSelectorOpen  = ref(false);
-const selectedMetric   = ref('score');
-const chartType        = ref('bar');
-const chartCanvas      = ref(null);
-let   chartInstance    = null;
+const loading            = ref(false);
+const data               = ref(null);
+const allColaboradores   = ref([]);
+const selectedColIds     = ref([]);
+const colSelectorOpen    = ref(false);
+const selectedMetric     = ref('score');
+const chartType          = ref('bar');
+const chartCanvas        = ref(null);
+const selectedDepartment = ref('');  // '' = Todos, '__none__' = sin equipo
+let   chartInstance      = null;
+
+// ── Departamentos disponibles ─────────────────────────────────────────────────
+const availableDepartments = computed(() => data.value?.departments ?? []);
+const hasSinEquipo = computed(() =>
+    allColaboradores.value.some(c => !c.department)
+);
+
+// ── Colaboradores visibles en el multi-select (filtrados por equipo) ──────────
+const visibleColaboradores = computed(() => {
+    if (!selectedDepartment.value) return allColaboradores.value;
+    if (selectedDepartment.value === '__none__') return allColaboradores.value.filter(c => !c.department);
+    return allColaboradores.value.filter(c => c.department === selectedDepartment.value);
+});
 
 // ── Datos filtrados por colaboradores seleccionados ───────────────────────────
 const filteredData = computed(() => {
     if (!data.value?.colaboradores) return [];
-    if (!selectedColIds.value.length) return data.value.colaboradores;
-    return data.value.colaboradores.filter(c => selectedColIds.value.includes(c.colaborador_id));
+    let pool = data.value.colaboradores;
+    // Filtro por departamento
+    if (selectedDepartment.value === '__none__') {
+        pool = pool.filter(c => !c.department);
+    } else if (selectedDepartment.value) {
+        pool = pool.filter(c => c.department === selectedDepartment.value);
+    }
+    // Filtro por colaborador multi-select
+    if (selectedColIds.value.length && selectedColIds.value.length < pool.length) {
+        pool = pool.filter(c => selectedColIds.value.includes(c.colaborador_id));
+    }
+    return pool;
+});
+
+// ── Datos agrupados por departamento para vista "Todos" ───────────────────────
+const groupedData = computed(() => {
+    const groups = {};
+    for (const col of filteredData.value) {
+        const key = col.department || '__none__';
+        if (!groups[key]) groups[key] = { department: col.department || 'Sin equipo', items: [] };
+        groups[key].items.push(col);
+    }
+    // Ordenar grupos: named departments primero, "Sin equipo" al final
+    return Object.values(groups).sort((a, b) => {
+        if (a.department === 'Sin equipo') return 1;
+        if (b.department === 'Sin equipo') return -1;
+        return a.department.localeCompare(b.department);
+    });
 });
 
 // ── Label de la métrica seleccionada ─────────────────────────────────────────
@@ -270,9 +346,14 @@ async function load() {
         data.value = resp;
         if (resp.available && resp.colaboradores?.length) {
             allColaboradores.value = resp.colaboradores;
-            // Mantener selección previa; si no hay ninguna, seleccionar todos
+            // Primera carga: seleccionar el primer equipo con colaboradores como default
             if (selectedColIds.value.length === 0) {
-                selectedColIds.value = resp.colaboradores.map(c => c.colaborador_id);
+                const firstDept = resp.departments?.[0] ?? '';
+                selectedDepartment.value = firstDept;
+                const pool = firstDept
+                    ? resp.colaboradores.filter(c => c.department === firstDept)
+                    : resp.colaboradores;
+                selectedColIds.value = pool.map(c => c.colaborador_id);
             }
         }
     } catch {
@@ -373,12 +454,22 @@ function renderChart() {
     });
 }
 
+// ── Department selector ───────────────────────────────────────────────────────
+function onDepartmentChange() {
+    // Actualizar selección de colaboradores al equipo elegido
+    if (selectedDepartment.value) {
+        selectedColIds.value = visibleColaboradores.value.map(c => c.colaborador_id);
+    } else {
+        selectedColIds.value = allColaboradores.value.map(c => c.colaborador_id);
+    }
+}
+
 // ── Multi-select helpers ──────────────────────────────────────────────────────
 function toggleColSelector() {
     colSelectorOpen.value = !colSelectorOpen.value;
 }
 function selectAllCols() {
-    selectedColIds.value = allColaboradores.value.map(c => c.colaborador_id);
+    selectedColIds.value = visibleColaboradores.value.map(c => c.colaborador_id);
     colSelectorOpen.value = false;
 }
 function clearCols() {
@@ -619,6 +710,35 @@ onUnmounted(() => {
     padding: 2px 7px;
     color: var(--wr-text-muted, #9999b0);
     font-weight: 400;
+}
+
+/* ── Agrupación por departamento ─────────────────────────────────────────── */
+.wr-dept-header td {
+    background: rgba(83,74,183,0.12) !important;
+    border-top: 1px solid rgba(83,74,183,0.3) !important;
+    border-bottom: 1px solid rgba(83,74,183,0.2) !important;
+    padding: 5px 10px;
+}
+.wr-dept-header-cell {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a5bfff;
+}
+.wr-dept-count {
+    font-weight: 400;
+    font-size: 10px;
+    color: #7a8ab0;
+    text-transform: none;
+}
+.wr-dept-badge {
+    font-size: 10px;
+    background: rgba(83,74,183,0.2);
+    color: #c5bfff;
+    border-radius: 4px;
+    padding: 1px 6px;
+    white-space: nowrap;
 }
 
 /* ── Nota fuera de alcance ────────────────────────────────────────────────── */
