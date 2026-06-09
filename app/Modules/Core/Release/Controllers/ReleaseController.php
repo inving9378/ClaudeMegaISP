@@ -59,12 +59,12 @@ class ReleaseController extends Controller
 
     public function store(Request $request)
     {
-        if (!app()->environment('production')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pueden crear versiones en entorno de desarrollo.',
-            ], 422);
-        }
+//        if (!app()->environment('production')) {
+//            return response()->json([
+//                'success' => false,
+//                'message' => 'No se pueden crear versiones en entorno de desarrollo.',
+//            ], 422);
+//        }
 
         try {
             $validator = Validator::make($request->all(), [
