@@ -78,6 +78,8 @@ export default {
     showControls: { type: Boolean, default: true },
     // Unit label for tooltip Y axis
     yLabel:   { type: String, default: '' },
+    // Indices externos a forzar ocultos (desde el padre)
+    hiddenIndices: { type: Array, default: () => [] },
   },
 
   emits: ['update:granularidad'],
@@ -114,6 +116,20 @@ export default {
       deep: true,
       handler() {
         this.$nextTick(() => this.renderChart());
+      },
+    },
+    hiddenIndices: {
+      deep: true,
+      handler(indices) {
+        if (!this.chart) return;
+        const len = Object.keys(this.visibleSet).length;
+        for (let i = 0; i < len; i++) {
+          const shouldHide = indices.includes(i);
+          this.visibleSet = { ...this.visibleSet, [i]: !shouldHide };
+          const meta = this.chart.getDatasetMeta(i);
+          if (meta) meta.hidden = shouldHide;
+        }
+        this.chart.update('none');
       },
     },
   },

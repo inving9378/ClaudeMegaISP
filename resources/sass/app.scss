@@ -39,6 +39,9 @@
 // Tokens canónicos dark/light (Tema 0) — fuente única de verdad de color
 @import "../css/dark-light-tokens.css";
 
+// MegaFamilia Design System (Tema 0.5) — tokens híbridos + clases .mf-*
+@import "../css/megafamilia.css";
+
 @import url("base/quasar/_quasar.scss");
 
 .task-status-done {
