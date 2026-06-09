@@ -18,15 +18,15 @@ export function useMeeting() {
             const { data } = await axios.get('/warroom/api/meetings/active');
             meeting.value = data;
             if (data?.started_at) {
-                elapsedTotalSeconds.value = Math.floor(
-                    (Date.now() - new Date(data.started_at).getTime()) / 1000
+                elapsedTotalSeconds.value = Math.max(
+                    0,
+                    Math.floor((Date.now() - new Date(data.started_at).getTime()) / 1000)
                 );
             }
-            if (data?.current_section_started_at) {
-                elapsedSectionSeconds.value = Math.floor(
-                    (Date.now() - new Date(data.current_section_started_at).getTime()) / 1000
-                );
-            }
+            // Si current_section_started_at es null, inicia en 0 (timer contará desde aquí)
+            elapsedSectionSeconds.value = data?.current_section_started_at
+                ? Math.max(0, Math.floor((Date.now() - new Date(data.current_section_started_at).getTime()) / 1000))
+                : 0;
         } catch {
             meeting.value = null;
         }
@@ -59,6 +59,13 @@ export function useMeeting() {
 
     // ── Controles de sección ─────────────────────────────────────────────────
 
+    function resetSectionClock(meetingData) {
+        const ts = meetingData?.current_section_started_at;
+        elapsedSectionSeconds.value = ts
+            ? Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 1000))
+            : 0;
+    }
+
     async function nextSection() {
         if (!meeting.value) return;
         loading.value = true;
@@ -67,10 +74,11 @@ export function useMeeting() {
             if (data.meeting) {
                 meeting.value = data.meeting;
                 if (data.summary) return data; // junta finalizada automáticamente
+                resetSectionClock(data.meeting);
             } else {
                 meeting.value = data;
+                resetSectionClock(data);
             }
-            elapsedSectionSeconds.value = 0;
             aiSuggestion.value = null;
         } finally {
             loading.value = false;
@@ -83,7 +91,7 @@ export function useMeeting() {
         try {
             const { data } = await axios.post(`/warroom/api/meetings/${meeting.value.id}/section/previous`);
             meeting.value = data;
-            elapsedSectionSeconds.value = 0;
+            resetSectionClock(data);
             aiSuggestion.value = null;
         } finally {
             loading.value = false;
@@ -111,8 +119,9 @@ export function useMeeting() {
             aiSuggestion.value = null;
             elapsedTotalSeconds.value   = 0;
             elapsedSectionSeconds.value = 0;
-            if (timer)           clearInterval(timer);
-            if (suggestionTimer) clearInterval(suggestionTimer);
+            // NO limpiar el timer principal: si el usuario abre una nueva junta
+            // en la misma sesión, el interval ya está corriendo y funcionará.
+            // El callback es no-op mientras meeting===null.
             return data; // { meeting, summary }
         } finally {
             loading.value = false;
