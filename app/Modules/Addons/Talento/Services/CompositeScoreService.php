@@ -111,13 +111,13 @@ class CompositeScoreService
 
     private function qualityScore(int $colId, Carbon $start, Carbon $end): float
     {
-        $total = TalentoCajaInspection::where('colaborador_id', $colId)
+        $total = TalentoCajaInspection::where('inspected_by', $colId)
             ->whereBetween('created_at', [$start, $end])
             ->count();
 
         if ($total === 0) return 100.0; // no inspections = no failures
 
-        $passed = TalentoCajaInspection::where('colaborador_id', $colId)
+        $passed = TalentoCajaInspection::where('inspected_by', $colId)
             ->whereBetween('created_at', [$start, $end])
             ->where('overall_result', 'pass')
             ->count();
@@ -128,14 +128,14 @@ class CompositeScoreService
     private function healthBonusScore(int $colId, int $weeksBack): float
     {
         $total = TalentoHealthBonusLog::where('colaborador_id', $colId)
-            ->where('created_at', '>=', Carbon::now()->subWeeks($weeksBack))
+            ->where('checked_at', '>=', Carbon::now()->subWeeks($weeksBack))
             ->count();
 
         if ($total === 0) return 0.0;
 
         $eligible = TalentoHealthBonusLog::where('colaborador_id', $colId)
-            ->where('created_at', '>=', Carbon::now()->subWeeks($weeksBack))
-            ->where('eligible', true)
+            ->where('checked_at', '>=', Carbon::now()->subWeeks($weeksBack))
+            ->where('bonus_awarded', true)
             ->count();
 
         return round(($eligible / $total) * 100, 1);
@@ -145,8 +145,8 @@ class CompositeScoreService
     {
         // Fewer active penalties = better. Cap at 5 penalties = 0 score.
         $penaltyCount = TalentoPenalty::where('colaborador_id', $colId)
-            ->whereBetween('applied_at', [$start, $end])
-            ->where('status', 'active')
+            ->whereBetween('created_at', [$start, $end])
+            ->whereIn('status', ['applied', 'appealed'])
             ->count();
 
         return max(0.0, round((1 - min($penaltyCount, 5) / 5) * 100, 1));
