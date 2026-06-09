@@ -196,11 +196,12 @@ class DeploymentService
 
     private function buildEnv(): array
     {
-        $gitConfig = config('deployment.git', []);
+        $gitConfig  = config('deployment.git', []);
+        $passphrase = env('SSH_KEY_PASSPHRASE', '');
 
-        return [
+        $env = [
             'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-            'HOME'               => base_path(),
+            'HOME'               => '/root',
             'COMPOSER_HOME'      => sys_get_temp_dir() . '/composer',
             // Permite que el proceso PHP opere git aunque el dueño del directorio sea distinto
             'GIT_CONFIG_COUNT'   => '1',
@@ -212,5 +213,19 @@ class DeploymentService
             'GIT_COMMITTER_NAME' => $gitConfig['author_name']  ?? 'MegaISP Release',
             'GIT_COMMITTER_EMAIL'=> $gitConfig['author_email'] ?? 'releases@meganet.com',
         ];
+
+        // Si la llave SSH tiene passphrase, crea un script SSH_ASKPASS temporal
+        // para que SSH lo use en lugar de pedir input interactivo
+        if (!empty($passphrase)) {
+            $askPassScript = sys_get_temp_dir() . '/ssh_askpass_deploy.sh';
+            file_put_contents($askPassScript, "#!/bin/sh\necho " . escapeshellarg($passphrase) . "\n");
+            chmod($askPassScript, 0700);
+
+            $env['SSH_ASKPASS']         = $askPassScript;
+            $env['SSH_ASKPASS_REQUIRE'] = 'force';
+            $env['DISPLAY']             = '';
+        }
+
+        return $env;
     }
 }

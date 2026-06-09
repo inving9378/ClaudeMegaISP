@@ -19,14 +19,6 @@ return [
 
     'steps' => [
         [
-            'key'      => 'npm_build',
-            'name'     => 'Compilar assets (npm run {npm_script})',
-            'command'  => 'npm run prod',
-            'timeout'  => 10000,
-            'critical' => true,
-            'enabled'  => true,
-        ],
-        [
             'key'      => 'git_add',
             'name'     => 'Preparar archivos (git add)',
             'command'  => 'git add -A',
@@ -64,34 +56,10 @@ return [
             'key'               => 'remote_deploy',
             'name'              => 'Desplegar en servidor remoto',
             'type'              => 'http',
-            'timeout'           => 120,
+            'timeout'           => 700,
             'critical'          => false,
             'enabled'           => true,
             'skip_if_no_remote' => true,
-        ],
-        [
-            'key'      => 'migrate',
-            'name'     => 'Ejecutar migraciones (local)',
-            'command'  => 'php artisan migrate --force',
-            'timeout'  => 60,
-            'critical' => true,
-            'enabled'  => true,
-        ],
-        [
-            'key'      => 'optimize',
-            'name'     => 'Optimizar cachés',
-            'command'  => 'php artisan optimize',
-            'timeout'  => 30,
-            'critical' => false,
-            'enabled'  => true,
-        ],
-        [
-            'key'      => 'queue_restart',
-            'name'     => 'Reiniciar workers de cola',
-            'command'  => 'php artisan queue:restart',
-            'timeout'  => 10,
-            'critical' => false,
-            'enabled'  => true,
         ],
     ],
 
