@@ -38,10 +38,16 @@
                     <i class="ti ti-broadcast me-1"></i>
                     Iniciar junta
                 </button>
-                <span v-else class="wr-meeting-badge">
+                <button
+                    v-else
+                    class="wr-meeting-badge wr-meeting-badge-btn"
+                    @click="panelOpen = !panelOpen"
+                    :title="panelOpen ? 'Ocultar panel de junta' : 'Abrir panel de junta'"
+                >
                     <i class="ti ti-radio-active me-1"></i>
                     Junta en curso
-                </span>
+                    <i class="ti ms-1" :class="panelOpen ? 'ti-layout-sidebar-right-collapse' : 'ti-layout-sidebar-right-expand'"></i>
+                </button>
             </div>
         </div>
 
@@ -59,33 +65,53 @@
             </button>
         </div>
 
-        <!-- ── Contenido de cada vista ────────────────────────────────────────── -->
-        <q-tab-panels v-model="currentView" animated class="wr-panels">
-            <q-tab-panel name="resumen"     class="wr-panel-content">
-                <ViewResumen     :period="currentPeriod" :active-meeting-id="meeting?.id ?? null" />
-            </q-tab-panel>
-            <q-tab-panel name="finanzas"    class="wr-panel-content">
-                <ViewFinanzas    :period="currentPeriod" />
-            </q-tab-panel>
-            <q-tab-panel name="operaciones" class="wr-panel-content">
-                <ViewOperaciones :period="currentPeriod" />
-            </q-tab-panel>
-            <q-tab-panel name="ventas"      class="wr-panel-content">
-                <ViewVentas      :period="currentPeriod" />
-            </q-tab-panel>
-            <q-tab-panel name="red"         class="wr-panel-content">
-                <ViewRed         :period="currentPeriod" />
-            </q-tab-panel>
-            <q-tab-panel name="marketing"   class="wr-panel-content">
-                <ViewMarketing   :period="currentPeriod" />
-            </q-tab-panel>
-            <q-tab-panel name="talento"     class="wr-panel-content">
-                <ViewTalento     :period="currentPeriod" />
-            </q-tab-panel>
-            <q-tab-panel name="desempeno"   class="wr-panel-content">
-                <ViewDesempeno   :period="currentPeriod" />
-            </q-tab-panel>
-        </q-tab-panels>
+        <!-- ── Cuerpo: contenido + panel lateral ────────────────────────────────── -->
+        <div class="wr-body">
+            <!-- Contenido de cada vista -->
+            <div class="wr-main-content">
+                <q-tab-panels v-model="currentView" animated class="wr-panels">
+                    <q-tab-panel name="resumen"     class="wr-panel-content">
+                        <ViewResumen     :period="currentPeriod" :active-meeting-id="meeting?.id ?? null" />
+                    </q-tab-panel>
+                    <q-tab-panel name="finanzas"    class="wr-panel-content">
+                        <ViewFinanzas    :period="currentPeriod" />
+                    </q-tab-panel>
+                    <q-tab-panel name="operaciones" class="wr-panel-content">
+                        <ViewOperaciones :period="currentPeriod" />
+                    </q-tab-panel>
+                    <q-tab-panel name="ventas"      class="wr-panel-content">
+                        <ViewVentas      :period="currentPeriod" />
+                    </q-tab-panel>
+                    <q-tab-panel name="red"         class="wr-panel-content">
+                        <ViewRed         :period="currentPeriod" />
+                    </q-tab-panel>
+                    <q-tab-panel name="marketing"   class="wr-panel-content">
+                        <ViewMarketing   :period="currentPeriod" />
+                    </q-tab-panel>
+                    <q-tab-panel name="talento"     class="wr-panel-content">
+                        <ViewTalento     :period="currentPeriod" />
+                    </q-tab-panel>
+                    <q-tab-panel name="desempeno"   class="wr-panel-content">
+                        <ViewDesempeno   :period="currentPeriod" />
+                    </q-tab-panel>
+                </q-tab-panels>
+            </div>
+
+            <!-- Panel lateral de junta en vivo -->
+            <MeetingLivePanel
+                v-if="meeting?.status === 'in_progress' || meeting?.status === 'paused'"
+                :visible="panelOpen"
+                :meeting="meeting"
+                :current-section="currentSection"
+                :elapsed-section-seconds="elapsedSectionSeconds"
+                :section-progress="sectionProgress"
+                :loading="meetingLoading"
+                @close="panelOpen = false"
+                @next-section="nextSection"
+                @prev-section="previousSection"
+                @end="confirmEnd"
+            />
+        </div>
 
         <!-- ── Setup modal ───────────────────────────────────────────────────── -->
         <MeetingSetup
@@ -138,6 +164,7 @@ import axios from 'axios';
 import { useMeeting } from './composables/useMeeting.js';
 import MeetingControlBar from './meeting/MeetingControlBar.vue';
 import MeetingSetup from './meeting/MeetingSetup.vue';
+import MeetingLivePanel from './meeting/MeetingLivePanel.vue';
 import MeetingSummary from './meeting/MeetingSummary.vue';
 import ActionItemQuickCreate from './meeting/ActionItemQuickCreate.vue';
 import PeriodSelector from './shared/PeriodSelector.vue';
@@ -183,6 +210,15 @@ const {
 // ── Auto-switch tab cuando el moderador avanza de sección ───────────────────
 watch(() => meeting.value?.current_section_key, newKey => {
     if (newKey) currentView.value = newKey;
+});
+
+// ── Panel lateral vivo ───────────────────────────────────────────────────────
+const panelOpen = ref(false);
+
+// Abrir panel automáticamente cuando la junta pasa a in_progress
+watch(() => meeting.value?.status, (status) => {
+    if (status === 'in_progress') panelOpen.value = true;
+    if (!status || status === 'ended') panelOpen.value = false;
 });
 
 // ── Setup modal ──────────────────────────────────────────────────────────────
@@ -363,6 +399,20 @@ onUnmounted(() => {
 .warroom-container .wr-tab-btn.wr-tab-desempeno.wr-tab-active   { color: #a5d4ff; }
 .warroom-container .wr-tab-btn.wr-tab-desempeno.wr-tab-active::after   { background: #4da8e0; }
 
+/* ── Body flex (contenido + panel lateral) ───────────────────────────── */
+.warroom-container .wr-body {
+    display: flex;
+    align-items: stretch;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.warroom-container .wr-main-content {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+}
+
 .warroom-container .wr-panels {
     background: transparent;
 }
@@ -511,6 +561,19 @@ onUnmounted(() => {
     font-size: 12px;
     font-weight: 500;
     animation: wr-pulse 2s ease-in-out infinite;
+}
+
+.warroom-container .wr-meeting-badge-btn {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.warroom-container .wr-meeting-badge-btn:hover {
+    background: rgba(29,158,117,0.25);
+    opacity: 1;
+    animation: none;
 }
 
 @keyframes wr-pulse {
