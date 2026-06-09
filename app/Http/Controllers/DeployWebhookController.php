@@ -33,7 +33,11 @@ class DeployWebhookController extends Controller
         $summary     = $request->input('summary', '');
         $releaseDate = $request->input('release_date', now()->toDateString());
 
-        $logFile = storage_path("logs/remote-deploy-{$log->id}.log");
+        // Limpiar cache de artisan para que detecte nuevos comandos tras git pull
+        @shell_exec(PHP_BINARY . ' ' . escapeshellarg(base_path('artisan')) . ' optimize:clear 2>/dev/null');
+
+        // Log en /tmp para evitar problemas de permisos con www-data
+        $logFile = sys_get_temp_dir() . "/remote-deploy-{$log->id}.log";
 
         $cmd = sprintf(
             'nohup %s %s remote:deploy %d --version=%s --title=%s --summary=%s --release-date=%s > %s 2>&1 &',
