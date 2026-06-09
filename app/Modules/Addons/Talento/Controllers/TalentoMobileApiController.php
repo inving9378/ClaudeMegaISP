@@ -6,11 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
-use App\Modules\Addons\Talento\Models\TalentoWorkOrderMedia;
+use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 /**
  * Gateway para la app móvil "Talento Equipo" (React Native).
@@ -18,14 +16,13 @@ use Illuminate\Support\Str;
  * Auth: Sanctum Bearer token. Login provisionado por admin.
  * Todas las rutas son stateless (sin CSRF, sin sesión web).
  *
- * Tablas reales usadas:
- *  - talento_work_order_media  (evidencias, con potencia_dbm/gps_accuracy_m/source vía migración 970010)
- *  - talento_ledger_entries    (compensación)
- *  - talento_work_order_types  (columna: name)
- *  - settings                  (health bonus: talento_health_bonus_amount, talento_health_bonus_max_loss_db)
+ * Capa 4.3: los 5 endpoints WRITE delegan a OrdenTrabajoUnifiedService,
+ * que reconoce tanto talento_work_orders como tasks tipo=campo.
  */
 class TalentoMobileApiController extends Controller
 {
+    public function __construct(private OrdenTrabajoUnifiedService $unified) {}
+
     // ── Auth ──────────────────────────────────────────────────────────────────
 
     public function login(Request $request)
@@ -191,14 +188,7 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ots = TalentoWorkOrder::with(['type'])
-            ->where('colaborador_id', $colaborador->id)
-            ->whereDate('scheduled_at', now()->toDateString())
-            ->orderBy('scheduled_at')
-            ->get()
-            ->map(fn($o) => $this->otSummary($o));
-
-        return response()->json(['ots' => $ots]);
+        return response()->json(['ots' => $this->unified->summaryForHoy($colaborador->id)]);
     }
 
     public function otShow(Request $request, int $id)
@@ -206,36 +196,38 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ot = TalentoWorkOrder::with(['type'])
-            ->where('id', $id)
-            ->where('colaborador_id', $colaborador->id)
-            ->first();
-
-        if (! $ot) {
+        $detail = $this->unified->detail($id, $colaborador->id);
+        if (! $detail) {
             return response()->json(['message' => 'OT no encontrada.'], 404);
         }
 
-        // Cargar evidencias con nombre del tipo
-        $evidencias = DB::table('talento_work_order_media as m')
-            ->leftJoin('talento_evidence_types as et', 'et.id', '=', 'm.evidence_type_id')
-            ->where('m.work_order_id', $ot->id)
-            ->orderByDesc('m.created_at')
-            ->get([
-                'm.id', 'm.created_at', 'm.potencia_dbm',
-                'm.evidence_type_id as type_id', 'et.name as tipo_nombre',
-                'm.watermark_applied', 'm.location_flagged',
-            ])
-            ->toArray();
+        return response()->json(['ot' => $detail]);
+    }
 
-        // Evidencias obligatorias para este tipo de OT (condition=null → siempre requeridas)
-        $requeridas = DB::table('talento_ot_type_evidence_requirements as r')
-            ->join('talento_evidence_types as et', 'et.id', '=', 'r.evidence_type_id')
-            ->where('r.ot_type_id', $ot->type_id)
-            ->whereNull('r.condition')
-            ->get(['et.id', 'et.name as nombre', 'et.es_firma'])
-            ->toArray();
+    // ── Health / tenant (sin auth — para validar URL antes de login) ─────────
 
-        return response()->json(['ot' => $this->otDetail($ot, $evidencias, $requeridas)]);
+    public function health()
+    {
+        $tenantName    = DB::table('settings')->where('key', 'tenant_name')->value('value');
+        $tenantLogoUrl = DB::table('settings')->where('key', 'tenant_logo_url')->value('value');
+
+        // Fallback: si no hay settings de tenant, usa datos de la empresa
+        if (! $tenantName) {
+            $info = DB::table('company_information')->first(['company_name', 'url_logo']);
+            $tenantName = $info?->company_name ?? 'Medussa';
+            if (! $tenantLogoUrl && $info?->url_logo) {
+                $raw = $info->url_logo;
+                $base = request()->getSchemeAndHttpHost();
+                $tenantLogoUrl = str_starts_with($raw, 'http') ? $raw : $base . '/' . ltrim($raw, '/');
+            }
+        }
+
+        return response()->json([
+            'ok'               => true,
+            'app'              => 'Medussa',
+            'tenant_name'      => $tenantName,
+            'tenant_logo_url'  => $tenantLogoUrl,
+        ]);
     }
 
     // ── Branding dinámico ─────────────────────────────────────────────────────
@@ -271,10 +263,7 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ot = TalentoWorkOrder::where('id', $id)
-            ->where('colaborador_id', $colaborador->id)
-            ->first();
-
+        $ot = $this->unified->findLight($id, $colaborador->id);
         if (! $ot) {
             return response()->json(['message' => 'OT no encontrada.'], 404);
         }
@@ -299,9 +288,10 @@ class TalentoMobileApiController extends Controller
             ->pluck('evidence_type_id')
             ->values();
 
-        // Tipos ya subidos para esta OT
+        // Tipos ya subidos: usa tarea_id o work_order_id según la fuente
+        $fkCol   = $ot->is_task ? 'tarea_id' : 'work_order_id';
         $subidos = DB::table('talento_work_order_media')
-            ->where('work_order_id', $ot->id)
+            ->where($fkCol, $ot->id)
             ->whereNotNull('evidence_type_id')
             ->pluck('evidence_type_id')
             ->values();
@@ -316,105 +306,37 @@ class TalentoMobileApiController extends Controller
     public function otEvidencia(Request $request, int $id)
     {
         $request->validate([
-            'foto'              => 'required|file|mimes:jpg,jpeg|max:10240',
-            'evidence_type_id'  => 'required|integer|exists:talento_evidence_types,id',
-            'lat'               => 'required|numeric',
-            'lng'               => 'required|numeric',
-            'accuracy'          => 'nullable|numeric',
-            'potencia_dbm'      => 'nullable|numeric',
-            'justificacion'     => 'nullable|string|max:500',
-            'is_mock_location'  => 'nullable|boolean',
+            'foto'             => 'required|file|mimes:jpg,jpeg|max:10240',
+            'evidence_type_id' => 'required|integer|exists:talento_evidence_types,id',
+            'lat'              => 'required|numeric',
+            'lng'              => 'required|numeric',
+            'accuracy'         => 'nullable|numeric',
+            'potencia_dbm'     => 'nullable|numeric',
+            'justificacion'    => 'nullable|string|max:500',
+            'is_mock_location' => 'nullable|boolean',
         ]);
 
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ot = TalentoWorkOrder::where('id', $id)
-            ->where('colaborador_id', $colaborador->id)
-            ->first();
+        $result = $this->unified->subirEvidencia(
+            $id,
+            $colaborador->id,
+            $request->only(['evidence_type_id', 'lat', 'lng', 'accuracy', 'potencia_dbm', 'justificacion', 'is_mock_location']),
+            $request->file('foto'),
+            $request->user()->id
+        );
 
-        if (! $ot) {
-            return response()->json(['message' => 'OT no encontrada.'], 404);
+        if (! $result['success']) {
+            return response()->json(
+                collect($result)->except(['success', 'status_code'])->all(),
+                $result['status_code']
+            );
         }
-
-        $evTypeId = (int)$request->input('evidence_type_id');
-        $evType   = DB::table('talento_evidence_types')->where('id', $evTypeId)->first();
-
-        // Tipo "Otro" (requiere_justificacion=true) exige justificacion
-        if ($evType->requiere_justificacion && empty(trim($request->input('justificacion', '')))) {
-            return response()->json([
-                'message' => 'Este tipo de evidencia requiere una justificación.',
-                'code'    => 'JUSTIFICACION_REQUERIDA',
-            ], 422);
-        }
-
-        // Anti-duplicado: solo un upload por tipo salvo permite_varias
-        if (! $evType->permite_varias) {
-            $existe = DB::table('talento_work_order_media')
-                ->where('work_order_id', $ot->id)
-                ->where('evidence_type_id', $evTypeId)
-                ->exists();
-
-            if ($existe) {
-                return response()->json([
-                    'message' => "Ya existe evidencia de tipo '{$evType->name}' para esta OT.",
-                    'code'    => 'TIPO_DUPLICADO',
-                ], 422);
-            }
-        }
-
-        $lat      = (float)$request->input('lat');
-        $lng      = (float)$request->input('lng');
-        $accuracy = $request->input('accuracy') !== null ? (float)$request->input('accuracy') : null;
-        $potencia = $request->input('potencia_dbm') !== null ? (float)$request->input('potencia_dbm') : null;
-        $isMock   = (bool)$request->input('is_mock_location', false);
-
-        // Calcular distancia al sitio de la OT
-        $locationFlagged = false;
-        $distanceM       = null;
-        if ($ot->latitude && $ot->longitude) {
-            $distanceM = $this->haversineMeters($lat, $lng, (float)$ot->latitude, (float)$ot->longitude);
-            $flaggedRadius = (float)(DB::table('settings')->where('key', 'talento_media_flagged_radius_m')->value('value') ?? 500);
-            $locationFlagged = $distanceM > $flaggedRadius;
-        }
-
-        // Guardar foto en disco privado (marca de agua ya quemada en la app)
-        $file = $request->file('foto');
-        $dir  = "talento/media/{$ot->id}";
-        $name = Str::uuid() . '.jpg';
-        $path = $file->storeAs($dir, $name, 'local');
-
-        $mediaId = DB::table('talento_work_order_media')->insertGetId([
-            'work_order_id'       => $ot->id,
-            'evidence_type_id'    => $evTypeId,
-            'type'                => 'completion',
-            'file_path'           => $path,
-            'captured_lat'        => $lat,
-            'captured_lng'        => $lng,
-            'captured_at'         => now(),
-            'server_captured_at'  => now(),
-            'captured_in_app'     => true,
-            'watermark_applied'   => true,
-            'location_flagged'    => $locationFlagged,
-            'is_mock_location'    => $isMock,
-            'location_distance_m' => $distanceM,
-            'potencia_dbm'        => $potencia,
-            'gps_accuracy_m'      => $accuracy,
-            'justificacion'       => $request->input('justificacion') ?: null,
-            'source'              => 'mobile',
-            'created_by'          => $request->user()->id,
-            'created_at'          => now(),
-        ]);
-
-        if ($ot->status === 'pending') {
-            $ot->update(['status' => 'in_progress']);
-        }
-
-        $saludRed = $potencia !== null ? $this->calcularSaludRed($potencia, $ot) : null;
 
         return response()->json([
-            'media_id'  => $mediaId,
-            'salud_red' => $saludRed,
+            'media_id'  => $result['media_id'],
+            'salud_red' => $result['salud_red'],
         ], 201);
     }
 
@@ -450,23 +372,13 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ot = TalentoWorkOrder::where('id', $id)
-            ->where('colaborador_id', $colaborador->id)
-            ->first();
+        $result = $this->unified->iniciar($id, $colaborador->id);
 
-        if (! $ot) {
-            return response()->json(['message' => 'OT no encontrada.'], 404);
-        }
-        if ($ot->status !== 'pending') {
-            return response()->json(['message' => "La OT ya está en estado '{$ot->status}'."], 422);
+        if (! $result['success']) {
+            return response()->json(['message' => $result['message']], $result['status_code']);
         }
 
-        $ot->update([
-            'status'     => 'in_progress',
-            'started_at' => now(),
-        ]);
-
-        return response()->json(['status' => $ot->status, 'started_at' => $ot->started_at]);
+        return response()->json(['status' => $result['status'], 'started_at' => $result['started_at']]);
     }
 
     public function completarOT(Request $request, int $id)
@@ -478,103 +390,25 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ot = TalentoWorkOrder::where('id', $id)
-            ->where('colaborador_id', $colaborador->id)
-            ->first();
-
-        if (! $ot) {
-            return response()->json(['message' => 'OT no encontrada.'], 404);
-        }
-        if ($ot->status !== 'in_progress') {
-            return response()->json(['message' => "Solo se puede completar una OT en curso (estado actual: '{$ot->status}')."], 422);
-        }
-
-        // ── 1. Checklist de evidencias obligatorias ──────────────────────────
-        $requeridos = DB::table('talento_ot_type_evidence_requirements')
-            ->where('ot_type_id', $ot->type_id)
-            ->whereNull('condition')
-            ->pluck('evidence_type_id')
-            ->map(fn($v) => (int)$v);
-
-        $subidos = DB::table('talento_work_order_media')
-            ->where('work_order_id', $ot->id)
-            ->whereNotNull('evidence_type_id')
-            ->pluck('evidence_type_id')
-            ->map(fn($v) => (int)$v)
-            ->unique();
-
-        $faltantes = $requeridos->diff($subidos);
-
-        if ($faltantes->isNotEmpty()) {
-            $nombres = DB::table('talento_evidence_types')
-                ->whereIn('id', $faltantes)
-                ->pluck('name', 'id');
-
-            return response()->json([
-                'message'  => 'Faltan evidencias obligatorias antes de completar la OT.',
-                'code'     => 'EVIDENCIAS_FALTANTES',
-                'faltantes'=> $faltantes->map(fn($evId) => [
-                    'evidence_type_id' => $evId,
-                    'name'             => $nombres[$evId] ?? "Tipo #{$evId}",
-                ])->values(),
-            ], 422);
-        }
-
-        // ── 2. Gate dBm ────────────────────────────────────────────────────────
-        // Si el tipo de OT exige lectura dBm, verificar el valor subido
-        $requiereDbm = DB::table('talento_ot_type_evidence_requirements')
-            ->join('talento_evidence_types', 'talento_evidence_types.id', '=', 'talento_ot_type_evidence_requirements.evidence_type_id')
-            ->where('talento_ot_type_evidence_requirements.ot_type_id', $ot->type_id)
-            ->whereNull('talento_ot_type_evidence_requirements.condition')
-            ->where('talento_evidence_types.es_lectura_dbm', true)
-            ->exists();
-
-        $dbmTier = null;
-        if ($requiereDbm) {
-            $ultimoDbm = DB::table('talento_work_order_media')
-                ->where('work_order_id', $ot->id)
-                ->whereNotNull('potencia_dbm')
-                ->orderByDesc('created_at')
-                ->value('potencia_dbm');
-
-            if ($ultimoDbm !== null) {
-                $valor = (float) $ultimoDbm;
-                $umbral = DB::table('talento_dbm_thresholds')
-                    ->where(function ($q) use ($valor) {
-                        $q->whereNull('dbm_min')->orWhere('dbm_min', '<=', $valor);
-                    })
-                    ->where(function ($q) use ($valor) {
-                        $q->whereNull('dbm_max')->orWhere('dbm_max', '>=', $valor);
-                    })
-                    ->orderBy('sort_order')
-                    ->first();
-
-                if ($umbral && $umbral->accion === 'bloquea') {
-                    return response()->json([
-                        'message'  => $umbral->mensaje,
-                        'code'     => 'DBM_BLOQUEADO',
-                        'categoria'=> $umbral->categoria,
-                        'dbm'      => $valor,
-                    ], 422);
-                }
-                $dbmTier = $umbral ? ['categoria' => $umbral->categoria, 'mensaje' => $umbral->mensaje] : null;
-            }
-        }
-
-        // ── 3. Guardar nota si viene ───────────────────────────────────────────
-        $updates = ['status' => 'completed', 'completed_at' => now()];
-        if ($request->filled('nota_tecnico')) {
-            $updates['nota_tecnico'] = $request->input('nota_tecnico');
-        }
-
         // Completar NO escribe en el ledger — los puntos/pago se acreditan
         // únicamente cuando un admin valida la OT (status validated) desde la web.
-        $ot->update($updates);
+        $result = $this->unified->completar(
+            $id,
+            $colaborador->id,
+            $request->only(['nota_tecnico'])
+        );
+
+        if (! $result['success']) {
+            return response()->json(
+                collect($result)->except(['success', 'status_code'])->all(),
+                $result['status_code']
+            );
+        }
 
         return response()->json([
-            'status'       => $ot->status,
-            'completed_at' => $ot->completed_at,
-            'dbm_tier'     => $dbmTier,
+            'status'       => $result['status'],
+            'completed_at' => $result['completed_at'],
+            'dbm_tier'     => $result['dbm_tier'],
         ]);
     }
 
@@ -596,32 +430,20 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ot = TalentoWorkOrder::where('id', $id)
-            ->where('colaborador_id', $colaborador->id)
-            ->first();
+        $result = $this->unified->reportarIncidencia(
+            $id,
+            $colaborador->id,
+            $request->only(['motivo', 'nota', 'lat', 'lng']),
+            $request->user()->id
+        );
 
-        if (! $ot) return response()->json(['message' => 'OT no encontrada.'], 404);
-        if (! in_array($ot->status, ['pending', 'in_progress'])) {
-            return response()->json(['message' => "No se puede reportar incidencia en estado '{$ot->status}'."], 422);
+        if (! $result['success']) {
+            return response()->json(['message' => $result['message']], $result['status_code']);
         }
 
-        $incidentId = DB::table('talento_work_order_incidents')->insertGetId([
-            'work_order_id' => $ot->id,
-            'motivo'        => $request->input('motivo'),
-            'nota'          => $request->input('nota') ?: null,
-            'lat'           => $request->input('lat') !== null ? (float)$request->input('lat') : null,
-            'lng'           => $request->input('lng') !== null ? (float)$request->input('lng') : null,
-            'server_at'     => now(),
-            'created_by'    => $request->user()->id,
-            'created_at'    => now(),
-            'updated_at'    => now(),
-        ]);
-
-        $ot->update(['status' => 'incidencia']);
-
         return response()->json([
-            'incident_id' => $incidentId,
-            'status'      => 'incidencia',
+            'incident_id' => $result['incident_id'],
+            'status'      => $result['status'],
         ], 201);
     }
 
@@ -634,13 +456,15 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $ot = TalentoWorkOrder::where('id', $id)
-            ->where('colaborador_id', $colaborador->id)
-            ->first();
+        $result = $this->unified->guardarNota(
+            $id,
+            $colaborador->id,
+            $request->input('nota_tecnico')
+        );
 
-        if (! $ot) return response()->json(['message' => 'OT no encontrada.'], 404);
-
-        $ot->update(['nota_tecnico' => $request->input('nota_tecnico') ?: null]);
+        if (! $result['success']) {
+            return response()->json(['message' => $result['message']], $result['status_code']);
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -652,24 +476,13 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        $estado = $request->query('estado'); // filtro opcional
-        $fecha  = $request->query('fecha');  // filtro opcional YYYY-MM-DD
-
-        $query = TalentoWorkOrder::with(['type'])
-            ->where('colaborador_id', $colaborador->id)
-            ->orderByDesc('scheduled_at');
-
-        if ($estado) $query->where('status', $estado);
-        if ($fecha)  $query->whereDate('scheduled_at', $fecha);
-
-        $ots = $query->paginate(20);
-
-        return response()->json([
-            'data'         => $ots->map(fn($o) => $this->otSummary($o)),
-            'current_page' => $ots->currentPage(),
-            'last_page'    => $ots->lastPage(),
-            'total'        => $ots->total(),
-        ]);
+        return response()->json(
+            $this->unified->historial(
+                $colaborador->id,
+                $request->query('estado'),
+                $request->query('fecha')
+            )
+        );
     }
 
     // ── Compensación ──────────────────────────────────────────────────────────
@@ -840,27 +653,5 @@ class TalentoMobileApiController extends Controller
         return 6371000 * 2 * asin(sqrt($a));
     }
 
-    private function calcularSaludRed(float $potencia, TalentoWorkOrder $ot): array
-    {
-        // Umbral de pérdida aceptable desde settings (Fase 4b: talento_health_bonus_max_loss_db)
-        $maxLoss = (float)(DB::table('settings')
-            ->where('key', 'talento_health_bonus_max_loss_db')
-            ->value('value') ?? 1.0);
-        $bonusMonto = (float)(DB::table('settings')
-            ->where('key', 'talento_health_bonus_amount')
-            ->value('value') ?? 30);
-
-        // Sin referencia en la OT; comparamos contra el umbral directamente
-        // (la referencia óptima en fibra óptica es ~0 dB pérdida; negativo ya implica pérdida)
-        $perdida = abs($potencia); // dBm negativo → pérdida en dB
-        $bono    = $perdida <= $maxLoss ? $bonusMonto : 0;
-
-        return [
-            'potencia_medida_dbm' => $potencia,
-            'max_loss_db'         => $maxLoss,
-            'perdida_estimada_db' => round($perdida, 2),
-            'calidad'             => $perdida <= $maxLoss ? 'buena' : ($perdida <= $maxLoss * 3 ? 'aceptable' : 'deficiente'),
-            'bono'                => $bono,
-        ];
-    }
 }
+
