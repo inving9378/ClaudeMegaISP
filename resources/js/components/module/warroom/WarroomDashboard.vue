@@ -106,16 +106,14 @@
                 </q-tab-panels>
             </div>
 
-            <!-- Panel lateral de junta en vivo -->
+            <!-- Panel lateral de junta — siempre visible -->
             <MeetingLivePanel
-                v-if="meeting?.status === 'in_progress' || meeting?.status === 'paused'"
-                :visible="panelOpen"
                 :meeting="meeting"
                 :current-section="currentSection"
                 :elapsed-section-seconds="elapsedSectionSeconds"
                 :section-progress="sectionProgress"
                 :loading="meetingLoading"
-                @close="panelOpen = false"
+                @start-meeting="setupOpen = true"
                 @next-section="nextSection"
                 @prev-section="previousSection"
                 @end="confirmEnd"
@@ -231,7 +229,7 @@ watch(() => meeting.value?.current_section_key, newKey => {
 const historyOpen = ref(false);
 
 // ── Panel lateral vivo ───────────────────────────────────────────────────────
-const panelOpen = ref(false);
+const panelOpen = ref(true);
 
 // Abrir panel automáticamente cuando la junta pasa a in_progress
 watch(() => meeting.value?.status, (status) => {

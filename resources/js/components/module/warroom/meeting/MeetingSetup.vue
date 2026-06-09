@@ -159,6 +159,9 @@
             </q-card-section>
 
             <!-- Footer -->
+            <div v-if="startError" class="wr-setup-error">
+                <i class="ti ti-alert-triangle me-1"></i>{{ startError }}
+            </div>
             <q-card-actions class="wr-setup-footer">
                 <q-btn flat label="Cancelar" @click="$emit('cancel')" class="wr-setup-btn-cancel" />
                 <q-btn
@@ -195,6 +198,7 @@ const open = computed({
 const users       = ref([]);
 const loadingUsers = ref(false);
 const loading     = ref(false);
+const startError  = ref('');
 
 const now = new Date();
 const defaultScheduled = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -277,6 +281,7 @@ onMounted(() => {
 // ── Submit ───────────────────────────────────────────────────────────────────
 async function submit() {
     loading.value = true;
+    startError.value = '';
     try {
         const payload = {
             name:         form.value.name,
@@ -296,10 +301,15 @@ async function submit() {
                 })),
         };
         const { data } = await axios.post('/warroom/api/meetings/start', payload);
+        if (!data?.id) {
+            throw new Error('Respuesta inesperada del servidor (sin ID)');
+        }
         emit('started', data);
         open.value = false;
     } catch (err) {
-        console.error('Error al iniciar junta:', err);
+        const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? err.message ?? 'Error desconocido';
+        startError.value = msg;
+        console.error('[WarRoom] Error al iniciar junta:', err);
     } finally {
         loading.value = false;
     }
@@ -499,6 +509,17 @@ async function submit() {
 }
 .wr-agenda-order-btn:hover:not(:disabled) { color: #c5bfff; background: rgba(83,74,183,0.2); }
 .wr-agenda-order-btn:disabled { opacity: 0.2; cursor: default; }
+
+/* Error */
+.wr-setup-error {
+    background: rgba(220, 53, 69, 0.15);
+    border: 1px solid rgba(220, 53, 69, 0.4);
+    color: #ff7b8a;
+    font-size: 12px;
+    padding: 8px 20px;
+    margin: 0 20px 8px;
+    border-radius: 6px;
+}
 
 /* Footer */
 .wr-setup-footer {

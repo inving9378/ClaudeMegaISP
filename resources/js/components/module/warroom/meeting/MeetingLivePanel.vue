@@ -1,5 +1,42 @@
 <template>
-    <div v-show="visible" class="wlp-panel">
+    <div class="wlp-panel">
+
+        <!-- ══ ESTADO IDLE: sin junta activa ══════════════════════════════════ -->
+        <template v-if="!meeting">
+            <div class="wlp-header">
+                <div class="wlp-header-left">
+                    <span class="wlp-type-badge wlp-type-ordinaria">War Room</span>
+                    <span class="wlp-meeting-name">Sin junta activa</span>
+                </div>
+            </div>
+
+            <div class="wlp-clock-section">
+                <div class="wlp-clock wlp-clock-idle">{{ idleClock }}</div>
+                <div class="wlp-clock-label">Hora actual</div>
+            </div>
+
+            <div class="wlp-block">
+                <div class="wlp-block-title"><i class="ti ti-list-check me-1"></i>Agenda disponible</div>
+                <div class="wlp-agenda">
+                    <div v-for="sec in IDLE_SECTIONS" :key="sec.key" class="wlp-agenda-item wlp-agenda-idle">
+                        <span class="wlp-agenda-icon"><i class="ti ti-circle"></i></span>
+                        <span class="wlp-agenda-label">{{ sec.label }}</span>
+                        <span class="wlp-agenda-mins">{{ sec.mins }}m</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wlp-block wlp-block-grow wlp-idle-cta">
+                <p class="wlp-idle-hint">Inicia una junta para controlar tiempos, tomar notas y registrar acuerdos.</p>
+                <button class="wlp-btn-start-meeting" @click="$emit('start-meeting')">
+                    <i class="ti ti-broadcast me-1"></i>
+                    Iniciar junta
+                </button>
+            </div>
+        </template>
+
+        <!-- ══ ESTADO ACTIVO: junta en curso ═══════════════════════════════════ -->
+        <template v-else>
 
             <!-- ── Header ──────────────────────────────────────────────────── -->
             <div class="wlp-header">
@@ -9,9 +46,6 @@
                     </span>
                     <span class="wlp-meeting-name">{{ meeting?.name ?? 'Junta en curso' }}</span>
                 </div>
-                <button class="wlp-close" @click="$emit('close')" title="Cerrar panel">
-                    <i class="ti ti-x"></i>
-                </button>
             </div>
 
             <!-- ── Reloj por tema ──────────────────────────────────────────── -->
@@ -144,15 +178,16 @@
                 </button>
             </div>
 
+        </template><!-- /v-else activo -->
+
     </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import axios from 'axios';
 
 const props = defineProps({
-    visible:              { type: Boolean, default: false },
     meeting:              { type: Object,  default: null },
     currentSection:       { type: Object,  default: null },
     elapsedSectionSeconds:{ type: Number,  default: 0 },
@@ -160,7 +195,34 @@ const props = defineProps({
     loading:              { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['close', 'next-section', 'prev-section', 'end']);
+const emit = defineEmits(['start-meeting', 'next-section', 'prev-section', 'end']);
+
+// ── Reloj idle ─────────────────────────────────────────────────────────────────
+const idleClock = ref('');
+let idleTimer = null;
+
+function updateIdleClock() {
+    const now = new Date();
+    const h = now.getHours().toString().padStart(2, '0');
+    const m = now.getMinutes().toString().padStart(2, '0');
+    const s = now.getSeconds().toString().padStart(2, '0');
+    idleClock.value = `${h}:${m}:${s}`;
+}
+
+onMounted(() => {
+    updateIdleClock();
+    idleTimer = setInterval(updateIdleClock, 1000);
+});
+onBeforeUnmount(() => clearInterval(idleTimer));
+
+const IDLE_SECTIONS = [
+    { key: 'resumen',     label: 'Resumen ejecutivo',      mins: 5  },
+    { key: 'finanzas',    label: 'Finanzas',               mins: 10 },
+    { key: 'operaciones', label: 'Operaciones',            mins: 10 },
+    { key: 'ventas',      label: 'Ventas y Embajadores',   mins: 10 },
+    { key: 'red',         label: 'Red e Infraestructura',  mins: 5  },
+    { key: 'talento',     label: 'Talento',                mins: 5  },
+];
 
 // ── Notes state ────────────────────────────────────────────────────────────────
 const notes      = ref([]);
@@ -557,4 +619,43 @@ async function submitNote() {
     color: #e05252;
 }
 .wlp-ctrl-end:hover { background: rgba(224,82,82,0.2); }
+
+/* ── Estado idle ──────────────────────────────────────────────────────────── */
+.wlp-clock-idle {
+    color: #6b6b85;
+    font-size: 32px;
+    font-weight: 400;
+    letter-spacing: 3px;
+}
+.wlp-agenda-idle { opacity: 0.45; }
+.wlp-block-grow  { flex: 1; display: flex; flex-direction: column; }
+.wlp-idle-cta    { justify-content: flex-end; align-items: center; padding-bottom: 20px; }
+.wlp-idle-hint {
+    font-size: 11px;
+    color: #6b6b85;
+    text-align: center;
+    line-height: 1.5;
+    margin-bottom: 14px;
+    padding: 0 4px;
+}
+.wlp-btn-start-meeting {
+    width: 100%;
+    background: rgba(83,74,183,0.2);
+    border: 1px solid rgba(83,74,183,0.5);
+    border-radius: 7px;
+    color: #c5bfff;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 9px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.wlp-btn-start-meeting:hover {
+    background: rgba(83,74,183,0.35);
+    color: #fff;
+    border-color: #534AB7;
+}
 </style>
