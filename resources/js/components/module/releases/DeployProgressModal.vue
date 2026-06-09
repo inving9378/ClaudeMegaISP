@@ -26,6 +26,22 @@
                     </div>
                 </div>
 
+                <!-- Barra de progreso general -->
+                <div v-if="steps.length > 0" class="px-4 pt-3 pb-1">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">{{ progressLabel }}</small>
+                        <small class="fw-semibold" :class="progressTextClass">{{ progressPercent }}%</small>
+                    </div>
+                    <div class="progress" style="height:8px;border-radius:6px;background:#e9ecef">
+                        <div
+                            class="progress-bar"
+                            :class="progressBarClass"
+                            role="progressbar"
+                            :style="{ width: progressPercent + '%', transition: 'width 0.6s ease' }"
+                        ></div>
+                    </div>
+                </div>
+
                 <!-- Body: lista de pasos -->
                 <div class="modal-body px-4 py-3">
 
@@ -39,54 +55,93 @@
                         <div
                             v-for="step in steps"
                             :key="step.key"
-                            class="deploy-step d-flex align-items-start mb-2 p-3 rounded-3"
+                            class="deploy-step mb-2 rounded-3"
                             :class="stepRowClass(step)"
                         >
-                            <!-- Icono de estado -->
-                            <div class="step-icon me-3 flex-shrink-0" style="width:22px;margin-top:2px">
-                                <div v-if="step.status === 'pending'" class="rounded-circle bg-secondary" style="width:10px;height:10px;margin-top:4px;opacity:.5"></div>
-                                <div v-else-if="step.status === 'running'" class="spinner-border spinner-border-sm text-primary" role="status" style="width:18px;height:18px"></div>
-                                <i v-else-if="step.status === 'success'" class="bi bi-check-circle-fill text-success" style="font-size:18px"></i>
-                                <i v-else-if="step.status === 'failed'"  class="bi bi-x-circle-fill text-danger"   style="font-size:18px"></i>
-                                <i v-else-if="step.status === 'skipped'" class="bi bi-dash-circle text-muted"       style="font-size:18px"></i>
-                            </div>
-
-                            <!-- Contenido -->
-                            <div class="flex-grow-1 min-width-0">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="fw-semibold" :class="stepTextClass(step)">
-                                        {{ step.name }}
-                                    </span>
-                                    <small v-if="step.duration_ms > 0" class="text-muted ms-2 flex-shrink-0">
-                                        {{ formatDuration(step.duration_ms) }}
-                                    </small>
-                                    <small v-else-if="step.status === 'running'" class="text-primary ms-2 flex-shrink-0">
-                                        corriendo...
-                                    </small>
-                                    <small v-else-if="step.status === 'pending'" class="text-muted ms-2 flex-shrink-0">
-                                        pendiente
-                                    </small>
+                            <!-- Fila principal del paso -->
+                            <div class="d-flex align-items-start p-3">
+                                <!-- Icono de estado -->
+                                <div class="step-icon me-3 flex-shrink-0" style="width:22px;margin-top:2px">
+                                    <div v-if="step.status === 'pending'" class="rounded-circle bg-secondary" style="width:10px;height:10px;margin-top:4px;opacity:.5"></div>
+                                    <div v-else-if="step.status === 'running'" class="spinner-border spinner-border-sm text-primary" role="status" style="width:18px;height:18px"></div>
+                                    <i v-else-if="step.status === 'success'" class="bi bi-check-circle-fill text-success" style="font-size:18px"></i>
+                                    <i v-else-if="step.status === 'failed'"  class="bi bi-x-circle-fill text-danger"   style="font-size:18px"></i>
+                                    <i v-else-if="step.status === 'skipped'" class="bi bi-dash-circle text-muted"       style="font-size:18px"></i>
                                 </div>
 
-                                <!-- Output del paso -->
-                                <div v-if="step.output">
-                                    <!-- Siempre visible si falló -->
-                                    <pre
-                                        v-if="step.status === 'failed' || outputVisible[step.key]"
-                                        class="bg-dark text-light p-2 rounded small mb-1 mt-2"
-                                        style="max-height:160px;overflow-y:auto;font-size:11px;white-space:pre-wrap;word-break:break-all"
-                                    >{{ step.output }}</pre>
-                                    <a
-                                        v-if="step.status === 'success'"
-                                        href="#"
-                                        class="small text-muted"
-                                        @click.prevent="toggleOutput(step.key)"
+                                <!-- Contenido -->
+                                <div class="flex-grow-1 min-width-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-semibold" :class="stepTextClass(step)">
+                                            {{ step.name }}
+                                        </span>
+                                        <small v-if="step.duration_ms > 0" class="text-muted ms-2 flex-shrink-0">
+                                            {{ formatDuration(step.duration_ms) }}
+                                        </small>
+                                        <small v-else-if="step.status === 'running'" class="text-primary ms-2 flex-shrink-0">
+                                            corriendo...
+                                        </small>
+                                        <small v-else-if="step.status === 'pending'" class="text-muted ms-2 flex-shrink-0">
+                                            pendiente
+                                        </small>
+                                    </div>
+
+                                    <!-- Output del paso (solo texto plano, no para remote_deploy con sub-pasos) -->
+                                    <div v-if="step.output && !remoteSubSteps(step).length">
+                                        <pre
+                                            v-if="step.status === 'failed' || outputVisible[step.key]"
+                                            class="bg-dark text-light p-2 rounded small mb-1 mt-2"
+                                            style="max-height:160px;overflow-y:auto;font-size:11px;white-space:pre-wrap;word-break:break-all"
+                                        >{{ step.output }}</pre>
+                                        <a
+                                            v-if="step.status === 'success'"
+                                            href="#"
+                                            class="small text-muted"
+                                            @click.prevent="toggleOutput(step.key)"
+                                        >
+                                            <i class="bi bi-terminal me-1"></i>
+                                            {{ outputVisible[step.key] ? 'Ocultar salida' : 'Ver salida' }}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Sub-pasos del servidor remoto (solo para remote_deploy) -->
+                            <div v-if="remoteSubSteps(step).length" class="px-3 pb-3">
+                                <div class="border-start border-2 border-primary border-opacity-25 ps-3">
+                                    <div
+                                        v-for="sub in remoteSubSteps(step)"
+                                        :key="sub.key"
+                                        class="d-flex align-items-center py-1"
                                     >
-                                        <i class="bi bi-terminal me-1"></i>
-                                        {{ outputVisible[step.key] ? 'Ocultar salida' : 'Ver salida' }}
-                                    </a>
+                                        <!-- Mini-icono -->
+                                        <div class="me-2 flex-shrink-0" style="width:16px">
+                                            <div v-if="sub.status === 'pending'" class="rounded-circle bg-secondary" style="width:8px;height:8px;opacity:.4"></div>
+                                            <div v-else-if="sub.status === 'running'" class="spinner-border spinner-border-sm text-primary" role="status" style="width:14px;height:14px;border-width:2px"></div>
+                                            <i v-else-if="sub.status === 'success'" class="bi bi-check-circle-fill text-success" style="font-size:14px"></i>
+                                            <i v-else-if="sub.status === 'failed'"  class="bi bi-x-circle-fill text-danger"      style="font-size:14px"></i>
+                                            <i v-else-if="sub.status === 'skipped'" class="bi bi-dash-circle text-muted"          style="font-size:14px"></i>
+                                        </div>
+
+                                        <!-- Nombre y duración -->
+                                        <span class="small flex-grow-1" :class="sub.status === 'pending' ? 'text-muted' : sub.status === 'failed' ? 'text-danger' : ''">
+                                            {{ sub.name }}
+                                        </span>
+                                        <small v-if="sub.duration_ms > 0" class="text-muted ms-2 flex-shrink-0">
+                                            {{ formatDuration(sub.duration_ms) }}
+                                        </small>
+                                        <small v-else-if="sub.status === 'running'" class="text-primary ms-2 flex-shrink-0">
+                                            corriendo...
+                                        </small>
+
+                                        <!-- Output de sub-paso fallido -->
+                                        <div v-if="sub.output && sub.status === 'failed'" class="w-100 mt-1">
+                                            <pre class="bg-dark text-light p-2 rounded small mb-0" style="max-height:100px;overflow-y:auto;font-size:10px;white-space:pre-wrap;word-break:break-all">{{ sub.output }}</pre>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
+
                         </div>
                     </div>
 
@@ -132,7 +187,7 @@
 </template>
 
 <script>
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -150,8 +205,6 @@ export default {
         const overallStatus = ref("pending");
         const steps         = ref([]);
         const errorMessage  = ref(null);
-        const startedAt     = ref(null);
-        const finishedAt    = ref(null);
         const durationSecs  = ref(null);
         const outputVisible = ref({});
         const retrying      = ref(false);
@@ -173,8 +226,8 @@ export default {
         );
 
         const headerBg = computed(() => {
-            if (overallStatus.value === "success")  return "bg-success";
-            if (isFailed.value)                      return "bg-danger";
+            if (overallStatus.value === "success") return "bg-success";
+            if (isFailed.value)                    return "bg-danger";
             return "bg-primary";
         });
 
@@ -183,8 +236,8 @@ export default {
         );
 
         const headerTitle = computed(() => {
-            if (overallStatus.value === "success")  return "Deploy completado exitosamente";
-            if (overallStatus.value === "failed")   return "Deploy fallido";
+            if (overallStatus.value === "success")     return "Deploy completado exitosamente";
+            if (overallStatus.value === "failed")      return "Deploy fallido";
             if (overallStatus.value === "rolled_back") return "Deploy revertido";
             return "Desplegando versión...";
         });
@@ -194,6 +247,39 @@ export default {
             const s = durationSecs.value;
             if (s < 60) return `${s}s`;
             return `${Math.floor(s / 60)}m ${s % 60}s`;
+        });
+
+        // — Progreso general —
+        const progressPercent = computed(() => {
+            const all = steps.value;
+            if (!all.length) return 0;
+            const done    = all.filter(s => ["success", "failed", "skipped"].includes(s.status)).length;
+            const running = all.filter(s => s.status === "running").length;
+            // Paso en curso cuenta como la mitad
+            return Math.min(100, Math.round(((done + running * 0.5) / all.length) * 100));
+        });
+
+        const progressLabel = computed(() => {
+            if (overallStatus.value === "success") return "Completado";
+            if (isFailed.value)                    return "Falló";
+            const done  = steps.value.filter(s => ["success", "failed", "skipped"].includes(s.status)).length;
+            const total = steps.value.length;
+            const current = steps.value.find(s => s.status === "running");
+            return current
+                ? `Paso ${done + 1} de ${total} — ${current.name}`
+                : `${done} de ${total} pasos`;
+        });
+
+        const progressBarClass = computed(() => {
+            if (overallStatus.value === "success") return "bg-success";
+            if (isFailed.value)                    return "bg-danger";
+            return "bg-primary progress-bar-striped progress-bar-animated";
+        });
+
+        const progressTextClass = computed(() => {
+            if (overallStatus.value === "success") return "text-success";
+            if (isFailed.value)                    return "text-danger";
+            return "text-primary";
         });
 
         // ── Métodos ───────────────────────────────────────────────────────────
@@ -207,8 +293,6 @@ export default {
                 overallStatus.value = data.status;
                 steps.value         = data.steps ?? [];
                 errorMessage.value  = data.error_message;
-                startedAt.value     = data.started_at;
-                finishedAt.value    = data.finished_at;
                 durationSecs.value  = data.duration_seconds;
             } catch (e) {
                 console.error("Error al obtener estado del deploy:", e);
@@ -259,16 +343,24 @@ export default {
         };
 
         const toggleOutput = (key) => {
-            outputVisible.value = {
-                ...outputVisible.value,
-                [key]: !outputVisible.value[key],
-            };
+            outputVisible.value = { ...outputVisible.value, [key]: !outputVisible.value[key] };
+        };
+
+        // Extrae los sub-pasos remotos del output JSON del paso remote_deploy
+        const remoteSubSteps = (step) => {
+            if (step.key !== "remote_deploy" || !step.output) return [];
+            try {
+                const data = JSON.parse(step.output);
+                return Array.isArray(data.steps) ? data.steps : [];
+            } catch {
+                return [];
+            }
         };
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
         const formatDuration = (ms) => {
-            if (ms < 1000) return `${ms}ms`;
+            if (ms < 1000)  return `${ms}ms`;
             if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
             const m = Math.floor(ms / 60000);
             const s = Math.floor((ms % 60000) / 1000);
@@ -293,8 +385,9 @@ export default {
             outputVisible, retrying,
             isRunning, isDone, isFailed,
             headerBg, summaryBg, headerTitle, totalDuration,
+            progressPercent, progressLabel, progressBarClass, progressTextClass,
             open, close, retry,
-            toggleOutput, formatDuration, stepRowClass, stepTextClass,
+            remoteSubSteps, toggleOutput, formatDuration, stepRowClass, stepTextClass,
         };
     },
 };
