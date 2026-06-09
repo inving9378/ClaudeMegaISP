@@ -24,22 +24,33 @@ class DesempenoController extends Controller
         $from = Carbon::parse($request->input('from', now()->startOfMonth()->toDateString()))->startOfDay();
         $to   = Carbon::parse($request->input('to',   now()->toDateString()))->endOfDay();
 
-        $rawIds = $request->input('ids');
-        $colIds = $rawIds ? array_filter(explode(',', $rawIds), 'is_numeric') : null;
+        $rawIds     = $request->input('ids');
+        $colIds     = $rawIds ? array_filter(explode(',', $rawIds), 'is_numeric') : null;
+        $department = $request->input('department');
 
         $colaboradores = TalentoColaborador::with('user')
             ->where('status', 'active')
             ->when($colIds, fn($q) => $q->whereIn('id', $colIds))
+            ->when($department, fn($q) => $q->where('department', $department))
             ->get();
 
         $weights = $this->loadWeights();
 
         $data = $colaboradores->map(fn($col) => $this->metricsForColaborador($col, $from, $to, $weights));
 
+        // Lista de departments activos para el selector de equipo en el frontend
+        $allDepartments = TalentoColaborador::where('status', 'active')
+            ->whereNotNull('department')
+            ->distinct()
+            ->pluck('department')
+            ->sort()
+            ->values();
+
         return response()->json([
             'available'     => true,
             'from'          => $from->toDateString(),
             'to'            => $to->toDateString(),
+            'departments'   => $allDepartments,
             'colaboradores' => $data->values(),
         ]);
     }
@@ -137,6 +148,7 @@ class DesempenoController extends Controller
         return [
             'colaborador_id' => $id,
             'name'           => $col->user?->name ?? '—',
+            'department'     => $col->department,
             'level'          => DB::table('talento_levels')->find($col->level_id)?->name,
             'metrics'        => [
                 'ots_validadas'      => ['count' => (int)($ots->cnt ?? 0),          'pts'      => (float)($ots->pts ?? 0)],
