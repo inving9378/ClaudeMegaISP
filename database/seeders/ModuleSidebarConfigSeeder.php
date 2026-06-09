@@ -230,6 +230,19 @@ class ModuleSidebarConfigSeeder extends Seeder
             'config_moved'     => false,
         ]);
 
+        // VoIP (addon-voip) — módulo VoIP PJSIP Realtime, pos 95
+        ModuleSidebarConfig::updateOrCreate(['module_key' => 'voip'], [
+            'sidebar_label'    => 'VoIP',
+            'is_core'          => false,
+            'show_in_sidebar'  => true,
+            'sidebar_location' => 'direct',
+            'sidebar_section'  => 'modulos',
+            'sidebar_position' => 95,
+            'sidebar_icon'     => 'phone',
+            'sidebar_url'      => '/voip/troncales',
+            'config_moved'     => false,
+        ]);
+
         // Desarrollador (addon-devtools) — rol-gated, pos 98
         ModuleSidebarConfig::updateOrCreate(['module_key' => 'devtools'], [
             'sidebar_label'    => 'Desarrollador',

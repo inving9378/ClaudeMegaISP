@@ -93,6 +93,11 @@
                     @include('module-sidebar.marketing', ['item' => $sidebarItems['marketing']->first()])
                 @endif
 
+                {{-- VoIP — módulo VoIP PJSIP Realtime --}}
+                @if(isset($sidebarItems['voip']))
+                    @include('module-sidebar.voip', ['item' => $sidebarItems['voip']->first()])
+                @endif
+
                 {{-- 13. War Room — accesible desde el panel de Administración (/administracion), no como ítem suelto del sidebar. --}}
 
                 {{--
@@ -109,6 +114,7 @@
                         'addon-gestion-red', 'addon-inventario', 'addon-mapas',
                         'addon-cobranza-blaster', 'addon-megafamilia', 'addon-embajadores',
                         'addon-flotas', 'addon-talento', 'addon-warroom', 'addon-devtools', 'core-configuracion',
+                        'addon-voip',
                     ];
                     // Módulos accesibles solo desde los paneles Configuración / Administración:
                     // no se muestran como ítem suelto en el sidebar (evita duplicar la navegación).

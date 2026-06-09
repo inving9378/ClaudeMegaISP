@@ -63,6 +63,7 @@ class KpiController extends Controller
             'tickets_abiertos'     => DB::table('tasks')->whereIn('status', ['ToDo', 'InProgress'])->whereNull('deleted_at')->count(),
             'daily_current'        => $this->ingresosDaily($current),
             'daily_previous'       => $this->ingresosDaily($previous),
+            'daily_series'         => $this->buildDailySeriesBlock($current, $previous),
             'top_performers'       => $this->topPerformers($current),
             'activity_feed'        => $this->activityFeed(),
             'riesgos_oportunidades' => $this->riesgosOportunidades($current),
@@ -728,6 +729,43 @@ class KpiController extends Controller
             $days[(int)$row->day] = (float)$row->total;
         }
         return $days;
+    }
+
+    /** Nombre abreviado para etiqueta de serie (ej. "Jun 2026"). */
+    private function monthLabel(string $period): string
+    {
+        static $months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        [$y, $m] = explode('-', $period);
+        return $months[(int)$m - 1] . ' ' . $y;
+    }
+
+    /**
+     * Retorna metadata + datos diarios de UN mes para el gráfico de ingresos.
+     * `datos` es array 0-indexed (día 0 = día 1, …, índice 30 = día 31) listo para Chart.js.
+     */
+    private function dailySeriesMeta(string $period): array
+    {
+        $raw     = $this->ingresosDaily($period);   // keys 1-31
+        $datos   = array_values($raw);               // reindex 0-30 para JS
+        $total   = array_sum($datos);
+        $diasMes = Carbon::createFromFormat('Y-m', $period)->daysInMonth;
+        return [
+            'nombre'          => $this->monthLabel($period),
+            'datos'           => $datos,
+            'total'           => $total,
+            'promedio_diario' => $diasMes > 0 ? (int) round($total / $diasMes) : 0,
+        ];
+    }
+
+    /** 3 series diarias (actual + 1 mes + 2 meses) para el gráfico de ingresos en Resumen. */
+    private function buildDailySeriesBlock(string $current, string $previous): array
+    {
+        $prev2 = Carbon::createFromFormat('Y-m', $current)->subMonths(2)->format('Y-m');
+        return [
+            $this->dailySeriesMeta($current),
+            $this->dailySeriesMeta($previous),
+            $this->dailySeriesMeta($prev2),
+        ];
     }
 
     /**

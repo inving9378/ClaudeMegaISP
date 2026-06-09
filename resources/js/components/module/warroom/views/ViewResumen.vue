@@ -12,19 +12,38 @@
             @update:to="load"
         />
 
-        <!-- ── Serie ingresos semanales ──────────────────────────────────────── -->
+        <!-- ── Ingresos diarios — 3 meses ───────────────────────────────────── -->
         <div class="wr-panel mt-3">
             <div class="wr-section-title mb-2">
                 <i class="ti ti-chart-line me-1"></i>
-                Ingresos — {{ periodLabel }} vs meses anteriores
+                Ingresos por día — últimos 3 meses
             </div>
+
             <warroom-line-series
-                :series="serieSeries"
-                :labels="serieLabels"
+                :series="dailySeries"
+                :labels="daysLabels"
                 :loading="loading"
-                v-model:granularidad="granularidad"
                 :show-controls="false"
+                y-label="MXN"
             />
+
+            <!-- Tarjetas resumen por mes -->
+            <div class="wr-daily-cards mt-3" v-if="!loading && kpis?.daily_series?.length">
+                <div
+                    v-for="(s, i) in kpis.daily_series"
+                    :key="i"
+                    class="wr-daily-card"
+                    :style="{ borderLeftColor: DAILY_PALETTE[i] }"
+                >
+                    <div class="wr-daily-card-label">{{ s.nombre }}</div>
+                    <div class="wr-daily-card-total" :style="{ color: DAILY_PALETTE[i] }">
+                        {{ formatCurrency(s.total) }}
+                    </div>
+                    <div class="wr-daily-card-avg">
+                        Prom. {{ formatCurrency(s.promedio_diario) }}/día
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- ── KPIs hero ─────────────────────────────────────────────────────── -->
@@ -201,7 +220,7 @@ import WarroomViewControls from '../shared/WarroomViewControls.vue';
 import WarroomLineSeries from './WarroomLineSeries.vue';
 import { useKpis } from '../composables/useKpis.js';
 import { useInsights } from '../composables/useInsights.js';
-import { deltaStr, deltaDir, formatCurrency, transformWeeklySeries } from '../utils.js';
+import { deltaStr, deltaDir, formatCurrency } from '../utils.js';
 
 const props = defineProps({
     period:          { type: String, required: true },
@@ -223,9 +242,17 @@ const periodLabel = computed(() => {
     return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
 });
 
-const serieData = computed(() => transformWeeklySeries(kpis.value?.weekly_series));
-const serieLabels = computed(() => serieData.value.labels);
-const serieSeries = computed(() => serieData.value.series);
+// ── Gráfico diario ────────────────────────────────────────────────────────
+const DAILY_PALETTE = ['#534AB7', '#1D9E75', '#BA7517'];
+const daysLabels = Array.from({ length: 31 }, (_, i) => i + 1);
+
+const dailySeries = computed(() => {
+    if (!kpis.value?.daily_series) return [];
+    return kpis.value.daily_series.map((s) => ({
+        nombre: s.nombre,
+        datos:  s.datos,
+    }));
+});
 
 async function load() {
     const period = from.value.slice(0, 7);
@@ -265,6 +292,39 @@ onMounted(load);
 </script>
 
 <style>
+/* ── Tarjetas resumen ingresos diarios ────────────────────────────────────── */
+.warroom-container .wr-daily-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+@media (max-width: 640px) {
+    .warroom-container .wr-daily-cards { grid-template-columns: 1fr; }
+}
+.warroom-container .wr-daily-card {
+    background: rgba(255,255,255,0.04);
+    border-left: 3px solid var(--wr-purple);
+    border-radius: 6px;
+    padding: 12px 14px;
+}
+.warroom-container .wr-daily-card-label {
+    font-size: 11px;
+    color: var(--wr-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+.warroom-container .wr-daily-card-total {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.warroom-container .wr-daily-card-avg {
+    font-size: 11px;
+    color: var(--wr-text-dim);
+    margin-top: 4px;
+}
+
 /* ── Overlay chart panel ──────────────────────────────────────────────────── */
 .warroom-container .wr-resumen-bottom {
     display: grid;
