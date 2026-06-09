@@ -549,11 +549,25 @@ class TalentoMobileApiController extends Controller
         $inicio = now()->startOfWeek()->toDateString();
         $fin    = now()->endOfWeek()->toDateString();
 
-        // OTs completadas o validadas esta semana
-        $unidades = TalentoWorkOrder::where('colaborador_id', $colaborador->id)
+        // OTs completadas o validadas esta semana (fuente legacy)
+        $woUnidades = TalentoWorkOrder::where('colaborador_id', $colaborador->id)
             ->whereIn('status', ['completed', 'validated'])
             ->whereBetween('completed_at', [$inicio . ' 00:00:00', $fin . ' 23:59:59'])
             ->count();
+
+        // Tasks campo validadas esta semana (Capa 5)
+        $taskUnidades = 0;
+        $taskUserId = TalentoColaborador::where('id', $colaborador->id)->value('user_id');
+        if ($taskUserId) {
+            $taskUnidades = \App\Models\Task::where('tipo', 'campo')
+                ->whereNotNull('talento_type_id')
+                ->where('status', 'Done')
+                ->whereNotNull('validated_at')
+                ->whereBetween('validated_at', [$inicio . ' 00:00:00', $fin . ' 23:59:59'])
+                ->whereHas('users', fn($q) => $q->where('users.id', $taskUserId))
+                ->count();
+        }
+        $unidades = $woUnidades + $taskUnidades;
 
         // Cuota semanal — talento_compensation_rules (global por target_type)
         $cuota = DB::table('talento_compensation_rules')
@@ -601,6 +615,69 @@ class TalentoMobileApiController extends Controller
             'proyectado'     => round($proyectado, 2),
             'movimientos'    => $movimientos,
         ]);
+    }
+
+    // ── Registro de token FCM ─────────────────────────────────────────────────
+
+    public function registerDeviceToken(Request $request)
+    {
+        $request->validate([
+            'token'    => 'required|string|max:512',
+            'platform' => 'nullable|in:android,ios',
+        ]);
+
+        $userId = $request->user()->id;
+
+        DB::table('talento_device_tokens')->updateOrInsert(
+            ['user_id' => $userId, 'token' => $request->token],
+            [
+                'platform'   => $request->input('platform', 'android'),
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    // ── Push helper (disparo interno al asignar OT) ───────────────────────────
+
+    public static function sendPushToUser(int $userId, string $title, string $body, array $data = []): void
+    {
+        $tokens = DB::table('talento_device_tokens')
+            ->where('user_id', $userId)
+            ->pluck('token')
+            ->toArray();
+
+        if (empty($tokens)) return;
+
+        // FCM v1 API — las credenciales (service account JSON) se configuran
+        // en el servidor de cada empresa. Esta implementación es el esqueleto
+        // de disparo; el adaptador FCM real va en un servicio dedicado.
+        $fcmKey = config('services.fcm.server_key')
+            ?? env('FCM_SERVER_KEY');
+
+        if (! $fcmKey) {
+            // Sin clave FCM configurada — log y salir (no lanzar excepción)
+            \Illuminate\Support\Facades\Log::warning('FCM_SERVER_KEY no configurada — push no enviado', compact('userId'));
+            return;
+        }
+
+        foreach ($tokens as $token) {
+            try {
+                \Illuminate\Support\Facades\Http::withHeaders([
+                    'Authorization' => "key={$fcmKey}",
+                    'Content-Type'  => 'application/json',
+                ])->post('https://fcm.googleapis.com/fcm/send', [
+                    'to'           => $token,
+                    'notification' => ['title' => $title, 'body' => $body],
+                    'data'         => $data,
+                    'priority'     => 'high',
+                ]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("FCM push fallido para token={$token}: " . $e->getMessage());
+            }
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
