@@ -35,5 +35,6 @@ Route::get('/health', function(){
 // Webhook de deploy — llamado por el servidor local tras hacer git push.
 // No requiere auth de sesión; protegido por X-Deploy-Token (DEPLOY_WEBHOOK_SECRET en .env).
 Route::post('/webhook/deploy', [DeployWebhookController::class, 'handle']);
+Route::get('/webhook/deploy/{id}/status', [DeployWebhookController::class, 'status']);
 
 //Route::get('/payments/{id}', [PaymentTestController::class, 'payments']);
