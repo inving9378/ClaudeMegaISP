@@ -64,6 +64,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/colaboradores',                   [TalentoColaboradorController::class, 'data']);
             Route::post('/colaboradores',                  [TalentoColaboradorController::class, 'store']);
             Route::get('/colaboradores/users-disponibles', [TalentoColaboradorController::class, 'usersDisponibles']);
+            Route::get('/colaboradores/role-departments',  [TalentoColaboradorController::class, 'roleDepartments']);
             Route::get('/colaboradores/{id}',              [TalentoColaboradorController::class, 'show']);
             Route::put('/colaboradores/{id}',              [TalentoColaboradorController::class, 'update']);
             Route::delete('/colaboradores/{id}',           [TalentoColaboradorController::class, 'destroy']);
