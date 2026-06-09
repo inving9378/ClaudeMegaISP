@@ -38,10 +38,34 @@ class Task extends Model
                 }
             }
         });
+
+        static::saving(function ($task) {
+            if ($task->talento_type_id) {
+                $type = \App\Modules\Addons\Talento\Models\TalentoWorkOrderType::find($task->talento_type_id);
+
+                if (! $type) {
+                    throw new \InvalidArgumentException(
+                        "El talento_type_id={$task->talento_type_id} no existe en el catálogo."
+                    );
+                }
+
+                if ($task->tipo !== $type->category) {
+                    throw new \InvalidArgumentException(
+                        "Inconsistencia: tipo='{$task->tipo}' no coincide con category='{$type->category}' del tipo seleccionado."
+                    );
+                }
+            }
+        });
     }
 
     protected $guarded = [];
     protected $appends = ['project_title', 'workflow_name', 'status_name', 'color_task_assigned', 'user_name_assigned', 'user_or_team_name', 'created_by_name', 'updated_by_name', 'last_note', 'status_cls'];
+
+    protected $casts = [
+        'is_billable'  => 'boolean',
+        'points'       => 'integer',
+        'validated_at' => 'datetime',
+    ];
 
     /* TODO Si se cambia aqui cambiar en TaskCrud.vue y TaskEdit.vue */
     const TASK_COLOR = [
@@ -100,6 +124,29 @@ class Task extends Model
     public function closure()
     {
         return $this->hasOne(TaskClosure::class, 'task_id');
+    }
+
+    public function ticket()
+    {
+        return $this->belongsTo(\App\Models\Ticket::class, 'ticket_id');
+    }
+
+    public function talentoType()
+    {
+        return $this->belongsTo(
+            \App\Modules\Addons\Talento\Models\TalentoWorkOrderType::class,
+            'talento_type_id'
+        );
+    }
+
+    public function scopeFieldTasks($query)
+    {
+        return $query->where('tipo', 'campo');
+    }
+
+    public function scopeInternalTasks($query)
+    {
+        return $query->where('tipo', 'interna');
     }
 
     public function latestNote()

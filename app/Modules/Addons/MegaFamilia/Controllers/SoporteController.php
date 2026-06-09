@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MegaFamilia\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClientMainInformation;
 use App\Models\Ticket;
 use App\Models\TicketThread;
 use App\Models\User;
@@ -194,8 +195,11 @@ class SoporteController extends Controller
         }
 
         $reporterName = null;
+        $customerLead = null;
         if (!empty($data['reporter_id'])) {
-            $reporterName = User::where('id', $data['reporter_id'])->value('name');
+            $user = User::find($data['reporter_id'], ['id', 'name', 'email']);
+            $reporterName = $user?->name;
+            if ($user) $customerLead = $this->resolveClientIspId($user);
         }
 
         $ticket = Ticket::create([
@@ -205,6 +209,7 @@ class SoporteController extends Controller
             'reporter'      => $reporterName,
             'reporter_id'   => $data['reporter_id'] ?? null,
             'reporter_type' => $data['reporter_id'] ? User::class : null,
+            'customer_lead' => $customerLead,
             'edited_by'     => Auth::id(),
             'date_time'     => now()->toDateTimeString(),
         ]);
@@ -233,5 +238,16 @@ class SoporteController extends Controller
     private function megafamiliaQuery()
     {
         return Ticket::query()->where('topic', 'like', '%' . self::MEGAFAM_TAG . '%');
+    }
+
+    private function resolveClientIspId(User $user): ?int
+    {
+        $clientId = ParentalAccount::where('user_id', $user->id)->value('client_isp_id');
+        if ($clientId) return (int) $clientId;
+
+        $clientId = \App\Models\Client::where('user_id', $user->id)->value('id');
+        if ($clientId) return (int) $clientId;
+
+        return ClientMainInformation::where('email', $user->email)->value('client_id');
     }
 }

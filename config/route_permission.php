@@ -851,13 +851,16 @@ return [
         '/scheduling/project',
         '/scheduling/project/table',
         '/scheduling/task/get-list-template-verification-by-task/{id}',
-        '/configuracion/template-task/get-data-template/{id}'
+        '/configuracion/template-task/get-data-template/{id}',
+        '/scheduling/project/{project}/users',
+        '/scheduling/project/{project}/teams',
     ],
     'scheduling_project_create' => [
         '/scheduling/project/add'
     ],
     'scheduling_project_update' => [
-        '/scheduling/project/update/{id}'
+        '/scheduling/project/update/{id}',
+        '/scheduling/project/{project}/teams',
     ],
     'scheduling_project_delete' => [
         '/scheduling/project/destroy/{id}'

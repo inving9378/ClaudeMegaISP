@@ -1,0 +1,20 @@
+[2026-06-08 22:30:15] Colaborador 1 → user_id=4818
+[2026-06-08 22:30:15] OTs a migrar: 1, 2, 3
+[2026-06-08 22:30:15] --- OT {}: status={->status}→{}, type_id={->type_id}, collab={->colaborador_id} ---
+[2026-06-08 22:30:16]   ✅ Task creado id={}
+[2026-06-08 22:30:17]   ✅ task_user pivot: task={} → user={}
+[2026-06-08 22:30:17]   ✅ {}: {} filas reasignadas (tarea_id={})
+[2026-06-08 22:30:17]   ✅ OT {} soft-deleted
+[2026-06-08 22:30:17]   ✅ COMMIT OT {} → Task {}
+[2026-06-08 22:30:17] --- OT {}: status={->status}→{}, type_id={->type_id}, collab={->colaborador_id} ---
+[2026-06-08 22:30:18]   ✅ Task creado id={}
+[2026-06-08 22:30:18]   ✅ task_user pivot: task={} → user={}
+[2026-06-08 22:30:18]   ✅ OT {} soft-deleted
+[2026-06-08 22:30:18]   ✅ COMMIT OT {} → Task {}
+[2026-06-08 22:30:18] --- OT {}: status={->status}→{}, type_id={->type_id}, collab={->colaborador_id} ---
+[2026-06-08 22:30:18]   ✅ Task creado id={}
+[2026-06-08 22:30:18]   ✅ task_user pivot: task={} → user={}
+[2026-06-08 22:30:18]   ✅ OT {} soft-deleted
+[2026-06-08 22:30:19]   ✅ COMMIT OT {} → Task {}
+[2026-06-08 22:30:19] Mapeo final: {"1":1682,"2":1683,"3":1684}
+[2026-06-08 22:30:19] === PASO 3 COMPLETO ===

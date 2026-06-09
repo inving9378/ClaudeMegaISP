@@ -1,0 +1,7 @@
+tabla	total	activas
+work_orders	3	0
+tasks tipo=campo	5	5
+media	0	NULL
+incidents woid	1	0
+incidents tarea_id	1	1
+task_user migrados	3	0

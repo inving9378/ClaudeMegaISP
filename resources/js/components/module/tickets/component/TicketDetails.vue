@@ -99,8 +99,8 @@ export default {
         const domLoaded = ref(false);
 
         onMounted(async () => {
-            document.addEventListener("DOMContentLoaded", () => domLoaded.value = true);
             await getfieldsEdited("TicketDetails", props.id);
+            domLoaded.value = true;
             await getUserDataJson();
             activeServiceExpiration.value = await getActiveServiceExpiration(
                 userDataJson.value.id

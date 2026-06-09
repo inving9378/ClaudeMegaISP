@@ -11,6 +11,15 @@
                     ><p>Tarea #{{ id }}</p></a
                 >
             </div>
+            <div v-if="!id && fromTicketId" class="col-12 mb-2">
+                <div class="alert alert-info py-2 mb-0" style="border-left: 4px solid #0d6efd;">
+                    <i class="fa fa-link me-1"></i>
+                    <strong>Origen:</strong> Esta tarea quedará vinculada al
+                    <a :href="`/tickets/ver/${fromTicketId}`" target="_blank">
+                        Ticket #{{ fromTicketId }}
+                    </a>
+                </div>
+            </div>
             <template v-for="val in fieldsJson">
                 <ComponentFormDefault
                     v-if="val.include"
@@ -159,6 +168,10 @@ export default {
     props: {
         action: String,
         customerId: String,
+        fromTicketId: {
+            type: Number,
+            default: null,
+        },
     },
     components: {
         ComponentFormDefault,
@@ -191,6 +204,10 @@ export default {
             if (action == "/scheduling/task/add") {
                 id.value = null;
                 await getfieldsJson("Task");
+                // Pre-inyectar ticket_id si viene desde un Ticket (Capa 2)
+                if (props.fromTicketId) {
+                    dataForm.data.ticket_id = props.fromTicketId;
+                }
             } else {
                 id.value = idItem;
                 unreadTaskNotification(idItem);

@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\scheduling\project\ProjectDatatableHelper;
 use App\Http\Requests\module\scheduling\project\ProjectCreateRequest;
 use App\Models\LogActivity;
+use App\Models\Project;
+use App\Models\Team;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
@@ -112,5 +115,46 @@ class ProjectController extends Controller
     public function table(Request $request)
     {
         return $this->helper->fetch_datatable_data($request);
+    }
+
+    /**
+     * Devuelve los usuarios del proyecto según sus equipos asignados.
+     * Si el proyecto no tiene equipos configurados → fallback todos notClientRole.
+     * Usado por CrearTareaModal para filtrar "Asignar a".
+     */
+    public function usersForProject(Project $project)
+    {
+        $teamIds = $project->teams()->pluck('teams.id');
+
+        $query = User::query()->notClientRole()->select('id', 'name')->orderBy('name');
+
+        if ($teamIds->isNotEmpty()) {
+            $query->whereHas('teams', fn ($q) => $q->whereIn('teams.id', $teamIds));
+        }
+
+        return response()->json($query->get());
+    }
+
+    /**
+     * Sincroniza los equipos asociados a un proyecto.
+     * Usado por ProjectCrud para guardar el mapping project↔teams.
+     */
+    public function syncTeams(Request $request, Project $project)
+    {
+        $teamIds = collect($request->team_ids ?? [])
+            ->filter(fn ($id) => Team::where('id', $id)->exists())
+            ->values();
+
+        $project->teams()->sync($teamIds);
+
+        return response()->json(['team_ids' => $project->teams()->pluck('teams.id')]);
+    }
+
+    /**
+     * Devuelve los equipos actuales de un proyecto (para cargar en ProjectCrud).
+     */
+    public function getTeams(Project $project)
+    {
+        return response()->json($project->teams()->select('teams.id', 'teams.name')->get());
     }
 }

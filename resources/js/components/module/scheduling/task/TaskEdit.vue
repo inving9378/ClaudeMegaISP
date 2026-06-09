@@ -94,6 +94,13 @@
                         <div class="col-md-12">
                             <div class="row">
                                 <div class="col-xl-8">
+                                    <div v-if="dataTask.ticket_id" class="alert alert-light border mb-2" style="border-left: 4px solid #185FA5 !important;">
+                                        <i class="fa fa-link me-1"></i>
+                                        <strong>Origen:</strong>
+                                        <a :href="`/tickets/ver/${dataTask.ticket_id}`">
+                                            Ticket #{{ dataTask.ticket_id }}{{ dataTask.ticket_topic ? ' — ' + dataTask.ticket_topic : '' }}
+                                        </a>
+                                    </div>
                                     <div class="card">
                                         <div
                                             class="card-header d-flex justify-between"
