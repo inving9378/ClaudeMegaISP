@@ -1,26 +1,87 @@
 /* ============================================================
    MegaFamilia Design System — Bootstrap 5 overlay
+   Refactor Tema 0.5 — Patrón híbrido dark/light
+
+   Categoría A: variables semánticas genéricas → referencian globales
+                de dark-light-tokens.css (success/warning/danger/info).
+                En light mode el shade cambia levemente (~10%); en dark
+                heredan automáticamente la variante dark del sistema.
+
+   Categoría B: colores de marca MegaFamilia (teal #0d9488, púrpura
+                #7c3aed) y escala de grays Slate (--mf-gray-*).
+                Mantienen sus valores originales en light.
+                Variante dark agregada en este refactor.
+
+   Categoría C: sombras — misma opacidad en light, mayor en dark.
+
+   No-color: --mf-radius y --mf-radius-sm — sin variante dark.
+
+   Los selectores CSS (.mf-*) abajo no fueron modificados.
    ============================================================ */
-:root {
-  --mf-primary:       #0d9488;
-  --mf-primary-dark:  #0f766e;
-  --mf-primary-light: #ccfbf1;
-  --mf-accent:        #7c3aed;
-  --mf-accent-light:  #ede9fe;
-  --mf-success:       #16a34a;
-  --mf-warning:       #d97706;
-  --mf-danger:        #dc2626;
-  --mf-info:          #0284c7;
-  --mf-gray-50:       #f8fafc;
-  --mf-gray-100:      #f1f5f9;
-  --mf-gray-200:      #e2e8f0;
-  --mf-gray-500:      #64748b;
-  --mf-gray-700:      #334155;
-  --mf-shadow:        0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
-  --mf-shadow-md:     0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
-  --mf-radius:        12px;
-  --mf-radius-sm:     8px;
+
+:root,
+[data-layout-mode="light"] {
+
+    /* === Categoría A: semánticos → referencian globales === */
+    --mf-success: var(--success);
+    --mf-warning: var(--warning);
+    --mf-danger:  var(--danger);
+    --mf-info:    var(--info);
+
+    /* === Categoría B: colores de marca MegaFamilia (teal) === */
+    --mf-primary:       #0d9488;
+    --mf-primary-dark:  #0f766e;
+    --mf-primary-light: #ccfbf1;
+
+    /* === Categoría B: colores de marca MegaFamilia (accent púrpura) === */
+    --mf-accent:        #7c3aed;
+    --mf-accent-light:  #ede9fe;
+
+    /* === Categoría B: escala de grays Slate (identidad visual MF) === */
+    --mf-gray-50:  #f8fafc;
+    --mf-gray-100: #f1f5f9;
+    --mf-gray-200: #e2e8f0;
+    --mf-gray-500: #64748b;
+    --mf-gray-700: #334155;
+
+    /* === Categoría C: sombras === */
+    --mf-shadow:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    --mf-shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+
+    /* === No-color: geometría (sin variante dark) === */
+    --mf-radius:    12px;
+    --mf-radius-sm: 8px;
 }
+
+[data-layout-mode="dark"] {
+    /* Categoría A: se hereda automáticamente desde dark-light-tokens.css */
+
+    /* === Categoría B: colores de marca — versiones para fondo oscuro === */
+    /* Teal: se aclara ~15% para mantener legibilidad sobre bg-primary #1e2433 */
+    --mf-primary:       #14b8a6;
+    --mf-primary-dark:  #0d9488;
+    --mf-primary-light: rgba(13, 148, 136, 0.15);
+
+    /* Accent púrpura: se aclara para legibilidad */
+    --mf-accent:        #a78bfa;
+    --mf-accent-light:  rgba(124, 58, 237, 0.15);
+
+    /* === Categoría B: escala de grays Slate → versiones dark === */
+    /* Los valores dark están alineados con los tokens globales para coherencia */
+    --mf-gray-50:  #1e2433;   /* bg-primary: fondo general de tarjetas/headers */
+    --mf-gray-100: #252836;   /* bg-secondary: fondos alternativos, barras de progreso */
+    --mf-gray-200: #3a3d50;   /* border-default: bordes y divisores */
+    --mf-gray-500: #adb5bd;   /* text-secondary: etiquetas, texto muted */
+    --mf-gray-700: #cdd6f4;   /* text-primary: texto de valor principal */
+
+    /* === Categoría C: sombras — más opacas en dark (fondos oscuros las absorben) === */
+    --mf-shadow:    0 1px 3px rgba(0,0,0,.25), 0 1px 2px rgba(0,0,0,.20);
+    --mf-shadow-md: 0 4px 6px rgba(0,0,0,.30), 0 2px 4px rgba(0,0,0,.25);
+}
+
+/* ============================================================
+   Resto del CSS de MegaFamilia (selectores .mf-*) — sin tocar
+   ============================================================ */
 
 /* Page header */
 .mf-page-header {
