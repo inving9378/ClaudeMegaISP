@@ -99,6 +99,22 @@ return [
             ]) : [],
         ],
 
+        'asterisk_rt' => [
+            'driver'    => 'mysql',
+            'host'      => env('ASTERISK_RT_DB_HOST', '192.168.105.11'),
+            'port'      => env('ASTERISK_RT_DB_PORT', '3306'),
+            'database'  => env('ASTERISK_RT_DB_DATABASE', 'asterisk'),
+            'username'  => env('ASTERISK_RT_DB_USERNAME', 'asterisk_rt'),
+            'password'  => env('ASTERISK_RT_DB_PASSWORD', ''),
+            'unix_socket' => '',
+            'charset'   => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix'    => '',
+            'prefix_indexes' => true,
+            'strict'    => false,
+            'engine'    => null,
+        ],
+
         'radius' => [
             'driver' => 'mysql',
             'host' => env('DB_RADIUS_HOST', '127.0.0.1'),

@@ -1,0 +1,59 @@
+{
+    "id": 210,
+    "slug": "addon-voip",
+    "name": "VoIP",
+    "version": "1.0.0",
+    "description": "Módulo VoIP — gestión de troncales PJSIP con provisión automática a Asterisk Realtime (PJSIP ARA).",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+
+    "permissions": [
+        { "name": "voip.view",               "description": "Ver módulo VoIP" },
+        { "name": "voip.troncales.view",     "description": "Ver listado de troncales" },
+        { "name": "voip.troncales.create",   "description": "Crear troncales VoIP" },
+        { "name": "voip.troncales.edit",     "description": "Editar troncales VoIP" },
+        { "name": "voip.troncales.delete",   "description": "Eliminar troncales VoIP" },
+        { "name": "voip.troncales.provision","description": "Provisionar/desprovisionar troncales en Asterisk" },
+        { "name": "voip.troncales.test",     "description": "Probar conexión ARI y verificar estado de troncal" }
+    ],
+
+    "menu": [
+        {
+            "label": "VoIP",
+            "icon": "phone",
+            "permission": "voip.view",
+            "url": "/voip/troncales",
+            "children": [
+                { "label": "Troncales", "url": "/voip/troncales", "permission": "voip.troncales.view" }
+            ]
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "VoIP",
+            "description": "Gestión de troncales SIP/PJSIP y provisión automática a Asterisk.",
+            "icon": "phone",
+            "url": "/voip/troncales",
+            "permission": "voip.view"
+        }
+    ],
+
+    "config_sections": [
+        {
+            "key": "voip_asterisk",
+            "label": "VoIP — Asterisk / PJSIP",
+            "type": "api_key",
+            "category": "Red",
+            "icon": "phone",
+            "url": "/voip/troncales",
+            "permission": "voip.troncales.provision",
+            "description": "Conexión ARI y credenciales de provisión PJSIP Realtime a Asterisk."
+        }
+    ],
+
+    "sidebar": {
+        "location": "main"
+    }
+}

@@ -412,6 +412,9 @@ import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 import CobranzaVoipConfig from "./components/module/cobranza/CobranzaVoipConfig.vue";
 import CobranzaCampanas from "./components/module/cobranza/CobranzaCampanas.vue";
 
+// VoIP — addon-voip Fase A (Troncales PJSIP Realtime) — 2026-06-09
+import VoipTroncales from "./components/module/voip/VoipTroncales.vue";
+
 
 import SupplierListar from "./components/module/inventory/supplier/SupplierListar.vue";
 import SupplierCrear from "./components/module/inventory/supplier/SupplierCrear.vue";
@@ -757,6 +760,7 @@ const app = createApp({
         // CobranzaBlaster (Fase 6)
         'cobranza-voip-config': CobranzaVoipConfig,
         'cobranza-campanas':    CobranzaCampanas,
+        'voip-troncales':       VoipTroncales,
     },
 });
 

@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
-use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
-use App\Modules\Addons\Talento\Models\TalentoWorkOrderActivity;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use App\Modules\Addons\Talento\Services\LevelService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
@@ -144,12 +142,6 @@ class TalentoWorkOrderController extends Controller
     {
         $this->authorize('talento.work_orders.manage');
 
-        $order = TalentoWorkOrder::findOrFail($id);
-
-        if (in_array($order->status, ['validated', 'cancelled'])) {
-            return response()->json(['error' => 'No se puede editar una orden validada o cancelada.'], 422);
-        }
-
         $data = $request->validate([
             'colaborador_id' => 'sometimes|exists:talento_colaboradores,id',
             'type_id'        => 'sometimes|exists:talento_work_order_types,id',
@@ -159,102 +151,59 @@ class TalentoWorkOrderController extends Controller
             'olt_onu_id'     => 'nullable|exists:olt_onus,id',
         ]);
 
-        // Refresh points/billable if type changes
-        if (isset($data['type_id']) && $data['type_id'] != $order->type_id) {
-            $type = TalentoWorkOrderType::find($data['type_id']);
-            $data['points']      = $type->points;
-            $data['is_billable'] = $type->is_billable;
+        $result = $this->unified->actualizarAdmin((int) $id, $data);
+
+        if (!$result['success']) {
+            return response()->json(['error' => $result['message']], $result['status_code'] ?? 422);
         }
 
-        $order->update($data);
-
-        return response()->json($order->load('colaborador.user', 'type'));
+        return response()->json($result['data']);
     }
 
     public function changeStatus(Request $request, $id)
     {
         $this->authorize('talento.work_orders.manage');
 
-        $order = TalentoWorkOrder::findOrFail($id);
-
         $data = $request->validate(['status' => 'required|in:pending,in_progress,completed,cancelled']);
 
-        $transitions = [
-            'pending'     => ['in_progress', 'cancelled'],
-            'in_progress' => ['completed', 'cancelled'],
-            'completed'   => [],   // can only go to validated via validate()
-            'validated'   => [],
-            'cancelled'   => [],
-        ];
+        $result = $this->unified->cambiarEstadoAdmin((int) $id, $data['status']);
 
-        if (!in_array($data['status'], $transitions[$order->status] ?? [])) {
-            return response()->json(['error' => "Transición inválida: {$order->status} → {$data['status']}"], 422);
+        if (!$result['success']) {
+            return response()->json(['error' => $result['message']], $result['status_code'] ?? 422);
         }
 
-        $timestamps = [
-            'in_progress' => ['started_at'   => now()],
-            'completed'   => ['completed_at' => now()],
-        ];
-
-        $order->update(array_merge(['status' => $data['status']], $timestamps[$data['status']] ?? []));
-
-        return response()->json($order);
+        return response()->json($result['data']);
     }
 
     public function validateOrder(Request $request, $id)
     {
         $this->authorize('talento.work_orders.validate');
 
-        $order = TalentoWorkOrder::findOrFail($id);
+        $result = $this->unified->validarAdmin((int) $id);
 
-        if ($order->status !== 'completed') {
-            return response()->json(['error' => 'Solo se pueden validar órdenes con estado completada.'], 422);
+        if (!$result['success']) {
+            return response()->json(['error' => $result['message']], $result['status_code'] ?? 422);
         }
 
-        $order->update([
-            'status'       => 'validated',
-            'validated_at' => now(),
-            'validated_by' => auth()->id(),
-        ]);
-
-        // Fase 4b: fire health bonus evaluation and warranty window refresh (async-safe: catch any failure)
-        try {
-            app(\App\Modules\Addons\Talento\Services\HealthBonusService::class)->evaluate($order->id);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Health bonus evaluation failed', ['order_id' => $order->id, 'err' => $e->getMessage()]);
-        }
-
-        // Refresh warranty window for billable installations/repairs
-        if ($order->is_billable && $order->client_id) {
-            try {
-                app(\App\Modules\Addons\Talento\Services\WarrantyWindowService::class)->refreshWindow($order);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Warranty window refresh failed', ['order_id' => $order->id, 'err' => $e->getMessage()]);
-            }
-        }
-
-        return response()->json($order->load('validatedBy'));
+        return response()->json($result['data']);
     }
 
     public function addActivity(Request $request, $id)
     {
         $this->authorize('talento.work_orders.manage');
 
-        $order = TalentoWorkOrder::findOrFail($id);
-
         $data = $request->validate([
             'description'      => 'required|string',
             'duration_minutes' => 'nullable|integer|min:0',
         ]);
 
-        $activity = TalentoWorkOrderActivity::create([
-            'work_order_id'    => $order->id,
-            'description'      => $data['description'],
-            'duration_minutes' => $data['duration_minutes'] ?? 0,
-            'recorded_by'      => auth()->id(),
-        ]);
+        $result = $this->unified->agregarActividadAdmin((int) $id, $data);
 
-        return response()->json($activity, 201);
+        if (!$result['success']) {
+            return response()->json(['error' => $result['message']], $result['status_code'] ?? 422);
+        }
+
+        return response()->json($result['data'], 201);
     }
 
     public function types()
