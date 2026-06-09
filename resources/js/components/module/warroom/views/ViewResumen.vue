@@ -1,8 +1,34 @@
 <template>
     <div class="wr-view wr-view-resumen">
 
+        <!-- ── Controles unificados ──────────────────────────────────────────── -->
+        <WarroomViewControls
+            v-model:from="from"
+            v-model:to="to"
+            v-model:granularidad="granularidad"
+            :loading="loading"
+            @refresh="load"
+            @update:from="load"
+            @update:to="load"
+        />
+
+        <!-- ── Serie ingresos semanales ──────────────────────────────────────── -->
+        <div class="wr-panel mt-3">
+            <div class="wr-section-title mb-2">
+                <i class="ti ti-chart-line me-1"></i>
+                Ingresos — {{ periodLabel }} vs meses anteriores
+            </div>
+            <warroom-line-series
+                :series="serieSeries"
+                :labels="serieLabels"
+                :loading="loading"
+                v-model:granularidad="granularidad"
+                :show-controls="false"
+            />
+        </div>
+
         <!-- ── KPIs hero ─────────────────────────────────────────────────────── -->
-        <div class="wr-kpi-grid wr-kpi-grid-3">
+        <div class="wr-kpi-grid wr-kpi-grid-3 mt-3">
             <KpiCard
                 label="Ingresos del mes"
                 :value="formatCurrency(kpis?.ingresos?.current)"
@@ -55,20 +81,6 @@
                 accent="orange"
                 icon="ti-ticket"
                 :loading="loading"
-            />
-        </div>
-
-        <!-- ── Gráfica overlay ingresos diarios ──────────────────────────────── -->
-        <div class="wr-panel mt-3" v-if="!loading && chartSeries[0].data.some(v => v > 0)">
-            <div class="wr-section-title mb-2">
-                <i class="ti ti-chart-line me-1"></i>
-                Ingresos diarios — {{ periodLabel }} vs {{ previousLabel }}
-            </div>
-            <apexchart
-                type="area"
-                height="160"
-                :options="chartOptions"
-                :series="chartSeries"
             />
         </div>
 
@@ -185,89 +197,41 @@ import axios from 'axios';
 import KpiCard from '../shared/KpiCard.vue';
 import InsightsBlock from '../shared/InsightsBlock.vue';
 import ActionItemsList from '../shared/ActionItemsList.vue';
+import WarroomViewControls from '../shared/WarroomViewControls.vue';
+import WarroomLineSeries from './WarroomLineSeries.vue';
 import { useKpis } from '../composables/useKpis.js';
 import { useInsights } from '../composables/useInsights.js';
-import { deltaStr, deltaDir, formatCurrency } from '../utils.js';
+import { deltaStr, deltaDir, formatCurrency, transformWeeklySeries } from '../utils.js';
 
 const props = defineProps({
     period:          { type: String, required: true },
     activeMeetingId: { type: Number, default: null },
 });
 
+const now  = new Date();
+const from = ref(props.period + '-01');
+const to   = ref(now.toISOString().slice(0, 10));
+const granularidad = ref('semana');
+
 const { kpis, loading, fetchKpis } = useKpis('resumen');
 const { insights, loading: insightsLoading, source: insightsSource, status: insightsStatus, fetchInsights } = useInsights('resumen');
 const actionItems = ref([]);
 
-// ── Labels de período ────────────────────────────────────────────────────────
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const periodLabel = computed(() => {
-    const [y, m] = props.period.split('-');
+    const [y, m] = from.value.slice(0, 7).split('-');
     return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
 });
-const previousLabel = computed(() => {
-    const d = new Date(props.period + '-01');
-    d.setMonth(d.getMonth() - 1);
-    return `${MONTHS_ES[d.getMonth()]} ${d.getFullYear()}`;
-});
 
-// ── Gráfica overlay ──────────────────────────────────────────────────────────
-const chartSeries = computed(() => {
-    const cur  = kpis.value?.daily_current  ?? {};
-    const prev = kpis.value?.daily_previous ?? {};
-    const days = Array.from({ length: 31 }, (_, i) => i + 1);
-    return [
-        { name: periodLabel.value,  data: days.map(d => cur[d]  ?? 0) },
-        { name: previousLabel.value, data: days.map(d => prev[d] ?? 0) },
-    ];
-});
+const serieData = computed(() => transformWeeklySeries(kpis.value?.weekly_series));
+const serieLabels = computed(() => serieData.value.labels);
+const serieSeries = computed(() => serieData.value.series);
 
-const chartOptions = computed(() => ({
-    chart: {
-        background: 'transparent',
-        toolbar:    { show: false },
-        sparkline:  { enabled: false },
-        animations: { enabled: false },
-    },
-    theme:  { mode: 'dark' },
-    colors: ['#1D9E75', '#534AB7'],
-    stroke: { curve: 'smooth', width: [2, 1.5] },
-    fill: {
-        type: ['gradient', 'solid'],
-        gradient: { opacityFrom: 0.25, opacityTo: 0.02 },
-        opacity: [1, 0.08],
-    },
-    xaxis: {
-        categories: Array.from({ length: 31 }, (_, i) => i + 1),
-        labels:     { style: { colors: '#6b6b85', fontSize: '10px' } },
-        axisBorder: { show: false },
-        axisTicks:  { show: false },
-    },
-    yaxis: {
-        labels: {
-            style: { colors: '#6b6b85', fontSize: '10px' },
-            formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v}`,
-        },
-    },
-    grid: {
-        borderColor: 'rgba(255,255,255,0.06)',
-        strokeDashArray: 4,
-    },
-    tooltip: {
-        theme: 'dark',
-        y: { formatter: v => `$${v.toLocaleString()}` },
-    },
-    legend: {
-        labels: { colors: '#9999b0' },
-        fontSize: '11px',
-    },
-    dataLabels: { enabled: false },
-}));
-
-// ── Carga ────────────────────────────────────────────────────────────────────
 async function load() {
+    const period = from.value.slice(0, 7);
     await Promise.all([
-        fetchKpis(props.period),
-        fetchInsights(props.period),
+        fetchKpis(period),
+        fetchInsights(period),
         loadActionItems(),
     ]);
 }
@@ -283,16 +247,21 @@ async function loadActionItems() {
 }
 
 async function triggerRegenerate() {
-    await axios.post(`/warroom/api/insights/resumen/${props.period}/regenerate`).catch(() => {});
-    await fetchInsights(props.period);
+    const period = from.value.slice(0, 7);
+    await axios.post(`/warroom/api/insights/resumen/${period}/regenerate`).catch(() => {});
+    await fetchInsights(period);
 }
 
 function onItemCreated(item) {
     actionItems.value.unshift(item);
 }
 
+watch(() => props.period, (val) => {
+    from.value = val + '-01';
+    load();
+});
+
 onMounted(load);
-watch(() => props.period, load);
 </script>
 
 <style>
