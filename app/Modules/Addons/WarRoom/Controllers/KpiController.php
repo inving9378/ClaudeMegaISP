@@ -740,10 +740,11 @@ class KpiController extends Controller
         $series  = [];
         foreach ([$current, $prev1, $prev2] as $period) {
             [$y, $m] = explode('-', $period);
+            $lastDay = Carbon::createFromDate((int)$y, (int)$m, 1)->daysInMonth;
             $data = [];
             for ($week = 1; $week <= 4; $week++) {
                 $d1     = ($week - 1) * 7 + 1;
-                $d2     = $week < 4 ? $week * 7 : 31;
+                $d2     = $week < 4 ? $week * 7 : $lastDay;
                 $data[] = $aggregator($y, $m, $d1, $d2);
             }
             $series[] = ['period' => $period, 'data' => $data];
