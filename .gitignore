@@ -6,6 +6,7 @@
 /storage/script_client_mikrotik/*
 /storage/server_status/*
 /storage/sql_test/*
+/storage/backup_test/
 /vendor
 Homestead.json
 Homestead.yaml
