@@ -9,7 +9,7 @@
 
         <template v-else>
 
-            <!-- ── Controles ────────────────────────────────────────────────── -->
+            <!-- ── Controles unificados ──────────────────────────────────────── -->
             <div class="wr-desemp-controls">
                 <!-- Rango de fechas -->
                 <div class="wr-desemp-ctrl-group">
@@ -21,38 +21,50 @@
                     <input type="date" class="wr-date-input" v-model="to" @change="load" />
                 </div>
 
-                <!-- Selector de Equipo / Departamento (tabla) -->
+                <!-- Equipo (único) -->
                 <div class="wr-desemp-ctrl-group">
                     <label class="wr-ctrl-label"><i class="ti ti-building me-1"></i>Equipo</label>
-                    <select class="wr-select" v-model="selectedDepartment" @change="onDepartmentChange">
+                    <select class="wr-select" v-model="selectedDepartment" @change="onEquipoChange">
                         <option value="">Todos los equipos</option>
                         <option v-for="d in availableDepartments" :key="d" :value="d">{{ d }}</option>
                         <option v-if="hasSinEquipo" value="__none__">Sin equipo</option>
                     </select>
                 </div>
 
-                <!-- Multi-select colaboradores -->
+                <!-- Actividad (factor para la gráfica) -->
                 <div class="wr-desemp-ctrl-group wr-ctrl-grow">
-                    <label class="wr-ctrl-label"><i class="ti ti-users me-1"></i>Colaboradores</label>
-                    <div class="wr-multiselect-wrapper">
-                        <div class="wr-multiselect-trigger" @click="toggleColSelector">
-                            <span>{{ selectedColLabel }}</span>
-                            <i class="ti ti-chevron-down ms-auto"></i>
-                        </div>
-                        <div v-if="colSelectorOpen" class="wr-multiselect-dropdown">
-                            <label class="wr-ms-item" v-for="col in visibleColaboradores" :key="col.colaborador_id">
-                                <input type="checkbox"
-                                    :value="col.colaborador_id"
-                                    v-model="selectedColIds"
-                                    @change="onColSelectionChange" />
-                                <span>{{ col.name }}</span>
-                                <span v-if="col.department" class="wr-ms-badge">{{ col.department }}</span>
-                            </label>
-                            <div class="wr-ms-actions">
-                                <button class="wr-ms-action-btn" @click="selectAllCols">Todos</button>
-                                <button class="wr-ms-action-btn" @click="clearCols">Ninguno</button>
-                            </div>
-                        </div>
+                    <label class="wr-ctrl-label"><i class="ti ti-chart-line me-1"></i>Actividad</label>
+                    <select class="wr-select" v-model="serieFactor" @change="loadSerie">
+                        <option value="total">Total (todas)</option>
+                        <optgroup label="Órdenes de trabajo">
+                            <option value="ots">OTs validadas</option>
+                        </optgroup>
+                        <optgroup label="Actividades">
+                            <option value="asistencias">Asistencias</option>
+                            <option value="inspecciones_caja">Inspecciones caja</option>
+                            <option value="bonos_salud_red">Bonos salud red</option>
+                            <option value="activaciones_olt">Activaciones OLT</option>
+                            <option value="evaluaciones">Evaluaciones</option>
+                            <option value="extensiones_turno">Extensiones de turno</option>
+                        </optgroup>
+                        <optgroup label="Incidencias / riesgo">
+                            <option value="penalizaciones">Penalizaciones</option>
+                            <option value="desvios_ruta">Desvíos de ruta</option>
+                            <option value="incidencias_ot">Incidencias de OT</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <!-- Período (granularidad para la gráfica) -->
+                <div class="wr-desemp-ctrl-group">
+                    <label class="wr-ctrl-label"><i class="ti ti-calendar-stats me-1"></i>Período</label>
+                    <div class="wr-gran-pills">
+                        <button
+                            v-for="g in granularidades" :key="g.value"
+                            class="wr-gran-pill"
+                            :class="{ active: serieGranularidad === g.value }"
+                            @click="serieGranularidad = g.value"
+                        >{{ g.label }}</button>
                     </div>
                 </div>
 
@@ -64,49 +76,18 @@
 
             <!-- ── Evolución por equipo ──────────────────────────────────────── -->
             <div class="wr-panel mt-3">
+                <div class="wr-section-title mb-2">
+                    <i class="ti ti-chart-line me-1"></i>
+                    Evolución por equipo
+                    <span class="wr-dept-inline ms-1" v-if="selectedDepartment && selectedDepartment !== '__none__'">— {{ selectedDepartment }}</span>
+                </div>
                 <warroom-line-series
                     :series="serieSeries"
                     :labels="serieLabels"
                     :loading="serieLoading"
-                    title="Evolución por equipo"
                     v-model:granularidad="serieGranularidad"
-                    :show-controls="true"
-                >
-                    <template #controls>
-                        <!-- Equipo -->
-                        <div class="wr-desemp-ctrl-group">
-                            <label class="wr-ctrl-label"><i class="ti ti-building me-1"></i>Equipo</label>
-                            <select class="wr-select" v-model="serieDepartment" @change="loadSerie">
-                                <option value="">Todos</option>
-                                <option v-for="d in availableDepartments" :key="d" :value="d">{{ d }}</option>
-                                <option v-if="hasSinEquipo" value="__none__">Sin equipo</option>
-                            </select>
-                        </div>
-                        <!-- Factor -->
-                        <div class="wr-desemp-ctrl-group">
-                            <label class="wr-ctrl-label"><i class="ti ti-chart-line me-1"></i>Actividad</label>
-                            <select class="wr-select" v-model="serieFactor" @change="loadSerie">
-                                <option value="total">Total (todas)</option>
-                                <optgroup label="Órdenes de trabajo">
-                                    <option value="ots">OTs validadas</option>
-                                </optgroup>
-                                <optgroup label="Actividades">
-                                    <option value="asistencias">Asistencias</option>
-                                    <option value="inspecciones_caja">Inspecciones caja</option>
-                                    <option value="bonos_salud_red">Bonos salud red</option>
-                                    <option value="activaciones_olt">Activaciones OLT</option>
-                                    <option value="evaluaciones">Evaluaciones</option>
-                                    <option value="extensiones_turno">Extensiones de turno</option>
-                                </optgroup>
-                                <optgroup label="Incidencias / riesgo">
-                                    <option value="penalizaciones">Penalizaciones</option>
-                                    <option value="desvios_ruta">Desvíos de ruta</option>
-                                    <option value="incidencias_ot">Incidencias de OT</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                    </template>
-                </warroom-line-series>
+                    :show-controls="false"
+                />
             </div>
 
             <!-- ── Tabla comparativa ─────────────────────────────────────────── -->
@@ -205,13 +186,12 @@
                 </p>
             </div>
 
-
         </template>
     </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import WarroomLineSeries from './WarroomLineSeries.vue';
 
@@ -228,45 +208,32 @@ const to    = ref(now.toISOString().slice(0, 10));
 const loading            = ref(false);
 const data               = ref(null);
 const allColaboradores   = ref([]);
-const selectedColIds     = ref([]);
-const colSelectorOpen    = ref(false);
 const selectedDepartment = ref('');  // '' = Todos, '__none__' = sin equipo
 
 // ── Serie temporal ────────────────────────────────────────────────────────────
-const serieLoading       = ref(false);
-const serieLabels        = ref([]);
-const serieSeries        = ref([]);
-const serieDepartment    = ref('');
-const serieFactor        = ref('total');
-const serieGranularidad  = ref('semana');
+const serieLoading      = ref(false);
+const serieLabels       = ref([]);
+const serieSeries       = ref([]);
+const serieFactor       = ref('total');
+const serieGranularidad = ref('semana');
+
+const granularidades = [
+    { value: 'dia',    label: 'Día' },
+    { value: 'semana', label: 'Semana' },
+    { value: 'mes',    label: 'Mes' },
+    { value: 'ano',    label: 'Año' },
+];
 
 // ── Departamentos disponibles ─────────────────────────────────────────────────
 const availableDepartments = computed(() => data.value?.departments ?? []);
-const hasSinEquipo = computed(() =>
-    allColaboradores.value.some(c => !c.department)
-);
+const hasSinEquipo = computed(() => allColaboradores.value.some(c => !c.department));
 
-// ── Colaboradores visibles en el multi-select (filtrados por equipo) ──────────
-const visibleColaboradores = computed(() => {
-    if (!selectedDepartment.value) return allColaboradores.value;
-    if (selectedDepartment.value === '__none__') return allColaboradores.value.filter(c => !c.department);
-    return allColaboradores.value.filter(c => c.department === selectedDepartment.value);
-});
-
-// ── Datos filtrados por colaboradores seleccionados ───────────────────────────
+// ── Datos filtrados por equipo (para la tabla) ────────────────────────────────
 const filteredData = computed(() => {
     if (!data.value?.colaboradores) return [];
-    let pool = data.value.colaboradores;
-    // Filtro por departamento
-    if (selectedDepartment.value === '__none__') {
-        pool = pool.filter(c => !c.department);
-    } else if (selectedDepartment.value) {
-        pool = pool.filter(c => c.department === selectedDepartment.value);
-    }
-    // Filtro por colaborador multi-select
-    if (selectedColIds.value.length && selectedColIds.value.length < pool.length) {
-        pool = pool.filter(c => selectedColIds.value.includes(c.colaborador_id));
-    }
+    const pool = data.value.colaboradores;
+    if (selectedDepartment.value === '__none__') return pool.filter(c => !c.department);
+    if (selectedDepartment.value)                return pool.filter(c => c.department === selectedDepartment.value);
     return pool;
 });
 
@@ -278,7 +245,6 @@ const groupedData = computed(() => {
         if (!groups[key]) groups[key] = { department: col.department || 'Sin equipo', items: [] };
         groups[key].items.push(col);
     }
-    // Ordenar grupos: named departments primero, "Sin equipo" al final
     return Object.values(groups).sort((a, b) => {
         if (a.department === 'Sin equipo') return 1;
         if (b.department === 'Sin equipo') return -1;
@@ -286,15 +252,7 @@ const groupedData = computed(() => {
     });
 });
 
-// ── Label del multi-select ─────────────────────────────────────────────────
-const selectedColLabel = computed(() => {
-    const n = selectedColIds.value.length;
-    const t = allColaboradores.value.length;
-    if (n === 0 || n === t) return 'Todos los colaboradores';
-    return `${n} seleccionado${n > 1 ? 's' : ''}`;
-});
-
-// ── Carga de datos ────────────────────────────────────────────────────────────
+// ── Carga de datos principales ────────────────────────────────────────────────
 async function load() {
     loading.value = true;
     try {
@@ -304,15 +262,9 @@ async function load() {
         data.value = resp;
         if (resp.available && resp.colaboradores?.length) {
             allColaboradores.value = resp.colaboradores;
-            // Primera carga: seleccionar el primer equipo con colaboradores como default
-            if (selectedColIds.value.length === 0) {
-                const firstDept = resp.departments?.[0] ?? '';
-                selectedDepartment.value = firstDept;
-                serieDepartment.value    = firstDept;
-                const pool = firstDept
-                    ? resp.colaboradores.filter(c => c.department === firstDept)
-                    : resp.colaboradores;
-                selectedColIds.value = pool.map(c => c.colaborador_id);
+            // Primera carga: auto-seleccionar primer equipo
+            if (!selectedDepartment.value && resp.departments?.length) {
+                selectedDepartment.value = resp.departments[0];
             }
         }
         loadSerie();
@@ -323,60 +275,17 @@ async function load() {
     }
 }
 
-function passRate(insp) {
-    return insp.total > 0 ? Math.round((insp.passed / insp.total) * 100) : 0;
-}
-
-function scoreClass(score) {
-    if (score >= 75) return 'text-success fw-bold';
-    if (score >= 45) return 'text-warning fw-semibold';
-    return 'text-danger';
-}
-
-// ── Department selector ───────────────────────────────────────────────────────
-function onDepartmentChange() {
-    // Actualizar selección de colaboradores al equipo elegido
-    if (selectedDepartment.value) {
-        selectedColIds.value = visibleColaboradores.value.map(c => c.colaborador_id);
-    } else {
-        selectedColIds.value = allColaboradores.value.map(c => c.colaborador_id);
-    }
-}
-
-// ── Multi-select helpers ──────────────────────────────────────────────────────
-function toggleColSelector() {
-    colSelectorOpen.value = !colSelectorOpen.value;
-}
-function selectAllCols() {
-    selectedColIds.value = visibleColaboradores.value.map(c => c.colaborador_id);
-    colSelectorOpen.value = false;
-}
-function clearCols() {
-    selectedColIds.value = [];
-    colSelectorOpen.value = false;
-}
-function onColSelectionChange() {
-    // keep dropdown open; table updates reactively via filteredData
-}
-
-// ── Click fuera cierra el dropdown ────────────────────────────────────────────
-function handleOutsideClick(e) {
-    if (!e.target.closest?.('.wr-multiselect-wrapper')) {
-        colSelectorOpen.value = false;
-    }
-}
-
 // ── Carga de serie temporal ────────────────────────────────────────────────────
 async function loadSerie() {
     serieLoading.value = true;
     try {
         const { data: resp } = await axios.get('/warroom/api/desempeno/serie', {
             params: {
-                department:    serieDepartment.value,
-                factor:        serieFactor.value,
-                granularidad:  serieGranularidad.value,
-                from:          from.value,
-                to:            to.value,
+                department:   selectedDepartment.value,
+                factor:       serieFactor.value,
+                granularidad: serieGranularidad.value,
+                from:         from.value,
+                to:           to.value,
             },
         });
         if (resp.available) {
@@ -394,21 +303,30 @@ async function loadSerie() {
     }
 }
 
+// ── Handlers ──────────────────────────────────────────────────────────────────
+function onEquipoChange() {
+    loadSerie();
+}
+
+function passRate(insp) {
+    return insp.total > 0 ? Math.round((insp.passed / insp.total) * 100) : 0;
+}
+
+function scoreClass(score) {
+    if (score >= 75) return 'text-success fw-bold';
+    if (score >= 45) return 'text-warning fw-semibold';
+    return 'text-danger';
+}
+
+// ── Watchers ──────────────────────────────────────────────────────────────────
 watch(serieGranularidad, () => loadSerie());
 
-// Sync from/to cuando cambia el period de la pestaña padre
 watch(() => props.period, (val) => {
     from.value = val + '-01';
     load();
 });
 
-onMounted(() => {
-    document.addEventListener('click', handleOutsideClick);
-    load();
-});
-onUnmounted(() => {
-    document.removeEventListener('click', handleOutsideClick);
-});
+onMounted(() => load());
 </script>
 
 <style scoped>
@@ -428,7 +346,7 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 120px;
+    min-width: 110px;
 }
 .wr-ctrl-grow { flex: 1; min-width: 160px; }
 
@@ -455,6 +373,35 @@ onUnmounted(() => {
 .wr-select option,
 .wr-select optgroup { background: #1a1a2e; color: #e8e8f0; }
 
+/* ── Granularidad pills ──────────────────────────────────────────────────── */
+.wr-gran-pills {
+    display: flex;
+    gap: 3px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 3px;
+}
+.wr-gran-pill {
+    background: transparent;
+    border: none;
+    color: #9896b8;
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.wr-gran-pill.active {
+    background: #534AB7;
+    color: #fff;
+}
+.wr-gran-pill:hover:not(.active) {
+    background: rgba(83,74,183,0.25);
+    color: #c0b8ff;
+}
+
 .wr-btn-refresh {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
@@ -469,79 +416,12 @@ onUnmounted(() => {
 .wr-btn-refresh:hover { background: rgba(255,255,255,0.09); color: #e8e8f0; }
 .wr-btn-refresh:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Multi-select dropdown ───────────────────────────────────────────────── */
-.wr-multiselect-wrapper { position: relative; }
-
-.wr-multiselect-trigger {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 6px;
-    color: var(--wr-text, #e8e8f0);
-    font-size: 12px;
-    padding: 5px 8px;
-    cursor: pointer;
-    user-select: none;
-    transition: border-color 0.15s;
-    white-space: nowrap;
+/* ── Título de sección ────────────────────────────────────────────────────── */
+.wr-dept-inline {
+    font-size: 0.85em;
+    color: #9896b8;
+    font-weight: 400;
 }
-.wr-multiselect-trigger:hover { border-color: rgba(83,74,183,0.5); }
-
-.wr-multiselect-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    min-width: 220px;
-    background: #1a1a2e;
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 8px;
-    padding: 6px 0;
-    z-index: 500;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-    max-height: 240px;
-    overflow-y: auto;
-}
-
-.wr-ms-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--wr-text, #e8e8f0);
-    transition: background 0.12s;
-}
-.wr-ms-item:hover { background: rgba(255,255,255,0.06); }
-.wr-ms-item input[type="checkbox"] { accent-color: #534AB7; flex-shrink: 0; }
-.wr-ms-badge {
-    margin-left: auto;
-    font-size: 10px;
-    background: rgba(83,74,183,0.3);
-    color: #c5bfff;
-    border-radius: 4px;
-    padding: 1px 5px;
-}
-
-.wr-ms-actions {
-    display: flex;
-    gap: 6px;
-    padding: 6px 12px;
-    border-top: 1px solid rgba(255,255,255,0.08);
-    margin-top: 4px;
-}
-.wr-ms-action-btn {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 4px;
-    color: var(--wr-text-muted, #9999b0);
-    font-size: 11px;
-    padding: 3px 8px;
-    cursor: pointer;
-}
-.wr-ms-action-btn:hover { background: rgba(255,255,255,0.1); color: #e8e8f0; }
 
 /* ── Tabla ────────────────────────────────────────────────────────────────── */
 .wr-desemp-table {
