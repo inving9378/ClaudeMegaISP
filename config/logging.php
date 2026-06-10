@@ -121,6 +121,13 @@ return [
             'level'  => 'debug',
             'days'   => 14,
         ],
+
+        'olt-huawei' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/olt-huawei.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
     ],
 
 ];
