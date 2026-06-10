@@ -309,6 +309,16 @@
                         <span v-if="terminalCopied" class="dt-copy-hint">Copiado</span>
                         <span v-else-if="terminalCopyErr" class="dt-copy-hint">Error</span>
                     </button>
+                    <button
+                        class="dt-icon-btn dt-terminal-copy-btn"
+                        @click="copySelection"
+                        :title="selectionCopied ? 'Copiado ✓' : selectionCopyMsg || 'Copiar selección (Ctrl+Shift+C)'"
+                        :class="{ 'dt-copied': selectionCopied, 'dt-copy-err': selectionCopyMsg && !selectionCopied }"
+                    >
+                        <i :class="selectionCopied ? 'fas fa-check' : 'fas fa-clipboard'"></i>
+                        <span v-if="selectionCopied" class="dt-copy-hint">Copiado</span>
+                        <span v-else-if="selectionCopyMsg" class="dt-copy-hint">{{ selectionCopyMsg }}</span>
+                    </button>
                     <button class="dt-icon-btn" @click="probeTtyd" title="Reintentar conexión">
                         <i class="fas fa-sync"></i>
                     </button>
@@ -838,6 +848,34 @@ export default {
             } catch (_) {}
         };
 
+        // "Copiar selección" — copia solo lo que está seleccionado en xterm.
+        // Camino garantizado: gesto de usuario (click) → execCommand funciona en HTTP.
+        const selectionCopied  = ref(false);
+        const selectionCopyMsg = ref('');
+        const copySelection = async () => {
+            const term = terminalIframe.value?.contentWindow?.term;
+            if (!term) {
+                selectionCopyMsg.value = 'Terminal no disponible';
+                setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
+                return;
+            }
+            const sel = term.getSelection();
+            if (!sel) {
+                selectionCopyMsg.value = 'Sin selección';
+                setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
+                return;
+            }
+            try {
+                await copyText(sel);
+                selectionCopied.value = true;
+                selectionCopyMsg.value = '';
+                setTimeout(() => { selectionCopied.value = false; }, 2500);
+            } catch (_) {
+                selectionCopyMsg.value = 'Error';
+                setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
+            }
+        };
+
         const ttydReachable = ref(null);
         const probeTtyd = async () => {
             ttydReachable.value = null;
@@ -867,6 +905,11 @@ export default {
             // Esc detiene grabación de voz si está activa.
             if (e.key === "Escape" && voiceListening.value) {
                 stopVoiceInput();
+            }
+            // Ctrl+Shift+C — copia selección de la terminal
+            if (e.key === 'C' && e.ctrlKey && e.shiftKey) {
+                e.preventDefault();
+                copySelection();
             }
         };
 
@@ -979,6 +1022,9 @@ export default {
             terminalCopied,
             terminalCopyErr,
             copyTerminal,
+            selectionCopied,
+            selectionCopyMsg,
+            copySelection,
             // misc
             close,
         };
@@ -1608,10 +1654,14 @@ export default {
     color: var(--dt-success);
     border-color: var(--dt-success);
 }
+.dt-terminal-copy-btn.dt-copy-err {
+    color: var(--dt-danger, #dc3545);
+    border-color: var(--dt-danger, #dc3545);
+}
 .dt-copy-hint {
     font-size: 10px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    color: var(--dt-success);
+    color: inherit;
     white-space: nowrap;
 }
 .dt-terminal-body {
