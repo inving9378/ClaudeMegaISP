@@ -68,9 +68,17 @@ class ClientDatatableHelper
             }
         }
 
-        // Construir consulta sin cargar relaciones automáticas
+        // Construir consulta sin cargar relaciones automáticas pesadas.
+        // client_main_information se re-añade explícitamente porque transform()
+        // siempre accede a ella ($estado). user_seller se carga en cascade solo
+        // cuando la columna seller_id está visible.
+        $eagerRelations = in_array('seller_id', $columns)
+            ? ['client_main_information.user_seller']
+            : ['client_main_information'];
+
         $query = $this->model::select($columnsForSelect)
-            ->without(['client_main_information', 'client_additional_information', 'billing_configuration', 'balance']);
+            ->without(['client_main_information', 'client_additional_information', 'billing_configuration', 'balance'])
+            ->with($eagerRelations);
 
         // Aplicar joins manuales
         foreach ($joins as $join) {
@@ -511,16 +519,23 @@ class ClientDatatableHelper
             }
         }
 
-        // Construir consulta sin cargar relaciones automáticas
+        // Construir consulta sin cargar relaciones automáticas pesadas.
+        // Mismo patrón que ordering_query: client_main_information siempre
+        // necesaria para $estado en transform(); user_seller solo si seller_id activo.
+        $eagerRelations = in_array('seller_id', $columns ?? [])
+            ? ['client_main_information.user_seller']
+            : ['client_main_information'];
+
         $query = $this->model::select($columnsForSelect)
-            ->without(['client_main_information', 'client_additional_information', 'billing_configuration', 'balance']);
+            ->without(['client_main_information', 'client_additional_information', 'billing_configuration', 'balance'])
+            ->with($eagerRelations);
 
         // Aplicar joins manuales
         foreach ($joins as $join) {
             $query->leftJoin($join['table'], $join['first'], $join['operator'], $join['second']);
         }
 
-        if (in_array('last_payment', $columns)) {
+        if (in_array('last_payment', $columns ?? [])) {
             $query->leftJoin(
                 DB::raw('(SELECT paymentable_id, MAX(date) as last_payment FROM payments GROUP BY paymentable_id) as latest_payments'),
                 'clients.id',
