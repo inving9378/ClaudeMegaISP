@@ -15,14 +15,14 @@
 
 <body
     @if ($config) class="pace-done" data-layout-mode="{{ $config->color_mode }}" data-topbar="{{ $config->color_mode }}" data-sidebar="{{ $config->color_mode }}" @endif>
-    <div id="init-vue">
-        <div>
+    <div>
+        <div id="topbar-vue-root">
             @include('core-layout::topbar')
-            @include('core-layout::sidebar')
         </div>
+        @include('core-layout::sidebar')
         <div id="layout-wrapper" class="main-content">
             <div class="page-content">
-                <div class="container-fluid">
+                <div class="container-fluid" id="init-vue">
                     @if (session()->has('success'))
                         <Message-Response message="{{ session()->get('success') }}">
                         </Message-Response>
@@ -42,7 +42,8 @@
 
         @include('core-layout::right-sidebar')
         <!-- /Right-bar -->
-
+    </div>
+    <div id="help-float-root">
         {{-- Ayuda contextual por pantalla (panel flotante estilo Splynx) --}}
         <help-float url="{{ url('/') }}"></help-float>
     </div>

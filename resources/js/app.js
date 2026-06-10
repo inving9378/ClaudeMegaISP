@@ -413,8 +413,10 @@ import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 import CobranzaVoipConfig from "./components/module/cobranza/CobranzaVoipConfig.vue";
 import CobranzaCampanas from "./components/module/cobranza/CobranzaCampanas.vue";
 
-// VoIP — addon-voip Fase A (Troncales PJSIP Realtime) — 2026-06-09
-import VoipTroncales from "./components/module/voip/VoipTroncales.vue";
+// VoIP — addon-voip Fase A+B (Troncales + Extensiones + Grupos) — 2026-06-09
+import VoipTroncales      from "./components/module/voip/VoipTroncales.vue";
+import VoipExtensiones    from "./components/module/voip/VoipExtensiones.vue";
+import VoipGruposTimbrado from "./components/module/voip/VoipGruposTimbrado.vue";
 
 
 import SupplierListar from "./components/module/inventory/supplier/SupplierListar.vue";
@@ -762,7 +764,9 @@ const app = createApp({
         // CobranzaBlaster (Fase 6)
         'cobranza-voip-config': CobranzaVoipConfig,
         'cobranza-campanas':    CobranzaCampanas,
-        'voip-troncales':       VoipTroncales,
+        'voip-troncales':        VoipTroncales,
+        'voip-extensiones':      VoipExtensiones,
+        'voip-grupos-timbrado':  VoipGruposTimbrado,
     },
 });
 
@@ -878,6 +882,33 @@ store
     .then(() => {
         app.mount("#init-vue");
         window.__megaVueApp = app;
+
+        const topbarEl = document.querySelector('#topbar-vue-root');
+        if (topbarEl) {
+            const topbarApp = createApp({});
+            topbarApp.use(Quasar, {
+                components: [
+                    QCard, QCardSection, QCardActions,
+                    QBtn, QIcon,
+                    QItem, QItemSection, QItemLabel,
+                    QList, QSeparator, QTooltip, QBadge,
+                ],
+            });
+            topbarApp.use(store);
+            topbarApp.directive('hasPermission', hasPermission);
+            topbarApp.component('notification-topbar', NotificationTopbar);
+            topbarApp.component('mode-visual-body', ModeVisualBody);
+            topbarApp.component('documentation-tree-menu', DocumentationTreeMenu);
+            topbarApp.mount('#topbar-vue-root');
+        }
+
+        const helpFloatEl = document.querySelector('#help-float-root');
+        if (helpFloatEl) {
+            const helpFloatApp = createApp({});
+            helpFloatApp.use(store);
+            helpFloatApp.component('help-float', HelpFloat);
+            helpFloatApp.mount('#help-float-root');
+        }
     })
     .catch((error) => {
         console.error("Error:", error);
