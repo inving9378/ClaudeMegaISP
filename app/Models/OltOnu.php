@@ -65,7 +65,9 @@ class OltOnu extends Model
         'dns2',
         'username',
         'password',
-        'last_status_change'
+        'last_status_change',
+        'service_id',
+        'client_id',
     ];
 
     protected $appends = ['status_cls', 'signal_cls', 'loading', 'last_synced_at_humans', 'authorization_date_humans', 'last_status_change_humans', 'icon', 'onu_nomenclature', 'onu_mode', 'onu_mgmt_ip', 'onu_signal', 'onu_pon_type', 'configured', 'capabilities'];
@@ -88,6 +90,11 @@ class OltOnu extends Model
     public function typeOnu()
     {
         return $this->belongsTo(OltTypeONU::class, 'onu_type_id');
+    }
+
+    public function internetService()
+    {
+        return $this->belongsTo(\App\Models\ClientInternetService::class, 'service_id');
     }
 
     public function getStatusClsAttribute()
