@@ -9,7 +9,7 @@
     {{-- <div>
         <h5 class="modal-title mb-3">Agregar Usuario</h5>
         <hr>
-        <form method="POST" action="{{ route('user.store') }}" enctype="multipart/form-data">
+        <form method="POST" action="{{ route('user.store') }}" enctype="multipart/form-data" data-spa-skip>
             @csrf
             <div class="mb-3">
                 <label for="name" class="form-label">Nombre(s)</label>
