@@ -104,12 +104,35 @@ class ClientPlanPromotionController extends Controller
             ]);
         }
         $data = $request->only((new ClientPlanPromotion())->getFillable());
-        $onus = OltOnu::whereIn('client_id', collect($clients)->pluck('id'))->get();
+        $clientIds = collect($clients)->pluck('id');
+
+        // Rechazar clientes que ya tienen una promo activa (mismo criterio que la UI individual)
+        $alreadyActive = ClientPlanPromotion::where('status', 'active')
+            ->whereIn('client_id', $clientIds)
+            ->pluck('client_id')
+            ->all();
+        $clientIds = $clientIds->diff($alreadyActive)->values();
+
+        if ($clientIds->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Todos los clientes seleccionados ya tienen una promoción activa',
+                'rejected' => $alreadyActive,
+            ]);
+        }
+
+        $onus = OltOnu::whereIn('client_id', $clientIds)->get();
         $promotions = [];
         $externals_id = [];
+        $skipped = array_merge($alreadyActive); // clientes omitidos (activa previa + sin external_id/ports)
         $end_at = Carbon::createFromFormat('Y-m-d', Str::substr($data['end_at'], 0, 10));
         $now = now();
         foreach ($onus as $o) {
+            // Validar que la ONU tenga unique_external_id antes de incluirla en el bulk
+            if (empty($o->unique_external_id)) {
+                $skipped[] = $o->client_id;
+                continue;
+            }
             $portData = $o->service_ports;
             if (isset($portData) && !empty($portData)) {
                 $portData  = $portData[0];
@@ -125,12 +148,15 @@ class ClientPlanPromotionController extends Controller
                     'created_at' => $now
                 ];
                 $externals_id[] = $o->unique_external_id;
+            } else {
+                $skipped[] = $o->client_id;
             }
         }
         if (empty($promotions)) {
             return response()->json([
                 'success' => false,
-                'message' => 'No se permite la operación solicitada. Clientes sin perfiles configurados con anterioridad'
+                'message' => 'No se permite la operación solicitada. Clientes sin perfiles configurados con anterioridad',
+                'rejected' => $skipped,
             ]);
         }
         $service = new OLTsService();
@@ -141,19 +167,21 @@ class ClientPlanPromotionController extends Controller
         ]);
         if ($response['success']) {
             ClientPlanPromotion::insert($promotions);
-            $response = $service->syncSpeedProfilesFromOnus($onus);
+            $onusToSync = OltOnu::whereIn('client_id', collect($promotions)->pluck('client_id'))->get();
+            $response = $service->syncSpeedProfilesFromOnus($onusToSync);
             $msg = '';
-            if ($response['success'] === count($onus)) {
+            if ($response['success'] === count($onusToSync)) {
                 $msg = 'Clientes agregados a la promoción correctamente';
-            } else if ($response['errors'] === count($onus)) {
+            } else if ($response['errors'] === count($onusToSync)) {
                 $msg = 'Se han agregado los clientes a la promoción pero no se han podido sincronizar los perfiles';
             } else {
                 $msg = 'Se han agregado los clientes a la promoción pero algunos perfiles no se pudieron sincronizar';
             }
-            return [
+            return response()->json([
                 'success' => true,
-                'message' => $msg
-            ];
+                'message' => $msg,
+                'rejected' => array_unique($skipped),
+            ]);
         }
         return response()->json($response);
     }
