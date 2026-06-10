@@ -414,6 +414,7 @@ export default {
     const fechaCorte = ref("");
     const search = ref("");
     const loading = ref(false);
+    let currentAbortController = null;
 
     const searchColumns = ref("");
     const ffilters = ref({});
@@ -583,6 +584,12 @@ export default {
       const url = `/${props.module}/table`;
       let allRows = null;
       let col = [];
+
+      if (currentAbortController) {
+        currentAbortController.abort();
+      }
+      currentAbortController = new AbortController();
+
       loading.value = true;
       try {
         const response = await axios.post(url, {
@@ -598,7 +605,7 @@ export default {
           dir: dir,
           color_active: colorBlackAndWhite.value,
           is_update_color: isUpdatedColorDatatable.value,
-        });
+        }, { signal: currentAbortController.signal });
 
         dataToFindExport.value = {
           data: {
@@ -636,6 +643,9 @@ export default {
 
         pagination.value.rowsNumber = response.data.recordsFiltered;
       } catch (error) {
+        if (axios.isCancel(error) || error.name === 'CanceledError') {
+          return;
+        }
         console.error(error);
       }
 
