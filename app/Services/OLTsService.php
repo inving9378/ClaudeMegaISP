@@ -1019,7 +1019,7 @@ class OLTsService
 
     public function registerOnu($onu)
     {
-        return $this->makeRequest('post', 'onu/authorize_onu', $onu);
+        return $this->makeRequest('post', 'onu/authorize_onu', $onu, 'interactive');
     }
 
     public function getOnuDetailsBySN($sn)
@@ -1084,77 +1084,77 @@ class OLTsService
 
     public function getMgmTIp($id)
     {
-        return $this->makeRequest('get', 'onu/get_mgmt_ip_address/' . $id);
+        return $this->makeRequest('get', 'onu/get_mgmt_ip_address/' . $id, null, 'interactive');
     }
 
     public function getIpAddress($id)
     {
-        return $this->makeRequest('get', 'onu/get_ip_address/' . $id);
+        return $this->makeRequest('get', 'onu/get_ip_address/' . $id, null, 'interactive');
     }
 
     public function resyncONUConfig($id)
     {
-        return $this->makeRequest('post', 'onu/resync_config/' . $id);
+        return $this->makeRequest('post', 'onu/resync_config/' . $id, null, 'interactive');
     }
 
     public function rebootONU($id)
     {
-        return $this->makeRequest('post', 'onu/reboot/' . $id);
+        return $this->makeRequest('post', 'onu/reboot/' . $id, null, 'interactive');
     }
 
     public function moveONU($onuExternalId, $data)
     {
-        return $this->makeRequest('post', 'onu/move/' . $onuExternalId, $data);
+        return $this->makeRequest('post', 'onu/move/' . $onuExternalId, $data, 'interactive');
     }
 
     public function updateONULocation($onuExternalId, $data)
     {
-        return $this->makeRequest('post', 'onu/update_location_details/' . $onuExternalId, $data);
+        return $this->makeRequest('post', 'onu/update_location_details/' . $onuExternalId, $data, 'interactive');
     }
 
     public function updateExternalId($onuExternalId, $data)
     {
-        return $this->makeRequest('post', 'onu/update_unique_external_id/' . $onuExternalId, $data);
+        return $this->makeRequest('post', 'onu/update_unique_external_id/' . $onuExternalId, $data, 'interactive');
     }
 
     public function changeAttachedVlans($onuExternalId, $data)
     {
-        return $this->makeRequest('post', 'onu/update_attached_vlans/' . $onuExternalId, $data);
+        return $this->makeRequest('post', 'onu/update_attached_vlans/' . $onuExternalId, $data, 'interactive');
     }
 
     public function updateServicePort($onuExternalId, $data)
     {
-        return $this->makeRequest('post', 'onu/update_service_port/' . $onuExternalId, $data);
+        return $this->makeRequest('post', 'onu/update_service_port/' . $onuExternalId, $data, 'interactive');
     }
 
     public function configureEhernetPort($onuExternalId, $data, $type = 'lan')
     {
-        return $this->makeRequest('post', sprintf('onu/set_ethernet_port_%s/%s', Str::lower($type), $onuExternalId), $data);
+        return $this->makeRequest('post', sprintf('onu/set_ethernet_port_%s/%s', Str::lower($type), $onuExternalId), $data, 'interactive');
     }
 
     public function configureWifiPort($onuExternalId, $data, $type = 'lan')
     {
-        return $this->makeRequest('post', sprintf('onu/set_wifi_port_%s/%s', Str::lower($type), $onuExternalId), $data);
+        return $this->makeRequest('post', sprintf('onu/set_wifi_port_%s/%s', Str::lower($type), $onuExternalId), $data, 'interactive');
     }
 
     public function setOnuMgmtIp($onuExternalId, $data, $type = 'inactive')
     {
-        return $this->makeRequest('post', sprintf('onu/set_onu_mgmt_ip_%s/%s', Str::lower($type), $onuExternalId), $data);
+        return $this->makeRequest('post', sprintf('onu/set_onu_mgmt_ip_%s/%s', Str::lower($type), $onuExternalId), $data, 'interactive');
     }
 
     public function setWanMode($onuExternalId, $mode = 'setup_via_onu_webpage', $data)
     {
-        return $this->makeRequest('post', sprintf('onu/set_onu_wan_mode_%s/%s', Str::lower($mode), $onuExternalId), $data);
+        return $this->makeRequest('post', sprintf('onu/set_onu_wan_mode_%s/%s', Str::lower($mode), $onuExternalId), $data, 'interactive');
     }
 
     public function setOnuVoipPort($id, $status, $data)
     {
-        return $this->makeRequest('post', sprintf('onu/%s_onu_voip_port/%s', $status, $id), $data);
+        return $this->makeRequest('post', sprintf('onu/%s_onu_voip_port/%s', $status, $id), $data, 'interactive');
     }
 
     public function updateChannel($id, $data)
     {
-        return $this->makeRequest('post', 'onu/update_pon_channel/' . $id, $data);
+        return $this->makeRequest('post', 'onu/update_pon_channel/' . $id, $data, 'interactive');
     }
 
     // public function updateMode($id, $data)
@@ -1178,7 +1178,7 @@ class OLTsService
                 'params' => $voIp['attr_to_server']
             ]
         ];
-        return $this->makeRequestAsync($requests);
+        return $this->makeRequestAsync($requests, 'interactive');
     }
 
     public function updateMode($onuExternalId, $data)
@@ -1205,7 +1205,7 @@ class OLTsService
                 'params' => $wanMode['attr_to_server']
             ];
         }
-        return $this->makeRequestAsync($requests);
+        return $this->makeRequestAsync($requests, 'interactive');
     }
 
     public function changeOnuType($onuExternalId, $data)
@@ -1224,67 +1224,67 @@ class OLTsService
                 'params' => $profile['attr_to_server']
             ],
         ];
-        return $this->makeRequestAsync($requests);
+        return $this->makeRequestAsync($requests, 'interactive');
     }
 
     public function shutdownEhernetPort($onuExternalId, $data)
     {
-        return $this->makeRequest('post', 'onu/shutdown_ethernet_port/' . $onuExternalId, $data);
+        return $this->makeRequest('post', 'onu/shutdown_ethernet_port/' . $onuExternalId, $data, 'interactive');
     }
 
     public function shutdownWifiPort($onuExternalId, $data)
     {
-        return $this->makeRequest('post', 'onu/shutdown_wifi_port/' . $onuExternalId, $data);
+        return $this->makeRequest('post', 'onu/shutdown_wifi_port/' . $onuExternalId, $data, 'interactive');
     }
 
     public function enableDisableONU($id, $enable)
     {
-        return $this->makeRequest('post', 'onu/' . ($enable ? 'enable' : 'disable') . '/' . $id);
+        return $this->makeRequest('post', 'onu/' . ($enable ? 'enable' : 'disable') . '/' . $id, null, 'interactive');
     }
 
     public function removeONU($id)
     {
-        return $this->makeRequest('post', 'onu/delete/' . $id);
+        return $this->makeRequest('post', 'onu/delete/' . $id, null, 'interactive');
     }
 
     public function addZone($data)
     {
-        return $this->makeRequest('post', 'system/add_zone', $data);
+        return $this->makeRequest('post', 'system/add_zone', $data, 'interactive');
     }
 
     public function addOdb($data)
     {
-        return $this->makeRequest('post', 'system/add_odb', $data);
+        return $this->makeRequest('post', 'system/add_odb', $data, 'interactive');
     }
 
     public function addTypeOnu($data)
     {
-        return $this->makeRequest('post', 'system/add_onu_type', $data);
+        return $this->makeRequest('post', 'system/add_onu_type', $data, 'interactive');
     }
 
     public function addVlan($id, $data)
     {
-        return $this->makeRequest('post', 'olt/add_vlan/' . $id, $data);
+        return $this->makeRequest('post', 'olt/add_vlan/' . $id, $data, 'interactive');
     }
 
     public function getFullStatus($onuExternalId)
     {
-        return $this->makeRequest('get', 'onu/get_onu_full_status_info/' . $onuExternalId);
+        return $this->makeRequest('get', 'onu/get_onu_full_status_info/' . $onuExternalId, null, 'interactive');
     }
 
     public function getRunningConfig($onuExternalId)
     {
-        return $this->makeRequest('get', 'onu/get_running_config/' . $onuExternalId);
+        return $this->makeRequest('get', 'onu/get_running_config/' . $onuExternalId, null, 'interactive');
     }
 
     public function changeWebUserPass($onuExternalId)
     {
-        return $this->makeRequest('post', 'onu/change_web_user_pass/' . $onuExternalId);
+        return $this->makeRequest('post', 'onu/change_web_user_pass/' . $onuExternalId, null, 'interactive');
     }
 
     public function setCATV($onuExternalId, $catv = 'enable')
     {
-        return $this->makeRequest('post', sprintf('onu/%s_catv/%s', $catv, $onuExternalId));
+        return $this->makeRequest('post', sprintf('onu/%s_catv/%s', $catv, $onuExternalId), null, 'interactive');
     }
 
     public function billings()
