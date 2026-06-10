@@ -14,7 +14,7 @@ const store = createStore({
 
     actions: {
         fetchPermissions({ commit }) {
-            axios.get('/permissions-auth')
+            return axios.get('/permissions-auth')
                 .then(response => {
                     commit('setPermissions', response.data);
                 })
