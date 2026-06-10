@@ -817,66 +817,70 @@ export default {
             }
         };
 
-        // Hook "copiar al seleccionar": cuando xterm cambia la selección,
-        // copia automáticamente. Usa copyText() — funciona en HTTP plano.
+        // Técnica del textarea espejo: bridge entre la selección canvas de xterm
+        // (que no es selección DOM) y el menú nativo Copiar/Pegar del navegador.
         let selectionHookRetries = 0;
-        let lastRightClickSelection = '';
         const hookCopyOnSelect = () => {
             const cw = terminalIframe.value?.contentWindow;
             if (!cw) return;
             const term = cw.term;
             if (!term) {
-                // xterm.js aún no está listo — reintentar hasta 20 veces (10 s)
                 if (selectionHookRetries++ < 20) {
                     setTimeout(hookCopyOnSelect, 500);
                 }
                 return;
             }
             selectionHookRetries = 0;
-            term.onSelectionChange(() => {
-                const sel = term.getSelection();
-                console.debug('[DevTools terminal] onSelectionChange — getSelection().length:', sel.length);
-                if (sel) copyText(sel).catch(() => {});
-            });
+
             try {
-                // Captura mousedown en fase captura: guarda la selección ANTES de que
-                // xterm la borre al procesar el botón derecho.
-                cw.document.addEventListener('mousedown', function(e) {
-                    if (e.button === 2) {
-                        const sel = term.getSelection();
-                        console.debug('[DevTools terminal] mousedown right — getSelection().length:', sel.length);
-                        if (sel && sel.trim()) {
-                            lastRightClickSelection = sel;
-                            e.preventDefault();
-                            e.stopPropagation();
-                        } else {
-                            lastRightClickSelection = '';
-                        }
-                    }
+                // El mirror vive fuera de vista (left:-9999px) pero NO es
+                // display:none/visibility:hidden — eso rompería copy/paste nativo.
+                const mirror = cw.document.createElement('textarea');
+                mirror.setAttribute('tabindex', '-1');
+                mirror.setAttribute('aria-hidden', 'true');
+                mirror.setAttribute('autocomplete', 'off');
+                mirror.setAttribute('spellcheck', 'false');
+                mirror.style.cssText =
+                    'position:fixed;left:-9999px;top:0;width:100px;height:40px;' +
+                    'opacity:0;pointer-events:none;resize:none;border:0;outline:none;padding:0;margin:0;';
+                cw.document.body.appendChild(mirror);
+
+                const restoreFocus = (delay = 80) =>
+                    setTimeout(() => { try { term.focus(); } catch (_) {} }, delay);
+
+                // contextmenu: SIN preventDefault — menú nativo SIEMPRE aparece.
+                // Síncrono: carga el mirror con la selección actual y lo enfoca para
+                // que "Copiar" y "Pegar" del menú actúen sobre el elemento correcto.
+                cw.document.addEventListener('contextmenu', function() {
+                    const sel = term.getSelection();
+                    console.debug('[DevTools terminal] contextmenu — getSelection().length:', sel.length);
+                    mirror.value = sel;
+                    mirror.focus();
+                    if (sel) mirror.select();
                 }, true);
-                // contextmenu en fase captura: suprime menú nativo y copia la selección
-                // guardada (o la viva si sigue presente).
-                cw.document.addEventListener('contextmenu', function(e) {
-                    const sel = lastRightClickSelection || term.getSelection();
-                    console.debug('[DevTools terminal] contextmenu — getSelection().length:', term.getSelection().length, 'lastRightClick.length:', lastRightClickSelection.length);
-                    lastRightClickSelection = '';
-                    if (sel && sel.trim()) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        copyText(sel).then(() => {
-                            selectionCopied.value = true;
-                            selectionCopyMsg.value = '';
-                            setTimeout(() => { selectionCopied.value = false; }, 2500);
-                        }).catch(() => {
-                            selectionCopyMsg.value = 'Error';
-                            setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
-                        });
-                    } else {
-                        selectionCopyMsg.value = 'Sin selección';
-                        setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
-                        // No preventDefault — el menú nativo del navegador aparece (opción Pegar funciona)
-                    }
-                }, true);
+
+                // paste: usuario eligió "Pegar" del menú nativo.
+                // e.clipboardData está siempre disponible en eventos paste (no requiere HTTPS).
+                mirror.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    const text = e.clipboardData?.getData('text/plain') ?? '';
+                    console.debug('[DevTools terminal] mirror paste — length:', text.length);
+                    if (text) try { term.paste(text); } catch (_) {}
+                    restoreFocus(0);
+                });
+
+                // copy: usuario eligió "Copiar" — el navegador ya copió el texto
+                // seleccionado del mirror al clipboard. Solo restaurar focus.
+                mirror.addEventListener('copy', function() {
+                    restoreFocus();
+                });
+
+                // blur: menú cerrado (con o sin acción) → restaurar focus a la terminal.
+                // El delay de 100 ms deja tiempo para que copy/paste se disparen antes.
+                mirror.addEventListener('blur', function() {
+                    restoreFocus(100);
+                });
+
             } catch (_) {}
         };
 
