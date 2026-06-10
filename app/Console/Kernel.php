@@ -43,6 +43,8 @@ class Kernel extends ConsoleKernel
         //Comandos OLT
         $schedule->command('smartolt:sync-inventory')->dailyAt('05:00')->withoutOverlapping();
         $schedule->command('smartolt:sync-critical')->everyTenMinutes()->withoutOverlapping();
+        // Revertir promos vencidas: hourly para revertir el mismo día del vencimiento con reintentos automáticos
+        $schedule->command('smartolt:sync-promotions')->hourly()->withoutOverlapping()->onOneServer();
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
 
