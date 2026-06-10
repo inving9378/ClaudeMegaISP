@@ -109,17 +109,20 @@
             }
         });
 
-        // Marcar link activo en sidebar
-        $("#sidebar-menu a").each(function () {
-            var cur = window.location.href.split(/[?#]/)[0];
-            if (this.href === cur) {
-                $(this).addClass("active");
-                $(this).parent().addClass("active");
-                $(this).parent().parent().prev().addClass("active");
-                $(this).parent().parent().parent().addClass("in");
-                $(this).parent().parent().parent().parent().prev().addClass("active");
-            }
-        });
+        // Marcar link activo en sidebar — re-llamable para SPA navigation
+        window.__updateSidebarActiveLink = function (url) {
+            var cur = (url || window.location.href).split(/[?#]/)[0];
+            $("#sidebar-menu a").each(function () {
+                if (this.href === cur) {
+                    $(this).addClass("active");
+                    $(this).parent().addClass("active");
+                    $(this).parent().parent().prev().addClass("active");
+                    $(this).parent().parent().parent().addClass("in");
+                    $(this).parent().parent().parent().parent().prev().addClass("active");
+                }
+            });
+        };
+        window.__updateSidebarActiveLink();
 
         // Feather icons (solo los del sidebar estático, no DOM de Vue)
         if (typeof feather !== "undefined") {
