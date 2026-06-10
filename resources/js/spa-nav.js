@@ -8,6 +8,15 @@ const SPA_GATE = [
     '/red/router/listar',
 ];
 
+// Vistas con @push('scripts') propios: entrar O salir → recarga completa.
+// Usar prefijos; startsWith() cubre sub-rutas dinámicas (/{id}, etc.).
+const SPA_BLACKLIST = [
+    '/mapas',
+    '/embajadores/metrics',
+    '/embajadores/video',
+    '/administracion/documentation/documentation_content',
+];
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function normPath(url) {
@@ -16,6 +25,16 @@ function normPath(url) {
     } catch (_) {
         return null;
     }
+}
+
+function isBlacklisted(url) {
+    const path = normPath(url);
+    if (!path) return false;
+    return SPA_BLACKLIST.some(prefix =>
+        path === prefix ||
+        path.startsWith(prefix + '/') ||
+        path.startsWith(prefix + '?')
+    );
 }
 
 function isGated(url) {
@@ -93,6 +112,12 @@ async function spaNavigate(url, pushState) {
         const newContent = doc.querySelector('#init-vue');
         if (!newContent) throw new Error('No #init-vue en respuesta del servidor');
 
+        // Red de seguridad: vistas con <script> inline no inventariadas → recarga completa
+        if (newContent.querySelector('script')) {
+            console.warn('[spa-nav] <script> en #init-vue de', url, '— recarga completa');
+            throw new Error('scripts en contenido, recarga requerida');
+        }
+
         // 3. Actualizar título de pestaña
         const newTitle = doc.querySelector('title');
         if (newTitle) document.title = newTitle.textContent;
@@ -159,6 +184,9 @@ function handleClick(e) {
         if (new URL(link.href).origin !== window.location.origin) return;
     } catch (_) { return; }
 
+    // Blacklist: URL destino O URL actual → recarga completa (entrar y salir)
+    if (isBlacklisted(link.href) || isBlacklisted(window.location.href)) return;
+
     if (!isGated(link.href)) return;
 
     e.preventDefault();
@@ -168,6 +196,7 @@ function handleClick(e) {
 function handlePopState() {
     if (!SPA_ENABLED) return;
     const url = window.location.href;
+    if (isBlacklisted(url)) return;
     if (!isGated(url)) return;
     spaNavigate(url, false);
 }
