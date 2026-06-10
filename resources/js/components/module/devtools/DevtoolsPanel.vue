@@ -312,7 +312,7 @@
                     <button
                         class="dt-icon-btn dt-terminal-copy-btn"
                         @click="copySelection"
-                        :title="selectionCopied ? 'Copiado ✓' : selectionCopyMsg || 'Copiar selección (Ctrl+Shift+C)'"
+                        :title="selectionCopied ? 'Copiado ✓' : selectionCopyMsg || 'Copiar selección (Alt+C)'"
                         :class="{ 'dt-copied': selectionCopied, 'dt-copy-err': selectionCopyMsg && !selectionCopied }"
                     >
                         <i :class="selectionCopied ? 'fas fa-check' : 'fas fa-clipboard'"></i>
@@ -819,6 +819,7 @@ export default {
         // Hook "copiar al seleccionar": cuando xterm cambia la selección,
         // copia automáticamente. Usa copyText() — funciona en HTTP plano.
         let selectionHookRetries = 0;
+        let lastRightClickSelection = '';
         const hookCopyOnSelect = () => {
             const cw = terminalIframe.value?.contentWindow;
             if (!cw) return;
@@ -835,14 +836,40 @@ export default {
                 const sel = term.getSelection();
                 if (sel) copyText(sel).catch(() => {});
             });
-            // Clic derecho dentro del iframe: si hay selección, copia.
             try {
+                // Captura mousedown en fase captura: guarda la selección ANTES de que
+                // xterm la borre al procesar el botón derecho.
+                cw.document.addEventListener('mousedown', function(e) {
+                    if (e.button === 2) {
+                        const sel = term.getSelection();
+                        if (sel) {
+                            lastRightClickSelection = sel;
+                            e.preventDefault();
+                            e.stopPropagation();
+                        } else {
+                            lastRightClickSelection = '';
+                        }
+                    }
+                }, true);
+                // contextmenu en fase captura: suprime menú nativo y copia la selección
+                // guardada (o la viva si sigue presente).
                 cw.document.addEventListener('contextmenu', function(e) {
-                    const sel = term.getSelection();
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const sel = lastRightClickSelection || term.getSelection();
+                    lastRightClickSelection = '';
                     if (sel) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        copyText(sel).catch(() => {});
+                        copyText(sel).then(() => {
+                            selectionCopied.value = true;
+                            selectionCopyMsg.value = '';
+                            setTimeout(() => { selectionCopied.value = false; }, 2500);
+                        }).catch(() => {
+                            selectionCopyMsg.value = 'Error';
+                            setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
+                        });
+                    } else {
+                        selectionCopyMsg.value = 'Sin selección';
+                        setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
                     }
                 }, true);
             } catch (_) {}
@@ -906,8 +933,8 @@ export default {
             if (e.key === "Escape" && voiceListening.value) {
                 stopVoiceInput();
             }
-            // Ctrl+Shift+C — copia selección de la terminal
-            if (e.key === 'C' && e.ctrlKey && e.shiftKey) {
+            // Alt+C — copia selección de la terminal (Ctrl+Shift+C era reservado por Chrome)
+            if (e.key === 'c' && e.altKey) {
                 e.preventDefault();
                 copySelection();
             }
