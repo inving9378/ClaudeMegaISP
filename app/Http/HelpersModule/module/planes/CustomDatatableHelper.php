@@ -7,6 +7,7 @@ use App\Http\HelpersModule\module\HelperDatatable;
 use App\Http\Repository\ClientCustomServiceRepository;
 use App\Models\Module;
 use App\Models\Custom;
+use Illuminate\Support\Facades\DB;
 
 class CustomDatatableHelper extends HelperDatatable
 {
@@ -55,13 +56,15 @@ class CustomDatatableHelper extends HelperDatatable
         $data = array();
 
         if (!empty($request['array'])) {
+            $clientCounts = $this->batchClientCounts(collect($request['array']));
+
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
                 foreach ($this->columns as $val){
                     $nestedData[$val] = $value->$val;
                 }
 
-                $associated_clients = $this->getAssociatedClientForThis($id);
+                $associated_clients = $clientCounts->get($id, 0);
 
                 if ($associated_clients) {
                     $nestedData['associated_clients'] = view('meganet.shared.table.module.custom.associated_clients',  [
@@ -96,5 +99,21 @@ class CustomDatatableHelper extends HelperDatatable
         $clients = $clients->unique()->toArray();
         $count = count($clients);
         return $count;
+    }
+
+    private function batchClientCounts($plans): \Illuminate\Support\Collection
+    {
+        if ($plans->isEmpty()) return collect();
+        $ids = $plans->pluck('id')->unique()->values()->toArray();
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $rows = DB::select("
+            SELECT ccs.custom_id AS plan_id, COUNT(DISTINCT ccs.client_id) AS client_count
+            FROM client_custom_services ccs
+            JOIN clients c ON c.id = ccs.client_id AND c.deleted_at IS NULL
+            WHERE ccs.client_bundle_service_id IS NULL
+              AND ccs.custom_id IN ($ph)
+            GROUP BY ccs.custom_id
+        ", $ids);
+        return collect($rows)->pluck('client_count', 'plan_id');
     }
 }
