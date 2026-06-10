@@ -175,8 +175,9 @@ class DedupeOnus extends Command
 
     /**
      * Crea la tabla de respaldo si no existe (esquema idéntico a olt_onus + columna backed_up_at).
+     * Public para que la migración pueda invocarlo sin reflexión.
      */
-    private function ensureBackupTable(): void
+    public function ensureBackupTable(): void
     {
         if (Schema::hasTable('olt_onus_dupes_backup')) {
             return;
