@@ -7,6 +7,7 @@ use App\Http\HelpersModule\module\HelperDatatable;
 use App\Http\Repository\ClientVozServiceRepository;
 use App\Models\Module;
 use App\Models\Voise;
+use Illuminate\Support\Facades\DB;
 
 class VozDatatableHelper extends HelperDatatable
 {
@@ -54,12 +55,14 @@ class VozDatatableHelper extends HelperDatatable
         $data = array();
 
         if (!empty($request['array'])) {
+            $clientCounts = $this->batchClientCounts(collect($request['array']));
+
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
                 foreach ($this->columns as $val){
                     $nestedData[$val] = $value->$val;
                 }
-                $associated_clients = $this->getAssociatedClientForThis($id);
+                $associated_clients = $clientCounts->get($id, 0);
 
                 if ($associated_clients) {
                     $nestedData['associated_clients'] = view('meganet.shared.table.module.voz.associated_clients',  [
@@ -94,5 +97,21 @@ class VozDatatableHelper extends HelperDatatable
         $clients = $clients->unique()->toArray();
         $count = count($clients);
         return $count;
+    }
+
+    private function batchClientCounts($plans): \Illuminate\Support\Collection
+    {
+        if ($plans->isEmpty()) return collect();
+        $ids = $plans->pluck('id')->unique()->values()->toArray();
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $rows = DB::select("
+            SELECT cvs.voz_id AS plan_id, COUNT(DISTINCT cvs.client_id) AS client_count
+            FROM client_voz_services cvs
+            JOIN clients c ON c.id = cvs.client_id AND c.deleted_at IS NULL
+            WHERE cvs.client_bundle_service_id IS NULL
+              AND cvs.voz_id IN ($ph)
+            GROUP BY cvs.voz_id
+        ", $ids);
+        return collect($rows)->pluck('client_count', 'plan_id');
     }
 }
