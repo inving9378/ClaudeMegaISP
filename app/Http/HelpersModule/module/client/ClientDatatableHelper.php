@@ -979,6 +979,9 @@ class ClientDatatableHelper
             ? $this->searching_query($start, $limit, $order, $dir, $request->data['search'], $idModule ?? $filters, $columns)
             : $this->ordering_query($start, $limit, $order, $dir, $idModule ?? $filters, $columns);
 
+        // Pre-compute heavy per-row values in batch before transform
+        $this->hydrateClientFechaCorte($array);
+
         // Transformar y devolver los datos
         $param_resource = collect([
             'array' => $array,
@@ -1111,5 +1114,56 @@ class ClientDatatableHelper
         });
 
         return ['data' => $data];
+    }
+
+    private function hydrateClientFechaCorte($clients): void
+    {
+        // Only clients where fecha_corte is falsy need the activity_log lookup
+        $nullIds = $clients->filter(fn($c) => !$c->fecha_corte)->pluck('id');
+        if ($nullIds->isEmpty()) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, $nullIds->count(), '?'));
+        $bindings = array_merge(['App\\Models\\Client'], $nullIds->values()->toArray());
+
+        // Single query replaces one activity_log query per NULL-fecha_corte client.
+        // Replicates getFechaCorteClientAttribute exactly:
+        //   newest activity (ORDER BY id DESC), prefer $.attributes.fecha_corte,
+        //   fall back to $.old.fecha_corte. JSON null ('null' string in MySQL)
+        //   is treated as absent — same as PHP isset() on null values.
+        $rows = DB::select("
+            SELECT t.subject_id, t.fecha_corte_batch
+            FROM (
+                SELECT
+                    al.subject_id,
+                    COALESCE(
+                        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(al.properties, '$.attributes.fecha_corte')), 'null'),
+                        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(al.properties, '$.old.fecha_corte')), 'null')
+                    ) AS fecha_corte_batch,
+                    ROW_NUMBER() OVER (PARTITION BY al.subject_id ORDER BY al.id DESC) AS rn
+                FROM activity_log al
+                WHERE al.subject_type = ?
+                  AND al.subject_id IN ($placeholders)
+                  AND (
+                      (JSON_EXTRACT(al.properties, '$.attributes.fecha_corte') IS NOT NULL
+                       AND JSON_EXTRACT(al.properties, '$.attributes.fecha_corte') != 'null')
+                      OR
+                      (JSON_EXTRACT(al.properties, '$.old.fecha_corte') IS NOT NULL
+                       AND JSON_EXTRACT(al.properties, '$.old.fecha_corte') != 'null')
+                  )
+            ) t
+            WHERE t.rn = 1
+        ", $bindings);
+
+        $fechaMap = collect($rows)->pluck('fecha_corte_batch', 'subject_id');
+
+        foreach ($clients as $client) {
+            if (!$client->fecha_corte) {
+                // setAttribute stores in $attributes array; accessor reads it back
+                // via getAttributes() check added in getFechaCorteClientAttribute
+                $client->setAttribute('_batch_fecha_corte_client', $fechaMap->get($client->id));
+            }
+        }
     }
 }

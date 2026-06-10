@@ -320,6 +320,10 @@ class Client extends BaseModel
         if ($this->fecha_corte) {
             return $this->fecha_corte;
         }
+        // Short-circuit when the datatable helper pre-computed this via batch query
+        if (array_key_exists('_batch_fecha_corte_client', $this->getAttributes())) {
+            return $this->getAttributes()['_batch_fecha_corte_client'];
+        }
         $activities = $this->activities()->orderBy('id', 'desc')->get();
         foreach ($activities as $activity) {
             $data = json_decode($activity->properties, true);
