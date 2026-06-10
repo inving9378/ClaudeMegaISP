@@ -1,7 +1,6 @@
-// spa-nav.js — Interceptor de navegación SPA (Paso 3B-2)
+// spa-nav.js — Interceptor de navegación SPA (Paso 3B-3)
 //
 // ROLLBACK: cambia SPA_ENABLED a false para volver a recarga completa al instante.
-// GATE: solo intercepta UNA ruta de prueba; todo lo demás sigue con recarga normal.
 
 const SPA_ENABLED = true;
 
@@ -54,6 +53,20 @@ function finishLoader(el) {
     }, 200);
 }
 
+// ─── overlay mientras carga ───────────────────────────────────────────────────
+
+function dimContainer(container) {
+    container.style.transition = 'opacity 100ms';
+    container.style.opacity = '0.55';
+    container.style.pointerEvents = 'none';
+}
+
+function undimContainer(container) {
+    container.style.transition = '';
+    container.style.opacity = '';
+    container.style.pointerEvents = '';
+}
+
 // ─── core navigation ─────────────────────────────────────────────────────────
 
 async function spaNavigate(url, pushState) {
@@ -64,15 +77,10 @@ async function spaNavigate(url, pushState) {
     }
 
     const loader = showLoader();
+    dimContainer(container);
 
     try {
-        // 1. Desmontar app de contenido (limpia portales Teleport de Quasar)
-        if (window.__megaVueApp) {
-            window.__megaVueApp.unmount();
-            window.__megaVueApp = null;
-        }
-
-        // 2. Fetch de la nueva página
+        // 1. Fetch PRIMERO — el contenido viejo permanece visible mientras carga
         const resp = await fetch(url, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
@@ -80,16 +88,24 @@ async function spaNavigate(url, pushState) {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const html = await resp.text();
 
-        // 3. Parsear y extraer contenido
+        // 2. Parsear y extraer contenido
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const newContent = doc.querySelector('#init-vue');
         if (!newContent) throw new Error('No #init-vue en respuesta del servidor');
 
-        // 4. Actualizar título de pestaña
+        // 3. Actualizar título de pestaña
         const newTitle = doc.querySelector('title');
         if (newTitle) document.title = newTitle.textContent;
 
-        // 5. Swap del contenido
+        // 4. Desmontar (solo si el fetch fue exitoso — limpia portales Teleport Quasar)
+        if (window.__megaVueApp) {
+            window.__megaVueApp.unmount();
+            window.__megaVueApp = null;
+        }
+
+        // 5. Flash a opacidad 0 → swap → fade in
+        container.style.transition = 'opacity 60ms';
+        container.style.opacity = '0';
         container.innerHTML = newContent.innerHTML;
 
         // 6. Re-montar app de contenido
@@ -97,20 +113,28 @@ async function spaNavigate(url, pushState) {
             window.createMainApp();
         }
 
-        // 7. Actualizar link activo en sidebar
+        // 7. Fade in del contenido nuevo
+        requestAnimationFrame(() => {
+            container.style.transition = 'opacity 120ms';
+            container.style.opacity = '1';
+            container.style.pointerEvents = '';
+        });
+
+        // 8. Actualizar link activo en sidebar
         if (typeof window.__updateSidebarActiveLink === 'function') {
             window.__updateSidebarActiveLink(url);
         }
 
-        // 8. Push history (solo en navegación hacia adelante)
+        // 9. Push history (solo en navegación hacia adelante)
         if (pushState) {
             history.pushState({ spa: true, url }, '', url);
         }
 
-        // 9. Reset de scroll
+        // 10. Reset de scroll
         window.scrollTo(0, 0);
 
     } catch (err) {
+        undimContainer(container);
         console.warn('[spa-nav] fallback a recarga completa:', err.message);
         window.location.href = url;
         return;
