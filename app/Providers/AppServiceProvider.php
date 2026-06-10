@@ -30,6 +30,13 @@ class AppServiceProvider extends ServiceProvider
             \App\Services\Finance\Timbrado\NullTimbradoService::class
         );
 
+        // OLT driver activo — GR-4b. Cambiar a HuaweiDriver (o a un OltDriverManager
+        // multi-driver) cuando exista un segundo driver en el Bloque B.
+        $this->app->singleton(
+            \App\Services\OltDriver\OltDriverInterface::class,
+            \App\Services\OltDriver\SmartOltDriver::class
+        );
+
         $this->app->singleton('SmartOlt', function () {
             $data = [
                 'base_uri' => "https://" . config('services.smartolt.domain') . ".smartolt.com/api/",
