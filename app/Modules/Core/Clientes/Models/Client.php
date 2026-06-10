@@ -310,6 +310,10 @@ class Client extends BaseModel
 
     public function getPriceAllServicesAttribute()
     {
+        // Short-circuit when the datatable helper pre-computed this via batch query
+        if (array_key_exists('_batch_price_all_services', $this->getAttributes())) {
+            return $this->getAttributes()['_batch_price_all_services'];
+        }
         $clientRepository = new ClientRepository();
         $price = $clientRepository->getCostAllService($this->id);
         return $price;
