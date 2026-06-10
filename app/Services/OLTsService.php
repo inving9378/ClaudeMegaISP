@@ -61,10 +61,67 @@ class OLTsService
         usleep(random_int(50, 250) * 1_000);
     }
 
+    /**
+     * Evalúa si el request puede proceder según el presupuesto restante.
+     *
+     * sync  >= 90 % → retorna array de error controlado (el cron sigue con el siguiente ítem).
+     * interactive >= 100 % → lanza excepción con minutos restantes.
+     * Al cruzar el 75 % → log info UNA vez por ventana.
+     *
+     * @return array|null  null = proceder; array = respuesta de error (no ejecutar la llamada).
+     */
+    private function guardBudget(string $priority, string $endpoint, int $count = 1): ?array
+    {
+        $key    = $this->budgetCacheKey();
+        $used   = (int) Cache::get($key, 0);
+        $budget = $this->hourlyBudget();
+        $after  = $used + $count;
+        $pct    = $budget > 0 ? $after / $budget : 0;
+
+        // ── Aviso único al 75 % ──
+        if ($pct >= 0.75) {
+            $warnKey = 'smartolt:budget:warn75:' . date('Y-m-d-H');
+            if (!Cache::has($warnKey)) {
+                Cache::put($warnKey, 1, 3600);
+                Log::info(sprintf('[SmartOlt][budget] 75%% alcanzado (%d/%d) — endpoint: %s', $used, $budget, $endpoint));
+            }
+        }
+
+        // ── Throttle sync al 90 % ──
+        if ($priority === 'sync' && $pct >= 0.90) {
+            Log::warning(sprintf(
+                '[SmartOlt][budget] Throttled sync: %s — uso=%d/%d (%.0f%%)',
+                $endpoint, $used, $budget, $pct * 100
+            ));
+            return [
+                'success'          => false,
+                'budget_throttled' => true,
+                'message'          => "Presupuesto SmartOLT al límite ({$used}/{$budget}), llamada sync diferida a la siguiente ventana.",
+            ];
+        }
+
+        // ── Bloqueo interactive al 100 % ──
+        if ($priority === 'interactive' && $pct >= 1.0) {
+            $minutesLeft = max(1, 60 - (int) date('i'));
+            Log::error(sprintf(
+                '[SmartOlt][budget] Presupuesto agotado: %s — %d/%d — reintenta en ~%d min',
+                $endpoint, $used, $budget, $minutesLeft
+            ));
+            throw new \RuntimeException(
+                "Presupuesto SmartOLT agotado ({$used}/{$budget}), reintenta en ~{$minutesLeft} min."
+            );
+        }
+
+        return null;
+    }
+
     // ── API call paths ────────────────────────────────────────────────────────
 
     public function makeRequest($method, $endpoint, $params = null, string $priority = 'sync')
     {
+        $blocked = $this->guardBudget($priority, $endpoint);
+        if ($blocked !== null) return $blocked;
+
         if ($priority === 'sync') {
             $this->jitter();
         }
@@ -103,9 +160,13 @@ class OLTsService
         }
     }
 
-    public function makeRequestAsync($requests)
+    public function makeRequestAsync($requests, string $priority = 'sync')
     {
-        $this->trackBudget(count($requests));
+        $n = count($requests);
+        $blocked = $this->guardBudget($priority, 'async-batch(' . $n . ')', $n);
+        if ($blocked !== null) return $blocked;
+
+        $this->trackBudget($n);
         $client = app('SmartOlt');
         $promises = [];
         foreach ($requests as $key => $value) {
@@ -159,6 +220,9 @@ class OLTsService
 
     public function getAllOnuDataParallel($id)
     {
+        $blocked = $this->guardBudget('sync', "olt/{$id}:parallel-3", 3);
+        if ($blocked !== null) return $blocked;
+
         $this->trackBudget(3); // 3 concurrent: get_all_onus_details + get_onus_signals + get_onus_statuses
         $client = app('SmartOlt');
         $promises = [
@@ -179,6 +243,9 @@ class OLTsService
 
     public function getSignalAndStatus($id)
     {
+        $blocked = $this->guardBudget('interactive', "onu/{$id}:signal+status", 2);
+        if ($blocked !== null) return $blocked;
+
         $this->trackBudget(2); // 2 concurrent: get_onu_signal + get_onu_status
         $client = app('SmartOlt');
         $promises = [
@@ -967,6 +1034,9 @@ class OLTsService
 
     public function getGraphRequest($method, $endpoint)
     {
+        $blocked = $this->guardBudget('interactive', $endpoint);
+        if ($blocked !== null) return $blocked;
+
         $this->trackBudget(1);
         try {
             $client = app('SmartOlt');
