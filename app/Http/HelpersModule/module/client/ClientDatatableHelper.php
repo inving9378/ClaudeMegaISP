@@ -981,6 +981,7 @@ class ClientDatatableHelper
 
         // Pre-compute heavy per-row values in batch before transform
         $this->hydrateClientFechaCorte($array);
+        $this->hydrateClientPriceAllServices($array);
 
         // Transformar y devolver los datos
         $param_resource = collect([
@@ -1114,6 +1115,87 @@ class ClientDatatableHelper
         });
 
         return ['data' => $data];
+    }
+
+    private function hydrateClientPriceAllServices($clients): void
+    {
+        if ($clients->isEmpty()) {
+            return;
+        }
+
+        $ids = $clients->pluck('id');
+        $placeholders = implode(',', array_fill(0, $ids->count(), '?'));
+        $idList = $ids->values()->toArray();
+        // Bindings repeated 4 times — one per service type in the UNION ALL.
+        // Replicates getCostAllService: sums price_service across bundle, internet,
+        // voz, custom; applies promotion discount (fixed + percentage) when
+        // promotion_enable = 1 on the plan, same logic as PromotionService::getDiscount.
+        $bindings = array_merge($idList, $idList, $idList, $idList);
+
+        $rows = DB::select("
+            SELECT client_id, COALESCE(SUM(effective_price), 0) AS price_all_services
+            FROM (
+                SELECT cis.client_id,
+                    CASE WHEN ip.promotion_enable = 1 THEN
+                        ip.price
+                        - CASE WHEN COALESCE(ip.discount_value_fixed, 0) > 0 THEN ip.discount_value_fixed ELSE 0 END
+                        - ip.price * COALESCE(ip.discount_value, 0) / 100
+                    ELSE ip.price END AS effective_price
+                FROM client_internet_services cis
+                JOIN internets ip ON ip.id = cis.internet_id
+                WHERE cis.client_id IN ($placeholders)
+                  AND cis.client_bundle_service_id IS NULL
+
+                UNION ALL
+
+                SELECT cvs.client_id,
+                    CASE WHEN vp.promotion_enable = 1 THEN
+                        vp.price
+                        - CASE WHEN COALESCE(vp.discount_value_fixed, 0) > 0 THEN vp.discount_value_fixed ELSE 0 END
+                        - vp.price * COALESCE(vp.discount_value, 0) / 100
+                    ELSE vp.price END AS effective_price
+                FROM client_voz_services cvs
+                JOIN voises vp ON vp.id = cvs.voz_id
+                WHERE cvs.client_id IN ($placeholders)
+                  AND cvs.client_bundle_service_id IS NULL
+
+                UNION ALL
+
+                SELECT ccs.client_id,
+                    CASE WHEN cp.promotion_enable = 1 THEN
+                        cp.price
+                        - CASE WHEN COALESCE(cp.discount_value_fixed, 0) > 0 THEN cp.discount_value_fixed ELSE 0 END
+                        - cp.price * COALESCE(cp.discount_value, 0) / 100
+                    ELSE cp.price END AS effective_price
+                FROM client_custom_services ccs
+                JOIN customs cp ON cp.id = ccs.custom_id
+                WHERE ccs.client_id IN ($placeholders)
+                  AND ccs.client_bundle_service_id IS NULL
+                  AND ccs.payment_type != 'Pago unico'
+
+                UNION ALL
+
+                SELECT cbs.client_id,
+                    CASE WHEN bp.promotion_enable = 1 THEN
+                        bp.price
+                        - CASE WHEN COALESCE(bp.discount_value_fixed, 0) > 0 THEN bp.discount_value_fixed ELSE 0 END
+                        - bp.price * COALESCE(bp.discount_value, 0) / 100
+                    ELSE bp.price END AS effective_price
+                FROM client_bundle_services cbs
+                JOIN bundles bp ON bp.id = cbs.bundle_id
+                WHERE cbs.client_id IN ($placeholders)
+            ) all_svcs
+            GROUP BY client_id
+        ", $bindings);
+
+        $priceMap = collect($rows)->pluck('price_all_services', 'client_id');
+
+        foreach ($clients as $client) {
+            $client->setAttribute(
+                '_batch_price_all_services',
+                (float) ($priceMap->get($client->id) ?? 0)
+            );
+        }
     }
 
     private function hydrateClientFechaCorte($clients): void
