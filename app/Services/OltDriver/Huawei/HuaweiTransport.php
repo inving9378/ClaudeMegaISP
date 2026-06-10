@@ -1,0 +1,320 @@
+<?php
+
+namespace App\Services\OltDriver\Huawei;
+
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use RuntimeException;
+
+/**
+ * Manages a single, persistent session against a Huawei MA5800/MA5600 OLT.
+ *
+ * Responsibilities
+ * ────────────────
+ * • open()  — connect, synchronize to the user-view prompt, disable the pager.
+ * • exec()  — guard → sync → send → read (handling ---- More ----) → strip echo.
+ * • enterGponInterface() / leaveToUserView() — navigate VRP views safely.
+ * • close() — quit cleanly so the OLT anti-attack timer is not triggered.
+ *
+ * One instance = one session. Do NOT instantiate a new transport per command;
+ * that is exactly the pattern that trips the OLT's connection-rate ACL.
+ *
+ * Anti-cooldown policy (open with back-off)
+ * ──────────────────────────────────────────
+ * open() accepts a $maxAttempts argument and sleeps with exponential back-off
+ * between tries (2 s → 8 s → 30 s cap). Never hammer the OLT in a tight loop.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Credentials are read from the injected $config array or from env/config at
+ * construction time — never hardcoded. Suggested keys:
+ *   host, port, username, password, transport ('ssh'|'telnet'), connect_timeout
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+class HuaweiTransport
+{
+    // VRP prompt surfaces after login and after each command
+    private const PROMPT_USER    = 'MA5800-X7>';
+    private const PROMPT_ENABLE  = 'MA5800-X7#';
+    private const PROMPT_CONFIG  = 'MA5800-X7(config)#';
+    // Interface prompt varies by slot/port, matched as a substring
+    private const PROMPT_IF_PREFIX = 'MA5800-X7(config-if-gpon-';
+
+    private const MORE_MARKER    = '---- More ----';
+    private const MORE_MARKER_FULL = "---- More ( Press 'Q' to break ) ----";
+
+    /** Back-off ladder in seconds (last value is the cap) */
+    private const BACKOFF = [2, 8, 30];
+
+    private bool $opened = false;
+
+    /** Current view: 'user' | 'enable' | 'config' | 'interface' */
+    private string $view = 'user';
+
+    public function __construct(
+        private readonly array           $config,
+        private readonly SessionInterface $session,
+        private readonly ReadOnlyGuard   $guard  = new ReadOnlyGuard(),
+        private readonly LoggerInterface  $logger = new NullLogger(),
+    ) {}
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    /**
+     * Open the session and disable the VRP pager.
+     *
+     * @param int $maxAttempts Retries with exponential back-off (default: 3)
+     * @throws RuntimeException after all attempts fail
+     */
+    public function open(int $maxAttempts = 3): void
+    {
+        $attempt = 0;
+
+        while ($attempt < $maxAttempts) {
+            try {
+                $this->doOpen();
+                return;
+            } catch (RuntimeException $e) {
+                $attempt++;
+                if ($attempt >= $maxAttempts) {
+                    throw $e;
+                }
+
+                $delay = self::BACKOFF[min($attempt - 1, count(self::BACKOFF) - 1)];
+                $this->logger->warning('[olt-huawei] transport:open-retry', [
+                    'attempt' => $attempt,
+                    'delay_s' => $delay,
+                    'error'   => $e->getMessage(),
+                ]);
+                sleep($delay);
+            }
+        }
+    }
+
+    /**
+     * Execute a single read-only command and return the trimmed output.
+     *
+     * Steps: guard → sync to current prompt → write → read until prompt
+     * (handling ---- More ---- pages) → strip command echo → return output.
+     *
+     * @throws ReadOnlyViolationException if $command fails the whitelist
+     * @throws RuntimeException           on session loss
+     */
+    public function exec(string $command): string
+    {
+        $this->assertOpen();
+        $this->guard->assertAllowed($command);  // guard BEFORE any I/O
+
+        $prompt = $this->currentPrompt();
+
+        // Sync: drain any buffered output from the previous command
+        $this->session->readUntil($prompt, timeout: 10);
+
+        // Send the command
+        $this->session->write($command . "\r\n");
+        $this->logger->info('[olt-huawei] transport:exec', ['cmd' => $command]);
+
+        // Read response, flushing ---- More ---- pages
+        $raw = $this->readFull($prompt);
+
+        return $this->stripEcho($command, $raw);
+    }
+
+    /**
+     * Navigate into a GPON OLT interface view.
+     * Path: user → enable → config → interface gpon {slot}/{port}
+     */
+    public function enterGponInterface(int $slot, int $port): void
+    {
+        $this->assertOpen();
+
+        if ($this->view === 'interface') {
+            $this->leaveToUserView();
+        }
+
+        if ($this->view === 'user') {
+            $this->runNavigation('enable', 'enable');
+        }
+
+        if ($this->view === 'enable') {
+            $this->runNavigation('config', 'config');
+        }
+
+        if ($this->view === 'config') {
+            $this->runNavigation("interface gpon {$slot}/{$port}", 'interface');
+        }
+    }
+
+    /**
+     * Return to user view from anywhere (quit until prompt ends with '>').
+     */
+    public function leaveToUserView(): void
+    {
+        $this->assertOpen();
+
+        $maxQuits = 5;
+        for ($i = 0; $i < $maxQuits; $i++) {
+            if ($this->view === 'user') {
+                return;
+            }
+            $this->runNavigation('quit', $this->viewAfterQuit());
+        }
+    }
+
+    /**
+     * Close the session with a clean VRP quit sequence.
+     */
+    public function close(): void
+    {
+        if (! $this->opened) {
+            return;
+        }
+
+        try {
+            $this->leaveToUserView();
+            $this->session->write("quit\r\n");
+        } catch (\Throwable) {
+            // Best-effort; the socket close below handles the rest
+        } finally {
+            $this->session->close();
+            $this->opened = false;
+            $this->view   = 'user';
+        }
+    }
+
+    // ── Internals ─────────────────────────────────────────────────────────────
+
+    private function doOpen(): void
+    {
+        // The session implementation (SSH/Telnet) handles TCP + auth.
+        // After auth, VRP shows the user-view prompt.
+        $this->session->readUntil(self::PROMPT_USER, timeout: $this->config['connect_timeout'] ?? 30);
+
+        $this->opened = true;
+        $this->view   = 'user';
+
+        // Disable pager — guard is bypassed here because this is an internal
+        // housekeeping step, not a caller-supplied command.
+        $this->session->write("screen-length 0 temporary\r\n");
+        $this->session->readUntil(self::PROMPT_USER, timeout: 10);
+
+        $this->logger->info('[olt-huawei] transport:opened', [
+            'host' => $this->config['host'] ?? '?',
+        ]);
+    }
+
+    /**
+     * Read the full command response, transparently consuming ---- More ---- pages.
+     */
+    private function readFull(string $prompt, int $timeout = 60): string
+    {
+        $buffer   = '';
+        $deadline = time() + $timeout;
+
+        while (time() < $deadline) {
+            $chunk   = $this->session->readUntil($prompt, timeout: 5);
+            $buffer .= $chunk;
+
+            // Arrived at the prompt — done
+            if (str_contains($buffer, $prompt)) {
+                break;
+            }
+
+            // Residual More marker — send a space to advance
+            if (str_contains($buffer, self::MORE_MARKER)) {
+                $buffer = str_replace(
+                    [self::MORE_MARKER_FULL, self::MORE_MARKER],
+                    '',
+                    $buffer
+                );
+                $this->session->write(' ');
+            }
+        }
+
+        return $buffer;
+    }
+
+    /**
+     * Remove the command echo that VRP prepends to its response.
+     *
+     * VRP echoes the exact command on the first line (possibly with a
+     * trailing space). We match by normalized equality — not str_contains —
+     * so that content lines that happen to mention the command keyword are
+     * not mistakenly stripped.
+     */
+    private function stripEcho(string $command, string $raw): string
+    {
+        $lines = explode("\n", str_replace("\r\n", "\n", $raw));
+
+        // Strip first line only if it is the echo of our command
+        if (isset($lines[0])) {
+            $echo = strtolower(preg_replace('/\s+/', ' ', trim($lines[0])));
+            $cmd  = strtolower(preg_replace('/\s+/', ' ', trim($command)));
+            if ($echo === $cmd) {
+                array_shift($lines);
+            }
+        }
+
+        // Drop trailing empty lines and prompt lines (fix: explicit while body,
+        // no operator-precedence ambiguity between && and ||)
+        while ($lines) {
+            $last = trim((string) end($lines));
+            if ($last === '' || str_contains($last, '>') || str_contains($last, '#')) {
+                array_pop($lines);
+            } else {
+                break;
+            }
+        }
+
+        return trim(implode("\n", $lines));
+    }
+
+    /**
+     * Run a navigation command (enable/config/quit/interface) without the
+     * caller-facing guard (navigation commands are guard-whitelisted but we
+     * call guard explicitly here to be explicit).
+     */
+    private function runNavigation(string $command, string $newView): void
+    {
+        $this->guard->assertAllowed($command);
+        $this->session->write($command . "\r\n");
+        $this->session->readUntil($this->promptForView($newView), timeout: 10);
+        $this->view = $newView;
+
+        $this->logger->debug('[olt-huawei] transport:navigate', [
+            'cmd'  => $command,
+            'view' => $newView,
+        ]);
+    }
+
+    private function currentPrompt(): string
+    {
+        return $this->promptForView($this->view);
+    }
+
+    private function promptForView(string $view): string
+    {
+        return match ($view) {
+            'enable'    => self::PROMPT_ENABLE,
+            'config'    => self::PROMPT_CONFIG,
+            'interface' => self::PROMPT_IF_PREFIX,  // partial match is fine for readUntil
+            default     => self::PROMPT_USER,
+        };
+    }
+
+    private function viewAfterQuit(): string
+    {
+        return match ($this->view) {
+            'interface' => 'config',
+            'config'    => 'enable',
+            'enable'    => 'user',
+            default     => 'user',
+        };
+    }
+
+    private function assertOpen(): void
+    {
+        if (! $this->opened) {
+            throw new RuntimeException('HuaweiTransport: session is not open. Call open() first.');
+        }
+    }
+}
