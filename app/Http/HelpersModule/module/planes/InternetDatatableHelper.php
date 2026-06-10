@@ -8,6 +8,7 @@ use App\Http\Repository\ClientInternetServiceRepository;
 use App\Models\ColumnDatatableModule;
 use App\Models\Internet;
 use App\Models\Module;
+use Illuminate\Support\Facades\DB;
 
 class InternetDatatableHelper extends HelperDatatable
 {
@@ -56,12 +57,14 @@ class InternetDatatableHelper extends HelperDatatable
         $data = array();
 
         if (!empty($request['array'])) {
+            $clientCounts = $this->batchClientCounts(collect($request['array']));
+
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
                 foreach ($this->columns as $val) {
                     $nestedData[$val] = $value->$val;
                 }
-                $associated_clients = $this->getAssociatedClientForThisBundle($id);
+                $associated_clients = $clientCounts->get($id, 0);
 
                 if ($associated_clients) {
                     $nestedData['associated_clients'] = view('meganet.shared.table.module.internet.associated_clients',  [
@@ -95,5 +98,21 @@ class InternetDatatableHelper extends HelperDatatable
         $clients = $clients->unique()->toArray();
         $count = count($clients);
         return $count;
+    }
+
+    private function batchClientCounts($plans): \Illuminate\Support\Collection
+    {
+        if ($plans->isEmpty()) return collect();
+        $ids = $plans->pluck('id')->unique()->values()->toArray();
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $rows = DB::select("
+            SELECT cis.internet_id AS plan_id, COUNT(DISTINCT cis.client_id) AS client_count
+            FROM client_internet_services cis
+            JOIN clients c ON c.id = cis.client_id AND c.deleted_at IS NULL
+            WHERE cis.client_bundle_service_id IS NULL
+              AND cis.internet_id IN ($ph)
+            GROUP BY cis.internet_id
+        ", $ids);
+        return collect($rows)->pluck('client_count', 'plan_id');
     }
 }
