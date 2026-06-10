@@ -7,6 +7,7 @@ use App\Http\HelpersModule\module\HelperDatatable;
 use App\Http\Repository\ClientBundleServiceRepository;
 use App\Models\Bundle;
 use App\Models\Module;
+use Illuminate\Support\Facades\DB;
 
 class BundleDatatableHelper extends HelperDatatable
 {
@@ -54,13 +55,15 @@ class BundleDatatableHelper extends HelperDatatable
         $data = array();
 
         if (!empty($request['array'])) {
+            $clientCounts = $this->batchClientCounts(collect($request['array']));
+
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
                 foreach ($this->columns as $val) {
                     $nestedData[$val] = $value->$val;
                 }
 
-                $associated_clients = $this->getAssociatedClientForThisBundle($id);
+                $associated_clients = $clientCounts->get($id, 0);
 
                 if ($associated_clients) {
                     $nestedData['associated_clients'] = view('meganet.shared.table.module.bundle.associated_clients',  [
@@ -94,5 +97,20 @@ class BundleDatatableHelper extends HelperDatatable
         $clients = $clients->unique()->toArray();
         $count = count($clients);
         return $count;
+    }
+
+    private function batchClientCounts($plans): \Illuminate\Support\Collection
+    {
+        if ($plans->isEmpty()) return collect();
+        $ids = $plans->pluck('id')->unique()->values()->toArray();
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $rows = DB::select("
+            SELECT cbs.bundle_id AS plan_id, COUNT(DISTINCT cbs.client_id) AS client_count
+            FROM client_bundle_services cbs
+            JOIN clients c ON c.id = cbs.client_id AND c.deleted_at IS NULL
+            WHERE cbs.bundle_id IN ($ph)
+            GROUP BY cbs.bundle_id
+        ", $ids);
+        return collect($rows)->pluck('client_count', 'plan_id');
     }
 }
