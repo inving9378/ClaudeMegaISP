@@ -93,8 +93,10 @@
         window.__attachSidebarPersistence();
 
         // Toggle colapso sidebar (botón hamburguesa)
+        // Event delegation: Vue re-crea el nodo #vertical-menu-btn al montar
+        // el topbar mini-app, rompiendo el binding directo. document escucha siempre.
         var _sidebarSize = document.body.getAttribute("data-sidebar-size");
-        $("#vertical-menu-btn").on("click", function (e) {
+        $(document).on("click", "#vertical-menu-btn", function (e) {
             e.preventDefault();
             $("body").toggleClass("sidebar-enable");
             if ($(window).width() >= 992) {
