@@ -56,10 +56,18 @@ class OLTsService
         return $used;
     }
 
+    private function jitter(): void
+    {
+        usleep(random_int(50, 250) * 1_000);
+    }
+
     // ── API call paths ────────────────────────────────────────────────────────
 
-    public function makeRequest($method, $endpoint, $params = null)
+    public function makeRequest($method, $endpoint, $params = null, string $priority = 'sync')
     {
+        if ($priority === 'sync') {
+            $this->jitter();
+        }
         $this->trackBudget(1);
         try {
             $client = app('SmartOlt');
