@@ -43,6 +43,12 @@ export default {
             } else {
                 mode.value = "dark";
             }
+            // feather.replace() corre antes de que Vue monte este componente,
+            // así que los <i data-feather="moon/sun"> que renderizamos nunca
+            // se convierten a SVG. Llamarlo de nuevo aquí lo arregla.
+            if (typeof window.feather !== "undefined") {
+                window.feather.replace();
+            }
         });
 
         const saveConfigModeInBD = (color) => {
