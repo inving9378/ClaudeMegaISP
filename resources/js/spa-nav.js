@@ -4,10 +4,6 @@
 
 const SPA_ENABLED = true;
 
-const SPA_GATE = [
-    '/red/router/listar',
-];
-
 // Vistas con @push('scripts') propios: entrar O salir → recarga completa.
 // Usar prefijos; startsWith() cubre sub-rutas dinámicas (/{id}, etc.).
 const SPA_BLACKLIST = [
@@ -38,9 +34,8 @@ function isBlacklisted(url) {
 }
 
 function isGated(url) {
-    const path = normPath(url);
-    if (!path) return false;
-    return SPA_GATE.includes(path);
+    // Todas las rutas del mismo origen son SPA, salvo la blacklist
+    return !isBlacklisted(url);
 }
 
 function showLoader() {
