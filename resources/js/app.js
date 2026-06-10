@@ -435,6 +435,7 @@ import ClientsToPromotionComponent from "./components/module/client/ClientsToPro
 import ColorPicker from "./shared/ColorPicker.vue";
 
 
+function createMainApp() {
 const app = createApp({
     components: {
         //Dashboard
@@ -850,8 +851,6 @@ app.use(Quasar, {
         QUploader,
     ],
 });
-Quasar.iconSet = Quasar.iconSet.fontawesomeV5;
-
 app.directive("hasPermission", hasPermission);
 app.directive("table-resizable", QTableResizable);
 
@@ -876,12 +875,18 @@ app.component("fleet-tab-fotos",          FleetTabFotos);
 app.use(VueApexCharts);
 
 app.use(store);
+app.mount("#init-vue");
+window.__megaVueApp = app;
+return app;
+}
+
+window.createMainApp = createMainApp;
+Quasar.iconSet = Quasar.iconSet.fontawesomeV5;
 
 store
     .dispatch("fetchPermissions")
     .then(() => {
-        app.mount("#init-vue");
-        window.__megaVueApp = app;
+        createMainApp();
 
         const topbarEl = document.querySelector('#topbar-vue-root');
         if (topbarEl) {
@@ -913,3 +918,5 @@ store
     .catch((error) => {
         console.error("Error:", error);
     });
+
+import './spa-nav';
