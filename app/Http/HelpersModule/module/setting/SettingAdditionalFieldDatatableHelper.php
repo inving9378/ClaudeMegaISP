@@ -8,6 +8,7 @@ use App\Modules\Core\Configuracion\Models\FieldModule;
 use App\Models\SettingDebtPaymentClientCustom;
 use App\Models\Module;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 
 class SettingAdditionalFieldDatatableHelper
 {
@@ -101,12 +102,15 @@ class SettingAdditionalFieldDatatableHelper
 
         $translateModules = trans('translation_modules');
         if (!empty($request['array'])) {
+            // Precarga nombres de módulos en una sola query antes del loop
+            $moduleIds = collect($request['array'])->pluck('module_id')->unique()->filter()->values()->toArray();
+            $moduleNameMap = Module::whereIn('id', $moduleIds)->pluck('name', 'id');
+
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
                 foreach ($this->columns as $val) {
                     if ($val == 'module_id') {
-                        $moduleRepository = new ModuleRepository();
-                        $nestedData[$val] = $translateModules[$moduleRepository->getModuleById($value->module_id)->name]  ?? "";
+                        $nestedData[$val] = $translateModules[$moduleNameMap->get($value->module_id)] ?? "";
                     } else {
                         $nestedData[$val] = $value->$val;
                     }
