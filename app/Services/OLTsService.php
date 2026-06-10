@@ -476,16 +476,21 @@ class OLTsService
                     ];
                 })->values()->toArray();
 
-                foreach (array_chunk($dataToUpdate, $chunkSize) as $chunk) {
+                // Separar por unique_external_id: los que tienen se deducan por él
+                // (olt_id en update: si la ONU cambió de OLT, actualizar)
+                $withExt    = array_values(array_filter($dataToUpdate, fn($r) => !empty($r['unique_external_id'])));
+                $withoutExt = array_values(array_filter($dataToUpdate, fn($r) =>  empty($r['unique_external_id'])));
+
+                foreach (array_chunk($withExt, $chunkSize) as $chunk) {
+                    OltOnu::upsert($chunk, ['unique_external_id'], [
+                        'status', 'olt_id', 'sn', 'board', 'port', 'onu', 'zone_id',
+                        'updated_at', 'last_synced_at',
+                    ]);
+                }
+                foreach (array_chunk($withoutExt, $chunkSize) as $chunk) {
                     OltOnu::upsert($chunk, ['sn', 'olt_id'], [
-                        'status',
-                        'unique_external_id',
-                        'board',
-                        'port',
-                        'onu',
-                        'zone_id',
-                        'updated_at',
-                        'last_synced_at'
+                        'status', 'unique_external_id', 'board', 'port', 'onu', 'zone_id',
+                        'updated_at', 'last_synced_at',
                     ]);
                 }
 
@@ -540,18 +545,21 @@ class OLTsService
                     ];
                 })->values()->toArray();
 
-                foreach (array_chunk($dataToUpdate, $chunkSize) as $chunk) {
+                $withExt    = array_values(array_filter($dataToUpdate, fn($r) => !empty($r['unique_external_id'])));
+                $withoutExt = array_values(array_filter($dataToUpdate, fn($r) =>  empty($r['unique_external_id'])));
+
+                foreach (array_chunk($withExt, $chunkSize) as $chunk) {
+                    OltOnu::upsert($chunk, ['unique_external_id'], [
+                        'signal', 'signal_1490', 'signal_1310',
+                        'olt_id', 'sn', 'board', 'port', 'onu', 'zone_id',
+                        'updated_at', 'last_synced_at',
+                    ]);
+                }
+                foreach (array_chunk($withoutExt, $chunkSize) as $chunk) {
                     OltOnu::upsert($chunk, ['sn', 'olt_id'], [
-                        'signal',
-                        'signal_1490',
-                        'signal_1310',
-                        'unique_external_id',
-                        'board',
-                        'port',
-                        'onu',
-                        'zone_id',
-                        'updated_at',
-                        'last_synced_at'
+                        'signal', 'signal_1490', 'signal_1310',
+                        'unique_external_id', 'board', 'port', 'onu', 'zone_id',
+                        'updated_at', 'last_synced_at',
                     ]);
                 }
 

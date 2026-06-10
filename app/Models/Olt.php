@@ -363,57 +363,25 @@ class Olt extends Model
                         ];
                     })->toArray();
 
+                    // Columnas a actualizar en el ON DUPLICATE KEY UPDATE
+                    $updateCols = [
+                        'sn', 'olt_id',  // olt_id en update: si la ONU se mueve de OLT, actualizar aquí
+                        'board', 'port', 'administrative_status', 'address', 'mode', 'name',
+                        'client_id', 'onu', 'onu_type_id', 'onu_type_name', 'pon_type',
+                        'signal', 'status', 'zone_name', 'updated_at', 'last_synced_at',
+                        'tr069', 'tr069_profile', 'catv', 'custom_template_name', 'zone_id',
+                        'mgmt_ip_address', 'mgmt_ip_mode', 'mgmt_ip_service_port',
+                        'mgmt_ip_vlan', 'mgmt_ip_subnet_mask', 'mgmt_ip_default_gateway',
+                        'mgmt_ip_dns1', 'mgmt_ip_dns2', 'mgmt_ip_cvlan', 'mgmt_ip_svlan',
+                        'mgmt_ip_tag_transform_mode', 'wan_mode', 'vlan', 'odb_name',
+                        'longitude', 'latitude', 'olt_name', 'contact',
+                        'signal_1310', 'signal_1490', 'authorization_date',
+                        'service_ports', 'ethernet_ports', 'wifi_ports', 'voip_ports', 'voip_service',
+                    ];
+
+                    // unique_external_id nunca es null aquí (fallback = sn en la construcción del dato)
                     foreach (array_chunk($data, 100) as $objs) {
-                        OltOnu::upsert($objs, ['sn', 'olt_id'], [
-                            'unique_external_id',
-                            'board',
-                            'port',
-                            'administrative_status',
-                            'address',
-                            'mode',
-                            'name',
-                            'client_id',
-                            'onu',
-                            'onu_type_id',
-                            'onu_type_name',
-                            'pon_type',
-                            'signal',
-                            'status',
-                            'zone_name',
-                            'updated_at',
-                            'last_synced_at',
-                            'tr069',
-                            'tr069_profile',
-                            'catv',
-                            'custom_template_name',
-                            'zone_id',
-                            'mgmt_ip_address',
-                            'mgmt_ip_mode',
-                            'mgmt_ip_service_port',
-                            'mgmt_ip_vlan',
-                            'mgmt_ip_subnet_mask',
-                            'mgmt_ip_default_gateway',
-                            'mgmt_ip_dns1',
-                            'mgmt_ip_dns2',
-                            'mgmt_ip_cvlan',
-                            'mgmt_ip_svlan',
-                            'mgmt_ip_tag_transform_mode',
-                            'wan_mode',
-                            'vlan',
-                            'odb_name',
-                            'longitude',
-                            'latitude',
-                            'olt_name',
-                            'contact',
-                            'signal_1310',
-                            'signal_1490',
-                            'authorization_date',
-                            'service_ports',
-                            'ethernet_ports',
-                            'wifi_ports',
-                            'voip_ports',
-                            'voip_service'
-                        ]);
+                        OltOnu::upsert($objs, ['unique_external_id'], $updateCols);
                     }
                     OltOnu::where('olt_id', $this->id)
                         ->whereNotIn('sn', $onus->pluck('sn'))
