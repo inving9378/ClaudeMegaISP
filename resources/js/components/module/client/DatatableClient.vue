@@ -576,7 +576,7 @@ export default {
       return `${startItem}-${endItem} of ${pagination.value.rowsNumber}`;
     });
 
-    const getRowsByModule = async (colss, showInHeader, filters, order, dir, search) => {
+    const getRowsByModule = async (colss, showInHeader, filters, order, dir, searchTerm = "") => {
       let taked = _.take(colss, showInHeader);
       let columnS = _.map(colss, (e) => {
         return { data: e };
@@ -595,7 +595,7 @@ export default {
         const response = await axios.post(url, {
           data: {
             columns: columnS,
-            search: search,
+            search: searchTerm,
             filters: filters,
             additionalFilter: ffilters.value,
           },
@@ -607,10 +607,16 @@ export default {
           is_update_color: isUpdatedColorDatatable.value,
         }, { signal: currentAbortController.signal });
 
+        // Descarta la respuesta si el input ya tiene un término diferente.
+        if (searchTerm !== search.value) {
+          loading.value = false;
+          return;
+        }
+
         dataToFindExport.value = {
           data: {
             columns: columnS,
-            search: search,
+            search: searchTerm,
             filters: filters,
             additionalFilter: ffilters.value,
           },
@@ -644,6 +650,7 @@ export default {
         pagination.value.rowsNumber = response.data.recordsFiltered;
       } catch (error) {
         if (axios.isCancel(error) || error.name === 'CanceledError') {
+          loading.value = false;
           return;
         }
         console.error(error);
@@ -660,7 +667,6 @@ export default {
     });
 
     const onRequestDebounced = debounce((props) => {
-      search.value = props.filter;
       currentSortColumn.value = props.pagination.sortBy;
       const { page, rowsPerPage, sortBy, descending } = props.pagination;
       pagination.value.page = page;
@@ -677,6 +683,7 @@ export default {
       if (props.filter != "") {
         onRequestDebounced(props);
       } else {
+        onRequestDebounced.cancel();
         currentSortColumn.value = props.pagination.sortBy;
         const { page, rowsPerPage, sortBy, descending } = props.pagination;
         pagination.value.page = page;
