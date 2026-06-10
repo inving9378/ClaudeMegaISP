@@ -151,8 +151,8 @@ function handleClick(e) {
     const link = e.target.closest('a[href]');
     if (!link) return;
 
-    // Saltar: data-spa-skip, _blank, download, origen externo
-    if ('spaSkip' in link.dataset) return;
+    // Saltar: data-spa-skip en el link o en cualquier ancestro (ej. forms)
+    if (e.target.closest('[data-spa-skip]')) return;
     if (link.target === '_blank') return;
     if (link.hasAttribute('download')) return;
     try {
