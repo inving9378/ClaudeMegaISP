@@ -14,7 +14,9 @@ use App\Traits\CleanSignals;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Promise\Utils;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class OLTsService
@@ -31,8 +33,34 @@ class OLTsService
         $this->apiKey = config('services.smartolt.token');
     }
 
+    // ── Budget helpers ────────────────────────────────────────────────────────
+
+    private function budgetCacheKey(): string
+    {
+        return 'smartolt:budget:' . date('Y-m-d-H');
+    }
+
+    private function hourlyBudget(): int
+    {
+        return (int) config('services.smartolt.hourly_budget', 1000);
+    }
+
+    private function trackBudget(int $count = 1): int
+    {
+        $key = $this->budgetCacheKey();
+        if (!Cache::has($key)) {
+            Cache::put($key, 0, 3600);
+        }
+        $used = (int) Cache::increment($key, $count);
+        Log::debug(sprintf('[SmartOlt][budget] uso=%d/%d (+%d)', $used, $this->hourlyBudget(), $count));
+        return $used;
+    }
+
+    // ── API call paths ────────────────────────────────────────────────────────
+
     public function makeRequest($method, $endpoint, $params = null)
     {
+        $this->trackBudget(1);
         try {
             $client = app('SmartOlt');
             $options = [];
@@ -69,6 +97,7 @@ class OLTsService
 
     public function makeRequestAsync($requests)
     {
+        $this->trackBudget(count($requests));
         $client = app('SmartOlt');
         $promises = [];
         foreach ($requests as $key => $value) {
@@ -122,6 +151,7 @@ class OLTsService
 
     public function getAllOnuDataParallel($id)
     {
+        $this->trackBudget(3); // 3 concurrent: get_all_onus_details + get_onus_signals + get_onus_statuses
         $client = app('SmartOlt');
         $promises = [
             'onus' => $client->getAsync('onu/get_all_onus_details?olt_id=' . $id),
@@ -141,6 +171,7 @@ class OLTsService
 
     public function getSignalAndStatus($id)
     {
+        $this->trackBudget(2); // 2 concurrent: get_onu_signal + get_onu_status
         $client = app('SmartOlt');
         $promises = [
             'signals' => $client->getAsync('onu/get_onu_signal/' . $id),
@@ -928,6 +959,7 @@ class OLTsService
 
     public function getGraphRequest($method, $endpoint)
     {
+        $this->trackBudget(1);
         try {
             $client = app('SmartOlt');
             $response = $client->request($method, $endpoint);

@@ -36,9 +36,10 @@ return [
     ],
 
     'smartolt' => [
-        'domain' => env('SMARTOLT_DOMAIN'),
-        'token' => env('SMARTOLT_TOKEN'),
-        'ttl' => env('SMARTOLT_TTL', 120)
+        'domain'        => env('SMARTOLT_DOMAIN'),
+        'token'         => env('SMARTOLT_TOKEN'),
+        'ttl'           => env('SMARTOLT_TTL', 120),
+        'hourly_budget' => env('SMARTOLT_HOURLY_BUDGET', 1000),
     ],
 
     'anthropic' => [
