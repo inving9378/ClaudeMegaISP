@@ -587,34 +587,15 @@ class ClientDatatableHelper
         }
 
         return $this->model::filters($this->filterName, $search, $filters)
-            ->leftJoin('nomenclatures', 'clients.id', '=', 'nomenclatures.client_id')
             ->leftJoin('client_main_information', 'clients.id', '=', 'client_main_information.client_id')
             ->leftJoin('client_additional_information', 'clients.id', '=', 'client_additional_information.client_id')
             ->leftJoin('billing_configurations', 'clients.id', '=', 'billing_configurations.client_id')
-            ->leftJoin('type_billings', 'billing_configurations.type_billing_id', '=', 'type_billings.id')
-            ->leftJoin('reminders_configurations', 'clients.id', '=', 'reminders_configurations.client_id')
-            ->leftJoin('billing_addresses', 'clients.id', '=', 'billing_addresses.client_id')
-            ->leftJoin('balances', 'clients.id', '=', 'balances.balanceable_id')
-            ->leftJoin('method_of_payments', 'billing_configurations.payment_method_id', '=', 'method_of_payments.id')
-            ->leftJoin('locations', 'client_main_information.location_id', '=', 'locations.id')
-
-            ->leftJoin('partners', 'client_main_information.partner_id', '=', 'partners.id')
-            ->leftJoin('states', 'client_main_information.state_id', '=', 'states.id')
-            ->leftJoin('municipalities', 'client_main_information.municipality_id', '=', 'municipalities.id')
-            ->leftJoin('colonies', 'client_main_information.colony_id', '=', 'colonies.id')
             ->leftJoin('network_ips', 'clients.id', '=', 'network_ips.client_id')
-            ->leftJoin('networks', 'network_ips.network_id', '=', 'networks.id')
-            ->leftJoin('users', 'client_main_information.seller_id', '=', 'users.id')
+            ->leftJoin('nomenclatures', 'clients.id', '=', 'nomenclatures.client_id')
             ->leftJoin('client_internet_services', 'clients.id', '=', 'client_internet_services.client_id')
             ->leftJoin('internets', 'client_internet_services.internet_id', '=', 'internets.id')
-            ->leftJoin('routers', 'client_internet_services.router_id', '=', 'routers.id')
-            ->leftJoin('client_bundle_services', 'clients.id', '=', 'client_bundle_services.client_id')
-            ->leftJoin('bundles', 'client_bundle_services.bundle_id', '=', 'bundles.id')
-            ->leftJoin('client_custom_services', 'clients.id', '=', 'client_custom_services.client_id')
-            ->leftJoin('customs', 'client_custom_services.custom_id', '=', 'customs.id')
-            ->leftJoin('client_voz_services', 'clients.id', '=', 'client_voz_services.client_id')
-            ->leftJoin('voises', 'client_voz_services.voz_id', '=', 'voises.id')
-            ->count();
+            ->distinct()
+            ->count('clients.id');
     }
 
     protected function qualifyOrderColumn($column, $columnsWithJoins)
