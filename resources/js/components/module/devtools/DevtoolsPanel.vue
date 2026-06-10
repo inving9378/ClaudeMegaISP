@@ -302,11 +302,12 @@
                     <button
                         class="dt-icon-btn dt-terminal-copy-btn"
                         @click="copyTerminal"
-                        :title="terminalCopied ? 'Copiado al portapapeles' : 'Copiar todo el buffer'"
-                        :class="{ 'dt-copied': terminalCopied }"
+                        :title="terminalCopied ? 'Copiado al portapapeles' : terminalCopyErr ? 'Error al copiar' : 'Copiar todo el buffer'"
+                        :class="{ 'dt-copied': terminalCopied, 'dt-copy-err': terminalCopyErr }"
                     >
-                        <i :class="terminalCopied ? 'fas fa-check' : 'fas fa-copy'"></i>
+                        <i :class="terminalCopied ? 'fas fa-check' : terminalCopyErr ? 'fas fa-times' : 'fas fa-copy'"></i>
                         <span v-if="terminalCopied" class="dt-copy-hint">Copiado</span>
+                        <span v-else-if="terminalCopyErr" class="dt-copy-hint">Error</span>
                     </button>
                     <button class="dt-icon-btn" @click="probeTtyd" title="Reintentar conexión">
                         <i class="fas fa-sync"></i>
@@ -763,9 +764,31 @@ export default {
         // permitiendo acceder a iframe.contentWindow.term (xterm.js).
         const effectiveTtydUrl = computed(() => props.ttydUrl);
 
-        // "Copiar todo el buffer" — selectAll → getSelection → clipboard.
-        // Funciona porque el iframe ya es same-origin vía /ttyd/.
+        // Helper de clipboard compatible con HTTP (sin isSecureContext).
+        // Intenta navigator.clipboard (HTTPS); cae a execCommand para HTTP plano.
+        // DEBE llamarse dentro de un gesto de usuario (click/keydown).
+        const copyText = (text) => {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                return ok ? Promise.resolve() : Promise.reject(new Error('execCommand failed'));
+            } catch (err) {
+                return Promise.reject(err);
+            }
+        };
+
+        // "Copiar todo el buffer" — selectAll → getSelection → copyText.
         const terminalCopied = ref(false);
+        const terminalCopyErr = ref(false);
         const copyTerminal = async () => {
             const term = terminalIframe.value?.contentWindow?.term;
             if (!term) return;
@@ -774,16 +797,17 @@ export default {
             term.clearSelection();
             if (!text) return;
             try {
-                await navigator.clipboard.writeText(text);
+                await copyText(text);
                 terminalCopied.value = true;
                 setTimeout(() => { terminalCopied.value = false; }, 2500);
-            } catch (e) {
-                // clipboard denegado — silencioso
+            } catch (_) {
+                terminalCopyErr.value = true;
+                setTimeout(() => { terminalCopyErr.value = false; }, 2500);
             }
         };
 
         // Hook "copiar al seleccionar": cuando xterm cambia la selección,
-        // copia automáticamente al portapapeles sin ningún gesto extra.
+        // copia automáticamente. Usa copyText() — funciona en HTTP plano.
         let selectionHookRetries = 0;
         const hookCopyOnSelect = () => {
             const cw = terminalIframe.value?.contentWindow;
@@ -799,10 +823,19 @@ export default {
             selectionHookRetries = 0;
             term.onSelectionChange(() => {
                 const sel = term.getSelection();
-                if (sel) {
-                    navigator.clipboard.writeText(sel).catch(() => {});
-                }
+                if (sel) copyText(sel).catch(() => {});
             });
+            // Clic derecho dentro del iframe: si hay selección, copia.
+            try {
+                cw.document.addEventListener('contextmenu', function(e) {
+                    const sel = term.getSelection();
+                    if (sel) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        copyText(sel).catch(() => {});
+                    }
+                }, true);
+            } catch (_) {}
         };
 
         const ttydReachable = ref(null);
@@ -944,6 +977,7 @@ export default {
             onIframeLoad,
             onIframeError,
             terminalCopied,
+            terminalCopyErr,
             copyTerminal,
             // misc
             close,
