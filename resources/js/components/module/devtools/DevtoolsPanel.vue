@@ -778,6 +778,7 @@ export default {
         // Intenta navigator.clipboard (HTTPS); cae a execCommand para HTTP plano.
         // DEBE llamarse dentro de un gesto de usuario (click/keydown).
         const copyText = (text) => {
+            if (!text || !text.trim()) return Promise.resolve();
             if (navigator.clipboard && window.isSecureContext) {
                 return navigator.clipboard.writeText(text);
             }
@@ -834,6 +835,7 @@ export default {
             selectionHookRetries = 0;
             term.onSelectionChange(() => {
                 const sel = term.getSelection();
+                console.debug('[DevTools terminal] onSelectionChange — getSelection().length:', sel.length);
                 if (sel) copyText(sel).catch(() => {});
             });
             try {
@@ -842,7 +844,8 @@ export default {
                 cw.document.addEventListener('mousedown', function(e) {
                     if (e.button === 2) {
                         const sel = term.getSelection();
-                        if (sel) {
+                        console.debug('[DevTools terminal] mousedown right — getSelection().length:', sel.length);
+                        if (sel && sel.trim()) {
                             lastRightClickSelection = sel;
                             e.preventDefault();
                             e.stopPropagation();
@@ -854,11 +857,12 @@ export default {
                 // contextmenu en fase captura: suprime menú nativo y copia la selección
                 // guardada (o la viva si sigue presente).
                 cw.document.addEventListener('contextmenu', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
                     const sel = lastRightClickSelection || term.getSelection();
+                    console.debug('[DevTools terminal] contextmenu — getSelection().length:', term.getSelection().length, 'lastRightClick.length:', lastRightClickSelection.length);
                     lastRightClickSelection = '';
-                    if (sel) {
+                    if (sel && sel.trim()) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         copyText(sel).then(() => {
                             selectionCopied.value = true;
                             selectionCopyMsg.value = '';
@@ -870,6 +874,7 @@ export default {
                     } else {
                         selectionCopyMsg.value = 'Sin selección';
                         setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
+                        // No preventDefault — el menú nativo del navegador aparece (opción Pegar funciona)
                     }
                 }, true);
             } catch (_) {}
@@ -887,6 +892,7 @@ export default {
                 return;
             }
             const sel = term.getSelection();
+            console.debug('[DevTools terminal] copySelection — getSelection().length:', sel.length);
             if (!sel) {
                 selectionCopyMsg.value = 'Sin selección';
                 setTimeout(() => { selectionCopyMsg.value = ''; }, 2500);
