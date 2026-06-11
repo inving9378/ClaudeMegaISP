@@ -30,11 +30,66 @@ class AppServiceProvider extends ServiceProvider
             \App\Services\Finance\Timbrado\NullTimbradoService::class
         );
 
-        // OLT driver activo — GR-4b. Cambiar a HuaweiDriver (o a un OltDriverManager
-        // multi-driver) cuando exista un segundo driver en el Bloque B.
+        // ── OLT drivers (B1b-4) ──────────────────────────────────────────────
+        // Binding global intacto: todo el código existente sigue resolviendo
+        // SmartOltDriver al pedir OltDriverInterface. NO tocar.
         $this->app->singleton(
             \App\Services\OltDriver\OltDriverInterface::class,
             \App\Services\OltDriver\SmartOltDriver::class
+        );
+
+        // Alias SmartOltDriver::class → mismo singleton que el binding global.
+        $this->app->singleton(
+            \App\Services\OltDriver\SmartOltDriver::class,
+            fn($app) => $app->make(\App\Services\OltDriver\OltDriverInterface::class)
+        );
+
+        // HuaweiDriver: cadena TelnetSession → HuaweiTransport → HuaweiDriver
+        // configurada desde config/services.php (OLT_HUAWEI_* en .env).
+        // Si las credenciales no están configuradas, se usa un NullSession que
+        // lanza RuntimeException en el primer intento de I/O.
+        $this->app->bind(
+            \App\Services\OltDriver\Huawei\HuaweiDriver::class,
+            function ($app) {
+                $cfg  = config('services.huawei_olt', []);
+                $host = trim((string) ($cfg['host']     ?? ''));
+                $user = trim((string) ($cfg['username'] ?? ''));
+                $pass = (string)       ($cfg['password'] ?? '');
+
+                $session = ($host !== '' && $user !== '' && $pass !== '')
+                    ? new \App\Services\OltDriver\Huawei\TelnetSession($cfg)
+                    : new class implements \App\Services\OltDriver\Huawei\SessionInterface {
+                        public function write(string $data): void
+                        {
+                            throw new \RuntimeException(
+                                'HuaweiDriver: OLT_HUAWEI_HOST / USER / PASS no configurados en .env'
+                            );
+                        }
+                        public function readUntil(string $prompt, int $timeout = 30): string
+                        {
+                            throw new \RuntimeException(
+                                'HuaweiDriver: OLT_HUAWEI_HOST / USER / PASS no configurados en .env'
+                            );
+                        }
+                        public function close(): void {}
+                      };
+
+                $transport = new \App\Services\OltDriver\Huawei\HuaweiTransport(
+                    config:  $cfg,
+                    session: $session,
+                );
+
+                return new \App\Services\OltDriver\Huawei\HuaweiDriver(
+                    transport: $transport,
+                    config:    $cfg,
+                );
+            }
+        );
+
+        // Manager per-OLT — resuelve el driver correcto según Olt::$driver.
+        $this->app->singleton(
+            \App\Services\OltDriver\OltDriverManager::class,
+            fn($app) => new \App\Services\OltDriver\OltDriverManager($app)
         );
 
         $this->app->singleton('SmartOlt', function () {
