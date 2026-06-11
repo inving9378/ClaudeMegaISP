@@ -1,0 +1,11 @@
+# SINTÉTICO — pendiente validar contra equipo
+# fuente: formato documentado V100R018C00 MA5800-X7
+# dispositivo de referencia: MA5800-X7 V100R018C00 SPH505 frame 0
+
+MA5800-X7 uptime is 0 week(s), 3 day(s), 14 hour(s), 22 minute(s)
+
+The BMS version information:
+  VERSION  : MA5800-X7V100R018C00SPC250
+  PATCH    : V100R018SPH505
+  BOOT     : MA5800-X7 V100R018C00SPC250
+  LOGIC    : V100R018C00SPC250

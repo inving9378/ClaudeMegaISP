@@ -1,0 +1,24 @@
+# SINTÉTICO — pendiente validar contra equipo
+# @pending-validation: los valores de señal serán validados en sesión real contra la OLT
+# fuente: formato documentado V100R018C00 MA5800-X7
+# comando: display ont optical-info 2 0  (desde interface gpon 0/3)
+#
+# Ground truth SmartOLT (sesión B1 2026-06-10):
+#   ONU 0/3/2 ont-id 0, SN HWTCFEFCC9A2
+#   Rx ONU = -8.54 dBm  (downstream — lo que recibe el cliente, 1490 nm)
+#   Rx OLT = -13.04 dBm (upstream  — lo que recibe la OLT del cliente, 1310 nm)
+#
+# Mapeo de campos:
+#   "Rx optical power(dBm)"             -> ONT Rx (downstream) -> signal_1490
+#   "OLT Rx ONT optical power(dBm)"     -> OLT Rx  (upstream)  -> signal_1310
+
+  F/S/P                                     : 0/3/2
+  ONT-ID                                    : 0
+  Rx optical power(dBm)                     : -8.54
+  Tx optical power(dBm)                     : 2.34
+  OLT Rx ONT optical power(dBm)             : -13.04
+  ONU Rx optical power attenuation(dBm)     : --
+  Temperature(C)                            : 52
+  Voltage(V)                                : 3299
+  Bias current(mA)                          : 12.789
+  Distance(m)                               : 1143

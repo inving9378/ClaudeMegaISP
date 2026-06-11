@@ -1,0 +1,16 @@
+# SINTÉTICO — pendiente validar contra equipo
+# fuente: formato documentado V100R018C00 MA5800-X7
+# slots GPON: 1-2=H902GPHF(8p), 3-5=H901GPHF(16p); control: 8-9=H902MPLA; uplink: 10-11=H901PILA
+
+  SlotID  BoardName  Status          SubType0    SubType1    Online/Offline
+  -------------------------------------------------------------------------
+  1       H902GPHF   Normal          --          --          --
+  2       H902GPHF   Normal          --          --          --
+  3       H901GPHF   Normal          --          --          --
+  4       H901GPHF   Normal          --          --          --
+  5       H901GPHF   Normal          --          --          --
+  8       H902MPLA   Active_Master   --          --          --
+  9       H902MPLA   Standby_Slave   --          --          --
+  10      H901PILA   Normal          --          --          --
+  11      H901PILA   Normal          --          --          --
+  -------------------------------------------------------------------------
