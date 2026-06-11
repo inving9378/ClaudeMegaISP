@@ -74,6 +74,16 @@
             </div>
         </template>
 
+        <template v-slot:body-cell-driver="props">
+            <td>
+                <q-badge
+                    :color="props.row.driver === 'huawei' ? 'deep-orange' : 'blue-grey'"
+                    :label="props.row.driver === 'huawei' ? 'Huawei' : 'SmartOLT'"
+                    class="text-weight-medium"
+                />
+            </td>
+        </template>
+
         <template v-slot:body-cell-actions="props">
             <td class="text-center" style="width: 200px">
                 <q-btn
@@ -190,6 +200,13 @@ const columns = ref([
         label: "Ultima sincronización",
         align: "left",
         sortable: false,
+    },
+    {
+        name: "driver",
+        field: "driver",
+        label: "Driver",
+        align: "left",
+        sortable: true,
     },
     {
         name: "actions",
