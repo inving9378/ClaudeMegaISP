@@ -86,6 +86,7 @@ class OLTsController extends Controller
                 'telnet_port' => ['searchable' => true],
                 'env_temp' => ['searchable' => true],
                 'uptime' => ['searchable' => false],
+                'driver' => ['searchable' => false],
                 'last_synced_at' => ['searchable' => false],
             ]
         ];
