@@ -1,0 +1,18 @@
+# SINTÉTICO — pendiente validar contra equipo
+# fuente: formato documentado V100R018C00 MA5800-X7
+# comando: display dba-profile all
+
+  Profile-ID   Profile-Name          Assure(Kbit/s)  Max(Kbit/s)   Type
+  -----------------------------------------------------------------------
+  1            HSI_1M                1024            1024          TYPE2
+  2            HSI_2M                2048            2048          TYPE2
+  5            HSI_5M                5120            5120          TYPE2
+  10           HSI_10M               10240           10240         TYPE2
+  20           HSI_20M               20480           20480         TYPE2
+  30           HSI_30M               30720           30720         TYPE2
+  50           HSI_50M               51200           51200         TYPE2
+  100          HSI_100M              102400          102400        TYPE2
+  250          HSI_250M              256000          256000        TYPE2
+  500          HSI_500M              512000          512000        TYPE2
+  -----------------------------------------------------------------------
+  Total: 10 DBA profile(s)

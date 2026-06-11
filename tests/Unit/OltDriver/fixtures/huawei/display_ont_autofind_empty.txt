@@ -1,0 +1,6 @@
+# SINTÉTICO — pendiente validar contra equipo
+# fuente: formato documentado V100R018C00 MA5800-X7
+# comando: display ont autofind all
+# sin ONTs sin autorizar
+
+  No related information.

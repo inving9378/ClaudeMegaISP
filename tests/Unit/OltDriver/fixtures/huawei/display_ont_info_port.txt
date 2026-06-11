@@ -1,0 +1,52 @@
+# SINTÉTICO — pendiente validar contra equipo
+# fuente: formato documentado V100R018C00 MA5800-X7
+# comando: display ont info 0 3 2 all  (frame 0, slot 3, port 2)
+# ONT de referencia: SN HWTCFEFCC9A2, ont-id 0 (ground truth sesión B1)
+
+  F/S/P                   : 0/3/2
+  ONT-ID                  : 0
+  Control flag            : active
+  Run state               : online
+  Config state            : normal
+  Match state             : match
+  DBA type                : SR
+  ONT distance(m)         : 1143
+  ONT last distance(m)    : 1143
+  ONT battery state       : not support
+  Memory occupation       : 12%
+  CPU occupation          : 3%
+  Temperature             : 52(Celsius)
+  Authentic type          : SN-auth
+  SN                      : HWTCFEFCC9A2
+  Register time           : 2026-01-15 08:23:41+08:00
+  Last up time            : 2026-06-10 16:42:33+08:00
+  Last down time          : 2026-06-10 16:38:21+08:00
+  Last down cause         : LOS
+  ONT IP 0                : -
+  Description             : CLIENTE_1
+
+  ------------------------------------------------------------------------------
+
+  F/S/P                   : 0/3/2
+  ONT-ID                  : 1
+  Control flag            : active
+  Run state               : offline
+  Config state            : normal
+  Match state             : match
+  DBA type                : SR
+  ONT distance(m)         : 987
+  ONT last distance(m)    : 987
+  ONT battery state       : not support
+  Memory occupation       : -
+  CPU occupation          : -
+  Temperature             : -(Celsius)
+  Authentic type          : SN-auth
+  SN                      : HWTCAABBCC11
+  Register time           : 2026-02-20 10:15:00+08:00
+  Last up time            : 2026-06-09 22:11:05+08:00
+  Last down time          : 2026-06-10 01:30:44+08:00
+  Last down cause         : dying-gasp
+  ONT IP 0                : -
+  Description             : CLIENTE_2
+
+  In port 0/3/2, 2 ONTs have been displayed.
