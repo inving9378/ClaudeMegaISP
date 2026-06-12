@@ -100,7 +100,7 @@
                                                 Analizando dump SQL…
                                             </div>
                                             <div class="smart-import-dropzone__hint">
-                                                Detectando tablas y estructura del archivo
+                                                Procesando en segundo plano, esto puede tardar 1-2 minutos
                                             </div>
                                         </div>
 
@@ -606,15 +606,25 @@ export default {
                 });
 
                 if (!data.success) {
-                    throw new Error(data.message || 'Error al analizar');
+                    throw new Error(data.message || 'Error al subir');
                 }
 
                 token.value = data.token;
-                report.value = data.report || [];
-                totalRows.value = data.total_rows || 0;
-                ensureTableModes();
                 uploading.value = false;
                 analyzing.value = true;
+
+                // El servidor devuelve status:'analyzing' — el análisis corre en
+                // background. Esperamos hasta que el endpoint de polling confirme
+                // que terminó y nos devuelva el reporte.
+                if (data.status === 'analyzing') {
+                    await waitForAnalysis(data.token);
+                } else {
+                    // Respuesta síncrona legacy (archivos pequeños / tests)
+                    report.value = data.report || [];
+                    totalRows.value = data.total_rows || 0;
+                    ensureTableModes();
+                }
+
                 await loadPreview();
                 analyzing.value = false;
                 step.value = 2;
@@ -622,7 +632,37 @@ export default {
                 console.error(e);
                 uploadError.value = e.message || 'Error al subir el archivo';
                 uploading.value = false;
+                analyzing.value = false;
             }
+        }
+
+        async function waitForAnalysis(analysisToken) {
+            const maxAttempts = 150; // 150 × 3 s = 7.5 min
+            for (let i = 0; i < maxAttempts; i++) {
+                await new Promise(r => setTimeout(r, 3000));
+                let res;
+                try {
+                    res = await axios.get(
+                        `/configuracion/smart-import/analysis-status/${analysisToken}`,
+                        { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } }
+                    );
+                } catch (e) {
+                    // Error de red transitorio — seguir esperando
+                    continue;
+                }
+                const d = res.data;
+                if (d.status === 'ready') {
+                    report.value = d.report || [];
+                    totalRows.value = d.total_rows || 0;
+                    ensureTableModes();
+                    return;
+                }
+                if (d.status === 'failed') {
+                    throw new Error(d.message || 'El análisis falló en segundo plano.');
+                }
+                // status === 'analyzing' → seguir esperando
+            }
+            throw new Error('El análisis está tardando demasiado. Intenta de nuevo.');
         }
 
         function onRejected() {

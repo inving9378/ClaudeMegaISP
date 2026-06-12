@@ -20,11 +20,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // Smart Import (IA) — analiza, previsualiza y ejecuta importaciones en background
         Route::prefix('smart-import')->group(function () {
-            Route::get('/',                  [ImportExportController::class, 'importIndex']);
-            Route::post('/upload',           [ImportExportController::class, 'upload']);
-            Route::post('/preview',          [ImportExportController::class, 'preview']);
-            Route::post('/execute',          [ImportExportController::class, 'execute']);
-            Route::get('/status/{jobId}',    [ImportExportController::class, 'status']);
+            Route::get('/',                             [ImportExportController::class, 'importIndex']);
+            Route::post('/upload',                      [ImportExportController::class, 'upload']);
+            Route::get('/analysis-status/{token}',      [ImportExportController::class, 'analysisStatus']);
+            Route::post('/preview',                     [ImportExportController::class, 'preview']);
+            Route::post('/execute',                     [ImportExportController::class, 'execute']);
+            Route::get('/status/{jobId}',               [ImportExportController::class, 'status']);
         });
 
         // Smart Export — exportación selectiva por módulos
