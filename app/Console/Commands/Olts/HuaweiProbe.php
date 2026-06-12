@@ -141,17 +141,22 @@ class HuaweiProbe extends Command
 
     private function fetchOntInfo(HuaweiTransport $transport, string $frameSlot, int $slot, int $port, int $ontId): array
     {
-        $transport->enterGponInterface((int) explode('/', $frameSlot)[0], $slot);
-        $raw = $transport->exec("display ont info {$port} {$ontId}");
-        $transport->leaveToUserView();
+        // Correr desde user-view con sintaxis completa frame slot port ont-id,
+        // igual a como lo hace HuaweiDriver::getOnuDetails(). La sintaxis relativa
+        // (display ont info 2 0 dentro de interface gpon) causó timeout en B1c:
+        // el MA5800 no devuelve el prompt de interface al final de ese comando.
+        $frame = (int) explode('/', $frameSlot)[0];
+        $raw   = $transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
         return OntInfoParser::parse($raw);
     }
 
     private function fetchOpticalInfo(HuaweiTransport $transport, string $frameSlot, int $slot, int $port, int $ontId): array
     {
-        $transport->enterGponInterface((int) explode('/', $frameSlot)[0], $slot);
-        $raw = $transport->exec("display ont optical-info {$port} {$ontId}");
-        $transport->leaveToUserView();
+        // Mismo criterio: user-view con path completo.
+        // HuaweiDriver::fetchOpticalForOnt usa interface-context; si falla en B1c
+        // también, se corregirá ahí con el fixture real.
+        $frame = (int) explode('/', $frameSlot)[0];
+        $raw   = $transport->exec("display ont optical-info {$frame} {$slot} {$port} {$ontId}");
         return OpticalInfoParser::parse($raw);
     }
 
