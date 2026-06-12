@@ -199,7 +199,7 @@ class TroncalController extends Controller
             return response()->json([
                 'ok'      => $resp->successful(),
                 'status'  => $resp->status(),
-                'version' => $resp->json('system.asterisk_version') ?? null,
+                'version' => $resp->json('system.version') ?? null,
             ]);
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()]);
@@ -212,34 +212,18 @@ class TroncalController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $host = config('voip.ari_host');
-        $port = config('voip.ari_port', 8088);
-        $user = config('voip.ari_user');
-        $pass = config('voip.ari_pass');
-        $epId = $troncal->endpointId();
-
         try {
-            $resp = Http::withBasicAuth($user, $pass)
-                ->timeout(5)
-                ->get("http://{$host}:{$port}/ari/endpoints/PJSIP/{$epId}");
-
-            if ($resp->status() === 404) {
-                return response()->json([
-                    'ok'     => false,
-                    'estado' => 'not_found',
-                    'msg'    => 'El endpoint no existe en Asterisk (¿sin provisionar?)',
-                ]);
-            }
-
-            $body = $resp->json();
-            return response()->json([
-                'ok'         => $resp->successful(),
-                'estado'     => $body['state'] ?? 'unknown',
-                'canales'    => count($body['channel_ids'] ?? []),
-                'resource'   => $body['resource'] ?? null,
-            ]);
+            $result = $this->provisioner->verificarRegistro($troncal);
+            return response()->json($result);
         } catch (\Throwable $e) {
-            return response()->json(['ok' => false, 'error' => $e->getMessage()]);
+            Log::error("VoIP: verificarTroncal {$troncal->nombre}: {$e->getMessage()}");
+            return response()->json([
+                'ok'         => false,
+                'status'     => 'Error',
+                'server'     => $troncal->host,
+                'expires'    => null,
+                'last_error' => $e->getMessage(),
+            ], 500);
         }
     }
 }

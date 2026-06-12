@@ -413,10 +413,11 @@ import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 import CobranzaVoipConfig from "./components/module/cobranza/CobranzaVoipConfig.vue";
 import CobranzaCampanas from "./components/module/cobranza/CobranzaCampanas.vue";
 
-// VoIP — addon-voip Fase A+B (Troncales + Extensiones + Grupos) — 2026-06-09
+// VoIP — addon-voip Fase A+B+D2 (Troncales + Extensiones + Grupos + IA Bot) — 2026-06-09
 import VoipTroncales      from "./components/module/voip/VoipTroncales.vue";
 import VoipExtensiones    from "./components/module/voip/VoipExtensiones.vue";
 import VoipGruposTimbrado from "./components/module/voip/VoipGruposTimbrado.vue";
+import VoipIaBotManager   from "./components/module/voip/VoipIaBotManager.vue";
 
 
 import SupplierListar from "./components/module/inventory/supplier/SupplierListar.vue";
@@ -768,6 +769,7 @@ const app = createApp({
         'voip-troncales':        VoipTroncales,
         'voip-extensiones':      VoipExtensiones,
         'voip-grupos-timbrado':  VoipGruposTimbrado,
+        'voip-ia-bot-manager':   VoipIaBotManager,
     },
 });
 
