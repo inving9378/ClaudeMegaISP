@@ -72,6 +72,26 @@ class SmartOltDriver implements
         return $this->service->getONUsStatus($oltId);
     }
 
+    public function findOnuBySn(string $sn): array
+    {
+        $result = $this->service->getOnuDetailsBySN($sn);
+
+        if (! ($result['success'] ?? false)) {
+            return [
+                'success' => false,
+                'message' => $result['message'] ?? "ONT with SN '{$sn}' not found",
+            ];
+        }
+
+        // SmartOLT API may return 'onu_details', 'onu', or 'response' depending on version.
+        $onu = $result['onu_details'] ?? $result['onu'] ?? $result['response'] ?? null;
+        if ($onu === null) {
+            return ['success' => false, 'message' => "ONT with SN '{$sn}' not found"];
+        }
+
+        return ['success' => true, 'onu' => $onu];
+    }
+
     public function getOnuDetails(string $onuId): array
     {
         return $this->service->getOnuDetailsByExternalId($onuId);
