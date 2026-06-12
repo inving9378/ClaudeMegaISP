@@ -26,7 +26,7 @@ use Psr\Log\NullLogger;
  *   'tx_onu'      => float|null,   // dBm
  *   'rx_olt'      => float|null,   // dBm, signal_1310
  *   'temperature' => int|null,     // Celsius
- *   'voltage'     => int|null,     // mV
+ *   'voltage'     => float|null,   // V (as reported by OLT, e.g. 3.380)
  *   'bias_current'=> float|null,   // mA
  *   'distance_m'  => int|null,
  * ]
@@ -91,7 +91,15 @@ class OpticalInfoParser
         if ($value === '--' || $value === '-' || $value === '') {
             return null;
         }
-        return is_numeric($value) ? (float) $value : null;
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+        // Handle values with trailing qualifiers, e.g. "-13.47, out of range[-35.00, -15.00]".
+        // Extract the leading numeric token only.
+        if (preg_match('/^([-+]?\d+(?:\.\d+)?)/', $value, $m)) {
+            return (float) $m[1];
+        }
+        return null;
     }
 
     private static function toInt(string $value): ?int
@@ -110,11 +118,13 @@ class OpticalInfoParser
             // @pending-validation: verify "Rx optical power" maps to downstream (ONT Rx, 1490 nm)
             'rx_onu'       => self::toFloat($raw['rx_optical_power_dbm'] ?? '--'),
             'tx_onu'       => self::toFloat($raw['tx_optical_power_dbm'] ?? '--'),
-            // @pending-validation: verify "OLT Rx ONT optical power" maps to upstream (OLT Rx, 1310 nm)
+            // @validated B1c 2026-06-12: "OLT Rx ONT optical power" = upstream (OLT Rx, 1310 nm) ✓
             'rx_olt'       => self::toFloat($raw['olt_rx_ont_optical_power_dbm'] ?? '--'),
             'temperature'  => self::toInt($raw['temperature_c'] ?? $raw['temperature'] ?? '--'),
-            'voltage'      => self::toInt($raw['voltage_v'] ?? $raw['voltage'] ?? '--'),
-            'bias_current' => self::toFloat($raw['bias_current_ma'] ?? '--'),
+            // Voltage reported in Volts (e.g. "3.380"); keep as float to preserve precision.
+            'voltage'      => self::toFloat($raw['voltage_v'] ?? $raw['voltage'] ?? '--'),
+            // VRP label is "Laser bias current(mA)" → key "laser_bias_current_ma".
+            'bias_current' => self::toFloat($raw['laser_bias_current_ma'] ?? $raw['bias_current_ma'] ?? '--'),
             'distance_m'   => self::toInt($raw['distance_m'] ?? '--'),
         ];
     }

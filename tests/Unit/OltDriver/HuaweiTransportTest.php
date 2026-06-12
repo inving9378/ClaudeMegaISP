@@ -199,7 +199,7 @@ class HuaweiTransportTest extends TestCase
 
     // ── leaveToUserView() ─────────────────────────────────────────────────────
 
-    public function test_leave_to_user_view_quits_each_view(): void
+    public function test_leave_to_user_view_uses_return_from_interface(): void
     {
         $session = $this->openedSession();
         $t = $this->makeTransport($session);
@@ -211,15 +211,15 @@ class HuaweiTransportTest extends TestCase
         $session->queueResponse('MA5800-X7(config-if-gpon-', "MA5800-X7(config-if-gpon-0/1)#\r\n");
         $t->enterGponInterface(0, 1);
 
-        // Now leave — 3 quits (interface → config → enable → user)
-        $session->queueResponse('MA5800-X7(config)#', "MA5800-X7(config)#\r\n");
-        $session->queueResponse('MA5800-X7#', "MA5800-X7#\r\n");
+        // leaveToUserView() now sends a single 'return' instead of chaining quit.
+        // 'return' jumps directly to user-view from any view, avoiding the
+        // "Are you sure to log out?" confirmation that 'quit' from enable triggers.
         $session->queueResponse('MA5800-X7>', "MA5800-X7>\r\n");
 
         $t->leaveToUserView();
 
-        $quitCount = count(array_filter($session->written, fn($w) => $w === "quit\r\n"));
-        $this->assertGreaterThanOrEqual(3, $quitCount);
+        $returnCount = count(array_filter($session->written, fn($w) => $w === "return\r\n"));
+        $this->assertSame(1, $returnCount);
         $t->close();
     }
 

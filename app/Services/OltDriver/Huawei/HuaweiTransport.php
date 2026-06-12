@@ -148,19 +148,22 @@ class HuaweiTransport
     }
 
     /**
-     * Return to user view from anywhere (quit until prompt ends with '>').
+     * Return to user view from anywhere using the VRP `return` command.
+     *
+     * `return` jumps directly to user-view from any config/enable/interface
+     * view without confirmation prompts.  Chaining `quit` commands is avoided
+     * because `quit` from enable-view emits "Are you sure to log out? (y/n)"
+     * which disrupts subsequent commands in the same Telnet session.
      */
     public function leaveToUserView(): void
     {
         $this->assertOpen();
 
-        $maxQuits = 5;
-        for ($i = 0; $i < $maxQuits; $i++) {
-            if ($this->view === 'user') {
-                return;
-            }
-            $this->runNavigation('quit', $this->viewAfterQuit());
+        if ($this->view === 'user') {
+            return;
         }
+
+        $this->runNavigation('return', 'user');
     }
 
     /**

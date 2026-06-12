@@ -96,4 +96,44 @@ class OntInfoParserTest extends TestCase
             }
         }
     }
+
+    // ── Real fixture (B1c 2026-06-12, MA5800-X7, ONU 0/3/2 SN HWTCFEFCC9A2) ──
+
+    private static function realFixture(): string
+    {
+        return file_get_contents(__DIR__ . '/../fixtures/huawei/display_ont_info_real.txt');
+    }
+
+    public function test_real_fixture_parses_one_ont(): void
+    {
+        $onts = OntInfoParser::parse(self::realFixture());
+        $this->assertCount(1, $onts);
+    }
+
+    public function test_real_sn_contains_authorized_onu_identifier(): void
+    {
+        $onts = OntInfoParser::parse(self::realFixture());
+        // OLT reports: "48575443FEFCC9A2 (HWTC-FEFCC9A2)" — the hex SN where
+        // 48575443 = ASCII "HWTC" and FEFCC9A2 is the ONU identifier.
+        // The authorized SN HWTCFEFCC9A2 corresponds to this entry.
+        $this->assertStringContainsString('FEFCC9A2', $onts[0]['sn']);
+    }
+
+    public function test_real_run_state_online(): void
+    {
+        $onts = OntInfoParser::parse(self::realFixture());
+        $this->assertSame('online', $onts[0]['run_state']);
+    }
+
+    public function test_real_distance_39m(): void
+    {
+        $onts = OntInfoParser::parse(self::realFixture());
+        $this->assertSame(39, $onts[0]['distance_m']);
+    }
+
+    public function test_real_last_up_time_parsed(): void
+    {
+        $onts = OntInfoParser::parse(self::realFixture());
+        $this->assertStringContainsString('2026-06-10', $onts[0]['last_up_time']);
+    }
 }
