@@ -29,7 +29,15 @@ class TelnetSession implements SessionInterface
     /** @var resource|null */
     private mixed $socket = null;
 
-    private bool $authenticated = false;
+    private bool   $authenticated = false;
+    private string $rawLog        = '';     // accumulates every byte received; access via getRawLog()
+    private bool   $enableRawLog  = false;
+
+    /** Enable byte-level logging of everything received (for B1c diagnostics). */
+    public function enableRawLog(): void { $this->enableRawLog = true; }
+
+    /** Return everything received since the session was opened (or last reset). */
+    public function getRawLog(): string  { return $this->rawLog; }
 
     public function __construct(array $config)
     {
@@ -68,6 +76,9 @@ class TelnetSession implements SessionInterface
         while (microtime(true) < $deadline) {
             $chunk = fread($this->socket, 4096);
             if ($chunk !== false && $chunk !== '') {
+                if ($this->enableRawLog) {
+                    $this->rawLog .= $chunk;
+                }
                 $buf .= $chunk;
             }
 
@@ -97,10 +108,18 @@ class TelnetSession implements SessionInterface
                 continue;
             }
 
-            // ── Pager — advance and strip (lesson 3) ──────────────────────
-            if (str_contains($buf, '---- More ----')) {
+            // ── Strip ANSI/VT100 sequences before any string checks ───────
+            // VRP emits cursor-movement codes (e.g. ESC[37D) after clearing the
+            // pager line; they corrupt str_contains prompt and More detection.
+            $buf = (string) preg_replace('/\x1B\[[0-9;]*[A-Za-z]|\x1B[A-Za-z]/', '', $buf);
+            $buf = str_replace(["\x0F", "\x0E"], '', $buf);
+
+            // ── Pager — covers both short and full More forms (lesson 3) ──
+            // MA5800 VRP V100R018 sends "---- More ( Press 'Q' to break ) ----"
+            // while older fixtures use "---- More ----". Match on common prefix.
+            if (str_contains($buf, '---- More')) {
                 fwrite($this->socket, ' ');
-                $buf = str_replace('---- More ----', '', $buf);
+                $buf = (string) preg_replace('/---- More[^\r\n]*/u', '', $buf);
                 continue;
             }
 

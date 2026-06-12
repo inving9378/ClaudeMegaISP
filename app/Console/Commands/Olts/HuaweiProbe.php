@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands\Olts;
 
-use App\Services\OltDriver\Huawei\HuaweiDriver;
 use App\Services\OltDriver\Huawei\HuaweiTransport;
 use App\Services\OltDriver\Huawei\Parsers\OntInfoParser;
 use App\Services\OltDriver\Huawei\Parsers\OpticalInfoParser;
@@ -12,23 +11,30 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
- * B1b-5 SP3 — Smoke-test manual de la conexión Telnet contra la MA5800-X7.
+ * B1c — Sesión única de validación Telnet contra Huawei MA5800-X7.
  *
- * Uso:
- *   php artisan olt:huawei:probe
- *   php artisan olt:huawei:probe 0/3/2:0
+ * Diseño de la sesión:
+ *   login → enable → config → interface gpon {frame}/{slot}
+ *   → display ont info {port} {ont-id}
+ *   → display ont optical-info {port} {ont-id}
+ *   → quit (×3) → user-view
+ *   → display version
+ *   → cierre limpio
  *
- * Credenciales desde config/services.php → .env:
- *   OLT_HUAWEI_HOST, OLT_HUAWEI_PORT, OLT_HUAWEI_USER, OLT_HUAWEI_PASS
+ * Plan B (automático): si interface-context falla, intenta
+ *   display ont info by-sn <SN> desde config-view.
  *
- * SP4 (disparo contra OLT real) está bloqueado hasta B1c + OK explícito de Irving.
+ * Log raw: storage/logs/olt-probe-raw-<timestamp>.log (byte-level de toda la sesión).
+ *
+ * Credenciales desde .env: OLT_HUAWEI_HOST/PORT/USER/PASS
  */
 class HuaweiProbe extends Command
 {
     protected $signature = 'olt:huawei:probe
-                            {onu? : ONU en formato F/S/P:ONT (default: 0/3/2:0)}';
+                            {onu? : ONU en formato F/S/P:ONT (default: 0/3/2:0)}
+                            {--raw : Mostrar output crudo de cada comando además del parseado}';
 
-    protected $description = 'Sonda de conexión Telnet contra Huawei MA5800-X7 — muestra ont info + optical-info de la ONU indicada';
+    protected $description = 'Sonda de validación Telnet contra Huawei MA5800-X7 (B1c)';
 
     public function handle(): int
     {
@@ -46,28 +52,27 @@ class HuaweiProbe extends Command
             return self::FAILURE;
         }
 
-        // Parseo ONU: "0/3/2:0" → frame/slot="0/3", port=2, ont-id=0
         $onuStr = $this->argument('onu') ?? '0/3/2:0';
         [$frameSlot, $ontId] = $this->parseOnu($onuStr);
         [$frame, $slot, $port] = $this->parseFrameSlotPort($frameSlot, $onuStr);
 
+        $rawLogPath = storage_path('logs/olt-probe-raw-' . date('Ymd_His') . '.log');
+
         $this->info("=== olt:huawei:probe ===");
-        $this->line("  Host  : {$host}:{$cfg['port']}");
-        $this->line("  ONU   : {$onuStr}  →  interface gpon {$frameSlot}  port={$port}  ont-id={$ontId}");
+        $this->line("  Host    : {$host}:{$cfg['port']}");
+        $this->line("  ONU     : {$onuStr}  →  interface gpon {$frameSlot}  port={$port}  ont-id={$ontId}");
+        $this->line("  Raw log : {$rawLogPath}");
 
         $logger  = Log::channel('daily');
         $session = new TelnetSession($cfg);
-        $guard   = new ReadOnlyGuard($logger);
+        $session->enableRawLog();
+
+        $guard     = new ReadOnlyGuard($logger);
         $transport = new HuaweiTransport(
             config:  $cfg,
             session: $session,
             guard:   $guard,
             logger:  $logger,
-        );
-        $driver = new HuaweiDriver(
-            transport: $transport,
-            config:    array_merge($cfg, ['olt_id' => 'probe', 'frame' => $frame]),
-            logger:    $logger,
         );
 
         $this->line('');
@@ -77,102 +82,112 @@ class HuaweiProbe extends Command
             $transport->open();
         } catch (\Throwable $e) {
             $this->error("No se pudo conectar: {$e->getMessage()}");
+            file_put_contents($rawLogPath, $session->getRawLog());
             return self::FAILURE;
         }
 
-        $this->info('Sesión abierta. Ejecutando comandos...');
+        $this->info('Sesión abierta. Ejecutando batería...');
+
+        $rawOntInfo  = '';
+        $rawOptical  = '';
+        $rawVersion  = '';
+        $planBUsed   = false;
 
         try {
-            $ontInfo     = $this->fetchOntInfo($transport, $frameSlot, $slot, $port, $ontId);
-            $opticalInfo = $this->fetchOpticalInfo($transport, $frameSlot, $slot, $port, $ontId);
-            $versionRaw  = $this->fetchVersion($transport);
+            // ── Navegar: enable → config → interface gpon {frame}/{slot} ──────
+            $transport->enterGponInterface($frame, $slot);
+            $this->line("  [nav] interface gpon {$frameSlot} ✓");
+
+            // ── display ont info {port} {ont-id} (interface-context) ───────────
+            $rawOntInfo = $transport->exec("display ont info {$port} {$ontId}");
+            $ontInfo    = OntInfoParser::parse($rawOntInfo, $logger);
+
+            // ── Plan B: si no parseó, intentar by-sn desde config ─────────────
+            if (empty($ontInfo)) {
+                $this->warn("  [plan-B] interface-context vacío — intentando by-sn desde config");
+                $transport->leaveToUserView();  // a user-view
+                // re-navegar a config (enterGponInterface va user→enable→config→interface,
+                // pero necesitamos quedarnos en config para by-sn)
+                $transport->enterGponInterface($frame, $slot);
+                $transport->leaveToUserView();   // volver a user-view para no quedar en interface
+                // navegar solo hasta config manualmente no está expuesto;
+                // usamos exec desde user-view con sintaxis user-view:
+                $rawOntInfo = $transport->exec("display ont info by-sn HWTCFEFCC9A2");
+                $ontInfo    = OntInfoParser::parse($rawOntInfo, $logger);
+                $planBUsed  = true;
+            }
+
+            // ── display ont optical-info {port} {ont-id} (re-entrar interface) ─
+            $transport->enterGponInterface($frame, $slot);
+            $rawOptical  = $transport->exec("display ont optical-info {$port} {$ontId}");
+            $opticalInfo = OpticalInfoParser::parse($rawOptical, $logger);
+            $transport->leaveToUserView();
+
+            // ── display version (user-view) ────────────────────────────────────
+            $rawVersion = $transport->exec('display version');
+
         } catch (\Throwable $e) {
             $this->error("Error durante la consulta: {$e->getMessage()}");
             $transport->close();
+            file_put_contents($rawLogPath, $session->getRawLog());
+            $this->warn("Raw log guardado en: {$rawLogPath}");
             return self::FAILURE;
         }
 
         $transport->close();
+        file_put_contents($rawLogPath, $session->getRawLog());
+        $this->line("  [raw-log] guardado: {$rawLogPath}");
 
-        // ── Mostrar resultados ────────────────────────────────────────────────
+        // ── Resultados ────────────────────────────────────────────────────────
         $this->line('');
-        $this->info('── ONT INFO ──────────────────────────────────────────────────');
+        $this->info('── ONT INFO' . ($planBUsed ? ' (by-sn)' : ' (interface-context)') . ' ─────────────────────');
+        if ($this->option('raw')) {
+            $this->line('[RAW] >>> ' . $rawOntInfo . ' <<<');
+        }
         if (empty($ontInfo)) {
-            $this->warn('  Sin datos (ONU no encontrada o parser pendiente de validación).');
+            $this->warn('  Sin datos — ver raw log.');
         } else {
             foreach ($ontInfo as $onu) {
-                $this->table(
-                    ['Campo', 'Valor'],
-                    $this->flattenForTable($onu),
-                );
+                $this->table(['Campo', 'Valor'], $this->flattenForTable($onu));
             }
         }
 
         $this->line('');
         $this->info('── OPTICAL INFO ──────────────────────────────────────────────');
+        if ($this->option('raw')) {
+            $this->line('[RAW] >>> ' . $rawOptical . ' <<<');
+        }
         if (empty($opticalInfo)) {
-            $this->warn('  Sin datos (ONU no encontrada o parser pendiente de validación).');
+            $this->warn('  Sin datos — ver raw log.');
         } else {
             foreach ($opticalInfo as $opt) {
-                $this->table(
-                    ['Campo', 'Valor'],
-                    $this->flattenForTable($opt),
-                );
+                $this->table(['Campo', 'Valor'], $this->flattenForTable($opt));
             }
-            // Mostrar valores clave
-            $o = $opticalInfo[0];
-            $rxOnu = $o['rx_onu'] ?? null;
-            $rxOlt = $o['rx_olt'] ?? null;
+            $rxOnu = $opticalInfo[0]['rx_onu'] ?? null;
+            $rxOlt = $opticalInfo[0]['rx_olt'] ?? null;
             $this->line('');
-            $this->info(sprintf('  Rx ONU (downstream, 1490 nm) = %s dBm  [esperado: ~-8.54]',
+            $this->info(sprintf('  Rx ONU (downstream 1490 nm) = %s dBm  [esperado ≈ -8.54]',
                 $rxOnu !== null ? $rxOnu : '(null)'));
-            $this->info(sprintf('  Rx OLT (upstream,   1310 nm) = %s dBm  [esperado: ~-13.04]',
+            $this->info(sprintf('  Rx OLT (upstream   1310 nm) = %s dBm  [esperado ≈ -13.04]',
                 $rxOlt !== null ? $rxOlt : '(null)'));
         }
 
         $this->line('');
         $this->info('── VERSION (raw) ─────────────────────────────────────────────');
-        $this->line($versionRaw ?? '(sin output)');
+        $this->line($rawVersion ?: '(vacío)');
 
         $this->line('');
         $this->info('=== probe completado ===');
         return self::SUCCESS;
     }
 
-    private function fetchOntInfo(HuaweiTransport $transport, string $frameSlot, int $slot, int $port, int $ontId): array
-    {
-        // Correr desde user-view con sintaxis completa frame slot port ont-id,
-        // igual a como lo hace HuaweiDriver::getOnuDetails(). La sintaxis relativa
-        // (display ont info 2 0 dentro de interface gpon) causó timeout en B1c:
-        // el MA5800 no devuelve el prompt de interface al final de ese comando.
-        $frame = (int) explode('/', $frameSlot)[0];
-        $raw   = $transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
-        return OntInfoParser::parse($raw);
-    }
-
-    private function fetchOpticalInfo(HuaweiTransport $transport, string $frameSlot, int $slot, int $port, int $ontId): array
-    {
-        // Mismo criterio: user-view con path completo.
-        // HuaweiDriver::fetchOpticalForOnt usa interface-context; si falla en B1c
-        // también, se corregirá ahí con el fixture real.
-        $frame = (int) explode('/', $frameSlot)[0];
-        $raw   = $transport->exec("display ont optical-info {$frame} {$slot} {$port} {$ontId}");
-        return OpticalInfoParser::parse($raw);
-    }
-
-    /** Captura output crudo de "display version" en user-view (sin parser — fixture para B1c). */
-    private function fetchVersion(HuaweiTransport $transport): string
-    {
-        return $transport->exec('display version');
-    }
-
     /** "0/3/2:0" → ["0/3", 0] */
     private function parseOnu(string $onuStr): array
     {
-        $parts  = preg_split('/[\/:]/', $onuStr);
-        $frame  = $parts[0] ?? '0';
-        $slot   = $parts[1] ?? '3';
-        $ontId  = (int) ($parts[3] ?? 0);
+        $parts = preg_split('/[\/:]/', $onuStr);
+        $frame = $parts[0] ?? '0';
+        $slot  = $parts[1] ?? '3';
+        $ontId = (int) ($parts[3] ?? 0);
         return ["{$frame}/{$slot}", $ontId];
     }
 
