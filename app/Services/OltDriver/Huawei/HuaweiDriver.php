@@ -370,8 +370,9 @@ class HuaweiDriver implements OltDriverInterface
 
                 for ($port = 0; $port < $portCount; $port++) {
                     try {
-                        // Interface-context syntax: "display ont info {port} all"
-                        $output  = $this->transport->exec("display ont info {$port} all");
+                        // 360s: a loaded port (≥100 ONTs) generates many More pages;
+                        // measured in B3a against 0/2/8 (112 ONTs) to validate this budget.
+                        $output  = $this->transport->exec("display ont info {$port} all", 360);
                         $portOnt = OntListParser::parse($output, $this->logger);
 
                         foreach ($portOnt as $ont) {
@@ -421,7 +422,8 @@ class HuaweiDriver implements OltDriverInterface
 
                 for ($port = 0; $port < $portCount; $port++) {
                     try {
-                        $optOutput = $this->transport->exec("display ont optical-info {$port} all");
+                        // 360s: same budget as ont info (loaded port may paginate heavily).
+                        $optOutput = $this->transport->exec("display ont optical-info {$port} all", 360);
                         $optItems  = OpticalBatchParser::parse($optOutput, $this->logger);
 
                         foreach ($optItems as $item) {
