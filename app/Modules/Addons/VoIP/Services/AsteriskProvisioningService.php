@@ -6,6 +6,7 @@ use App\Modules\Addons\VoIP\Models\Extension;
 use App\Modules\Addons\VoIP\Models\Troncal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Gestiona la provisión de troncales y extensiones PJSIP.
@@ -74,15 +75,18 @@ class AsteriskProvisioningService
             $this->desprovisionarRegistracion($troncal, reload: true);
         }
 
-        if ($troncal->tipo === 'ip') {
-            $this->upsert('ps_endpoint_id_ips', [
-                'id'       => $id,
-                'endpoint' => $id,
-                'match'    => $troncal->host,
-            ]);
-        } else {
-            $this->db()->table('ps_endpoint_id_ips')->where('id', $id)->delete();
-        }
+        // ── ps_endpoint_id_ips + identify_by ─────────────────────────────────
+        // Tanto tipo=ip como tipo=registro necesitan identificación inbound por IP.
+        // Para registro: el proveedor envía INVITEs desde su IP aunque nosotros
+        // seamos quienes registramos hacia ellos.
+        $matchIps = $this->resolveProviderIps($troncal->host);
+        $this->upsert('ps_endpoint_id_ips', [
+            'id'       => $id,
+            'endpoint' => $id,
+            'match'    => $matchIps,
+        ]);
+        // identify_by: ip para coincidir por IP de origen; username como fallback
+        $this->db()->table('ps_endpoints')->where('id', $id)->update(['identify_by' => 'ip,username']);
 
         $troncal->update(['provisionado_at' => now()->toDateTimeString()]);
         Log::info("VoIP: troncal {$troncal->nombre} ({$id}) provisionada.");
@@ -459,6 +463,59 @@ class AsteriskProvisioningService
     // ─────────────────────────────────────────────────────────────────────────
     // HELPERS
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Solo asegura la fila de ps_endpoint_id_ips e identify_by, sin tocar
+     * auth/aors/registración. Útil para aplicar el fix a trunks ya provisionados
+     * sin riesgo de romper la registración saliente activa.
+     */
+    public function asegurarIdentify(Troncal $troncal): array
+    {
+        $id       = $troncal->endpointId();
+        $matchIps = $this->resolveProviderIps($troncal->host);
+
+        $this->upsert('ps_endpoint_id_ips', [
+            'id'       => $id,
+            'endpoint' => $id,
+            'match'    => $matchIps,
+        ]);
+        $this->db()->table('ps_endpoints')->where('id', $id)->update(['identify_by' => 'ip,username']);
+
+        Log::info("VoIP: identify asegurado para {$troncal->nombre} ({$id}) → {$matchIps}");
+        return ['endpoint' => $id, 'match' => $matchIps, 'identify_by' => 'ip,username'];
+    }
+
+    /**
+     * Resuelve todos los A records del host del proveedor y retorna una
+     * cadena separada por comas lista para el campo match de ps_endpoint_id_ips.
+     * Si el host ya es una IP la retorna directamente.
+     * Resultado cacheado 5 minutos para evitar DNS en cada reload.
+     */
+    private function resolveProviderIps(string $host): string
+    {
+        // Si es IP directa no resolver
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return $host;
+        }
+
+        $cacheKey = "voip_dns_{$host}";
+        $ips = Cache::remember($cacheKey, 300, function () use ($host) {
+            $records = @dns_get_record($host, DNS_A);
+            if (!empty($records)) {
+                return array_column($records, 'ip');
+            }
+            // Fallback: gethostbynamel para resolución simple
+            $fallback = @gethostbynamel($host);
+            return is_array($fallback) ? $fallback : [];
+        });
+
+        if (empty($ips)) {
+            Log::warning("VoIP: no se resolvieron IPs para {$host}; usando hostname como match.");
+            return $host;
+        }
+
+        return implode(',', array_unique($ips));
+    }
 
     private function db()
     {
