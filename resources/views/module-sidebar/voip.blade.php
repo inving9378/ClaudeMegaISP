@@ -12,6 +12,27 @@
                     </a>
                 </li>
             @endif
+            @if(auth()->user()->can('voip.extensiones.view'))
+                <li>
+                    <a href="{{ url('/voip/extensiones') }}">
+                        <span><small><i class="fa fa-fw fa-phone"></i></small> Extensiones</span>
+                    </a>
+                </li>
+            @endif
+            @if(auth()->user()->can('voip.grupos.view'))
+                <li>
+                    <a href="{{ url('/voip/grupos-timbrado') }}">
+                        <span><small><i class="fa fa-fw fa-users"></i></small> Grupos de timbrado</span>
+                    </a>
+                </li>
+            @endif
+            @if(auth()->user()->can('voip.ia-bot.view'))
+                <li>
+                    <a href="{{ url('/voip/ia-bot') }}">
+                        <span><small><i class="fa fa-fw fa-robot"></i></small> Asistente IA</span>
+                    </a>
+                </li>
+            @endif
 
             {{-- Hijos dinámicos desde module_sidebar_config --}}
             @foreach($item->dynamic_children ?? collect() as $child)
