@@ -45,11 +45,7 @@ class ImportExportController extends Controller
 
     public function upload(Request $request)
     {
-        set_time_limit(0);
-        ini_set('memory_limit', '8912M');
         // `extensions:` (Laravel 10.46+) valida por extensión del nombre del archivo.
-        // `mimes:sql,...` rechazaba .sql porque no tiene MIME type estándar registrado
-        // en Symfony MimeTypes, lo que causaba 422 ANTES de llegar a analyzeFile().
         $validator = Validator::make($request->all(), [
             'file' => ['required', 'file', 'extensions:sql,zip', 'max:2097152'],
         ]);
@@ -57,43 +53,43 @@ class ImportExportController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $file = $request->file('file');
+        $file      = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension() ?: 'bin');
 
         $log = ImportExportLog::create([
             'type'       => 'import',
             'filename'   => $file->getClientOriginalName(),
-            'format'     => strtolower($file->getClientOriginalExtension()),
+            'format'     => $extension,
             'status'     => 'pending',
             'admin_user' => $this->resolveAdminUser(),
         ]);
 
-        try {
-            $analysis = $this->importService->analyzeFile($file);
-        } catch (Throwable $e) {
-            $log->markFailed('Error al analizar archivo: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'log_id'  => $log->id,
-            ], 422);
+        // Mover el archivo al directorio de trabajo antes de liberar la sesión.
+        $token = (string) Str::uuid();
+        $dir   = storage_path(SmartImportService::STORAGE_DIR);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
         }
+        $storedName = $token . '-upload.' . $extension;
+        $file->move($dir, $storedName);
 
-        Cache::put($this->cacheKey($analysis['token']), $analysis, now()->addHours(6));
+        // Guardar metadata pendiente para que el comando de background la lea.
+        Cache::put('smart_import:pending:' . $token, [
+            'file'   => $storedName,
+            'log_id' => $log->id,
+        ], now()->addHours(6));
 
-        $payload = $this->sanitizeForJson([
-            'token'      => $analysis['token'],
-            'format'     => $analysis['format'],
-            'report'     => $analysis['report'],
-            'total_rows' => $analysis['total_rows'],
-        ]);
+        // Liberar la sesión antes de lanzar el proceso (evita lock de sesión).
+        session()->save();
 
         try {
-            $log->update(['ai_analysis' => $payload]);
+            $this->launchAnalyzeProcess($token);
         } catch (Throwable $e) {
-            $log->markFailed('No se pudo persistir el análisis: ' . $e->getMessage());
+            $log->markFailed('No se pudo iniciar el análisis: ' . $e->getMessage());
+            Cache::forget('smart_import:pending:' . $token);
             return response()->json([
                 'success' => false,
-                'message' => 'El archivo se subió pero el resultado del análisis no pudo guardarse: ' . $e->getMessage(),
+                'message' => 'No se pudo iniciar el análisis en segundo plano: ' . $e->getMessage(),
                 'log_id'  => $log->id,
             ], 500);
         }
@@ -101,11 +97,49 @@ class ImportExportController extends Controller
         return response()->json([
             'success'    => true,
             'log_id'     => $log->id,
-            'token'      => $payload['token'],
-            'format'     => $payload['format'],
-            'report'     => $payload['report'],
-            'total_rows' => $payload['total_rows'],
+            'token'      => $token,
+            'status'     => 'analyzing',
+            'report'     => [],
+            'total_rows' => 0,
+            'format'     => $extension,
         ]);
+    }
+
+    public function analysisStatus(string $token)
+    {
+        // 1. Análisis listo
+        $analysis = Cache::get('smart_import:analysis:' . $token);
+        if ($analysis) {
+            return response()->json([
+                'success'    => true,
+                'status'     => 'ready',
+                'token'      => $token,
+                'format'     => $analysis['format'],
+                'report'     => $analysis['report'],
+                'total_rows' => $analysis['total_rows'],
+            ]);
+        }
+
+        // 2. Todavía analizando
+        if (Cache::has('smart_import:pending:' . $token)) {
+            return response()->json(['success' => true, 'status' => 'analyzing']);
+        }
+
+        // 3. Falló
+        $error = Cache::get('smart_import:analysis_error:' . $token);
+        if ($error) {
+            return response()->json([
+                'success' => false,
+                'status'  => 'failed',
+                'message' => $error,
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'status'  => 'not_found',
+            'message' => 'Token no encontrado o expirado.',
+        ], 404);
     }
 
     public function preview(Request $request)
@@ -352,6 +386,29 @@ class ImportExportController extends Controller
     private function cacheKey(string $token): string
     {
         return 'smart_import:analysis:' . $token;
+    }
+
+    private function launchAnalyzeProcess(string $token): void
+    {
+        $php     = $this->resolvePhpCliBinary();
+        $logPath = storage_path('logs/smart-import-analyze-' . $token . '.log');
+
+        $command = sprintf(
+            'cd %s && nohup %s artisan smart-import:analyze %s > %s 2>&1 & echo $!',
+            escapeshellarg(base_path()),
+            escapeshellarg($php),
+            escapeshellarg($token),
+            escapeshellarg($logPath)
+        );
+
+        $output   = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+
+        $pid = trim((string) ($output[0] ?? ''));
+        if ($exitCode !== 0 || $pid === '') {
+            throw new \RuntimeException('No fue posible iniciar el análisis en segundo plano.');
+        }
     }
 
     private function launchSmartImportProcess(string $jobId): void
