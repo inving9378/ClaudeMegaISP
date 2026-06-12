@@ -223,6 +223,84 @@ class HuaweiTransportTest extends TestCase
         $t->close();
     }
 
+    // ── enterConfigView() ────────────────────────────────────────────────────
+
+    public function test_enter_config_view_navigates_enable_then_config(): void
+    {
+        $session = $this->openedSession();
+        $t = $this->makeTransport($session);
+        $t->open();
+
+        $session->queueResponse('MA5800-X7#',         "MA5800-X7#\r\n");
+        $session->queueResponse('MA5800-X7(config)#', "MA5800-X7(config)#\r\n");
+
+        $t->enterConfigView();
+
+        $this->assertContains("enable\r\n", $session->written);
+        $this->assertContains("config\r\n", $session->written);
+        $t->close();
+    }
+
+    public function test_enter_config_view_from_interface_leaves_first(): void
+    {
+        $session = $this->openedSession();
+        $t = $this->makeTransport($session);
+        $t->open();
+
+        // Navigate to interface first
+        $session->queueResponse('MA5800-X7#',                "MA5800-X7#\r\n");
+        $session->queueResponse('MA5800-X7(config)#',        "MA5800-X7(config)#\r\n");
+        $session->queueResponse('MA5800-X7(config-if-gpon-', "MA5800-X7(config-if-gpon-0/1)#\r\n");
+        $t->enterGponInterface(0, 1);
+
+        // enterConfigView() from interface: return → user-view, then enable → config
+        $session->queueResponse('MA5800-X7>',         "MA5800-X7>\r\n"); // return
+        $session->queueResponse('MA5800-X7#',         "MA5800-X7#\r\n"); // enable
+        $session->queueResponse('MA5800-X7(config)#', "MA5800-X7(config)#\r\n"); // config
+
+        $t->enterConfigView();
+
+        $returnCount = count(array_filter($session->written, fn($w) => $w === "return\r\n"));
+        $this->assertGreaterThanOrEqual(1, $returnCount);
+        $t->close();
+    }
+
+    public function test_enter_config_view_already_in_config_is_noop(): void
+    {
+        $session = $this->openedSession();
+        $t = $this->makeTransport($session);
+        $t->open();
+
+        $session->queueResponse('MA5800-X7#',         "MA5800-X7#\r\n");
+        $session->queueResponse('MA5800-X7(config)#', "MA5800-X7(config)#\r\n");
+        $t->enterConfigView();
+
+        $writtenBefore = count($session->written);
+
+        // Calling enterConfigView again should be a no-op (already in config)
+        $t->enterConfigView();
+
+        $this->assertSame($writtenBefore, count($session->written));
+        $t->close();
+    }
+
+    // ── exec() with custom timeout ────────────────────────────────────────────
+
+    public function test_exec_accepts_custom_timeout(): void
+    {
+        $session = $this->openedSession();
+        $t = $this->makeTransport($session);
+        $t->open();
+
+        // exec() calls readUntil twice: once for sync-drain, once inside readFull.
+        $session->queueResponse('MA5800-X7>', "MA5800-X7>\r\n");   // sync drain
+        $session->queueResponse('MA5800-X7>', "display version\r\nVERSION : MA5800V100R018C00\r\nMA5800-X7>\r\n");
+
+        // Should not throw; custom timeout is plumbed through readFull
+        $output = $t->exec('display version', timeout: 120);
+        $this->assertStringContainsString('VERSION', $output);
+    }
+
     // ── close() ──────────────────────────────────────────────────────────────
 
     public function test_close_calls_session_close(): void

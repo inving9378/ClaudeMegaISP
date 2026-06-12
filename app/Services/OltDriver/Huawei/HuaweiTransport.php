@@ -101,8 +101,12 @@ class HuaweiTransport
      *
      * @throws ReadOnlyViolationException if $command fails the whitelist
      * @throws RuntimeException           on session loss
+     *
+     * @param int $timeout Maximum seconds to wait for the complete response.
+     *                     Increase for commands with many More pages (e.g. `display ont info 2 all`
+     *                     on a heavily-populated port may paginate for >60 s).
      */
-    public function exec(string $command): string
+    public function exec(string $command, int $timeout = 60): string
     {
         $this->assertOpen();
         $this->guard->assertAllowed($command);  // guard BEFORE any I/O
@@ -114,12 +118,37 @@ class HuaweiTransport
 
         // Send the command
         $this->session->write($command . "\r\n");
-        $this->logger->info('[olt-huawei] transport:exec', ['cmd' => $command]);
+        $this->logger->info('[olt-huawei] transport:exec', ['cmd' => $command, 'timeout' => $timeout]);
 
         // Read response, flushing ---- More ---- pages
-        $raw = $this->readFull($prompt);
+        $raw = $this->readFull($prompt, timeout: $timeout);
 
         return $this->stripEcho($command, $raw);
+    }
+
+    /**
+     * Navigate to configuration view.
+     * Path (from wherever we are): user → enable → config.
+     *
+     * Use this before exec()-ing commands that are available in config-view
+     * but not in user-view (e.g. `display board`, `display ont autofind all`,
+     * `display ont info by-sn`).
+     */
+    public function enterConfigView(): void
+    {
+        $this->assertOpen();
+
+        if ($this->view === 'interface') {
+            $this->leaveToUserView();
+        }
+
+        if ($this->view === 'user') {
+            $this->runNavigation('enable', 'enable');
+        }
+
+        if ($this->view === 'enable') {
+            $this->runNavigation('config', 'config');
+        }
     }
 
     /**
