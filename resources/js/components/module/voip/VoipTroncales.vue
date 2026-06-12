@@ -53,7 +53,12 @@
                         </thead>
                         <tbody>
                             <tr v-for="t in troncales" :key="t.id">
-                                <td class="fw-medium">{{ t.nombre }}</td>
+                                <td class="fw-medium">
+                                    {{ t.nombre }}
+                                    <span v-if="t.grupo_entrante_nombre" class="d-block text-muted" style="font-size:0.78rem">
+                                        <i class="fa fa-phone-volume me-1"></i>{{ t.grupo_entrante_nombre }}
+                                    </span>
+                                </td>
                                 <td class="text-muted">{{ t.proveedor || '—' }}</td>
                                 <td>
                                     <span class="badge" :class="t.tipo === 'registro' ? 'bg-info' : 'bg-secondary'">
@@ -241,6 +246,21 @@
                                        placeholder="ej. 5551234567">
                             </div>
                             <div class="col-md-6">
+                                <label class="form-label small">
+                                    Grupo entrante
+                                    <small class="text-muted">(opcional)</small>
+                                </label>
+                                <select class="form-select form-select-sm" v-model="form.grupo_entrante_id">
+                                    <option :value="null">— Sin grupo (usar dialplan manual) —</option>
+                                    <option v-for="g in grupos" :key="g.id" :value="g.id">
+                                        {{ g.nombre }} ({{ g.estrategia }}, {{ g.miembros?.length ?? 0 }} miembros)
+                                    </option>
+                                </select>
+                                <div class="form-text text-muted" style="font-size:0.75rem">
+                                    Las llamadas entrantes timbrarán a este grupo automáticamente.
+                                </div>
+                            </div>
+                            <div class="col-md-6">
                                 <label class="form-label small">Codecs</label>
                                 <input class="form-control form-control-sm" v-model="form.codecs"
                                        placeholder="ulaw,alaw">
@@ -323,6 +343,7 @@ export default {
     data() {
         return {
             troncales:       [],
+            grupos:          [],
             cargando:        false,
             guardando:       false,
             eliminando:      false,
@@ -351,24 +372,26 @@ export default {
 
     mounted() {
         this.cargar();
+        this.cargarGrupos();
     },
 
     methods: {
         formVacio() {
             return {
-                nombre:    '',
-                proveedor: '',
-                tipo:      'registro',
-                direccion: 'saliente',
-                host:      '',
-                puerto:    5060,
-                usuario:   '',
-                secret:    '',
-                contexto:  'from-trunk',
-                did:       '',
-                codecs:    'ulaw,alaw',
-                transporte:'transport-udp',
-                activo:    true,
+                nombre:            '',
+                proveedor:         '',
+                tipo:              'registro',
+                direccion:         'saliente',
+                host:              '',
+                puerto:            5060,
+                usuario:           '',
+                secret:            '',
+                contexto:          'from-trunk',
+                did:               '',
+                grupo_entrante_id: null,
+                codecs:            'ulaw,alaw',
+                transporte:        'transport-udp',
+                activo:            true,
             };
         },
 
@@ -382,25 +405,33 @@ export default {
             }
         },
 
+        async cargarGrupos() {
+            try {
+                const r = await fetch(`${this.baseUrl}/grupos-timbrado/data`, { headers: this.headers() });
+                if (r.ok) this.grupos = await r.json();
+            } catch { /* silencioso */ }
+        },
+
         abrirModal(troncal = null) {
             this.errores       = {};
             this.mostrarSecret = false;
             if (troncal) {
                 this.editando = troncal;
                 this.form = {
-                    nombre:    troncal.nombre,
-                    proveedor: troncal.proveedor || '',
-                    tipo:      troncal.tipo,
-                    direccion: troncal.direccion,
-                    host:      troncal.host,
-                    puerto:    troncal.puerto,
-                    usuario:   troncal.usuario || '',
-                    secret:    '',
-                    contexto:  troncal.contexto,
-                    did:       troncal.did || '',
-                    codecs:    troncal.codecs,
-                    transporte:troncal.transporte,
-                    activo:    troncal.activo,
+                    nombre:            troncal.nombre,
+                    proveedor:         troncal.proveedor || '',
+                    tipo:              troncal.tipo,
+                    direccion:         troncal.direccion,
+                    host:              troncal.host,
+                    puerto:            troncal.puerto,
+                    usuario:           troncal.usuario || '',
+                    secret:            '',
+                    contexto:          troncal.contexto,
+                    did:               troncal.did || '',
+                    grupo_entrante_id: troncal.grupo_entrante_id ?? null,
+                    codecs:            troncal.codecs,
+                    transporte:        troncal.transporte,
+                    activo:            troncal.activo,
                 };
             } else {
                 this.editando = null;
