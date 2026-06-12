@@ -278,6 +278,50 @@ class HuaweiDriver implements OltDriverInterface
         }
     }
 
+    // ── Lecturas adicionales (no en OltDriverInterface — ver roadmap B3) ────────
+
+    /**
+     * Look up a single ONT by serial number.
+     *
+     * Uses `display ont info by-sn {sn}` (config-view command) — returns the
+     * full detail block for the matching ONT including its F/S/P location.
+     *
+     * NOT part of OltDriverInterface. Promotion to the interface is deferred
+     * to B3 when the UI defines whether cross-driver SN lookup is required
+     * (see roadmap item "B3-decision-findOnuBySn").
+     *
+     * @return array{success:bool, onu?:array, message?:string}
+     */
+    public function findOnuBySn(string $sn): array
+    {
+        try {
+            $this->transport->enterConfigView();
+            $output = $this->transport->exec("display ont info by-sn {$sn}");
+
+            $onts = OntInfoParser::parse($output, $this->logger);
+
+            if (empty($onts)) {
+                return ['success' => false, 'message' => "ONT with SN '{$sn}' not found"];
+            }
+
+            $ont = $onts[0];
+            [$frame, $slot, $port] = $this->extractFsp($output);
+
+            return [
+                'success' => true,
+                'onu'     => $this->buildOnuShape($ont, $this->oltId, $frame, $slot, $port),
+            ];
+        } catch (Throwable $e) {
+            return $this->error($e);
+        } finally {
+            try {
+                $this->transport->leaveToUserView();
+            } catch (Throwable) {
+                // best-effort
+            }
+        }
+    }
+
     // ── Escrituras — NOT IMPLEMENTED (B4) ────────────────────────────────────
 
     public function authorizeOnu(array $data): array
@@ -557,25 +601,44 @@ class HuaweiDriver implements OltDriverInterface
     /**
      * Normalize a Huawei SN to the human-readable decoded form.
      *
-     * Tabular `display ont info {port} all` returns the raw 16-char hex SN
-     * (e.g. "48575443FEFCC9A2"), while the detailed per-ONT view returns the
-     * already-decoded form ("HWTCFEFCC9A2").  Both representations are valid;
-     * we normalize to the decoded form so that unique_external_id and the SN
-     * field remain consistent regardless of which command produced the data.
+     * VRP produces three SN representations depending on the command:
+     *   • Tabular batch:  "48575443FEFCC9A2"             (16-char hex)
+     *   • Per-ONT detail: "HWTCFEFCC9A2"                 (decoded, 12 chars)
+     *   • by-sn output:   "48575443FEFCC9A2 (HWTC-FEFCC9A2)" (hex + parenthetical)
      *
-     * Decoding: first 4 bytes (8 hex chars) → ASCII vendor chars + remaining 8 hex.
-     * Only decodes if the vendor bytes are printable ASCII; leaves SN unchanged otherwise.
+     * All three are normalized to the decoded form ("HWTCFEFCC9A2") so that
+     * unique_external_id and the SN field are consistent across commands.
+     *
+     * Decoding: strip any parenthetical annotation, then decode the first 4 bytes
+     * of the hex form as ASCII vendor chars; leave unchanged if not printable ASCII.
      */
     private function normalizeSn(string $sn): string
     {
+        // Strip VRP vendor annotation: "48575443FEFCC9A2 (HWTC-FEFCC9A2)" → "48575443FEFCC9A2"
+        $sn = trim((string) preg_replace('/\s*\(.*\)\s*$/', '', $sn));
+
         if (strlen($sn) !== 16 || !ctype_xdigit($sn)) {
             return $sn;  // already decoded (HWTCFEFCC9A2) or unknown format
         }
+
         $vendor = pack('H*', substr($sn, 0, 8));
         if (preg_match('/^[\x20-\x7E]{4}$/', $vendor)) {
             return $vendor . substr($sn, 8);
         }
         return $sn;
+    }
+
+    /**
+     * Extract F/S/P (frame/slot/port) from a VRP detail output block.
+     * Used by findOnuBySn to locate the ONT in the OLT topology.
+     */
+    private function extractFsp(string $output): array
+    {
+        if (preg_match('/F\/S\/P\s*:\s*(\d+)\/(\d+)\/(\d+)/', $output, $m)) {
+            return [(int) $m[1], (int) $m[2], (int) $m[3]];
+        }
+        $this->logger->warning('[olt-huawei] driver:extractFsp:not-found-in-output');
+        return [$this->frame, 0, 0];
     }
 
     private function handlesOlt(?string $oltId): bool

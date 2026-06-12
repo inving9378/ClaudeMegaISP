@@ -26,6 +26,7 @@ class HuaweiDriverTest extends TestCase
     private static string $autofindEmptyFixture;
     private static string $opticalFixture;
     private static string $dbaFixture;
+    private static string $bySNFixture;           // real MA5800-X7 by-sn output — for findOnuBySn
 
     public static function setUpBeforeClass(): void
     {
@@ -39,6 +40,7 @@ class HuaweiDriverTest extends TestCase
         self::$autofindEmptyFixture = file_get_contents($base . 'display_ont_autofind_empty.txt');
         self::$opticalFixture       = file_get_contents($base . 'display_ont_optical_info.txt');
         self::$dbaFixture           = file_get_contents($base . 'display_dba_profile_all.txt');
+        self::$bySNFixture          = file_get_contents($base . 'display_ont_info_by_sn_real.txt');
     }
 
     protected function setUp(): void
@@ -349,6 +351,90 @@ class HuaweiDriverTest extends TestCase
             $this->assertStringContainsString('rebootOnu', $e->getMessage());
             $this->assertStringContainsString('B4', $e->getMessage());
         }
+    }
+
+    // ── findOnuBySn() ─────────────────────────────────────────────────────────
+
+    public function test_find_onu_by_sn_returns_success(): void
+    {
+        $this->transport->method('enterConfigView');
+        $this->transport->method('exec')->willReturn(self::$bySNFixture);
+        $this->transport->method('leaveToUserView');
+
+        $result = $this->driver->findOnuBySn('HWTCFEFCC9A2');
+
+        $this->assertTrue($result['success']);
+        $this->assertArrayHasKey('onu', $result);
+    }
+
+    public function test_find_onu_by_sn_sn_normalized_to_decoded_form(): void
+    {
+        // Fixture SN line: "48575443FEFCC9A2 (HWTC-FEFCC9A2)"
+        // After normalizeSn(): strip parenthetical → hex → decode → "HWTCFEFCC9A2"
+        $this->transport->method('enterConfigView');
+        $this->transport->method('exec')->willReturn(self::$bySNFixture);
+        $this->transport->method('leaveToUserView');
+
+        $result = $this->driver->findOnuBySn('HWTCFEFCC9A2');
+
+        $this->assertSame('HWTCFEFCC9A2', $result['onu']['sn']);
+    }
+
+    public function test_find_onu_by_sn_fsp_correctly_extracted(): void
+    {
+        // Fixture F/S/P line: "F/S/P : 0/3/2"
+        $this->transport->method('enterConfigView');
+        $this->transport->method('exec')->willReturn(self::$bySNFixture);
+        $this->transport->method('leaveToUserView');
+
+        $result = $this->driver->findOnuBySn('HWTCFEFCC9A2');
+
+        $this->assertSame('3', $result['onu']['board']);
+        $this->assertSame('2', $result['onu']['port']);
+        $this->assertSame(0, $result['onu']['onu']);
+    }
+
+    public function test_find_onu_by_sn_status_online(): void
+    {
+        $this->transport->method('enterConfigView');
+        $this->transport->method('exec')->willReturn(self::$bySNFixture);
+        $this->transport->method('leaveToUserView');
+
+        $result = $this->driver->findOnuBySn('HWTCFEFCC9A2');
+
+        $this->assertSame('Online', $result['onu']['status']);
+    }
+
+    public function test_find_onu_by_sn_unique_external_id_format(): void
+    {
+        $this->transport->method('enterConfigView');
+        $this->transport->method('exec')->willReturn(self::$bySNFixture);
+        $this->transport->method('leaveToUserView');
+
+        $result = $this->driver->findOnuBySn('HWTCFEFCC9A2');
+
+        $this->assertSame('1:0/3/2:0', $result['onu']['unique_external_id']);
+    }
+
+    public function test_find_onu_by_sn_not_found_returns_failure(): void
+    {
+        $this->transport->method('enterConfigView');
+        $this->transport->method('exec')->willReturn('  Failure: The ONT does not exist.');
+        $this->transport->method('leaveToUserView');
+
+        $result = $this->driver->findOnuBySn('DEADBEEF0000');
+
+        $this->assertFalse($result['success']);
+        $this->assertArrayHasKey('message', $result);
+    }
+
+    public function test_find_onu_by_sn_calls_enter_and_leave_config_view(): void
+    {
+        $this->transport->expects($this->once())->method('enterConfigView');
+        $this->transport->method('exec')->willReturn(self::$bySNFixture);
+        $this->transport->expects($this->once())->method('leaveToUserView');
+
+        $this->driver->findOnuBySn('HWTCFEFCC9A2');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
