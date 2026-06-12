@@ -10,6 +10,7 @@ use App\Services\OltDriver\Huawei\Parsers\OntListParser;
 use App\Services\OltDriver\Huawei\Parsers\OpticalBatchParser;
 use App\Services\OltDriver\Huawei\Parsers\OpticalInfoParser;
 use App\Services\OltDriver\Huawei\Parsers\VersionParser;
+use Illuminate\Support\Facades\Cache;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
@@ -55,22 +56,24 @@ class HuaweiDriver implements OltDriverInterface
 
     public function listOlts(): array
     {
-        try {
-            $ver = VersionParser::parse($this->transport->exec('display version'));
-            return [
-                'success' => true,
-                'data'    => [[
-                    'id'       => $this->oltId,
-                    'name'     => $this->config['name'] ?? ($ver['model'] ?: 'Huawei OLT'),
-                    'model'    => $ver['model'],
-                    'firmware' => $ver['firmware'],
-                    'patch'    => $ver['patch'],
-                    'uptime'   => $ver['uptime'],
-                ]],
-            ];
-        } catch (Throwable $e) {
-            return $this->error($e);
-        }
+        return $this->withSession(function () {
+            try {
+                $ver = VersionParser::parse($this->transport->exec('display version'));
+                return [
+                    'success' => true,
+                    'data'    => [[
+                        'id'       => $this->oltId,
+                        'name'     => $this->config['name'] ?? ($ver['model'] ?: 'Huawei OLT'),
+                        'model'    => $ver['model'],
+                        'firmware' => $ver['firmware'],
+                        'patch'    => $ver['patch'],
+                        'uptime'   => $ver['uptime'],
+                    ]],
+                ];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
     }
 
     /**
@@ -80,13 +83,15 @@ class HuaweiDriver implements OltDriverInterface
      */
     public function listSpeedProfiles(): array
     {
-        try {
-            $output   = $this->transport->exec('display dba-profile all');
-            $profiles = $this->parseDbaProfiles($output);
-            return ['success' => true, 'response' => $profiles];
-        } catch (Throwable $e) {
-            return $this->error($e);
-        }
+        return $this->withSession(function () {
+            try {
+                $output   = $this->transport->exec('display dba-profile all');
+                $profiles = $this->parseDbaProfiles($output);
+                return ['success' => true, 'response' => $profiles];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
     }
 
     // ── Lecturas bulk ─────────────────────────────────────────────────────────
@@ -100,21 +105,23 @@ class HuaweiDriver implements OltDriverInterface
             return ['success' => false, 'message' => "OLT '{$oltId}' is not managed by this driver."];
         }
 
-        try {
-            $output  = $this->transport->exec('display ont autofind all');
-            $found   = AutofindParser::parse($output, $this->logger);
-            $response = array_map(fn($e) => [
-                'sn'           => $e['sn'],
-                'olt_id'       => $this->oltId,
-                'port'         => $e['port'],
-                'vender_id'    => $e['vender_id'],
-                'equipment_id' => $e['equipment_id'],
-                'autofind_time'=> $e['autofind_time'],
-            ], $found);
-            return ['success' => true, 'response' => $response];
-        } catch (Throwable $e) {
-            return $this->error($e);
-        }
+        return $this->withSession(function () {
+            try {
+                $output   = $this->transport->exec('display ont autofind all');
+                $found    = AutofindParser::parse($output, $this->logger);
+                $response = array_map(fn($e) => [
+                    'sn'           => $e['sn'],
+                    'olt_id'       => $this->oltId,
+                    'port'         => $e['port'],
+                    'vender_id'    => $e['vender_id'],
+                    'equipment_id' => $e['equipment_id'],
+                    'autofind_time'=> $e['autofind_time'],
+                ], $found);
+                return ['success' => true, 'response' => $response];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
     }
 
     /**
@@ -191,45 +198,47 @@ class HuaweiDriver implements OltDriverInterface
 
     public function getOnuDetails(string $onuId): array
     {
-        try {
-            [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
-            $output = $this->transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
-            $onts   = OntInfoParser::parse($output, $this->logger);
+        return $this->withSession(function () use ($onuId) {
+            try {
+                [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
+                $output = $this->transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
+                $onts   = OntInfoParser::parse($output, $this->logger);
 
-            if (empty($onts)) {
-                return ['success' => false, 'message' => "ONT not found: {$onuId}"];
+                if (empty($onts)) {
+                    return ['success' => false, 'message' => "ONT not found: {$onuId}"];
+                }
+
+                $ont     = $onts[0];
+                $optical = $this->fetchOpticalForOnt($frame, $slot, $port, $ontId);
+
+                return [
+                    'success'     => true,
+                    'onu_details' => array_merge(
+                        $this->buildOnuShape($ont, $this->oltId, $frame, $slot, $port),
+                        [
+                            'olt_name'       => $this->config['name'] ?? 'Huawei OLT',
+                            'signal'         => $this->categorizeSignal($optical['rx_onu'] ?? null),
+                            'signal_1310'    => $optical['rx_olt'] !== null ? (string) $optical['rx_olt'] : '-',
+                            'signal_1490'    => $optical['rx_onu'] !== null ? (string) $optical['rx_onu'] : '-',
+                            'mode'           => 'N/A',
+                            'wan_mode'       => 'N/A',
+                            'vlan'           => null,
+                            'service_ports'  => null,
+                            'ethernet_ports' => null,
+                            'wifi_ports'     => null,
+                            'voip_ports'     => null,
+                            'last_up_time'   => $ont['last_up_time'],
+                            'last_down_time' => $ont['last_down_time'],
+                            'last_down_cause'=> $ont['last_down_cause'],
+                            'distance_m'     => $ont['distance_m'],
+                            'description'    => $ont['description'],
+                        ]
+                    ),
+                ];
+            } catch (Throwable $e) {
+                return $this->error($e);
             }
-
-            $ont     = $onts[0];
-            $optical = $this->fetchOpticalForOnt($frame, $slot, $port, $ontId);
-
-            return [
-                'success'     => true,
-                'onu_details' => array_merge(
-                    $this->buildOnuShape($ont, $this->oltId, $frame, $slot, $port),
-                    [
-                        'olt_name'      => $this->config['name'] ?? 'Huawei OLT',
-                        'signal'        => $this->categorizeSignal($optical['rx_onu'] ?? null),
-                        'signal_1310'   => $optical['rx_olt'] !== null ? (string) $optical['rx_olt'] : '-',
-                        'signal_1490'   => $optical['rx_onu'] !== null ? (string) $optical['rx_onu'] : '-',
-                        'mode'          => 'N/A',
-                        'wan_mode'      => 'N/A',
-                        'vlan'          => null,
-                        'service_ports' => null,
-                        'ethernet_ports'=> null,
-                        'wifi_ports'    => null,
-                        'voip_ports'    => null,
-                        'last_up_time'  => $ont['last_up_time'],
-                        'last_down_time'=> $ont['last_down_time'],
-                        'last_down_cause'=>$ont['last_down_cause'],
-                        'distance_m'    => $ont['distance_m'],
-                        'description'   => $ont['description'],
-                    ]
-                ),
-            ];
-        } catch (Throwable $e) {
-            return $this->error($e);
-        }
+        });
     }
 
     /**
@@ -238,44 +247,48 @@ class HuaweiDriver implements OltDriverInterface
      */
     public function getOnuSignal(string $onuId): array
     {
-        try {
-            [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
-            $optical = $this->fetchOpticalForOnt($frame, $slot, $port, $ontId);
+        return $this->withSession(function () use ($onuId) {
+            try {
+                [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
+                $optical = $this->fetchOpticalForOnt($frame, $slot, $port, $ontId);
 
-            $rxOnu = $optical['rx_onu'] ?? null;
-            $rxOlt = $optical['rx_olt'] ?? null;
+                $rxOnu = $optical['rx_onu'] ?? null;
+                $rxOlt = $optical['rx_olt'] ?? null;
 
-            return [
-                'success'         => true,
-                'onu_signal'      => $this->categorizeSignal($rxOnu),
-                'onu_signal_1310' => $rxOlt !== null ? (string) $rxOlt : '-',
-                'onu_signal_1490' => $rxOnu !== null ? (string) $rxOnu : '-',
-            ];
-        } catch (Throwable $e) {
-            return $this->error($e);
-        }
+                return [
+                    'success'         => true,
+                    'onu_signal'      => $this->categorizeSignal($rxOnu),
+                    'onu_signal_1310' => $rxOlt !== null ? (string) $rxOlt : '-',
+                    'onu_signal_1490' => $rxOnu !== null ? (string) $rxOnu : '-',
+                ];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
     }
 
     public function getOnuStatus(string $onuId): array
     {
-        try {
-            [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
-            $output = $this->transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
-            $onts   = OntInfoParser::parse($output, $this->logger);
+        return $this->withSession(function () use ($onuId) {
+            try {
+                [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
+                $output = $this->transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
+                $onts   = OntInfoParser::parse($output, $this->logger);
 
-            if (empty($onts)) {
-                return ['success' => false, 'message' => "ONT not found: {$onuId}"];
+                if (empty($onts)) {
+                    return ['success' => false, 'message' => "ONT not found: {$onuId}"];
+                }
+
+                $ont = $onts[0];
+                return [
+                    'success'            => true,
+                    'onu_status'         => $this->normalizeStatus($ont['run_state']),
+                    'last_status_change' => $ont['last_up_time'] ?? $ont['last_down_time'],
+                ];
+            } catch (Throwable $e) {
+                return $this->error($e);
             }
-
-            $ont = $onts[0];
-            return [
-                'success'            => true,
-                'onu_status'         => $this->normalizeStatus($ont['run_state']),
-                'last_status_change' => $ont['last_up_time'] ?? $ont['last_down_time'],
-            ];
-        } catch (Throwable $e) {
-            return $this->error($e);
-        }
+        });
     }
 
     // ── Lecturas adicionales (no en OltDriverInterface — ver roadmap B3) ────────
@@ -294,32 +307,50 @@ class HuaweiDriver implements OltDriverInterface
      */
     public function findOnuBySn(string $sn): array
     {
-        try {
-            $this->transport->enterConfigView();
-            $output = $this->transport->exec("display ont info by-sn {$sn}");
-
-            $onts = OntInfoParser::parse($output, $this->logger);
-
-            if (empty($onts)) {
-                return ['success' => false, 'message' => "ONT with SN '{$sn}' not found"];
-            }
-
-            $ont = $onts[0];
-            [$frame, $slot, $port] = $this->extractFsp($output);
-
-            return [
-                'success' => true,
-                'onu'     => $this->buildOnuShape($ont, $this->oltId, $frame, $slot, $port),
-            ];
-        } catch (Throwable $e) {
-            return $this->error($e);
-        } finally {
+        return $this->withSession(function () use ($sn) {
             try {
-                $this->transport->leaveToUserView();
-            } catch (Throwable) {
-                // best-effort
+                $this->transport->enterConfigView();
+                $output = $this->transport->exec("display ont info by-sn {$sn}");
+
+                $onts = OntInfoParser::parse($output, $this->logger);
+
+                if (empty($onts)) {
+                    return ['success' => false, 'message' => "ONT with SN '{$sn}' not found"];
+                }
+
+                $ont = $onts[0];
+                [$frame, $slot, $port] = $this->extractFsp($output);
+
+                return [
+                    'success' => true,
+                    'onu'     => $this->buildOnuShape($ont, $this->oltId, $frame, $slot, $port),
+                ];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            } finally {
+                try {
+                    $this->transport->leaveToUserView();
+                } catch (Throwable) {
+                    // best-effort
+                }
             }
-        }
+        });
+    }
+
+    // ── Gestión de sesión (uso exclusivo del cron) ────────────────────────────
+
+    /**
+     * Open the Telnet session. Called ONCE by the cron before any bulk read.
+     * The cron holds the lock externally (TTL 900s); web calls must NOT call this directly.
+     */
+    public function openSession(int $maxAttempts = 2): void
+    {
+        $this->transport->open($maxAttempts);
+    }
+
+    public function closeSession(): void
+    {
+        $this->transport->close();
     }
 
     // ── Escrituras — NOT IMPLEMENTED (B4) ────────────────────────────────────
@@ -350,6 +381,41 @@ class HuaweiDriver implements OltDriverInterface
     }
 
     // ── Internals ─────────────────────────────────────────────────────────────
+
+    /**
+     * Run $fn() inside a Telnet session.
+     *
+     * Cron context  — transport already open (cron called openSession()): run fn() directly,
+     *                 no lock acquisition and no open/close (the cron manages lifecycle).
+     * Web context   — transport closed: acquire a 60s lock, open, fn(), close, release.
+     *                 If the lock is not available (cron running), return syncing=true
+     *                 with a user-visible message; the caller should fall back to cached DB data.
+     */
+    private function withSession(callable $fn): array
+    {
+        if ($this->transport->isOpen()) {
+            return $fn();
+        }
+
+        $lock = Cache::lock("olt-huawei-telnet-{$this->oltId}", 60);
+        if (! $lock->get()) {
+            return [
+                'success' => false,
+                'syncing' => true,
+                'message' => 'OLT Huawei ocupada (sincronización en progreso). Intente en unos segundos.',
+            ];
+        }
+
+        try {
+            $this->transport->open();
+            return $fn();
+        } catch (Throwable $e) {
+            return $this->error($e);
+        } finally {
+            try { $this->transport->close(); } catch (Throwable) {}
+            $lock->release();
+        }
+    }
 
     private function collectAllOnts(): array
     {

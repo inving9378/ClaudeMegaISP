@@ -463,6 +463,18 @@
                                                     color="primary"
                                                     size="xs"
                                                 />
+                                                <span class="q-ml-xs text-caption text-grey-6">
+                                                    consultando OLT...
+                                                </span>
+                                            </div>
+                                            <div
+                                                class="col col-auto"
+                                                v-else-if="syncingOlt"
+                                            >
+                                                <q-icon name="sync" size="xs" color="warning" />
+                                                <span class="q-ml-xs text-caption text-warning">
+                                                    datos en caché
+                                                </span>
                                             </div>
                                             <div
                                                 class="col col-auto"
@@ -926,6 +938,7 @@ const configureBoardAndPort = ref(false);
 const loading = ref({
     status: false,
 });
+const syncingOlt = ref(false);
 
 let timer = null;
 
@@ -967,11 +980,15 @@ const updateLoadig = (name, load) => {
 
 const getSignalsAndStatus = async () => {
     updateLoadig("status", true);
+    syncingOlt.value = false;
     const result = await getOLTData(
         `/olts/onus/get-signal-and-status/${props.onu.id}`
     );
     updateLoadig("status", false);
     if (result && result.success) {
+        if (result.syncing) {
+            syncingOlt.value = true;
+        }
         let { id, signal_1310, signal_1490, signal, status } = result.onu;
         emits("update", {
             id,
