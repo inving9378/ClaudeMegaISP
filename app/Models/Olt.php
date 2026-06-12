@@ -416,7 +416,8 @@ class Olt extends Model
                 $objects = [$objects];
             }
             // Filtrar cualquier elemento que no sea un array (enteros, nulls, etc.)
-            $objects = array_values(array_filter($objects, fn($item) => is_array($item)));
+            // Filtrar solo elementos que sean arrays con la estructura esperada
+            $objects = array_values(array_filter($objects, fn($item) => is_array($item) && isset($item['board'])));
             if (empty($objects)) return $response;
             return DB::transaction(function () use ($objects) {
                 $now = now();
