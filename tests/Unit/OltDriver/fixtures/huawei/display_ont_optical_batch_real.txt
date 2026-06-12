@@ -1,0 +1,12 @@
+# REAL — capturado contra MA5800-X7 en sesión B2a (2026-06-12)
+# Comando: display ont optical-info 2 all
+# Host, credenciales y username OMITIDOS (sanitizado)
+
+Command:
+          display ont optical-info 2 all
+  -----------------------------------------------------------------------------
+  ONT  Rx power  Tx power  OLT Rx ONT  Temperature  Voltage  Current  Distance
+  ID   (dBm)     (dBm)     power(dBm)  (C)          (V)      (mA)     (m)
+  -----------------------------------------------------------------------------
+    0  -8.42     2.32      -13.44      45           3.380    15       39      
+  -----------------------------------------------------------------------------

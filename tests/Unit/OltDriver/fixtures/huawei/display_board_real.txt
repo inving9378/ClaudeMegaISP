@@ -1,0 +1,22 @@
+# REAL — capturado contra MA5800-X7 en sesión B2a (2026-06-12)
+# Comando: display board 0
+# Host, credenciales y username OMITIDOS (sanitizado)
+
+Command:
+          display board 0
+  -------------------------------------------------------------------------
+  SlotID  BoardName  Status          SubType0 SubType1    Online/Offline
+  -------------------------------------------------------------------------
+  0     
+  1       H902GPHF   Normal                           
+  2       H902GPHF   Normal                           
+  3       H901GPHF   Normal                           
+  4       H901GPHF   Normal                           
+  5       H901GPHF   Normal                           
+  6     
+  7     
+  8       H902MPLA   Standby_normal  CKUB             
+  9       H902MPLA   Active_normal   CKUB             
+  10      H901PILA   Normal                           
+  11      H901PILA   Normal                           
+  -------------------------------------------------------------------------

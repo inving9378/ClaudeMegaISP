@@ -1,0 +1,7 @@
+# REAL — capturado contra MA5800-X7 en sesión B2a (2026-06-12)
+# Comando: display ont info 0/3/2 all
+# Host, credenciales y username OMITIDOS (sanitizado)
+
+display ont info 0/3/2all
+                                   ^
+  % Parameter error, the error locates at '^'
