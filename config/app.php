@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'MegaISP'),
 
     // Coordenadas de la oficina central — stat "distancia a oficina" en la ficha de cliente.
     // Si quedan vacías, la stat muestra "Configura coords de oficina" (degradación elegante).

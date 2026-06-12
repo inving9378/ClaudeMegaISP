@@ -233,7 +233,7 @@ class TalentoMobileApiController extends Controller
         // Fallback: si no hay settings de tenant, usa datos de la empresa
         if (! $tenantName) {
             $info = DB::table('company_information')->first(['company_name', 'url_logo']);
-            $tenantName = $info?->company_name ?? 'Medussa';
+            $tenantName = $info?->company_name ?? 'MegaISP';
             if (! $tenantLogoUrl && $info?->url_logo) {
                 $raw = $info->url_logo;
                 $base = request()->getSchemeAndHttpHost();
@@ -243,7 +243,7 @@ class TalentoMobileApiController extends Controller
 
         return response()->json([
             'ok'               => true,
-            'app'              => 'Medussa',
+            'app'              => 'MegaISP',
             'tenant_name'      => $tenantName,
             'tenant_logo_url'  => $tenantLogoUrl,
         ]);

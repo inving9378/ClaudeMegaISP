@@ -122,6 +122,13 @@ return [
             'days'   => 14,
         ],
 
+        'asterisk' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/asterisk-ia-bot.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
+
         'olt-huawei' => [
             'driver' => 'daily',
             'path'   => storage_path('logs/olt-huawei.log'),
