@@ -1,0 +1,20 @@
+# SINTÉTICO — formato tabular display ont info {port} all (interface-context)
+# Usado por HuaweiDriverTest para getOnusByOlt() y getOnusStatus()
+# ONT 0 de referencia: SN 48575443FEFCC9A2 (HWTCFEFCC9A2), online
+# ONT 1 secundario:    SN 48575443AABBCC11 (HWTCAABBCC11), offline
+
+  Command:
+            display ont info 2 all
+  -----------------------------------------------------------------------------
+  F/S/P   ONT         SN         Control     Run      Config   Match    Protect
+          ID                     flag        state    state    state    side
+  -----------------------------------------------------------------------------
+  0/ 3/2    0  48575443FEFCC9A2  active      online   normal   match    no
+  0/ 3/2    1  48575443AABBCC11  active      offline  normal   match    no
+  -----------------------------------------------------------------------------
+  F/S/P   ONT-ID   Description
+  -----------------------------------------------------------------------------
+  0/ 3/2       0   CLIENTE_1
+  0/ 3/2       1   CLIENTE_2
+  -----------------------------------------------------------------------------
+  In port 0/ 3/2 , the total of ONTs are: 2, online: 1

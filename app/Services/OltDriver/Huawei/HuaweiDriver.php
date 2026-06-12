@@ -6,6 +6,8 @@ use App\Services\OltDriver\OltDriverInterface;
 use App\Services\OltDriver\Huawei\Parsers\AutofindParser;
 use App\Services\OltDriver\Huawei\Parsers\BoardParser;
 use App\Services\OltDriver\Huawei\Parsers\OntInfoParser;
+use App\Services\OltDriver\Huawei\Parsers\OntListParser;
+use App\Services\OltDriver\Huawei\Parsers\OpticalBatchParser;
 use App\Services\OltDriver\Huawei\Parsers\OpticalInfoParser;
 use App\Services\OltDriver\Huawei\Parsers\VersionParser;
 use Psr\Log\LoggerInterface;
@@ -118,11 +120,15 @@ class HuaweiDriver implements OltDriverInterface
     /**
      * Full ONU inventory for this OLT.
      *
-     * Iterates every GPON board (from BoardParser) × its ports and runs
-     * `display ont info {frame} {slot} {port} all` for each port.
-     * For MA5800-X7 with boards H902GPHF(×2, 8p) + H901GPHF(×3, 16p)
-     * that is 2×8 + 3×16 = 64 display calls over a single persistent session.
-     * All calls share one SSH/Telnet connection — no reconnect overhead.
+     * Iterates every GPON board (from BoardParser) × its ports.
+     * For each slot, enters `interface gpon {frame}/{slot}` and runs
+     * `display ont info {port} all` (interface-context syntax).
+     * The user-view slash syntax `display ont info {f}/{s}/{p} all` is NOT used
+     * because VRP's space-eater bug consumes the space before `all`, producing
+     * `display ont info 0/3/2all → % Parameter error`.
+     *
+     * For MA5800-X7 with H902GPHF(×2, 8p) + H901GPHF(×3, 16p): 64 display calls.
+     * All calls share one persistent session — no reconnect overhead.
      */
     public function getOnusByOlt(string $oltId): array
     {
@@ -314,20 +320,34 @@ class HuaweiDriver implements OltDriverInterface
             $slot      = $board['slot'];
             $portCount = $board['port_count'];
 
-            for ($port = 0; $port < $portCount; $port++) {
-                try {
-                    $output  = $this->transport->exec(
-                        "display ont info {$this->frame} {$slot} {$port} all"
-                    );
-                    $portOnt = OntInfoParser::parse($output, $this->logger);
+            try {
+                // Enter interface-context once per slot (avoids space-eater bug in user-view)
+                $this->transport->enterGponInterface($this->frame, $slot);
 
-                    foreach ($portOnt as $ont) {
-                        $onus[] = $this->buildOnuShape($ont, $this->oltId, $this->frame, $slot, $port);
+                for ($port = 0; $port < $portCount; $port++) {
+                    try {
+                        // Interface-context syntax: "display ont info {port} all"
+                        $output  = $this->transport->exec("display ont info {$port} all");
+                        $portOnt = OntListParser::parse($output, $this->logger);
+
+                        foreach ($portOnt as $ont) {
+                            $onus[] = $this->buildOnuShape($ont, $this->oltId, $this->frame, $slot, $port);
+                        }
+                    } catch (Throwable $e) {
+                        $this->logger->warning('[olt-huawei] driver:collectAllOnts:port-error', [
+                            'slot' => $slot, 'port' => $port, 'error' => $e->getMessage(),
+                        ]);
                     }
-                } catch (Throwable $e) {
-                    $this->logger->warning('[olt-huawei] driver:collectAllOnts:port-error', [
-                        'slot' => $slot, 'port' => $port, 'error' => $e->getMessage(),
-                    ]);
+                }
+            } catch (Throwable $e) {
+                $this->logger->warning('[olt-huawei] driver:collectAllOnts:slot-error', [
+                    'slot' => $slot, 'error' => $e->getMessage(),
+                ]);
+            } finally {
+                try {
+                    $this->transport->leaveToUserView();
+                } catch (Throwable) {
+                    // best-effort
                 }
             }
         }
@@ -358,7 +378,7 @@ class HuaweiDriver implements OltDriverInterface
                 for ($port = 0; $port < $portCount; $port++) {
                     try {
                         $optOutput = $this->transport->exec("display ont optical-info {$port} all");
-                        $optItems  = OpticalInfoParser::parse($optOutput, $this->logger);
+                        $optItems  = OpticalBatchParser::parse($optOutput, $this->logger);
 
                         foreach ($optItems as $item) {
                             $externalId = "{$this->oltId}:{$this->frame}/{$slot}/{$port}:{$item['ont_id']}";
@@ -432,7 +452,7 @@ class HuaweiDriver implements OltDriverInterface
     private function buildOnuShape(array $ont, string $oltId, int $frame, int $slot, int $port): array
     {
         return [
-            'sn'                 => $ont['sn'],
+            'sn'                 => $this->normalizeSn($ont['sn']),
             'unique_external_id' => "{$oltId}:{$frame}/{$slot}/{$port}:{$ont['ont_id']}",
             'olt_id'             => $oltId,
             'board'              => (string) $slot,
@@ -532,6 +552,30 @@ class HuaweiDriver implements OltDriverInterface
         }
 
         return $profiles;
+    }
+
+    /**
+     * Normalize a Huawei SN to the human-readable decoded form.
+     *
+     * Tabular `display ont info {port} all` returns the raw 16-char hex SN
+     * (e.g. "48575443FEFCC9A2"), while the detailed per-ONT view returns the
+     * already-decoded form ("HWTCFEFCC9A2").  Both representations are valid;
+     * we normalize to the decoded form so that unique_external_id and the SN
+     * field remain consistent regardless of which command produced the data.
+     *
+     * Decoding: first 4 bytes (8 hex chars) → ASCII vendor chars + remaining 8 hex.
+     * Only decodes if the vendor bytes are printable ASCII; leaves SN unchanged otherwise.
+     */
+    private function normalizeSn(string $sn): string
+    {
+        if (strlen($sn) !== 16 || !ctype_xdigit($sn)) {
+            return $sn;  // already decoded (HWTCFEFCC9A2) or unknown format
+        }
+        $vendor = pack('H*', substr($sn, 0, 8));
+        if (preg_match('/^[\x20-\x7E]{4}$/', $vendor)) {
+            return $vendor . substr($sn, 8);
+        }
+        return $sn;
     }
 
     private function handlesOlt(?string $oltId): bool

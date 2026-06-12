@@ -18,7 +18,8 @@ class HuaweiDriverTest extends TestCase
     private HuaweiDriver    $driver;
 
     private static string $boardFixture;
-    private static string $ontPortFixture;
+    private static string $ontPortFixture;        // detailed per-ONT (OntInfoParser) — for getOnuStatus/getOnuDetails
+    private static string $ontTabularFixture;     // tabular batch (OntListParser) — for getOnusByOlt/getOnusStatus
     private static string $ontEmptyFixture;
     private static string $versionFixture;
     private static string $autofindFixture;
@@ -29,14 +30,15 @@ class HuaweiDriverTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         $base = __DIR__ . '/fixtures/huawei/';
-        self::$boardFixture        = file_get_contents($base . 'display_board_0.txt');
-        self::$ontPortFixture      = file_get_contents($base . 'display_ont_info_port.txt');
-        self::$ontEmptyFixture     = file_get_contents($base . 'display_ont_info_empty_port.txt');
-        self::$versionFixture      = file_get_contents($base . 'display_version.txt');
-        self::$autofindFixture     = file_get_contents($base . 'display_ont_autofind.txt');
-        self::$autofindEmptyFixture= file_get_contents($base . 'display_ont_autofind_empty.txt');
-        self::$opticalFixture      = file_get_contents($base . 'display_ont_optical_info.txt');
-        self::$dbaFixture          = file_get_contents($base . 'display_dba_profile_all.txt');
+        self::$boardFixture         = file_get_contents($base . 'display_board_0.txt');
+        self::$ontPortFixture       = file_get_contents($base . 'display_ont_info_port.txt');
+        self::$ontTabularFixture    = file_get_contents($base . 'display_ont_info_tabular.txt');
+        self::$ontEmptyFixture      = file_get_contents($base . 'display_ont_info_empty_port.txt');
+        self::$versionFixture       = file_get_contents($base . 'display_version.txt');
+        self::$autofindFixture      = file_get_contents($base . 'display_ont_autofind.txt');
+        self::$autofindEmptyFixture = file_get_contents($base . 'display_ont_autofind_empty.txt');
+        self::$opticalFixture       = file_get_contents($base . 'display_ont_optical_info.txt');
+        self::$dbaFixture           = file_get_contents($base . 'display_dba_profile_all.txt');
     }
 
     protected function setUp(): void
@@ -144,8 +146,7 @@ class HuaweiDriverTest extends TestCase
 
     public function test_get_onus_by_olt_returns_success(): void
     {
-        $this->transport->method('exec')
-            ->willReturnCallback($this->boardAndOntCallback());
+        $this->setupBoardAndOntMock();
 
         $result = $this->driver->getOnusByOlt('1');
 
@@ -155,8 +156,7 @@ class HuaweiDriverTest extends TestCase
 
     public function test_get_onus_by_olt_finds_reference_onu(): void
     {
-        $this->transport->method('exec')
-            ->willReturnCallback($this->boardAndOntCallback());
+        $this->setupBoardAndOntMock();
 
         $result = $this->driver->getOnusByOlt('1');
         $ref    = $this->findBySn($result['onus'], 'HWTCFEFCC9A2');
@@ -166,8 +166,7 @@ class HuaweiDriverTest extends TestCase
 
     public function test_get_onus_by_olt_normalizes_unique_external_id(): void
     {
-        $this->transport->method('exec')
-            ->willReturnCallback($this->boardAndOntCallback());
+        $this->setupBoardAndOntMock();
 
         $result = $this->driver->getOnusByOlt('1');
         $ref    = $this->findBySn($result['onus'], 'HWTCFEFCC9A2');
@@ -177,8 +176,7 @@ class HuaweiDriverTest extends TestCase
 
     public function test_get_onus_by_olt_shape_is_complete(): void
     {
-        $this->transport->method('exec')
-            ->willReturnCallback($this->boardAndOntCallback());
+        $this->setupBoardAndOntMock();
 
         $result = $this->driver->getOnusByOlt('1');
         $ref    = $this->findBySn($result['onus'], 'HWTCFEFCC9A2');
@@ -192,8 +190,7 @@ class HuaweiDriverTest extends TestCase
 
     public function test_get_onus_by_olt_status_online_for_reference_onu(): void
     {
-        $this->transport->method('exec')
-            ->willReturnCallback($this->boardAndOntCallback());
+        $this->setupBoardAndOntMock();
 
         $result = $this->driver->getOnusByOlt('1');
         $ref    = $this->findBySn($result['onus'], 'HWTCFEFCC9A2');
@@ -203,8 +200,7 @@ class HuaweiDriverTest extends TestCase
 
     public function test_get_onus_by_olt_second_onu_is_offline(): void
     {
-        $this->transport->method('exec')
-            ->willReturnCallback($this->boardAndOntCallback());
+        $this->setupBoardAndOntMock();
 
         $result = $this->driver->getOnusByOlt('1');
         $ref    = $this->findBySn($result['onus'], 'HWTCAABBCC11');
@@ -215,8 +211,7 @@ class HuaweiDriverTest extends TestCase
 
     public function test_get_onus_by_olt_board_and_port_values(): void
     {
-        $this->transport->method('exec')
-            ->willReturnCallback($this->boardAndOntCallback());
+        $this->setupBoardAndOntMock();
 
         $result = $this->driver->getOnusByOlt('1');
         $ref    = $this->findBySn($result['onus'], 'HWTCFEFCC9A2');
@@ -237,8 +232,7 @@ class HuaweiDriverTest extends TestCase
 
     public function test_get_onus_status_shape(): void
     {
-        $this->transport->method('exec')
-            ->willReturnCallback($this->boardAndOntCallback());
+        $this->setupBoardAndOntMock();
 
         $result = $this->driver->getOnusStatus('1');
 
@@ -359,22 +353,38 @@ class HuaweiDriverTest extends TestCase
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private function boardAndOntCallback(): \Closure
+    /**
+     * Sets up the transport mock for bulk-ONT methods (getOnusByOlt, getOnusStatus).
+     *
+     * collectAllOnts() now uses:
+     *   enterGponInterface(frame, slot)  — sets the interface context
+     *   exec("display ont info {port} all")  — interface-context syntax
+     *
+     * We track the current slot through a captured reference so the exec callback
+     * can return the tabular fixture only for the known port (slot=3, port=2).
+     */
+    private function setupBoardAndOntMock(): void
     {
-        return function (string $cmd): string {
-            if (str_contains($cmd, 'display board')) {
-                return self::$boardFixture;
-            }
-            // Return the real fixture only for port 0/3/2; everything else is empty
-            if (preg_match('/display ont info \d+ \d+ \d+ all/', $cmd)) {
-                // slot 3, port 2 → reference fixture; others → empty
-                if (str_contains($cmd, '3 2 all')) {
-                    return self::$ontPortFixture;
+        $currentSlot = 0;
+
+        $this->transport->method('enterGponInterface')
+            ->willReturnCallback(function (int $frame, int $slot) use (&$currentSlot): void {
+                $currentSlot = $slot;
+            });
+
+        $this->transport->method('exec')
+            ->willReturnCallback(function (string $cmd) use (&$currentSlot): string {
+                if (str_contains($cmd, 'display board')) {
+                    return self::$boardFixture;
                 }
-                return self::$ontEmptyFixture;
-            }
-            return '';
-        };
+                // Interface-context: "display ont info {port} all"
+                if (preg_match('/^display ont info (\d+) all$/', trim($cmd), $m)) {
+                    return ($currentSlot === 3 && (int) $m[1] === 2)
+                        ? self::$ontTabularFixture
+                        : self::$ontEmptyFixture;
+                }
+                return '';
+            });
     }
 
     private function findBySn(array $onus, string $sn): ?array
