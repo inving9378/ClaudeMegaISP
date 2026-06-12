@@ -13,9 +13,30 @@ use Illuminate\Contracts\Container\Container;
  * OltDriverInterface::class (que sigue apuntando a SmartOltDriver). Solo migrar
  * al manager cuando el consumidor necesite operar contra una OLT específica.
  *
- * Palanca actualmente inerte: ninguna OLT tiene driver='huawei'.
- * El selector de driver en UI + permiso gestion-red.driver.change están
- * bloqueados hasta validar B1c (sesión Telnet contra MA5800-X7 real).
+ * ── FLIP MANUAL — cómo activar el driver Huawei en una OLT ──────────────────
+ *
+ * Paso 1 — verificar que la OLT esté en la BD y anotar su id:
+ *   DB::table('olts')->where('name','MEGANETWORKX7')->value('id');
+ *
+ * Paso 2 — flip (atómico, tarda <1ms):
+ *   DB::table('olts')->where('id', $id)->update(['driver' => 'huawei']);
+ *
+ * Paso 3 — rollback si hay problema:
+ *   DB::table('olts')->where('id', $id)->update(['driver' => 'smartolt']);
+ *
+ * Paso 4 — verificar que OltDriverManager resuelve correcto (tinker):
+ *   $olt = \App\Models\Olt::find($id);
+ *   app(\App\Services\OltDriver\OltDriverManager::class)->driverFor($olt)->getName();
+ *   // → debe imprimir 'Huawei'
+ *
+ * Pre-requisitos antes del flip a producción:
+ *   - B3b validado (parsers contra puerto real cargado)
+ *   - B3d sync cron activo (gestionred:sync-huawei corriendo cada 10min)
+ *   - B3d validación Irving: getOnusByOlt + getOnusSignals en green
+ *   - Timeout Telnet en HuaweiTransport ≥ 360s para puertos cargados
+ *   - Cache driver configurado (no 'array') para que Cache::lock funcione
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 class OltDriverManager
 {
