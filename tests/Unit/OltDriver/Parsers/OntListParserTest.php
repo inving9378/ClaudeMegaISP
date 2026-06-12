@@ -227,4 +227,92 @@ class OntListParserTest extends TestCase
             $this->assertArrayHasKey($key, $result[0], "Missing key: {$key}");
         }
     }
+
+    // ── Real fixture B3a — port 0/2/8 (112 ONTs) ─────────────────────────────
+    // Control de calidad central: count parseado == total declarado por VRP.
+    // Un ONT perdido = un cliente invisible en producción.
+
+    public function test_b3a_port_0_2_8_count_matches_vrp_total(): void
+    {
+        // VRP footer: "the total of ONTs are: 112, online: 80"
+        $result = OntListParser::parse(self::fixture('display_ont_info_port_0_2_8_real.txt'));
+        $this->assertCount(112, $result, 'Parser must return exactly 112 ONTs (VRP total line is the ground truth)');
+    }
+
+    public function test_b3a_online_offline_split_matches_vrp(): void
+    {
+        $result  = OntListParser::parse(self::fixture('display_ont_info_port_0_2_8_real.txt'));
+        $online  = array_filter($result, fn($o) => $o['run_state'] === 'online');
+        $offline = array_filter($result, fn($o) => $o['run_state'] !== 'online');
+
+        // VRP footer: "online: 80" → offline = 112 - 80 = 32
+        $this->assertCount(80, $online,  'Expected 80 online ONTs');
+        $this->assertCount(32, $offline, 'Expected 32 offline ONTs');
+    }
+
+    public function test_b3a_all_ont_ids_are_unique(): void
+    {
+        $result = OntListParser::parse(self::fixture('display_ont_info_port_0_2_8_real.txt'));
+        $ids    = array_column($result, 'ont_id');
+
+        // IDs are NOT necessarily 0..N-1 — ONT deprovisioning leaves gaps (seen up to id=125).
+        $this->assertCount(count(array_unique($ids)), $ids, 'Each ONT must appear exactly once (no duplicates)');
+        $this->assertCount(112, $ids);
+        $this->assertGreaterThanOrEqual(0, min($ids));
+    }
+
+    public function test_b3a_all_sns_are_valid_16char_hex(): void
+    {
+        $result = OntListParser::parse(self::fixture('display_ont_info_port_0_2_8_real.txt'));
+
+        foreach ($result as $ont) {
+            $this->assertMatchesRegularExpression(
+                '/^[0-9A-F]{16}$/',
+                $ont['sn'],
+                "ONT {$ont['ont_id']} SN '{$ont['sn']}' is not a valid 16-char hex SN"
+            );
+        }
+    }
+
+    public function test_b3a_multiple_vendor_prefixes_decoded(): void
+    {
+        // Port 0/2/8 has both HWTC (Huawei) and ECOM equipment
+        $result  = OntListParser::parse(self::fixture('display_ont_info_port_0_2_8_real.txt'));
+        $vendors = array_unique(array_map(fn($o) => substr($o['sn'], 0, 8), $result));
+
+        $this->assertContains('48575443', $vendors, 'HWTC (Huawei) vendor prefix must be present');
+        $this->assertContains('45434F4D', $vendors, 'ECOM vendor prefix must be present');
+    }
+
+    public function test_b3a_descriptions_merged_from_section2(): void
+    {
+        // VRP V100R018C00 SPH505 emits description section WITHOUT a separator line
+        // after the F/S/P ONT-ID Description header — the parser must handle this.
+        $result   = OntListParser::parse(self::fixture('display_ont_info_port_0_2_8_real.txt'));
+        $withDesc = array_filter($result, fn($o) => $o['description'] !== '');
+
+        $this->assertCount(112, $withDesc,
+            'All 112 ONTs must have their description merged (catches the no-separator bug)');
+    }
+
+    public function test_b3a_no_separator_after_desc_header_handled(): void
+    {
+        // Regression: S_DESC_HEADER stayed forever when VRP omitted the separator.
+        // Build a synthetic input without separator after description header.
+        $output =
+            "  F/S/P   ONT         SN         Control     Run      Config   Match    Protect\n" .
+            "          ID                     flag        state    state    state    side \n" .
+            "  -----------------------------------------------------------------------\n" .
+            "  0/ 2/8    0  48575443FEFCC9A2  active      online   normal   mismatch no \n" .
+            "  -----------------------------------------------------------------------\n" .
+            "  F/S/P   ONT-ID   Description\n" .
+            // NOTE: no separator here — directly data row
+            "  0/ 2/8       0   SomeDescription\n" .
+            "  In port 0/ 2/8 , the total of ONTs are: 1, online: 1\n";
+
+        $result = OntListParser::parse($output);
+        $this->assertCount(1, $result);
+        $this->assertSame('SomeDescription', $result[0]['description'],
+            'Description must be merged even when VRP omits the separator after the description header');
+    }
 }

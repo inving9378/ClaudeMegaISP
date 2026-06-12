@@ -22,7 +22,7 @@ use Psr\Log\NullLogger;
  *
  *   Section 2 — description table:
  *     F/S/P   ONT-ID   Description
- *     ----
+ *     [separator may or may not appear — VRP V100R018C00 SPH505 omits it]
  *     0/ 3/2       0   some description
  *
  *   Summary: "In port 0/ 3/2 , the total of ONTs are: N, online: M"
@@ -126,7 +126,17 @@ class OntListParser
                     break;
 
                 case self::S_DESC_HEADER:
-                    // Waiting for the separator to switch to S_DESC (handled above)
+                    // VRP V100R018C00 SPH505 does NOT emit a separator after the
+                    // description header — data rows appear immediately.
+                    // Transition to S_DESC as soon as we see a data row (separator
+                    // transition is still handled above for firmware variants that do emit one).
+                    if (preg_match('/^\s+\d+\/\s*\d+\/\s*\d+\s+(\d+)\s+(.*?)\s*$/', $line, $m)) {
+                        $state = self::S_DESC;
+                        $ontId = (int) $m[1];
+                        if (isset($onts[$ontId])) {
+                            $onts[$ontId]['description'] = trim($m[2]);
+                        }
+                    }
                     break;
 
                 case self::S_DESC:

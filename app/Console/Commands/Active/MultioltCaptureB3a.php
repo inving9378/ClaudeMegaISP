@@ -72,6 +72,7 @@ class MultioltCaptureB3a extends Command
         $this->line('Connecting to OLT via Telnet…');
         $session   = new TelnetSession($cfg);
         $transport = new HuaweiTransport(config: $cfg, session: $session);
+        $transport->open();
 
         $ontOutput = '';
         $optOutput = '';
@@ -155,17 +156,23 @@ class MultioltCaptureB3a extends Command
     /**
      * Sanitize raw VRP output for use as a test fixture.
      *
+     * VRP `display ont info {port} all` has TWO sections:
+     *   1. Main table — F/S/P, ONT-ID, SN, flags, states (no client data)
+     *   2. Description section — F/S/P, ONT-ID, [client description text]
+     *      (multi-line values, continuation lines start with spaces only)
+     *
      * Rules:
-     *  1. Strip any line that contains the OLT hostname, IP, or username.
-     *  2. Replace ONT Description values with "[REDACTED]" to remove client data.
-     *  3. Prepend a standard fixture header comment.
+     *  1. Strip lines containing OLT hostname, IP, or username.
+     *  2. Once inside the Description section, replace description text with [REDACTED].
+     *  3. Continuation lines (pure-whitespace prefix, no F/S/P) in the Description
+     *     section are also replaced with a single "[REDACTED cont.]" placeholder.
      *  4. Keep SNs, signal values, states — these are the data under test.
      */
     private function sanitize(string $raw, string $cmd, string $fsp): string
     {
-        $cfg      = config('services.huawei_olt', []);
-        $host     = trim((string) ($cfg['host']     ?? ''));
-        $user     = trim((string) ($cfg['username'] ?? ''));
+        $cfg  = config('services.huawei_olt', []);
+        $host = trim((string) ($cfg['host']     ?? ''));
+        $user = trim((string) ($cfg['username'] ?? ''));
 
         $header = implode("\n", [
             '# REAL — capturado contra MA5800-X7 en sesión B3a (2026-06-12)',
@@ -176,26 +183,50 @@ class MultioltCaptureB3a extends Command
             '',
         ]);
 
-        $lines = explode("\n", $raw);
-        $out   = [];
+        $lines         = explode("\n", $raw);
+        $out           = [];
+        $inDescSection = false;
 
         foreach ($lines as $line) {
-            // Drop lines containing host/IP or username
-            if ($host !== '' && str_contains($line, $host)) {
-                continue;
-            }
-            if ($user !== '' && str_contains($line, $user)) {
-                continue;
-            }
+            // Drop lines containing OLT host or username
+            if ($host !== '' && str_contains($line, $host)) { continue; }
+            if ($user !== '' && str_contains($line, $user)) { continue; }
 
-            // Redact description field values (client data)
-            if (preg_match('/^(\s+\d+\/\s*\d+\/\s*\d+\s+\d+\s+)\S+(\s+.*)$/', $line, $m)) {
-                // Tabular ont-info row — description is in the last section; keep as-is (no client data here)
+            // Enter Description section on the "F/S/P  ONT-ID  Description" header line
+            if (preg_match('/F\/S\/P\s+ONT-ID\s+Description/i', $line)) {
+                $inDescSection = true;
                 $out[] = $line;
                 continue;
             }
 
-            // "Description" key:value line in detail block
+            // Exit Description section on the VRP summary footer (NEVER on a separator —
+            // the section starts with a separator right after its header)
+            if ($inDescSection && preg_match('/In port .* the total of ONTs/i', $line)) {
+                $inDescSection = false;
+                $out[] = $line;
+                continue;
+            }
+
+            if ($inDescSection) {
+                // F/S/P row: contains the F/S/P pattern → keep topology data, redact description
+                if (preg_match('/(\d+\/\s*\d+\/\s*\d+\s+\d+)\s+\S/', $line)) {
+                    if (preg_match('/^(.*\d+\/\s*\d+\/\s*\d+\s+\d+)\s+.*$/', $line, $m)) {
+                        $out[] = $m[1] . '   [REDACTED]';
+                    } else {
+                        $out[] = $line; // fallback: keep as-is
+                    }
+                    continue;
+                }
+                // Continuation line: part of a multi-line description — drop it
+                if (preg_match('/^\s+\S/', $line)) {
+                    continue;
+                }
+                // Separator or blank line within section: keep as-is (structural)
+                $out[] = $line;
+                continue;
+            }
+
+            // Detail-block "Description :" key:value line (per-ONT detail format)
             if (preg_match('/^(\s+Description\s*:\s*)(.+)$/', $line, $m)) {
                 $out[] = $m[1] . '[REDACTED]';
                 continue;

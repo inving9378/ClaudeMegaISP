@@ -1,0 +1,238 @@
+# REAL — capturado contra MA5800-X7 en sesión B3a (2026-06-12)
+# Comando: display ont info 8 all
+# Puerto: 0/2/8  (112 ONTs al momento de captura)
+# Host, credenciales y username OMITIDOS (sanitizado)
+# Descripciones de ONT reemplazadas con [REDACTED] (datos de cliente)
+Command:
+          display ont info 8 all
+  -----------------------------------------------------------------------------
+  F/S/P   ONT         SN         Control     Run      Config   Match    Protect
+          ID                     flag        state    state    state    side 
+  -----------------------------------------------------------------------------
+  0/ 2/8    0  45434F4D08428F9B  active      online   normal   mismatch no 
+  0/ 2/8    1  485754430BE8189E  active      online   normal   match    no 
+  0/ 2/8    2  4857544351906F9B  active      offline  initial  initial  no 
+  0/ 2/8    3  45434F4D08391F9B  active      online   normal   mismatch no 
+  0/ 2/8    4  48575443DE217AA2  active      online   normal   mismatch no 
+  0/ 2/8    5  4857544391F0DFAE  active      online   normal   mismatch no 
+  0/ 2/8    6  45434F4D082DCF9B  active      online   normal   mismatch no 
+  0/ 2/8    7  45434F4D08423F9B  active      offline  initial  initial  no 
+  0/ 2/8    8  45434F4D8FC55F9B  active      offline  initial  initial  no 
+  0/ 2/8    9  4857544359479B9F  active      online   normal   mismatch no 
+  0/ 2/8   10  485754435186CF9B  active      online   normal   mismatch no 
+  0/ 2/8   11  4857544391F0B7AE  active      online   normal   mismatch no 
+  0/ 2/8   12  45434F4D08381F9B  active      online   normal   mismatch no 
+  0/ 2/8   13  48575443DEA52EA2  active      offline  initial  initial  no 
+  0/ 2/8   14  4857544322E62CA4  active      online   normal   mismatch no 
+  0/ 2/8   15  48575443F5B331A3  active      offline  initial  initial  no 
+  0/ 2/8   16  48575443D3CAAA7B  active      offline  initial  initial  no 
+  0/ 2/8   17  48575443F5B9D3A3  active      offline  initial  initial  no 
+  0/ 2/8   18  48575443575615A4  active      online   normal   mismatch no 
+                                       0/ 2/8   19  48575443244C7B9E  active      online   normal   match    no 
+  0/ 2/8   20  48575443394471A4  active      online   normal   mismatch no 
+  0/ 2/8   21  45434F4D08375F9B  active      online   normal   mismatch no 
+  0/ 2/8   22  48575443BCB9D0A0  active      online   normal   mismatch no 
+  0/ 2/8   23  45434F4D08374F9B  active      online   normal   mismatch no 
+  0/ 2/8   24  45434F4D08317F9B  active      online   normal   mismatch no 
+  0/ 2/8   25  48575443C9E1B29E  active      offline  initial  initial  no 
+  0/ 2/8   26  4857544351947F9B  active      online   normal   mismatch no 
+  0/ 2/8   27  485754435A715BA2  active      offline  initial  initial  no 
+  0/ 2/8   28  45434F4DC81A6F9B  active      online   normal   mismatch no 
+  0/ 2/8   29  45434F4D8FCCFF9B  active      online   normal   mismatch no 
+  0/ 2/8   30  485754434495859E  active      online   normal   match    no 
+  0/ 2/8   31  48575443FEBB5A9F  active      offline  initial  initial  no 
+  0/ 2/8   32  48575443E71357A3  active      online   normal   mismatch no 
+  0/ 2/8   33  48575443E93985A2  active      online   normal   mismatch no 
+  0/ 2/8   34  45434F4D8FC66F9B  active      offline  initial  initial  no 
+  0/ 2/8   35  45434F4D08331F9B  active      online   normal   mismatch no 
+  0/ 2/8   36  45434F4D8FCC5F9B  active      online   normal   mismatch no 
+  0/ 2/8   37  45434F4D8FC93F9B  active      online   normal   mismatch no 
+  0/ 2/8   38  45434F4D0833BF9B  active      online   normal   mismatch no 
+  0/ 2/8   39  4857544322E52CA4  active      offline  initial  initial  no 
+  0/ 2/8   40  45434F4DC8067F9B  active      online   normal   mismatch no 
+  0/ 2/8   41  45434F4D083D0F9B  active      offline  initial  initial  no 
+  0/ 2/8   42  45434F4D8EEFAF9B  active      offline  initial  initial  no 
+                                       0/ 2/8   43  45434F4D8EF23F9B  active      online   normal   mismatch no 
+  0/ 2/8   44  48575443C43F7F9D  active      offline  initial  initial  no 
+  0/ 2/8   45  4857544304C77C2A  active      offline  initial  initial  no 
+  0/ 2/8   46  48575443D83A4AA4  active      online   normal   mismatch no 
+  0/ 2/8   47  48575443BE1E8EAC  active      online   normal   mismatch no 
+  0/ 2/8   48  485754436EF62AA2  active      online   normal   mismatch no 
+  0/ 2/8   49  4857544310748E9D  active      online   normal   match    no 
+  0/ 2/8   50  48575443D232A3A4  active      online   normal   mismatch no 
+  0/ 2/8   51  48575443FEFCD9A2  active      online   normal   mismatch no 
+  0/ 2/8   52  48575443F5BB28A3  active      online   normal   mismatch no 
+  0/ 2/8   54  45434F4DC7F7DF9B  active      online   normal   mismatch no 
+  0/ 2/8   55  485754435939189F  active      online   normal   mismatch no 
+  0/ 2/8   56  485754435931549F  active      online   normal   mismatch no 
+  0/ 2/8   57  4857544304BE482A  active      online   normal   match    no 
+  0/ 2/8   58  45434F4D8FD44F9B  active      online   normal   mismatch no 
+  0/ 2/8   59  485754435936099F  active      online   normal   mismatch no 
+  0/ 2/8   60  48575443519A6F9B  active      online   normal   mismatch no 
+  0/ 2/8   61  45434F4D0825EF9B  active      online   normal   mismatch no 
+  0/ 2/8   62  45434F4D8FBF9F9B  active      offline  initial  initial  no 
+  0/ 2/8   63  45434F4D8EF42F9B  active      offline  initial  initial  no 
+  0/ 2/8   64  45434F4DC8159F9B  active      offline  initial  initial  no 
+  0/ 2/8   65  485754436EE2DDA2  active      online   normal   mismatch no 
+  0/ 2/8   66  48575443C445799D  active      online   normal   match    no 
+  0/ 2/8   67  48575443760D91A1  active      offline  initial  initial  no 
+                                       0/ 2/8   68  48575443FAD0DA9F  active      online   normal   mismatch no 
+  0/ 2/8   69  48575443F5B472A3  active      offline  initial  initial  no 
+  0/ 2/8   70  48575443DCE8E2A2  active      online   normal   mismatch no 
+  0/ 2/8   71  45434F4DC8160F9B  active      online   normal   mismatch no 
+  0/ 2/8   72  48575443FEFCC6A2  active      online   normal   mismatch no 
+  0/ 2/8   73  45434F4DC7FD3F9B  active      online   normal   mismatch no 
+  0/ 2/8   74  48575443FEFCBDA2  active      online   normal   mismatch no 
+  0/ 2/8   75  4857544389A3E79E  active      online   normal   match    no 
+  0/ 2/8   76  45434F4DC7F8FF9B  active      online   normal   mismatch no 
+  0/ 2/8   77  4857544304038E2A  active      online   normal   match    no 
+  0/ 2/8   78  48575443F5B5A1A3  active      online   normal   mismatch no 
+  0/ 2/8   79  48575443F5BB2FA3  active      offline  initial  initial  no 
+  0/ 2/8   80  45434F4D8FC06F9B  active      online   normal   mismatch no 
+  0/ 2/8   81  4857544351945F9B  active      online   normal   mismatch no 
+  0/ 2/8   82  4857544391F025AE  active      offline  initial  initial  no 
+  0/ 2/8   83  48575443991CC0A2  active      online   normal   mismatch no 
+  0/ 2/8   84  45434F4DC8100F9B  active      online   normal   mismatch no 
+  0/ 2/8   85  48575443FEFBB8A2  active      online   normal   mismatch no 
+  0/ 2/8   86  48575443519BCF9B  active      offline  initial  initial  no 
+  0/ 2/8   87  48575443F5B895A3  active      online   normal   mismatch no 
+  0/ 2/8   88  45434F4DC80EBF9B  active      online   normal   mismatch no 
+  0/ 2/8   89  48575443DEA504A2  active      online   normal   mismatch no 
+  0/ 2/8   90  48575443FA9FE29F  active      online   normal   mismatch no 
+  0/ 2/8   91  48575443ACB21DA0  active      online   normal   mismatch no 
+                                       0/ 2/8   92  48575443518AAF9B  active      online   normal   mismatch no 
+  0/ 2/8   93  45434F4DC7FF3F9B  active      online   normal   match    no 
+  0/ 2/8   95  485754435189FF9B  active      online   normal   mismatch no 
+  0/ 2/8   96  48575443F5B79CA3  active      online   normal   mismatch no 
+  0/ 2/8   97  4857544304A36D2A  active      online   normal   match    no 
+  0/ 2/8  101  45434F4D8FCC3F9B  active      online   normal   mismatch no 
+  0/ 2/8  103  485754435753B6A4  active      online   normal   mismatch no 
+  0/ 2/8  104  4857544322ED1CA4  active      offline  initial  initial  no 
+  0/ 2/8  105  48575443F5B67BA3  active      online   normal   mismatch no 
+  0/ 2/8  106  48575443AC8EB8A2  active      online   normal   mismatch no 
+  0/ 2/8  108  45434F4D8FC52F9B  active      offline  initial  initial  no 
+  0/ 2/8  109  485754435CB370A5  active      offline  initial  initial  no 
+  0/ 2/8  110  45434F4D8EF02F9B  active      online   normal   mismatch no 
+  0/ 2/8  111  485754430E2FF2A3  active      online   normal   mismatch no 
+  0/ 2/8  113  45434F4D8FC35F9B  active      offline  initial  initial  no 
+  0/ 2/8  114  48575443519BBF9B  active      offline  initial  initial  no 
+  0/ 2/8  115  45434F4D8FD2BF9B  active      offline  initial  initial  no 
+  0/ 2/8  117  45434F4D8FBF8F9B  active      offline  initial  initial  no 
+  0/ 2/8  122  485754435197FF9B  active      offline  initial  initial  no 
+  0/ 2/8  124  4857544304BFEA2A  active      online   normal   match    no 
+  0/ 2/8  125  485754432C2934A0  active      online   normal   mismatch no 
+  -----------------------------------------------------------------------------
+  F/S/P   ONT-ID   Description
+                                       0/ 2/8       0   [REDACTED]
+  0/ 2/8       1   [REDACTED]
+  0/ 2/8       2   [REDACTED]
+  0/ 2/8       3   [REDACTED]
+  0/ 2/8       4   [REDACTED]
+  0/ 2/8       5   [REDACTED]
+  0/ 2/8       6   [REDACTED]
+  0/ 2/8       7   [REDACTED]
+  0/ 2/8       8   [REDACTED]
+  0/ 2/8       9   [REDACTED]
+  0/ 2/8      10   [REDACTED]
+                                       0/ 2/8      11   [REDACTED]
+  0/ 2/8      12   [REDACTED]
+  0/ 2/8      13   [REDACTED]
+  0/ 2/8      14   [REDACTED]
+  0/ 2/8      15   [REDACTED]
+  0/ 2/8      16   [REDACTED]
+  0/ 2/8      17   [REDACTED]
+  0/ 2/8      18   [REDACTED]
+  0/ 2/8      19   [REDACTED]
+  0/ 2/8      20   [REDACTED]
+  0/ 2/8      21   [REDACTED]
+  0/ 2/8      22   [REDACTED]
+                                       0/ 2/8      23   [REDACTED]
+  0/ 2/8      24   [REDACTED]
+  0/ 2/8      25   [REDACTED]
+  0/ 2/8      26   [REDACTED]
+  0/ 2/8      27   [REDACTED]
+  0/ 2/8      28   [REDACTED]
+  0/ 2/8      29   [REDACTED]
+  0/ 2/8      30   [REDACTED]
+  0/ 2/8      31   [REDACTED]
+  0/ 2/8      32   [REDACTED]
+  0/ 2/8      33   [REDACTED]
+  0/ 2/8      34   [REDACTED]
+  0/ 2/8      35   [REDACTED]
+  0/ 2/8      36   [REDACTED]
+  0/ 2/8      37   [REDACTED]
+  0/ 2/8      38   [REDACTED]
+  0/ 2/8      39   [REDACTED]
+  0/ 2/8      40   [REDACTED]
+  0/ 2/8      41   [REDACTED]
+  0/ 2/8      42   [REDACTED]
+  0/ 2/8      43   [REDACTED]
+  0/ 2/8      44   [REDACTED]
+                                       0/ 2/8      45   [REDACTED]
+  0/ 2/8      46   [REDACTED]
+  0/ 2/8      47   [REDACTED]
+  0/ 2/8      48   [REDACTED]
+  0/ 2/8      49   [REDACTED]
+  0/ 2/8      50   [REDACTED]
+  0/ 2/8      51   [REDACTED]
+  0/ 2/8      52   [REDACTED]
+  0/ 2/8      54   [REDACTED]
+  0/ 2/8      55   [REDACTED]
+  0/ 2/8      56   [REDACTED]
+  0/ 2/8      57   [REDACTED]
+  0/ 2/8      58   [REDACTED]
+  0/ 2/8      59   [REDACTED]
+  0/ 2/8      60   [REDACTED]
+  0/ 2/8      61   [REDACTED]
+  0/ 2/8      62   [REDACTED]
+  0/ 2/8      63   [REDACTED]
+  0/ 2/8      64   [REDACTED]
+  0/ 2/8      65   [REDACTED]
+  0/ 2/8      66   [REDACTED]
+  0/ 2/8      67   [REDACTED]
+  0/ 2/8      68   [REDACTED]
+  0/ 2/8      69   [REDACTED]
+                                       0/ 2/8      70   [REDACTED]
+  0/ 2/8      71   [REDACTED]
+  0/ 2/8      72   [REDACTED]
+  0/ 2/8      73   [REDACTED]
+  0/ 2/8      74   [REDACTED]
+  0/ 2/8      75   [REDACTED]
+  0/ 2/8      76   [REDACTED]
+  0/ 2/8      77   [REDACTED]
+  0/ 2/8      78   [REDACTED]
+  0/ 2/8      79   [REDACTED]
+                                       0/ 2/8      80   [REDACTED]
+  0/ 2/8      81   [REDACTED]
+  0/ 2/8      82   [REDACTED]
+  0/ 2/8      83   [REDACTED]
+  0/ 2/8      84   [REDACTED]
+  0/ 2/8      85   [REDACTED]
+  0/ 2/8      86   [REDACTED]
+  0/ 2/8      87   [REDACTED]
+  0/ 2/8      88   [REDACTED]
+  0/ 2/8      89   [REDACTED]
+  0/ 2/8      90   [REDACTED]
+  0/ 2/8      91   [REDACTED]
+  0/ 2/8      92   [REDACTED]
+  0/ 2/8      93   [REDACTED]
+  0/ 2/8      95   [REDACTED]
+  0/ 2/8      96   [REDACTED]
+  0/ 2/8      97   [REDACTED]
+  0/ 2/8     101   [REDACTED]
+  0/ 2/8     103   [REDACTED]
+  0/ 2/8     104   [REDACTED]
+  0/ 2/8     105   [REDACTED]
+  0/ 2/8     106   [REDACTED]
+  0/ 2/8     108   [REDACTED]
+  0/ 2/8     109   [REDACTED]
+  0/ 2/8     110   [REDACTED]
+  0/ 2/8     111   [REDACTED]
+  0/ 2/8     113   [REDACTED]
+  0/ 2/8     114   [REDACTED]
+  0/ 2/8     115   [REDACTED]
+  0/ 2/8     117   [REDACTED]
+  0/ 2/8     122   [REDACTED]
+  0/ 2/8     124   [REDACTED]
+  0/ 2/8     125   [REDACTED]
+                                       In port 0/ 2/8 , the total of ONTs are: 112, online: 80
