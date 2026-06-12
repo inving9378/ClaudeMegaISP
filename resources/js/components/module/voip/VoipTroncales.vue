@@ -8,7 +8,7 @@
             <div class="d-flex gap-2">
                 <button class="btn btn-outline-secondary btn-sm" @click="probarConexion" :disabled="probando">
                     <i class="fa fa-plug me-1"></i>
-                    {{ probando ? 'Probando…' : 'Probar conexión ARI' }}
+                    {{ probando ? 'Probando…' : 'Probar Asterisk' }}
                 </button>
                 <button v-if="canCreate" class="btn btn-primary btn-sm" @click="abrirModal()">
                     <i class="fa fa-plus me-1"></i> Nueva troncal
@@ -81,15 +81,30 @@
                                         Sin provisionar
                                     </span>
                                     <!-- Resultado de verificación inline -->
-                                    <span v-if="verificaciones[t.id]" class="ms-2">
-                                        <span v-if="verificaciones[t.id].ok"
-                                              class="badge bg-success-subtle text-success">
-                                            {{ verificaciones[t.id].estado }}
+                                    <template v-if="verificaciones[t.id]">
+                                        <span v-if="verificaciones[t.id].status === 'Registered'"
+                                              class="badge bg-success ms-2">
+                                            <i class="fa fa-circle-check me-1"></i>Registered
                                         </span>
-                                        <span v-else class="badge bg-danger-subtle text-danger">
-                                            {{ verificaciones[t.id].estado || 'error' }}
+                                        <span v-else-if="verificaciones[t.id].status === 'Registering'"
+                                              class="badge bg-warning text-dark ms-2">
+                                            <i class="fa fa-circle-notch fa-spin me-1"></i>Registering
                                         </span>
-                                    </span>
+                                        <span v-else-if="verificaciones[t.id].status === 'Rejected'"
+                                              class="badge bg-danger ms-2"
+                                              :title="verificaciones[t.id].last_error">
+                                            <i class="fa fa-circle-xmark me-1"></i>Rejected
+                                        </span>
+                                        <span v-else-if="verificaciones[t.id].status === 'n/a'"
+                                              class="badge bg-secondary ms-2">
+                                            IP directa
+                                        </span>
+                                        <span v-else
+                                              class="badge bg-secondary ms-2"
+                                              :title="verificaciones[t.id].last_error">
+                                            {{ verificaciones[t.id].status || 'Sin datos' }}
+                                        </span>
+                                    </template>
                                 </td>
                                 <td class="text-center">
                                     <i :class="t.activo ? 'fa fa-toggle-on text-success' : 'fa fa-toggle-off text-secondary'" class="fa-lg"></i>
@@ -323,17 +338,18 @@ export default {
             toastTipo:       'success',
             form: this.formVacio(),
             errores: {},
-
-            canCreate:    false,
-            canEdit:      false,
-            canDelete:    false,
-            canProvision: false,
-            canTest:      false,
         };
     },
 
+    computed: {
+        canCreate()    { return this.$store?.getters?.hasPermission?.('voip.troncales.create')    ?? false; },
+        canEdit()      { return this.$store?.getters?.hasPermission?.('voip.troncales.edit')      ?? false; },
+        canDelete()    { return this.$store?.getters?.hasPermission?.('voip.troncales.delete')    ?? false; },
+        canProvision() { return this.$store?.getters?.hasPermission?.('voip.troncales.provision') ?? false; },
+        canTest()      { return this.$store?.getters?.hasPermission?.('voip.troncales.test')      ?? false; },
+    },
+
     mounted() {
-        this.resolverPermisos();
         this.cargar();
     },
 
@@ -354,18 +370,6 @@ export default {
                 transporte:'transport-udp',
                 activo:    true,
             };
-        },
-
-        resolverPermisos() {
-            const store = window.__megaVueApp?._context?.config?.globalProperties?.$store;
-            if (!store) return;
-            const perms = store.getters?.['permissions'] ?? [];
-            const has   = (p) => perms.includes(p);
-            this.canCreate    = has('voip.troncales.create');
-            this.canEdit      = has('voip.troncales.edit');
-            this.canDelete    = has('voip.troncales.delete');
-            this.canProvision = has('voip.troncales.provision');
-            this.canTest      = has('voip.troncales.test');
         },
 
         async cargar() {
