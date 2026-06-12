@@ -85,6 +85,7 @@ class HuaweiProbe extends Command
         try {
             $ontInfo     = $this->fetchOntInfo($transport, $frameSlot, $slot, $port, $ontId);
             $opticalInfo = $this->fetchOpticalInfo($transport, $frameSlot, $slot, $port, $ontId);
+            $versionRaw  = $this->fetchVersion($transport);
         } catch (\Throwable $e) {
             $this->error("Error durante la consulta: {$e->getMessage()}");
             $transport->close();
@@ -130,6 +131,10 @@ class HuaweiProbe extends Command
         }
 
         $this->line('');
+        $this->info('── VERSION (raw) ─────────────────────────────────────────────');
+        $this->line($versionRaw ?? '(sin output)');
+
+        $this->line('');
         $this->info('=== probe completado ===');
         return self::SUCCESS;
     }
@@ -148,6 +153,12 @@ class HuaweiProbe extends Command
         $raw = $transport->exec("display ont optical-info {$port} {$ontId}");
         $transport->leaveToUserView();
         return OpticalInfoParser::parse($raw);
+    }
+
+    /** Captura output crudo de "display version" en user-view (sin parser — fixture para B1c). */
+    private function fetchVersion(HuaweiTransport $transport): string
+    {
+        return $transport->exec('display version');
     }
 
     /** "0/3/2:0" → ["0/3", 0] */
