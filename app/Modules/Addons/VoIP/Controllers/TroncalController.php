@@ -5,6 +5,7 @@ namespace App\Modules\Addons\VoIP\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\VoIP\Models\Troncal;
 use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
+use App\Modules\Addons\VoIP\Services\DialplanGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -12,7 +13,10 @@ use Illuminate\Support\Facades\Log;
 
 class TroncalController extends Controller
 {
-    public function __construct(private AsteriskProvisioningService $provisioner) {}
+    public function __construct(
+        private AsteriskProvisioningService $provisioner,
+        private DialplanGeneratorService $generator,
+    ) {}
 
     // ── Vista ────────────────────────────────────────────────────────────────
 
@@ -32,24 +36,26 @@ class TroncalController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $troncales = Troncal::orderBy('nombre')->get()->map(function (Troncal $t) {
+        $troncales = Troncal::with('grupoEntrante')->orderBy('nombre')->get()->map(function (Troncal $t) {
             return [
-                'id'             => $t->id,
-                'nombre'         => $t->nombre,
-                'proveedor'      => $t->proveedor,
-                'tipo'           => $t->tipo,
-                'direccion'      => $t->direccion,
-                'host'           => $t->host,
-                'puerto'         => $t->puerto,
-                'usuario'        => $t->usuario,
-                'contexto'       => $t->contexto,
-                'did'            => $t->did,
-                'codecs'         => $t->codecs,
-                'transporte'     => $t->transporte,
-                'activo'         => $t->activo,
-                'provisionado_at'=> $t->provisionado_at?->toDateTimeString(),
-                'endpoint_id'    => $t->endpointId(),
-                'tiene_secret'   => ! empty($t->attributes['secret'] ?? null),
+                'id'                   => $t->id,
+                'nombre'               => $t->nombre,
+                'proveedor'            => $t->proveedor,
+                'tipo'                 => $t->tipo,
+                'direccion'            => $t->direccion,
+                'host'                 => $t->host,
+                'puerto'               => $t->puerto,
+                'usuario'              => $t->usuario,
+                'contexto'             => $t->contexto,
+                'did'                  => $t->did,
+                'grupo_entrante_id'    => $t->grupo_entrante_id,
+                'grupo_entrante_nombre'=> $t->grupoEntrante?->nombre,
+                'codecs'               => $t->codecs,
+                'transporte'           => $t->transporte,
+                'activo'               => $t->activo,
+                'provisionado_at'      => $t->provisionado_at?->toDateTimeString(),
+                'endpoint_id'          => $t->endpointId(),
+                'tiene_secret'         => ! empty($t->attributes['secret'] ?? null),
             ];
         });
 
@@ -63,27 +69,29 @@ class TroncalController extends Controller
         }
 
         $data = $request->validate([
-            'nombre'     => 'required|string|max:100|unique:voip_troncales,nombre',
-            'proveedor'  => 'nullable|string|max:100',
-            'tipo'       => 'required|in:registro,ip',
-            'direccion'  => 'required|in:entrante,saliente,ambas',
-            'host'       => 'required|string|max:255',
-            'puerto'     => 'nullable|integer|min:1|max:65535',
-            'usuario'    => 'nullable|string|max:100',
-            'secret'     => 'nullable|string|min:4',
-            'contexto'   => 'nullable|string|max:100',
-            'did'        => 'nullable|string|max:50',
-            'codecs'     => 'nullable|string|max:100',
-            'transporte' => 'nullable|string|max:100',
-            'activo'     => 'nullable|boolean',
+            'nombre'            => 'required|string|max:100|unique:voip_troncales,nombre',
+            'proveedor'         => 'nullable|string|max:100',
+            'tipo'              => 'required|in:registro,ip',
+            'direccion'         => 'required|in:entrante,saliente,ambas',
+            'host'              => 'required|string|max:255',
+            'puerto'            => 'nullable|integer|min:1|max:65535',
+            'usuario'           => 'nullable|string|max:100',
+            'secret'            => 'nullable|string|min:4',
+            'contexto'          => 'nullable|string|max:100',
+            'did'               => 'nullable|string|max:50',
+            'grupo_entrante_id' => 'nullable|integer|exists:voip_grupos_timbrado,id',
+            'codecs'            => 'nullable|string|max:100',
+            'transporte'        => 'nullable|string|max:100',
+            'activo'            => 'nullable|boolean',
         ]);
 
         $troncal = Troncal::create($data);
+        $this->generarDialplan();
 
         return response()->json($troncal->only([
             'id', 'nombre', 'proveedor', 'tipo', 'direccion',
             'host', 'puerto', 'usuario', 'contexto', 'did',
-            'codecs', 'transporte', 'activo', 'provisionado_at',
+            'grupo_entrante_id', 'codecs', 'transporte', 'activo', 'provisionado_at',
         ]), 201);
     }
 
@@ -94,19 +102,20 @@ class TroncalController extends Controller
         }
 
         $data = $request->validate([
-            'nombre'     => "required|string|max:100|unique:voip_troncales,nombre,{$troncal->id}",
-            'proveedor'  => 'nullable|string|max:100',
-            'tipo'       => 'required|in:registro,ip',
-            'direccion'  => 'required|in:entrante,saliente,ambas',
-            'host'       => 'required|string|max:255',
-            'puerto'     => 'nullable|integer|min:1|max:65535',
-            'usuario'    => 'nullable|string|max:100',
-            'secret'     => 'nullable|string|min:4',
-            'contexto'   => 'nullable|string|max:100',
-            'did'        => 'nullable|string|max:50',
-            'codecs'     => 'nullable|string|max:100',
-            'transporte' => 'nullable|string|max:100',
-            'activo'     => 'nullable|boolean',
+            'nombre'            => "required|string|max:100|unique:voip_troncales,nombre,{$troncal->id}",
+            'proveedor'         => 'nullable|string|max:100',
+            'tipo'              => 'required|in:registro,ip',
+            'direccion'         => 'required|in:entrante,saliente,ambas',
+            'host'              => 'required|string|max:255',
+            'puerto'            => 'nullable|integer|min:1|max:65535',
+            'usuario'           => 'nullable|string|max:100',
+            'secret'            => 'nullable|string|min:4',
+            'contexto'          => 'nullable|string|max:100',
+            'did'               => 'nullable|string|max:50',
+            'grupo_entrante_id' => 'nullable|integer|exists:voip_grupos_timbrado,id',
+            'codecs'            => 'nullable|string|max:100',
+            'transporte'        => 'nullable|string|max:100',
+            'activo'            => 'nullable|boolean',
         ]);
 
         // No sobreescribir el secret cifrado si llega vacío
@@ -120,6 +129,8 @@ class TroncalController extends Controller
         if (isset($data['tipo']) && $data['tipo'] !== $troncal->getOriginal('tipo')) {
             $troncal->update(['provisionado_at' => null]);
         }
+
+        $this->generarDialplan();
 
         return response()->json(['ok' => true]);
     }
@@ -139,6 +150,7 @@ class TroncalController extends Controller
         }
 
         $troncal->delete();
+        $this->generarDialplan();
 
         return response()->json(['ok' => true]);
     }
@@ -179,6 +191,15 @@ class TroncalController extends Controller
     }
 
     // ── Tests de conectividad ─────────────────────────────────────────────────
+
+    private function generarDialplan(): void
+    {
+        try {
+            $this->generator->regenerar();
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: error regenerando dialplan: {$e->getMessage()}");
+        }
+    }
 
     public function probarConexion(): JsonResponse
     {

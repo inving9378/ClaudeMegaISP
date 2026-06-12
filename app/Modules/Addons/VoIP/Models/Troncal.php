@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\VoIP\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Crypt;
 
 class Troncal extends Model
@@ -12,7 +13,7 @@ class Troncal extends Model
     protected $fillable = [
         'nombre', 'proveedor', 'tipo', 'direccion',
         'host', 'puerto', 'usuario', 'secret',
-        'contexto', 'did', 'codecs', 'transporte',
+        'contexto', 'did', 'grupo_entrante_id', 'codecs', 'transporte',
         'activo', 'provisionado_at',
     ];
 
@@ -41,6 +42,13 @@ class Troncal extends Model
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    // ── Relaciones ───────────────────────────────────────────────────────────
+
+    public function grupoEntrante(): BelongsTo
+    {
+        return $this->belongsTo(GrupoTimbrado::class, 'grupo_entrante_id');
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

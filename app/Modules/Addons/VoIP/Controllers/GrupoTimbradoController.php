@@ -5,11 +5,14 @@ namespace App\Modules\Addons\VoIP\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\VoIP\Models\Extension;
 use App\Modules\Addons\VoIP\Models\GrupoTimbrado;
+use App\Modules\Addons\VoIP\Services\DialplanGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class GrupoTimbradoController extends Controller
 {
+    public function __construct(private DialplanGeneratorService $generator) {}
     public function index()
     {
         if (! auth()->user()->can('voip.grupos.view')) {
@@ -72,6 +75,7 @@ class GrupoTimbradoController extends Controller
 
         $grupo = GrupoTimbrado::create($data);
         $this->sincronizarMiembros($grupo, $data['miembros'] ?? []);
+        $this->generarDialplan();
 
         return response()->json(['id' => $grupo->id], 201);
     }
@@ -95,6 +99,7 @@ class GrupoTimbradoController extends Controller
 
         $grupoTimbrado->update($data);
         $this->sincronizarMiembros($grupoTimbrado, $data['miembros'] ?? []);
+        $this->generarDialplan();
 
         return response()->json(['ok' => true]);
     }
@@ -107,8 +112,18 @@ class GrupoTimbradoController extends Controller
 
         $grupoTimbrado->extensiones()->detach();
         $grupoTimbrado->delete();
+        $this->generarDialplan();
 
         return response()->json(['ok' => true]);
+    }
+
+    private function generarDialplan(): void
+    {
+        try {
+            $this->generator->regenerar();
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: error regenerando dialplan desde grupos: {$e->getMessage()}");
+        }
     }
 
     private function sincronizarMiembros(GrupoTimbrado $grupo, array $miembros): void
