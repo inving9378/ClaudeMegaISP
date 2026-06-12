@@ -1,0 +1,7 @@
+# REAL — capturado contra MA5800-X7 en sesión B2a (2026-06-12)
+# Comando: display ont autofind all
+# Host, credenciales y username OMITIDOS (sanitizado)
+
+Command:
+          display ont autofind all
+  Failure: The automatically found ONTs do not exist
