@@ -28,12 +28,14 @@ class BoardParserTest extends TestCase
         $this->assertCount(5, $gpon);
     }
 
-    public function test_h902gphf_has_8_ports(): void
+    public function test_h902gphf_has_16_ports(): void
     {
+        // H902GPHF is a 16-port GPON board (same port count as H901GPHF; differs only
+        // in transceiver class — C+++ vs C++). Confirmed by port 0/2/8 holding 112 ONTs.
         $boards = array_values(array_filter(self::parsed(), fn($b) => $b['board'] === 'H902GPHF'));
         $this->assertNotEmpty($boards);
         foreach ($boards as $b) {
-            $this->assertSame(8, $b['port_count']);
+            $this->assertSame(16, $b['port_count']);
         }
     }
 
@@ -119,13 +121,16 @@ class BoardParserTest extends TestCase
         $this->assertSame([1, 2, 3, 4, 5], $gponSlots);
     }
 
-    public function test_real_fixture_h902gphf_slots_have_8_ports(): void
+    public function test_real_fixture_h902gphf_slots_have_16_ports(): void
     {
-        // Slots 1 and 2 are H902GPHF (8 PON ports each)
+        // Slots 1 and 2 are H902GPHF — 16 PON ports each.
+        // Bug-fix: was incorrectly set to 8. Empirical proof: port 0/2/8 (slot 2)
+        // holds 112 ONTs (port 8 cannot exist on an 8-port card); SmartOLT confirms
+        // ports 0-15 on those slots.
         $boards = array_values(array_filter(self::realParsed(), fn($b) => $b['board'] === 'H902GPHF'));
         $this->assertCount(2, $boards);
         foreach ($boards as $b) {
-            $this->assertSame(8, $b['port_count']);
+            $this->assertSame(16, $b['port_count']);
         }
     }
 
