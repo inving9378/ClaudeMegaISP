@@ -43,6 +43,9 @@ class Kernel extends ConsoleKernel
         //Comandos OLT
         $schedule->command('smartolt:sync-inventory')->dailyAt('05:00')->withoutOverlapping();
         $schedule->command('smartolt:sync-critical')->everyTenMinutes()->withoutOverlapping();
+        // Huawei Telnet scan — una sesión por corrida, TTL lock 900s (scan ≈7-10 min).
+        // Si duration_s > 8 min en los logs, subir el intervalo a 15 min y ajustar withoutOverlapping.
+        $schedule->command('gestionred:sync-huawei')->everyTenMinutes()->withoutOverlapping(15);
         // Revertir promos vencidas: hourly para revertir el mismo día del vencimiento con reintentos automáticos
         $schedule->command('smartolt:sync-promotions')->hourly()->withoutOverlapping()->onOneServer();
         // Revisión diaria 6 AM: reversiones residuales + reconciliación BD vs ONU + aviso de promos que vencen hoy

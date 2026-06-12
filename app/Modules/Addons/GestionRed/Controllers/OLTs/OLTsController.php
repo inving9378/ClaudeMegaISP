@@ -16,6 +16,7 @@ use App\Models\OltUplinkPort;
 use App\Models\OltVlan;
 use App\Models\OltZone;
 use App\Services\OLTsService;
+use App\Services\OltDriver\OltDriverManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -32,12 +33,14 @@ class OLTsController extends Controller
     protected $oltService;
     protected $ttl;
     private $model;
+    private OltDriverManager $driverManager;
 
-    public function __construct()
+    public function __construct(OltDriverManager $driverManager)
     {
-        $this->oltService = new OLTsService();
-        $this->ttl = config('services.smartolt.ttl');
-        $this->model = Olt::class;
+        $this->oltService    = new OLTsService();
+        $this->ttl           = config('services.smartolt.ttl');
+        $this->model         = Olt::class;
+        $this->driverManager = $driverManager;
     }
 
     public function dashboard()
@@ -247,18 +250,68 @@ class OLTsController extends Controller
     public function getDetailsByONU($id)
     {
         $onu = OltOnu::find($id);
-        if ($onu && $onu->unique_external_id) {
-            $response = $this->oltService->syncOnu($onu);
-            return response()->json($response);
+        if (! $onu || ! $onu->unique_external_id) {
+            return response()->json(['success' => false, 'message' => 'No se permite la operación solicitada. ONU no encontrada']);
         }
-        return response()->json([
-            'success' => false,
-            'message' => 'No se permite la operación solicitada. ONU no encontrada'
-        ]);
+
+        $olt = Olt::find($onu->olt_id);
+        if ($olt && $olt->driver === Olt::DRIVER_HUAWEI) {
+            $driver = $this->driverManager->driverFor($olt);
+            $result = $driver->getOnuDetails($onu->unique_external_id);
+
+            if ($result['syncing'] ?? false) {
+                $onu->refresh();
+                return response()->json(['success' => true, 'syncing' => true, 'onu' => $onu]);
+            }
+
+            if ($result['success'] ?? false) {
+                $d = $result['onu_details'];
+                $onu->fill([
+                    'signal'         => $d['signal']      ?? $onu->signal,
+                    'signal_1310'    => $d['signal_1310'] ?? $onu->signal_1310,
+                    'signal_1490'    => $d['signal_1490'] ?? $onu->signal_1490,
+                    'status'         => $d['status']      ?? $onu->status,
+                    'last_synced_at' => now(),
+                ])->save();
+                $onu->refresh();
+            }
+            return response()->json(array_merge($result, ['onu' => $onu]));
+        }
+
+        $response = $this->oltService->syncOnu($onu);
+        return response()->json($response);
     }
 
     public function getSignalByOnu($sn)
     {
+        // Route param may be unique_external_id (Huawei) or SN (SmartOLT).
+        $onu = OltOnu::firstWhere('unique_external_id', $sn)
+            ?? OltOnu::firstWhere('sn', $sn);
+
+        if ($onu) {
+            $olt = Olt::find($onu->olt_id);
+            if ($olt && $olt->driver === Olt::DRIVER_HUAWEI) {
+                $driver = $this->driverManager->driverFor($olt);
+                $result = $driver->getOnuSignal($onu->unique_external_id);
+
+                if ($result['syncing'] ?? false) {
+                    $onu->refresh();
+                    return response()->json(['success' => true, 'syncing' => true, 'onu' => $onu]);
+                }
+
+                if ($result['success'] ?? false) {
+                    $onu->fill([
+                        'signal'         => $result['onu_signal']      ?? $onu->signal,
+                        'signal_1310'    => $result['onu_signal_1310'] ?? $onu->signal_1310,
+                        'signal_1490'    => $result['onu_signal_1490'] ?? $onu->signal_1490,
+                        'last_synced_at' => now(),
+                    ])->save();
+                    $onu->refresh();
+                }
+                return response()->json(array_merge($result, ['onu' => $onu]));
+            }
+        }
+
         $response = $this->oltService->syncSignal($sn);
         return $response;
     }

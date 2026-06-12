@@ -9,6 +9,7 @@ use App\Models\Olt;
 use App\Models\OltOnu;
 use App\Models\OltUnconfiguredOnu;
 use App\Services\OLTsService;
+use App\Services\OltDriver\OltDriverManager;
 use Illuminate\Http\Request;
 
 class OLTsOnuController extends Controller
@@ -18,12 +19,14 @@ class OLTsOnuController extends Controller
     protected $oltService;
     protected $ttl;
     private $model;
+    private OltDriverManager $driverManager;
 
-    public function __construct()
+    public function __construct(OltDriverManager $driverManager)
     {
-        $this->oltService = new OLTsService();
-        $this->ttl = config('services.smartolt.ttl');
-        $this->model = OltOnu::class;
+        $this->oltService    = new OLTsService();
+        $this->ttl           = config('services.smartolt.ttl');
+        $this->model         = OltOnu::class;
+        $this->driverManager = $driverManager;
     }
 
     public function index(Request $request)
@@ -270,14 +273,43 @@ class OLTsOnuController extends Controller
     public function getSignalAndStatus($id)
     {
         $onu = OltOnu::find($id);
-        if ($onu) {
-            $response = $this->oltService->syncSignalsAndStatus($onu);
-            return $response;
+        if (! $onu) {
+            return response()->json(['success' => false, 'message' => 'Onu no encontrada']);
         }
-        return response()->json([
-            'success' => false,
-            'message' => 'Onu no encontrada'
-        ]);
+
+        $olt = Olt::find($onu->olt_id);
+        if ($olt && $olt->driver === Olt::DRIVER_HUAWEI) {
+            if (! $onu->unique_external_id) {
+                return response()->json(['success' => false, 'message' => 'ONU sin ID externo configurado']);
+            }
+
+            // getOnuDetails returns both signal and status in one Telnet session
+            $driver = $this->driverManager->driverFor($olt);
+            $result = $driver->getOnuDetails($onu->unique_external_id);
+
+            if ($result['syncing'] ?? false) {
+                $onu->refresh();
+                return response()->json(['success' => true, 'syncing' => true, 'onu' => $onu]);
+            }
+
+            if ($result['success'] ?? false) {
+                $d = $result['onu_details'];
+                $onu->fill([
+                    'signal'         => $d['signal']      ?? $onu->signal,
+                    'signal_1310'    => $d['signal_1310'] ?? $onu->signal_1310,
+                    'signal_1490'    => $d['signal_1490'] ?? $onu->signal_1490,
+                    'status'         => $d['status']      ?? $onu->status,
+                    'last_synced_at' => now(),
+                ])->save();
+                $onu->refresh();
+                return response()->json(['success' => true, 'onu' => $onu]);
+            }
+
+            return response()->json($result);
+        }
+
+        $response = $this->oltService->syncSignalsAndStatus($onu);
+        return $response;
     }
 
     public function updateServicePort(Request $request, $id)
@@ -712,24 +744,51 @@ class OLTsOnuController extends Controller
     public function getUnconfigured(Request $request, $id = null)
     {
         $message = null;
-        $rows = [];
+        $olt     = $id ? Olt::find($id) : null;
+
         if ($request->force) {
-            $respose = $this->oltService->syncUnconfiguredOnus($id);
-            if (!$respose['success']) {
-                $message = $respose['message'];
+            if ($olt && $olt->driver === Olt::DRIVER_HUAWEI) {
+                $driver = $this->driverManager->driverFor($olt);
+                $result = $driver->getUnconfiguredOnus((string) $id);
+                if ($result['success'] ?? false) {
+                    $this->persistUnconfigured($result['response'] ?? [], $olt);
+                } else {
+                    $message = $result['message'] ?? 'Error al obtener ONUs no configuradas';
+                }
+            } else {
+                $respose = $this->oltService->syncUnconfiguredOnus($id);
+                if (! $respose['success']) {
+                    $message = $respose['message'];
+                }
             }
         }
-        if (isset($id)) {
-            $olt = Olt::find($id);
-            $rows = $olt->unconfiguredOnus;
-        } else {
-            $rows = OltUnconfiguredOnu::all();
+
+        $rows = $olt ? $olt->unconfiguredOnus : OltUnconfiguredOnu::all();
+
+        return response()->json(['success' => true, 'rows' => $rows, 'message' => $message]);
+    }
+
+    private function persistUnconfigured(array $found, Olt $olt): void
+    {
+        if (empty($found)) {
+            return;
         }
-        return response()->json([
-            'success' => true,
-            'rows' => $rows,
-            'message' => $message
-        ]);
+
+        $now  = now();
+        $rows = array_map(fn($e) => [
+            'sn'             => $e['sn'],
+            'olt_id'         => $olt->id,
+            'port'           => $e['port']         ?? null,
+            'onu_type_name'  => $e['equipment_id'] ?? null,
+            'pon_description'=> $e['vender_id']    ?? null,
+            'last_synced_at' => $now,
+        ], $found);
+
+        foreach (array_chunk($rows, 200) as $chunk) {
+            OltUnconfiguredOnu::upsert($chunk, ['sn', 'olt_id'], [
+                'port', 'onu_type_name', 'pon_description', 'last_synced_at',
+            ]);
+        }
     }
 
     public function getSavedUnconfigured(Request $request)

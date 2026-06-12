@@ -46,6 +46,9 @@ class HuaweiDriverTest extends TestCase
     protected function setUp(): void
     {
         $this->transport = $this->createMock(HuaweiTransport::class);
+        // Unit tests assume the transport is already open (pre-condition).
+        // withSession() checks isOpen() to decide whether to bypass Cache::lock().
+        $this->transport->method('isOpen')->willReturn(true);
         $this->driver    = new HuaweiDriver(
             transport: $this->transport,
             config:    ['olt_id' => '1', 'name' => 'MA5800-TEST', 'frame' => 0],

@@ -48,4 +48,14 @@ return [
         'endpoint' => env('CLAUDE_API_ENDPOINT', 'https://api.anthropic.com/v1/messages'),
     ],
 
+    // Huawei OLT (motor propio — B1b-4). Sin valores hasta validar B1c.
+    'huawei_olt' => [
+        'host'            => env('OLT_HUAWEI_HOST', ''),
+        'port'            => env('OLT_HUAWEI_PORT', 23),
+        'username'        => env('OLT_HUAWEI_USER', ''),
+        'password'        => env('OLT_HUAWEI_PASS', ''),
+        'transport'       => env('OLT_HUAWEI_TRANSPORT', 'telnet'),
+        'connect_timeout' => env('OLT_HUAWEI_TIMEOUT', 30),
+    ],
+
 ];

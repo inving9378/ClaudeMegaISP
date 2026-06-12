@@ -195,6 +195,11 @@ class HuaweiTransport
         $this->runNavigation('return', 'user');
     }
 
+    public function isOpen(): bool
+    {
+        return $this->opened;
+    }
+
     /**
      * Close the session with a clean VRP quit sequence.
      */
