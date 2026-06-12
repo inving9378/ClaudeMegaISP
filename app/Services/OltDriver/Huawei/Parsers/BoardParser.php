@@ -13,10 +13,18 @@ namespace App\Services\OltDriver\Huawei\Parsers;
  */
 class BoardParser
 {
-    /** GPON PON-port counts by board model (Huawei hardware spec). */
+    /**
+     * GPON PON-port counts by board model (Huawei hardware spec).
+     *
+     * H902GPHF and H901GPHF are both 16-port GPON boards — they differ in
+     * transceiver class (H902 = Class C+++ / higher power budget), not port count.
+     * Confirmed empirically: port 0/2/8 (slot 2 = H902GPHF) holds 112 ONTs,
+     * proving the board has at least port 8; SmartOLT shows ports 0-15 on those slots.
+     * Leaving H901GPHF-8 for OLT variants that genuinely ship an 8-port variant.
+     */
     private const GPON_PORT_COUNTS = [
-        'H902GPHF' => 8,
-        'H901GPHF' => 16,
+        'H902GPHF'   => 16,
+        'H901GPHF'   => 16,
         'H901GPHF-8' => 8,
     ];
 
