@@ -84,4 +84,68 @@ class BoardParserTest extends TestCase
         $this->assertFalse(BoardParser::isGponBoard('H902MPLA'));
         $this->assertFalse(BoardParser::isGponBoard('H901PILA'));
     }
+
+    // ── Real fixture (MA5800-X7, B2a 2026-06-12) ─────────────────────────────
+
+    private static function realFixture(): string
+    {
+        return file_get_contents(__DIR__ . '/../fixtures/huawei/display_board_real.txt');
+    }
+
+    private static function realParsed(): array
+    {
+        return BoardParser::parse(self::realFixture());
+    }
+
+    public function test_real_fixture_parses_nine_boards(): void
+    {
+        // Slots 0, 6, 7 are empty (no board installed) and are correctly skipped.
+        $this->assertCount(9, self::realParsed());
+    }
+
+    public function test_real_fixture_identifies_five_gpon_boards(): void
+    {
+        $gpon = array_filter(self::realParsed(), fn($b) => $b['is_gpon']);
+        $this->assertCount(5, $gpon);
+    }
+
+    public function test_real_fixture_gpon_slots_are_1_through_5(): void
+    {
+        $gponSlots = array_column(
+            array_values(array_filter(self::realParsed(), fn($b) => $b['is_gpon'])),
+            'slot'
+        );
+        sort($gponSlots);
+        $this->assertSame([1, 2, 3, 4, 5], $gponSlots);
+    }
+
+    public function test_real_fixture_h902gphf_slots_have_8_ports(): void
+    {
+        // Slots 1 and 2 are H902GPHF (8 PON ports each)
+        $boards = array_values(array_filter(self::realParsed(), fn($b) => $b['board'] === 'H902GPHF'));
+        $this->assertCount(2, $boards);
+        foreach ($boards as $b) {
+            $this->assertSame(8, $b['port_count']);
+        }
+    }
+
+    public function test_real_fixture_h901gphf_slots_have_16_ports(): void
+    {
+        // Slots 3, 4, 5 are H901GPHF (16 PON ports each)
+        $boards = array_values(array_filter(self::realParsed(), fn($b) => $b['board'] === 'H901GPHF'));
+        $this->assertCount(3, $boards);
+        foreach ($boards as $b) {
+            $this->assertSame(16, $b['port_count']);
+        }
+    }
+
+    public function test_real_fixture_active_master_is_slot9(): void
+    {
+        // VRP V100R018C00 SPH505 reports "Active_normal" (not "Active_Master") for H902MPLA.
+        // Both forms have been seen in the wild — depends on firmware patch level.
+        $slot9 = array_values(array_filter(self::realParsed(), fn($b) => $b['slot'] === 9));
+        $this->assertCount(1, $slot9);
+        $this->assertStringContainsStringIgnoringCase('active', $slot9[0]['status']);
+        $this->assertFalse($slot9[0]['is_gpon']);
+    }
 }
