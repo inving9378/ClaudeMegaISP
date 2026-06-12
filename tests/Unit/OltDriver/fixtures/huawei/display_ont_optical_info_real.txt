@@ -1,0 +1,43 @@
+# REAL — capturado contra MA5800-X7 en sesión B1c (2026-06-12)
+# ONU: 0/3/2 ont-id 0  SN: HWTCFEFCC9A2 (sanitizado: host/credenciales omitidos)
+# Comando: display ont optical-info 2 0  (desde interface gpon 0/3)
+#
+# Ground truth validado B1c:
+#   Rx ONU = -8.46 dBm  (esperado ≈ -8.54 dBm, delta = 0.08, dentro de ±1.5 dB) ✓
+#   Rx OLT = -13.47 dBm (esperado ≈ -13.04 dBm, delta = 0.43, dentro de ±1.5 dB) ✓
+#   Nota: "OLT Rx ONT optical power" tiene sufijo ", out of range[...]" — toFloat extrae
+#         solo el número líder.
+
+  Command:
+          display ont optical-info 2 0
+  -----------------------------------------------------------------------------
+  ONU NNI port ID                        : 0
+  Module type                            : GPON
+  Module sub-type                        : CLASS B+
+  Used type                              : ONU
+  Encapsulation Type                     : BOSA ON BOARD
+  Optical power precision(dBm)           : 3.0
+  Vendor name                            : HUAWEI
+  Vendor rev                             : -
+  Vendor PN                              : HW-BOB-0007
+  Vendor SN                              : 2025Y7170086C
+  Date Code                              : 20-09-21
+  Rx optical power(dBm)                  : -8.46
+  Rx power current warning threshold(dBm): [-,-]
+  Rx power current alarm threshold(dBm)  : [-29.0,-7.0]
+  Tx optical power(dBm)                  : 2.17
+  Tx power current warning threshold(dBm): [-,-]
+  Tx power current alarm threshold(dBm)  : [0.0,5.0]
+  Laser bias current(mA)                 : 15
+  Tx bias current warning threshold(mA)  : [-,-]
+  Tx bias current alarm threshold(mA)    : [2.000,100.000]
+  Temperature(C)                         : 45
+  Temperature warning threshold(C)       : [-,-]
+  Temperature alarm threshold(C)         : [-61,95]
+  Voltage(V)                             : 3.380
+  Supply voltage warning threshold(V)    : [-,-]
+  Supply voltage alarm threshold(V)      : [3.000,3.600]
+  OLT Rx ONT optical power(dBm)          : -13.47, out of range[-35.00, -15.00]
+  CATV Rx optical power(dBm)             : -
+  CATV Rx power alarm threshold(dBm)     : [-,-]
+  -----------------------------------------------------------------------------

@@ -1,0 +1,50 @@
+# REAL — capturado contra MA5800-X7 en sesión B1c (2026-06-12)
+# ONU: 0/3/2 ont-id 0  SN: HWTCFEFCC9A2 (sanitizado: host/credenciales omitidos)
+# Comando: display ont info 2 0  (desde interface gpon 0/3)
+
+  Command:
+          display ont info 2 0
+  -----------------------------------------------------------------------------
+  F/S/P                   : 0/3/2
+  ONT-ID                  : 0
+  Control flag            : active
+  Run state               : online
+  Config state            : normal
+  Match state             : mismatch
+  DBA type                : SR
+  ONT distance(m)         : 39
+  ONT last distance(m)    : -
+  ONT battery state       : not support
+  ONT power type          : -
+  Memory occupation       : 37%
+  CPU occupation          : 4%
+  Temperature             : 62(C)
+  Authentic type          : SN-auth
+  SN                      : 48575443FEFCC9A2 (HWTC-FEFCC9A2)
+  Management mode         : OMCI
+  Software work mode      : normal
+  Isolation state         : normal
+  ONT IP 0 address/mask   : -
+  Description             : PRUEBA_zone_D1Z10_authd_20260610
+  Last down cause         : -
+  Last up time            : 2026-06-10 16:17:05-06:00
+  Last down time          : -
+  Last dying gasp time    : -
+  ONT online duration     : 1 day(s), 18 hour(s), 22 minute(s), 52 second(s)
+  ONT system up duration  : 1 day(s), 18 hour(s), 45 minute(s), 50 second(s)
+  Type C support          : Not support
+  Interoperability-mode   : ITU-T
+  Power reduction status  : -
+  FEC upstream state      : use-profile-config
+  VS-ID                   : 0
+  VS name                 : admin-vs
+  Global ONT-ID           : 0
+  -----------------------------------------------------------------------------
+  VoIP configure method   : Default
+  -----------------------------------------------------------------------------
+  Line profile ID      : 1
+  Line profile name    : SMARTOLT_FLEXIBLE_GPON
+  -----------------------------------------------------------------------------
+  Service profile ID   : 2
+  Service profile name : HG8145V5
+  -----------------------------------------------------------------------------
