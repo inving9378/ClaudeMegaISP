@@ -73,4 +73,23 @@ class AutofindParserTest extends TestCase
             }
         }
     }
+
+    // ── Real fixture (MA5800-X7, B2a 2026-06-12) ─────────────────────────────
+
+    public function test_real_fixture_returns_empty_when_no_unprovisioned_onus(): void
+    {
+        // The OLT returned: "Failure: The automatically found ONTs do not exist"
+        // This means the port is clean — no ONUs waiting to be provisioned.
+        // AutofindParser must return [] for any Failure: response.
+        $output = file_get_contents(__DIR__ . '/../fixtures/huawei/display_autofind_real.txt');
+        $this->assertSame([], AutofindParser::parse($output));
+    }
+
+    public function test_real_fixture_failure_message_does_not_throw(): void
+    {
+        $output = file_get_contents(__DIR__ . '/../fixtures/huawei/display_autofind_real.txt');
+        // Must complete without exception
+        $result = AutofindParser::parse($output);
+        $this->assertIsArray($result);
+    }
 }
