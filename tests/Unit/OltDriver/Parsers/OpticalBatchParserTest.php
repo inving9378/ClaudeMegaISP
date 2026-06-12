@@ -146,4 +146,68 @@ class OpticalBatchParserTest extends TestCase
             $this->assertArrayHasKey($key, $result[0], "Missing key: {$key}");
         }
     }
+
+    // ── Real fixture B3a — port 0/2/8 (112 ONTs, 80 online with optical data) ─
+    // Only online ONTs have optical readings; offline ONTs are absent from this output.
+
+    public function test_b3a_count_equals_online_onu_count(): void
+    {
+        // VRP only returns optical rows for online ONTs.
+        // The ont info fixture confirms 80 online → optical must also yield 80.
+        $result = OpticalBatchParser::parse(self::fixture('display_ont_optical_batch_0_2_8_real.txt'));
+        $this->assertCount(80, $result, 'Optical parser must return exactly 80 rows (one per online ONT)');
+    }
+
+    public function test_b3a_all_ont_ids_are_integers(): void
+    {
+        $result = OpticalBatchParser::parse(self::fixture('display_ont_optical_batch_0_2_8_real.txt'));
+        foreach ($result as $item) {
+            $this->assertIsInt($item['ont_id'], "ont_id must be int, got: " . gettype($item['ont_id']));
+        }
+    }
+
+    public function test_b3a_rx_onu_values_are_floats_or_null(): void
+    {
+        $result = OpticalBatchParser::parse(self::fixture('display_ont_optical_batch_0_2_8_real.txt'));
+        foreach ($result as $item) {
+            $this->assertTrue(
+                is_float($item['rx_onu']) || is_null($item['rx_onu']),
+                "rx_onu must be float or null for ONT {$item['ont_id']}"
+            );
+        }
+    }
+
+    public function test_b3a_rx_onu_range_is_plausible(): void
+    {
+        $result  = OpticalBatchParser::parse(self::fixture('display_ont_optical_batch_0_2_8_real.txt'));
+        $values  = array_filter(array_column($result, 'rx_onu'), fn($v) => $v !== null);
+        foreach ($values as $v) {
+            // Normal ONT Rx range: -8 dBm (sobrepotencia) to -32 dBm (límite alcance)
+            $this->assertGreaterThan(-35.0, $v, "rx_onu {$v} is below plausible range");
+            $this->assertLessThan(5.0,      $v, "rx_onu {$v} is above plausible range");
+        }
+    }
+
+    public function test_b3a_ont_ids_include_known_offline_gaps(): void
+    {
+        // ONT IDs in optical output are NOT 0-111 sequential — offline ONTs are missing.
+        $result  = OpticalBatchParser::parse(self::fixture('display_ont_optical_batch_0_2_8_real.txt'));
+        $ids     = array_column($result, 'ont_id');
+        $allIds  = range(0, 111);
+
+        // There must be gaps (the 32 offline ONTs are absent)
+        $this->assertNotEquals($allIds, $ids, 'Optical output should have gaps for offline ONTs');
+        $this->assertCount(80, $ids, 'Must have exactly 80 ont_ids');
+    }
+
+    public function test_b3a_distance_values_are_int_or_null(): void
+    {
+        $result = OpticalBatchParser::parse(self::fixture('display_ont_optical_batch_0_2_8_real.txt'));
+        foreach ($result as $item) {
+            $this->assertTrue(
+                is_int($item['distance']) || is_null($item['distance']),
+                "distance must be int or null for ONT {$item['ont_id']}"
+            );
+        }
+    }
 }
