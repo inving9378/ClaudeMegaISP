@@ -76,6 +76,21 @@ interface OltDriverInterface
     // ── Lecturas de ONU (individual — para UI interactiva) ────────────────
 
     /**
+     * Busca una ONU por número de serie (caso de uso: soporte busca al cliente).
+     *
+     * Caso de uso principal: el agente de soporte introduce el SN del equipo del cliente
+     * y el sistema devuelve su ubicación en la OLT (slot/puerto) y estado de señal.
+     *
+     * Shape: ['success'=>bool, 'onu'=>array{sn:string, unique_external_id:string,
+     *         olt_id:string, board:string|null, port:string|null, onu:int, status:string,
+     *         signal:string, signal_1310:string, signal_1490:string}|null, 'message'=>string|null]
+     *
+     * Nota implementación SmartOltDriver: delega en el endpoint SN de la API de SmartOLT.
+     * Nota implementación HuaweiDriver: usa `display ont info by-sn {sn}` (config-view).
+     */
+    public function findOnuBySn(string $sn): array;
+
+    /**
      * Detalle completo de una ONU por su identificador externo.
      *
      * Shape: ['success'=>bool, 'onu_details'=>array{sn:string, unique_external_id:string,
