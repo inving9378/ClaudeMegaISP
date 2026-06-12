@@ -39,8 +39,11 @@ class HuaweiTransport
     // Interface prompt varies by slot/port, matched as a substring
     private const PROMPT_IF_PREFIX = 'MA5800-X7(config-if-gpon-';
 
-    private const MORE_MARKER    = '---- More ----';
+    // Both More forms seen in the wild on MA5800 VRP V100R018.
+    // We match on the common prefix so a single check covers both.
+    private const MORE_MARKER      = '---- More ----';
     private const MORE_MARKER_FULL = "---- More ( Press 'Q' to break ) ----";
+    private const MORE_PREFIX      = '---- More';
 
     /** Back-off ladder in seconds (last value is the cap) */
     private const BACKOFF = [2, 8, 30];
@@ -214,18 +217,18 @@ class HuaweiTransport
             $chunk   = $this->session->readUntil($prompt, timeout: 5);
             $buffer .= $chunk;
 
+            // Strip ANSI escape sequences (color codes, cursor-movement sequences)
+            // that VRP sends after advancing the pager — they break str_contains.
+            $buffer = $this->stripAnsi($buffer);
+
             // Arrived at the prompt — done
             if (str_contains($buffer, $prompt)) {
                 break;
             }
 
-            // Residual More marker — send a space to advance
-            if (str_contains($buffer, self::MORE_MARKER)) {
-                $buffer = str_replace(
-                    [self::MORE_MARKER_FULL, self::MORE_MARKER],
-                    '',
-                    $buffer
-                );
+            // More pager — covers both "---- More ----" and "---- More ( Press 'Q' to break ) ----"
+            if (str_contains($buffer, self::MORE_PREFIX)) {
+                $buffer = (string) preg_replace('/---- More[^\r\n]*/u', '', $buffer);
                 $this->session->write(' ');
             }
         }
@@ -316,5 +319,26 @@ class HuaweiTransport
         if (! $this->opened) {
             throw new RuntimeException('HuaweiTransport: session is not open. Call open() first.');
         }
+    }
+
+    /**
+     * Remove ANSI/VT100 escape sequences from a buffer.
+     *
+     * VRP sends cursor-movement codes (e.g. ESC[37D) after clearing a pager
+     * line. If left in the buffer they break str_contains prompt checks.
+     *
+     * Patterns stripped:
+     *   ESC [ <params> <final>   — CSI sequences (colors, cursor movement)
+     *   ESC <single-char>        — 2-char ESC sequences
+     *   \x0F / \x0E              — SI/SO charset shifts (sometimes emitted by VRP)
+     */
+    private function stripAnsi(string $buf): string
+    {
+        // CSI sequences: ESC [ ... letter
+        $buf = (string) preg_replace('/\x1B\[[0-9;]*[A-Za-z]/', '', $buf);
+        // Other 2-char ESC sequences
+        $buf = (string) preg_replace('/\x1B[A-Za-z]/', '', $buf);
+        // SI / SO
+        return str_replace(["\x0F", "\x0E"], '', $buf);
     }
 }

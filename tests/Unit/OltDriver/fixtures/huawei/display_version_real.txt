@@ -1,0 +1,28 @@
+# REAL — capturado contra MA5800-X7 en sesión B1c (2026-06-12)
+# Firmware confirmado: MA5800V100R018C00 / SPH505
+# Comando ejecutado desde user-view: display version
+# Nota: esta OLT no emite la línea "hostname uptime is..." en display version;
+#       el campo uptime queda vacío (comportamiento normal para este firmware).
+
+  VERSION : MA5800V100R018C00
+  PATCH   : SPH505
+  PRODUCT : MA5800-X7
+
+  Active Mainboard Running Area Information:
+  --------------------------------------------------
+  Current Program Area : Area B
+  Current Data Area : Area B
+
+  Program Area A Version : MA5800V100R018C00
+  Program Area B Version : MA5800V100R018C00
+
+  Data Area A Version : MA5800V100R018C00
+  Data Area B Version : MA5800V100R018C00
+  --------------------------------------------------
+
+  Standby Mainboard Running Area Information:
+  --------------------------------------------------
+  Current Program Area : Area B
+  Current Data Area : Area B
+
+  Program Area A Version : MA5800V100R018C00
