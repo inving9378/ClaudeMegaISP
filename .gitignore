@@ -32,7 +32,8 @@ Docs
 *.vue.backup*
 *.php.backup*
 *.backup-*
-.claude/
+.claude/*
+!.claude/skills/
 
 public/test-*.mp4
 dump-*.zip
