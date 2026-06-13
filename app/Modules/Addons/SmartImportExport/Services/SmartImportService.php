@@ -1451,7 +1451,14 @@ class SmartImportService
             $next = $maxId + 1;
             $previous = $this->currentAutoIncrementValue($table);
 
-            if ($previous !== null && $previous > $maxId) {
+            // Normaliza SIEMPRE el contador a MAX(id)+1. Esto cierra los huecos
+            // que deja MySQL al quemar valores de auto-increment en la rama
+            // UPDATE de un upsert (INSERT ... ON DUPLICATE KEY UPDATE con
+            // innodb_autoinc_lock_mode=2) y también corrige un contador que
+            // quedó por detrás. InnoDB nunca permite bajarlo por debajo de
+            // MAX(id)+1, así que es seguro para cualquier tabla. Si ya está
+            // exactamente en MAX(id)+1 no hay nada que ajustar.
+            if ($previous !== null && $previous === $next) {
                 return null;
             }
 
