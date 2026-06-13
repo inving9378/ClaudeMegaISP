@@ -121,13 +121,6 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
-                                        <button v-if="canProvision"
-                                                class="btn btn-outline-primary"
-                                                :disabled="provisionando === t.id"
-                                                @click="provisionar(t)"
-                                                title="Provisionar en Asterisk">
-                                            <i class="fa fa-upload"></i>
-                                        </button>
                                         <button v-if="canTest"
                                                 class="btn btn-outline-secondary"
                                                 :disabled="verificando === t.id"
@@ -284,6 +277,14 @@
                         </div>
                     </div>
                     <div class="modal-footer">
+                        <button v-if="editando && !editando.provisionado_at && canProvision"
+                                type="button"
+                                class="btn btn-outline-warning btn-sm me-auto"
+                                :disabled="provisionando === editando?.id"
+                                @click="reprovisionarManual">
+                            <i class="fa fa-upload me-1"></i>
+                            {{ provisionando === editando?.id ? 'Provisionando…' : 'Provisionar manualmente' }}
+                        </button>
                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
                         <button type="button" class="btn btn-primary btn-sm" @click="guardar" :disabled="guardando">
                             <i class="fa fa-save me-1"></i>
@@ -476,7 +477,17 @@ export default {
         },
 
         async guardar() {
-            this.errores  = {};
+            this.errores = {};
+
+            // Confirmar si el update va a re-aprovisionar una troncal activa en Asterisk (~5 s sin nuevas llamadas)
+            if (this.editando && this.editando.provisionado_at && this.tienesCambiosAsterisk()) {
+                const ok = await this.pedirConfirm(
+                    `Guardar estos cambios <strong>re-aprovisionará la troncal en Asterisk</strong>.<br>
+                    <span class="text-muted small">Ciclo de re-registro ~5 s. Las llamadas activas no se interrumpen; las nuevas pausan brevemente.</span>`
+                );
+                if (! ok) return;
+            }
+
             this.guardando = true;
             const url    = this.editando
                 ? `${this.baseUrl}/troncales/${this.editando.id}`
@@ -484,7 +495,7 @@ export default {
             const method = this.editando ? 'PUT' : 'POST';
 
             try {
-                const r = await fetch(url, {
+                const r    = await fetch(url, {
                     method,
                     headers: { ...this.headers(), 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.form),
@@ -495,13 +506,26 @@ export default {
                     this.errores = body.errors ?? {};
                     return;
                 }
-                if (!r.ok) {
+                if (! r.ok) {
                     this.toast('Error: ' + (body.error ?? r.statusText), 'error');
                     return;
                 }
 
                 bootstrap.Modal.getOrCreateInstance(this.$refs.modalEl).hide();
-                this.toast(this.editando ? 'Troncal actualizada' : 'Troncal creada');
+
+                if (body.provision_error) {
+                    this.toast(
+                        (this.editando ? 'Troncal actualizada' : 'Troncal creada') +
+                        ` — provisión falló: ${body.provision_error}`,
+                        'error'
+                    );
+                } else {
+                    const accion = this.editando
+                        ? (this.tienesCambiosAsterisk() ? 'actualizada y re-aprovisionada' : 'actualizada')
+                        : (this.form.activo ? 'creada y aprovisionada' : 'creada');
+                    this.toast(`Troncal ${accion}`);
+                }
+
                 await this.cargar();
             } finally {
                 this.guardando = false;
@@ -560,6 +584,37 @@ export default {
                 this.verificaciones = { ...this.verificaciones, [t.id]: body };
             } finally {
                 this.verificando = null;
+            }
+        },
+
+        tienesCambiosAsterisk() {
+            if (! this.editando) return false;
+            if (this.form.secret) return true; // nuevo secret siempre re-provisiona
+            const campos = ['host', 'puerto', 'usuario', 'tipo', 'codecs', 'transporte'];
+            return campos.some(c => String(this.form[c] ?? '') !== String(this.editando[c] ?? ''));
+        },
+
+        async reprovisionarManual() {
+            if (! this.editando || ! this.canProvision) return;
+            this.provisionando = this.editando.id;
+            try {
+                const r    = await fetch(`${this.baseUrl}/troncales/${this.editando.id}/provisionar`, {
+                    method:  'POST',
+                    headers: this.headers(),
+                });
+                const body = await r.json();
+                if (body.ok) {
+                    this.toast(`Troncal "${this.editando.nombre}" provisionada en Asterisk`);
+                    await this.cargar();
+                    const fresh = this.troncales.find(t => t.id === this.editando?.id);
+                    if (fresh) this.editando = fresh;
+                } else {
+                    this.toast('Error: ' + (body.error ?? 'Sin detalle'), 'error');
+                }
+            } catch {
+                this.toast('Error de red', 'error');
+            } finally {
+                this.provisionando = null;
             }
         },
 

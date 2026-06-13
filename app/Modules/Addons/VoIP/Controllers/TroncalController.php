@@ -89,11 +89,25 @@ class TroncalController extends Controller
         $troncal = Troncal::create($data);
         $this->generarDialplan();
 
-        return response()->json($troncal->only([
-            'id', 'nombre', 'proveedor', 'tipo', 'direccion',
-            'host', 'puerto', 'usuario', 'contexto', 'did',
-            'grupo_entrante_id', 'codecs', 'transporte', 'activo', 'provisionado_at',
-        ]), 201);
+        $provisionError = null;
+        if ($troncal->activo) {
+            try {
+                $this->provisioner->provisionar($troncal);
+                $troncal->refresh();
+            } catch (\Throwable $e) {
+                Log::warning("VoIP: auto-provisión falló para nueva troncal #{$troncal->id}: {$e->getMessage()}");
+                $provisionError = $e->getMessage();
+            }
+        }
+
+        return response()->json(array_merge(
+            $troncal->only([
+                'id', 'nombre', 'proveedor', 'tipo', 'direccion',
+                'host', 'puerto', 'usuario', 'contexto', 'did',
+                'grupo_entrante_id', 'codecs', 'transporte', 'activo', 'provisionado_at',
+            ]),
+            ['provision_error' => $provisionError]
+        ), 201);
     }
 
     public function update(Request $request, Troncal $troncal): JsonResponse
@@ -124,16 +138,33 @@ class TroncalController extends Controller
             unset($data['secret']);
         }
 
-        $troncal->update($data);
-
-        // Si el tipo cambió, marcar como no provisionada
-        if (isset($data['tipo']) && $data['tipo'] !== $troncal->getOriginal('tipo')) {
-            $troncal->update(['provisionado_at' => null]);
+        // Detectar cambios en campos que afectan Asterisk (ANTES de update, pues update() sincroniza originals)
+        $asteriskKeys   = ['host', 'puerto', 'usuario', 'tipo', 'codecs', 'transporte'];
+        $cambioAsterisk = isset($data['secret']); // nuevo secret siempre dispara re-provisión
+        if (! $cambioAsterisk) {
+            foreach ($asteriskKeys as $campo) {
+                if (isset($data[$campo]) && (string) $troncal->$campo !== (string) $data[$campo]) {
+                    $cambioAsterisk = true;
+                    break;
+                }
+            }
         }
 
+        $troncal->update($data);
         $this->generarDialplan();
 
-        return response()->json(['ok' => true]);
+        $provisionError = null;
+        if ($cambioAsterisk && $troncal->fresh()->activo) {
+            try {
+                $this->provisioner->provisionar($troncal->fresh());
+            } catch (\Throwable $e) {
+                Log::warning("VoIP: re-provisión falló para troncal #{$troncal->id}: {$e->getMessage()}");
+                $troncal->update(['provisionado_at' => null]);
+                $provisionError = $e->getMessage();
+            }
+        }
+
+        return response()->json(['ok' => true, 'provision_error' => $provisionError]);
     }
 
     public function destroy(Troncal $troncal): JsonResponse
