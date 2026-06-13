@@ -354,8 +354,11 @@ export default {
             troncalAEliminar:null,
             mostrarSecret:   false,
             testConexion:    null,
-            verificaciones:  {},
-            toastMsg:        '',
+            verificaciones:    {},
+            intervaloVerificar: null,
+            confirmMsg:        '',
+            confirmCallback:   null,
+            toastMsg:          '',
             toastTipo:       'success',
             form: this.formVacio(),
             errores: {},
@@ -373,6 +376,11 @@ export default {
     mounted() {
         this.cargar();
         this.cargarGrupos();
+        this.intervaloVerificar = setInterval(() => this.verificarTodas(), 30000);
+    },
+
+    unmounted() {
+        clearInterval(this.intervaloVerificar);
     },
 
     methods: {
@@ -399,7 +407,10 @@ export default {
             this.cargando = true;
             try {
                 const r = await fetch(`${this.baseUrl}/troncales/data`, { headers: this.headers() });
-                if (r.ok) this.troncales = await r.json();
+                if (r.ok) {
+                    this.troncales = await r.json();
+                    this.verificarTodas();
+                }
             } finally {
                 this.cargando = false;
             }
@@ -526,6 +537,13 @@ export default {
             } finally {
                 this.verificando = null;
             }
+        },
+
+        verificarTodas() {
+            if (! this.canTest) return;
+            this.troncales
+                .filter(t => t.provisionado_at)
+                .forEach(t => this.verificar(t));
         },
 
         async probarConexion() {

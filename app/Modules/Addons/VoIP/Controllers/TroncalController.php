@@ -9,6 +9,7 @@ use App\Modules\Addons\VoIP\Services\DialplanGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class TroncalController extends Controller
@@ -234,9 +235,12 @@ class TroncalController extends Controller
         }
 
         try {
-            $result = $this->provisioner->verificarRegistro($troncal);
+            $result = Cache::remember("voip_reg_{$troncal->id}", 10, fn () =>
+                $this->provisioner->verificarRegistro($troncal)
+            );
             return response()->json($result);
         } catch (\Throwable $e) {
+            Cache::forget("voip_reg_{$troncal->id}");
             Log::error("VoIP: verificarTroncal {$troncal->nombre}: {$e->getMessage()}");
             return response()->json([
                 'ok'         => false,
