@@ -2038,15 +2038,6 @@ class TestScriptController extends Controller
             'system_time' => date('Y-m-d H:i:s'),
             'timezone' => config('app.timezone')
         ];
-        dd($date);
-
-
-        //         $router = Router::find(2);
-        //         $client = $this->getConnectionByRouter($router);
-        //         $id = $this->getIdByIpSecrets($client,'/ppp/secret/','10.10.2.198');
-        //        $password = $this->getPasswordByIp($client,'/ppp/secret/','10.10.2.198');
-
-        // dd($id,$password);
         DB::unprepared('
             DROP TRIGGER IF EXISTS update_column_is_first_payment;
             CREATE TRIGGER update_column_is_first_payment
@@ -2058,6 +2049,8 @@ class TestScriptController extends Controller
                 END IF;
             END
         ');
+
+        dd($date);
 
 
         // if ($request->querystring) {
