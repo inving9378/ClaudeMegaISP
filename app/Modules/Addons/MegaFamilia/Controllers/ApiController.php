@@ -444,7 +444,7 @@ class ApiController extends Controller
         $rows = $client
             ? \DB::table('payments')
                 ->where('paymentable_id', $client->id)
-                ->where('paymentable_type', 'App\\Models\\Client')
+                ->whereIn('paymentable_type', ['App\\Models\\Client', 'App\\Modules\\Core\\Clientes\\Models\\Client'])
                 ->orderByDesc('date')
                 ->limit(10)
                 ->get(['id', 'date', 'amount', 'comment'])

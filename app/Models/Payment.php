@@ -108,7 +108,10 @@ class Payment extends Model
 
     public function isModelClient()
     {
-        return $this->paymentable_type == 'App\Models\Client';
+        return in_array($this->paymentable_type, [
+            'App\Models\Client',
+            'App\Modules\Core\Clientes\Models\Client',
+        ]);
     }
 
     public function getPaymentMethod()
