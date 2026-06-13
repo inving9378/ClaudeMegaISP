@@ -961,7 +961,7 @@ class ClientDatatableHelper
         // Definir límites y paginación
         $limit = $request->limits == 0 ? $totalFiltered : $request->limits;
         $start = $request->start ?? 0;
-        $order = isset($request->order) ? $request->order : $request->data['columns'][0]['data'];
+        $order = $request->order ?? 'id';
         $dir = $request->dir == false ? 'DESC' : 'ASC';
 
         // Obtener los datos según el estado de búsqueda
