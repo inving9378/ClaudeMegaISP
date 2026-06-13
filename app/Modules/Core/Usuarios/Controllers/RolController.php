@@ -92,6 +92,7 @@ class RolController extends Controller
         foreach ($request->all() as $key => $val){
             $val == true ? $role->givePermissionTo($key) : $role->revokePermissionTo($key);
         }
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
         return true;
     }
 

@@ -119,6 +119,8 @@ class PermissionController extends Controller
             $user->revokePermissionTo($permission);
         }
 
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         $promotions = $request->input('promotions', []);
         if (!empty($promotions)) {
             $user->avaiablesPromotions()->sync($promotions);
@@ -196,6 +198,7 @@ class PermissionController extends Controller
             }
 
             DB::commit();
+            app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
             return response()->json(['status' => 200, 'message' => 'Permisos del rol y de los usuarios actualizados correctamente']);
         } catch (\Exception $e) {
             DB::rollBack();
