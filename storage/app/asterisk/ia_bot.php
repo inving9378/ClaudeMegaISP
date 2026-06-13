@@ -210,7 +210,10 @@ class MegaVozAssistant
             $this->log("Nuevo interesado");
         }
 
-        $this->playText($greeting);
+        if (! $this->playText($greeting)) {
+            $this->log('TTS del saludo inicial falló — finalizando llamada', true);
+            throw new \RuntimeException('TTS greeting failed — call terminated');
+        }
     }
 
     // ── Loop principal ────────────────────────────────────────────────────────
@@ -332,14 +335,15 @@ class MegaVozAssistant
 
         $ch = curl_init('https://api.openai.com/v1/audio/transcriptions');
         curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $body,
-            CURLOPT_HTTPHEADER     => [
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_POST            => true,
+            CURLOPT_POSTFIELDS      => $body,
+            CURLOPT_HTTPHEADER      => [
                 "Authorization: Bearer {$this->openaiKey}",
                 "Content-Type: multipart/form-data; boundary={$boundary}",
             ],
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT         => 30,
+            CURLOPT_CONNECTTIMEOUT  => 5,
         ]);
 
         $resp = curl_exec($ch);
@@ -378,21 +382,23 @@ class MegaVozAssistant
 
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
         curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_HTTPHEADER     => [
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_POST            => true,
+            CURLOPT_POSTFIELDS      => $payload,
+            CURLOPT_HTTPHEADER      => [
                 "Authorization: Bearer {$this->openaiKey}",
                 "Content-Type: application/json",
             ],
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT         => 30,
+            CURLOPT_CONNECTTIMEOUT  => 5,
         ]);
 
-        $resp = curl_exec($ch);
-        $err  = curl_error($ch);
+        $resp    = curl_exec($ch);
+        $httpGpt = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err     = curl_error($ch);
         curl_close($ch);
 
-        if ($err) { $this->log("GPT curl error: {$err}", true); return ''; }
+        if ($err || $httpGpt !== 200) { $this->log("GPT error: code={$httpGpt} err={$err}", true); return ''; }
 
         $data = json_decode($resp, true);
 
@@ -406,9 +412,9 @@ class MegaVozAssistant
 
     // ── OpenAI TTS + reproducción ─────────────────────────────────────────────
 
-    private function playText(string $text): void
+    private function playText(string $text): bool
     {
-        if (empty(trim($text))) return;
+        if (empty(trim($text))) return true;
 
         $tmpMp3  = "/tmp/megavoz_tts_{$this->callId}_" . microtime(true) . ".mp3";
         $tmpUlaw = str_replace('.mp3', '.ulaw', $tmpMp3);
@@ -424,14 +430,15 @@ class MegaVozAssistant
 
         $ch = curl_init('https://api.openai.com/v1/audio/speech');
         curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_HTTPHEADER     => [
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_POST            => true,
+            CURLOPT_POSTFIELDS      => $payload,
+            CURLOPT_HTTPHEADER      => [
                 "Authorization: Bearer {$this->openaiKey}",
                 "Content-Type: application/json",
             ],
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT         => 30,
+            CURLOPT_CONNECTTIMEOUT  => 5,
         ]);
 
         $audioData = curl_exec($ch);
@@ -441,7 +448,7 @@ class MegaVozAssistant
 
         if ($err || $httpCode !== 200 || strlen($audioData) < 100) {
             $this->log("TTS error: code={$httpCode} err={$err}", true);
-            return;
+            return false;
         }
 
         // Costo TTS: $0.015/1K chars
@@ -456,7 +463,7 @@ class MegaVozAssistant
 
         if ($rc !== 0 || ! file_exists($tmpUlaw) || filesize($tmpUlaw) < 10) {
             $this->log("ffmpeg conversion failed rc={$rc}", true);
-            return;
+            return false;
         }
 
         // STREAM FILE espera la ruta sin extensión
@@ -464,6 +471,7 @@ class MegaVozAssistant
         $this->agi->streamFile($base, '#');
 
         @unlink($tmpUlaw);
+        return true;
     }
 
     // ── Transferir a agente ───────────────────────────────────────────────────
@@ -594,11 +602,12 @@ class MegaVozAssistant
 
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
         curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_HTTPHEADER     => ["Authorization: Bearer {$this->openaiKey}", "Content-Type: application/json"],
-            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_POST            => true,
+            CURLOPT_POSTFIELDS      => $payload,
+            CURLOPT_HTTPHEADER      => ["Authorization: Bearer {$this->openaiKey}", "Content-Type: application/json"],
+            CURLOPT_TIMEOUT         => 15,
+            CURLOPT_CONNECTTIMEOUT  => 5,
         ]);
         $resp = curl_exec($ch);
         curl_close($ch);
@@ -640,20 +649,14 @@ class MegaVozAssistant
 
     private function resolveOpenAiKey(): string
     {
-        // Intentar Integration Hub primero
-        $integration = DB::table('api_integrations')
-            ->where('provider', 'openai')
-            ->where('active', true)
-            ->whereNotNull('encrypted_value')
-            ->first();
-
-        if ($integration && ! empty($integration->encrypted_value)) {
-            $key = $integration->encrypted_value;
-            // Si está encriptado (empieza con eyJ...) intentar descifrar
-            if (str_starts_with($key, 'eyJ')) {
-                try { $key = \Illuminate\Support\Facades\Crypt::decryptString($key); } catch (\Throwable) {}
+        try {
+            $key = \App\Services\Core\ApiIntegrationService::instance()->getKey('openai');
+            if (!empty($key)) {
+                return $key;
             }
-            return $key;
+            $this->log('Integration Hub: key OpenAI vacía o no configurada — usando .env', true);
+        } catch (\Throwable $e) {
+            $this->log("Integration Hub: error obteniendo key OpenAI — {$e->getMessage()}", true);
         }
 
         return env('OPENAI_API_KEY', '');
