@@ -97,7 +97,7 @@
                             class="mdi mdi-lock-reset font-size-16 align-middle me-1"></i> Cambiar contraseña</a>
                     <a class="dropdown-item" href="{{ route('logout') }}"
                         data-spa-skip
-                        onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                        onclick="event.preventDefault(); window.__clearSidebarState && window.__clearSidebarState(); document.getElementById('logout-form').submit();">
                         <i class="mdi mdi-logout font-size-16 align-middle me-1"></i> Desconectar
                     </a>
 

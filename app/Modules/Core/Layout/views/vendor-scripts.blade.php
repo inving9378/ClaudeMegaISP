@@ -52,11 +52,12 @@
             return text ? 'dyn-' + text.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 40) : null;
         }
 
-        // Restaurar estado ANTES de metisMenu() para evitar flash
-        // MetisMenu respeta mm-active en init y abre los submenús sin animación
+        // Restaurar estado ANTES de metisMenu() para evitar flash.
+        // sessionStorage: persiste el F5 dentro de la misma pestaña pero se borra
+        // al cerrar pestaña/navegador o al hacer logout (ver __clearSidebarState).
         function restoreSidebarState() {
             try {
-                var state = JSON.parse(localStorage.getItem(SIDEBAR_STATE_KEY) || '{}');
+                var state = JSON.parse(sessionStorage.getItem(SIDEBAR_STATE_KEY) || '{}');
                 if (!Object.keys(state).length) return;
                 $('#side-menu li').each(function () {
                     var $li = $(this);
@@ -83,11 +84,17 @@
                     var key = getSidebarItemKey($li);
                     if (!key) return;
                     try {
-                        var state = JSON.parse(localStorage.getItem(SIDEBAR_STATE_KEY) || '{}');
+                        var state = JSON.parse(sessionStorage.getItem(SIDEBAR_STATE_KEY) || '{}');
                         if (e.type === 'shown') { state[key] = 1; } else { delete state[key]; }
-                        localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(state));
+                        sessionStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(state));
                     } catch (ex) {}
                 });
+        };
+
+        // Limpia el estado del sidebar (llamado en logout para que la siguiente
+        // sesión arranque con todos los grupos cerrados).
+        window.__clearSidebarState = function () {
+            try { sessionStorage.removeItem(SIDEBAR_STATE_KEY); } catch (e) {}
         };
 
         window.__attachSidebarPersistence();
@@ -111,16 +118,21 @@
             }
         });
 
-        // Marcar link activo en sidebar — re-llamable para SPA navigation
+        // Marcar link activo en sidebar — re-llamable para SPA navigation.
+        // No expande grupos: el usuario controla apertura/cierre manualmente.
+        // "active" en el header del grupo cerrado indica visualmente en qué sección está.
         window.__updateSidebarActiveLink = function (url) {
             var cur = (url || window.location.href).split(/[?#]/)[0];
-            $("#sidebar-menu a").each(function () {
+            // Limpiar marcas previas (necesario en navegación SPA)
+            $('#sidebar-menu a.active').removeClass('active');
+            $('#sidebar-menu li.active').removeClass('active');
+            $('#sidebar-menu a').each(function () {
                 if (this.href === cur) {
-                    $(this).addClass("active");
-                    $(this).parent().addClass("active");
-                    $(this).parent().parent().prev().addClass("active");
-                    $(this).parent().parent().parent().addClass("in");
-                    $(this).parent().parent().parent().parent().prev().addClass("active");
+                    $(this).addClass('active');                            // el link
+                    $(this).parent().addClass('active');                   // su <li>
+                    $(this).parent().parent().prev().addClass('active');   // header del grupo padre
+                    $(this).parent().parent().parent().parent().prev()
+                           .addClass('active');                            // header del grupo abuelo (2 niveles)
                 }
             });
         };
