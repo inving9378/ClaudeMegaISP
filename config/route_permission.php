@@ -1,16 +1,16 @@
 <?php
 return [
     //Dashboard
-    'dashboard_view_dashboard' => [],
-    'dashboard_view_card_client_inline' => [],
-    'dashboard_view_card_client_new' => [],
-    'dashboard_view_card_tickets_open_new' => [],
-    'dashboard_view_card_device_not_responding' => [],
-    'dashboard_view_block_client' => [],
-    'dashboard_view_block_ticket' => [],
-    'dashboard_view_block_finance' => [],
-    'dashboard_view_info_invoice_transaction' => [],
-    'dashboard_view_block_server_status' => [],
+    'dashboard_view_dashboard' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_card_client_inline' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_card_client_new' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_card_tickets_open_new' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_card_device_not_responding' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_block_client' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_block_ticket' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_block_finance' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_info_invoice_transaction' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_block_server_status' => ['/', '/home', '/index', '/dashboard'],
 
     'release_view_release' => ['/releases', '/releases/{version}'],
     'release_add_release' => ['/releases/store'],
@@ -1673,6 +1673,670 @@ return [
     'payments_view_receipts' => [
         '/finanzas/payments/{id}/receipt',
         '/finanzas/payments/{payment}/receipt/{receipt}/download',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // DASHBOARD — fix acceso post-login para usuarios no-admin
+    // ══════════════════════════════════════════════════════════════════════════
+    // (reemplaza los [] vacíos — necesitamos patch AQUÍ porque la clave ya existe arriba;
+    //  en el Paso C se corrige la clave original)
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // VoIP (addon-voip)
+    // ══════════════════════════════════════════════════════════════════════════
+    'voip.view' => [
+        '/voip',
+        '/voip/troncales',
+        '/voip/troncales/data',
+        '/voip/probar-conexion',
+    ],
+    'voip.troncales.view' => [
+        '/voip/troncales',
+        '/voip/troncales/data',
+        '/voip/troncales/{troncal}/verificar',
+        '/voip/probar-conexion',
+    ],
+    'voip.troncales.manage' => [
+        '/voip/troncales',
+        '/voip/troncales/{troncal}',
+        '/voip/troncales/{troncal}/provisionar',
+        '/voip/troncales/{troncal}/desprovisionar',
+        '/voip/troncales/{troncal}/verificar',
+        '/voip/probar-conexion',
+    ],
+    'voip.extensiones.view' => [
+        '/voip/extensiones',
+        '/voip/extensiones/data',
+        '/voip/extensiones/usuarios',
+        '/voip/extensiones/{extension}/verificar',
+    ],
+    'voip.extensiones.manage' => [
+        '/voip/extensiones',
+        '/voip/extensiones/{extension}',
+        '/voip/extensiones/{extension}/provisionar',
+        '/voip/extensiones/{extension}/desprovisionar',
+        '/voip/extensiones/{extension}/verificar',
+    ],
+    'voip.grupos.view' => [
+        '/voip/grupos-timbrado',
+        '/voip/grupos-timbrado/data',
+        '/voip/grupos-timbrado/extensiones-disponibles',
+    ],
+    'voip.grupos.manage' => [
+        '/voip/grupos-timbrado',
+        '/voip/grupos-timbrado/{grupoTimbrado}',
+    ],
+    'voip.ia-bot.view' => [
+        '/voip/ia-bot',
+        '/voip/ia-bot/config',
+        '/voip/ia-bot/conversaciones',
+        '/voip/ia-bot/leads',
+        '/voip/ia-bot/kb',
+    ],
+    'voip.ia-bot.manage' => [
+        '/voip/ia-bot/config',
+        '/voip/ia-bot/leads/{lead}',
+        '/voip/ia-bot/kb',
+        '/voip/ia-bot/kb/{kb}',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Flotas (addon-flotas)
+    // ══════════════════════════════════════════════════════════════════════════
+    'fleet.view' => [
+        '/flotas',
+        '/flotas/nuevo',
+        '/flotas/{id}',
+        '/flotas/api/**',           // todos los GET de API de flotas
+    ],
+    'fleet.gps.view' => [
+        '/flotas/mapa',
+        '/flotas/api/gps/flota',
+        '/flotas/api/vehiculos/{id}/gps',
+        '/flotas/api/vehiculos/{id}/gps/history',
+        '/flotas/api/vehiculos/{id}/gps/device',
+        '/flotas/api/vehiculos/{id}/geofence-events',
+        '/flotas/api/notificaciones-log',
+        '/flotas/api/vehiculos/{id}/notifications/preference',
+    ],
+    'fleet.gps.manage' => [
+        '/flotas/api/vehiculos/{id}/gps/device',
+        '/flotas/api/vehiculos/{id}/notifications/preference',
+        '/flotas/api/notificaciones-log/{id}/resend',
+    ],
+    'fleet.geofences.view' => [
+        '/flotas/geocercas',
+        '/flotas/geocercas/nueva',
+        '/flotas/geocercas/{id}',
+        '/flotas/geocercas/{id}/editar',
+        '/flotas/api/geocercas',
+        '/flotas/api/geocercas/{id}',
+    ],
+    'fleet.geofences.manage' => [
+        '/flotas/geocercas/nueva',
+        '/flotas/geocercas/{id}/editar',
+        '/flotas/api/geocercas',
+        '/flotas/api/geocercas/{id}',
+        '/flotas/api/geocercas/{id}/vehiculos',
+    ],
+    'fleet.notifications.view' => [
+        '/flotas/notificaciones-log',
+        '/flotas/api/notificaciones-log',
+    ],
+    'fleet.rules.view' => [
+        '/flotas/reglas',
+        '/flotas/api/reglas',
+    ],
+    'fleet.rules.manage' => [
+        '/flotas/api/reglas',
+        '/flotas/api/reglas/{id}',
+        '/flotas/api/reglas/{id}/toggle',
+    ],
+    'fleet.documents.view' => [
+        '/flotas/api/documentos',
+        '/flotas/api/documentos/alertas/proximos',
+        '/flotas/api/documentos/dashboard/all',
+        '/flotas/api/documentos/{id}',
+        '/flotas/api/documentos/{id}/descargar',
+        '/flotas/api/documentos/{id}/renovar/prefill',
+    ],
+    'fleet.documents.manage' => [
+        '/flotas/api/documentos',
+        '/flotas/api/documentos/{id}',
+    ],
+    'fleet.maintenance.manage' => [
+        '/flotas/api/mantenimientos',
+        '/flotas/api/mantenimientos/{id}',
+        '/flotas/api/mantenimientos/{id}/files',
+        '/flotas/api/proveedores',
+        '/flotas/api/proveedores/{id}',
+    ],
+    'fleet.fuel.manage' => [
+        '/flotas/api/combustible',
+        '/flotas/api/combustible/{id}',
+    ],
+    'fleet.providers.manage' => [
+        '/flotas/api/proveedores',
+        '/flotas/api/proveedores/{id}',
+    ],
+    'fleet.assign' => [
+        '/flotas/api/vehiculos/{id}/asignacion',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // WarRoom (addon-warroom)
+    // ══════════════════════════════════════════════════════════════════════════
+    'warroom.view' => [
+        '/warroom',
+        '/warroom/api/kpis/**',
+        '/warroom/api/desempeno',
+        '/warroom/api/desempeno/serie',
+        '/warroom/api/insights/**',
+        '/warroom/api/meetings',
+        '/warroom/api/meetings/active',
+        '/warroom/api/meetings/{meeting}/detalle',
+        '/warroom/api/meetings/{meeting}/notes',
+        '/warroom/api/action-items',
+    ],
+    'warroom.manage' => [
+        '/warroom/api/action-items',
+        '/warroom/api/action-items/{actionItem}',
+        '/warroom/api/meetings/start',
+        '/warroom/api/meetings/{meeting}/end',
+        '/warroom/api/meetings/{meeting}/pause',
+        '/warroom/api/meetings/{meeting}/resume',
+        '/warroom/api/meetings/{meeting}/notes',
+        '/warroom/api/insights/{view}/{period}/regenerate',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Embajadores (addon-embajadores)
+    // ══════════════════════════════════════════════════════════════════════════
+    'embajadores.view' => [
+        '/embajadores',
+        '/embajadores/dashboard/summary',
+        '/embajadores/metrics',
+        '/embajadores/metrics/data',
+        '/embajadores/clientes',
+        '/embajadores/clientes/data',
+        '/embajadores/clientes/{id}',
+        '/embajadores/clientes/{id}/tree',
+        '/embajadores/comisiones',
+        '/embajadores/comisiones/data',
+        '/embajadores/tiers',
+        '/embajadores/tiers/data',
+        '/embajadores/configuracion',
+        '/embajadores/configuracion/get',
+        '/embajadores/video',
+    ],
+    'embajadores.commissions.approve' => [
+        '/embajadores/comisiones/{id}/approve',
+    ],
+    'embajadores.commissions.cancel' => [
+        '/embajadores/comisiones/{id}/cancel',
+    ],
+    'embajadores.tiers.manage' => [
+        '/embajadores/tiers',
+        '/embajadores/tiers/{id}',
+        '/embajadores/tiers/{id}/toggle',
+    ],
+    'embajadores.configure' => [
+        '/embajadores/configuracion',
+        '/embajadores/configuracion/get',
+        '/embajadores/configuracion/update',
+    ],
+    'embajadores.payouts.generate' => [
+        '/embajadores/comisiones/**',
+    ],
+    'embajadores.rewards.manage' => [
+        '/embajadores/**',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Cobranza Blaster (addon-cobranza)
+    // ══════════════════════════════════════════════════════════════════════════
+    'cobranza.view' => [
+        '/cobranza',
+        '/cobranza/campanas',
+        '/cobranza/campanas/data',
+        '/cobranza/campanas/kpis',
+        '/cobranza/campanas/{id}/llamadas',
+        '/cobranza/voip',
+        '/cobranza/voip/configuracion',
+        '/cobranza/voip/test',
+    ],
+    'cobranza.manage' => [
+        '/cobranza/campanas',
+        '/cobranza/campanas/{id}',
+        '/cobranza/campanas/{id}/activar',
+        '/cobranza/campanas/{id}/pausar',
+    ],
+    'cobranza.configure' => [
+        '/cobranza/voip',
+        '/cobranza/voip/configuracion',
+        '/cobranza/voip/test',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Talento (addon-talento) — mapeo granular por permiso
+    // ══════════════════════════════════════════════════════════════════════════
+    // Gate de módulo (sidebar + página principal)
+    'talento.view' => [
+        '/talento',
+        '/talento/dashboard',
+    ],
+    'talento.dashboard.view' => [
+        '/talento',
+        '/talento/dashboard',
+        '/talento/api/cajas',
+        '/talento/api/cajas/latest',
+        '/talento/api/cajas/bonus-log',
+        '/talento/api/cajas/settings',
+        '/talento/api/work-order-types',
+        '/talento/api/app/branding',
+        '/talento/api/app/latest',
+    ],
+    'talento.employees.view' => [
+        '/talento/api/colaboradores',
+        '/talento/api/colaboradores/role-departments',
+        '/talento/api/colaboradores/users-disponibles',
+        '/talento/api/colaboradores/{id}',
+        '/talento/api/colaboradores/{id}/academy-progress',
+        '/talento/api/colaboradores/{id}/avance',
+        '/talento/api/colaboradores/{id}/certifications',
+        '/talento/api/colaboradores/{id}/credentials',
+        '/talento/api/colaboradores/{id}/custodia',
+        '/talento/api/colaboradores/{id}/dispositivos',
+        '/talento/api/colaboradores/{id}/embajador-data',
+        '/talento/api/colaboradores/{id}/funds',
+        '/talento/api/colaboradores/{id}/level-eligibility',
+        '/talento/api/colaboradores/{id}/level-history',
+        '/talento/api/colaboradores/{id}/loans',
+        '/talento/api/colaboradores/{id}/proyecto-avance',
+        '/talento/api/colaboradores/{id}/regla',
+        '/talento/api/colaboradores/{id}/regla/historial',
+        '/talento/api/colaboradores/{id}/seller-data',
+    ],
+    'talento.manage' => [
+        '/talento/api/colaboradores',
+        '/talento/api/colaboradores/{id}',
+        '/talento/api/colaboradores/{id}/regla',
+    ],
+    'talento.attendance.view' => [
+        '/talento/asistencia',
+        '/talento/api/asistencia',
+        '/talento/api/asistencia/hoy',
+        '/talento/api/asistencia/{id}',
+        '/talento/mapa-en-vivo',
+        '/talento/api/ubicacion/en-vivo',
+        '/talento/api/ubicacion/{colaboradorId}/ruta',
+    ],
+    'talento.attendance.manage' => [
+        '/talento/api/asistencia/check-in',
+        '/talento/api/asistencia/check-out',
+        '/talento/api/asistencia/checkin',
+        '/talento/api/asistencia/checkout',
+        '/talento/api/asistencia/ping',
+        '/talento/api/asistencia/{id}',
+        '/talento/api/asistencia/{id}/extension',
+    ],
+    'talento.attendance.checkin' => [
+        '/talento/api/asistencia/checkin',
+        '/talento/api/asistencia/checkout',
+        '/talento/api/asistencia/ping',
+    ],
+    'talento.orders.view' => [
+        '/talento/ordenes',
+        '/talento/campo',
+        '/talento/api/ots/**',
+        '/talento/api/campo/{workOrderId}/estado',
+        '/talento/api/campo/{workOrderId}/firmas',
+        '/talento/api/campo/{workOrderId}/media',
+        '/talento/api/campo/{workOrderId}/activacion',
+        '/talento/api/campo/{workOrderId}/encuesta',
+        '/talento/api/campo/{workOrderId}/ia-validacion',
+        '/talento/api/work-order-types',
+        '/talento/api/standards',
+        '/talento/api/sitios',
+        '/talento/api/sitios/config/radio',
+        '/talento/sitios',
+    ],
+    'talento.work_orders.view' => [
+        '/talento/ordenes',
+        '/talento/campo',
+        '/talento/api/ots/**',
+        '/talento/api/campo/{workOrderId}/estado',
+        '/talento/api/campo/{workOrderId}/firmas',
+        '/talento/api/campo/{workOrderId}/media',
+        '/talento/api/campo/{workOrderId}/activacion',
+        '/talento/api/campo/{workOrderId}/encuesta',
+        '/talento/api/campo/{workOrderId}/ia-validacion',
+    ],
+    'talento.work_orders.manage' => [
+        '/talento/api/ots/**',
+        '/talento/api/campo/{workOrderId}/aceptar',
+        '/talento/api/campo/{workOrderId}/activar',
+        '/talento/api/campo/{workOrderId}/firma',
+        '/talento/api/campo/{workOrderId}/media',
+        '/talento/api/campo/{workOrderId}/encuesta',
+        '/talento/api/campo/{workOrderId}/onboarding',
+        '/talento/api/campo/{workOrderId}/ia-validacion',
+        '/talento/api/standards',
+        '/talento/api/standards/{id}',
+        '/talento/api/standards/{id}/image',
+    ],
+    'talento.work_orders.validate' => [
+        '/talento/api/ots/**',
+    ],
+    'talento.field_flow.accept' => [
+        '/talento/api/campo/{workOrderId}/aceptar',
+        '/talento/api/campo/{workOrderId}/activar',
+        '/talento/api/campo/{workOrderId}/firma',
+    ],
+    'talento.ia_validation.view' => [
+        '/talento/api/campo/{workOrderId}/ia-validacion',
+    ],
+    'talento.ia_validation.override' => [
+        '/talento/api/campo/ia-validacion/{validationId}/override',
+    ],
+    'talento.compensations.view' => [
+        '/talento/compensacion',
+        '/talento/cajas',
+        '/talento/api/compensacion/semana',
+        '/talento/api/cajas/**',
+    ],
+    'talento.compensation.view' => [
+        '/talento/compensacion',
+        '/talento/cajas',
+        '/talento/api/compensacion/semana',
+        '/talento/api/cajas/**',
+    ],
+    'talento.compensation.manage' => [
+        '/talento/api/cajas',
+        '/talento/api/cajas/settings',
+        '/talento/api/cajas/bonus-log/{workOrderId}/evaluate',
+    ],
+    'talento.liquidations.view' => [
+        '/talento/liquidaciones',
+        '/talento/finiquito',
+        '/talento/api/settlements',
+        '/talento/api/settlements/{id}',
+    ],
+    'talento.liquidation.view' => [
+        '/talento/liquidaciones',
+        '/talento/finiquito',
+        '/talento/api/settlements',
+        '/talento/api/settlements/{id}',
+    ],
+    'talento.liquidation.manage' => [
+        '/talento/api/settlements/{id}/close',
+        '/talento/api/colaboradores/{id}/settlement/draft',
+        '/talento/api/settlement-items/{id}',
+    ],
+    'talento.settlement.view' => [
+        '/talento/finiquito',
+        '/talento/api/settlements',
+        '/talento/api/settlements/{id}',
+    ],
+    'talento.settlement.manage' => [
+        '/talento/api/settlements/{id}/close',
+        '/talento/api/colaboradores/{id}/settlement/draft',
+    ],
+    'talento.catalog.view' => [
+        '/talento/api/activity-types',
+        '/talento/api/activity-types-config',
+        '/talento/api/work-order-types',
+    ],
+    'talento.activity_types.view' => [
+        '/talento/api/activity-types',
+        '/talento/api/activity-types-config',
+    ],
+    'talento.activity_types.manage' => [
+        '/talento/api/activity-types',
+        '/talento/api/activity-types/{id}',
+        '/talento/api/activity-types/{id}/level',
+        '/talento/api/work-order-types/{id}/level',
+    ],
+    'talento.academy.view' => [
+        '/talento/academia',
+        '/talento/api/courses',
+        '/talento/api/courses/{id}',
+        '/talento/practical-evidence/{id}',
+        '/talento/api/colaboradores/{id}/academy-progress',
+        '/talento.api/colaboradores/{id}/certifications',
+    ],
+    'talento.academy.manage' => [
+        '/talento/api/courses',
+        '/talento/api/courses/{id}',
+        '/talento/api/course-materials/{id}',
+    ],
+    'talento.academy.evaluate' => [
+        '/talento/api/courses/{id}',
+        '/talento/api/certifications/{id}/revoke',
+    ],
+    'talento.levels.view' => [
+        '/talento/niveles',
+        '/talento/escalafon',
+        '/talento/api/colaboradores/{id}/level-eligibility',
+        '/talento/api/colaboradores/{id}/level-history',
+    ],
+    'talento.levels.manage' => [
+        '/talento/api/colaboradores/{id}/promote',
+    ],
+    'talento.escalafon.view' => [
+        '/talento/escalafon',
+    ],
+    'talento.escalafon.manage' => [
+        '/talento/escalafon',
+    ],
+    'talento.penalties.view' => [
+        '/talento/penalizaciones',
+        '/talento/api/penalties/**',
+        '/talento/penalty-evidence/{id}',
+    ],
+    'talento.penalties.manage' => [
+        '/talento/api/penalties/**',
+    ],
+    'talento.penalties.appeal' => [
+        '/talento/api/penalties/{id}/appeal',
+    ],
+    'talento.penalties.resolve' => [
+        '/talento/api/penalties/{id}/resolve',
+        '/talento/api/penalties/{id}/dismiss',
+    ],
+    'talento.projects.view' => [
+        '/talento/proyectos',
+        '/talento/api/proyectos/**',
+        '/talento/api/colaboradores/{id}/proyecto-avance',
+    ],
+    'talento.projects.manage' => [
+        '/talento/api/proyectos/**',
+    ],
+    'talento.project_reports.view' => [
+        '/talento/api/project-reports/**',
+    ],
+    'talento.project_reports.create' => [
+        '/talento/api/project-reports/**',
+    ],
+    'talento.project_reports.approve' => [
+        '/talento/api/project-reports/{id}/approve',
+    ],
+    'talento.quality.view' => [
+        '/talento/calidad',
+        '/talento/api/quality/**',
+        '/talento/api/standards',
+        '/talento/api/standards/{id}',
+    ],
+    'talento.quality.manage' => [
+        '/talento/api/quality/**',
+        '/talento/api/standards',
+        '/talento/api/standards/{id}',
+        '/talento/api/standards/{id}/image',
+    ],
+    'talento.routes.view' => [
+        '/talento/rutas',
+        '/talento/api/rutas',
+        '/talento/api/rutas/{id}',
+    ],
+    'talento.routes.manage' => [
+        '/talento/api/rutas',
+        '/talento/api/rutas/{id}',
+        '/talento/api/rutas/{id}/activar',
+        '/talento/api/rutas/{id}/analizar-desvios',
+        '/talento/api/rutas/{id}/stops/reordenar',
+    ],
+    'talento.roadmap.view' => [
+        '/talento/roadmap',
+        '/talento/api/roadmap/**',
+    ],
+    'talento.roadmap.manage' => [
+        '/talento/api/roadmap/**',
+    ],
+    'talento.work_sites.view' => [
+        '/talento/sitios',
+        '/talento/api/sitios',
+        '/talento/api/sitios/config/radio',
+        '/talento/api/sitios/{id}',
+    ],
+    'talento.work_sites.manage' => [
+        '/talento/api/sitios',
+        '/talento/api/sitios/config/radio',
+        '/talento/api/sitios/{id}',
+    ],
+    'talento.credentials.view' => [
+        '/talento/credenciales',
+        '/talento/credential-doc/{id}',
+        '/talento/api/colaboradores/{id}/credentials',
+    ],
+    'talento.credentials.manage' => [
+        '/talento/api/colaboradores/{id}/credentials',
+    ],
+    'talento.devices.view' => [
+        '/talento/dispositivos',
+        '/talento/api/colaboradores/{id}/dispositivos',
+    ],
+    'talento.devices.manage' => [
+        '/talento/api/colaboradores/{id}/dispositivos',
+        '/talento/api/colaboradores/{id}/dispositivos/{devId}',
+        '/talento/api/colaboradores/{id}/dispositivos/{devId}/approve',
+    ],
+    'talento.custody.view' => [
+        '/talento/custodia',
+        '/talento/api/colaboradores/{id}/custodia',
+    ],
+    'talento.location.view' => [
+        '/talento/mapa-en-vivo',
+        '/talento/api/ubicacion/en-vivo',
+        '/talento/api/ubicacion/{colaboradorId}/ruta',
+    ],
+    'talento.media.view' => [
+        '/talento/media/{id}',
+        '/talento/inspection-photo/{id}',
+        '/talento/api/campo/{workOrderId}/media',
+    ],
+    'talento.media.upload' => [
+        '/talento/api/campo/{workOrderId}/media',
+    ],
+    'talento.media.view_sensitive' => [
+        '/talento/media/{id}',
+        '/talento/inspection-photo/{id}',
+        '/talento/penalty-evidence/{id}',
+        '/talento/practical-evidence/{id}',
+    ],
+    'talento.signatures.view' => [
+        '/talento/api/campo/{workOrderId}/firmas',
+        '/talento/api/campo/{workOrderId}/firma',
+    ],
+    'talento.loans.view' => [
+        '/talento/api/colaboradores/{id}/loans',
+    ],
+    'talento.loans.manage' => [
+        '/talento/api/loans/**',
+    ],
+    'talento.funds.view' => [
+        '/talento/api/colaboradores/{id}/funds',
+    ],
+    'talento.funds.manage' => [
+        '/talento/api/funds/**',
+    ],
+    'talento.ledger.view' => [
+        '/talento/api/ledger/**',
+    ],
+    'talento.caja.view' => [
+        '/talento/cajas',
+        '/talento/api/cajas',
+        '/talento/api/cajas/latest',
+        '/talento/api/cajas/bonus-log',
+        '/talento/api/cajas/settings',
+    ],
+    'talento.caja.manage' => [
+        '/talento/api/cajas',
+        '/talento/api/cajas/settings',
+        '/talento/api/cajas/bonus-log/{workOrderId}/evaluate',
+    ],
+    'talento.health_bonus.view' => [
+        '/talento/api/cajas/bonus-log',
+    ],
+    'talento.warranty.view' => [
+        '/talento/api/warranty',
+        '/talento/api/warranty/classify',
+        '/talento/api/warranty/{workOrderId}/overrides',
+    ],
+    'talento.warranty.override' => [
+        '/talento/api/warranty/{workOrderId}/override',
+    ],
+    'talento.survey.view' => [
+        '/talento/api/campo/{workOrderId}/encuesta',
+    ],
+    'talento.survey.manage' => [
+        '/talento/api/campo/{workOrderId}/encuesta',
+    ],
+    'talento.embajadores.view' => [
+        '/talento/embajadores-colabs',
+        '/talento/api/colaboradores/{id}/embajador-data',
+    ],
+    'talento.config.evidencias' => [
+        '/talento/config/evidencias',
+        '/talento/api/config/evidencias',
+        '/talento/api/config/evidencias/toggle',
+    ],
+    'talento.activations.manage' => [
+        '/talento/api/campo/{workOrderId}/activacion',
+        '/talento/api/campo/{workOrderId}/activar',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Integration Hub (marketing)
+    // ══════════════════════════════════════════════════════════════════════════
+    'ia_view_chat' => [
+        '/ia-chat',
+        '/ia/chat/**',
+    ],
+    'ia_view_prompts' => [
+        '/ia/prompts',
+        '/ia/prompts/**',
+    ],
+
+    // Integration Hub accesible para configurar API keys
+    'view_integration_hub' => [
+        '/integraciones',
+        '/integraciones/**',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MegaFamilia (addon-megafamilia) — acceso web admin
+    // ══════════════════════════════════════════════════════════════════════════
+    'megafamilia_view' => [
+        '/megafamilia/**',
+        '/api/megafamilia/**',
+    ],
+    'megafamilia_admin' => [
+        '/megafamilia/**',
+        '/api/megafamilia/**',
+    ],
+    'megafamilia_support' => [
+        '/megafamilia/**',
+        '/api/megafamilia/**',
     ],
 
 ];

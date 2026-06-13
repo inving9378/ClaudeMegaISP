@@ -84,11 +84,14 @@ class CheckRoutePermission
     }
 
     /**
-     * Convierte una ruta con parámetros ({id}) en una expresión regular compatible.
+     * Convierte una ruta con parámetros a expresión regular.
+     * Soporta {id}/{param} (segmento sin /) y ** (cualquier subcamino).
+     * Ejemplos: /talento/api/** → #^/talento/api/.+$#
      */
     protected function convertRouteToRegex(string $route): string
     {
-        $regex = preg_replace('/\{[^\}]+\}/', '[^/]+', $route);
+        $regex = str_replace('**', '.+', $route);
+        $regex = preg_replace('/\{[^\}]+\}/', '[^/]+', $regex);
         return '#^' . $regex . '$#';
     }
 }
