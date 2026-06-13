@@ -39,6 +39,12 @@ include('script_db.php');
 // Auth::routes() reemplazado por app/Modules/Core/Auth/routes.php
 // (registra los mismos 9 endpoints + nombres login/logout/register/password.*)
 //Language Translation
+
+// Vista para usuarios autenticados sin módulos accesibles
+Route::middleware(['auth'])->get('/sin-modulos', function () {
+    return view('meganet.pages.sin-modulos');
+})->name('sin-modulos');
+
 Route::group(['middleware' => ['auth']], function () {
     Route::get('script', 'TestScriptController@script');
     Route::get('log-client', 'TestScriptController@logClient');

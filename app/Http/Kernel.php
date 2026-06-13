@@ -40,6 +40,7 @@ class Kernel extends HttpKernel
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\TrackLastVisitedRoute::class,
         ],
 
         'api' => [
@@ -81,5 +82,8 @@ class Kernel extends HttpKernel
         // Fuerza Accept: application/json para rutas API fuera del grupo `api`
         // de Laravel. Sin esto, los errores de validación y auth devuelven 302.
         'force_json' => \App\Http\Middleware\ForceJsonResponse::class,
+
+        // Persiste la última ruta visitada por el usuario (para post-login redirect inteligente).
+        'track_last_route' => \App\Http\Middleware\TrackLastVisitedRoute::class,
     ];
 }
