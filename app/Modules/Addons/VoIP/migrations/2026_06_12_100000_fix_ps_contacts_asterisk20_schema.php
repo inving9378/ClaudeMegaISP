@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -23,8 +24,22 @@ return new class extends Migration
 {
     protected $connection = 'asterisk_rt';
 
+    private function asteriskAvailable(): bool
+    {
+        try {
+            DB::connection('asterisk_rt')->getPdo();
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
     public function up(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         Schema::connection('asterisk_rt')->table('ps_contacts', function (Blueprint $table) {
             // Asterisk 20 escribe via_addr:via_port cuando el REGISTER llega con Via header
             if (! Schema::connection('asterisk_rt')->hasColumn('ps_contacts', 'via_addr')) {
@@ -64,6 +79,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         Schema::connection('asterisk_rt')->table('ps_contacts', function (Blueprint $table) {
             foreach ([
                 'via_addr',
