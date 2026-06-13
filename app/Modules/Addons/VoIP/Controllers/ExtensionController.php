@@ -55,7 +55,9 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $users = User::orderBy('name')->get(['id', 'name', 'father_last_name', 'mother_last_name']);
+        $users = User::whereDoesntHave('roles', fn ($q) => $q->where('name', 'client'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'father_last_name', 'mother_last_name']);
 
         return response()->json($users->map(fn ($u) => [
             'id'     => $u->id,
