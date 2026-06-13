@@ -2,9 +2,6 @@
 
 namespace App\Http\Repository;
 
-use App\Models\Bundle;
-use App\Models\Internet;
-use App\Models\Payment;
 use App\Models\Transaction;
 
 class TransactionRepository

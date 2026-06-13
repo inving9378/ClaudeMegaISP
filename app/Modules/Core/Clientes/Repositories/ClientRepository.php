@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Clientes\Repositories;
 
 use App\Http\Controllers\Utils\ComunConstantsController;
+use App\Http\Repository\TransactionRepository;
 use App\Http\Traits\RouterConnection;
 use App\Jobs\Mikrotik\MikrotikRemoveClientServiceFromAddressList;
 use App\Models\Balance;
