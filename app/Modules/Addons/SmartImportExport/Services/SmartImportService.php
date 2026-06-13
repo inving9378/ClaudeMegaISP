@@ -499,7 +499,7 @@ class SmartImportService
         'client_serviceables'                      => ['module' => 'Clientes', 'model' => ClientInvoiceService::class, 'conflict_keys' => []],
         'client_users'                             => ['module' => 'Clientes', 'model' => ClientUser::class, 'conflict_keys' => []],
         'client_voz_services'                      => ['module' => 'Clientes', 'model' => ClientVozService::class, 'conflict_keys' => []],
-        'clients'                                  => ['module' => 'Clientes', 'model' => Client::class, 'conflict_keys' => ['email', 'phone', 'full_name']],
+        'clients'                                  => ['module' => 'Clientes', 'model' => Client::class, 'conflict_keys' => []],
 
         // ─── Contabilidad ─── (5)
         'general_accounting_categories'            => ['module' => 'Contabilidad', 'model' => GeneralAccountingCategory::class, 'conflict_keys' => []],
@@ -1451,10 +1451,13 @@ class SmartImportService
             $next = $maxId + 1;
             $previous = $this->currentAutoIncrementValue($table);
 
-            if ($previous !== null && $previous > $maxId) {
-                return null;
-            }
-
+            // Siempre ajustar, incluso si $previous > $maxId.
+            // Después de un import con IDs explícitos del dump (ej. prod 1-100),
+            // el AUTO_INCREMENT local puede quedar más alto (ej. 6693) porque MySQL
+            // no lo avanza hacia atrás. El guard anterior hacía que repairAutoIncrement
+            // saltara este caso y los nuevos registros recibieran el ID alto en lugar
+            // de MAX(id)+1. MySQL permite reducir AUTO_INCREMENT con ALTER TABLE
+            // siempre que el valor sea > MAX(id) en la columna.
             DB::statement(sprintf(
                 'ALTER TABLE %s AUTO_INCREMENT = %d',
                 $this->quoteIdentifier($table),
@@ -2117,7 +2120,22 @@ class SmartImportService
         while ($i < $len) {
             $c = $tuple[$i];
             if ($inString) {
-                if ($c === '\\' && $i + 1 < $len) { $current .= $tuple[$i + 1]; $i += 2; continue; }
+                if ($c === '\\' && $i + 1 < $len) {
+                    $next = $tuple[$i + 1];
+                    $current .= match($next) {
+                        'n'  => "\n",
+                        'r'  => "\r",
+                        't'  => "\t",
+                        '0'  => "\0",
+                        'Z'  => "\x1a",
+                        '\\' => "\\",
+                        "'"  => "'",
+                        '"'  => '"',
+                        default => $next,
+                    };
+                    $i += 2;
+                    continue;
+                }
                 if ($c === "'") { $inString = false; $i++; continue; }
                 $current .= $c; $i++; continue;
             }
