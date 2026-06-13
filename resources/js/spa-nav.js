@@ -7,6 +7,7 @@ const SPA_ENABLED = true;
 // Vistas con @push('scripts') propios: entrar O salir → recarga completa.
 // Usar prefijos; startsWith() cubre sub-rutas dinámicas (/{id}, etc.).
 const SPA_BLACKLIST = [
+    '/logout',
     '/mapas',
     '/embajadores/metrics',
     '/embajadores/video',

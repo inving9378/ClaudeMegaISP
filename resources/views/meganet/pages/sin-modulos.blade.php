@@ -30,6 +30,7 @@
                     </div>
                     <div class="mt-4 d-flex gap-2 justify-content-center">
                         <a class="btn btn-outline-secondary waves-effect" href="{{ route('logout') }}"
+                           data-spa-skip
                            onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                             Cerrar sesión
                         </a>
