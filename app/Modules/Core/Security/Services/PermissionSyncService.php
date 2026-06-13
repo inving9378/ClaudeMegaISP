@@ -134,13 +134,15 @@ class PermissionSyncService
     }
 
     /**
-     * Asigna el permiso a todos los roles que NO son full-access.
+     * Asigna el permiso a todos los roles que NO son full-access ni están en la lista de exclusión.
+     * La lista de exclusión se configura en config/permission_sync.php (view_excluded_roles).
      * @return int número de asignaciones nuevas
      */
     private function giveToAllOtherRoles(Permission $perm): int
     {
         $count = 0;
-        $others = Role::whereNotIn('name', self::FULL_ACCESS_ROLES)->get();
+        $skip  = array_merge(self::FULL_ACCESS_ROLES, $this->getViewExcludedRoles());
+        $others = Role::whereNotIn('name', $skip)->get();
         foreach ($others as $role) {
             if (!$role->hasPermissionTo($perm)) {
                 $role->givePermissionTo($perm);
@@ -148,6 +150,12 @@ class PermissionSyncService
             }
         }
         return $count;
+    }
+
+    /** Lee la lista de roles excluidos del reparto automático de .view desde config. */
+    private function getViewExcludedRoles(): array
+    {
+        return config('permission_sync.view_excluded_roles', []);
     }
 
     private function resetCache(): void
