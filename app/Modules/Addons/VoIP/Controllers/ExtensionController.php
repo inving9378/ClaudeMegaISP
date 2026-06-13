@@ -86,6 +86,12 @@ class ExtensionController extends Controller
 
         $ext = Extension::create($data);
 
+        try {
+            $this->provisioner->provisionarExtension($ext);
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: auto-provisión falló para ext {$ext->numero}: {$e->getMessage()}");
+        }
+
         return response()->json(['id' => $ext->id, 'endpoint_id' => $ext->endpointId()], 201);
     }
 
@@ -113,6 +119,12 @@ class ExtensionController extends Controller
         }
 
         $extension->update($data);
+
+        try {
+            $this->provisioner->provisionarExtension($extension);
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: re-provisión falló para ext {$extension->numero}: {$e->getMessage()}");
+        }
 
         return response()->json(['ok' => true]);
     }
