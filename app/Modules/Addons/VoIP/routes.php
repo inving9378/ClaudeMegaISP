@@ -23,6 +23,7 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     Route::post('/troncales/{troncal}/desprovisionar',[TroncalController::class, 'desprovisionar'])->name('voip.troncales.desprovisionar');
     Route::get('/probar-conexion',                    [TroncalController::class, 'probarConexion'])->name('voip.probar-conexion');
     Route::get('/troncales/{troncal}/verificar',      [TroncalController::class, 'verificarTroncal'])->name('voip.troncales.verificar');
+    Route::patch('/troncales/{troncal}/toggle',       [TroncalController::class, 'toggle'])->name('voip.troncales.toggle');
 
     // ════════════════════════════════════════════════════════════════════════
     // EXTENSIONES

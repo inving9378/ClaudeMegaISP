@@ -112,7 +112,12 @@
                                     </template>
                                 </td>
                                 <td class="text-center">
-                                    <i :class="t.activo ? 'fa fa-toggle-on text-success' : 'fa fa-toggle-off text-secondary'" class="fa-lg"></i>
+                                    <i :class="t.activo ? 'fa fa-toggle-on text-success' : 'fa fa-toggle-off text-secondary'"
+                                       class="fa-lg"
+                                       :style="canEdit ? 'cursor:pointer' : ''"
+                                       :title="canEdit ? (t.activo ? 'Clic para desactivar' : 'Clic para activar') : ''"
+                                       @click="canEdit && toggleActivo(t)">
+                                    </i>
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
@@ -312,6 +317,25 @@
                             <i class="fa fa-trash me-1"></i>
                             {{ eliminando ? 'Eliminando…' : 'Sí, eliminar' }}
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Confirmar (genérico, promise-based) -->
+        <div class="modal fade" id="modalConfirmar" tabindex="-1" ref="modalConfirmarEl">
+            <div class="modal-dialog">
+                <div class="modal-content border-warning">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title"><i class="fa fa-triangle-exclamation me-2"></i>Confirmar</h5>
+                        <button type="button" class="btn-close" @click="cancelarConfirm"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p v-html="confirmMsg" class="mb-0"></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" @click="cancelarConfirm">Cancelar</button>
+                        <button type="button" class="btn btn-warning btn-sm" @click="aceptarConfirm">Continuar</button>
                     </div>
                 </div>
             </div>
@@ -536,6 +560,51 @@ export default {
                 this.verificaciones = { ...this.verificaciones, [t.id]: body };
             } finally {
                 this.verificando = null;
+            }
+        },
+
+        pedirConfirm(msg) {
+            return new Promise(resolve => {
+                this.confirmMsg      = msg;
+                this.confirmCallback = resolve;
+                bootstrap.Modal.getOrCreateInstance(this.$refs.modalConfirmarEl).show();
+            });
+        },
+
+        aceptarConfirm() {
+            bootstrap.Modal.getOrCreateInstance(this.$refs.modalConfirmarEl).hide();
+            if (this.confirmCallback) this.confirmCallback(true);
+            this.confirmCallback = null;
+        },
+
+        cancelarConfirm() {
+            bootstrap.Modal.getOrCreateInstance(this.$refs.modalConfirmarEl).hide();
+            if (this.confirmCallback) this.confirmCallback(false);
+            this.confirmCallback = null;
+        },
+
+        async toggleActivo(t) {
+            if (t.activo) {
+                const ok = await this.pedirConfirm(
+                    `¿Desactivar la troncal <strong>${t.nombre}</strong>?<br>
+                    <span class="text-muted small">Las llamadas activas no se interrumpen; las nuevas no serán enrutadas mientras esté inactiva.</span>`
+                );
+                if (! ok) return;
+            }
+            try {
+                const r    = await fetch(`${this.baseUrl}/troncales/${t.id}/toggle`, {
+                    method:  'PATCH',
+                    headers: this.headers(),
+                });
+                const body = await r.json();
+                if (body.ok) {
+                    t.activo = body.activo;
+                    this.toast(body.activo ? `Troncal "${t.nombre}" activada` : `Troncal "${t.nombre}" desactivada`);
+                } else {
+                    this.toast('Error al cambiar estado', 'error');
+                }
+            } catch {
+                this.toast('Error de red', 'error');
             }
         },
 

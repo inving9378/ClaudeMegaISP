@@ -191,6 +191,17 @@ class TroncalController extends Controller
         }
     }
 
+    public function toggle(Troncal $troncal): JsonResponse
+    {
+        if (! auth()->user()->can('voip.troncales.edit')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $troncal->update(['activo' => ! $troncal->activo]);
+
+        return response()->json(['ok' => true, 'activo' => $troncal->activo]);
+    }
+
     // ── Tests de conectividad ─────────────────────────────────────────────────
 
     private function generarDialplan(): void
