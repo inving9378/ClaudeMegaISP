@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Security\Console;
 
 use App\Modules\Core\Security\Services\PermissionSyncService;
+use Database\Seeders\RolePermissionRevocationSeeder;
 use Illuminate\Console\Command;
 
 class SyncPermissionsCommand extends Command
@@ -45,6 +46,14 @@ class SyncPermissionsCommand extends Command
         } else {
             $this->info('✓ Sincronización completada.');
         }
+
+        // Re-aplicar la matriz de revocación para que el sync no deshaga
+        // los permisos que los roles no deben tener según política de negocio.
+        $this->newLine();
+        $this->info('Re-aplicando matriz de revocación de permisos por rol…');
+        $seeder = new RolePermissionRevocationSeeder();
+        $seeder->setCommand($this);
+        $seeder->run();
 
         return self::SUCCESS;
     }
