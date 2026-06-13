@@ -61,7 +61,15 @@
                                     </span>
                                 </td>
                                 <td class="text-center">
-                                    <i :class="e.activo ? 'fa fa-toggle-on text-success' : 'fa fa-toggle-off text-secondary'" class="fa-lg"></i>
+                                    <i v-if="canEdit"
+                                       :class="e.activo ? 'fa fa-toggle-on text-success' : 'fa fa-toggle-off text-secondary'"
+                                       class="fa-lg"
+                                       style="cursor:pointer"
+                                       :title="e.activo ? 'Desactivar' : 'Activar'"
+                                       @click="toggleActiva(e)"></i>
+                                    <i v-else
+                                       :class="e.activo ? 'fa fa-toggle-on text-success' : 'fa fa-toggle-off text-secondary'"
+                                       class="fa-lg"></i>
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
@@ -403,6 +411,29 @@ export default {
                 else      { this.toast('Error al eliminar', 'error'); }
             } finally {
                 this.eliminando = false;
+            }
+        },
+
+        async toggleActiva(e) {
+            const previo = e.activo;
+            e.activo = !previo;  // feedback inmediato
+
+            try {
+                const r    = await fetch(`${this.baseUrl}/extensiones/${e.id}/toggle`, {
+                    method: 'PATCH', headers: this.headers(),
+                });
+                const body = await r.json();
+                if (!r.ok || !body.ok) {
+                    e.activo = previo;  // rollback
+                    this.toast('Error al cambiar estado', 'error');
+                } else {
+                    e.activo = body.activo;
+                    this.toast(body.activo ? `Extensión ${e.numero} activada` : `Extensión ${e.numero} desactivada`);
+                    if (body.warning) this.toast('Advertencia: ' + body.warning, 'error');
+                }
+            } catch {
+                e.activo = previo;  // rollback si falla la red
+                this.toast('Error de comunicación', 'error');
             }
         },
 

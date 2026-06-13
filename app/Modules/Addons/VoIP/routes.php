@@ -35,7 +35,9 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     Route::delete('/extensiones/{extension}',              [ExtensionController::class, 'destroy'])->name('voip.extensiones.destroy');
     Route::post('/extensiones/{extension}/provisionar',    [ExtensionController::class, 'provisionar'])->name('voip.extensiones.provisionar');
     Route::post('/extensiones/{extension}/desprovisionar', [ExtensionController::class, 'desprovisionar'])->name('voip.extensiones.desprovisionar');
-    Route::get('/extensiones/{extension}/verificar',       [ExtensionController::class, 'verificar'])->name('voip.extensiones.verificar');
+    Route::patch('/extensiones/{extension}/toggle',          [ExtensionController::class, 'toggle'])->name('voip.extensiones.toggle');
+    Route::get('/extensiones/{extension}/verificar',         [ExtensionController::class, 'verificar'])->name('voip.extensiones.verificar');
+    Route::get('/extensiones/estados',                       [ExtensionController::class, 'estados'])->name('voip.extensiones.estados');
 
     // ════════════════════════════════════════════════════════════════════════
     // GRUPOS DE TIMBRADO

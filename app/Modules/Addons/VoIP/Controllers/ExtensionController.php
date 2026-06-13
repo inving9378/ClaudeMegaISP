@@ -181,6 +181,29 @@ class ExtensionController extends Controller
         }
     }
 
+    public function toggle(Extension $extension): JsonResponse
+    {
+        if (! auth()->user()->can('voip.extensiones.edit')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $nuevoEstado = ! $extension->activo;
+        $extension->update(['activo' => $nuevoEstado]);
+
+        if ($extension->estaProvisionada()) {
+            try {
+                $nuevoEstado
+                    ? $this->provisioner->provisionarExtension($extension)
+                    : $this->provisioner->desprovisionarExtension($extension);
+            } catch (\Throwable $e) {
+                Log::warning("VoIP: toggle-provisión falló para ext {$extension->numero}: {$e->getMessage()}");
+                return response()->json(['ok' => true, 'activo' => $nuevoEstado, 'warning' => $e->getMessage()]);
+            }
+        }
+
+        return response()->json(['ok' => true, 'activo' => $nuevoEstado]);
+    }
+
     public function verificar(Extension $extension): JsonResponse
     {
         if (! auth()->user()->can('voip.extensiones.test')) {
