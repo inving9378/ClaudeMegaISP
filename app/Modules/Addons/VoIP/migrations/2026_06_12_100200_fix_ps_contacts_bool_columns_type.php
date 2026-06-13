@@ -28,8 +28,22 @@ return new class extends Migration
         'qualify_2xx_only',
     ];
 
+    private function asteriskAvailable(): bool
+    {
+        try {
+            DB::connection('asterisk_rt')->getPdo();
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
     public function up(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         foreach ($this->boolColumns as $col) {
             if (Schema::connection('asterisk_rt')->hasColumn('ps_contacts', $col)) {
                 DB::connection('asterisk_rt')->statement(
@@ -41,6 +55,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         foreach ($this->boolColumns as $col) {
             if (Schema::connection('asterisk_rt')->hasColumn('ps_contacts', $col)) {
                 DB::connection('asterisk_rt')->statement(

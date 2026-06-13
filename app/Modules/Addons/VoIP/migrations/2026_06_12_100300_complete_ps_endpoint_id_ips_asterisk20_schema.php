@@ -25,8 +25,22 @@ return new class extends Migration
 {
     protected $connection = 'asterisk_rt';
 
+    private function asteriskAvailable(): bool
+    {
+        try {
+            DB::connection('asterisk_rt')->getPdo();
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
     public function up(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         $db = DB::connection('asterisk_rt');
 
         // Expandir id VARCHAR(40) → VARCHAR(255) NOT NULL
@@ -66,6 +80,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         $db = DB::connection('asterisk_rt');
 
         foreach (['match_request_uri', 'match_header', 'srv_lookups'] as $col) {

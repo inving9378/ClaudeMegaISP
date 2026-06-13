@@ -18,8 +18,22 @@ return new class extends Migration
 {
     protected $connection = 'asterisk_rt';
 
+    private function asteriskAvailable(): bool
+    {
+        try {
+            DB::connection('asterisk_rt')->getPdo();
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
     public function up(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         $rows = DB::connection('asterisk_rt')->select("SHOW COLUMNS FROM `ps_endpoints` LIKE 'identify_by'");
         if (empty($rows)) {
             return;
@@ -34,6 +48,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         DB::connection('asterisk_rt')->statement(
             "ALTER TABLE `ps_endpoints` MODIFY COLUMN `identify_by` ENUM('username','auth_username','ip') NULL DEFAULT NULL"
         );
