@@ -238,8 +238,15 @@ class DocumentTemplateService
                 // Verificamos si la clave está en los datos comunes
                 $keyDataComun = str_replace('data.', '', $key);
                 if (array_key_exists($keyDataComun, $dataComun) && $keyDataComun == 'url_logo') {
-                    $url = asset(str_replace('public', 'storage', str_replace("\\", "/", $dataComun[$keyDataComun])));
-                    $html = str_replace('${' . $key . '}', $url, $html);
+                    // dompdf carga imágenes desde el filesystem (no URLs HTTP).
+                    // Convertir url_logo (ej. /storage/logo_meganet/logo.png) a public_path absoluto.
+                    $ci = \App\Modules\Core\Configuracion\Models\CompanyInformation::first();
+                    $rawPath = ($ci && $ci->url_logo) ? $ci->url_logo : '/images/logo_meganet_oficial.png';
+                    $localPath = public_path(ltrim(str_replace("\\", "/", $rawPath), '/'));
+                    if (!file_exists($localPath)) {
+                        $localPath = public_path('images/logo_meganet_oficial.png');
+                    }
+                    $html = str_replace('${' . $key . '}', $localPath, $html);
                 } elseif (array_key_exists($keyDataComun, $dataComun)) {
                     $html = str_replace('${' . $key . '}', $dataComun[$keyDataComun], $html);
                 }
