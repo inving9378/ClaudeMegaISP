@@ -4,7 +4,7 @@ namespace App\Modules\Core\Auth\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Providers\RouteServiceProvider;
+use App\Services\PostLoginRedirectService;
 use App\Services\Security\PasswordService;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
@@ -26,11 +26,15 @@ class LoginController extends Controller
     use AuthenticatesUsers;
 
     /**
-     * Where to redirect users after login.
-     *
-     * @var string
+     * Resuelve la URL de destino post-login mediante PostLoginRedirectService:
+     * 1. Última ruta visitada (si el usuario aún tiene permiso)
+     * 2. Primera ruta de la lista de fallback que el usuario puede ver
+     * 3. /sin-modulos si no tiene ningún módulo accesible
      */
-    protected $redirectTo = RouteServiceProvider::HOME;
+    protected function redirectTo(): string
+    {
+        return app(PostLoginRedirectService::class)->resolve(Auth::user());
+    }
 
     protected $fieldForLogin = 'email';
 
