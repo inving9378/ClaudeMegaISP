@@ -8,6 +8,7 @@ use App\Modules\Addons\VoIP\Models\Extension;
 use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -179,6 +180,29 @@ class ExtensionController extends Controller
             Log::error("VoIP: error desprovisionando ext {$extension->numero}: {$e->getMessage()}");
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    public function estados(): JsonResponse
+    {
+        if (! auth()->user()->can('voip.extensiones.view')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        try {
+            $activos = DB::connection('asterisk_rt')
+                ->table('ps_contacts')
+                ->where('expiration_time', '>', time())
+                ->pluck('endpoint')
+                ->map(fn ($ep) => explode('/', $ep)[0])  // normaliza "1001/xxx" → "1001"
+                ->unique()
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: no se pudo leer ps_contacts para estados — {$e->getMessage()}");
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
+        return response()->json(['conectadas' => $activos]);
     }
 
     public function toggle(Extension $extension): JsonResponse

@@ -51,6 +51,14 @@
                                     <span v-else class="text-warning">
                                         <i class="fa fa-circle-notch me-1"></i>Sin provisionar
                                     </span>
+                                    <span v-if="e.provisionado_at" class="ms-2">
+                                        <span v-if="conectadas.includes(e.numero)" class="badge bg-success text-white">
+                                            <i class="fa fa-wifi me-1"></i>Conectada
+                                        </span>
+                                        <span v-else class="badge bg-secondary text-white">
+                                            Desconectada
+                                        </span>
+                                    </span>
                                     <span v-if="verificaciones[e.id]" class="ms-2">
                                         <span v-if="verificaciones[e.id].ok" class="badge bg-success-subtle text-success">
                                             {{ verificaciones[e.id].estado }}
@@ -280,6 +288,7 @@ export default {
             extAEliminar:   null,
             mostrarSecret:  false,
             verificaciones: {},
+            conectadas:     [],
             toastMsg:       '',
             toastTipo:      'success',
             form:           this.formVacio(),
@@ -298,6 +307,7 @@ export default {
     mounted() {
         this.cargar();
         this.cargarUsuarios();
+        this.cargarEstados();
     },
 
     methods: {
@@ -341,6 +351,14 @@ export default {
         async cargarUsuarios() {
             const r = await fetch(`${this.baseUrl}/extensiones/usuarios`, { headers: this.headers() });
             if (r.ok) this.usuarios = await r.json();
+        },
+
+        async cargarEstados() {
+            try {
+                const r    = await fetch(`${this.baseUrl}/extensiones/estados`, { headers: this.headers() });
+                const body = await r.json();
+                if (r.ok) this.conectadas = body.conectadas ?? [];
+            } catch { /* silencioso — el badge simplemente no aparece */ }
         },
 
         abrirModal(ext = null) {
