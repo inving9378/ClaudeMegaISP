@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Queue;
 
 const PAYMENTTABLE_TYPE = [
     'App\Models\Client' => 'App\Jobs\Client\Payment\PaymentClientJob',
+    'App\Modules\Core\Clientes\Models\Client' => 'App\Jobs\Client\Payment\PaymentClientJob',
 ];
 
 class PaymentObserver

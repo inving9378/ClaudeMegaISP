@@ -1162,12 +1162,20 @@ class ClientBundleServiceController extends Controller
 
     public function getPlansToChangeById($serviceBundleId)
     {
-        $clientBundleService = ClientBundleService::find($serviceBundleId)->load(['service_internet', 'service_voz', 'service_custom']);
+        $clientBundleService = ClientBundleService::find($serviceBundleId);
+        if (!$clientBundleService) {
+            return response()->json(['error' => 'Servicio bundle no encontrado'], 404);
+        }
+        $clientBundleService->load(['service_internet', 'service_voz', 'service_custom']);
         $bundleId = $clientBundleService->bundle_id;
 
         $module = Module::where('name', 'ClientBundleService')->first();
         $fields = $module->getfields();
-        $bundle = Bundle::find($bundleId)->load(['planes_internet', 'planes_voz', 'planes_custom']);
+        $bundle = Bundle::find($bundleId);
+        if (!$bundle) {
+            return response()->json(['error' => 'Bundle no encontrado'], 404);
+        }
+        $bundle->load(['planes_internet', 'planes_voz', 'planes_custom']);
 
         $bundleRepository = new BundleRepository();
         $arrayCountsBundleActual = $bundleRepository->getCountOptionsByBundle($bundleId);
