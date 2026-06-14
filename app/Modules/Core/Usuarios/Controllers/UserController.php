@@ -359,13 +359,12 @@ class UserController extends Controller
     public function inactiveOrActive($id)
     {
         $user = User::find($id);
-        if ($user->active == 1) {
-            $user->active = 0;
-        } else {
-            $user->active = 1;
-        }
+        // Toggle activo ↔ inactivo (bloqueado → activo al activar)
+        $nuevoEstado = ($user->estado === 'activo') ? 'inactivo' : 'activo';
+        $user->estado = $nuevoEstado;
+        $user->active = ($nuevoEstado === 'activo') ? 1 : 0;
         $user->save();
-        return response()->json(['message' => 'Usuario actualizado correctamente'], 200);
+        return response()->json(['message' => 'Usuario actualizado correctamente', 'estado' => $nuevoEstado], 200);
     }
 
     public function avaiablesPromotions($code)

@@ -38,6 +38,7 @@ class User extends Authenticatable
         'color',
         'team_id',
         'active',
+        'estado',
     ];
 
     /**
@@ -166,9 +167,9 @@ class User extends Authenticatable
         return in_array('client', $this->getRoleNames()->toArray());
     }
 
-    public function isNotActive()
+    public function isNotActive(): bool
     {
-        return $this->active == 0;
+        return ($this->estado ?? 'activo') !== 'activo';
     }
 
     public function isTechnical()

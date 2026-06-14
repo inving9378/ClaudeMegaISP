@@ -88,7 +88,7 @@ class LoginController extends Controller
             ->first();
         // Verificación híbrida: acepta bcrypt y el legacy base64.
         if ($user && PasswordService::check($request->password, $user->password)) {
-            if (!$user->active) {
+            if (($user->estado ?? 'activo') !== 'activo') {
                 return false;
             }
             // Upgrade-on-login: si seguía en base64 legacy, re-hashea a bcrypt.
