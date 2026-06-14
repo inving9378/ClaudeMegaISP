@@ -57,7 +57,18 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $users = User::whereDoesntHave('roles', fn ($q) => $q->where('name', 'client'))
+        // "whereHas any role AND whereDoesntHave client" omite colaboradores que
+        // también tienen el rol client asignado (datos mixtos en producción).
+        // La lista explícita es la única que captura correctamente a todo el staff.
+        // Al agregar un rol de staff nuevo: actualizar esta lista.
+        $rolesStaff = [
+            'Administrador', 'ADMINISTRADOR_COMPLETO', 'Almacen', 'conductor', 'CONTADOR',
+            'DESARROLLADOR', 'Mostrador', 'PUBLICADOR', 'Socio', 'Super Administrador',
+            'super-administrator', 'SUPERVISOR_MOSTRADOR', 'TECNICO', 'TECNICO_INSTALADOR',
+            'TECNICO_PLANTA', 'Vendedor',
+        ];
+
+        $users = User::whereHas('roles', fn ($q) => $q->whereIn('name', $rolesStaff))
             ->orderBy('name')
             ->get(['id', 'name', 'father_last_name', 'mother_last_name']);
 
