@@ -460,6 +460,30 @@ class AsteriskProvisioningService
         Log::info("VoIP: extensión {$ext->numero} ({$id}) desprovisionada.");
     }
 
+    /**
+     * Cambia el context de ps_endpoints a from-internal-restringido y actualiza
+     * voip_extensiones.contexto. No re-provisiona completo — solo un UPDATE liviano.
+     * Bloquea llamadas salientes; el usuario sigue recibiendo e internos.
+     */
+    public function restringirExtension(Extension $ext): void
+    {
+        $id = $ext->endpointId();
+        $this->db()->table('ps_endpoints')->where('id', $id)->update(['context' => 'from-internal-restringido']);
+        $ext->update(['contexto' => 'from-internal-restringido']);
+        Log::info("VoIP: extensión {$ext->numero} ({$id}) restringida (solo entrantes/internos).");
+    }
+
+    /**
+     * Restaura el context de ps_endpoints a from-internal tras desbloquear al usuario.
+     */
+    public function restaurarExtension(Extension $ext): void
+    {
+        $id = $ext->endpointId();
+        $this->db()->table('ps_endpoints')->where('id', $id)->update(['context' => 'from-internal']);
+        $ext->update(['contexto' => 'from-internal']);
+        Log::info("VoIP: extensión {$ext->numero} ({$id}) restaurada (contexto from-internal).");
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // HELPERS
     // ─────────────────────────────────────────────────────────────────────────

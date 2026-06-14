@@ -69,6 +69,7 @@ class ExtensionController extends Controller
         ];
 
         $users = User::whereHas('roles', fn ($q) => $q->whereIn('name', $rolesStaff))
+            ->where('estado', 'activo')
             ->orderBy('name')
             ->get(['id', 'name', 'father_last_name', 'mother_last_name']);
 

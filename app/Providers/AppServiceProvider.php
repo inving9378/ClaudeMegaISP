@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Models\Marketing\Lead;
+use App\Models\User;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
 use App\Observers\Marketing\LeadObserver;
+use App\Observers\UserVoipObserver;
 use App\Services\MikrotikService;
 use Illuminate\Support\ServiceProvider;
 use GuzzleHttp\Client;
@@ -127,6 +129,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Embajadores Meganet
         \App\Models\Client::observe(\App\Observers\ClientObserver::class);
+
+        // VoIP: ciclo de vida de extensión al cambiar estado del usuario
+        User::observe(UserVoipObserver::class);
     }
 
     /**
