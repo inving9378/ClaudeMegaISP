@@ -113,6 +113,57 @@ Guía de contexto para Claude Code en este repositorio. Leer antes de explorar.
 
 ---
 
+## PORTAL CLIENTE (`app/Modules/Addons/PortalCliente/`)
+
+### Estado: ✅ Operativo en /portal/*
+
+**Decisión de seguridad deliberada (NO revertir):**
+El portal usa `portal_password` (bcrypt, `Hash::make`) en `client_main_information`.
+A diferencia del campo `password` del admin (base64 legacy), el portal es superficie pública → bcrypt obligatorio.
+El campo legacy `password` del admin NO se modifica.
+
+**Autenticación:**
+- Guard: `cliente` (session driver, provider `portal_clients` → `PortalClient` model)
+- Tabla auth: `client_main_information` + columnas `portal_password`, `portal_registered_at`, `portal_last_login_at`
+- Login: número de cliente (= `clients.id`) O email + `portal_password`
+- Auto-registro: número de cliente + `phone` (99.6% poblado, campo elegido como verificador)
+- Middleware: `auth.portal` (registrado en ModuleServiceProvider)
+- Rutas: `/portal/*` (guard `cliente`, independiente del guard admin `web`)
+
+**Aislamiento multi-tenant:**
+- `PortalClientScope::clientId()` → scoping forzado en todas las queries
+- Test: `php artisan portal:test-idor` (verifica cliente A ≠ cliente B)
+- Condición de paro #9: si una query no se puede filtrar por client_id → no se expone
+
+**Módulos activables:**
+- MegaFamilia: activable desde `/portal/servicios` (crea `parental_accounts` con plan Demo gratuito)
+  - Llave tenant: `parental_accounts.user_id` via `users.login_user = CMI.user`
+- Flotas: GATEADO (módulo interno Meganet, `fleet_vehicles.client_id` nullable → no tiene scope por cliente)
+- VoIP: GATEADO (en preparación)
+
+**Cliente de prueba:**
+- `clients.id` = 6810, nombre "FRANCISCO", contraseña portal: ver en CLAUDE.md local
+  ⚠️ Rotar contraseña tras validar en browser (Irving)
+
+---
+
+## HOJA DE RUTA — Items pendientes
+
+| Item | Descripción | Prioridad |
+|------|-------------|-----------|
+| Portal: pago en línea OpenPay | Integrar OpenPay para pago de facturas desde el portal | Alta |
+| Portal: CFDI timbrado | Generar PDF/XML de facturas fiscales desde el portal | Media |
+| Portal: editar perfil | Permitir al cliente actualizar email, teléfono, dirección (con validación) | Media |
+| Portal: cobro/tarifas premium MegaFamilia | Activar planes de pago en MegaFamilia desde el portal vía OpenPay | Media |
+| Portal: funciones cliente MegaFamilia | Mostrar perfiles, dispositivos y estadísticas dentro del portal (actualmente gateado) | Media |
+| Portal: Flotas para cliente | Implementar scope por `fleet_vehicles.client_id` y exponer tracking | Baja |
+| Portal: subdominio + SSL | Configurar `portal.meganet.mx` con nginx + certbot | Alta |
+| Portal: notificación pago por email | Enviar recibo de pago al email del cliente cuando se procese | Media |
+| Admin: migración base64 → bcrypt | Migrar `users.password` de base64 a bcrypt para el admin (superficie interna) | Baja |
+| MegaFamilia: Fase 7 portal funciones | Perfiles, control parental, stats dentro del portal cliente | Futura |
+
+---
+
 ## FIXES APLICADOS (no revertir)
 
 | Archivo | Fix |
