@@ -29,6 +29,7 @@
                                 <th>Nombre</th>
                                 <th>Agente</th>
                                 <th>Tipo</th>
+                                <th>Equipo</th>
                                 <th>Estado</th>
                                 <th class="text-center">Activa</th>
                                 <th class="text-end" style="min-width:180px">Acciones</th>
@@ -42,6 +43,36 @@
                                 <td>
                                     <span class="badge" :class="e.tipo_dispositivo === 'softphone' ? 'bg-info' : 'bg-secondary'">
                                         {{ e.tipo_dispositivo === 'softphone' ? 'Softphone' : 'Teléfono IP' }}
+                                    </span>
+                                </td>
+                                <td style="white-space:nowrap">
+                                    <template v-if="equipos[e.numero]">
+                                        <template v-if="equipos[e.numero].tipo === 'fisico'">
+                                            <i class="fa fa-phone text-secondary me-1"
+                                               :title="equipos[e.numero].user_agent"></i>
+                                            <span :title="equipos[e.numero].user_agent" style="cursor:default">
+                                                {{ equipos[e.numero].modelo }}
+                                            </span>
+                                        </template>
+                                        <template v-else-if="equipos[e.numero].tipo === 'softphone'">
+                                            <i class="fa fa-laptop text-info me-1"
+                                               :title="equipos[e.numero].user_agent"></i>
+                                            <span :title="equipos[e.numero].user_agent"
+                                                  class="text-info" style="cursor:default">
+                                                {{ equipos[e.numero].modelo }}
+                                            </span>
+                                        </template>
+                                        <template v-else>
+                                            <i class="fa fa-question-circle text-muted me-1"
+                                               :title="equipos[e.numero].user_agent"></i>
+                                            <span :title="equipos[e.numero].user_agent"
+                                                  class="text-muted small" style="cursor:default">
+                                                Desconocido
+                                            </span>
+                                        </template>
+                                    </template>
+                                    <span v-else class="text-muted small">
+                                        <i class="fa fa-circle-xmark me-1"></i>Sin registrar
                                     </span>
                                 </td>
                                 <td>
@@ -287,9 +318,11 @@ export default {
             editando:       null,
             extAEliminar:   null,
             mostrarSecret:  false,
-            verificaciones: {},
-            conectadas:     [],
-            toastMsg:       '',
+            verificaciones:  {},
+            conectadas:      [],
+            equipos:         {},
+            intervaloEstados: null,
+            toastMsg:        '',
             toastTipo:      'success',
             form:           this.formVacio(),
             errores:        {},
@@ -308,6 +341,11 @@ export default {
         this.cargar();
         this.cargarUsuarios();
         this.cargarEstados();
+        this.intervaloEstados = setInterval(() => this.cargarEstados(), 30000);
+    },
+
+    unmounted() {
+        clearInterval(this.intervaloEstados);
     },
 
     methods: {
@@ -357,8 +395,11 @@ export default {
             try {
                 const r    = await fetch(`${this.baseUrl}/extensiones/estados`, { headers: this.headers() });
                 const body = await r.json();
-                if (r.ok) this.conectadas = body.conectadas ?? [];
-            } catch { /* silencioso — el badge simplemente no aparece */ }
+                if (r.ok) {
+                    this.conectadas = body.conectadas ?? [];
+                    this.equipos    = body.equipos    ?? {};
+                }
+            } catch { /* silencioso — los badges simplemente no aparecen */ }
         },
 
         abrirModal(ext = null) {
