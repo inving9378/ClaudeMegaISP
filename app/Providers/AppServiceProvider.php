@@ -93,10 +93,18 @@ class AppServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton('SmartOlt', function () {
+            // Credenciales: BD (olt_smartolt_config) tiene precedencia sobre .env.
+            $dbCfg  = \App\Models\OltSmartoltConfig::isConfigured()
+                ? \App\Models\OltSmartoltConfig::current()
+                : null;
+
+            $domain = $dbCfg ? $dbCfg->api_domain : config('services.smartolt.domain');
+            $token  = $dbCfg ? $dbCfg->api_token  : config('services.smartolt.token');
+
             $data = [
-                'base_uri' => "https://" . config('services.smartolt.domain') . ".smartolt.com/api/",
-                'headers'  => ['X-Token' => config('services.smartolt.token')],
-                'verify'   => env('VERIFY_SSL', true)
+                'base_uri' => "https://{$domain}.smartolt.com/api/",
+                'headers'  => ['X-Token' => $token],
+                'verify'   => env('VERIFY_SSL', true),
             ];
             if (env('PROXY') !== null) {
                 $data['proxy'] = env('PROXY');

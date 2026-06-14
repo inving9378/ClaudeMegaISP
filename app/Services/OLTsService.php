@@ -28,9 +28,13 @@ class OLTsService
 
     public function __construct()
     {
-        $domain = config('services.smartolt.domain');
-        $this->baseUrl = "https://{$domain}/api";
-        $this->apiKey = config('services.smartolt.token');
+        $dbCfg = \App\Models\OltSmartoltConfig::isConfigured()
+            ? \App\Models\OltSmartoltConfig::current()
+            : null;
+
+        $domain          = $dbCfg ? $dbCfg->api_domain : config('services.smartolt.domain');
+        $this->baseUrl   = "https://{$domain}/api";
+        $this->apiKey    = $dbCfg ? $dbCfg->api_token  : config('services.smartolt.token');
     }
 
     // ── Budget helpers ────────────────────────────────────────────────────────
