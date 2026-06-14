@@ -11,6 +11,7 @@ class OltSmartoltConfig extends BaseModel
 
     protected $fillable = [
         'api_domain', 'api_token', 'ttl', 'hourly_budget', 'activa',
+        'alertas_olt_activas', 'alertas_rol_destino',
         'last_sync_ok_at', 'last_sync_error_at', 'connected_since',
         'last_error_message', 'last_olt_count',
     ];
@@ -18,9 +19,10 @@ class OltSmartoltConfig extends BaseModel
     protected $hidden = ['api_token'];
 
     protected $casts = [
-        'activa'             => 'boolean',
-        'ttl'                => 'integer',
-        'hourly_budget'      => 'integer',
+        'activa'               => 'boolean',
+        'alertas_olt_activas'  => 'boolean',
+        'ttl'                  => 'integer',
+        'hourly_budget'        => 'integer',
         'last_olt_count'     => 'integer',
         'last_sync_ok_at'    => 'datetime',
         'last_sync_error_at' => 'datetime',

@@ -4,6 +4,7 @@ namespace App\Console\Commands\Olts;
 
 use App\Models\Olt;
 use App\Models\OltSmartoltConfig;
+use App\Modules\Addons\GestionRed\Services\OltAlertService;
 use App\Services\OLTsService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
@@ -62,6 +63,19 @@ class SyncCritical extends Command
 
         if (!$only || $only === 'outages') {
             $this->syncOutages();
+        }
+
+        // Alertas PON (después de syncOutages para tener datos frescos)
+        try {
+            $alertService = new OltAlertService();
+            $detectadas   = $alertService->procesarInterrupciones();
+            if ($detectadas > 0) {
+                $modo = $alertService->isDryRun() ? '[DRY-RUN]' : '[ENVÍO REAL]';
+                $this->info("{$modo} {$detectadas} interrupción(es) PON procesadas.");
+            }
+        } catch (\Throwable $e) {
+            // Las alertas no deben tumbar la sincronización
+            $this->warn("OltAlertService falló: " . $e->getMessage());
         }
 
         $this->info('Sincronización de señales críticas completada correctamente');
