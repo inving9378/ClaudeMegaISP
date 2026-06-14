@@ -85,6 +85,12 @@ class OLTsConfigController extends Controller
 
             if ($response->getStatusCode() === 200 && isset($body['response'])) {
                 $count = count($body['response']);
+
+                // Ajuste (1): test exitoso → badge verde al instante sin esperar al cron
+                if (OltSmartoltConfig::isConfigured()) {
+                    OltSmartoltConfig::current()->markSyncOk($count);
+                }
+
                 return response()->json([
                     'success' => true,
                     'message' => "Conexión exitosa. Se encontraron {$count} OLT(s).",
@@ -98,11 +104,17 @@ class OLTsConfigController extends Controller
             ]);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             $status = $e->getResponse()->getStatusCode();
+            if (OltSmartoltConfig::isConfigured()) {
+                OltSmartoltConfig::current()->markSyncError("HTTP {$status} al probar conexión.");
+            }
             return response()->json([
                 'success' => false,
                 'message' => "SmartOLT respondió HTTP {$status}. Verifica que el token sea válido.",
             ]);
         } catch (\Throwable $e) {
+            if (OltSmartoltConfig::isConfigured()) {
+                OltSmartoltConfig::current()->markSyncError($e->getMessage());
+            }
             return response()->json([
                 'success' => false,
                 'message' => 'Error de conexión: ' . $e->getMessage(),

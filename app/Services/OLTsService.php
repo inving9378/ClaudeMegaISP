@@ -26,6 +26,20 @@ class OLTsService
     protected $baseUrl;
     protected $apiKey;
 
+    // ── Connection tracking (heartbeat) ───────────────────────────────────────
+    // Puede ser singleton en queue workers: resetear al inicio de cada corrida.
+    protected bool   $connectionFailed = false;
+    protected string $connectionError  = '';
+
+    public function resetConnectionTracking(): void
+    {
+        $this->connectionFailed = false;
+        $this->connectionError  = '';
+    }
+
+    public function wasConnectionOk(): bool   { return !$this->connectionFailed; }
+    public function getConnectionError(): string { return $this->connectionError; }
+
     public function __construct()
     {
         $dbCfg = \App\Models\OltSmartoltConfig::isConfigured()
@@ -146,17 +160,31 @@ class OLTsService
             if ($e->hasResponse()) {
                 $responseBody = (string) $e->getResponse()->getBody();
                 $decodedError = json_decode($responseBody, true);
+                $errMsg = $decodedError['message']
+                    ?? ('HTTP ' . $e->getResponse()->getStatusCode());
+                if (!$this->connectionFailed) {
+                    $this->connectionFailed = true;
+                    $this->connectionError  = $errMsg;
+                }
                 return [
                     'success' => false,
                     ...$decodedError,
                     'status_code' => $e->getResponse()->getStatusCode()
                 ];
             }
+            if (!$this->connectionFailed) {
+                $this->connectionFailed = true;
+                $this->connectionError  = $e->getMessage();
+            }
             return [
                 'success' => false,
                 'message' => $e->getMessage()
             ];
         } catch (\Exception $e) {
+            if (!$this->connectionFailed) {
+                $this->connectionFailed = true;
+                $this->connectionError  = $e->getMessage();
+            }
             return [
                 'success' => false,
                 'message' => $e->getMessage()

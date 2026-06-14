@@ -5,6 +5,7 @@ namespace App\Console\Commands\Olts;
 use App\Models\GeneralNotification;
 use App\Models\Olt;
 use App\Models\OltBilling;
+use App\Models\OltSmartoltConfig;
 use App\Models\User;
 use App\Notifications\StandardNotification;
 use App\Services\OLTsService;
@@ -42,7 +43,9 @@ class SyncInventory extends Command
             $this->error("La opción '{$only}' no es válida. Usa: " . implode(', ', $validOptions));
             return 1;
         }
-        $service =  new OLTsService();
+        $service = new OLTsService();
+        $service->resetConnectionTracking(); // reset por si es singleton en queue worker
+
         if ($only) {
             $this->info("Iniciando sincronización parcial: {$only}");
         } else {
@@ -93,6 +96,14 @@ class SyncInventory extends Command
             $this->syncBillings($service);
         }
         $this->info('Sincronización de inventario completada correctamente');
+
+        // Heartbeat — estampar resultado de conexión en BD
+        if (OltSmartoltConfig::isConfigured()) {
+            $cfg = OltSmartoltConfig::current();
+            $service->wasConnectionOk()
+                ? $cfg->markSyncOk(Olt::count())
+                : $cfg->markSyncError($service->getConnectionError());
+        }
     }
 
     public function syncOlts($service)

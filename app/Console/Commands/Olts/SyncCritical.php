@@ -3,6 +3,7 @@
 namespace App\Console\Commands\Olts;
 
 use App\Models\Olt;
+use App\Models\OltSmartoltConfig;
 use App\Services\OLTsService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
@@ -34,7 +35,9 @@ class SyncCritical extends Command
             $this->error("La opción '{$only}' no es válida. Usa: " . implode(', ', $validOptions));
             return 1;
         }
-        $service =  new OLTsService();
+        $service = new OLTsService();
+        $service->resetConnectionTracking(); // reset por si es singleton en queue worker
+
         if ($only) {
             $this->info("Iniciando sincronización parcial: {$only}");
         } else {
@@ -62,6 +65,14 @@ class SyncCritical extends Command
         }
 
         $this->info('Sincronización de señales críticas completada correctamente');
+
+        // Heartbeat — estampar resultado de conexión en BD
+        if (OltSmartoltConfig::isConfigured()) {
+            $cfg = OltSmartoltConfig::current();
+            $service->wasConnectionOk()
+                ? $cfg->markSyncOk(Olt::count())
+                : $cfg->markSyncError($service->getConnectionError());
+        }
     }
 
     public function syncTemperatures($service)
