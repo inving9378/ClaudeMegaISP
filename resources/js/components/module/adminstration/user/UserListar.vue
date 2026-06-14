@@ -74,7 +74,7 @@
                 <template v-slot:body="props">
                     <q-tr
                         :props="props"
-                        :class="props.row.active ? 'Activo' : 'Bloqueado'"
+                        :class="adminStatusMeta(props.row.estado).rowClass"
                     >
                         <q-td
                             v-for="col in props.cols"
@@ -86,7 +86,13 @@
                                 v-bind="props"
                                 v-if="col.name != 'action'"
                             >
-                                {{ col.value }}
+                                <template v-if="col.name === 'estado'">
+                                    <q-badge
+                                        :color="adminStatusMeta(props.row.estado).color"
+                                        :label="adminStatusMeta(props.row.estado).label"
+                                    />
+                                </template>
+                                <template v-else>{{ col.value }}</template>
                             </slot>
                             <slot
                                 :name="'body-cell-' + col.name"
@@ -158,7 +164,7 @@
                                         @click="
                                             deleteRow(
                                                 props.row.id,
-                                                props.row.active
+                                                props.row.estado
                                             )
                                         "
                                         :class="{
@@ -170,7 +176,7 @@
                                         <i
                                             :class="[
                                                 'fas',
-                                                props.row.active
+                                                props.row.estado === 'activo'
                                                     ? 'fa-power-off'
                                                     : 'fa-check-circle',
                                             ]"
@@ -231,6 +237,7 @@ import { ref, onMounted, computed, reactive } from "vue";
 import Swal from "sweetalert2";
 import Modal from "../../../../shared/ModalSimple.vue";
 import { getAll, deleteUser, activeOrInactive } from "./helper/request.js";
+import { adminStatusMeta } from "../../../../helpers/adminStatus.js";
 import PermissionUser from "./PermissionUser.vue";
 import Permission from "../../../../helpers/Permission";
 import { allViewHasPermission } from "../../../../helpers/Request";
@@ -357,15 +364,12 @@ const columns = ref([
         visible: true,
     },
     {
-        name: "active",
+        name: "estado",
         align: "start",
-        label: "Activo",
-        field: "active",
+        label: "Estado",
+        field: "estado",
         sortable: true,
         visible: true,
-        format: (val) => {
-            return val ? "Si" : "No";
-        },
     },
     {
         name: "action",
@@ -449,17 +453,23 @@ const getColumnsTable = async () => {
 };
 
 const ACTION_TEXTS = {
-    0: {
+    activo: {
+        title: "Confirmar desactivación",
+        message: "¿Está seguro de que desea desactivar este usuario?",
+        confirm: "Sí, Desactivar",
+        success: "Usuario desactivado correctamente",
+    },
+    inactivo: {
         title: "Confirmar activación",
         message: "¿Está seguro de que desea activar este usuario?",
         confirm: "Sí, Activar",
         success: "Usuario activado correctamente",
     },
-    1: {
-        title: "Confirmar desactivación",
-        message: "¿Está seguro de que desea desactivar este usuario?",
-        confirm: "Sí, Desactivar",
-        success: "Usuario desactivado correctamente",
+    bloqueado: {
+        title: "Confirmar activación",
+        message: "El usuario está bloqueado. ¿Desea reactivarlo?",
+        confirm: "Sí, Reactivar",
+        success: "Usuario reactivado correctamente",
     },
 };
 
