@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\PortalCliente;
 
+use App\Modules\Addons\PortalCliente\Console\AntiIdorTestCommand;
 use App\Modules\Addons\PortalCliente\Models\PortalClient;
 use App\Modules\Addons\PortalCliente\Middleware\AuthPortal;
 use App\Modules\BaseModuleServiceProvider;
@@ -34,5 +35,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
 
         // Registrar middleware de autenticación del portal
         $this->app['router']->aliasMiddleware('auth.portal', AuthPortal::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([AntiIdorTestCommand::class]);
+        }
     }
 }
