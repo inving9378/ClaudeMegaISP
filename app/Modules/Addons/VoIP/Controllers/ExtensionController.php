@@ -8,6 +8,7 @@ use App\Modules\Addons\VoIP\Models\Extension;
 use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -189,20 +190,85 @@ class ExtensionController extends Controller
         }
 
         try {
-            $activos = DB::connection('asterisk_rt')
-                ->table('ps_contacts')
-                ->where('expiration_time', '>', time())
-                ->pluck('endpoint')
-                ->map(fn ($ep) => explode('/', $ep)[0])  // normaliza "1001/xxx" → "1001"
-                ->unique()
-                ->values()
-                ->all();
+            [$conectadas, $equipos] = Cache::remember('voip_ext_estados', 10, function () {
+                $contactos = DB::connection('asterisk_rt')
+                    ->table('ps_contacts')
+                    ->where('expiration_time', '>', time())
+                    ->get(['endpoint', 'user_agent']);
+
+                $conectadas = $contactos
+                    ->pluck('endpoint')
+                    ->map(fn ($ep) => explode('/', $ep)[0])
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $equipos = $contactos
+                    ->keyBy(fn ($c) => explode('/', $c->endpoint)[0])
+                    ->map(fn ($c) => self::clasificarEquipo($c->user_agent))
+                    ->all();
+
+                return [$conectadas, $equipos];
+            });
         } catch (\Throwable $e) {
             Log::warning("VoIP: no se pudo leer ps_contacts para estados — {$e->getMessage()}");
             return response()->json(['error' => $e->getMessage()], 500);
         }
 
-        return response()->json(['conectadas' => $activos]);
+        return response()->json(['conectadas' => $conectadas, 'equipos' => $equipos]);
+    }
+
+    private static function clasificarEquipo(?string $ua): array
+    {
+        if (empty($ua)) {
+            return ['tipo' => 'desconocido', 'modelo' => null, 'user_agent' => $ua];
+        }
+
+        // Zoiper 5/3: reporta "Z 5.6.6 v2.10.20.5" — la palabra "Zoiper" no aparece en el UA
+        if (preg_match('/^Z\s+(\d[\d.]+)/i', $ua, $m)) {
+            return ['tipo' => 'softphone', 'modelo' => "Zoiper {$m[1]}", 'user_agent' => $ua];
+        }
+
+        $uaLow = strtolower($ua);
+
+        $fisicos = [
+            'grandstream', 'yealink', 'cisco', 'polycom', 'snom', 'fanvil',
+            'htek', 'akuvox', 'gigaset', 'vtech', 'escene', 'panasonic', 'aastra',
+        ];
+
+        foreach ($fisicos as $kw) {
+            if (str_contains($uaLow, $kw)) {
+                $partes = preg_split('/\s+/', trim($ua), 3);
+                $modelo = isset($partes[1]) ? "{$partes[0]} {$partes[1]}" : $partes[0];
+                return ['tipo' => 'fisico', 'modelo' => $modelo, 'user_agent' => $ua];
+            }
+        }
+
+        $softphones = [
+            'zoiper'      => 'Zoiper',
+            'microsip'    => 'MicroSIP',
+            'linphone'    => 'Linphone',
+            'bria'        => 'Bria',
+            'counterpath' => 'CounterPath',
+            'x-lite'      => 'X-Lite',
+            'groundwire'  => 'Groundwire',
+            'acrobits'    => 'Acrobits',
+            'phonerlite'  => 'PhonerLite',
+            '3cxphone'    => '3CX Phone',
+            '3cx'         => '3CX',
+            'twinkle'     => 'Twinkle',
+            'jitsi'       => 'Jitsi',
+            'pjsua'       => 'PJSUA',
+            'telephone'   => 'Telephone (macOS)',
+        ];
+
+        foreach ($softphones as $kw => $label) {
+            if (str_contains($uaLow, $kw)) {
+                return ['tipo' => 'softphone', 'modelo' => $label, 'user_agent' => $ua];
+            }
+        }
+
+        return ['tipo' => 'desconocido', 'modelo' => null, 'user_agent' => $ua];
     }
 
     public function toggle(Extension $extension): JsonResponse
