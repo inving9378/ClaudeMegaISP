@@ -192,6 +192,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('olts')->gr
 
         Route::prefix('smartolt-config')->group(function () {
             Route::get('/', [OLTsConfigController::class, 'getSmartoltConfig']);
+            Route::get('/status', [OLTsConfigController::class, 'connectionStatus']);
             Route::post('/', [OLTsConfigController::class, 'saveSmartoltConfig']);
             Route::post('/test', [OLTsConfigController::class, 'testSmartoltConnection']);
             Route::post('/import', [OLTsConfigController::class, 'importInventory']);

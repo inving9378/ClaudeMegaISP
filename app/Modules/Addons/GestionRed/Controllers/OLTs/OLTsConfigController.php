@@ -11,6 +11,36 @@ use Illuminate\Support\Facades\Artisan;
 
 class OLTsConfigController extends Controller
 {
+    public function connectionStatus(): JsonResponse
+    {
+        if (!OltSmartoltConfig::isConfigured()) {
+            return response()->json(['estado' => 'sin_configurar']);
+        }
+
+        $cfg      = OltSmartoltConfig::current();
+        $lastOk   = $cfg->last_sync_ok_at;
+        $lastErr  = $cfg->last_sync_error_at;
+        $now      = now();
+
+        if ($lastOk) {
+            $minSinceOk = $now->diffInMinutes($lastOk, true);
+            $okIsNewer  = !$lastErr || $lastOk->gt($lastErr);
+            $estado     = ($minSinceOk <= 15 && $okIsNewer) ? 'conectada' : 'sin_conexion';
+        } else {
+            $estado = $lastErr ? 'sin_conexion' : 'sin_configurar';
+        }
+
+        return response()->json([
+            'estado'             => $estado,
+            'api_domain'         => $cfg->api_domain,
+            'connected_since'    => $cfg->connected_since?->toIso8601String(),
+            'last_sync_ok_at'    => $cfg->last_sync_ok_at?->toIso8601String(),
+            'last_sync_error_at' => $cfg->last_sync_error_at?->toIso8601String(),
+            'last_error_message' => $cfg->last_error_message,
+            'last_olt_count'     => $cfg->last_olt_count,
+        ]);
+    }
+
     public function getSmartoltConfig(): JsonResponse
     {
         $cfg   = OltSmartoltConfig::current();
