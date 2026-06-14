@@ -12,15 +12,29 @@
 |---|---|
 | Módulo Mapas (module) | `app/Modules/Addons/Mapas/` |
 | Mapas controllers | `app/Modules/Addons/Mapas/Controllers/Geo/LayersController.php` (principal) |
-| Mapas routes | `app/Modules/Addons/Mapas/routes.php` (`prefix=maps`) |
-| Mapas Vue | `resources/js/components/module/maps/LeafletMap.vue` (Leaflet npm, ~1500 líneas) |
-| Stack Mapas | Leaflet (npm) + `L.control.groupedLayers` + `L.control.layers` + OSM tiles |
+| Mapas routes | `app/Modules/Addons/Mapas/routes.php` (`prefix=maps` y `mapas`) |
+| Mapas Vue | `resources/js/components/module/maps/LeafletMap.vue` (Leaflet npm + 10+ plugins, 1785 líneas) |
+| Stack Mapas | Leaflet (npm) + `L.control.groupedLayers` (npm) + MarkerCluster + leaflet-draw + OSM + Google Satélite |
+| `olts` tabla | `id, name, ip, status, driver` — **SIN lat/lng** |
+| `olt_onus` tabla | `id, sn, latitude, longitude, signal, status, signal_1310, signal_1490, olt_id, zone_name, …` |
+| `olt_odbs` tabla | `id, name, latitude, longitude, zone_id, zone_name` |
+| Cobertura geo real | `olt_onus`: **21**/2954 (0.7%); `olt_odbs`: **2**/671 (0.3%) — mayoría son strings vacíos |
+| `signal` values | categórico: "Very good", "Warning", "Critical", "-" (texto de SmartOLT) |
+| `signal_1490` | numérico dBm downstream (e.g. -24.95, -26.38) — disponible donde hay señal |
+| `olt_interruption_pons` | `id, olt_id, board, port, cause, total_onus, los_count, latest_status_change` |
+| Motor notificaciones | `GeneralNotification` + `StandardNotification` (ShouldQueue, via=['database']) |
+| Dry-run pattern | `{--dry-run}` artisan option → loguea sin aplicar (patrón de VoIP/Flotas) |
+| `system_settings` | **No existe** — flags van en `olt_smartolt_config` o `.env` |
+| Medussa | Nombre de la plataforma MegaISP, NO sistema de VMs (ej: docs/patron-responsive-medussa.md) |
 | `olt_onus` modelo | `app/Models/OltOnu.php` |
 | `olt_odbs` modelo | `app/Models/OltOdb.php` |
 | `PaymentApplicationService` | `app/Modules/Addons/Payments/Services/PaymentApplicationService.php` |
-| Motor notificaciones | `app/Models/GeneralNotification.php` + `app/Notifications/StandardNotification.php` |
-| Scheduler | `app/Console/Kernel.php` (bloque OLT: líneas ~44–52) |
-| Hoja de Ruta | `storage/app/roadmap-memory/` (último ítem: 120) |
+| Hoja de Ruta | `storage/app/roadmap-memory/` (último ítem: 123) |
+
+### Decisión de implementación — Mapa OLT
+LeafletMap.vue tiene 1785 líneas + 10 plugins npm. Modificarlo directamente es alto riesgo.
+**Decisión:** nueva página dedicada `/olts/mapa-red` en el módulo GestionRed con su propio
+componente Leaflet (usa los mismos paquetes npm ya instalados). **Totalmente aditivo.**
 
 ### Motor de notificaciones (patrón)
 ```php
@@ -93,8 +107,8 @@ Líneas 150–193: código comentado explícito. El enlace correcto es:
 | Fase | Estado | Commits |
 |---|---|---|
 | Paso 0 | ✅ Doc escrito | — |
-| Fase 1 | ⏳ | — |
-| Fase 2 | ⏳ | — |
-| Fase 3 | ⏳ | — |
-| Fase 4 | ⏳ | — |
-| Fase 5 | ⏳ | — |
+| Fase 1 | ✅ cron + ítems 121-123 | `7070e34`, `7191be3` |
+| Fase 2 (GR-2 backfill) | ✅ migración Pendiente+Activo → 98.1% cobertura | prev session |
+| Fase 1 Mapas | ✅ OltGeoController + OltRedMap.vue + /olts/mapa-red | `f00ea8c` |
+| Fase 2 Alertas | ✅ OltAlertService + flag apagado + dry-run verificado | `21a7599` |
+| Fase 3 SaaS | ✅ MULTIOLT_SAAS_DISENO.md | `3ebd006` |
