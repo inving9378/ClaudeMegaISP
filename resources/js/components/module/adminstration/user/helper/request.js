@@ -130,6 +130,14 @@ export const activeOrInactive = async (id) => {
     return response;
 };
 
+export const bloquearUser = async (id) => {
+    let response = {};
+    await axios.patch(`/administracion/user/${id}/bloquear`).then(
+        (res) => { response = res.data; }
+    );
+    return response;
+};
+
 export const getPermissionsForUser = async (id) => {
     let data = [];
     await axios["get"](

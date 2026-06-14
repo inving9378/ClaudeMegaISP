@@ -153,6 +153,25 @@
                                         </a>
                                     </span>
 
+                                    <!-- Botón bloquear / desbloquear -->
+                                    <span
+                                        v-if="
+                                            hasPermission.data.canView('user_edit_user') &&
+                                            props.row.estado !== 'inactivo'
+                                        "
+                                        :title="props.row.estado === 'bloqueado' ? 'Desbloquear' : 'Bloquear'"
+                                        :class="[
+                                            'me-1',
+                                            props.row.estado === 'bloqueado' ? 'text-warning' : 'text-secondary',
+                                            isSuperAdmin(props.row.id) ? 'disabled-text' : '',
+                                        ]"
+                                        role="button"
+                                        @click="!isSuperAdmin(props.row.id) && bloquearRow(props.row)"
+                                    >
+                                        <i :class="['fas', props.row.estado === 'bloqueado' ? 'fa-unlock' : 'fa-lock']"></i>
+                                    </span>
+
+                                    <!-- Botón activar / desactivar -->
                                     <span
                                         v-if="
                                             hasPermission.data.canView(
@@ -236,7 +255,7 @@
 import { ref, onMounted, computed, reactive } from "vue";
 import Swal from "sweetalert2";
 import Modal from "../../../../shared/ModalSimple.vue";
-import { getAll, deleteUser, activeOrInactive } from "./helper/request.js";
+import { getAll, deleteUser, activeOrInactive, bloquearUser } from "./helper/request.js";
 import { adminStatusMeta } from "../../../../helpers/adminStatus.js";
 import PermissionUser from "./PermissionUser.vue";
 import Permission from "../../../../helpers/Permission";
@@ -503,6 +522,27 @@ const deleteRow = async (userId, action) => {
             text: error.response?.data?.error || "Error inesperado",
             icon: "error",
         });
+    }
+};
+
+const bloquearRow = async (row) => {
+    try {
+        if (row.estado !== 'bloqueado') {
+            const confirmed = await Swal.fire({
+                title: "Confirmar bloqueo",
+                text: "Esto impedirá que su extensión haga llamadas salientes a la calle (seguirá recibiendo llamadas y comunicándose internamente). ¿Continuar?",
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Sí, Bloquear",
+                cancelButtonText: "Cancelar",
+            });
+            if (!confirmed.isConfirmed) return;
+        }
+        await bloquearUser(row.id);
+        Swal.fire({ title: "Éxito", text: row.estado === 'bloqueado' ? "Usuario desbloqueado" : "Usuario bloqueado", icon: "success" });
+        getAllUsers({ pagination: pagination.value });
+    } catch (error) {
+        Swal.fire({ title: "Error", text: error.response?.data?.error || "Error inesperado", icon: "error" });
     }
 };
 
