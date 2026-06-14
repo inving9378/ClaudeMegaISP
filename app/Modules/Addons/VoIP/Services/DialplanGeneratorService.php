@@ -75,6 +75,9 @@ class DialplanGeneratorService
             $lines[] = $this->buildGrupoContext($grupo);
         }
 
+        // Contexto restringido (bloqueado): internos sí, troncal no
+        $lines[] = $this->buildContextoRestringido();
+
         return implode("\n", $lines);
     }
 
@@ -143,6 +146,35 @@ class DialplanGeneratorService
         $lines[] = "";
 
         return implode("\n", $lines);
+    }
+
+    private function buildContextoRestringido(): string
+    {
+        return implode("\n", [
+            ';── Contexto restringido: usuario bloqueado (sin salientes a la calle) ──────',
+            '[from-internal-restringido]',
+            '',
+            '; Internos 3 dígitos (100-999)',
+            'exten = _[1-9]XX,1,NoOp(Restringido-interno: ${CALLERID(num)} → ${EXTEN})',
+            ' same = n,Set(CDR(userfield)=internal_restricted)',
+            ' same = n,Dial(PJSIP/${EXTEN},20)',
+            ' same = n,Hangup()',
+            '',
+            '; Internos 4 dígitos (1000-9999)',
+            'exten = _[1-9]XXX,1,NoOp(Restringido-interno: ${CALLERID(num)} → ${EXTEN})',
+            ' same = n,Set(CDR(userfield)=internal_restricted)',
+            ' same = n,Dial(PJSIP/${EXTEN},20)',
+            ' same = n,Hangup()',
+            '',
+            '; Intento de salida a la calle — DENEGADO',
+            'exten = _0[0-9].,1,NoOp(BLOQUEADO saliente: ${CALLERID(num)} → ${EXTEN})',
+            ' same = n,Playback(pbx-invalid)',
+            ' same = n,Hangup()',
+            '',
+            'exten = i,1,Hangup()',
+            'exten = t,1,Hangup()',
+            '',
+        ]);
     }
 
     private function fallbackLine(GrupoTimbrado $grupo): string

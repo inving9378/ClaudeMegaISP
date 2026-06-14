@@ -242,6 +242,25 @@ class AsteriskProvisioningService
         }
     }
 
+    public function reloadDialplan(): bool
+    {
+        try {
+            // pbx_config.so emite la confirmación como evento asíncrono;
+            // leer con readAll para capturar el "Module Reloaded".
+            $raw = $this->amiSend("Action: Reload\r\nModule: pbx_config.so\r\n\r\n", readAll: true);
+            $ok  = str_contains($raw, 'Response: Success')
+                || str_contains($raw, 'Module Reloaded')
+                || str_contains($raw, 'Module reloaded');
+            if (!$ok) {
+                Log::warning("VoIP: dialplan reload AMI response: {$raw}");
+            }
+            return $ok;
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: dialplan reload AMI failed: {$e->getMessage()}");
+            return false;
+        }
+    }
+
     /** Envía una acción AMI de tipo EventList y retorna los eventos parseados. */
     private function amiAction(string $action, array $params = []): array
     {
