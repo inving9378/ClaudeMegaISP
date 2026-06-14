@@ -7,6 +7,7 @@ use App\Models\OltSmartoltConfig;
 use GuzzleHttp\Client;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 
 class OLTsConfigController extends Controller
 {
@@ -107,5 +108,23 @@ class OLTsConfigController extends Controller
                 'message' => 'Error de conexión: ' . $e->getMessage(),
             ]);
         }
+    }
+
+    public function importInventory(): JsonResponse
+    {
+        if (!OltSmartoltConfig::isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Configura y activa las credenciales antes de importar.',
+            ]);
+        }
+
+        // Despacha el comando como job en segundo plano (queue: default)
+        Artisan::queue('smartolt:sync-inventory');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Importación iniciada en segundo plano. Las OLTs y ONUs se actualizarán en los próximos minutos.',
+        ]);
     }
 }

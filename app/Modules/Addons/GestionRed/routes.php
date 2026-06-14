@@ -194,6 +194,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('olts')->gr
             Route::get('/', [OLTsConfigController::class, 'getSmartoltConfig']);
             Route::post('/', [OLTsConfigController::class, 'saveSmartoltConfig']);
             Route::post('/test', [OLTsConfigController::class, 'testSmartoltConnection']);
+            Route::post('/import', [OLTsConfigController::class, 'importInventory']);
         });
     });
 });

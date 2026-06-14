@@ -90,6 +90,15 @@
                     :disable="!canTest"
                     @click="testConnection"
                 />
+                <q-btn
+                    outline
+                    color="accent"
+                    icon="cloud_download"
+                    label="Importar inventario"
+                    :loading="importing"
+                    :disable="!cfg.activa"
+                    @click="importInventory"
+                />
             </div>
 
         </q-form>
@@ -118,9 +127,10 @@ defineOptions({ name: "SmartoltConfig" });
 
 const $q = useQuasar();
 
-const loading = ref(false);
-const saving  = ref(false);
-const testing = ref(false);
+const loading   = ref(false);
+const saving    = ref(false);
+const testing   = ref(false);
+const importing = ref(false);
 const testResult = ref(null);
 
 const cfg = ref({
@@ -206,6 +216,19 @@ async function testConnection() {
         };
     } finally {
         testing.value = false;
+    }
+}
+
+async function importInventory() {
+    importing.value  = true;
+    testResult.value = null;
+    try {
+        const res = await axios.post("/olts/settings/smartolt-config/import");
+        $q.notify({ type: res.data.success ? "positive" : "warning", message: res.data.message });
+    } catch (e) {
+        $q.notify({ type: "negative", message: e?.response?.data?.message ?? "Error al iniciar importación." });
+    } finally {
+        importing.value = false;
     }
 }
 
