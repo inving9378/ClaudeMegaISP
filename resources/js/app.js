@@ -227,6 +227,7 @@ import QCalendar from "./shared/QCalendar.vue";
 
 //OLTS
 import OltsPanel from "./components/module/olts/OltsPanel.vue";
+import OltRedMap from "./components/module/olts/OltRedMap.vue";
 
 //Importar componentes quasar
 import {
@@ -695,6 +696,7 @@ const app = createApp({
 
         //OLTS
         OltsPanel,
+        OltRedMap,
 
         //RELEASES
         ReleasesIndex,

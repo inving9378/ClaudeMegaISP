@@ -18,6 +18,7 @@ use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsUplinkPortsController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsVlansController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsZonesController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsConfigController;
+use App\Modules\Addons\GestionRed\Controllers\OLTs\OltGeoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -99,6 +100,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () 
 // ---------------------------------------------------------------
 Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('olts')->group(function () {
     Route::get('/', [OLTsController::class, 'panel']);
+    Route::get('/mapa-red', fn() => view('meganet.module.olts.mapa-red'));
+    Route::get('/geo-capas', [OltGeoController::class, 'getCapas']);
     Route::post('/list', [OLTsController::class, 'oltList']);
     Route::post('/zones', [OLTsController::class, 'zones']);
     Route::post('/type-onus', [OLTsController::class, 'typeONUs']);
