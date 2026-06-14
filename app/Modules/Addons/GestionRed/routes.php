@@ -17,6 +17,7 @@ use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsTypeONUsController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsUplinkPortsController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsVlansController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsZonesController;
+use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsConfigController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -187,6 +188,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('olts')->gr
             Route::post('/{id}/uplink-ports', [OLTsUplinkPortsController::class, 'index']);
             Route::post('/{id}/vlans', [OLTsVlansController::class, 'index']);
             Route::post('/{id}/vlans/store', [OLTsVlansController::class, 'store']);
+        });
+
+        Route::prefix('smartolt-config')->group(function () {
+            Route::get('/', [OLTsConfigController::class, 'getSmartoltConfig']);
+            Route::post('/', [OLTsConfigController::class, 'saveSmartoltConfig']);
+            Route::post('/test', [OLTsConfigController::class, 'testSmartoltConnection']);
         });
     });
 });

@@ -21,6 +21,7 @@
         <q-tab name="profiles" label="Perfiles de velocidad" />
         <q-tab name="olts" label="OLTs" />
         <q-tab name="billings" label="Subscripciones" />
+        <q-tab name="credentials" label="Credenciales SmartOLT" />
     </q-tabs>
 
     <q-separator />
@@ -44,6 +45,9 @@
         <q-tab-panel name="billings" style="padding: 0">
             <billings :has-permission="hasPermission" />
         </q-tab-panel>
+        <q-tab-panel name="credentials" style="padding: 0">
+            <smartolt-config />
+        </q-tab-panel>
     </q-tab-panels>
 </template>
 
@@ -55,6 +59,7 @@ import TypeOnus from "./TypeOnus.vue";
 import Profiles from "./Profiles.vue";
 import Olts from "./Olts.vue";
 import Billings from "./Billings.vue";
+import SmartoltConfig from "./SmartoltConfig.vue";
 import { setActiveTab } from "../../../../../hook/appConfig";
 
 defineOptions({
