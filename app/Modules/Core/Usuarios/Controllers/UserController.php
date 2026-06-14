@@ -356,6 +356,17 @@ class UserController extends Controller
         return response()->json($colonies);
     }
 
+    public function bloquear($id)
+    {
+        $user = User::findOrFail($id);
+        // Alterna activo ↔ bloqueado (inactivo → activo si viene desde inactivo)
+        $nuevoEstado = ($user->estado === 'bloqueado') ? 'activo' : 'bloqueado';
+        $user->estado = $nuevoEstado;
+        $user->active = ($nuevoEstado === 'activo') ? 1 : 0;
+        $user->save(); // dispara UserVoipObserver
+        return response()->json(['message' => 'Estado actualizado', 'estado' => $nuevoEstado], 200);
+    }
+
     public function inactiveOrActive($id)
     {
         $user = User::find($id);
