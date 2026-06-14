@@ -1,0 +1,10 @@
+{
+    "slug": "addon-portal-cliente",
+    "name": "Portal Cliente",
+    "version": "1.0.0",
+    "description": "Portal web de autoatención para clientes del ISP: facturas, pagos, tickets, plan de internet y perfil.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "permissions": []
+}
