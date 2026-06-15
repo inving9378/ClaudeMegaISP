@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Addons\PortalCliente\Controllers\AuthController;
+use App\Modules\Addons\PortalCliente\Controllers\OpenpayWebhookController;
 use App\Modules\Addons\PortalCliente\Controllers\DashboardController;
 use App\Modules\Addons\PortalCliente\Controllers\FacturasController;
 use App\Modules\Addons\PortalCliente\Controllers\PagosController;
@@ -15,6 +16,13 @@ use Illuminate\Support\Facades\Route;
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
 
 Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function () {
+
+    // ── Webhook OpenPay (FUERA del guard cliente — lo llama OpenPay, no el cliente) ──
+    // Autenticación: Basic Auth donde password = OPENPAY_PRIVATE_KEY (validado en el controller).
+    // Activar URL en dashboard OpenPay cuando el subdominio/SSL esté publicado.
+    Route::post('/openpay/webhook', [OpenpayWebhookController::class, 'handle'])
+        ->name('openpay.webhook')
+        ->withoutMiddleware(['auth', 'auth.portal']);
 
     // ── Rutas públicas (sin auth cliente) ─────────────────────────────────
     Route::get('/login',      [AuthController::class, 'showLogin'])->name('login');
