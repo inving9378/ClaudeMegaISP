@@ -86,7 +86,7 @@
                 <div class="invalid-feedback" style="color:var(--danger); font-size:.82rem; margin-top:.25rem">{{ $message }}</div>
             @enderror
         </div>
-        <div style="display:grid; grid-template-columns:1fr 90px 70px; gap:.5rem; align-items:start">
+        <div class="addr-grid" style="display:grid; grid-template-columns:1fr 90px 70px; gap:.5rem; align-items:start">
             <div class="form-group" style="margin-bottom:0">
                 <label>Calle</label>
                 <input type="text" name="street" class="form-control"

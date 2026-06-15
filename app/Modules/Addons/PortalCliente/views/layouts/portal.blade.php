@@ -319,6 +319,20 @@
         .service-card h3 { font-size: 1.1rem; font-weight: 600; }
         .service-card p { font-size: .875rem; color: var(--text-muted); line-height: 1.5; }
 
+        /* ── Tables: scroll horizontal en móvil ── */
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        /* ── Dark mode: badges y alerts ── */
+        html.dark .badge-success  { background: #1a3a22; color: #6dd08a; }
+        html.dark .badge-warning  { background: #3a2e00; color: #ffd966; }
+        html.dark .badge-danger   { background: #3a1219; color: #f08090; }
+        html.dark .badge-info     { background: #0a2a30; color: #67cfe0; }
+        html.dark .badge-secondary{ background: #2a2a3a; color: #b0b8c8; }
+        html.dark .alert-success  { background: #1a3a22; color: #6dd08a; border-left-color: #28a745; }
+        html.dark .alert-danger   { background: #3a1219; color: #f08090; border-left-color: #dc3545; }
+        html.dark .alert-info     { background: #0a2a30; color: #67cfe0; border-left-color: #17a2b8; }
+        html.dark .alert-warning  { background: #3a2e00; color: #ffd966; border-left-color: #ffc107; }
+
         /* ── Mobile ── */
         @media (max-width: 768px) {
             .portal-layout { flex-direction: column; }
@@ -342,6 +356,8 @@
             .portal-sidebar .nav-section { display: none; }
             .portal-main { padding: 1rem; }
             .kpi-grid { grid-template-columns: 1fr 1fr; }
+            /* Grid de dirección en perfil: de 3 columnas a 1 */
+            .addr-grid { grid-template-columns: 1fr !important; }
         }
     </style>
 </head>
