@@ -4,7 +4,11 @@
 @section('content')
 <div class="page-header">
     <h1>📄 Mis Facturas</h1>
+    @if(config('openpay.sandbox'))
+    <span style="font-size:.82rem; color:var(--success); font-weight:500">💳 Pago con tarjeta disponible</span>
+    @else
     <span style="color:var(--text-muted); font-size:.875rem">Solo lectura</span>
+    @endif
 </div>
 
 @php
@@ -45,8 +49,13 @@ function estadoFacturaBadge($estado) {
                         <td style="font-weight:600">${{ number_format($f->total, 2) }}</td>
                         <td><span class="badge {{ $cls }}">{{ $label }}</span></td>
                         <td style="color:var(--text-muted); font-size:.82rem">{{ $f->payment_date ?? '—' }}</td>
-                        <td>
+                        <td style="white-space:nowrap">
                             <a href="{{ route('portal.facturas.show', $f->id) }}" class="btn btn-outline btn-sm">Ver</a>
+                            @if(config('openpay.sandbox') && ! str_contains(strtolower($f->estado ?? ''), 'pagado'))
+                            <a href="{{ route('portal.facturas.show', $f->id) }}" class="btn btn-primary btn-sm" style="margin-left:.35rem">
+                                💳 Pagar
+                            </a>
+                            @endif
                         </td>
                     </tr>
                 @endforeach

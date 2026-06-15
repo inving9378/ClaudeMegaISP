@@ -65,7 +65,14 @@
     @endif
 </div>
 
-<div class="alert alert-info" style="font-size:.82rem">
-    ℹ️ El portal muestra únicamente información de consulta. Para registrar un pago, realiza tu transferencia a la CLABE indicada arriba. El pago en línea con tarjeta (OpenPay) estará disponible próximamente.
+@if(config('openpay.sandbox'))
+<div class="alert alert-success" style="font-size:.82rem">
+    💳 <strong>Pago con tarjeta disponible.</strong> Ingresa a cualquier factura pendiente y usa el botón <em>Pagar con tarjeta</em> para realizar tu pago en línea de forma segura con OpenPay.
+    <a href="{{ route('portal.facturas') }}" style="margin-left:.5rem; font-weight:600">Ver mis facturas →</a>
 </div>
+@else
+<div class="alert alert-info" style="font-size:.82rem">
+    ℹ️ Para registrar un pago, realiza tu transferencia a la CLABE indicada arriba. El pago con tarjeta estará disponible próximamente.
+</div>
+@endif
 @endsection
