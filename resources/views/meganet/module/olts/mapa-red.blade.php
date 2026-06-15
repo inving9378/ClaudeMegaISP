@@ -4,6 +4,6 @@
 @endsection
 
 @section('content')
-    <Breadcrumb :list=[{title:"OLTs"},{title:"Mapa de red"}]></Breadcrumb>
+    <Breadcrumb :list="[{title:'OLTs'},{title:'Mapa de red'}]"></Breadcrumb>
     <olt-red-map />
 @endsection
