@@ -6,6 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
+        "ext-sockets": "*",
         "barryvdh/laravel-dompdf": "^2.0",
         "czproject/git-php": "^4.5",
         "doctrine/dbal": "^3.7",
@@ -22,6 +23,7 @@
         "markrogoyski/ipv4-subnet-calculator": "3.*",
         "matanyadaev/laravel-eloquent-spatial": "^4.0",
         "mavinoo/laravel-batch": "^2.4",
+        "openpay/sdk": "^3.1",
         "pear2/net_routeros": "dev-develop@dev",
         "simonschaufi/php-libkml": "^1.0",
         "spatie/laravel-activitylog": "^4.8",
@@ -29,8 +31,7 @@
         "symfony/http-client": "^6.0.19",
         "symfony/mailgun-mailer": "^6.0.19",
         "symfony/postmark-mailer": "^6.0.19",
-        "yajra/laravel-datatables-oracle": "^10.11",
-        "ext-sockets": "*"
+        "yajra/laravel-datatables-oracle": "^10.11"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.7",
