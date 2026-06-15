@@ -54,6 +54,7 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         // Perfil
         Route::get('/perfil',                    [PerfilController::class, 'index'])->name('perfil');
         Route::post('/perfil/cambiar-password',  [PerfilController::class, 'cambiarPassword'])->name('perfil.password');
+        Route::post('/perfil/actualizar-datos',  [PerfilController::class, 'actualizarDatos'])->name('perfil.actualizar');
 
         // Servicios / Marketplace
         Route::get('/servicios',                      [MarketplaceController::class, 'index'])->name('marketplace');
