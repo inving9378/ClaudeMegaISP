@@ -45,5 +45,27 @@
     <div style="margin-top:1.5rem; padding:.75rem; background:var(--surface); border-radius:8px; font-size:.82rem; color:var(--text-muted)">
         💡 El timbrado CFDI estará disponible próximamente. Para solicitar tu factura fiscal, contacta a nuestro equipo de soporte.
     </div>
+
+    {{-- Botón de pago: visible solo para facturas pendientes/atrasadas y con OpenPay habilitado --}}
+    @php
+        $esPendiente = ! str_contains(strtolower($factura->estado ?? ''), 'pagado');
+        $openpayHabilitado = config('openpay.sandbox') === true;
+    @endphp
+    @if($esPendiente && $openpayHabilitado)
+    <div style="margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid var(--border)">
+        <button onclick="opAbrirPagoModal()" class="btn btn-primary" style="font-size:1rem; padding:.65rem 1.75rem">
+            💳 Pagar con tarjeta
+        </button>
+        <div style="font-size:.75rem; color:var(--text-muted); margin-top:.5rem">
+            Pago seguro procesado por OpenPay. Tu número de tarjeta no es almacenado por nosotros.
+        </div>
+    </div>
+    @endif
 </div>
+
+{{-- Modal de pago OpenPay (formulario de tarjeta) --}}
+@if($esPendiente && $openpayHabilitado)
+    @include('addon-portal-cliente::partials.openpay_modal', ['factura' => $factura])
+@endif
+
 @endsection
