@@ -67,8 +67,11 @@ class TrackLastVisitedRoute
             }
         }
 
-        // Guardar solo si cambió
+        // Solo trackear usuarios admin (App\Models\User), no clientes del portal
         $user = Auth::user();
+        if (! ($user instanceof \App\Models\User)) {
+            return $response;
+        }
         if ($user->last_visited_route !== $fullPath) {
             $user->timestamps = false;
             $user->last_visited_route = $fullPath;

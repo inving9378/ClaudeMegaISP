@@ -10,17 +10,20 @@ class ConsumoController extends Controller
 {
     /**
      * Consumo de internet del cliente.
-     * client_name = 'Meganet__' . client_id (patrón verificado en audit).
-     * Aislado por client_name derivado de client_id autenticado.
+     *
+     * Dos patrones coexisten en BD: 'Meganet{id}' (mayoría) y 'Meganet__{id}' (legado, ~10 distincts).
+     * Ambos son seguros: igualdad exacta en whereIn, sin LIKE ni colisión entre clientes.
+     * Aislamiento: los nombres se derivan del client_id del cliente autenticado.
      */
     public function index()
     {
         $cmi      = Auth::guard('cliente')->user();
         $clientId = $cmi->client_id;
-        $clientName = 'Meganet__' . $clientId;
+
+        $names = ['Meganet' . $clientId, 'Meganet__' . $clientId];
 
         $consumos = DB::table('internet_consumptions')
-            ->where('client_name', $clientName)
+            ->whereIn('client_name', $names)
             ->orderByDesc('date_recorded')
             ->limit(30)
             ->get(['id', 'date_recorded', 'bytes_in', 'bytes_out', 'uptime', 'ip_address']);
