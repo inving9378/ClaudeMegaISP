@@ -20,8 +20,11 @@ class MarketplaceController extends Controller
         $clientId = $cmi->client_id;
 
         // Estado MegaFamilia del cliente
+        // $userId es null para los ~878 CMI sin fila en users (caso documentado).
+        // La vista muestra aviso en lugar del botón Activar cuando es null.
         $userId = $this->resolveUserId($cmi);
         $megafamiliaActiva = false;
+        $megafamiliaSinVinculacion = ($userId === null);
         if ($userId) {
             $megafamiliaActiva = DB::table('parental_accounts')
                 ->where('user_id', $userId)
@@ -29,7 +32,9 @@ class MarketplaceController extends Controller
                 ->exists();
         }
 
-        return view('addon-portal-cliente::marketplace', compact('cmi', 'megafamiliaActiva', 'userId'));
+        return view('addon-portal-cliente::marketplace', compact(
+            'cmi', 'megafamiliaActiva', 'userId', 'megafamiliaSinVinculacion'
+        ));
     }
 
     /**
@@ -44,7 +49,19 @@ class MarketplaceController extends Controller
 
         $userId = $this->resolveUserId($cmi);
         if (! $userId) {
-            return back()->withErrors(['error' => 'No se pudo asociar tu cuenta al módulo MegaFamilia. Contacta a soporte.']);
+            // CMI sin fila en users (878 casos documentados en audit).
+            // Registrar para seguimiento de soporte antes de responder.
+            DB::table('client_logs')->insert([
+                'client_id'   => $cmi->client_id,
+                'description' => '[Portal] MegaFamilia: no se encontró users.id para login_user=' . ($cmi->user ?? 'null'),
+                'add_by'      => 0,
+                'created_at'  => now(),
+                'updated_at'  => now(),
+            ]);
+            return back()->withErrors([
+                'error' => 'Tu cuenta aún no está vinculada al módulo MegaFamilia. '
+                    . 'Por favor contacta a soporte indicando tu número de cliente #' . $cmi->client_id . '.'
+            ]);
         }
 
         $existente = DB::table('parental_accounts')

@@ -41,6 +41,14 @@
                     </button>
                 </form>
             </div>
+        @elseif($megafamiliaSinVinculacion ?? false)
+            {{-- CMI sin fila en users (~878 casos) — mostrar aviso claro en lugar de botón --}}
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:.875rem; font-size:.82rem">
+                ℹ️ <strong>Activación pendiente de vinculación.</strong>
+                Tu cuenta necesita ser enlazada por el equipo de soporte para usar MegaFamilia.
+                Por favor contacta a soporte indicando tu número de cliente
+                <strong style="font-family:monospace">#{{ Auth::guard('cliente')->user()->client_id }}</strong>.
+            </div>
         @else
             <form method="POST" action="{{ route('portal.marketplace.megafamilia.activar') }}">
                 @csrf
