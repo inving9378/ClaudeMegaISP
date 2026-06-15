@@ -58,7 +58,9 @@
             </div>
 
             <!-- Mapa -->
-            <div ref="mapEl" class="olt-map-container"></div>
+            <div class="olt-map-canvas">
+                <div ref="mapEl" class="olt-map-leaflet"></div>
+            </div>
 
         </div>
 
@@ -351,8 +353,14 @@ onBeforeUnmount(() => {
 }
 
 /* ── Mapa ────────────────────────────────────────────────────── */
-.olt-map-container {
+.olt-map-canvas {
     flex: 1;
+    position: relative;
+    overflow: hidden;
     z-index: 1;
+}
+.olt-map-leaflet {
+    width: 100%;
+    height: 100%;
 }
 </style>

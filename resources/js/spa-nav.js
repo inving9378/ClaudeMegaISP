@@ -9,6 +9,7 @@ const SPA_ENABLED = true;
 const SPA_BLACKLIST = [
     '/logout',
     '/mapas',
+    '/olts/mapa-red',
     '/embajadores/metrics',
     '/embajadores/video',
     '/administracion/documentation/documentation_content',
