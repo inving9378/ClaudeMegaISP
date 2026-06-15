@@ -5,6 +5,7 @@ use App\Modules\Addons\PortalCliente\Controllers\DashboardController;
 use App\Modules\Addons\PortalCliente\Controllers\FacturasController;
 use App\Modules\Addons\PortalCliente\Controllers\PagosController;
 use App\Modules\Addons\PortalCliente\Controllers\PlanController;
+use App\Modules\Addons\PortalCliente\Controllers\PortalPagoController;
 use App\Modules\Addons\PortalCliente\Controllers\TicketsController;
 use App\Modules\Addons\PortalCliente\Controllers\PerfilController;
 use App\Modules\Addons\PortalCliente\Controllers\ConsumoController;
@@ -36,8 +37,9 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::get('/mi-plan', [PlanController::class, 'index'])->name('plan');
 
         // Facturas
-        Route::get('/facturas',       [FacturasController::class, 'index'])->name('facturas');
-        Route::get('/facturas/{id}',  [FacturasController::class, 'show'])->name('facturas.show');
+        Route::get('/facturas',              [FacturasController::class, 'index'])->name('facturas');
+        Route::get('/facturas/{id}',         [FacturasController::class, 'show'])->name('facturas.show');
+        Route::post('/facturas/{id}/pagar',  [PortalPagoController::class, 'cobrar'])->name('facturas.pagar');
 
         // Pagos + CLABE
         Route::get('/pagos', [PagosController::class, 'index'])->name('pagos');
