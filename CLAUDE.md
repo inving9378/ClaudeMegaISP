@@ -142,25 +142,42 @@ El campo legacy `password` del admin NO se modifica.
 - VoIP: GATEADO (en preparación)
 
 **Cliente de prueba:**
-- `clients.id` = 6810, nombre "FRANCISCO", contraseña portal: ver en CLAUDE.md local
-  ⚠️ Rotar contraseña tras validar en browser (Irving)
+- `clients.id` = 6810, nombre "FRANCISCO AGUILAR", teléfono `5510757244`
+- Contraseña portal (para validación en browser): `Portal2026Test!`
+  ⚠️ Rotar esta contraseña luego de validar — es temporal de prueba
 
 ---
 
 ## HOJA DE RUTA — Items pendientes
 
-| Item | Descripción | Prioridad |
-|------|-------------|-----------|
-| Portal: pago en línea OpenPay | Integrar OpenPay para pago de facturas desde el portal | Alta |
-| Portal: CFDI timbrado | Generar PDF/XML de facturas fiscales desde el portal | Media |
-| Portal: editar perfil | Permitir al cliente actualizar email, teléfono, dirección (con validación) | Media |
-| Portal: cobro/tarifas premium MegaFamilia | Activar planes de pago en MegaFamilia desde el portal vía OpenPay | Media |
-| Portal: funciones cliente MegaFamilia | Mostrar perfiles, dispositivos y estadísticas dentro del portal (actualmente gateado) | Media |
-| Portal: Flotas para cliente | Implementar scope por `fleet_vehicles.client_id` y exponer tracking | Baja |
-| Portal: subdominio + SSL | Configurar `portal.meganet.mx` con nginx + certbot | Alta |
-| Portal: notificación pago por email | Enviar recibo de pago al email del cliente cuando se procese | Media |
-| Admin: migración base64 → bcrypt | Migrar `users.password` de base64 a bcrypt para el admin (superficie interna) | Baja |
-| MegaFamilia: Fase 7 portal funciones | Perfiles, control parental, stats dentro del portal cliente | Futura |
+### Portal Cliente — estado al 2026-06-15
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| Portal: pago en línea OpenPay | Integrar OpenPay (sandbox) para pago de facturas desde el portal | ⏳ Siguiente | Alta |
+| Portal: subdominio + SSL | Configurar `portal.meganet.mx` con nginx + certbot | ⏳ Pendiente | Alta |
+| Portal: CFDI timbrado | Generar PDF/XML de facturas fiscales desde el portal | ⏳ Pendiente | Media |
+| Portal: cobro/tarifas premium MegaFamilia | Activar planes de pago en MegaFamilia desde el portal vía OpenPay | ⏳ Pendiente | Media |
+| Portal: funciones cliente MegaFamilia | Mostrar perfiles, dispositivos y estadísticas dentro del portal (actualmente gateado) | ⏳ Pendiente | Media |
+| Portal: notificación pago por email | Enviar recibo de pago al email del cliente cuando se procese | ⏳ Pendiente | Media |
+| Portal: Flotas para cliente | Implementar scope por `fleet_vehicles.client_id` y exponer tracking | ⏳ Pendiente | Baja |
+| Admin: migración base64 → bcrypt | Migrar `users.password` de base64 a bcrypt para el admin (superficie interna) | ⏳ Pendiente | Baja |
+| MegaFamilia: Fase 7 portal funciones | Perfiles, control parental, stats dentro del portal cliente | ⏳ Futura | Futura |
+
+### Portal Cliente — implementado y cerrado
+
+| Item | Commits |
+|------|---------|
+| ✅ Guard `cliente` + bcrypt + auto-registro | fc13436 |
+| ✅ Facturas (lectura, solo propias, anti-IDOR 404) | fc13436 |
+| ✅ Pagos + CLABE (lectura) | fc13436 |
+| ✅ Tickets (lectura + crear + responder) | fc13436 |
+| ✅ Consumo (fix dual-pattern Meganet{id}/Meganet__{id}) | fc13436 |
+| ✅ MegaFamilia activable (hardened para 878 CMI sin users) | 5f2cf26 |
+| ✅ Tests aislamiento (11 tests, DatabaseTransactions, sin migrate:fresh) | fc13436 |
+| ✅ Editar perfil de contacto con audit trail (portal_profile_change_log) | 0329a1d |
+| ✅ UX: estados vacíos en todas las vistas, responsive móvil, dark mode badges | c830944 |
+| ✅ Tests auth (16 tests: login/registro/recuperar/rate-limit/anti-enum/guard) | 9340008 |
 
 ---
 
