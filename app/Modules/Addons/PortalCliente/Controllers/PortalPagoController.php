@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\PortalCliente\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Payment;
 use App\Modules\Addons\PortalCliente\Services\OpenpayService;
 use App\Modules\Addons\PortalCliente\Services\OpenpayTransactionException;
 use Illuminate\Http\JsonResponse;
@@ -192,43 +193,42 @@ class PortalPagoController extends Controller
     }
 
     /**
-     * Registra el pago en `payments` (exactamente igual que lo haría un admin)
-     * y actualiza `client_invoices` para reflejar el nuevo estado.
+     * Registra el pago via Eloquent (Payment::create) para que PaymentObserver::created()
+     * se dispare y PaymentClientJob actualice balances + cree la transacción de crédito,
+     * exactamente igual que un pago hecho desde el panel admin.
      *
-     * Escribe dentro de una transacción para no dejar datos a medias si algo falla.
+     * NO insertes en transactions ni balances manualmente — el observer/job lo hacen.
      */
     private function registrarPago(int $clientId, object $factura, string $chargeId, float $amount): void
     {
         DB::transaction(function () use ($clientId, $factura, $chargeId, $amount) {
-            $hoy = now()->format('d/m/Y');
-
-            // Insertar en `payments` (misma estructura que el resto de pagos)
-            $paymentId = DB::table('payments')->insertGetId([
-                'payment_method_id' => self::METHOD_ID_OPENPAY,
-                'date'              => $hoy,
-                'amount'            => $amount,
-                'comment'           => 'Pago en línea OpenPay (Sandbox)',
-                'receipt'           => $chargeId,    // ID de cargo OpenPay como recibo
-                'add_by'            => self::ADD_BY_PORTAL,
-                'paymentable_id'    => $clientId,
-                'paymentable_type'  => 'App\\Models\\Client',
-                'is_first_payment'  => 0,
-                'enabled_payment_promise' => 0,
-                'created_at'        => now(),
-                'updated_at'        => now(),
+            // Crear via Eloquent → dispara PaymentObserver → PaymentClientJob → balance + transaction
+            $payment = Payment::create([
+                'payment_method_id'      => self::METHOD_ID_OPENPAY,
+                'date'                   => now()->toDateTimeString(),
+                'amount'                 => $amount,
+                'payment_period'         => '',
+                'comment'                => 'Pago en línea OpenPay (Sandbox)',
+                'receipt'                => $chargeId,
+                'send_receipt_after_payment' => false,
+                'add_by'                 => self::ADD_BY_PORTAL,
+                'paymentable_id'         => $clientId,
+                'paymentable_type'       => 'App\\Models\\Client',
+                'is_first_payment'       => false,
+                'enabled_payment_promise'=> false,
             ]);
 
             // Actualizar la factura: estado + fecha de pago + payment (CSV de IDs)
             $paymentsExistentes = trim($factura->payment ?? '');
             $nuevoPaymentField  = $paymentsExistentes
-                ? $paymentsExistentes . ', ' . $paymentId
-                : (string) $paymentId;
+                ? $paymentsExistentes . ', ' . $payment->id
+                : (string) $payment->id;
 
             DB::table('client_invoices')
                 ->where('id', $factura->id)
                 ->update([
                     'estado'       => 'Pagado',
-                    'payment_date' => $hoy,
+                    'payment_date' => now()->format('d/m/Y'),
                     'payment'      => $nuevoPaymentField,
                     'updated_at'   => now(),
                 ]);
