@@ -33,6 +33,7 @@ class OpenpayService
         Openpay::setId(config('openpay.id'));
         Openpay::setApiKey(config('openpay.private_key'));
         Openpay::setCountry('MX');
+        Openpay::setEndpointUrl('MX');   // rellena $apiSandboxEndpoint; sin esto el SDK lanza "No API endpoint set"
         Openpay::setSandboxMode(true);
 
         $this->api = OpenpayApi::getInstance(null);
