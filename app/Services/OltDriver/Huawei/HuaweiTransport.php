@@ -201,6 +201,43 @@ class HuaweiTransport
     }
 
     /**
+     * Send a WRITE command to the OLT, bypassing ReadOnlyGuard::assertAllowed().
+     *
+     * Called exclusively by HuaweiDriver::executeSteps() for non-navigation
+     * write steps (ont desc, ont reset, ont add, service-port, etc.).
+     * The caller is responsible for guard checks (assertWriteTargetAllowed) before
+     * calling this method.
+     *
+     * Confirmation handling: if $confirmReply is non-null, the method reads until
+     * the VRP (y/n) prompt, sends the reply, then reads until the command prompt.
+     * If the OLT firmware skips the confirmation and goes straight to the command
+     * prompt, readUntil('(y/n)') will time out — ⚠️ VERIFY against live hardware.
+     */
+    public function execWrite(string $cmd, ?string $confirmReply = null): string
+    {
+        $this->assertOpen();
+        $prompt = $this->currentPrompt();
+
+        // Drain any buffered output from the previous command
+        $this->session->readUntil($prompt, timeout: 10);
+
+        // Send without guard check — this is intentional for write operations
+        $this->session->write($cmd . "\r\n");
+        $this->logger->notice('[olt-huawei] transport:exec-write', ['cmd' => $cmd]);
+
+        if ($confirmReply !== null) {
+            // VRP emits (y/n) before the command prompt; read until we see it
+            $partial = $this->session->readUntil('(y/n)', timeout: 15);
+            $this->session->write($confirmReply . "\r\n");
+            $rest = $this->readFull($prompt, timeout: 30);
+            return trim($partial . ' ' . $rest);
+        }
+
+        $raw = $this->readFull($prompt, timeout: 30);
+        return $this->stripEcho($cmd, $raw);
+    }
+
+    /**
      * Close the session with a clean VRP quit sequence.
      */
     public function close(): void
