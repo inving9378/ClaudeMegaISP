@@ -1,0 +1,7 @@
+# W0 — capturado contra MA5800-X7 (2026-06-15)
+# Comando: display ont lineprofile by-lineprofile-id 1
+# Host y credenciales OMITIDOS (sanitizado)
+
+display ont lineprofileby-lineprofile-id1
+                              ^
+  % Unknown command, the error locates at '^'

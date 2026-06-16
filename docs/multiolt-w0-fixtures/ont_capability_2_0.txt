@@ -1,0 +1,43 @@
+# W0 intf-cfg — MA5800-X7 (2026-06-15)
+# Cmd: display ont capability 2 0
+
+Command:
+          display ont capability 2 0
+  -------------------------------------------------------------------------- 
+  ONT Hardware Capability / Status Information                               
+  -------------------------------------------------------------------------- 
+  F/S/P:                              0/3/2
+  ONT description:                    PRUEBA_zone_D1Z10_authd_20260610
+  ONT ID:                             0
+  Equipment ID:                       HG8145V5
+  Number of uplink PON ports:         1
+  Number of POTS ports:               1
+  Number of ETH ports:                4
+  Number of VDSL ports:               -
+  Number of TDM ports:                -
+  Number of MOCA ports:               -
+  Number of CATV ANI ports:           -
+  Number of CATV UNI ports:           -
+  Number of GEM ports:                32
+  IP configuration:                   support
+  Number of Traffic Schedulers:       8
+  Number of T-CONTs:                  8
+  The type of flow control:           PQ
+  ONT optical module power              
+  control capability:                 support
+  ONT type:                           HGU
+                                       Extended OMCI message format:       -
+  VoIP configuration method:          OMCI/Configuration file/TR069
+  VoIP signalling protocol:           SIP/H.248
+  ETHOAM:                             not support
+  Single ring check:                  support
+  -------------------------------------------------------------------------- 
+  Number of PQs in T-CONT   0:          8
+  Number of PQs in T-CONT   1:          8
+  Number of PQs in T-CONT   2:          8
+  Number of PQs in T-CONT   3:          8
+  Number of PQs in T-CONT   4:          8
+  Number of PQs in T-CONT   5:          8
+  Number of PQs in T-CONT   6:          8
+  Number of PQs in T-CONT   7:          8
+  --------------------------------------------------------------------------

@@ -1,0 +1,29 @@
+# W0 — capturado contra MA5800-X7 (2026-06-15)
+# Comando: display vlan all
+# Host y credenciales OMITIDOS (sanitizado)
+
+Command:
+          display vlan all
+  -----------------------------------------------------------------------
+  VLAN   Type      Attribute  STND-Port NUM   SERV-Port NUM  VLAN-Con NUM
+  -----------------------------------------------------------------------
+     1   smart     common                 8               0             -
+     2   smart     common                 0               0             -
+    20   smart     common                 0               0             -
+    22   smart     common                 0               0             -
+   101   smart     common                 0               0             -
+   102   smart     common                 0               0             -
+   103   smart     common                 1             556             -
+   104   smart     common                 1            1006             -
+   105   smart     common                 1             315             -
+   106   smart     common                 1             186             -
+   107   smart     common                 1             132             -
+   200   smart     common                 4              10             -
+   201   smart     common                 3               0             -
+   300   smart     common                 4            2188             -
+   400   smart     common                 4               0             -
+   500   smart     common                 2               2             -
+  -----------------------------------------------------------------------
+  Total: 16
+  Note : STND-Port--standard port, SERV-Port--service virtual port,
+         VLAN-Con--vlan-connect

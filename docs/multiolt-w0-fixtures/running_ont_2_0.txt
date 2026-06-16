@@ -1,0 +1,5 @@
+# W0 intf-cfg — MA5800-X7 (2026-06-15)
+# Cmd: display current-configuration ont 2 0
+
+^
+  % Parameter error, the error locates at '^'

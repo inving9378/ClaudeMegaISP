@@ -1,0 +1,7 @@
+# W0 — capturado contra MA5800-X7 (2026-06-15)
+# Comando: display ont srvprofile by-srvprofile-id 2
+# Host y credenciales OMITIDOS (sanitizado)
+
+display ont srvprofileby-srvprofile-id2
+                              ^
+  % Unknown command, the error locates at '^'

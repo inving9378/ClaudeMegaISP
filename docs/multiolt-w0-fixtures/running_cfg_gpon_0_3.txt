@@ -1,0 +1,6 @@
+# W0 running-cfg — MA5800-X7 (2026-06-15)
+# Cmd: display current-configuration interface gpon 0/3
+
+display current-configuration interface gpon0/3
+                                                          ^
+  % Parameter error, the error locates at '^'

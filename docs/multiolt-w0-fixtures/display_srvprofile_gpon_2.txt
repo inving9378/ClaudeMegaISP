@@ -1,0 +1,5 @@
+# W0 profiles — MA5800-X7 (2026-06-15)
+# Cmd: display ont-srvprofile gpon 2
+
+^
+  % Unknown command, the error locates at '^'

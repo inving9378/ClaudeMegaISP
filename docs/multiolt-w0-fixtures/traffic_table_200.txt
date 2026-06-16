@@ -1,0 +1,6 @@
+# W0 running-cfg — MA5800-X7 (2026-06-15)
+# Cmd: display traffic table ip index 200
+
+Command:
+          display traffic table ip index 200
+  Failure: The traffic table does not exist

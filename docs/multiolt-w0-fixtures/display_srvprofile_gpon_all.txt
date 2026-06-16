@@ -1,0 +1,50 @@
+# W0 profiles — MA5800-X7 (2026-06-15)
+# Cmd: display ont-srvprofile gpon all
+
+Command:
+          display ont-srvprofile gpon all
+  -----------------------------------------------------------------------------
+  Profile-ID  Profile-name                                Binding times
+  -----------------------------------------------------------------------------
+  0           srv-profile_default_0                       0            
+  1           HG8245Q2                                    231          
+  2           HG8145V5                                    711          
+  3           Generic_2_V200                              1            
+  4           HG8245H                                     41           
+  5           HG8245H5                                    54           
+  6           ONU-type-eth-4-pots-2-catv-0                3            
+  7           HG8010H                                     0            
+  8           HG8546M                                     150          
+  9           FG6123BTM                                   248          
+  10          HG8240H                                     0            
+  11          HG8242H                                     0            
+  12          srv-profile_12                              0            
+  13          ONU-type-eth-1-pots-2-catv-0                0            
+  14          ONU-type-eth-4-pots-2-catv-1                0            
+  15          Generic_1_V200                              0            
+  16          Generic_3_V200                              0            
+  17          Generic_6_V101                              0            
+  18          Generic_5_V101                              0            
+  19          Generic_1_V101                              0            
+                                       20          Generic_2_V101                              0            
+  21          Generic_4_V200                              0            
+  22          Generic_5_V200                              0            
+  23          Generic_6_V200                              0            
+  24          HG8346M                                     0            
+  25          HG8545M                                     0            
+  26          MT-41A5NET                                  727          
+  27          MT-45V5NET                                  17           
+  28          HG8247                                      0            
+  29          HG8120C                                     0            
+  30          NOKIA_Meganet                               0            
+  31          ZTE-F625                                    0            
+  32          ZTE-F620                                    0            
+  33          ZTE-F627                                    0            
+  34          ZTE-F601                                    0            
+  35          ZTE-F660                                    0            
+  36          ZTE-F623                                    0            
+  37          ZTE-F600                                    0            
+  38          ZTE-F643                                    0            
+  39          ET8145V5CUS                                 24           
+  -----------------------------------------------------------------------------
+  Total: 40
