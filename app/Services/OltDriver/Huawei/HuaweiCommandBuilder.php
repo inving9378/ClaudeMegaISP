@@ -153,6 +153,32 @@ class HuaweiCommandBuilder
     }
 
     /**
+     * Set (or clear) the description label on an ONT.
+     *
+     * VRP: `ont desc <port-id> <ont-id> <description>` (inside interface gpon {frame}/{slot})
+     * Passing an empty $desc generates `undo ont desc` which removes the label entirely.
+     * No confirmation prompt, no `save` required (volatile until next save).
+     *
+     * Inverse: ontDesc($frame, $slot, $port, $ontId, '') — restores the original label (or
+     * removes it if the ONT had none) without any service interruption.
+     *
+     * ⚠️ VERIFY in W3 live: VRP may or may not accept unquoted descriptions with special chars.
+     */
+    public static function ontDesc(int $frame, int $slot, int $port, int $ontId, string $desc): array
+    {
+        $safe     = str_replace(['"', "'", "\r", "\n"], '', $desc);
+        $writeCmd = $safe !== ''
+            ? "ont desc {$port} {$ontId} {$safe}"
+            : "undo ont desc {$port} {$ontId}";
+
+        return [
+            ['cmd' => "interface gpon {$frame}/{$slot}", 'nav' => true,  'confirm' => null],
+            ['cmd' => $writeCmd,                          'nav' => false,  'confirm' => null],
+            ['cmd' => 'return',                           'nav' => true,  'confirm' => null],
+        ];
+    }
+
+    /**
      * Extract the 'cmd' strings from a step sequence (for display / logging).
      *
      * @param  array<array{cmd:string,nav:bool,confirm:string|null}> $steps
