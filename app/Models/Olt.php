@@ -17,6 +17,9 @@ class Olt extends Model
     const DRIVER_SMARTOLT = 'smartolt';
     const DRIVER_HUAWEI   = 'huawei';
 
+    const MOTOR_SMARTOLT = 'smartolt';
+    const MOTOR_PROPIO   = 'propio';
+
     protected $fillable = [
         'name',
         'olt_hardware_version',
@@ -27,6 +30,7 @@ class Olt extends Model
         'uptime',
         'status',
         'driver',
+        'motor_modo',
         'last_synced_at'
     ];
 
@@ -35,6 +39,7 @@ class Olt extends Model
     protected $casts = [
         'last_synced_at' => 'datetime',
         'driver'         => 'string',
+        'motor_modo'     => 'string',
     ];
 
     public function cards()

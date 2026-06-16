@@ -82,6 +82,14 @@
                                 >
                                     Active
                                 </q-badge>
+                                <q-badge
+                                    v-if="object.motor_modo"
+                                    :color="object.motor_modo === 'propio' ? 'teal' : 'blue-grey'"
+                                    class="q-mt-xs"
+                                    :title="object.motor_modo === 'propio' ? 'Motor propio (HuaweiDriver)' : 'Motor SmartOLT'"
+                                >
+                                    {{ object.motor_modo === 'propio' ? 'Motor propio' : 'SmartOLT' }}
+                                </q-badge>
                             </q-item-section>
                         </q-item>
 
