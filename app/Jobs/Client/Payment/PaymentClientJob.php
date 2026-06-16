@@ -14,6 +14,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 
 class PaymentClientJob implements ShouldQueue
 {
@@ -50,22 +51,39 @@ class PaymentClientJob implements ShouldQueue
     // extends modular, así que callers que pasan el proxy siguen funcionando.
     public function created(\App\Modules\Core\Clientes\Models\Client $client)
     {
-        $client->updateClientBalance($this->payment);
+        // Idempotencia: si ya existe un crédito para este payment_id, el job ya
+        // corrió exitosamente (o fue reintentado tras un commit parcial previo).
+        // Salir sin duplicar balance ni transactions.
+        $yaAcreditado = DB::table('transactions')
+            ->where('payment_id', $this->payment->id)
+            ->where('type', 'credit')
+            ->where('is_payment', 1)
+            ->exists();
 
-        $client->load('balance');
-        $newBalance = $client->balance->amount;
-        $transaction = $client->addTransaction($this->payment, $newBalance);
-
-        if ($this->payment->is_first_payment) {
-            $client->client_main_information->activation_date = $this->payment->date;
-            $client->client_main_information->save();
+        if ($yaAcreditado) {
+            return;
         }
 
+        // Transacción única: si cualquier paso falla, el rollback revierte
+        // updateClientBalance + addTransaction, así el próximo reintento vuelve
+        // a encontrar el guard de idempotencia en false y repite limpiamente.
+        DB::transaction(function () use ($client) {
+            $client->updateClientBalance($this->payment);
 
-        $billingService = new ClientBillingService();
-        $billingService->billing($client, $newBalance, $transaction);
+            $client->load('balance');
+            $newBalance = $client->balance->amount;
+            $transaction = $client->addTransaction($this->payment, $newBalance);
 
-        $generalAccountingService = new GeneralAccountingService();
-        $generalAccountingService->setNewGeneralAccountingIncomeBeforePayment($this->payment, $client, $transaction);
+            if ($this->payment->is_first_payment) {
+                $client->client_main_information->activation_date = $this->payment->date;
+                $client->client_main_information->save();
+            }
+
+            $billingService = new ClientBillingService();
+            $billingService->billing($client, $newBalance, $transaction);
+
+            $generalAccountingService = new GeneralAccountingService();
+            $generalAccountingService->setNewGeneralAccountingIncomeBeforePayment($this->payment, $client, $transaction);
+        });
     }
 }
