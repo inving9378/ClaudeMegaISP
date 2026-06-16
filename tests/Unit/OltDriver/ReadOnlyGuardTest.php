@@ -4,6 +4,7 @@ namespace Tests\Unit\OltDriver;
 
 use App\Services\OltDriver\Huawei\ReadOnlyGuard;
 use App\Services\OltDriver\Huawei\ReadOnlyViolationException;
+use App\Services\OltDriver\Huawei\WriteTargetDeniedException;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use Psr\Log\NullLogger;
@@ -135,18 +136,37 @@ class ReadOnlyGuardTest extends TestCase
         }
     }
 
-    // ── Write stub ───────────────────────────────────────────────────────────
+    // ── Write allow-list ─────────────────────────────────────────────────────
 
-    public function test_write_stub_always_throws(): void
+    public function test_write_allowed_for_lab_sn(): void
     {
-        $this->expectException(ReadOnlyViolationException::class);
+        // HWTCFEFCC9A2 is the only pre-authorized entry in WRITE_ALLOW_LIST.
+        // Should NOT throw.
         $this->guard->assertWriteTargetAllowed('HWTCFEFCC9A2');
+        $this->assertTrue(true);
     }
 
-    public function test_write_stub_throws_for_any_sn(): void
+    public function test_write_allowed_sn_is_case_insensitive(): void
     {
-        $this->expectException(ReadOnlyViolationException::class);
+        $this->guard->assertWriteTargetAllowed('hwtcfefcc9a2');
+        $this->assertTrue(true);
+    }
+
+    public function test_write_denied_for_unknown_sn(): void
+    {
+        $this->expectException(WriteTargetDeniedException::class);
         $this->guard->assertWriteTargetAllowed('DEADBEEF00000000');
+    }
+
+    public function test_write_denied_message_contains_sn_and_allow_list(): void
+    {
+        try {
+            $this->guard->assertWriteTargetAllowed('BAADBAAD00000000');
+            $this->fail('Expected WriteTargetDeniedException');
+        } catch (WriteTargetDeniedException $e) {
+            $this->assertStringContainsString('BAADBAAD00000000', $e->getMessage());
+            $this->assertStringContainsString('HWTCFEFCC9A2', $e->getMessage());
+        }
     }
 
     // ── Logging ──────────────────────────────────────────────────────────────
@@ -174,14 +194,23 @@ class ReadOnlyGuardTest extends TestCase
         $this->assertSame('warning', $spy->entries[0]['level']);
     }
 
-    public function test_write_block_is_logged_at_error(): void
+    public function test_write_allowed_sn_is_logged_at_notice(): void
+    {
+        $spy  = $this->makeLogSpy();
+        (new ReadOnlyGuard($spy))->assertWriteTargetAllowed('HWTCFEFCC9A2');
+
+        $this->assertCount(1, $spy->entries);
+        $this->assertSame('notice', $spy->entries[0]['level']);
+    }
+
+    public function test_write_denied_sn_is_logged_at_error(): void
     {
         $spy  = $this->makeLogSpy();
         $guard = new ReadOnlyGuard($spy);
 
         try {
-            $guard->assertWriteTargetAllowed('HWTCFEFCC9A2');
-        } catch (ReadOnlyViolationException) {}
+            $guard->assertWriteTargetAllowed('UNKNOWN000000000');
+        } catch (WriteTargetDeniedException) {}
 
         $this->assertCount(1, $spy->entries);
         $this->assertSame('error', $spy->entries[0]['level']);

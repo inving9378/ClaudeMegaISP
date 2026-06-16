@@ -74,31 +74,35 @@ class ReadOnlyGuard
         throw new ReadOnlyViolationException($normalized);
     }
 
-    // ── Write scaffolding (NOT active) ───────────────────────────────────────
+    // ── Write allow-list ──────────────────────────────────────────────────────
     //
-    // When write operations are introduced (B1b-3+), this guard will require:
-    //   1. The target ONT SN must be in an explicit allow-list.
-    //      The test ONT (HWTCFEFCC9A2) is the only pre-authorized entry.
-    //   2. Commands will NEVER operate at port/board/system level;
-    //      only per-ONT primitives (ont modify, service-port on a single ONT).
-    //   3. Each write command will be logged at 'notice' level with the SN,
-    //      timestamp, and originating user before being dispatched.
-    //
-    // The stub below always throws so that accidental write paths surface
-    // immediately rather than silently reaching the OLT.
+    // Rules (non-negotiable for write operations):
+    //   1. SN must be in WRITE_ALLOW_LIST — default answer is NO.
+    //   2. Operations are per-ONT only (ont reset, ont delete, ont add, service-port
+    //      scoped to one ONT). Board/port/system-level commands are never generated.
+    //   3. Every allowed write is logged at 'notice' level with the SN for audit.
+
+    private const WRITE_ALLOW_LIST = ['HWTCFEFCC9A2'];
 
     /**
-     * Future write guard — always throws until writes are implemented.
+     * Assert that $sn is authorized for write operations.
      *
-     * @throws ReadOnlyViolationException always
+     * @throws WriteTargetDeniedException if $sn is not in WRITE_ALLOW_LIST
      */
-    public function assertWriteTargetAllowed(string $sn): never
+    public function assertWriteTargetAllowed(string $sn): void
     {
-        $this->logger->error('[olt-huawei] guard:write-blocked', ['sn' => $sn]);
+        $normalized = strtoupper(trim($sn));
 
-        throw new ReadOnlyViolationException(
-            "Writes not implemented. Pre-authorized test ONT: HWTCFEFCC9A2. Attempted SN: {$sn}"
-        );
+        if (! in_array($normalized, self::WRITE_ALLOW_LIST, strict: true)) {
+            $this->logger->error('[olt-huawei] guard:write-denied', [
+                'sn'         => $normalized,
+                'allow_list' => self::WRITE_ALLOW_LIST,
+            ]);
+
+            throw new WriteTargetDeniedException($normalized, self::WRITE_ALLOW_LIST);
+        }
+
+        $this->logger->notice('[olt-huawei] guard:write-allowed', ['sn' => $normalized]);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

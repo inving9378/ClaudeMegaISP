@@ -16,7 +16,7 @@ use Psr\Log\NullLogger;
 use Throwable;
 
 /**
- * Read-only driver for Huawei MA5800/MA5600 OLTs.
+ * Driver for Huawei MA5800/MA5600 OLTs.
  *
  * Implements OltDriverInterface using a persistent SSH/Telnet session via
  * HuaweiTransport. All responses are normalized to the same shape returned
@@ -30,19 +30,30 @@ use Throwable;
  *
  * signal_1490 = ONT Rx power (downstream, 1490 nm — what the customer receives)
  * signal_1310 = OLT Rx power (upstream,   1310 nm — what the OLT receives from the ONT)
+ *
+ * Write operations (B4):
+ *   dry_run = true  (default) — commands are generated but never sent; returns
+ *                               ['dry_run' => true, 'commands' => [...VRP strings...]].
+ *   dry_run = false           — W3: commands are executed against the live OLT.
+ *   Allow-list enforced by ReadOnlyGuard::assertWriteTargetAllowed().
  */
 class HuaweiDriver implements OltDriverInterface
 {
-    private readonly string $oltId;
-    private readonly int    $frame;
+    private readonly string        $oltId;
+    private readonly int           $frame;
+    private readonly bool          $dryRun;
+    private readonly ReadOnlyGuard $guard;
 
     public function __construct(
         private readonly HuaweiTransport $transport,
         private readonly array           $config,
         private readonly LoggerInterface $logger = new NullLogger(),
+        ?ReadOnlyGuard                   $guard  = null,
     ) {
-        $this->oltId = (string) ($config['olt_id'] ?? 'huawei-olt');
-        $this->frame = (int)   ($config['frame']  ?? 0);
+        $this->oltId  = (string) ($config['olt_id']  ?? 'huawei-olt');
+        $this->frame  = (int)   ($config['frame']   ?? 0);
+        $this->dryRun = (bool)  ($config['dry_run'] ?? true);   // safe default: always dry-run
+        $this->guard  = $guard ?? new ReadOnlyGuard($this->logger);
     }
 
     // ── OltDriverInterface ────────────────────────────────────────────────────
@@ -353,28 +364,131 @@ class HuaweiDriver implements OltDriverInterface
         $this->transport->close();
     }
 
-    // ── Escrituras — NOT IMPLEMENTED (B4) ────────────────────────────────────
+    // ── Escrituras — B4 (dry_run = true por defecto) ─────────────────────────
 
-    public function authorizeOnu(array $data): array
-    {
-        throw new WriteNotEnabledException('authorizeOnu');
-    }
-
-    public function deauthorizeOnu(string $onuId): array
-    {
-        throw new WriteNotEnabledException('deauthorizeOnu');
-    }
-
-    public function setOnuEnabled(string $onuId, bool $enabled): array
-    {
-        throw new WriteNotEnabledException('setOnuEnabled');
-    }
-
+    /**
+     * Reinicia un ONT remotamente.
+     *
+     * VRP: `ont reset <port> <ont-id>` (inside interface gpon {frame}/{slot})
+     * Dry-run: returns the command sequence without sending anything.
+     * Live (dry_run=false / W3): executes the sequence against the OLT.
+     */
     public function rebootOnu(string $onuId): array
     {
-        throw new WriteNotEnabledException('rebootOnu');
+        return $this->withWriteTarget($onuId, function (int $frame, int $slot, int $port, int $ontId, string $sn) {
+            $steps = HuaweiCommandBuilder::rebootOnt($frame, $slot, $port, $ontId);
+
+            if ($this->dryRun) {
+                return $this->dryRunResult($sn, $steps);
+            }
+
+            // W3: live execution (not yet implemented — flip dry_run=false in config)
+            throw new WriteNotEnabledException('rebootOnu:execute — set config.dry_run=false only for W3');
+        });
     }
 
+    /**
+     * Elimina/desautoriza un ONT de la OLT.
+     *
+     * ⚠️ Pausar el sync de SmartOLT de esta OLT antes de ejecutar.
+     * Usar en el ciclo: deauthorizeOnu() → authorizeOnu() para re-provisionar.
+     */
+    public function deauthorizeOnu(string $onuId): array
+    {
+        return $this->withWriteTarget($onuId, function (int $frame, int $slot, int $port, int $ontId, string $sn) {
+            $steps = HuaweiCommandBuilder::deleteOnt($frame, $slot, $port, $ontId);
+
+            if ($this->dryRun) {
+                return $this->dryRunResult($sn, $steps);
+            }
+
+            throw new WriteNotEnabledException('deauthorizeOnu:execute — set config.dry_run=false only for W3');
+        });
+    }
+
+    /**
+     * Habilita o deshabilita el servicio de un ONT (activate / deactivate).
+     * No elimina la config del ONT — solo suspende/reactiva la sesión OMCI.
+     */
+    public function setOnuEnabled(string $onuId, bool $enabled): array
+    {
+        return $this->withWriteTarget($onuId, function (int $frame, int $slot, int $port, int $ontId, string $sn) use ($enabled) {
+            $steps = $enabled
+                ? HuaweiCommandBuilder::activateOnt($frame, $slot, $port, $ontId)
+                : HuaweiCommandBuilder::deactivateOnt($frame, $slot, $port, $ontId);
+
+            if ($this->dryRun) {
+                return $this->dryRunResult($sn, $steps);
+            }
+
+            throw new WriteNotEnabledException('setOnuEnabled:execute — set config.dry_run=false only for W3');
+        });
+    }
+
+    /**
+     * Autoriza (provisiona) un ONT en la OLT.
+     *
+     * $data must contain:
+     *   sn              string  — SN del ONT (debe estar en el allow-list)
+     *   frame           int     — frame (normalmente 0)
+     *   slot            int
+     *   port            int
+     *   ont_id          int
+     *   line_profile_id int     — perfil de línea (line-profile-id en VRP)
+     *   srv_profile_id  int     — perfil de servicio (srvprofile-id en VRP)
+     *   desc            string  — descripción (opcional)
+     *   svlan           int     — outer VLAN del service-port
+     *   user_vlan       int     — VLAN del usuario
+     *   cvlan           int|null — inner VLAN para QinQ; null = single-tag
+     *   gemport         int
+     *
+     * Genera: addOnt() + addServicePort() (dos secuencias de comandos).
+     * ⚠️ Pausar el sync de SmartOLT antes de ejecutar en modo live.
+     */
+    public function authorizeOnu(array $data): array
+    {
+        return $this->withSession(function () use ($data) {
+            try {
+                $sn = strtoupper(trim($data['sn'] ?? ''));
+
+                if ($sn === '') {
+                    return ['success' => false, 'message' => "authorizeOnu: 'sn' is required in \$data."];
+                }
+
+                $this->guard->assertWriteTargetAllowed($sn);
+
+                $frame  = (int) ($data['frame']           ?? $this->frame);
+                $slot   = (int) ($data['slot']            ?? 0);
+                $port   = (int) ($data['port']            ?? 0);
+                $ontId  = (int) ($data['ont_id']          ?? 0);
+                $lpId   = (int) ($data['line_profile_id'] ?? 0);
+                $spId   = (int) ($data['srv_profile_id']  ?? 0);
+                $desc   = (string) ($data['desc']         ?? '');
+                $svlan  = (int) ($data['svlan']           ?? 0);
+                $uvlan  = (int) ($data['user_vlan']       ?? 0);
+                $cvlan  = isset($data['cvlan']) ? (int) $data['cvlan'] : null;
+                $gp     = (int) ($data['gemport']         ?? 1);
+
+                $addSteps = HuaweiCommandBuilder::addOnt($frame, $slot, $port, $ontId, $sn, $lpId, $spId, $desc);
+                $spSteps  = HuaweiCommandBuilder::addServicePort($svlan, $frame, $slot, $port, $ontId, $gp, $uvlan, $cvlan);
+                $steps    = array_merge($addSteps, $spSteps);
+
+                if ($this->dryRun) {
+                    return $this->dryRunResult($sn, $steps);
+                }
+
+                throw new WriteNotEnabledException('authorizeOnu:execute — set config.dry_run=false only for W3');
+            } catch (WriteTargetDeniedException $e) {
+                return ['success' => false, 'message' => $e->getMessage()];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * Cambio de perfil de velocidad — NOT IMPLEMENTED (requiere análisis de DBA profiles en VRP).
+     */
     public function setOnuSpeedProfile(string $onuId, array $data): array
     {
         throw new WriteNotEnabledException('setOnuSpeedProfile');
@@ -415,6 +529,64 @@ class HuaweiDriver implements OltDriverInterface
             try { $this->transport->close(); } catch (Throwable) {}
             $lock->release();
         }
+    }
+
+    /**
+     * Write operation scaffold: open session → look up ONT → check allow-list → $fn().
+     *
+     * The ONT lookup (display ont info) serves dual purpose:
+     *   1. Confirms the ONT exists at the given onuId before any write is attempted.
+     *   2. Resolves the SN for the allow-list gate (rebootOnu / deauthorizeOnu / setOnuEnabled
+     *      receive only onuId, not SN — the SN is read from the live OLT).
+     *
+     * $fn receives (frame, slot, port, ontId, sn) and returns the result array.
+     */
+    private function withWriteTarget(string $onuId, callable $fn): array
+    {
+        return $this->withSession(function () use ($onuId, $fn) {
+            try {
+                [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
+
+                $output = $this->transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
+                $onts   = OntInfoParser::parse($output, $this->logger);
+
+                if (empty($onts)) {
+                    return ['success' => false, 'message' => "ONT not found: {$onuId}"];
+                }
+
+                $sn = $this->normalizeSn($onts[0]['sn']);
+
+                $this->guard->assertWriteTargetAllowed($sn);
+
+                return $fn($frame, $slot, $port, $ontId, $sn);
+            } catch (WriteTargetDeniedException $e) {
+                return ['success' => false, 'message' => $e->getMessage()];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * Build the dry-run response: command strings with no I/O performed.
+     *
+     * @param array<array{cmd:string,nav:bool,confirm:string|null}> $steps
+     */
+    private function dryRunResult(string $sn, array $steps): array
+    {
+        $cmds = HuaweiCommandBuilder::cmdStrings($steps);
+
+        $this->logger->notice('[olt-huawei] driver:dry-run', [
+            'sn'       => $sn,
+            'commands' => $cmds,
+        ]);
+
+        return [
+            'success'  => true,
+            'dry_run'  => true,
+            'sn'       => $sn,
+            'commands' => $cmds,
+        ];
     }
 
     private function collectAllOnts(): array

@@ -5,6 +5,7 @@ namespace Tests\Unit\OltDriver;
 use App\Services\OltDriver\Huawei\HuaweiDriver;
 use App\Services\OltDriver\Huawei\HuaweiTransport;
 use App\Services\OltDriver\Huawei\WriteNotEnabledException;
+use App\Services\OltDriver\Huawei\WriteTargetDeniedException;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
@@ -325,35 +326,194 @@ class HuaweiDriverTest extends TestCase
         }
     }
 
-    // ── Write methods must throw WriteNotEnabledException ────────────────────
+    // ── setOnuSpeedProfile still throws (not implemented) ────────────────────
 
-    /** @dataProvider writeMethods */
-    public function test_write_methods_throw_write_not_enabled(string $method, array $args): void
+    public function test_set_onu_speed_profile_throws_write_not_enabled(): void
     {
         $this->expectException(WriteNotEnabledException::class);
-        $this->driver->{$method}(...$args);
+        $this->driver->setOnuSpeedProfile('1:0/3/2:0', []);
     }
 
-    public static function writeMethods(): array
+    // ── Dry-run write operations ──────────────────────────────────────────────
+
+    /** Build a driver with dry_run=true (default) and a transport that returns the port fixture for display ont info. */
+    private function makeDryRunDriver(): HuaweiDriver
     {
-        return [
-            'authorizeOnu'        => ['authorizeOnu',        [[]]],
-            'deauthorizeOnu'      => ['deauthorizeOnu',      ['1:0/3/2:0']],
-            'setOnuEnabled'       => ['setOnuEnabled',       ['1:0/3/2:0', true]],
-            'rebootOnu'           => ['rebootOnu',           ['1:0/3/2:0']],
-            'setOnuSpeedProfile'  => ['setOnuSpeedProfile',  ['1:0/3/2:0', []]],
-        ];
+        $transport = $this->createMock(HuaweiTransport::class);
+        $transport->method('isOpen')->willReturn(true);
+        $transport->method('exec')->willReturn(self::$ontPortFixture);
+
+        return new HuaweiDriver(
+            transport: $transport,
+            config:    ['olt_id' => '1', 'name' => 'MA5800-TEST', 'frame' => 0, 'dry_run' => true],
+            logger:    new NullLogger(),
+        );
     }
 
-    public function test_write_not_enabled_exception_message_contains_operation(): void
+    public function test_reboot_onu_dry_run_returns_success(): void
     {
-        try {
-            $this->driver->rebootOnu('1:0/3/2:0');
-            $this->fail('Expected WriteNotEnabledException');
-        } catch (WriteNotEnabledException $e) {
-            $this->assertStringContainsString('rebootOnu', $e->getMessage());
-            $this->assertStringContainsString('B4', $e->getMessage());
-        }
+        $result = $this->makeDryRunDriver()->rebootOnu('1:0/3/2:0');
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($result['dry_run']);
+    }
+
+    public function test_reboot_onu_dry_run_contains_allowed_sn(): void
+    {
+        $result = $this->makeDryRunDriver()->rebootOnu('1:0/3/2:0');
+
+        $this->assertSame('HWTCFEFCC9A2', $result['sn']);
+    }
+
+    public function test_reboot_onu_dry_run_contains_vrp_commands(): void
+    {
+        $result = $this->makeDryRunDriver()->rebootOnu('1:0/3/2:0');
+
+        $this->assertIsArray($result['commands']);
+        $this->assertContains('ont reset 2 0', $result['commands']);
+        $this->assertContains('interface gpon 0/3', $result['commands']);
+        $this->assertContains('return', $result['commands']);
+    }
+
+    public function test_deauthorize_onu_dry_run_returns_success(): void
+    {
+        $result = $this->makeDryRunDriver()->deauthorizeOnu('1:0/3/2:0');
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($result['dry_run']);
+    }
+
+    public function test_deauthorize_onu_dry_run_contains_delete_command(): void
+    {
+        $result = $this->makeDryRunDriver()->deauthorizeOnu('1:0/3/2:0');
+
+        $this->assertContains('ont delete 2 0', $result['commands']);
+    }
+
+    public function test_set_onu_enabled_true_dry_run_contains_activate(): void
+    {
+        $result = $this->makeDryRunDriver()->setOnuEnabled('1:0/3/2:0', true);
+
+        $this->assertTrue($result['dry_run']);
+        $this->assertContains('ont activate 2 0', $result['commands']);
+    }
+
+    public function test_set_onu_enabled_false_dry_run_contains_deactivate(): void
+    {
+        $result = $this->makeDryRunDriver()->setOnuEnabled('1:0/3/2:0', false);
+
+        $this->assertTrue($result['dry_run']);
+        $this->assertContains('ont deactivate 2 0', $result['commands']);
+    }
+
+    public function test_authorize_onu_dry_run_returns_success(): void
+    {
+        $transport = $this->createMock(HuaweiTransport::class);
+        $transport->method('isOpen')->willReturn(true);
+
+        $driver = new HuaweiDriver(
+            transport: $transport,
+            config:    ['olt_id' => '1', 'frame' => 0, 'dry_run' => true],
+            logger:    new NullLogger(),
+        );
+
+        $result = $driver->authorizeOnu([
+            'sn'              => 'HWTCFEFCC9A2',
+            'frame'           => 0,
+            'slot'            => 3,
+            'port'            => 2,
+            'ont_id'          => 0,
+            'line_profile_id' => 1,
+            'srv_profile_id'  => 2,
+            'desc'            => 'PRUEBA',
+            'svlan'           => 105,
+            'user_vlan'       => 200,
+            'cvlan'           => 200,
+            'gemport'         => 1,
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($result['dry_run']);
+        $this->assertSame('HWTCFEFCC9A2', $result['sn']);
+    }
+
+    public function test_authorize_onu_dry_run_commands_include_ont_add_and_service_port(): void
+    {
+        $transport = $this->createMock(HuaweiTransport::class);
+        $transport->method('isOpen')->willReturn(true);
+
+        $driver = new HuaweiDriver(
+            transport: $transport,
+            config:    ['olt_id' => '1', 'frame' => 0, 'dry_run' => true],
+            logger:    new NullLogger(),
+        );
+
+        $result = $driver->authorizeOnu([
+            'sn'              => 'HWTCFEFCC9A2',
+            'frame'           => 0, 'slot' => 3, 'port' => 2, 'ont_id' => 0,
+            'line_profile_id' => 1, 'srv_profile_id' => 2, 'desc' => 'PRUEBA',
+            'svlan'           => 105, 'user_vlan' => 200, 'cvlan' => 200, 'gemport' => 1,
+        ]);
+
+        $cmds = implode(' | ', $result['commands']);
+        $this->assertStringContainsString('ont add 2 0 sn-auth HWTCFEFCC9A2', $cmds);
+        $this->assertStringContainsString('service-port vlan 105', $cmds);
+        $this->assertStringContainsString('inner-vlan 200', $cmds);
+    }
+
+    public function test_write_denied_for_non_allow_listed_sn(): void
+    {
+        $transport = $this->createMock(HuaweiTransport::class);
+        $transport->method('isOpen')->willReturn(true);
+
+        // Return a fixture where the SN is NOT on the allow-list
+        $bogusOntFixture = str_replace('HWTCFEFCC9A2', 'UNKNOWNSN12345', self::$ontPortFixture);
+        $transport->method('exec')->willReturn($bogusOntFixture);
+
+        $driver = new HuaweiDriver(
+            transport: $transport,
+            config:    ['olt_id' => '1', 'frame' => 0, 'dry_run' => true],
+            logger:    new NullLogger(),
+        );
+
+        $result = $driver->rebootOnu('1:0/3/2:0');
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('UNKNOWNSN12345', $result['message']);
+    }
+
+    public function test_authorize_onu_denied_for_non_allow_listed_sn(): void
+    {
+        $transport = $this->createMock(HuaweiTransport::class);
+        $transport->method('isOpen')->willReturn(true);
+
+        $driver = new HuaweiDriver(
+            transport: $transport,
+            config:    ['olt_id' => '1', 'frame' => 0, 'dry_run' => true],
+            logger:    new NullLogger(),
+        );
+
+        $result = $driver->authorizeOnu(['sn' => 'NOTALLOWED0000', 'frame' => 0]);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('NOTALLOWED0000', $result['message']);
+    }
+
+    public function test_reboot_onu_missing_ont_returns_failure(): void
+    {
+        $transport = $this->createMock(HuaweiTransport::class);
+        $transport->method('isOpen')->willReturn(true);
+        $transport->method('exec')->willReturn(self::$ontEmptyFixture);
+
+        $driver = new HuaweiDriver(
+            transport: $transport,
+            config:    ['olt_id' => '1', 'frame' => 0, 'dry_run' => true],
+            logger:    new NullLogger(),
+        );
+
+        $result = $driver->rebootOnu('1:0/3/2:0');
+
+        $this->assertFalse($result['success']);
     }
 
     // ── findOnuBySn() ─────────────────────────────────────────────────────────
