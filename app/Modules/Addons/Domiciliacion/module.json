@@ -1,0 +1,47 @@
+{
+    "slug": "addon-domiciliacion",
+    "name": "Domiciliación a Tarjeta",
+    "version": "1.0.0",
+    "description": "Cobro recurrente automático mensual con tarjeta de crédito o débito vía OpenPay. Arranque apagado; se activa por piloto.",
+    "type": "addon",
+    "dependencies": ["addon-portal-cliente"],
+    "active": false,
+
+    "permissions": [
+        { "name": "domiciliacion.view",    "description": "Ver estado de domiciliación de clientes" },
+        { "name": "domiciliacion.manage",  "description": "Enrolar, cancelar y gestionar tarjetas de clientes" },
+        { "name": "domiciliacion.cobrar",  "description": "Ejecutar o revisar el comando de cobro recurrente" },
+        { "name": "domiciliacion.links",   "description": "Generar y enviar ligas de enrolamiento a clientes" }
+    ],
+
+    "menu": [],
+
+    "client_tab": {
+        "label": "Domiciliación",
+        "component": "DomiciliacionClientTab",
+        "permission": "domiciliacion.manage"
+    },
+
+    "ai": {
+        "knowledge": "El módulo de Domiciliación permite registrar una tarjeta de crédito o débito por cliente para cobros mensuales automáticos via OpenPay. El número de tarjeta se tokeniza en el navegador; nunca llega al servidor. El comando domiciliacion:cobrar corre mensualmente y solo opera si OPENPAY_SANDBOX=true Y domiciliacion_habilitada=true. Cada cliente puede tener solo una tarjeta activa.",
+        "example_intents": [
+            "ver si un cliente tiene tarjeta registrada para domiciliación",
+            "cancelar la domiciliación de un cliente",
+            "enviar liga de registro de tarjeta a un cliente",
+            "revisar intentos de cobro fallidos"
+        ],
+        "sensitive_actions": ["domiciliacion.cobrar", "domiciliacion.manage"]
+    },
+
+    "config_sections": [
+        {
+            "key": "domiciliacion_habilitada",
+            "label": "Domiciliación — Habilitación del piloto",
+            "type": "general",
+            "category": "Pagos",
+            "icon": "credit-card",
+            "permission": "domiciliacion.cobrar",
+            "description": "Interruptor maestro del cobro automático. Requiere también OPENPAY_SANDBOX=true en .env. Apagado por defecto; activar solo tras validar el piloto."
+        }
+    ]
+}
