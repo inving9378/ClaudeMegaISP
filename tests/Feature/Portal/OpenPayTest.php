@@ -100,6 +100,9 @@ class OpenPayTest extends PortalTestCase
     public function test_cargo_completado_registra_un_pago_y_actualiza_factura(): void
     {
         $cliente = $this->crearClientePortal();
+        // Balance requerido: PaymentClientJob lee balance->amount tras acreditar
+        $this->crearBalance($cliente->client_id, -399.00);
+
         $factura = $this->crearFactura($cliente->client_id, [
             'estado' => 'Atrasado',
             'total'  => 399.00,
@@ -232,6 +235,82 @@ class OpenPayTest extends PortalTestCase
 
         $response->assertOk()->assertJson(['success' => false]);
         $this->assertStringContainsString('ya fue pagada', $response->json('error'));
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // (e2) Cargo completed vía Eloquent → balance acreditado + transacción crédito
+    //      Verifica la reconciliación completa con el panel admin.
+    //      Con QUEUE_CONNECTION=sync (phpunit.xml), PaymentClientJob corre inline.
+    // ─────────────────────────────────────────────────────────────────
+
+    public function test_cargo_completado_acredita_balance_y_crea_transaccion_credito(): void
+    {
+        $cliente       = $this->crearClientePortal();
+        $montoInicial  = -500.00;
+        $montoPago     = 399.00;
+
+        $this->crearBalance($cliente->client_id, $montoInicial);
+
+        $factura  = $this->crearFactura($cliente->client_id, [
+            'estado' => 'Pendiente',
+            'total'  => $montoPago,
+        ]);
+
+        $chargeId = 'trk_sandbox_recon_' . uniqid();
+
+        $this->app->bind(OpenpayService::class, function () use ($chargeId, $montoPago) {
+            $mock = $this->createMock(OpenpayService::class);
+            $mock->expects($this->once())
+                ->method('cobrarTarjeta')
+                ->willReturn((object) [
+                    'id'     => $chargeId,
+                    'status' => 'completed',
+                    'amount' => $montoPago,
+                ]);
+            return $mock;
+        });
+
+        $response = $this->actingAs($cliente, 'cliente')
+            ->postJson("/portal/facturas/{$factura}/pagar", [
+                'token'             => 'tok_test_recon',
+                'device_session_id' => 'sess_test_recon',
+            ]);
+
+        $response->assertOk()->assertJson(['success' => true]);
+
+        // ── 1. Payment creado via Eloquent (Payment::create, no DB::table) ───────
+        $payment = \App\Models\Payment::where('receipt', $chargeId)->first();
+        $this->assertNotNull($payment, 'Payment debe existir via Eloquent');
+        $this->assertEquals($montoPago, (float) $payment->amount);
+        $this->assertEquals($cliente->client_id, $payment->paymentable_id);
+        $this->assertEquals('App\\Models\\Client', $payment->paymentable_type);
+
+        // ── 2. Balance acreditado por PaymentClientJob (QUEUE_CONNECTION=sync) ──
+        $balance = DB::table('balances')
+            ->where('balanceable_id', $cliente->client_id)
+            ->where('balanceable_type', 'App\\Models\\Client')
+            ->first();
+        $this->assertNotNull($balance, 'Debe existir registro de balance');
+        $this->assertEquals(
+            $montoInicial + $montoPago,
+            (float) $balance->amount,
+            "Balance esperado: {$montoInicial} + {$montoPago} = " . ($montoInicial + $montoPago) . ", obtenido: {$balance->amount}"
+        );
+
+        // ── 3. Transacción de crédito creada ────────────────────────────────────
+        $transaction = DB::table('transactions')
+            ->where('client_id', $cliente->client_id)
+            ->where('type', 'credit')
+            ->where('is_payment', 1)
+            ->where('payment_id', $payment->id)
+            ->first();
+        $this->assertNotNull($transaction, 'Debe existir transacción type=credit, is_payment=1');
+        $this->assertEquals($montoPago, (float) $transaction->credit);
+        $this->assertEquals('Pago', $transaction->category);
+
+        // ── 4. Pago visible en panel admin (misma query que ClientPaymentDatatableHelper) ─
+        $count = \App\Models\Payment::where('paymentable_id', $cliente->client_id)->count();
+        $this->assertEquals(1, $count, 'El pago debe aparecer en la lista del panel admin');
     }
 
     // ─────────────────────────────────────────────────────────────────

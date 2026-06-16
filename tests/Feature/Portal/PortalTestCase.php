@@ -148,4 +148,19 @@ abstract class PortalTestCase extends TestCase
             'updated_at' => now(),
         ]);
     }
+
+    /**
+     * Crea un registro de balance inicial para el cliente.
+     * balanceable_type = 'App\Models\Client' (morph alias real en producción).
+     */
+    protected function crearBalance(int $clientId, float $amount = 0.0): int
+    {
+        return DB::table('balances')->insertGetId([
+            'balanceable_id'   => $clientId,
+            'balanceable_type' => 'App\\Models\\Client',
+            'amount'           => $amount,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+    }
 }
