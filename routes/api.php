@@ -21,13 +21,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::get('/bd-reset', function () {
-    \Illuminate\Support\Facades\Artisan::call('migrate:fresh');
-    \Illuminate\Support\Facades\Artisan::call('updatecolumndatatablemodule:process');
-    \Illuminate\Support\Facades\Artisan::call('updatefielmodule:process');
-    return redirect()->back();
-});
-
 // Webhook de deploy — llamado por el servidor local tras hacer git push.
 // No requiere auth de sesión; protegido por X-Deploy-Token (DEPLOY_WEBHOOK_SECRET en .env).
 Route::post('/webhook/deploy', [DeployWebhookController::class, 'handle']);
