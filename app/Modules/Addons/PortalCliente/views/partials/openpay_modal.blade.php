@@ -189,20 +189,23 @@ html.dark #op-estado.rechazado { background: #3a1219; color: #f08090; }
     OpenPay.setApiKey('{{ config("openpay.public_key") }}');
     OpenPay.setSandboxMode({{ config('openpay.sandbox') ? 'true' : 'false' }});
 
-    // Generar device_session_id para antifraude (lo llena en campo oculto)
-    var deviceSessionId;
-    try {
-        deviceSessionId = OpenPay.deviceData.setup('form-openpay', 'op-session-id');
-    } catch(e) {
-        console.warn('[OpenPay] device_session_id no pudo generarse:', e.message);
-        deviceSessionId = 'fallback-' + Date.now();
-        document.getElementById('op-session-id').value = deviceSessionId;
-    }
-
     // ── Abrir / cerrar modal ────────────────────────────────────────────
+    // NOTA: setup() se llama aquí (no al cargar la página) para maximizar el tiempo
+    // entre la inicialización del iframe antifraude y el submit del usuario.
+    // En producción (HTTPS) el iframe de OpenPay comunica correctamente con la página.
+    // En desarrollo (HTTP puro, ej. 192.168.x.x) el iframe puede no poder escribir en
+    // el input por restricciones de mixed-content/same-origin; el submit-handler
+    // detecta ese caso y usa el fallback, registrando el intento en BD para diagnóstico.
     window.opAbrirPagoModal = function () {
+        // Limpiar session previa y solicitar una nueva al iframe antifraude
+        document.getElementById('op-session-id').value = '';
+        try {
+            OpenPay.deviceData.setup('form-openpay', 'op-session-id');
+        } catch(e) {
+            console.warn('[OpenPay] deviceData.setup falló al abrir modal:', e.message);
+        }
         document.getElementById('openpay-overlay').classList.add('activo');
-        opReintentarPago(); // resetear estado
+        opReintentarPago(); // resetear estado visual del formulario
     };
 
     window.opClosePagoModal = function () {
@@ -234,6 +237,11 @@ html.dark #op-estado.rechazado { background: #3a1219; color: #f08090; }
         document.getElementById('op-aprobado-inner').style.display  = 'none';
         document.getElementById('op-rechazado-inner').style.display = 'none';
 
+        // Asegurar que el número de tarjeta no tenga espacios antes de que OpenPay lo lea
+        // (el oninput formatea "4111 1111 1111 1111"; OpenPay necesita sin espacios)
+        var cardInput = document.querySelector('#form-openpay [data-openpay-card="card_number"]');
+        if (cardInput) cardInput.value = cardInput.value.replace(/\s+/g, '');
+
         // Tokenizar en el navegador (el PAN nunca llega al servidor)
         OpenPay.token.extractFormAndCreate(
             'form-openpay',
@@ -248,6 +256,16 @@ html.dark #op-estado.rechazado { background: #3a1219; color: #f08090; }
         var invoiceId = document.getElementById('op-invoice-id').value;
         var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
+        // Leer device_session_id del input (OpenPay lo llenó de forma async tras setup())
+        // Si está vacío, generar fallback para que la validación del servidor no falle con 422.
+        // Con fallback OpenPay rechazará por antifraude (registrado en portal_payment_attempts).
+        var dsid = document.getElementById('op-session-id').value;
+        if (!dsid) {
+            dsid = 'fallback-' + Date.now();
+            document.getElementById('op-session-id').value = dsid;
+            console.warn('[OpenPay] device_session_id no fue llenado por setup(); usando fallback.');
+        }
+
         fetch('/portal/facturas/' + invoiceId + '/pagar', {
             method : 'POST',
             headers: {
@@ -257,7 +275,7 @@ html.dark #op-estado.rechazado { background: #3a1219; color: #f08090; }
             },
             body: JSON.stringify({
                 token            : token,
-                device_session_id: deviceSessionId,
+                device_session_id: dsid,
                 invoice_id       : invoiceId,
             })
         })
@@ -287,6 +305,7 @@ html.dark #op-estado.rechazado { background: #3a1219; color: #f08090; }
     }
 
     function opTokenError(errorData) {
+        console.error('[OpenPay] tokenError:', errorData);
         var est = document.getElementById('op-estado');
         est.className = 'rechazado';
         document.getElementById('op-procesando-inner').style.display = 'none';
