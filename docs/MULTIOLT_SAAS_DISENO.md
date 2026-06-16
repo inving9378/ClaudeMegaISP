@@ -204,5 +204,65 @@ No comprometer a Camino A o B sin haber desplegado al menos una instancia piloto
 
 ---
 
+---
+
+## 8. Motor de escritura Huawei — Fuente de verdad, independencia y modo de operación
+
+> Decisiones acordadas en sesión W2 (2026-06-16). Aplican al Bloque B a partir de B4-W1.
+
+### 8.1 Fuente de verdad
+
+La **OLT es la verdad física real**. El estado que vive en la OLT (ONTs provisionados, service-ports, VLANs, perfiles) es el estado autoritativo. SmartOLT es una capa de sincronización que *refleja* ese estado pero nunca lo origina. MegaISP posee los datos de negocio (cliente asociado, tarifa, historial, notas), la OLT posee los datos de red.
+
+Consecuencia operativa: ante divergencia entre lo que SmartOLT reporta y lo que `display ont info` devuelve, el resultado del CLI de la OLT tiene precedencia. SmartOLT es una vista de lectura que puede quedar momentáneamente desincronizada — nunca un oráculo de writes.
+
+### 8.2 Meta = independencia TOTAL (no parcial)
+
+El objetivo a largo plazo es operar cada OLT Huawei **sin SmartOLT** como intermediario para ninguna operación CRUD. Esto incluye:
+- Lectura de ONTs y señales (ya logrado en B2-B3).
+- Provisión de nuevos ONTs (authorizeOnu — ciclo delete+add+service-port).
+- Desprovisión (deauthorizeOnu).
+- Cambio de perfil de velocidad (setOnuSpeedProfile — pendiente B5).
+- Gestión de service-ports y VLANs (futuro).
+
+El motor de escritura Huawei (`HuaweiDriver`) NO debe delegar a SmartOLT para ejecutar nada. Las API de SmartOLT pueden usarse como *lectura de referencia o validación*, pero la ejecución real viaja siempre por SSH/TELNET directamente a la OLT.
+
+### 8.3 SmartOLT como maestro/validador (durante la transición)
+
+Durante el período de coexistencia (antes de paridad demostrada), SmartOLT sirve como:
+
+1. **Referencia de ground truth** para derivar los parámetros correctos de los comandos VRP. Los fixtures W0 (`docs/multiolt-w0-fixtures/`) capturan exactamente cómo SmartOLT provisiona el ONT de lab — mismos valores que el motor propio debe reproducir.
+2. **Validador post-operación**: tras ejecutar una operación con el motor propio, se puede comparar el estado leído de la OLT contra lo que SmartOLT esperaría para detectar divergencias antes de que impacten al usuario final.
+3. **Fallback de emergencia**: si el driver Huawei falla (sesión SSH caída, timeout), SmartOLT puede ejecutar la operación por su cuenta. Esta ruta de fallback solo se activa manualmente (nunca automática) y se registra en el log.
+
+### 8.4 Secuencia de operaciones — diarias primero
+
+El orden de implementación prioriza las operaciones de mayor frecuencia diaria:
+
+| Prioridad | Operación | Frecuencia | Estado |
+|---|---|---|---|
+| 1 | Reboot ONT (diagnóstico) | Varias por día | B4-W1 dry-run ✅ |
+| 2 | Activar / Desactivar ONT (corte/reconexión) | Diaria | B4-W1 dry-run ✅ |
+| 3 | Autorizar ONT nuevo (alta cliente) | Semanal | B4-W1 dry-run ✅ |
+| 4 | Desautorizar ONT (baja cliente) | Semanal | B4-W1 dry-run ✅ |
+| 5 | Cambio de perfil de velocidad (reperfilado) | Semanal | Pendiente B5 |
+| 6 | Gestión de service-ports y VLANs | Eventual | Futuro |
+
+Las operaciones 1-4 están en dry-run desde W1. El primer write real (W3, supervisado) será el reboot, por ser el más seguro y reversible.
+
+### 8.5 Check de modo y coexistencia
+
+Cada OLT tiene un campo `motor_modo` (enum `'smartolt'|'propio'`, default `'smartolt'`) que indica qué motor ejecuta las operaciones write sobre esa OLT:
+
+- **`smartolt`** (default): las operaciones write se delegan a la API SmartOLT. El motor Huawei propio puede leer pero no escribe.
+- **`propio`**: las operaciones write van por `HuaweiDriver` directamente al CLI de la OLT. SmartOLT puede usarse para lectura de referencia.
+
+**En W2 este campo es puramente informativo** (muestra un badge en la UI, no cambia ningún comportamiento). La transición funcional `smartolt → propio` ocurre en W3 y posteriores, OLT por OLT, solo después de validación con Irving presente.
+
+Regla de coexistencia: nunca cambiar `motor_modo` de una OLT mientras haya operaciones en curso (provisiones, bajas). El cambio de modo es una operación administrativa que requiere ventana de mantenimiento y sync SmartOLT pausado.
+
+---
+
 *Documento creado por Claude Sonnet 4.6 como resultado de la sesión autónoma MultiOLT 2026-06-13.
-Basado en auditoría directa del codebase — no estimaciones.*
+Sección 8 agregada en sesión W2 (2026-06-16) — decisiones acordadas Irving + asistente.*
+*Basado en auditoría directa del codebase — no estimaciones.*
