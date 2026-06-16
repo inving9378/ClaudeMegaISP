@@ -693,8 +693,10 @@ class HuaweiDriver implements OltDriverInterface
                 'response' => $response,
             ]);
 
-            // ABORT on any VRP error keyword
-            if (preg_match('/^\s*(Error|Failure|failed)/im', $response)) {
+            // ABORT on any VRP error indicator:
+            // % = VRP unknown-command / parameter-error prefix (e.g. "% Unknown command")
+            // Error:/Failure: = explicit error headers  |  failed = mid-line failure word
+            if (preg_match('/^\s*(%|Error|Failure|failed)/im', $response)) {
                 $this->logger->error('[olt-huawei] execute-steps:abort', [
                     'sn'       => $sn,
                     'cmd'      => $cmd,

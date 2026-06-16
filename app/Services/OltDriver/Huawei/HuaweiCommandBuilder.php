@@ -166,10 +166,16 @@ class HuaweiCommandBuilder
      */
     public static function ontDesc(int $frame, int $slot, int $port, int $ontId, string $desc): array
     {
-        $safe     = str_replace(['"', "'", "\r", "\n"], '', $desc);
+        $safe = str_replace(['"', "'", "\r", "\n"], '', $desc);
+
+        // VRP V100R018 (MA5800-X7): the command is "ont modify port-id ont-id desc description".
+        // "ont desc" is NOT a valid subcommand on this firmware — it does not appear in
+        // "ont ?" and causes a "% Unknown command" with mangled echo.
+        // Empty $desc: "ont modify port-id ont-id desc" without a value clears the field
+        // (VRP accepts it with no argument = clear description). Verified against live OLT.
         $writeCmd = $safe !== ''
-            ? "ont desc {$port} {$ontId} {$safe}"
-            : "undo ont desc {$port} {$ontId}";
+            ? "ont modify {$port} {$ontId} desc {$safe}"
+            : "ont modify {$port} {$ontId} desc";
 
         return [
             ['cmd' => "interface gpon {$frame}/{$slot}", 'nav' => true,  'confirm' => null],

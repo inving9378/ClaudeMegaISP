@@ -218,8 +218,14 @@ class HuaweiTransport
         $this->assertOpen();
         $prompt = $this->currentPrompt();
 
-        // Drain any buffered output from the previous command
+        // Drain any buffered output from the previous command.
+        // After multi-step navigation (e.g. user→enable→config→interface), leftover
+        // TCP bytes from partial prompt frames can leave the session in an intermediate
+        // state. The drain waits up to 10 s; we then pause 300 ms so VRP fully settles
+        // its echo buffer before the write bytes arrive — otherwise spaces in the command
+        // arguments are silently dropped (space-eater bug on interface-view write path).
         $this->session->readUntil($prompt, timeout: 10);
+        usleep(300_000); // 300 ms — VRP echo-buffer settle (space-eater guard)
 
         // Send without guard check — this is intentional for write operations
         $this->session->write($cmd . "\r\n");

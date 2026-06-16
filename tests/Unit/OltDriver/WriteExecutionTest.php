@@ -147,9 +147,9 @@ class WriteExecutionTest extends TestCase
             ->prime("  Success.\r\n" . self::IF_PROMPT);    // command response
 
         $transport = $this->makeTransport($session);
-        $transport->execWrite('ont desc 2 0 PRUEBA-W3', null);
+        $transport->execWrite('ont modify 2 0 desc PRUEBA-W3', null);
 
-        $this->assertTrue($session->wroteLine('ont desc 2 0 PRUEBA-W3'));
+        $this->assertTrue($session->wroteLine('ont modify 2 0 desc PRUEBA-W3'));
     }
 
     public function test_exec_write_no_confirmation_when_confirm_null(): void
@@ -160,7 +160,7 @@ class WriteExecutionTest extends TestCase
             ->prime("  Success.\r\n" . self::IF_PROMPT);
 
         $transport = $this->makeTransport($session);
-        $transport->execWrite('ont desc 2 0 PRUEBA', null);
+        $transport->execWrite('ont modify 2 0 desc PRUEBA', null);
 
         // Only the command line was sent — no (y/n) reply
         $this->assertFalse($session->wroteLine('y'), 'No confirmation reply should be sent when confirm=null');
@@ -215,7 +215,7 @@ class WriteExecutionTest extends TestCase
             ->with(0, 3);
         $transport->expects($this->once())
             ->method('execWrite')
-            ->with('ont desc 2 0 PRUEBA-W3', null)
+            ->with('ont modify 2 0 desc PRUEBA-W3', null)
             ->willReturn('  Success.');
         $transport->expects($this->once())
             ->method('leaveToUserView');
@@ -250,7 +250,7 @@ class WriteExecutionTest extends TestCase
         $result = $this->makeDriver($transport)->descOnt('1:0/3/2:0', 'PRUEBA-W3');
 
         $writeStep = $result['transcript'][1]; // middle step is the write
-        $this->assertSame('ont desc 2 0 PRUEBA-W3', $writeStep['cmd']);
+        $this->assertSame('ont modify 2 0 desc PRUEBA-W3', $writeStep['cmd']);
         $this->assertSame('  Success.', $writeStep['response']);
     }
 
@@ -268,7 +268,7 @@ class WriteExecutionTest extends TestCase
 
         $this->assertFalse($result['success']);
         $this->assertArrayHasKey('aborted_at', $result);
-        $this->assertSame('ont desc 2 0 PRUEBA-W3', $result['aborted_at']);
+        $this->assertSame('ont modify 2 0 desc PRUEBA-W3', $result['aborted_at']);
     }
 
     public function test_abort_stops_before_next_write_step(): void
@@ -293,9 +293,9 @@ class WriteExecutionTest extends TestCase
     public function test_abort_exception_carries_failed_cmd_and_raw_response(): void
     {
         $raw = 'Error: The parameter is out of range.';
-        $e   = new WriteExecutionAbortedException('ont desc 2 0 BAD', $raw, []);
+        $e   = new WriteExecutionAbortedException('ont modify 2 0 desc BAD', $raw, []);
 
-        $this->assertSame('ont desc 2 0 BAD', $e->failedCmd);
+        $this->assertSame('ont modify 2 0 desc BAD', $e->failedCmd);
         $this->assertSame($raw, $e->rawResponse);
         $this->assertStringContainsString($raw, $e->getMessage());
     }
@@ -318,6 +318,19 @@ class WriteExecutionTest extends TestCase
         $transport->method('enterGponInterface');
         // VRP emits "failed" at the start of a line (e.g. after entering wrong context)
         $transport->method('execWrite')->willReturn("failed to allocate resource.");
+        $transport->method('leaveToUserView');
+
+        $result = $this->makeDriver($transport)->descOnt('1:0/3/2:0', 'X');
+
+        $this->assertFalse($result['success']);
+    }
+
+    public function test_abort_on_vrp_percent_prefix(): void
+    {
+        // VRP returns "% Unknown command" for unrecognized commands (e.g. space-eater mangling)
+        $transport = $this->mockTransport();
+        $transport->method('enterGponInterface');
+        $transport->method('execWrite')->willReturn('% Unknown command, the error locates at \'^\'');
         $transport->method('leaveToUserView');
 
         $result = $this->makeDriver($transport)->descOnt('1:0/3/2:0', 'X');
@@ -384,7 +397,7 @@ class WriteExecutionTest extends TestCase
         $result = $this->makeDriver($transport, dryRun: true)->descOnt('1:0/3/2:0', 'PRUEBA-W3');
 
         $this->assertContains('interface gpon 0/3', $result['commands']);
-        $this->assertContains('ont desc 2 0 PRUEBA-W3', $result['commands']);
+        $this->assertContains('ont modify 2 0 desc PRUEBA-W3', $result['commands']);
         $this->assertContains('return', $result['commands']);
     }
 
@@ -406,7 +419,7 @@ class WriteExecutionTest extends TestCase
         $steps = HuaweiCommandBuilder::ontDesc(0, 3, 2, 0, 'PRUEBA-W3');
 
         $this->assertSame('interface gpon 0/3', $steps[0]['cmd']);
-        $this->assertSame('ont desc 2 0 PRUEBA-W3', $steps[1]['cmd']);
+        $this->assertSame('ont modify 2 0 desc PRUEBA-W3', $steps[1]['cmd']);
         $this->assertFalse($steps[1]['nav']);
         $this->assertNull($steps[1]['confirm']);
         $this->assertSame('return', $steps[2]['cmd']);
@@ -414,9 +427,10 @@ class WriteExecutionTest extends TestCase
 
     public function test_ont_desc_builder_empty_generates_undo(): void
     {
+        // Empty desc → "ont modify port ontid desc" (no value = clears the field in VRP V100R018)
         $steps = HuaweiCommandBuilder::ontDesc(0, 3, 2, 0, '');
 
-        $this->assertSame('undo ont desc 2 0', $steps[1]['cmd']);
+        $this->assertSame('ont modify 2 0 desc', $steps[1]['cmd']);
     }
 
     public function test_ont_desc_builder_sanitizes_quotes(): void
