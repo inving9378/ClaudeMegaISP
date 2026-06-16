@@ -24,11 +24,15 @@ class GeneralAccountingService
 
     public function setNewGeneralAccountingIncomeBeforePayment($payment, $client, $transaction)
     {
+        // auth()->id() puede ser null en un worker de cola (sin sesión HTTP).
+        // Fallback a $payment->add_by: contiene el user_id del admin que creó el pago,
+        // o 0 para pagos del portal. No hay FK en created_by, NOT NULL se satisface con 0.
+        $createdBy = auth()->id() ?? $payment->add_by;
         $generalAccountingIncome = new GeneralAccountingIncome();
         $generalAccountingIncome->create([
             'payment_id' => $payment->id,
             'client_id' => $client->id,
-            'created_by' => auth()->user()->id,
+            'created_by' => $createdBy,
             'reference_number' => $this->generateReferenceNumber(),
             'description' => $transaction->description,
             'transaction_id' => $transaction->id,
@@ -39,11 +43,12 @@ class GeneralAccountingService
 
     public function setNewGeneralAccountingIncomeBeforeCostInstallationPayment($payment, $client, $transaction = null)
     {
+        $createdBy = auth()->id() ?? $payment->add_by;
         $generalAccountingIncome = new GeneralAccountingIncome();
         $generalAccountingIncome->create([
             'payment_id' => $payment->id,
             'client_id' => $client->id,
-            'created_by' => auth()->user()->id,
+            'created_by' => $createdBy,
             'reference_number' => $this->generateReferenceNumber(),
             'description' => 'Pago de Costo de Instalación',
             'amount' => $payment->amount,
@@ -54,11 +59,12 @@ class GeneralAccountingService
 
     public function setNewGeneralAccountingIncomeBeforeActivationCostPayment($payment, $client, $transaction = null)
     {
+        $createdBy = auth()->id() ?? $payment->add_by;
         $generalAccountingIncome = new GeneralAccountingIncome();
         $generalAccountingIncome->create([
             'payment_id' => $payment->id,
             'client_id' => $client->id,
-            'created_by' => auth()->user()->id,
+            'created_by' => $createdBy,
             'reference_number' => $this->generateReferenceNumber(),
             'description' => 'Pago de Costo de Activación',
             'amount' => $payment->amount,
