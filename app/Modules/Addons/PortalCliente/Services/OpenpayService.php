@@ -121,6 +121,113 @@ class OpenpayService
     }
 
     /**
+     * Crea un customer en OpenPay y retorna su ID para operaciones server-side.
+     * El customer_id se persiste en client_recurring_cards.openpay_customer_id.
+     *
+     * @param array $data ['name', 'last_name', 'email', 'phone_number']
+     * @return string ID del customer (p. ej. "cqG6smuvPnEPMITBNFEK")
+     */
+    public function crearClienteOpenpay(array $data): string
+    {
+        try {
+            $customer = $this->api->customers->add([
+                'name'         => $data['name'],
+                'last_name'    => $data['last_name'] ?? '',
+                'email'        => $data['email'] ?? '',
+                'phone_number' => $data['phone_number'] ?? '',
+            ]);
+            return $customer->id;
+        } catch (OpenpayApiError $e) {
+            throw new OpenpayTransactionException(
+                'No se pudo crear el perfil de cobro en OpenPay.',
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Guarda una tarjeta tokenizada bajo un customer de OpenPay.
+     * El token viene del navegador (openpay.js); el PAN nunca llega al backend.
+     *
+     * @return object Con ->id (source_id), ->brand, ->card_number (last4),
+     *                ->expiration_month, ->expiration_year, ->holder_name
+     */
+    public function guardarTarjeta(string $customerId, string $token): object
+    {
+        try {
+            $customer = $this->api->customers->get($customerId);
+            return $customer->cards->add(['token_id' => $token]);
+        } catch (OpenpayApiError $e) {
+            throw new OpenpayTransactionException(
+                'No se pudo guardar la tarjeta en OpenPay.',
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Cobra una tarjeta previamente guardada (server-to-server).
+     * No requiere device_session_id: el customer ya fue verificado al enrolar.
+     *
+     * @return object Con ->id, ->status, ->amount, ->authorization
+     */
+    public function cobrarTarjetaGuardada(
+        string $customerId,
+        string $sourceId,
+        float  $amount,
+        string $orderId,
+        string $description
+    ): object {
+        try {
+            $customer = $this->api->customers->get($customerId);
+            return $customer->charges->add([
+                'method'      => 'card',
+                'source_id'   => $sourceId,
+                'amount'      => round($amount, 2),
+                'currency'    => 'MXN',
+                'description' => $description,
+                'order_id'    => $orderId,
+            ]);
+        } catch (OpenpayApiTransactionError $e) {
+            throw new OpenpayTransactionException(
+                $this->humanizeError($e->getErrorCode()),
+                $e->getErrorCode(),
+                $e
+            );
+        } catch (OpenpayApiError $e) {
+            throw new OpenpayTransactionException(
+                'Error al procesar el cobro recurrente.',
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Elimina una tarjeta guardada del perfil del customer en OpenPay.
+     * Si ya no existe (404), absorbe silenciosamente.
+     */
+    public function eliminarTarjeta(string $customerId, string $sourceId): void
+    {
+        try {
+            $customer = $this->api->customers->get($customerId);
+            $customer->cards->get($sourceId)->delete();
+        } catch (OpenpayApiError $e) {
+            // 404 → la tarjeta ya no existe en OpenPay; nada que hacer.
+            if ($e->getHttpCode() === 404) {
+                return;
+            }
+            throw new OpenpayTransactionException(
+                'No se pudo eliminar la tarjeta en OpenPay.',
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
      * Convierte error codes de OpenPay a mensajes amigables para el cliente.
      * Códigos: https://www.openpay.mx/docs/error-codes.html
      */
