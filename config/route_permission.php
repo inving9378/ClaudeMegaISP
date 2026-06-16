@@ -405,6 +405,10 @@ return [
         '/finanzas/general-accounting/income/delete/{id}',
     ],
     //OLTs
+    'gestion-red.provision.preview' => [
+        '/olts/provision/preview',
+    ],
+
     'olt_view' => [
         '/olts',
         '/olts/list',

@@ -72,6 +72,13 @@
         </template>
         <template v-slot:body-cell-actions="props">
             <td class="text-center">
+                <olt-provision-preview
+                    :sn="props.row.sn"
+                    :olt-id="props.row.olt_id"
+                    :slot="props.row.board"
+                    :port="props.row.port"
+                    :has-permission="hasPermission"
+                />
                 <form-onu
                     :object="props.row"
                     :for-after="true"
