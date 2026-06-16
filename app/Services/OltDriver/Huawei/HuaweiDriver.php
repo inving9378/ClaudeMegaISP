@@ -9,6 +9,7 @@ use App\Services\OltDriver\Huawei\Parsers\OntInfoParser;
 use App\Services\OltDriver\Huawei\Parsers\OntListParser;
 use App\Services\OltDriver\Huawei\Parsers\OpticalBatchParser;
 use App\Services\OltDriver\Huawei\Parsers\OpticalInfoParser;
+use App\Services\OltDriver\Huawei\Parsers\ProfileListParser;
 use App\Services\OltDriver\Huawei\Parsers\VersionParser;
 use Illuminate\Support\Facades\Cache;
 use Psr\Log\LoggerInterface;
@@ -344,6 +345,44 @@ class HuaweiDriver implements OltDriverInterface
                 } catch (Throwable) {
                     // best-effort
                 }
+            }
+        });
+    }
+
+    // ── Lecturas de perfiles (W2-1 pre-checks) ───────────────────────────────
+
+    /**
+     * Returns all ONT line-profiles from `display ont-lineprofile gpon all`.
+     *
+     * @return array{success:bool, profiles?:list<array{id:int,name:string,bindings:int}>, message?:string}
+     */
+    public function listLineProfiles(): array
+    {
+        return $this->withSession(function () {
+            try {
+                $output   = $this->transport->exec('display ont-lineprofile gpon all');
+                $profiles = ProfileListParser::parse($output);
+                return ['success' => true, 'profiles' => $profiles];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * Returns all ONT service-profiles from `display ont-srvprofile gpon all`.
+     *
+     * @return array{success:bool, profiles?:list<array{id:int,name:string,bindings:int}>, message?:string}
+     */
+    public function listSrvProfiles(): array
+    {
+        return $this->withSession(function () {
+            try {
+                $output   = $this->transport->exec('display ont-srvprofile gpon all');
+                $profiles = ProfileListParser::parse($output);
+                return ['success' => true, 'profiles' => $profiles];
+            } catch (Throwable $e) {
+                return $this->error($e);
             }
         });
     }

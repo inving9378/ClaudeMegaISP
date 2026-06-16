@@ -1,0 +1,26 @@
+# W0 profiles — MA5800-X7 (2026-06-15)
+# Cmd: display ont-lineprofile gpon all
+
+Command:
+          display ont-lineprofile gpon all
+  ------------------------------------------------------------------------------
+  Profile-ID  Profile-name                                Binding times
+  ------------------------------------------------------------------------------
+  0           line-profile_default_0                      0            
+  1           SMARTOLT_FLEXIBLE_GPON                      2206         
+  3           Generic_2_V200                              1            
+  4           Generic_1_V200                              0            
+  5           Generic_3_V200                              0            
+  6           Generic_6_V101                              0            
+  7           Generic_5_V101                              0            
+  8           Generic_1_V101                              0            
+  9           Generic_2_V101                              0            
+  10          Generic_4_V200                              0            
+  11          Generic_5_V200                              0            
+  12          line-profile_12                             0            
+  13          Generic_6_V200                              0            
+  8193        line-profile-extend-frame                   0            
+  8194        line-profile-extend-frame-xgpon             0            
+  8195        line-profile-extend-frame-xgspon            0            
+  ------------------------------------------------------------------------------
+  Total: 16
