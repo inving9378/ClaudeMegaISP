@@ -410,7 +410,7 @@ class HuaweiDriver implements OltDriverInterface
      *
      * VRP: `ont reset <port> <ont-id>` (inside interface gpon {frame}/{slot})
      * Dry-run: returns the command sequence without sending anything.
-     * Live (dry_run=false / W3): executes the sequence against the OLT.
+     * Live (dry_run=false): executes via executeSteps().
      */
     public function rebootOnu(string $onuId): array
     {
@@ -421,8 +421,7 @@ class HuaweiDriver implements OltDriverInterface
                 return $this->dryRunResult($sn, $steps);
             }
 
-            // W3: live execution (not yet implemented — flip dry_run=false in config)
-            throw new WriteNotEnabledException('rebootOnu:execute — set config.dry_run=false only for W3');
+            return $this->executeSteps($sn, $steps);
         });
     }
 
@@ -441,7 +440,7 @@ class HuaweiDriver implements OltDriverInterface
                 return $this->dryRunResult($sn, $steps);
             }
 
-            throw new WriteNotEnabledException('deauthorizeOnu:execute — set config.dry_run=false only for W3');
+            return $this->executeSteps($sn, $steps);
         });
     }
 
@@ -460,7 +459,29 @@ class HuaweiDriver implements OltDriverInterface
                 return $this->dryRunResult($sn, $steps);
             }
 
-            throw new WriteNotEnabledException('setOnuEnabled:execute — set config.dry_run=false only for W3');
+            return $this->executeSteps($sn, $steps);
+        });
+    }
+
+    /**
+     * Cambia (o borra) la descripción cosmética de un ONT.
+     *
+     * Es el write más inofensivo disponible: no toca VLANs ni perfiles, no interrumpe
+     * el servicio y no requiere `save` para ser observable por lectura.
+     * Inverso: descOnt($onuId, '') → genera `undo ont desc` y elimina la etiqueta.
+     *
+     * Primer write aprobado para W3 (solo contra SN HWTCFEFCC9A2).
+     */
+    public function descOnt(string $onuId, string $desc): array
+    {
+        return $this->withWriteTarget($onuId, function (int $frame, int $slot, int $port, int $ontId, string $sn) use ($desc) {
+            $steps = HuaweiCommandBuilder::ontDesc($frame, $slot, $port, $ontId, $desc);
+
+            if ($this->dryRun) {
+                return $this->dryRunResult($sn, $steps);
+            }
+
+            return $this->executeSteps($sn, $steps);
         });
     }
 
@@ -516,7 +537,12 @@ class HuaweiDriver implements OltDriverInterface
                     return $this->dryRunResult($sn, $steps);
                 }
 
-                throw new WriteNotEnabledException('authorizeOnu:execute — set config.dry_run=false only for W3');
+                // ⚠️ VERIFY in W3 live: after `return` the transport is in user-view,
+                // but service-port is a config-view command. Validate that VRP accepts
+                // it in user-view or add enterConfigView() before the sp step.
+                return $this->executeSteps($sn, $steps);
+            } catch (WriteExecutionAbortedException $e) {
+                return ['success' => false, 'message' => $e->getMessage(), 'aborted_at' => $e->failedCmd];
             } catch (WriteTargetDeniedException $e) {
                 return ['success' => false, 'message' => $e->getMessage()];
             } catch (Throwable $e) {
@@ -598,12 +624,94 @@ class HuaweiDriver implements OltDriverInterface
                 $this->guard->assertWriteTargetAllowed($sn);
 
                 return $fn($frame, $slot, $port, $ontId, $sn);
+            } catch (WriteExecutionAbortedException $e) {
+                $this->logger->error('[olt-huawei] driver:write-aborted', [
+                    'cmd'      => $e->failedCmd,
+                    'response' => $e->rawResponse,
+                ]);
+                return [
+                    'success'    => false,
+                    'message'    => $e->getMessage(),
+                    'aborted_at' => $e->failedCmd,
+                    'response'   => $e->rawResponse,
+                ];
             } catch (WriteTargetDeniedException $e) {
                 return ['success' => false, 'message' => $e->getMessage()];
             } catch (Throwable $e) {
                 return $this->error($e);
             }
         });
+    }
+
+    /**
+     * Execute a sequence of write steps against the live OLT.
+     *
+     * Called by rebootOnu / deauthorizeOnu / setOnuEnabled / authorizeOnu / descOnt
+     * only when dry_run=false. The dry-run path goes through dryRunResult() instead.
+     *
+     * Guard is checked FIRST (before any write byte is sent) as defense in depth;
+     * withWriteTarget() callers already checked it, but authorizeOnu() is called
+     * without withWriteTarget() so the check here is the authoritative gate.
+     *
+     * Nav steps (nav=true) are routed to HuaweiTransport navigation methods which
+     * maintain the internal view-state ($view) used by currentPrompt().
+     * Write steps (nav=false) go through execWrite() which bypasses ReadOnlyGuard.
+     *
+     * @param  array<array{cmd:string,nav:bool,confirm:string|null}> $steps
+     * @throws WriteTargetDeniedException    SN not in WRITE_ALLOW_LIST (before any I/O)
+     * @throws WriteExecutionAbortedException VRP returned Error/Failure on a step
+     */
+    private function executeSteps(string $sn, array $steps): array
+    {
+        // Guard BEFORE any write I/O (defense in depth)
+        $this->guard->assertWriteTargetAllowed($sn);
+
+        $transcript = [];
+
+        foreach ($steps as $step) {
+            $cmd     = $step['cmd'];
+            $isNav   = (bool) ($step['nav']     ?? false);
+            $confirm = $step['confirm'] ?? null;
+
+            if ($isNav) {
+                // Route to transport's state-aware navigation methods so $view is kept correct
+                if (preg_match('/^interface gpon (\d+)\/(\d+)$/i', trim($cmd), $m)) {
+                    $this->transport->enterGponInterface((int) $m[1], (int) $m[2]);
+                } elseif (strtolower(trim($cmd)) === 'return') {
+                    $this->transport->leaveToUserView();
+                }
+                $transcript[] = ['cmd' => $cmd, 'response' => ''];
+                continue;
+            }
+
+            // Write step — bypasses ReadOnlyGuard.assertAllowed() inside execWrite()
+            $response = $this->transport->execWrite($cmd, $confirm);
+
+            $this->logger->notice('[olt-huawei] execute-steps:write', [
+                'sn'       => $sn,
+                'cmd'      => $cmd,
+                'response' => $response,
+            ]);
+
+            // ABORT on any VRP error keyword
+            if (preg_match('/^\s*(Error|Failure|failed)/im', $response)) {
+                $this->logger->error('[olt-huawei] execute-steps:abort', [
+                    'sn'       => $sn,
+                    'cmd'      => $cmd,
+                    'response' => $response,
+                ]);
+                throw new WriteExecutionAbortedException($cmd, $response, $transcript);
+            }
+
+            $transcript[] = ['cmd' => $cmd, 'response' => $response];
+        }
+
+        $this->logger->notice('[olt-huawei] execute-steps:complete', [
+            'sn'    => $sn,
+            'steps' => count($transcript),
+        ]);
+
+        return ['success' => true, 'sn' => $sn, 'dry_run' => false, 'transcript' => $transcript];
     }
 
     /**
