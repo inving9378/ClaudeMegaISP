@@ -96,9 +96,12 @@ class PortalPagoController extends Controller
             ? explode(',', $request->header('X-Forwarded-For'))[0]
             : $request->ip();
 
-        // Fallback: OpenPay sandbox rechaza 127.0.0.1 y ::1 como no-públicas
-        if (in_array(trim($clientIp), ['127.0.0.1', '::1', 'localhost'])) {
-            $clientIp = '201.144.0.1'; // IP pública de fallback para sandbox
+        // Sustituir cualquier IP privada/reservada/loopback por una IP pública de fallback.
+        // OpenPay rechaza IPs privadas en el campo X-Forwarded-For para antifraude.
+        // FILTER_FLAG_NO_PRIV_RANGE cubre: 192.168.x.x, 10.x.x.x, 172.16-31.x.x, fe80::...
+        // FILTER_FLAG_NO_RES_RANGE cubre: 127.x.x.x, ::1, 0.x.x.x, 240+.x.x.x, etc.
+        if (! filter_var(trim($clientIp), FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            $clientIp = '201.144.0.1'; // IP pública de fallback (sandbox/LAN)
         }
 
         // ── Llamada a OpenPay ─────────────────────────────────────────
