@@ -431,6 +431,15 @@
         <a href="{{ route('portal.marketplace') }}" class="{{ request()->routeIs('portal.marketplace') ? 'active' : '' }}">
             🛒 Servicios
         </a>
+        @php
+            $domiciliacionActiva = false;
+            try { $domiciliacionActiva = \App\Modules\Core\ModuleManager\Services\ModuleManagerService::instance()->isActive('addon-domiciliacion'); } catch (\Throwable) {}
+        @endphp
+        @if($domiciliacionActiva)
+        <a href="{{ route('portal.domiciliacion.tarjeta') }}" class="{{ request()->routeIs('portal.domiciliacion.*') ? 'active' : '' }}">
+            🔄 Pago Automático
+        </a>
+        @endif
     </nav>
     @endauth
 

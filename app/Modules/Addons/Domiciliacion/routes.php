@@ -2,12 +2,19 @@
 
 use App\Modules\Addons\Domiciliacion\Controllers\DomiciliacionController;
 use App\Modules\Addons\Domiciliacion\Controllers\EnrollmentLinkController;
+use App\Modules\Addons\Domiciliacion\Controllers\PortalDomiciliacionController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — Domiciliación ────────────────────────────────────────────
 Route::prefix('portal/domiciliacion')->name('portal.domiciliacion.')
     ->middleware(['web', 'auth.portal'])
     ->group(function () {
+        // Página web (Blade + openpay.js)
+        Route::get('/tarjeta',           [PortalDomiciliacionController::class, 'index'])->name('tarjeta');
+        Route::post('/tarjeta/enrolar',  [PortalDomiciliacionController::class, 'enrolar'])->name('enrolar');
+        Route::delete('/tarjeta/{card}', [PortalDomiciliacionController::class, 'cancelar'])->name('cancelar');
+
+        // API JSON (usada por el tab admin de Vue)
         Route::get('/',          [DomiciliacionController::class, 'portalShow'])->name('show');
         Route::post('/',         [DomiciliacionController::class, 'portalStore'])->name('store');
         Route::delete('/{card}', [DomiciliacionController::class, 'portalDestroy'])->name('destroy');

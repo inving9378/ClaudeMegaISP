@@ -2,6 +2,12 @@
 <script src="{{ URL::asset('plugins/quasar/js/quasar.umd.prod.js') }}"></script>
 <script src="{{ URL::asset('plugins/quasar/icon-set/fontawesome-v5.umd.prod.js') }}"></script>
 <script src="{{ mix('js/app.js') }}"></script>
+{{-- OpenPay public credentials — usadas por DomiciliacionClientTab.vue (public key es segura en JS) --}}
+<script>
+    window.__OPENPAY_ID__      = {{ json_encode(config('openpay.id', '')) }};
+    window.__OPENPAY_PK__      = {{ json_encode(config('openpay.public_key', '')) }};
+    window.__OPENPAY_SANDBOX__ = {{ config('openpay.sandbox', true) ? 'true' : 'false' }};
+</script>
 
 <script src="{{ URL::asset('assets/libs/jquery/jquery.min.js') }}"></script>
 <script src="{{ URL::asset('plugins/popper.js/popper.js') }}"></script>

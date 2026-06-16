@@ -110,6 +110,8 @@ import MegaFamiliaTerminos from "./components/module/megafamilia/MegaFamiliaTerm
 import MegaFamiliaConfiguracion from "./components/module/megafamilia/MegaFamiliaConfiguracion.vue";
 // Pestaña en la ficha de cliente (infra de ficha extensible — roadmap #5)
 import MegaFamiliaClientTab from "./components/module/megafamilia/MegaFamiliaClientTab.vue";
+// Domiciliación a Tarjeta (addon-domiciliacion)
+import DomiciliacionClientTab from "./components/module/domiciliacion/DomiciliacionClientTab.vue";
 // Embajadores Meganet (addon-embajadores) — programa de referidos multinivel
 import EmbajadoresDashboard from "./components/module/embajadores/EmbajadoresDashboard.vue";
 import EmbajadoresConfiguracion from "./components/module/embajadores/EmbajadoresConfiguracion.vue";
@@ -867,6 +869,7 @@ app.directive("table-resizable", QTableResizable);
 //    montar sólo las pestañas cuyo componente realmente existe.
 // El nombre debe coincidir EXACTO con `client_tab.component` del module.json.
 app.component("MegaFamiliaClientTab", MegaFamiliaClientTab);
+app.component("DomiciliacionClientTab", DomiciliacionClientTab);
 
 // Fleet tab sub-components: deben ser globales porque los usa FleetVehicleShow (descendiente)
 app.component("fleet-tab-info",           FleetTabInfo);
