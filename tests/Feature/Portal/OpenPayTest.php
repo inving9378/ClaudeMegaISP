@@ -3,8 +3,11 @@
 namespace Tests\Feature\Portal;
 
 use App\Http\Middleware\VerifyCsrfToken;
+use App\Http\Repository\ClientRepository;
+use App\Jobs\Client\Payment\PaymentClientJob;
 use App\Modules\Addons\PortalCliente\Services\OpenpayService;
 use App\Modules\Addons\PortalCliente\Services\OpenpayTransactionException;
+use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -311,6 +314,118 @@ class OpenPayTest extends PortalTestCase
         // ── 4. Pago visible en panel admin (misma query que ClientPaymentDatatableHelper) ─
         $count = \App\Models\Payment::where('paymentable_id', $cliente->client_id)->count();
         $this->assertEquals(1, $count, 'El pago debe aparecer en la lista del panel admin');
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // (g) Reintento del job NO duplica crédito ni balance.
+    //     Simula un segundo disparo de PaymentClientJob para el mismo
+    //     payment (como haría el queue worker con --tries=3).
+    // ─────────────────────────────────────────────────────────────────
+
+    public function test_reintento_del_job_no_duplica_credito_ni_balance(): void
+    {
+        $cliente      = $this->crearClientePortal();
+        $montoInicial = -500.00;
+        $montoPago    = 399.00;
+
+        $this->crearBalance($cliente->client_id, $montoInicial);
+        $factura = $this->crearFactura($cliente->client_id, ['estado' => 'Pendiente', 'total' => $montoPago]);
+        $chargeId = 'trk_retry_' . uniqid();
+
+        $this->app->bind(OpenpayService::class, function () use ($chargeId, $montoPago) {
+            $mock = $this->createMock(OpenpayService::class);
+            $mock->method('cobrarTarjeta')->willReturn((object) [
+                'id'     => $chargeId,
+                'status' => 'completed',
+                'amount' => $montoPago,
+            ]);
+            return $mock;
+        });
+
+        // Primera ejecución: pago HTTP → Payment::create → observer → job (sync)
+        $this->actingAs($cliente, 'cliente')
+            ->postJson("/portal/facturas/{$factura}/pagar", [
+                'token'             => 'tok_retry_test',
+                'device_session_id' => 'sess_retry_test',
+            ])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $payment = Payment::where('receipt', $chargeId)->firstOrFail();
+
+        // Verificar estado tras primera ejecución (1 crédito, balance correcto)
+        $this->assertEquals(1, DB::table('transactions')
+            ->where('payment_id', $payment->id)->where('type', 'credit')->where('is_payment', 1)->count(),
+            'Primera ejecución debe crear exactamente 1 crédito');
+
+        $balanceTras1 = (float) DB::table('balances')
+            ->where('balanceable_id', $cliente->client_id)->value('amount');
+        $this->assertEquals($montoInicial + $montoPago, $balanceTras1);
+
+        // ── Simular reintento del worker (disparo manual del mismo job) ──
+        $job = new PaymentClientJob($payment, 'created');
+        $job->handle(app(ClientRepository::class));
+
+        // Sigue siendo exactamente 1 crédito y balance no cambió
+        $this->assertEquals(1, DB::table('transactions')
+            ->where('payment_id', $payment->id)->where('type', 'credit')->where('is_payment', 1)->count(),
+            'El reintento NO debe crear un segundo crédito');
+
+        $balanceTras2 = (float) DB::table('balances')
+            ->where('balanceable_id', $cliente->client_id)->value('amount');
+        $this->assertEquals($balanceTras1, $balanceTras2,
+            'El balance no debe cambiar en el reintento');
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // (h) Pago admin: add_by válido → GeneralAccountingIncome creado
+    //     sin crash aunque no haya sesión HTTP (simula worker de cola).
+    // ─────────────────────────────────────────────────────────────────
+
+    public function test_job_crea_accounting_income_sin_sesion_http(): void
+    {
+        $cliente  = $this->crearClientePortal();
+        $addBy    = 1; // user sistema / admin mínimo para el test
+        $this->crearBalance($cliente->client_id, 0.00);
+
+        // Crear payment directamente (simula pago admin con add_by real)
+        $paymentId = DB::table('payments')->insertGetId([
+            'payment_method_id'      => 1,
+            'date'                   => now()->toDateTimeString(),
+            'amount'                 => 199.00,
+            'payment_period'         => '',
+            'comment'                => 'Pago admin test',
+            'receipt'                => 'TEST-ADMIN-' . uniqid(),
+            'send_receipt_after_payment' => 0,
+            'add_by'                 => $addBy,
+            'paymentable_id'         => $cliente->client_id,
+            'paymentable_type'       => 'App\\Models\\Client',
+            'is_first_payment'       => 0,
+            'enabled_payment_promise'=> 0,
+            'created_at'             => now(),
+            'updated_at'             => now(),
+        ]);
+        $payment = Payment::findOrFail($paymentId);
+
+        // Dispatch directo del job (sin auth HTTP — simula worker de cola)
+        $job = new PaymentClientJob($payment, 'created');
+        $job->handle(app(ClientRepository::class));
+
+        // Debe haber creado 1 crédito
+        $this->assertEquals(1, DB::table('transactions')
+            ->where('payment_id', $payment->id)->where('type', 'credit')->where('is_payment', 1)->count(),
+            'Job de pago admin debe crear 1 transacción crédito');
+
+        // Balance acreditado
+        $balance = (float) DB::table('balances')
+            ->where('balanceable_id', $cliente->client_id)->value('amount');
+        $this->assertEquals(199.00, $balance);
+
+        // GeneralAccountingIncome creado (no crash en auth sin sesión)
+        $incomes = DB::table('general_accounting_incomes')
+            ->where('payment_id', $payment->id)->whereNull('deleted_at')->count();
+        $this->assertEquals(1, $incomes,
+            'GeneralAccountingIncome debe crearse sin crash (auth()->id() fallback a add_by)');
     }
 
     // ─────────────────────────────────────────────────────────────────
