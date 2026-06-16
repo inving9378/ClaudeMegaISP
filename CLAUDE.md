@@ -154,15 +154,15 @@ El campo legacy `password` del admin NO se modifica.
 
 | Item | Descripción | Estado | Prioridad |
 |------|-------------|--------|-----------|
-| Portal: pago en línea OpenPay | Integrar OpenPay (sandbox) para pago de facturas desde el portal | ⏳ Siguiente | Alta |
+| **OpenPay producción** | Completar certificación + cambiar llaves en `.env` + `OPENPAY_SANDBOX=false` | ⏳ Config | Alta |
+| **Webhook OpenPay** | Activar URL en dashboard OpenPay al publicar subdominio/SSL | ⏳ Config | Alta |
 | Portal: subdominio + SSL | Configurar `portal.meganet.mx` con nginx + certbot | ⏳ Pendiente | Alta |
 | Portal: CFDI timbrado | Generar PDF/XML de facturas fiscales desde el portal | ⏳ Pendiente | Media |
-| Portal: cobro/tarifas premium MegaFamilia | Activar planes de pago en MegaFamilia desde el portal vía OpenPay | ⏳ Pendiente | Media |
-| Portal: funciones cliente MegaFamilia | Mostrar perfiles, dispositivos y estadísticas dentro del portal (actualmente gateado) | ⏳ Pendiente | Media |
-| Portal: notificación pago por email | Enviar recibo de pago al email del cliente cuando se procese | ⏳ Pendiente | Media |
-| Portal: Flotas para cliente | Implementar scope por `fleet_vehicles.client_id` y exponer tracking | ⏳ Pendiente | Baja |
-| Admin: migración base64 → bcrypt | Migrar `users.password` de base64 a bcrypt para el admin (superficie interna) | ⏳ Pendiente | Baja |
-| MegaFamilia: Fase 7 portal funciones | Perfiles, control parental, stats dentro del portal cliente | ⏳ Futura | Futura |
+| Portal: cobro/tarifas premium MegaFamilia | Planes de pago MegaFamilia vía OpenPay | ⏳ Pendiente | Media |
+| Portal: funciones cliente MegaFamilia | Perfiles, dispositivos, stats dentro del portal | ⏳ Pendiente | Media |
+| Portal: notificación pago por email | Enviar recibo al email del cliente tras pago OpenPay | ⏳ Pendiente | Media |
+| Portal: Flotas para cliente | Scope por `fleet_vehicles.client_id` y tracking | ⏳ Pendiente | Baja |
+| Admin: migración base64 → bcrypt | `users.password` de base64 a bcrypt (admin interno) | ⏳ Pendiente | Baja |
 
 ### Portal Cliente — implementado y cerrado
 
@@ -178,6 +178,20 @@ El campo legacy `password` del admin NO se modifica.
 | ✅ Editar perfil de contacto con audit trail (portal_profile_change_log) | 0329a1d |
 | ✅ UX: estados vacíos en todas las vistas, responsive móvil, dark mode badges | c830944 |
 | ✅ Tests auth (16 tests: login/registro/recuperar/rate-limit/anti-enum/guard) | 9340008 |
+| ✅ OpenPay sandbox: SDK+config+OpenpayService+portal_payment_attempts | 8bade1d |
+| ✅ OpenPay: modal tokenización en navegador (openpay.js, device_session_id) | dbdef17 |
+| ✅ OpenPay: cargo síncrono + scope + idempotencia + write-back a payments | f167d90 |
+| ✅ OpenPay: webhook de conciliación (listo, pendiente URL en dashboard) | e448008 |
+| ✅ OpenPay: botón Pagar activo en facturas pendientes (sandbox) | 7f44adf |
+| ✅ Tests OpenPay (6 tests: scope/idempotencia/completed/failed/pagada/auth) | 796513f |
+
+### IMPORTANTE — Para pasar a producción (solo configuración, sin código nuevo)
+
+1. Completar certificación de sitio en dashboard.openpay.mx (actualmente al ~35%)
+2. Sustituir llaves sandbox por las de producción en `.env` (solo modificar `.env`)
+3. Cambiar `OPENPAY_SANDBOX=false` en `.env`
+4. Publicar `portal.meganet.mx` con nginx + certbot
+5. Configurar webhook en dashboard OpenPay: `https://portal.meganet.mx/portal/openpay/webhook`
 
 ---
 
