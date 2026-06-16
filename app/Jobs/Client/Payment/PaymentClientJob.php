@@ -79,7 +79,7 @@ class PaymentClientJob implements ShouldQueue
                 $client->client_main_information->save();
             }
 
-            $billingService = new ClientBillingService();
+            $billingService = app(ClientBillingService::class);
             $billingService->billing($client, $newBalance, $transaction);
 
             $generalAccountingService = new GeneralAccountingService();

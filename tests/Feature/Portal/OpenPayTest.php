@@ -8,6 +8,7 @@ use App\Jobs\Client\Payment\PaymentClientJob;
 use App\Modules\Addons\PortalCliente\Services\OpenpayService;
 use App\Modules\Addons\PortalCliente\Services\OpenpayTransactionException;
 use App\Models\Payment;
+use App\Services\ClientService\ClientBillingService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -426,6 +427,71 @@ class OpenPayTest extends PortalTestCase
             ->where('payment_id', $payment->id)->whereNull('deleted_at')->count();
         $this->assertEquals(1, $incomes,
             'GeneralAccountingIncome debe crearse sin crash (auth()->id() fallback a add_by)');
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // (i) Garantía #2 — DB::transaction: crash dentro revierte TODO.
+    //     Inyecta ClientBillingService que lanza excepción después de
+    //     updateClientBalance + addTransaction. Verifica que el rollback
+    //     deja transactions.count=0 y balance sin cambio (sin commit parcial).
+    // ─────────────────────────────────────────────────────────────────
+
+    public function test_crash_dentro_de_transaction_no_deja_commits_parciales(): void
+    {
+        $cliente      = $this->crearClientePortal();
+        $montoInicial = -600.00;
+        $montoPago    = 250.00;
+
+        $this->crearBalance($cliente->client_id, $montoInicial);
+
+        $paymentId = DB::table('payments')->insertGetId([
+            'payment_method_id'          => 1,
+            'date'                       => now()->toDateTimeString(),
+            'amount'                     => $montoPago,
+            'payment_period'             => '',
+            'comment'                    => 'Pago test rollback',
+            'receipt'                    => 'TEST-ROLLBACK-' . uniqid(),
+            'send_receipt_after_payment' => 0,
+            'add_by'                     => 1,
+            'paymentable_id'             => $cliente->client_id,
+            'paymentable_type'           => 'App\\Models\\Client',
+            'is_first_payment'           => 0,
+            'enabled_payment_promise'    => 0,
+            'created_at'                 => now(),
+            'updated_at'                 => now(),
+        ]);
+        $payment = Payment::findOrFail($paymentId);
+
+        // Inyectar billing que explota — simula GeneralAccountingService antes del fix
+        $this->app->bind(ClientBillingService::class, function () {
+            $mock = $this->createMock(ClientBillingService::class);
+            $mock->method('billing')->willThrowException(new \RuntimeException('crash_test'));
+            return $mock;
+        });
+
+        try {
+            $job = new PaymentClientJob($payment, 'created');
+            $job->handle(app(ClientRepository::class));
+            $this->fail('Se esperaba RuntimeException del billing crash');
+        } catch (\RuntimeException $e) {
+            $this->assertEquals('crash_test', $e->getMessage());
+        }
+
+        // El DB::transaction debe haber revertido updateClientBalance + addTransaction
+        $this->assertEquals(0,
+            DB::table('transactions')
+                ->where('payment_id', $payment->id)
+                ->where('type', 'credit')
+                ->where('is_payment', 1)
+                ->count(),
+            'Rollback debe revertir la transacción de crédito'
+        );
+
+        $balanceTras = (float) DB::table('balances')
+            ->where('balanceable_id', $cliente->client_id)
+            ->value('amount');
+        $this->assertEquals($montoInicial, $balanceTras,
+            'Rollback debe revertir la actualización de balance');
     }
 
     // ─────────────────────────────────────────────────────────────────
