@@ -86,17 +86,27 @@ class ReleaseController extends Controller
 
             $data = $validator->validated();
             $data['created_by'] = auth()->user()->id;
+
             $backupDbTestService = new BackupDbTestService();
-            $ok = $backupDbTestService->backup($data['version']);
-            if ($ok) {
-                Log::info("Backup creado exitosamente para versión {$data['version']}");
-            } else {
+            try {
+                $ok = $backupDbTestService->backup($data['version']);
+            } catch (\Throwable $e) {
+                Log::error("Backup excepción para v{$data['version']}: {$e->getMessage()}");
                 return response()->json([
                     'success' => false,
-                    'message' => 'Ocurrio un error al crear el backup de la base de datos.',
+                    'message' => 'El backup de la base de datos falló: ' . $e->getMessage(),
                 ], 500);
-                Log::warning("No se pudo crear el backup para versión {$data['version']}");
             }
+
+            if (!$ok) {
+                Log::warning("Backup retornó false para versión {$data['version']}");
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo crear el backup de la base de datos. Revisa los logs del servidor.',
+                ], 500);
+            }
+            Log::info("Backup creado exitosamente para versión {$data['version']}");
+
             DB::beginTransaction();
             $release = Release::create($data);
 
