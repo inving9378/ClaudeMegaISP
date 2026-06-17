@@ -258,9 +258,33 @@ php artisan schedule:run   # cron lo llama cada minuto en prod
 
 `app/Console/Kernel.php` hace dos cosas:
 1. **Schedule dinámico desde DB** — lee `command_configs` via `CommandConfigRepository`
-2. **Schedule hard-coded** — jobs críticos: `invoice:create-proformas` (03:00), `mikrotik:sync` (5m), `smartolt:sync-critical` (10m), `activitylog:archive` (02:00 diario)
+2. **Schedule hard-coded** — jobs críticos: `invoice:create-proformas` (03:00), `mikrotik:sync` (5m), `smartolt:sync-critical` (10m), `activitylog:archive` (02:00 diario), `backup_db:process` (02:00 diario)
 
 Comandos en: `app/Console/Commands/Active/`, `Commands/Olts/`, `Commands/Scripts/` (los de Scripts son one-off, algunos destructivos — revisar antes de correr).
+
+### Backup de base de datos (`backup_db:process`)
+- **Ruta:** `/var/backups/mysql/megaisp-YmdHi.sql.gz` (mysqldump → gzip nativo vía Symfony\Process, socket `--host=localhost`)
+- **Credenciales:** `config('database.connections.mysql.*')`, nunca `env()` directo
+- **Validación:** `gzip -t` + tamaño > 0 tras cada dump; si falla → `Log::channel('backup')->error()` + salida con `$this->error()`
+- **Retención:** 14 días; archivos `megaisp-*.sql.gz` con `filemtime` anterior al corte se eliminan automáticamente
+- **Log propio:** `storage/logs/backup-db-YYYY-MM-DD.log` (canal `backup`, daily, 30 días)
+- **Tamaño de referencia (2026-06-17):** ~140 MB comprimido
+
+### ⚠️ Requisito de producción — cron de schedule:run
+**En desarrollo NO hay cron activo** (se corre manualmente o se prueba con `php artisan schedule:run`).
+
+**Al pasar a producción**, el administrador del servidor debe instalar el cron con privilegios correctos:
+```
+# Agregar a crontab de www-data (sudo crontab -u www-data -e):
+* * * * * cd /var/www/megaisp && php artisan schedule:run >> /dev/null 2>&1
+```
+
+**Permisos de producción para /var/backups/mysql:**
+```bash
+sudo chown www-data:www-data /var/backups/mysql
+sudo chmod 750 /var/backups/mysql   # solo www-data escribe; sin group-write
+```
+(En desarrollo se usa 770 para que el usuario `meganet` pueda correr pruebas manuales. En producción, el cron es el único escritor → 750.)
 
 ---
 

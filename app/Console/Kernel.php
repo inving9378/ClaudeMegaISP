@@ -51,6 +51,9 @@ class Kernel extends ConsoleKernel
         $schedule->command('smartolt:sync-promotions')->hourly()->withoutOverlapping()->onOneServer();
         // Revisión diaria 6 AM: reversiones residuales + reconciliación BD vs ONU + aviso de promos que vencen hoy
         $schedule->command('promociones:revision-diaria')->dailyAt('06:00')->withoutOverlapping()->onOneServer();
+        // Backup diario de la base de datos (mysqldump + gzip, retención 14 días)
+        $schedule->command('backup_db:process')->dailyAt('02:00')->withoutOverlapping();
+
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
 
