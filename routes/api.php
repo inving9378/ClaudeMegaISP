@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DeployWebhookController;
+use App\Http\Controllers\UpdateController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsController;
 // use App\Http\Controllers\PaymentTestController;
 use Illuminate\Http\Request;
@@ -25,5 +26,11 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 // No requiere auth de sesión; protegido por X-Deploy-Token (DEPLOY_WEBHOOK_SECRET en .env).
 Route::post('/webhook/deploy', [DeployWebhookController::class, 'handle']);
 Route::get('/webhook/deploy/{id}/status', [DeployWebhookController::class, 'status']);
+
+// Auto-actualización — solo instancias consumidoras (GITHUB_UPDATES_ENABLED=true).
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/updates/status', [UpdateController::class, 'status']);
+    Route::post('/updates/apply',  [UpdateController::class, 'apply']);
+});
 
 //Route::get('/payments/{id}', [PaymentTestController::class, 'payments']);

@@ -349,6 +349,7 @@ import ReleasesIndex from "./components/module/releases/ReleasesIndex.vue";
 import ReleasesDescription from "./components/module/releases/ReleasesDescription.vue";
 import RoadmapTab from "./components/module/releases/RoadmapTab.vue";
 import DeployProgressModal from "./components/module/releases/DeployProgressModal.vue";
+import UpdateBanner from "./components/module/releases/UpdateBanner.vue";
 import InventoryItemCustomModelListar from "./components/module/inventory/inventory_item_custom_model/InventoryItemCustomModelListar.vue";
 import InventoryItemCustomListar from "./components/module/inventory/inventory_item_custom/InventoryItemCustomListar.vue";
 
@@ -707,6 +708,7 @@ const app = createApp({
         ReleasesDescription,
         RoadmapTab,
         DeployProgressModal,
+        UpdateBanner,
 
         //IA — portado desde MEGANET 2026-05-19
         'ia-chat-index': IAChatIndex,
