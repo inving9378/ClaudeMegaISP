@@ -2,72 +2,98 @@
 
 namespace App\Console\Commands\Active;
 
-use Carbon\Carbon;
-use Ifsnop\Mysqldump as IMysqldump;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use ZipArchive;
+use Symfony\Component\Process\Process;
 
 class BackupDB extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'backup_db:process';
+    protected $description = 'Backup diaria de la base de datos vía mysqldump nativo + gzip';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Backup diaria de la base de datos';
+    private const BACKUP_DIR   = '/var/backups/mysql';
+    private const RETENTION_DAYS = 14;
+    private const TIMEOUT        = 3600;
 
-    /**
-     * Execute the console command.
-     */
-    public function handle()
+    public function handle(): int
     {
-        set_time_limit(0);
-        ini_set('memory_limit', '8912M');
-        $now = Carbon::now()->toDateString() . '-' . Carbon::now()->timestamp;
-        // Usar config() en vez de env(): con la config cacheada (config:cache)
-        // env() devuelve null fuera de los archivos de config y caería a los
-        // defaults 'forge'/'' provocando "Access denied for user 'forge'".
-        $host = config('database.connections.mysql.host', '127.0.0.1');
+        $log = Log::channel('backup');
+
+        $gzFile = self::BACKUP_DIR . '/megaisp-' . now()->format('YmdHi') . '.sql.gz';
+
+        // Credenciales desde config(), nunca env() directamente
         $port = config('database.connections.mysql.port', '3306');
-        $db = config('database.connections.mysql.database', 'forge');
-        $user = config('database.connections.mysql.username', 'forge');
+        $db   = config('database.connections.mysql.database');
+        $user = config('database.connections.mysql.username');
         $pass = config('database.connections.mysql.password', '');
-        $backupPath = storage_path('backup');
-        $sqlFile = $backupPath . '/dump-' . $now . '.sql';
-        $zipFile = $backupPath . '/dump-' . $now . '.zip';
 
-        try {
-            // Create SQL dump
-            $dump = new IMysqldump\Mysqldump('mysql:host=' . $host . ';port=' . $port . ';dbname=' . $db, $user, $pass);
-            $dump->start($sqlFile);
+        // --host=localhost → mysqldump elige socket Unix (no TCP)
+        $cmd = sprintf(
+            'mysqldump --host=localhost --port=%s --user=%s %s | gzip > %s',
+            escapeshellarg($port),
+            escapeshellarg($user),
+            escapeshellarg($db),
+            escapeshellarg($gzFile)
+        );
 
-            // Compress the SQL dump into a ZIP file
-            $zip = new ZipArchive();
-            if ($zip->open($zipFile, ZipArchive::CREATE) === true) {
-                $zip->addFile($sqlFile, basename($sqlFile));
-                $zip->setCompressionName(basename($sqlFile), ZipArchive::CM_DEFLATE);
-                $zip->close();
+        $log->info("Iniciando backup → {$gzFile}");
+        $this->info("[backup_db] Iniciando → {$gzFile}");
 
-                // Delete the original SQL file after zipping
-                unlink($sqlFile);
-            } else {
-                Log::error('Error al crear el archivo ZIP');
-            }
-        } catch (\Exception $e) {
-            Log::error('mysqldump-php error: ' . $e->getMessage());
-            return;
+        $process = Process::fromShellCommandline($cmd);
+        // MYSQL_PWD evita que la contraseña quede expuesta en ps/history
+        $process->setEnv(['MYSQL_PWD' => $pass]);
+        $process->setTimeout(self::TIMEOUT);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            $err = trim($process->getErrorOutput());
+            $log->error("mysqldump falló (exit {$process->getExitCode()}): {$err}");
+            $this->error("[backup_db] FALLO mysqldump: {$err}");
+            return self::FAILURE;
         }
 
-        Log::info('Backup de base de datos guardado y comprimido.');
+        // Verificar que el archivo exista y no esté vacío
+        if (! file_exists($gzFile) || filesize($gzFile) === 0) {
+            $log->error("Archivo inexistente o vacío: {$gzFile}");
+            $this->error('[backup_db] FALLO: archivo vacío o inexistente.');
+            return self::FAILURE;
+        }
+
+        // Verificar integridad del gzip
+        $verify = new Process(['gzip', '-t', $gzFile]);
+        $verify->run();
+        if (! $verify->isSuccessful()) {
+            $log->error("gzip -t falló (archivo corrupto): {$gzFile}");
+            $this->error('[backup_db] FALLO: archivo .gz corrupto. Eliminando.');
+            @unlink($gzFile);
+            return self::FAILURE;
+        }
+
+        $sizeMb = round(filesize($gzFile) / 1048576, 2);
+        $log->info("Backup OK — {$sizeMb} MB → {$gzFile}");
+        $this->info("[backup_db] OK — {$sizeMb} MB → " . basename($gzFile));
+
+        $this->applyRetention($log);
 
         activity()->log('Salva de BD');
+        return self::SUCCESS;
+    }
+
+    private function applyRetention(object $log): void
+    {
+        $cutoff  = now()->subDays(self::RETENTION_DAYS)->timestamp;
+        $deleted = 0;
+
+        foreach (glob(self::BACKUP_DIR . '/megaisp-*.sql.gz') as $file) {
+            if (filemtime($file) < $cutoff) {
+                @unlink($file);
+                $deleted++;
+                $log->info("Retención: eliminado " . basename($file));
+            }
+        }
+
+        if ($deleted > 0) {
+            $this->line("[backup_db] Retención: {$deleted} archivo(s) eliminado(s) (>" . self::RETENTION_DAYS . " días).");
+        }
     }
 }
