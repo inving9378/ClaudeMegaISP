@@ -135,6 +135,13 @@ return [
             'level'  => 'debug',
             'days'   => 30,
         ],
+
+        'backup' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/backup-db.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
     ],
 
 ];
