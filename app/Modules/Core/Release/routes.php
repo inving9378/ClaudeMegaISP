@@ -33,6 +33,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::post('/description/update/{id}', [ReleaseDescriptionController::class, 'update']);
     Route::delete('/description/delete/{id}', [ReleaseDescriptionController::class, 'destroy']);
 
+    // Resumen de changelog con IA
+    Route::post('/generate-changelog', [ReleaseController::class, 'generateChangelog']);
+
     // Deploy pipeline
     Route::get('/deployments',                    [DeploymentController::class, 'index']);
     Route::get('/deployment/{id}/status',         [DeploymentController::class, 'status'])->whereNumber('id');

@@ -18,6 +18,7 @@ class DeploymentController extends Controller
 
         return response()->json([
             'deployment_id'    => $log->id,
+            'release_id'       => $log->release_id,
             'status'           => $log->status,
             'steps'            => $log->steps ?? [],
             'started_at'       => $log->started_at?->toIso8601String(),

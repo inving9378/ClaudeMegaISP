@@ -8,6 +8,7 @@ use App\Models\DeploymentLog;
 use App\Models\Release;
 use App\Models\ReleaseDescription;
 use App\Services\BackupDb\BackupDbTestService;
+use App\Services\ReleaseChangelogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -99,6 +100,17 @@ class ReleaseController extends Controller
             DB::beginTransaction();
             $release = Release::create($data);
 
+            // Si el usuario generó un resumen con IA, crearlo como release_description
+            $aiDescription = trim($request->input('ai_description', ''));
+            if ($aiDescription !== '') {
+                ReleaseDescription::create([
+                    'release_id'  => $release->id,
+                    'title'       => 'Mejoras de esta versión (generado por IA)',
+                    'description' => nl2br(e($aiDescription)),
+                    'created_by'  => auth()->user()->id,
+                ]);
+            }
+
             $deployLog = DeploymentLog::create([
                 'release_id'   => $release->id,
                 'triggered_by' => auth()->user()->id,
@@ -150,6 +162,27 @@ class ReleaseController extends Controller
         );
         shell_exec($cmd);
         Log::info("Deploy #{$deployLog->id} lanzado como proceso background (local).");
+    }
+
+    public function generateChangelog(Request $request)
+    {
+        $version = trim($request->input('version', 'nueva'));
+
+        try {
+            $service = app(ReleaseChangelogService::class);
+            $text    = $service->generate($version);
+
+            return response()->json([
+                'success'     => true,
+                'description' => $text,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("generateChangelog error: {$e->getMessage()}");
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo generar el resumen: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function update(Request $request, $id)
