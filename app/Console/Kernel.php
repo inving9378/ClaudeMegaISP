@@ -68,11 +68,20 @@ class Kernel extends ConsoleKernel
         $schedule->job(new \App\Jobs\Referrals\CalculateDailyStats)->dailyAt('02:30')->withoutOverlapping(30)->onOneServer()->name('embajadores:daily-stats');
 
         // Deploy remoto — ejecuta los DeploymentLogs pendientes creados por el webhook.
-        // Trigger confiable vía el cron por minuto (no depende de fastcgi/colas/workers).
-        // En foreground a propósito: en este host el spawn en background falla silencioso.
-        $schedule->command('remote:deploy-run-pending')
-            ->everyMinute()
-            ->withoutOverlapping();
+        // Se desactiva en consumidoras (GITHUB_UPDATES_ENABLED=true): en esas instancias
+        // el único trigger de actualización es el botón "Actualizar ahora" del banner.
+        if (!config('updates.enabled')) {
+            $schedule->command('remote:deploy-run-pending')
+                ->everyMinute()
+                ->withoutOverlapping();
+        }
+
+        // Detección de versión nueva desde GitHub Releases (solo en consumidoras).
+        if (config('updates.enabled')) {
+            $schedule->command('updates:check-github')
+                ->everyThirtyMinutes()
+                ->withoutOverlapping();
+        }
 
         // Marketing Publicador Multicanal (Fase 5)
         $schedule->command('marketing:publish-due')->everyMinute()->withoutOverlapping();
