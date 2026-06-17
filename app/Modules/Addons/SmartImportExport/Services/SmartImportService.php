@@ -663,7 +663,7 @@ class SmartImportService
         'duration_contracts'                       => ['module' => 'Planes', 'model' => DurationContract::class, 'conflict_keys' => []],
         'internets'                                => ['module' => 'Planes', 'model' => Internet::class, 'conflict_keys' => ['title']],
         'packages'                                 => ['module' => 'Planes', 'model' => Package::class, 'conflict_keys' => ['title']],
-        'plan_bundles'                             => ['module' => 'Planes', 'mode' => 'raw', 'conflict_keys' => []],
+        'plan_bundles'                             => ['module' => 'Planes', 'mode' => 'raw', 'conflict_keys' => ['bundle_id', 'plan_bundle_id', 'plan_bundle_type']],
         'plan_custom_client'                       => ['module' => 'Planes', 'mode' => 'raw', 'conflict_keys' => []],
 
         // ─── Proyectos ─── (2)
