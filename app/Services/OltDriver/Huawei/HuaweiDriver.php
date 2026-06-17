@@ -213,7 +213,10 @@ class HuaweiDriver implements OltDriverInterface
         return $this->withSession(function () use ($onuId) {
             try {
                 [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
-                $output = $this->transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
+                // Interface-context syntax (same pattern as withWriteTarget + collectAllOnts).
+                $this->transport->enterGponInterface($frame, $slot);
+                $output = $this->transport->exec("display ont info {$port} {$ontId}");
+                $this->transport->leaveToUserView();
                 $onts   = OntInfoParser::parse($output, $this->logger);
 
                 if (empty($onts)) {
@@ -284,7 +287,10 @@ class HuaweiDriver implements OltDriverInterface
         return $this->withSession(function () use ($onuId) {
             try {
                 [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
-                $output = $this->transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
+                // Interface-context syntax (same pattern as withWriteTarget + collectAllOnts).
+                $this->transport->enterGponInterface($frame, $slot);
+                $output = $this->transport->exec("display ont info {$port} {$ontId}");
+                $this->transport->leaveToUserView();
                 $onts   = OntInfoParser::parse($output, $this->logger);
 
                 if (empty($onts)) {
@@ -612,7 +618,15 @@ class HuaweiDriver implements OltDriverInterface
             try {
                 [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
 
-                $output = $this->transport->exec("display ont info {$frame} {$slot} {$port} {$ontId}");
+                // Resolve SN using interface-context syntax — the only form confirmed on live OLT.
+                // "display ont info {f} {s} {p} {id}" (4 space-separated numbers) is NOT a valid
+                // VRP command on MA5800-X7 V100R018; it returns an error that OntInfoParser can't
+                // parse (W3 dry-run confirmed: "ONT not found").
+                // Pattern: same as collectAllOnts() and fetchOpticalForOnt() — proven in B3/W3.
+                $this->transport->enterGponInterface($frame, $slot);
+                $output = $this->transport->exec("display ont info {$port} {$ontId}");
+                $this->transport->leaveToUserView();
+
                 $onts   = OntInfoParser::parse($output, $this->logger);
 
                 if (empty($onts)) {

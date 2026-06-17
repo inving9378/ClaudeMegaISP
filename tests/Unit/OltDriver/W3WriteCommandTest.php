@@ -156,6 +156,49 @@ class W3WriteCommandTest extends TestCase
         );
     }
 
+    // ── E) Sintaxis VRP del lookup de SN ─────────────────────────────────────
+
+    /**
+     * withWriteTarget() DEBE usar sintaxis interface-context ("display ont info {port} {ontId}")
+     * y NO la sintaxis de 4 números con espacios ("display ont info {f} {s} {p} {id}")
+     * que NO existe en VRP MA5800-X7 V100R018 y causó "ONT not found" en W3 dry-run.
+     *
+     * El mock recibe cualquier argumento en exec() pero verifica:
+     *   • enterGponInterface() llamado con slot=3 (de ONU_ID 1:0/3/2:0)
+     *   • exec() llamado con "display ont info 2 0" (port=2, ontId=0)
+     */
+    public function test_write_target_lookup_uses_interface_context_syntax(): void
+    {
+        $transport = $this->createMock(HuaweiTransport::class);
+        $transport->method('isOpen')->willReturn(true);
+
+        // Captura el argumento con el que se llama exec()
+        $capturedCmd = null;
+        $transport->method('exec')->willReturnCallback(function (string $cmd) use (&$capturedCmd) {
+            $capturedCmd = $cmd;
+            return self::$ontFixture;
+        });
+
+        // Para descOnt en dry-run, enterGponInterface es llamado por withWriteTarget (lookup)
+        // y NO por executeSteps (que se saltea en dry-run)
+        $transport->expects($this->atLeastOnce())->method('enterGponInterface');
+        $transport->expects($this->atLeastOnce())->method('leaveToUserView');
+
+        $driver = new HuaweiDriver(
+            transport: $transport,
+            config:    ['dry_run' => true, 'olt_id' => '1', 'frame' => 0],
+            logger:    new NullLogger(),
+        );
+
+        $driver->descOnt(W3WriteCommand::ONU_ID, 'PRUEBA-W3');
+
+        // El comando de lookup debe ser interface-context: "display ont info {port} {ontId}"
+        $this->assertSame('display ont info 2 0', $capturedCmd,
+            '"display ont info {f} {s} {p} {id}" (4 números con espacios) NO existe en VRP MA5800-X7; '
+            . 'debe usarse "display ont info {port} {ontId}" desde interface gpon {f}/{s}.'
+        );
+    }
+
     // ── Builder — verificación directa del builder para W3 ───────────────────
 
     public function test_builder_generates_correct_w3_sequence(): void
