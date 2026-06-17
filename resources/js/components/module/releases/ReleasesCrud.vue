@@ -33,7 +33,35 @@
                             />
                         </template>
 
-                        <div class="form-group text-center">
+                        <!-- Panel de resumen IA — solo en creación -->
+                        <div v-if="!id" class="px-1 pb-2">
+                            <hr class="my-2" />
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <label class="form-label mb-0 fw-semibold text-muted small">
+                                    <i class="bi bi-stars me-1"></i> Mejoras generadas por IA
+                                    <span class="fw-normal">(editable · se publicará en "Ver más")</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-secondary btn-sm"
+                                    @click="generateChangelog"
+                                    :disabled="aiLoading"
+                                >
+                                    <span v-if="aiLoading" class="spinner-border spinner-border-sm me-1"></span>
+                                    <i v-else class="bi bi-arrow-repeat me-1"></i>
+                                    {{ aiLoading ? 'Generando...' : 'Generar automáticamente' }}
+                                </button>
+                            </div>
+                            <textarea
+                                v-model="aiDescription"
+                                class="form-control form-control-sm"
+                                rows="5"
+                                placeholder="Haz clic en «Generar automáticamente» para que la IA analice los commits desde la versión anterior…"
+                                style="font-size:0.85rem;resize:vertical;"
+                            ></textarea>
+                        </div>
+
+                        <div class="form-group text-center mt-3">
                             <a
                                 class="btn btn-secondary me-3"
                                 href="javascript:void(0)"
@@ -75,9 +103,11 @@ export default {
         },
     },
     setup(props, { emit }) {
-        const fieldsJson = ref({});
-        const dataForm = reactive({ data: new Form({}) });
-        const loading = ref(false);
+        const fieldsJson    = ref({});
+        const dataForm      = reactive({ data: new Form({}) });
+        const loading       = ref(false);
+        const aiDescription = ref('');
+        const aiLoading     = ref(false);
 
         const requestEditedFieldsById = async (module, id) => {
             let fields = {};
@@ -117,10 +147,28 @@ export default {
 
         const closeModal = () => {
             dataForm.data.reset();
-            loading.value = false;
+            loading.value   = false;
+            aiDescription.value = '';
             nextTick(() => {
                 $("#releaseModal").modal("hide");
             });
+        };
+
+        const generateChangelog = async () => {
+            aiLoading.value = true;
+            try {
+                const version = dataForm.data['version'] || '';
+                const { data } = await axios.post('/releases/generate-changelog', { version });
+                if (data.success) {
+                    aiDescription.value = data.description;
+                } else {
+                    Swal.fire('Error', data.message || 'No se pudo generar el resumen.', 'error');
+                }
+            } catch (e) {
+                Swal.fire('Error', e.response?.data?.message || 'No se pudo generar el resumen.', 'error');
+            } finally {
+                aiLoading.value = false;
+            }
         };
 
         const updateThisField = ({ field, value }) => {
@@ -137,6 +185,12 @@ export default {
             const url = props.id
                 ? `/releases/update/${props.id}`
                 : `/releases/store`;
+
+            // Adjuntar el resumen IA si fue generado (solo en creación)
+            if (!props.id && aiDescription.value.trim()) {
+                dataForm.data['ai_description'] = aiDescription.value.trim();
+            }
+
             dataForm.data
                 .submit("post", url, "reset")
                 .then((response) => {
@@ -185,6 +239,9 @@ export default {
             clearError,
             onSubmit,
             loading,
+            aiDescription,
+            aiLoading,
+            generateChangelog,
         };
     },
 };

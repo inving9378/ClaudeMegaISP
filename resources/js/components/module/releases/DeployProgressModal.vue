@@ -151,6 +151,22 @@
                         </div>
                     </div>
 
+                    <!-- Mejoras de esta versión (cargadas tras deploy exitoso) -->
+                    <div v-if="overallStatus === 'success' && releaseDescriptions.length" class="mt-3">
+                        <hr class="my-2" />
+                        <h6 class="fw-semibold mb-2">
+                            <i class="bi bi-stars me-1 text-primary"></i> Mejoras de esta versión
+                        </h6>
+                        <div
+                            v-for="desc in releaseDescriptions"
+                            :key="desc.id"
+                            class="mb-2 p-2 rounded bg-light small"
+                        >
+                            <strong v-if="desc.title" class="d-block mb-1">{{ desc.title }}</strong>
+                            <div v-html="desc.description"></div>
+                        </div>
+                    </div>
+
                     <!-- Resumen final -->
                     <div v-if="isDone" class="mt-3 p-3 rounded-3 d-flex align-items-center" :class="summaryBg">
                         <template v-if="overallStatus === 'success'">
@@ -208,12 +224,14 @@ export default {
     emits: ["closed"],
 
     setup(props, { emit }) {
-        const overallStatus = ref("pending");
-        const steps         = ref([]);
-        const errorMessage  = ref(null);
-        const durationSecs  = ref(null);
-        const outputVisible = ref({});
-        const retrying      = ref(false);
+        const overallStatus       = ref("pending");
+        const steps               = ref([]);
+        const errorMessage        = ref(null);
+        const durationSecs        = ref(null);
+        const outputVisible       = ref({});
+        const retrying            = ref(false);
+        const releaseDescriptions = ref([]);
+        const releaseId           = ref(null);
 
         // Estado interno: NO depender de los props, que se actualizan en el
         // siguiente tick. open() recibe el id/version directo del padre para
@@ -324,6 +342,7 @@ export default {
                 steps.value         = data.steps ?? [];
                 errorMessage.value  = data.error_message;
                 durationSecs.value  = data.duration_seconds;
+                if (data.release_id) releaseId.value = data.release_id;
                 if (data.started_at && !startedAtTime.value) {
                     startedAtTime.value = new Date(data.started_at).getTime();
                 }
@@ -334,8 +353,21 @@ export default {
             if (isDone.value) {
                 clearTimeout(pollTimer);
                 clearInterval(clockTimer);
+                // Cargar descriptions si el deploy fue exitoso
+                if (overallStatus.value === 'success' && releaseId.value) {
+                    loadDescriptions(releaseId.value);
+                }
             } else {
                 pollTimer = setTimeout(poll, 2500);
+            }
+        };
+
+        const loadDescriptions = async (rid) => {
+            try {
+                const { data } = await axios.get(`/releases/${rid}/descriptions`);
+                releaseDescriptions.value = Array.isArray(data) ? data : [];
+            } catch {
+                releaseDescriptions.value = [];
             }
         };
 
@@ -347,7 +379,9 @@ export default {
             steps.value         = [];
             errorMessage.value  = null;
             durationSecs.value  = null;
-            outputVisible.value = {};
+            outputVisible.value       = {};
+            releaseDescriptions.value = [];
+            releaseId.value           = null;
             clearTimeout(pollTimer);
             clearInterval(clockTimer);
             elapsedSeconds.value = 0;
@@ -429,6 +463,7 @@ export default {
             headerBg, summaryBg, headerTitle, totalDuration,
             progressPercent, progressLabel, progressBarClass, progressTextClass,
             elapsedSeconds, elapsedFormatted,
+            releaseDescriptions,
             open, close, retry,
             remoteSubSteps, toggleOutput, formatDuration, stepRowClass, stepTextClass,
         };
