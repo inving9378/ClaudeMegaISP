@@ -66,7 +66,7 @@
                 <!-- ── COLUMNA IZQUIERDA: secciones de campos ─────────────── -->
                 <div class="col-xl-7">
                     <!-- Datos personales -->
-                    <section class="cic-card">
+                    <section class="cic-card cic-card--personal">
                         <div class="cic-card-head"><i class="mdi mdi-account-outline"></i> Datos personales</div>
                         <div class="cic-grid">
                             <ComponentFormDefault
@@ -80,7 +80,7 @@
                     </section>
 
                     <!-- Dirección -->
-                    <section class="cic-card">
+                    <section class="cic-card cic-card--direccion">
                         <div class="cic-card-head"><i class="mdi mdi-map-marker-outline"></i> Dirección</div>
                         <div class="cic-grid">
                             <ComponentFormDefault
@@ -94,7 +94,7 @@
                     </section>
 
                     <!-- Contrato y facturación -->
-                    <section class="cic-card">
+                    <section class="cic-card cic-card--contrato">
                         <div class="cic-card-head"><i class="mdi mdi-file-document-outline"></i> Contrato y facturación</div>
                         <div class="cic-grid">
                             <ComponentFormDefault
@@ -108,7 +108,7 @@
                     </section>
 
                     <!-- Encuesta de instalación -->
-                    <section class="cic-card">
+                    <section class="cic-card cic-card--encuesta">
                         <div class="cic-card-head"><i class="mdi mdi-clipboard-check-outline"></i> Encuesta de instalación</div>
                         <div class="cic-grid">
                             <ComponentFormDefault
@@ -122,7 +122,7 @@
                     </section>
 
                     <!-- Otros campos (anti-pérdida: cualquier campo del backend no asignado) -->
-                    <section class="cic-card" v-if="otrosFields().length">
+                    <section class="cic-card cic-card--otros" v-if="otrosFields().length">
                         <div class="cic-card-head"><i class="mdi mdi-dots-horizontal"></i> Otros campos</div>
                         <div class="cic-grid">
                             <ComponentFormDefault
@@ -138,7 +138,7 @@
 
                 <!-- ── COLUMNA DERECHA: Ubicación (mapa Google + stats) ───── -->
                 <div class="col-xl-5">
-                    <section class="cic-card">
+                    <section class="cic-card cic-card--ubicacion">
                         <div class="cic-card-head cic-map-head">
                             <span><i class="mdi mdi-map"></i> Ubicación</span>
                             <span class="badge" :class="geodataFixed ? 'bg-success' : 'bg-secondary'">
@@ -176,7 +176,7 @@
                     </section>
 
                     <!-- Servicio y conexión -->
-                    <section class="cic-card">
+                    <section class="cic-card cic-card--servicio">
                         <div class="cic-card-head"><i class="mdi mdi-router-wireless"></i> Servicio y conexión</div>
                         <div v-if="dataForm.data.box_nomenclator_old" class="cic-banner-old">
                             <span class="text-muted">Nomenclatura antigua:</span>
@@ -213,7 +213,7 @@
                     </section>
 
                     <!-- Credenciales -->
-                    <section class="cic-card">
+                    <section class="cic-card cic-card--credenciales">
                         <div class="cic-card-head"><i class="mdi mdi-key-outline"></i> Credenciales</div>
                         <div class="cic-grid">
                             <ComponentFormDefault
@@ -779,6 +779,22 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-balance-label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; }
 .cic-balance-value { font-size: 1.05rem; font-weight: 700; color: #16a34a; }
 
+/* ── Color identificador por sección ─────────────────────────────────────────── */
+/* MODO CLARO: fondo de color solo en el encabezado */
+.cic-card--personal     .cic-card-head { background: #EEEDFE; color: #3C3489; }
+.cic-card--direccion    .cic-card-head { background: #E6F1FB; color: #0C447C; }
+.cic-card--servicio     .cic-card-head { background: #E1F5EE; color: #085041; }
+.cic-card--credenciales .cic-card-head { background: #FAEEDA; color: #633806; }
+.cic-card--contrato     .cic-card-head { background: #EAF3DE; color: #27500A; }
+.cic-card--encuesta     .cic-card-head { background: #FAECE7; color: #712B13; }
+.cic-card--ubicacion    .cic-card-head { background: #FBEAF0; color: #72243E; }
+.cic-card--otros        .cic-card-head { background: #F1EFE8; color: #2C2C2A; }
+/* El ícono hereda el color del encabezado (neutraliza .cic-card-head i { color:#6366f1 }) */
+.cic-card--personal     .cic-card-head i, .cic-card--direccion    .cic-card-head i,
+.cic-card--servicio     .cic-card-head i, .cic-card--credenciales .cic-card-head i,
+.cic-card--contrato     .cic-card-head i, .cic-card--encuesta     .cic-card-head i,
+.cic-card--ubicacion    .cic-card-head i, .cic-card--otros        .cic-card-head i { color: inherit; }
+
 /* ── Dark mode (issue 6): el sistema usa el ref darkMode de hook/appConfig ───── */
 .cic-dark .cic-header-card,
 .cic-dark .cic-card { background: #1d1d21; border-color: #2c2c34; }
@@ -792,4 +808,22 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-dark .cic-stat-label,
 .cic-dark .cic-subline { color: #9ca3af; }
 .cic-dark .cic-grid :deep(label) { color: #9ca3af; }
+
+/* MODO OSCURO: línea inferior coloreada + ícono del encabezado */
+.cic-dark .cic-card--personal     { border-bottom: 3px solid #7F77DD; }
+.cic-dark .cic-card--direccion    { border-bottom: 3px solid #378ADD; }
+.cic-dark .cic-card--servicio     { border-bottom: 3px solid #1D9E75; }
+.cic-dark .cic-card--credenciales { border-bottom: 3px solid #EF9F27; }
+.cic-dark .cic-card--contrato     { border-bottom: 3px solid #639922; }
+.cic-dark .cic-card--encuesta     { border-bottom: 3px solid #D85A30; }
+.cic-dark .cic-card--ubicacion    { border-bottom: 3px solid #D4537E; }
+.cic-dark .cic-card--otros        { border-bottom: 3px solid #888780; }
+.cic-dark .cic-card--personal     .cic-card-head i { color: #AFA9EC; }
+.cic-dark .cic-card--direccion    .cic-card-head i { color: #85B7EB; }
+.cic-dark .cic-card--servicio     .cic-card-head i { color: #5DCAA5; }
+.cic-dark .cic-card--credenciales .cic-card-head i { color: #FAC775; }
+.cic-dark .cic-card--contrato     .cic-card-head i { color: #97C459; }
+.cic-dark .cic-card--encuesta     .cic-card-head i { color: #F0997B; }
+.cic-dark .cic-card--ubicacion    .cic-card-head i { color: #ED93B1; }
+.cic-dark .cic-card--otros        .cic-card-head i { color: #B4B2A9; }
 </style>
