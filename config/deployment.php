@@ -76,6 +76,12 @@ return [
         'author_email' => env('GIT_AUTHOR_EMAIL', 'releases@meganet.com'),
     ],
 
+    // Integración con GitHub API (para publicar releases y detectar actualizaciones)
+    'github' => [
+        'token' => env('GITHUB_TOKEN', ''),
+        'repo'  => env('GITHUB_REPO', 'inving9378/ClaudeMegaISP'),
+    ],
+
     // URL base del servidor remoto donde se desplegará (ej: http://192.168.105.11)
     // Dejar vacío para omitir el paso remote_deploy
     'remote_url'     => env('DEPLOY_REMOTE_URL', ''),
