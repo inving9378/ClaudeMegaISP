@@ -96,7 +96,7 @@ class BundleController extends Controller
             $bundle = $this->data['model']::create($input);
             foreach ($planes as $value) {
                 foreach (collect($request->$value)->groupBy("value") as $key => $val) {
-                    $bundle->$value()->attach($key, ['cant' => count($val)]);
+                    $bundle->$value()->syncWithoutDetaching([$key => ['cant' => count($val)]]);
                 }
             }
             $this->saveRelationMultipleIfExist($this->data['model'], $bundle, $request);
@@ -164,15 +164,15 @@ class BundleController extends Controller
         $this->processItems($request->types_of_billing, TypeBilling::class, 'type', $model, 'billings');
 
         foreach (collect($internets)->groupBy("value") as $key => $val) {
-            $model->planes_internet()->attach($key, ['cant' => count($val)]);
+            $model->planes_internet()->syncWithoutDetaching([$key => ['cant' => count($val)]]);
         }
 
         foreach (collect($customs)->groupBy("value") as $key => $val) {
-            $model->planes_custom()->attach($key, ['cant' => count($val)]);
+            $model->planes_custom()->syncWithoutDetaching([$key => ['cant' => count($val)]]);
         }
 
         foreach (collect($voises)->groupBy("value") as $key => $val) {
-            $model->planes_voz()->attach($key, ['cant' => count($val)]);
+            $model->planes_voz()->syncWithoutDetaching([$key => ['cant' => count($val)]]);
         }
         return $model;
     }
