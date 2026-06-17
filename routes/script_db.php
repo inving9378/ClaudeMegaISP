@@ -1,5 +1,7 @@
 <?php
-Route::get('/reload_db', function () {
+Route::middleware(['auth'])->get('/reload_db', function () {
+
+    abort_unless(app()->environment('local'), 403, 'Ruta deshabilitada fuera de entorno local.');
 
     set_time_limit(-1);
     ini_set("memory_limit", -1);

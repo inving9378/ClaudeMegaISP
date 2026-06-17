@@ -384,13 +384,13 @@ class MigrateSeedController extends Controller
                 $bundle->billings()->attach($billings[$key]);
             }
             if (isset($planes_internet[$key]) && count($planes_internet[$key])) {
-                $bundle->planes_internet()->attach(collect($planes_internet[$key])->keys()->toArray()[0], ['cant' => 1]);
+                $bundle->planes_internet()->syncWithoutDetaching([collect($planes_internet[$key])->keys()->first() => ['cant' => 1]]);
             }
             if (isset($planes_voz[$key]) && count($planes_voz[$key])) {
-                $bundle->planes_voz()->attach(collect($planes_voz[$key])->keys()->toArray()[0], ['cant' => 1]);
+                $bundle->planes_voz()->syncWithoutDetaching([collect($planes_voz[$key])->keys()->first() => ['cant' => 1]]);
             }
             if (isset($planes_custom[$key]) && count($planes_custom[$key])) {
-                $bundle->planes_custom()->attach(collect($planes_custom[$key])->keys()->toArray()[0], ['cant' => 1]);
+                $bundle->planes_custom()->syncWithoutDetaching([collect($planes_custom[$key])->keys()->first() => ['cant' => 1]]);
             }
         }
 
