@@ -215,14 +215,17 @@ export default {
                 })
                 .catch((error) => {
                     console.log(error);
-                    Swal.fire(
-                        "Error",
-                        error.response?.data?.message ||
-                            "Ocurrió un error inesperado.",
-                        "error"
-                    );
                     loading.value = false;
                     hideLoading();
+                    // Form.submit() rechaza con error.response.data (el JSON body),
+                    // no con el error axios completo. Si tiene .errors → validación
+                    // inline ya marcada; si tiene .message → mostrarlo.
+                    if (error?.errors) return;
+                    Swal.fire(
+                        "Error",
+                        error?.message || "Ocurrió un error inesperado.",
+                        "error"
+                    );
                 })
                 .finally(() => {
                     hideLoading();
