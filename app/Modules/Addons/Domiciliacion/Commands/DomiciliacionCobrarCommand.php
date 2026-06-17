@@ -25,6 +25,15 @@ class DomiciliacionCobrarCommand extends Command
     private const MAX_ATTEMPTS      = 3;
     private const ADD_BY_SYSTEM     = 0;
 
+    // Estados que representan deuda activa. Verificado contra client_invoices en producción:
+    // los únicos estados existentes son Pagado + estos 4. No existe "Archivado" en facturas.
+    private const ESTADOS_CON_DEUDA = [
+        'Pagar (del saldo de la cuenta)',
+        'impagado',
+        'Atrasado',
+        'Partially paid',
+    ];
+
     public function handle(): int
     {
         $dryRun = $this->option('dry-run');
