@@ -150,6 +150,13 @@ El campo legacy `password` del admin NO se modifica.
 
 ## HOJA DE RUTA — Items pendientes
 
+### Infraestructura de producción — verificación pendiente
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| **Cron schedule:run en PROD** | Verificar que el servidor de producción tenga `* * * * * cd /var/www/megaisp && php artisan schedule:run` activo como `www-data`. Si está caído: billing (`invoice:create-proformas`), notificaciones de cobranza (`billing:send-pending-notifications`), CobranzaBlaster, domiciliación y backups reales no corren. | ⚠️ Verificar | Alta |
+| **Permisos /var/backups/mysql en PROD** | Ajustar a `750 www-data:www-data` (sin group-write) una vez el cron esté activo. Actualmente en dev: `770` para pruebas manuales. | ⚠️ Pendiente | Media |
+
 ### Portal Cliente — estado al 2026-06-15
 
 | Item | Descripción | Estado | Prioridad |
