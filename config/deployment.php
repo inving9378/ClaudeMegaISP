@@ -19,6 +19,14 @@ return [
 
     'steps' => [
         [
+            'key'      => 'git_check_secrets',
+            'name'     => 'Verificar archivos sensibles',
+            'type'     => 'secret_check',
+            'timeout'  => 15,
+            'critical' => true,
+            'enabled'  => true,
+        ],
+        [
             'key'      => 'git_add',
             'name'     => 'Preparar archivos (git add)',
             'command'  => 'git add -A',

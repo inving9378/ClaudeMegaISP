@@ -71,9 +71,11 @@ class DeploymentService
                 'ran_at' => now()->toIso8601String(),
             ]);
 
-            [$exitCode, $output, $durationMs] = ($step['type'] ?? 'shell') === 'http'
-                ? $this->executeHttpDeploy($step, $version, $title, $log)
-                : $this->executeStep($step);
+            [$exitCode, $output, $durationMs] = match ($step['type'] ?? 'shell') {
+                'http'         => $this->executeHttpDeploy($step, $version, $title, $log),
+                'secret_check' => $this->executeSecretCheck(),
+                default        => $this->executeStep($step),
+            };
 
             // Caso especial: git commit con "nothing to commit" (exit 1) → skip, no error
             if ($exitCode === 1 && ($step['skip_on_nothing_to_commit'] ?? false)) {
@@ -203,6 +205,48 @@ class DeploymentService
         $process = Process::fromShellCommandline("git tag -l {$version}", base_path(), $this->buildEnv());
         $process->run();
         return trim($process->getOutput()) === $version;
+    }
+
+    private function executeSecretCheck(): array
+    {
+        $startedAt = microtime(true);
+        $process   = Process::fromShellCommandline('git status --porcelain', base_path(), $this->buildEnv());
+        $process->run();
+        $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+        // Patrones de archivos que NO deben entrar al commit de release
+        $patterns = [
+            '/\.env(\b|\.)/',               // .env, .env.local, .env.production…
+            '/\.pem$/i',
+            '/\.key$/i',
+            '/credential/i',
+            '/secret.*\.(json|yaml|yml|txt)$/i',
+        ];
+
+        $flagged = [];
+        foreach (explode("\n", trim($process->getOutput())) as $line) {
+            if (!trim($line)) continue;
+            $file = ltrim(substr($line, 2)); // porcelain: "XY filename"
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $file)) {
+                    $flagged[] = trim($line);
+                    break;
+                }
+            }
+        }
+
+        if ($flagged) {
+            return [
+                1,
+                "ABORTADO — archivos sensibles detectados en el árbol de trabajo:\n"
+                    . implode("\n", $flagged)
+                    . "\n\nAgrega estos archivos a .gitignore o elimínalos antes de desplegar.",
+                $durationMs,
+            ];
+        }
+
+        $porcelain = trim($process->getOutput()) ?: '(árbol limpio)';
+        return [0, "Sin archivos sensibles.\n{$porcelain}", $durationMs];
     }
 
     private function executeStep(array $step): array
