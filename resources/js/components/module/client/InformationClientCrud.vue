@@ -93,6 +93,88 @@
                         </div>
                     </section>
 
+                    <!-- Contrato y facturación -->
+                    <section class="cic-card">
+                        <div class="cic-card-head"><i class="mdi mdi-file-document-outline"></i> Contrato y facturación</div>
+                        <div class="cic-grid">
+                            <ComponentFormDefault
+                                v-for="val in sectionFields(SECTIONS.contrato)"
+                                :key="val.field" :id="id" :json="val"
+                                :errors="dataForm.data.errors"
+                                v-model="dataForm.data[val.field]"
+                                @update-field="updateThisField" @clear-error="clearError"
+                            />
+                        </div>
+                    </section>
+
+                    <!-- Encuesta de instalación -->
+                    <section class="cic-card">
+                        <div class="cic-card-head"><i class="mdi mdi-clipboard-check-outline"></i> Encuesta de instalación</div>
+                        <div class="cic-grid">
+                            <ComponentFormDefault
+                                v-for="val in sectionFields(SECTIONS.encuesta)"
+                                :key="val.field" :id="id" :json="val"
+                                :errors="dataForm.data.errors"
+                                v-model="dataForm.data[val.field]"
+                                @update-field="updateThisField" @clear-error="clearError"
+                            />
+                        </div>
+                    </section>
+
+                    <!-- Otros campos (anti-pérdida: cualquier campo del backend no asignado) -->
+                    <section class="cic-card" v-if="otrosFields().length">
+                        <div class="cic-card-head"><i class="mdi mdi-dots-horizontal"></i> Otros campos</div>
+                        <div class="cic-grid">
+                            <ComponentFormDefault
+                                v-for="val in otrosFields()"
+                                :key="val.field" :id="id" :json="val"
+                                :errors="dataForm.data.errors"
+                                v-model="dataForm.data[val.field]"
+                                @update-field="updateThisField" @clear-error="clearError"
+                            />
+                        </div>
+                    </section>
+                </div>
+
+                <!-- ── COLUMNA DERECHA: Ubicación (mapa Google + stats) ───── -->
+                <div class="col-xl-5">
+                    <section class="cic-card">
+                        <div class="cic-card-head cic-map-head">
+                            <span><i class="mdi mdi-map"></i> Ubicación</span>
+                            <span class="badge" :class="geodataFixed ? 'bg-success' : 'bg-secondary'">
+                                {{ geodataFixed ? "Fijada" : "Sin ubicación" }}
+                            </span>
+                        </div>
+                        <div class="cic-map-box">
+                            <ClientMapInline :lat="mapLat" :lng="mapLng" />
+                            <div class="cic-map-edit mt-2">
+                            <InputModalWithGoogleMapForm
+                                :property="{
+                                    field: 'geodata',
+                                    label: '',
+                                    class_col: 'full',
+                                    class_field: 'form-control',
+                                    class_label: 'col-sm-12 col-md-3 col-form-label text-md-end pr-2 text-sm-center',
+                                }"
+                                :key="dataForm.data.geodata"
+                                :modelValue="dataForm.data.geodata"
+                                :errors="dataForm.data.errors"
+                                @update-field="updateThisField"
+                            />
+                            </div>
+                        </div>
+                        <div class="cic-stats">
+                            <div class="cic-stat">
+                                <div class="cic-stat-label">Zona / Municipio</div>
+                                <div class="cic-stat-value">{{ municipalityName || "—" }}</div>
+                            </div>
+                            <div class="cic-stat">
+                                <div class="cic-stat-label">Distancia a oficina</div>
+                                <div class="cic-stat-value">{{ distanceToOffice }}</div>
+                            </div>
+                        </div>
+                    </section>
+
                     <!-- Servicio y conexión -->
                     <section class="cic-card">
                         <div class="cic-card-head"><i class="mdi mdi-router-wireless"></i> Servicio y conexión</div>
@@ -141,88 +223,6 @@
                                 v-model="dataForm.data[val.field]"
                                 @update-field="updateThisField" @clear-error="clearError"
                             />
-                        </div>
-                    </section>
-
-                    <!-- Contrato y facturación -->
-                    <section class="cic-card">
-                        <div class="cic-card-head"><i class="mdi mdi-file-document-outline"></i> Contrato y facturación</div>
-                        <div class="cic-grid">
-                            <ComponentFormDefault
-                                v-for="val in sectionFields(SECTIONS.contrato)"
-                                :key="val.field" :id="id" :json="val"
-                                :errors="dataForm.data.errors"
-                                v-model="dataForm.data[val.field]"
-                                @update-field="updateThisField" @clear-error="clearError"
-                            />
-                        </div>
-                    </section>
-
-                    <!-- Encuesta de instalación -->
-                    <section class="cic-card">
-                        <div class="cic-card-head"><i class="mdi mdi-clipboard-check-outline"></i> Encuesta de instalación</div>
-                        <div class="cic-grid">
-                            <ComponentFormDefault
-                                v-for="val in sectionFields(SECTIONS.encuesta)"
-                                :key="val.field" :id="id" :json="val"
-                                :errors="dataForm.data.errors"
-                                v-model="dataForm.data[val.field]"
-                                @update-field="updateThisField" @clear-error="clearError"
-                            />
-                        </div>
-                    </section>
-
-                    <!-- Otros campos (anti-pérdida: cualquier campo del backend no asignado) -->
-                    <section class="cic-card" v-if="otrosFields().length">
-                        <div class="cic-card-head"><i class="mdi mdi-dots-horizontal"></i> Otros campos</div>
-                        <div class="cic-grid">
-                            <ComponentFormDefault
-                                v-for="val in otrosFields()"
-                                :key="val.field" :id="id" :json="val"
-                                :errors="dataForm.data.errors"
-                                v-model="dataForm.data[val.field]"
-                                @update-field="updateThisField" @clear-error="clearError"
-                            />
-                        </div>
-                    </section>
-                </div>
-
-                <!-- ── COLUMNA DERECHA: Ubicación (mapa Google + stats) ───── -->
-                <div class="col-xl-5">
-                    <section class="cic-card cic-sticky">
-                        <div class="cic-card-head cic-map-head">
-                            <span><i class="mdi mdi-map"></i> Ubicación</span>
-                            <span class="badge" :class="geodataFixed ? 'bg-success' : 'bg-secondary'">
-                                {{ geodataFixed ? "Fijada" : "Sin ubicación" }}
-                            </span>
-                        </div>
-                        <div class="cic-map-box">
-                            <ClientMapInline :lat="mapLat" :lng="mapLng" />
-                            <div class="cic-map-edit mt-2">
-                            <InputModalWithGoogleMapForm
-                                :property="{
-                                    field: 'geodata',
-                                    label: '',
-                                    class_col: 'full',
-                                    class_field: 'form-control',
-                                    class_label: 'col-sm-12 col-md-3 col-form-label text-md-end pr-2 text-sm-center',
-                                }"
-                                :key="dataForm.data.geodata"
-                                :modelValue="dataForm.data.geodata"
-                                :errors="dataForm.data.errors"
-                                @update-field="updateThisField"
-                            />
-                            </div>
-                        </div>
-                        <div class="cic-stats">
-                            <div class="cic-stat">
-                                <div class="cic-stat-label">Zona / Municipio</div>
-                                <div class="cic-stat-value">{{ municipalityName || "—" }}</div>
-                            </div>
-                            <div class="cic-stat">
-                                <div class="cic-stat-label">Distancia a oficina</div>
-                                <div class="cic-stat-value">{{ distanceToOffice }}</div>
-                            </div>
                         </div>
                     </section>
                 </div>
