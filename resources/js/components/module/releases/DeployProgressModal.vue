@@ -20,6 +20,9 @@
                             <i v-else class="bi bi-rocket-takeoff text-white"></i>
                         </span>
                         <h6 class="mb-0 text-white fw-semibold">{{ headerTitle }}</h6>
+                        <span v-if="isRunning && elapsedSeconds > 0" class="badge bg-white bg-opacity-25 text-white ms-2 fw-normal font-monospace">
+                            <i class="bi bi-stopwatch me-1"></i>{{ elapsedFormatted }}
+                        </span>
                         <span v-if="activeVersion" class="badge bg-white bg-opacity-25 text-white ms-auto fw-normal">
                             {{ activeVersion }}
                         </span>
@@ -215,7 +218,11 @@ export default {
         const activeId      = ref(props.deploymentId);
         const activeVersion = ref(props.version);
 
-        let pollTimer = null;
+        let pollTimer  = null;
+        let clockTimer = null;
+
+        const elapsedSeconds = ref(0);
+        const startedAtTime  = ref(null); // milliseconds timestamp
 
         // ── Computed ─────────────────────────────────────────────────────────
 
@@ -288,6 +295,20 @@ export default {
             return "text-primary";
         });
 
+        const elapsedFormatted = computed(() => {
+            const s = elapsedSeconds.value;
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = s % 60;
+            if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+            return `${m}:${String(sec).padStart(2, '0')}`;
+        });
+
+        const tickClock = () => {
+            if (!startedAtTime.value) return;
+            elapsedSeconds.value = Math.floor((Date.now() - startedAtTime.value) / 1000);
+        };
+
         // ── Métodos ───────────────────────────────────────────────────────────
 
         const poll = async () => {
@@ -300,12 +321,16 @@ export default {
                 steps.value         = data.steps ?? [];
                 errorMessage.value  = data.error_message;
                 durationSecs.value  = data.duration_seconds;
+                if (data.started_at && !startedAtTime.value) {
+                    startedAtTime.value = new Date(data.started_at).getTime();
+                }
             } catch (e) {
                 console.error("Error al obtener estado del deploy:", e);
             }
 
             if (isDone.value) {
                 clearTimeout(pollTimer);
+                clearInterval(clockTimer);
             } else {
                 pollTimer = setTimeout(poll, 2500);
             }
@@ -321,12 +346,17 @@ export default {
             durationSecs.value  = null;
             outputVisible.value = {};
             clearTimeout(pollTimer);
+            clearInterval(clockTimer);
+            elapsedSeconds.value = 0;
+            startedAtTime.value  = null;
+            clockTimer = setInterval(tickClock, 1000);
             $("#deployProgressModal").modal("show");
             poll();
         };
 
         const close = () => {
             clearTimeout(pollTimer);
+            clearInterval(clockTimer);
             $("#deployProgressModal").modal("hide");
             emit("closed", overallStatus.value);
         };
@@ -395,6 +425,7 @@ export default {
             isRunning, isDone, isFailed,
             headerBg, summaryBg, headerTitle, totalDuration,
             progressPercent, progressLabel, progressBarClass, progressTextClass,
+            elapsedSeconds, elapsedFormatted,
             open, close, retry,
             remoteSubSteps, toggleOutput, formatDuration, stepRowClass, stepTextClass,
         };
