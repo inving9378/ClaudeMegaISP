@@ -72,9 +72,10 @@ class DeploymentService
             ]);
 
             [$exitCode, $output, $durationMs] = match ($step['type'] ?? 'shell') {
-                'http'         => $this->executeHttpDeploy($step, $version, $title, $log),
-                'secret_check' => $this->executeSecretCheck(),
-                default        => $this->executeStep($step),
+                'http'           => $this->executeHttpDeploy($step, $version, $title, $log),
+                'secret_check'   => $this->executeSecretCheck(),
+                'github_release' => $this->executeGithubRelease($step, $version, $log),
+                default          => $this->executeStep($step),
             };
 
             // Caso especial: git commit con "nothing to commit" (exit 1) → skip, no error
@@ -247,6 +248,98 @@ class DeploymentService
 
         $porcelain = trim($process->getOutput()) ?: '(árbol limpio)';
         return [0, "Sin archivos sensibles.\n{$porcelain}", $durationMs];
+    }
+
+    private function executeGithubRelease(array $step, string $version, DeploymentLog $log): array
+    {
+        $startedAt = microtime(true);
+        $token     = config('deployment.github.token', '');
+        $repo      = config('deployment.github.repo', '');
+
+        if (empty($token) || empty($repo)) {
+            $msg = 'GITHUB_TOKEN o GITHUB_REPO no configurados — GitHub Release omitido.';
+            Log::channel('single')->warning("Deploy #{$log->id} — github_release: {$msg}");
+            return [0, $msg, 0];
+        }
+
+        $release = $log->release;
+
+        // Construir el cuerpo: descriptions manuales + summary del release
+        $body  = '';
+        if ($release) {
+            $descriptions = \App\Models\ReleaseDescription::where('release_id', $release->id)
+                ->orderBy('id')
+                ->get();
+
+            foreach ($descriptions as $desc) {
+                if ($desc->title) {
+                    $body .= "### {$desc->title}\n";
+                }
+                if ($desc->description) {
+                    $body .= strip_tags(html_entity_decode($desc->description)) . "\n\n";
+                }
+            }
+
+            if ($release->summary && !$body) {
+                $body = $release->summary;
+            }
+        }
+
+        $body = trim($body) ?: "Versión {$version}";
+
+        try {
+            $apiUrl = "https://api.github.com/repos/{$repo}/releases/by_tag/{$version}";
+            $existing = Http::withToken($token)
+                ->withHeaders(['Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2022-11-28'])
+                ->get($apiUrl);
+
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+            if ($existing->successful()) {
+                // Actualiza el release existente
+                $releaseId = $existing->json('id');
+                $response  = Http::withToken($token)
+                    ->withHeaders(['Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2022-11-28'])
+                    ->patch("https://api.github.com/repos/{$repo}/releases/{$releaseId}", [
+                        'name' => $release?->title ? "{$version} — {$release->title}" : $version,
+                        'body' => $body,
+                    ]);
+                $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+                if ($response->successful()) {
+                    return [0, "GitHub Release actualizado: " . $response->json('html_url'), $durationMs];
+                }
+                return [0, "No se pudo actualizar el GitHub Release ({$response->status()}): " . $response->body(), $durationMs];
+            }
+
+            // Crea un nuevo GitHub Release
+            $response = Http::withToken($token)
+                ->withHeaders(['Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2022-11-28'])
+                ->post("https://api.github.com/repos/{$repo}/releases", [
+                    'tag_name'         => $version,
+                    'target_commitish' => 'main',
+                    'name'             => $release?->title ? "{$version} — {$release->title}" : $version,
+                    'body'             => $body,
+                    'draft'            => false,
+                    'prerelease'       => false,
+                ]);
+
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+            if ($response->successful()) {
+                Log::channel('single')->info("Deploy #{$log->id} — GitHub Release creado: " . $response->json('html_url'));
+                return [0, "GitHub Release creado: " . $response->json('html_url'), $durationMs];
+            }
+
+            $msg = "GitHub Releases API ({$response->status()}): " . $response->body();
+            Log::channel('single')->warning("Deploy #{$log->id} — github_release falló (no crítico): {$msg}");
+            // Salida 0: no crítico, el publish no debe romperse por esto
+            return [0, $msg, $durationMs];
+        } catch (\Throwable $e) {
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+            $msg = 'Excepción al publicar GitHub Release: ' . $e->getMessage();
+            Log::channel('single')->warning("Deploy #{$log->id} — github_release excepción: {$msg}");
+            return [0, $msg, $durationMs];
+        }
     }
 
     private function executeStep(array $step): array
