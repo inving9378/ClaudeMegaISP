@@ -16,6 +16,7 @@ use App\Modules\Core\Clientes\Repositories\ClientVozServiceRepository;
 use App\Http\Repository\NetworkIpRepository;
 use App\Http\Repository\PaymentRepository;
 use App\Http\Repository\TransactionRepository;
+use App\Services\Client\ClientIdMigrator;
 use App\Services\LogService;
 use Illuminate\Http\Request;
 use App\Http\Requests\module\client\ClientInformationRequest;
@@ -248,96 +249,30 @@ class ClientInformationController extends Controller
         }
 
         $request->validate([
-            'id_new' => 'required|numeric|unique:clients,id',
+            'id_actual' => 'required|numeric|exists:clients,id',
+            'id_new'    => 'required|numeric|unique:clients,id',
         ]);
 
-        // Ejecutar todo dentro de un bloque sin eventos y en transacción
-        return Model::withoutEvents(function () use ($request) {
-            return DB::transaction(function () use ($request) {
-                try {
-                    DB::statement('SET FOREIGN_KEY_CHECKS=0');
-                    $idActual = $request->id_actual;
-                    $idNew = $request->id_new;
+        // La reasignación de TODAS las referencias del cliente (directas y
+        // polimórficas, descubiertas desde el esquema) + el reajuste del
+        // AUTO_INCREMENT viven en ClientIdMigrator. Así no hay que mantener a
+        // mano una lista de tablas que siempre se queda corta cuando se agregan
+        // módulos. Auditar cobertura sin tocar datos: `php artisan client:references {id}`.
+        $idActual = (int) $request->id_actual;
+        $idNew = (int) $request->id_new;
 
-                    //Informacion
-                    $clientMainInformationRepository = new ClientMainInformationRepository();
-                    $clientMainInformation = $clientMainInformationRepository->getClientMainInformationByClientIdGet($idActual);
-                    $this->updateId($clientMainInformation, $idNew, 'client_id');
+        $summary = app(ClientIdMigrator::class)->migrate($idActual, $idNew);
 
-                    $clientAdditionalInformationRepository = new ClientAdditionalInformationRepository();
-                    $clientAdditionalInformation = $clientAdditionalInformationRepository->getClientAdditionalInformationByClientId($idActual);
-                    $this->updateId($clientAdditionalInformation, $idNew, 'client_id');
+        activity()->tap(function (Activity $activity) use ($idNew) {
+            $activity->client_id = $idNew;
+        })->log(
+            'Cliente #' . $idActual . ' actualizado a ' . $idNew
+            . ' desde el edit_id por el usuario ' . Auth::user()->id
+            . '. Tablas afectadas: '
+            . collect($summary)->map(fn ($n, $t) => "$t=$n")->implode(', ')
+        );
 
-                    //billingCOnfiguration
-                    $billingConfiguration = BillingConfiguration::where('client_id', $idActual)->get();
-                    $this->updateId($billingConfiguration, $idNew, 'client_id');
-                    //balances
-                    $balances = Balance::where('balanceable_id', $idActual)->get();
-                    $this->updateId($balances, $idNew, 'balanceable_id');
-
-                    //Servicios
-                    $internetServiceRepository = new ClientInternetServiceRepository();
-                    $serviciosDeInternet = $internetServiceRepository->getServiceFilterByClientId($idActual);
-                    $this->updateId($serviciosDeInternet, $idNew, 'client_id');
-
-                    $vosServiceRepository = new ClientVozServiceRepository();
-                    $serviciosDeVoz = $vosServiceRepository->getServiceFilterByClientId($idActual);
-                    $this->updateId($serviciosDeVoz, $idNew, 'client_id');
-
-                    $customServiceRepository = new ClientCustomServiceRepository();
-                    $serviciosCustom = $customServiceRepository->getServiceFilterByClientId($idActual);
-                    $this->updateId($serviciosCustom, $idNew, 'client_id');
-
-                    $bundleServiceRepository = new ClientBundleServiceRepository();
-                    $serviciosBundles = $bundleServiceRepository->getServicesFilterByClientId($idActual);
-                    $this->updateId($serviciosBundles, $idNew, 'client_id');
-
-                    //Pagos
-                    $paymentRepository = new PaymentRepository();
-                    $payments = $paymentRepository->getPaymentsByClientId($idActual);
-                    $this->updateId($payments, $idNew, 'paymentable_id');
-
-                    //Facturas
-                    $invoiceRepository = new ClientInvoiceRepository();
-                    $invoices = $invoiceRepository->getInvoicesByClientId($idActual);
-                    $this->updateId($invoices, $idNew, 'client_id');
-
-                    //Transacciones
-                    $transactionsRepository = new TransactionRepository();
-                    $transactions = $transactionsRepository->getTransactionsByClientId($idActual);
-                    $this->updateId($transactions, $idNew, 'client_id');
-
-                    //Usuario del Sistema
-                    $user = User::where('client_id', $idActual)->get();
-                    $this->updateId($user, $idNew, 'client_id');
-
-                    //Redes
-                    $networkIpRepository = new NetworkIpRepository();
-                    $networkIps = $networkIpRepository->getNetworkIpByClientId($idActual);
-                    $this->updateId($networkIps, $idNew, 'client_id');
-
-                    //Reminder Configuration
-                    $reminderConfiguration = RemindersConfiguration::where('client_id', $idActual)->get();
-                    $this->updateId($reminderConfiguration, $idNew, 'client_id');
-
-                    //Documentos
-                    $documents = DocumentClient::where('client_id', $idActual)->get();
-                    $this->updateId($documents, $idNew, 'client_id');
-
-                    $client = Client::findOrFail($idActual);
-                    $client->id = $idNew;
-                    $client->save();
-
-                    activity()->tap(function (Activity $activity) use ($client) {
-                        $activity->client_id = $client->id;
-                    })->log('Cliente #' . $idActual . ' actualizado a ' . $idNew . ' desde el edit_id por el usuario ' . Auth::user()->id);
-
-                    return response()->json(['success' => true]);
-                } finally {
-                    DB::statement('SET FOREIGN_KEY_CHECKS=1');
-                }
-            });
-        });
+        return response()->json(['success' => true, 'affected' => $summary]);
     }
 
     public function updateId($colections, $idNew, $identificator)
