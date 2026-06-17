@@ -91,8 +91,11 @@
 
                                     <!-- Output del paso (solo texto plano, no para remote_deploy con sub-pasos) -->
                                     <div v-if="step.output && !remoteSubSteps(step).length">
+                                        <p v-if="step.status === 'running'" class="small text-primary mb-1 mt-2">
+                                            <i class="bi bi-terminal me-1"></i> Consola — archivos en proceso
+                                        </p>
                                         <pre
-                                            v-if="step.status === 'failed' || outputVisible[step.key]"
+                                            v-if="step.status === 'failed' || step.status === 'running' || outputVisible[step.key]"
                                             class="bg-dark text-light p-2 rounded small mb-1 mt-2"
                                             style="max-height:160px;overflow-y:auto;font-size:11px;white-space:pre-wrap;word-break:break-all"
                                         >{{ step.output }}</pre>
