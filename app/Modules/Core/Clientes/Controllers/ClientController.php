@@ -17,6 +17,7 @@ use App\Modules\Core\Clientes\Models\ClientMainInformation;
 use App\Models\Module;
 use App\Models\User;
 use App\Modules\Core\Clientes\Services\ClientService;
+use App\Services\Client\ClientDeletionService;
 use App\Services\ColumnsDatatableModuleService;
 use App\Services\FormatDateService;
 use App\Services\ImportdDBService;
@@ -343,44 +344,30 @@ class ClientController extends Controller
      * Remove the specified resource from storage.
      *
      * @param \App\Models\Client $id
-     * @return \Illuminate\Http\Response
      */
     public function destroy($id)
     {
         $client = Client::find($id);
-        if ($client) {
-            foreach ($client->internet_service as $client_internet_service) {
-                if ($client_internet_service) {
-                    DeletedClientWithServiceJob::dispatchAfterResponse($client_internet_service);
-                }
-            }
-
-            if ($client->client_main_information && $client->client_main_information->estado == 'Cancelado') {
-                $client->client_main_information()->delete();
-                $client->client_additional_information()->delete();
-                $client->internet_service()->delete();
-                $client->voz_service()->delete();
-                $client->custom_service()->delete();
-                $client->bundle_service()->delete();
-                $client->user()->delete();
-                $client->user_system()->delete();
-                $client->payments()->delete();
-                $client->balance()->delete();
-                $client->client_invoices()->delete();
-                $client->billing_configuration()->delete();
-                $client->transactions()->delete(); //SOlo elimina una
-                $client->network_ip()->update(['used' => ComunConstantsController::IS_NUMERICAL_FALSE, 'used_by' => '--', 'client_id' => null]);
-                $client->delete();
-            } else {
-                if ($client->client_main_information) {
-                    $client->client_main_information()->update(['estado' => 'Cancelado']);
-                } else {
-                    $client->delete();
-                }
-            }
+        if (! $client) {
+            return redirect()->back()->with('message', 'Cliente no encontrado.');
         }
 
-        return redirect()->back()->with('message', Str::title($this->data['module']) . ' Eliminado Correctamente');
+        // Borrado en dos pasos:
+        //  - 1er click (estado != Cancelado): se marca 'Cancelado' (red de seguridad).
+        //  - 2º click (ya 'Cancelado') o cliente sin información principal:
+        //    borrado FÍSICO definitivo de TODAS sus referencias vía ClientDeletionService.
+        $yaCancelado = $client->client_main_information
+            && $client->client_main_information->estado == 'Cancelado';
+
+        if ($yaCancelado || ! $client->client_main_information) {
+            app(ClientDeletionService::class)->forceDeleteClient($client);
+
+            return redirect()->back()->with('message', 'Cliente eliminado definitivamente.');
+        }
+
+        $client->client_main_information()->update(['estado' => 'Cancelado']);
+
+        return redirect()->back()->with('message', 'Cliente cancelado. Vuelve a eliminar para borrarlo definitivamente.');
     }
 
 
@@ -389,44 +376,10 @@ class ClientController extends Controller
         $id = $request->id_client;
         $client = Client::withTrashed()->find($id);
         if ($client) {
-            // Eliminar la información principal del cliente
-            $client->client_main_information()->forceDelete();
+            // Mismo borrado físico completo que el 2º paso de destroy(): limpia
+            // TODAS las referencias (no solo ~14), evitando huérfanos.
+            app(ClientDeletionService::class)->forceDeleteClient($client);
 
-
-            // Eliminar la información adicional del cliente
-            $client->client_additional_information()->forceDelete();
-
-            // Eliminar servicios individuales
-            $client->internet_service()->forceDelete();
-            $client->voz_service()->forceDelete();
-            $client->custom_service()->forceDelete();
-            $client->bundle_service()->forceDelete();
-
-            // Eliminar usuarios relacionados
-            $client->user()->forceDelete();
-            $client->user_system()->forceDelete();
-
-            // Eliminar pagos y facturas
-            $client->payments()->forceDelete();
-
-            $client->client_invoices()->forceDelete();
-
-            // Eliminar transacciones
-            $client->transactions()->forceDelete();
-
-            // Actualizar IPs de red asociadas al cliente
-            $client->network_ip()->update([
-                'used' => ComunConstantsController::IS_NUMERICAL_FALSE,
-                'used_by' => '--',
-                'client_id' => null
-            ]);
-
-            $client->billing_configuration()->forceDelete();
-
-            $client->balance()->forceDelete();
-
-            // Eliminar el cliente
-            $client->forceDelete();
             return response()->json([
                 'success' => true
             ]);
