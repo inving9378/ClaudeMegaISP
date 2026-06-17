@@ -6,16 +6,7 @@ use App\Jobs\Mikrotik\CheckMikrotikConection;
 use App\Jobs\Mikrotik\MikrotikRemoveClientServiceFromAddressList;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Http\Controllers\Controller;
-use App\Modules\Core\Clientes\Repositories\ClientAdditionalInformationRepository;
-use App\Modules\Core\Clientes\Repositories\ClientBundleServiceRepository;
-use App\Modules\Core\Clientes\Repositories\ClientCustomServiceRepository;
-use App\Modules\Core\Clientes\Repositories\ClientInternetServiceRepository;
-use App\Modules\Core\Clientes\Repositories\ClientInvoiceRepository;
 use App\Modules\Core\Clientes\Repositories\ClientMainInformationRepository;
-use App\Modules\Core\Clientes\Repositories\ClientVozServiceRepository;
-use App\Http\Repository\NetworkIpRepository;
-use App\Http\Repository\PaymentRepository;
-use App\Http\Repository\TransactionRepository;
 use App\Services\Client\ClientIdMigrator;
 use App\Services\LogService;
 use Illuminate\Http\Request;
@@ -23,14 +14,9 @@ use App\Http\Requests\module\client\ClientInformationRequest;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\Mikrotik\MikrotikCreateAddressList;
-use App\Models\Balance;
-use App\Modules\Core\Configuracion\Models\BillingConfiguration;
-use App\Models\DocumentClient;
 use App\Models\Nomenclature;
-use App\Models\RemindersConfiguration;
 use App\Models\User;
 use Exception;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
@@ -273,16 +259,6 @@ class ClientInformationController extends Controller
         );
 
         return response()->json(['success' => true, 'affected' => $summary]);
-    }
-
-    public function updateId($colections, $idNew, $identificator)
-    {
-        foreach ($colections as $colect) {
-            if ($colect) {
-                $colect->$identificator = $idNew;
-                $colect->save();
-            }
-        }
     }
 
     public function getDataClientToSelectComponent($id)

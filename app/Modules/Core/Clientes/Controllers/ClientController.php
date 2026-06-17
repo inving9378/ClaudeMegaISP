@@ -4,7 +4,6 @@ namespace App\Modules\Core\Clientes\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Utils\ComunConstantsController;
-use App\Jobs\DeletedClientWithServiceJob;
 use App\Modules\Core\Clientes\Models\Client;
 use Illuminate\Http\Request;
 use App\Http\HelpersModule\module\client\ClientDatatableHelper;
@@ -28,7 +27,6 @@ use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
 
 
