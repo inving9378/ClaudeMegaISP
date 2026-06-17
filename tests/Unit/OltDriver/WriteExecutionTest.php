@@ -210,14 +210,20 @@ class WriteExecutionTest extends TestCase
     public function test_desc_ont_live_returns_success(): void
     {
         $transport = $this->mockTransport();
-        $transport->expects($this->once())
+        // enterGponInterface is called TWICE:
+        //   1) withWriteTarget() SN lookup (interface-context display)
+        //   2) executeSteps() interface nav step
+        $transport->expects($this->exactly(2))
             ->method('enterGponInterface')
             ->with(0, 3);
         $transport->expects($this->once())
             ->method('execWrite')
             ->with('ont modify 2 0 desc PRUEBA-W3', null)
             ->willReturn('  Success.');
-        $transport->expects($this->once())
+        // leaveToUserView is called TWICE:
+        //   1) after SN lookup in withWriteTarget()
+        //   2) executeSteps() return nav step
+        $transport->expects($this->exactly(2))
             ->method('leaveToUserView');
 
         $result = $this->makeDriver($transport)->descOnt('1:0/3/2:0', 'PRUEBA-W3');
@@ -280,9 +286,10 @@ class WriteExecutionTest extends TestCase
         $transport->expects($this->once())
             ->method('execWrite')
             ->willReturn('Failure: Parameter error.');
-        // leaveToUserView is a nav method; after abort, executeSteps stops
-        // and the nav step is never processed (the loop throws before reaching return)
-        $transport->expects($this->never())->method('leaveToUserView');
+        // leaveToUserView is called exactly ONCE: by withWriteTarget()'s SN lookup.
+        // The `return` nav step inside executeSteps() is NOT reached because the abort
+        // throws WriteExecutionAbortedException before that step, so it's called just 1×.
+        $transport->expects($this->once())->method('leaveToUserView');
 
         $result = $this->makeDriver($transport)->rebootOnu('1:0/3/2:0');
 
@@ -343,9 +350,12 @@ class WriteExecutionTest extends TestCase
     public function test_guard_denied_returns_failure_for_non_allowed_sn(): void
     {
         $transport = $this->mockTransport(self::$ontPortFixtureNonAllowed);
-        $transport->expects($this->never())->method('enterGponInterface');
+        // enterGponInterface and leaveToUserView ARE called once — by withWriteTarget()'s
+        // SN lookup (interface-context display) — before the guard check fires.
+        // execWrite must NEVER be called (guard blocks before any write byte).
+        $transport->expects($this->once())->method('enterGponInterface');
         $transport->expects($this->never())->method('execWrite');
-        $transport->expects($this->never())->method('leaveToUserView');
+        $transport->expects($this->once())->method('leaveToUserView');
 
         $result = $this->makeDriver($transport)->descOnt('1:0/3/2:0', 'PRUEBA-W3');
 
@@ -378,12 +388,13 @@ class WriteExecutionTest extends TestCase
     public function test_dry_run_returns_dry_run_flag(): void
     {
         $transport = $this->mockTransport();
+        // dry_run=true still resolves the SN via interface-context lookup in withWriteTarget()
+        // (enterGponInterface + exec + leaveToUserView), then takes the dryRunResult() path.
+        // execWrite is NEVER called — no write bytes sent in dry-run mode.
         $transport->expects($this->never())->method('execWrite');
-        $transport->expects($this->never())->method('enterGponInterface');
-        $transport->expects($this->never())->method('leaveToUserView');
+        $transport->expects($this->once())->method('enterGponInterface');
+        $transport->expects($this->once())->method('leaveToUserView');
 
-        // In dry_run mode, withWriteTarget calls transport.exec() for ont info lookup
-        // but never calls execWrite/enterGponInterface/leaveToUserView
         $result = $this->makeDriver($transport, dryRun: true)->descOnt('1:0/3/2:0', 'PRUEBA-W3');
 
         $this->assertTrue($result['dry_run']);
