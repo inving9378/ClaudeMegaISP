@@ -2328,6 +2328,21 @@ return [
     ],
 
     // ══════════════════════════════════════════════════════════════════════════
+    // Domiciliación a Tarjeta (addon-domiciliacion) — acceso admin
+    // Las rutas públicas /d/{token} no pasan por check_route_permission.
+    // ══════════════════════════════════════════════════════════════════════════
+    'domiciliacion.view' => [
+        '/domiciliacion/clientes/{clientId}',
+    ],
+    'domiciliacion.manage' => [
+        '/domiciliacion/clientes/{clientId}',
+        '/domiciliacion/clientes/{clientId}/{cardId}',
+    ],
+    'domiciliacion.links' => [
+        '/domiciliacion/clientes/{clientId}/liga',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
     // MegaFamilia (addon-megafamilia) — acceso web admin
     // ══════════════════════════════════════════════════════════════════════════
     'megafamilia_view' => [
