@@ -19,7 +19,7 @@ class RemoteDeployCommand extends Command
                             {--summary=}
                             {--release-date=}';
 
-    protected $description = 'Ejecuta el deploy en el servidor remoto (git pull, npm, migrate, optimize) actualizando el log.';
+    protected $description = 'Ejecuta el deploy en el servidor receptor (backup, git checkout tag, migrate, optimize) con rollback automático al código anterior si un paso crítico falla.';
 
     public function handle(): int
     {
@@ -34,17 +34,33 @@ class RemoteDeployCommand extends Command
         $summary     = $this->option('summary') ?? '';
         $releaseDate = $this->option('release-date') ?? now()->toDateString();
 
+        // Capturar el commit/tag actual ANTES de tocar nada — es el punto de rollback.
+        $previousCommit = $this->getCurrentHead();
+        if ($previousCommit) {
+            $log->update(['rollback_to_version' => $previousCommit]);
+        }
+
+        // Construir el comando git para sincronizar:
+        // - Si hay versión/tag específico: fetch + checkout del tag (exacto, sin sobrescribir .env/storage)
+        // - Sin versión: fallback a reset --hard origin/main (webhook legacy sin tag)
+        // Los assets llegan pre-compilados en git (public/js, public/css) — NO se corre npm.
+        $gitSyncCmd = $version
+            ? "git fetch origin && git checkout tags/{$version}"
+            : 'git fetch origin main && git reset --hard origin/main';
+
         $stepDefs = [
-            // fetch + reset --hard en vez de pull: el remoto compila assets (npm run prod) que
-            // ensucian archivos trackeados (public/js, mix-manifest) y romperían un merge. El
-            // reset descarta esos cambios locales y sincroniza exacto con origin/main. Solo toca
-            // archivos TRACKEADOS — .env, storage y subidas (untracked/gitignored) quedan intactos.
-            ['key' => 'git_pull',      'name' => 'Sincronizar con origin/main (fetch + reset)', 'type' => 'shell', 'cmd' => 'git fetch origin main && git reset --hard origin/main', 'timeout' => 120, 'critical' => true],
-            ['key' => 'npm_build',     'name' => 'Compilar assets (npm run prod)',  'type' => 'shell',   'cmd' => 'npm run prod',         'timeout' => 600, 'critical' => false],
+            // 1. Respaldo de BD ANTES de tocar nada — la restauración es MANUAL si algo falla
+            ['key' => 'backup_db',     'name' => 'Respaldar base de datos',         'type' => 'artisan', 'cmd' => 'backup_db:process',    'timeout' => 300, 'critical' => true],
+            // 2. Checkout del tag (o reset a main si no hay tag)
+            ['key' => 'git_sync',      'name' => 'Sincronizar código (' . ($version ?: 'origin/main') . ')', 'type' => 'shell', 'cmd' => $gitSyncCmd, 'timeout' => 120, 'critical' => true],
+            // 3. Migraciones aditivas (--force para no pedir confirmación en producción)
             ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'artisan', 'cmd' => 'migrate',              'timeout' => 120, 'critical' => false, 'params' => ['--force' => true]],
+            // 4. Warm-up de cachés
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
+            // 5. Reiniciar workers de cola
             ['key' => 'queue_restart', 'name' => 'Reiniciar workers',               'type' => 'artisan', 'cmd' => 'queue:restart',        'timeout' => 10,  'critical' => false],
-            ['key' => 'save_release',  'name' => 'Guardar release en DB remota',    'type' => 'inline',  'critical' => false],
+            // 6. Registrar el release en la DB local
+            ['key' => 'save_release',  'name' => 'Guardar release en DB local',     'type' => 'inline',  'critical' => false],
         ];
 
         $initialSteps = array_map(fn($s) => [
@@ -88,12 +104,7 @@ class RemoteDeployCommand extends Command
             $this->line("  [{$step['key']}]: " . ($success ? 'OK' : "FAILED (exit {$exitCode}): " . substr($output, -200)));
 
             if (!$success && ($step['critical'] ?? false)) {
-                $log->update([
-                    'status'        => 'failed',
-                    'error_message' => "Paso «{$step['name']}» falló con código {$exitCode}.",
-                    'finished_at'   => now(),
-                    'duration_seconds' => (int) now()->diffInSeconds($log->started_at),
-                ]);
+                $this->performRollback($log, $step, $exitCode, $previousCommit);
                 return 1;
             }
         }
@@ -106,6 +117,51 @@ class RemoteDeployCommand extends Command
 
         $this->info("Deploy remoto completado.");
         return 0;
+    }
+
+    /**
+     * Rollback de código al commit anterior cuando un paso crítico falla.
+     * La BD NO se restaura automáticamente — el respaldo queda disponible para restauración manual.
+     */
+    private function performRollback(DeploymentLog $log, array $failedStep, int $exitCode, ?string $previousCommit): void
+    {
+        $errorMsg = "Paso crítico «{$failedStep['name']}» falló (exit {$exitCode}). ";
+
+        if ($previousCommit) {
+            $this->warn("  Iniciando rollback de código a {$previousCommit}…");
+            [$rbCode, $rbOutput] = $this->runShell("git reset --hard {$previousCommit}", 60);
+
+            if ($rbCode === 0) {
+                // Warm-up mínimo tras revertir el código
+                $this->runArtisan('optimize');
+                $errorMsg .= "Código revertido a {$previousCommit}. ";
+            } else {
+                $errorMsg .= "ROLLBACK DE CÓDIGO FALLÓ: {$rbOutput}. ";
+            }
+        }
+
+        $errorMsg .= "El respaldo de BD está disponible para restauración manual si es necesario.";
+
+        $log->update([
+            'status'           => 'rolled_back',
+            'error_message'    => $errorMsg,
+            'finished_at'      => now(),
+            'duration_seconds' => (int) now()->diffInSeconds($log->started_at),
+        ]);
+
+        $this->error("  {$errorMsg}");
+    }
+
+    private function getCurrentHead(): ?string
+    {
+        try {
+            $process = Process::fromShellCommandline('git rev-parse HEAD', base_path(), $this->buildEnv());
+            $process->run();
+            $head = trim($process->getOutput());
+            return $head ?: null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function buildEnv(): array
@@ -161,7 +217,7 @@ class RemoteDeployCommand extends Command
                 'release_date' => $releaseDate,
                 'created_by'   => 1,
             ]);
-            return "Release {$version} creada en DB remota.";
+            return "Release {$version} creada en DB local.";
         }
         return "Release {$version} ya existía — sin cambios.";
     }
