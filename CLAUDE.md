@@ -161,6 +161,13 @@ El campo legacy `password` del admin NO se modifica.
 | **Bug Reintentar deploy (RESUELTO)** | `DeploymentController::retry` despachaba `DeployJob::dispatch($newLog)` con un solo argumento → `Too few arguments, at least 2 expected` (`DeployJob` exige `version` obligatoria). Corregido para despachar con `(log, version, title)` tomando la version/title de la release del deploy original. | ✅ Resuelto | — |
 | **Bug git_commit dependiente del idioma (RESUELTO)** | El paso `git_commit` detectaba "nada que commitear" parseando el texto inglés `nothing to commit` del output, pero el git del server responde en **español** → un árbol limpio (commits ya hechos, solo falta pushear) se trataba como **fallo** (exit 1) y cortaba el deploy. Corregido: (1) `LC_ALL=C/LANG=C` en `buildEnv()` para salida de git en inglés en todo el pipeline; (2) detección previa independiente del idioma con `git diff --cached --quiet` (stage vacío → commit `skipped` como éxito, no fallo). | ✅ Resuelto | — |
 
+### Deuda técnica frontend — antipatrón jQuery en componentes Vue
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| **Auditar `$(document).on` global en componentes Vue** | Antipatrón: handlers jQuery delegados en `document` dentro de `onMounted` con **IDs de botón compartidos** entre componentes y **sin `.off()`** → se acumulan handlers stale al navegar la SPA y un clic dispara instancias muertas. Detectado en `shared/TextTemplate.vue` y `shared/ContractTemplate.vue` (corregido ahí, commits 669a40bf + b4ba27d2). **Falta auditar el resto del codebase** por el mismo patrón. | ⚠️ Pendiente | Media |
+| **Limpiar duplicación benigna de `#generateContract`** | `$(document).on("click", "#generateContract")` en `CrmTemplate.vue` y `PlantillasClientes.vue` usa el mismo antipatrón, pero **solo re-abre el modal** (sin consecuencia: NO duplica contratos). Aplicar el mismo fix (namespace + `.off()`) **junto con** la auditoría del item anterior. | ⚠️ Pendiente | Baja |
+
 ### Portal Cliente — estado al 2026-06-15
 
 | Item | Descripción | Estado | Prioridad |
