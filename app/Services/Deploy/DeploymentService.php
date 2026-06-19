@@ -89,6 +89,7 @@ class DeploymentService
             [$exitCode, $output, $durationMs] = match ($step['type'] ?? 'shell') {
                 'http'           => $this->executeHttpDeploy($step, $version, $title, $log),
                 'secret_check'   => $this->executeSecretCheck(),
+                'staging_gate'   => $this->executeStagingGate(),
                 'github_release' => $this->executeGithubRelease($step, $version, $log),
                 'backup'         => $this->executeBackup($version),
                 default          => $this->executeStep($step),
@@ -292,6 +293,68 @@ class DeploymentService
 
         $porcelain = trim($process->getOutput()) ?: '(árbol limpio)';
         return [0, "Sin archivos sensibles.\n{$porcelain}", $durationMs];
+    }
+
+    /**
+     * Gate de staging (defensa PRIMARIA contra `git add -A`). Allowlist: el release solo
+     * puede tocar los artefactos de build de Mix (config('deployment.release_artifacts')).
+     * Si el working tree tiene CUALQUIER archivo cambiado fuera del allowlist → aborta y
+     * los lista (commitéalos o stashéalos antes de desplegar). El denylist de secretos
+     * (executeSecretCheck) sigue como 2ª capa, escaneando todo incluso dentro del allowlist.
+     */
+    private function executeStagingGate(): array
+    {
+        $startedAt = microtime(true);
+        $process   = Process::fromShellCommandline('git status --porcelain', base_path(), $this->buildEnv());
+        $process->run();
+        $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+        $allowlist = config('deployment.release_artifacts', []);
+
+        $offenders = [];
+        foreach (explode("\n", trim($process->getOutput())) as $line) {
+            if (!trim($line)) continue;
+            $file = $this->porcelainPath($line);
+            if (!$this->isAllowedArtifact($file, $allowlist)) {
+                $offenders[] = trim($line);
+            }
+        }
+
+        if ($offenders) {
+            return [
+                1,
+                "ABORTADO — hay cambios sin relación con el release (fuera del allowlist de artefactos):\n"
+                    . implode("\n", $offenders)
+                    . "\n\nCommitéalos o stashéalos antes de desplegar. El release solo puede tocar: "
+                    . implode(', ', $allowlist),
+                $durationMs,
+            ];
+        }
+
+        $porcelain = trim($process->getOutput()) ?: '(árbol limpio)';
+        return [0, "Staging válido — solo artefactos de build.\n{$porcelain}", $durationMs];
+    }
+
+    /** Extrae la ruta de una línea porcelain ("XY ruta"; en renames usa el destino). */
+    private function porcelainPath(string $line): string
+    {
+        $path = ltrim(substr($line, 2));
+        if (str_contains($path, ' -> ')) {
+            $path = substr($path, strpos($path, ' -> ') + 4); // destino del rename
+        }
+        return trim($path, '"'); // git entrecomilla rutas con caracteres especiales
+    }
+
+    /** ¿La ruta cae dentro de alguna entrada del allowlist (archivo exacto o carpeta)? */
+    private function isAllowedArtifact(string $file, array $allowlist): bool
+    {
+        foreach ($allowlist as $allowed) {
+            $allowed = rtrim($allowed, '/');
+            if ($file === $allowed || str_starts_with($file, $allowed . '/')) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function executeGithubRelease(array $step, string $version, DeploymentLog $log): array
