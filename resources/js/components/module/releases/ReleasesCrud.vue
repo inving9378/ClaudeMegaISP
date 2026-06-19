@@ -132,7 +132,25 @@ export default {
 
                 } else {
                     fieldsJson.value = await requestFieldsByModule("Release");
+                    // (A) Campo NO renderizado: registra ai_description para que
+                    // Form.data() lo serialice (antes se asignaba suelto y se perdía).
+                    fieldsJson.value.ai_description = {
+                        field: "ai_description",
+                        type: "hidden",
+                        include: false,
+                        value: "",
+                    };
                     dataForm.data = new Form(fieldsJson.value);
+                    // (B.1) Pre-llenar la versión sugerida por regla (editable).
+                    // La versión la pone la regla, NO la IA.
+                    try {
+                        const { data } = await axios.get("/releases/next-version");
+                        if (data.success && data.version) {
+                            dataForm.data["version"] = data.version;
+                        }
+                    } catch (e) {
+                        // si falla, el campo queda vacío para captura manual
+                    }
                 }
             } catch (e) {
                 Swal.fire(
@@ -160,7 +178,12 @@ export default {
                 const version = dataForm.data['version'] || '';
                 const { data } = await axios.post('/releases/generate-changelog', { version });
                 if (data.success) {
-                    aiDescription.value = data.description;
+                    // (B.2) Llena Título + Resumen + Mejoras (sobrescribe, sin confirmación).
+                    // NO toca la versión. Si el JSON vino mal formado, el backend ya dejó
+                    // título/resumen vacíos y el texto crudo en improvements.
+                    dataForm.data['title']   = data.title || '';
+                    dataForm.data['summary'] = data.summary || '';
+                    aiDescription.value      = data.improvements || '';
                 } else {
                     Swal.fire('Error', data.message || 'No se pudo generar el resumen.', 'error');
                 }
