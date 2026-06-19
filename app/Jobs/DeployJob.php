@@ -15,7 +15,9 @@ class DeployJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 600;
+    // Holgado: el primer paso (respaldo de BD) puede tardar varios minutos y crecerá
+    // con la base; debe caber junto a git push + deploy remoto sin que el job expire.
+    public int $timeout = 1800;
     public int $tries   = 1;
 
     public function __construct(

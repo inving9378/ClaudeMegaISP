@@ -7,7 +7,6 @@ use App\Jobs\DeployJob;
 use App\Models\DeploymentLog;
 use App\Models\Release;
 use App\Models\ReleaseDescription;
-use App\Services\BackupDb\BackupDbTestService;
 use App\Services\ReleaseChangelogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -87,25 +86,9 @@ class ReleaseController extends Controller
             $data = $validator->validated();
             $data['created_by'] = auth()->user()->id;
 
-            $backupDbTestService = new BackupDbTestService();
-            try {
-                $ok = $backupDbTestService->backup($data['version']);
-            } catch (\Throwable $e) {
-                Log::error("Backup excepción para v{$data['version']}: {$e->getMessage()}");
-                return response()->json([
-                    'success' => false,
-                    'message' => 'El backup de la base de datos falló: ' . $e->getMessage(),
-                ], 500);
-            }
-
-            if (!$ok) {
-                Log::warning("Backup retornó false para versión {$data['version']}");
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se pudo crear el backup de la base de datos. Revisa los logs del servidor.',
-                ], 500);
-            }
-            Log::info("Backup creado exitosamente para versión {$data['version']}");
+            // El respaldo de la BD ya NO corre aquí (síncrono): se movió al pipeline
+            // de deploy como primer paso crítico ('db_backup'), que corre en el worker
+            // sin límite de memoria/timeout web y se ve en el modal de avance.
 
             DB::beginTransaction();
             $release = Release::create($data);
