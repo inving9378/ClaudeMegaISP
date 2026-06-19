@@ -11,7 +11,7 @@ class BackupDbTestService
     public function backup(string $version): bool
     {
         set_time_limit(0);
-        ini_set('memory_limit', '1024M');
+        // Sin ini_set de memoria: el volcado va por STREAMING a disco, memoria constante.
 
         $basePath = storage_path("backup_test/{$version}");
         if (!File::exists($basePath)) {
@@ -23,34 +23,35 @@ class BackupDbTestService
         try {
             $engine = new MysqldumpEngine();
 
-            // Volcado principal (datos + estructura) excluyendo activity_log
-            $mainSql = $engine->dump([
+            // Volcado principal (datos + estructura) excluyendo activity_log → streaming a .sql
+            $engine->dumpToFile($sqlFile, [
                 'flags' => [
                     '--single-transaction',
                     '--skip-lock-tables',
                     '--skip-add-locks',
                     '--add-drop-table',
+                    '--no-tablespaces',
                     '--default-character-set=utf8mb4',
                 ],
                 'ignore_tables' => ['activity_log'],
             ]);
 
-            // Solo la estructura de activity_log (sin datos), anexada al final
-            $activitySql = $engine->dump([
+            // Solo la estructura de activity_log (sin datos), anexada por streaming al final
+            $engine->dumpToFile($sqlFile, [
                 'flags' => [
                     '--single-transaction',
                     '--skip-lock-tables',
                     '--add-drop-table',
                     '--no-data',
+                    '--no-tablespaces',
                     '--default-character-set=utf8mb4',
                 ],
                 'tables' => ['activity_log'],
-            ]);
-
-            file_put_contents($sqlFile, $mainSql . PHP_EOL . $activitySql);
+            ], true); // append
 
             $zip = new ZipArchive();
             if ($zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+                // addFile (no addFromString): ZipArchive lee del disco, no carga el .sql en RAM
                 $zip->addFile($sqlFile, basename($sqlFile));
                 $zip->setCompressionName(basename($sqlFile), ZipArchive::CM_DEFLATE);
                 $zip->close();
