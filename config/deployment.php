@@ -58,7 +58,9 @@ return [
         [
             'key'      => 'git_tag',
             'name'     => 'Crear tag de versión ({version})',
-            'command'  => 'git tag {version}',
+            // Tag ANOTADO (-a -m): `git push --follow-tags` solo empuja tags anotados.
+            // Con tag lightweight (git tag {version}) el tag nunca llegaba a origin.
+            'command'  => 'git tag -a {version} -m "Release {version}"',
             'timeout'  => 10,
             'critical' => true,
             'enabled'  => true,
