@@ -158,6 +158,7 @@ El campo legacy `password` del admin NO se modifica.
 | **Permisos /var/backups/mysql en PROD** | Ajustar a `750 www-data:www-data` (sin group-write) una vez el cron esté activo. Actualmente en dev: `770` para pruebas manuales. | ⚠️ Pendiente | Media |
 | **Índice unique de `plan_bundles`** | Limpiar duplicados existentes en `plan_bundles` y re-habilitar el índice unique (`plan_bundles_bundle_plan_type_unique` sobre `bundle_id, plan_bundle_id, plan_bundle_type`) en la migración `2026_06_17_145346_add_unique_to_plan_bundles.php` — hoy **deshabilitado (comentado)** porque tronaba contra datos duplicados. La idempotencia de `0dadffad` evita nuevos duplicados pero **no limpia los viejos**; depurar antes de re-activar. | ⚠️ Pendiente | Media |
 | **Retención de respaldos por versión** | `storage/backup_test/{version}/{version}.zip` (el respaldo previo a cada release, hoy primer paso del pipeline de deploy) **se acumula ~135 MB por versión sin límite**. Falta política de retención/limpieza (p.ej. conservar N últimas o purgar por antigüedad), análoga a la retención de 14 días de `backup_db:process`. | ⚠️ Pendiente | Media |
+| **Bug Reintentar deploy (RESUELTO)** | `DeploymentController::retry` despachaba `DeployJob::dispatch($newLog)` con un solo argumento → `Too few arguments, at least 2 expected` (`DeployJob` exige `version` obligatoria). Corregido para despachar con `(log, version, title)` tomando la version/title de la release del deploy original. | ✅ Resuelto | — |
 
 ### Portal Cliente — estado al 2026-06-15
 
