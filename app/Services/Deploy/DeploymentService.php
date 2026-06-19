@@ -66,6 +66,21 @@ class DeploymentService
                 continue;
             }
 
+            // Skip del commit si no hay nada en el stage — INDEPENDIENTE DEL IDIOMA.
+            // (Antes se parseaba "nothing to commit" del output, que falla si git
+            //  responde en español.) `git diff --cached --quiet` → exit 0 = stage vacío.
+            if (($step['skip_on_nothing_to_commit'] ?? false) && $this->nothingStaged()) {
+                $log->updateStep($step['key'], [
+                    'status'      => 'skipped',
+                    'output'      => 'Sin cambios en el stage — commit omitido.',
+                    'exit_code'   => 0,
+                    'duration_ms' => 0,
+                    'ran_at'      => now()->toIso8601String(),
+                ]);
+                Log::channel('single')->info("Deploy #{$log->id} — paso '{$step['key']}': SKIPPED (stage vacío)");
+                continue;
+            }
+
             $log->updateStep($step['key'], [
                 'status' => 'running',
                 'ran_at' => now()->toIso8601String(),
@@ -78,20 +93,6 @@ class DeploymentService
                 'backup'         => $this->executeBackup($version),
                 default          => $this->executeStep($step),
             };
-
-            // Caso especial: git commit con "nothing to commit" (exit 1) → skip, no error
-            if ($exitCode === 1 && ($step['skip_on_nothing_to_commit'] ?? false)) {
-                if (str_contains($output, 'nothing to commit') || str_contains($output, 'nothing added')) {
-                    $log->updateStep($step['key'], [
-                        'status'      => 'skipped',
-                        'output'      => 'Sin cambios pendientes — commit omitido.',
-                        'exit_code'   => 0,
-                        'duration_ms' => $durationMs,
-                    ]);
-                    Log::channel('single')->info("Deploy #{$log->id} — paso '{$step['key']}': SKIPPED (nothing to commit)");
-                    continue;
-                }
-            }
 
             $success = $exitCode === 0;
 
@@ -238,6 +239,17 @@ class DeploymentService
         $process = Process::fromShellCommandline("git tag -l {$version}", base_path(), $this->buildEnv());
         $process->run();
         return trim($process->getOutput()) === $version;
+    }
+
+    /**
+     * ¿El stage está vacío? `git diff --cached --quiet` devuelve exit 0 si no hay nada
+     * preparado para commitear. Detección independiente del idioma de git.
+     */
+    private function nothingStaged(): bool
+    {
+        $process = Process::fromShellCommandline('git diff --cached --quiet', base_path(), $this->buildEnv());
+        $process->run();
+        return $process->getExitCode() === 0;
     }
 
     private function executeSecretCheck(): array
