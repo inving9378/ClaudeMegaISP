@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Active;
 
+use App\Services\BackupDb\MysqldumpEngine;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
@@ -21,34 +22,16 @@ class BackupDB extends Command
 
         $gzFile = self::BACKUP_DIR . '/megaisp-' . now()->format('YmdHi') . '.sql.gz';
 
-        // Credenciales desde config(), nunca env() directamente
-        $port = config('database.connections.mysql.port', '3306');
-        $db   = config('database.connections.mysql.database');
-        $user = config('database.connections.mysql.username');
-        $pass = config('database.connections.mysql.password', '');
-
-        // --host=localhost → mysqldump elige socket Unix (no TCP)
-        $cmd = sprintf(
-            'mysqldump --host=localhost --port=%s --user=%s %s | gzip > %s',
-            escapeshellarg($port),
-            escapeshellarg($user),
-            escapeshellarg($db),
-            escapeshellarg($gzFile)
-        );
-
         $log->info("Iniciando backup → {$gzFile}");
         $this->info("[backup_db] Iniciando → {$gzFile}");
 
-        $process = Process::fromShellCommandline($cmd);
-        // MYSQL_PWD evita que la contraseña quede expuesta en ps/history
-        $process->setEnv(['MYSQL_PWD' => $pass]);
-        $process->setTimeout(self::TIMEOUT);
-        $process->run();
-
-        if (! $process->isSuccessful()) {
-            $err = trim($process->getErrorOutput());
-            $log->error("mysqldump falló (exit {$process->getExitCode()}): {$err}");
-            $this->error("[backup_db] FALLO mysqldump: {$err}");
+        // Motor compartido: mysqldump binario por socket (--host=localhost),
+        // credenciales por config() y contraseña vía MYSQL_PWD. Canaliza a gzip.
+        try {
+            (new MysqldumpEngine())->dumpToGzipFile($gzFile);
+        } catch (\Throwable $e) {
+            $log->error($e->getMessage());
+            $this->error("[backup_db] FALLO mysqldump: " . $e->getMessage());
             return self::FAILURE;
         }
 
