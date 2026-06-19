@@ -20,12 +20,21 @@ class ReleaseChangelogService
     {
     }
 
-    public function generate(string $newVersion): string
+    /**
+     * Devuelve un arreglo estructurado: ['title' => ..., 'summary' => ..., 'improvements' => ...].
+     * Título y resumen pueden venir vacíos si la IA no los produjo o el JSON vino mal formado;
+     * en ese caso las mejoras llevan el texto crudo (nunca se pierde el contenido).
+     */
+    public function generate(string $newVersion): array
     {
         ['commits' => $commits, 'stat' => $stat] = $this->gatherGitData($newVersion);
 
         if (empty($commits)) {
-            return 'No se encontraron commits nuevos desde la versión anterior.';
+            return [
+                'title'        => '',
+                'summary'      => '',
+                'improvements' => 'No se encontraron commits nuevos desde la versión anterior.',
+            ];
         }
 
         return $this->callClaude($commits, $stat, $newVersion);
@@ -95,17 +104,23 @@ class ReleaseChangelogService
         return implode("\n", $safe);
     }
 
-    private function callClaude(string $commits, string $stat, string $version): string
+    private function callClaude(string $commits, string $stat, string $version): array
     {
         $prompt = <<<PROMPT
 Eres el redactor de release notes de MegaISP, sistema de gestión para un ISP (proveedor de internet).
-Tu tarea: dado el historial de commits y el árbol de archivos modificados, produce un resumen de mejoras
-en español, orientado a los usuarios del sistema (no a desarrolladores).
+Tu tarea: dado el historial de commits y el árbol de archivos modificados, redacta las notas de versión
+en español, orientadas a los usuarios del sistema (no a desarrolladores).
 
-Reglas:
-- Máximo 200 palabras.
-- Formato markdown: encabezado h3 "Mejoras en esta versión", seguido de una lista con viñetas.
-- Usa lenguaje claro y amigable. No menciones nombres de funciones ni archivos técnicos.
+Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta forma exacta (sin texto antes ni después, sin fences):
+{"title": "...", "summary": "...", "improvements": "..."}
+
+Donde:
+- "title": título corto y descriptivo de la versión (máx 60 caracteres). No incluyas la palabra "Versión" ni el número.
+- "summary": 1 o 2 frases que resuman la versión para el usuario (máx 240 caracteres).
+- "improvements": markdown con un encabezado h3 "Mejoras en esta versión" seguido de una lista con viñetas (máx 200 palabras).
+
+Reglas de contenido:
+- Lenguaje claro y amigable. No menciones nombres de funciones ni archivos técnicos.
 - Omite commits de tipo fix menor, chore, refactor si no impactan al usuario.
 - Si detectas una mejora significativa, explícala en una frase corta.
 
@@ -116,22 +131,58 @@ Commits:
 
 Archivos modificados:
 {$stat}
-
-Escribe SOLO el resumen, sin explicaciones previas ni cierre.
 PROMPT;
 
         try {
             $response = $this->claude->messages([
                 'model'      => 'claude-sonnet-4-6',
-                'max_tokens' => 512,
+                'max_tokens' => 700,
                 'messages'   => [['role' => 'user', 'content' => $prompt]],
             ]);
 
-            return $response['content'][0]['text'] ?? 'No se pudo generar el resumen.';
+            $raw = $response['content'][0]['text'] ?? '';
+            return $this->parseStructured($raw);
         } catch (\Throwable $e) {
             Log::warning("ReleaseChangelogService Claude error: {$e->getMessage()}");
             throw $e;
         }
+    }
+
+    /**
+     * Parsea la respuesta de la IA a ['title','summary','improvements'] de forma robusta:
+     * quita fences ```json, intenta json_decode, y si todo falla mete el texto crudo en
+     * "improvements" (título/resumen vacíos) — nunca lanza excepción por formato.
+     */
+    private function parseStructured(string $raw): array
+    {
+        $text = trim($raw);
+
+        // Quitar fences de código ```json ... ```
+        $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
+        $text = preg_replace('/\s*```$/', '', trim($text));
+        $text = trim($text);
+
+        $data = json_decode($text, true);
+
+        // Si no decodificó, intentar extraer el primer objeto {...}
+        if (!is_array($data) && preg_match('/\{.*\}/s', $text, $m)) {
+            $data = json_decode($m[0], true);
+        }
+
+        if (is_array($data) && (isset($data['improvements']) || isset($data['title']) || isset($data['summary']))) {
+            return [
+                'title'        => trim((string) ($data['title'] ?? '')),
+                'summary'      => trim((string) ($data['summary'] ?? '')),
+                'improvements' => trim((string) ($data['improvements'] ?? '')),
+            ];
+        }
+
+        // Fallback: JSON mal formado → el texto crudo va a Mejoras, título/resumen vacíos.
+        return [
+            'title'        => '',
+            'summary'      => '',
+            'improvements' => $raw,
+        ];
     }
 
     private function runGit(string $command, array $env, string $base): string
