@@ -156,6 +156,7 @@ El campo legacy `password` del admin NO se modifica.
 |------|-------------|--------|-----------|
 | **Cron schedule:run en PROD** | Verificar que el servidor de producción tenga `* * * * * cd /var/www/megaisp && php artisan schedule:run` activo como `www-data`. Si está caído: billing (`invoice:create-proformas`), notificaciones de cobranza (`billing:send-pending-notifications`), CobranzaBlaster, domiciliación y backups reales no corren. | ⚠️ Verificar | Alta |
 | **Permisos /var/backups/mysql en PROD** | Ajustar a `750 www-data:www-data` (sin group-write) una vez el cron esté activo. Actualmente en dev: `770` para pruebas manuales. | ⚠️ Pendiente | Media |
+| **Índice unique de `plan_bundles`** | Limpiar duplicados existentes en `plan_bundles` y re-habilitar el índice unique (`plan_bundles_bundle_plan_type_unique` sobre `bundle_id, plan_bundle_id, plan_bundle_type`) en la migración `2026_06_17_145346_add_unique_to_plan_bundles.php` — hoy **deshabilitado (comentado)** porque tronaba contra datos duplicados. La idempotencia de `0dadffad` evita nuevos duplicados pero **no limpia los viejos**; depurar antes de re-activar. | ⚠️ Pendiente | Media |
 
 ### Portal Cliente — estado al 2026-06-15
 
