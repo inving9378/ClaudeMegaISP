@@ -169,6 +169,12 @@ El campo legacy `password` del admin NO se modifica.
 | **Auditar `$(document).on` global en componentes Vue** | Antipatrón: handlers jQuery delegados en `document` dentro de `onMounted` con **IDs de botón compartidos** entre componentes y **sin `.off()`** → se acumulan handlers stale al navegar la SPA y un clic dispara instancias muertas. Detectado en `shared/TextTemplate.vue` y `shared/ContractTemplate.vue` (corregido ahí, commits 669a40bf + b4ba27d2). **Falta auditar el resto del codebase** por el mismo patrón. | ⚠️ Pendiente | Media |
 | **Limpiar duplicación benigna de `#generateContract`** | `$(document).on("click", "#generateContract")` en `CrmTemplate.vue` y `PlantillasClientes.vue` usa el mismo antipatrón, pero **solo re-abre el modal** (sin consecuencia: NO duplica contratos). Aplicar el mismo fix (namespace + `.off()`) **junto con** la auditoría del item anterior. | ⚠️ Pendiente | Baja |
 
+### Seguridad del pipeline de release — staging amplio (RIESGO)
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| **Pipeline de release hace `git add -A` amplio del working tree** | El paso `git_add` (`config/deployment.php`) ejecuta `git add -A` → barre **cualquier** archivo modificado/sin trackear del working tree al commit de release y lo empuja a `origin/main` (`git push origin main --follow-tags`). Evidencia real: V1.2.1 (`d472f1f5`) barrió `CLAUDE.md` y `public/js/app.js` que estaban sin commitear. El guard `executeSecretCheck` (`DeploymentService.php`) es **denylist** (solo `.env*`, `.pem`, `.key`, `credential`, `secret*.{json,yaml,yml,txt}`) → NO cubre `public/csv/`, backups `.sql/.gz`, `id_rsa`, `.p12/.crt`, `.token`, ni archivos arbitrarios. **Riesgo: un secreto o export de `public/csv/` sin commitear se empujaría a `origin/main`.** Migrar staging de denylist a **allowlist** (que el pipeline solo agregue los artefactos que él mismo construye/versiona, nunca `git add -A`). | ⚠️ Pendiente | **Alta** |
+
 ### Portal Cliente — estado al 2026-06-15
 
 | Item | Descripción | Estado | Prioridad |
