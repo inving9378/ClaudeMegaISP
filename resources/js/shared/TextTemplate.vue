@@ -125,6 +125,13 @@ export default {
             });
 
             $(document).on("click", `#show-preview`, async function (e) {
+                if (!val.value || val.value.trim() === "") {
+                    toastr.warning(
+                        'No hay contenido. Presiona "Cargar" antes de previsualizar.',
+                        "Plantilla vacía"
+                    );
+                    return;
+                }
                 let data = {
                     template: props.property.template,
                     html: val.value,

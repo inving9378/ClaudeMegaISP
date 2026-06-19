@@ -63,6 +63,13 @@ export default {
             });
 
             $(document).on("click", `#show-preview`, async function (e) {
+                if (!val.value || val.value.trim() === "") {
+                    toastr.warning(
+                        'No hay contenido. Presiona "Cargar" antes de previsualizar.',
+                        "Plantilla vacía"
+                    );
+                    return;
+                }
                 const response = await axios.post(
                     `/cliente/document/show_content_template`,
                     {
