@@ -116,6 +116,8 @@ class ContractCrmService
             'state' => $stateRepository->getStateNameById($crmMainInformation->state_id),
             'nif_pasaport' => $crmMainInformation->nif_pasaport,
             'type_of_billing_id' => $crmMainInformation->type_of_billing_id,
+            // El lead CRM aún no eligió paquete: vacío para llenar el monto a mano en el PDF.
+            'cost_all_services' => '',
         ];
         return $data;
     }
