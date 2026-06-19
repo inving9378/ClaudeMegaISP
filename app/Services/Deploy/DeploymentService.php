@@ -409,9 +409,17 @@ class DeploymentService
         $gitConfig  = config('deployment.git', []);
         $passphrase = env('SSH_KEY_PASSPHRASE', '');
 
+        // HOME = home del usuario que corre el worker (no hardcodeado a /root), para que
+        // git y ssh encuentren ~/.gitconfig, ~/.ssh/config y la llave de push de ese usuario.
+        // En opción A el worker de 'deploy' corre como meganet → usa /home/meganet.
+        $home = getenv('HOME')
+            ?: (function_exists('posix_getpwuid') && function_exists('posix_getuid')
+                ? (posix_getpwuid(posix_getuid())['dir'] ?? '/root')
+                : '/root');
+
         $env = [
             'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-            'HOME'               => '/root',
+            'HOME'               => $home,
             'COMPOSER_HOME'      => sys_get_temp_dir() . '/composer',
             // Permite que el proceso PHP opere git aunque el dueño del directorio sea distinto
             'GIT_CONFIG_COUNT'   => '1',
