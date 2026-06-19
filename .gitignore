@@ -7,6 +7,7 @@
 /storage/server_status/*
 /storage/sql_test/*
 /storage/backup_test/
+/storage/backups/manual/
 /vendor
 Homestead.json
 Homestead.yaml
