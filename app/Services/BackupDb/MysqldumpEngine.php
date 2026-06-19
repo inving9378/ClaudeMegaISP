@@ -57,6 +57,28 @@ class MysqldumpEngine
     }
 
     /**
+     * Ejecuta mysqldump y vuelca la salida SQL (sin comprimir) a un archivo por streaming.
+     * Memoria constante: no carga el volcado en PHP (a diferencia de dump():string).
+     *
+     * A diferencia de dumpToGzipFile, aquí NO hay pipe, por lo que el código de salida
+     * refleja directamente a mysqldump y `guard()` detecta fallos correctamente.
+     *
+     * @param bool $append true → anexa (>>) al archivo; false → lo sobrescribe (>)
+     */
+    public function dumpToFile(string $targetSqlFile, array $options = [], bool $append = false): void
+    {
+        $redirect = $append ? '>>' : '>';
+        $cmd = $this->buildShellCommand($options) . ' ' . $redirect . ' ' . escapeshellarg($targetSqlFile);
+
+        $process = Process::fromShellCommandline($cmd);
+        $process->setEnv($this->env());
+        $process->setTimeout(self::TIMEOUT);
+        $process->run();
+
+        $this->guard($process);
+    }
+
+    /**
      * Construye el comando mysqldump con conexión robusta + las opciones del llamador.
      *
      * Núcleo compartido (siempre): --host=localhost (socket), --port, --user.
