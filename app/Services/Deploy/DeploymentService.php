@@ -420,6 +420,10 @@ class DeploymentService
         $env = [
             'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
             'HOME'               => $home,
+            // Fuerza salida de git en inglés (C locale): el parseo del pipeline es
+            // predecible sin importar el idioma del sistema (el server responde en español).
+            'LC_ALL'             => 'C',
+            'LANG'               => 'C',
             'COMPOSER_HOME'      => sys_get_temp_dir() . '/composer',
             // Permite que el proceso PHP opere git aunque el dueño del directorio sea distinto
             'GIT_CONFIG_COUNT'   => '1',
