@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')->group(function () {
     Route::get('/', [ReleaseController::class, 'index']);
+    // Siguiente versión sugerida (antes de /{version}, que es catch-all)
+    Route::get('/next-version', [ReleaseController::class, 'nextVersion']);
     Route::get('/{version}', [ReleaseController::class, 'show']);
     Route::post('/store', [ReleaseController::class, 'store']);
     Route::post('/update/{id}', [ReleaseController::class, 'update']);

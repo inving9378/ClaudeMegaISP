@@ -163,11 +163,13 @@ class ReleaseController extends Controller
 
         try {
             $service = app(ReleaseChangelogService::class);
-            $text    = $service->generate($version);
+            $result  = $service->generate($version); // ['title','summary','improvements']
 
             return response()->json([
-                'success'     => true,
-                'description' => $text,
+                'success'      => true,
+                'title'        => $result['title'] ?? '',
+                'summary'      => $result['summary'] ?? '',
+                'improvements' => $result['improvements'] ?? '',
             ]);
         } catch (\Throwable $e) {
             Log::error("generateChangelog error: {$e->getMessage()}");
@@ -176,6 +178,35 @@ class ReleaseController extends Controller
                 'message' => 'No se pudo generar el resumen: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Sugiere la siguiente versión a partir de la mayor estilo V{mayor}.{menor} existente:
+     * sube el menor +1 y anexa la fecha de hoy DD.MM.AAAA. Ej.: máx V1.2.x → V1.3-19.06.2026.
+     * El campo es editable en el front; la regla NO la pone la IA.
+     */
+    public function nextVersion()
+    {
+        $maxMajor = 1;
+        $maxMinor = 0;
+
+        foreach (Release::pluck('version') as $v) {
+            if (preg_match('/^V(\d+)\.(\d+)/i', trim((string) $v), $m)) {
+                $maj = (int) $m[1];
+                $min = (int) $m[2];
+                if ($maj > $maxMajor || ($maj === $maxMajor && $min > $maxMinor)) {
+                    $maxMajor = $maj;
+                    $maxMinor = $min;
+                }
+            }
+        }
+
+        $suggested = sprintf('V%d.%d-%s', $maxMajor, $maxMinor + 1, now()->format('d.m.Y'));
+
+        return response()->json([
+            'success' => true,
+            'version' => $suggested,
+        ]);
     }
 
     public function update(Request $request, $id)
