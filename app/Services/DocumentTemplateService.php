@@ -106,6 +106,8 @@ class DocumentTemplateService
                 'data.municipality' => 'Municipio',
                 'data.colony' => 'Colonia',
                 'data.nif_pasaport' => 'NIF/Pasaporte',
+                // En CRM el lead aún no eligió paquete: renderiza vacío para llenar a mano.
+                'data.cost_all_services' => 'Costo de Todos los Servicios',
             ],
             'Otras' => [
                 'data.image_src' => 'Imagen Base',
