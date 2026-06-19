@@ -23,7 +23,7 @@
 </template>
 
 <script>
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, onUnmounted, reactive, ref, watch, getCurrentInstance } from "vue";
 import { errorTextKeys } from "../components/module/client/info/comun_variable";
 
 export default {
@@ -41,8 +41,10 @@ export default {
         const val = ref("");
         const variables = ref([]);
         const showTextArea = ref(false);
+        const uid = getCurrentInstance().uid;
+        const ns = `click.tpl-${uid}`;
         onMounted(() => {
-            $(document).on("click", `#load-content`, function (e) {
+            $(document).on(ns, `#load-content`, function (e) {
                 $.ajax({
                     url: `/cliente/document/load_content_template`,
                     method: "GET",
@@ -62,7 +64,7 @@ export default {
                 });
             });
 
-            $(document).on("click", `#show-preview`, async function (e) {
+            $(document).on(ns, `#show-preview`, async function (e) {
                 if (!val.value || val.value.trim() === "") {
                     toastr.warning(
                         'No hay contenido. Presiona "Cargar" antes de previsualizar.',
@@ -85,6 +87,10 @@ export default {
                     showPreview(response.data.file_path);
                 }
             });
+        });
+
+        onUnmounted(() => {
+            $(document).off(ns);
         });
 
         watch(val, () => {

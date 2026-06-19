@@ -77,7 +77,7 @@
 </template>
 
 <script>
-import { onMounted, reactive, ref, watch, nextTick } from "vue";
+import { onMounted, onUnmounted, reactive, ref, watch, nextTick, getCurrentInstance } from "vue";
 import {
     errorTextKeys,
     cleanHtml,
@@ -104,9 +104,11 @@ export default {
         const panel = ref("");
         const panelPrincipal = ref("");
         const fullScreen = ref(false);
+        const uid = getCurrentInstance().uid;
+        const ns = `click.tpl-${uid}`;
         onMounted(() => {
             getVariables();
-            $(document).on("click", `#load-content`, function (e) {
+            $(document).on(ns, `#load-content`, function (e) {
                 $.ajax({
                     url: `/administracion/document_template/load_content_template`,
                     method: "GET",
@@ -124,7 +126,7 @@ export default {
                 });
             });
 
-            $(document).on("click", `#show-preview`, async function (e) {
+            $(document).on(ns, `#show-preview`, async function (e) {
                 if (!val.value || val.value.trim() === "") {
                     toastr.warning(
                         'No hay contenido. Presiona "Cargar" antes de previsualizar.',
@@ -163,6 +165,10 @@ export default {
                     window.open(url, "_blank");
                 }
             });
+        });
+
+        onUnmounted(() => {
+            $(document).off(ns);
         });
 
         const updateCursorPosition = () => {
