@@ -60,7 +60,13 @@ class DeploymentController extends Controller
             'status'       => 'pending',
         ]);
 
-        DeployJob::dispatch($newLog)->onConnection('database')->onQueue('deploy');
+        // DeployJob exige (log, version, title): version es obligatoria. Se toma de la
+        // release del deploy original; sin ella el pipeline no podría taggear/publicar.
+        $release = $log->release;
+
+        DeployJob::dispatch($newLog, $release?->version ?? '', $release?->title ?? '')
+            ->onConnection('database')
+            ->onQueue('deploy');
 
         return response()->json([
             'success'       => true,
