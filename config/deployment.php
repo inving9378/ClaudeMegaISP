@@ -14,11 +14,22 @@
  *   skip_if_no_remote         — omite el paso si DEPLOY_REMOTE_URL no está configurado
  *   type: 'http'              — el paso llama al webhook del servidor remoto (no es shell)
  *   type: 'github_release'   — crea/actualiza un GitHub Release con las mejoras de la versión
+ *   type: 'backup'           — respaldo de la BD ANTES de publicar (streaming, en el worker)
  */
 
 return [
 
     'steps' => [
+        [
+            'key'      => 'db_backup',
+            'name'     => 'Respaldo de base de datos ({version})',
+            'type'     => 'backup',
+            // Generoso: el dump tardó ~115s y crecerá. El kill real lo gobierna el
+            // timeout del proceso mysqldump (3600s) y el de DeployJob (1800s).
+            'timeout'  => 1200,
+            'critical' => true,
+            'enabled'  => true,
+        ],
         [
             'key'      => 'git_check_secrets',
             'name'     => 'Verificar archivos sensibles',

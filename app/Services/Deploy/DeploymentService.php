@@ -75,6 +75,7 @@ class DeploymentService
                 'http'           => $this->executeHttpDeploy($step, $version, $title, $log),
                 'secret_check'   => $this->executeSecretCheck(),
                 'github_release' => $this->executeGithubRelease($step, $version, $log),
+                'backup'         => $this->executeBackup($version),
                 default          => $this->executeStep($step),
             };
 
@@ -119,6 +120,37 @@ class DeploymentService
             'finished_at'      => now(),
             'duration_seconds' => (int) now()->diffInSeconds($log->started_at),
         ]);
+    }
+
+    /**
+     * Primer paso crítico del pipeline: respalda la BD ANTES de publicar.
+     * Corre en el worker (sin límite de memoria ni timeout del request web).
+     * El volcado es por streaming (memoria constante). Si falla, el paso es
+     * crítico → el deploy se marca fallido y no se publica.
+     */
+    private function executeBackup(string $version): array
+    {
+        $startedAt = microtime(true);
+
+        try {
+            $ok = (new \App\Services\BackupDb\BackupDbTestService())->backup($version);
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+            if (!$ok) {
+                return [1, "El respaldo de la base de datos no se completó (revisa storage/logs). Versión {$version}.", $durationMs];
+            }
+
+            $zipFile = storage_path("backup_test/{$version}/{$version}.zip");
+            if (!is_file($zipFile) || filesize($zipFile) === 0) {
+                return [1, "El respaldo no generó un ZIP válido en {$zipFile}.", $durationMs];
+            }
+
+            $sizeMb = round(filesize($zipFile) / 1048576, 2);
+            return [0, "Respaldo creado: {$zipFile} ({$sizeMb} MB).", $durationMs];
+        } catch (\Throwable $e) {
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+            return [1, 'Excepción durante el respaldo: ' . $e->getMessage(), $durationMs];
+        }
     }
 
     private function executeHttpDeploy(array $step, string $version, string $title, DeploymentLog $log): array
