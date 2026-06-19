@@ -17,6 +17,18 @@
  *   type: 'backup'           — respaldo de la BD ANTES de publicar (streaming, en el worker)
  */
 
+// Allowlist de artefactos que un release legítimo puede commitear = salidas de Laravel
+// Mix bajo public/ que SÍ están trackeadas en git (ver webpack.mix.js). ÚNICA fuente de
+// verdad: la consume el paso git_staging_gate y el comando de git_add. NUNCA `git add -A`.
+// NOTA: public/mix-manifest.json NO va aquí — está gitignored (.gitignore:21) y `git add`
+// sobre un archivo ignorado devuelve exit 1, lo que rompería el paso crítico git_add.
+$releaseArtifacts = [
+    'public/js',             // app.js + chunks async (js/NNN.js) + *.LICENSE.txt
+    'public/css',            // app.css
+    'public/chart.js',       // copia estática (mix.copy) — solo cambia en bump de chart.js
+    'public/images/vendor',  // assets de leaflet extraídos por webpack — solo en bump de esas libs
+];
+
 return [
 
     'steps' => [
@@ -39,9 +51,19 @@ return [
             'enabled'  => true,
         ],
         [
+            'key'      => 'git_staging_gate',
+            'name'     => 'Validar staging (allowlist de artefactos)',
+            'type'     => 'staging_gate',
+            'timeout'  => 15,
+            'critical' => true,
+            'enabled'  => true,
+        ],
+        [
             'key'      => 'git_add',
             'name'     => 'Preparar archivos (git add)',
-            'command'  => 'git add -A',
+            // Allowlist explícito desde $releaseArtifacts — NUNCA `git add -A` (barría
+            // archivos ajenos/sensibles del working tree al commit de release).
+            'command'  => 'git add ' . implode(' ', $releaseArtifacts),
             'timeout'  => 30,
             'critical' => true,
             'enabled'  => true,
@@ -92,6 +114,10 @@ return [
             'skip_if_no_remote' => true,
         ],
     ],
+
+    // Allowlist de artefactos del release (definido arriba). Lo consume el gate
+    // (executeStagingGate) y el comando de git_add. Única fuente de verdad.
+    'release_artifacts' => $releaseArtifacts,
 
     'git' => [
         'author_name'  => env('GIT_AUTHOR_NAME', 'MegaISP Release'),
