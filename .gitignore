@@ -18,7 +18,6 @@ yarn-error.log
 .phpunit.result.cache
 /public/fonts
 composer.phar
-public/mix-manifest.json
 public/credencial
 public/perfiles
 public/uploads
