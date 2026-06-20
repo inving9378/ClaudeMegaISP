@@ -6,7 +6,6 @@
     <Breadcrumb
         :list=[{title:"Pagina"},{title:"Administracion"},{title:"Roles",active:"active"}]
     ></Breadcrumb>
-    {{-- <rol-listar></rol-listar> --}}
     <listar-rol></listar-rol>
     @if(session()->has('message'))
         <Message

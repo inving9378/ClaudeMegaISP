@@ -47,7 +47,6 @@ import AddNetworkCrud from "./components/module/network/AddNetworkCrud";
 import NetworkVer from "./components/module/network/NetworkVer";
 
 //Administracion
-import RolListar from "./components/module/adminstration/rol/RolListar";
 import ListarRol from "./components/module/adminstration/rol/ListarRol.vue";
 import PartnerListar from "./components/module/adminstration/partner/PartnerListar";
 import LocationListar from "./components/module/adminstration/location/LocationListar";
@@ -484,7 +483,6 @@ const app = createApp({
 
         //Administracion
         //Rol
-        RolListar,
         ListarRol,
         //Socio
         PartnerListar,
