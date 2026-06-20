@@ -6,6 +6,7 @@ use App\Modules\Core\Configuracion\Models\CompanyInformation;
 use App\Modules\BaseModuleServiceProvider;
 use App\Modules\Core\Layout\Models\AppLayoutConfiguration;
 use App\Modules\Core\Layout\ViewComposers\SidebarComposer;
+use App\Modules\Core\Layout\ViewComposers\TopbarComposer;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
 
@@ -35,6 +36,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         });
 
         View::composer('core-layout::sidebar', SidebarComposer::class);
+        View::composer('core-layout::topbar', TopbarComposer::class);
 
         View::share('logoMeganet', function () {
             // CompanyInformation se moverá a Core/Configuracion en un PR siguiente.

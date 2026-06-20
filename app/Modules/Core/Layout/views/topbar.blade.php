@@ -40,6 +40,39 @@
             <button type="button" class="btn btn-sm px-3 font-size-16 header-item" id="vertical-menu-btn">
                 <i class="fa fa-fw fa-bars"></i>
             </button>
+
+            {{-- Badge de instancia de producción (solo en consumidoras: ver TopbarComposer).
+                 Estilo 100% con tokens de dark-light-tokens.css → claro + oscuro, nada hardcoded. --}}
+            @if ($showProductionBadge ?? false)
+                <style>
+                    .megaisp-prod-pill {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: .4rem;
+                        padding: .22rem .7rem;
+                        border-radius: 999px;
+                        background: var(--bg-surface);
+                        border: 1px solid var(--border-default);
+                        font-size: .72rem;
+                        font-weight: 600;
+                        letter-spacing: .02em;
+                        line-height: 1.4;
+                        white-space: nowrap;
+                        color: var(--success);
+                    }
+                    .megaisp-prod-pill__ver {
+                        color: var(--text-secondary);
+                        font-weight: 500;
+                    }
+                </style>
+                <span class="header-item d-flex align-items-center" style="cursor: default;">
+                    <span class="megaisp-prod-pill"
+                          title="Instancia de producción · versión instalada {{ $installedVersion }}">
+                        PRODUCCIÓN
+                        <span class="megaisp-prod-pill__ver">· {{ $installedVersion }}</span>
+                    </span>
+                </span>
+            @endif
         </div>
 
         <div class="d-flex">

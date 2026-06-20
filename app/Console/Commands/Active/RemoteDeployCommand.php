@@ -6,6 +6,7 @@ use App\Models\DeploymentLog;
 use App\Models\Release;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\Process\Process;
 
 class RemoteDeployCommand extends Command
@@ -217,6 +218,8 @@ class RemoteDeployCommand extends Command
                 'release_date' => $releaseDate,
                 'created_by'   => 1,
             ]);
+            // La versión instalada cambió → invalida el cache que lee el badge del topbar.
+            Cache::forget('megaisp_installed_version');
             return "Release {$version} creada en DB local.";
         }
         return "Release {$version} ya existía — sin cambios.";
