@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         $this->call(ModuleRegistrySeeder::class);
+        $this->call(\Database\Seeders\Core\UpdatesPermissionsSeeder::class);
         $this->call(ClientTestSeeder::class);
         $this->call(NetworkTestSeeder::class);
     }
