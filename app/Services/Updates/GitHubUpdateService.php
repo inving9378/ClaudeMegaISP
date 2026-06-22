@@ -92,7 +92,12 @@ class GitHubUpdateService
             $githubDate    = \Carbon\Carbon::parse($latestPublishedAt);
             $installedCarbon = \Carbon\Carbon::parse($installedDate);
 
-            if ($githubDate->gt($installedCarbon)) {
+            // Comparar por fecha de DÍA (sin hora): published_at trae hora (p.ej. 21:01:15Z)
+            // mientras release_date se guarda como fecha (00:00:00). Sin normalizar, la MISMA
+            // versión del mismo día daría falso positivo (21:01 > 00:00). Solo hay actualización
+            // si el Release de GitHub es de un día POSTERIOR al instalado.
+            // TODO(futuro): si llegan a publicarse 2 releases el mismo día, comparar por tag/semver.
+            if ($githubDate->startOfDay()->gt($installedCarbon->startOfDay())) {
                 return $this->buildResult($latest);
             }
 
