@@ -170,12 +170,25 @@ async function spaNavigate(url, pushState) {
 function handleClick(e) {
     if (!SPA_ENABLED) return;
 
+    // Modificadores / botón no-izquierdo → comportamiento nativo del navegador
+    if (e.defaultPrevented) return;
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+
     const link = e.target.closest('a[href]');
     if (!link) return;
 
     // Saltar: data-spa-skip en el link o en cualquier ancestro (ej. forms)
     if (e.target.closest('[data-spa-skip]')) return;
-    if (link.target === '_blank') return;
+    // Saltar: togglers de Bootstrap (pill, tab, collapse, modal, dropdown, offcanvas)
+    // en el link o cualquier ancestro → dejar que Bootstrap los maneje.
+    if (e.target.closest('[data-bs-toggle]')) return;
+
+    // href crudo: anclas de fragmento y esquemas no navegables → no interceptar
+    const rawHref = link.getAttribute('href');
+    if (!rawHref || rawHref.charAt(0) === '#') return;
+    if (/^(javascript:|mailto:|tel:)/i.test(rawHref)) return;
+
+    if (link.target) return;              // cualquier target (_blank, _self explícito, frames)
     if (link.hasAttribute('download')) return;
     try {
         if (new URL(link.href).origin !== window.location.origin) return;

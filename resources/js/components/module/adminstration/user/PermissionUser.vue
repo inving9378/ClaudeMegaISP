@@ -18,6 +18,7 @@
                         role="tablist"
                         id="v-pills-tab"
                         aria-orientation="vertical"
+                        data-spa-skip
                     >
                         <a
                             v-for="tab in tabs"
