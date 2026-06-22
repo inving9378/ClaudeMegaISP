@@ -705,14 +705,14 @@ class ApiController extends Controller
 
     public function deviceRules(int $id): JsonResponse
     {
-        $device = ParentalDevice::findOrFail($id);
+        $device = $this->requireDevice($id);
         $rules = ParentalRule::firstOrCreate(['profile_id' => $device->profile_id]);
         return response()->json($rules);
     }
 
     public function updateDeviceRules(Request $request, int $id): JsonResponse
     {
-        $device = ParentalDevice::findOrFail($id);
+        $device = $this->requireDevice($id);
         $rules = ParentalRule::firstOrCreate(['profile_id' => $device->profile_id]);
         $rules->update($request->only([
             'daily_limit_minutes', 'weekend_limit_minutes',
@@ -733,7 +733,11 @@ class ApiController extends Controller
 
     public function completeTask(Request $request, int $id): JsonResponse
     {
-        $task = ParentalTask::findOrFail($id);
+        $account = $this->requireAccount();
+        $task = ParentalTask::where('id', $id)
+            ->whereHas('profile', fn ($q) => $q->where('account_id', $account->id))
+            ->first();
+        abort_unless($task, 404);
         $task->update([
             'status' => 'completed',
             'completed_at' => now(),
@@ -751,6 +755,12 @@ class ApiController extends Controller
             'detail' => 'nullable|string',
             'message' => 'nullable|string',
         ]);
+        // Anti-IDOR: el perfil (y el dispositivo, si se envía) deben pertenecer
+        // a la cuenta del usuario autenticado; un id ajeno devuelve 404.
+        $this->requireProfile((int) $data['profile_id']);
+        if (! empty($data['device_id'])) {
+            $this->requireDevice((int) $data['device_id']);
+        }
         $data['status'] = 'pending';
         $data['expires_at'] = now()->addHours(2);
         return response()->json(ParentalRequest::create($data), 201);
@@ -768,7 +778,12 @@ class ApiController extends Controller
     public function respondRequest(Request $request, int $id): JsonResponse
     {
         $data = $request->validate(['status' => 'required|in:approved,rejected']);
-        $r = ParentalRequest::findOrFail($id);
+        // Anti-IDOR: la solicitud debe pertenecer a un perfil de la cuenta autenticada.
+        $account = $this->requireAccount();
+        $r = ParentalRequest::where('id', $id)
+            ->whereHas('profile', fn ($q) => $q->where('account_id', $account->id))
+            ->first();
+        abort_unless($r, 404);
         $r->update(['status' => $data['status'], 'responded_at' => now()]);
         return response()->json(['success' => true]);
     }
@@ -784,6 +799,8 @@ class ApiController extends Controller
             'accuracy' => 'nullable|integer',
             'battery' => 'nullable|integer|min:0|max:100',
         ]);
+        // Anti-IDOR: el dispositivo debe pertenecer a la cuenta autenticada.
+        $this->requireDevice((int) $data['device_id']);
         $data['recorded_at'] = now();
         ParentalLocation::create($data);
 
@@ -1090,6 +1107,20 @@ class ApiController extends Controller
         $profile = ParentalProfile::where('account_id', $account->id)->where('id', $id)->first();
         abort_unless($profile, 404);
         return $profile;
+    }
+
+    /**
+     * Resuelve un dispositivo SOLO si pertenece a un perfil de la cuenta del
+     * usuario autenticado. Evita IDOR: un device_id ajeno devuelve 404.
+     */
+    private function requireDevice(int $id): ParentalDevice
+    {
+        $account = $this->requireAccount();
+        $device = ParentalDevice::where('id', $id)
+            ->whereHas('profile', fn ($q) => $q->where('account_id', $account->id))
+            ->first();
+        abort_unless($device, 404);
+        return $device;
     }
 
     // ---- EMBAJADORES --------------------------------------------------------
