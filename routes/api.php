@@ -30,6 +30,7 @@ Route::get('/webhook/deploy/{id}/status', [DeployWebhookController::class, 'stat
 // Auto-actualización — solo instancias consumidoras (GITHUB_UPDATES_ENABLED=true).
 Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/updates/status', [UpdateController::class, 'status']);
+    Route::post('/updates/check',  [UpdateController::class, 'check']);
     Route::post('/updates/apply',  [UpdateController::class, 'apply']);
 });
 

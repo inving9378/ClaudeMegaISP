@@ -21,16 +21,40 @@ class UpdateController extends Controller
      */
     public function status(): JsonResponse
     {
+        return response()->json($this->buildStatusPayload($this->github->check()));
+    }
+
+    /**
+     * Fuerza un chequeo on-demand contra GitHub (botón "Buscar actualizaciones").
+     * En el publicador (updates.enabled=false) no actúa. Mismo gate que status() (web+auth).
+     */
+    public function check(): JsonResponse
+    {
         if (!config('updates.enabled')) {
-            return response()->json(['update_available' => false]);
+            return response()->json($this->buildStatusPayload(null));
         }
 
-        $result = $this->github->check();
+        $this->github->refresh();            // Cache::forget + refetch + Cache::put
 
-        return response()->json([
-            'update_available' => $result !== null,
-            'release'          => $result,
-        ]);
+        return response()->json($this->buildStatusPayload($this->github->check()));
+    }
+
+    /**
+     * Shape único que consume el banner: si !enabled, todo queda en false/null.
+     * - can_check / show_check_button: gobiernan la visibilidad del botón en el front.
+     */
+    private function buildStatusPayload(?array $result): array
+    {
+        $enabled  = (bool) config('updates.enabled');
+        $canCheck = auth()->check() && auth()->user()->can('updates.apply');
+
+        return [
+            'enabled'           => $enabled,
+            'update_available'  => $enabled && $result !== null,
+            'release'           => $enabled ? $result : null,
+            'can_check'         => $canCheck,
+            'show_check_button' => $enabled && $canCheck && (bool) config('updates.manual_check_button', true),
+        ];
     }
 
     /**
