@@ -4,15 +4,18 @@ namespace App\Modules\Addons\Flotas\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
+use App\Services\Tenant\CurrentClientResolver;
 
 abstract class FleetBaseController extends Controller
 {
+    /**
+     * Cliente actual. Delega en el resolver unificado del proyecto, que para el
+     * guard web admin replica EXACTAMENTE la lógica previa (roles internos → null;
+     * el resto → su client_id). Sin cambio de comportamiento para Flotas.
+     */
     protected function clientId(): ?int
     {
-        $user = auth()->user();
-        return $user->hasRole(['super-administrator', 'DESARROLLADOR'])
-            ? null
-            : ($user->client_id ?? null);
+        return app(CurrentClientResolver::class)->resolve();
     }
 
     protected function vehicleForClient(int $id): FleetVehicle

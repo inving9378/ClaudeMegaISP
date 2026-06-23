@@ -4,12 +4,17 @@ namespace App\Modules\Addons\Flotas\Models;
 
 use App\Models\BaseModel;
 use App\Models\User;
+use App\Traits\BelongsToClientTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FleetGeofence extends BaseModel
 {
     use SoftDeletes;
+    use BelongsToClientTenant;
+
+    /** Módulo interno Meganet: client_id NULL = flota propia (visible para admin). */
+    protected bool $allowNullTenant = true;
 
     protected $table = 'fleet_geofences';
 
@@ -46,11 +51,8 @@ class FleetGeofence extends BaseModel
         return $q->where('active', true);
     }
 
-    // Multi-tenancy: null = flota interna Meganet; un id = cliente ISP dueño.
-    public function scopeForClient(Builder $q, ?int $clientId): Builder
-    {
-        return $clientId ? $q->where('client_id', $clientId) : $q->whereNull('client_id');
-    }
+    // Multi-tenancy: scopeForClient() lo provee BelongsToClientTenant
+    // (null = flota interna Meganet; un id = cliente ISP dueño).
 
     // ── Accessors ─────────────────────────────────────────────────────────────
 

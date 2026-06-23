@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Flotas\Models;
 
 use App\Models\BaseModel;
+use App\Traits\BelongsToClientTenant;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
@@ -10,6 +11,10 @@ use Carbon\Carbon;
 class FleetVehicle extends BaseModel
 {
     use SoftDeletes;
+    use BelongsToClientTenant;
+
+    /** Módulo interno Meganet: client_id NULL = flota propia (visible para admin). */
+    protected bool $allowNullTenant = true;
 
     protected $table = 'fleet_vehicles';
 
@@ -77,11 +82,7 @@ class FleetVehicle extends BaseModel
     }
 
     // ── Scopes ────────────────────────────────────────────────────────────────
-
-    public function scopeForClient(Builder $q, ?int $clientId): Builder
-    {
-        return $clientId ? $q->where('client_id', $clientId) : $q->whereNull('client_id');
-    }
+    // scopeForClient() lo provee el trait BelongsToClientTenant (allowNullTenant=true).
 
     public function scopeActive(Builder $q): Builder
     {

@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Flotas\Models;
 
 use App\Models\BaseModel;
 use App\Modules\Addons\Flotas\Support\FleetPlans;
+use App\Traits\BelongsToClientTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
@@ -11,6 +12,10 @@ use Carbon\Carbon;
 class FleetSubscription extends BaseModel
 {
     use SoftDeletes;
+    use BelongsToClientTenant;
+
+    /** Módulo interno Meganet: client_id NULL = suscripción propia (visible para admin). */
+    protected bool $allowNullTenant = true;
 
     protected $table = 'fleet_subscriptions';
 
@@ -53,11 +58,8 @@ class FleetSubscription extends BaseModel
     }
 
     // ── Scopes ────────────────────────────────────────────────────────────────
-
-    public function scopeForClient(Builder $q, ?int $clientId): Builder
-    {
-        return $q->where('client_id', $clientId);
-    }
+    // scopeForClient() lo provee el trait BelongsToClientTenant (allowNullTenant=true):
+    // con clientId NULL, where('client_id', null) de Laravel ya equivalía a whereNull.
 
     /** Suscripciones que dan acceso al módulo (trial o pagando). */
     public function scopeUsable(Builder $q): Builder

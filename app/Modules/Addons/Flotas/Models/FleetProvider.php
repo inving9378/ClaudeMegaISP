@@ -3,12 +3,17 @@
 namespace App\Modules\Addons\Flotas\Models;
 
 use App\Models\BaseModel;
+use App\Traits\BelongsToClientTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FleetProvider extends BaseModel
 {
     use SoftDeletes;
+    use BelongsToClientTenant;
+
+    /** Módulo interno Meganet: client_id NULL = flota propia (visible para admin). */
+    protected bool $allowNullTenant = true;
 
     protected $table = 'fleet_providers';
 
@@ -21,8 +26,5 @@ class FleetProvider extends BaseModel
         return $this->hasMany(FleetMaintenance::class, 'provider_id');
     }
 
-    public function scopeForClient(Builder $q, ?int $clientId): Builder
-    {
-        return $clientId ? $q->where('client_id', $clientId) : $q->whereNull('client_id');
-    }
+    // scopeForClient() lo provee el trait BelongsToClientTenant (allowNullTenant=true).
 }
