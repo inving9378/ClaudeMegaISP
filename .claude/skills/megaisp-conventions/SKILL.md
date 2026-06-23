@@ -28,6 +28,12 @@ Violarlas ha causado incidentes reales (exposición de credenciales, pérdida de
 - Permisos nuevos pasan por `PermissionSyncService`. Regla: `super-administrator` y `DESARROLLADOR` reciben TODOS; los demás roles solo `.view` automáticamente. Sync: `php artisan permissions:sync-roles`.
 - `keep_data:true` en ciclo de vida de módulos NO debe eliminar permisos Spatie.
 
+## Aislamiento multi-tenant (módulos de cliente)
+- TODO módulo-producto nuevo o migrado al portal del cliente DEBE aislar sus datos con el trait `App\Traits\BelongsToClientTenant` (`scopeForClient(?int $clientId)`) y resolver el cliente actual con `App\Services\Tenant\CurrentClientResolver`. NO escribir filtrado manual por `client_id` en cada controlador.
+- El trait es **fail-closed**: si el resolver no resuelve un cliente (clientId null) el scope devuelve CERO resultados. Las filas con la columna tenant en NULL (huérfanas) jamás son visibles para un cliente.
+- `$allowNullTenant = true` (NULL = registros internos Meganet visibles para admin) es EXCLUSIVO de módulos internos (Flotas). En módulos de cliente (MegaFamilia, Embajadores) NUNCA activarlo.
+- Si la columna tenant no es `client_id`, declararla en el modelo: `protected string $tenantColumn = 'embajador_id';`. El resolver web admin replica exactamente la regla de roles internos (`super-administrator`/`DESARROLLADOR` → null); portal y API resuelven al MISMO `client_id`.
+
 ## Datos legacy
 - `payment_date` y `document_date` son VARCHAR DD/MM/YYYY. Toda query usa `COALESCE(STR_TO_DATE(col, '%d/%m/%Y'), ...)`. Nunca comparar como string.
 - Excluir tickets archivados en KPIs financieros.
