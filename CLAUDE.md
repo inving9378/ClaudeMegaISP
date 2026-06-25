@@ -193,7 +193,7 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 
 | Item | Commits |
 |------|---------|
-| ✅ Guard `cliente` + bcrypt + auto-registro | fc13436 |
+| ✅ Guard `cliente` + auto-registro (originalmente bcrypt/`portal_password`; el login fue reapuntado a `password` plano en Fase 2 — ver sección **Autenticación** arriba) | fc13436 |
 | ✅ Facturas (lectura, solo propias, anti-IDOR 404) | fc13436 |
 | ✅ Pagos + CLABE (lectura) | fc13436 |
 | ✅ Tickets (lectura + crear + responder) | fc13436 |
