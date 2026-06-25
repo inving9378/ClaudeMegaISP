@@ -13,6 +13,7 @@ use App\Modules\Addons\PortalCliente\Controllers\ConsumoController;
 use App\Modules\Addons\PortalCliente\Controllers\MarketplaceController;
 use App\Modules\Addons\PortalCliente\Controllers\EmbajadoresController;
 use App\Modules\Addons\PortalCliente\Controllers\FlotasController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -79,5 +80,8 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
 
         // Mi Flota — panel del cliente (solo lectura, scopeado ->forClient)
         Route::get('/flotas', [FlotasController::class, 'index'])->name('flotas');
+
+        // MegaFamilia — panel del cliente (solo lectura, scopeado por client_isp_id)
+        Route::get('/megafamilia', [MegaFamiliaController::class, 'index'])->name('megafamilia');
     });
 });

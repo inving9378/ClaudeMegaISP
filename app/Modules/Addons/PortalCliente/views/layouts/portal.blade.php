@@ -437,6 +437,9 @@
         <a href="{{ route('portal.flotas') }}" class="{{ request()->routeIs('portal.flotas') ? 'active' : '' }}">
             🚗 Mi Flota
         </a>
+        <a href="{{ route('portal.megafamilia') }}" class="{{ request()->routeIs('portal.megafamilia') ? 'active' : '' }}">
+            👨‍👩‍👧 MegaFamilia
+        </a>
         @php
             $domiciliacionActiva = false;
             try { $domiciliacionActiva = \App\Modules\Core\ModuleManager\Services\ModuleManagerService::instance()->isActive('addon-domiciliacion'); } catch (\Throwable) {}
