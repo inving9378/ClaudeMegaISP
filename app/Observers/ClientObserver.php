@@ -54,7 +54,7 @@ class ClientObserver
             'status'             => 'pending_threshold',
         ]);
 
-        $embajadorProfile->increment('total_referrals');
+        // total_referrals lo recomputa ReferralObserver (recompute-on-write).
 
         // Mantener closure table: self + todos los ancestros del chain_path
         $this->insertClosures($client->id, $chainPath);

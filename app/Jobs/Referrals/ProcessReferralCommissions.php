@@ -131,7 +131,7 @@ class ProcessReferralCommissions implements ShouldQueue
             'expires_at'          => now()->addMonths(12),
         ]);
 
-        $embajadorProfile->increment('total_rewards_earned');
+        // total_rewards_earned lo recomputa ReferralCommissionObserver / ReferralObserver.
         $referral->status = 'completed';
     }
 
@@ -198,7 +198,7 @@ class ProcessReferralCommissions implements ShouldQueue
                     'apply_after_at'    => now()->addDays(15),
                 ])->save();
 
-                $beneficiaryProfile->increment('total_commissions_earned', $commissionAmount);
+                // total_commissions_earned lo recomputa ReferralCommissionObserver.
                 $commissionCreated = true;
                 $eventsToFire[]    = new ReferralCommissionGenerated($commission);
             } elseif ($commission->status === 'cancelled') {
