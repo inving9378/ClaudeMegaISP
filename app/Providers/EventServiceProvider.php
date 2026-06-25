@@ -101,6 +101,9 @@ class EventServiceProvider extends ServiceProvider
         Payment::observe(PaymentObserver::class);
         Payment::observe(PaymentBillingObserver::class);
         Mikrotik::observe(MikrotikObserver::class);
+        // Embajadores: recompute-on-write de contadores denormalizados del perfil.
+        \App\Models\Referrals\Referral::observe(\App\Observers\Referrals\ReferralObserver::class);
+        \App\Models\Referrals\ReferralCommission::observe(\App\Observers\Referrals\ReferralCommissionObserver::class);
         Network::observe(NetworkDeleteInMikrotikObserver::class);
         ClientInternetService::observe(ClientInternetServiceObserver::class);
         ClientBundleService::observe(ClientBundleServiceObserver::class);
