@@ -66,6 +66,9 @@ class Kernel extends ConsoleKernel
         $schedule->job(new \App\Jobs\Referrals\WarnExpiringRewards)->dailyAt('09:00')->withoutOverlapping(30)->onOneServer()->name('embajadores:warn-expiring-rewards');
         // Stats diarias del programa de embajadores (snapshot del día anterior)
         $schedule->job(new \App\Jobs\Referrals\CalculateDailyStats)->dailyAt('02:30')->withoutOverlapping(30)->onOneServer()->name('embajadores:daily-stats');
+        // Respaldo de auto-sanación: recompute de contadores tras aplicar comisiones
+        // (03:15) y expirar recompensas (03:30) — captura cualquier drift residual.
+        $schedule->command('embajadores:rebuild-kpis')->dailyAt('04:00')->withoutOverlapping()->onOneServer();
 
         // Deploy remoto — ejecuta los DeploymentLogs pendientes creados por el webhook.
         // Se desactiva en consumidoras (GITHUB_UPDATES_ENABLED=true): en esas instancias
