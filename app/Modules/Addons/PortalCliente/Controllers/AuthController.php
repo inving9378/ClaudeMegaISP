@@ -39,18 +39,24 @@ class AuthController extends Controller
 
         $input = trim($data['identificador']);
 
-        // Buscar por número de cliente (int) o email
+        // Identificador: email, o Usuario WEB (columna `user`) / número de cliente (`client_id`).
+        // Tolera el padding inconsistente de la ficha ("004981" vs "4981").
         $cmi = null;
-        if (ctype_digit($input)) {
-            $cmi = PortalClient::where('client_id', (int) $input)->first();
-        }
-        if (! $cmi) {
+        if (str_contains($input, '@')) {
             $cmi = PortalClient::where('email', $input)->first();
+        } else {
+            $norm = ltrim($input, '0');                 // "004981" -> "4981"
+            $cmi = PortalClient::where('user', $input)
+                ->orWhere('user', $norm)
+                ->orWhere('client_id', (int) $norm)
+                ->first();
         }
 
+        // Credencial = "Contraseña WEB" (columna `password`, texto plano).
+        // hash_equals evita timing attacks aunque la comparación sea en claro.
         $passwordOk = $cmi
-            && $cmi->portal_password
-            && Hash::check($data['contrasena'], $cmi->portal_password);
+            && filled($cmi->password)
+            && hash_equals((string) $cmi->password, (string) $data['contrasena']);
 
         if (! $passwordOk) {
             RateLimiter::hit($key, 60);
