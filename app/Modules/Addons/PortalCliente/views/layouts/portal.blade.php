@@ -435,7 +435,7 @@
             🤝 Embajadores Meganet
         </a>
         <a href="{{ route('portal.flotas') }}" class="{{ request()->routeIs('portal.flotas') ? 'active' : '' }}">
-            🚗 Mi Flota
+            🚗 Mis Vehículos
         </a>
         <a href="{{ route('portal.megafamilia') }}" class="{{ request()->routeIs('portal.megafamilia') ? 'active' : '' }}">
             👨‍👩‍👧 MegaFamilia
