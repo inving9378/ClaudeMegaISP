@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\PortalCliente\Models\PortalClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 
 class PerfilController extends Controller
@@ -18,7 +17,11 @@ class PerfilController extends Controller
     }
 
     /**
-     * Cambiar contraseña del portal (bcrypt).
+     * Cambiar contraseña del portal.
+     *
+     * Alineado a Fase 2: valida y escribe en la columna `password` (texto plano,
+     * la "Contraseña WEB" de la ficha). Cambiarla aquí se refleja en la ficha del
+     * admin — consistente con la decisión de autoservicio.
      */
     public function cambiarPassword(Request $request)
     {
@@ -29,11 +32,12 @@ class PerfilController extends Controller
 
         $cmi = Auth::guard('cliente')->user();
 
-        if (! $cmi->portal_password || ! Hash::check($data['contrasena_actual'], $cmi->portal_password)) {
+        if (! filled($cmi->password) || ! hash_equals((string) $cmi->password, (string) $data['contrasena_actual'])) {
             return back()->withErrors(['contrasena_actual' => 'La contraseña actual es incorrecta.']);
         }
 
-        $cmi->update(['portal_password' => Hash::make($data['nueva_contrasena'])]);
+        $cmi->password = $data['nueva_contrasena'];
+        $cmi->save();
 
         return back()->with('success', 'Contraseña actualizada correctamente.');
     }
