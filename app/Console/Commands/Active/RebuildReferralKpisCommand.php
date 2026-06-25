@@ -2,141 +2,79 @@
 
 namespace App\Console\Commands\Active;
 
+use App\Models\Referrals\ClientReferralProfile;
+use App\Services\Referrals\ReferralStandingService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Respaldo de auto-sanación: recalcula los contadores denormalizados de TODOS los
+ * perfiles de embajador desde los datos reales, usando la MISMA fuente de verdad que
+ * los observers (ReferralStandingService). Pensado para correr nightly y para backfill
+ * de datos sembrados por vías que no disparan observers (p.ej. inserts raw del
+ * SimulateEmbajadoresCommand).
+ *
+ * NO toca threshold_amount_paid (lo mantiene AccumulateClientThreshold).
+ */
 class RebuildReferralKpisCommand extends Command
 {
     protected $signature   = 'embajadores:rebuild-kpis {--dry-run : Solo muestra diferencias sin actualizar}';
-    protected $description = 'Recalcula total_commissions_earned, total_rewards_earned y total_referrals en client_referral_profiles desde los datos reales';
+    protected $description  = 'Recalcula total_referrals, total_commissions_earned y total_rewards_earned en client_referral_profiles vía ReferralStandingService (fuente de verdad única)';
 
     public function handle(): int
     {
         $dryRun = $this->option('dry-run');
+        $this->info($dryRun ? 'Modo dry-run — sin cambios en BD' : 'Reconstruyendo KPIs vía ReferralStandingService...');
 
-        $this->info($dryRun ? 'Modo dry-run — sin cambios en BD' : 'Reconstruyendo KPIs...');
+        $start    = microtime(true);
+        $profiles = ClientReferralProfile::query()
+            ->get(['id', 'total_referrals', 'total_commissions_earned', 'total_rewards_earned']);
 
-        $start = microtime(true);
+        $checked = 0;
+        $changed = 0;
 
-        [$updatedComisiones, $discComisiones] = $this->rebuildCommissions($dryRun);
-        [$updatedRewards, $discRewards]       = $this->rebuildRewards($dryRun);
-        [$updatedReferrals, $discReferrals]   = $this->rebuildReferrals($dryRun);
+        if ($dryRun) {
+            DB::beginTransaction();
+        }
+
+        foreach ($profiles as $p) {
+            $before = [
+                'total_referrals'          => (int) $p->total_referrals,
+                'total_commissions_earned' => round((float) $p->total_commissions_earned, 2),
+                'total_rewards_earned'     => (int) $p->total_rewards_earned,
+            ];
+
+            $after = ReferralStandingService::computeCountersForProfile((int) $p->id);
+            $checked++;
+
+            $afterNorm = [
+                'total_referrals'          => (int) $after['total_referrals'],
+                'total_commissions_earned' => round((float) $after['total_commissions_earned'], 2),
+                'total_rewards_earned'     => (int) $after['total_rewards_earned'],
+            ];
+
+            if ($before !== $afterNorm) {
+                $changed++;
+            }
+        }
+
+        if ($dryRun) {
+            DB::rollBack();
+        }
 
         $elapsed = round(microtime(true) - $start, 2);
 
-        $this->info('');
         $this->line('═══════════════════════════════════════');
         $this->info('  KPIs rebuild — resumen');
         $this->line('═══════════════════════════════════════');
-        $this->line("  total_commissions_earned: {$discComisiones} perfiles con diff" . ($dryRun ? '' : " → {$updatedComisiones} actualizados"));
-        $this->line("  total_rewards_earned:     {$discRewards} perfiles con diff"    . ($dryRun ? '' : " → {$updatedRewards} actualizados"));
-        $this->line("  total_referrals:          {$discReferrals} perfiles con diff"  . ($dryRun ? '' : " → {$updatedReferrals} actualizados"));
+        $this->line("  Perfiles revisados: {$checked}");
+        $this->line("  Perfiles con diff:  {$changed}" . ($dryRun ? ' (dry-run, no aplicados)' : ' → actualizados'));
         $this->line("  Tiempo: {$elapsed}s");
 
-        if ($dryRun && ($discComisiones + $discRewards + $discReferrals) > 0) {
+        if ($dryRun && $changed > 0) {
             $this->warn('  → Hay desincronización. Correr sin --dry-run para reparar.');
         }
 
         return 0;
-    }
-
-    private function rebuildCommissions(bool $dryRun): array
-    {
-        // Suma de comisiones no canceladas por beneficiario
-        $realSums = DB::table('referral_commissions')
-            ->selectRaw('beneficiary_id, SUM(commission_amount) as real_sum')
-            ->where('status', '!=', 'cancelled')
-            ->groupBy('beneficiary_id')
-            ->pluck('real_sum', 'beneficiary_id');
-
-        $profiles = DB::table('client_referral_profiles')
-            ->whereNotNull('plan_type')
-            ->get(['id', 'client_id', 'total_commissions_earned']);
-
-        $updated = 0;
-        $discrepancies = 0;
-
-        foreach ($profiles as $p) {
-            $real = round((float) ($realSums[$p->client_id] ?? 0), 2);
-            $cached = round((float) $p->total_commissions_earned, 2);
-
-            if (abs($real - $cached) > 0.01) {
-                $discrepancies++;
-                if (!$dryRun) {
-                    DB::table('client_referral_profiles')
-                        ->where('id', $p->id)
-                        ->update(['total_commissions_earned' => $real]);
-                    $updated++;
-                }
-            }
-        }
-
-        return [$updated, $discrepancies];
-    }
-
-    private function rebuildRewards(bool $dryRun): array
-    {
-        $realCounts = DB::table('referral_rewards')
-            ->selectRaw('embajador_id, COUNT(*) as cnt')
-            ->whereIn('status', ['available', 'applied'])
-            ->groupBy('embajador_id')
-            ->pluck('cnt', 'embajador_id');
-
-        $profiles = DB::table('client_referral_profiles')
-            ->whereNotNull('plan_type')
-            ->get(['id', 'client_id', 'total_rewards_earned']);
-
-        $updated = 0;
-        $discrepancies = 0;
-
-        foreach ($profiles as $p) {
-            $real   = (int) ($realCounts[$p->client_id] ?? 0);
-            $cached = (int) $p->total_rewards_earned;
-
-            if ($real !== $cached) {
-                $discrepancies++;
-                if (!$dryRun) {
-                    DB::table('client_referral_profiles')
-                        ->where('id', $p->id)
-                        ->update(['total_rewards_earned' => $real]);
-                    $updated++;
-                }
-            }
-        }
-
-        return [$updated, $discrepancies];
-    }
-
-    private function rebuildReferrals(bool $dryRun): array
-    {
-        $realCounts = DB::table('referrals')
-            ->selectRaw('embajador_id, COUNT(*) as cnt')
-            ->whereIn('status', ['pending_threshold', 'active', 'completed'])
-            ->groupBy('embajador_id')
-            ->pluck('cnt', 'embajador_id');
-
-        $profiles = DB::table('client_referral_profiles')
-            ->whereNotNull('plan_type')
-            ->get(['id', 'client_id', 'total_referrals']);
-
-        $updated = 0;
-        $discrepancies = 0;
-
-        foreach ($profiles as $p) {
-            $real   = (int) ($realCounts[$p->client_id] ?? 0);
-            $cached = (int) $p->total_referrals;
-
-            if ($real !== $cached) {
-                $discrepancies++;
-                if (!$dryRun) {
-                    DB::table('client_referral_profiles')
-                        ->where('id', $p->id)
-                        ->update(['total_referrals' => $real]);
-                    $updated++;
-                }
-            }
-        }
-
-        return [$updated, $discrepancies];
     }
 }
