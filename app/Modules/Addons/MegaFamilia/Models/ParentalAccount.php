@@ -4,12 +4,19 @@ namespace App\Modules\Addons\MegaFamilia\Models;
 
 use App\Models\BaseModel;
 use App\Models\User;
+use App\Traits\BelongsToClientTenant;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ParentalAccount extends BaseModel
 {
+    use BelongsToClientTenant;
+
+    /** Tenancy MegaFamilia: client_isp_id es la FUENTE (raíz). Fail-closed. */
+    protected string $tenantColumn = 'client_isp_id';
+    protected bool $allowNullTenant = false;
+
     protected $table = 'parental_accounts';
 
     protected $fillable = [
