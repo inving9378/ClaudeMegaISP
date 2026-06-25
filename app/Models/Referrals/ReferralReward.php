@@ -4,6 +4,7 @@ namespace App\Models\Referrals;
 
 use App\Models\Client;
 use App\Models\ClientInvoice;
+use App\Traits\BelongsToClientTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +12,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ReferralReward extends Model
 {
     use HasFactory;
+    use BelongsToClientTenant;
+
+    /** Aislamiento por cliente fail-closed. INERTE: solo actúa si una query llama ->forClient(). */
+    protected string $tenantColumn = 'embajador_id';
+    protected bool $allowNullTenant = false;
 
     protected static function newFactory()
     {
