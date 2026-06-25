@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\PortalCliente\Models\PortalClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rules\Password;
 
@@ -122,18 +121,13 @@ class AuthController extends Controller
             ]);
         }
 
-        if ($cmi->portal_password) {
-            return back()->withErrors([
-                'numero_cliente' => 'Este cliente ya tiene cuenta en el portal. Usa la opción de recuperar contraseña.',
-            ]);
-        }
-
         RateLimiter::clear($key);
-        $cmi->update([
-            'portal_password'      => Hash::make($data['contrasena']),
-            'portal_registered_at' => now(),
-            'portal_last_login_at' => now(),
-        ]);
+        // Reapuntado a la columna `password` (Contraseña WEB, texto plano) — unificado con el login.
+        // Asignación directa para no ampliar el $fillable del modelo.
+        $cmi->password             = $data['contrasena'];
+        $cmi->portal_registered_at = now();
+        $cmi->portal_last_login_at = now();
+        $cmi->save();
 
         Auth::guard('cliente')->login($cmi);
 
@@ -180,7 +174,9 @@ class AuthController extends Controller
         }
 
         RateLimiter::clear($key);
-        $cmi->update(['portal_password' => Hash::make($data['contrasena'])]);
+        // Reapuntado a la columna `password` (Contraseña WEB, texto plano) — unificado con el login.
+        $cmi->password = $data['contrasena'];
+        $cmi->save();
 
         return redirect()->route('portal.login')
             ->with('success', 'Contraseña actualizada. Ahora puedes iniciar sesión.');
