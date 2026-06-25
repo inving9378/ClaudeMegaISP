@@ -24,14 +24,25 @@ return new class extends Migration
             DB::statement("ALTER TABLE parental_accounts DROP FOREIGN KEY `{$fk}`");
         }
 
-        // 2. No se puede poner NOT NULL si hay filas huérfanas con client_isp_id NULL.
-        //    (El borrado de account#2 pudo no haberse aplicado en este entorno.)
-        $nulls = DB::table('parental_accounts')->whereNull('client_isp_id')->count();
-        if ($nulls > 0) {
-            throw new \RuntimeException(
-                "Abortado: {$nulls} fila(s) en parental_accounts con client_isp_id NULL. "
-                . 'Backfilléalas o bórralas antes de re-correr esta migración.'
-            );
+        // 2. Sanear filas con client_isp_id NULL antes del NOT NULL.
+        //    2a. Backfill de las derivables: account.user_id → users.login_user
+        //        → client_main_information.user → cmi.client_id (= clients.id).
+        DB::statement(
+            'UPDATE parental_accounts pa '
+            . 'JOIN users u ON u.id = pa.user_id '
+            . 'JOIN client_main_information cmi ON cmi.user = u.login_user '
+            . 'SET pa.client_isp_id = cmi.client_id '
+            . 'WHERE pa.client_isp_id IS NULL'
+        );
+
+        //    2b. Las que sigan NULL no son vinculables a ningún cliente (sin user/CMI):
+        //        huérfanas inservibles en el modelo multi-tenant fail-closed → se borran.
+        //        El FK CASCADE de las tablas hijas limpia lo dependiente.
+        $huerfanas = DB::table('parental_accounts')->whereNull('client_isp_id')->pluck('id');
+        if ($huerfanas->isNotEmpty()) {
+            echo "  [M3] Borrando {$huerfanas->count()} parental_account(s) huérfana(s) sin cliente derivable: "
+                . $huerfanas->implode(', ') . PHP_EOL;
+            DB::table('parental_accounts')->whereIn('id', $huerfanas)->delete();
         }
 
         // 3. NOT NULL (idempotente: re-aplicarlo no daña).
