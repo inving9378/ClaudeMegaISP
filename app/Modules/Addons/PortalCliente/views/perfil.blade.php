@@ -60,54 +60,8 @@
     @endif
 </div>
 
-{{-- Editar datos de contacto --}}
-<div class="card">
-    <div class="card-title">✏️ Editar datos de contacto</div>
-    <p style="font-size:.82rem; color:var(--text-muted); margin-bottom:1.25rem">
-        Puedes actualizar tu email, teléfono y dirección. Cada cambio queda registrado para tu seguridad.
-        <strong>No afecta tu plan, facturación ni acceso.</strong>
-    </p>
-
-    <form method="POST" action="{{ route('portal.perfil.actualizar') }}" style="max-width:500px">
-        @csrf
-        <div class="form-group">
-            <label>Email <span style="color:var(--text-muted); font-size:.8rem">(opcional)</span></label>
-            <input type="email" name="email" class="form-control @error('email') is-invalid @enderror"
-                value="{{ old('email', $cmi->email) }}" maxlength="255" placeholder="tu@correo.com">
-            @error('email')
-                <div class="invalid-feedback" style="color:var(--danger); font-size:.82rem; margin-top:.25rem">{{ $message }}</div>
-            @enderror
-        </div>
-        <div class="form-group">
-            <label>Teléfono <span style="color:var(--text-muted); font-size:.8rem">(7-20 dígitos)</span></label>
-            <input type="tel" name="phone" class="form-control @error('phone') is-invalid @enderror"
-                value="{{ old('phone', $cmi->phone) }}" maxlength="20" placeholder="5500000000">
-            @error('phone')
-                <div class="invalid-feedback" style="color:var(--danger); font-size:.82rem; margin-top:.25rem">{{ $message }}</div>
-            @enderror
-        </div>
-        <div class="addr-grid" style="display:grid; grid-template-columns:1fr 90px 70px; gap:.5rem; align-items:start">
-            <div class="form-group" style="margin-bottom:0">
-                <label>Calle</label>
-                <input type="text" name="street" class="form-control"
-                    value="{{ old('street', $cmi->street) }}" maxlength="255" placeholder="Av. Reforma">
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-                <label>Núm. ext.</label>
-                <input type="text" name="external_number" class="form-control" maxlength="50"
-                    value="{{ old('external_number', $cmi->external_number) }}" placeholder="123">
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-                <label>Int.</label>
-                <input type="text" name="internal_number" class="form-control" maxlength="50"
-                    value="{{ old('internal_number', $cmi->internal_number) }}" placeholder="A">
-            </div>
-        </div>
-        <div style="margin-top:1.25rem">
-            <button type="submit" class="btn btn-primary">Guardar cambios</button>
-        </div>
-    </form>
-</div>
+{{-- Datos de contacto: SOLO LECTURA. La edición la controla únicamente el admin
+     desde la ficha del cliente (Fase Mi Perfil → solo lectura). --}}
 
 {{-- Cambiar contraseña --}}
 <div class="card">
