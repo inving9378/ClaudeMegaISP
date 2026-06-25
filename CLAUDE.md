@@ -117,16 +117,15 @@ Guía de contexto para Claude Code en este repositorio. Leer antes de explorar.
 
 ### Estado: ✅ Operativo en /portal/*
 
-**Decisión de seguridad deliberada (NO revertir):**
-El portal usa `portal_password` (bcrypt, `Hash::make`) en `client_main_information`.
-A diferencia del campo `password` del admin (base64 legacy), el portal es superficie pública → bcrypt obligatorio.
-El campo legacy `password` del admin NO se modifica.
-
-**Autenticación:**
+**Autenticación (actualizado Fase 2 — unificado contra la ficha):**
+El login valida contra la columna **`client_main_information.password`** (la "Contraseña WEB" de la ficha del admin), en **texto plano** vía `hash_equals` — **NO** contra `portal_password`.
 - Guard: `cliente` (session driver, provider `portal_clients` → `PortalClient` model)
-- Tabla auth: `client_main_information` + columnas `portal_password`, `portal_registered_at`, `portal_last_login_at`
-- Login: número de cliente (= `clients.id`) O email + `portal_password`
-- Auto-registro: número de cliente + `phone` (99.6% poblado, campo elegido como verificador)
+- Tabla auth: `client_main_information`, columna de credencial = **`password`** (Contraseña WEB)
+- `AuthController::login`: acepta como identificador **email**, columna **`user`** (Usuario WEB) o **`client_id`**; tolera ceros a la izquierda (`004981` ↔ `4981` vía `ltrim`). Compara `password` con `hash_equals` y luego `->login($cmi)` solo para abrir sesión.
+- "Crear cuenta" (`registro`) y "Olvidé mi contraseña" (`recuperar`): tras verificar **teléfono** (`phone`/`phone2`/`phone3`), escriben la nueva contraseña en la columna **`password`** (texto plano) — **autoservicio activo**. El guard "ya tiene cuenta" fue **eliminado**.
+- ⚠️ Cambiar la contraseña desde el portal **se refleja en la Contraseña WEB de la ficha del admin** (es el mismo campo `password`).
+- `portal_password` (bcrypt) queda **en desuso para login** (legacy; solo 4 filas históricas auto-registradas, todas con `password` poblado → entran sin fricción). Columnas `portal_registered_at`/`portal_last_login_at` se siguen usando como timestamps.
+- Deuda registrada en Hoja de Ruta: evaluar migración a bcrypt (Opción B) y normalizar el padding de `user`.
 - Middleware: `auth.portal` (registrado en ModuleServiceProvider)
 - Rutas: `/portal/*` (guard `cliente`, independiente del guard admin `web`)
 
