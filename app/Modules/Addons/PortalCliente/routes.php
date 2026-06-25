@@ -11,6 +11,7 @@ use App\Modules\Addons\PortalCliente\Controllers\TicketsController;
 use App\Modules\Addons\PortalCliente\Controllers\PerfilController;
 use App\Modules\Addons\PortalCliente\Controllers\ConsumoController;
 use App\Modules\Addons\PortalCliente\Controllers\MarketplaceController;
+use App\Modules\Addons\PortalCliente\Controllers\EmbajadoresController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -71,5 +72,8 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::post('/servicios/megafamilia/activar', [MarketplaceController::class, 'activarMegafamilia'])->name('marketplace.megafamilia.activar');
         Route::post('/servicios/megafamilia/desactivar', [MarketplaceController::class, 'desactivarMegafamilia'])->name('marketplace.megafamilia.desactivar');
         Route::post('/servicios/interes',             [MarketplaceController::class, 'registrarInteres'])->name('marketplace.interes');
+
+        // Embajadores Meganet — panel del cliente (solo lectura, scopeado ->forClient)
+        Route::get('/embajadores', [EmbajadoresController::class, 'index'])->name('embajadores');
     });
 });
