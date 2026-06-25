@@ -434,6 +434,9 @@
         <a href="{{ route('portal.embajadores') }}" class="{{ request()->routeIs('portal.embajadores') ? 'active' : '' }}">
             🤝 Embajadores Meganet
         </a>
+        <a href="{{ route('portal.flotas') }}" class="{{ request()->routeIs('portal.flotas') ? 'active' : '' }}">
+            🚗 Mi Flota
+        </a>
         @php
             $domiciliacionActiva = false;
             try { $domiciliacionActiva = \App\Modules\Core\ModuleManager\Services\ModuleManagerService::instance()->isActive('addon-domiciliacion'); } catch (\Throwable) {}
