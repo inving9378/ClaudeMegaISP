@@ -38,7 +38,7 @@
         <div class="kpi-card">
             <div class="kpi-icon">👥</div>
             <div class="kpi-label">Referidos</div>
-            <div class="kpi-value">{{ (int) $profile->total_referrals }}</div>
+            <div class="kpi-value">{{ (int) $standing['referrals_total'] }}</div>
             <div class="kpi-sub">
                 <span class="badge {{ $profile->is_eligible ? 'badge-success' : 'badge-secondary' }}">
                     {{ $profile->is_eligible ? 'Elegible' : 'No elegible aún' }}
@@ -50,28 +50,31 @@
             <div class="kpi-icon">💵</div>
             <div class="kpi-label">Comisiones acumuladas</div>
             <div class="kpi-value" style="color:var(--success)">
-                ${{ number_format((float) $profile->total_commissions_earned, 2) }}
+                ${{ number_format((float) $standing['commissions_earned'], 2) }}
             </div>
-            <div class="kpi-sub">Recompensas: {{ (int) $profile->total_rewards_earned }}</div>
+            <div class="kpi-sub">Aprobadas + aplicadas · Recompensas: {{ (int) $standing['rewards_total'] }}</div>
         </div>
 
+        {{-- "Activación" mide algo DISTINTO de las comisiones: cuántos referidos
+             cubrieron su umbral de consumo (${{ threshold }} c/u, ventana N meses). --}}
         <div class="kpi-card">
             <div class="kpi-icon">🎯</div>
-            <div class="kpi-label">Progreso de activación</div>
-            <div class="kpi-value" style="font-size:1.4rem">{{ $progress }}%</div>
+            <div class="kpi-label">Referidos activados</div>
+            <div class="kpi-value" style="font-size:1.4rem">
+                {{ (int) $standing['activated_referrals'] }} / {{ (int) $standing['referrals_total'] }}
+            </div>
             <div class="kpi-sub">
-                ${{ number_format($thresholdPaid, 0) }} / ${{ number_format($thresholdTotal, 0) }}
-                · ventana {{ $windowMonths }} meses
+                Cubrieron su umbral de ${{ number_format($thresholdEach, 0) }} c/u · ventana {{ $windowMonths }} meses
             </div>
             <div style="margin-top:.5rem; height:8px; background:var(--border); border-radius:4px; overflow:hidden">
-                <div style="height:100%; width:{{ $progress }}%; background:var(--pcolor)"></div>
+                <div style="height:100%; width:{{ $standing['activation_pct'] }}%; background:var(--pcolor)"></div>
             </div>
         </div>
     </div>
 
     {{-- Comisiones por estado --}}
     @php
-        $cs = $commByStatus;
+        $cs = $standing['commissions_by_status'];
         $estados = [
             'pending'   => ['Pendientes', 'badge-warning'],
             'approved'  => ['Aprobadas', 'badge-info'],
@@ -96,7 +99,7 @@
 
     {{-- Referidos --}}
     <div class="card">
-        <div class="card-title">Mis referidos ({{ $referrals->count() }})</div>
+        <div class="card-title">Mis referidos ({{ (int) $standing['referrals_total'] }})</div>
         @if($referrals->isEmpty())
             <p style="color:var(--text-muted)">Todavía no tienes referidos registrados.</p>
         @else
@@ -180,7 +183,7 @@
     </div>
 
     <div class="card">
-        <div class="card-title">Recompensas ({{ $rewards->count() }})</div>
+        <div class="card-title">Recompensas ({{ (int) $standing['rewards_total'] }})</div>
         @if($rewards->isEmpty())
             <p style="color:var(--text-muted)">Aún no tienes recompensas.</p>
         @else
