@@ -20,7 +20,10 @@ use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaBloqueosController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaHorariosController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaGeofencesController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaGamificacionController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaAsignacionTareasController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaAsignacionesController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaSolicitudesController;
+use App\Modules\Addons\PortalCliente\Controllers\HijoMegaFamiliaController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -122,17 +125,22 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::put('/megafamilia/geocercas/{id}',       [MegaFamiliaGeofencesController::class, 'update'])->name('megafamilia.geocercas.update');
         Route::delete('/megafamilia/geocercas/{id}',    [MegaFamiliaGeofencesController::class, 'destroy'])->name('megafamilia.geocercas.destroy');
 
-        // G6: Tareas y recompensas (gamificación)
-        Route::post('/megafamilia/perfiles/{profile}/tareas',            [MegaFamiliaGamificacionController::class, 'storeTarea'])->name('megafamilia.tareas.store');
-        Route::delete('/megafamilia/perfiles/{profile}/tareas/{id}',     [MegaFamiliaGamificacionController::class, 'destroyTarea'])->name('megafamilia.tareas.destroy');
+        // G6: Tareas a nivel de cuenta + asignaciones por perfil
+        Route::post('/megafamilia/tareas',                       [MegaFamiliaAsignacionTareasController::class, 'store'])->name('megafamilia.tareas.store');
+        Route::delete('/megafamilia/tareas/{id}',                [MegaFamiliaAsignacionTareasController::class, 'destroy'])->name('megafamilia.tareas.destroy');
+        Route::post('/megafamilia/asignaciones/{id}/completar',  [MegaFamiliaAsignacionesController::class, 'completar'])->name('megafamilia.asignaciones.completar');
+
+        // G6: Recompensas (catálogo + canje)
         Route::post('/megafamilia/perfiles/{profile}/recompensas',       [MegaFamiliaGamificacionController::class, 'storeRecompensa'])->name('megafamilia.recompensas.store');
         Route::delete('/megafamilia/perfiles/{profile}/recompensas/{id}',[MegaFamiliaGamificacionController::class, 'destroyRecompensa'])->name('megafamilia.recompensas.destroy');
-        Route::post('/megafamilia/tareas/{tarea}/completar',             [MegaFamiliaGamificacionController::class, 'completarTarea'])->name('megafamilia.tareas.completar');
         Route::post('/megafamilia/recompensas/{reward_id}/canjear',      [MegaFamiliaGamificacionController::class, 'canjearRecompensa'])->name('megafamilia.recompensas.canjear');
 
         // G7: Solicitudes de permiso
         Route::get('/megafamilia/solicitudes',              [MegaFamiliaSolicitudesController::class, 'index'])->name('megafamilia.solicitudes');
         Route::post('/megafamilia/solicitudes/{id}/aprobar', [MegaFamiliaSolicitudesController::class, 'aprobar'])->name('megafamilia.solicitudes.aprobar');
         Route::post('/megafamilia/solicitudes/{id}/rechazar',[MegaFamiliaSolicitudesController::class, 'rechazar'])->name('megafamilia.solicitudes.rechazar');
+
+        // Vista previa de la app del hijo (read-only, para el papá)
+        Route::get('/hijo-megafamilia/{profile_id}', [HijoMegaFamiliaController::class, 'index'])->name('hijo-megafamilia.preview');
     });
 });

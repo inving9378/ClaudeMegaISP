@@ -6,6 +6,7 @@ use App\Models\BaseModel;
 use App\Traits\BelongsToClientTenant;
 use App\Traits\DerivesClientIspId;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ParentalTask extends BaseModel
 {
@@ -20,7 +21,7 @@ class ParentalTask extends BaseModel
     protected $table = 'parental_tasks';
 
     protected $fillable = [
-        'profile_id', 'title', 'description', 'reward_type',
+        'profile_id', 'account_id', 'assignment_type', 'title', 'description', 'reward_type',
         'reward_value', 'reward_detail', 'points', 'status',
         'completed_at', 'approved_at', 'photo_proof',
         'due_date', 'priority', 'notes',
@@ -37,5 +38,15 @@ class ParentalTask extends BaseModel
     public function profile(): BelongsTo
     {
         return $this->belongsTo(ParentalProfile::class, 'profile_id');
+    }
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(ParentalAccount::class, 'account_id');
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(ParentalTaskAssignment::class, 'task_id');
     }
 }

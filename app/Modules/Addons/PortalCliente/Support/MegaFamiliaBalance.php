@@ -3,14 +3,17 @@
 namespace App\Modules\Addons\PortalCliente\Support;
 
 use App\Modules\Addons\MegaFamilia\Models\ParentalReward;
-use App\Modules\Addons\MegaFamilia\Models\ParentalTask;
+use App\Modules\Addons\MegaFamilia\Models\ParentalTaskAssignment;
 
 /**
  * Balance de puntos por perfil (gamificación MegaFamilia).
  *
- *   balance = Σ(tareas completadas.points) − Σ(recompensas otorgadas.value)
+ *   balance = Σ(asignaciones completadas → task.points) − Σ(recompensas otorgadas.value)
  *
- * Discriminador (acordado por falta de columnas source/status en parental_rewards):
+ * Las tareas son account-level y se reparten en parental_task_assignments; cada hijo
+ * gana los puntos de SUS asignaciones en estado 'completed'.
+ *
+ * Recompensas (discriminador por falta de columnas source/status en parental_rewards):
  *   - Catálogo (el padre la creó): granted_at IS NULL.
  *   - Otorgada (canje aprobado):   granted_at IS NOT NULL  ← descuenta del balance.
  */
@@ -24,10 +27,12 @@ class MegaFamiliaBalance
             return [];
         }
 
-        $earned = ParentalTask::whereIn('profile_id', $profileIds)
-            ->where('status', 'completed')
-            ->selectRaw('profile_id, COALESCE(SUM(points),0) as total')
-            ->groupBy('profile_id')
+        $earned = ParentalTaskAssignment::query()
+            ->join('parental_tasks', 'parental_tasks.id', '=', 'parental_task_assignments.task_id')
+            ->whereIn('parental_task_assignments.profile_id', $profileIds)
+            ->where('parental_task_assignments.status', 'completed')
+            ->selectRaw('parental_task_assignments.profile_id as profile_id, COALESCE(SUM(parental_tasks.points),0) as total')
+            ->groupBy('parental_task_assignments.profile_id')
             ->pluck('total', 'profile_id');
 
         $spent = ParentalReward::whereIn('profile_id', $profileIds)

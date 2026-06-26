@@ -66,6 +66,11 @@ class ParentalProfile extends BaseModel
         return $this->hasMany(ParentalTask::class, 'profile_id');
     }
 
+    public function taskAssignments(): HasMany
+    {
+        return $this->hasMany(ParentalTaskAssignment::class, 'profile_id');
+    }
+
     public function requests(): HasMany
     {
         return $this->hasMany(ParentalRequest::class, 'profile_id');

@@ -54,6 +54,7 @@
         <div class="mf-tabs-nav">
             <button class="mf-tab-btn active" data-tab="cuentas">📦 Mis cuentas</button>
             <button class="mf-tab-btn" data-tab="perfiles">🧒 Perfiles de hijos</button>
+            <button class="mf-tab-btn" data-tab="asignaciones">📋 Asignación de tareas</button>
             <button class="mf-tab-btn" data-tab="solicitudes">🔔 Solicitudes
                 @if(($solicitudesPendientes ?? 0) > 0)<span class="badge badge-danger" style="margin-left:.4rem">{{ $solicitudesPendientes }}</span>@endif
             </button>
@@ -113,6 +114,7 @@
                                     <div style="margin-top:.5rem"><span class="badge {{ $balCls }}" style="font-size:.85rem">💰 Balance: {{ $bal }} pts</span></div>
                                 </div>
                                 <div style="white-space:nowrap">
+                                    <a href="{{ route('portal.hijo-megafamilia.preview', $perfil->id) }}" class="btn btn-outline btn-sm">👁️ Vista previa</a>
                                     <a href="{{ route('portal.megafamilia.perfiles.edit', $perfil->id) }}" class="btn btn-outline btn-sm">✏️ Editar</a>
                                     <form method="POST" action="{{ route('portal.megafamilia.perfiles.destroy', $perfil->id) }}" style="display:inline"
                                           onsubmit="return confirm('¿Eliminar el perfil «{{ $perfil->name }}»? Se eliminará todo su contenido.')">
@@ -128,7 +130,7 @@
                                 <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="bloqueos-{{ $perfil->id }}">🚫 Bloqueos</button>
                                 <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="horarios-{{ $perfil->id }}">⏰ Horarios</button>
                                 <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="geocercas-{{ $perfil->id }}">📍 Geocercas</button>
-                                <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="tareas-{{ $perfil->id }}">🎯 Tareas</button>
+                                <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="tareas-{{ $perfil->id }}">🎯 Mis tareas</button>
                             </div>
 
                             {{-- G2 Dispositivos --}}
@@ -165,7 +167,12 @@
             @endif
         </div>
 
-        {{-- ── TAB 3: SOLICITUDES ── --}}
+        {{-- ── TAB: ASIGNACIÓN DE TAREAS (account-level) ── --}}
+        <div class="mf-tab-content" id="mf-tab-asignaciones">
+            @include('addon-portal-cliente::partials.megafamilia_tab_asignaciones')
+        </div>
+
+        {{-- ── TAB: SOLICITUDES ── --}}
         <div class="mf-tab-content" id="mf-tab-solicitudes">
             @include('addon-portal-cliente::partials.megafamilia_solicitudes')
         </div>

@@ -36,7 +36,7 @@ class MegaFamiliaController extends Controller
                         'webBlocks' => fn ($b) => $b->orderBy('id'),
                         'schedules' => fn ($s) => $s->orderBy('id'),
                         'geofences' => fn ($g) => $g->orderBy('id'),
-                        'tasks'     => fn ($t) => $t->orderByDesc('id'),
+                        'taskAssignments' => fn ($a) => $a->with('task')->orderByDesc('id'),
                         'rewards'   => fn ($r) => $r->orderByDesc('id'),
                     ])
                     ->orderBy('id')])
@@ -66,6 +66,13 @@ class MegaFamiliaController extends Controller
         // Balance de puntos por perfil (gamificación) — única fuente de verdad.
         $balances = \App\Modules\Addons\PortalCliente\Support\MegaFamiliaBalance::forProfiles($profileIds->all());
 
+        // Tareas a nivel de cuenta (las que tienen asignaciones) → tab "Asignación de tareas".
+        $accountTasks = \App\Modules\Addons\MegaFamilia\Models\ParentalTask::whereIn('account_id', $accountIds)
+            ->has('assignments')
+            ->with(['assignments.profile'])
+            ->orderByDesc('id')
+            ->get();
+
         // Solicitudes pendientes (permiso + canje) para el tab Solicitudes.
         $solicitudes = $profileIds->isEmpty() ? collect()
             : ParentalRequest::whereIn('profile_id', $profileIds)
@@ -89,6 +96,7 @@ class MegaFamiliaController extends Controller
             'solicitudesPendientes' => $solicitudesPendientes,
             'balances'              => $balances,
             'solicitudes'           => $solicitudes,
+            'accountTasks'          => $accountTasks,
         ]);
     }
 }
