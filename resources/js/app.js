@@ -64,7 +64,6 @@ import DocumentTemplateListar from "./components/module/adminstration/document_t
 
 //Configuracion
 import CatalogoApiPanel from "./components/module/configuracion/CatalogoApiPanel.vue";
-import CatalogoServiciosPanel from "./components/module/planes/CatalogoServiciosPanel.vue";
 import DebtPaymentClient from "./components/module/setting/DebtPaymentClient";
 import DebitCustomListar from "./components/module/setting/DebitCustomListar";
 import CommandConfig from "./components/module/setting/CommandConfig";
@@ -483,7 +482,6 @@ const app = createApp({
         LeafletMap,
 
         CatalogoApiPanel,
-        'catalogo-servicios-panel': CatalogoServiciosPanel,
         DebtPaymentClient,
 
         //Administracion
