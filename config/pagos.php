@@ -41,4 +41,7 @@ return [
      */
     'payment_method_id' => (int) env('PAGOS_PAYMENT_METHOD_ID', 2),
 
+    // Pendiente validación legal — NO implementar cobro de comisión a sub-ISPs sin autorización CNBV
+    'medussa_fees_enabled' => (bool) env('PAGOS_MEDUSSA_FEES_ENABLED', false),
+
 ];
