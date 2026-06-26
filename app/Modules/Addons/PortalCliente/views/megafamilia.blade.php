@@ -122,7 +122,12 @@
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap">
                         <div>
                             <strong style="font-size:1.05rem">{{ $perfil->name }}</strong>
-                            <div style="margin-top:.4rem; display:flex; gap:.4rem; flex-wrap:wrap">
+                            <div style="margin-top:.4rem; display:flex; gap:.4rem; flex-wrap:wrap; align-items:center">
+                                @php
+                                    $bal    = (int) ($balances[$perfil->id] ?? 0);
+                                    $balCls = $bal >= 100 ? 'badge-success' : ($bal >= 50 ? 'badge-warning' : 'badge-danger');
+                                @endphp
+                                <span class="badge {{ $balCls }}" style="font-size:.82rem">💰 Balance: {{ $bal }} pts</span>
                                 @if($perfil->age)
                                     <span class="badge badge-info">{{ $perfil->age }} años</span>
                                 @endif
@@ -484,23 +489,39 @@
                             {{-- Recompensas --}}
                             <div>
                                 <div style="font-size:.78rem; color:var(--text-muted); margin-bottom:.35rem">Recompensas</div>
-                                @if($perfil->rewards->isEmpty())
+                                @php
+                                    $catalogo  = $perfil->rewards->whereNull('granted_at');
+                                    $canjeadas = $perfil->rewards->whereNotNull('granted_at')->count();
+                                @endphp
+                                @if($catalogo->isEmpty())
                                     <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.5rem">Sin recompensas.</p>
                                 @else
                                     <ul style="list-style:none; padding:0; margin:0 0 .5rem">
-                                        @foreach($perfil->rewards as $rec)
+                                        @foreach($catalogo as $rec)
                                             <li style="display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:.4rem 0; border-bottom:1px solid var(--border)">
                                                 <span>🎁 <strong>{{ $rec->detail }}</strong>
                                                     <span class="badge badge-secondary">Cuesta {{ (int) $rec->value }} pts</span>
                                                 </span>
-                                                <form method="POST" action="{{ route('portal.megafamilia.recompensas.destroy', [$perfil->id, $rec->id]) }}"
-                                                      style="display:inline" onsubmit="return confirm('¿Eliminar la recompensa «{{ $rec->detail }}»?')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                                </form>
+                                                <span style="white-space:nowrap; display:flex; gap:.3rem">
+                                                    <form method="POST" action="{{ route('portal.megafamilia.recompensas.canjear', $rec->id) }}" style="display:inline">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-success btn-sm"
+                                                                @if($bal < (int) $rec->value) disabled title="Balance insuficiente ({{ $bal }} pts)" @else title="Canjear por {{ (int) $rec->value }} pts" @endif>
+                                                            🔁 Canjear
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" action="{{ route('portal.megafamilia.recompensas.destroy', [$perfil->id, $rec->id]) }}"
+                                                          style="display:inline" onsubmit="return confirm('¿Eliminar la recompensa «{{ $rec->detail }}»?')">
+                                                        @csrf @method('DELETE')
+                                                        <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
+                                                    </form>
+                                                </span>
                                             </li>
                                         @endforeach
                                     </ul>
+                                @endif
+                                @if($canjeadas > 0)
+                                    <p style="color:var(--text-muted); font-size:.76rem; margin-bottom:.5rem">🎉 {{ $canjeadas }} recompensa(s) ya canjeada(s).</p>
                                 @endif
                                 <details>
                                     <summary style="cursor:pointer; font-weight:600; font-size:.82rem; color:var(--pcolor)">➕ Agregar recompensa</summary>

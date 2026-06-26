@@ -20,7 +20,7 @@ class ParentalRequest extends BaseModel
     protected $table = 'parental_requests';
 
     protected $fillable = [
-        'profile_id', 'device_id', 'type', 'detail', 'message',
+        'profile_id', 'device_id', 'reward_id', 'type', 'detail', 'message',
         'status', 'responded_at', 'expires_at', 'notes',
     ];
 
@@ -37,5 +37,11 @@ class ParentalRequest extends BaseModel
     public function device(): BelongsTo
     {
         return $this->belongsTo(ParentalDevice::class, 'device_id');
+    }
+
+    /** Recompensa-catálogo que se solicita canjear (solo type='redemption'). */
+    public function reward(): BelongsTo
+    {
+        return $this->belongsTo(ParentalReward::class, 'reward_id');
     }
 }

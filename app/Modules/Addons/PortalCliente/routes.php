@@ -128,6 +128,7 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::post('/megafamilia/perfiles/{profile}/recompensas',       [MegaFamiliaGamificacionController::class, 'storeRecompensa'])->name('megafamilia.recompensas.store');
         Route::delete('/megafamilia/perfiles/{profile}/recompensas/{id}',[MegaFamiliaGamificacionController::class, 'destroyRecompensa'])->name('megafamilia.recompensas.destroy');
         Route::post('/megafamilia/tareas/{tarea}/completar',             [MegaFamiliaGamificacionController::class, 'completarTarea'])->name('megafamilia.tareas.completar');
+        Route::post('/megafamilia/recompensas/{reward_id}/canjear',      [MegaFamiliaGamificacionController::class, 'canjearRecompensa'])->name('megafamilia.recompensas.canjear');
 
         // G7: Solicitudes de permiso
         Route::get('/megafamilia/solicitudes',              [MegaFamiliaSolicitudesController::class, 'index'])->name('megafamilia.solicitudes');

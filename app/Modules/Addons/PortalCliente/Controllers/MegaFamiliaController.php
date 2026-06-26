@@ -63,6 +63,9 @@ class MegaFamiliaController extends Controller
         $solicitudesPendientes = $profileIds->isEmpty() ? 0
             : ParentalRequest::whereIn('profile_id', $profileIds)->where('status', 'pending')->count();
 
+        // Balance de puntos por perfil (gamificación) — única fuente de verdad.
+        $balances = \App\Modules\Addons\PortalCliente\Support\MegaFamiliaBalance::forProfiles($profileIds->all());
+
         $standing = [
             'cuentas'      => $cuentas->count(),
             'perfiles'     => (int) $cuentas->sum('profiles_count'),
@@ -76,6 +79,7 @@ class MegaFamiliaController extends Controller
             'cuentas'               => $cuentas,
             'standing'              => $standing,
             'solicitudesPendientes' => $solicitudesPendientes,
+            'balances'              => $balances,
         ]);
     }
 }
