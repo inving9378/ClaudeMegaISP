@@ -29,6 +29,22 @@
             'suspended' => ['Suspendida', 'badge-warning'],
             'cancelled' => ['Cancelada', 'badge-secondary'],
         ];
+        $tipoLabels = [
+            'nino'           => 'Niño',
+            'preadolescente' => 'Preadolescente',
+            'adolescente'    => 'Adolescente',
+        ];
+        $nivelLabels = [
+            'primaria'     => 'Primaria',
+            'secundaria'   => 'Secundaria',
+            'preparatoria' => 'Preparatoria',
+        ];
+        $devTipoLabels = [
+            'smartphone' => '📱 Smartphone',
+            'tablet'     => '📲 Tablet',
+            'pc'         => '💻 PC',
+            'otro'       => '🔌 Otro',
+        ];
     @endphp
 
     {{-- KPI Cards --}}
@@ -59,7 +75,7 @@
         </div>
     </div>
 
-    {{-- Cards por cuenta --}}
+    {{-- Resumen de cuentas --}}
     <div class="card">
         <div class="card-title">Mis cuentas ({{ (int) $standing['cuentas'] }})</div>
         <div class="kpi-grid" style="margin-top:.5rem">
@@ -79,20 +95,7 @@
         </div>
     </div>
 
-    {{-- ── G1: Perfiles de hijos (por cuenta) ─────────────────────────────── --}}
-    @php
-        $tipoLabels = [
-            'nino'           => 'Niño',
-            'preadolescente' => 'Preadolescente',
-            'adolescente'    => 'Adolescente',
-        ];
-        $nivelLabels = [
-            'primaria'     => 'Primaria',
-            'secundaria'   => 'Secundaria',
-            'preparatoria' => 'Preparatoria',
-        ];
-    @endphp
-
+    {{-- ── Perfiles de hijos (por cuenta) — G1 + G2 ──────────────────────── --}}
     @foreach($cuentas as $cuenta)
         <div class="card">
             <div class="card-title">🧒 Perfiles de hijos — Cuenta #{{ $cuenta->id }}</div>
@@ -101,56 +104,127 @@
                 <p style="color:var(--text-muted); font-size:.875rem; margin-bottom:1rem">
                     Aún no has registrado perfiles en esta cuenta. Agrega el primero abajo.
                 </p>
-            @else
-                <div class="table-responsive">
-                    <table class="portal-table">
-                        <thead>
-                            <tr>
-                                <th>Nombre</th>
-                                <th>Edad</th>
-                                <th>Tipo</th>
-                                <th>Nivel escolar</th>
-                                <th>Dispositivos</th>
-                                <th>Estado</th>
-                                <th style="text-align:right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($cuenta->profiles as $perfil)
-                                <tr>
-                                    <td><strong>{{ $perfil->name }}</strong></td>
-                                    <td>{{ $perfil->age ? $perfil->age . ' años' : '—' }}</td>
-                                    <td>{{ $tipoLabels[$perfil->profile_type] ?? '—' }}</td>
-                                    <td>{{ $nivelLabels[$perfil->school_level] ?? '—' }}</td>
-                                    <td>{{ (int) $perfil->devices_count }}</td>
-                                    <td>
-                                        @if($perfil->active)
-                                            <span class="badge badge-success">Activo</span>
-                                        @else
-                                            <span class="badge badge-secondary">Inactivo</span>
-                                        @endif
-                                    </td>
-                                    <td style="text-align:right; white-space:nowrap">
-                                        <a href="{{ route('portal.megafamilia.perfiles.edit', $perfil->id) }}"
-                                           class="btn btn-outline btn-sm">✏️ Editar</a>
-                                        <form method="POST"
-                                              action="{{ route('portal.megafamilia.perfiles.destroy', $perfil->id) }}"
-                                              style="display:inline"
-                                              onsubmit="return confirm('¿Eliminar el perfil «{{ $perfil->name }}»? Se eliminarán también sus dispositivos, reglas y horarios.')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-danger btn-sm">🗑️ Eliminar</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
             @endif
 
-            {{-- Form de alta de perfil --}}
-            <details style="margin-top:1.25rem">
+            @foreach($cuenta->profiles as $perfil)
+                <div style="border:1px solid var(--border); border-radius:10px; padding:1.1rem; margin-bottom:1rem">
+                    {{-- Cabecera del perfil (G1) --}}
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap">
+                        <div>
+                            <strong style="font-size:1.05rem">{{ $perfil->name }}</strong>
+                            <div style="margin-top:.4rem; display:flex; gap:.4rem; flex-wrap:wrap">
+                                @if($perfil->age)
+                                    <span class="badge badge-info">{{ $perfil->age }} años</span>
+                                @endif
+                                @if($perfil->profile_type)
+                                    <span class="badge badge-secondary">{{ $tipoLabels[$perfil->profile_type] ?? $perfil->profile_type }}</span>
+                                @endif
+                                @if($perfil->school_level)
+                                    <span class="badge badge-secondary">{{ $nivelLabels[$perfil->school_level] ?? $perfil->school_level }}</span>
+                                @endif
+                                @if($perfil->active)
+                                    <span class="badge badge-success">Activo</span>
+                                @else
+                                    <span class="badge badge-secondary">Inactivo</span>
+                                @endif
+                            </div>
+                        </div>
+                        <div style="white-space:nowrap">
+                            <a href="{{ route('portal.megafamilia.perfiles.edit', $perfil->id) }}"
+                               class="btn btn-outline btn-sm">✏️ Editar</a>
+                            <form method="POST"
+                                  action="{{ route('portal.megafamilia.perfiles.destroy', $perfil->id) }}"
+                                  style="display:inline"
+                                  onsubmit="return confirm('¿Eliminar el perfil «{{ $perfil->name }}»? Se eliminarán también sus dispositivos, reglas y horarios.')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-danger btn-sm">🗑️ Eliminar</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    {{-- G2: Dispositivos del perfil --}}
+                    <div style="margin-top:1rem">
+                        <div style="font-weight:600; font-size:.85rem; margin-bottom:.5rem">📱 Dispositivos</div>
+
+                        @if($perfil->devices->isEmpty())
+                            <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.6rem">
+                                Sin dispositivos registrados.
+                            </p>
+                        @else
+                            <div class="table-responsive">
+                                <table class="portal-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Tipo</th>
+                                            <th>Estado</th>
+                                            <th style="text-align:right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($perfil->devices as $dev)
+                                            <tr>
+                                                <td><strong>{{ $dev->name }}</strong></td>
+                                                <td>{{ $devTipoLabels[$dev->model] ?? ($dev->model ?: '—') }}</td>
+                                                <td>
+                                                    @if($dev->status === 'online')
+                                                        <span class="badge badge-success">En línea</span>
+                                                    @else
+                                                        <span class="badge badge-secondary">Desconectado</span>
+                                                    @endif
+                                                </td>
+                                                <td style="text-align:right; white-space:nowrap">
+                                                    <a href="{{ route('portal.megafamilia.dispositivos.edit', $dev->id) }}"
+                                                       class="btn btn-outline btn-sm">✏️</a>
+                                                    <form method="POST"
+                                                          action="{{ route('portal.megafamilia.dispositivos.destroy', $dev->id) }}"
+                                                          style="display:inline"
+                                                          onsubmit="return confirm('¿Eliminar el dispositivo «{{ $dev->name }}»?')">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+
+                        <details style="margin-top:.6rem">
+                            <summary style="cursor:pointer; font-weight:600; font-size:.82rem; color:var(--pcolor)">
+                                ➕ Agregar dispositivo
+                            </summary>
+                            <form method="POST" action="{{ route('portal.megafamilia.dispositivos.store') }}" style="margin-top:.75rem">
+                                @csrf
+                                <input type="hidden" name="profile_id" value="{{ $perfil->id }}">
+                                <div class="kpi-grid" style="margin-bottom:.75rem">
+                                    <div class="form-group" style="margin-bottom:0">
+                                        <label>Nombre <span style="color:var(--danger)">*</span></label>
+                                        <input type="text" name="nombre" class="form-control" maxlength="100" required
+                                               placeholder="Ej. iPhone de Juan">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0">
+                                        <label>Tipo</label>
+                                        <select name="tipo" class="form-control">
+                                            <option value="">— Sin especificar —</option>
+                                            @foreach($devTipoLabels as $val => $lbl)
+                                                <option value="{{ $val }}">{{ $lbl }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm">Guardar dispositivo</button>
+                            </form>
+                        </details>
+                    </div>
+                </div>
+            @endforeach
+
+            {{-- Form de alta de perfil (G1) --}}
+            <details style="margin-top:.5rem">
                 <summary style="cursor:pointer; font-weight:600; font-size:.9rem; color:var(--pcolor)">
                     ➕ Agregar perfil
                 </summary>

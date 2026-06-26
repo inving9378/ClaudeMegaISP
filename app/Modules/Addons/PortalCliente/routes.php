@@ -15,6 +15,7 @@ use App\Modules\Addons\PortalCliente\Controllers\EmbajadoresController;
 use App\Modules\Addons\PortalCliente\Controllers\FlotasController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaPerfilesController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaDispositivosController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -91,5 +92,11 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::get('/megafamilia/perfiles/{id}/edit',   [MegaFamiliaPerfilesController::class, 'edit'])->name('megafamilia.perfiles.edit');
         Route::put('/megafamilia/perfiles/{id}',        [MegaFamiliaPerfilesController::class, 'update'])->name('megafamilia.perfiles.update');
         Route::delete('/megafamilia/perfiles/{id}',     [MegaFamiliaPerfilesController::class, 'destroy'])->name('megafamilia.perfiles.destroy');
+
+        // G2: Dispositivos
+        Route::post('/megafamilia/dispositivos',          [MegaFamiliaDispositivosController::class, 'store'])->name('megafamilia.dispositivos.store');
+        Route::get('/megafamilia/dispositivos/{id}/edit', [MegaFamiliaDispositivosController::class, 'edit'])->name('megafamilia.dispositivos.edit');
+        Route::put('/megafamilia/dispositivos/{id}',      [MegaFamiliaDispositivosController::class, 'update'])->name('megafamilia.dispositivos.update');
+        Route::delete('/megafamilia/dispositivos/{id}',   [MegaFamiliaDispositivosController::class, 'destroy'])->name('megafamilia.dispositivos.destroy');
     });
 });

@@ -28,7 +28,9 @@ class MegaFamiliaController extends Controller
         $cuentas = $clientId
             ? ParentalAccount::forClient($clientId)
                 ->withCount(['profiles', 'devices'])
-                ->with(['profiles' => fn ($q) => $q->withCount('devices')->orderBy('id')])
+                ->with(['profiles' => fn ($q) => $q->withCount('devices')
+                    ->with(['devices' => fn ($d) => $d->orderBy('id')])
+                    ->orderBy('id')])
                 ->get()
             : collect();
 
