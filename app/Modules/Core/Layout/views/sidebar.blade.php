@@ -144,7 +144,7 @@
                         'addon-gestion-red', 'addon-inventario', 'addon-mapas',
                         'addon-cobranza-blaster', 'addon-megafamilia', 'addon-embajadores',
                         'addon-flotas', 'addon-talento', 'addon-warroom', 'addon-devtools', 'core-configuracion',
-                        'addon-voip', 'addon-portal-pago',
+                        'addon-voip', 'addon-portal-pago', 'addon-scheduling',
                     ];
                     // Módulos accesibles solo desde los paneles Configuración / Administración:
                     // no se muestran como ítem suelto en el sidebar (evita duplicar la navegación).
