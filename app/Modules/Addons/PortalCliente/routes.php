@@ -16,6 +16,7 @@ use App\Modules\Addons\PortalCliente\Controllers\FlotasController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaPerfilesController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaDispositivosController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaBloqueosController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -98,5 +99,11 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::get('/megafamilia/dispositivos/{id}/edit', [MegaFamiliaDispositivosController::class, 'edit'])->name('megafamilia.dispositivos.edit');
         Route::put('/megafamilia/dispositivos/{id}',      [MegaFamiliaDispositivosController::class, 'update'])->name('megafamilia.dispositivos.update');
         Route::delete('/megafamilia/dispositivos/{id}',   [MegaFamiliaDispositivosController::class, 'destroy'])->name('megafamilia.dispositivos.destroy');
+
+        // G3: Bloqueos (app + web) por perfil
+        Route::post('/megafamilia/perfiles/{profile}/app-blocks',        [MegaFamiliaBloqueosController::class, 'storeApp'])->name('megafamilia.appblocks.store');
+        Route::delete('/megafamilia/perfiles/{profile}/app-blocks/{id}', [MegaFamiliaBloqueosController::class, 'destroyApp'])->name('megafamilia.appblocks.destroy');
+        Route::post('/megafamilia/perfiles/{profile}/web-blocks',        [MegaFamiliaBloqueosController::class, 'storeWeb'])->name('megafamilia.webblocks.store');
+        Route::delete('/megafamilia/perfiles/{profile}/web-blocks/{id}', [MegaFamiliaBloqueosController::class, 'destroyWeb'])->name('megafamilia.webblocks.destroy');
     });
 });
