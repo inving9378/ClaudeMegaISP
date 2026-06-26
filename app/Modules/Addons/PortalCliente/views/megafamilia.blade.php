@@ -9,6 +9,14 @@
             Cliente #{{ $cmi->client_id }} — Control parental de tu familia
         </p>
     </div>
+    @if($active ?? false)
+        <a href="{{ route('portal.megafamilia.solicitudes') }}" class="btn btn-outline btn-sm">
+            🔔 Solicitudes
+            @if(($solicitudesPendientes ?? 0) > 0)
+                <span class="badge badge-danger">{{ $solicitudesPendientes }}</span>
+            @endif
+        </a>
+    @endif
 </div>
 
 @if(! $active)

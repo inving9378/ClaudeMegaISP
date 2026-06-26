@@ -5,6 +5,7 @@ namespace App\Modules\Addons\PortalCliente\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
 use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
+use App\Modules\Addons\MegaFamilia\Models\ParentalRequest;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRule;
 use App\Services\Tenant\CurrentClientResolver;
 use Illuminate\Support\Facades\Auth;
@@ -58,6 +59,10 @@ class MegaFamiliaController extends Controller
         // siempre derivadas de los perfiles de las cuentas del cliente.
         $reglas = $profileIds->isEmpty() ? 0 : ParentalRule::whereIn('profile_id', $profileIds)->count();
 
+        // Solicitudes pendientes (para el badge/CTA del header).
+        $solicitudesPendientes = $profileIds->isEmpty() ? 0
+            : ParentalRequest::whereIn('profile_id', $profileIds)->where('status', 'pending')->count();
+
         $standing = [
             'cuentas'      => $cuentas->count(),
             'perfiles'     => (int) $cuentas->sum('profiles_count'),
@@ -66,10 +71,11 @@ class MegaFamiliaController extends Controller
         ];
 
         return view('addon-portal-cliente::megafamilia', [
-            'cmi'      => $cmi,
-            'active'   => true,
-            'cuentas'  => $cuentas,
-            'standing' => $standing,
+            'cmi'                   => $cmi,
+            'active'                => true,
+            'cuentas'               => $cuentas,
+            'standing'              => $standing,
+            'solicitudesPendientes' => $solicitudesPendientes,
         ]);
     }
 }
