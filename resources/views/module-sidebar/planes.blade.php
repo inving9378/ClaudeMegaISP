@@ -1,5 +1,5 @@
 <li>
-    @if(auth()->user()->canAny(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package']))
+    @if(auth()->user()->canAny(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package', 'contratables.manage']))
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="grid"></i>
             <span data-key="t-planes">{{ $item->sidebar_label ?? 'Planes' }}</span>
@@ -34,6 +34,14 @@
                 </a>
             </li>
         @endif
+        @if(auth()->user()->can('contratables.manage'))
+            <li>
+                <a href="{{ url('/planes/contratables') }}">
+                    <span data-key="t-contratables"><small><i class="fa fa-fw fa-cubes"></i></small> Servicios contratables</span>
+                </a>
+            </li>
+        @endif
+
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
         @foreach($item->dynamic_children ?? collect() as $child)
             <li>

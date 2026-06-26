@@ -62,6 +62,10 @@ import IftListar from "./components/module/adminstration/ift/IftListar";
 import IndexAdministration from "./components/module/adminstration/IndexAdministration.vue";
 import DocumentTemplateListar from "./components/module/adminstration/document_template/DocumentTemplateListar.vue";
 
+//Planes — Servicios contratables
+import ContratableCatalogList from "./components/module/planes/ContratableCatalogList.vue";
+import ContratableCatalogForm from "./components/module/planes/ContratableCatalogForm.vue";
+
 //Configuracion
 import CatalogoApiPanel from "./components/module/configuracion/CatalogoApiPanel.vue";
 import DebtPaymentClient from "./components/module/setting/DebtPaymentClient";
@@ -482,6 +486,8 @@ const app = createApp({
         LeafletMap,
 
         CatalogoApiPanel,
+        'contratable-catalog-list': ContratableCatalogList,
+        'contratable-catalog-form': ContratableCatalogForm,
         DebtPaymentClient,
 
         //Administracion
