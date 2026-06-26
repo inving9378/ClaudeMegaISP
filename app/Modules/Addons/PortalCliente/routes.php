@@ -18,6 +18,7 @@ use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaPerfilesController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaDispositivosController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaBloqueosController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaHorariosController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaGeofencesController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -112,5 +113,11 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::get('/megafamilia/perfiles/{profile}/horarios/{id}/edit',    [MegaFamiliaHorariosController::class, 'edit'])->name('megafamilia.horarios.edit');
         Route::put('/megafamilia/perfiles/{profile}/horarios/{id}',         [MegaFamiliaHorariosController::class, 'update'])->name('megafamilia.horarios.update');
         Route::delete('/megafamilia/perfiles/{profile}/horarios/{id}',      [MegaFamiliaHorariosController::class, 'destroy'])->name('megafamilia.horarios.destroy');
+
+        // G5: Geocercas familiares (atadas a un perfil; ownership por perfil)
+        Route::post('/megafamilia/geocercas',           [MegaFamiliaGeofencesController::class, 'store'])->name('megafamilia.geocercas.store');
+        Route::get('/megafamilia/geocercas/{id}/edit',  [MegaFamiliaGeofencesController::class, 'edit'])->name('megafamilia.geocercas.edit');
+        Route::put('/megafamilia/geocercas/{id}',       [MegaFamiliaGeofencesController::class, 'update'])->name('megafamilia.geocercas.update');
+        Route::delete('/megafamilia/geocercas/{id}',    [MegaFamiliaGeofencesController::class, 'destroy'])->name('megafamilia.geocercas.destroy');
     });
 });
