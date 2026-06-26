@@ -26,11 +26,11 @@ class UpdatesPermissionsSeeder extends Seeder
 
     public function run(): void
     {
-        foreach ($this->permissions as $name => $label) {
-            Permission::firstOrCreate(
-                ['name' => $name, 'guard_name' => 'web'],
-                ['description' => $label]
-            );
+        // La tabla `permissions` solo tiene name/guard_name (no hay columna `description`
+        // en dev ni en prod, ni migración que la cree). El label del array es documentación,
+        // no se persiste. Escribirlo reventaba el seeder con "Unknown column 'description'".
+        foreach (array_keys($this->permissions) as $name) {
+            Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
         foreach (self::FULL_ACCESS_ROLES as $roleName) {
