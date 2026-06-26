@@ -17,6 +17,10 @@ class ContratableService extends BaseModel
 {
     use SoftDeletes;
 
+    /** Métricas de conteo de unidades soportadas. */
+    public const METRICA_VEHICULOS    = 'vehiculos';    // Flotas
+    public const METRICA_DISPOSITIVOS = 'dispositivos'; // MegaFamilia
+
     protected $table = 'contratable_services';
 
     protected $fillable = [
