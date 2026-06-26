@@ -111,13 +111,6 @@ class QueryPlansTool
                 'desc_col'   => 'service_description',
                 'active_col' => null,
             ],
-            'contractable_services' => [
-                'name_col'   => 'label',
-                'price_col'  => 'price',
-                'speed_col'  => null,
-                'desc_col'   => 'service_type_key',
-                'active_col' => 'active',
-            ],
             default => [ // tablas normalizadas tipo Medussa (plan_internets, internet_plans, plans)
                 'name_col'   => 'name',
                 'price_col'  => 'price',
@@ -150,7 +143,6 @@ class QueryPlansTool
     private function detectPlanTable(): ?string
     {
         // Tablas normalizadas (Medussa) primero; si no existen, el catálogo real vendible es `bundles`.
-        // Cuando `contractable_services` quede poblado como catálogo canónico, anteponerlo a `bundles`.
         $candidates = ['plan_internets', 'internet_plans', 'plans', 'plan_internet_clients', 'bundles'];
         foreach ($candidates as $t) {
             if (Schema::hasTable($t)) {
