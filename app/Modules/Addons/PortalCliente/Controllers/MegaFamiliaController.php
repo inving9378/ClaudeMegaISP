@@ -66,6 +66,14 @@ class MegaFamiliaController extends Controller
         // Balance de puntos por perfil (gamificación) — única fuente de verdad.
         $balances = \App\Modules\Addons\PortalCliente\Support\MegaFamiliaBalance::forProfiles($profileIds->all());
 
+        // Solicitudes pendientes (permiso + canje) para el tab Solicitudes.
+        $solicitudes = $profileIds->isEmpty() ? collect()
+            : ParentalRequest::whereIn('profile_id', $profileIds)
+                ->where('status', 'pending')
+                ->with(['profile', 'device', 'reward'])
+                ->orderByDesc('created_at')
+                ->get();
+
         $standing = [
             'cuentas'      => $cuentas->count(),
             'perfiles'     => (int) $cuentas->sum('profiles_count'),
@@ -80,6 +88,7 @@ class MegaFamiliaController extends Controller
             'standing'              => $standing,
             'solicitudesPendientes' => $solicitudesPendientes,
             'balances'              => $balances,
+            'solicitudes'           => $solicitudes,
         ]);
     }
 }

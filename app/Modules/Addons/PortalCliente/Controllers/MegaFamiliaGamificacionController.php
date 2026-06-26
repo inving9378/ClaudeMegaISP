@@ -155,7 +155,7 @@ class MegaFamiliaGamificacionController extends MegaFamiliaBaseController
             ->where('status', 'pending')
             ->exists();
         if ($yaPendiente) {
-            return redirect()->route('portal.megafamilia.solicitudes')
+            return redirect()->to(route('portal.megafamilia') . '#solicitudes')
                 ->with('info', "Ya hay una solicitud de canje pendiente para «{$reward->detail}».");
         }
 
@@ -169,7 +169,7 @@ class MegaFamiliaGamificacionController extends MegaFamiliaBaseController
             'expires_at' => now()->addDays(7),
         ]);
 
-        return redirect()->route('portal.megafamilia.solicitudes')
+        return redirect()->to(route('portal.megafamilia') . '#solicitudes')
             ->with('success', 'Solicitud de canje enviada para aprobación.');
     }
 }

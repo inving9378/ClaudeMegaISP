@@ -6,21 +6,13 @@
     <div>
         <h1>👨‍👩‍👧 MegaFamilia</h1>
         <p style="color:var(--text-muted); font-size:.875rem; margin-top:.25rem">
-            Cliente #{{ $cmi->client_id }} — Control parental de tu familia
+            Cliente #{{ $cmi->client_id }} — Control parental de la familia
         </p>
     </div>
-    @if($active ?? false)
-        <a href="{{ route('portal.megafamilia.solicitudes') }}" class="btn btn-outline btn-sm">
-            🔔 Solicitudes
-            @if(($solicitudesPendientes ?? 0) > 0)
-                <span class="badge badge-danger">{{ $solicitudesPendientes }}</span>
-            @endif
-        </a>
-    @endif
 </div>
 
-@if(! $active)
-    {{-- Estado vacío: el cliente no tiene MegaFamilia activa --}}
+@if(! ($active ?? false))
+    {{-- Estado vacío --}}
     <div class="card" style="text-align:center; padding:2.5rem 1.5rem">
         <div style="font-size:3rem; margin-bottom:.5rem">🛡️</div>
         <h2 style="margin-bottom:.5rem">Aún no tienes MegaFamilia activo</h2>
@@ -37,678 +29,211 @@
             'suspended' => ['Suspendida', 'badge-warning'],
             'cancelled' => ['Cancelada', 'badge-secondary'],
         ];
-        $tipoLabels = [
-            'nino'           => 'Niño',
-            'preadolescente' => 'Preadolescente',
-            'adolescente'    => 'Adolescente',
-        ];
-        $nivelLabels = [
-            'primaria'     => 'Primaria',
-            'secundaria'   => 'Secundaria',
-            'preparatoria' => 'Preparatoria',
-        ];
-        $devTipoLabels = [
-            'smartphone' => '📱 Smartphone',
-            'tablet'     => '📲 Tablet',
-            'pc'         => '💻 PC',
-            'otro'       => '🔌 Otro',
-        ];
+        $tipoLabels  = ['nino' => 'Niño', 'preadolescente' => 'Preadolescente', 'adolescente' => 'Adolescente'];
+        $nivelLabels = ['primaria' => 'Primaria', 'secundaria' => 'Secundaria', 'preparatoria' => 'Preparatoria'];
+        $devTipoLabels = ['smartphone' => '📱 Smartphone', 'tablet' => '📲 Tablet', 'pc' => '💻 PC', 'otro' => '🔌 Otro'];
         $diasLargo = [0 => 'Domingo', 1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado'];
         $diasCorto = [0 => 'Dom', 1 => 'Lun', 2 => 'Mar', 3 => 'Mié', 4 => 'Jue', 5 => 'Vie', 6 => 'Sáb'];
+        $taskEstados = [
+            'pending' => ['Pendiente', 'badge-warning'], 'completed' => ['Completada', 'badge-info'],
+            'approved' => ['Aprobada', 'badge-success'], 'rejected' => ['Rechazada', 'badge-danger'],
+        ];
+        $perfiles = $cuentas->flatMap(fn ($c) => $c->profiles);
     @endphp
 
-    {{-- KPI Cards --}}
+    {{-- KPIs --}}
     <div class="kpi-grid">
-        <div class="kpi-card">
-            <div class="kpi-icon">🏠</div>
-            <div class="kpi-label">Cuentas</div>
-            <div class="kpi-value">{{ (int) $standing['cuentas'] }}</div>
-            <div class="kpi-sub">De tu familia</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-icon">🧒</div>
-            <div class="kpi-label">Perfiles</div>
-            <div class="kpi-value">{{ (int) $standing['perfiles'] }}</div>
-            <div class="kpi-sub">Hijos registrados</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-icon">📱</div>
-            <div class="kpi-label">Dispositivos</div>
-            <div class="kpi-value">{{ (int) $standing['dispositivos'] }}</div>
-            <div class="kpi-sub">Vinculados</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-icon">⏱️</div>
-            <div class="kpi-label">Reglas</div>
-            <div class="kpi-value">{{ (int) $standing['reglas'] }}</div>
-            <div class="kpi-sub">Configuradas</div>
-        </div>
+        <div class="kpi-card"><div class="kpi-icon">🏠</div><div class="kpi-label">Cuentas</div><div class="kpi-value">{{ (int) $standing['cuentas'] }}</div><div class="kpi-sub">De tu familia</div></div>
+        <div class="kpi-card"><div class="kpi-icon">🧒</div><div class="kpi-label">Perfiles</div><div class="kpi-value">{{ (int) $standing['perfiles'] }}</div><div class="kpi-sub">Hijos registrados</div></div>
+        <div class="kpi-card"><div class="kpi-icon">📱</div><div class="kpi-label">Dispositivos</div><div class="kpi-value">{{ (int) $standing['dispositivos'] }}</div><div class="kpi-sub">Vinculados</div></div>
+        <div class="kpi-card"><div class="kpi-icon">⏱️</div><div class="kpi-label">Reglas</div><div class="kpi-value">{{ (int) $standing['reglas'] }}</div><div class="kpi-sub">Configuradas</div></div>
     </div>
 
-    {{-- Resumen de cuentas --}}
-    <div class="card">
-        <div class="card-title">Mis cuentas ({{ (int) $standing['cuentas'] }})</div>
-        <div class="kpi-grid" style="margin-top:.5rem">
-            @foreach($cuentas as $cuenta)
-                @php [$estLabel, $estCls] = $estados[$cuenta->status] ?? [ucfirst($cuenta->status), 'badge-secondary']; @endphp
-                <div class="kpi-card">
-                    <div class="kpi-label">Cuenta #{{ $cuenta->id }}</div>
-                    <div class="kpi-value" style="font-size:1rem; margin:.25rem 0">
-                        <span class="badge {{ $estCls }}">{{ $estLabel }}</span>
-                    </div>
-                    <div class="kpi-sub">
-                        🧒 {{ (int) $cuenta->profiles_count }} perfiles ·
-                        📱 {{ (int) $cuenta->devices_count }} dispositivos
-                    </div>
-                </div>
-            @endforeach
+    {{-- ══════════ TABS PRINCIPALES ══════════ --}}
+    <div class="mf-tabs">
+        <div class="mf-tabs-nav">
+            <button class="mf-tab-btn active" data-tab="cuentas">📦 Mis cuentas</button>
+            <button class="mf-tab-btn" data-tab="perfiles">🧒 Perfiles de hijos</button>
+            <button class="mf-tab-btn" data-tab="solicitudes">🔔 Solicitudes
+                @if(($solicitudesPendientes ?? 0) > 0)<span class="badge badge-danger" style="margin-left:.4rem">{{ $solicitudesPendientes }}</span>@endif
+            </button>
         </div>
-    </div>
 
-    {{-- ── Perfiles de hijos (por cuenta) — G1 + G2 ──────────────────────── --}}
-    @foreach($cuentas as $cuenta)
-        <div class="card">
-            <div class="card-title">🧒 Perfiles de hijos — Cuenta #{{ $cuenta->id }}</div>
-
-            @if($cuenta->profiles->isEmpty())
-                <p style="color:var(--text-muted); font-size:.875rem; margin-bottom:1rem">
-                    Aún no has registrado perfiles en esta cuenta. Agrega el primero abajo.
-                </p>
-            @endif
-
-            @foreach($cuenta->profiles as $perfil)
-                <div style="border:1px solid var(--border); border-radius:10px; padding:1.1rem; margin-bottom:1rem">
-                    {{-- Cabecera del perfil (G1) --}}
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap">
-                        <div>
-                            <strong style="font-size:1.05rem">{{ $perfil->name }}</strong>
-                            <div style="margin-top:.4rem; display:flex; gap:.4rem; flex-wrap:wrap; align-items:center">
-                                @php
-                                    $bal    = (int) ($balances[$perfil->id] ?? 0);
-                                    $balCls = $bal >= 100 ? 'badge-success' : ($bal >= 50 ? 'badge-warning' : 'badge-danger');
-                                @endphp
-                                <span class="badge {{ $balCls }}" style="font-size:.82rem">💰 Balance: {{ $bal }} pts</span>
-                                @if($perfil->age)
-                                    <span class="badge badge-info">{{ $perfil->age }} años</span>
-                                @endif
-                                @if($perfil->profile_type)
-                                    <span class="badge badge-secondary">{{ $tipoLabels[$perfil->profile_type] ?? $perfil->profile_type }}</span>
-                                @endif
-                                @if($perfil->school_level)
-                                    <span class="badge badge-secondary">{{ $nivelLabels[$perfil->school_level] ?? $perfil->school_level }}</span>
-                                @endif
-                                @if($perfil->active)
-                                    <span class="badge badge-success">Activo</span>
-                                @else
-                                    <span class="badge badge-secondary">Inactivo</span>
-                                @endif
-                            </div>
-                        </div>
-                        <div style="white-space:nowrap">
-                            <a href="{{ route('portal.megafamilia.perfiles.edit', $perfil->id) }}"
-                               class="btn btn-outline btn-sm">✏️ Editar</a>
-                            <form method="POST"
-                                  action="{{ route('portal.megafamilia.perfiles.destroy', $perfil->id) }}"
-                                  style="display:inline"
-                                  onsubmit="return confirm('¿Eliminar el perfil «{{ $perfil->name }}»? Se eliminarán también sus dispositivos, reglas y horarios.')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-danger btn-sm">🗑️ Eliminar</button>
-                            </form>
-                        </div>
-                    </div>
-
-                    {{-- G2: Dispositivos del perfil --}}
-                    <div style="margin-top:1rem">
-                        <div style="font-weight:600; font-size:.85rem; margin-bottom:.5rem">📱 Dispositivos</div>
-
-                        @if($perfil->devices->isEmpty())
-                            <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.6rem">
-                                Sin dispositivos registrados.
-                            </p>
-                        @else
-                            <div class="table-responsive">
-                                <table class="portal-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Nombre</th>
-                                            <th>Tipo</th>
-                                            <th>Estado</th>
-                                            <th style="text-align:right">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($perfil->devices as $dev)
-                                            <tr>
-                                                <td><strong>{{ $dev->name }}</strong></td>
-                                                <td>{{ $devTipoLabels[$dev->model] ?? ($dev->model ?: '—') }}</td>
-                                                <td>
-                                                    @if($dev->status === 'online')
-                                                        <span class="badge badge-success">En línea</span>
-                                                    @else
-                                                        <span class="badge badge-secondary">Desconectado</span>
-                                                    @endif
-                                                </td>
-                                                <td style="text-align:right; white-space:nowrap">
-                                                    <a href="{{ route('portal.megafamilia.dispositivos.edit', $dev->id) }}"
-                                                       class="btn btn-outline btn-sm">✏️</a>
-                                                    <form method="POST"
-                                                          action="{{ route('portal.megafamilia.dispositivos.destroy', $dev->id) }}"
-                                                          style="display:inline"
-                                                          onsubmit="return confirm('¿Eliminar el dispositivo «{{ $dev->name }}»?')">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endif
-
-                        <details style="margin-top:.6rem">
-                            <summary style="cursor:pointer; font-weight:600; font-size:.82rem; color:var(--pcolor)">
-                                ➕ Agregar dispositivo
-                            </summary>
-                            <form method="POST" action="{{ route('portal.megafamilia.dispositivos.store') }}" style="margin-top:.75rem">
-                                @csrf
-                                <input type="hidden" name="profile_id" value="{{ $perfil->id }}">
-                                <div class="kpi-grid" style="margin-bottom:.75rem">
-                                    <div class="form-group" style="margin-bottom:0">
-                                        <label>Nombre <span style="color:var(--danger)">*</span></label>
-                                        <input type="text" name="nombre" class="form-control" maxlength="100" required
-                                               placeholder="Ej. iPhone de Juan">
-                                    </div>
-                                    <div class="form-group" style="margin-bottom:0">
-                                        <label>Tipo</label>
-                                        <select name="tipo" class="form-control">
-                                            <option value="">— Sin especificar —</option>
-                                            @foreach($devTipoLabels as $val => $lbl)
-                                                <option value="{{ $val }}">{{ $lbl }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <button type="submit" class="btn btn-primary btn-sm">Guardar dispositivo</button>
-                            </form>
-                        </details>
-                    </div>
-
-                    {{-- G3: Bloqueos (apps + webs) del perfil --}}
-                    <div style="margin-top:1.1rem">
-                        <div style="font-weight:600; font-size:.85rem; margin-bottom:.5rem">🚫 Bloqueos</div>
-                        <div class="kpi-grid" style="margin-bottom:0">
-                            {{-- Apps bloqueadas --}}
-                            <div>
-                                <div style="font-size:.78rem; color:var(--text-muted); margin-bottom:.35rem">Aplicaciones</div>
-                                @if($perfil->appBlocks->isEmpty())
-                                    <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.5rem">Sin apps bloqueadas.</p>
-                                @else
-                                    <ul style="list-style:none; padding:0; margin:0 0 .5rem">
-                                        @foreach($perfil->appBlocks as $ab)
-                                            <li style="display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:.35rem 0; border-bottom:1px solid var(--border)">
-                                                <span>📵 <strong>{{ $ab->app_name }}</strong>
-                                                    @if($ab->package_name)<span style="color:var(--text-muted); font-size:.78rem">({{ $ab->package_name }})</span>@endif
-                                                </span>
-                                                <form method="POST" action="{{ route('portal.megafamilia.appblocks.destroy', [$perfil->id, $ab->id]) }}"
-                                                      style="display:inline" onsubmit="return confirm('¿Quitar el bloqueo de «{{ $ab->app_name }}»?')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                                </form>
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                @endif
-                                <details>
-                                    <summary style="cursor:pointer; font-weight:600; font-size:.82rem; color:var(--pcolor)">➕ Bloquear app</summary>
-                                    <form method="POST" action="{{ route('portal.megafamilia.appblocks.store', $perfil->id) }}" style="margin-top:.6rem">
-                                        @csrf
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Nombre de la app <span style="color:var(--danger)">*</span></label>
-                                            <input type="text" name="app_name" class="form-control" maxlength="100" required placeholder="Ej. Instagram">
-                                        </div>
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Paquete (opcional)</label>
-                                            <input type="text" name="package_name" class="form-control" maxlength="200" placeholder="com.instagram.android">
-                                        </div>
-                                        <button type="submit" class="btn btn-primary btn-sm">Bloquear app</button>
-                                    </form>
-                                </details>
-                            </div>
-
-                            {{-- Sitios web bloqueados --}}
-                            <div>
-                                <div style="font-size:.78rem; color:var(--text-muted); margin-bottom:.35rem">Sitios web</div>
-                                @if($perfil->webBlocks->isEmpty())
-                                    <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.5rem">Sin sitios bloqueados.</p>
-                                @else
-                                    <ul style="list-style:none; padding:0; margin:0 0 .5rem">
-                                        @foreach($perfil->webBlocks as $wb)
-                                            <li style="display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:.35rem 0; border-bottom:1px solid var(--border)">
-                                                <span>🌐 <strong>{{ $wb->domain }}</strong>
-                                                    @if($wb->category)<span style="color:var(--text-muted); font-size:.78rem">· {{ $wb->category }}</span>@endif
-                                                </span>
-                                                <form method="POST" action="{{ route('portal.megafamilia.webblocks.destroy', [$perfil->id, $wb->id]) }}"
-                                                      style="display:inline" onsubmit="return confirm('¿Quitar el bloqueo de «{{ $wb->domain }}»?')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                                </form>
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                @endif
-                                <details>
-                                    <summary style="cursor:pointer; font-weight:600; font-size:.82rem; color:var(--pcolor)">➕ Bloquear sitio</summary>
-                                    <form method="POST" action="{{ route('portal.megafamilia.webblocks.store', $perfil->id) }}" style="margin-top:.6rem">
-                                        @csrf
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Dirección web <span style="color:var(--danger)">*</span></label>
-                                            <input type="text" name="url" class="form-control" maxlength="255" required placeholder="Ej. instagram.com">
-                                        </div>
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Categoría (opcional)</label>
-                                            <input type="text" name="category" class="form-control" maxlength="100" placeholder="Redes sociales">
-                                        </div>
-                                        <button type="submit" class="btn btn-primary btn-sm">Bloquear sitio</button>
-                                    </form>
-                                </details>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- G4: Horarios de internet del perfil --}}
-                    <div style="margin-top:1.1rem">
-                        <div style="font-weight:600; font-size:.85rem; margin-bottom:.5rem">⏰ Horarios de internet</div>
-
-                        @if($perfil->schedules->isEmpty())
-                            <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.6rem">Sin horarios configurados.</p>
-                        @else
-                            <div class="table-responsive">
-                                <table class="portal-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Nombre</th>
-                                            <th>Días</th>
-                                            <th>Horario</th>
-                                            <th>Acción</th>
-                                            <th>Estado</th>
-                                            <th style="text-align:right">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($perfil->schedules as $sch)
-                                            <tr>
-                                                <td><strong>{{ $sch->name }}</strong></td>
-                                                <td>{{ collect($sch->days ?? [])->map(fn ($d) => $diasCorto[$d] ?? $d)->implode(', ') ?: '—' }}</td>
-                                                <td>{{ substr((string) $sch->start_time, 0, 5) }} – {{ substr((string) $sch->end_time, 0, 5) }}</td>
-                                                <td>
-                                                    @if($sch->action === 'allow')
-                                                        <span class="badge badge-success">Permite</span>
-                                                    @else
-                                                        <span class="badge badge-danger">Bloquea</span>
-                                                    @endif
-                                                </td>
-                                                <td>
-                                                    @if($sch->active)
-                                                        <span class="badge badge-success">Activo</span>
-                                                    @else
-                                                        <span class="badge badge-secondary">Inactivo</span>
-                                                    @endif
-                                                </td>
-                                                <td style="text-align:right; white-space:nowrap">
-                                                    <a href="{{ route('portal.megafamilia.horarios.edit', [$perfil->id, $sch->id]) }}"
-                                                       class="btn btn-outline btn-sm">✏️</a>
-                                                    <form method="POST" action="{{ route('portal.megafamilia.horarios.destroy', [$perfil->id, $sch->id]) }}"
-                                                          style="display:inline" onsubmit="return confirm('¿Eliminar el horario «{{ $sch->name }}»?')">
-                                                        @csrf @method('DELETE')
-                                                        <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endif
-
-                        <details style="margin-top:.6rem">
-                            <summary style="cursor:pointer; font-weight:600; font-size:.82rem; color:var(--pcolor)">➕ Agregar horario</summary>
-                            <form method="POST" action="{{ route('portal.megafamilia.horarios.store', $perfil->id) }}" style="margin-top:.75rem">
-                                @csrf
-                                <div class="form-group" style="margin-bottom:.7rem">
-                                    <label>Nombre <span style="color:var(--danger)">*</span></label>
-                                    <input type="text" name="nombre" class="form-control" maxlength="100" required placeholder="Ej. Horario escolar">
-                                </div>
-                                <div class="form-group" style="margin-bottom:.7rem">
-                                    <label>Días <span style="color:var(--danger)">*</span></label>
-                                    <div style="display:flex; gap:.75rem; flex-wrap:wrap">
-                                        @foreach($diasLargo as $num => $lbl)
-                                            <label style="display:flex; align-items:center; gap:.3rem; font-weight:400; font-size:.85rem; margin:0">
-                                                <input type="checkbox" name="days[]" value="{{ $num }}"> {{ $diasCorto[$num] }}
-                                            </label>
-                                        @endforeach
-                                    </div>
-                                </div>
-                                <div class="kpi-grid" style="margin-bottom:.7rem">
-                                    <div class="form-group" style="margin-bottom:0">
-                                        <label>Hora inicio <span style="color:var(--danger)">*</span></label>
-                                        <input type="time" name="hora_inicio" class="form-control" required>
-                                    </div>
-                                    <div class="form-group" style="margin-bottom:0">
-                                        <label>Hora fin <span style="color:var(--danger)">*</span></label>
-                                        <input type="time" name="hora_fin" class="form-control" required>
-                                    </div>
-                                    <div class="form-group" style="margin-bottom:0">
-                                        <label>Acción</label>
-                                        <select name="action" class="form-control">
-                                            <option value="block">Bloquear internet</option>
-                                            <option value="allow">Permitir internet</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <label style="display:flex; align-items:center; gap:.5rem; font-weight:400; font-size:.85rem; margin-bottom:.75rem">
-                                    <input type="hidden" name="active" value="0">
-                                    <input type="checkbox" name="active" value="1" checked> Horario activo
-                                </label>
-                                <button type="submit" class="btn btn-primary btn-sm">Guardar horario</button>
-                            </form>
-                        </details>
-                    </div>
-
-                    {{-- G6: Tareas y recompensas del perfil --}}
-                    @php
-                        $taskEstados = [
-                            'pending'   => ['Pendiente', 'badge-warning'],
-                            'completed' => ['Completada', 'badge-info'],
-                            'approved'  => ['Aprobada', 'badge-success'],
-                            'rejected'  => ['Rechazada', 'badge-danger'],
-                        ];
-                    @endphp
-                    <div style="margin-top:1.1rem">
-                        <div style="font-weight:600; font-size:.85rem; margin-bottom:.5rem">🎯 Tareas y recompensas</div>
-                        <div class="kpi-grid" style="margin-bottom:0">
-                            {{-- Tareas --}}
-                            <div>
-                                <div style="font-size:.78rem; color:var(--text-muted); margin-bottom:.35rem">Tareas</div>
-                                @if($perfil->tasks->isEmpty())
-                                    <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.5rem">Sin tareas.</p>
-                                @else
-                                    <ul style="list-style:none; padding:0; margin:0 0 .5rem">
-                                        @foreach($perfil->tasks as $tarea)
-                                            @php [$tLbl, $tCls] = $taskEstados[$tarea->status] ?? [ucfirst($tarea->status), 'badge-secondary']; @endphp
-                                            <li style="padding:.4rem 0; border-bottom:1px solid var(--border)">
-                                                <div style="display:flex; justify-content:space-between; align-items:center; gap:.5rem">
-                                                    <span>✅ <strong>{{ $tarea->title }}</strong>
-                                                        @if($tarea->points)<span class="badge badge-info">{{ (int) $tarea->points }} pts</span>@endif
-                                                        <span class="badge {{ $tCls }}">{{ $tLbl }}</span>
-                                                    </span>
-                                                    <span style="white-space:nowrap">
-                                                        @if($tarea->status === 'pending')
-                                                            <form method="POST" action="{{ route('portal.megafamilia.tareas.completar', $tarea->id) }}" style="display:inline">
-                                                                @csrf
-                                                                <button type="submit" class="btn btn-success btn-sm" title="Marcar completada">✓</button>
-                                                            </form>
-                                                        @endif
-                                                        <form method="POST" action="{{ route('portal.megafamilia.tareas.destroy', [$perfil->id, $tarea->id]) }}"
-                                                              style="display:inline" onsubmit="return confirm('¿Eliminar la tarea «{{ $tarea->title }}»?')">
-                                                            @csrf @method('DELETE')
-                                                            <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                                        </form>
-                                                    </span>
-                                                </div>
-                                                @if($tarea->description)
-                                                    <div style="color:var(--text-muted); font-size:.78rem; margin-top:.2rem">{{ $tarea->description }}</div>
-                                                @endif
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                @endif
-                                <details>
-                                    <summary style="cursor:pointer; font-weight:600; font-size:.82rem; color:var(--pcolor)">➕ Agregar tarea</summary>
-                                    <form method="POST" action="{{ route('portal.megafamilia.tareas.store', $perfil->id) }}" style="margin-top:.6rem">
-                                        @csrf
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Título <span style="color:var(--danger)">*</span></label>
-                                            <input type="text" name="titulo" class="form-control" maxlength="100" required placeholder="Ej. Tender la cama">
-                                        </div>
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Descripción (opcional)</label>
-                                            <input type="text" name="descripcion" class="form-control" maxlength="1000">
-                                        </div>
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Puntos</label>
-                                            <input type="number" name="puntos" class="form-control" min="0" max="500" placeholder="0 a 500">
-                                        </div>
-                                        <button type="submit" class="btn btn-primary btn-sm">Guardar tarea</button>
-                                    </form>
-                                </details>
-                            </div>
-
-                            {{-- Recompensas --}}
-                            <div>
-                                <div style="font-size:.78rem; color:var(--text-muted); margin-bottom:.35rem">Recompensas</div>
-                                @php
-                                    $catalogo  = $perfil->rewards->whereNull('granted_at');
-                                    $canjeadas = $perfil->rewards->whereNotNull('granted_at')->count();
-                                @endphp
-                                @if($catalogo->isEmpty())
-                                    <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.5rem">Sin recompensas.</p>
-                                @else
-                                    <ul style="list-style:none; padding:0; margin:0 0 .5rem">
-                                        @foreach($catalogo as $rec)
-                                            <li style="display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:.4rem 0; border-bottom:1px solid var(--border)">
-                                                <span>🎁 <strong>{{ $rec->detail }}</strong>
-                                                    <span class="badge badge-secondary">Cuesta {{ (int) $rec->value }} pts</span>
-                                                </span>
-                                                <span style="white-space:nowrap; display:flex; gap:.3rem">
-                                                    <form method="POST" action="{{ route('portal.megafamilia.recompensas.canjear', $rec->id) }}" style="display:inline">
-                                                        @csrf
-                                                        <button type="submit" class="btn btn-success btn-sm"
-                                                                @if($bal < (int) $rec->value) disabled title="Balance insuficiente ({{ $bal }} pts)" @else title="Canjear por {{ (int) $rec->value }} pts" @endif>
-                                                            🔁 Canjear
-                                                        </button>
-                                                    </form>
-                                                    <form method="POST" action="{{ route('portal.megafamilia.recompensas.destroy', [$perfil->id, $rec->id]) }}"
-                                                          style="display:inline" onsubmit="return confirm('¿Eliminar la recompensa «{{ $rec->detail }}»?')">
-                                                        @csrf @method('DELETE')
-                                                        <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                                    </form>
-                                                </span>
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                @endif
-                                @if($canjeadas > 0)
-                                    <p style="color:var(--text-muted); font-size:.76rem; margin-bottom:.5rem">🎉 {{ $canjeadas }} recompensa(s) ya canjeada(s).</p>
-                                @endif
-                                <details>
-                                    <summary style="cursor:pointer; font-weight:600; font-size:.82rem; color:var(--pcolor)">➕ Agregar recompensa</summary>
-                                    <form method="POST" action="{{ route('portal.megafamilia.recompensas.store', $perfil->id) }}" style="margin-top:.6rem">
-                                        @csrf
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Título <span style="color:var(--danger)">*</span></label>
-                                            <input type="text" name="titulo" class="form-control" maxlength="100" required placeholder="Ej. 1 hora extra de juego">
-                                        </div>
-                                        <div class="form-group" style="margin-bottom:.6rem">
-                                            <label>Costo en puntos</label>
-                                            <input type="number" name="costo_puntos" class="form-control" min="0" max="500" placeholder="0 a 500">
-                                        </div>
-                                        <button type="submit" class="btn btn-primary btn-sm">Guardar recompensa</button>
-                                    </form>
-                                </details>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            @endforeach
-
-            {{-- Form de alta de perfil (G1) --}}
-            <details style="margin-top:.5rem">
-                <summary style="cursor:pointer; font-weight:600; font-size:.9rem; color:var(--pcolor)">
-                    ➕ Agregar perfil
-                </summary>
-                <form method="POST" action="{{ route('portal.megafamilia.perfiles.store') }}" style="margin-top:1rem">
-                    @csrf
-                    <input type="hidden" name="account_id" value="{{ $cuenta->id }}">
-                    <div class="kpi-grid" style="margin-bottom:1rem">
-                        <div class="form-group" style="margin-bottom:0">
-                            <label>Nombre <span style="color:var(--danger)">*</span></label>
-                            <input type="text" name="nombre" class="form-control" maxlength="100" required
-                                   placeholder="Ej. Juan">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0">
-                            <label>Edad</label>
-                            <input type="number" name="edad" class="form-control" min="1" max="17"
-                                   placeholder="1 a 17">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0">
-                            <label>Tipo de perfil</label>
-                            <select name="profile_type" class="form-control">
-                                <option value="">— Sin especificar —</option>
-                                @foreach($tipoLabels as $val => $lbl)
-                                    <option value="{{ $val }}">{{ $lbl }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom:0">
-                            <label>Nivel escolar</label>
-                            <select name="school_level" class="form-control">
-                                <option value="">— Sin especificar —</option>
-                                @foreach($nivelLabels as $val => $lbl)
-                                    <option value="{{ $val }}">{{ $lbl }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-sm">Guardar perfil</button>
-                </form>
-            </details>
-        </div>
-    @endforeach
-
-    {{-- ── Geocercas familiares (por cuenta) — G5 ─────────────────────────── --}}
-    @foreach($cuentas as $cuenta)
-        @php $geos = $cuenta->profiles->flatMap(fn ($p) => $p->geofences); @endphp
-        <div class="card">
-            <div class="card-title">📍 Geocercas familiares — Cuenta #{{ $cuenta->id }}</div>
-            <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:1rem">
-                El mapa interactivo es una mejora futura; por ahora ingresa latitud, longitud y radio manualmente.
-            </p>
-
-            @if($geos->isEmpty())
-                <p style="color:var(--text-muted); font-size:.875rem; margin-bottom:1rem">Sin geocercas configuradas.</p>
-            @else
+        {{-- ── TAB 1: MIS CUENTAS ── --}}
+        <div class="mf-tab-content active" id="mf-tab-cuentas">
+            <div class="card">
+                <div class="card-title">📦 Mis cuentas ({{ $cuentas->count() }})</div>
                 <div class="table-responsive">
                     <table class="portal-table">
-                        <thead>
-                            <tr>
-                                <th>Nombre</th>
-                                <th>Perfil</th>
-                                <th>Coordenadas</th>
-                                <th>Radio</th>
-                                <th>Alertas</th>
-                                <th>Estado</th>
-                                <th style="text-align:right">Acciones</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>Cuenta</th><th>Estado</th><th>Perfiles</th><th>Dispositivos</th></tr></thead>
                         <tbody>
-                            @foreach($cuenta->profiles as $perfil)
-                                @foreach($perfil->geofences as $geo)
-                                    <tr>
-                                        <td><strong>{{ $geo->name }}</strong>
-                                            @if($geo->address)<div style="color:var(--text-muted); font-size:.78rem">{{ $geo->address }}</div>@endif
-                                        </td>
-                                        <td>{{ $perfil->name }}</td>
-                                        <td style="font-size:.8rem">{{ $geo->lat }}, {{ $geo->lng }}</td>
-                                        <td><span class="badge badge-info">{{ (int) $geo->radius_meters }} m</span></td>
-                                        <td style="font-size:.78rem">
-                                            @if($geo->alert_on_enter)<span title="Avisar al entrar">➡️ Entra</span>@endif
-                                            @if($geo->alert_on_exit)<span title="Avisar al salir">⬅️ Sale</span>@endif
-                                            @if(! $geo->alert_on_enter && ! $geo->alert_on_exit)—@endif
-                                        </td>
-                                        <td>
-                                            @if($geo->active)
-                                                <span class="badge badge-success">Activa</span>
-                                            @else
-                                                <span class="badge badge-secondary">Inactiva</span>
-                                            @endif
-                                        </td>
-                                        <td style="text-align:right; white-space:nowrap">
-                                            <a href="{{ route('portal.megafamilia.geocercas.edit', $geo->id) }}" class="btn btn-outline btn-sm">✏️</a>
-                                            <form method="POST" action="{{ route('portal.megafamilia.geocercas.destroy', $geo->id) }}"
-                                                  style="display:inline" onsubmit="return confirm('¿Eliminar la geocerca «{{ $geo->name }}»?')">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                @endforeach
+                            @foreach($cuentas as $cuenta)
+                                @php [$estLabel, $estCls] = $estados[$cuenta->status] ?? [ucfirst($cuenta->status), 'badge-secondary']; @endphp
+                                <tr>
+                                    <td><strong>Cuenta #{{ $cuenta->id }}</strong></td>
+                                    <td><span class="badge {{ $estCls }}">{{ $estLabel }}</span></td>
+                                    <td>{{ (int) $cuenta->profiles_count }}</td>
+                                    <td>{{ (int) $cuenta->devices_count }}</td>
+                                </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
-            @endif
+            </div>
+        </div>
 
-            @if($cuenta->profiles->isEmpty())
-                <p style="color:var(--text-muted); font-size:.82rem; margin-top:.5rem">
-                    Crea un perfil antes de agregar geocercas.
-                </p>
+        {{-- ── TAB 2: PERFILES DE HIJOS (sub-tabs por hijo) ── --}}
+        <div class="mf-tab-content" id="mf-tab-perfiles">
+            @if($perfiles->isEmpty())
+                <div class="card">
+                    <p style="color:var(--text-muted); margin-bottom:1rem">Aún no has registrado perfiles. Agrega el primero:</p>
+                    @include('addon-portal-cliente::partials.megafamilia_form_perfil', ['cuentas' => $cuentas, 'tipoLabels' => $tipoLabels, 'nivelLabels' => $nivelLabels])
+                </div>
             @else
-                <details style="margin-top:.75rem">
-                    <summary style="cursor:pointer; font-weight:600; font-size:.9rem; color:var(--pcolor)">➕ Agregar geocerca</summary>
-                    <form method="POST" action="{{ route('portal.megafamilia.geocercas.store') }}" style="margin-top:1rem">
-                        @csrf
-                        <div class="kpi-grid" style="margin-bottom:.75rem">
-                            <div class="form-group" style="margin-bottom:0">
-                                <label>Perfil <span style="color:var(--danger)">*</span></label>
-                                <select name="profile_id" class="form-control" required>
-                                    @foreach($cuenta->profiles as $perfil)
-                                        <option value="{{ $perfil->id }}">{{ $perfil->name }}</option>
-                                    @endforeach
-                                </select>
+                {{-- Sub-tabs por perfil --}}
+                <div class="mf-subtabs-nav">
+                    @foreach($perfiles as $idx => $perfil)
+                        <button class="mf-subtab-btn {{ $idx === 0 ? 'active' : '' }}" data-subtab="{{ $perfil->id }}">{{ $perfil->name }}</button>
+                    @endforeach
+                    <button class="mf-subtab-btn" data-subtab="nuevo">➕ Agregar</button>
+                </div>
+
+                @foreach($perfiles as $idx => $perfil)
+                    <div class="mf-subtab-content {{ $idx === 0 ? 'active' : '' }}" id="mf-subtab-{{ $perfil->id }}">
+                        <div class="card mf-profile-card">
+                            {{-- Cabecera del perfil --}}
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:1rem">
+                                <div>
+                                    <strong style="font-size:1.1rem">{{ $perfil->name }}</strong>
+                                    <span style="color:var(--text-muted); font-size:.85rem; margin-left:.5rem">
+                                        {{ $perfil->age ? $perfil->age.' años' : '—' }} · {{ $tipoLabels[$perfil->profile_type] ?? '—' }}
+                                        @if($perfil->school_level) · {{ $nivelLabels[$perfil->school_level] ?? '' }}@endif
+                                    </span>
+                                    @php $bal = (int) ($balances[$perfil->id] ?? 0); $balCls = $bal >= 100 ? 'badge-success' : ($bal >= 50 ? 'badge-warning' : 'badge-danger'); @endphp
+                                    <div style="margin-top:.5rem"><span class="badge {{ $balCls }}" style="font-size:.85rem">💰 Balance: {{ $bal }} pts</span></div>
+                                </div>
+                                <div style="white-space:nowrap">
+                                    <a href="{{ route('portal.megafamilia.perfiles.edit', $perfil->id) }}" class="btn btn-outline btn-sm">✏️ Editar</a>
+                                    <form method="POST" action="{{ route('portal.megafamilia.perfiles.destroy', $perfil->id) }}" style="display:inline"
+                                          onsubmit="return confirm('¿Eliminar el perfil «{{ $perfil->name }}»? Se eliminará todo su contenido.')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn btn-danger btn-sm">🗑️ Eliminar</button>
+                                    </form>
+                                </div>
                             </div>
-                            <div class="form-group" style="margin-bottom:0">
-                                <label>Nombre <span style="color:var(--danger)">*</span></label>
-                                <input type="text" name="nombre" class="form-control" maxlength="100" required placeholder="Ej. Casa">
+
+                            {{-- Sub-sub-tabs internas --}}
+                            <div class="mf-subtabs2-nav">
+                                <button class="mf-subtab2-btn active" data-profile="{{ $perfil->id }}" data-sec="disp-{{ $perfil->id }}">📱 Dispositivos</button>
+                                <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="bloqueos-{{ $perfil->id }}">🚫 Bloqueos</button>
+                                <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="horarios-{{ $perfil->id }}">⏰ Horarios</button>
+                                <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="geocercas-{{ $perfil->id }}">📍 Geocercas</button>
+                                <button class="mf-subtab2-btn" data-profile="{{ $perfil->id }}" data-sec="tareas-{{ $perfil->id }}">🎯 Tareas</button>
                             </div>
-                            <div class="form-group" style="margin-bottom:0">
-                                <label>Latitud <span style="color:var(--danger)">*</span></label>
-                                <input type="number" step="any" name="latitud" class="form-control" min="-90" max="90" required placeholder="19.4326">
+
+                            {{-- G2 Dispositivos --}}
+                            <div class="mf-subtab2-content active" id="mf-sec-disp-{{ $perfil->id }}">
+                                @include('addon-portal-cliente::partials.megafamilia_sec_dispositivos', compact('perfil', 'devTipoLabels'))
                             </div>
-                            <div class="form-group" style="margin-bottom:0">
-                                <label>Longitud <span style="color:var(--danger)">*</span></label>
-                                <input type="number" step="any" name="longitud" class="form-control" min="-180" max="180" required placeholder="-99.1332">
+                            {{-- G3 Bloqueos --}}
+                            <div class="mf-subtab2-content" id="mf-sec-bloqueos-{{ $perfil->id }}">
+                                @include('addon-portal-cliente::partials.megafamilia_sec_bloqueos', compact('perfil'))
                             </div>
-                            <div class="form-group" style="margin-bottom:0">
-                                <label>Radio (metros) <span style="color:var(--danger)">*</span></label>
-                                <input type="number" name="radio_metros" class="form-control" min="50" max="10000" required placeholder="50 a 10000">
+                            {{-- G4 Horarios --}}
+                            <div class="mf-subtab2-content" id="mf-sec-horarios-{{ $perfil->id }}">
+                                @include('addon-portal-cliente::partials.megafamilia_sec_horarios', compact('perfil', 'diasLargo', 'diasCorto'))
                             </div>
-                            <div class="form-group" style="margin-bottom:0">
-                                <label>Dirección (opcional)</label>
-                                <input type="text" name="direccion" class="form-control" maxlength="255" placeholder="Calle, colonia…">
+                            {{-- G5 Geocercas --}}
+                            <div class="mf-subtab2-content" id="mf-sec-geocercas-{{ $perfil->id }}">
+                                @include('addon-portal-cliente::partials.megafamilia_sec_geocercas', compact('perfil'))
+                            </div>
+                            {{-- G6 Tareas y recompensas --}}
+                            <div class="mf-subtab2-content" id="mf-sec-tareas-{{ $perfil->id }}">
+                                @include('addon-portal-cliente::partials.megafamilia_sec_tareas', compact('perfil', 'taskEstados', 'bal'))
                             </div>
                         </div>
-                        <div style="display:flex; gap:1.25rem; flex-wrap:wrap; margin-bottom:.75rem">
-                            <label style="display:flex; align-items:center; gap:.4rem; font-weight:400; font-size:.85rem; margin:0">
-                                <input type="hidden" name="alert_on_enter" value="0">
-                                <input type="checkbox" name="alert_on_enter" value="1" checked> Avisar al entrar
-                            </label>
-                            <label style="display:flex; align-items:center; gap:.4rem; font-weight:400; font-size:.85rem; margin:0">
-                                <input type="hidden" name="alert_on_exit" value="0">
-                                <input type="checkbox" name="alert_on_exit" value="1" checked> Avisar al salir
-                            </label>
-                            <label style="display:flex; align-items:center; gap:.4rem; font-weight:400; font-size:.85rem; margin:0">
-                                <input type="hidden" name="active" value="0">
-                                <input type="checkbox" name="active" value="1" checked> Geocerca activa
-                            </label>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm">Guardar geocerca</button>
-                    </form>
-                </details>
+                    </div>
+                @endforeach
+
+                {{-- Sub-tab "Agregar perfil" --}}
+                <div class="mf-subtab-content" id="mf-subtab-nuevo">
+                    <div class="card">
+                        <div class="card-title">➕ Agregar perfil nuevo</div>
+                        @include('addon-portal-cliente::partials.megafamilia_form_perfil', ['cuentas' => $cuentas, 'tipoLabels' => $tipoLabels, 'nivelLabels' => $nivelLabels])
+                    </div>
+                </div>
             @endif
         </div>
-    @endforeach
+
+        {{-- ── TAB 3: SOLICITUDES ── --}}
+        <div class="mf-tab-content" id="mf-tab-solicitudes">
+            @include('addon-portal-cliente::partials.megafamilia_solicitudes')
+        </div>
+    </div>
+
+    <style>
+        .mf-tabs-nav { border-bottom:2px solid var(--border); display:flex; gap:.5rem; margin-bottom:1.25rem; flex-wrap:wrap }
+        .mf-tab-btn { cursor:pointer; padding:.55rem 1rem; background:transparent; border:none; border-bottom:3px solid transparent; color:var(--text); font-size:.9rem; font-weight:500 }
+        .mf-tab-btn.active { border-bottom-color:var(--pcolor); color:var(--pcolor) }
+        .mf-tab-content { display:none } .mf-tab-content.active { display:block }
+        .mf-subtabs-nav { border-bottom:2px solid var(--border); display:flex; gap:.4rem; margin-bottom:1rem; overflow-x:auto }
+        .mf-subtab-btn { cursor:pointer; padding:.5rem .8rem; background:transparent; border:none; border-bottom:3px solid transparent; color:var(--text); font-size:.875rem; white-space:nowrap }
+        .mf-subtab-btn.active { border-bottom-color:var(--pcolor); color:var(--pcolor); font-weight:600 }
+        .mf-subtab-content { display:none } .mf-subtab-content.active { display:block }
+        .mf-subtabs2-nav { border-bottom:1px solid var(--border); display:flex; gap:.5rem; margin-bottom:1rem; font-size:.85rem; overflow-x:auto }
+        .mf-subtab2-btn { cursor:pointer; padding:.45rem .6rem; background:transparent; border:none; border-bottom:3px solid transparent; color:var(--text); white-space:nowrap }
+        .mf-subtab2-btn.active { border-bottom-color:var(--pcolor); color:var(--pcolor); font-weight:600 }
+        .mf-subtab2-content { display:none } .mf-subtab2-content.active { display:block }
+    </style>
+
+    <script>
+    (function () {
+        var ss = window.sessionStorage;
+        function show(list, contentSel, id, prefix) {
+            document.querySelectorAll(contentSel).forEach(function (c) { c.classList.remove('active'); });
+            var el = document.getElementById(prefix + id);
+            if (el) el.classList.add('active');
+            list.forEach(function (b) { b.classList.remove('active'); });
+        }
+        // Main tabs
+        document.querySelectorAll('.mf-tab-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var name = this.getAttribute('data-tab');
+                show(document.querySelectorAll('.mf-tab-btn'), '.mf-tab-content', name, 'mf-tab-');
+                this.classList.add('active'); ss.setItem('mf_tab', name);
+            });
+        });
+        // Profile sub-tabs
+        document.querySelectorAll('.mf-subtab-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var name = this.getAttribute('data-subtab');
+                show(document.querySelectorAll('.mf-subtab-btn'), '.mf-subtab-content', name, 'mf-subtab-');
+                this.classList.add('active'); ss.setItem('mf_subtab', name);
+            });
+        });
+        // Section sub-sub-tabs (scoped to the profile card)
+        document.querySelectorAll('.mf-subtab2-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var sec = this.getAttribute('data-sec'), prof = this.getAttribute('data-profile'), card = this.closest('.mf-profile-card');
+                card.querySelectorAll('.mf-subtab2-btn').forEach(function (b) { b.classList.remove('active'); });
+                card.querySelectorAll('.mf-subtab2-content').forEach(function (c) { c.classList.remove('active'); });
+                this.classList.add('active');
+                var el = document.getElementById('mf-sec-' + sec); if (el) el.classList.add('active');
+                ss.setItem('mf_sec_' + prof, sec);
+            });
+        });
+        // Restore on load (hash wins for main tab; else sessionStorage)
+        function clickByData(sel, attr, val) { var b = document.querySelector(sel + '[' + attr + '="' + val + '"]'); if (b) b.click(); }
+        var hash = (location.hash || '').replace('#', '');
+        if (hash) clickByData('.mf-tab-btn', 'data-tab', hash);
+        else if (ss.getItem('mf_tab')) clickByData('.mf-tab-btn', 'data-tab', ss.getItem('mf_tab'));
+        if (ss.getItem('mf_subtab')) clickByData('.mf-subtab-btn', 'data-subtab', ss.getItem('mf_subtab'));
+        document.querySelectorAll('.mf-profile-card').forEach(function (card) {
+            var btn = card.querySelector('.mf-subtab2-btn'); if (!btn) return;
+            var prof = btn.getAttribute('data-profile'), sec = ss.getItem('mf_sec_' + prof);
+            if (sec) { var t = card.querySelector('.mf-subtab2-btn[data-sec="' + sec + '"]'); if (t) t.click(); }
+        });
+    })();
+    </script>
 @endif
 @endsection

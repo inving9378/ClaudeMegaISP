@@ -35,7 +35,8 @@ class MegaFamiliaBloqueosController extends MegaFamiliaBaseController
         ParentalAppBlock::create([
             'profile_id'   => $perfil->id,
             'app_name'     => $data['app_name'],
-            'package_name' => $data['package_name'] ?? null,
+            // package_name es NOT NULL en el schema → '' cuando no se proporciona.
+            'package_name' => $data['package_name'] ?? '',
             'category'     => $data['category'] ?? null,
             'blocked'      => true,
         ]);

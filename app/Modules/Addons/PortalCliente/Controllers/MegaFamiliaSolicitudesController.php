@@ -52,7 +52,7 @@ class MegaFamiliaSolicitudesController extends MegaFamiliaBaseController
         $req = $this->requireRequest($id);
 
         if ($req->status !== 'pending') {
-            return redirect()->route('portal.megafamilia.solicitudes')
+            return redirect()->to(route('portal.megafamilia') . '#solicitudes')
                 ->with('info', 'Esa solicitud ya había sido respondida.');
         }
 
@@ -61,14 +61,14 @@ class MegaFamiliaSolicitudesController extends MegaFamiliaBaseController
             $reward = $req->reward; // recompensa-catálogo solicitada
 
             if (! $reward) {
-                return redirect()->route('portal.megafamilia.solicitudes')
+                return redirect()->to(route('portal.megafamilia') . '#solicitudes')
                     ->with('info', 'La recompensa de esta solicitud ya no existe.');
             }
 
             // Revalida balance al momento de aprobar (pudo cambiar desde la solicitud).
             $balance = MegaFamiliaBalance::forProfile((int) $req->profile_id);
             if ($balance < (int) $reward->value) {
-                return redirect()->route('portal.megafamilia.solicitudes')
+                return redirect()->to(route('portal.megafamilia') . '#solicitudes')
                     ->with('info', "Balance insuficiente ({$balance} pts) para aprobar el canje de «{$reward->detail}» ({$reward->value} pts).");
             }
 
@@ -85,14 +85,14 @@ class MegaFamiliaSolicitudesController extends MegaFamiliaBaseController
 
             $hijo = optional($req->profile)->name ?? 'Tu hijo';
 
-            return redirect()->route('portal.megafamilia.solicitudes')
+            return redirect()->to(route('portal.megafamilia') . '#solicitudes')
                 ->with('success', "Canje aprobado. {$hijo} ahora tiene «{$reward->detail}».");
         }
 
         // PERMISO: solo cambia status.
         $req->update(['status' => 'approved', 'responded_at' => now()]);
 
-        return redirect()->route('portal.megafamilia.solicitudes')
+        return redirect()->to(route('portal.megafamilia') . '#solicitudes')
             ->with('success', 'Solicitud aprobada.');
     }
 
@@ -101,7 +101,7 @@ class MegaFamiliaSolicitudesController extends MegaFamiliaBaseController
         $req = $this->requireRequest($id);
 
         if ($req->status !== 'pending') {
-            return redirect()->route('portal.megafamilia.solicitudes')
+            return redirect()->to(route('portal.megafamilia') . '#solicitudes')
                 ->with('info', 'Esa solicitud ya había sido respondida.');
         }
 
@@ -109,7 +109,7 @@ class MegaFamiliaSolicitudesController extends MegaFamiliaBaseController
 
         $palabra = $req->type === 'redemption' ? 'Canje rechazado.' : 'Solicitud rechazada.';
 
-        return redirect()->route('portal.megafamilia.solicitudes')->with('success', $palabra);
+        return redirect()->to(route('portal.megafamilia') . '#solicitudes')->with('success', $palabra);
     }
 
     /** Solicitud resuelta SOLO si su perfil ∈ cuentas del cliente; si no, 403. */
