@@ -1,0 +1,54 @@
+{
+    "id": 220,
+    "slug": "addon-portal-pago",
+    "name": "Portal de Pago Meganet",
+    "version": "0.1.0",
+    "description": "Portal de cobro por transferencia SPEI con conciliación automática vía CEP de Banxico. El cliente recibe una liga única con su factura, transfiere a una CLABE propia de Meganet, reporta la clave de rastreo y el sistema valida el CEP y concilia la factura. Cero comisión a terceros. Lo que no cuadra cae en bandeja de revisión manual.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "keep_data": true,
+    "permissions": [
+        { "name": "pagos.view",            "description": "Ver Portal de Pago: bandeja de conciliación, cuentas de cobro y ligas (lectura)" },
+        { "name": "pagos.conciliar",       "description": "Aprobar o rechazar conciliaciones manualmente desde la bandeja de revisión" },
+        { "name": "pagos.cuentas.manage",  "description": "Crear, editar y activar/desactivar cuentas de cobro (CLABEs Meganet)" },
+        { "name": "pagos.links.manage",    "description": "Generar, reenviar y expirar ligas de pago de facturas" }
+    ],
+    "menu": [
+        {
+            "label": "Portal de Pago",
+            "icon": "credit-card",
+            "permission": "pagos.view",
+            "url": "/pagos/conciliacion",
+            "children": [
+                { "label": "Conciliación",     "url": "/pagos/conciliacion", "permission": "pagos.view" },
+                { "label": "Cuentas de Cobro", "url": "/pagos/cuentas",      "permission": "pagos.cuentas.manage" },
+                { "label": "Ligas de Pago",    "url": "/pagos/links",        "permission": "pagos.links.manage" }
+            ]
+        }
+    ],
+    "admin_cards": [
+        {
+            "title": "Portal de Pago Meganet",
+            "description": "Cobro por transferencia SPEI con conciliación automática por CEP (Banxico). Cero comisión.",
+            "icon": "credit-card",
+            "url": "/pagos/conciliacion",
+            "permission": "pagos.view"
+        }
+    ],
+    "sidebar": {
+        "location": "main"
+    },
+    "config_sections": [
+        {
+            "key": "portal_pago_config",
+            "label": "Portal de Pago — Configuración",
+            "type": "general",
+            "category": "Finanzas",
+            "icon": "credit-card",
+            "url": "/pagos/cuentas",
+            "permission": "pagos.cuentas.manage",
+            "description": "Cuentas de cobro (CLABEs) y modo de validación CEP del Portal de Pago SPEI."
+        }
+    ]
+}
