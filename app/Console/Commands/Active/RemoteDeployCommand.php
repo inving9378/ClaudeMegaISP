@@ -84,8 +84,11 @@ class RemoteDeployCommand extends Command
             //    `--no-dev` las eliminaba rompiendo la app. Los cambios de composer.json se
             //    aplican a mano cuando haga falta (como históricamente en este server).
             ['key' => 'npm_build',     'name' => 'Compilar frontend (npm)',         'type' => 'shell', 'cmd' => 'npm ci && npm run prod', 'timeout' => 600, 'critical' => true],
-            // 4. Migraciones aditivas (--force para no pedir confirmación en producción)
-            ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'artisan', 'cmd' => 'migrate',              'timeout' => 120, 'critical' => false, 'params' => ['--force' => true]],
+            // 4. Migraciones aditivas. Se corre como SUBPROCESO `php artisan migrate --force`
+            //    (NO Artisan::call): en el contexto nohup el --force programático no frenaba
+            //    el prompt de confirmación de producción y el deploy se colgaba esperando stdin.
+            //    El subproceso CLI con --force sí lo salta (verificado en prod).
+            ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => 300, 'critical' => false],
             // 5. Warm-up de cachés
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
             // 6. Reiniciar workers de cola
