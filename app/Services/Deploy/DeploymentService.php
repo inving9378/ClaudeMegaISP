@@ -3,6 +3,7 @@
 namespace App\Services\Deploy;
 
 use App\Models\DeploymentLog;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
@@ -12,6 +13,13 @@ class DeploymentService
     public function run(DeploymentLog $log, string $version, string $title = ''): void
     {
         $commitMessage = trim("release: {$version}" . ($title ? " — {$title}" : ''));
+
+        // Paso 0 — refrescar el cache de config ANTES de leer los pasos del pipeline.
+        // Una edición de config/deployment.php quedaba enmascarada por un
+        // bootstrap/cache/config.php stale (causó que git_add intentara agregar
+        // public/mix-manifest.json, ya gitignored, y el deploy fallara). DEBE correr
+        // antes de config('deployment.steps') para proteger también la corrida ACTUAL.
+        $configRefresh = $this->refreshDeploymentConfig();
 
         $configSteps = collect(config('deployment.steps'))
             ->filter(fn($s) => $s['enabled'] ?? true)
@@ -34,6 +42,10 @@ class DeploymentService
             'duration_ms' => 0,
             'ran_at'      => null,
         ], $configSteps);
+
+        // El refresh de config corre antes del loop (ya completado): se muestra como
+        // primer paso en el log para que quede auditable en la respuesta del deploy.
+        array_unshift($initialSteps, $configRefresh);
 
         $log->update([
             'status'     => 'running',
@@ -122,6 +134,53 @@ class DeploymentService
             'finished_at'      => now(),
             'duration_seconds' => (int) now()->diffInSeconds($log->started_at),
         ]);
+    }
+
+    /**
+     * Refresca el cache de configuración ANTES de que el pipeline lea sus pasos.
+     *
+     * Por qué un subproceso + recarga en memoria (y no un simple paso shell):
+     *  - `config:cache` reconstruye bootstrap/cache/config.php en una app fresca con
+     *    .env cargado → los valores env() (remote_url, github.token…) quedan correctos
+     *    aunque el worker de cola haya booteado con un cache viejo.
+     *  - Luego recargamos SOLO la sección 'deployment' en el proceso actual desde ese
+     *    cache recién escrito, para que los command-strings y release_artifacts de ESTA
+     *    corrida no usen los valores stale que el worker tenía en memoria.
+     *
+     * No es crítico: si algo falla, se sigue con la config en memoria y solo se avisa.
+     */
+    private function refreshDeploymentConfig(): array
+    {
+        $startedAt = microtime(true);
+        $record = [
+            'key'         => 'config_cache',
+            'name'        => 'Refrescar configuración (config:cache)',
+            'status'      => 'success',
+            'output'      => '',
+            'exit_code'   => 0,
+            'duration_ms' => 0,
+            'ran_at'      => now()->toIso8601String(),
+        ];
+
+        try {
+            Artisan::call('config:cache');
+
+            $cacheFile = base_path('bootstrap/cache/config.php');
+            if (is_file($cacheFile)) {
+                $fresh = require $cacheFile;
+                if (is_array($fresh) && isset($fresh['deployment'])) {
+                    config(['deployment' => $fresh['deployment']]);
+                }
+            }
+
+            $record['output'] = 'Configuración recacheada; sección «deployment» recargada en memoria.';
+        } catch (\Throwable $e) {
+            $record['output'] = 'Aviso: no se pudo recachear la config (' . $e->getMessage() . '). Se usa la config en memoria.';
+            Log::channel('single')->warning('Deploy — refreshDeploymentConfig falló: ' . $e->getMessage());
+        }
+
+        $record['duration_ms'] = (int) ((microtime(true) - $startedAt) * 1000);
+        return $record;
     }
 
     /**
