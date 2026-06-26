@@ -35,4 +35,10 @@ return [
      */
     'cep_endpoint' => env('PAGOS_CEP_ENDPOINT', 'https://www.banxico.org.mx/cep/valida.do'),
 
+    /**
+     * Método de pago (method_of_payments.id) con el que se registra la
+     * conciliación SPEI. 2 = "Transferencia Bancaria".
+     */
+    'payment_method_id' => (int) env('PAGOS_PAYMENT_METHOD_ID', 2),
+
 ];

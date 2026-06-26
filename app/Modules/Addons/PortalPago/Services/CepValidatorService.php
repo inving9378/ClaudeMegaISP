@@ -30,6 +30,37 @@ use Illuminate\Support\Str;
 class CepValidatorService
 {
     /**
+     * Punto de entrada del flujo del portal: valida el reporte y, si las 3
+     * condiciones antifraude cuadran, CONCILIA el pago (crea Payment → cadena
+     * observer de reactivación + InvoicePaid).
+     *
+     * Si la conciliación falla, el reporte se deja en pendiente_validacion para
+     * aprobación manual desde la bandeja — nunca queda un pago a medias.
+     *
+     * @throws CepConciliationException si un guard de negocio lo impide (clave
+     *         ya conciliada, factura ya pagada, liga ya conciliada).
+     */
+    public function validar(PortalPagoPaymentReport $report): CepValidationResult
+    {
+        $result = $this->validateReport($report);
+
+        if ($result->isValidated()) {
+            try {
+                app(ConciliacionService::class)->conciliar($report);
+            } catch (\Throwable $e) {
+                Log::error('PortalPago: conciliación falló tras validación CEP', [
+                    'report_id' => $report->id,
+                    'error'     => $e->getMessage(),
+                ]);
+                // El CEP validó pero la conciliación no pudo cerrar: a revisión manual.
+                $report->update(['estado' => PortalPagoPaymentReport::ESTADO_PENDIENTE]);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Verifica el reporte: corre guards, valida contra el driver y persiste.
      * Devuelve el resultado final (validated|discrepancy|inconclusive).
      *

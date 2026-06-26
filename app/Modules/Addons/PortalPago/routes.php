@@ -14,4 +14,5 @@ Route::prefix('f')->name('portal.pago.')
     ->middleware(['web', 'throttle:10,1'])
     ->group(function () {
         Route::get('/{token}', [PublicPagoController::class, 'show'])->name('show');
+        Route::post('/{token}/reportar', [PublicPagoController::class, 'reportar'])->name('reportar');
     });

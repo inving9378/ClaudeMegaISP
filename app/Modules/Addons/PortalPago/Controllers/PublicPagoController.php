@@ -4,6 +4,10 @@ namespace App\Modules\Addons\PortalPago\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\PortalPago\Models\PortalPagoPaymentLink;
+use App\Modules\Addons\PortalPago\Models\PortalPagoPaymentReport;
+use App\Modules\Addons\PortalPago\Requests\ReportarPagoRequest;
+use App\Modules\Addons\PortalPago\Services\CepValidatorService;
+use App\Modules\Addons\PortalPago\Services\Cep\CepConciliationException;
 use App\Modules\Addons\PortalPago\Services\PortalPagoLinkService;
 use Illuminate\Support\Carbon;
 
@@ -42,6 +46,48 @@ class PublicPagoController extends Controller
             'diasRestantes' => $diasRestantes,
             'montoFmt'      => '$' . number_format((float) $link->monto_esperado, 2),
         ]);
+    }
+
+    /**
+     * POST /f/{token}/reportar — el cliente reporta su transferencia.
+     */
+    public function reportar(ReportarPagoRequest $request, string $token)
+    {
+        $link = $this->links->findByTokenForPayment($token);
+        if ($link === null) {
+            return $this->noDisponible();
+        }
+
+        // Comprobante: SIEMPRE en disco privado, nunca en public/.
+        $comprobantePath = null;
+        if ($request->hasFile('comprobante')) {
+            $comprobantePath = $request->file('comprobante')
+                ->store('private/portal-pago/comprobantes', 'local');
+        }
+
+        $report = PortalPagoPaymentReport::create([
+            'payment_link_id' => $link->id,
+            'clave_rastreo'   => $request->input('clave_rastreo'),
+            'banco_emisor'    => $request->input('banco_emisor'),
+            'fecha_operacion' => $request->date('fecha_operacion'),
+            'monto_reportado' => $request->input('monto_reportado'),
+            'comprobante_path' => $comprobantePath,
+            'estado'          => PortalPagoPaymentReport::ESTADO_PENDIENTE,
+        ]);
+
+        if ($link->estado === PortalPagoPaymentLink::ESTADO_PENDIENTE) {
+            $link->update(['estado' => PortalPagoPaymentLink::ESTADO_REPORTADO]);
+        }
+
+        // Valida CEP y, si las 3 condiciones cuadran, concilia (cadena observer).
+        try {
+            app(CepValidatorService::class)->validar($report);
+        } catch (CepConciliationException $e) {
+            // Guard de negocio (clave ya conciliada / factura ya pagada).
+            return redirect("/f/{$token}/estado")->with('aviso', $e->getMessage());
+        }
+
+        return redirect("/f/{$token}/estado");
     }
 
     /**
