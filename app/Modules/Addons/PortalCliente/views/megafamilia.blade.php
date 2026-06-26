@@ -78,5 +78,119 @@
             @endforeach
         </div>
     </div>
+
+    {{-- ── G1: Perfiles de hijos (por cuenta) ─────────────────────────────── --}}
+    @php
+        $tipoLabels = [
+            'nino'           => 'Niño',
+            'preadolescente' => 'Preadolescente',
+            'adolescente'    => 'Adolescente',
+        ];
+        $nivelLabels = [
+            'primaria'     => 'Primaria',
+            'secundaria'   => 'Secundaria',
+            'preparatoria' => 'Preparatoria',
+        ];
+    @endphp
+
+    @foreach($cuentas as $cuenta)
+        <div class="card">
+            <div class="card-title">🧒 Perfiles de hijos — Cuenta #{{ $cuenta->id }}</div>
+
+            @if($cuenta->profiles->isEmpty())
+                <p style="color:var(--text-muted); font-size:.875rem; margin-bottom:1rem">
+                    Aún no has registrado perfiles en esta cuenta. Agrega el primero abajo.
+                </p>
+            @else
+                <div class="table-responsive">
+                    <table class="portal-table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Edad</th>
+                                <th>Tipo</th>
+                                <th>Nivel escolar</th>
+                                <th>Dispositivos</th>
+                                <th>Estado</th>
+                                <th style="text-align:right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($cuenta->profiles as $perfil)
+                                <tr>
+                                    <td><strong>{{ $perfil->name }}</strong></td>
+                                    <td>{{ $perfil->age ? $perfil->age . ' años' : '—' }}</td>
+                                    <td>{{ $tipoLabels[$perfil->profile_type] ?? '—' }}</td>
+                                    <td>{{ $nivelLabels[$perfil->school_level] ?? '—' }}</td>
+                                    <td>{{ (int) $perfil->devices_count }}</td>
+                                    <td>
+                                        @if($perfil->active)
+                                            <span class="badge badge-success">Activo</span>
+                                        @else
+                                            <span class="badge badge-secondary">Inactivo</span>
+                                        @endif
+                                    </td>
+                                    <td style="text-align:right; white-space:nowrap">
+                                        <a href="{{ route('portal.megafamilia.perfiles.edit', $perfil->id) }}"
+                                           class="btn btn-outline btn-sm">✏️ Editar</a>
+                                        <form method="POST"
+                                              action="{{ route('portal.megafamilia.perfiles.destroy', $perfil->id) }}"
+                                              style="display:inline"
+                                              onsubmit="return confirm('¿Eliminar el perfil «{{ $perfil->name }}»? Se eliminarán también sus dispositivos, reglas y horarios.')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-danger btn-sm">🗑️ Eliminar</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+
+            {{-- Form de alta de perfil --}}
+            <details style="margin-top:1.25rem">
+                <summary style="cursor:pointer; font-weight:600; font-size:.9rem; color:var(--pcolor)">
+                    ➕ Agregar perfil
+                </summary>
+                <form method="POST" action="{{ route('portal.megafamilia.perfiles.store') }}" style="margin-top:1rem">
+                    @csrf
+                    <input type="hidden" name="account_id" value="{{ $cuenta->id }}">
+                    <div class="kpi-grid" style="margin-bottom:1rem">
+                        <div class="form-group" style="margin-bottom:0">
+                            <label>Nombre <span style="color:var(--danger)">*</span></label>
+                            <input type="text" name="nombre" class="form-control" maxlength="100" required
+                                   placeholder="Ej. Juan">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0">
+                            <label>Edad</label>
+                            <input type="number" name="edad" class="form-control" min="1" max="17"
+                                   placeholder="1 a 17">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0">
+                            <label>Tipo de perfil</label>
+                            <select name="profile_type" class="form-control">
+                                <option value="">— Sin especificar —</option>
+                                @foreach($tipoLabels as $val => $lbl)
+                                    <option value="{{ $val }}">{{ $lbl }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0">
+                            <label>Nivel escolar</label>
+                            <select name="school_level" class="form-control">
+                                <option value="">— Sin especificar —</option>
+                                @foreach($nivelLabels as $val => $lbl)
+                                    <option value="{{ $val }}">{{ $lbl }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Guardar perfil</button>
+                </form>
+            </details>
+        </div>
+    @endforeach
 @endif
 @endsection

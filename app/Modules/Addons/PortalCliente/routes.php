@@ -14,6 +14,7 @@ use App\Modules\Addons\PortalCliente\Controllers\MarketplaceController;
 use App\Modules\Addons\PortalCliente\Controllers\EmbajadoresController;
 use App\Modules\Addons\PortalCliente\Controllers\FlotasController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaPerfilesController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -83,5 +84,12 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
 
         // MegaFamilia — panel del cliente (solo lectura, scopeado por client_isp_id)
         Route::get('/megafamilia', [MegaFamiliaController::class, 'index'])->name('megafamilia');
+
+        // MegaFamilia — escrituras (scopeadas por forClient + ownership en controller)
+        // G1: Perfiles de hijos
+        Route::post('/megafamilia/perfiles',            [MegaFamiliaPerfilesController::class, 'store'])->name('megafamilia.perfiles.store');
+        Route::get('/megafamilia/perfiles/{id}/edit',   [MegaFamiliaPerfilesController::class, 'edit'])->name('megafamilia.perfiles.edit');
+        Route::put('/megafamilia/perfiles/{id}',        [MegaFamiliaPerfilesController::class, 'update'])->name('megafamilia.perfiles.update');
+        Route::delete('/megafamilia/perfiles/{id}',     [MegaFamiliaPerfilesController::class, 'destroy'])->name('megafamilia.perfiles.destroy');
     });
 });

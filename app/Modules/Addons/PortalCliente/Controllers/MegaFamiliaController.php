@@ -26,7 +26,10 @@ class MegaFamiliaController extends Controller
 
         // Fail-closed: sin client_id resuelto no se expone nada (forClient(null) → 0).
         $cuentas = $clientId
-            ? ParentalAccount::forClient($clientId)->withCount(['profiles', 'devices'])->get()
+            ? ParentalAccount::forClient($clientId)
+                ->withCount(['profiles', 'devices'])
+                ->with(['profiles' => fn ($q) => $q->withCount('devices')->orderBy('id')])
+                ->get()
             : collect();
 
         // Sin MegaFamilia activa → estado vacío con CTA, NO error.
