@@ -98,6 +98,10 @@ class MysqldumpEngine
             '--host=localhost',
             '--port=' . escapeshellarg((string) $port),
             '--user=' . escapeshellarg((string) $user),
+            // mysqldump 8.x intenta volcar tablespaces, que exige el privilegio PROCESS
+            // (que el usuario de la app no tiene) → "Access denied ... PROCESS privilege".
+            // No necesitamos tablespaces en estos respaldos lógicos.
+            '--no-tablespaces',
         ];
 
         foreach (($options['flags'] ?? []) as $flag) {
