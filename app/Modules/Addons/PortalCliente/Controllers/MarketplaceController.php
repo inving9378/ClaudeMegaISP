@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\PortalCliente\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Services\MegaFamilia\ParentalAccountActivationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -64,38 +65,17 @@ class MarketplaceController extends Controller
             ]);
         }
 
-        $existente = DB::table('parental_accounts')
-            ->where('user_id', $userId)
-            ->first();
+        // Toda la creación/reactivación vive ahora en el Service (única fuente).
+        // El controller resuelve SU cliente (guard portal) y delega la escritura;
+        // el Service garantiza client_isp_id poblado (fail-closed) e idempotencia.
+        $account = app(ParentalAccountActivationService::class)
+            ->activate($userId, (int) $clientId, ['terms_ip' => $request->ip()]);
 
-        if ($existente) {
-            if ($existente->status !== 'active') {
-                DB::table('parental_accounts')
-                    ->where('id', $existente->id)
-                    ->update(['status' => 'active', 'updated_at' => now()]);
-            }
-            return redirect()->route('portal.marketplace')
-                ->with('success', 'MegaFamilia reactivado correctamente.');
-        }
+        $mensaje = $account->wasRecentlyCreated
+            ? '¡MegaFamilia activado! Descarga la app para configurar tu control parental.'
+            : 'MegaFamilia reactivado correctamente.';
 
-        // Crear cuenta básica (plan_id=1 default o el primero disponible)
-        $planId = DB::table('parental_plans')->orderBy('id')->value('id') ?? 1;
-
-        DB::table('parental_accounts')->insert([
-            'user_id'           => $userId,
-            'client_isp_id'     => $clientId,
-            'plan_id'           => $planId,
-            'status'            => 'active',
-            'licensed_at'       => now(),
-            'terms_accepted_at' => now(),
-            'terms_ip'          => $request->ip(),
-            'terms_version_accepted' => 1,
-            'created_at'        => now(),
-            'updated_at'        => now(),
-        ]);
-
-        return redirect()->route('portal.marketplace')
-            ->with('success', '¡MegaFamilia activado! Descarga la app para configurar tu control parental.');
+        return redirect()->route('portal.marketplace')->with('success', $mensaje);
     }
 
     /**
@@ -107,9 +87,7 @@ class MarketplaceController extends Controller
         $userId = $this->resolveUserId($cmi);
 
         if ($userId) {
-            DB::table('parental_accounts')
-                ->where('user_id', $userId)
-                ->update(['status' => 'suspended', 'updated_at' => now()]);
+            app(ParentalAccountActivationService::class)->suspend($userId);
         }
 
         return redirect()->route('portal.marketplace')
