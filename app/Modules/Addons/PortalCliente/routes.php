@@ -19,6 +19,7 @@ use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaDispositivosControll
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaBloqueosController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaHorariosController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaGeofencesController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaGamificacionController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -119,5 +120,12 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::get('/megafamilia/geocercas/{id}/edit',  [MegaFamiliaGeofencesController::class, 'edit'])->name('megafamilia.geocercas.edit');
         Route::put('/megafamilia/geocercas/{id}',       [MegaFamiliaGeofencesController::class, 'update'])->name('megafamilia.geocercas.update');
         Route::delete('/megafamilia/geocercas/{id}',    [MegaFamiliaGeofencesController::class, 'destroy'])->name('megafamilia.geocercas.destroy');
+
+        // G6: Tareas y recompensas (gamificación)
+        Route::post('/megafamilia/perfiles/{profile}/tareas',            [MegaFamiliaGamificacionController::class, 'storeTarea'])->name('megafamilia.tareas.store');
+        Route::delete('/megafamilia/perfiles/{profile}/tareas/{id}',     [MegaFamiliaGamificacionController::class, 'destroyTarea'])->name('megafamilia.tareas.destroy');
+        Route::post('/megafamilia/perfiles/{profile}/recompensas',       [MegaFamiliaGamificacionController::class, 'storeRecompensa'])->name('megafamilia.recompensas.store');
+        Route::delete('/megafamilia/perfiles/{profile}/recompensas/{id}',[MegaFamiliaGamificacionController::class, 'destroyRecompensa'])->name('megafamilia.recompensas.destroy');
+        Route::post('/megafamilia/tareas/{tarea}/completar',             [MegaFamiliaGamificacionController::class, 'completarTarea'])->name('megafamilia.tareas.completar');
     });
 });

@@ -35,6 +35,8 @@ class MegaFamiliaController extends Controller
                         'webBlocks' => fn ($b) => $b->orderBy('id'),
                         'schedules' => fn ($s) => $s->orderBy('id'),
                         'geofences' => fn ($g) => $g->orderBy('id'),
+                        'tasks'     => fn ($t) => $t->orderByDesc('id'),
+                        'rewards'   => fn ($r) => $r->orderByDesc('id'),
                     ])
                     ->orderBy('id')])
                 ->get()
