@@ -17,4 +17,15 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
     protected string $moduleSlug = 'addon-portal-pago';
     protected string $moduleType = 'addon';
     protected ?string $viewNamespace = 'addon-portal-pago';
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                \App\Modules\Addons\PortalPago\Commands\EnviarRecurrentesCommand::class,
+            ]);
+        }
+    }
 }
