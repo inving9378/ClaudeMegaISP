@@ -4,6 +4,7 @@ namespace App\Console\Commands\Active;
 
 use App\Models\DeploymentLog;
 use App\Models\Release;
+use App\Services\Deploy\DeploymentLock;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -30,6 +31,28 @@ class RemoteDeployCommand extends Command
             return 1;
         }
 
+        // El comando es el dueño del lock: protege por igual los dos caminos de disparo
+        // (job en cola y proceso nohup en modo sync). Si ya hay un deploy en curso, no
+        // arranca otro. Se libera SIEMPRE en el finally, incluso ante excepción.
+        if (!DeploymentLock::acquire($log->id)) {
+            $log->update([
+                'status'        => 'failed',
+                'error_message' => 'Ya hay un deploy en curso (ID: ' . DeploymentLock::currentId() . '). Espera a que termine.',
+                'finished_at'   => now(),
+            ]);
+            $this->error('Ya hay un deploy en curso (ID: ' . DeploymentLock::currentId() . ').');
+            return 1;
+        }
+
+        try {
+            return $this->runDeploy($log);
+        } finally {
+            DeploymentLock::release();
+        }
+    }
+
+    private function runDeploy(DeploymentLog $log): int
+    {
         $version     = $this->option('app-version') ?? '';
         $title       = $this->option('title') ?? '';
         $summary     = $this->option('summary') ?? '';
@@ -44,7 +67,8 @@ class RemoteDeployCommand extends Command
         // Construir el comando git para sincronizar:
         // - Si hay versión/tag específico: fetch + checkout del tag (exacto, sin sobrescribir .env/storage)
         // - Sin versión: fallback a reset --hard origin/main (webhook legacy sin tag)
-        // Los assets llegan pre-compilados en git (public/js, public/css) — NO se corre npm.
+        // El frontend se compila EN el servidor (paso npm_build) — los assets ya NO
+        // viajan en git. Por eso el checkout/reset solo trae el código fuente.
         $gitSyncCmd = $version
             ? "git fetch origin && git checkout tags/{$version}"
             : 'git fetch origin main && git reset --hard origin/main';
@@ -54,13 +78,18 @@ class RemoteDeployCommand extends Command
             ['key' => 'backup_db',     'name' => 'Respaldar base de datos',         'type' => 'artisan', 'cmd' => 'backup_db:process',    'timeout' => 300, 'critical' => true],
             // 2. Checkout del tag (o reset a main si no hay tag)
             ['key' => 'git_sync',      'name' => 'Sincronizar código (' . ($version ?: 'origin/main') . ')', 'type' => 'shell', 'cmd' => $gitSyncCmd, 'timeout' => 120, 'critical' => true],
-            // 3. Migraciones aditivas (--force para no pedir confirmación en producción)
+            // 3. Dependencias PHP (por si el release cambió composer.json/lock)
+            ['key' => 'composer',      'name' => 'Dependencias PHP (composer)',     'type' => 'shell', 'cmd' => 'composer install --no-dev --optimize-autoloader --no-interaction', 'timeout' => 600, 'critical' => true],
+            // 4. Compilar el frontend EN el servidor (assets fuera de git) — crítico:
+            //    si falla, se aborta y hace rollback (nunca deja prod con código nuevo y JS roto)
+            ['key' => 'npm_build',     'name' => 'Compilar frontend (npm)',         'type' => 'shell', 'cmd' => 'npm ci && npm run prod', 'timeout' => 600, 'critical' => true],
+            // 5. Migraciones aditivas (--force para no pedir confirmación en producción)
             ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'artisan', 'cmd' => 'migrate',              'timeout' => 120, 'critical' => false, 'params' => ['--force' => true]],
-            // 4. Warm-up de cachés
+            // 6. Warm-up de cachés
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
-            // 5. Reiniciar workers de cola
+            // 7. Reiniciar workers de cola
             ['key' => 'queue_restart', 'name' => 'Reiniciar workers',               'type' => 'artisan', 'cmd' => 'queue:restart',        'timeout' => 10,  'critical' => false],
-            // 6. Registrar el release en la DB local
+            // 8. Registrar el release en la DB local
             ['key' => 'save_release',  'name' => 'Guardar release en DB local',     'type' => 'inline',  'critical' => false],
         ];
 
@@ -170,7 +199,9 @@ class RemoteDeployCommand extends Command
         $parent = getenv() ?: [];
         return array_merge($parent, [
             'PATH'               => ($parent['PATH'] ?? '') . ':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-            'HOME'               => '/root',
+            // HOME real del usuario que corre el deploy (no /root): npm lo necesita para
+            // su caché/.npmrc y git para la llave SSH (~/.ssh) al hacer fetch.
+            'HOME'               => $parent['HOME'] ?? '/root',
             'GIT_CONFIG_COUNT'   => '1',
             'GIT_CONFIG_KEY_0'   => 'safe.directory',
             'GIT_CONFIG_VALUE_0' => base_path(),

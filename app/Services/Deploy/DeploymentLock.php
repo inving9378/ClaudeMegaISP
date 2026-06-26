@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\Cache;
 class DeploymentLock
 {
     const CACHE_KEY = 'deployment:running';
-    const TTL_SECONDS = 600;
+    // Alineado con el timeout del deploy (backup + composer + npm + migrate puede tardar
+    // varios minutos). Con 600s el lock expiraba a mitad y permitía un 2º deploy.
+    const TTL_SECONDS = 2700;
 
     public static function acquire(int $deploymentId): bool
     {

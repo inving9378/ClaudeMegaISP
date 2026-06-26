@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\SelfUpdateJob;
 use App\Models\DeploymentLog;
+use App\Services\Deploy\DeploymentLock;
 use App\Services\Updates\GitHubUpdateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -76,6 +77,16 @@ class UpdateController extends Controller
             return response()->json(['success' => false, 'message' => 'No hay actualización disponible o no se pudo consultar GitHub.'], 422);
         }
 
+        // Evita arrancar un 2º deploy si ya hay uno en curso (el comando remote:deploy
+        // también lo protege con el mismo lock; esto solo da feedback inmediato al usuario).
+        if (DeploymentLock::isLocked()) {
+            return response()->json([
+                'success'       => false,
+                'message'       => 'Ya hay una actualización en curso.',
+                'deployment_id' => DeploymentLock::currentId(),
+            ], 409);
+        }
+
         $log = DeploymentLog::create([
             'release_id'   => null,
             'triggered_by' => auth()->id(),
@@ -90,7 +101,28 @@ class UpdateController extends Controller
             ],
         ]);
 
-        SelfUpdateJob::dispatch($log)->onConnection('database')->onQueue('deploy');
+        if (config('queue.default') === 'sync') {
+            // Sin worker (prod en sync): el deploy tarda minutos y bloquearía el request.
+            // Se lanza como proceso desprendido (nohup) que corre remote:deploy en segundo
+            // plano; el lock del propio comando evita solapes. El front sigue el avance por
+            // polling de /releases/deployment/{id}/status.
+            $artisan = base_path('artisan');
+            $logFile = storage_path('logs/self-update-' . $log->id . '.log');
+            $cmd = sprintf(
+                'nohup %s %s remote:deploy %d --app-version=%s --title=%s --summary=%s --release-date=%s > %s 2>&1 &',
+                PHP_BINARY,
+                escapeshellarg($artisan),
+                $log->id,
+                escapeshellarg($result['tag']),
+                escapeshellarg($result['name'] ?? $result['tag']),
+                escapeshellarg($result['body'] ?? ''),
+                escapeshellarg(now()->toDateString()),
+                escapeshellarg($logFile)
+            );
+            shell_exec($cmd);
+        } else {
+            SelfUpdateJob::dispatch($log)->onConnection('database')->onQueue('deploy');
+        }
 
         Log::info("UpdateController: auto-actualización a {$result['tag']} disparada por user " . auth()->id() . " (log #{$log->id})");
 

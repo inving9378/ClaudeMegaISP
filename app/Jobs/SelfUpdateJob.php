@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\DeploymentLog;
-use App\Services\Deploy\DeploymentLock;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -20,7 +19,9 @@ class SelfUpdateJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 600;
+    // El deploy completo (backup + git + composer + npm + migrate) puede tardar varios
+    // minutos; 600s se quedaba corto al sumar la compilación. El lock TTL va alineado.
+    public int $timeout = 2700;
     public int $tries   = 1;
 
     public function __construct(public DeploymentLog $log)
@@ -29,33 +30,21 @@ class SelfUpdateJob implements ShouldQueue
 
     public function handle(): void
     {
-        if (!DeploymentLock::acquire($this->log->id)) {
-            $this->log->update([
-                'status'        => 'failed',
-                'error_message' => 'Ya hay un deploy en curso (ID: ' . DeploymentLock::currentId() . '). Espera a que termine.',
-                'finished_at'   => now(),
-            ]);
-            return;
-        }
-
-        try {
-            $p = $this->log->payload ?? [];
-            Artisan::call('remote:deploy', [
-                'logId'          => $this->log->id,
-                '--app-version'  => $p['version'] ?? '',
-                '--title'        => $p['title'] ?? '',
-                '--summary'      => $p['summary'] ?? '',
-                '--release-date' => $p['release_date'] ?? now()->toDateString(),
-            ]);
-            Log::channel('single')->info(Artisan::output());
-        } finally {
-            DeploymentLock::release();
-        }
+        // El lock lo gestiona el propio comando remote:deploy (mismo lock para el camino
+        // de cola y el de nohup en modo sync), así que aquí solo lo invocamos.
+        $p = $this->log->payload ?? [];
+        Artisan::call('remote:deploy', [
+            'logId'          => $this->log->id,
+            '--app-version'  => $p['version'] ?? '',
+            '--title'        => $p['title'] ?? '',
+            '--summary'      => $p['summary'] ?? '',
+            '--release-date' => $p['release_date'] ?? now()->toDateString(),
+        ]);
+        Log::channel('single')->info(Artisan::output());
     }
 
     public function failed(\Throwable $e): void
     {
-        DeploymentLock::release();
         $this->log->update([
             'status'        => 'failed',
             'error_message' => $e->getMessage(),
