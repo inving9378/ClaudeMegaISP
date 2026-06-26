@@ -33,6 +33,7 @@ class MegaFamiliaController extends Controller
                         'devices'   => fn ($d) => $d->orderBy('id'),
                         'appBlocks' => fn ($b) => $b->orderBy('id'),
                         'webBlocks' => fn ($b) => $b->orderBy('id'),
+                        'schedules' => fn ($s) => $s->orderBy('id'),
                     ])
                     ->orderBy('id')])
                 ->get()

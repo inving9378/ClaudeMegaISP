@@ -17,6 +17,7 @@ use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaPerfilesController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaDispositivosController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaBloqueosController;
+use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaHorariosController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
@@ -105,5 +106,11 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         Route::delete('/megafamilia/perfiles/{profile}/app-blocks/{id}', [MegaFamiliaBloqueosController::class, 'destroyApp'])->name('megafamilia.appblocks.destroy');
         Route::post('/megafamilia/perfiles/{profile}/web-blocks',        [MegaFamiliaBloqueosController::class, 'storeWeb'])->name('megafamilia.webblocks.store');
         Route::delete('/megafamilia/perfiles/{profile}/web-blocks/{id}', [MegaFamiliaBloqueosController::class, 'destroyWeb'])->name('megafamilia.webblocks.destroy');
+
+        // G4: Horarios de internet por perfil
+        Route::post('/megafamilia/perfiles/{profile}/horarios',             [MegaFamiliaHorariosController::class, 'store'])->name('megafamilia.horarios.store');
+        Route::get('/megafamilia/perfiles/{profile}/horarios/{id}/edit',    [MegaFamiliaHorariosController::class, 'edit'])->name('megafamilia.horarios.edit');
+        Route::put('/megafamilia/perfiles/{profile}/horarios/{id}',         [MegaFamiliaHorariosController::class, 'update'])->name('megafamilia.horarios.update');
+        Route::delete('/megafamilia/perfiles/{profile}/horarios/{id}',      [MegaFamiliaHorariosController::class, 'destroy'])->name('megafamilia.horarios.destroy');
     });
 });
