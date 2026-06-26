@@ -92,6 +92,11 @@ import MegaFamiliaDashboard from "./components/module/megafamilia/MegaFamiliaDas
 import MegaFamiliaClientes from "./components/module/megafamilia/MegaFamiliaClientes.vue";
 import MegaFamiliaLicencias from "./components/module/megafamilia/MegaFamiliaLicencias.vue";
 import MegaFamiliaPlanes from "./components/module/megafamilia/MegaFamiliaPlanes.vue";
+// Portal de Pago (addon-portal-pago)
+import PagosDashboard from "./components/module/portalpago/PagosDashboard.vue";
+import PagosConciliacion from "./components/module/portalpago/PagosConciliacion.vue";
+import PagosCuentas from "./components/module/portalpago/PagosCuentas.vue";
+import PagosLinks from "./components/module/portalpago/PagosLinks.vue";
 import MegaFamiliaIngresos from "./components/module/megafamilia/MegaFamiliaIngresos.vue";
 import MegaFamiliaAlertas from "./components/module/megafamilia/MegaFamiliaAlertas.vue";
 import MegaFamiliaSolicitudes from "./components/module/megafamilia/MegaFamiliaSolicitudes.vue";
@@ -751,6 +756,11 @@ const app = createApp({
         'marketing-video-queue-view': MarketingVideoQueueView,
         'marketing-brand-kit-view': MarketingBrandKitView,
         'integrations-hub-view': IntegrationsHubView,
+        // Portal de Pago (addon-portal-pago)
+        'pagos-dashboard': PagosDashboard,
+        'pagos-conciliacion': PagosConciliacion,
+        'pagos-cuentas': PagosCuentas,
+        'pagos-links': PagosLinks,
         // Marketing Fase 4.5b — Director Creativo IA
         'marketing-campaign-generator-view': MarketingCampaignGeneratorView,
         'voice-comparator-view': VoiceComparatorView,
