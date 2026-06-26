@@ -31,30 +31,59 @@
     </div>
 @endif
 
-{{-- Alta de geocerca con mapa --}}
+{{-- Alta de geocerca: form (izq) + mapa (der) en 2 columnas --}}
 <div style="margin-top:1rem">
-    <div style="font-weight:600; font-size:.82rem; color:var(--pcolor); margin-bottom:.5rem">➕ Agregar geocerca</div>
-    <p style="color:var(--text-muted); font-size:.78rem; margin:0 0 .5rem">
-        Haz clic en el mapa para fijar el centro; ajusta el radio con el control.
-    </p>
-    <div class="mf-geomap" id="mf-geomap-{{ $perfil->id }}" data-lat="19.4326" data-lng="-99.1332" data-radius="200"
-         style="height:320px; border:1px solid var(--border); border-radius:8px; margin-bottom:.75rem"></div>
+    <div style="font-weight:600; font-size:.82rem; color:var(--pcolor); margin-bottom:.75rem">➕ Agregar geocerca</div>
+    <div class="mf-geo-grid" style="display:grid; grid-template-columns:2fr 3fr; gap:2rem; align-items:start">
 
-    <form method="POST" action="{{ route('portal.megafamilia.geocercas.store') }}">
-        @csrf
-        <input type="hidden" name="profile_id" value="{{ $perfil->id }}">
-        <div class="kpi-grid" style="margin-bottom:.75rem">
-            <div class="form-group" style="margin-bottom:0"><label>Nombre <span style="color:var(--danger)">*</span></label><input type="text" name="nombre" class="form-control" maxlength="100" required placeholder="Ej. Casa"></div>
-            <div class="form-group" style="margin-bottom:0"><label>Latitud <span style="color:var(--danger)">*</span></label><input type="number" step="any" id="geo-lat-{{ $perfil->id }}" name="latitud" class="form-control" min="-90" max="90" required readonly placeholder="Clic en el mapa"></div>
-            <div class="form-group" style="margin-bottom:0"><label>Longitud <span style="color:var(--danger)">*</span></label><input type="number" step="any" id="geo-lng-{{ $perfil->id }}" name="longitud" class="form-control" min="-180" max="180" required readonly placeholder="Clic en el mapa"></div>
-            <div class="form-group" style="margin-bottom:0"><label>Radio: <span id="geo-radio-val-{{ $perfil->id }}">200</span> m <span style="color:var(--danger)">*</span></label><input type="range" id="geo-radio-{{ $perfil->id }}" name="radio_metros" class="form-control" min="50" max="10000" step="50" value="200" required></div>
-            <div class="form-group" style="margin-bottom:0"><label>Dirección (opcional)</label><input type="text" name="direccion" class="form-control" maxlength="255" placeholder="Calle, colonia…"></div>
+        {{-- COLUMNA IZQUIERDA: Formulario --}}
+        <div>
+            <form method="POST" action="{{ route('portal.megafamilia.geocercas.store') }}">
+                @csrf
+                <input type="hidden" name="profile_id" value="{{ $perfil->id }}">
+
+                <div class="form-group">
+                    <label>Nombre <span style="color:var(--danger)">*</span></label>
+                    <input type="text" name="nombre" class="form-control" maxlength="100" required placeholder="Ej. Casa">
+                </div>
+                <div class="form-group">
+                    <label>Latitud <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="geo-lat-{{ $perfil->id }}" name="latitud" class="form-control" required readonly placeholder="Clic en el mapa">
+                </div>
+                <div class="form-group">
+                    <label>Longitud <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="geo-lng-{{ $perfil->id }}" name="longitud" class="form-control" required readonly placeholder="Clic en el mapa">
+                </div>
+                <div class="form-group">
+                    <label>Radio: <span id="geo-radio-val-{{ $perfil->id }}">500</span> m <span style="color:var(--danger)">*</span></label>
+                    <input type="range" id="geo-radio-{{ $perfil->id }}" name="radio_metros" class="form-control" min="50" max="10000" step="50" value="500" required style="height:6px; padding:0">
+                </div>
+                <div class="form-group">
+                    <label>Dirección (opcional)</label>
+                    <input type="text" name="direccion" class="form-control" maxlength="255" placeholder="Calle, colonia…">
+                </div>
+
+                <div style="margin:1rem 0; display:flex; flex-direction:column; gap:.5rem">
+                    <label style="display:flex; align-items:center; gap:.5rem; font-weight:400; font-size:.85rem; margin:0"><input type="checkbox" name="alert_on_enter" value="1" checked> Avisar al entrar</label>
+                    <label style="display:flex; align-items:center; gap:.5rem; font-weight:400; font-size:.85rem; margin:0"><input type="checkbox" name="alert_on_exit" value="1" checked> Avisar al salir</label>
+                    <label style="display:flex; align-items:center; gap:.5rem; font-weight:400; font-size:.85rem; margin:0"><input type="checkbox" name="active" value="1" checked> Geocerca activa</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width:100%">Guardar geocerca</button>
+            </form>
         </div>
-        <div style="display:flex; gap:1.25rem; flex-wrap:wrap; margin-bottom:.75rem">
-            <label style="display:flex; align-items:center; gap:.4rem; font-weight:400; font-size:.85rem; margin:0"><input type="hidden" name="alert_on_enter" value="0"><input type="checkbox" name="alert_on_enter" value="1" checked> Avisar al entrar</label>
-            <label style="display:flex; align-items:center; gap:.4rem; font-weight:400; font-size:.85rem; margin:0"><input type="hidden" name="alert_on_exit" value="0"><input type="checkbox" name="alert_on_exit" value="1" checked> Avisar al salir</label>
-            <label style="display:flex; align-items:center; gap:.4rem; font-weight:400; font-size:.85rem; margin:0"><input type="hidden" name="active" value="0"><input type="checkbox" name="active" value="1" checked> Geocerca activa</label>
+
+        {{-- COLUMNA DERECHA: Mapa --}}
+        <div style="position:sticky; top:1rem">
+            <div class="mf-geomap" id="mf-geomap-{{ $perfil->id }}" data-lat="19.4326" data-lng="-99.1332" data-radius="500"
+                 style="height:500px; width:100%; border-radius:.5rem; box-shadow:0 2px 8px rgba(0,0,0,.1); border:1px solid var(--border)"></div>
+            <p style="font-size:.75rem; color:var(--text-muted); margin-top:.5rem; text-align:center">
+                Haz clic en el mapa para fijar el centro. Ajusta el radio con el slider.
+            </p>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm">Guardar geocerca</button>
-    </form>
+    </div>
 </div>
+
+@once
+<style>@media (max-width:768px){ .mf-geo-grid{ grid-template-columns:1fr !important } .mf-geo-grid [style*="sticky"]{ position:static !important } }</style>
+@endonce
