@@ -186,7 +186,44 @@
         .mf-subtab2-content { display:none } .mf-subtab2-content.active { display:block }
     </style>
 
+@push('scripts')
+    <link rel="stylesheet" href="/assets/libs/leaflet/leaflet.css">
+    <script src="/assets/libs/leaflet/leaflet.js"></script>
     <script>
+    // Inicializa (perezosamente) el mapa de geocercas de un perfil. Modo CÍRCULO:
+    // clic fija el centro (lat/lng), el slider ajusta el radio. circleMarker+circle
+    // (sin iconos de marcador → evita el bug de imágenes rotas de Leaflet+webpack).
+    window.mfGeoMaps = window.mfGeoMaps || {};
+    window.mfInitGeoMap = function (pid) {
+        var el = document.getElementById('mf-geomap-' + pid);
+        if (!el || typeof L === 'undefined') return;
+        if (window.mfGeoMaps[pid]) { window.mfGeoMaps[pid].invalidateSize(); return; }
+        var lat = parseFloat(el.getAttribute('data-lat')) || 19.4326;
+        var lng = parseFloat(el.getAttribute('data-lng')) || -99.1332;
+        var rad = parseInt(el.getAttribute('data-radius')) || 200;
+        var map = L.map(el).setView([lat, lng], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+        var center = L.circleMarker([lat, lng], { radius: 6, color: '#0057a8', fillColor: '#0057a8', fillOpacity: 1 }).addTo(map);
+        var circle = L.circle([lat, lng], { radius: rad, color: '#0057a8', fillColor: '#0057a8', fillOpacity: 0.15 }).addTo(map);
+        var latI = document.getElementById('geo-lat-' + pid), lngI = document.getElementById('geo-lng-' + pid),
+            radI = document.getElementById('geo-radio-' + pid), radV = document.getElementById('geo-radio-val-' + pid);
+        // Prefill desde inputs (modo edición) si ya traen valor.
+        if (latI && latI.value && lngI && lngI.value) {
+            var la = parseFloat(latI.value), lo = parseFloat(lngI.value);
+            center.setLatLng([la, lo]); circle.setLatLng([la, lo]); map.setView([la, lo], 15);
+        }
+        map.on('click', function (e) {
+            if (latI) latI.value = e.latlng.lat.toFixed(7);
+            if (lngI) lngI.value = e.latlng.lng.toFixed(7);
+            center.setLatLng(e.latlng); circle.setLatLng(e.latlng);
+        });
+        if (radI) radI.addEventListener('input', function () {
+            var r = parseInt(this.value) || 0; circle.setRadius(r); if (radV) radV.textContent = r;
+        });
+        window.mfGeoMaps[pid] = map;
+        setTimeout(function () { map.invalidateSize(); }, 60);
+    };
+
     (function () {
         var ss = window.sessionStorage;
         function show(list, contentSel, id, prefix) {
@@ -220,6 +257,7 @@
                 this.classList.add('active');
                 var el = document.getElementById('mf-sec-' + sec); if (el) el.classList.add('active');
                 ss.setItem('mf_sec_' + prof, sec);
+                if (sec.indexOf('geocercas-') === 0 && window.mfInitGeoMap) window.mfInitGeoMap(prof);
             });
         });
         // Restore on load (hash wins for main tab; else sessionStorage)
@@ -235,5 +273,6 @@
         });
     })();
     </script>
+@endpush
 @endif
 @endsection

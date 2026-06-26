@@ -33,20 +33,24 @@
                    value="{{ old('nombre', $geo->name) }}">
         </div>
 
+        <p style="color:var(--text-muted); font-size:.8rem; margin-bottom:.5rem">Haz clic en el mapa para mover el centro; ajusta el radio abajo.</p>
+        <div id="mf-geomap-edit" data-lat="{{ $geo->lat }}" data-lng="{{ $geo->lng }}" data-radius="{{ (int) $geo->radius_meters }}"
+             style="height:340px; border:1px solid var(--border); border-radius:8px; margin-bottom:1rem"></div>
+
         <div class="kpi-grid">
             <div class="form-group" style="margin-bottom:0">
                 <label>Latitud <span style="color:var(--danger)">*</span></label>
-                <input type="number" step="any" name="latitud" class="form-control" min="-90" max="90" required
+                <input type="number" step="any" id="geo-lat-edit" name="latitud" class="form-control" min="-90" max="90" required
                        value="{{ old('latitud', $geo->lat) }}">
             </div>
             <div class="form-group" style="margin-bottom:0">
                 <label>Longitud <span style="color:var(--danger)">*</span></label>
-                <input type="number" step="any" name="longitud" class="form-control" min="-180" max="180" required
+                <input type="number" step="any" id="geo-lng-edit" name="longitud" class="form-control" min="-180" max="180" required
                        value="{{ old('longitud', $geo->lng) }}">
             </div>
             <div class="form-group" style="margin-bottom:0">
                 <label>Radio (metros) <span style="color:var(--danger)">*</span></label>
-                <input type="number" name="radio_metros" class="form-control" min="50" max="10000" required
+                <input type="number" id="geo-radio-edit" name="radio_metros" class="form-control" min="50" max="10000" required
                        value="{{ old('radio_metros', $geo->radius_meters) }}">
             </div>
             <div class="form-group" style="margin-bottom:0">
@@ -77,4 +81,30 @@
         </div>
     </form>
 </div>
+
+@push('scripts')
+    <link rel="stylesheet" href="/assets/libs/leaflet/leaflet.css">
+    <script src="/assets/libs/leaflet/leaflet.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById('mf-geomap-edit');
+        if (!el || typeof L === 'undefined') return;
+        var lat = parseFloat(el.getAttribute('data-lat')) || 19.4326;
+        var lng = parseFloat(el.getAttribute('data-lng')) || -99.1332;
+        var rad = parseInt(el.getAttribute('data-radius')) || 200;
+        var map = L.map(el).setView([lat, lng], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+        var center = L.circleMarker([lat, lng], { radius: 6, color: '#0057a8', fillColor: '#0057a8', fillOpacity: 1 }).addTo(map);
+        var circle = L.circle([lat, lng], { radius: rad, color: '#0057a8', fillColor: '#0057a8', fillOpacity: 0.15 }).addTo(map);
+        var latI = document.getElementById('geo-lat-edit'), lngI = document.getElementById('geo-lng-edit'), radI = document.getElementById('geo-radio-edit');
+        map.on('click', function (e) {
+            latI.value = e.latlng.lat.toFixed(7); lngI.value = e.latlng.lng.toFixed(7);
+            center.setLatLng(e.latlng); circle.setLatLng(e.latlng);
+        });
+        radI.addEventListener('input', function () { circle.setRadius(parseInt(this.value) || 0); });
+        setTimeout(function () { map.invalidateSize(); }, 60);
+    });
+    </script>
+@endpush
 @endsection
+
