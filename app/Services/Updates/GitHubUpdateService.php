@@ -92,12 +92,15 @@ class GitHubUpdateService
             $githubDate    = \Carbon\Carbon::parse($latestPublishedAt);
             $installedCarbon = \Carbon\Carbon::parse($installedDate);
 
-            // Comparar por fecha de DÍA (sin hora): published_at trae hora (p.ej. 21:01:15Z)
-            // mientras release_date se guarda como fecha (00:00:00). Sin normalizar, la MISMA
-            // versión del mismo día daría falso positivo (21:01 > 00:00). Solo hay actualización
-            // si el Release de GitHub es de un día POSTERIOR al instalado.
-            // TODO(futuro): si llegan a publicarse 2 releases el mismo día, comparar por tag/semver.
-            if ($githubDate->startOfDay()->gt($installedCarbon->startOfDay())) {
+            // Hay actualización si el tag de GitHub DIFIERE del instalado y su release NO es
+            // anterior (mismo día o posterior). Comparar también por tag —no solo por día—
+            // cubre el caso de varias releases el MISMO día (p.ej. V1.9 y V1.10 el 26/06):
+            // antes la comparación por día las daba como "iguales" y la nueva quedaba invisible.
+            // El gate por fecha (>=) evita "downgrades" si se elimina la última release en GitHub.
+            $differentTag = $latestTag !== ($installed->version ?? null);
+            $notOlder     = $githubDate->startOfDay()->gte($installedCarbon->startOfDay());
+
+            if ($differentTag && $notOlder) {
                 return $this->buildResult($latest);
             }
 
