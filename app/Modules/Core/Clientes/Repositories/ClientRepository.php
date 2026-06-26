@@ -5,6 +5,8 @@ namespace App\Modules\Core\Clientes\Repositories;
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\Repository\TransactionRepository;
 use App\Http\Traits\RouterConnection;
+use App\Models\Contratable\ClientContratableSubscription;
+use Illuminate\Support\Facades\Log;
 use App\Jobs\Mikrotik\MikrotikRemoveClientServiceFromAddressList;
 use App\Models\Balance;
 use App\Modules\Core\Clientes\Models\ClientInvoice;
@@ -927,6 +929,21 @@ class ClientRepository
                 }
             }
         }
+
+        // === Servicios contratables (AISLADO + GATEADO, off por defecto) ===========
+        // NO toca el loop de ALL_CLIENT_SERVICE de arriba: suspensión, rectificación de
+        // saldos y promociones JAMÁS ven contratables. Con el kill-switch en false el
+        // bloque no inyecta nada y el motor es idéntico al actual.
+        if (config('contratables.billing_enabled')) {
+            foreach ($this->resolveContratableLines($client) as $line) {
+                $line['number'] = $i + 1;
+                $client_services[] = $line;
+                $ivaSum   += $line['iva'];
+                $subTotal += $line['monto'];
+                $i++;
+            }
+        }
+
         $total = $subTotal + $ivaSum;
         return [
             'subtotal' => round($subTotal, 2),
@@ -934,6 +951,59 @@ class ClientRepository
             'total' => round($total, 2),
             'services' => $client_services
         ];
+    }
+
+    /**
+     * Construye las líneas de servicios contratables FACTURABLES de un cliente.
+     * Solo entran suscripciones que cumplen TODO: status=active, servicio del catálogo
+     * activo=true, activated_at presente y paquete resuelto (price_service != null).
+     * Si una no resuelve paquete → se omite y se loguea; NUNCA rompe la factura.
+     *
+     * El precio del paquete es IVA INCLUIDO: aquí se DESGLOSA (igual que el resto del
+     * sistema) vía getIvaInformation. Solo lectura: no muta nada (calculateAmounts pura).
+     */
+    private function resolveContratableLines(Client $client): array
+    {
+        $lines = [];
+
+        $subs = ClientContratableSubscription::query()
+            ->where('client_id', $client->id)
+            ->where('status', 'active')
+            ->whereNotNull('activated_at')
+            ->whereHas('service', function ($q) {
+                $q->where('activo', true);
+            })
+            ->with('service.packages')
+            ->get();
+
+        foreach ($subs as $sub) {
+            $price = $sub->price_service; // null = sin paquete · 0 = en prueba · precio si normal
+            if ($price === null) {
+                Log::warning(sprintf(
+                    '[Contratables] Suscripción #%d (cliente %d, servicio %s) sin paquete para conteo %d: no se factura.',
+                    $sub->id,
+                    $client->id,
+                    $sub->service->module_key ?? '?',
+                    $sub->conteoActual()
+                ));
+                continue;
+            }
+
+            $tasa   = $sub->getTax();
+            $hasIva = $sub->serviceHasIva();
+            $info   = $this->getIvaInformation($tasa, $price);
+
+            $lines[] = [
+                'service_name'  => $sub->service_name,
+                'iva_porcent'   => $tasa ?? 0,
+                'iva'           => $hasIva ? $info['iva'] : 0,
+                'monto'         => $hasIva ? $info['monto'] : $price,
+                'service_id'    => $sub->id,
+                'service_class' => get_class($sub),
+            ];
+        }
+
+        return $lines;
     }
 
     public function getIvaInformation($tasa, $total)
