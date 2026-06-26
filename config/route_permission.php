@@ -40,11 +40,6 @@ return [
     'plan_edit_package' => ['/paquetes/editar/{id}', '/paquetes/update/{id}', '/paquetes/success/{id}'],
     'plan_delete_package' => ['/paquetes/destroy/{id}'],
 
-    // Motor de servicios contratables (Item #006)
-    'plan_view_catalog' => ['/planes/catalogo', '/planes/catalogo/data'],
-    'plan_sync_catalog' => ['/planes/catalogo/sync'],
-    'plan_edit_catalog' => ['/planes/catalogo/{key}'],
-
     //Crm
     'crm_view_crm' => ['/crm/listar', '/crm/table'],
     'crm_add_crm' => ['/crm/crear', '/crm/add', '/crm/success/{id}'],
