@@ -117,8 +117,35 @@
 </div>
 
 @once
-<style>@media (max-width:768px){ .mf-geo-grid{ grid-template-columns:1fr !important } .mf-geo-grid [style*="sticky"]{ position:static !important } }</style>
+<style>
+    @media (max-width:768px){ .mf-geo-grid{ grid-template-columns:1fr !important } .mf-geo-grid [style*="sticky"]{ position:static !important } }
+    .mf-vertex{ width:16px; height:16px; background:#0057a8; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 1px #0057a8; cursor:move }
+</style>
 <script>
+    // Vértice DRAGGABLE (L.marker + divIcon, sin imágenes → sin iconos rotos).
+    window.mfRedrawPoly = function (st, pid) {
+        if (st.polygon) st.polygon.removeFrom(st.map);
+        st.polygon = null;
+        if (st.polygonPoints.length >= 3) {
+            st.polygon = L.polygon(st.polygonPoints, { color: '#0057a8', weight: 2, fill: true, fillColor: '#0057a8', fillOpacity: 0.2 }).addTo(st.map);
+        }
+        var hid = document.getElementById('geo-coords-' + pid); if (hid) hid.value = JSON.stringify(st.polygonPoints);
+        var cnt = document.getElementById('polygon-count-' + pid); if (cnt) cnt.textContent = st.polygonPoints.length;
+    };
+    window.mfAddVertex = function (st, latlng, pid) {
+        var marker = L.marker(latlng, { draggable: true, icon: L.divIcon({ className: 'mf-vertex', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(st.map);
+        st.polygonPoints.push([latlng.lat, latlng.lng]);
+        st.polygonMarkers.push(marker);
+        marker.on('drag dragend', function (e) {
+            var idx = st.polygonMarkers.indexOf(marker);
+            if (idx < 0) return;
+            var ll = e.target.getLatLng();
+            st.polygonPoints[idx] = [ll.lat, ll.lng];
+            window.mfRedrawPoly(st, pid); // redibuja en tiempo real + persiste hidden
+        });
+        window.mfRedrawPoly(st, pid);
+    };
+
     // Funciones compartidas (perfilId como argumento → una sola definición).
     function toggleGeoTipo(pid, tipo) {
         var st = window['geoState_' + pid];
@@ -174,14 +201,7 @@
                 var r = parseInt(document.getElementById('geo-radio-' + pid).value) || 500;
                 st.circle = L.circle(e.latlng, { radius: r, color: '#0057a8', weight: 2, fillColor: '#0057a8', fillOpacity: 0.15 }).addTo(st.map);
             } else {
-                st.polygonPoints.push([e.latlng.lat, e.latlng.lng]);
-                st.polygonMarkers.push(L.circleMarker(e.latlng, { radius: 5, color: '#0057a8', weight: 2, fill: true, fillColor: '#0057a8', fillOpacity: 0.7 }).addTo(st.map));
-                if (st.polygonPoints.length >= 3) {
-                    if (st.polygon) st.polygon.removeFrom(st.map);
-                    st.polygon = L.polygon(st.polygonPoints, { color: '#0057a8', weight: 2, fill: true, fillColor: '#0057a8', fillOpacity: 0.2 }).addTo(st.map);
-                }
-                document.getElementById('geo-coords-' + pid).value = JSON.stringify(st.polygonPoints);
-                document.getElementById('polygon-count-' + pid).textContent = st.polygonPoints.length;
+                window.mfAddVertex(st, e.latlng, pid); // vértice draggable + redibuja
             }
         });
         setTimeout(function () { st.map.invalidateSize(); }, 80);

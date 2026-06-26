@@ -120,18 +120,25 @@
         document.getElementById('radio-value-edit').textContent = s.value;
         if (GE.circle) GE.circle.setRadius(parseInt(s.value));
     }
-    function geoEditDrawPolygon() {
-        GE.polygonMarkers.forEach(function (m) { m.removeFrom(GE.map); });
-        GE.polygonMarkers = [];
-        GE.polygonPoints.forEach(function (pt) {
-            GE.polygonMarkers.push(L.circleMarker(pt, { radius: 5, color: '#0057a8', weight: 2, fill: true, fillColor: '#0057a8', fillOpacity: 0.7 }).addTo(GE.map));
+    function geoEditMakeMarker(latlng) {
+        var marker = L.marker(latlng, { draggable: true, icon: L.divIcon({ className: 'mf-vertex', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(GE.map);
+        marker.on('drag dragend', function (e) {
+            var idx = GE.polygonMarkers.indexOf(marker);
+            if (idx < 0) return;
+            var ll = e.target.getLatLng();
+            GE.polygonPoints[idx] = [ll.lat, ll.lng];
+            geoEditRedraw(); // redibuja en tiempo real + persiste hidden
         });
+        return marker;
+    }
+    function geoEditRedraw() {
         if (GE.polygon) GE.polygon.removeFrom(GE.map);
+        GE.polygon = null;
         if (GE.polygonPoints.length >= 3) {
             GE.polygon = L.polygon(GE.polygonPoints, { color: '#0057a8', weight: 2, fill: true, fillColor: '#0057a8', fillOpacity: 0.2 });
             if (GE.tipo === 'polygon') GE.polygon.addTo(GE.map);
         }
-        document.getElementById('geo-coords-edit').value = JSON.stringify(GE.polygonPoints);
+        document.getElementById('geo-coords-edit').value = GE.polygonPoints.length ? JSON.stringify(GE.polygonPoints) : '';
         document.getElementById('polygon-count-edit').textContent = GE.polygonPoints.length;
     }
     function geoEditClear() {
@@ -151,7 +158,8 @@
         if (GE.tipo === 'circle') {
             GE.circle = L.circle(GE.start, { radius: GE.radius, color: '#0057a8', weight: 2, fillColor: '#0057a8', fillOpacity: 0.15 }).addTo(GE.map);
         } else {
-            geoEditDrawPolygon();
+            GE.polygonPoints.forEach(function (pt) { GE.polygonMarkers.push(geoEditMakeMarker(pt)); });
+            geoEditRedraw();
             if (GE.polygonPoints.length) GE.map.fitBounds(GE.polygonPoints);
         }
 
@@ -164,11 +172,13 @@
                 GE.circle = L.circle(e.latlng, { radius: r, color: '#0057a8', weight: 2, fillColor: '#0057a8', fillOpacity: 0.15 }).addTo(GE.map);
             } else {
                 GE.polygonPoints.push([e.latlng.lat, e.latlng.lng]);
-                geoEditDrawPolygon();
+                GE.polygonMarkers.push(geoEditMakeMarker([e.latlng.lat, e.latlng.lng]));
+                geoEditRedraw();
             }
         });
         setTimeout(function () { GE.map.invalidateSize(); }, 60);
     });
     </script>
+    <style>.mf-vertex{ width:16px; height:16px; background:#0057a8; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 1px #0057a8; cursor:move }</style>
 @endpush
 @endsection
