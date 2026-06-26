@@ -197,11 +197,18 @@ class RemoteDeployCommand extends Command
     private function buildEnv(): array
     {
         $parent = getenv() ?: [];
+
+        // HOME real del usuario que corre el deploy (www-data en prod, NO /root): git lo
+        // necesita para la llave SSH (~/.ssh) al hacer fetch, y npm/composer para su caché.
+        // php-fpm a veces NO exporta HOME → lo resolvemos por posix como respaldo.
+        $home = $parent['HOME'] ?? '';
+        if ($home === '' && function_exists('posix_getpwuid')) {
+            $home = posix_getpwuid(posix_getuid())['dir'] ?? '';
+        }
+
         return array_merge($parent, [
             'PATH'               => ($parent['PATH'] ?? '') . ':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-            // HOME real del usuario que corre el deploy (no /root): npm lo necesita para
-            // su caché/.npmrc y git para la llave SSH (~/.ssh) al hacer fetch.
-            'HOME'               => $parent['HOME'] ?? '/root',
+            'HOME'               => $home ?: '/root',
             'GIT_CONFIG_COUNT'   => '1',
             'GIT_CONFIG_KEY_0'   => 'safe.directory',
             'GIT_CONFIG_VALUE_0' => base_path(),
