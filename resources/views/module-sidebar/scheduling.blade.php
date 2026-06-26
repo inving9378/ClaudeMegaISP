@@ -14,6 +14,9 @@
             @if(auth()->user()->can('scheduling_view_calendar'))
                 <li><a href="{{ url('/scheduling/task/calendar') }}"><span><small><i class="fa fa-fw fa-calendar-alt"></i></small> Calendario</span></a></li>
             @endif
+            @if(auth()->user()->can('templatetask_view_templatetask'))
+                <li><a href="{{ url('/scheduling/task-templates') }}"><span><small><i class="fa fa-fw fa-clone"></i></small> Plantillas</span></a></li>
+            @endif
 
             {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
             @foreach($item->dynamic_children ?? collect() as $child)
