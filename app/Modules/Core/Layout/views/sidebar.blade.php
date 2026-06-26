@@ -98,6 +98,36 @@
                     @include('module-sidebar.voip', ['item' => $sidebarItems['voip']->first()])
                 @endif
 
+                {{-- 12.9 Portal de Pago — entrada estática (pagos.view). NO @can(): usar auth()->user()->can() --}}
+                @if(auth()->user() && auth()->user()->can('pagos.view'))
+                    <li>
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="credit-card"></i>
+                            <span>Portal de Pago</span>
+                        </a>
+                        <ul class="sub-menu" aria-expanded="false">
+                            <li>
+                                <a href="{{ url('/pagos') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Dashboard</span></a>
+                            </li>
+                            @if(auth()->user()->can('pagos.conciliar'))
+                                <li>
+                                    <a href="{{ url('/pagos/conciliacion') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Conciliación</span></a>
+                                </li>
+                            @endif
+                            @if(auth()->user()->can('pagos.cuentas.manage'))
+                                <li>
+                                    <a href="{{ url('/pagos/cuentas') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Cuentas de Cobro</span></a>
+                                </li>
+                            @endif
+                            @if(auth()->user()->can('pagos.links.manage'))
+                                <li>
+                                    <a href="{{ url('/pagos/links') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Ligas de Pago</span></a>
+                                </li>
+                            @endif
+                        </ul>
+                    </li>
+                @endif
+
                 {{-- 13. War Room — accesible desde el panel de Administración (/administracion), no como ítem suelto del sidebar. --}}
 
                 {{--
@@ -114,7 +144,7 @@
                         'addon-gestion-red', 'addon-inventario', 'addon-mapas',
                         'addon-cobranza-blaster', 'addon-megafamilia', 'addon-embajadores',
                         'addon-flotas', 'addon-talento', 'addon-warroom', 'addon-devtools', 'core-configuracion',
-                        'addon-voip',
+                        'addon-voip', 'addon-portal-pago',
                     ];
                     // Módulos accesibles solo desde los paneles Configuración / Administración:
                     // no se muestran como ítem suelto en el sidebar (evita duplicar la navegación).
