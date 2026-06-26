@@ -17,16 +17,12 @@
  *   type: 'backup'           — respaldo de la BD ANTES de publicar (streaming, en el worker)
  */
 
-// Allowlist de artefactos que un release legítimo puede commitear = salidas de Laravel
-// Mix bajo public/ que SÍ están trackeadas en git (ver webpack.mix.js). ÚNICA fuente de
+// Allowlist de artefactos que un release legítimo puede commitear. ÚNICA fuente de
 // verdad: la consume el paso git_staging_gate y el comando de git_add. NUNCA `git add -A`.
-// public/mix-manifest.json SÍ va aquí: se des-ignoró del .gitignore para que el manifest
-// de cache-busting (los ?id= de mix()) viaje en el release. Sin él, el remoto (git checkout,
-// sin npm) servía un manifest stale → el navegador cacheaba el JS viejo tras cada deploy.
+// El bundle compilado (app.js, chunks, app.css, mix-manifest.json) YA NO va aquí: está
+// gitignored y se genera EN el servidor con `npm run prod` (paso npm_build del deploy).
+// Solo quedan los artefactos estáticos que mix.copy/extrae y cambian rara vez (bump de lib).
 $releaseArtifacts = [
-    'public/js',                  // app.js + chunks async (js/NNN.js) + *.LICENSE.txt
-    'public/css',                 // app.css
-    'public/mix-manifest.json',   // manifest de versionado mix() — cache-busting por deploy
     'public/chart.js',            // copia estática (mix.copy) — solo cambia en bump de chart.js
     'public/images/vendor',       // assets de leaflet extraídos por webpack — solo en bump de esas libs
 ];

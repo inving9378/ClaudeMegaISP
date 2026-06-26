@@ -18,6 +18,16 @@ yarn-error.log
 .phpunit.result.cache
 /public/fonts
 composer.phar
+# Frontend compilado por webpack/mix — se genera en el servidor con `npm run prod`
+# (el deploy corre npm_build). Se mantienen trackeados los vendor estáticos
+# (driver.min.*, maps.js, qrcode.min.js, app_2.css, pdf.css, receipt.css).
+public/mix-manifest.json
+/public/js/app.js
+/public/js/*.LICENSE.txt
+/public/js/[0-9]*.js
+/public/js/node_modules_*.js
+/public/js/resources_js_*.js
+/public/css/app.css
 public/credencial
 public/perfiles
 public/uploads
