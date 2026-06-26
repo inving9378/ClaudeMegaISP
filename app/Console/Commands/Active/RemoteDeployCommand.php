@@ -78,18 +78,19 @@ class RemoteDeployCommand extends Command
             ['key' => 'backup_db',     'name' => 'Respaldar base de datos',         'type' => 'artisan', 'cmd' => 'backup_db:process',    'timeout' => 300, 'critical' => true],
             // 2. Checkout del tag (o reset a main si no hay tag)
             ['key' => 'git_sync',      'name' => 'Sincronizar código (' . ($version ?: 'origin/main') . ')', 'type' => 'shell', 'cmd' => $gitSyncCmd, 'timeout' => 120, 'critical' => true],
-            // 3. Dependencias PHP (por si el release cambió composer.json/lock)
-            ['key' => 'composer',      'name' => 'Dependencias PHP (composer)',     'type' => 'shell', 'cmd' => 'composer install --no-dev --optimize-autoloader --no-interaction', 'timeout' => 600, 'critical' => true],
-            // 4. Compilar el frontend EN el servidor (assets fuera de git) — crítico:
+            // 3. Compilar el frontend EN el servidor (assets fuera de git) — crítico:
             //    si falla, se aborta y hace rollback (nunca deja prod con código nuevo y JS roto)
+            //    NOTA: no se corre composer aquí a propósito — este prod usa deps de dev y
+            //    `--no-dev` las eliminaba rompiendo la app. Los cambios de composer.json se
+            //    aplican a mano cuando haga falta (como históricamente en este server).
             ['key' => 'npm_build',     'name' => 'Compilar frontend (npm)',         'type' => 'shell', 'cmd' => 'npm ci && npm run prod', 'timeout' => 600, 'critical' => true],
-            // 5. Migraciones aditivas (--force para no pedir confirmación en producción)
+            // 4. Migraciones aditivas (--force para no pedir confirmación en producción)
             ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'artisan', 'cmd' => 'migrate',              'timeout' => 120, 'critical' => false, 'params' => ['--force' => true]],
-            // 6. Warm-up de cachés
+            // 5. Warm-up de cachés
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
-            // 7. Reiniciar workers de cola
+            // 6. Reiniciar workers de cola
             ['key' => 'queue_restart', 'name' => 'Reiniciar workers',               'type' => 'artisan', 'cmd' => 'queue:restart',        'timeout' => 10,  'critical' => false],
-            // 8. Registrar el release en la DB local
+            // 7. Registrar el release en la DB local
             ['key' => 'save_release',  'name' => 'Guardar release en DB local',     'type' => 'inline',  'critical' => false],
         ];
 
