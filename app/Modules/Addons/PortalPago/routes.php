@@ -15,4 +15,5 @@ Route::prefix('f')->name('portal.pago.')
     ->group(function () {
         Route::get('/{token}', [PublicPagoController::class, 'show'])->name('show');
         Route::post('/{token}/reportar', [PublicPagoController::class, 'reportar'])->name('reportar');
+        Route::get('/{token}/estado', [PublicPagoController::class, 'estado'])->name('estado');
     });

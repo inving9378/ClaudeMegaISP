@@ -91,6 +91,38 @@ class PublicPagoController extends Controller
     }
 
     /**
+     * GET /f/{token}/estado — pantalla de confirmación/estado.
+     */
+    public function estado(string $token)
+    {
+        $link = $this->links->findByToken($token); // existencia (aquí sí es válido mostrar conciliado)
+        if ($link === null) {
+            return $this->noDisponible();
+        }
+
+        $ultimo = $link->reports()->latest('id')->first();
+
+        $estadoVisual = 'pendiente';
+        if ($link->estado === PortalPagoPaymentLink::ESTADO_CONCILIADO) {
+            $estadoVisual = 'conciliado';
+        } elseif ($ultimo && $ultimo->estado === PortalPagoPaymentReport::ESTADO_RECHAZADO) {
+            $estadoVisual = 'rechazado';
+        }
+
+        $soporte = (string) config('app.soporte_whatsapp', '55 1234 5678');
+        $digits  = preg_replace('/\D+/', '', $soporte);
+        // Si no trae lada de país (10 dígitos), anteponer 52 (México).
+        $soporteWa = strlen($digits) === 10 ? '52' . $digits : $digits;
+
+        return view('addon-portal-pago::estado', [
+            'link'           => $link,
+            'estadoVisual'   => $estadoVisual,
+            'soporteDisplay' => $soporte,
+            'soporteWa'      => $soporteWa,
+        ]);
+    }
+
+    /**
      * Respuesta neutra para token inexistente / expirado / ya conciliado.
      * SIEMPRE el mismo mensaje y código → no se puede enumerar.
      */

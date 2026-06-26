@@ -20,6 +20,10 @@ return [
     'office_lat' => env('OFFICE_LAT'),
     'office_lng' => env('OFFICE_LNG'),
 
+    // Teléfono/WhatsApp de soporte mostrado al cliente en el Portal de Pago.
+    // Placeholder configurable vía SOPORTE_WHATSAPP en .env.
+    'soporte_whatsapp' => env('SOPORTE_WHATSAPP', '55 1234 5678'),
+
     // Si false, permite crear servicios sin conexión a Mikrotik (QA/desarrollo).
     // En producción debe ser true. Default true (sin la var → comportamiento actual).
     'mikrotik_required_for_service' => env('MIKROTIK_REQUIRED_FOR_SERVICE', true),
