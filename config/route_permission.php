@@ -40,6 +40,13 @@ return [
     'plan_edit_package' => ['/paquetes/editar/{id}', '/paquetes/update/{id}', '/paquetes/success/{id}'],
     'plan_delete_package' => ['/paquetes/destroy/{id}'],
 
+    // Catálogo de Servicios Contratables (Planes → Servicios contratables)
+    'contratables.manage' => [
+        '/planes/contratables', '/planes/contratables/data', '/planes/contratables/modulos',
+        '/planes/contratables/crear', '/planes/contratables/editar/{id}', '/planes/contratables/show/{id}',
+        '/planes/contratables/add', '/planes/contratables/update/{id}', '/planes/contratables/destroy/{id}',
+    ],
+
     //Crm
     'crm_view_crm' => ['/crm/listar', '/crm/table'],
     'crm_add_crm' => ['/crm/crear', '/crm/add', '/crm/success/{id}'],

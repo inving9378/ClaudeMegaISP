@@ -27,7 +27,8 @@
         { "name": "plan_add_package",     "description": "Crear paquete" },
         { "name": "plan_edit_package",    "description": "Editar paquete" },
         { "name": "plan_delete_package",  "description": "Eliminar paquete" },
-        { "name": "plan_export_package",  "description": "Exportar paquetes" }
+        { "name": "plan_export_package",  "description": "Exportar paquetes" },
+        { "name": "contratables.manage",  "description": "Gestionar catálogo de servicios contratables (servicios + paquetes)" }
     ],
 
     "menu": [

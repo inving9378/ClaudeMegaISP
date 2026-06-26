@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Addons\Planes\Controllers\BundleController;
+use App\Modules\Addons\Planes\Controllers\ContratableCatalogController;
 use App\Modules\Addons\Planes\Controllers\CustomController;
 use App\Modules\Addons\Planes\Controllers\InternetController;
 use App\Modules\Addons\Planes\Controllers\VozController;
@@ -62,5 +63,19 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () 
         Route::post('/update/{id}', [CustomController::class, 'update']);
         Route::post('/destroy/{id}', [CustomController::class, 'destroy']);
         Route::post('/table', [CustomController::class, 'table']);
+    });
+
+    // Catálogo de Servicios Contratables (Planes → Servicios contratables).
+    // CRUD de contratable_services + contratable_packages. NO toca facturación.
+    Route::prefix('planes/contratables')->group(function () {
+        Route::get('/', [ContratableCatalogController::class, 'index'])->name('planes.contratables');
+        Route::get('/data', [ContratableCatalogController::class, 'data']);
+        Route::get('/modulos', [ContratableCatalogController::class, 'modulos']);
+        Route::get('/crear', [ContratableCatalogController::class, 'form']);
+        Route::get('/editar/{id}', [ContratableCatalogController::class, 'form']);
+        Route::get('/show/{id}', [ContratableCatalogController::class, 'show']);
+        Route::post('/add', [ContratableCatalogController::class, 'store']);
+        Route::post('/update/{id}', [ContratableCatalogController::class, 'update']);
+        Route::post('/destroy/{id}', [ContratableCatalogController::class, 'destroy']);
     });
 });
