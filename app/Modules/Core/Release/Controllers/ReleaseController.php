@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Symfony\Component\Process\Process;
 class ReleaseController extends Controller
 {
 
@@ -32,6 +33,16 @@ class ReleaseController extends Controller
         // Carga solo la primera página
         $perPage = 10;
         $releases = Release::orderByDesc('release_date')->paginate($perPage);
+
+        // Marca cada release con `tag_exists`: si su tag NO existe en git, la release
+        // quedó "fantasma" (registrada en BD pero el pipeline se abortó antes de
+        // git_tag) → el front ofrece "Re-desplegar". Si no se pudo consultar git
+        // (null) se asume publicado (true) para NO ofrecer un re-deploy sin verificar.
+        $tags = $this->gitTags();
+        $releases->getCollection()->transform(function ($r) use ($tags) {
+            $r->tag_exists = $tags === null ? true : in_array($r->version, $tags, true);
+            return $r;
+        });
 
         // Si la solicitud es AJAX, devuelve solo JSON
         if ($request->ajax()) {
@@ -155,6 +166,83 @@ class ReleaseController extends Controller
         );
         shell_exec($cmd);
         Log::info("Deploy #{$deployLog->id} lanzado como proceso background (local).");
+    }
+
+    /**
+     * Tags git existentes en el repo local — fuente de verdad de "publicado".
+     * Devuelve null si no se pudo consultar git (el caller lo trata como
+     * "publicado": fail-safe, no ofrece re-deploy de algo que no pudo verificar).
+     * safe.directory replica el patrón de RemoteDeployCommand para evitar el
+     * bloqueo de git por dueño distinto (www-data vs. el del checkout).
+     */
+    private function gitTags(): ?array
+    {
+        try {
+            $env = array_merge(getenv() ?: [], [
+                'PATH'               => (getenv('PATH') ?: '') . ':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                'HOME'               => getenv('HOME') ?: '/tmp',
+                'GIT_CONFIG_COUNT'   => '1',
+                'GIT_CONFIG_KEY_0'   => 'safe.directory',
+                'GIT_CONFIG_VALUE_0' => base_path(),
+            ]);
+
+            $process = Process::fromShellCommandline('git tag', base_path(), $env, null, 15);
+            $process->run();
+
+            if (!$process->isSuccessful()) {
+                Log::warning('gitTags(): git tag falló — ' . trim($process->getErrorOutput()));
+                return null;
+            }
+
+            return array_values(array_filter(array_map('trim', explode("\n", $process->getOutput()))));
+        } catch (\Throwable $e) {
+            Log::warning('gitTags(): excepción — ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Re-lanza el pipeline de una release "fantasma": registrada en BD pero cuyo
+     * tag git nunca se creó (el deploy se abortó antes de git_tag). Condición de
+     * seguridad REFORZADA en el server: si el tag YA existe, la versión está
+     * publicada y re-desplegar la re-taggearía/duplicaría → 422.
+     */
+    public function redeploy(int $id)
+    {
+        $release = Release::find($id);
+        if (!$release) {
+            return response()->json(['success' => false, 'message' => 'La versión no existe.'], 404);
+        }
+
+        $tags = $this->gitTags();
+        if ($tags === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo verificar el estado de git. Reintenta en un momento.',
+            ], 503);
+        }
+
+        if (in_array($release->version, $tags, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => "El tag {$release->version} ya existe en git: la versión ya está publicada.",
+            ], 422);
+        }
+
+        $deployLog = DeploymentLog::create([
+            'release_id'   => $release->id,
+            'triggered_by' => auth()->user()->id,
+            'status'       => 'pending',
+        ]);
+
+        $this->dispatchDeploy($deployLog, $release->version, $release->title ?? '');
+
+        return response()->json([
+            'success'       => true,
+            'message'       => 'Re-deploy iniciado.',
+            'deployment_id' => $deployLog->id,
+            'version'       => $release->version,
+        ], 200);
     }
 
     public function generateChangelog(Request $request)

@@ -94,6 +94,17 @@
                         </small>
                         <div>
                             <button
+                                v-if="release.tag_exists === false && hasPermission.data.canView('release_add_release')"
+                                class="btn btn-sm btn-outline-warning me-2"
+                                @click="redeploy(release)"
+                                :disabled="redeployingId === release.id"
+                                title="Esta versión está registrada pero su tag no existe en git: no se publicó. Re-lanza el deploy."
+                            >
+                                <span v-if="redeployingId === release.id" class="spinner-border spinner-border-sm me-1"></span>
+                                <i v-else class="bi bi-arrow-clockwise me-1"></i>
+                                Re-desplegar
+                            </button>
+                            <button
                                 class="btn btn-sm btn-outline-secondary me-2"
                                 @click="showModal(release)"
                                 v-if="
@@ -168,6 +179,7 @@ export default {
         const currentId = ref(null);
         const activeDeploymentId = ref(null);
         const activeDeploymentVersion = ref(null);
+        const redeployingId = ref(null);
         const copiedVersion = ref(null);
         const hasPermission = reactive({
             data: new Permission({}),
@@ -225,8 +237,51 @@ export default {
         };
 
         const onDeployClosed = (finalStatus) => {
+            // Si el re-deploy terminó OK, el tag ya existe → oculta el botón sin recargar.
+            if (finalStatus === "success" && activeDeploymentVersion.value) {
+                const r = releases.value.find(
+                    (x) => x.version === activeDeploymentVersion.value
+                );
+                if (r) r.tag_exists = true;
+            }
             activeDeploymentId.value = null;
             activeDeploymentVersion.value = null;
+        };
+
+        const redeploy = async (release) => {
+            const confirm = await Swal.fire({
+                icon: "warning",
+                title: `¿Re-desplegar ${release.version}?`,
+                html: "Esta versión está registrada pero <strong>su tag no existe en git</strong> (no se publicó).<br>Se re-lanzará el pipeline: commit, tag, push a GitHub y deploy a <strong>producción</strong>.",
+                showCancelButton: true,
+                confirmButtonText: "Sí, re-desplegar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: "#d33",
+            });
+            if (!confirm.isConfirmed) return;
+
+            redeployingId.value = release.id;
+            try {
+                const { data } = await axios.post(
+                    `/releases/${release.id}/redeploy`
+                );
+                if (data.success) {
+                    onDeployStarted({
+                        deploymentId: data.deployment_id,
+                        version: data.version,
+                    });
+                } else {
+                    Swal.fire("No se pudo", data.message || "Error", "error");
+                }
+            } catch (e) {
+                Swal.fire(
+                    "Error",
+                    e.response?.data?.message || "Error al re-desplegar",
+                    "error"
+                );
+            } finally {
+                redeployingId.value = null;
+            }
         };
 
         const goToVersion = (release) => {
@@ -277,6 +332,8 @@ export default {
             currentId,
             activeDeploymentId,
             activeDeploymentVersion,
+            redeployingId,
+            redeploy,
             showModal,
             refreshList,
             onDeployStarted,

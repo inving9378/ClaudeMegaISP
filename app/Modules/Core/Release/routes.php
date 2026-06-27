@@ -23,6 +23,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::get('/{version}', [ReleaseController::class, 'show']);
     Route::post('/store', [ReleaseController::class, 'store']);
     Route::post('/update/{id}', [ReleaseController::class, 'update']);
+    // Re-desplegar una release "fantasma" (registrada en BD pero sin tag git)
+    Route::post('/{id}/redeploy', [ReleaseController::class, 'redeploy'])->whereNumber('id');
 
     // Audit report
     Route::get('/audit/report',           [AuditController::class, 'generate']);
