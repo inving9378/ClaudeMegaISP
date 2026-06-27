@@ -328,10 +328,19 @@ class DeploymentService
             '/secret.*\.(json|yaml|yml|txt)$/i',
         ];
 
+        // Plantillas versionadas (NO secretos): .env.example, .env.dist, .env.sample…
+        // Son parte del repo a propósito (documentan las variables sin valores reales),
+        // así que se EXCEPTÚAN del denylist antes de evaluarlo. Sin esto, el patrón
+        // `.env*` las confundía con archivos sensibles y abortaba deploys legítimos.
+        $templateWhitelist = '/\.(example|dist|sample)$/i';
+
         $flagged = [];
         foreach (explode("\n", trim($process->getOutput())) as $line) {
             if (!trim($line)) continue;
             $file = ltrim(substr($line, 2)); // porcelain: "XY filename"
+            if (preg_match($templateWhitelist, $file)) {
+                continue;
+            }
             foreach ($patterns as $pattern) {
                 if (preg_match($pattern, $file)) {
                     $flagged[] = trim($line);
