@@ -65,6 +65,7 @@ import DocumentTemplateListar from "./components/module/adminstration/document_t
 //Planes — Servicios contratables
 import ContratableCatalogList from "./components/module/planes/ContratableCatalogList.vue";
 import ContratableCatalogForm from "./components/module/planes/ContratableCatalogForm.vue";
+import ContratablesClientTab from "./components/module/planes/ContratablesClientTab.vue";
 
 //Configuracion
 import CatalogoApiPanel from "./components/module/configuracion/CatalogoApiPanel.vue";
@@ -884,6 +885,7 @@ app.directive("table-resizable", QTableResizable);
 // El nombre debe coincidir EXACTO con `client_tab.component` del module.json.
 app.component("MegaFamiliaClientTab", MegaFamiliaClientTab);
 app.component("DomiciliacionClientTab", DomiciliacionClientTab);
+app.component("ContratablesClientTab", ContratablesClientTab);
 
 // Fleet tab sub-components: deben ser globales porque los usa FleetVehicleShow (descendiente)
 app.component("fleet-tab-info",           FleetTabInfo);
