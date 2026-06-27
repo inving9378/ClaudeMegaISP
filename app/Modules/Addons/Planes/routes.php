@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Addons\Planes\Controllers\BundleController;
+use App\Modules\Addons\Planes\Controllers\ClientContratableController;
 use App\Modules\Addons\Planes\Controllers\ContratableCatalogController;
 use App\Modules\Addons\Planes\Controllers\CustomController;
 use App\Modules\Addons\Planes\Controllers\InternetController;
@@ -77,5 +78,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () 
         Route::post('/add', [ContratableCatalogController::class, 'store']);
         Route::post('/update/{id}', [ContratableCatalogController::class, 'update']);
         Route::post('/destroy/{id}', [ContratableCatalogController::class, 'destroy']);
+    });
+
+    // Pestaña "Servicios contratados" en la ficha del cliente (activar/suspender).
+    Route::prefix('cliente/contratables')->group(function () {
+        Route::get('/{clientId}/data', [ClientContratableController::class, 'data']);
+        Route::post('/{clientId}/activar', [ClientContratableController::class, 'activate']);
+        Route::post('/{clientId}/suspender', [ClientContratableController::class, 'suspend']);
+        Route::post('/{clientId}/reactivar', [ClientContratableController::class, 'reactivate']);
     });
 });

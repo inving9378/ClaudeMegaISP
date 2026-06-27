@@ -45,6 +45,8 @@ return [
         '/planes/contratables', '/planes/contratables/data', '/planes/contratables/modulos',
         '/planes/contratables/crear', '/planes/contratables/editar/{id}', '/planes/contratables/show/{id}',
         '/planes/contratables/add', '/planes/contratables/update/{id}', '/planes/contratables/destroy/{id}',
+        '/cliente/contratables/{clientId}/data', '/cliente/contratables/{clientId}/activar',
+        '/cliente/contratables/{clientId}/suspender', '/cliente/contratables/{clientId}/reactivar',
     ],
 
     //Crm

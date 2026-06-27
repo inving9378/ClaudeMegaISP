@@ -167,7 +167,11 @@
         }
     ],
 
-    "client_tab": null,
+    "client_tab": {
+        "label": "Servicios contratados",
+        "component": "ContratablesClientTab",
+        "permission": "contratables.manage"
+    },
 
     "service_type": {
         "key": "internet",
