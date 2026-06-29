@@ -16,8 +16,15 @@ class ModuleVisibilityController extends Controller
     public function index(Request $request): JsonResponse
     {
         $items = $this->svc->listAll();
+        // can_host_children (#132): solo los parents con sub-menú pueden recibir
+        // hijos dinámicos; el frontend filtra el dropdown "Módulo padre" por este flag.
+        $data = $items->values()->map(function ($item) {
+            $arr = $item->toArray();
+            $arr['can_host_children'] = $this->svc->canHostChildren($item->module_key);
+            return $arr;
+        });
         return response()->json([
-            'data'  => $items->values(),
+            'data'  => $data,
             'total' => $items->count(),
         ]);
     }

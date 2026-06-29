@@ -360,8 +360,10 @@ export default {
                 this.isCore                  = !!data.is_core;
 
                 const { data: all } = await axios.get('/admin/modules/visibility');
+                // #132: solo parents con sub-menú (can_host_children) pueden recibir hijos
+                // dinámicos; los links planos (mapas, olts, administracion, etc.) quedan fuera.
                 this.parentOptions = (all.data || [])
-                    .filter(m => m.show_in_sidebar && m.sidebar_location === 'direct' && m.module_key !== this.moduleKey)
+                    .filter(m => m.show_in_sidebar && m.sidebar_location === 'direct' && m.module_key !== this.moduleKey && m.can_host_children)
                     .map(m => ({ label: m.sidebar_label || m.module_key, value: m.module_key }));
             } catch (e) {
                 this.notify('negative', 'Error al cargar configuración: ' + (e.response?.data?.message || e.message));

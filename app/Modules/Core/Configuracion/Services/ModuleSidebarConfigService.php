@@ -8,6 +8,30 @@ use Illuminate\Validation\ValidationException;
 
 class ModuleSidebarConfigService
 {
+    /**
+     * Parents cuyo partial (resources/views/module-sidebar/{key}.blade.php) tiene
+     * un <ul class="sub-menu"> con el loop dynamic_children y por tanto SÍ pueden
+     * hospedar hijos dinámicos (#132).
+     *
+     * Los demás módulos direct (mapas, olts, administracion, configuracion,
+     * dashboard, marketing, warroom) son links planos sin sub-menú: un sub_item
+     * asignado bajo ellos no se renderiza. Por eso el dropdown "Módulo padre" en
+     * ModuleVisibilityConfig solo debe ofrecer los de esta lista.
+     *
+     * Mantener en sync si un partial gana o pierde su sub-menú.
+     */
+    public const SUBMENU_CAPABLE_PARENTS = [
+        'planes', 'crm', 'clientes', 'gestion-red', 'finanzas', 'inventario',
+        'cobranza-blaster', 'megafamilia', 'scheduling', 'embajadores', 'flotas',
+        'talento', 'voip', 'devtools',
+    ];
+
+    /** ¿El módulo puede hospedar hijos dinámicos (tiene sub-menú en su partial)? */
+    public function canHostChildren(string $moduleKey): bool
+    {
+        return in_array($moduleKey, self::SUBMENU_CAPABLE_PARENTS, true);
+    }
+
     public function get(string $moduleKey): ?ModuleSidebarConfig
     {
         return ModuleSidebarConfig::where('module_key', $moduleKey)->first();
