@@ -61,6 +61,10 @@
             "description": "Ver el log de notificaciones de flota"
         },
         {
+            "name": "fleet.notifications.manage",
+            "description": "Reenviar notificaciones y gestionar el log de notificaciones de flota"
+        },
+        {
             "name": "fleet.rules.view",
             "description": "Ver reglas de alertas de geocerca"
         },

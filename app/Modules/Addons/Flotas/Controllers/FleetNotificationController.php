@@ -134,7 +134,7 @@ class FleetNotificationController extends FleetBaseController
     // POST /flotas/api/notificaciones-log/{id}/resend — reintenta el evento de un log fallido
     public function resend(int $id, FleetNotificationDispatcher $dispatcher): JsonResponse
     {
-        $this->authorize('fleet.notifications.view');
+        $this->authorize('fleet.notifications.manage');
 
         $log = FleetNotificationLog::with('event.vehicle')->findOrFail($id);
         // Tenant check
