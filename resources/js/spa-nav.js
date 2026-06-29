@@ -119,6 +119,29 @@ async function spaNavigate(url, pushState) {
         const newTitle = doc.querySelector('title');
         if (newTitle) document.title = newTitle.textContent;
 
+        // 3.5 Limpieza de modales/backdrops huérfanos (#111 Fase 1 → fix raíz de #126).
+        // Bootstrap ancla el .modal-backdrop a <body>; al navegar con un modal abierto,
+        // el innerHTML de abajo se lleva el modal pero el backdrop sobrevive y deja la
+        // pantalla en gris e inclickeable. Lo cerramos ANTES del unmount/swap.
+        // Defensivo: un fallo aquí NUNCA debe impedir la navegación.
+        try {
+            document.querySelectorAll('.modal.show').forEach((modalEl) => {
+                const inst = window.bootstrap?.Modal?.getInstance(modalEl);
+                if (inst) {
+                    inst.hide();
+                } else {
+                    modalEl.classList.remove('show');
+                    modalEl.style.display = '';
+                }
+            });
+            // Backdrops huérfanos (los que el hide() async no alcanzó a quitar antes del swap)
+            document.querySelectorAll('.modal-backdrop').forEach((b) => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+        } catch (e) {
+            console.warn('[spa-nav] limpieza de modales falló (no bloquea navegación):', e);
+        }
+
         // 4. Desmontar (solo si el fetch fue exitoso — limpia portales Teleport Quasar)
         if (window.__megaVueApp) {
             window.__megaVueApp.unmount();
