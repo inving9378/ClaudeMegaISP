@@ -560,7 +560,10 @@ export default {
 
     const pagination = ref({
       sortBy: 'id',
-      descending: false,
+      // Orden por defecto explícito: cliente más nuevo (id más alto) primero.
+      // descending:true → la primera petición manda dir=true → backend ORDER BY id DESC,
+      // y la flecha de Quasar (↓) queda coherente con los datos (fix #110).
+      descending: true,
       page: 1,
       rowsPerPage: 50,
       rowsNumber: 0,
@@ -576,7 +579,7 @@ export default {
       return `${startItem}-${endItem} of ${pagination.value.rowsNumber}`;
     });
 
-    const getRowsByModule = async (colss, showInHeader, filters, order, dir, searchTerm = "") => {
+    const getRowsByModule = async (colss, showInHeader, filters, order = currentSortColumn.value, dir = pagination.value.descending, searchTerm = "") => {
       let taked = _.take(colss, showInHeader);
       let columnS = _.map(colss, (e) => {
         return { data: e };
