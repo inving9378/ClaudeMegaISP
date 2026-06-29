@@ -206,8 +206,12 @@ export default {
                 .finally(() => { loading.value = false; });
         }
         function loadOptions() {
-            axios.get(`${props.baseUrl}/api/vehiculos`).then(({ data }) => { vehicles.value = data?.vehicles ?? []; }).catch(() => {});
-            axios.get(`${props.baseUrl}/api/geocercas`).then(({ data }) => { geofences.value = data?.geofences ?? []; }).catch(() => {});
+            // Selects auxiliares: un dropdown vacío no engaña al usuario, así que solo dejamos
+            // rastro en consola (sin aviso intrusivo).
+            axios.get(`${props.baseUrl}/api/vehiculos`).then(({ data }) => { vehicles.value = data?.vehicles ?? []; })
+                .catch((e) => console.error('Flotas: fallo al cargar vehículos', e.response?.status, `${props.baseUrl}/api/vehiculos`));
+            axios.get(`${props.baseUrl}/api/geocercas`).then(({ data }) => { geofences.value = data?.geofences ?? []; })
+                .catch((e) => console.error('Flotas: fallo al cargar geocercas', e.response?.status, `${props.baseUrl}/api/geocercas`));
         }
 
         function openForm(rule = null) {

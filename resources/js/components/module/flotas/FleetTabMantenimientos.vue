@@ -254,11 +254,25 @@ export default {
                     next_service_date: ['date', 'both'].includes(form.next_mode) ? form.next_service_date : null,
                 };
                 const { data } = await axios.post(`${props.baseUrl}/api/mantenimientos`, payload);
+                let archivosFallidos = 0;
+                const filesEndpoint = `${props.baseUrl}/api/mantenimientos/${data.maintenance.id}/files`;
                 for (const f of files.value) {
                     const fd = new FormData(); fd.append('file', f);
-                    await axios.post(`${props.baseUrl}/api/mantenimientos/${data.maintenance.id}/files`, fd).catch(() => {});
+                    try {
+                        await axios.post(filesEndpoint, fd);
+                    } catch (e) {
+                        archivosFallidos++;
+                        console.error('Flotas: fallo al subir archivo de mantenimiento', e.response?.status, filesEndpoint);
+                    }
                 }
-                emit('toast', { message: isDraft ? 'Borrador guardado.' : 'Mantenimiento registrado.', type: 'success' });
+                // El mantenimiento SÍ se registró. Si algún archivo no subió, lo decimos (falla parcial),
+                // sin convertir el éxito del registro en un error.
+                const baseMsg = isDraft ? 'Borrador guardado.' : 'Mantenimiento registrado.';
+                if (archivosFallidos > 0) {
+                    emit('toast', { message: `${baseMsg} Pero ${archivosFallidos} archivo(s) no se pudieron subir.`, type: 'error' });
+                } else {
+                    emit('toast', { message: baseMsg, type: 'success' });
+                }
                 emit('reload');
                 files.value = []; Object.assign(form, defaultForm());
                 if (!keepOpen) showForm.value = false;

@@ -353,6 +353,9 @@ import WarroomLineSeries from './WarroomLineSeries.vue';
 import { useKpis } from '../composables/useKpis.js';
 import { useInsights } from '../composables/useInsights.js';
 import { deltaStr, deltaDir, formatCurrency } from '../utils.js';
+import { useQuasar } from '../../../../../../public/plugins/quasar/js/quasar.umd.prod';
+
+const $q = useQuasar();
 
 const props = defineProps({
     period:          { type: String, required: true },
@@ -480,7 +483,14 @@ async function loadActionItems() {
 
 async function triggerRegenerate() {
     const period = from.value.slice(0, 7);
-    await axios.post(`/warroom/api/insights/resumen/${period}/regenerate`).catch(() => {});
+    const endpoint = `/warroom/api/insights/resumen/${period}/regenerate`;
+    try {
+        await axios.post(endpoint);
+    } catch (e) {
+        console.error('WarRoom: fallo al regenerar el resumen', e.response?.status, endpoint);
+        $q.notify({ type: 'negative', message: 'No se pudo regenerar el resumen. Inténtalo de nuevo.' });
+        return;
+    }
     await fetchInsights(period);
 }
 

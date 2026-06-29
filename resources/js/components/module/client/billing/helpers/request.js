@@ -86,11 +86,13 @@ export const getTaskEvents = async (filters = null) => {
 
 export const requestBillingInformationBlock = async (client_id) => {
     let data = {}
-    await axios["post"](`/cliente/billing/get-billing-information-block/${client_id}`, {})
+    const endpoint = `/cliente/billing/get-billing-information-block/${client_id}`
+    await axios["post"](endpoint, {})
         .then((response) => {
             data = response.data;
         })
-        .catch(() => {});
+        // Bloque de información: si falla, el bloque queda vacío (no engaña). Solo dejamos rastro.
+        .catch((e) => { console.error('Cliente: fallo al cargar el bloque de facturación', e.response?.status, endpoint); });
     return data;
 }
 

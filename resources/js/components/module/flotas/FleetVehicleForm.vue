@@ -261,15 +261,25 @@ export default {
                 const { data } = await axios[method](url, { ...form });
                 const vehicleId = data.vehicle?.id;
 
-                // Asignar operador si se especificó
+                // Asignar operador si se especificó (no bloquea el guardado del vehículo)
+                let operadorAsignado = true;
                 if (assignment.user_id && vehicleId) {
-                    await axios.post(`${props.baseUrl}/api/vehiculos/${vehicleId}/asignaciones`, {
-                        ...assignment,
-                        vehicle_id: vehicleId,
-                    }).catch(() => {}); // No bloquear si falla
+                    const asignEndpoint = `${props.baseUrl}/api/vehiculos/${vehicleId}/asignaciones`;
+                    try {
+                        await axios.post(asignEndpoint, { ...assignment, vehicle_id: vehicleId });
+                    } catch (e) {
+                        operadorAsignado = false;
+                        console.error('Flotas: fallo al asignar el operador', e.response?.status, asignEndpoint);
+                    }
                 }
 
-                showToast('Vehículo guardado correctamente.', 'success', 'bi bi-check-circle-fill');
+                // El vehículo SÍ se guardó. Si la asignación del operador falló, avisamos la verdad
+                // (falla parcial) sin convertir el éxito del guardado en un error.
+                if (operadorAsignado) {
+                    showToast('Vehículo guardado correctamente.', 'success', 'bi bi-check-circle-fill');
+                } else {
+                    showToast('Vehículo guardado, pero no se pudo asignar el operador.', 'error', 'bi bi-exclamation-triangle-fill');
+                }
 
                 if (mode === 'new') {
                     Object.assign(form, defaultForm());

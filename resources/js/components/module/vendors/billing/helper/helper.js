@@ -191,13 +191,17 @@ export const getPendingDiscountsBySeller = async (user) => {
 
 export const getCurrentBalanceAccount = async (id) => {
     let data = 0;
-    await axios["post"](
-        `/vendedores/payments-sellers/current-balance-account/${id}`
-    )
+    const endpoint = `/vendedores/payments-sellers/current-balance-account/${id}`;
+    await axios["post"](endpoint)
         .then((response) => {
             data = response.data;
         })
-        .catch((e) => {});
+        // Dato financiero: ante un error NO devolvemos $0 (cero falso engañoso para
+        // decisiones de dinero). Devolvemos null como estado de error detectable.
+        .catch((e) => {
+            console.error('Vendedores: fallo al obtener el saldo actual', e.response?.status, endpoint);
+            data = null;
+        });
     return data;
 };
 
@@ -223,11 +227,17 @@ export const getIncomesAccount = async (id) => {
         income: 0,
         expenses: 0,
     };
-    await axios["post"](`/vendedores/payments-sellers/statement-account/${id}`)
+    const endpoint = `/vendedores/payments-sellers/statement-account/${id}`;
+    await axios["post"](endpoint)
         .then((response) => {
             data = response.data;
         })
-        .catch((e) => {});
+        // Datos financieros: ante un error NO devolvemos ceros (cero falso engañoso).
+        // Devolvemos null como estado de error detectable por el consumidor.
+        .catch((e) => {
+            console.error('Vendedores: fallo al obtener ingresos/egresos', e.response?.status, endpoint);
+            data = null;
+        });
     return data;
 };
 

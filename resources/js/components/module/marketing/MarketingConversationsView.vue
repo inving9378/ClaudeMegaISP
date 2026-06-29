@@ -250,10 +250,23 @@ export default {
       } finally { this.sending = false; }
     },
     async onToggleAi(val) {
-      await axios.post(`/api/marketing/conversations/${this.selectedConv.id}/toggle-ai`).catch(() => {});
+      const endpoint = `/api/marketing/conversations/${this.selectedConv.id}/toggle-ai`;
+      try {
+        await axios.post(endpoint);
+      } catch (e) {
+        console.error('Marketing: fallo al cambiar IA de la conversación', e.response?.status, endpoint);
+        this.$q?.notify({ type: 'negative', message: 'No se pudo cambiar el estado de la IA.' });
+      }
     },
     async closeConversation() {
-      await axios.post(`/api/marketing/conversations/${this.selectedConv.id}/close`).catch(() => {});
+      const endpoint = `/api/marketing/conversations/${this.selectedConv.id}/close`;
+      try {
+        await axios.post(endpoint);
+      } catch (e) {
+        console.error('Marketing: fallo al cerrar la conversación', e.response?.status, endpoint);
+        this.$q?.notify({ type: 'negative', message: 'No se pudo cerrar la conversación.' });
+        return;
+      }
       this.selectedConv.status = 'closed';
     },
     async loadMore() {
