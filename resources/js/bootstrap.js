@@ -12,6 +12,31 @@ const csrfMeta = document.querySelector('meta[name="csrf-token"]');
 if (csrfMeta) {
     window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfMeta.content;
 }
+
+// Red de seguridad para errores 5xx silenciosos (Hoja de Ruta #109, Paso 2).
+// Cualquier 500/502/503... deja rastro en consola aunque el .catch local esté vacío.
+// IMPORTANTE: este interceptor SOLO loguea. Re-lanza el error (Promise.reject) para
+// no alterar el flujo: los .catch existentes siguen recibiendo el error igual que antes.
+// NO muestra notificaciones visuales aquí — eso lo manejan los catches específicos de
+// cada módulo (evita doble-toast). Como todos los módulos usan el mismo singleton axios
+// (import axios from 'axios' === window.axios), basta registrarlo una vez aquí.
+window.axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        const status = error?.response?.status;
+        if (status >= 500) {
+            const cfg = error.config || {};
+            const method = (cfg.method || 'get').toUpperCase();
+            const url = cfg.url || '(url desconocida)';
+            const backendMsg = error?.response?.data?.message || error?.response?.data?.error || '';
+            console.error(
+                `[axios 5xx] ${status} ${method} ${url}` + (backendMsg ? ` — ${backendMsg}` : '')
+            );
+        }
+        return Promise.reject(error);
+    }
+);
+
 window.drift = require('drift-zoom');
 window.moment = require('moment');
 
