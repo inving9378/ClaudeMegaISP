@@ -962,7 +962,7 @@ class ClientDatatableHelper
         $limit = $request->limits == 0 ? $totalFiltered : $request->limits;
         $start = $request->start ?? 0;
         $order = $request->order ?? 'id';
-        $dir = $request->dir == false ? 'DESC' : 'ASC';
+        $dir = $request->dir === true ? 'DESC' : 'ASC';
 
         // Obtener los datos según el estado de búsqueda
         $array = $this->hasSearchTerm($request)
@@ -1093,7 +1093,7 @@ class ClientDatatableHelper
         $start = $request->start ?? 0;
 
         $order = $request->order ?? $request->data['columns'][0]['data'];
-        $dir = $request->dir == false ? 'DESC' : 'ASC';
+        $dir = $request->dir === true ? 'DESC' : 'ASC';
 
         $queryResult = $this->ordering_query($start, $limit, $order, $dir, $idModule ?? $filters);
 
