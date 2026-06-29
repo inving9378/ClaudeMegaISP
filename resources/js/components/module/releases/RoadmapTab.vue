@@ -595,7 +595,14 @@ export default {
                 await navigator.clipboard.writeText(prompt);
                 showToast('Prompt copiado, pégalo en Claude Code.', 'success', 'bi bi-clipboard-check-fill');
             } catch {
-                showToast('No se pudo copiar al portapapeles.', 'error', 'bi bi-exclamation-circle-fill');
+                // Fallback para HTTP sin SSL
+                const ta = document.createElement('textarea');
+                ta.value = prompt;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('Prompt copiado, pégalo en Claude Code.', 'success', 'bi bi-clipboard-check-fill');
             }
         }
 
@@ -635,7 +642,14 @@ export default {
                 await navigator.clipboard.writeText(prompt);
                 showToast('Prompt copiado, pégalo en Claude Code.', 'success', 'bi bi-clipboard-check-fill');
             } catch {
-                showToast('No se pudo copiar al portapapeles.', 'error', 'bi bi-exclamation-circle-fill');
+                // Fallback para HTTP sin SSL
+                const ta = document.createElement('textarea');
+                ta.value = prompt;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('Prompt copiado, pégalo en Claude Code.', 'success', 'bi bi-clipboard-check-fill');
             }
         }
 
