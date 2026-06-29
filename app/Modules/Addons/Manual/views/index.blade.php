@@ -6,6 +6,6 @@
 
 @section('content')
     <manual-index
-        :is-developer="{{ auth()->user()?->isDevelopment() ? 'true' : 'false' }}">
+        :is-developer="{{ auth()->user()?->can('manual_generate') ? 'true' : 'false' }}">
     </manual-index>
 @endsection
