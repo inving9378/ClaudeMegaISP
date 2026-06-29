@@ -210,9 +210,11 @@ Route::get('/notification-email', function () {
     $n = TaskNotification::find(1);
     return (new StandardNotification($n, ['email'], ['title' => 'usted tiene asignada una nueva tarea', 'url' => '/scheduling/task/editar/' . $n->task_id]))
         ->toMail($n->user);
-
-    Route::group(['prefix' => 'ia', 'namespace' => 'IA'], function () {
-        Route::post('/chat',   'IAChatController@chat');
-        Route::get('/history', 'IAChatController@history');
-    });
 });
+
+// Chat IA flotante (#9 Fase 1): el asistente conoce los módulos/acciones registrados
+// dinámicamente vía ModuleRegistry::getAiContext(). READ-ONLY (no ejecuta acciones).
+// Antes esta ruta estaba atrapada como código muerto dentro del closure de /notification-email.
+Route::post('/ia/chat', [\App\Http\Controllers\IA\IAChatController::class, 'chat'])
+    ->middleware('auth')
+    ->name('ia.chat');
