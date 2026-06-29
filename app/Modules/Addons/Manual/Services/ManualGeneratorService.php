@@ -3,9 +3,11 @@
 namespace App\Modules\Addons\Manual\Services;
 
 use App\Modules\Addons\Manual\Models\ManualSection;
+use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class ManualGeneratorService
@@ -95,11 +97,75 @@ class ManualGeneratorService
     /** @return \Illuminate\Support\Collection<int,object> */
     protected function loadActiveModules()
     {
-        return DB::table('modules')
+        $legacy = DB::table('modules')
             ->whereNotNull('name')
             ->orderBy('group')
             ->orderBy('name')
             ->get();
+
+        $registry = $this->loadRegistryModules();
+
+        // Deduplicación por slug: los módulos legacy (tabla `modules`) tienen
+        // prioridad; el registry solo aporta los addons/módulos que aún no
+        // estén representados (mismo slug calculado vía moduleSlug()).
+        $seen = [];
+        foreach ($legacy as $m) {
+            $seen[$this->moduleSlug($m)] = true;
+        }
+
+        $extras = $registry->reject(fn ($m) => isset($seen[$this->moduleSlug($m)]));
+
+        return $legacy->concat($extras)->values();
+    }
+
+    /**
+     * Módulos activos declarados vía manifiestos `module.json` (registrados en
+     * `module_registry`), normalizados a la misma forma {name, group, description}
+     * que la tabla legacy `modules`. El `group` se mapea desde el `type` del
+     * manifiesto (addon/core), ya que los manifiestos no declaran `group`.
+     *
+     * Tolerante a fallos: si la tabla no existe o un manifiesto no se puede leer,
+     * devuelve lo que tenga (nunca rompe la generación del manual).
+     *
+     * @return \Illuminate\Support\Collection<int,object>
+     */
+    protected function loadRegistryModules()
+    {
+        try {
+            if (! Schema::hasTable('module_registry')) {
+                return collect();
+            }
+
+            $activeSlugs = DB::table('module_registry')
+                ->where('active', true)
+                ->pluck('slug')
+                ->all();
+
+            if (empty($activeSlugs)) {
+                return collect();
+            }
+
+            $activeSet = array_flip($activeSlugs);
+            $manifests = app(ModuleManagerService::class)->manifests();
+
+            $out = [];
+            foreach ($manifests as $manifest) {
+                $slug = $manifest['slug'] ?? null;
+                if ($slug === null || ! isset($activeSet[$slug])) {
+                    continue;
+                }
+                $out[] = (object) [
+                    'name'        => $manifest['name'] ?? $slug,
+                    'group'       => $manifest['type'] ?? 'addon',
+                    'description' => $manifest['description'] ?? null,
+                ];
+            }
+
+            return collect($out);
+        } catch (\Throwable $e) {
+            Log::warning('[ManualGenerator] No se pudieron cargar módulos del registry: ' . $e->getMessage());
+            return collect();
+        }
     }
 
     /** @return array{web: string, api: string} */
