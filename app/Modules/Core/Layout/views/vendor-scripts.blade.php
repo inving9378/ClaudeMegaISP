@@ -29,14 +29,6 @@
     @endforeach
 @endisset
 
-{{--
-    DEPRECATED 2026-06-04: bundle viejo del tema Minia (abr 17, 225 líneas, solo jQuery/metisMenu/sidebar).
-    Pisaba el bundle de Mix en scope global causando bugs fantasma en modales Vue.
-    Toda su funcionalidad (sidebar, dark mode, idiomas) ya está cubierta por assets/js/theme.js u otros.
-    Si algo del UI base se rompe, descomentar y reportar.
-    <script src="{{ URL::asset('assets/js/app.js') }}"></script>
---}}
-
 <script>
     jQuery.event.special.touchstart = {
         setup: function(_, ns, handle) {
