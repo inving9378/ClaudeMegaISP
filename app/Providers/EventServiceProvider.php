@@ -96,6 +96,10 @@ class EventServiceProvider extends ServiceProvider
     public function boot()
     {
         File::observe(FileObserver::class);
+        // #169: cascade al eliminar un CRM (document_crms + files + archivo, deal_crms, quote_crms).
+        // Se registra en la clase módulo Y en el alias App\Models\Crm por seguridad.
+        \App\Modules\Core\CRM\Models\Crm::observe(\App\Observers\CrmObserver::class);
+        \App\Models\Crm::observe(\App\Observers\CrmObserver::class);
         CrmMainInformation::observe(CrmMainInformationObserver::class);
         ClientMainInformation::observe(ClientMainInformationObserver::class);
         Payment::observe(PaymentObserver::class);

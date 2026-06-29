@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Scripts;
 
+use App\Modules\Core\CRM\Support\CrmDocumentStorage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -95,7 +96,7 @@ class PurgeOrphanCrmDocuments extends Command
                     ->whereIn('fileable_id', $batchIds)
                     ->whereNotNull('path')->pluck('path');
                 foreach ($paths as $p) {
-                    if ($this->deletePhysicalFileSafely($p)) {
+                    if (CrmDocumentStorage::deleteFileSafely($p)) {
                         $physicalDeleted++;
                     }
                 }
@@ -139,35 +140,4 @@ class PurgeOrphanCrmDocuments extends Command
             ->select('d.id', 'd.crm_id');
     }
 
-    /**
-     * Borra UN archivo físico por su files.path exacto, con salvaguardas:
-     *  - resuelve path -> storage/app/public (igual que el symlink /storage)
-     *  - SOLO borra si es un archivo regular (is_file); NUNCA un directorio
-     *  - el realpath debe quedar DENTRO de storage/app/public (anti path-traversal)
-     *  - NUNCA borra una carpeta client/{id}/ completa: esos ids se solapan con
-     *    clientes reales vivos (DocumentClient). Solo unlink del archivo puntual.
-     */
-    private function deletePhysicalFileSafely(string $path): bool
-    {
-        $rel = preg_replace('#^/?storage/#', '', $path);
-        $abs = storage_path('app/public/' . $rel);
-
-        $base = realpath(storage_path('app/public'));
-        $real = realpath($abs);
-
-        if ($real === false || $base === false) {
-            return false; // no existe / no resoluble
-        }
-        if (strpos($real, $base . DIRECTORY_SEPARATOR) !== 0) {
-            $this->warn("    SALTADO (fuera de storage/app/public): {$path}");
-            return false;
-        }
-        if (!is_file($real)) {
-            // Es directorio o no es archivo regular -> NO tocar.
-            $this->warn("    SALTADO (no es archivo regular): {$path}");
-            return false;
-        }
-
-        return @unlink($real);
-    }
 }
