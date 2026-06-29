@@ -30,8 +30,11 @@ class WhatsappChannel implements NotificationChannelInterface
             . mb_strtolower($d['action']) . " {$d['geofence_name']} a las {$d['time_human']}.\n"
             . "Ver detalle: {$d['url']}";
 
-        // Reusa el servicio Evolution existente (company 1). Lanza excepción si la API falla.
-        (new EvolutionApiService())->sendText($phone, $text);
+        // Resuelve la empresa desde el vehículo del evento para usar la instancia Evolution
+        // correcta por empresa (fix #91). client_id NULL = flota interna Meganet → company 1,
+        // mismo patrón que DocumentAlertDispatcher. Lanza excepción si la API falla.
+        $companyId = (int) ($event->vehicle?->client_id ?? 1);
+        (new EvolutionApiService($companyId))->sendText($phone, $text);
         return true;
     }
 }
