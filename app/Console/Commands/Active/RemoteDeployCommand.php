@@ -117,9 +117,18 @@ class RemoteDeployCommand extends Command
             $log->updateStep($step['key'], ['status' => 'running', 'ran_at' => now()->toIso8601String()]);
 
             if ($step['type'] === 'inline') {
-                $msg = $this->saveRelease($version, $title, $summary, $releaseDate);
-                $log->updateStep($step['key'], ['status' => 'success', 'output' => $msg, 'exit_code' => 0, 'duration_ms' => 0]);
-                $this->line("  [save_release]: OK — {$msg}");
+                // El paso es no-crítico: registrar la release es un efecto secundario.
+                // Si falla (p.ej. dato muy largo para una columna), NO debe propagar la
+                // excepción y matar el comando dejando el DeploymentLog colgado en
+                // «running» con todos los pasos reales ya completados (el caso del log #29).
+                try {
+                    $msg = $this->saveRelease($version, $title, $summary, $releaseDate);
+                    $log->updateStep($step['key'], ['status' => 'success', 'output' => $msg, 'exit_code' => 0, 'duration_ms' => 0]);
+                    $this->line("  [save_release]: OK — {$msg}");
+                } catch (\Throwable $e) {
+                    $log->updateStep($step['key'], ['status' => 'failed', 'output' => $e->getMessage(), 'exit_code' => 1, 'duration_ms' => 0]);
+                    $this->error("  [save_release]: FAILED — {$e->getMessage()}");
+                }
                 continue;
             }
 
