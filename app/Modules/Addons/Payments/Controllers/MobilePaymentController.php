@@ -4,9 +4,11 @@ namespace App\Modules\Addons\Payments\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\ClientInvoice;
 use App\Models\ClientMainInformation;
 use App\Models\Payment;
+use App\Modules\Addons\Payments\Exceptions\ClabeEmissionDisabledException;
 use App\Modules\Addons\Payments\Models\PaymentClabe;
 use App\Modules\Addons\Payments\Models\PaymentProvider;
 use App\Modules\Addons\Payments\Models\PaymentWebhookLog;
@@ -14,6 +16,7 @@ use App\Modules\Addons\Payments\Services\OpenPayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Throwable;
@@ -79,10 +82,23 @@ class MobilePaymentController extends Controller
                     'payment_provider_id' => $provider->id,
                     'is_active'           => true,
                 ]);
+            } catch (ClabeEmissionDisabledException $e) {
+                // Gate de emisión: cobros SPEI aún no activados → 503, mensaje amable.
+                return response()->json([
+                    'success'   => false,
+                    'has_clabe' => false,
+                    'reason'    => 'emission_disabled',
+                    'message'   => ClabeEmissionDisabledException::USER_MESSAGE,
+                ], 503);
             } catch (Throwable $e) {
+                // No filtrar el mensaje crudo de BD/proveedor al cliente; queda en el log.
+                Log::error('MobilePayment: createClabe falló', [
+                    'client_id' => $client->id,
+                    'error'     => $e->getMessage(),
+                ]);
                 return response()->json([
                     'success' => false,
-                    'error'   => 'No se pudo generar tu CLABE: ' . $e->getMessage(),
+                    'error'   => 'No se pudo generar tu CLABE en este momento. Intenta más tarde.',
                 ], 500);
             }
         }
@@ -186,7 +202,7 @@ class MobilePaymentController extends Controller
      * ============================================================ */
 
     /** Cliente del usuario Sanctum autenticado, o null. */
-    private function resolveClient(): ?Client
+    private function resolveClient(): ?ClientModel
     {
         $client = Client::where('user_id', Auth::id())->first();
         if ($client) return $client;

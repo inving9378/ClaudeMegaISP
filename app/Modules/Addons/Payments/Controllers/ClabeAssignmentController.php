@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Payments\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Payment;
+use App\Modules\Addons\Payments\Exceptions\ClabeEmissionDisabledException;
 use App\Modules\Addons\Payments\Models\PaymentClabe;
 use App\Modules\Addons\Payments\Models\PaymentProvider;
 use App\Modules\Addons\Payments\Models\PaymentWebhookLog;
@@ -53,6 +54,7 @@ class ClabeAssignmentController extends Controller
         return response()->json([
             'success'         => true,
             'client_id'       => $client->id,
+            'emission_enabled' => (bool) config('openpay.clabe_emission_enabled', false),
             'clabe'           => $clabe ? [
                 'id'         => $clabe->id,
                 'clabe'      => $clabe->clabe,
@@ -115,14 +117,22 @@ class ClabeAssignmentController extends Controller
                 'is_stub'   => !empty($result['_stub']),
                 'reused'    => false,
             ], 201);
+        } catch (ClabeEmissionDisabledException $e) {
+            // Gate de emisión: feature pendiente de activación → 503, mensaje amable.
+            return response()->json([
+                'success' => false,
+                'code'    => 'clabe_emission_disabled',
+                'message' => ClabeEmissionDisabledException::USER_MESSAGE,
+            ], 503);
         } catch (Throwable $e) {
+            // No filtrar el mensaje crudo de BD/proveedor al usuario; queda en el log.
             Log::error('ClabeAssignment: createClabe falló', [
                 'client_id' => $client->id,
                 'error'     => $e->getMessage(),
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'No se pudo generar la CLABE: ' . $e->getMessage(),
+                'message' => 'No se pudo generar la CLABE en este momento. Intenta de nuevo más tarde.',
             ], 500);
         }
     }
