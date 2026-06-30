@@ -12,13 +12,21 @@
             <q-banner class="bg-orange-1 text-orange-9 q-mb-md" dense>
                 Este cliente aún no tiene CLABE virtual asignada.
             </q-banner>
+            <q-banner v-if="!emissionEnabled" class="bg-blue-grey-1 text-blue-grey-9 q-mb-md" dense>
+                La emisión de CLABE está pendiente de activación (certificación OpenPay).
+            </q-banner>
             <q-btn
                 color="primary"
                 icon="add_card"
                 label="Generar CLABE en OpenPay"
                 :loading="assigning"
+                :disable="!emissionEnabled"
                 @click="assignClabe"
-            />
+            >
+                <q-tooltip v-if="!emissionEnabled">
+                    Emisión de CLABE pendiente de activación
+                </q-tooltip>
+            </q-btn>
         </div>
 
         <!-- CLABE asignada -->
@@ -105,6 +113,7 @@ export default {
         const assigning = ref(false);
         const clabeData = ref(null);
         const recentPayments = ref([]);
+        const emissionEnabled = ref(false);
 
         const paymentColumns = [
             { name: 'date', label: 'Fecha', field: 'date', align: 'left' },
@@ -128,6 +137,7 @@ export default {
                 const { data } = await axios.get(`/finanzas/clients/${props.clientId}/clabe`);
                 clabeData.value = data.clabe;
                 recentPayments.value = data.recent_payments || [];
+                emissionEnabled.value = !!data.emission_enabled;
             } catch (e) {
                 console.error(e);
             } finally {
@@ -189,7 +199,7 @@ export default {
         load();
 
         return {
-            loading, assigning, clabeData, recentPayments,
+            loading, assigning, clabeData, recentPayments, emissionEnabled,
             paymentColumns, qrUrl,
             assignClabe, formatClabe, copyClabe, formatDate, statusColor,
         };
