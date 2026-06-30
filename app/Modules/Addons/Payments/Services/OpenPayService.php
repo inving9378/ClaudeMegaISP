@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Payments\Services;
 
 use App\Modules\Core\Clientes\Models\Client;
+use App\Modules\Addons\Payments\Exceptions\ClabeEmissionDisabledException;
 use App\Modules\Addons\Payments\Models\PaymentProvider;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Exception\GuzzleException;
@@ -43,9 +44,19 @@ class OpenPayService
     public function createClabe(Client $client, PaymentProvider $provider): array
     {
         $cfg = $provider->config ?? [];
-        if ($this->credsAreStub($cfg)) {
-            // TODO: remover stub cuando lleguen credenciales sandbox reales
-            return $this->stubCreateClabe($client);
+
+        // ── Gate de emisión (punto único, cubre los dos disparadores) ──────────
+        // No emitir si la emisión está deshabilitada globalmente, o si el provider
+        // está en sandbox/stub (la CLABE no la provisiona el banco → no enrutable y
+        // colisiona en el índice único). Se lanza ANTES de tocar OpenPay y ANTES
+        // de cualquier insert, de modo que NUNCA se llega a un QueryException 1062.
+        if (!$this->emissionEnabled() || $this->isNonRoutable($cfg)) {
+            Log::warning('OpenPayService: emisión de CLABE bloqueada por gate', [
+                'client_id'        => $client->id,
+                'emission_enabled' => $this->emissionEnabled(),
+                'non_routable'     => $this->isNonRoutable($cfg),
+            ]);
+            throw new ClabeEmissionDisabledException();
         }
 
         $base = $this->baseUrl($cfg);
@@ -146,6 +157,22 @@ class OpenPayService
         return in_array($key, $stubMarkers, true) || in_array($mid, $stubMarkers, true);
     }
 
+    /** Flag global de emisión de CLABE (default false = safe-by-default). */
+    private function emissionEnabled(): bool
+    {
+        return (bool) config('openpay.clabe_emission_enabled', false);
+    }
+
+    /**
+     * ¿La CLABE que emitiría este provider sería NO enrutable? (sandbox o
+     * credenciales stub/vacías → el banco no la provisiona). En ese caso no
+     * se debe emitir nada aunque el flag esté encendido.
+     */
+    private function isNonRoutable(array $cfg): bool
+    {
+        return !empty($cfg['sandbox']) || $this->credsAreStub($cfg);
+    }
+
     private function baseUrl(array $cfg): string
     {
         $sandbox = !empty($cfg['sandbox']);
@@ -204,6 +231,10 @@ class OpenPayService
      * Stub para desarrollo sin credenciales. Genera una CLABE pseudo-aleatoria
      * de 18 dígitos. NO usar en producción — el banco rechazaría depósitos a
      * esta CLABE porque no está provisionada por OpenPay.
+     *
+     * ⚠️ YA NO SE INVOCA: el gate de emisión en createClabe() lanza
+     * ClabeEmissionDisabledException en lugar de degradar al stub. Se conserva
+     * solo como referencia; su eliminación es un ítem de limpieza aparte.
      */
     private function stubCreateClabe(Client $client): array
     {
