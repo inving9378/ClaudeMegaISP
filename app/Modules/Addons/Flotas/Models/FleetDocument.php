@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Flotas\Models;
 
 use App\Models\BaseModel;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
@@ -14,7 +15,7 @@ class FleetDocument extends BaseModel
     protected $table = 'fleet_documents';
 
     protected $fillable = [
-        'vehicle_id', 'document_type', 'folio_number', 'issued_by',
+        'vehicle_id', 'driver_id', 'document_type', 'folio_number', 'issued_by',
         'issue_date', 'expiration_date', 'cost', 'file_path', 'notes',
         'alert_30_days', 'alert_7_days', 'alert_1_day', 'alert_same_day', 'alert_channels',
     ];
@@ -33,6 +34,13 @@ class FleetDocument extends BaseModel
     public function vehicle()
     {
         return $this->belongsTo(FleetVehicle::class, 'vehicle_id');
+    }
+
+    // Conductor (operador / user) al que pertenece el documento, p.ej. licencia.
+    // Opcional: nullable, los documentos pueden ser solo-de-vehículo (#93).
+    public function driver()
+    {
+        return $this->belongsTo(User::class, 'driver_id');
     }
 
     public function scopeForClient(Builder $q, ?int $clientId): Builder
