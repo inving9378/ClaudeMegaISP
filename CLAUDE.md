@@ -176,6 +176,31 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 | **`mix-manifest.json` gitignored no se despliega → cache-busting stale** | `public/mix-manifest.json` está en `.gitignore:24` y no se trackea, pero la app usa `mix()` en runtime (`head.blade.php`, `vendor-scripts.blade.php`). El remoto (`git checkout`, sin npm) no lo regenera ni lo borra → usa un manifest **manual stale** → el `?id=` de cache-busting queda viejo → los navegadores sirven el **JS cacheado anterior** tras cada deploy. | ✅ **Resuelto** (commit `6e014b77`): el bundle compilado (`app.js`, chunks, `app.css`, `mix-manifest.json`) salió de git y ahora se genera **en el servidor** con `npm run prod` (paso `npm_build` del deploy remoto). El `$releaseArtifacts` quedó solo en `chart.js` + `images/vendor` (estáticos que cambian rara vez). | **Alta** |
 | **`config:cache` stale enmascaraba `config/deployment.php` → `git_add` fallaba** | El deploy V1.7 falló en `git_add` con `public/mix-manifest.json is ignored`: el `bootstrap/cache/config.php` traía el allowlist **viejo** (de cuando mix-manifest estaba des-ignorado, commit `3513eb16`), pero el código fuente ya lo había sacado (`6e014b77`). El cache nunca se regeneró → el pipeline usó la config stale. | ✅ **Resuelto**: `DeploymentService::run()` ahora corre `refreshDeploymentConfig()` **antes** de leer `config('deployment.steps')` — `config:cache` en subproceso (env correcto) + recarga de la sección `deployment` en memoria del proceso actual. Se muestra como primer paso `config_cache` en el log. Protege la corrida actual, no solo la siguiente (un step shell normal correría demasiado tarde). | **Alta** |
 
+### Deploy remoto (`remote:deploy`) — orden de pasos y dry-run de migraciones (2026-06-30)
+
+**Orden actual del deploy en prod** (`RemoteDeployCommand`, consumidor; se dispara por webhook o por el botón "Buscar actualizaciones" → `UpdateController::apply`, que en prod corre en `sync` lanzando `nohup php artisan remote:deploy {logId} … > storage/logs/self-update-{id}.log`):
+
+1. `backup_db` (crítico) — `backup_db:process`
+2. `git_sync` (crítico) — `git checkout tags/{version}` (trae código + migraciones nuevas)
+3. **`migrate_dryrun` (crítico, nuevo)** — `php artisan deploy:dry-run-migrations`
+4. `npm_build` (crítico) — `npm ci && npm run prod`
+5. `migrate` (no-crítico) — `php artisan migrate --force` (subproceso, NO `Artisan::call`: el `--force` programático no salta el prompt de prod en contexto nohup → se cuelga)
+6. `optimize` · 7. `queue_restart` · 8. `save_release`
+
+**Reglas de orden que NO se deben romper:**
+- `migrate` es el **punto de no retorno**: el rollback (`performRollback`) solo hace `git reset --hard` del **código**, la BD **no se restaura sola**. Por eso TODOS los pasos críticos abortables (`backup`/`git`/`dryrun`/`npm`) van **antes** de `migrate`. **No mover `npm_build` después de `migrate`** (un fallo de build dejaría esquema nuevo + código viejo).
+- Un cambio al propio `remote:deploy` recién surte efecto en el deploy **siguiente** (PHP ya cargó el comando viejo en memoria antes del checkout). Las **migraciones** sí se aplican del checkout nuevo (corren por subproceso).
+
+**`deploy:dry-run-migrations`** (`app/Console/Commands/Active/DryRunMigrationsCommand.php`): corre las migraciones **pendientes** contra una copia desechable `{db}_dryrun`. Esquema-only por defecto (mysqldump `--no-data` + copia de la tabla `migrations`, segundos) → caza fallos **estructurales**. Para fallos **dependientes de datos** (unique contra duplicados como el de `plan_bundles`, `data-too-long` al achicar, FK): `--with-data=tabla1,tabla2` copia solo esas tablas. Usa el **Migrator** directo (no el comando `migrate`) para no colgarse en el prompt de prod, y restaura la conexión por defecto en `finally`.
+- **Modo de fallo:** si **falla una migración** → exit 1 → **aborta** el deploy (rollback limpio). Si **no se puede construir el sandbox** (privilegio/infra) → warning ruidoso + exit 0 → **NO bloquea** (cae al migrate real). Así un grant faltante nunca brickea todos los deploys.
+- ⚠️ **PRE-REQUISITO de infra (correr una vez como root en dev Y en prod):** el usuario MySQL de la app necesita poder crear/borrar `{db}_dryrun`. Mientras no esté, el dry-run solo se **omite con warning** (no protege):
+  ```sql
+  GRANT ALL PRIVILEGES ON `megaisp_dryrun`.* TO 'megaisp_user'@'localhost'; FLUSH PRIVILEGES;
+  ```
+  (En prod ajustar usuario/host reales.) **No se puede hacer dry-run sobre la BD viva** con transacción: en MySQL los `ALTER`/`CREATE INDEX` hacen commit implícito.
+
+**Bug `save_release` (RESUELTO 2026-06-30):** `releases.summary` era `VARCHAR(255)` y las notas de release generadas por IA lo desbordaban → `SQLSTATE[22001] 1406` en el paso final. Peor: `saveRelease()` corría **sin try/catch** pese a ser no-crítico → la excepción mataba el comando y dejaba el `DeploymentLog` en `running` para siempre (el UI solo hace polling → "no se ve nada"). Fix (commit `56ca3e20`): migración `summary → TEXT` (corre en el paso `migrate`, **antes** de `save_release`, así el deploy se auto-sana) + try/catch en el paso inline (un fallo ahí marca solo ese paso `failed` y el deploy igual cierra `success`).
+
 ### Portal Cliente — estado al 2026-06-15
 
 | Item | Descripción | Estado | Prioridad |

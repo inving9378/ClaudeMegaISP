@@ -78,6 +78,13 @@ class RemoteDeployCommand extends Command
             ['key' => 'backup_db',     'name' => 'Respaldar base de datos',         'type' => 'artisan', 'cmd' => 'backup_db:process',    'timeout' => 300, 'critical' => true],
             // 2. Checkout del tag (o reset a main si no hay tag)
             ['key' => 'git_sync',      'name' => 'Sincronizar código (' . ($version ?: 'origin/main') . ')', 'type' => 'shell', 'cmd' => $gitSyncCmd, 'timeout' => 120, 'critical' => true],
+            // 2.5 Dry-run de migraciones contra una copia de la BD — DESPUÉS de git_sync (necesita
+            //     los archivos de migración nuevos) y ANTES de npm_build (el paso lento) y del
+            //     migrate real. Crítico: si una migración va a tronar, abortamos barato aquí
+            //     (solo se hizo backup + checkout → rollback = git reset limpio, sin esquema tocado).
+            //     Esquema-only por defecto; para validar fallos dependientes de datos, añadir
+            //     --with-data=tabla1,tabla2 al comando.
+            ['key' => 'migrate_dryrun', 'name' => 'Validar migraciones (dry-run)',     'type' => 'shell', 'cmd' => 'php artisan deploy:dry-run-migrations', 'timeout' => 180, 'critical' => true],
             // 3. Compilar el frontend EN el servidor (assets fuera de git) — crítico:
             //    si falla, se aborta y hace rollback (nunca deja prod con código nuevo y JS roto)
             //    NOTA: no se corre composer aquí a propósito — este prod usa deps de dev y
