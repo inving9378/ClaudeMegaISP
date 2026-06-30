@@ -55,6 +55,35 @@ class UpdateController extends Controller
             'release'           => $enabled ? $result : null,
             'can_check'         => $canCheck,
             'show_check_button' => $enabled && $canCheck && (bool) config('updates.manual_check_button', true),
+            // Deploy en curso (si lo hay) → el banner del dashboard se re-engancha solo:
+            // sobrevive a reloads, a cerrar la pestaña y lo ve cualquier admin, sin tener
+            // que haber sido quien apretó el botón.
+            'active_deployment' => $enabled ? $this->activeDeployment() : null,
+        ];
+    }
+
+    /**
+     * El deploy más reciente que sigue en curso (pending/running), para que el frontend
+     * se re-enganche al recargar. Null si no hay ninguno activo.
+     */
+    private function activeDeployment(): ?array
+    {
+        // Solo deploys RECIENTES: un deploy real termina en minutos. Un log que lleva
+        // horas en «running» es un zombie (proceso muerto sin cerrar el log) → no debe
+        // secuestrar el banner con un "aplicando…" perpetuo.
+        $log = DeploymentLog::whereIn('status', ['pending', 'running'])
+            ->where('created_at', '>=', now()->subHours(2))
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$log) {
+            return null;
+        }
+
+        return [
+            'id'      => $log->id,
+            'version' => $log->payload['version'] ?? null,
+            'status'  => $log->status,
         ];
     }
 

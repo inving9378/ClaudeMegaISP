@@ -29,6 +29,45 @@ class DeploymentController extends Controller
     }
 
     /**
+     * Tail del log del proceso desprendido del deploy en prod (nohup remote:deploy →
+     * storage/logs/self-update-{id}.log). Permite ver el avance EN VIVO desde el navegador
+     * (sobre todo durante npm_build, el paso lento) sin entrar a la consola del servidor.
+     * Devuelve solo la cola del archivo para no transferir megas en cada poll.
+     */
+    public function log(int $id)
+    {
+        $log  = DeploymentLog::findOrFail($id);
+        $path = storage_path("logs/self-update-{$id}.log");
+
+        $content = '';
+        $exists  = is_file($path);
+
+        if ($exists) {
+            $maxBytes = 24576; // últimos ~24KB
+            $size     = filesize($path);
+            $fh       = fopen($path, 'rb');
+            if ($fh !== false) {
+                if ($size > $maxBytes) {
+                    fseek($fh, -$maxBytes, SEEK_END);
+                }
+                $content = (string) stream_get_contents($fh);
+                fclose($fh);
+                // Si truncamos, descartar la primera línea (probablemente parcial).
+                if ($size > $maxBytes && ($nl = strpos($content, "\n")) !== false) {
+                    $content = substr($content, $nl + 1);
+                }
+            }
+        }
+
+        return response()->json([
+            'deployment_id' => $log->id,
+            'status'        => $log->status,
+            'exists'        => $exists,
+            'log'           => $content,
+        ]);
+    }
+
+    /**
      * Historial paginado de todos los deploys.
      */
     public function index(Request $request)

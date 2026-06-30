@@ -151,6 +151,25 @@
                         </div>
                     </div>
 
+                    <!-- Consola en vivo del servidor (tail de self-update-{id}.log) -->
+                    <div v-if="logExists || logTail" class="mt-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted fw-semibold">
+                                <i class="bi bi-terminal me-1"></i> Consola del servidor
+                                <span v-if="isRunning" class="text-primary">· en vivo</span>
+                            </small>
+                            <a href="#" class="small text-muted" @click.prevent="logVisible = !logVisible">
+                                {{ logVisible ? 'Ocultar' : 'Mostrar' }}
+                            </a>
+                        </div>
+                        <pre
+                            v-show="logVisible"
+                            ref="logBox"
+                            class="bg-dark text-light p-2 rounded small mb-0"
+                            style="max-height:220px;overflow-y:auto;font-size:11px;white-space:pre-wrap;word-break:break-all"
+                        >{{ logTail || 'Esperando salida del servidor…' }}</pre>
+                    </div>
+
                     <!-- Mejoras de esta versión (cargadas tras deploy exitoso) -->
                     <div v-if="overallStatus === 'success' && releaseDescriptions.length" class="mt-3">
                         <hr class="my-2" />
@@ -209,7 +228,7 @@
 </template>
 
 <script>
-import { ref, computed } from "vue";
+import { ref, computed, nextTick } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -232,6 +251,12 @@ export default {
         const retrying            = ref(false);
         const releaseDescriptions = ref([]);
         const releaseId           = ref(null);
+
+        // Consola en vivo: tail de storage/logs/self-update-{id}.log del servidor.
+        const logTail    = ref("");
+        const logExists  = ref(false);
+        const logVisible = ref(true);
+        const logBox     = ref(null);
 
         // Estado interno: NO depender de los props, que se actualizan en el
         // siguiente tick. open() recibe el id/version directo del padre para
@@ -350,6 +375,10 @@ export default {
                 console.error("Error al obtener estado del deploy:", e);
             }
 
+            // Tail del log del servidor (consola en vivo). Se trae cada ciclo mientras corre
+            // y una vez más al terminar (para dejar la salida final). Silencioso si no existe.
+            await fetchLog();
+
             if (isDone.value) {
                 clearTimeout(pollTimer);
                 clearInterval(clockTimer);
@@ -360,6 +389,35 @@ export default {
             } else {
                 pollTimer = setTimeout(poll, 2500);
             }
+        };
+
+        const fetchLog = async () => {
+            if (!activeId.value) return;
+            try {
+                const { data } = await axios.get(`/releases/deployment/${activeId.value}/log`);
+                logExists.value = !!data.exists;
+                if (typeof data.log === "string" && data.log !== logTail.value) {
+                    const atBottom = isLogAtBottom();
+                    logTail.value = data.log;
+                    if (atBottom) {
+                        await nextTick();
+                        scrollLogToBottom();
+                    }
+                }
+            } catch {
+                // silencioso: en el publicador el archivo no existe → panel oculto
+            }
+        };
+
+        const isLogAtBottom = () => {
+            const el = logBox.value;
+            if (!el) return true;
+            return el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        };
+
+        const scrollLogToBottom = () => {
+            const el = logBox.value;
+            if (el) el.scrollTop = el.scrollHeight;
         };
 
         const loadDescriptions = async (rid) => {
@@ -382,6 +440,9 @@ export default {
             outputVisible.value       = {};
             releaseDescriptions.value = [];
             releaseId.value           = null;
+            logTail.value             = "";
+            logExists.value           = false;
+            logVisible.value          = true;
             clearTimeout(pollTimer);
             clearInterval(clockTimer);
             elapsedSeconds.value = 0;
@@ -464,6 +525,7 @@ export default {
             progressPercent, progressLabel, progressBarClass, progressTextClass,
             elapsedSeconds, elapsedFormatted,
             releaseDescriptions,
+            logTail, logExists, logVisible, logBox,
             open, close, retry,
             remoteSubSteps, toggleOutput, formatDuration, stepRowClass, stepTextClass,
         };

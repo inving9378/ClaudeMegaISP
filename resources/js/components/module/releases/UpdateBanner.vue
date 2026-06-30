@@ -2,6 +2,55 @@
     <!-- Contenedor: solo se renderiza en consumidoras (enabled=true). En el publicador
          (.11, updates.enabled=false) el componente no muestra nada, igual que antes. -->
     <div v-if="enabled" class="update-banner-wrap">
+        <!-- Banner PERSISTENTE de deploy en curso / recién terminado.
+             Se re-engancha solo al cargar el dashboard (sobrevive a reloads y lo ve
+             cualquier admin), con % y paso actual. Clic en "Ver detalle" reabre el modal. -->
+        <div
+            v-if="activeDeploy"
+            class="update-banner alert d-flex align-items-center gap-3 mb-3 shadow-sm"
+            :class="activeBannerClass"
+            role="alert"
+        >
+            <div class="flex-shrink-0">
+                <span v-if="activeRunning" class="spinner-border spinner-border-sm"></span>
+                <i v-else-if="activeDeploy.status === 'success'" class="bi bi-check-circle-fill fs-5 text-success"></i>
+                <i v-else class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+            </div>
+
+            <div class="flex-grow-1 min-width-0">
+                <strong v-if="activeRunning">
+                    Aplicando actualización<span v-if="activeDeploy.version"> — {{ activeDeploy.version }}</span>…
+                </strong>
+                <strong v-else-if="activeDeploy.status === 'success'" class="text-success">
+                    Actualización aplicada<span v-if="activeDeploy.version"> — {{ activeDeploy.version }}</span>
+                </strong>
+                <strong v-else class="text-danger">La actualización falló — revisa el detalle</strong>
+
+                <div v-if="activeRunning" class="mt-1">
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>{{ activeDeploy.currentStep || 'Iniciando…' }}</span>
+                        <span>{{ activeDeploy.percent }}%<span v-if="activeDeploy.progressText"> · {{ activeDeploy.progressText }}</span></span>
+                    </div>
+                    <div class="progress" style="height:6px;border-radius:6px;background:#e9ecef">
+                        <div
+                            class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                            :style="{ width: activeDeploy.percent + '%', transition: 'width 0.6s ease' }"
+                        ></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 flex-shrink-0 align-items-start">
+                <button v-if="activeDeploy.status === 'success'" class="btn btn-sm btn-success text-white" @click="reloadPage">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Recargar
+                </button>
+                <button class="btn btn-sm" :class="activeRunning ? 'btn-primary' : 'btn-outline-secondary'" @click="reopenModal">
+                    <i class="bi bi-eye me-1"></i> Ver detalle
+                </button>
+                <button v-if="!activeRunning" type="button" class="btn-close" @click="dismissActive" aria-label="Cerrar"></button>
+            </div>
+        </div>
+
         <!-- Banner de actualización disponible -->
         <div v-if="updateAvailable" class="update-banner alert alert-info alert-dismissible d-flex align-items-center gap-3 mb-3 shadow-sm" role="alert">
             <!-- Icono -->
@@ -95,7 +144,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted, nextTick } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -113,6 +162,62 @@ export default {
         const checking        = ref(false);
         const upToDate        = ref(false);
 
+        // ── Deploy en curso (auto-reenganche + banner persistente) ──────────────
+        const activeDeploy = ref(null); // { id, version, status, percent, currentStep, progressText }
+        let activePollTimer = null;
+        let autoOpenedId    = null;     // evita re-abrir el modal en cada poll/reload
+
+        const activeRunning = computed(() =>
+            activeDeploy.value && ["pending", "running"].includes(activeDeploy.value.status)
+        );
+
+        const activeBannerClass = computed(() => {
+            if (!activeDeploy.value) return "";
+            if (activeDeploy.value.status === "success") return "alert-success";
+            if (["failed", "rolled_back"].includes(activeDeploy.value.status)) return "alert-danger";
+            return "alert-primary";
+        });
+
+        // Deriva %, paso actual y texto de progreso desde los steps del status.
+        const deriveActive = (data) => {
+            const steps   = data.steps ?? [];
+            const done    = steps.filter(s => ["success", "failed", "skipped"].includes(s.status)).length;
+            const running = steps.find(s => s.status === "running");
+            return {
+                status:       data.status,
+                percent:      steps.length ? Math.min(100, Math.round(((done + (running ? 0.5 : 0)) / steps.length) * 100)) : 0,
+                currentStep:  running ? running.name : null,
+                progressText: steps.length ? `${done}/${steps.length} pasos` : "",
+            };
+        };
+
+        const pollActive = async () => {
+            if (!activeDeploy.value) return;
+            try {
+                const { data } = await axios.get(`/releases/deployment/${activeDeploy.value.id}/status`);
+                activeDeploy.value = { ...activeDeploy.value, ...deriveActive(data) };
+                if (["success", "failed", "rolled_back"].includes(data.status)) {
+                    clearTimeout(activePollTimer);
+                    activePollTimer = null;
+                    return; // el banner queda mostrando el estado final
+                }
+            } catch {
+                // silencioso
+            }
+            activePollTimer = setTimeout(pollActive, 2500);
+        };
+
+        const startActive = (id, version, status = "running") => {
+            if (!id) return;
+            activeDeploy.value = { id, version, status, percent: 0, currentStep: null, progressText: "" };
+            clearTimeout(activePollTimer);
+            pollActive();
+        };
+
+        const reopenModal  = () => { if (activeDeploy.value) progressModal.value?.open(activeDeploy.value.id, activeDeploy.value.version); };
+        const reloadPage   = () => window.location.reload();
+        const dismissActive = () => { clearTimeout(activePollTimer); activePollTimer = null; activeDeploy.value = null; };
+
         // Aplica el payload de /status o /check (mismo shape) al estado del componente.
         const applyStatus = (data) => {
             enabled.value         = !!data.enabled;
@@ -129,6 +234,18 @@ export default {
             try {
                 const { data } = await axios.get("/api/updates/status");
                 applyStatus(data);
+
+                // Hay un deploy aplicándose ahora mismo → re-engancharse: banner + abrir el
+                // modal una sola vez (el v-if de enabled ya renderizó el modal en este tick).
+                if (data.active_deployment) {
+                    const ad = data.active_deployment;
+                    startActive(ad.id, ad.version, ad.status);
+                    if (autoOpenedId !== ad.id) {
+                        autoOpenedId = ad.id;
+                        await nextTick();
+                        progressModal.value?.open(ad.id, ad.version);
+                    }
+                }
             } catch {
                 // Silencioso: si el endpoint falla no rompemos el dashboard
             }
@@ -160,6 +277,8 @@ export default {
                 const { data } = await axios.post("/api/updates/apply");
                 if (data.success) {
                     updateAvailable.value = false;
+                    autoOpenedId = data.deployment_id;          // ya lo abrimos aquí → no re-abrir en el reenganche
+                    startActive(data.deployment_id, data.version, "running");
                     progressModal.value?.open(data.deployment_id, data.version);
                 } else {
                     Swal.fire("Error", data.message || "No se pudo iniciar la actualización.", "error");
@@ -194,7 +313,11 @@ export default {
             }
         };
 
-        return { enabled, showCheckButton, updateAvailable, release, showChangelog, applying, progressModal, checking, upToDate, checkNow, applyUpdate, onDeployClosed, dismiss, formatDate };
+        return {
+            enabled, showCheckButton, updateAvailable, release, showChangelog, applying, progressModal, checking, upToDate,
+            checkNow, applyUpdate, onDeployClosed, dismiss, formatDate,
+            activeDeploy, activeRunning, activeBannerClass, reopenModal, reloadPage, dismissActive,
+        };
     },
 };
 </script>

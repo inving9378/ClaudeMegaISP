@@ -43,5 +43,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     // Deploy pipeline
     Route::get('/deployments',                    [DeploymentController::class, 'index']);
     Route::get('/deployment/{id}/status',         [DeploymentController::class, 'status'])->whereNumber('id');
+    Route::get('/deployment/{id}/log',            [DeploymentController::class, 'log'])->whereNumber('id');
     Route::post('/deployment/{id}/retry',         [DeploymentController::class, 'retry'])->whereNumber('id');
 });
