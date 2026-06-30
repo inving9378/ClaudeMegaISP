@@ -6,6 +6,7 @@ use App\Events\Referrals\ProspectConverted;
 use App\Models\Referrals\ClientReferralProfile;
 use App\Models\Referrals\Referral;
 use App\Models\Referrals\ReferralProspect;
+use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use App\Modules\Core\Clientes\Models\Client;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,18 @@ class ClientObserver
      */
     public function created(Client $client): void
     {
+        // Motor de cobro nativo: clave de conciliación inmutable por cliente.
+        // Va antes del early-return de referidos para que TODO cliente nuevo la tenga.
+        // En try/catch: un fallo aquí jamás debe abortar el alta del cliente.
+        try {
+            PaymentReferenceService::ensureFor($client->id);
+        } catch (\Throwable $e) {
+            Log::error('ClientObserver: no se pudo generar la referencia de pago', [
+                'client_id' => $client->id,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+
         if (empty($client->referred_by_code)) {
             return;
         }
