@@ -5,6 +5,26 @@ namespace App\Http\HelpersModule\module;
 class HelperDatatable
 {
 
+    /**
+     * Resuelve los nombres de columna configurados para un módulo (tabla `modules`),
+     * de forma NULL-SAFE: si la fila del módulo no existe, devuelve [] en vez de
+     * reventar con "Attempt to read property columnsDatatable on null".
+     *
+     * Red de seguridad para cualquier helper hijo cuyo módulo no esté sembrado
+     * (ver Hoja de Ruta #173). NO altera el caso feliz: con la fila presente
+     * devuelve exactamente las mismas columnas que antes (excluyendo 'action').
+     */
+    protected function resolveModuleColumns($moduleName)
+    {
+        $module = \App\Models\Module::where('name', $moduleName)->first();
+
+        if (! $module) {
+            return [];
+        }
+
+        return $module->columnsDatatable->where('name', '!=', 'action')->pluck('name')->toArray();
+    }
+
     public function fetch_datatable_data($request)
     {
         if (empty($request->data['columns'])) {

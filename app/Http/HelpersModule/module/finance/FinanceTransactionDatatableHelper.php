@@ -3,7 +3,6 @@
 
 namespace App\Http\HelpersModule\module\finance;
 
-use App\Models\Module;
 use App\Models\Transaction;
 use App\Http\HelpersModule\module\HelperDatatable;
 use App\Services\FormatDateService;
@@ -11,14 +10,26 @@ use App\Services\FormatDateService;
 class FinanceTransactionDatatableHelper extends HelperDatatable
 {
     private $model, $columns;
+    private $moduleName = 'FinanceTransaction';
 
 
     public function __construct()
     {
         $this->model = Transaction::class;
-        $moduleName = 'FinanceTransaction';
-        $this->columns = Module::where('name', $moduleName)->first()
-        ->columnsDatatable->where('name', '!=', 'action')->pluck('name')->toArray();
+    }
+
+    /**
+     * Carga perezosa + null-safe de las columnas del módulo (#173).
+     * No se consulta la BD al construir (evita el crash en route:list y en la
+     * resolución del controller); se resuelve la primera vez que se necesita.
+     */
+    private function columns()
+    {
+        if ($this->columns === null) {
+            $this->columns = $this->resolveModuleColumns($this->moduleName);
+        }
+
+        return $this->columns;
     }
 
 
@@ -38,7 +49,7 @@ class FinanceTransactionDatatableHelper extends HelperDatatable
 
     public function searching_query($start, $limit, $order, $dir, $search)
     {
-        return $this->model::filters($this->columns, $search)
+        return $this->model::filters($this->columns(), $search)
             ->select('*')
             ->offset($start)
             ->limit($limit)
@@ -48,7 +59,7 @@ class FinanceTransactionDatatableHelper extends HelperDatatable
 
     public function filtering_query($search)
     {
-        return $this->model::filters($this->columns, $search)
+        return $this->model::filters($this->columns(), $search)
             ->count();
     }
 
@@ -61,7 +72,7 @@ class FinanceTransactionDatatableHelper extends HelperDatatable
         if (!empty($request['array'])) {
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
-                foreach ($this->columns as $val){
+                foreach ($this->columns() as $val){
                     if ($val == 'date') {
                         $value->date = (new FormatDateService($value->date))->formatDate();
                     }

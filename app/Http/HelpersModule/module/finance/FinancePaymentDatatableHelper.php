@@ -4,7 +4,6 @@
 namespace App\Http\HelpersModule\module\finance;
 
 use App\Http\Controllers\Utils\ComunConstantsController;
-use App\Models\Module;
 use App\Models\Payment;
 use App\Http\HelpersModule\module\HelperDatatable;
 use App\Models\ClientMainInformation;
@@ -17,14 +16,25 @@ use Symfony\Component\Uid\NilUlid;
 class FinancePaymentDatatableHelper extends HelperDatatable
 {
     private $model, $columns;
+    private $moduleName = 'FinancePayment';
 
 
     public function __construct()
     {
         $this->model = Payment::class;
-        $moduleName = 'FinancePayment';
-        $this->columns = Module::where('name', $moduleName)->first()
-            ->columnsDatatable->where('name', '!=', 'action')->pluck('name')->toArray();
+    }
+
+    /**
+     * Carga perezosa + null-safe de las columnas del módulo (#173).
+     * No se consulta la BD al construir; se resuelve al primer uso.
+     */
+    private function columns()
+    {
+        if ($this->columns === null) {
+            $this->columns = $this->resolveModuleColumns($this->moduleName);
+        }
+
+        return $this->columns;
     }
 
     public function count($filters = null, $search = null)
@@ -51,7 +61,7 @@ class FinancePaymentDatatableHelper extends HelperDatatable
             ->orderBy($order, $dir);
 
         if (!empty($filters)) {
-            $query = $query->filters($this->columns, null, $filters);
+            $query = $query->filters($this->columns(), null, $filters);
         }
 
         return $query->get();
@@ -73,7 +83,7 @@ class FinancePaymentDatatableHelper extends HelperDatatable
     public function searching_query($start, $limit, $order, $dir, $search, $filters = null, $columns = null)
     {
         $columnsSelected = $this->columnsSelected();
-        $query = $this->model::filters($this->columns, $search, $filters)
+        $query = $this->model::filters($this->columns(), $search, $filters)
             ->select(...$columnsSelected)
             ->leftJoin('client_main_information', 'payments.paymentable_id', '=', 'client_main_information.client_id')
             ->leftJoin('method_of_payments', 'payments.payment_method_id', '=', 'method_of_payments.id')
@@ -85,14 +95,14 @@ class FinancePaymentDatatableHelper extends HelperDatatable
 
     public function filtering_query($search)
     {
-        return $this->model::filters($this->columns, $search)
+        return $this->model::filters($this->columns(), $search)
             ->count();
     }
 
     public function queryCustomFilter($model, $filters)
     {
         $query = $model::query();
-        $query->filters($this->columns, null, $filters);
+        $query->filters($this->columns(), null, $filters);
 
         return $query;
     }
@@ -106,7 +116,7 @@ class FinancePaymentDatatableHelper extends HelperDatatable
         if (!empty($request['array'])) {
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
-                foreach ($this->columns as $val) {
+                foreach ($this->columns() as $val) {
                     if ($val == 'date') {
                         $value->date = (new FormatDateService($value->date))->formatDate();
                     }

@@ -3,7 +3,6 @@
 
 namespace App\Http\HelpersModule\module\finance;
 
-use App\Models\Module;
 use App\Models\ClientInvoice;
 use App\Http\HelpersModule\module\HelperDatatable;
 use App\Services\FormatDateService;
@@ -11,14 +10,25 @@ use App\Services\FormatDateService;
 class FinanceInvoiceDatatableHelper extends HelperDatatable
 {
     private $model, $columns;
+    private $moduleName = 'FinanceInvoice';
 
 
     public function __construct()
     {
         $this->model = ClientInvoice::class;
-        $moduleName = 'FinanceInvoice';
-        $this->columns = Module::where('name', $moduleName)->first()
-            ->columnsDatatable->where('name', '!=', 'action')->pluck('name')->toArray();
+    }
+
+    /**
+     * Carga perezosa + null-safe de las columnas del módulo (#173).
+     * No se consulta la BD al construir; se resuelve al primer uso.
+     */
+    private function columns()
+    {
+        if ($this->columns === null) {
+            $this->columns = $this->resolveModuleColumns($this->moduleName);
+        }
+
+        return $this->columns;
     }
 
 
@@ -38,7 +48,7 @@ class FinanceInvoiceDatatableHelper extends HelperDatatable
 
     public function searching_query($start, $limit, $order, $dir, $search)
     {
-        return $this->model::filters($this->columns, $search)
+        return $this->model::filters($this->columns(), $search)
             ->select('*')
             ->offset($start)
             ->limit($limit)
@@ -48,7 +58,7 @@ class FinanceInvoiceDatatableHelper extends HelperDatatable
 
     public function filtering_query($search)
     {
-        return $this->model::filters($this->columns, $search)
+        return $this->model::filters($this->columns(), $search)
             ->count();
     }
 
@@ -62,7 +72,7 @@ class FinanceInvoiceDatatableHelper extends HelperDatatable
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
                 //dd($this->columns);
-                foreach ($this->columns as $val) {
+                foreach ($this->columns() as $val) {
                     if ($val == 'payment_date') {
                         $value->payment_date = (new FormatDateService($value->payment_date))->formatDate();
                     }
