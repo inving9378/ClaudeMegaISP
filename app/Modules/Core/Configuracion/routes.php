@@ -376,6 +376,9 @@ Route::middleware(['web', 'auth', 'permission:module.visibility.manage'])
     ->name('admin.modules.visibility.')
     ->group(function () {
         Route::get('/',             [ModuleVisibilityController::class, 'index'])->name('index');
+        // #168 — reorden por lote (drag-and-drop). ANTES de /{moduleKey} para que
+        // 'reorder' no sea capturado como un moduleKey.
+        Route::post('/reorder',     [ModuleVisibilityController::class, 'reorder'])->name('reorder');
         Route::get('/{moduleKey}',  [ModuleVisibilityController::class, 'show'])->name('show');
         Route::put('/{moduleKey}',  [ModuleVisibilityController::class, 'update'])->name('update');
     });

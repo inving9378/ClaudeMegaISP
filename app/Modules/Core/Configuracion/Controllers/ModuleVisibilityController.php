@@ -72,4 +72,21 @@ class ModuleVisibilityController extends Controller
 
         return response()->json($item);
     }
+
+    /**
+     * Reorden por lote (#168 — drag-and-drop). Recibe el orden completo de una
+     * sección y persiste los sidebar_position en UNA transacción (atómico).
+     */
+    public function reorder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order'                    => ['required', 'array', 'min:1'],
+            'order.*.module_key'       => ['required', 'string', Rule::exists('module_sidebar_config', 'module_key')],
+            'order.*.sidebar_position' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $this->svc->reorder($validated['order']);
+
+        return response()->json(['ok' => true, 'total' => count($validated['order'])]);
+    }
 }

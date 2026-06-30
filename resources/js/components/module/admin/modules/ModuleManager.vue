@@ -15,6 +15,14 @@
                     placeholder="Buscar módulo…"
                     style="width:220px"
                 />
+                <button
+                    v-if="canManageVisibility"
+                    class="btn btn-sm btn-outline-primary"
+                    title="Reordenar módulos del sidebar (drag-and-drop)"
+                    @click="reorderModal.show = true"
+                >
+                    <i class="fa fa-arrows-up-down me-1"></i>Reordenar sidebar
+                </button>
                 <button class="btn btn-sm btn-outline-secondary" @click="reload">
                     <i class="fa fa-sync-alt" :class="{ 'fa-spin': loading }"></i>
                 </button>
@@ -275,17 +283,22 @@
             :module-key="visibilityModal.moduleKey"
         />
 
+        <!-- Modal de reorden por drag-and-drop (#168) -->
+        <sidebar-reorder v-model="reorderModal.show" />
+
     </div>
 </template>
 
 <script>
 import { darkMode } from "../../../../hook/appConfig.js";
 import ModuleVisibilityConfig from "../../../admin/ModuleVisibilityConfig.vue";
+import SidebarReorder from "../../../admin/SidebarReorder.vue";
 
 export default {
     name: 'ModuleManager',
     components: {
         ModuleVisibilityConfig,
+        SidebarReorder,
     },
     setup() {
         return { darkMode };
@@ -311,6 +324,7 @@ export default {
             loading:      false,
             modal: { show: false, action: null, module: null, preview: null, keepData: true },
             visibilityModal: { show: false, moduleKey: '' },
+            reorderModal: { show: false },
         };
     },
     computed: {

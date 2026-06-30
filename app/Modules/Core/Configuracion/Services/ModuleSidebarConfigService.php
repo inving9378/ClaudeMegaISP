@@ -4,6 +4,7 @@ namespace App\Modules\Core\Configuracion\Services;
 
 use App\Models\ModuleSidebarConfig;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ModuleSidebarConfigService
@@ -59,6 +60,26 @@ class ModuleSidebarConfigService
         cache()->forget('sidebar_visible_items');
 
         return $result;
+    }
+
+    /**
+     * Reordena en lote (#168 — drag-and-drop). Aplica los nuevos sidebar_position
+     * de varios módulos en UNA transacción: o se aplica todo el reorden, o nada.
+     * Atómico a propósito — evita estados intermedios (huecos/duplicados) si una
+     * actualización fallara a mitad. Escribe la MISMA columna que el editor numérico.
+     *
+     * @param array<int, array{module_key:string, sidebar_position:int}> $order
+     */
+    public function reorder(array $order): void
+    {
+        DB::transaction(function () use ($order) {
+            foreach ($order as $row) {
+                ModuleSidebarConfig::where('module_key', $row['module_key'])
+                    ->update(['sidebar_position' => (int) $row['sidebar_position']]);
+            }
+        });
+
+        cache()->forget('sidebar_visible_items');
     }
 
     public function listAll(): Collection
