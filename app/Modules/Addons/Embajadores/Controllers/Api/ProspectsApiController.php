@@ -7,6 +7,7 @@ use App\Http\Requests\Embajadores\StoreProspectRequest;
 use App\Http\Requests\Embajadores\UpdateProspectRequest;
 use App\Http\Resources\Embajadores\ProspectResource;
 use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\ClientMainInformation;
 use App\Models\Referrals\ClientReferralProfile;
 use App\Models\Referrals\ReferralProspect;
@@ -18,7 +19,7 @@ class ProspectsApiController extends Controller
 {
     // ---- helpers -----------------------------------------------------------
 
-    private function resolveClient(): ?Client
+    private function resolveClient(): ?ClientModel
     {
         $client = Client::where('user_id', Auth::id())->first();
         if ($client) return $client;
@@ -37,7 +38,7 @@ class ProspectsApiController extends Controller
         return response()->json(['error' => 'Cliente no encontrado.'], 404);
     }
 
-    private function requireEmbajador(Client $client): ?ClientReferralProfile
+    private function requireEmbajador(ClientModel $client): ?ClientReferralProfile
     {
         return ClientReferralProfile::where('client_id', $client->id)->first();
     }

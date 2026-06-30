@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Embajadores\StoreFollowupRequest;
 use App\Http\Resources\Embajadores\ProspectFollowupResource;
 use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\ClientMainInformation;
 use App\Models\Referrals\ProspectFollowup;
 use App\Models\Referrals\ReferralProspect;
@@ -16,7 +17,7 @@ class ProspectFollowupsApiController extends Controller
 {
     // ---- helpers -----------------------------------------------------------
 
-    private function resolveClient(): ?Client
+    private function resolveClient(): ?ClientModel
     {
         $client = Client::where('user_id', Auth::id())->first();
         if ($client) return $client;

@@ -4,6 +4,7 @@ namespace App\Modules\Addons\MegaFamilia\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\ClientMainInformation;
 use App\Models\File;
 use App\Models\ObservationTask;
@@ -1080,7 +1081,7 @@ class ApiController extends Controller
      * Resuelve el Client del usuario autenticado. La FK directa `clients.user_id`
      * sólo existe para ~1 registro; el flujo correcto es CMI.user → login_user.
      */
-    private function resolveClientForCurrentUser(): ?Client
+    private function resolveClientForCurrentUser(): ?ClientModel
     {
         $client = Client::where('user_id', Auth::id())->first();
         if ($client) return $client;

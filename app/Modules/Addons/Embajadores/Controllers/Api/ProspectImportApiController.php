@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Embajadores\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Embajadores\ImportProspectsRequest;
 use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\ClientMainInformation;
 use App\Models\Referrals\ClientReferralProfile;
 use App\Models\Referrals\ReferralProspect;
@@ -15,7 +16,7 @@ class ProspectImportApiController extends Controller
 {
     // ---- helpers -----------------------------------------------------------
 
-    private function resolveClient(): ?Client
+    private function resolveClient(): ?ClientModel
     {
         $client = Client::where('user_id', Auth::id())->first();
         if ($client) return $client;

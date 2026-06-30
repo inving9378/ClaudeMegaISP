@@ -3,6 +3,7 @@
 namespace App\Models\Referrals;
 
 use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Traits\BelongsToClientTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -76,7 +77,7 @@ class ClientReferralProfile extends Model
      * Genera código único tipo MGN-IRV-A4F2.
      * Toma las 3 primeras letras del nombre del cliente como parte identificable.
      */
-    public static function generateUniqueCode(Client $client): string
+    public static function generateUniqueCode(ClientModel $client): string
     {
         $prefix     = 'MGN';
         $name       = $client->clientGetName() ?? ($client->client_name ?? '');
