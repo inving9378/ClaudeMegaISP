@@ -132,6 +132,13 @@ class AppServiceProvider extends ServiceProvider
 
         // VoIP: ciclo de vida de extensión al cambiar estado del usuario
         User::observe(UserVoipObserver::class);
+
+        // Banner persistente de conciliación en el listado de clientes:
+        // inyecta el conteo de tickets de conciliación abiertos (motor de cobro nativo).
+        \Illuminate\Support\Facades\View::composer(
+            'meganet.module.client.index',
+            \App\Modules\Addons\Payments\View\Composers\ReconciliationBannerComposer::class
+        );
     }
 
     /**
