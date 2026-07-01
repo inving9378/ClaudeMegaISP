@@ -10,6 +10,7 @@ use App\Modules\Core\Clientes\Repositories\ClientRepository;
 use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
 use App\Http\Repository\DocumentTemplateRepository;
 use App\Http\Requests\module\client\ClientPaymentRequest;
+use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Core\Clientes\Models\ClientPaymentMetadata;
 use App\Models\GeneralAccountingIncome;
@@ -271,6 +272,9 @@ class ClientPaymentController extends Controller
 
             if ($payment->isModelClient()) {
                 $client = Client::where('id', $payment->paymentable_id)->first();
+                // Red de seguridad: al mostrar el recibo, garantiza la referencia MEG
+                // del cliente y la incluye para que el comprobante pueda mostrarla.
+                $paymentReference = PaymentReferenceService::ensureFor($payment->paymentable_id)->reference;
                 $data = [
                     'payment_id' => $payment_id,
                     'ticket_number' => $payment->receipt,
@@ -281,7 +285,8 @@ class ClientPaymentController extends Controller
                     'pay_up' => $this->getActiveServiceExpiration($payment->paymentable_id),
                     'billing_expiration' => $this->getActiveServiceExpiration($payment->paymentable_id),
                     'date' => $payment->date,
-                    'client_id' => $payment->paymentable_id
+                    'client_id' => $payment->paymentable_id,
+                    'payment_reference' => $paymentReference,
                 ];
             }
 

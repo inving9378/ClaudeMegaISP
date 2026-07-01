@@ -3,6 +3,7 @@
 namespace App\Services\Finance\Invoice;
 
 use App\Http\Repository\ClientRepository;
+use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -16,6 +17,11 @@ class InvoiceService
     {
         return DB::transaction(function () use ($data) {
             $invoice = Invoice::create($data);
+            // Red de seguridad: todo cliente facturado tiene su referencia MEG
+            // (cubre a quienes nacieron por import sin disparar el observer).
+            if (!empty($invoice->client_id)) {
+                PaymentReferenceService::ensureFor($invoice->client_id);
+            }
             $clientRepository = new ClientRepository();
             $dataServices = $clientRepository->calculateAmounts($invoice->client);
             $dataInvoice = [];

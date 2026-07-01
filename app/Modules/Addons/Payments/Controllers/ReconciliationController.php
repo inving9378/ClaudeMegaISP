@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Payments\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Payments\Models\ReconciliationTicket;
+use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,6 +65,11 @@ class ReconciliationController extends Controller
                 $r->reason_label = self::REASON_LABELS[$r->reason] ?? $r->reason;
                 $r->client_name = $r->client_name ?: null;
                 $r->resolved_by_name = $r->resolved_by_name ?: null;
+                // Red de seguridad: al conciliar (mostrar/buscar por referencia),
+                // si el cliente del ticket aún no tiene MEG, se genera al vuelo.
+                if (!empty($r->client_id) && empty($r->client_reference)) {
+                    $r->client_reference = PaymentReferenceService::ensureFor($r->client_id)->reference;
+                }
                 return $r;
             });
 
