@@ -214,6 +214,16 @@
                 await recargarDetalle(); cargarOts();
             }
 
+            async function aceptarOt() {
+                if (!detalle.value || accionOt.value) return;
+                accionOt.value = true;
+                const { ok, data } = await apiFetch(otUrl('/aceptar'), { method: 'POST' });
+                accionOt.value = false;
+                if (!ok) { $q.notify({ type: 'warning', icon: 'block', message: (data && data.message) || 'No se pudo aceptar.', timeout: 6000 }); return; }
+                $q.notify({ type: 'positive', icon: 'verified', message: (data && data.message) || 'OT aceptada.', timeout: 5000 });
+                await recargarDetalle(); cargarOts();
+            }
+
             // ── Captura de evidencia anti-fraude (cámara viva) ──
             const capturaAbierta = ref(false);
             const camaraSoportada = ref(true);
@@ -420,7 +430,7 @@
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
                 fmtHora, statusInfo,
                 registrarEntrada, registrarSalida, abrirDetalle, cerrarDetalle, recargarDetalle,
-                iniciarOt, completarOt, toggleDark, logout,
+                iniciarOt, completarOt, aceptarOt, toggleDark, logout,
                 capturaAbierta, camaraSoportada, camaraError, streamActivo, fotoTomada,
                 tipoEvidencia, tiposCapturables, tipoSel, dbmValor, justificacionValor, enviandoEvidencia,
                 abrirCaptura, capturarFrame, reintentarFoto, cerrarCaptura, enviarEvidencia,
@@ -495,7 +505,13 @@
                                 <!-- Acción principal según estado -->
                                 <q-card flat bordered class="tp-card q-mb-md">
                                     <q-card-section>
-                                        <q-btn v-if="detalle.ot.status==='pending'" unelevated color="teal-6"
+                                        <template v-if="detalle.handoff">
+                                            <div class="row items-center text-teal-7">
+                                                <q-icon name="hourglass_top" size="22px" class="q-mr-sm" />
+                                                <div>OT aceptada — <b>en espera de activación</b>.</div>
+                                            </div>
+                                        </template>
+                                        <q-btn v-else-if="detalle.ot.status==='pending'" unelevated color="teal-6"
                                                icon="play_arrow" label="Iniciar OT" class="full-width"
                                                :loading="accionOt" @click="iniciarOt" />
                                         <template v-else-if="detalle.ot.status==='in_progress'">
@@ -503,6 +519,15 @@
                                                    class="full-width" :loading="accionOt" @click="completarOt" />
                                             <div class="text-caption tp-muted q-mt-sm">
                                                 Se validará la evidencia obligatoria y el umbral dBm antes de cerrar.
+                                            </div>
+                                        </template>
+                                        <template v-else-if="detalle.ot.status==='completed'">
+                                            <q-btn unelevated color="teal-6" icon="verified" label="Aceptar OT"
+                                                   class="full-width" :loading="accionOt" @click="aceptarOt"
+                                                   :disable="!(detalle.firmas.technician && detalle.firmas.client)" />
+                                            <div class="text-caption tp-muted q-mt-sm">
+                                                <span v-if="!(detalle.firmas.technician && detalle.firmas.client)">Requiere firma de técnico y cliente.</span>
+                                                <span v-else>Al aceptar, la OT pasa a espera de activación (la activa el área de activaciones).</span>
                                             </div>
                                         </template>
                                         <div v-else class="row items-center tp-muted">

@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '7';
+    private const ASSET_VER = '8';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -339,6 +339,11 @@ JS;
         $firmas       = app(SignatureService::class)->signerTypesFor($origenReal, $id);
         $hayFirmaClie = in_array('client', $firmas, true);
 
+        // Handoff a activaciones (E2): existe fila en talento_work_order_activations.
+        $handoff = DB::table('talento_work_order_activations')
+            ->where($origenReal === 'task' ? 'tarea_id' : 'work_order_id', $id)
+            ->exists();
+
         // Flags por tipo de evidencia requerido (dBm / firma / justificación / varias).
         $reqIds = collect($detalle['evidencias_requeridas'])->pluck('id')->map(fn ($v) => (int) $v)->all();
         $flags  = DB::table('talento_evidence_types')
@@ -384,6 +389,57 @@ JS;
                 'technician' => in_array('technician', $firmas, true),
                 'client'     => $hayFirmaClie,
             ],
+            'handoff'    => $handoff,
+        ]);
+    }
+
+    /**
+     * E2 — Aceptar OT y handoff a activaciones (diferido).
+     *
+     * NO invoca FieldFlowService::accept (state-machine WO-only). Con la OT completada
+     * y AMBAS firmas (técnico + cliente) verificadas por tarea_id/work_order_id, registra
+     * la fila en talento_work_order_activations como artefacto de handoff y deja la OT
+     * "en espera de activación". NO dispara confirmActivation (le toca a activaciones).
+     * Idempotente: no duplica la fila de activación.
+     */
+    public function aceptarOt(Request $request, string $origen, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        $detalle = app(OrdenTrabajoUnifiedService::class)->detail($id, $colaborador->id);
+        if (! $detalle) {
+            return response()->json(['message' => 'OT no encontrada.'], 404);
+        }
+        if ($detalle['status'] !== 'completed') {
+            return response()->json(['message' => 'La OT debe estar completada para aceptar.', 'status_code' => 422], 422);
+        }
+
+        $origenReal = $detalle['origen'];
+        $firmas     = app(SignatureService::class)->signerTypesFor($origenReal, $id);
+        if (! in_array('technician', $firmas, true)) {
+            return response()->json(['message' => 'Falta la firma del técnico.'], 422);
+        }
+        if (! in_array('client', $firmas, true)) {
+            return response()->json(['message' => 'Falta la firma del cliente.'], 422);
+        }
+
+        $fkCol = $origenReal === 'task' ? 'tarea_id' : 'work_order_id';
+        $exists = DB::table('talento_work_order_activations')->where($fkCol, $id)->exists();
+        if (! $exists) {
+            DB::table('talento_work_order_activations')->insert([
+                $fkCol         => $id,
+                'requested_at' => now(),
+                'created_at'   => now(),
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'handoff' => true,
+            'message' => 'OT completada y firmada — en espera de activación.',
         ]);
     }
 

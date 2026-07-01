@@ -448,4 +448,8 @@ Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
         // Firma (técnico/cliente) por tarea_id/work_order_id.
         Route::post('/ot/{origen}/{id}/firma', [PortalTecnicoController::class, 'guardarFirma'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
+
+        // Aceptar + handoff a activaciones (E2: registra artefacto, NO activa).
+        Route::post('/ot/{origen}/{id}/aceptar', [PortalTecnicoController::class, 'aceptarOt'])
+            ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
     });
