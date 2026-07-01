@@ -84,7 +84,9 @@ class RemoteDeployCommand extends Command
             //     (solo se hizo backup + checkout → rollback = git reset limpio, sin esquema tocado).
             //     Esquema-only por defecto; para validar fallos dependientes de datos, añadir
             //     --with-data=tabla1,tabla2 al comando.
-            ['key' => 'migrate_dryrun', 'name' => 'Validar migraciones (dry-run)',     'type' => 'shell', 'cmd' => 'php artisan deploy:dry-run-migrations', 'timeout' => 180, 'critical' => true],
+            //     Timeout alineado con el del migrate real (900s): si el dry-run fuera más corto,
+            //     una migración lenta pasaría el dry-run pero timeoutearía el migrate real.
+            ['key' => 'migrate_dryrun', 'name' => 'Validar migraciones (dry-run)',     'type' => 'shell', 'cmd' => 'php artisan deploy:dry-run-migrations', 'timeout' => 900, 'critical' => true],
             // 3. Compilar el frontend EN el servidor (assets fuera de git) — crítico:
             //    si falla, se aborta y hace rollback (nunca deja prod con código nuevo y JS roto)
             //    NOTA: no se corre composer aquí a propósito — este prod usa deps de dev y
@@ -95,7 +97,11 @@ class RemoteDeployCommand extends Command
             //    (NO Artisan::call): en el contexto nohup el --force programático no frenaba
             //    el prompt de confirmación de producción y el deploy se colgaba esperando stdin.
             //    El subproceso CLI con --force sí lo salta (verificado en prod).
-            ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => 300, 'critical' => false],
+            //    NO es critical (un git reset sobre un esquema ya modificado es peligroso), pero
+            //    tampoco es decorativo: si falla, el deploy debe terminar en 'failed' SIN revertir
+            //    código → flag 'fail_deploy_no_rollback'. Timeout 900s (antes 300s: una migración
+            //    lenta timeouteaba y marcaba el paso failed, pero el deploy cerraba 'success').
+            ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => 900, 'critical' => false, 'fail_deploy_no_rollback' => true],
             // 5. Warm-up de cachés
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
             // 6. Reiniciar workers de cola
@@ -119,6 +125,11 @@ class RemoteDeployCommand extends Command
             'steps'      => $initialSteps,
             'started_at' => now(),
         ]);
+
+        // Estado de fallo diferido: un paso 'fail_deploy_no_rollback' (migrate) que falla NO corta
+        // el loop ni revierte código; marca el deploy para cerrar en 'failed' al terminar.
+        $deployFailed   = false;
+        $failureMessage = null;
 
         foreach ($stepDefs as $step) {
             $log->updateStep($step['key'], ['status' => 'running', 'ran_at' => now()->toIso8601String()]);
@@ -157,6 +168,29 @@ class RemoteDeployCommand extends Command
                 $this->performRollback($log, $step, $exitCode, $previousCommit);
                 return 1;
             }
+
+            if (!$success && ($step['fail_deploy_no_rollback'] ?? false)) {
+                // Fatal-sin-rollback (migrate): el esquema pudo modificarse a medias → revertir
+                // código (git reset) sería peligroso. Marcamos el deploy para cerrar 'failed' al
+                // final del loop, SIN performRollback. NO se reintroduce el rollback de migrate.
+                $deployFailed   = true;
+                $failureMessage = "Paso «{$step['name']}» falló (exit {$exitCode}). Deploy marcado FAILED "
+                                . "SIN revertir código (posible esquema a medias — revisar migraciones/BD "
+                                . "manualmente). Últimas líneas: " . mb_substr(trim($output), -300);
+                $this->error("  [{$step['key']}]: FATAL sin rollback — el deploy se marcará failed.");
+            }
+        }
+
+        if ($deployFailed) {
+            $log->update([
+                'status'           => 'failed',
+                'error_message'    => $failureMessage,
+                'finished_at'      => now(),
+                'duration_seconds' => (int) now()->diffInSeconds($log->started_at),
+            ]);
+
+            $this->error("Deploy remoto terminó en FAILED (migración falló, código NO revertido).");
+            return 1;
         }
 
         $log->update([
@@ -235,7 +269,7 @@ class RemoteDeployCommand extends Command
         ]);
     }
 
-    private function runShell(string $command, int $timeout): array
+    protected function runShell(string $command, int $timeout): array
     {
         $output    = '';
         $startedAt = microtime(true);
@@ -252,7 +286,7 @@ class RemoteDeployCommand extends Command
         }
     }
 
-    private function runArtisan(string $command, array $params = []): array
+    protected function runArtisan(string $command, array $params = []): array
     {
         $startedAt = microtime(true);
         try {
