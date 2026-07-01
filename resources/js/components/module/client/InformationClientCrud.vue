@@ -334,7 +334,7 @@ import DialogUnconfiguredOnus from "../olts/components/dialogs/DialogUnconfigure
 import PanelOnu from "../olts/components/onus/PanelOnu.vue";
 
 import InputModalWithGoogleMapForm from "../../../shared/InputModalWithGoogleMapForm";
-import { changeBalance, clientMainInformationId } from "./info/comun_variable";
+import { changeBalance, clientMainInformationId, clientLoadToken } from "./info/comun_variable";
 import TaskClients from "./helpers/TaskClients.vue";
 import CrmRecentActivity from "../crm/components/CrmRecentActivity.vue";
 import ClientRecentActivity from "./components/ClientRecentActivity.vue";
@@ -498,46 +498,84 @@ const showDialogUnconfigured = ref(false);
 let timer = null;
 const loadingOnu = ref(false);
 
+// Carga de los datos del cliente `id`. Extraída del onMounted para poder re-ejecutarla
+// cuando cambia props.id (watch) y no solo al montar. Cada llamada toma un token del
+// contador compartido; tras cada await comprueba que sigue siendo la carga vigente antes
+// de aplicar resultados o de escribir el singleton dataForm (getfieldsEditedWithMultipleModel).
+// Así una carga lenta del cliente anterior no pisa la del cliente actual.
+const loadClient = async (id) => {
+    const myToken = ++clientLoadToken.value;
+
+    // Antes NO tenían try/catch: un fallo aquí abortaba la carga ANTES de refrescar
+    // dataForm y dejaba en pantalla los datos del cliente previo.
+    try {
+        clientTickets.value = await getClientTickets(id);
+    } catch (e) {
+        clientTickets.value = { open: 0, closed: 0 };
+    }
+    if (myToken !== clientLoadToken.value) return;
+
+    try {
+        const b = await getClientWithBalance(id);
+        balance.value = b?.balance ?? null;
+    } catch (e) {
+        balance.value = null;
+    }
+    if (myToken !== clientLoadToken.value) return;
+
+    let ids = {};
+    try {
+        ids = await getClientMainInformationIdAndClientAdditionalInformationId(id);
+    } catch (e) {
+        ids = {};
+    }
+    if (myToken !== clientLoadToken.value) return;
+
+    clientMainInformationId.value = ids.clientMainInformationId;
+
+    // Guard ANTES del write al singleton: si otra carga arrancó, no escribimos dataForm.
+    if (myToken !== clientLoadToken.value) return;
+    await getfieldsEditedWithMultipleModel(
+        [
+            {
+                client_main_information: "ClientMainInformation",
+            },
+            {
+                client_additional_information:
+                    "ClientAdditionalInformation",
+            },
+        ],
+        id,
+        {
+            client_main_information: ids.clientMainInformationId,
+            client_additional_information:
+                ids.clientAdditionalInformationId,
+        }
+    );
+    if (myToken !== clientLoadToken.value) return;
+
+    oldStatus.value = dataForm.data.estado;
+    emits("getTypeOfBilling", {
+        typeOfBilling: dataForm.data.type_of_billing_id,
+    });
+};
+
 onMounted(async () => {
     hasPermission.data = new Permission(await allViewHasPermission());
     if (props.id) {
-        clientTickets.value = await getClientTickets(props.id);
-        try {
-            const b = await getClientWithBalance(props.id);
-            balance.value = b?.balance ?? null;
-        } catch (e) {
-            balance.value = null;
-        }
-        let ids =
-            await getClientMainInformationIdAndClientAdditionalInformationId(
-                props.id
-            );
-
-        clientMainInformationId.value = ids.clientMainInformationId;
-
-        await getfieldsEditedWithMultipleModel(
-            [
-                {
-                    client_main_information: "ClientMainInformation",
-                },
-                {
-                    client_additional_information:
-                        "ClientAdditionalInformation",
-                },
-            ],
-            props.id,
-            {
-                client_main_information: ids.clientMainInformationId,
-                client_additional_information:
-                    ids.clientAdditionalInformationId,
-            }
-        );
-        oldStatus.value = dataForm.data.estado;
-        emits("getTypeOfBilling", {
-            typeOfBilling: dataForm.data.type_of_billing_id,
-        });
+        await loadClient(props.id);
     }
 });
+
+// Si la instancia se reutilizara con otro id (o el id cambia en caliente), recargar los
+// datos del nuevo cliente. En el flujo SPA normal la instancia se remonta (onMounted ya
+// cubre), pero este watch es la red de seguridad ante reutilización de instancia.
+watch(
+    () => props.id,
+    (nuevo, viejo) => {
+        if (nuevo && nuevo !== viejo) loadClient(nuevo);
+    }
+);
 
 onUnmounted(() => {
     clearInterval(timer);
