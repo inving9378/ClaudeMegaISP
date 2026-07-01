@@ -340,6 +340,48 @@
                 }, 'image/jpeg', 0.9);
             }
 
+            // ── Firmas (signature-pad) ──
+            const firmaAbierta = ref(false);
+            const firmaSigner = ref('client');
+            const guardandoFirma = ref(false);
+            let sigCtx = null, sigDibujando = false, sigTocada = false;
+
+            function initSigPad() {
+                const c = document.getElementById('tp-sig');
+                if (!c) return;
+                const rect = c.getBoundingClientRect();
+                c.width = rect.width; c.height = rect.height;
+                sigCtx = c.getContext('2d');
+                sigCtx.lineWidth = 2.5; sigCtx.lineCap = 'round'; sigCtx.strokeStyle = '#111';
+                sigCtx.clearRect(0, 0, c.width, c.height);
+                sigTocada = false;
+            }
+            function sigPos(e) {
+                const c = document.getElementById('tp-sig');
+                const r = c.getBoundingClientRect();
+                return { x: e.clientX - r.left, y: e.clientY - r.top };
+            }
+            function sigStart(e) { e.preventDefault(); sigDibujando = true; sigTocada = true; const p = sigPos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); }
+            function sigMove(e) { if (!sigDibujando) return; e.preventDefault(); const p = sigPos(e); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); }
+            function sigEnd() { sigDibujando = false; }
+            function limpiarFirma() { if (sigCtx) { const c = document.getElementById('tp-sig'); sigCtx.clearRect(0, 0, c.width, c.height); } sigTocada = false; }
+            function abrirFirma(signer) { firmaSigner.value = signer; firmaAbierta.value = true; Vue.nextTick(initSigPad); }
+
+            async function guardarFirma() {
+                if (guardandoFirma.value) return;
+                if (!sigTocada) { $q.notify({ type: 'warning', message: 'Dibuja la firma antes de guardar.' }); return; }
+                guardandoFirma.value = true;
+                const c = document.getElementById('tp-sig');
+                const body = { signer_type: firmaSigner.value, signature_data: c.toDataURL('image/png') };
+                try { const pos = await getPosition(); body.lat = pos.coords.latitude; body.lng = pos.coords.longitude; } catch (e) {}
+                const { ok, data } = await apiFetch(otUrl('/firma'), { method: 'POST', body });
+                guardandoFirma.value = false;
+                if (!ok) { $q.notify({ type: 'negative', message: (data && data.message) || 'No se pudo guardar la firma.' }); return; }
+                $q.notify({ type: 'positive', icon: 'draw', message: 'Firma guardada.' });
+                firmaAbierta.value = false;
+                await recargarDetalle();
+            }
+
             function toggleDark() {
                 dark.value = !dark.value;
                 const theme = dark.value ? 'dark' : 'light';
@@ -382,6 +424,8 @@
                 capturaAbierta, camaraSoportada, camaraError, streamActivo, fotoTomada,
                 tipoEvidencia, tiposCapturables, tipoSel, dbmValor, justificacionValor, enviandoEvidencia,
                 abrirCaptura, capturarFrame, reintentarFoto, cerrarCaptura, enviarEvidencia,
+                firmaAbierta, firmaSigner, guardandoFirma,
+                abrirFirma, sigStart, sigMove, sigEnd, limpiarFirma, guardarFirma,
             };
         },
 
@@ -522,6 +566,38 @@
                                                     {{ fmtHora(ev.created_at) }}
                                                     <span v-if="ev.potencia_dbm !== null && ev.potencia_dbm !== undefined"> · {{ Math.round(ev.potencia_dbm * 10) / 10 }} dBm</span>
                                                 </q-item-label>
+                                            </q-item-section>
+                                        </q-item>
+                                    </q-list>
+                                </q-card>
+
+                                <!-- Firmas -->
+                                <q-card v-if="['in_progress','completed'].includes(detalle.ot.status)" flat bordered class="tp-card q-mt-md">
+                                    <q-card-section class="q-pb-none">
+                                        <div class="row items-center">
+                                            <q-icon name="draw" color="teal-6" size="22px" class="q-mr-sm" />
+                                            <div class="text-subtitle1 text-weight-medium">Firmas</div>
+                                        </div>
+                                    </q-card-section>
+                                    <q-list>
+                                        <q-item>
+                                            <q-item-section avatar>
+                                                <q-icon :name="detalle.firmas.technician ? 'check_circle' : 'radio_button_unchecked'"
+                                                        :color="detalle.firmas.technician ? 'positive' : 'grey-5'" />
+                                            </q-item-section>
+                                            <q-item-section><q-item-label>Firma del técnico</q-item-label></q-item-section>
+                                            <q-item-section side>
+                                                <q-btn dense flat color="teal-6" :label="detalle.firmas.technician ? 'Re-firmar' : 'Firmar'" @click="abrirFirma('technician')" />
+                                            </q-item-section>
+                                        </q-item>
+                                        <q-item>
+                                            <q-item-section avatar>
+                                                <q-icon :name="detalle.firmas.client ? 'check_circle' : 'radio_button_unchecked'"
+                                                        :color="detalle.firmas.client ? 'positive' : 'grey-5'" />
+                                            </q-item-section>
+                                            <q-item-section><q-item-label>Firma del cliente</q-item-label></q-item-section>
+                                            <q-item-section side>
+                                                <q-btn dense flat color="teal-6" :label="detalle.firmas.client ? 'Re-firmar' : 'Firmar'" @click="abrirFirma('client')" />
                                             </q-item-section>
                                         </q-item>
                                     </q-list>
@@ -697,6 +773,28 @@
                                        :loading="enviandoEvidencia" @click="enviarEvidencia" />
                             </div>
                         </template>
+                    </q-card-section>
+                </q-card>
+            </q-dialog>
+
+            <!-- Diálogo de firma (signature-pad) -->
+            <q-dialog v-model="firmaAbierta" persistent>
+                <q-card class="tp-card" style="width:100%;max-width:520px">
+                    <q-toolbar class="tp-header text-white">
+                        <q-toolbar-title>Firma del {{ firmaSigner==='technician' ? 'técnico' : 'cliente' }}</q-toolbar-title>
+                        <q-btn flat round dense icon="close" v-close-popup />
+                    </q-toolbar>
+                    <q-card-section>
+                        <div class="tp-sig-wrap">
+                            <canvas id="tp-sig" class="tp-sig"
+                                    @pointerdown="sigStart" @pointermove="sigMove" @pointerup="sigEnd" @pointerleave="sigEnd"></canvas>
+                        </div>
+                        <div class="text-caption tp-muted q-mt-xs">Firma con el dedo dentro del recuadro.</div>
+                        <div class="row q-gutter-sm q-mt-sm">
+                            <q-btn flat color="grey-7" icon="clear" label="Limpiar" @click="limpiarFirma" />
+                            <q-space />
+                            <q-btn unelevated color="teal-6" icon="save" label="Guardar firma" :loading="guardandoFirma" @click="guardarFirma" />
+                        </div>
                     </q-card-section>
                 </q-card>
             </q-dialog>

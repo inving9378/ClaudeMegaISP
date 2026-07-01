@@ -444,4 +444,8 @@ Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
         // Evidencia anti-fraude (cámara viva; watermark quemado por el servidor).
         Route::post('/ot/{origen}/{id}/evidencia', [PortalTecnicoController::class, 'subirEvidenciaOt'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
+
+        // Firma (técnico/cliente) por tarea_id/work_order_id.
+        Route::post('/ot/{origen}/{id}/firma', [PortalTecnicoController::class, 'guardarFirma'])
+            ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
     });

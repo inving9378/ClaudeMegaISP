@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '6';
+    private const ASSET_VER = '7';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -473,6 +473,48 @@ JS;
             ->subirEvidencia($id, $colaborador->id, $payload, $file, (int) $request->user()->id);
 
         return response()->json($res, $res['success'] ? 201 : ($res['status_code'] ?? 422));
+    }
+
+    // ── Firmas (técnico / cliente) ────────────────────────────────────────────
+
+    /**
+     * Guarda la firma (técnico o cliente) por {origen, id} vía SignatureService, que
+     * escribe en talento_work_order_signatures por tarea_id/work_order_id. El origen
+     * autoritativo lo resuelve el servicio (findLight, que además scopea por colaborador
+     * → ownership). Re-firmar sobreescribe (UNIQUE por signer_type).
+     */
+    public function guardarFirma(Request $request, string $origen, int $id)
+    {
+        $data = $request->validate([
+            'signer_type'    => 'required|in:technician,client',
+            'signature_data' => 'required|string',
+            'lat'            => 'nullable|numeric|between:-90,90',
+            'lng'            => 'nullable|numeric|between:-180,180',
+        ]);
+
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        $light = app(OrdenTrabajoUnifiedService::class)->findLight($id, $colaborador->id);
+        if (! $light) {
+            return response()->json(['message' => 'OT no encontrada.'], 404);
+        }
+        $origenReal = $light->is_task ? 'task' : 'work_order';
+
+        app(SignatureService::class)->store(
+            $origenReal,
+            $id,
+            $data['signer_type'],
+            $data['signature_data'],
+            isset($data['lat']) ? (float) $data['lat'] : null,
+            isset($data['lng']) ? (float) $data['lng'] : null,
+            null,
+            (int) $request->user()->id
+        );
+
+        return response()->json(['ok' => true, 'signer_type' => $data['signer_type']], 201);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
