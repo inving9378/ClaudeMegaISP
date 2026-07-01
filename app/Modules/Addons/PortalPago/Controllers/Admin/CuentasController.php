@@ -69,13 +69,16 @@ class CuentasController extends Controller
                 'digits:18', // exactamente 18 dígitos
                 Rule::unique('portal_pago_accounts', 'clabe')->ignore($ignoreId),
             ],
+            'cuenta'       => ['nullable', 'string', 'max:20'],
+            'tarjeta'      => ['nullable', 'digits_between:13,19'],
             'banco'        => ['nullable', 'string', 'max:255'],
             'titular'      => ['nullable', 'string', 'max:255'],
             'beneficiario' => ['nullable', 'string', 'max:255'],
             'activa'       => ['sometimes', 'boolean'],
         ], [
-            'clabe.digits' => 'La CLABE debe tener exactamente 18 dígitos.',
-            'clabe.unique' => 'Ya existe una cuenta con esa CLABE.',
+            'clabe.digits'           => 'La CLABE debe tener exactamente 18 dígitos.',
+            'clabe.unique'           => 'Ya existe una cuenta con esa CLABE.',
+            'tarjeta.digits_between' => 'La tarjeta debe tener entre 13 y 19 dígitos.',
         ]);
     }
 }

@@ -15,6 +15,8 @@ class PortalPagoAccount extends Model
     protected $fillable = [
         'nombre',
         'clabe',
+        'cuenta',
+        'tarjeta',
         'banco',
         'titular',
         'beneficiario',

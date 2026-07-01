@@ -31,6 +31,10 @@
                     <q-input v-model="form.nombre" label="Nombre *" outlined dense :error="!!errs.nombre" :error-message="errs.nombre" />
                     <q-input v-model="form.clabe" label="CLABE (18 dígitos) *" outlined dense mask="##################"
                              :error="!!errs.clabe" :error-message="errs.clabe" hint="Exactamente 18 dígitos" />
+                    <q-input v-model="form.cuenta" label="Número de cuenta" outlined dense
+                             :error="!!errs.cuenta" :error-message="errs.cuenta" hint="Opcional" />
+                    <q-input v-model="form.tarjeta" label="Tarjeta" outlined dense mask="###################"
+                             :error="!!errs.tarjeta" :error-message="errs.tarjeta" hint="Opcional, 13 a 19 dígitos" />
                     <q-input v-model="form.banco" label="Banco" outlined dense />
                     <q-input v-model="form.titular" label="Titular" outlined dense />
                     <q-input v-model="form.beneficiario" label="Beneficiario" outlined dense />
@@ -53,10 +57,11 @@ export default {
             rows: [],
             loading: false,
             errs: {},
-            form: { show: false, busy: false, id: null, nombre: '', clabe: '', banco: '', titular: '', beneficiario: '', activa: true },
+            form: { show: false, busy: false, id: null, nombre: '', clabe: '', cuenta: '', tarjeta: '', banco: '', titular: '', beneficiario: '', activa: true },
             columns: [
                 { name: 'nombre', label: 'Nombre', field: 'nombre', align: 'left' },
                 { name: 'clabe', label: 'CLABE', field: 'clabe', align: 'left' },
+                { name: 'cuenta', label: 'Cuenta', field: 'cuenta', align: 'left' },
                 { name: 'banco', label: 'Banco', field: 'banco', align: 'left' },
                 { name: 'beneficiario', label: 'Beneficiario', field: 'beneficiario', align: 'left' },
                 { name: 'activa', label: 'Estado', field: 'activa', align: 'center' },
@@ -74,16 +79,16 @@ export default {
         },
         abrirNueva() {
             this.errs = {};
-            this.form = { show: true, busy: false, id: null, nombre: '', clabe: '', banco: '', titular: '', beneficiario: '', activa: true };
+            this.form = { show: true, busy: false, id: null, nombre: '', clabe: '', cuenta: '', tarjeta: '', banco: '', titular: '', beneficiario: '', activa: true };
         },
         abrirEditar(row) {
             this.errs = {};
-            this.form = { show: true, busy: false, id: row.id, nombre: row.nombre, clabe: row.clabe, banco: row.banco || '', titular: row.titular || '', beneficiario: row.beneficiario || '', activa: !!row.activa };
+            this.form = { show: true, busy: false, id: row.id, nombre: row.nombre, clabe: row.clabe, cuenta: row.cuenta || '', tarjeta: row.tarjeta || '', banco: row.banco || '', titular: row.titular || '', beneficiario: row.beneficiario || '', activa: !!row.activa };
         },
         async guardar() {
             this.errs = {};
             this.form.busy = true;
-            const payload = { nombre: this.form.nombre, clabe: this.form.clabe, banco: this.form.banco, titular: this.form.titular, beneficiario: this.form.beneficiario, activa: this.form.activa };
+            const payload = { nombre: this.form.nombre, clabe: this.form.clabe, cuenta: this.form.cuenta, tarjeta: this.form.tarjeta, banco: this.form.banco, titular: this.form.titular, beneficiario: this.form.beneficiario, activa: this.form.activa };
             try {
                 if (this.form.id) await axios.put(`/api/pagos/cuentas/${this.form.id}`, payload);
                 else await axios.post('/api/pagos/cuentas', payload);
