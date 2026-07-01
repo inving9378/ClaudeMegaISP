@@ -10,7 +10,7 @@ class TalentoWorkOrderSignature extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'work_order_id', 'signer_type', 'signature_path',
+        'work_order_id', 'tarea_id', 'signer_type', 'signature_path',
         'signed_lat', 'signed_lng', 'signed_at', 'created_by',
     ];
 

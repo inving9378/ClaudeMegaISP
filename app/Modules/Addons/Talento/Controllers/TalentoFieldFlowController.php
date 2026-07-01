@@ -10,6 +10,8 @@ use App\Modules\Addons\Talento\Models\TalentoWorkOrderSignature;
 use App\Modules\Addons\Talento\Services\FieldFlowService;
 use App\Modules\Addons\Talento\Services\FieldIaValidationService;
 use App\Modules\Addons\Talento\Services\FieldMediaService;
+use App\Modules\Addons\Talento\Services\SignatureService;
+use App\Models\Task;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -165,26 +167,26 @@ class TalentoFieldFlowController extends Controller
             'signed_at'      => 'nullable|date',
         ]);
 
-        TalentoWorkOrder::findOrFail($workOrderId);
-
-        // Store signature image
-        $sigData = $data['signature_data'];
-        // Remove data URI prefix if present
-        if (str_starts_with($sigData, 'data:')) {
-            $sigData = preg_replace('/^data:[^;]+;base64,/', '', $sigData);
+        // Resuelve la OT como work_order o como task (la operación de campo corre en tasks).
+        $origen = TalentoWorkOrder::whereKey($workOrderId)->exists() ? 'work_order' : null;
+        if (! $origen) {
+            $esTask = Task::where('id', $workOrderId)
+                ->where('tipo', 'campo')
+                ->whereNotNull('talento_type_id')
+                ->exists();
+            $origen = $esTask ? 'task' : null;
         }
-        $path = "talento/signatures/{$workOrderId}/{$data['signer_type']}_" . time() . '.png';
-        \Illuminate\Support\Facades\Storage::disk('local')->put($path, base64_decode($sigData));
+        abort_if(! $origen, 404);
 
-        $sig = TalentoWorkOrderSignature::updateOrCreate(
-            ['work_order_id' => $workOrderId, 'signer_type' => $data['signer_type']],
-            [
-                'signature_path' => $path,
-                'signed_lat'     => $data['signed_lat'] ?? null,
-                'signed_lng'     => $data['signed_lng'] ?? null,
-                'signed_at'      => $data['signed_at'] ? \Carbon\Carbon::parse($data['signed_at']) : now(),
-                'created_by'     => auth()->id(),
-            ]
+        $sig = app(SignatureService::class)->store(
+            $origen,
+            (int) $workOrderId,
+            $data['signer_type'],
+            $data['signature_data'],
+            isset($data['signed_lat']) ? (float) $data['signed_lat'] : null,
+            isset($data['signed_lng']) ? (float) $data['signed_lng'] : null,
+            $data['signed_at'] ?? null,
+            (int) auth()->id()
         );
 
         return response()->json($sig, 201);
