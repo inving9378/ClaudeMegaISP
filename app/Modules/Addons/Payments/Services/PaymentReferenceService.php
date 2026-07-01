@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Payments\Services;
 
 use App\Modules\Addons\Payments\Models\ClientPaymentReference;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * Genera y valida la clave de conciliación por cliente.
@@ -52,17 +53,41 @@ class PaymentReferenceService
     }
 
     /**
-     * Garantiza que el cliente tenga su referencia inmutable. Idempotente:
-     * si ya existe la devuelve sin cambiarla (la referencia NO se regenera).
+     * Garantiza que el cliente tenga su referencia inmutable. Es la RED DE
+     * SEGURIDAD de la generación perezosa: refuerza al ClientObserver para los
+     * clientes que nacieron por caminos que NO disparan eventos Eloquent
+     * (import con insertGetId/insert bulk, seeders, factory). Ver auditoría de
+     * caminos de alta.
+     *
+     * Idempotente: si ya existe la devuelve sin regenerarla (la referencia NO
+     * cambia). Seguro ante concurrencia: si dos procesos intentan crearla a la
+     * vez, el UNIQUE(client_id) hace fallar al segundo y aquí se re-lee.
+     *
+     * @param int|\Illuminate\Database\Eloquent\Model $client id del cliente o el modelo Client.
      */
-    public static function ensureFor(int $clientId): ClientPaymentReference
+    public static function ensureFor($client): ClientPaymentReference
     {
-        return ClientPaymentReference::firstOrCreate(
-            ['client_id' => $clientId],
-            [
+        $clientId = is_object($client) ? (int) $client->id : (int) $client;
+
+        // Camino rápido: ya existe.
+        $existing = ClientPaymentReference::where('client_id', $clientId)->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        try {
+            return ClientPaymentReference::create([
+                'client_id'    => $clientId,
                 'reference'    => self::build($clientId),
                 'algo_version' => self::ALGO_VERSION,
-            ]
-        );
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            // Carrera: otro proceso la creó entre el SELECT y el INSERT → re-leer.
+            $ref = ClientPaymentReference::where('client_id', $clientId)->first();
+            if ($ref) {
+                return $ref;
+            }
+            throw $e;
+        }
     }
 }
