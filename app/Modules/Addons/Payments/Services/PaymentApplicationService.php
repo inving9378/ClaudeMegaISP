@@ -57,8 +57,10 @@ class PaymentApplicationService
     public function applyPayment(array $data): Payment
     {
         $client = Client::findOrFail($data['client_id']);
-        $methodId = $this->resolveMethodId();
-        $userId   = $this->resolveSystemUserId();
+        // Overrides opcionales (retrocompatibles): la captura de mostrador pasa su
+        // propio método/usuario/fecha; el webhook SPEI no los pasa y usa los defaults.
+        $methodId = $data['method_id'] ?? $this->resolveMethodId();
+        $userId   = $data['add_by'] ?? $this->resolveSystemUserId();
 
         // Matching contra factura pendiente: busca la más antigua del cliente
         // con estado que empieza con 'Pagar' Y total == monto recibido. Si
@@ -74,7 +76,7 @@ class PaymentApplicationService
         $attrs = [
             'number'                     => $data['external_id'] ?? null,
             'payment_method_id'          => $methodId,
-            'date'                       => now()->toDateString(),
+            'date'                       => $data['date'] ?? now()->toDateString(),
             'amount'                     => $data['amount'],
             'payment_period'             => null,
             'comment'                    => $data['comment'] ?? "Pago {$data['provider']} (tx: {$data['external_id']})",

@@ -12,7 +12,8 @@
         { "name": "payments_manage_providers", "description": "Configurar proveedores de pago (OpenPay, Stripe, Conekta)" },
         { "name": "payments_view_receipts",    "description": "Ver y descargar recibos de pago" },
         { "name": "payments_view_webhooks_log","description": "Ver log de webhooks de pago recibidos" },
-        { "name": "payments_assign_clabe",     "description": "Asignar CLABE virtual a un cliente" }
+        { "name": "payments_assign_clabe",     "description": "Asignar CLABE virtual a un cliente" },
+        { "name": "payments_capture_manage",   "description": "Capturar pagos reportados por mostrador (aplica y registra el pago)" }
     ],
 
     "menu": [

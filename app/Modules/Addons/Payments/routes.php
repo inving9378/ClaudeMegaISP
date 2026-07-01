@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Addons\Payments\Controllers\ClabeAssignmentController;
+use App\Modules\Addons\Payments\Controllers\ManualPaymentController;
 use App\Modules\Addons\Payments\Controllers\MobilePaymentController;
 use App\Modules\Addons\Payments\Controllers\PaymentProviderController;
 use App\Modules\Addons\Payments\Controllers\ReconciliationController;
@@ -46,6 +47,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/conciliacion/list',             [ReconciliationController::class, 'list'])->name('conciliacion.list');
         Route::post('/conciliacion/{id}/resolver',   [ReconciliationController::class, 'resolve'])->whereNumber('id')->name('conciliacion.resolve');
         Route::post('/conciliacion/{id}/descartar',  [ReconciliationController::class, 'dismiss'])->whereNumber('id')->name('conciliacion.dismiss');
+
+        // Captura de pago reportado por mostrador (Paso 2) — aplica el pago
+        // (PaymentApplicationService) y lo registra en reported_payments.
+        Route::get('/captura-pago',                  [ManualPaymentController::class, 'create'])->name('captura-pago');
+        Route::get('/captura-pago/buscar-cliente',   [ManualPaymentController::class, 'buscarCliente'])->name('captura-pago.buscar');
+        Route::post('/captura-pago',                 [ManualPaymentController::class, 'store'])->name('captura-pago.store');
+        Route::get('/captura-pago/{id}/comprobante', [ManualPaymentController::class, 'descargarComprobante'])->whereNumber('id')->name('captura-pago.comprobante');
 
         // Proveedores de pago (payment_providers)
         Route::get('/payment-providers',         [PaymentProviderController::class, 'index'])->name('payment-providers.index');
