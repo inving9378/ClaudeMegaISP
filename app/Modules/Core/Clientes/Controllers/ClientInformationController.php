@@ -5,6 +5,7 @@ namespace App\Modules\Core\Clientes\Controllers;
 use App\Jobs\Mikrotik\CheckMikrotikConection;
 use App\Jobs\Mikrotik\MikrotikRemoveClientServiceFromAddressList;
 use App\Modules\Core\Clientes\Models\Client;
+use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Clientes\Repositories\ClientMainInformationRepository;
 use App\Services\Client\ClientIdMigrator;
@@ -189,15 +190,22 @@ class ClientInformationController extends Controller
     public function getClientWithBalance($id)
     {
         $client = Client::where('id', $id)->with('balance')->first();
+
+        // Referencia MEG de pago del cliente. ensureFor es idempotente y la crea si por
+        // algún motivo no existiera → la ficha nunca la muestra vacía (auto-repara).
+        $paymentReference = PaymentReferenceService::ensureFor((int) $id)->reference;
+
         if ($client->balance == null) {
             return [
                 'name' => $client->clientFullName(),
-                'balance' => 0
+                'balance' => 0,
+                'payment_reference' => $paymentReference
             ];
         }
         return [
             'name' => $client->clientFullName(),
-            'balance' => $client->balance->amount
+            'balance' => $client->balance->amount,
+            'payment_reference' => $paymentReference
         ];
     }
 
