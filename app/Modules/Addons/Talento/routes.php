@@ -25,6 +25,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
+use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -401,4 +402,24 @@ Route::middleware(['auth:sanctum'])
         Route::get('/compensacion/semana',    [TalentoMobileApiController::class, 'compensacionSemana']);
 
         Route::post('/devices/token',         [TalentoMobileApiController::class, 'registerDeviceToken']);
+    });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Portal Técnico Web (PWA) — versión web de la app de campo.
+// Sesión Medussa (guard web) + permiso talento.portal_tecnico. Reutiliza la
+// misma capa de servicios que /talento/api. Fuera del grupo check_route_permission
+// a propósito: usa `can:` directo. Shell propio (no toca el sidebar admin).
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Assets PWA públicos — los pide el navegador (registro del SW / manifest) y no
+// son sensibles; fuera de auth para evitar redirecciones a login en el fetch.
+Route::get('/talento/portal/manifest.webmanifest', [PortalTecnicoController::class, 'manifest'])->middleware('web');
+Route::get('/talento/portal/sw.js',                [PortalTecnicoController::class, 'serviceWorker'])->middleware('web');
+
+// Shell + preferencias (sesión + permiso).
+Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
+    ->prefix('talento/portal')
+    ->group(function () {
+        Route::get('/',                   [PortalTecnicoController::class, 'index']);
+        Route::post('/preferencias/tema', [PortalTecnicoController::class, 'saveTheme']);
     });

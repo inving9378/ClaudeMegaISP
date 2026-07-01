@@ -47,7 +47,8 @@
         { "name": "talento.dashboard.view",       "description": "Ver dashboards de producción, técnico y supervisor" },
         { "name": "talento.escalafon.view",       "description": "Ver tabla de posiciones/escalafón" },
         { "name": "talento.escalafon.manage",     "description": "Configurar pesos del puntaje compuesto" },
-        { "name": "talento.embajadores.view",     "description": "Ver cross-link colaborador↔embajador/vendedor (solo lectura)" }
+        { "name": "talento.embajadores.view",     "description": "Ver cross-link colaborador↔embajador/vendedor (solo lectura)" },
+        { "name": "talento.portal_tecnico",        "description": "Acceder al Portal Técnico Web (PWA de campo para el colaborador)" }
     ],
 
     "menu": [

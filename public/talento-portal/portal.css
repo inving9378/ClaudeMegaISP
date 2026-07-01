@@ -1,0 +1,71 @@
+/* Talento Portal Técnico — tema propio (teal), light por defecto + dark opt-in.
+   Independiente del admin. Estética limpia tipo app de campo. */
+
+:root {
+    --tp-primary:      #0d9488;   /* teal Talento (marca) */
+    --tp-primary-dark: #0f766e;
+    --tp-primary-600:  #0b7d72;
+    --tp-surface:      #f3f5f7;
+    --tp-card:         #ffffff;
+    --tp-text:         #16232e;
+    --tp-text-muted:   #64748b;
+    --tp-border:       #e2e8f0;
+    --tp-success:      #16a34a;
+    --tp-warning:      #d97706;
+    --tp-danger:       #dc2626;
+    --tp-info:         #0284c7;
+}
+
+html.portal-dark {
+    --tp-primary:      #14b8a6;
+    --tp-primary-dark: #0d9488;
+    --tp-surface:      #0f1620;
+    --tp-card:         #16212e;
+    --tp-text:         #e6edf3;
+    --tp-text-muted:   #90a1b0;
+    --tp-border:       #26333f;
+    --tp-success:      #34d399;
+    --tp-warning:      #fbbf24;
+    --tp-danger:       #f87171;
+    --tp-info:         #38bdf8;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--tp-surface);
+    color: var(--tp-text);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
+}
+
+#q-app { min-height: 100vh; }
+
+/* Header teal de marca */
+.tp-header { background: var(--tp-primary) !important; }
+.tp-header .q-toolbar__title { font-weight: 600; letter-spacing: .2px; }
+
+/* Superficies que respetan el tema del portal */
+.tp-page   { background: var(--tp-surface); color: var(--tp-text); }
+.tp-card   { background: var(--tp-card); color: var(--tp-text); border: 1px solid var(--tp-border); border-radius: 14px; }
+.tp-muted  { color: var(--tp-text-muted); }
+
+/* Nav inferior tipo app */
+.tp-footer { background: var(--tp-card) !important; color: var(--tp-text) !important; border-top: 1px solid var(--tp-border); }
+.tp-footer .q-tab { color: var(--tp-text-muted); min-height: 58px; }
+.tp-footer .q-tab--active { color: var(--tp-primary); }
+.tp-footer .q-tab__label { font-size: 11px; font-weight: 600; }
+
+/* Estado vacío honesto (secciones que llegan en sub-pasos siguientes) */
+.tp-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; text-align: center; padding: 48px 24px; color: var(--tp-text-muted);
+}
+.tp-empty .tp-empty-icon { font-size: 52px; opacity: .5; }
+
+/* Safe-area para notch / gesto inferior en móvil */
+.tp-footer { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Chip identidad del colaborador */
+.tp-colab-chip { font-size: 12px; opacity: .92; }

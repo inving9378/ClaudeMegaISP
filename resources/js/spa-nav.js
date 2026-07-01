@@ -8,6 +8,7 @@ const SPA_ENABLED = true;
 // Usar prefijos; startsWith() cubre sub-rutas dinámicas (/{id}, etc.).
 const SPA_BLACKLIST = [
     '/logout',
+    '/talento/portal',
     '/mapas',
     '/olts/mapa-red',
     '/embajadores/metrics',
