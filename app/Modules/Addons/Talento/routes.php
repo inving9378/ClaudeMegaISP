@@ -422,4 +422,9 @@ Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
     ->group(function () {
         Route::get('/',                   [PortalTecnicoController::class, 'index']);
         Route::post('/preferencias/tema', [PortalTecnicoController::class, 'saveTheme']);
+
+        // Mi día — asistencia (delegan en AttendanceService).
+        Route::get('/asistencia/hoy',      [PortalTecnicoController::class, 'asistenciaHoy']);
+        Route::post('/asistencia/checkin', [PortalTecnicoController::class, 'checkin']);
+        Route::post('/asistencia/checkout',[PortalTecnicoController::class, 'checkout']);
     });

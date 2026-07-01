@@ -1,7 +1,7 @@
 /* Talento Portal Técnico — shell PWA (Quasar UMD + Vue 3).
- * Sub-paso 1: chrome de la app (header teal, nav inferior, tema oscuro por usuario,
- * registro del service worker). Las pantallas Mi día / OT+evidencia / Proyectos
- * se cablean en los sub-pasos 2–4 reutilizando /talento/api y sus servicios.
+ * Sub-paso 1: chrome (header teal, nav inferior, tema por usuario, service worker).
+ * Sub-paso 2: "Mi día" real — check-in/checkout geocercado (delega en AttendanceService).
+ * Reutiliza /talento/portal/* que a su vez delega en la capa de servicios existente.
  * No forma parte del bundle del admin ni del interceptor spa-nav. */
 (function () {
     'use strict';
@@ -9,7 +9,48 @@
     const CFG = window.__PORTAL__ || {};
     const { createApp, ref, computed, onMounted } = Vue;
 
-    // ── Registro del service worker (solo en contexto seguro: https o localhost) ──
+    // ── HTTP helper (mismo origen, CSRF de sesión) ──
+    async function apiFetch(url, options) {
+        const opts = Object.assign({
+            headers: {},
+            credentials: 'same-origin',
+        }, options || {});
+        opts.headers = Object.assign({
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': CFG.csrf,
+        }, opts.headers);
+        if (opts.body && typeof opts.body !== 'string') {
+            opts.headers['Content-Type'] = 'application/json';
+            opts.body = JSON.stringify(opts.body);
+        }
+        const res = await fetch(url, opts);
+        let data = null;
+        try { data = await res.json(); } catch (e) { data = null; }
+        return { ok: res.ok, status: res.status, data };
+    }
+
+    // ── Geolocalización como promesa (alta precisión) ──
+    function getPosition() {
+        return new Promise((resolve, reject) => {
+            if (!('geolocation' in navigator)) {
+                reject({ code: 'unsupported' });
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (pos) => resolve(pos),
+                (err) => reject(err),
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        });
+    }
+
+    function fmtHora(dt) {
+        if (!dt) return '';
+        const d = new Date(String(dt).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    }
+
     function registerServiceWorker() {
         if (!('serviceWorker' in navigator)) return;
         const secure = window.isSecureContext ||
@@ -32,20 +73,106 @@
             const dark = ref(CFG.theme === 'dark');
             const savingTheme = ref(false);
 
-            // Aplica el tema inicial al plugin Dark de Quasar.
+            // ── Estado de asistencia ──
+            const asistencia = ref(null);      // { check_in_at, check_out_at, geocerca, flagged, flag_reason }
+            const cargandoAsistencia = ref(true);
+            const accionAsistencia = ref(false); // check-in/checkout en curso
+
             $q.dark.set(dark.value);
 
             const nombre = computed(() =>
-                colaborador.value && colaborador.value.nombre
-                    ? colaborador.value.nombre
-                    : 'Colaborador');
+                colaborador.value && colaborador.value.nombre ? colaborador.value.nombre : 'Colaborador');
 
             const tipoLabel = computed(() => {
                 const t = colaborador.value && colaborador.value.tipo;
-                const map = { technician: 'Técnico', supervisor: 'Supervisor', ayudante: 'Ayudante' };
+                const map = { technician: 'Técnico', supervisor: 'Supervisor', ayudante: 'Ayudante', interno: 'Interno' };
                 return map[t] || (t || 'Técnico');
             });
 
+            const yaEntro   = computed(() => !!(asistencia.value && asistencia.value.check_in_at));
+            const yaSalio   = computed(() => !!(asistencia.value && asistencia.value.check_out_at));
+            const turnoAbierto = computed(() => yaEntro.value && !yaSalio.value);
+
+            async function cargarAsistencia() {
+                if (!colaborador.value) { cargandoAsistencia.value = false; return; }
+                cargandoAsistencia.value = true;
+                const { ok, data } = await apiFetch('/talento/portal/asistencia/hoy');
+                asistencia.value = (ok && data) ? data : null;
+                cargandoAsistencia.value = false;
+            }
+
+            async function registrarEntrada() {
+                if (accionAsistencia.value) return;
+                accionAsistencia.value = true;
+                let pos;
+                try {
+                    pos = await getPosition();
+                } catch (err) {
+                    accionAsistencia.value = false;
+                    const msg = err && err.code === 1
+                        ? 'Necesitamos tu ubicación para el check-in. Activa el permiso de ubicación e inténtalo de nuevo.'
+                        : 'No pudimos obtener tu ubicación. Revisa el GPS e inténtalo de nuevo.';
+                    $q.notify({ type: 'negative', message: msg, timeout: 5000 });
+                    return;
+                }
+                const { latitude, longitude, accuracy } = pos.coords;
+                const { ok, status, data } = await apiFetch('/talento/portal/asistencia/checkin', {
+                    method: 'POST',
+                    body: { lat: latitude, lng: longitude, accuracy: accuracy },
+                });
+                accionAsistencia.value = false;
+
+                if (!ok) {
+                    $q.notify({ type: 'negative', message: (data && data.message) || 'No se pudo registrar la entrada.' });
+                    return;
+                }
+                await cargarAsistencia();
+
+                if (data.status === 'already_open') {
+                    $q.notify({ type: 'info', message: 'Ya tenías una entrada activa hoy.' });
+                } else if (data.flagged) {
+                    const acc = Math.round(accuracy || 0);
+                    $q.notify({
+                        type: 'warning',
+                        icon: 'flag',
+                        message: 'Registrado — marcado para revisión' + (data.flag_reason ? ' (' + data.flag_reason + ')' : ''),
+                        caption: 'Precisión ~' + acc + ' m',
+                        timeout: 6000,
+                    });
+                } else {
+                    $q.notify({
+                        type: 'positive',
+                        icon: 'check_circle',
+                        message: 'Entrada registrada' + (data.geocerca ? ' en ' + data.geocerca : ''),
+                        timeout: 4000,
+                    });
+                }
+            }
+
+            async function registrarSalida() {
+                if (accionAsistencia.value) return;
+                accionAsistencia.value = true;
+                // La salida no exige geocerca; mandamos coords si están disponibles, sin bloquear.
+                let body = {};
+                try {
+                    const pos = await getPosition();
+                    body = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                } catch (e) { /* salida sin coords: permitido */ }
+
+                const { ok, data } = await apiFetch('/talento/portal/asistencia/checkout', {
+                    method: 'POST', body,
+                });
+                accionAsistencia.value = false;
+
+                if (!ok) {
+                    $q.notify({ type: 'negative', message: (data && data.message) || 'No se pudo registrar la salida.' });
+                    return;
+                }
+                await cargarAsistencia();
+                $q.notify({ type: 'positive', icon: 'logout', message: 'Salida registrada. ¡Buen trabajo!', timeout: 4000 });
+            }
+
+            // ── Tema ──
             function toggleDark() {
                 dark.value = !dark.value;
                 const theme = dark.value ? 'dark' : 'light';
@@ -53,19 +180,11 @@
                 document.documentElement.classList.toggle('portal-dark', dark.value);
                 document.querySelector('meta[name="theme-color"]')
                     ?.setAttribute('content', dark.value ? '#0f1620' : '#0d9488');
-                // Sin-flash en la próxima carga + verdad por-usuario en servidor.
                 try { localStorage.setItem('talentoPortalTheme', theme); } catch (e) {}
                 savingTheme.value = true;
-                fetch(CFG.endpoints.saveTheme, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': CFG.csrf,
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({ theme }),
-                }).catch(() => {/* offline: queda en localStorage, se reintenta al reabrir */})
-                  .finally(() => { savingTheme.value = false; });
+                apiFetch(CFG.endpoints.saveTheme, { method: 'POST', body: { theme } })
+                    .catch(() => {})
+                    .finally(() => { savingTheme.value = false; });
             }
 
             function logout() {
@@ -87,18 +206,24 @@
                 });
             }
 
-            onMounted(registerServiceWorker);
+            onMounted(() => {
+                registerServiceWorker();
+                cargarAsistencia();
+            });
 
-            return { colaborador, tab, dark, savingTheme, nombre, tipoLabel, toggleDark, logout };
+            return {
+                colaborador, tab, dark, savingTheme, nombre, tipoLabel,
+                asistencia, cargandoAsistencia, accionAsistencia,
+                yaEntro, yaSalio, turnoAbierto, fmtHora,
+                registrarEntrada, registrarSalida, toggleDark, logout,
+            };
         },
 
         template: `
         <q-layout view="hHh lpr fFf">
             <q-header elevated class="tp-header">
                 <q-toolbar>
-                    <q-avatar size="30px" color="white" text-color="teal-8">
-                        <q-icon name="engineering" />
-                    </q-avatar>
+                    <q-avatar size="30px" color="white" text-color="teal-8"><q-icon name="engineering" /></q-avatar>
                     <q-toolbar-title>
                         Talento Campo
                         <div class="tp-colab-chip" v-if="colaborador">{{ nombre }} · {{ tipoLabel }}</div>
@@ -120,23 +245,76 @@
                             personal de campo; pídele a un administrador que te vincule un perfil de Talento.
                         </q-banner>
 
-                        <q-card v-else flat bordered class="tp-card q-mb-md">
-                            <q-card-section class="row items-center no-wrap">
-                                <q-avatar color="teal-6" text-color="white" size="46px">
-                                    <q-icon name="person" />
-                                </q-avatar>
-                                <div class="q-ml-md">
-                                    <div class="text-subtitle1 text-weight-medium">Hola, {{ nombre }}</div>
-                                    <div class="tp-muted text-caption">{{ tipoLabel }}</div>
-                                </div>
-                            </q-card-section>
-                        </q-card>
+                        <template v-else>
+                            <q-card flat bordered class="tp-card q-mb-md">
+                                <q-card-section class="row items-center no-wrap">
+                                    <q-avatar color="teal-6" text-color="white" size="46px"><q-icon name="person" /></q-avatar>
+                                    <div class="q-ml-md">
+                                        <div class="text-subtitle1 text-weight-medium">Hola, {{ nombre }}</div>
+                                        <div class="tp-muted text-caption">{{ tipoLabel }}</div>
+                                    </div>
+                                </q-card-section>
+                            </q-card>
 
-                        <q-banner class="tp-card q-mb-md" rounded>
-                            <template #avatar><q-icon name="rocket_launch" color="teal-6" /></template>
-                            El shell del portal está listo. El <b>check-in con geocerca</b> y tus
-                            <b>órdenes del día</b> se activan en la siguiente entrega.
-                        </q-banner>
+                            <!-- Tarjeta de asistencia -->
+                            <q-card flat bordered class="tp-card q-mb-md">
+                                <q-card-section>
+                                    <div class="row items-center q-mb-sm">
+                                        <q-icon name="schedule" color="teal-6" size="22px" class="q-mr-sm" />
+                                        <div class="text-subtitle1 text-weight-medium">Asistencia de hoy</div>
+                                    </div>
+
+                                    <div v-if="cargandoAsistencia" class="row items-center tp-muted q-py-sm">
+                                        <q-spinner size="20px" color="teal-6" class="q-mr-sm" /> Consultando…
+                                    </div>
+
+                                    <template v-else>
+                                        <!-- Turno cerrado -->
+                                        <div v-if="yaSalio" class="tp-muted">
+                                            <q-icon name="task_alt" color="positive" /> Turno cerrado.
+                                            Entrada {{ fmtHora(asistencia.check_in_at) }} · Salida {{ fmtHora(asistencia.check_out_at) }}.
+                                        </div>
+
+                                        <!-- Turno abierto -->
+                                        <template v-else-if="turnoAbierto">
+                                            <q-banner v-if="asistencia.stale_day" dense rounded
+                                                      class="bg-orange-1 text-orange-9 q-mb-sm">
+                                                <template #avatar><q-icon name="history_toggle_off" color="orange-9" /></template>
+                                                Tienes un turno de un día anterior sin cerrar. Registra tu salida para poder iniciar uno nuevo.
+                                            </q-banner>
+                                            <div class="row items-center q-gutter-x-sm q-mb-sm">
+                                                <q-chip dense color="positive" text-color="white" icon="login">
+                                                    Entrada {{ fmtHora(asistencia.check_in_at) }}
+                                                </q-chip>
+                                                <q-chip v-if="asistencia.geocerca" dense outline color="teal-7" icon="place">
+                                                    {{ asistencia.geocerca }}
+                                                </q-chip>
+                                                <q-chip v-if="asistencia.flagged" dense color="orange-8" text-color="white" icon="flag">
+                                                    Marcado para revisión
+                                                </q-chip>
+                                            </div>
+                                            <q-btn unelevated color="teal-7" icon="logout" label="Registrar salida"
+                                                   :loading="accionAsistencia" @click="registrarSalida" class="full-width" />
+                                        </template>
+
+                                        <!-- Sin entrada -->
+                                        <template v-else>
+                                            <div class="tp-muted q-mb-sm">Aún no registras tu entrada.</div>
+                                            <q-btn unelevated color="teal-6" icon="my_location" label="Registrar entrada"
+                                                   :loading="accionAsistencia" @click="registrarEntrada" class="full-width" />
+                                            <div class="text-caption tp-muted q-mt-sm">
+                                                Usaremos tu ubicación para validar la geocerca en el servidor.
+                                            </div>
+                                        </template>
+                                    </template>
+                                </q-card-section>
+                            </q-card>
+
+                            <q-banner class="tp-card" rounded>
+                                <template #avatar><q-icon name="assignment" color="teal-6" /></template>
+                                Tus órdenes del día aparecerán aquí en la próxima entrega.
+                            </q-banner>
+                        </template>
                     </div>
 
                     <!-- Proyectos -->
@@ -193,12 +371,9 @@
     app.use(Quasar, {
         config: {
             brand: {
-                primary: '#0d9488',
-                secondary: '#0f766e',
-                positive: '#16a34a',
-                negative: '#dc2626',
-                warning: '#d97706',
-                info: '#0284c7',
+                primary: '#0d9488', secondary: '#0f766e',
+                positive: '#16a34a', negative: '#dc2626',
+                warning: '#d97706', info: '#0284c7',
             },
         },
         plugins: { Dialog: Quasar.Dialog, Notify: Quasar.Notify },

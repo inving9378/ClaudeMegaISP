@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Services\AttendanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '1';
+    private const ASSET_VER = '2';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -175,7 +176,131 @@ JS;
         return response()->json(['ok' => true, 'theme' => $data['theme']]);
     }
 
+    // ── Mi día: asistencia (check-in / checkout geocercado) ────────────────────
+
+    /**
+     * Estado de asistencia de hoy. Misma consulta que el API móvil (asistenciaHoy):
+     * último registro del colaborador con check_in_at de hoy.
+     */
+    public function asistenciaHoy(Request $request)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        // Prioriza un turno ABIERTO (cualquier fecha): AttendanceService::checkIn bloquea
+        // sobre cualquier asistencia abierta sin importar el día, así que la UI debe
+        // reflejar ese mismo estado (caso "olvidó cerrar el turno de ayer").
+        $abierta = DB::table('talento_attendances')
+            ->where('colaborador_id', $colaborador->id)
+            ->whereNull('check_out_at')
+            ->orderByDesc('id')
+            ->first();
+
+        // Si no hay turno abierto, muestra el último registro de HOY (turno ya cerrado hoy).
+        $registro = $abierta ?: DB::table('talento_attendances')
+            ->where('colaborador_id', $colaborador->id)
+            ->whereDate('check_in_at', now()->toDateString())
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $registro) {
+            return response()->json(['check_in_at' => null, 'check_out_at' => null]);
+        }
+
+        $staleDay = $abierta && substr((string) $registro->check_in_at, 0, 10) !== now()->toDateString();
+
+        return response()->json([
+            'id'           => $registro->id,
+            'check_in_at'  => $registro->check_in_at,
+            'check_out_at' => $registro->check_out_at,
+            'geocerca'     => $this->siteName($registro->check_in_site_id),
+            'flagged'      => (bool) $registro->check_in_flagged,
+            'flag_reason'  => $registro->check_in_flag_reason,
+            'stale_day'    => $staleDay,
+        ]);
+    }
+
+    /**
+     * Check-in geocercado. Delega en AttendanceService::checkIn (validación de
+     * geocerca en servidor + flag por precisión > 100 m / fuera de cerca, sin
+     * bloquear). El navegador solo manda lat/lng/accuracy_m.
+     */
+    public function checkin(Request $request)
+    {
+        $data = $request->validate([
+            'lat'      => 'required|numeric',
+            'lng'      => 'required|numeric',
+            'accuracy' => 'nullable|numeric',
+            'wo_id'    => 'nullable|integer',
+        ]);
+
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        $res = app(AttendanceService::class)->checkIn(
+            $colaborador->id,
+            (float) $data['lat'],
+            (float) $data['lng'],
+            isset($data['accuracy']) ? (float) $data['accuracy'] : null,
+            $data['wo_id'] ?? null
+        );
+
+        $att = $res['attendance'] ?? null;
+        if ($att && ! $att->relationLoaded('site')) {
+            $att->load('site');
+        }
+
+        return response()->json([
+            'status'      => $res['status'],                       // ok | flagged | already_open
+            'check_in_at' => $att?->check_in_at,
+            'geocerca'    => $att?->site?->name,
+            'flagged'     => (bool) ($att?->check_in_flagged),
+            'flag_reason' => $att?->check_in_flag_reason,
+        ], $res['status'] === 'already_open' ? 200 : 201);
+    }
+
+    /** Checkout del registro abierto de hoy. Delega en AttendanceService::checkOut. */
+    public function checkout(Request $request)
+    {
+        $data = $request->validate([
+            'lat' => 'nullable|numeric',
+            'lng' => 'nullable|numeric',
+        ]);
+
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        $res = app(AttendanceService::class)->checkOut(
+            $colaborador->id,
+            isset($data['lat']) ? (float) $data['lat'] : null,
+            isset($data['lng']) ? (float) $data['lng'] : null
+        );
+
+        if ($res['status'] === 'no_open_attendance') {
+            return response()->json(['message' => 'Sin check-in activo para cerrar.'], 422);
+        }
+
+        return response()->json([
+            'status'       => 'ok',
+            'check_out_at' => $res['attendance']?->check_out_at,
+        ]);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private function siteName(?int $siteId): ?string
+    {
+        if (! $siteId) {
+            return null;
+        }
+        return DB::table('talento_work_sites')->where('id', $siteId)->value('name');
+    }
 
     private function resolveColaborador(Request $request): ?TalentoColaborador
     {
