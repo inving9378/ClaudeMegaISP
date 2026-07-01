@@ -124,6 +124,11 @@
                                     <a href="{{ url('/finanzas/conciliacion') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Cola de Conciliación</span></a>
                                 </li>
                             @endif
+                            @if(auth()->user()->can('payments_capture_manage'))
+                                <li>
+                                    <a href="{{ url('/finanzas/captura-pago') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Registrar pago reportado</span></a>
+                                </li>
+                            @endif
                             @if(auth()->user()->can('pagos.links.manage'))
                                 <li>
                                     <a href="{{ url('/pagos/links') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Ligas de Pago</span></a>
