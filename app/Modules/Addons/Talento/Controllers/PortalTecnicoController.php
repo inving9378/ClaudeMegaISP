@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '4';
+    private const ASSET_VER = '5';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -385,6 +385,34 @@ JS;
                 'client'     => $hayFirmaClie,
             ],
         ]);
+    }
+
+    // ── Iniciar / Completar ─────────────────────────────────────────────────
+
+    /** Inicia la OT (pending → in_progress). Delega en el servicio. */
+    public function iniciarOt(Request $request, string $origen, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+        $res = app(OrdenTrabajoUnifiedService::class)->iniciar($id, $colaborador->id);
+        return response()->json($res, $res['success'] ? 200 : ($res['status_code'] ?? 422));
+    }
+
+    /**
+     * Completa la OT. El servicio gatea evidencia obligatoria + umbral dBm; si faltan,
+     * responde 422 con el mensaje y la lista de faltantes (no cierra la OT).
+     */
+    public function completarOt(Request $request, string $origen, int $id)
+    {
+        $data = $request->validate(['nota_tecnico' => 'nullable|string|max:2000']);
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+        $res = app(OrdenTrabajoUnifiedService::class)->completar($id, $colaborador->id, $data);
+        return response()->json($res, $res['success'] ? 200 : ($res['status_code'] ?? 422));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

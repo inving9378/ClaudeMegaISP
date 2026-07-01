@@ -434,4 +434,10 @@ Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
         // Detalle de OT (por origen/id). {origen} = work_order|task.
         Route::get('/ot/{origen}/{id}', [PortalTecnicoController::class, 'otDetalle'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
+
+        // Iniciar / Completar (gate de evidencia + dBm en el servicio).
+        Route::post('/ot/{origen}/{id}/iniciar',   [PortalTecnicoController::class, 'iniciarOt'])
+            ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
+        Route::post('/ot/{origen}/{id}/completar', [PortalTecnicoController::class, 'completarOt'])
+            ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
     });

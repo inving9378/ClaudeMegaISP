@@ -182,6 +182,38 @@
                 if (otSeleccionada.value) cargarDetalle(otSeleccionada.value.origen, otSeleccionada.value.id);
             }
 
+            const accionOt = ref(false);
+            function otUrl(sufijo) {
+                return '/talento/portal/ot/' + detalle.value.ot.origen + '/' + detalle.value.ot.id + (sufijo || '');
+            }
+
+            async function iniciarOt() {
+                if (!detalle.value || accionOt.value) return;
+                accionOt.value = true;
+                const { ok, data } = await apiFetch(otUrl('/iniciar'), { method: 'POST' });
+                accionOt.value = false;
+                if (!ok) { $q.notify({ type: 'negative', message: (data && data.message) || 'No se pudo iniciar.' }); return; }
+                $q.notify({ type: 'positive', icon: 'play_arrow', message: 'OT iniciada.' });
+                await recargarDetalle(); cargarOts();
+            }
+
+            async function completarOt() {
+                if (!detalle.value || accionOt.value) return;
+                accionOt.value = true;
+                const { ok, data } = await apiFetch(otUrl('/completar'), { method: 'POST', body: {} });
+                accionOt.value = false;
+                if (!ok) {
+                    let msg = (data && data.message) || 'No se pudo completar.';
+                    if (data && Array.isArray(data.faltantes) && data.faltantes.length) {
+                        msg += ' Faltan: ' + data.faltantes.map((f) => f.name).join(', ') + '.';
+                    }
+                    $q.notify({ type: 'warning', icon: 'block', message: msg, timeout: 7000 });
+                    return;
+                }
+                $q.notify({ type: 'positive', icon: 'check_circle', message: 'OT completada.' });
+                await recargarDetalle(); cargarOts();
+            }
+
             function toggleDark() {
                 dark.value = !dark.value;
                 const theme = dark.value ? 'dark' : 'light';
@@ -217,9 +249,10 @@
             return {
                 colaborador, tab, dark, savingTheme, nombre, tipoLabel,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
-                ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle,
+                ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
                 fmtHora, statusInfo,
-                registrarEntrada, registrarSalida, abrirDetalle, cerrarDetalle, recargarDetalle, toggleDark, logout,
+                registrarEntrada, registrarSalida, abrirDetalle, cerrarDetalle, recargarDetalle,
+                iniciarOt, completarOt, toggleDark, logout,
             };
         },
 
@@ -284,6 +317,26 @@
                                             <q-item-section><q-item-label caption>Notas</q-item-label><q-item-label>{{ detalle.ot.notas }}</q-item-label></q-item-section>
                                         </q-item>
                                     </q-list>
+                                </q-card>
+
+                                <!-- Acción principal según estado -->
+                                <q-card flat bordered class="tp-card q-mb-md">
+                                    <q-card-section>
+                                        <q-btn v-if="detalle.ot.status==='pending'" unelevated color="teal-6"
+                                               icon="play_arrow" label="Iniciar OT" class="full-width"
+                                               :loading="accionOt" @click="iniciarOt" />
+                                        <template v-else-if="detalle.ot.status==='in_progress'">
+                                            <q-btn unelevated color="teal-7" icon="check_circle" label="Completar OT"
+                                                   class="full-width" :loading="accionOt" @click="completarOt" />
+                                            <div class="text-caption tp-muted q-mt-sm">
+                                                Se validará la evidencia obligatoria y el umbral dBm antes de cerrar.
+                                            </div>
+                                        </template>
+                                        <div v-else class="row items-center tp-muted">
+                                            <q-icon name="info" class="q-mr-sm" />
+                                            OT en estado «{{ statusInfo(detalle.ot.status).label }}».
+                                        </div>
+                                    </q-card-section>
                                 </q-card>
 
                                 <!-- Checklist de evidencia requerida -->
