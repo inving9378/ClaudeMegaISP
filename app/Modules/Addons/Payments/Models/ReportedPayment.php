@@ -31,6 +31,8 @@ class ReportedPayment extends BaseModel
         'clave_rastreo',
         'titular',
         'banco_origen',
+        'referencia_oxxo',
+        'tecnico_id',
         'comprobante_path',
         'conciliation_status',
         'verified_by',
@@ -71,5 +73,10 @@ class ReportedPayment extends BaseModel
     public function verifiedBy()
     {
         return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function tecnico()
+    {
+        return $this->belongsTo(User::class, 'tecnico_id');
     }
 }

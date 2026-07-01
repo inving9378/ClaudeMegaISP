@@ -162,6 +162,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // Pagos
             Route::prefix('payment')->group(function () {
+                Route::get('/tecnicos', [ClientPaymentController::class, 'tecnicos']);
                 Route::post('/crear/{id}', [ClientPaymentController::class, 'store']);
                 Route::post('/update/{id}', [ClientPaymentController::class, 'update']);
                 Route::post('/destroy/{id}', [ClientPaymentController::class, 'destroy']);

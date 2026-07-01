@@ -13,6 +13,7 @@ use App\Http\Requests\module\client\ClientPaymentRequest;
 use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Core\Clientes\Models\ClientPaymentMetadata;
+use App\Modules\Addons\Payments\Models\ReportedPayment;
 use App\Models\GeneralAccountingIncome;
 use App\Models\Invoice;
 use App\Models\Payment;
@@ -74,6 +75,35 @@ class ClientPaymentController extends Controller
                         'previous_fecha_fin_periodo_gracia' => $fechaFinPeriodoGracia
                     ]);
 
+                    // FASE PAGOS 2b — Registro del pago reportado (conciliación).
+                    // El abono de saldo ya lo hizo el pago (observer → PaymentClientJob);
+                    // esto es metadata + comprobante de los campos propios del método,
+                    // en estado pendiente_verificar. Un fallo aquí NO revierte el pago
+                    // (se loguea), igual que en el Paso 2.
+                    try {
+                        $comprobantePath = null;
+                        if ($request->hasFile('file')) {
+                            $comprobantePath = $request->file('file')
+                                ->store('private/payments/mostrador/comprobantes', 'local');
+                        }
+                        ReportedPayment::create([
+                            'payment_id'           => $payment->id,
+                            'client_id'            => $client->id,
+                            'method_of_payment_id' => $request->payment_method_id,
+                            'amount'               => $request->amount,
+                            'fecha_pago'           => $request->date_payment ?? now()->toDateString(),
+                            'clave_rastreo'        => $request->clave_rastreo,
+                            'titular'              => $request->titular,
+                            'banco_origen'         => $request->banco_origen,
+                            'referencia_oxxo'      => $request->referencia_oxxo,
+                            'tecnico_id'           => $request->tecnico_id,
+                            'comprobante_path'     => $comprobantePath,
+                            'conciliation_status'  => ReportedPayment::ESTADO_PENDIENTE,
+                        ]);
+                    } catch (\Exception $reportedError) {
+                        Log::warning('FASE PAGOS 2b: fallo al registrar reported_payment (pago ya aplicado): ' . $reportedError->getMessage());
+                    }
+
                     DB::commit();
                     return response()->json([
                         'success' => true,
@@ -91,6 +121,24 @@ class ClientPaymentController extends Controller
             Log::info('Error al iniciar la transaccion: ' . $e->getMessage());
             return response()->json(['error' => 'Error al iniciar la transaccion: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * FASE PAGOS 2b — Catálogo de técnicos (interna o externa) para el método
+     * "Pago a técnico": usuarios con rol TECNICO / TECNICO_INSTALADOR /
+     * TECNICO_PLANTA. Devuelve [{id, name}] para el <select> del modal.
+     */
+    public function tecnicos()
+    {
+        $roles = ['TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA'];
+
+        return \App\Models\User::whereHas('roles', function ($q) use ($roles) {
+                $q->whereIn('name', $roles);
+            })
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name])
+            ->values();
     }
 
     public function update(Request $request, $id)
