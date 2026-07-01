@@ -114,12 +114,17 @@
                 </q-card-section>
 
                 <q-card-actions align="right">
-                    <q-btn flat label="Cancelar" v-close-popup :disable="modal.busy" />
+                    <!-- Cierre por @click: v-close-popup no funciona (la directiva ClosePopup
+                         no está registrada globalmente en app.use(Quasar)). -->
+                    <q-btn flat label="Cancelar" :disable="modal.busy" @click="closeModal" />
                     <template v-if="modal.row && modal.row.status === 'open' && canResolve">
+                        <!-- Siempre clicables: la nota obligatoria se valida en confirm()
+                             (muestra error inline) + el backend responde 422. Deshabilitar
+                             por !noteValid hacía que el botón pareciera muerto. -->
                         <q-btn color="grey-8" label="Descartar" :loading="modal.busy"
-                               :disable="!noteValid" @click="confirm('descartar')" />
+                               :disable="modal.busy" @click="confirm('descartar')" />
                         <q-btn color="positive" label="Resolver" :loading="modal.busy"
-                               :disable="!noteValid" @click="confirm('resolver')" />
+                               :disable="modal.busy" @click="confirm('resolver')" />
                     </template>
                 </q-card-actions>
             </q-card>
@@ -170,6 +175,9 @@ export default {
         },
         openDetail(row) {
             this.modal = { show: true, row, note: '', err: '', busy: false };
+        },
+        closeModal() {
+            this.modal.show = false;
         },
         async confirm(action) {
             if (!this.noteValid) {
