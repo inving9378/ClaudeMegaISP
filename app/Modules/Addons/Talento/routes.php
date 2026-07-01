@@ -427,4 +427,7 @@ Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
         Route::get('/asistencia/hoy',      [PortalTecnicoController::class, 'asistenciaHoy']);
         Route::post('/asistencia/checkin', [PortalTecnicoController::class, 'checkin']);
         Route::post('/asistencia/checkout',[PortalTecnicoController::class, 'checkout']);
+
+        // Mi día — OTs del día (delega en OrdenTrabajoUnifiedService::summaryForHoy).
+        Route::get('/ots/hoy', [PortalTecnicoController::class, 'otsHoy']);
     });

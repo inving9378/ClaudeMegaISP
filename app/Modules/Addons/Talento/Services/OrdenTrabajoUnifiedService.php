@@ -115,6 +115,7 @@ class OrdenTrabajoUnifiedService
         return [
             'id'        => $ot->id,
             'folio'     => $ot->id,
+            'origen'    => 'work_order',   // discriminador de origen (tabla talento_work_orders)
             'tipo'      => $ot->type?->name ?? '—',
             'status'    => $ot->status,
             'cliente'   => $client['name'],
@@ -129,6 +130,7 @@ class OrdenTrabajoUnifiedService
         return [
             'id'        => $task->id,
             'folio'     => $task->id,
+            'origen'    => 'task',         // discriminador de origen (tabla tasks)
             'tipo'      => $task->talentoType?->name ?? '—',
             'status'    => self::TASK_STATUS_MAP[$task->status] ?? $task->status,
             'cliente'   => $client['name'],

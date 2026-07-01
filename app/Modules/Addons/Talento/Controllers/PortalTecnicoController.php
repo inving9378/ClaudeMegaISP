@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Talento\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Services\AttendanceService;
+use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
@@ -21,7 +22,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '2';
+    private const ASSET_VER = '3';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -290,6 +291,26 @@ JS;
             'status'       => 'ok',
             'check_out_at' => $res['attendance']?->check_out_at,
         ]);
+    }
+
+    // ── Mi día: OTs del día ────────────────────────────────────────────────────
+
+    /**
+     * OTs del día del colaborador. Delega en OrdenTrabajoUnifiedService::summaryForHoy,
+     * que mezcla talento_work_orders + tasks. Cada tarjeta trae el discriminador de
+     * origen ('origen' => work_order|task) para que el detalle (Sub-paso 3) opere
+     * contra la tabla correcta y no dé 404.
+     */
+    public function otsHoy(Request $request)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        $ots = app(OrdenTrabajoUnifiedService::class)->summaryForHoy($colaborador->id);
+
+        return response()->json(['data' => $ots]);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
