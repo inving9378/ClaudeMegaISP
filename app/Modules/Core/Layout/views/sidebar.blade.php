@@ -119,6 +119,11 @@
                                     <a href="{{ url('/pagos/cuentas') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Cuentas de Cobro</span></a>
                                 </li>
                             @endif
+                            @if(auth()->user()->can('reconciliation_view'))
+                                <li>
+                                    <a href="{{ url('/finanzas/conciliacion') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Cola de Conciliación</span></a>
+                                </li>
+                            @endif
                             @if(auth()->user()->can('pagos.links.manage'))
                                 <li>
                                     <a href="{{ url('/pagos/links') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Ligas de Pago</span></a>

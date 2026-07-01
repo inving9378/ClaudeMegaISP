@@ -3,6 +3,7 @@
 use App\Modules\Addons\Payments\Controllers\ClabeAssignmentController;
 use App\Modules\Addons\Payments\Controllers\MobilePaymentController;
 use App\Modules\Addons\Payments\Controllers\PaymentProviderController;
+use App\Modules\Addons\Payments\Controllers\ReconciliationController;
 use App\Modules\Addons\Payments\Controllers\ReceiptController;
 use App\Modules\Addons\Payments\Controllers\SpeiWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -38,6 +39,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/metodos-pago', function () {
             return view('addon-payments::metodos-pago');
         })->name('metodos-pago');
+
+        // Cola de conciliación (motor de cobro nativo) — reconciliation_tickets.
+        // Tablero dedicado; cierra el 404 del banner del listado de clientes.
+        Route::get('/conciliacion',                  [ReconciliationController::class, 'index'])->name('conciliacion');
+        Route::get('/conciliacion/list',             [ReconciliationController::class, 'list'])->name('conciliacion.list');
+        Route::post('/conciliacion/{id}/resolver',   [ReconciliationController::class, 'resolve'])->whereNumber('id')->name('conciliacion.resolve');
+        Route::post('/conciliacion/{id}/descartar',  [ReconciliationController::class, 'dismiss'])->whereNumber('id')->name('conciliacion.dismiss');
 
         // Proveedores de pago (payment_providers)
         Route::get('/payment-providers',         [PaymentProviderController::class, 'index'])->name('payment-providers.index');

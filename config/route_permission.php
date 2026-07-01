@@ -1683,6 +1683,16 @@ return [
         '/finanzas/payments/{payment}/receipt/{receipt}/download',
     ],
 
+    // Cola de conciliación (motor de cobro nativo)
+    'reconciliation_view' => [
+        '/finanzas/conciliacion',
+        '/finanzas/conciliacion/list',
+    ],
+    'reconciliation_resolve' => [
+        '/finanzas/conciliacion/{id}/resolver',
+        '/finanzas/conciliacion/{id}/descartar',
+    ],
+
     // ══════════════════════════════════════════════════════════════════════════
     // DASHBOARD — fix acceso post-login para usuarios no-admin
     // ══════════════════════════════════════════════════════════════════════════
