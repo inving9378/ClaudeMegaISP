@@ -26,6 +26,7 @@ class ReconciliationTicket extends BaseModel
         'status',
         'resolved_by',
         'resolved_at',
+        'resolution_note',
         'created_by',
     ];
 

@@ -46,11 +46,13 @@ class ReconciliationController extends Controller
             ->whereNull('rt.deleted_at')
             ->leftJoin('client_main_information as cmi', 'cmi.client_id', '=', 'rt.client_id')
             ->leftJoin('client_payment_references as cpr', 'cpr.client_id', '=', 'rt.client_id')
+            ->leftJoin('users as u', 'u.id', '=', 'rt.resolved_by')
             ->select([
                 'rt.id', 'rt.client_id', 'rt.payment_id', 'rt.reason', 'rt.detail',
-                'rt.amount', 'rt.status', 'rt.created_at', 'rt.resolved_at',
+                'rt.amount', 'rt.status', 'rt.created_at', 'rt.resolved_at', 'rt.resolution_note',
                 DB::raw("TRIM(CONCAT(COALESCE(cmi.name,''),' ',COALESCE(cmi.father_last_name,''),' ',COALESCE(cmi.mother_last_name,''))) as client_name"),
                 'cpr.reference as client_reference',
+                DB::raw("TRIM(CONCAT(COALESCE(u.name,''),' ',COALESCE(u.father_last_name,''),' ',COALESCE(u.mother_last_name,''))) as resolved_by_name"),
             ]);
 
         if ($status !== 'all') {
@@ -61,6 +63,7 @@ class ReconciliationController extends Controller
             ->map(function ($r) {
                 $r->reason_label = self::REASON_LABELS[$r->reason] ?? $r->reason;
                 $r->client_name = $r->client_name ?: null;
+                $r->resolved_by_name = $r->resolved_by_name ?: null;
                 return $r;
             });
 
@@ -71,19 +74,27 @@ class ReconciliationController extends Controller
         ]);
     }
 
-    public function resolve(int $id): JsonResponse
+    public function resolve(Request $request, int $id): JsonResponse
     {
-        return $this->closeTicket($id, 'resolved', 'Ticket resuelto.');
+        return $this->closeTicket($request, $id, 'resolved', 'Ticket resuelto.');
     }
 
-    public function dismiss(int $id): JsonResponse
+    public function dismiss(Request $request, int $id): JsonResponse
     {
-        return $this->closeTicket($id, 'dismissed', 'Ticket descartado.');
+        return $this->closeTicket($request, $id, 'dismissed', 'Ticket descartado.');
     }
 
-    private function closeTicket(int $id, string $status, string $message): JsonResponse
+    private function closeTicket(Request $request, int $id, string $status, string $message): JsonResponse
     {
         abort_unless(auth()->user()?->can('reconciliation_resolve'), 403);
+
+        // Nota de resolución obligatoria: deja rastro de cómo se resolvió/por qué se descartó.
+        $data = $request->validate([
+            'resolution_note' => ['required', 'string', 'min:3', 'max:1000'],
+        ], [
+            'resolution_note.required' => 'Escribe una nota explicando cómo se resolvió.',
+            'resolution_note.min'      => 'La nota es demasiado corta.',
+        ]);
 
         $ticket = ReconciliationTicket::findOrFail($id);
 
@@ -92,9 +103,10 @@ class ReconciliationController extends Controller
         }
 
         $ticket->update([
-            'status'      => $status,
-            'resolved_by' => auth()->id(),
-            'resolved_at' => now(),
+            'status'          => $status,
+            'resolved_by'     => auth()->id(),
+            'resolved_at'     => now(),
+            'resolution_note' => $data['resolution_note'],
         ]);
 
         return response()->json([
