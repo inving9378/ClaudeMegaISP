@@ -56,12 +56,18 @@ class TalentoAttendance extends BaseModel
 
     public function isOpen(): bool
     {
-        return $this->status === 'open';
+        // Un turno flagged (fuera de cerca / GPS impreciso) sigue estando ABIERTO:
+        // se registró la entrada pero no la salida. Debe poder cerrarse.
+        return in_array($this->status, ['open', 'flagged'], true) && $this->check_out_at === null;
     }
 
     public function scopeOpen($query)
     {
-        return $query->where('status', 'open');
+        // Abierto = entrada sin salida. Incluye 'flagged' (AttendanceService::checkIn
+        // marca status='flagged' cuando cae fuera de cerca o con GPS impreciso, sin
+        // bloquear); de lo contrario checkOut no podría cerrarlo. Sólo lo usa
+        // AttendanceService (checkIn/checkOut/storePing).
+        return $query->whereIn('status', ['open', 'flagged'])->whereNull('check_out_at');
     }
 
     public function scopeForPeriod($query, $start, $end)
