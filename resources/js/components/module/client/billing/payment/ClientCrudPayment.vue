@@ -120,6 +120,57 @@
                             </div>
                         </div>
 
+                        <!--
+                            FASE PAGOS 2b — Campos propios del método (declarativos).
+                            Se pintan/ocultan según el método activo (activeMethodFields)
+                            y se limpian al cambiar de método (onMethodChange).
+                        -->
+                        <template
+                            v-for="f in activeMethodFields"
+                            :key="f.key"
+                        >
+                            <div class="col-12 row mb-2">
+                                <label
+                                    class="col-sm-12 col-md-3 col-form-label text-md-end pr-2 text-sm-center"
+                                >
+                                    {{ f.label }}
+                                </label>
+                                <div class="col-sm-12 col-md-9">
+                                    <input
+                                        v-if="f.type === 'text'"
+                                        type="text"
+                                        class="form-control"
+                                        v-model.trim="dataForm.data[f.key]"
+                                        :placeholder="f.label"
+                                    />
+                                    <select
+                                        v-else-if="f.type === 'tecnico'"
+                                        class="form-control"
+                                        v-model="dataForm.data.tecnico_id"
+                                    >
+                                        <option :value="null">
+                                            Seleccione un técnico...
+                                        </option>
+                                        <option
+                                            v-for="t in tecnicos"
+                                            :key="t.id"
+                                            :value="t.id"
+                                        >
+                                            {{ t.name }}
+                                        </option>
+                                    </select>
+                                    <input
+                                        v-else-if="f.type === 'file'"
+                                        type="file"
+                                        name="file"
+                                        accept="image/*"
+                                        class="form-control"
+                                        @change="onMethodFileChange"
+                                    />
+                                </div>
+                            </div>
+                        </template>
+
                         <template v-for="val in fieldsJson">
                             <ComponentFormDefault
                                 v-if="val.include"
@@ -201,6 +252,7 @@ import {
     getIsClientPromisePayment,
     getPromotions,
     getAvailablePeriodsByClient,
+    getTecnicos,
 } from "../helpers/request";
 import ComponentFormDefault from "../../../../ComponentFormDefault";
 import {
@@ -256,6 +308,52 @@ export default {
             }
             return list;
         });
+
+        // FASE PAGOS 2b — Config DECLARATIVA de campos por método.
+        // Estructura reusable: el mismo motor lo usará la IA para poblar los
+        // campos propios de cada método. Para agregar/ajustar un método solo se
+        // toca este objeto (no hay condicionales dispersos por el template).
+        //   type: 'text'    → input de texto  (dataForm.data[key])
+        //         'tecnico' → selector de técnico (dataForm.data.tecnico_id)
+        //         'file'    → comprobante/foto (dataForm.data.file)
+        const PAYMENT_METHOD_FIELDS = {
+            // 1 Efectivo en Caja: sin campos extra.
+            1: [],
+            // 2 Transferencia Bancaria.
+            2: [
+                { key: "clave_rastreo", label: "Clave de rastreo (SPEI)", type: "text", required: true },
+                { key: "titular", label: "Titular (ordenante)", type: "text", required: true },
+                { key: "banco_origen", label: "Banco origen", type: "text", required: true },
+                { key: "file", label: "Comprobante (foto)", type: "file", required: true },
+            ],
+            // 5 Oxxo (el monto es lo recibido, NO incluye comisión Oxxo).
+            5: [
+                { key: "referencia_oxxo", label: "Referencia / folio de venta", type: "text", required: true },
+                { key: "file", label: "Comprobante (foto)", type: "file", required: true },
+            ],
+            // 7 Pago a técnico.
+            7: [
+                { key: "tecnico_id", label: "Técnico", type: "tecnico", required: true },
+                { key: "file", label: "Foto (opcional)", type: "file", required: false },
+            ],
+        };
+        // Llaves de DATOS que no existen en field_modules: se inyectan en
+        // fieldsJson (include:false) para que Form.uploadFile las serialice.
+        const EXTRA_FIELD_KEYS = [
+            "clave_rastreo",
+            "titular",
+            "banco_origen",
+            "referencia_oxxo",
+            "tecnico_id",
+        ];
+        // Todas las llaves gestionadas por método (incluye el file existente).
+        const ALL_METHOD_KEYS = [...EXTRA_FIELD_KEYS, "file"];
+
+        const tecnicos = ref([]);
+        const activeMethodFields = computed(
+            () => PAYMENT_METHOD_FIELDS[selectedMethodId.value] || []
+        );
+
         const dataForm = reactive({
             data: new Form({}),
         });
@@ -387,6 +485,10 @@ export default {
             );
             promotions.value = await getPromotions(props.idClient);
 
+            if (!tecnicos.value.length) {
+                tecnicos.value = await getTecnicos();
+            }
+
             action == `crear/${props.idClient}`
                 ? await getfieldsJson("ClientPayment")
                 : await getfieldsEdited("ClientPayment", props.action);
@@ -398,18 +500,35 @@ export default {
             }
         };
 
-        // Oculta el payment_method_id nativo (Choices.js) del loop dinámico.
-        // Sigue en originalData → viaja en el POST vía dataForm.data.payment_method_id.
-        const hideNativeMethodField = () => {
+        // Prepara fieldsJson antes de construir el Form:
+        //  - Oculta del loop dinámico el payment_method_id nativo (Choices.js,
+        //    roto) y el file (lo pintamos controlado por método). Siguen en
+        //    originalData → viajan en el POST.
+        //  - Inyecta las llaves de datos por método (include:false) para que
+        //    Form.uploadFile las serialice aunque no existan en field_modules.
+        const prepareDynamicFields = () => {
             if (fieldsJson.value.payment_method_id) {
                 fieldsJson.value.payment_method_id.include = false;
             }
+            if (fieldsJson.value.file) {
+                fieldsJson.value.file.include = false;
+            }
+            EXTRA_FIELD_KEYS.forEach((k) => {
+                if (!fieldsJson.value[k]) {
+                    fieldsJson.value[k] = {
+                        field: k,
+                        type: "input-string",
+                        include: false,
+                        label: k,
+                    };
+                }
+            });
         };
 
         const getfieldsEdited = async (model, action) => {
             let id = action.substr(7);
             fieldsJson.value = await requestEditedFieldsById(model, id);
-            hideNativeMethodField();
+            prepareDynamicFields();
             dataForm.data = new Form(fieldsJson.value);
             selectedMethodId.value = Number(dataForm.data.payment_method_id) || 1;
             onMethodChange();
@@ -418,16 +537,27 @@ export default {
 
         const getfieldsJson = async (model) => {
             fieldsJson.value = await requestFieldsByModule(model);
-            hideNativeMethodField();
+            prepareDynamicFields();
             dataForm.data = new Form(fieldsJson.value);
             selectedMethodId.value = 1;
             onMethodChange();
             title.value = "Crear Gasto";
         };
 
-        // Escribe el método elegido en el Form (el <select> nativo está oculto).
+        // Al cambiar de método: fija el método en el Form y limpia los campos
+        // propios del método anterior (los que no pertenecen al método activo).
         const onMethodChange = () => {
             dataForm.data.payment_method_id = selectedMethodId.value;
+            const active = activeMethodFields.value.map((f) => f.key);
+            ALL_METHOD_KEYS.forEach((k) => {
+                if (!active.includes(k)) dataForm.data[k] = null;
+            });
+        };
+
+        // Guarda el archivo (comprobante/foto) en la llave 'file' que ya lee el
+        // backend (clientCreatePayment → $request->file).
+        const onMethodFileChange = (event) => {
+            dataForm.data.file = event.target.files[0] || null;
         };
 
         const onSubmit = () => {
@@ -570,6 +700,9 @@ export default {
             selectedMethodId,
             paymentMethods,
             onMethodChange,
+            activeMethodFields,
+            tecnicos,
+            onMethodFileChange,
             onSubmit,
             updateThisField,
             clearError,

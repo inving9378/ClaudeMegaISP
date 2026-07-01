@@ -119,4 +119,19 @@ export const getAvailablePeriodsByClient = async (clientId) => {
     return data;
 };
 
+// FASE PAGOS 2b — catálogo de técnicos (rol TECNICO / TECNICO_INSTALADOR /
+// TECNICO_PLANTA, interna o externa) para el método "Pago a técnico".
+export const getTecnicos = async () => {
+    let data = [];
+    await axios
+        .get(`/cliente/billing/payment/tecnicos`)
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            console.error("Pagos: fallo al cargar técnicos", e.response?.status);
+        });
+    return data;
+};
+
 
