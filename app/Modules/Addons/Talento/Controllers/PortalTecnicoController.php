@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Services\AttendanceService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
+use App\Modules\Addons\Talento\Services\SignatureService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '3';
+    private const ASSET_VER = '4';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -311,6 +312,79 @@ JS;
         $ots = app(OrdenTrabajoUnifiedService::class)->summaryForHoy($colaborador->id);
 
         return response()->json(['data' => $ots]);
+    }
+
+    // ── Detalle de OT ───────────────────────────────────────────────────────
+
+    /**
+     * Detalle de una OT del colaborador (por {origen, id}). Delega en
+     * OrdenTrabajoUnifiedService::detail (que auto-resuelve WO/task y ya scopea por
+     * colaborador). Devuelve la OT, la evidencia existente, el checklist de evidencia
+     * requerida (con flags de dBm/firma y estado subido) y el estado de firmas.
+     */
+    public function otDetalle(Request $request, string $origen, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        $detalle = app(OrdenTrabajoUnifiedService::class)->detail($id, $colaborador->id);
+        if (! $detalle) {
+            return response()->json(['message' => 'OT no encontrada.'], 404);
+        }
+
+        $origenReal   = $detalle['origen']; // work_order | task (autoridad del servicio)
+        $subidos      = collect($detalle['evidencias'])->pluck('type_id')->map(fn ($v) => (int) $v)->unique();
+        $firmas       = app(SignatureService::class)->signerTypesFor($origenReal, $id);
+        $hayFirmaClie = in_array('client', $firmas, true);
+
+        // Flags por tipo de evidencia requerido (dBm / firma / justificación / varias).
+        $reqIds = collect($detalle['evidencias_requeridas'])->pluck('id')->map(fn ($v) => (int) $v)->all();
+        $flags  = DB::table('talento_evidence_types')
+            ->whereIn('id', $reqIds ?: [0])
+            ->get(['id', 'es_lectura_dbm', 'es_firma', 'permite_varias', 'requiere_justificacion'])
+            ->keyBy('id');
+
+        $checklist = collect($detalle['evidencias_requeridas'])->map(function ($r) use ($subidos, $flags, $hayFirmaClie) {
+            $id  = (int) $r->id;
+            $f   = $flags[$id] ?? null;
+            $esFirma = (bool) ($f->es_firma ?? $r->es_firma ?? false);
+            // Un requisito de firma se satisface con la firma del cliente (signature-pad)
+            // o con media de ese tipo; el resto, sólo con media subida.
+            $subido = $subidos->contains($id) || ($esFirma && $hayFirmaClie);
+            return [
+                'evidence_type_id'      => $id,
+                'nombre'                => $r->nombre,
+                'es_firma'              => $esFirma,
+                'es_lectura_dbm'        => (bool) ($f->es_lectura_dbm ?? false),
+                'permite_varias'        => (bool) ($f->permite_varias ?? false),
+                'requiere_justificacion'=> (bool) ($f->requiere_justificacion ?? false),
+                'subido'                => $subido,
+            ];
+        })->values();
+
+        return response()->json([
+            'ot' => [
+                'id'           => $detalle['id'],
+                'folio'        => $detalle['folio'],
+                'origen'       => $origenReal,
+                'tipo'         => $detalle['tipo'],
+                'status'       => $detalle['status'],
+                'cliente'      => $detalle['cliente'],
+                'direccion'    => $detalle['direccion'],
+                'telefono'     => $detalle['telefono'],
+                'notas'        => $detalle['notas'] ?? null,
+                'nota_tecnico' => $detalle['nota_tecnico'] ?? null,
+                'scheduled_at' => $detalle['scheduled_at'] ?? null,
+            ],
+            'evidencias' => $detalle['evidencias'],
+            'checklist'  => $checklist,
+            'firmas'     => [
+                'technician' => in_array('technician', $firmas, true),
+                'client'     => $hayFirmaClie,
+            ],
+        ]);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

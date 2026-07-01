@@ -87,7 +87,9 @@
             // OTs del día
             const ots = ref([]);
             const cargandoOts = ref(true);
-            const otSeleccionada = ref(null); // {origen, id, ...} — navegación al detalle (Sub-paso 3)
+            const otSeleccionada = ref(null); // {origen, id, ...} — resumen de la tarjeta
+            const detalle = ref(null);        // detalle completo (ot, checklist, evidencias, firmas)
+            const cargandoDetalle = ref(false);
 
             $q.dark.set(dark.value);
 
@@ -165,9 +167,20 @@
                 $q.notify({ type: 'positive', icon: 'logout', message: 'Salida registrada. ¡Buen trabajo!', timeout: 4000 });
             }
 
-            // Navegación al detalle (el detalle en sí lo implementa el Sub-paso 3).
-            function abrirDetalle(ot) { otSeleccionada.value = ot; }
-            function cerrarDetalle() { otSeleccionada.value = null; }
+            // Navegación al detalle + carga del detalle completo.
+            async function cargarDetalle(origen, id) {
+                cargandoDetalle.value = true;
+                detalle.value = null;
+                const { ok, data } = await apiFetch('/talento/portal/ot/' + origen + '/' + id);
+                detalle.value = ok ? data : null;
+                cargandoDetalle.value = false;
+                if (!ok) $q.notify({ type: 'negative', message: (data && data.message) || 'No se pudo cargar la OT.' });
+            }
+            function abrirDetalle(ot) { otSeleccionada.value = ot; cargarDetalle(ot.origen, ot.id); }
+            function cerrarDetalle() { otSeleccionada.value = null; detalle.value = null; }
+            function recargarDetalle() {
+                if (otSeleccionada.value) cargarDetalle(otSeleccionada.value.origen, otSeleccionada.value.id);
+            }
 
             function toggleDark() {
                 dark.value = !dark.value;
@@ -204,9 +217,9 @@
             return {
                 colaborador, tab, dark, savingTheme, nombre, tipoLabel,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
-                ots, cargandoOts, otSeleccionada,
+                ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle,
                 fmtHora, statusInfo,
-                registrarEntrada, registrarSalida, abrirDetalle, cerrarDetalle, toggleDark, logout,
+                registrarEntrada, registrarSalida, abrirDetalle, cerrarDetalle, recargarDetalle, toggleDark, logout,
             };
         },
 
@@ -237,36 +250,101 @@
                             personal de campo; pídele a un administrador que te vincule un perfil de Talento.
                         </q-banner>
 
-                        <!-- Detalle de OT (navegación cableada; contenido completo en Sub-paso 3) -->
+                        <!-- Detalle de OT -->
                         <template v-else-if="otSeleccionada">
-                            <q-card flat bordered class="tp-card q-mb-md">
-                                <q-card-section>
-                                    <div class="text-overline tp-muted">{{ otSeleccionada.tipo }}</div>
-                                    <div class="text-h6">OT #{{ otSeleccionada.folio }}</div>
-                                    <q-chip dense :color="statusInfo(otSeleccionada.status).color" text-color="white" class="q-mt-xs">
-                                        {{ statusInfo(otSeleccionada.status).label }}
-                                    </q-chip>
-                                </q-card-section>
-                                <q-separator />
-                                <q-list>
-                                    <q-item v-if="otSeleccionada.cliente">
-                                        <q-item-section avatar><q-icon name="person" color="teal-6" /></q-item-section>
-                                        <q-item-section><q-item-label caption>Cliente</q-item-label><q-item-label>{{ otSeleccionada.cliente }}</q-item-label></q-item-section>
-                                    </q-item>
-                                    <q-item v-if="otSeleccionada.direccion">
-                                        <q-item-section avatar><q-icon name="place" color="teal-6" /></q-item-section>
-                                        <q-item-section><q-item-label caption>Dirección</q-item-label><q-item-label>{{ otSeleccionada.direccion }}</q-item-label></q-item-section>
-                                    </q-item>
-                                    <q-item v-if="otSeleccionada.telefono">
-                                        <q-item-section avatar><q-icon name="call" color="teal-6" /></q-item-section>
-                                        <q-item-section><q-item-label caption>Teléfono</q-item-label><q-item-label>{{ otSeleccionada.telefono }}</q-item-label></q-item-section>
-                                    </q-item>
-                                </q-list>
-                            </q-card>
-                            <q-banner class="tp-card" rounded>
-                                <template #avatar><q-icon name="build" color="teal-6" /></template>
-                                El detalle completo con checklist de evidencia, captura anti-fraude y firma del
-                                cliente llega en la próxima entrega.
+                            <div v-if="cargandoDetalle" class="row items-center tp-muted q-py-lg justify-center">
+                                <q-spinner size="26px" color="teal-6" class="q-mr-sm" /> Cargando OT…
+                            </div>
+
+                            <template v-else-if="detalle">
+                                <q-card flat bordered class="tp-card q-mb-md">
+                                    <q-card-section>
+                                        <div class="text-overline tp-muted">{{ detalle.ot.tipo }}</div>
+                                        <div class="text-h6">OT #{{ detalle.ot.folio }}</div>
+                                        <q-chip dense :color="statusInfo(detalle.ot.status).color" text-color="white" class="q-mt-xs">
+                                            {{ statusInfo(detalle.ot.status).label }}
+                                        </q-chip>
+                                    </q-card-section>
+                                    <q-separator />
+                                    <q-list>
+                                        <q-item v-if="detalle.ot.cliente">
+                                            <q-item-section avatar><q-icon name="person" color="teal-6" /></q-item-section>
+                                            <q-item-section><q-item-label caption>Cliente</q-item-label><q-item-label>{{ detalle.ot.cliente }}</q-item-label></q-item-section>
+                                        </q-item>
+                                        <q-item v-if="detalle.ot.direccion">
+                                            <q-item-section avatar><q-icon name="place" color="teal-6" /></q-item-section>
+                                            <q-item-section><q-item-label caption>Dirección</q-item-label><q-item-label>{{ detalle.ot.direccion }}</q-item-label></q-item-section>
+                                        </q-item>
+                                        <q-item v-if="detalle.ot.telefono">
+                                            <q-item-section avatar><q-icon name="call" color="teal-6" /></q-item-section>
+                                            <q-item-section><q-item-label caption>Teléfono</q-item-label><q-item-label>{{ detalle.ot.telefono }}</q-item-label></q-item-section>
+                                        </q-item>
+                                        <q-item v-if="detalle.ot.notas">
+                                            <q-item-section avatar><q-icon name="notes" color="teal-6" /></q-item-section>
+                                            <q-item-section><q-item-label caption>Notas</q-item-label><q-item-label>{{ detalle.ot.notas }}</q-item-label></q-item-section>
+                                        </q-item>
+                                    </q-list>
+                                </q-card>
+
+                                <!-- Checklist de evidencia requerida -->
+                                <q-card flat bordered class="tp-card q-mb-md">
+                                    <q-card-section class="q-pb-none">
+                                        <div class="row items-center">
+                                            <q-icon name="checklist" color="teal-6" size="22px" class="q-mr-sm" />
+                                            <div class="text-subtitle1 text-weight-medium">Evidencia requerida</div>
+                                        </div>
+                                    </q-card-section>
+                                    <q-list>
+                                        <q-item v-for="c in detalle.checklist" :key="c.evidence_type_id">
+                                            <q-item-section avatar>
+                                                <q-icon :name="c.subido ? 'check_circle' : 'radio_button_unchecked'"
+                                                        :color="c.subido ? 'positive' : 'grey-5'" />
+                                            </q-item-section>
+                                            <q-item-section>
+                                                <q-item-label>{{ c.nombre }}</q-item-label>
+                                                <q-item-label caption v-if="c.es_lectura_dbm || c.es_firma">
+                                                    <span v-if="c.es_lectura_dbm">Requiere lectura dBm</span>
+                                                    <span v-if="c.es_firma">Firma</span>
+                                                </q-item-label>
+                                            </q-item-section>
+                                            <q-item-section side v-if="c.subido">
+                                                <q-badge color="positive" label="Listo" />
+                                            </q-item-section>
+                                        </q-item>
+                                    </q-list>
+                                </q-card>
+
+                                <!-- Evidencia capturada -->
+                                <q-card flat bordered class="tp-card">
+                                    <q-card-section class="q-pb-none">
+                                        <div class="row items-center">
+                                            <q-icon name="photo_library" color="teal-6" size="22px" class="q-mr-sm" />
+                                            <div class="text-subtitle1 text-weight-medium">Evidencia capturada</div>
+                                            <q-space />
+                                            <q-badge v-if="detalle.evidencias.length" color="teal-6" :label="detalle.evidencias.length" />
+                                        </div>
+                                    </q-card-section>
+                                    <q-card-section v-if="!detalle.evidencias.length" class="tp-muted text-caption">
+                                        Aún no hay evidencia capturada.
+                                    </q-card-section>
+                                    <q-list v-else separator>
+                                        <q-item v-for="ev in detalle.evidencias" :key="ev.id">
+                                            <q-item-section avatar><q-icon name="image" color="teal-6" /></q-item-section>
+                                            <q-item-section>
+                                                <q-item-label>{{ ev.tipo_nombre || ('Tipo #' + ev.type_id) }}</q-item-label>
+                                                <q-item-label caption>
+                                                    {{ fmtHora(ev.created_at) }}
+                                                    <span v-if="ev.potencia_dbm !== null && ev.potencia_dbm !== undefined"> · {{ Math.round(ev.potencia_dbm * 10) / 10 }} dBm</span>
+                                                </q-item-label>
+                                            </q-item-section>
+                                        </q-item>
+                                    </q-list>
+                                </q-card>
+                            </template>
+
+                            <q-banner v-else class="bg-red-1 text-red-9 tp-card" rounded>
+                                <template #avatar><q-icon name="error" color="red-9" /></template>
+                                No se pudo cargar el detalle de la OT.
                             </q-banner>
                         </template>
 

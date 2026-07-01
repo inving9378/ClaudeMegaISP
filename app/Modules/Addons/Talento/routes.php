@@ -430,4 +430,8 @@ Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
 
         // Mi día — OTs del día (delega en OrdenTrabajoUnifiedService::summaryForHoy).
         Route::get('/ots/hoy', [PortalTecnicoController::class, 'otsHoy']);
+
+        // Detalle de OT (por origen/id). {origen} = work_order|task.
+        Route::get('/ot/{origen}/{id}', [PortalTecnicoController::class, 'otDetalle'])
+            ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
     });
