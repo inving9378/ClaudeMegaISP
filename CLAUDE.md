@@ -182,9 +182,9 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 
 1. `backup_db` (crítico) — `backup_db:process`
 2. `git_sync` (crítico) — `git checkout tags/{version}` (trae código + migraciones nuevas)
-3. **`migrate_dryrun` (crítico, nuevo)** — `php artisan deploy:dry-run-migrations`
+3. **`migrate_dryrun` (crítico)** — `php artisan deploy:dry-run-migrations` (timeout **900s**, alineado con `migrate`)
 4. `npm_build` (crítico) — `npm ci && npm run prod`
-5. `migrate` (no-crítico) — `php artisan migrate --force` (subproceso, NO `Artisan::call`: el `--force` programático no salta el prompt de prod en contexto nohup → se cuelga)
+5. `migrate` (**fatal-sin-rollback**, timeout **900s**) — `php artisan migrate --force` (subproceso, NO `Artisan::call`: el `--force` programático no salta el prompt de prod en contexto nohup → se cuelga)
 6. `optimize` · 7. `queue_restart` · 8. `save_release`
 
 **Reglas de orden que NO se deben romper:**
@@ -200,6 +200,8 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
   (En prod ajustar usuario/host reales.) **No se puede hacer dry-run sobre la BD viva** con transacción: en MySQL los `ALTER`/`CREATE INDEX` hacen commit implícito.
 
 **Bug `save_release` (RESUELTO 2026-06-30):** `releases.summary` era `VARCHAR(255)` y las notas de release generadas por IA lo desbordaban → `SQLSTATE[22001] 1406` en el paso final. Peor: `saveRelease()` corría **sin try/catch** pese a ser no-crítico → la excepción mataba el comando y dejaba el `DeploymentLog` en `running` para siempre (el UI solo hace polling → "no se ve nada"). Fix (commit `56ca3e20`): migración `summary → TEXT` (corre en el paso `migrate`, **antes** de `save_release`, así el deploy se auto-sana) + try/catch en el paso inline (un fallo ahí marca solo ese paso `failed` y el deploy igual cierra `success`).
+
+**Fix `migrate` fallido cerraba `success` (RESUELTO 2026-07-01, commit `7d3cde25`):** `migrate` era `critical=false`, así que un fallo (típicamente **timeout**) marcaba el paso `failed` pero el `foreach` seguía y el cierre ponía `status='success'` **incondicional** → una migración que timeouteaba se reportaba como deploy exitoso. Además el timeout del `migrate` real (300s) era **mayor** que el del `migrate_dryrun` (180s) → una migración lenta pasaba el dry-run y timeouteaba el real. Fix (decisión de Irving — opción 1: FAILED + alerta, **SIN** revertir): (1) flag nuevo `'fail_deploy_no_rollback'=>true` en `migrate` → al fallar marca `$deployFailed` y el loop cierra en `status='failed'` con `error_message`, **SIN** `performRollback` (el esquema pudo modificarse a medias; un `git reset` sería peligroso — **NO se reintroduce** el rollback de migrate); (2) `migrate` 300s→**900s** y `migrate_dryrun` 180s→**900s** (alineados). **NO se tocó** la rama `critical` (backup/git_sync/dryrun/npm siguen con `performRollback`+`rolled_back` idéntico) ni los pasos decorativos (`optimize`/`queue_restart`/`save_release`, que siguen corriendo aunque migrate falle → deploy sigue `failed` solo por migrate). `runShell`/`runArtisan` pasaron a `protected` solo para habilitar testeo. Verificado contra la clase real (subclase inyectando exit-codes): (a) migrate OK→`success`; (b) migrate falla→`failed` sin rollback, código intacto; (c) `git_sync` critical falla→`rolled_back` con rollback (intacto). ⚠️ Como todo cambio a `remote:deploy`, surte efecto en el deploy **siguiente** (por tag).
 
 ### Portal Cliente — estado al 2026-06-15
 
