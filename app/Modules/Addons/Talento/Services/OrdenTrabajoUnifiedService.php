@@ -1028,6 +1028,26 @@ class OrdenTrabajoUnifiedService
             ->map(fn($v) => (int)$v)
             ->unique();
 
+        // Un requisito de firma (es_firma) se satisface con una fila de firma en
+        // talento_work_order_signatures (signer_type=client) O con media tipo firma.
+        // Retrocompatible: la app móvil que sube la firma como media tipo 9 sigue pasando;
+        // el portal la captura con signature-pad y también satisface el gate.
+        $firmaRequeridos = DB::table('talento_evidence_types')
+            ->whereIn('id', $requeridos->all())
+            ->where('es_firma', true)
+            ->pluck('id')
+            ->map(fn($v) => (int)$v);
+
+        if ($firmaRequeridos->isNotEmpty()) {
+            $tieneFirmaCliente = DB::table('talento_work_order_signatures')
+                ->where($fkCol, $entityId)
+                ->where('signer_type', 'client')
+                ->exists();
+            if ($tieneFirmaCliente) {
+                $subidos = $subidos->merge($firmaRequeridos)->unique();
+            }
+        }
+
         $faltantes = $requeridos->diff($subidos);
 
         if ($faltantes->isNotEmpty()) {
