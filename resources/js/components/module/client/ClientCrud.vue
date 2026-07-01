@@ -93,8 +93,9 @@
 <script setup>
 import InformationClientCrud from "./InformationClientCrud";
 import ClientService from "./service/ClientService.vue";
-import { ref, onMounted, watch, computed, getCurrentInstance } from "vue";
+import { ref, onMounted, onUnmounted, watch, computed, getCurrentInstance } from "vue";
 import { editModal, showEditModal } from "../../../hook/modalHook";
+import { resetCrudForm } from "../../../hook/crudHook";
 import ClientBilling from "./billing/ClientBilling.vue";
 import DocumentClientCrud from "./document/DocumentClientCrud";
 import { configTabsHook } from "../../../hook/configTabsHook";
@@ -201,6 +202,15 @@ onMounted(() => {
         let modal = $(this).parent().attr("toggle-modal");
         showEditModal(idItem, modal);
     });
+});
+
+// Al salir de la ficha completa (navegar a otra pantalla) limpiamos el singleton compartido
+// dataForm para que la próxima ficha no muestre los datos del cliente anterior. Va en
+// ClientCrud (raíz de la ficha) y NO en InformationClientCrud a propósito: q-tab-panels
+// desmonta el panel inactivo, así que ponerlo en el tab dispararía el reset al cambiar de
+// pestaña. ClientCrud solo se desmonta al navegar fuera de la ficha.
+onUnmounted(() => {
+    resetCrudForm();
 });
 
 const onChangeTab = (tab) => {

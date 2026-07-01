@@ -15,6 +15,17 @@ export const dataForm = reactive({
     data: new Form({}),
 });
 
+// Resetea el estado compartido del formulario CRUD. Se llama al desmontar una ficha/CRUD
+// (p.ej. ClientCrud.onUnmounted) para que este singleton module-level no arrastre los datos
+// del registro anterior entre navegaciones SPA (el bundle JS no se recarga → estos exports
+// persisten). Cada CRUD re-puebla dataForm en su propio onMounted, así que dejarlo vacío es seguro.
+export const resetCrudForm = () => {
+    dataForm.data = new Form({});
+    fields.value = [];
+    fieldsJson.value = {};
+    allFields.value = {};
+};
+
 export const getfieldsJson = async (model) => {
     fieldsJson.value = await requestFieldsByModule(model);
     dataForm.data = new Form(fieldsJson.value);
