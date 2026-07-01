@@ -563,7 +563,8 @@ class OrdenTrabajoUnifiedService
             'potencia_dbm'        => $potencia,
             'gps_accuracy_m'      => $accuracy,
             'justificacion'       => $data['justificacion'] ?? null ?: null,
-            'source'              => 'mobile',
+            'source'              => $data['source'] ?? 'mobile',   // portal web manda 'portal_web'; app móvil no se afecta
+
             'created_by'          => $userId,
             'created_at'          => now(),
         ]);
