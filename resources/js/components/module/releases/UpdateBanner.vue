@@ -24,7 +24,15 @@
                 <strong v-else-if="activeDeploy.status === 'success'" class="text-success">
                     Actualización aplicada<span v-if="activeDeploy.version"> — {{ activeDeploy.version }}</span>
                 </strong>
-                <strong v-else class="text-danger">La actualización falló — revisa el detalle</strong>
+                <template v-else>
+                    <strong class="text-danger">La actualización falló</strong>
+                    <div
+                        v-if="activeDeploy.errorMessage"
+                        class="small text-danger mt-1"
+                        style="white-space:pre-wrap;word-break:break-word"
+                    >{{ activeDeploy.errorMessage }}</div>
+                    <div v-else class="small text-danger mt-1">Revisa el detalle.</div>
+                </template>
 
                 <div v-if="activeRunning" class="mt-1">
                     <div class="d-flex justify-content-between small text-muted mb-1">
@@ -188,6 +196,7 @@ export default {
                 percent:      steps.length ? Math.min(100, Math.round(((done + (running ? 0.5 : 0)) / steps.length) * 100)) : 0,
                 currentStep:  running ? running.name : null,
                 progressText: steps.length ? `${done}/${steps.length} pasos` : "",
+                errorMessage: data.error_message ?? null,
             };
         };
 
