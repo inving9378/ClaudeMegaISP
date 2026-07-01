@@ -421,6 +421,7 @@ import WhatsAppInstanceManager from "./components/module/whatsapp/WhatsAppInstan
 //Payments (SPEI / OpenPay) — 2026-05-23
 import PaymentMethods from "./components/module/finance/PaymentMethods.vue";
 import ReconciliationQueue from "./components/module/finance/ReconciliationQueue.vue";
+import ManualPaymentCapture from "./components/module/finance/ManualPaymentCapture.vue";
 import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 
 // CobranzaBlaster (Fase 6) — 2026-05-29
@@ -784,6 +785,7 @@ const app = createApp({
         // Payments (SPEI / OpenPay)
         'payment-methods': PaymentMethods,
         'reconciliation-queue': ReconciliationQueue,
+        'manual-payment-capture': ManualPaymentCapture,
         'client-clabe-card': ClientClabeCard,
 
         // CobranzaBlaster (Fase 6)
