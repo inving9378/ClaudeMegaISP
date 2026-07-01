@@ -89,6 +89,37 @@
                             ></button>
                         </div>
 
+                        <!--
+                            FASE PAGOS 2b — Selector de método controlado.
+                            El campo dinámico payment_method_id (SelectComponent + Choices.js)
+                            no reaccionaba al cambiar de método; aquí se pinta un <select>
+                            controlado nativo de Vue (el nativo se oculta en getfieldsJson/
+                            getfieldsEdited con include=false, pero sigue viajando en el POST
+                            porque escribimos dataForm.data.payment_method_id).
+                        -->
+                        <div class="col-12 row mb-2">
+                            <label
+                                class="col-sm-12 col-md-3 col-form-label text-md-end pr-2 text-sm-center"
+                            >
+                                Método de pago
+                            </label>
+                            <div class="col-sm-12 col-md-9">
+                                <select
+                                    class="form-control"
+                                    v-model="selectedMethodId"
+                                    @change="onMethodChange"
+                                >
+                                    <option
+                                        v-for="m in paymentMethods"
+                                        :key="m.id"
+                                        :value="m.id"
+                                    >
+                                        {{ m.label }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
                         <template v-for="val in fieldsJson">
                             <ComponentFormDefault
                                 v-if="val.include"
@@ -199,6 +230,32 @@ export default {
     setup(props, {emit}) {
         const title = ref("Crear Pago");
         const fieldsJson = ref({});
+
+        // FASE PAGOS 2b — métodos seleccionables en esta pantalla manual.
+        // OpenPay (8) y Tarjeta OpenPay (9) NO se incluyen: llegan solo por
+        // webhook y capturarlos aquí duplicaría el pago.
+        const BASE_METHODS = [
+            { id: 1, label: "Efectivo en Caja" },
+            { id: 2, label: "Transferencia Bancaria" },
+            { id: 5, label: "Oxxo" },
+            { id: 7, label: "Pago a técnico" },
+        ];
+        const selectedMethodId = ref(1);
+        // En edición, un pago viejo puede tener un método fuera de los 4 (p.ej.
+        // PayPal/OpenPay). No lo perdemos: lo agregamos como opción transitoria.
+        const paymentMethods = computed(() => {
+            const list = [...BASE_METHODS];
+            if (
+                selectedMethodId.value != null &&
+                !list.some((m) => m.id == selectedMethodId.value)
+            ) {
+                list.unshift({
+                    id: selectedMethodId.value,
+                    label: `Método actual (#${selectedMethodId.value})`,
+                });
+            }
+            return list;
+        });
         const dataForm = reactive({
             data: new Form({}),
         });
@@ -341,17 +398,36 @@ export default {
             }
         };
 
+        // Oculta el payment_method_id nativo (Choices.js) del loop dinámico.
+        // Sigue en originalData → viaja en el POST vía dataForm.data.payment_method_id.
+        const hideNativeMethodField = () => {
+            if (fieldsJson.value.payment_method_id) {
+                fieldsJson.value.payment_method_id.include = false;
+            }
+        };
+
         const getfieldsEdited = async (model, action) => {
             let id = action.substr(7);
             fieldsJson.value = await requestEditedFieldsById(model, id);
+            hideNativeMethodField();
             dataForm.data = new Form(fieldsJson.value);
+            selectedMethodId.value = Number(dataForm.data.payment_method_id) || 1;
+            onMethodChange();
             title.value = "Editar Gasto";
         };
 
         const getfieldsJson = async (model) => {
             fieldsJson.value = await requestFieldsByModule(model);
+            hideNativeMethodField();
             dataForm.data = new Form(fieldsJson.value);
+            selectedMethodId.value = 1;
+            onMethodChange();
             title.value = "Crear Gasto";
+        };
+
+        // Escribe el método elegido en el Form (el <select> nativo está oculto).
+        const onMethodChange = () => {
+            dataForm.data.payment_method_id = selectedMethodId.value;
         };
 
         const onSubmit = () => {
@@ -491,6 +567,9 @@ export default {
         return {
             fieldsJson,
             dataForm,
+            selectedMethodId,
+            paymentMethods,
+            onMethodChange,
             onSubmit,
             updateThisField,
             clearError,
