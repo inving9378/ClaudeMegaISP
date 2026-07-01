@@ -33,7 +33,10 @@ class PortalTecnicoController extends Controller
             'theme'       => $theme,
             'colaborador' => $colaborador ? [
                 'id'     => $colaborador->id,
-                'nombre' => trim(($colaborador->nombre ?? '') . ' ' . ($colaborador->apellido ?? '')),
+                // El nombre vive en el user vinculado; talento_colaboradores no tiene
+                // columna de nombre. Fallback a nombre/apellido por si existieran a futuro.
+                'nombre' => $colaborador->user?->name
+                    ?: (trim(($colaborador->nombre ?? '') . ' ' . ($colaborador->apellido ?? '')) ?: null),
                 'tipo'   => $colaborador->tipo ?? $colaborador->role_type ?? 'technician',
                 'email'  => $colaborador->user?->email,
             ] : null,
