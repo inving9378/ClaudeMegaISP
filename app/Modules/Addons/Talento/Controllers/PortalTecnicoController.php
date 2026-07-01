@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '5';
+    private const ASSET_VER = '6';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -415,7 +415,102 @@ JS;
         return response()->json($res, $res['success'] ? 200 : ($res['status_code'] ?? 422));
     }
 
+    // ── Evidencia anti-fraude ─────────────────────────────────────────────────
+
+    /**
+     * Sube evidencia capturada en vivo. El servidor QUEMA la marca de agua (GD:
+     * técnico + timestamp de servidor + coords + precisión) sobre la imagen antes de
+     * persistirla, sella server_captured_at y delega en subirEvidencia con
+     * source='portal_web'. El GPS llega como campos del form (no EXIF). El watermark
+     * del cliente es sólo preview; la evidencia sale watermarkeada del servidor.
+     */
+    public function subirEvidenciaOt(Request $request, string $origen, int $id)
+    {
+        $data = $request->validate([
+            'foto'             => 'required|image|max:8192',
+            'evidence_type_id' => 'required|integer',
+            'lat'              => 'required|numeric|between:-90,90',
+            'lng'              => 'required|numeric|between:-180,180',
+            'accuracy'         => 'nullable|numeric|min:0',
+            'potencia_dbm'     => 'nullable|numeric|between:-60,10',
+            'justificacion'    => 'nullable|string|max:1000',
+            'client_uuid'      => 'nullable|string|max:36',
+            'is_mock_location' => 'nullable|boolean',
+        ]);
+
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        $file = $request->file('foto');
+
+        // Marca de agua autoritativa del servidor (GD). No bloquea si la imagen no es
+        // decodificable; el resto del anti-fraude (cámara viva, GPS de form, timestamp
+        // de servidor) sigue vigente.
+        $tecnico = $colaborador->user?->name ?: ('Colaborador #' . $colaborador->id);
+        $acc     = isset($data['accuracy']) ? round((float) $data['accuracy']) : null;
+        $this->quemarWatermark($file->getRealPath(), [
+            'Talento Meganet - ' . $tecnico,
+            now()->format('Y-m-d H:i:s') . ' (servidor)',
+            'GPS ' . round((float) $data['lat'], 6) . ', ' . round((float) $data['lng'], 6)
+                . ($acc !== null ? ' +-' . $acc . 'm' : ''),
+        ]);
+
+        $payload = [
+            'evidence_type_id' => (int) $data['evidence_type_id'],
+            'lat'              => (float) $data['lat'],
+            'lng'              => (float) $data['lng'],
+            'accuracy'         => $data['accuracy'] ?? null,
+            'potencia_dbm'     => $data['potencia_dbm'] ?? null,
+            'justificacion'    => $data['justificacion'] ?? null,
+            'client_uuid'      => $data['client_uuid'] ?? null,
+            'is_mock_location' => (bool) ($data['is_mock_location'] ?? false),
+            'source'           => 'portal_web',
+        ];
+
+        $res = app(OrdenTrabajoUnifiedService::class)
+            ->subirEvidencia($id, $colaborador->id, $payload, $file, (int) $request->user()->id);
+
+        return response()->json($res, $res['success'] ? 201 : ($res['status_code'] ?? 422));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    /** Quema una barra semitransparente con líneas de texto al pie de la imagen (GD). */
+    private function quemarWatermark(string $path, array $lineas): void
+    {
+        if (! function_exists('imagecreatefromjpeg')) {
+            return;
+        }
+        $img = @imagecreatefromjpeg($path) ?: @imagecreatefrompng($path);
+        if (! $img) {
+            return; // no bloquea el flujo si no se puede decodificar
+        }
+
+        $w = imagesx($img);
+        $h = imagesy($img);
+        $lineH = 18;
+        $barH  = $lineH * count($lineas) + 12;
+
+        $overlay = imagecreatetruecolor($w, $barH);
+        $black   = imagecolorallocate($overlay, 0, 0, 0);
+        imagefilledrectangle($overlay, 0, 0, $w, $barH, $black);
+        imagecopymerge($img, $overlay, 0, max(0, $h - $barH), 0, 0, $w, $barH, 50);
+
+        $white = imagecolorallocate($img, 255, 255, 255);
+        $y = $h - $barH + 6;
+        foreach ($lineas as $ln) {
+            // La fuente built-in es Latin-1; transliteramos acentos para no ensuciar.
+            $txt = @iconv('UTF-8', 'ASCII//TRANSLIT', (string) $ln) ?: (string) $ln;
+            imagestring($img, 3, 8, $y, $txt, $white);
+            $y += $lineH;
+        }
+
+        imagejpeg($img, $path, 88);
+        imagedestroy($img);
+        imagedestroy($overlay);
+    }
 
     private function siteName(?int $siteId): ?string
     {

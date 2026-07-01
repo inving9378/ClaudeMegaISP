@@ -440,4 +440,8 @@ Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
         Route::post('/ot/{origen}/{id}/completar', [PortalTecnicoController::class, 'completarOt'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
+
+        // Evidencia anti-fraude (cámara viva; watermark quemado por el servidor).
+        Route::post('/ot/{origen}/{id}/evidencia', [PortalTecnicoController::class, 'subirEvidenciaOt'])
+            ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
     });

@@ -214,6 +214,132 @@
                 await recargarDetalle(); cargarOts();
             }
 
+            // ── Captura de evidencia anti-fraude (cámara viva) ──
+            const capturaAbierta = ref(false);
+            const camaraSoportada = ref(true);
+            const camaraError = ref(null);
+            const streamActivo = ref(false);
+            const fotoTomada = ref(false);
+            const tipoEvidencia = ref(null);
+            const dbmValor = ref(null);
+            const justificacionValor = ref('');
+            const enviandoEvidencia = ref(false);
+            let mediaStream = null;
+
+            // Tipos capturables: los del checklist que no son firma (la firma va por pad).
+            const tiposCapturables = computed(() =>
+                (detalle.value ? detalle.value.checklist : [])
+                    .filter((c) => !c.es_firma)
+                    .map((c) => ({ label: c.nombre + (c.subido ? ' ✓' : ''), value: c.evidence_type_id, ...c })));
+            const tipoSel = computed(() =>
+                tiposCapturables.value.find((t) => t.value === tipoEvidencia.value) || null);
+
+            function uuid() {
+                if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                    const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+                });
+            }
+
+            async function abrirCaptura() {
+                camaraError.value = null; fotoTomada.value = false; dbmValor.value = null;
+                justificacionValor.value = ''; tipoEvidencia.value = null;
+                const pendientes = tiposCapturables.value.filter((t) => !t.subido);
+                if (pendientes.length) tipoEvidencia.value = pendientes[0].value;
+                capturaAbierta.value = true;
+                // getUserMedia sólo en contexto seguro (https/localhost).
+                const secure = window.isSecureContext || ['localhost', '127.0.0.1'].includes(location.hostname);
+                if (!secure || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    camaraSoportada.value = false;
+                    camaraError.value = 'La cámara requiere HTTPS. Disponible al publicar el portal con SSL.';
+                    return;
+                }
+                camaraSoportada.value = true;
+                try {
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                    streamActivo.value = true;
+                    Vue.nextTick(() => {
+                        const v = document.getElementById('tp-video');
+                        if (v) { v.srcObject = mediaStream; v.play().catch(() => {}); }
+                    });
+                } catch (e) {
+                    camaraError.value = e && e.name === 'NotAllowedError'
+                        ? 'Permiso de cámara denegado. Actívalo para capturar evidencia.'
+                        : 'No se pudo abrir la cámara.';
+                }
+            }
+
+            function detenerCamara() {
+                if (mediaStream) { mediaStream.getTracks().forEach((t) => t.stop()); mediaStream = null; }
+                streamActivo.value = false;
+            }
+
+            function capturarFrame() {
+                const v = document.getElementById('tp-video');
+                const c = document.getElementById('tp-canvas');
+                if (!v || !c) return;
+                c.width = v.videoWidth || 720; c.height = v.videoHeight || 960;
+                const ctx = c.getContext('2d');
+                ctx.drawImage(v, 0, 0, c.width, c.height);
+                // Overlay de PREVIEW (no autoritativo; el server quema el watermark real).
+                const now = new Date();
+                const lines = ['Talento Meganet', now.toLocaleString('es-MX'), 'PREVIEW — el servidor sella la marca'];
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, c.height - 66, c.width, 66);
+                ctx.fillStyle = '#fff'; ctx.font = '16px sans-serif';
+                lines.forEach((l, i) => ctx.fillText(l, 10, c.height - 44 + i * 20));
+                fotoTomada.value = true;
+                detenerCamara();
+            }
+
+            function reintentarFoto() { fotoTomada.value = false; abrirCaptura(); }
+
+            function cerrarCaptura() { detenerCamara(); capturaAbierta.value = false; fotoTomada.value = false; }
+
+            async function enviarEvidencia() {
+                if (enviandoEvidencia.value || !fotoTomada.value || !tipoEvidencia.value) return;
+                if (tipoSel.value && tipoSel.value.requiere_justificacion && !justificacionValor.value.trim()) {
+                    $q.notify({ type: 'warning', message: 'Este tipo de evidencia requiere justificación.' }); return;
+                }
+                if (tipoSel.value && tipoSel.value.es_lectura_dbm && (dbmValor.value === null || dbmValor.value === '')) {
+                    $q.notify({ type: 'warning', message: 'Captura la lectura dBm.' }); return;
+                }
+                enviandoEvidencia.value = true;
+                let pos;
+                try { pos = await getPosition(); }
+                catch (e) {
+                    enviandoEvidencia.value = false;
+                    $q.notify({ type: 'negative', message: 'Necesitamos tu ubicación para subir la evidencia.' }); return;
+                }
+                const canvas = document.getElementById('tp-canvas');
+                canvas.toBlob(async (blob) => {
+                    const fd = new FormData();
+                    fd.append('foto', blob, 'evidencia.jpg');
+                    fd.append('evidence_type_id', String(tipoEvidencia.value));
+                    fd.append('lat', pos.coords.latitude);
+                    fd.append('lng', pos.coords.longitude);
+                    if (pos.coords.accuracy != null) fd.append('accuracy', pos.coords.accuracy);
+                    if (tipoSel.value && tipoSel.value.es_lectura_dbm) fd.append('potencia_dbm', dbmValor.value);
+                    if (justificacionValor.value.trim()) fd.append('justificacion', justificacionValor.value.trim());
+                    fd.append('client_uuid', uuid());
+                    try {
+                        const res = await fetch(otUrl('/evidencia'), {
+                            method: 'POST', credentials: 'same-origin',
+                            headers: { 'X-CSRF-TOKEN': CFG.csrf, 'Accept': 'application/json' },
+                            body: fd,
+                        });
+                        const data = await res.json().catch(() => null);
+                        enviandoEvidencia.value = false;
+                        if (!res.ok) { $q.notify({ type: 'negative', message: (data && data.message) || 'No se pudo subir la evidencia.' }); return; }
+                        $q.notify({ type: 'positive', icon: 'photo_camera', message: 'Evidencia registrada (watermark del servidor).' });
+                        cerrarCaptura();
+                        await recargarDetalle();
+                    } catch (e) {
+                        enviandoEvidencia.value = false;
+                        $q.notify({ type: 'negative', message: 'Error de red al subir la evidencia.' });
+                    }
+                }, 'image/jpeg', 0.9);
+            }
+
             function toggleDark() {
                 dark.value = !dark.value;
                 const theme = dark.value ? 'dark' : 'light';
@@ -253,6 +379,9 @@
                 fmtHora, statusInfo,
                 registrarEntrada, registrarSalida, abrirDetalle, cerrarDetalle, recargarDetalle,
                 iniciarOt, completarOt, toggleDark, logout,
+                capturaAbierta, camaraSoportada, camaraError, streamActivo, fotoTomada,
+                tipoEvidencia, tiposCapturables, tipoSel, dbmValor, justificacionValor, enviandoEvidencia,
+                abrirCaptura, capturarFrame, reintentarFoto, cerrarCaptura, enviarEvidencia,
             };
         },
 
@@ -365,6 +494,10 @@
                                             </q-item-section>
                                         </q-item>
                                     </q-list>
+                                    <q-card-actions v-if="detalle.ot.status==='in_progress'">
+                                        <q-btn unelevated color="teal-6" icon="photo_camera"
+                                               label="Capturar evidencia" class="full-width" @click="abrirCaptura" />
+                                    </q-card-actions>
                                 </q-card>
 
                                 <!-- Evidencia capturada -->
@@ -523,6 +656,50 @@
 
                 </q-page>
             </q-page-container>
+
+            <!-- Diálogo de captura de evidencia (cámara viva) -->
+            <q-dialog v-model="capturaAbierta" persistent @hide="cerrarCaptura">
+                <q-card class="tp-card" style="width:100%;max-width:520px">
+                    <q-toolbar class="tp-header text-white">
+                        <q-toolbar-title>Capturar evidencia</q-toolbar-title>
+                        <q-btn flat round dense icon="close" @click="cerrarCaptura" />
+                    </q-toolbar>
+                    <q-card-section class="q-gutter-y-sm">
+                        <q-banner v-if="camaraError" dense rounded class="bg-orange-1 text-orange-9">
+                            <template #avatar><q-icon name="videocam_off" color="orange-9" /></template>
+                            {{ camaraError }}
+                        </q-banner>
+
+                        <q-select outlined dense v-model="tipoEvidencia" :options="tiposCapturables"
+                                  emit-value map-options label="Tipo de evidencia" color="teal-6" />
+
+                        <!-- Vista de cámara / preview -->
+                        <div v-show="!fotoTomada && streamActivo" class="tp-cam-wrap">
+                            <video id="tp-video" playsinline muted class="tp-media"></video>
+                        </div>
+                        <canvas id="tp-canvas" class="tp-media" v-show="fotoTomada"></canvas>
+
+                        <div v-if="!fotoTomada && streamActivo" class="text-center">
+                            <q-btn round color="teal-6" icon="camera" size="lg" @click="capturarFrame" />
+                            <div class="text-caption tp-muted q-mt-xs">Sólo cámara en vivo (no galería)</div>
+                        </div>
+
+                        <template v-if="fotoTomada">
+                            <q-input v-if="tipoSel && tipoSel.es_lectura_dbm" outlined dense type="number"
+                                     v-model.number="dbmValor" label="Lectura dBm" suffix="dBm" color="teal-6"
+                                     hint="Rango válido: -60 a 10" />
+                            <q-input v-if="tipoSel && tipoSel.requiere_justificacion" outlined dense
+                                     v-model="justificacionValor" label="Justificación" type="textarea" autogrow color="teal-6" />
+                            <div class="row q-gutter-sm">
+                                <q-btn flat color="grey-7" icon="refresh" label="Repetir" @click="reintentarFoto" />
+                                <q-space />
+                                <q-btn unelevated color="teal-6" icon="cloud_upload" label="Enviar"
+                                       :loading="enviandoEvidencia" @click="enviarEvidencia" />
+                            </div>
+                        </template>
+                    </q-card-section>
+                </q-card>
+            </q-dialog>
 
             <q-footer class="tp-footer">
                 <q-tabs v-model="tab" no-caps active-color="teal-6" indicator-color="teal-6" class="tp-footer" @update:model-value="cerrarDetalle">
