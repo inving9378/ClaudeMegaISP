@@ -28,6 +28,16 @@
                             <span class="cic-balance-label">Saldo</span>
                             <span class="cic-balance-value">$ {{ balance }}</span>
                         </div>
+                        <!-- Referencia MEG de pago (solo lectura, inmutable) — visible para dársela al cliente -->
+                        <div class="cic-payref" v-if="paymentReference">
+                            <span class="cic-payref-label">Referencia de pago</span>
+                            <span class="cic-payref-row">
+                                <span class="cic-payref-value">{{ paymentReference }}</span>
+                                <button type="button" class="cic-payref-copy" @click="copyPaymentReference" title="Copiar referencia">
+                                    <i class="mdi mdi-content-copy"></i>
+                                </button>
+                            </span>
+                        </div>
                         <div v-if="clientMainInformationId" class="dropdown d-inline-block me-2">
                             <button type="button" class="btn btn-outline-secondary waves-effect waves-light" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 <span class="ms-1">Tareas</span>
@@ -423,6 +433,10 @@ const initials = computed(() => {
 // ISSUE 2: saldo limpio (helper, sin el template completo de ClientInfoAccountBalance).
 const balance = ref(null);
 
+// Referencia MEG de pago (solo lectura, inmutable). Se carga con loadClient y se limpia
+// al cambiar de cliente para no arrastrar la del cliente anterior (respeta el fix loadClient).
+const paymentReference = ref(null);
+
 // ISSUE 3: resuelve el label de un campo select desde sus options ({value,text}/{value,label}).
 // Degrada elegantemente: si no hay options array o no matchea → null (se omite, nunca "null").
 function optionLabel(fieldName) {
@@ -506,6 +520,10 @@ const loadingOnu = ref(false);
 const loadClient = async (id) => {
     const myToken = ++clientLoadToken.value;
 
+    // Limpiar la referencia del cliente anterior mientras carga la nueva (evita mostrar
+    // la MEG del cliente previo durante el hueco async).
+    paymentReference.value = null;
+
     // Antes NO tenían try/catch: un fallo aquí abortaba la carga ANTES de refrescar
     // dataForm y dejaba en pantalla los datos del cliente previo.
     try {
@@ -515,13 +533,17 @@ const loadClient = async (id) => {
     }
     if (myToken !== clientLoadToken.value) return;
 
+    let payref = null;
     try {
         const b = await getClientWithBalance(id);
         balance.value = b?.balance ?? null;
+        payref = b?.payment_reference ?? null;
     } catch (e) {
         balance.value = null;
     }
     if (myToken !== clientLoadToken.value) return;
+    // Asignar la referencia solo tras el guard: una carga obsoleta no pisa la actual.
+    paymentReference.value = payref;
 
     let ids = {};
     try {
@@ -576,6 +598,31 @@ watch(
         if (nuevo && nuevo !== viejo) loadClient(nuevo);
     }
 );
+
+// Copiar la referencia MEG. navigator.clipboard NO existe en contextos no seguros
+// (http://192.168.105.11 sin TLS) → fallback con execCommand('copy') sobre un textarea.
+const copyPaymentReference = async () => {
+    const text = paymentReference.value;
+    if (!text) return;
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+        }
+        message("Referencia copiada");
+    } catch (e) {
+        message("No se pudo copiar la referencia", "error");
+    }
+};
 
 onUnmounted(() => {
     clearInterval(timer);
@@ -816,6 +863,13 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-balance { display: flex; flex-direction: column; align-items: flex-end; margin-right: 6px; line-height: 1.1; }
 .cic-balance-label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; }
 .cic-balance-value { font-size: 1.05rem; font-weight: 700; color: #16a34a; }
+/* Referencia MEG de pago (junto al saldo) */
+.cic-payref { display: flex; flex-direction: column; align-items: flex-end; margin-right: 6px; line-height: 1.1; }
+.cic-payref-label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; }
+.cic-payref-row { display: flex; align-items: center; gap: 6px; }
+.cic-payref-value { font-family: monospace; font-size: 1.02rem; font-weight: 700; color: #4f46e5; letter-spacing: 0.3px; }
+.cic-payref-copy { border: none; background: transparent; color: #6366f1; cursor: pointer; padding: 2px 4px; border-radius: 6px; line-height: 1; }
+.cic-payref-copy:hover { background: #eef2ff; }
 
 /* ── Color identificador por sección ─────────────────────────────────────────── */
 /* MODO CLARO: fondo de color solo en el encabezado */
@@ -834,6 +888,9 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-card--ubicacion    .cic-card-head i, .cic-card--otros        .cic-card-head i { color: inherit; }
 
 /* ── Dark mode (issue 6): el sistema usa el ref darkMode de hook/appConfig ───── */
+.cic-dark .cic-payref-value { color: #a5b4fc; }
+.cic-dark .cic-payref-copy { color: #a5b4fc; }
+.cic-dark .cic-payref-copy:hover { background: #312e81; }
 .cic-dark .cic-header-card,
 .cic-dark .cic-card { background: #1d1d21; border-color: #2c2c34; }
 .cic-dark .cic-card-head { color: #e5e7eb; border-color: #2c2c34; background: #26262c; }
