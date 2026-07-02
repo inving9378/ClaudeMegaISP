@@ -31,6 +31,21 @@ class PaymentFromSessionService
     public function __construct(private PaymentApplicationService $payments) {}
 
     /**
+     * FASE 6 — Punto de entrada para la confirmación humana (Tere). Aplica el
+     * pago de una sesión 'proposed' (o multi-servicio) que un humano confirma.
+     * NO lo frena el freno maestro (es acción humana deliberada). Registra
+     * confirmed_by = el usuario que confirma.
+     */
+    public function applyConfirmed(int $sessionId, int $tereUserId): array
+    {
+        $session = Session::find($sessionId);
+        if (!$session) {
+            return $this->blocked('session_not_found');
+        }
+        return $this->apply($session, $tereUserId);
+    }
+
+    /**
      * @param Session  $session
      * @param int|null $confirmedBy  usuario humano que confirma (Tere). null = vía AUTOMÁTICA.
      */
