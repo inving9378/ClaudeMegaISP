@@ -113,7 +113,7 @@ export default {
 
             buttons.contract = {
                 class: "btn btn-outline-info waves-effect waves-light me-2",
-                iclass: "fa fa-file-text-o",
+                iclass: "fa fa-file-contract",
                 href: `javascript:void(0)`,
                 id: "generateContract",
             };
