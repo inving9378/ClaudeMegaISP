@@ -44,13 +44,19 @@ class PaymentReceiptExtractor
      * lista en 'unreadable'. Cualquier error (API caída, key inválida, JSON
      * malformado) → ok=false + 'error' con mensaje claro, jamás datos inventados.
      *
-     * @param string $imageBytes    Contenido binario de la imagen.
-     * @param string $mimeType      Ej. image/jpeg, image/png.
+     * Acepta imagen (JPEG/PNG/WebP) Y PDF. Claude lee el PDF de forma nativa
+     * (bloque 'document'); para imagen usa el bloque 'image'. Se decide por el
+     * mime del archivo guardado. Los comprobantes PDF pueden tener varias
+     * páginas: al mandar el PDF completo, Claude las lee todas y encuentra el
+     * dato esté en la página que esté.
+     *
+     * @param string $fileBytes     Contenido binario del comprobante (imagen o PDF).
+     * @param string $mimeType      Ej. image/jpeg, image/png, application/pdf.
      * @param string $documentType  Perfil de extracción (default spei_transfer).
      * @return array {document_type, ok, fields:{campo:{value,confidence}}, unreadable[], error, raw}
      */
     public function extract(
-        string $imageBytes,
+        string $fileBytes,
         string $mimeType,
         string $documentType = SpeiTransferProfile::TYPE
     ): array {
@@ -59,8 +65,8 @@ class PaymentReceiptExtractor
             return $this->fail($documentType, "Tipo de documento no soportado: {$documentType}");
         }
 
-        if ($imageBytes === '') {
-            return $this->fail($documentType, 'La imagen está vacía o no se pudo leer.');
+        if ($fileBytes === '') {
+            return $this->fail($documentType, 'El comprobante está vacío o no se pudo leer.');
         }
 
         try {
@@ -70,14 +76,7 @@ class PaymentReceiptExtractor
                 'messages'   => [[
                     'role'    => 'user',
                     'content' => [
-                        [
-                            'type'   => 'image',
-                            'source' => [
-                                'type'       => 'base64',
-                                'media_type' => $mimeType ?: 'image/jpeg',
-                                'data'       => base64_encode($imageBytes),
-                            ],
-                        ],
+                        $this->mediaBlock($fileBytes, $mimeType),
                         ['type' => 'text', 'text' => $profile->prompt()],
                     ],
                 ]],
@@ -95,6 +94,37 @@ class PaymentReceiptExtractor
                 'No se pudo procesar el comprobante con la IA: ' . $e->getMessage()
             );
         }
+    }
+
+    /**
+     * Arma el bloque de contenido para Claude según el tipo de archivo:
+     * - application/pdf → bloque 'document' (Claude lee el PDF nativo, multipágina).
+     * - imagen (jpeg/png/webp/…) → bloque 'image'.
+     * El ClaudeApiClient reenvía tal cual; no requiere cambios.
+     */
+    private function mediaBlock(string $fileBytes, string $mimeType): array
+    {
+        $mime = strtolower(trim($mimeType));
+
+        if ($mime === 'application/pdf') {
+            return [
+                'type'   => 'document',
+                'source' => [
+                    'type'       => 'base64',
+                    'media_type' => 'application/pdf',
+                    'data'       => base64_encode($fileBytes),
+                ],
+            ];
+        }
+
+        return [
+            'type'   => 'image',
+            'source' => [
+                'type'       => 'base64',
+                'media_type' => $mime ?: 'image/jpeg',
+                'data'       => base64_encode($fileBytes),
+            ],
+        ];
     }
 
     /**
