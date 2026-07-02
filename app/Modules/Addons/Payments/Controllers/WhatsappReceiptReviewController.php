@@ -95,6 +95,7 @@ class WhatsappReceiptReviewController extends Controller
             'source_mime'     => $mime,
             // Concepto denormalizado a columna top-level (F3 buscará la ref MEG aquí).
             'concepto'        => $result['fields']['concepto']['value'] ?? null,
+            'fecha_pago'      => $result['fields']['fecha_pago']['value'] ?? null,
             'ok'              => $result['ok'] ?? false,
             'fields'          => $result['fields'] ?? [],
             'unreadable'      => $result['unreadable'] ?? [],

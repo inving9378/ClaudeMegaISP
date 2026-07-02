@@ -135,7 +135,7 @@
     const LABELS = {
         clave_rastreo:     'Clave de rastreo',
         monto:             'Monto',
-        fecha:             'Fecha',
+        fecha_pago:        'Fecha del pago',
         titular_ordenante: 'Titular ordenante (dueño de la cuenta)',
         banco_origen:      'Banco origen',
         concepto:          'Concepto / referencia (lo escribió el pagador)',

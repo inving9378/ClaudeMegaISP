@@ -70,6 +70,7 @@ class ConciliationIntakeJob implements ShouldQueue
             'document_type'   => $result['document_type'] ?? SpeiTransferProfile::TYPE,
             'source_mime'     => $mime,
             'concepto'        => $result['fields']['concepto']['value'] ?? null,
+            'fecha_pago'      => $result['fields']['fecha_pago']['value'] ?? null,
             'ok'              => $result['ok'] ?? false,
             'fields'          => $result['fields'] ?? [],
             'unreadable'      => $result['unreadable'] ?? [],

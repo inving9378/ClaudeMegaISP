@@ -106,10 +106,12 @@ class ConciliacionDemoCommand extends Command
             'document_type' => 'spei_transfer',
             'source_mime'   => 'image/jpeg',
             'concepto'      => 'PAGO DEMO ' . $n,
+            'fecha_pago'    => now()->format('d/m/Y H:i'),
             'ok'            => true,
             'fields'        => [
                 'monto'             => ['value' => number_format($amount, 2, '.', ''), 'confidence' => 'alta'],
                 'clave_rastreo'     => ['value' => $clave, 'confidence' => 'alta'],
+                'fecha_pago'        => ['value' => now()->format('d/m/Y H:i'), 'confidence' => 'alta'],
                 'concepto'          => ['value' => 'PAGO DEMO ' . $n, 'confidence' => 'alta'],
                 'banco_origen'      => ['value' => 'BBVA', 'confidence' => 'alta'],
                 'titular_ordenante' => ['value' => 'CLIENTE DEMO', 'confidence' => 'media'],
