@@ -1,0 +1,241 @@
+<?php
+
+namespace App\Modules\Addons\Payments\Controllers;
+
+use App\Http\Controllers\Controller;
+use App\Modules\Addons\Payments\Models\ReportedPayment;
+use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
+use App\Modules\Addons\Payments\Services\Conciliation\PaymentFromSessionService;
+use App\Modules\Addons\Payments\Services\Identification\SubscriberSearchService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * FASE 6 — Cola de conciliación de Tere (revisión humana).
+ *
+ * UNA cola unificada con 3 pestañas:
+ *   - PROPUESTOS: la IA identificó al cliente (proposed) o hay multi-servicio →
+ *     Tere confirma (aplica vía Fase 4) o rechaza. Trabajo rápido.
+ *   - ESCALADOS: la IA NO identificó → Tere identifica manual y aplica, o rechaza.
+ *   - VERIFICACIÓN: pagos ya aplicados pendientes de cruce bancario
+ *     (reported_payments.pendiente_verificar) — solo lectura por ahora.
+ *
+ * SEGURIDAD: CONFIRMAR llama al motor de Fase 4 (applyConfirmed) que respeta el
+ * anti-duplicado (add_by=MEGAISP, confirmed_by=Tere). El envío por WhatsApp sigue
+ * apagado — confirmar NO notifica al cliente. Gateada por permiso conciliacion.manage.
+ */
+class ReconciliationQueueController extends Controller
+{
+    private const MEDIA_PREFIX = 'private/payments/whatsapp/comprobantes/';
+
+    public function __construct(private PaymentFromSessionService $applier) {}
+
+    public function index()
+    {
+        return view('addon-payments::conciliacion-cola', [
+            'counts' => [
+                'propuesto'    => Session::proposedQueue()->count(),
+                'escalado'     => Session::escalatedQueue()->count(),
+                'verificacion' => ReportedPayment::where('conciliation_status', ReportedPayment::ESTADO_PENDIENTE)->count(),
+            ],
+        ]);
+    }
+
+    /** Lista por tipo. */
+    public function list(Request $request)
+    {
+        $type = $request->input('type', 'propuesto');
+
+        if ($type === 'verificacion') {
+            $rows = ReportedPayment::where('conciliation_status', ReportedPayment::ESTADO_PENDIENTE)
+                ->latest('id')->limit(100)->get()
+                ->map(fn ($r) => [
+                    'reported_payment_id' => $r->id,
+                    'client_id'           => $r->client_id,
+                    'amount'              => $r->amount,
+                    'clave_rastreo'       => $r->clave_rastreo,
+                    'fecha_pago'          => $r->fecha_pago,
+                ]);
+            return response()->json(['type' => $type, 'rows' => $rows]);
+        }
+
+        $sessions = ($type === 'escalado' ? Session::escalatedQueue() : Session::proposedQueue())
+            ->latest('id')->limit(100)->get();
+
+        return response()->json([
+            'type' => $type,
+            'rows' => $sessions->map(fn ($s) => $this->rowSummary($s)),
+        ]);
+    }
+
+    /** Detalle de un caso (comprobante + datos + cliente propuesto + servicios). */
+    public function show(int $sessionId)
+    {
+        $s = Session::findOrFail($sessionId);
+        $ext = $s->extraction_id ? DB::table('whatsapp_payment_extractions')->where('id', $s->extraction_id)->first() : null;
+        $fields = $ext && $ext->fields ? json_decode($ext->fields, true) : [];
+
+        $client   = $s->resolved_client_id ? $this->clientInfo($s->resolved_client_id) : null;
+        $services = $s->resolved_client_id ? $this->clientServices($s->resolved_client_id) : [];
+
+        return response()->json([
+            'id'                 => $s->id,
+            'state'              => $s->state,
+            'method'             => $s->method,
+            'certainty'          => $s->certainty,
+            'multiple_services'  => (bool) $s->resolved_multiple_services,
+            'fields'             => $fields,
+            'client'             => $client,
+            'services'           => $services,
+            'has_media'          => $ext && $this->mediaPath($s),
+            'media_ext'          => $this->mediaPath($s) ? strtolower(pathinfo($this->mediaPath($s), PATHINFO_EXTENSION)) : null,
+        ]);
+    }
+
+    /** Sirve el comprobante (imagen/PDF) del caso. */
+    public function media(int $sessionId)
+    {
+        $s = Session::findOrFail($sessionId);
+        $path = $this->mediaPath($s);
+        abort_unless($path && str_starts_with($path, self::MEDIA_PREFIX) && Storage::disk('local')->exists($path), 404);
+        return Storage::disk('local')->response($path, null, [
+            'Content-Type'        => $this->mimeFor($path),
+            'Content-Disposition' => 'inline',
+        ]);
+    }
+
+    /** CONFIRMAR → aplica vía Fase 4 (confirmed_by = Tere). */
+    public function confirm(Request $request, int $sessionId)
+    {
+        $data = $request->validate([
+            'client_id'  => ['nullable', 'integer'],   // para ESCALADOS: Tere identifica manual
+            'service_id' => ['nullable', 'integer'],   // para multi-servicio: Tere elige
+        ]);
+
+        $s = Session::findOrFail($sessionId);
+        abort_if($s->applied_at || $s->rejected_at, 409, 'El caso ya no está pendiente.');
+
+        // Escalado: Tere asigna el cliente manualmente antes de aplicar.
+        if (!$s->resolved_client_id) {
+            abort_unless(!empty($data['client_id']), 422, 'Identifica al cliente antes de confirmar.');
+            $s->update([
+                'resolved_client_id'         => (int) $data['client_id'],
+                'method'                     => 'manual',
+                'certainty'                  => Session::CERTAINTY_PROPOSED,
+                'state'                      => Session::STATE_RESOLVED,
+                'resolved_multiple_services' => $this->clientServiceCount((int) $data['client_id']) > 1,
+            ]);
+            $s->refresh();
+        }
+
+        $result = $this->applier->applyConfirmed($s->id, auth()->id());
+
+        // Registrar el servicio elegido por Tere (multi-servicio), para traza.
+        if ($result['applied'] && !empty($data['service_id']) && !empty($result['reported_payment_id'])) {
+            ReportedPayment::where('id', $result['reported_payment_id'])
+                ->update(['conciliation_note' => 'Servicio elegido por Tere: #' . $data['service_id']]);
+        }
+
+        return response()->json($result, $result['applied'] ? 200 : 422);
+    }
+
+    /** RECHAZAR → marca rechazado, NO aplica. */
+    public function reject(Request $request, int $sessionId)
+    {
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
+        $s = Session::findOrFail($sessionId);
+        abort_if($s->applied_at || $s->rejected_at, 409, 'El caso ya no está pendiente.');
+
+        $s->update([
+            'rejected_at'   => now(),
+            'rejected_by'   => auth()->id(),
+            'reject_reason' => $data['reason'] ?? null,
+        ]);
+        return response()->json(['ok' => true]);
+    }
+
+    /** Búsqueda de cliente para identificar manualmente un ESCALADO. */
+    public function searchClients(Request $request, SubscriberSearchService $search)
+    {
+        $q = trim((string) $request->input('q', ''));
+        // Si es numérico → intenta por ID de cliente.
+        if (ctype_digit($q)) {
+            $c = $search->findById((int) $q);
+            return response()->json(['rows' => $c ? [$this->candidate($c)] : []]);
+        }
+        $rows = collect($search->search([$q]))->map(fn ($c) => $this->candidate($c));
+        return response()->json(['rows' => $rows]);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private function rowSummary(Session $s): array
+    {
+        $ext = $s->extraction_id ? DB::table('whatsapp_payment_extractions')->where('id', $s->extraction_id)->first() : null;
+        $f = $ext && $ext->fields ? json_decode($ext->fields, true) : [];
+        return [
+            'id'                => $s->id,
+            'client'            => $s->resolved_client_id ? $this->clientInfo($s->resolved_client_id) : null,
+            'method'            => $s->method,
+            'certainty'         => $s->certainty,
+            'multiple_services' => (bool) $s->resolved_multiple_services,
+            'monto'             => $f['monto']['value'] ?? null,
+            'clave_rastreo'     => $f['clave_rastreo']['value'] ?? null,
+            'concepto'          => $f['concepto']['value'] ?? null,
+            'banco'             => $f['banco_origen']['value'] ?? null,
+            'created_at'        => optional($s->created_at)->format('Y-m-d H:i'),
+        ];
+    }
+
+    private function clientInfo(int $clientId): ?array
+    {
+        $c = DB::table('client_main_information')->where('client_id', $clientId)->first();
+        return $c ? [
+            'id'   => $clientId,
+            'name' => trim("{$c->name} {$c->father_last_name} {$c->mother_last_name}"),
+        ] : ['id' => $clientId, 'name' => '(cliente #' . $clientId . ')'];
+    }
+
+    private function clientServices(int $clientId): array
+    {
+        $out = [];
+        foreach (DB::table('client_bundle_services')->where('client_id', $clientId)->get(['id', 'description']) as $b) {
+            $out[] = ['type' => 'bundle', 'id' => $b->id, 'description' => $b->description];
+        }
+        foreach (DB::table('client_custom_services')->where('client_id', $clientId)->get(['id', 'description']) as $s) {
+            $out[] = ['type' => 'custom', 'id' => $s->id, 'description' => $s->description];
+        }
+        return $out;
+    }
+
+    private function clientServiceCount(int $clientId): int
+    {
+        return DB::table('client_bundle_services')->where('client_id', $clientId)->count()
+            + DB::table('client_custom_services')->where('client_id', $clientId)->count();
+    }
+
+    private function candidate(array $c): array
+    {
+        return ['client_id' => $c['client_id'], 'name' => $c['full_name'] ?? null, 'colonia' => $c['colonia'] ?? null];
+    }
+
+    private function mediaPath(Session $s): ?string
+    {
+        if (!$s->extraction_id) {
+            return null;
+        }
+        $msgId = DB::table('whatsapp_payment_extractions')->where('id', $s->extraction_id)->value('message_id');
+        return $msgId ? DB::table('marketing_messages')->where('id', $msgId)->value('media_path') : null;
+    }
+
+    private function mimeFor(string $path): string
+    {
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'pdf'  => 'application/pdf',
+            'png'  => 'image/png',
+            'webp' => 'image/webp',
+            default => 'image/jpeg',
+        };
+    }
+}

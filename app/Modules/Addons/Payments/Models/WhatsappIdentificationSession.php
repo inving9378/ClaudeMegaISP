@@ -55,6 +55,9 @@ class WhatsappIdentificationSession extends BaseModel
         'escalation_reason',
         'applied_at',
         'applied_payment_id',
+        'rejected_at',
+        'rejected_by',
+        'reject_reason',
         'created_by',
     ];
 
@@ -67,6 +70,7 @@ class WhatsappIdentificationSession extends BaseModel
         'expires_at'           => 'datetime',
         'reminder_sent_at'     => 'datetime',
         'applied_at'           => 'datetime',
+        'rejected_at'          => 'datetime',
     ];
 
     public function extraction()
@@ -123,6 +127,7 @@ class WhatsappIdentificationSession extends BaseModel
         return $q->where('is_simulation', false)
             ->where('state', self::STATE_RESOLVED)
             ->whereNull('applied_at')
+            ->whereNull('rejected_at')
             ->where(function ($w) {
                 $w->where('certainty', self::CERTAINTY_PROPOSED)
                     ->orWhere('resolved_multiple_services', true);
@@ -137,7 +142,8 @@ class WhatsappIdentificationSession extends BaseModel
     {
         return $q->where('is_simulation', false)
             ->where('state', self::STATE_ESCALATED)
-            ->whereNull('applied_at');
+            ->whereNull('applied_at')
+            ->whereNull('rejected_at');
     }
 
     public function isExpired(): bool

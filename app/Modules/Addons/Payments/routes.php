@@ -9,6 +9,7 @@ use App\Modules\Addons\Payments\Controllers\ReceiptController;
 use App\Modules\Addons\Payments\Controllers\ReceiptExtractionTestController;
 use App\Modules\Addons\Payments\Controllers\WhatsappReceiptReviewController;
 use App\Modules\Addons\Payments\Controllers\ReconciliationSimulatorController;
+use App\Modules\Addons\Payments\Controllers\ReconciliationQueueController;
 use App\Modules\Addons\Payments\Controllers\SpeiWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -100,6 +101,21 @@ Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
         Route::post('/conciliacion-sim/responder',[ReconciliationSimulatorController::class, 'reply'])->name('conciliacion-sim.responder');
         Route::post('/conciliacion-sim/avanzar',  [ReconciliationSimulatorController::class, 'advance'])->name('conciliacion-sim.avanzar');
         Route::post('/conciliacion-sim/reiniciar',[ReconciliationSimulatorController::class, 'reset'])->name('conciliacion-sim.reiniciar');
+    });
+
+// FASE 6 — Cola de conciliación de Tere. Gateada por el permiso PROPIO
+// conciliacion.manage (Tere/super-administrator + DESARROLLADOR).
+Route::middleware(['web', 'auth', 'permission:conciliacion.manage'])
+    ->prefix('finanzas')
+    ->name('finanzas.')
+    ->group(function () {
+        Route::get('/conciliacion-cola',                       [ReconciliationQueueController::class, 'index'])->name('conciliacion-cola');
+        Route::get('/conciliacion-cola/list',                  [ReconciliationQueueController::class, 'list'])->name('conciliacion-cola.list');
+        Route::get('/conciliacion-cola/clientes/buscar',       [ReconciliationQueueController::class, 'searchClients'])->name('conciliacion-cola.clientes');
+        Route::get('/conciliacion-cola/{session}/detalle',     [ReconciliationQueueController::class, 'show'])->whereNumber('session')->name('conciliacion-cola.detalle');
+        Route::get('/conciliacion-cola/{session}/media',       [ReconciliationQueueController::class, 'media'])->whereNumber('session')->name('conciliacion-cola.media');
+        Route::post('/conciliacion-cola/{session}/confirmar',  [ReconciliationQueueController::class, 'confirm'])->whereNumber('session')->name('conciliacion-cola.confirmar');
+        Route::post('/conciliacion-cola/{session}/rechazar',   [ReconciliationQueueController::class, 'reject'])->whereNumber('session')->name('conciliacion-cola.rechazar');
     });
 
 // ── API MOBILE: endpoints consumidos por la app Flutter MegaFamilia ─────
