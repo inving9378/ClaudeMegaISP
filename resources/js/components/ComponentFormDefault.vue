@@ -353,7 +353,7 @@
     />
 
     <Select2TypeTemplateSelectComponent
-        v-if="json.type == 'select-2-type-template'"
+        v-if="json.type == 'select-2-type-template' && json.include"
         :property="json"
         :errors="errors"
         :modelValue="modelValue"
