@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Payments\Services\Identification;
 
+use App\Models\Marketing\Setting;
 use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
 use Illuminate\Support\Facades\DB;
 
@@ -33,13 +34,29 @@ class IdentificationFsm
     public const MSG_ASK_SERVICE_INVALID =
         "Por favor responde solo con el número de la opción (por ejemplo: 1).";
 
+    public const MSG_TOO_MANY =
+        "Encontré varios registros con ese nombre. ¿Me das tu nombre COMPLETO con "
+        . "apellidos, tal como aparece en el contrato, para ubicarte bien?";
+
     public const MSG_ESCALATE =
         "Gracias. Voy a pasar tu caso con una persona del equipo para aplicar tu pago correctamente. "
         . "En breve te contactan. 🙌";
 
-    public const MSG_REMINDER =
+    // Cierre amable cuando la sesión expira sin respuesta (el comprobante NO se pierde).
+    public const MSG_EXPIRED_CLOSE =
+        "No recibimos tu respuesta a tiempo, pero tu comprobante está a salvo 🙂. "
+        . "Lo paso con una persona del equipo para aplicar tu pago. ¡Gracias por tu paciencia!";
+
+    // Recordatorios (nudges) por etapa. Se disparan a 1h y 5h por defecto.
+    public const MSG_REMINDER_1 =
         "Seguimos pendientes de tu respuesta para aplicar tu pago 🙂. "
         . "En cuanto me confirmes el nombre del titular, lo dejo listo.";
+    public const MSG_REMINDER_2 =
+        "Solo para no perder tu pago 🙏: ¿me confirmas el nombre del titular del "
+        . "servicio? Si prefieres, con gusto te paso con una persona del equipo.";
+
+    /** Máximo de opciones a listar para desambiguar; más que esto → pedir nombre completo. */
+    public const MAX_DISAMBIG_OPTIONS = 6;
 
     public function __construct(
         private MegReferenceResolver $meg,
@@ -91,20 +108,49 @@ class IdentificationFsm
     }
 
     /**
-     * Recordatorio (nudge) para un cliente que no ha respondido. En vivo lo
-     * dispara un job programado; en el simulador es acelerable. Solo una vez, y
-     * solo si la sesión sigue esperando respuesta (no terminal, no expirada).
+     * Avanza el "reloj de silencio" a $elapsedMinutes desde el último contacto y
+     * dispara lo que corresponda: recordatorios por etapa (1h, 5h configurable)
+     * o, si ya pasó la ventana de la sesión, el cierre amable + escalado.
+     *
+     * En vivo lo dispara un job programado; en el simulador es acelerable
+     * (botones "avanzar 1h/5h/expirar"). Idempotente por etapa (reminders_sent).
      * @return array step
      */
-    public function reminder(Session $session): array
+    public function advanceTime(Session $session, int $elapsedMinutes): array
     {
+        if (in_array($session->state, [Session::STATE_RESOLVED, Session::STATE_ESCALATED], true)) {
+            return $this->step($session, null, terminal: true);
+        }
+
+        // ¿Ya venció la ventana de la sesión? → cierre amable + escala.
+        if ($elapsedMinutes >= $this->expiryMinutes()) {
+            return $this->escalate($session, 'session_expired');
+        }
+
         $waiting = in_array($session->state, [Session::STATE_AWAITING_NAME, Session::STATE_AWAITING_SERVICE], true);
-        if (!$waiting || $session->isExpired() || $session->reminder_sent_at !== null) {
+        if (!$waiting) {
             return $this->step($session, null, terminal: false, extra: ['reminder_skipped' => true]);
         }
+
+        // Cuántos recordatorios corresponden ya según los umbrales cruzados.
+        $thresholds = $this->reminderThresholds();
+        $due = 0;
+        foreach ($thresholds as $t) {
+            if ($elapsedMinutes >= $t) {
+                $due++;
+            }
+        }
+
+        if ($due <= (int) $session->reminders_sent) {
+            return $this->step($session, null, terminal: false, extra: ['reminder_skipped' => true]);
+        }
+
+        $session->reminders_sent = $due;
         $session->reminder_sent_at = now();
         $session->save();
-        return $this->step($session, self::MSG_REMINDER, terminal: false, extra: ['reminder' => true]);
+
+        $msg = $due === 1 ? self::MSG_REMINDER_1 : self::MSG_REMINDER_2;
+        return $this->step($session, $msg, terminal: false, extra: ['reminder' => true, 'reminder_stage' => $due]);
     }
 
     // ── Ramas ────────────────────────────────────────────────────────────────
@@ -118,14 +164,18 @@ class IdentificationFsm
             return $this->resolveByName($session, $cls['client_id'], Session::METHOD_NAME_SINGLE);
         }
 
-        if ($cls['status'] === 'multiple') {
+        // Varios matches, pero pocos → listar para elegir por número.
+        if ($cls['status'] === 'multiple' && count($cls['candidates']) <= self::MAX_DISAMBIG_OPTIONS) {
             $session->state = Session::STATE_AWAITING_SERVICE;
             $session->candidate_client_ids = array_map(fn ($c) => $c['client_id'], $cls['candidates']);
             $session->save();
             return $this->step($session, $this->renderOptions($cls['candidates']), terminal: false);
         }
 
-        // none
+        // Demasiados matches (nombre de pila común) → pedir nombre completo.
+        $tooMany = $cls['status'] === 'multiple';
+
+        // none / too_many → pedir (o re-pedir) el nombre. Cuenta reintento si ya era respuesta.
         if ($isRetry) {
             $session->attempts = (int) $session->attempts + 1;
             if ($session->attempts >= Session::MAX_ATTEMPTS) {
@@ -135,7 +185,11 @@ class IdentificationFsm
         }
         $session->state = Session::STATE_AWAITING_NAME;
         $session->save();
-        return $this->step($session, $isRetry ? self::MSG_ASK_NAME_RETRY : self::MSG_ASK_NAME, terminal: false);
+
+        $msg = $tooMany
+            ? self::MSG_TOO_MANY
+            : ($isRetry ? self::MSG_ASK_NAME_RETRY : self::MSG_ASK_NAME);
+        return $this->step($session, $msg, terminal: false);
     }
 
     private function handleDisambiguation(Session $session, string $reply): array
@@ -193,8 +247,27 @@ class IdentificationFsm
         $session->state             = Session::STATE_ESCALATED;
         $session->escalation_reason = $reason;
         $session->save();
+        // Cierre amable distinto si fue por expiración.
+        $msg = $reason === 'session_expired' ? self::MSG_EXPIRED_CLOSE : self::MSG_ESCALATE;
         // El handoff real a Tere (assign_to_human) lo dispara el responder (F3.5/F3.6).
-        return $this->step($session, self::MSG_ESCALATE, terminal: true, extra: ['escalated' => true, 'reason' => $reason]);
+        return $this->step($session, $msg, terminal: true, extra: ['escalated' => true, 'reason' => $reason]);
+    }
+
+    // ── Config (ajustable con datos) ─────────────────────────────────────────
+
+    /** Minutos hasta expirar la sesión (default 12h). */
+    private function expiryMinutes(): int
+    {
+        return (int) (Setting::get('reconciliation_session_hours', 1) ?? 12) * 60;
+    }
+
+    /** Umbrales de recordatorio en minutos (default 60, 300 = 1h y 5h). */
+    private function reminderThresholds(): array
+    {
+        $raw = Setting::get('reconciliation_reminder_minutes', 1) ?? '60,300';
+        $mins = array_filter(array_map('intval', explode(',', (string) $raw)), fn ($n) => $n > 0);
+        sort($mins);
+        return array_values($mins);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

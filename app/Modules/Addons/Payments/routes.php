@@ -98,8 +98,7 @@ Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
         Route::get('/conciliacion-sim',          [ReconciliationSimulatorController::class, 'index'])->name('conciliacion-sim');
         Route::post('/conciliacion-sim/iniciar', [ReconciliationSimulatorController::class, 'start'])->name('conciliacion-sim.iniciar');
         Route::post('/conciliacion-sim/responder',[ReconciliationSimulatorController::class, 'reply'])->name('conciliacion-sim.responder');
-        Route::post('/conciliacion-sim/recordatorio',[ReconciliationSimulatorController::class, 'remind'])->name('conciliacion-sim.recordatorio');
-        Route::post('/conciliacion-sim/expirar',  [ReconciliationSimulatorController::class, 'expire'])->name('conciliacion-sim.expirar');
+        Route::post('/conciliacion-sim/avanzar',  [ReconciliationSimulatorController::class, 'advance'])->name('conciliacion-sim.avanzar');
         Route::post('/conciliacion-sim/reiniciar',[ReconciliationSimulatorController::class, 'reset'])->name('conciliacion-sim.reiniciar');
     });
 

@@ -74,9 +74,11 @@
                 <input id="reply" placeholder="escribe lo que respondería el cliente…" disabled onkeydown="if(event.key==='Enter')sendReply()">
                 <button id="btnSend" onclick="sendReply()" disabled>Enviar</button>
             </div>
+            <label>Acelerar el tiempo (sin esperar horas) — reloj de silencio: <span id="clock">0 min</span></label>
             <div class="row">
-                <button class="ghost" id="btnRemind" onclick="remind()" disabled>Recordatorio</button>
-                <button class="ghost" id="btnExpire" onclick="expire()" disabled>Simular expiración</button>
+                <button class="ghost" id="btnAdv1" onclick="advance(60)" disabled>Avanzar 1h</button>
+                <button class="ghost" id="btnAdv5" onclick="advance(300)" disabled>Avanzar 5h</button>
+                <button class="ghost" id="btnExpire" onclick="advance('expire')" disabled>Expirar</button>
                 <button class="ghost" id="btnReset" onclick="resetSim()" disabled>Reiniciar</button>
             </div>
         </div>
@@ -87,6 +89,9 @@
     const CSRF = document.querySelector('meta[name=csrf-token]').content;
     const U = "{{ url('finanzas/conciliacion-sim') }}";
     let sid = null;
+    let elapsed = 0; // minutos de silencio acumulados (simulado)
+
+    function setClock(txt) { document.getElementById('clock').textContent = txt; }
 
     function prefill() {
         const opt = document.getElementById('extraction').selectedOptions[0];
@@ -133,10 +138,7 @@
         s.innerHTML = stateBadge + cert + who + method + att + esc2;
 
         const terminal = !!step.terminal;
-        document.getElementById('reply').disabled = terminal;
-        document.getElementById('btnSend').disabled = terminal;
-        document.getElementById('btnRemind').disabled = terminal;
-        document.getElementById('btnExpire').disabled = terminal;
+        ['reply','btnSend','btnAdv1','btnAdv5','btnExpire'].forEach(id => document.getElementById(id).disabled = terminal);
         if (terminal) add('note', '— fin de la conversación —');
     }
 
@@ -149,6 +151,7 @@
         };
         const data = await post('/iniciar', body);
         sid = data.session_id;
+        elapsed = 0; setClock('0 min');
         document.getElementById('transcript').innerHTML = '';
         add('note', `Comprobante · concepto: "${data.input.concepto || '(vacío)'}"` + (data.input.titular ? ` · titular: "${data.input.titular}"` : ''));
         document.getElementById('btnReset').disabled = false;
@@ -162,28 +165,27 @@
         if (!txt) return;
         add('client', txt);
         el.value = '';
+        elapsed = 0; setClock('0 min'); // respuesta del cliente reinicia el reloj
         const data = await post('/responder', { session_id: sid, text: txt });
         renderStep(data.step);
     }
 
-    async function remind() {
+    async function advance(delta) {
         if (!sid) return;
-        const data = await post('/recordatorio', { session_id: sid });
+        let minutes;
+        if (delta === 'expire') { minutes = 100000; setClock('expirada'); add('note', '⏱️ Simulando expiración de la sesión…'); }
+        else { elapsed += delta; minutes = elapsed; setClock(elapsed + ' min (' + (elapsed / 60).toFixed(1) + ' h)'); add('note', '⏱️ Pasó el tiempo: ' + (elapsed / 60).toFixed(1) + ' h de silencio'); }
+        const data = await post('/avanzar', { session_id: sid, minutes });
         renderStep(data.step);
-    }
-
-    async function expire() {
-        if (!sid) return;
-        const data = await post('/expirar', { session_id: sid });
-        add('note', data.note || 'Sesión expirada.');
     }
 
     async function resetSim() {
         if (sid) await post('/reiniciar', { session_id: sid });
         sid = null;
+        elapsed = 0; setClock('0 min');
         document.getElementById('transcript').innerHTML = '<p class="note">Inicia una simulación para empezar.</p>';
         document.getElementById('status').style.display = 'none';
-        ['reply','btnSend','btnRemind','btnExpire','btnReset'].forEach(id => document.getElementById(id).disabled = true);
+        ['reply','btnSend','btnAdv1','btnAdv5','btnExpire','btnReset'].forEach(id => document.getElementById(id).disabled = true);
     }
 </script>
 </body>

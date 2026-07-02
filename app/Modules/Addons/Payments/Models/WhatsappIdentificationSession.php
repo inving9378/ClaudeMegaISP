@@ -47,6 +47,7 @@ class WhatsappIdentificationSession extends BaseModel
         'attempts',
         'expires_at',
         'reminder_sent_at',
+        'reminders_sent',
         'escalated_to',
         'escalation_reason',
         'created_by',
@@ -56,6 +57,7 @@ class WhatsappIdentificationSession extends BaseModel
         'is_simulation'        => 'boolean',
         'candidate_client_ids' => 'array',
         'attempts'             => 'integer',
+        'reminders_sent'       => 'integer',
         'expires_at'           => 'datetime',
         'reminder_sent_at'     => 'datetime',
     ];

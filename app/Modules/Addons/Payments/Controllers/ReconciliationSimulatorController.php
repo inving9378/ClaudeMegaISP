@@ -84,28 +84,25 @@ class ReconciliationSimulatorController extends Controller
         ]);
     }
 
-    /** El "cliente" responde. */
+    /** El "cliente" responde. Reinicia el reloj de silencio (recordatorios). */
     public function reply(Request $request)
     {
         [$session, $data] = $this->simSession($request, ['text' => ['required', 'string', 'max:500']]);
+        // El cliente respondió → se reinician los recordatorios (silencio a 0).
+        $session->update(['reminders_sent' => 0]);
         $step = $this->fsm->handleReply($session, $data['text'], null);
         return response()->json(['step' => $this->enrich($step, $session->fresh())]);
     }
 
-    /** Dispara el recordatorio (acelerable). */
-    public function remind(Request $request)
+    /**
+     * Avanza el reloj de silencio a $minutes desde el último contacto (acelerable).
+     * Dispara recordatorios por etapa (1h/5h) o el cierre por expiración.
+     */
+    public function advance(Request $request)
     {
-        [$session] = $this->simSession($request);
-        $step = $this->fsm->reminder($session);
+        [$session, $data] = $this->simSession($request, ['minutes' => ['required', 'integer', 'min:1', 'max:100000']]);
+        $step = $this->fsm->advanceTime($session, (int) $data['minutes']);
         return response()->json(['step' => $this->enrich($step, $session->fresh())]);
-    }
-
-    /** Acelera la expiración (pone expires_at en el pasado). El próximo mensaje escala. */
-    public function expire(Request $request)
-    {
-        [$session] = $this->simSession($request);
-        $session->update(['expires_at' => now()->subMinute()]);
-        return response()->json(['ok' => true, 'note' => 'Sesión marcada como expirada. El próximo mensaje del cliente escalará.']);
     }
 
     /** Borra la sesión de simulación. */
