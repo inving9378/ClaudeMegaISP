@@ -105,7 +105,7 @@ export default {
             if (hasPermission.data.canView('crm_document_add')){
                 buttons.upload = {
                     class: 'btn btn-outline-info waves-effect waves-light me-2',
-                    iclass: 'fa fa-plus',
+                    iclass: 'fa fa-upload',
                     href: 'javascript:void(0)',
                     id: 'buttonmodaluploaddocument'
                 };
