@@ -72,7 +72,9 @@ class AmiConnectionService
         // evento (Newstate/Hangup/DTMF) con la fila de cobranza_llamadas sin
         // depender del timing del evento OriginateResponse (que es asíncrono).
         $channelId = 'cob-' . $llamadaId . '-' . time();
-        $channel   = 'SIP/servnet-trunk/' . $telefono;
+        // C5: troncal Servnet unificada a PJSIP Realtime (endpoint id 'servnet',
+        // provisionado por VoiceGateway::configureTrunk). Antes: SIP/servnet-trunk (chan_sip).
+        $channel   = 'PJSIP/servnet/' . $telefono;
 
         $action = implode("\r\n", [
             'Action: Originate',
