@@ -42,6 +42,18 @@ class ReconciliationQueueController extends Controller
         ]);
     }
 
+    /**
+     * Conteo LIGERO de pendientes (propuestos + escalados) para la campana de la
+     * topbar. Solo COUNT, no trae datos. Fuente única = las sesiones → cuando
+     * alguien concilia/rechaza, el conteo baja para todos en su próxima consulta.
+     */
+    public function pendingCount()
+    {
+        return response()->json([
+            'count' => Session::proposedQueue()->count() + Session::escalatedQueue()->count(),
+        ]);
+    }
+
     /** Lista por tipo. */
     public function list(Request $request)
     {

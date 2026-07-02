@@ -55,4 +55,13 @@ return [
     */
     'auto_apply_enabled' => env('PAYMENTS_AUTO_APPLY_ENABLED', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Campana de conciliación pendiente (Fase 6) — polling de la topbar
+    |--------------------------------------------------------------------------
+    | Cada cuántos segundos la campana consulta el conteo de pendientes.
+    | Configurable (PAYMENTS_CONCILIACION_POLL_SECONDS). Default 45.
+    */
+    'conciliacion_poll_seconds' => (int) env('PAYMENTS_CONCILIACION_POLL_SECONDS', 45),
+
 ];

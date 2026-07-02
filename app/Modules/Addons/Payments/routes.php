@@ -110,6 +110,7 @@ Route::middleware(['web', 'auth', 'permission:conciliacion.manage'])
     ->name('finanzas.')
     ->group(function () {
         Route::get('/conciliacion-cola',                       [ReconciliationQueueController::class, 'index'])->name('conciliacion-cola');
+        Route::get('/conciliacion-cola/pendientes',            [ReconciliationQueueController::class, 'pendingCount'])->name('conciliacion-cola.pendientes');
         Route::get('/conciliacion-cola/list',                  [ReconciliationQueueController::class, 'list'])->name('conciliacion-cola.list');
         Route::get('/conciliacion-cola/clientes/buscar',       [ReconciliationQueueController::class, 'searchClients'])->name('conciliacion-cola.clientes');
         Route::get('/conciliacion-cola/{session}/detalle',     [ReconciliationQueueController::class, 'show'])->whereNumber('session')->name('conciliacion-cola.detalle');
