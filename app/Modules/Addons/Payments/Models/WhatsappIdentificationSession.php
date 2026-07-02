@@ -53,6 +53,8 @@ class WhatsappIdentificationSession extends BaseModel
         'reminders_sent',
         'escalated_to',
         'escalation_reason',
+        'applied_at',
+        'applied_payment_id',
         'created_by',
     ];
 
@@ -64,6 +66,7 @@ class WhatsappIdentificationSession extends BaseModel
         'reminders_sent'       => 'integer',
         'expires_at'           => 'datetime',
         'reminder_sent_at'     => 'datetime',
+        'applied_at'           => 'datetime',
     ];
 
     public function extraction()
@@ -74,6 +77,38 @@ class WhatsappIdentificationSession extends BaseModel
     public function isResolved(): bool
     {
         return $this->state === self::STATE_RESOLVED;
+    }
+
+    /**
+     * ¿F4 puede AUTO-aplicar este pago? Solo si la certeza es exacta (MEG, o
+     * ID de cliente con el flag payments.id_cliente_auto_apply encendido).
+     * 'proposed' (nombre/calle) requiere confirmación humana.
+     */
+    public function isAutoApplicable(): bool
+    {
+        return $this->certainty === self::CERTAINTY_EXACT;
+    }
+
+    // ── Contrato para Fase 4 (aplicación del pago) ────────────────────────────
+
+    /** Sesiones REALES resueltas, aún NO aplicadas → entrada de F4. */
+    public function scopePendingApplication($q)
+    {
+        return $q->where('is_simulation', false)
+            ->where('state', self::STATE_RESOLVED)
+            ->whereNull('applied_at');
+    }
+
+    /** De esas, las que F4 puede aplicar AUTOMÁTICO (certeza exacta). */
+    public function scopeAutoApplicable($q)
+    {
+        return $q->pendingApplication()->where('certainty', self::CERTAINTY_EXACT);
+    }
+
+    /** Las que requieren confirmación humana antes de aplicar (nombre/calle). */
+    public function scopeNeedsHumanConfirmation($q)
+    {
+        return $q->pendingApplication()->where('certainty', self::CERTAINTY_PROPOSED);
     }
 
     public function isExpired(): bool
