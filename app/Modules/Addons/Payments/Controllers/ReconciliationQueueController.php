@@ -69,7 +69,37 @@ class ReconciliationQueueController extends Controller
                     'clave_rastreo'       => $r->clave_rastreo,
                     'fecha_pago'          => $r->fecha_pago,
                 ]);
-            return response()->json(['type' => $type, 'rows' => $rows]);
+            return response()->json(['type' => $type, 'rows' => $rows, 'readonly' => true]);
+        }
+
+        // APROBADOS / HISTORIAL — pagos ya aplicados por este flujo (solo lectura).
+        if ($type === 'aprobados') {
+            $q = ReportedPayment::whereNotNull('identification_session_id');
+            if ($from = $request->input('from')) {
+                $q->whereDate('created_at', '>=', $from);
+            }
+            if ($to = $request->input('to')) {
+                $q->whereDate('created_at', '<=', $to);
+            }
+            $reported = $q->latest('id')->limit(300)->get();
+            // Fecha del pago = la del comprobante (extracción), no la de aplicación.
+            $fechas = DB::table('whatsapp_identification_sessions as s')
+                ->join('whatsapp_payment_extractions as e', 'e.id', '=', 's.extraction_id')
+                ->whereIn('s.id', $reported->pluck('identification_session_id')->filter())
+                ->pluck('e.fecha_pago', 's.id');
+
+            $rows = $reported->map(fn ($r) => [
+                'client'        => $this->clientInfo((int) $r->client_id),
+                'amount'        => $r->amount,
+                'fecha_pago'    => $fechas[$r->identification_session_id] ?? (string) $r->fecha_pago,
+                'clave_rastreo' => $r->clave_rastreo,
+                // Cómo se aprobó: automático (MEGAISP exact/MEG) vs confirmado por humano.
+                'auto'          => empty($r->confirmed_by_user_id),
+                'identified_by' => $this->userName($r->identified_by_user_id),
+                'confirmed_by'  => $r->confirmed_by_user_id ? $this->userName($r->confirmed_by_user_id) : null,
+                'applied_at'    => optional($r->created_at)->format('Y-m-d H:i'),
+            ]);
+            return response()->json(['type' => $type, 'rows' => $rows, 'readonly' => true]);
         }
 
         $sessions = ($type === 'escalado' ? Session::escalatedQueue() : Session::proposedQueue())
@@ -219,6 +249,15 @@ class ReconciliationQueueController extends Controller
             $out[] = ['type' => 'custom', 'id' => $s->id, 'description' => $s->description];
         }
         return $out;
+    }
+
+    private function userName(?int $userId): ?string
+    {
+        if (!$userId) {
+            return null;
+        }
+        $u = DB::table('users')->where('id', $userId)->first(['name', 'father_last_name']);
+        return $u ? trim("{$u->name} {$u->father_last_name}") : ('usuario #' . $userId);
     }
 
     private function clientServiceCount(int $clientId): int

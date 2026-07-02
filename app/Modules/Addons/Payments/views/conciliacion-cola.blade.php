@@ -48,6 +48,7 @@
     <div class="tabs">
         <div class="tab on" data-type="propuesto" onclick="ccSwitch('propuesto')">Propuestos <span class="n" id="cc-n-propuesto">{{ $counts['propuesto'] }}</span></div>
         <div class="tab" data-type="escalado" onclick="ccSwitch('escalado')">Escalados <span class="n" id="cc-n-escalado">{{ $counts['escalado'] }}</span></div>
+        <div class="tab" data-type="aprobados" onclick="ccSwitch('aprobados')">Aprobados / Historial</div>
         <div class="tab" data-type="verificacion" onclick="ccSwitch('verificacion')">Verificación bancaria <span class="n" id="cc-n-verificacion">{{ $counts['verificacion'] }}</span></div>
     </div>
 
@@ -79,15 +80,52 @@
         loadList();
     };
 
+    let aprobFrom = '', aprobTo = '';
+
     async function loadList(){
-        const d = await get(U + '/list?type=' + tab);
         const box = document.getElementById('cc-list'); if (!box) return;
+
+        // VERIFICACIÓN BANCARIA — solo lectura (informativo por ahora).
         if (tab === 'verificacion'){
-            box.innerHTML = d.rows.length ? d.rows.map(r =>
-                `<div class="item"><b>$${esc(r.amount)}</b> · cliente ${esc(r.client_id)}<div class="muted">clave ${esc(r.clave_rastreo)} · ${esc(r.fecha_pago)}</div></div>`).join('')
-                : '<p class="muted">Sin pagos pendientes de verificación bancaria.</p>';
+            const d = await get(U + '/list?type=verificacion');
+            const banner = '<div class="warn">Solo lectura — verificación bancaria (cruce contra banco) pendiente de implementar.</div>';
+            document.getElementById('cc-detail').innerHTML = '<p class="muted">Pestaña informativa (solo lectura).</p>';
+            box.innerHTML = banner + (d.rows.length ? d.rows.map(r =>
+                `<div class="item" style="cursor:default;"><b>$${esc(r.amount)}</b> · cliente ${esc(r.client_id)}<div class="muted">clave ${esc(r.clave_rastreo)} · ${esc(r.fecha_pago)}</div></div>`).join('')
+                : '<p class="muted">Sin pagos pendientes de verificación bancaria.</p>');
             return;
         }
+
+        // APROBADOS / HISTORIAL — solo lectura, con filtro por fecha de aplicación.
+        if (tab === 'aprobados'){
+            const qs = new URLSearchParams({type:'aprobados'});
+            if (aprobFrom) qs.set('from', aprobFrom);
+            if (aprobTo) qs.set('to', aprobTo);
+            const d = await get(U + '/list?' + qs.toString());
+            const filter = `<div class="row" style="margin:2px 0 10px;">
+                <span class="muted">Aplicado del</span>
+                <input class="cc-in" style="width:auto;" type="date" value="${aprobFrom}" onchange="ccAprobFrom(this.value)">
+                <span class="muted">al</span>
+                <input class="cc-in" style="width:auto;" type="date" value="${aprobTo}" onchange="ccAprobTo(this.value)">
+                ${(aprobFrom||aprobTo)?'<button class="cc-btn cc-ghost" onclick="ccAprobClear()">Limpiar</button>':''}
+            </div>`;
+            document.getElementById('cc-detail').innerHTML = '<p class="muted">Historial de pagos ya aplicados por este flujo (solo lectura).</p>';
+            const rows = d.rows.length ? d.rows.map(r => {
+                const how = r.auto
+                    ? '<span class="cc-badge b-prop">automático · MEGAISP</span>'
+                    : `<span class="cc-badge b-multi">confirmado · ${esc(r.confirmed_by)}</span>`;
+                return `<div class="item" style="cursor:default;">
+                    <div>${how} <b>$${esc(r.amount)}</b></div>
+                    <div style="margin-top:3px;">${r.client ? esc(r.client.name) : 'cliente ?'}</div>
+                    <div class="muted">clave ${esc(r.clave_rastreo ?? '—')} · pago ${esc(r.fecha_pago ?? '—')} · aplicado ${esc(r.applied_at ?? '')}</div>
+                </div>`;
+            }).join('') : '<p class="muted">Sin pagos aprobados en el rango.</p>';
+            box.innerHTML = filter + rows;
+            return;
+        }
+
+        // PROPUESTOS / ESCALADOS — accionables (clic abre detalle).
+        const d = await get(U + '/list?type=' + tab);
         box.innerHTML = d.rows.length ? d.rows.map(r => {
             const b = r.multiple_services ? '<span class="cc-badge b-multi">multi-servicio</span>'
                     : (tab === 'escalado' ? '<span class="cc-badge b-esc">escalado</span>' : '<span class="cc-badge b-prop">propuesto</span>');
@@ -189,6 +227,10 @@
         const {status} = await post(U + '/' + current + '/rechazar', {reason});
         if (status === 200){ refreshCounts(); loadList(); document.getElementById('cc-detail').innerHTML = '<p class="muted">Caso rechazado. Selecciona otro.</p>'; }
     };
+
+    window.ccAprobFrom = function(v){ aprobFrom = v; loadList(); };
+    window.ccAprobTo = function(v){ aprobTo = v; loadList(); };
+    window.ccAprobClear = function(){ aprobFrom = ''; aprobTo = ''; loadList(); };
 
     async function refreshCounts(){
         for (const t of ['propuesto','escalado','verificacion']){
