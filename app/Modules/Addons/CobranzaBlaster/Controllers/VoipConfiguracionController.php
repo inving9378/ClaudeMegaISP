@@ -4,6 +4,7 @@ namespace App\Modules\Addons\CobranzaBlaster\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\CobranzaBlaster\Models\VoipConfiguracion;
+use App\Modules\Core\Voice\VoiceGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -59,22 +60,39 @@ class VoipConfiguracionController extends Controller
         try {
             $config = VoipConfiguracion::updateOrCreate(['id' => 1], $data);
 
-            $this->escribirSipConf($config);
+            // C4: provisión en PJSIP Realtime vía el VoiceGateway (ya NO se escribe
+            // /etc/asterisk/sip.conf ni se hace `sip reload` chan_sip).
+            $gateway = app(VoiceGateway::class);
+            $result  = $gateway->configureTrunk([
+                'host'            => $config->sip_host,
+                'port'            => $config->sip_port ?: 5060,
+                'username'        => $config->sip_username,
+                'secret'          => $config->sip_secret,      // accessor → texto plano (AJUSTE-B)
+                'fromuser'        => $config->sip_fromuser,
+                'fromdomain'      => $config->sip_fromdomain,
+                'callerid_nombre' => $config->callerid_nombre,
+                'callerid_numero' => $config->callerid_numero,
+            ]);
+            $reloaded = $gateway->reloadPjsip();
 
-            exec('sudo asterisk -rx "sip reload" 2>&1', $output, $rc);
+            $config->update(['estado' => 'activa']);
 
             return response()->json([
                 'ok'       => true,
-                'asterisk' => implode("\n", $output),
-                'rc'       => $rc,
+                'reloaded' => $reloaded,
+                'warnings' => $result['warnings'],
+                'ips'      => $result['ips'],
+                'msg'      => 'Troncal Servnet provisionada en PJSIP Realtime'
+                              . ($reloaded ? ' y PJSIP recargado.' : ' (recarga de PJSIP no confirmada; revisa AMI).'),
             ]);
         } catch (\Throwable $e) {
-            // Fallo de infraestructura (Asterisk/archivo/BD): nunca 500 hacia la UI.
-            Log::error('CobranzaBlaster: fallo al guardar configuración VoIP', ['error' => $e->getMessage()]);
+            // Fallo de infraestructura (Asterisk/AMI/BD realtime): nunca 500 hacia la UI.
+            Log::error('CobranzaBlaster: fallo al provisionar troncal VoIP', ['error' => $e->getMessage()]);
+            optional(VoipConfiguracion::find(1))->update(['estado' => 'error']);
 
             return response()->json([
                 'ok'  => false,
-                'msg' => 'No se pudo aplicar la configuración de la troncal: ' . $e->getMessage(),
+                'msg' => 'No se pudo provisionar la troncal en Asterisk: ' . $e->getMessage(),
             ], 200);
         }
     }
@@ -82,64 +100,84 @@ class VoipConfiguracionController extends Controller
     public function testConexion(): JsonResponse
     {
         try {
-            exec('sudo asterisk -rx "sip show peers" 2>&1', $output, $rc);
+            // C4: estado real por PJSIP Realtime/ARI/AMI (ya NO `sip show peers` chan_sip).
+            $status = app(VoiceGateway::class)->testConnection();
 
-            $lineas     = implode("\n", $output);
-            $registrado = collect($output)->contains(
-                fn ($l) => stripos($l, 'servnet') !== false && stripos($l, 'OK') !== false
-            );
-
-            return response()->json([
-                'ok'         => true,
-                'registrado' => $registrado,
-                'output'     => $lineas,
-                'rc'         => $rc,
-            ]);
+            // Compatibilidad con el frontend actual (espera `registrado` + `output`).
+            return response()->json(array_merge($status, [
+                'registrado' => $status['registrado'] ?? false,
+                'output'     => $this->formatEstadoOutput($status),
+            ]));
         } catch (\Throwable $e) {
             Log::error('CobranzaBlaster: fallo al consultar estado de la troncal', ['error' => $e->getMessage()]);
 
             return response()->json([
                 'ok'         => false,
                 'registrado' => false,
-                'msg'        => 'No se pudo consultar el estado de la troncal: ' . $e->getMessage(),
+                'output'     => 'No se pudo consultar el estado de la troncal: ' . $e->getMessage(),
+                'msg'        => $e->getMessage(),
             ], 200);
         }
     }
 
+    /** Resumen legible del estado de la troncal para el panel "Output de Asterisk". */
+    private function formatEstadoOutput(array $status): string
+    {
+        $lineas = [
+            'Provisionado:   ' . (($status['provisionado'] ?? false) ? 'sí' : 'no'),
+            'Estado endpoint: ' . ($status['estado'] ?? 'desconocido')
+                . (isset($status['source']) ? " ({$status['source']})" : ''),
+            'IPs inbound:    ' . ($status['ips'] ?: '—'),
+        ];
+        foreach (($status['warnings'] ?? []) as $w) {
+            $lineas[] = '⚠ ' . $w;
+        }
+        return implode("\n", $lineas);
+    }
+
+    /**
+     * C4: NO-OP. La troncal Servnet ya se provisiona en PJSIP Realtime vía el
+     * VoiceGateway (ver store()), no en chan_sip. Se deja el método (sin llamarlo)
+     * para no alterar el contrato de la clase; NO se borra /etc/asterisk/sip.conf
+     * de producción (allí Asterisk se instala en la próxima actualización — items
+     * 185/186). El cuerpo chan_sip original queda comentado como referencia histórica.
+     */
     private function escribirSipConf(VoipConfiguracion $config): void
     {
-        $fromuser   = $config->sip_fromuser   ? "fromuser = {$config->sip_fromuser}" : '';
-        $fromdomain = $config->sip_fromdomain ? "fromdomain = {$config->sip_fromdomain}" : '';
-        $callerid   = $config->callerid_numero ? "<{$config->callerid_numero}>" : '';
-
-        $conf = <<<CONF
-[general]
-context = default
-allowoverlap = no
-udpbindaddr = 0.0.0.0
-tcpenable = no
-transport = udp
-srvlookup = yes
-qualify = yes
-
-[servnet-trunk]
-type = peer
-host = {$config->sip_host}
-port = {$config->sip_port}
-username = {$config->sip_username}
-secret = {$config->sip_secret}
-{$fromuser}
-{$fromdomain}
-insecure = port,invite
-nat = force_rport,comedia
-dtmfmode = rfc2833
-disallow = all
-allow = ulaw
-allow = alaw
-context = from-servnet
-qualify = yes
-CONF;
-
-        file_put_contents('/etc/asterisk/sip.conf', $conf);
+        // no-op — reemplazado por VoiceGateway::configureTrunk() (PJSIP Realtime).
+        //
+        // $fromuser   = $config->sip_fromuser   ? "fromuser = {$config->sip_fromuser}" : '';
+        // $fromdomain = $config->sip_fromdomain ? "fromdomain = {$config->sip_fromdomain}" : '';
+        // $callerid   = $config->callerid_numero ? "<{$config->callerid_numero}>" : '';
+        //
+        // $conf = <<<CONF
+        // [general]
+        // context = default
+        // allowoverlap = no
+        // udpbindaddr = 0.0.0.0
+        // tcpenable = no
+        // transport = udp
+        // srvlookup = yes
+        // qualify = yes
+        //
+        // [servnet-trunk]
+        // type = peer
+        // host = {$config->sip_host}
+        // port = {$config->sip_port}
+        // username = {$config->sip_username}
+        // secret = {$config->sip_secret}
+        // {$fromuser}
+        // {$fromdomain}
+        // insecure = port,invite
+        // nat = force_rport,comedia
+        // dtmfmode = rfc2833
+        // disallow = all
+        // allow = ulaw
+        // allow = alaw
+        // context = from-servnet
+        // qualify = yes
+        // CONF;
+        //
+        // file_put_contents('/etc/asterisk/sip.conf', $conf);
     }
 }

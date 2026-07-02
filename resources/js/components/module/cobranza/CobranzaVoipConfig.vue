@@ -178,8 +178,15 @@ export default {
                 const { data } = await axios.post(`${this.baseUrl}/voip/configuracion`, payload, {
                     headers: { 'X-CSRF-TOKEN': this.csrfToken },
                 });
-                this.mensajeGuardado = 'Configuración guardada y aplicada en Asterisk.';
-                await this.cargar();
+                if (data && data.ok === false) {
+                    // Fallo de infraestructura (llega como HTTP 200 {ok:false}): no es éxito.
+                    this.errorGuardado = data.msg || 'No se pudo aplicar la configuración en Asterisk.';
+                } else {
+                    const avisos = (data && data.warnings && data.warnings.length)
+                        ? '  ⚠ ' + data.warnings.join('  ⚠ ') : '';
+                    this.mensajeGuardado = (data?.msg || 'Configuración guardada y aplicada en Asterisk.') + avisos;
+                    await this.cargar();
+                }
             } catch (e) {
                 if (e.response?.status === 422) {
                     this.errors = e.response.data.errors || {};
