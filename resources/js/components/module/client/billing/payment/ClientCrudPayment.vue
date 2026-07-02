@@ -143,6 +143,16 @@
                                         v-model.trim="dataForm.data[f.key]"
                                         :placeholder="f.label"
                                     />
+                                    <input
+                                        v-else-if="f.type === 'digits4'"
+                                        type="text"
+                                        inputmode="numeric"
+                                        maxlength="4"
+                                        class="form-control"
+                                        :value="dataForm.data[f.key]"
+                                        @input="onDigits4Input($event, f.key)"
+                                        placeholder="####"
+                                    />
                                     <select
                                         v-else-if="f.type === 'tecnico'"
                                         class="form-control"
@@ -291,6 +301,7 @@ export default {
             { id: 2, label: "Transferencia Bancaria" },
             { id: 5, label: "Oxxo" },
             { id: 7, label: "Pago a técnico" },
+            { id: 3, label: "Tarjeta crédito/débito en oficina" },
         ];
         const selectedMethodId = ref(1);
         // En edición, un pago viejo puede tener un método fuera de los 4 (p.ej.
@@ -336,6 +347,13 @@ export default {
                 { key: "tecnico_id", label: "Técnico", type: "tecnico", required: true },
                 { key: "file", label: "Foto (opcional)", type: "file", required: false },
             ],
+            // 3 Tarjeta de crédito/débito en oficina (cobro con terminal).
+            // PCI: SOLO últimos 4 dígitos — NUNCA el número completo.
+            3: [
+                { key: "numero_autorizacion", label: "Número de autorización", type: "text", required: true },
+                { key: "ultimos4_tarjeta", label: "Últimos 4 dígitos de la tarjeta", type: "digits4", required: true },
+                { key: "file", label: "Comprobante (voucher)", type: "file", required: true },
+            ],
         };
         // Llaves de DATOS que no existen en field_modules: se inyectan en
         // fieldsJson (include:false) para que Form.uploadFile las serialice.
@@ -345,6 +363,8 @@ export default {
             "banco_origen",
             "referencia_oxxo",
             "tecnico_id",
+            "numero_autorizacion",
+            "ultimos4_tarjeta",
         ];
         // Todas las llaves gestionadas por método (incluye el file existente).
         const ALL_METHOD_KEYS = [...EXTRA_FIELD_KEYS, "file"];
@@ -560,6 +580,17 @@ export default {
             dataForm.data.file = event.target.files[0] || null;
         };
 
+        // PCI: el campo de tarjeta es SOLO últimos 4 dígitos. Saneamos en el
+        // front (además del maxlength=4): quitamos no-dígitos y truncamos a 4.
+        // El backend vuelve a truncar (nunca confiar solo en el cliente).
+        const onDigits4Input = (event, key) => {
+            const clean = (event.target.value || "")
+                .replace(/\D/g, "")
+                .slice(0, 4);
+            dataForm.data[key] = clean;
+            event.target.value = clean;
+        };
+
         const onSubmit = () => {
 
             if (dataForm.data.amount == 0){
@@ -703,6 +734,7 @@ export default {
             activeMethodFields,
             tecnicos,
             onMethodFileChange,
+            onDigits4Input,
             onSubmit,
             updateThisField,
             clearError,
