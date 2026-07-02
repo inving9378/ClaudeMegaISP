@@ -131,6 +131,10 @@ class ConciliacionDemoCommand extends Command
 
     private function clean(): int
     {
+        // Drena la cola primero: asegura que el abono async (PaymentClientJob) ya
+        // corrió antes de revertir, para que el revert sea exacto (sin drift).
+        \Illuminate\Support\Facades\Artisan::call('queue:work', ['--once' => true, '--stop-when-empty' => true, '--queue' => 'default,database']);
+
         // Sesiones demo = las ligadas a extracciones con clave DEMO-F6-*.
         $extIds = Extraction::where('fields->clave_rastreo->value', 'like', self::CLAVE_PREFIX . '%')->pluck('id');
         // fallback robusto: por concepto/clave
