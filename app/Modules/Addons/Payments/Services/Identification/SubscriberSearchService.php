@@ -131,6 +131,70 @@ class SubscriberSearchService
         return ['status' => 'none', 'client_id' => null, 'candidates' => []];
     }
 
+    /**
+     * Busca un cliente por su NÚMERO DE CLIENTE (clients.id). Distingue exacto
+     * los homónimos (las Margaritas 7110/1152). Devuelve el candidato o null.
+     */
+    public function findById(int $clientId): ?array
+    {
+        if ($clientId <= 0) {
+            return null;
+        }
+        $r = DB::table('client_main_information as cmi')
+            ->join('clients as c', 'c.id', '=', 'cmi.client_id')
+            ->whereNull('c.deleted_at')
+            ->where(function ($q) {
+                $q->whereNull('c.is_test_data')->orWhere('c.is_test_data', 0);
+            })
+            ->where('cmi.client_id', $clientId)
+            ->first(['cmi.client_id', 'cmi.name', 'cmi.father_last_name', 'cmi.mother_last_name', 'cmi.colony_id', 'cmi.address']);
+
+        if (!$r) {
+            return null;
+        }
+        $cand = [
+            'client_id' => (int) $r->client_id,
+            'full_name' => $this->displayName($r),
+            'colony_id' => $r->colony_id,
+            'address'   => $r->address,
+        ];
+        return $this->attachServicesAndColonia([$cand])[0];
+    }
+
+    /**
+     * Desambigua por CALLE con estricta privacidad: recibe la calle que ESCRIBE
+     * el cliente y la cruza contra las direcciones (server-side) de los
+     * candidatos. NUNCA devuelve ni expone direcciones — solo los client_id que
+     * coinciden.
+     *
+     * @return int[] client_ids cuyo domicilio coincide con la calle dada.
+     */
+    public function matchByStreet(array $clientIds, string $street): array
+    {
+        $tokens = $this->streetTokens($street);
+        if (empty($tokens) || empty($clientIds)) {
+            return [];
+        }
+
+        // Solo la DIRECCIÓN (calle), NO la colonia: los homónimos suelen
+        // compartir colonia y eso no desambigua (daría falsos positivos).
+        $rows = DB::table('client_main_information')
+            ->whereIn('client_id', $clientIds)
+            ->get(['client_id', 'address']);
+
+        $matches = [];
+        foreach ($rows as $r) {
+            $hay = $this->normalize($r->address ?? '');
+            foreach ($tokens as $t) {
+                if (str_contains($hay, $t)) {
+                    $matches[] = (int) $r->client_id;
+                    break;
+                }
+            }
+        }
+        return array_values(array_unique($matches));
+    }
+
     // ── Datos ────────────────────────────────────────────────────────────────
 
     /** Clientes activos (no borrados, no de prueba) con su ficha de nombre. */
@@ -192,6 +256,27 @@ class SubscriberSearchService
         $norm = $this->normalize($s);
         $tokens = array_filter(explode(' ', $norm), function ($t) {
             return strlen($t) >= 3 && !in_array($t, self::STOPWORDS, true);
+        });
+        return array_values(array_unique($tokens));
+    }
+
+    /** Palabras de vialidad/ruido que no distinguen una calle. */
+    private const STREET_STOPWORDS = [
+        'CALLE', 'AV', 'AVE', 'AVENIDA', 'CALLEJON', 'PRIV', 'PRIVADA', 'CDA', 'CERRADA',
+        'BLVD', 'BOULEVARD', 'CTO', 'CIRCUITO', 'ANDADOR', 'PROLONGACION', 'CARRETERA',
+        'NUM', 'NUMERO', 'LOTE', 'MZ', 'MZA', 'MANZANA', 'CASA', 'INT', 'EXT', 'DEPTO',
+        'EDIF', 'COL', 'COLONIA', 'FRACC', 'FRACCIONAMIENTO', 'SECC', 'ESQ', 'ESQUINA',
+    ];
+
+    /** Tokens significativos de la calle que escribe el cliente (para matchear). */
+    private function streetTokens(?string $s): array
+    {
+        if (!$s) {
+            return [];
+        }
+        $norm = $this->normalize($s);
+        $tokens = array_filter(explode(' ', $norm), function ($t) {
+            return strlen($t) >= 4 && !in_array($t, self::STREET_STOPWORDS, true);
         });
         return array_values(array_unique($tokens));
     }

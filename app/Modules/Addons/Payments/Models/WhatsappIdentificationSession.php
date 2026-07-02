@@ -24,6 +24,7 @@ class WhatsappIdentificationSession extends BaseModel
 
     // Cómo se identificó.
     public const METHOD_MEG                = 'meg';
+    public const METHOD_CLIENT_ID          = 'client_id';
     public const METHOD_NAME_SINGLE        = 'name_single';
     public const METHOD_NAME_DISAMBIGUATED = 'name_disambiguated';
 
@@ -43,6 +44,7 @@ class WhatsappIdentificationSession extends BaseModel
         'method',
         'certainty',
         'resolved_client_id',
+        'resolved_multiple_services',
         'candidate_client_ids',
         'attempts',
         'expires_at',
@@ -54,8 +56,9 @@ class WhatsappIdentificationSession extends BaseModel
     ];
 
     protected $casts = [
-        'is_simulation'        => 'boolean',
-        'candidate_client_ids' => 'array',
+        'is_simulation'              => 'boolean',
+        'resolved_multiple_services' => 'boolean',
+        'candidate_client_ids'       => 'array',
         'attempts'             => 'integer',
         'reminders_sent'       => 'integer',
         'expires_at'           => 'datetime',
