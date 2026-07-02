@@ -7,6 +7,7 @@ use App\Modules\Addons\Payments\Controllers\PaymentProviderController;
 use App\Modules\Addons\Payments\Controllers\ReconciliationController;
 use App\Modules\Addons\Payments\Controllers\ReceiptController;
 use App\Modules\Addons\Payments\Controllers\ReceiptExtractionTestController;
+use App\Modules\Addons\Payments\Controllers\WhatsappReceiptReviewController;
 use App\Modules\Addons\Payments\Controllers\SpeiWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -84,6 +85,12 @@ Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
     ->group(function () {
         Route::get('/extraccion-comprobante',          [ReceiptExtractionTestController::class, 'index'])->name('extraccion-comprobante');
         Route::post('/extraccion-comprobante/procesar', [ReceiptExtractionTestController::class, 'procesar'])->name('extraccion-comprobante.procesar');
+
+        // FASE 2 — Revisión de comprobantes recibidos por WhatsApp. SOLO leer +
+        // "Extraer con IA" (manual). NO aplica pago, NO identifica, NO responde.
+        Route::get('/whatsapp-comprobantes',                    [WhatsappReceiptReviewController::class, 'index'])->name('whatsapp-comprobantes');
+        Route::get('/whatsapp-comprobantes/{message}/media',    [WhatsappReceiptReviewController::class, 'media'])->whereNumber('message')->name('whatsapp-comprobantes.media');
+        Route::post('/whatsapp-comprobantes/{message}/extraer', [WhatsappReceiptReviewController::class, 'extract'])->whereNumber('message')->name('whatsapp-comprobantes.extraer');
     });
 
 // ── API MOBILE: endpoints consumidos por la app Flutter MegaFamilia ─────
