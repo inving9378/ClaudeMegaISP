@@ -919,10 +919,14 @@ Versión web/PWA de la app de campo (reusa `/talento/api` + servicios Talento; g
 - **Filtro por datetime** (no por día): `calculate` y los servicios filtran `validated_at` contra `start_instant`/`end_instant`; `periodDays` derivado de la ventana (7 normal, 8 en la transición; antes `diffInDays+1` daba 8 en la nueva — bug de divisor evitado).
 - **Commits:** `221e9a01`+`a18f092b` (helper+config+cutover), `da96436b` (Capa A — 3 servicios de dinero: Liquidation/HealthBonus/ProjectBonus), `90953344` (Capa B — display: avance/ProjectController/DashboardService/compensacionSemana), `73725b8d` (Pieza 1 — transición 8 días), `993ad153` (Pieza 2 — guard).
 
-### ⚠️ RECORDATORIO OPERATIVO — el cutover NO auto-liquida (paso HUMANO)
-La primera liquidación con la ventana nueva ocurre **cuando un admin liquide manualmente un período ≥ 2026-07-11** (no hay cron de liquidación). **Antes del 11-jul hay que:**
-1. **Pagar la semana de transición `[07-04→07-11]` con el método viejo / 8 días** (un solo pago).
-2. **En PRODUCCIÓN, al desplegar:** setear el env **`TALENTO_PAYWEEK_CUTOVER="2026-07-11 18:00:00"`** antes del 11-jul. *(El `config/talento.php` ya trae ese valor como **default seguro** si el env falta — verificado: sin env, `config('talento.pay_week.cutover')` = `2026-07-11 18:00:00` — pero conviene setear el env explícito en prod.)*
+### ✅ ARRANQUE LIMPIO — el sistema de compensación NUNCA se usó en producción
+**Auditoría de PROD (2026-07-02): 0 pagos reales registrados** — `talento_ledger_entries`, `talento_liquidations`, `talento_funds`, `talento_loans` **todas en 0 filas**. Los pagos históricos se hacían **por fuera del sistema**. → **No hay histórico que preservar ni semana de transición que pagar.**
+
+- **La primera semana real de pago por el sistema es `2026-07-11 18:00 → 2026-07-18 18:00`.** No hay datos previos ni semana de transición a liquidar (la nota anterior sobre "pagar `[07-04→07-11]` con método viejo" **YA NO APLICA** — ese escenario no existe).
+- **Único paso operativo real** — en PRODUCCIÓN, al desplegar, setear en el `.env`: **`TALENTO_PAYWEEK_CUTOVER=2026-07-11 18:00:00`**. *(El `config/talento.php` ya trae ese valor como **default seguro** si el env falta — verificado; igual conviene el env explícito en prod.)*
+
+### 🧹 Deuda menor OPCIONAL (sin urgencia)
+La maquinaria **legacy/transición** de `PayWeek` (modo `Sáb–Vie`, semana de 8 días, guard anti-recálculo) quedó en el código pero es **inalcanzable** (no hay datos pre-cutover que la activen). Funciona correcto como está; se puede **simplificar en el futuro** si se quiere (quitar el modo legacy y la transición, dejar solo `Sáb 18:00 → Sáb 18:00`), sin ninguna urgencia.
 
 ### 🐛 Deuda registrada aparte (NO de este trabajo)
 `DashboardService::tecnicoPreview` y `::team` truenan por `with('level')` (relación inexistente en `TalentoColaborador`) — **bug pre-existente**, no introducido en este arreglo. Arreglar en sesión futura (ver memoria `talento-fase8-9`).
