@@ -39,4 +39,20 @@ return [
     'wa_conciliation' => env('PAYMENTS_WA_CONCILIATION', false),
     'wa_autorespond'  => env('PAYMENTS_WA_AUTORESPOND', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Freno MAESTRO de aplicación automática (Fase 4) — mueve dinero
+    |--------------------------------------------------------------------------
+    |
+    | auto_apply_enabled (default FALSE): mientras esté en false, NINGÚN pago se
+    | aplica AUTOMÁTICAMENTE, aunque la identificación sea exacta (MEG). La Fase 4
+    | identifica y prepara todo, pero se detiene antes de mover saldo. Se enciende
+    | (PAYMENTS_AUTO_APPLY_ENABLED=true) solo cuando Irving lo decida.
+    |
+    | NO afecta la aplicación CONFIRMADA por un humano (Tere en Fase 6): esa es
+    | una acción humana deliberada, no "automática".
+    |
+    */
+    'auto_apply_enabled' => env('PAYMENTS_AUTO_APPLY_ENABLED', false),
+
 ];
