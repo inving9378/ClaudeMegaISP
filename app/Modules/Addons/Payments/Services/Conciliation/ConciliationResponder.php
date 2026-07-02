@@ -23,13 +23,18 @@ class ConciliationResponder
 {
     public function __construct(private AssignToHumanTool $assignTool) {}
 
-    /** Procesa el step: envía (si aplica) y escala (si aplica). */
+    /** Procesa el step: envía (si aplica), escala (si aplica), y dispara F4 al resolver. */
     public function apply(Session $session, array $step, $conversation): void
     {
         $this->respond($conversation, $step['outbound'] ?? null);
 
         if (($step['escalated'] ?? false) || $session->state === Session::STATE_ESCALATED) {
             $this->escalate($session, $conversation, $step['reason'] ?? ($session->escalation_reason ?? 'reconciliation'));
+        }
+
+        // F4 — al resolver, dispara la bifurcación de aplicación (auto/espera/Tere).
+        if ($session->state === Session::STATE_RESOLVED && !$session->is_simulation) {
+            \App\Modules\Addons\Payments\Jobs\ApplyIdentifiedPaymentJob::dispatch($session->id)->onQueue('default');
         }
     }
 
@@ -58,7 +63,7 @@ class ConciliationResponder
      */
     public function escalate(Session $session, $conversation, string $reason): void
     {
-        $this->raiseReconciliationTicket($session, $reason);
+        $this->enqueueForTere($session, $reason);
 
         if ($conversation) {
             try {
@@ -69,8 +74,8 @@ class ConciliationResponder
         }
     }
 
-    /** F3.6 — encola el ticket para Tere (reusa reconciliation_tickets). */
-    private function raiseReconciliationTicket(Session $session, string $reason): void
+    /** Encola el ticket para Tere (reusa reconciliation_tickets). Idempotente. */
+    public function enqueueForTere(Session $session, string $reason): void
     {
         // Idempotencia: si esta sesión ya generó un ticket abierto, no dupliques.
         $marker = 'idsession#' . $session->id;

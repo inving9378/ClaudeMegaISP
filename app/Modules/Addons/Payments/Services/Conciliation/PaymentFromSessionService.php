@@ -49,23 +49,22 @@ class PaymentFromSessionService
             return $this->blocked('already_applied'); // candado 2 (rápido)
         }
 
-        // FRENO MAESTRO: la vía automática no aplica hasta que Irving lo encienda.
+        // Ruteo (independiente del freno maestro): 'proposed' y multi-servicio
+        // SIEMPRE van a confirmación humana (Tere), aunque el auto-apply esté off.
+        if ($automatic && !$session->isAutoApplicable()) {
+            return $this->blocked('needs_human_confirmation'); // proposed (nombre/calle)
+        }
+        if ($automatic && $session->resolved_multiple_services) {
+            return $this->blocked('multiple_services_needs_human');
+        }
+
+        // FRENO MAESTRO: solo aquí (exact + auto-elegible). Con flag off, el
+        // candidato exacto NO se aplica y espera (no molesta a Tere).
         if ($automatic && !config('payments.auto_apply_enabled')) {
-            Log::channel('evolution')->info('F4: auto-apply FRENADO (flag off) — no se aplica', [
+            Log::channel('evolution')->info('F4: auto-apply FRENADO (flag off) — candidato exact en espera', [
                 'session_id' => $session->id, 'client_id' => $session->resolved_client_id,
             ]);
             return $this->blocked('auto_apply_disabled');
-        }
-
-        // Defensa en profundidad: la vía AUTOMÁTICA solo aplica certeza EXACT
-        // (MEG, o ID con flag). 'proposed' (nombre/calle) exige confirmación humana.
-        if ($automatic && !$session->isAutoApplicable()) {
-            return $this->blocked('needs_human_confirmation');
-        }
-
-        // Multi-servicio: nunca automático a ciegas → requiere humano (Fase 6).
-        if ($automatic && $session->resolved_multiple_services) {
-            return $this->blocked('multiple_services_needs_human');
         }
 
         // Datos del comprobante (monto + clave). Sin comprobante/monto → no aplica.
