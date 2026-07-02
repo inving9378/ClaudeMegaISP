@@ -64,6 +64,22 @@ Guía de contexto para Claude Code en este repositorio. Leer antes de explorar.
 - Mix compila `resources/js/app.js` → `public/js/app.js`
 - Al agregar componente Vue: crear `.vue` + importar y registrar en `app.js`
 
+#### Iconos Font Awesome — cuál se sirve REALMENTE (convención)
+La librería FA realmente servida es **Font Awesome 5 Free**, vía `public/assets/css/icons.min.css` (importado en `head.blade.php:15`). **NO** es el `node_modules/font-awesome` 4.7 (ese paquete existe pero no se sirve), ni `app.css` (que no contiene glifos `fa-*`).
+
+Regla al elegir/cambiar un icono `fa-*`:
+- Validar el nombre grepeando el **CSS SERVIDO**, no `node_modules` ni `package.json`:
+  ```bash
+  grep -o "NOMBRE:before{content:[^}]*}" public/assets/css/icons.min.css
+  ```
+  Debe devolver una regla con `content: "\fXXX"`. Si no hay regla de content, el glifo no existe en la build → el botón saldrá **vacío**.
+- Nombres FA4 con sufijo `-o` (`fa-file-text-o`, `fa-file-o`, `fa-handshake-o`) **NO existen en FA5**. En FA5 el `-o` desapareció; usar el nombre FA5 (ej. `fa-file-text-o` → `fa-file-alt`).
+- Iconos **solid** de FA5 renderizan con el prefijo `fa` en este bundle (probado con `fa-upload` y `fa-file-contract`).
+- Ante la duda, `fa-file-alt` / `fa-file` son dual-style (regular+solid) y renderizan siempre.
+- Botones **Quasar `q-btn`** usan **Material Icons** (prop `icon="download"`, `icon="fullscreen"`), NO Font Awesome.
+
+Incidente de origen: se cambió un icono a `fa-file-text-o` (nombre FA4) → botón vacío, porque se validó contra `node_modules` 4.7 en vez del CSS servido FA5. Corregido a `fa-file-contract` (`\f56c`).
+
 ---
 
 ## BASE DE DATOS
