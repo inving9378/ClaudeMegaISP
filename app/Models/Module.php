@@ -183,11 +183,11 @@ class Module extends BaseModel
                 'append' => $field->search ? (json_decode($field->search)->append ?? null) : null,
 
             ],
-            'options' => $field->search ? null : json_decode($field->options),
+            'options' => $field->search ? null : ($field->options !== null ? json_decode($field->options) : null),
             'inputGroup' => $field->inputGroup,
             'inputGroupEnd' => $field->inputGroupEnd,
             'depend' => $field->depend,
-            'inputs_depend' => json_decode($field->inputs_depend),
+            'inputs_depend' => $field->inputs_depend !== null ? json_decode($field->inputs_depend) : null,
             'value' => $field->value ? $this->isJson($field->value) ? json_decode($field->value) : $field->value : null,
             'default_value' =>  $this->getDefultValueForThisUserIfExist($field),
             'disabled' => $field->disabled,
