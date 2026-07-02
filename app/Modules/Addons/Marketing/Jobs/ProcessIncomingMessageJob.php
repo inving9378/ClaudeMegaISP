@@ -91,6 +91,24 @@ class ProcessIncomingMessageJob implements ShouldQueue
             'unread_count'    => $conversation->unread_count + 1,
         ]);
 
+        // 6b. F3.5 — Ruteo de conciliación de pagos (ADITIVO, detrás del flag
+        //     maestro payments.wa_conciliation). Con el flag apagado (default)
+        //     esto es un no-op TOTAL y el mensaje sigue EXACTAMENTE igual a
+        //     ventas. Con el flag encendido, un mensaje detectado como pago se
+        //     desvía a conciliación y NO llega al bot de ventas; si NO es pago,
+        //     cae a ventas sin cambios. Un fallo aquí no rompe ventas (fail-open).
+        if (config('payments.wa_conciliation')) {
+            try {
+                $router = app(\App\Modules\Addons\Payments\Services\Conciliation\ConciliationRouter::class);
+                if ($router->shouldHandle($conversation, $contentType, $text, $lead)) {
+                    $router->route($conversation, $message, $contentType, $text);
+                    return; // desviado a conciliación
+                }
+            } catch (\Throwable $e) {
+                Log::channel('evolution')->error('Conciliación routing falló, sigue a ventas: ' . $e->getMessage());
+            }
+        }
+
         // 7. Skip if not AI-handled or conversation closed
         if (!$conversation->ai_handled || $conversation->status === 'closed') {
             return;
