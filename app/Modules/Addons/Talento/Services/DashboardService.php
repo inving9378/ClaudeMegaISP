@@ -126,9 +126,14 @@ class DashboardService
     {
         $colaborador = TalentoColaborador::with('level')->findOrFail($colaboradorId);
 
-        // Default: current week (Sat–Fri)
-        $start = $periodStart ? Carbon::parse($periodStart) : $this->currentWeekStart();
-        $end   = $periodEnd   ? Carbon::parse($periodEnd)   : $start->copy()->addDays(6)->endOfDay();
+        // Ventana de pago (PayWeek): semana completa alineada al motor (corte 18:00).
+        $w           = $periodStart
+            ? \App\Modules\Addons\Talento\Support\PayWeek::boundsFor(Carbon::parse($periodStart)->copy()->addDay())
+            : \App\Modules\Addons\Talento\Support\PayWeek::current();
+        $start       = Carbon::parse($w['period_start']);
+        $end         = Carbon::parse($w['period_end']);
+        $filterStart = $w['start_instant'];
+        $filterEnd   = $w['end_instant'];
 
         $ruleSnapshot = TalentoCompensationRuleHistory::where('colaborador_id', $colaboradorId)
             ->where('assigned_at', '<=', $end)
@@ -140,7 +145,7 @@ class DashboardService
 
         $internalUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
             ->validatedBillable()
-            ->whereBetween('validated_at', [$start->startOfDay(), $end->endOfDay()])
+            ->whereBetween('validated_at', [$filterStart, $filterEnd])
             ->sum('points');
 
         $externalPoints = $this->projectSvc->pointsForColaboradorInPeriod(
@@ -151,10 +156,10 @@ class DashboardService
 
         $totalUnits = (int) round($internalUnits + $externalPoints);
 
-        $periodDays = $start->diffInDays($end) + 1;
+        $periodDays = (int) round($filterStart->diffInHours($filterEnd) / 24); // 7 (legacy y nueva)
         $absentDays = TalentoAttendance::where('colaborador_id', $colaboradorId)
             ->where('day_type', 'absent')
-            ->forPeriod($start->startOfDay(), $end->endOfDay())
+            ->forPeriod($filterStart, $filterEnd)
             ->count();
 
         $basePaid = $periodDays > 0 && $absentDays > 0
@@ -273,10 +278,13 @@ class DashboardService
             ->where('status', 'active')
             ->get();
 
-        $start = $this->currentWeekStart();
-        $end   = $start->copy()->addDays(6)->endOfDay();
+        $w           = \App\Modules\Addons\Talento\Support\PayWeek::current();
+        $start       = Carbon::parse($w['period_start']);
+        $end         = Carbon::parse($w['period_end']);
+        $filterStart = $w['start_instant'];
+        $filterEnd   = $w['end_instant'];
 
-        $members = $equipo->map(function ($member) use ($start, $end) {
+        $members = $equipo->map(function ($member) use ($start, $end, $filterStart, $filterEnd) {
             // Lightweight: only units + pay, no full desglose
             $ruleSnapshot = TalentoCompensationRuleHistory::where('colaborador_id', $member->id)
                 ->where('assigned_at', '<=', $end)
@@ -288,7 +296,7 @@ class DashboardService
 
             $units = (int) TalentoWorkOrder::where('colaborador_id', $member->id)
                 ->validatedBillable()
-                ->whereBetween('validated_at', [$start->startOfDay(), $end->endOfDay()])
+                ->whereBetween('validated_at', [$filterStart, $filterEnd])
                 ->sum('points');
 
             $quotaPct = $weeklyQuota > 0 ? round(($units / $weeklyQuota) * 100, 1) : null;
@@ -318,12 +326,6 @@ class DashboardService
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private function currentWeekStart(): Carbon
-    {
-        // Saturday–Friday cycle (same as LiquidationService convention)
-        $now = Carbon::now();
-        $dayOfWeek = $now->dayOfWeek; // 0=Sun, 6=Sat
-        $daysBack  = ($dayOfWeek >= 6) ? 0 : $dayOfWeek + 1;
-        return $now->copy()->subDays($daysBack)->startOfDay();
-    }
+    // currentWeekStart() eliminado: la ventana de la semana ahora la da PayWeek::current()
+    // (punto único de verdad, con corte 18:00 y cutover).
 }

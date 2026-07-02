@@ -317,8 +317,9 @@ class TalentoProjectController extends Controller
     {
         $this->authorize('talento.projects.view');
 
-        $from = $request->from ?? now()->startOfWeek(\Carbon\Carbon::SATURDAY)->toDateString();
-        $to   = $request->to   ?? \Carbon\Carbon::parse($from)->addDays(6)->toDateString();
+        $w    = \App\Modules\Addons\Talento\Support\PayWeek::current();
+        $from = $request->from ?? $w['period_start'];
+        $to   = $request->to   ?? $w['period_end'];
 
         $points = $this->activityService->pointsForColaboradorInPeriod($colaboradorId, $from, $to);
 

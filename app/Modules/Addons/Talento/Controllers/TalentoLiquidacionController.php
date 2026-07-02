@@ -107,15 +107,15 @@ class TalentoLiquidacionController extends Controller
 
         $colaborador = TalentoColaborador::findOrFail($colaboradorId);
 
-        [$weekStart, $weekEnd] = LiquidationService::lastWeekBounds();
-        // Current week (in-progress)
-        $currentStart = Carbon::today()->startOfWeek(Carbon::SATURDAY);
-        $currentEnd   = $currentStart->copy()->addDays(6);
+        // Semana en curso desde PayWeek (misma ventana que el motor de pago, corte 18:00).
+        $w            = \App\Modules\Addons\Talento\Support\PayWeek::current();
+        $currentStart = Carbon::parse($w['period_start']);
+        $currentEnd   = Carbon::parse($w['period_end']);
 
         // Units validated this week (current, not settled)
         $unitsCurrent = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
             ->validatedBillable()
-            ->whereBetween('validated_at', [$currentStart->startOfDay(), $currentEnd->endOfDay()])
+            ->whereBetween('validated_at', [$w['start_instant'], $w['end_instant']])
             ->sum('points');
 
         // Pending orders this week

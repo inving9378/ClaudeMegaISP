@@ -545,14 +545,17 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
-        // Semana actual lunes-domingo
-        $inicio = now()->startOfWeek()->toDateString();
-        $fin    = now()->endOfWeek()->toDateString();
+        // Semana de pago vigente (PayWeek): Sáb 18:00 → Sáb 18:00, alineada al motor de pago.
+        $w         = \App\Modules\Addons\Talento\Support\PayWeek::current();
+        $inicio    = $w['period_start'];
+        $fin       = $w['period_end'];
+        $filtroIni = $w['start_instant'];
+        $filtroFin = $w['end_instant'];
 
         // OTs completadas o validadas esta semana (fuente legacy)
         $woUnidades = TalentoWorkOrder::where('colaborador_id', $colaborador->id)
             ->whereIn('status', ['completed', 'validated'])
-            ->whereBetween('completed_at', [$inicio . ' 00:00:00', $fin . ' 23:59:59'])
+            ->whereBetween('completed_at', [$filtroIni, $filtroFin])
             ->count();
 
         // Tasks campo validadas esta semana (Capa 5)
@@ -563,7 +566,7 @@ class TalentoMobileApiController extends Controller
                 ->whereNotNull('talento_type_id')
                 ->where('status', 'Done')
                 ->whereNotNull('validated_at')
-                ->whereBetween('validated_at', [$inicio . ' 00:00:00', $fin . ' 23:59:59'])
+                ->whereBetween('validated_at', [$filtroIni, $filtroFin])
                 ->whereHas('users', fn($q) => $q->where('users.id', $taskUserId))
                 ->count();
         }
@@ -618,7 +621,7 @@ class TalentoMobileApiController extends Controller
             })
             ->where('et.es_lectura_dbm', true)
             ->whereNotNull('m.potencia_dbm')
-            ->whereBetween('m.created_at', [$inicio . ' 00:00:00', $fin . ' 23:59:59'])
+            ->whereBetween('m.created_at', [$filtroIni, $filtroFin])
             ->avg('m.potencia_dbm');
 
         $bonoSaludTier  = null;
