@@ -26,12 +26,13 @@ use Carbon\Carbon;
  *      semana anterior; por eso el primer segundo incluido en la nueva es 18:00:01
  *      (evita contar dos veces el instante del corte).
  *
- *  ── Semana de TRANSICIÓN (go-live, decidida por Irving — se IMPLEMENTA en 2.2) ──
- *    La última semana LEGACY se extiende hasta el cutover: [2026-07-04 00:00 ->
- *    2026-07-11 18:00] (8 días). Todo lo validado hasta el sáb 2026-07-11 18:00 se
- *    paga con método VIEJO en un solo pago; la primera semana NUEVA arranca el
- *    2026-07-11 18:00 -> 2026-07-18 18:00. Hoy PayWeek NO implementa este tramo de
- *    8 días (steady-state); lo respaldará el guard anti-recálculo del sub-paso 2.2.
+ *  ── Semana de TRANSICIÓN (go-live, Opción 3 de Irving — IMPLEMENTADA, regime 'transition') ──
+ *    La última semana LEGACY se extiende hasta el cutover: [cutover-7d 00:00 -> cutover]
+ *    (8 días). Con cutover 2026-07-11 18:00 → [2026-07-04 00:00 -> 2026-07-11 18:00].
+ *    Todo validated_at <= 2026-07-11 18:00 (y >= 2026-07-04) se paga con método VIEJO en
+ *    un solo pago; la primera semana NUEVA arranca 2026-07-11 18:00:01 -> 2026-07-18 18:00.
+ *    Las semanas legacy anteriores a la transición y las nuevas posteriores NO cambian.
+ *    El guard anti-recálculo (calculate) bloquea liquidar period_start < inicio de transición.
  *
  * La hora de corte y la fecha de cutover viven en config/talento.php.
  * Todos los métodos aceptan overrides opcionales para poder testear sin config.
@@ -53,9 +54,26 @@ class PayWeek
         $cutoffHour   = $cutoffHour   ?? self::cutoffHour();
         $cutoffMinute = $cutoffMinute ?? self::cutoffMinute();
 
-        return $t->lt($cutover)
-            ? self::legacyBounds($t)
-            : self::newBounds($t, $cutoffHour, $cutoffMinute);
+        // Lado NUEVO: estrictamente DESPUÉS del corte del cutover (18:00:01 en adelante).
+        if ($t->gt($cutover)) {
+            return self::newBounds($t, $cutoffHour, $cutoffMinute);
+        }
+
+        // Lado VIEJO (validated_at <= cutover):
+        //  - Semana de TRANSICIÓN de 8 días si $t cae en [cutover-7d 00:00, cutover]:
+        //    la última semana legacy se extiende hasta el cutover (Opción 3, decisión de Irving).
+        //  - Semanas legacy anteriores: Sáb 00:00 → Vie 23:59 normales, INTACTAS.
+        $transitionStart = $cutover->copy()->subDays(7)->startOfDay(); // sábado (cutover-7d) a las 00:00
+        if ($t->gte($transitionStart)) {
+            return [
+                'regime'        => 'transition',
+                'start_instant' => $transitionStart->copy(), // INCL: Sáb 00:00:00
+                'end_instant'   => $cutover->copy(),         // INCL: Sáb 18:00:00 (el corte cierra esta semana)
+                'period_start'  => $transitionStart->toDateString(), // p.ej. 2026-07-04
+                'period_end'    => $cutover->toDateString(),         // p.ej. 2026-07-11
+            ];
+        }
+        return self::legacyBounds($t);
     }
 
     /** Ventana NUEVA: Sáb 18:00 (excl) -> Sáb 18:00 (incl). */
