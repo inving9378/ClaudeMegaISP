@@ -111,6 +111,35 @@ class WhatsappIdentificationSession extends BaseModel
         return $q->pendingApplication()->where('certainty', self::CERTAINTY_PROPOSED);
     }
 
+    // ── Cola de conciliación de Tere (Fase 6) ─────────────────────────────────
+
+    /**
+     * PROPUESTOS: la IA identificó al cliente pero requiere confirmación humana
+     * (certeza proposed) o el cliente tiene varios servicios (Tere elige). No
+     * aplicados, no simulación. Trabajo rápido.
+     */
+    public function scopeProposedQueue($q)
+    {
+        return $q->where('is_simulation', false)
+            ->where('state', self::STATE_RESOLVED)
+            ->whereNull('applied_at')
+            ->where(function ($w) {
+                $w->where('certainty', self::CERTAINTY_PROPOSED)
+                    ->orWhere('resolved_multiple_services', true);
+            });
+    }
+
+    /**
+     * ESCALADOS: la IA NO identificó de quién es, o el comprobante no se pudo
+     * procesar (state=escalated). No aplicados, no simulación. Investigación.
+     */
+    public function scopeEscalatedQueue($q)
+    {
+        return $q->where('is_simulation', false)
+            ->where('state', self::STATE_ESCALATED)
+            ->whereNull('applied_at');
+    }
+
     public function isExpired(): bool
     {
         return $this->expires_at !== null && $this->expires_at->isPast();

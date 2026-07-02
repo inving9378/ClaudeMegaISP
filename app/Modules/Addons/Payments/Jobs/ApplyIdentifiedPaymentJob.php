@@ -3,7 +3,6 @@
 namespace App\Modules\Addons\Payments\Jobs;
 
 use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
-use App\Modules\Addons\Payments\Services\Conciliation\ConciliationResponder;
 use App\Modules\Addons\Payments\Services\Conciliation\PaymentFromSessionService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,9 +33,12 @@ class ApplyIdentifiedPaymentJob implements ShouldQueue
     /** Motivos que NO requieren intervención humana (esperan flag o ya están hechos). */
     private const NO_ENQUEUE = ['auto_apply_disabled', 'already_applied', 'simulation'];
 
+    /** Fallos de DATOS del comprobante → la sesión pasa a 'escalated' (pestaña Escalados). */
+    private const DATA_FAILURE = ['no_amount', 'no_clave', 'duplicate_clave'];
+
     public function __construct(public int $sessionId, public ?int $confirmedBy = null) {}
 
-    public function handle(PaymentFromSessionService $applier, ConciliationResponder $responder): void
+    public function handle(PaymentFromSessionService $applier): void
     {
         $session = Session::find($this->sessionId);
         if (!$session || $session->is_simulation || $session->state !== Session::STATE_RESOLVED) {
@@ -55,18 +57,21 @@ class ApplyIdentifiedPaymentJob implements ShouldQueue
 
         $reason = $result['reason'];
 
-        if (in_array($reason, self::NO_ENQUEUE, true) || str_starts_with($reason, 'apply_error')) {
-            // 'auto_apply_disabled' = candidato exact frenado por el flag: espera,
-            // NO se manda a Tere. 'apply_error' se reintenta (backoff), tampoco a Tere aún.
-            Log::channel('evolution')->info('F4: no aplicado, sin encolar a humano', [
-                'session_id' => $session->id, 'reason' => $reason,
+        // Opción A: la COLA de Tere lee las sesiones directamente, no tickets.
+        //  - proposed / multi-servicio: la sesión ya está 'resolved' → aparece en
+        //    la pestaña PROPUESTOS por su estado. No se hace nada aquí.
+        //  - auto_apply_disabled / apply_error: espera (flag o reintento). No cola.
+        //  - fallo de DATOS (no_amount/no_clave/duplicate_clave): el comprobante no
+        //    se pudo procesar → se ESCALA la sesión (pestaña ESCALADOS) para que
+        //    Tere lo revise a mano.
+        if (in_array($reason, self::DATA_FAILURE, true)) {
+            $session->update([
+                'state'             => Session::STATE_ESCALATED,
+                'escalation_reason' => $reason,
             ]);
-            return;
         }
 
-        // proposed / multi-servicio / duplicate_clave / no_amount / no_clave → Tere confirma/revisa.
-        $responder->enqueueForTere($session, 'apply_' . $reason);
-        Log::channel('evolution')->info('F4: encolado para confirmación humana (Tere)', [
+        Log::channel('evolution')->info('F4: no aplicado automáticamente', [
             'session_id' => $session->id, 'reason' => $reason,
         ]);
     }

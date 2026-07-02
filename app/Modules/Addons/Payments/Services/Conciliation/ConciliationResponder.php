@@ -5,8 +5,6 @@ namespace App\Modules\Addons\Payments\Services\Conciliation;
 use App\Modules\Addons\Marketing\Jobs\SendOutboundMessageJob;
 use App\Modules\Addons\Marketing\Services\AgentTools\AssignToHumanTool;
 use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
-use App\Modules\Addons\Payments\Services\ReconciliationService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -55,16 +53,15 @@ class ConciliationResponder
     }
 
     /**
-     * Escala el caso a revisión humana:
-     * - F3.6: encola un ticket en la cola de conciliación EXISTENTE de Tere
-     *   (ReconciliationService::raise → reconciliation_tickets), reusando la
-     *   infra; NO se crea otra cola. Idempotente por sesión (no duplica).
-     * - F3.5: marca la conversación de Marketing a human_review (sale del bot).
+     * Escala el caso a revisión humana marcando la conversación de Marketing a
+     * human_review (sale del bot de ventas).
+     *
+     * Opción A (F6): NO se crea un reconciliation_ticket. La cola de Tere lee las
+     * SESIONES directamente (la sesión ya quedó en state=escalated), así que el
+     * caso aparece en la pestaña ESCALADOS sin duplicar registro.
      */
     public function escalate(Session $session, $conversation, string $reason): void
     {
-        $this->enqueueForTere($session, $reason);
-
         if ($conversation) {
             try {
                 $this->assignTool->execute($conversation, 'Conciliación de pago: ' . $reason);
@@ -72,40 +69,5 @@ class ConciliationResponder
                 Log::channel('evolution')->warning('assign_to_human en conciliación falló: ' . $e->getMessage());
             }
         }
-    }
-
-    /** Encola el ticket para Tere (reusa reconciliation_tickets). Idempotente. */
-    public function enqueueForTere(Session $session, string $reason): void
-    {
-        // Idempotencia: si esta sesión ya generó un ticket abierto, no dupliques.
-        $marker = 'idsession#' . $session->id;
-        $dup = DB::table('reconciliation_tickets')
-            ->where('status', 'open')
-            ->where('detail', 'like', '%' . $marker . '%')
-            ->exists();
-        if ($dup) {
-            return;
-        }
-
-        // Monto del comprobante (si se extrajo) para el ticket.
-        $amount = null;
-        if ($session->extraction_id) {
-            $ext = DB::table('whatsapp_payment_extractions')->where('id', $session->extraction_id)->first();
-            if ($ext && $ext->fields) {
-                $fields = json_decode($ext->fields, true);
-                $amount = isset($fields['monto']['value']) ? (float) $fields['monto']['value'] : null;
-            }
-        }
-
-        $detail = 'Comprobante por WhatsApp sin identificar automáticamente (' . $reason . '). '
-            . $marker
-            . ($session->conversation_id ? ', conversación #' . $session->conversation_id : '') . '.';
-
-        ReconciliationService::raise(
-            reason: 'manual_review',
-            detail: $detail,
-            amount: $amount,
-            clientId: $session->resolved_client_id,
-        );
     }
 }
