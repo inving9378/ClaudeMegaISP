@@ -84,11 +84,11 @@ class PayWeekTest extends TestCase
         $this->assertSame('2026-07-03', $b['period_end']);   // viernes
     }
 
-    /** El filtro nuevo es apertura EXCLUSIVA y cierre INCLUSIVO. */
+    /** Filtro nuevo inclusivo: apertura 18:00:01 (el 18:00:00 cierra la semana previa), cierre 18:00:00. */
     public function test_instantes_del_filtro_nuevo(): void
     {
         $b = $this->bounds('2026-07-08 12:00:00');
-        $this->assertSame('2026-07-04 18:00:00', $b['start_instant']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-07-04 18:00:01', $b['start_instant']->format('Y-m-d H:i:s'));
         $this->assertSame('2026-07-11 18:00:00', $b['end_instant']->format('Y-m-d H:i:s'));
     }
 }

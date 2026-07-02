@@ -14,12 +14,24 @@ use Carbon\Carbon;
  *  Ventana NUEVA  (instante >= cutover): Sábado 18:00 -> Sábado 18:00 (siguiente).
  *    - 7 días exactos, corte único a las 18:00.
  *    - validated_at <= Sáb 18:00 cierra la semana; después -> semana siguiente.
- *    - Filtro correcto:  start_instant  <  validated_at  <=  end_instant
- *      (apertura EXCLUSIVA, cierre INCLUSIVO).
  *
  *  Ventana LEGACY (instante <  cutover): Sábado 00:00 -> Viernes 23:59 (día completo).
  *    - Replica bit-exacto el motor histórico (startOfWeek(SATURDAY) + 6 días) para
  *      que las semanas YA pagadas se reproduzcan intactas. Cambio forward-only.
+ *
+ *  start_instant / end_instant son los límites INCLUSIVOS del filtro por datetime
+ *  (whereBetween('validated_at', [start_instant, end_instant])):
+ *    - LEGACY: [Sáb 00:00:00, Vie 23:59:59].
+ *    - NUEVA : [Sáb 18:00:01, Sáb 18:00:00]. El sábado 18:00:00 exacto CIERRA la
+ *      semana anterior; por eso el primer segundo incluido en la nueva es 18:00:01
+ *      (evita contar dos veces el instante del corte).
+ *
+ *  ── Semana de TRANSICIÓN (go-live, decidida por Irving — se IMPLEMENTA en 2.2) ──
+ *    La última semana LEGACY se extiende hasta el cutover: [2026-07-04 00:00 ->
+ *    2026-07-11 18:00] (8 días). Todo lo validado hasta el sáb 2026-07-11 18:00 se
+ *    paga con método VIEJO en un solo pago; la primera semana NUEVA arranca el
+ *    2026-07-11 18:00 -> 2026-07-18 18:00. Hoy PayWeek NO implementa este tramo de
+ *    8 días (steady-state); lo respaldará el guard anti-recálculo del sub-paso 2.2.
  *
  * La hora de corte y la fecha de cutover viven en config/talento.php.
  * Todos los métodos aceptan overrides opcionales para poder testear sin config.
@@ -54,12 +66,14 @@ class PayWeek
         if ($close->lt($t)) {
             $close->addDays(7); // $t cayó DESPUÉS del corte del sábado -> semana siguiente
         }
-        $open = $close->copy()->subDays(7); // Sábado-corte anterior (apertura, exclusiva)
+        $open = $close->copy()->subDays(7); // Sábado-corte anterior (18:00, cierre de la semana previa)
 
         return [
             'regime'        => 'new',
-            'start_instant' => $open,                 // EXCLUSIVO: validated_at > start
-            'end_instant'   => $close,                // INCLUSIVO: validated_at <= end
+            // Límites INCLUSIVOS para whereBetween: apertura 18:00:01 (el 18:00:00 exacto
+            // cerró la semana anterior), cierre 18:00:00.
+            'start_instant' => $open->copy()->addSecond(),
+            'end_instant'   => $close,
             'period_start'  => $open->toDateString(),  // sábado de apertura
             'period_end'    => $close->toDateString(), // sábado de cierre
         ];

@@ -89,9 +89,10 @@ class ProjectBonusService
             $salarySum = $bonusTotal;
         }
 
-        // 3. Write ledger entries
-        $periodStart = Carbon::now()->startOfWeek(Carbon::SATURDAY)->toDateString();
-        $periodEnd   = Carbon::parse($periodStart)->addDays(6)->toDateString();
+        // 3. Write ledger entries — mismo período que la liquidación (PayWeek, punto único).
+        $w           = \App\Modules\Addons\Talento\Support\PayWeek::boundsFor(Carbon::now());
+        $periodStart = $w['period_start'];
+        $periodEnd   = $w['period_end'];
         $written     = 0;
 
         DB::transaction(function () use (

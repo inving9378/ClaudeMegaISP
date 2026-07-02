@@ -63,10 +63,11 @@ class HealthBonusService
 
         // Write ledger entry only when actually awarded
         if ($awarded) {
-            $periodStart = $order->validated_at
-                ? $order->validated_at->copy()->startOfWeek(\Carbon\Carbon::SATURDAY)->toDateString()
-                : now()->startOfWeek(\Carbon\Carbon::SATURDAY)->toDateString();
-            $periodEnd = \Carbon\Carbon::parse($periodStart)->addDays(6)->toDateString();
+            // Mismo período que la liquidación de esa semana (PayWeek, punto único) para que el
+            // bono no quede huérfano en otra ventana.
+            $w = \App\Modules\Addons\Talento\Support\PayWeek::boundsFor($order->validated_at ?? now());
+            $periodStart = $w['period_start'];
+            $periodEnd   = $w['period_end'];
 
             TalentoLedgerEntry::create([
                 'colaborador_id' => $order->colaborador_id,
@@ -187,10 +188,12 @@ class HealthBonusService
         ]);
 
         if ($awarded) {
-            $periodStart = $task->validated_at
-                ? \Carbon\Carbon::parse($task->validated_at)->startOfWeek(\Carbon\Carbon::SATURDAY)->toDateString()
-                : now()->startOfWeek(\Carbon\Carbon::SATURDAY)->toDateString();
-            $periodEnd = \Carbon\Carbon::parse($periodStart)->addDays(6)->toDateString();
+            // Mismo período que la liquidación de esa semana (PayWeek, punto único).
+            $w = \App\Modules\Addons\Talento\Support\PayWeek::boundsFor(
+                $task->validated_at ? \Carbon\Carbon::parse($task->validated_at) : now()
+            );
+            $periodStart = $w['period_start'];
+            $periodEnd   = $w['period_end'];
 
             TalentoLedgerEntry::create([
                 'colaborador_id' => $colaborador->id,

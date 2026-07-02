@@ -10,6 +10,7 @@ use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
 use App\Modules\Addons\Talento\Models\TalentoFund;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoLiquidation;
+use App\Modules\Addons\Talento\Support\PayWeek;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +37,16 @@ class LiquidationService
     {
         $colaborador = TalentoColaborador::findOrFail($colaboradorId);
 
+        // Ventana canónica (PayWeek, punto único de verdad). Normaliza el período (sábado de
+        // apertura/cierre) y expone los instantes de corte en DATETIME para filtrar validated_at
+        // con la HORA (corte 18:00), no por día. Forward-only: para períodos pre-cutover devuelve
+        // la ventana legacy Sáb 00:00→Vie 23:59, IDÉNTICA al motor histórico (no-regresión).
+        $window      = PayWeek::boundsFor($periodStart->copy()->addDay());
+        $periodStart = Carbon::parse($window['period_start']);
+        $periodEnd   = Carbon::parse($window['period_end']);
+        $filterStart = $window['start_instant'];
+        $filterEnd   = $window['end_instant'];
+
         $existing = TalentoLiquidation::where('colaborador_id', $colaboradorId)
             ->where('period_start', $periodStart->toDateString())
             ->where('period_end',   $periodEnd->toDateString())
@@ -57,7 +68,7 @@ class LiquidationService
         // Source 1: legacy OTs en talento_work_orders
         $woUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
             ->validatedBillable()
-            ->whereBetween('validated_at', [$periodStart->startOfDay(), $periodEnd->endOfDay()])
+            ->whereBetween('validated_at', [$filterStart, $filterEnd])
             ->sum('points');
 
         // Source 2: tasks tipo=campo validadas (Capa 4.4)
@@ -71,7 +82,7 @@ class LiquidationService
                 ->where('points', '>', 0)
                 ->where('status', 'Done')
                 ->whereNotNull('validated_at')
-                ->whereBetween('validated_at', [$periodStart->startOfDay(), $periodEnd->endOfDay()])
+                ->whereBetween('validated_at', [$filterStart, $filterEnd])
                 ->whereHas('users', fn($q) => $q->where('users.id', $taskUserId))
                 ->sum('points');
         }
@@ -90,10 +101,10 @@ class LiquidationService
 
         // Attendance impact on base pay (Fase 3)
         // Count calendar working days in period (Mon-Sat default if shift not configured)
-        $periodDays    = $periodStart->diffInDays($periodEnd) + 1;
+        $periodDays    = (int) round($filterStart->diffInHours($filterEnd) / 24); // 7 (legacy y nueva)
         $absentDays    = TalentoAttendance::where('colaborador_id', $colaboradorId)
             ->where('day_type', 'absent')
-            ->forPeriod($periodStart->startOfDay(), $periodEnd->endOfDay())
+            ->forPeriod($filterStart, $filterEnd)
             ->count();
         // no_work_company days → base is protected (not deducted)
         $baseProration = $periodDays > 0 && $absentDays > 0
@@ -241,12 +252,9 @@ class LiquidationService
      */
     public static function lastWeekBounds(): array
     {
-        $today    = Carbon::today();
-        $saturday = $today->copy()->startOfWeek(Carbon::SATURDAY);
-        if ($saturday->greaterThanOrEqualTo($today)) {
-            $saturday->subWeek();
-        }
-        $friday = $saturday->copy()->addDays(6);
-        return [$saturday, $friday];
+        // Delega en PayWeek (punto único de verdad): última semana COMPLETADA, respetando
+        // cutover y la ventana legacy. Devuelve [apertura, cierre] como fechas de período.
+        $w = PayWeek::lastCompleted();
+        return [Carbon::parse($w['period_start']), Carbon::parse($w['period_end'])];
     }
 }
