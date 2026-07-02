@@ -30,12 +30,14 @@ class HelperController extends Controller
     public function getFieldsByModule(Request $request)
     {
         $module = Module::where('name', $request->module)->first();
+        abort_if(!$module, 404, "Module {$request->module} no existe");
         return $module->getfields();
     }
 
     public function getFieldsByModuleRelation(Request $request)
     {
         $module = Module::where('name', $request->module)->first();
+        abort_if(!$module, 404, "Module {$request->module} no existe");
         return $module->getfieldsRelation($request);
     }
 
@@ -46,6 +48,7 @@ class HelperController extends Controller
         $resultRequested = $modelRequested::find($idModelRequest);
 
         $module = Module::where('name', $request->module)->first();
+        abort_if(!$module, 404, "Module {$request->module} no existe");
         $fields = $module->getfields();
 
         $relationTemp = $this->getRelationByModel($request->module);
@@ -145,12 +148,14 @@ class HelperController extends Controller
     public function getFieldsEditedById(Request $request, $id)
     {
         $module = Module::where('name', $request->module)->first();
+        abort_if(!$module, 404, "Module {$request->module} no existe");
         return $module->getfields($id);
     }
 
     public function requestGeneralEditedFields(Request $request)
     {
         $module = Module::where('name', $request->module)->first();
+        abort_if(!$module, 404, "Module {$request->module} no existe");
         return $module->getGeneralEditedFields();
     }
 
