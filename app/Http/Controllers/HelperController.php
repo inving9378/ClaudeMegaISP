@@ -162,12 +162,14 @@ class HelperController extends Controller
     public function getColumnsByModule(Request $request)
     {
         $module = Module::where('name', $request->module)->first();
+        abort_if(!$module, 404, "Module {$request->module} no existe");
         return $module->getColumnsDatatable();
     }
 
     public function getColumnDtExpandByModule(Request $request)
     {
         $module = Module::where('name', $request->module)->first();
+        abort_if(!$module, 404, "Module {$request->module} no existe");
         $column_dt = UserColumnDatatableExpand::where('module_id', $module->id)->where('user_id', auth()->user()->id)->first();
         return response()->json(['column' => isset($column_dt) ? $column_dt->column : null]);
     }
@@ -175,6 +177,7 @@ class HelperController extends Controller
     public function setColumnDtExpandByModule(Request $request)
     {
         $module = Module::where('name', $request->module)->first();
+        abort_if(!$module, 404, "Module {$request->module} no existe");
         $column_dt = UserColumnDatatableExpand::where('module_id', $module->id)->where('user_id', auth()->user()->id)->first();
         if (isset($column_dt)) {
             if (isset($request->column)) {
