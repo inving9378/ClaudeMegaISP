@@ -94,6 +94,15 @@
                 <i class="far fa-folder-open"></i>
             </button>
 
+            {{-- Fase 6 — Campana de conciliación de pagos pendiente (solo con permiso). --}}
+            @can('conciliacion.manage')
+                <conciliacion-bell
+                    endpoint="{{ route('finanzas.conciliacion-cola.pendientes') }}"
+                    queue-url="{{ url('/finanzas/conciliacion-cola') }}"
+                    :poll-seconds="{{ (int) config('payments.conciliacion_poll_seconds', 45) }}"
+                ></conciliacion-bell>
+            @endcan
+
             @isset($notifications)
                 <div class="dropdown d-inline-block">
                     <button type="button" class="btn header-item noti-icon position-relative"
