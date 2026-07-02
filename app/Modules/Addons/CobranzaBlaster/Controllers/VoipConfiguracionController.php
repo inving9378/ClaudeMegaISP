@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\CobranzaBlaster\Models\VoipConfiguracion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class VoipConfiguracionController extends Controller
 {
@@ -55,33 +56,54 @@ class VoipConfiguracionController extends Controller
             'activa'          => 'nullable|boolean',
         ]);
 
-        $config = VoipConfiguracion::updateOrCreate(['id' => 1], $data);
+        try {
+            $config = VoipConfiguracion::updateOrCreate(['id' => 1], $data);
 
-        $this->escribirSipConf($config);
+            $this->escribirSipConf($config);
 
-        exec('sudo asterisk -rx "sip reload" 2>&1', $output, $rc);
+            exec('sudo asterisk -rx "sip reload" 2>&1', $output, $rc);
 
-        return response()->json([
-            'ok'       => true,
-            'asterisk' => implode("\n", $output),
-            'rc'       => $rc,
-        ]);
+            return response()->json([
+                'ok'       => true,
+                'asterisk' => implode("\n", $output),
+                'rc'       => $rc,
+            ]);
+        } catch (\Throwable $e) {
+            // Fallo de infraestructura (Asterisk/archivo/BD): nunca 500 hacia la UI.
+            Log::error('CobranzaBlaster: fallo al guardar configuración VoIP', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'ok'  => false,
+                'msg' => 'No se pudo aplicar la configuración de la troncal: ' . $e->getMessage(),
+            ], 200);
+        }
     }
 
     public function testConexion(): JsonResponse
     {
-        exec('sudo asterisk -rx "sip show peers" 2>&1', $output, $rc);
+        try {
+            exec('sudo asterisk -rx "sip show peers" 2>&1', $output, $rc);
 
-        $lineas     = implode("\n", $output);
-        $registrado = collect($output)->contains(
-            fn ($l) => stripos($l, 'servnet') !== false && stripos($l, 'OK') !== false
-        );
+            $lineas     = implode("\n", $output);
+            $registrado = collect($output)->contains(
+                fn ($l) => stripos($l, 'servnet') !== false && stripos($l, 'OK') !== false
+            );
 
-        return response()->json([
-            'registrado' => $registrado,
-            'output'     => $lineas,
-            'rc'         => $rc,
-        ]);
+            return response()->json([
+                'ok'         => true,
+                'registrado' => $registrado,
+                'output'     => $lineas,
+                'rc'         => $rc,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('CobranzaBlaster: fallo al consultar estado de la troncal', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'ok'         => false,
+                'registrado' => false,
+                'msg'        => 'No se pudo consultar el estado de la troncal: ' . $e->getMessage(),
+            ], 200);
+        }
     }
 
     private function escribirSipConf(VoipConfiguracion $config): void
