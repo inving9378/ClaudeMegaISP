@@ -891,3 +891,16 @@ Umbrales en `talento_dbm_thresholds` (config propia, NO en tabla `settings`).
 | C | UI evidencia: EvidenciaScreen (selector tipo, VisionCamera, watermark, GPS) + CierreScreen | ✅ DONE (2026-06-05) |
 | D | Bono de salud de red: cálculo con umbrales, escritura en ledger al validar | ✅ DONE (Fase 4b) |
 | E | Firma cliente: foto de firma vía VisionCamera (type_id=9). Pad digital pendiente (react-native-webview) | ⚠️ parcial |
+
+---
+
+## PORTAL TÉCNICO WEB (Talento) — Bloque 1 CERRADO
+
+Versión web/PWA de la app de campo (reusa `/talento/api` + servicios Talento; guard web Medussa). Sub-pasos 1–3 DONE (commits **locales, NO pusheados**: `58cb8a5f` shell/permiso, Sub-paso 2 "Mi día", Sub-paso 3 OT+evidencia+firma). Sub-paso 4 ("Mis proyectos", planta externa) **pausado sin código** por hallazgos de seguridad (`ProjectActivityService::submitReport` auto-aprueba y no valida pertenencia → Mis proyectos quedaría SOLO LECTURA; requiere flujo `pending` + gate de pertenencia antes de exponer escritura).
+
+### Cierre de pendientes de prueba (2026-07-02) — ✅ RESUELTOS
+- **Tarea de prueba #1686** ("PRUEBA Portal Técnico — Cambio de equipo") **borrada** (hard-delete de `tasks` + su fila huérfana en `task_user`; 0 evidencias/firmas/activaciones asociadas).
+- **Seeds de proyecto Sub-paso 4:** confirmado **inexistentes** — `talento_projects` y todas las `talento_project*` en 0 filas, sin seeder committeado (Sub-paso 4 nunca persistió datos). No-op.
+- **Permiso temporal de Brandon** (`User#4429`, `login_user=brandon`): `talento.portal_tecnico` era permiso **directo** (dado solo para screenshots) → **revocado** (`revokePermissionTo` + `forgetCachedPermissions`). Sus otros 37 permisos directos intactos. Brandon (roles Vendedor/TECNICO) ya no tiene acceso al portal; el permiso queda solo en super-administrator + DESARROLLADOR.
+
+**Detalle completo del bloque** (sub-pasos, deudas, criterios de aceptación): memoria `project-portal-tecnico-bloque1`.
