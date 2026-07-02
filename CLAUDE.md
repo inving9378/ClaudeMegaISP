@@ -905,3 +905,24 @@ Versión web/PWA de la app de campo (reusa `/talento/api` + servicios Talento; g
 - **Permiso temporal de Brandon** (`User#4429`, `login_user=brandon`): `talento.portal_tecnico` era permiso **directo** (dado solo para screenshots) → **revocado** (`revokePermissionTo` + `forgetCachedPermissions`). Sus otros 37 permisos directos intactos. Brandon (roles Vendedor/TECNICO) ya no tiene acceso al portal; el permiso queda solo en super-administrator + DESARROLLADOR.
 
 **Detalle completo del bloque** (sub-pasos, deudas, criterios de aceptación): memoria `project-portal-tecnico-bloque1`.
+
+---
+
+## MOTOR DE COMPENSACIÓN TALENTO — Ventana de la semana de pago (arreglo 2026-07-02)
+
+**Estado: ✅ ARREGLO COMPLETO (DEV, forward-only).** La ventana de pago se corrigió de `Sáb 00:00 → Vie 23:59` (sin corte horario) a **`Sáb 18:00 → Sáb 18:00` con corte inclusivo a las 18:00** (regla real de Irving: lo validado después de las 18:00 del sábado pasa a la semana siguiente).
+
+- **Punto único de verdad:** `app/Modules/Addons/Talento/Support/PayWeek.php` (`boundsFor`, `current`, `lastCompleted`, `transitionStart`). Config en `config/talento.php` (`pay_week.cutover`, `cutoff_hour=18`, `cutoff_minute=0`). **Nadie más deriva la ventana** (los 7 sitios viejos con `startOfWeek(SATURDAY)`/`addDays(6)`/`endOfWeek` fueron repuntados).
+- **Cutover = `2026-07-11 18:00`.** Antes del cutover rige la ventana **legacy** `Sáb 00:00 → Vie 23:59` idéntica al motor viejo (histórico ya pagado reproducible e INTACTO — no-regresión numérica verificada al centavo).
+- **Semana de TRANSICIÓN de 8 días (Opción 3):** `[2026-07-04 00:00 → 2026-07-11 18:00]` se paga con el **método viejo** en un solo pago. La primera semana nueva arranca `2026-07-11 18:00:01 → 2026-07-18 18:00`.
+- **Guard anti-recálculo** en `TalentoLiquidacionController::calcular`: rechaza (422 + mensaje en español) liquidar `period_start` anterior a `PayWeek::transitionStart()` (= cutover − 7d = `2026-07-04`). Guard + `UNIQUE(colaborador, period_start, period_end)` ⇒ imposible duplicar/solapar una semana ya pagada.
+- **Filtro por datetime** (no por día): `calculate` y los servicios filtran `validated_at` contra `start_instant`/`end_instant`; `periodDays` derivado de la ventana (7 normal, 8 en la transición; antes `diffInDays+1` daba 8 en la nueva — bug de divisor evitado).
+- **Commits:** `221e9a01`+`a18f092b` (helper+config+cutover), `da96436b` (Capa A — 3 servicios de dinero: Liquidation/HealthBonus/ProjectBonus), `90953344` (Capa B — display: avance/ProjectController/DashboardService/compensacionSemana), `73725b8d` (Pieza 1 — transición 8 días), `993ad153` (Pieza 2 — guard).
+
+### ⚠️ RECORDATORIO OPERATIVO — el cutover NO auto-liquida (paso HUMANO)
+La primera liquidación con la ventana nueva ocurre **cuando un admin liquide manualmente un período ≥ 2026-07-11** (no hay cron de liquidación). **Antes del 11-jul hay que:**
+1. **Pagar la semana de transición `[07-04→07-11]` con el método viejo / 8 días** (un solo pago).
+2. **En PRODUCCIÓN, al desplegar:** setear el env **`TALENTO_PAYWEEK_CUTOVER="2026-07-11 18:00:00"`** antes del 11-jul. *(El `config/talento.php` ya trae ese valor como **default seguro** si el env falta — verificado: sin env, `config('talento.pay_week.cutover')` = `2026-07-11 18:00:00` — pero conviene setear el env explícito en prod.)*
+
+### 🐛 Deuda registrada aparte (NO de este trabajo)
+`DashboardService::tecnicoPreview` y `::team` truenan por `with('level')` (relación inexistente en `TalentoColaborador`) — **bug pre-existente**, no introducido en este arreglo. Arreglar en sesión futura (ver memoria `talento-fase8-9`).
