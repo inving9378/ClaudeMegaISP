@@ -23,16 +23,28 @@ use Illuminate\Support\Facades\DB;
 class IdentificationFsm
 {
     // Textos (placeholder; se afinan con Irving en el simulador / F4). Sin markdown.
-    public const MSG_ASK_NAME =
+    public const MSG_ASK_CLIENT_ID =
         "Hola 👋 Recibimos tu comprobante de pago. Para aplicarlo a tu cuenta, "
-        . "¿me confirmas el nombre completo del titular del servicio, tal como aparece en el contrato?";
+        . "¿me compartes tu número de cliente? Lo encuentras en tu ticket, contrato, "
+        . "factura, correo o en el portal. Si no lo tienes a la mano, escríbeme el "
+        . "nombre completo del titular del servicio.";
+
+    public const MSG_ASK_NAME =
+        "Gracias. ¿Me confirmas el nombre completo del titular del servicio, "
+        . "tal como aparece en el contrato?";
 
     public const MSG_ASK_NAME_RETRY =
         "No encontré ese nombre en el sistema. ¿Me lo puedes escribir completo, "
-        . "con apellidos, tal como está en el contrato?";
+        . "con apellidos, tal como está en el contrato? Si tienes tu número de cliente, también me sirve.";
 
-    public const MSG_ASK_SERVICE_INVALID =
-        "Por favor responde solo con el número de la opción (por ejemplo: 1).";
+    // Desambiguación por CALLE (privacidad: pedimos la calle, NO mostramos direcciones).
+    public const MSG_ASK_STREET =
+        "Encontré más de un registro con ese nombre. Para ubicar el tuyo, "
+        . "¿en qué calle está instalado tu servicio?";
+
+    public const MSG_ASK_STREET_RETRY =
+        "No logré ubicarlo con esa calle. ¿Me confirmas la calle donde está tu "
+        . "servicio? Si prefieres, dame tu número de cliente.";
 
     public const MSG_TOO_MANY =
         "Encontré varios registros con ese nombre. ¿Me das tu nombre COMPLETO con "
@@ -69,14 +81,16 @@ class IdentificationFsm
      */
     public function start(Session $session, string $concepto, ?string $titular = null, ?string $phoneHint = null): array
     {
-        // 1) MEG (exacto) — se busca en concepto y en titular.
+        // 1) MEG (exacto) en concepto o titular → auto-aplicable.
         $hit = $this->meg->resolveFromText($concepto) ?? $this->meg->resolveFromText($titular);
         if ($hit) {
-            return $this->resolveByMeg($session, $hit['client_id'], $hit['reference']);
+            return $this->resolve($session, $hit['client_id'], Session::METHOD_MEG, Session::CERTAINTY_EXACT);
         }
 
-        // 2) Nombre. La primera búsqueda automática NO cuenta como reintento.
-        return $this->searchAndBranch($session, [$concepto, $titular], $phoneHint, isRetry: false);
+        // 2) Sin MEG → pedir el ID de cliente (la siguiente llave más fuerte).
+        $session->state = Session::STATE_AWAITING_CLIENT_ID;
+        $session->save();
+        return $this->step($session, self::MSG_ASK_CLIENT_ID, terminal: false);
     }
 
     /**
@@ -101,9 +115,10 @@ class IdentificationFsm
         }
 
         return match ($session->state) {
-            Session::STATE_AWAITING_NAME    => $this->searchAndBranch($session, [$reply], $phoneHint, isRetry: true),
-            Session::STATE_AWAITING_SERVICE => $this->handleDisambiguation($session, $reply),
-            default                          => $this->step($session, null, terminal: false),
+            Session::STATE_AWAITING_CLIENT_ID => $this->handleClientId($session, $reply, $phoneHint),
+            Session::STATE_AWAITING_NAME      => $this->searchAndBranch($session, [$reply], $phoneHint, isRetry: true),
+            Session::STATE_AWAITING_STREET    => $this->handleStreet($session, $reply),
+            default                            => $this->step($session, null, terminal: false),
         };
     }
 
@@ -127,7 +142,11 @@ class IdentificationFsm
             return $this->escalate($session, 'session_expired');
         }
 
-        $waiting = in_array($session->state, [Session::STATE_AWAITING_NAME, Session::STATE_AWAITING_SERVICE], true);
+        $waiting = in_array($session->state, [
+            Session::STATE_AWAITING_CLIENT_ID,
+            Session::STATE_AWAITING_NAME,
+            Session::STATE_AWAITING_STREET,
+        ], true);
         if (!$waiting) {
             return $this->step($session, null, terminal: false, extra: ['reminder_skipped' => true]);
         }
@@ -155,27 +174,48 @@ class IdentificationFsm
 
     // ── Ramas ────────────────────────────────────────────────────────────────
 
+    /**
+     * Respuesta en AWAITING_CLIENT_ID: si trae un número de cliente válido →
+     * resuelve exacto (distingue homónimos). Si no, se trata como NOMBRE.
+     */
+    private function handleClientId(Session $session, string $reply, ?string $phoneHint): array
+    {
+        // Tratamos la respuesta como ID solo si es predominantemente numérica
+        // (ej. "7110", "id 7110", "es 7110"), NO un nombre con dígitos.
+        $alpha = preg_match_all('/[\p{L}]/u', $reply);
+        if ($alpha <= 8 && preg_match('/\d{2,}/', $reply, $m)) {
+            $cand = $this->subs->findById((int) $m[0]);
+            if ($cand) {
+                $certainty = config('payments.id_cliente_auto_apply')
+                    ? Session::CERTAINTY_EXACT
+                    : Session::CERTAINTY_PROPOSED;
+                return $this->resolve($session, $cand['client_id'], Session::METHOD_CLIENT_ID, $certainty);
+            }
+        }
+        // No trajo ID válido → interpretamos su respuesta como el nombre (primer intento).
+        return $this->searchAndBranch($session, [$reply], $phoneHint, isRetry: false);
+    }
+
     private function searchAndBranch(Session $session, array $names, ?string $phoneHint, bool $isRetry): array
     {
         $candidates = $this->subs->search(array_values(array_filter($names)), $phoneHint);
         $cls        = $this->subs->classify($candidates);
 
         if ($cls['status'] === 'single') {
-            return $this->resolveByName($session, $cls['client_id'], Session::METHOD_NAME_SINGLE);
+            return $this->resolve($session, $cls['client_id'], Session::METHOD_NAME_SINGLE, Session::CERTAINTY_PROPOSED);
         }
 
-        // Varios matches, pero pocos → listar para elegir por número.
+        // Varios matches (pocos) → desambiguar por CALLE (privacidad: no listamos).
         if ($cls['status'] === 'multiple' && count($cls['candidates']) <= self::MAX_DISAMBIG_OPTIONS) {
-            $session->state = Session::STATE_AWAITING_SERVICE;
+            $session->state = Session::STATE_AWAITING_STREET;
             $session->candidate_client_ids = array_map(fn ($c) => $c['client_id'], $cls['candidates']);
             $session->save();
-            return $this->step($session, $this->renderOptions($cls['candidates']), terminal: false);
+            return $this->step($session, self::MSG_ASK_STREET, terminal: false);
         }
 
         // Demasiados matches (nombre de pila común) → pedir nombre completo.
         $tooMany = $cls['status'] === 'multiple';
 
-        // none / too_many → pedir (o re-pedir) el nombre. Cuenta reintento si ya era respuesta.
         if ($isRetry) {
             $session->attempts = (int) $session->attempts + 1;
             if ($session->attempts >= Session::MAX_ATTEMPTS) {
@@ -192,49 +232,53 @@ class IdentificationFsm
         return $this->step($session, $msg, terminal: false);
     }
 
-    private function handleDisambiguation(Session $session, string $reply): array
+    /**
+     * Respuesta en AWAITING_STREET: cruza la calle que escribió el cliente contra
+     * las direcciones de los candidatos (server-side, sin exponerlas). Un único
+     * match → resuelve. 0 ó >1 → reintento; a los 2 fallidos → escala.
+     */
+    private function handleStreet(Session $session, string $reply): array
     {
-        $ids = $session->candidate_client_ids ?? [];
-        $n   = $this->parseChoice($reply, count($ids));
+        $ids     = $session->candidate_client_ids ?? [];
+        $matches = $this->subs->matchByStreet($ids, $reply);
 
-        if ($n !== null) {
-            return $this->resolveByName($session, (int) $ids[$n - 1], Session::METHOD_NAME_DISAMBIGUATED);
+        if (count($matches) === 1) {
+            return $this->resolve($session, (int) $matches[0], Session::METHOD_NAME_DISAMBIGUATED, Session::CERTAINTY_PROPOSED);
         }
 
-        // Elección inválida → cuenta como reintento.
+        // Ambiguo o sin match → cuenta reintento.
         $session->attempts = (int) $session->attempts + 1;
         if ($session->attempts >= Session::MAX_ATTEMPTS) {
             $session->save();
-            return $this->escalate($session, 'disambiguation_failed');
+            return $this->escalate($session, 'street_disambiguation_failed');
         }
         $session->save();
-        return $this->step($session, self::MSG_ASK_SERVICE_INVALID, terminal: false);
+        return $this->step($session, self::MSG_ASK_STREET_RETRY, terminal: false);
     }
 
-    // ── Resoluciones ─────────────────────────────────────────────────────────
+    // ── Resolución (unificada) ────────────────────────────────────────────────
 
-    private function resolveByMeg(Session $session, int $clientId, string $reference): array
+    /**
+     * Marca la sesión resuelta con el cliente/método/certeza. MEG y (según flag)
+     * ID de cliente → exact (auto-aplicable en F4); nombre/calle → proposed
+     * (requiere confirmación humana). Marca si el cliente tiene varios servicios
+     * (no bloquea; F4/humano decide). Educa sobre el MEG cuando es 'proposed'.
+     */
+    private function resolve(Session $session, int $clientId, string $method, string $certainty): array
     {
-        $session->state              = Session::STATE_RESOLVED;
-        $session->method             = Session::METHOD_MEG;
-        $session->certainty          = Session::CERTAINTY_EXACT;
-        $session->resolved_client_id = $clientId;
+        $session->state                      = Session::STATE_RESOLVED;
+        $session->method                     = $method;
+        $session->certainty                  = $certainty;
+        $session->resolved_client_id         = $clientId;
+        $session->resolved_multiple_services = $this->serviceCount($clientId) > 1;
         $session->save();
 
-        // MEG = exacto → F3 no manda mensaje (F4 aplicará y confirmará). Sin outbound.
-        return $this->step($session, null, terminal: true);
-    }
+        // Exacto (MEG, o ID con flag on): sin mensaje; F4 aplicará y confirmará.
+        if ($certainty === Session::CERTAINTY_EXACT) {
+            return $this->step($session, null, terminal: true);
+        }
 
-    private function resolveByName(Session $session, int $clientId, string $method): array
-    {
-        $session->state              = Session::STATE_RESOLVED;
-        $session->method             = $method;
-        $session->certainty          = Session::CERTAINTY_PROPOSED; // requiere confirmación humana (F4)
-        $session->resolved_client_id = $clientId;
-        $session->save();
-
-        // Gancho "educar MEG" (decisión 3): informar su referencia al cliente.
-        // Texto final se afina en F4; aquí queda el gancho con el MEG real.
+        // Proposed → gancho "educar MEG" (decisión 3): informar su referencia real.
         $meg    = DB::table('client_payment_references')->where('client_id', $clientId)->value('reference');
         $notice = "¡Gracias! Recibimos tu comprobante y lo estamos validando. "
             . ($meg ? "Para la próxima, incluye tu referencia {$meg} en el concepto y lo aplicamos más rápido." : "");
@@ -272,28 +316,11 @@ class IdentificationFsm
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private function renderOptions(array $candidates): string
+    /** Cuántos servicios (bundle + custom) tiene el cliente. */
+    private function serviceCount(int $clientId): int
     {
-        $lines = ["Encontré varios registros con ese nombre. ¿Cuál es tuyo? Responde con el número:"];
-        $i = 1;
-        foreach ($candidates as $c) {
-            $svc = !empty($c['services']) ? $c['services'][0]['description'] : 'servicio';
-            $col = $c['colonia'] ?? ($c['address'] ?? 's/d');
-            $lines[] = "{$i}) {$col} — {$svc}";
-            $i++;
-        }
-        return implode("\n", $lines);
-    }
-
-    private function parseChoice(string $reply, int $count): ?int
-    {
-        if (preg_match('/\d+/', $reply, $m)) {
-            $n = (int) $m[0];
-            if ($n >= 1 && $n <= $count) {
-                return $n;
-            }
-        }
-        return null;
+        return DB::table('client_bundle_services')->where('client_id', $clientId)->count()
+            + DB::table('client_custom_services')->where('client_id', $clientId)->count();
     }
 
     private function wantsHuman(string $reply): bool

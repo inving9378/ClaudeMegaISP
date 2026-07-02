@@ -60,7 +60,8 @@
             <div class="row">
                 <button onclick="startSim()">Iniciar simulación</button>
             </div>
-            <p class="muted" style="margin-top:14px;">Escenarios sugeridos: una ref MEG en el concepto (identifica exacto), un nombre real (propuesta), un nombre repetido (desambigua), y basura (reintenta y escala).</p>
+            <p class="muted" style="margin-top:14px;">Flujo escalonado: MEG → nº de cliente → nombre → calle → humano.<br>
+            Prueba: <b>MEG-00000017-47</b> (exacto); sin MEG responde con un <b>nº de cliente</b> (ej. 7110); o un nombre repetido como <b>Margarita Hernandez Bautista</b> y luego la <b>calle</b> (ej. "por la primavera") para desambiguar. La IA nunca muestra direcciones.</p>
         </div>
 
         <div class="card">

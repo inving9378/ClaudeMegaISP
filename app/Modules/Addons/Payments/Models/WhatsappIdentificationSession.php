@@ -15,12 +15,13 @@ class WhatsappIdentificationSession extends BaseModel
 {
     protected $table = 'whatsapp_identification_sessions';
 
-    // Estados de la máquina.
-    public const STATE_DETECTING        = 'detecting';
-    public const STATE_AWAITING_NAME    = 'awaiting_name';
-    public const STATE_AWAITING_SERVICE = 'awaiting_service';
-    public const STATE_RESOLVED         = 'resolved';
-    public const STATE_ESCALATED        = 'escalated';
+    // Estados de la máquina (flujo escalonado: llave más fuerte → más débil).
+    public const STATE_DETECTING         = 'detecting';
+    public const STATE_AWAITING_CLIENT_ID = 'awaiting_client_id';
+    public const STATE_AWAITING_NAME      = 'awaiting_name';
+    public const STATE_AWAITING_STREET    = 'awaiting_street';
+    public const STATE_RESOLVED           = 'resolved';
+    public const STATE_ESCALATED          = 'escalated';
 
     // Cómo se identificó.
     public const METHOD_MEG                = 'meg';
