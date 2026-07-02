@@ -33,6 +33,8 @@ class ReportedPayment extends BaseModel
         'banco_origen',
         'referencia_oxxo',
         'tecnico_id',
+        'numero_autorizacion',
+        'ultimos4_tarjeta',
         'comprobante_path',
         'conciliation_status',
         'verified_by',

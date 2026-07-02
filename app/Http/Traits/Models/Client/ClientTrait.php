@@ -124,6 +124,7 @@ trait ClientTrait
             // reported_payments (ver ClientPaymentController::store); NO deben
             // entrar al insert de payments ($guarded=[] los tomaría como columnas).
             'clave_rastreo', 'titular', 'banco_origen', 'referencia_oxxo', 'tecnico_id',
+            'numero_autorizacion', 'ultimos4_tarjeta',
         ]);
         $input['number'] = $this->setPaymentNumber();
         $input['date'] = $request->date_payment ?? Carbon::now()->toDateTimeString();

@@ -86,6 +86,13 @@ class ClientPaymentController extends Controller
                             $comprobantePath = $request->file('file')
                                 ->store('private/payments/mostrador/comprobantes', 'local');
                         }
+                        // PCI: el campo de tarjeta es SOLO últimos 4 dígitos.
+                        // No se confía en el cliente: se quitan no-dígitos y se
+                        // toman a lo sumo los últimos 4 → jamás se guarda un PAN.
+                        $ultimos4 = $request->ultimos4_tarjeta
+                            ? substr(preg_replace('/\D/', '', $request->ultimos4_tarjeta), -4)
+                            : null;
+
                         ReportedPayment::create([
                             'payment_id'           => $payment->id,
                             'client_id'            => $client->id,
@@ -97,6 +104,8 @@ class ClientPaymentController extends Controller
                             'banco_origen'         => $request->banco_origen,
                             'referencia_oxxo'      => $request->referencia_oxxo,
                             'tecnico_id'           => $request->tecnico_id,
+                            'numero_autorizacion'  => $request->numero_autorizacion,
+                            'ultimos4_tarjeta'     => $ultimos4,
                             'comprobante_path'     => $comprobantePath,
                             'conciliation_status'  => ReportedPayment::ESTADO_PENDIENTE,
                         ]);
