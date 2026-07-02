@@ -149,6 +149,20 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 
 ## HOJA DE RUTA — Items pendientes
 
+### Catálogo de módulos (form config DB-driven) — data-drift dev↔prod (2026-07-01)
+
+**Contexto:** el generador de contratos ("Generar Contrato" en CRM y Clientes) no pintaba los selectores en dev. El síntoma parecía frontend, pero la causa raíz fue **data-drift**: la config de cada formulario es DB-driven (`Module::getfields()` vía `HelperController::getFieldsByModule`, keyed por `name`), y el row de catálogo `DocumentTemplateClient` (+ sus campos) faltaba en dev porque las migraciones que lo crean fueron archivadas a `database/migrations_old/` y **no corren en un migrate fresco**. `->getfields()` sobre null → 500 mudo → `fieldsJson={}` → form vacío.
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| **Data-drift catálogo `modules` (RESUELTO)** | Rows `DocumentTemplateClient` (+3 campos type/template/html) y `FiltersTaskCalendar` ausentes en dev. Repuesto con migración **aditiva idempotente** `2026_07_01_000000_restore_document_template_client_module.php` (`firstOrCreate` por row y por campo, `down()` vacío a propósito — reponer catálogo real de prod). Commit `9b961269` (migración) + `373bee93` (guard de null en `HelperController` ×5). Verificado: `getfields()` devuelve los 3 campos, `select-2-type-template` presente, modal pinta en CRM y Clientes. Config replicada 1:1 del dump canónico `sql_test_unit.sql` (module 62). | ✅ **Resuelto** | — |
+| **Barrido de guards de null en `HelperController`** | El guard de hoy cubrió 5 métodos (`getFieldsByModule` + 4 hermanas). Quedan **3 hermanos** con el mismo patrón `->getfields()`/`->...` sin guard: `getColumnsByModule` (~línea 159), `getColumnDtExpandByModule`, `setColumnDtExpandByModule` → mismo riesgo de **500-mudo** ante un `module` inexistente. Aplicar el mismo `abort_if(!$module, 404, ...)`. | ⚠️ Pendiente | **Alta** |
+| **Catálogo esencial atrapado en `migrations_old/` (PROCESO — la de fondo)** | Causa raíz del bug de hoy: migraciones que crean rows de catálogo (`modules` + campos) fueron archivadas → cada dev nuevo nace con **huecos**, y el síntoma aparece disfrazado de bug de frontend. **Definir política:** mover el catálogo esencial a un **seeder versionado idempotente** que SÍ corra por entorno, o documentar qué rows son canónicos. Sin esto, el próximo módulo repite el patrón. | ⚠️ Pendiente | **Alta** |
+| **`json_decode(null)` en `Module.php:186/190/241`** | 867 de 893 rows de `field_modules` disparan deprecation de PHP 8.1 (pasar `NULL` a `json_decode`). Benigno funcionalmente, ensucia logs. Fix: `$x ? json_decode($x) : null`. | ⚠️ Pendiente | Media |
+| **`ComponentFormDefault.vue:356`** | El `v-if` de `select-2-type-template` es el único (~1 de 45) **sin `&& json.include`**. Inofensivo en los flujos actuales (el padre `v-for` ya filtra por `include`), pero inconsistente; muerde a cualquier consumidor que monte el componente sin el wrapper padre. | ⚠️ Pendiente | Media |
+| **`DefaultValueRepository.php:35`** | `auth()->user()->id` sin guard → NPE en contextos CLI/sin-sesión. Inofensivo vía HTTP (usuario logueado). Menor. | ⚠️ Pendiente | Baja |
+| **IDs de módulo divergentes dev↔prod (NOTA)** | Tras el fix, `FiltersTaskCalendar` quedó **id=133 en dev vs id=78 en prod** (auto-increment distinto). No afecta hoy (todo resuelve por `name`), pero si algún código referencia módulos por **id numérico hardcodeado**, esa divergencia podría morder. | 📝 Nota | Baja |
+
 ### Infraestructura de producción — verificación pendiente
 
 | Item | Descripción | Estado | Prioridad |
