@@ -130,7 +130,7 @@
                                 ? 'fullscreen_exit'
                                 : 'fullscreen'
                                 " @click="props.toggleFullscreen" />
-                            <q-btn color="primary" label="Exportar" no-caps @click="
+                            <q-btn color="primary" icon="download" label="Exportar" no-caps @click="
                                 exportTable(
                                     columns,
                                     rows,
