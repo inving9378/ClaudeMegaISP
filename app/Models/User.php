@@ -39,6 +39,7 @@ class User extends Authenticatable
         'team_id',
         'active',
         'estado',
+        'is_system',
     ];
 
     /**
@@ -58,7 +59,27 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'is_system'         => 'boolean',
     ];
+
+    /**
+     * Email canónico del usuario de sistema "Asistente IA" (FASE PAGOS 3).
+     * Las acciones automáticas de la IA (aplicar pagos, etc.) se atribuyen a
+     * este usuario para trazabilidad. Ver User::systemAi().
+     */
+    public const SYSTEM_AI_EMAIL = 'asistente.ia@sistema.local';
+
+    /**
+     * Resuelve de forma fiable el usuario de sistema "Asistente IA".
+     * Lo crea la migración 2026_07_01_*_create_system_ai_user (idempotente).
+     * Devuelve null si aún no existe (no revienta a los callers).
+     */
+    public static function systemAi(): ?self
+    {
+        return static::where('email', self::SYSTEM_AI_EMAIL)
+            ->where('is_system', true)
+            ->first();
+    }
 
     protected $appends = ['rol_name', 'url_photography', 'rule_id', 'rule_name', 'sucursal_str'];
 
