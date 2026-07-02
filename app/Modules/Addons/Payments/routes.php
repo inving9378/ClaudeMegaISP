@@ -8,6 +8,7 @@ use App\Modules\Addons\Payments\Controllers\ReconciliationController;
 use App\Modules\Addons\Payments\Controllers\ReceiptController;
 use App\Modules\Addons\Payments\Controllers\ReceiptExtractionTestController;
 use App\Modules\Addons\Payments\Controllers\WhatsappReceiptReviewController;
+use App\Modules\Addons\Payments\Controllers\ReconciliationSimulatorController;
 use App\Modules\Addons\Payments\Controllers\SpeiWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -91,6 +92,15 @@ Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
         Route::get('/whatsapp-comprobantes',                    [WhatsappReceiptReviewController::class, 'index'])->name('whatsapp-comprobantes');
         Route::get('/whatsapp-comprobantes/{message}/media',    [WhatsappReceiptReviewController::class, 'media'])->whereNumber('message')->name('whatsapp-comprobantes.media');
         Route::post('/whatsapp-comprobantes/{message}/extraer', [WhatsappReceiptReviewController::class, 'extract'])->whereNumber('message')->name('whatsapp-comprobantes.extraer');
+
+        // FASE 3 (F3.4) — SIMULADOR de la conversación de identificación. NO envía
+        // mensajes reales; corre el mismo FSM sobre sesiones is_simulation.
+        Route::get('/conciliacion-sim',          [ReconciliationSimulatorController::class, 'index'])->name('conciliacion-sim');
+        Route::post('/conciliacion-sim/iniciar', [ReconciliationSimulatorController::class, 'start'])->name('conciliacion-sim.iniciar');
+        Route::post('/conciliacion-sim/responder',[ReconciliationSimulatorController::class, 'reply'])->name('conciliacion-sim.responder');
+        Route::post('/conciliacion-sim/recordatorio',[ReconciliationSimulatorController::class, 'remind'])->name('conciliacion-sim.recordatorio');
+        Route::post('/conciliacion-sim/expirar',  [ReconciliationSimulatorController::class, 'expire'])->name('conciliacion-sim.expirar');
+        Route::post('/conciliacion-sim/reiniciar',[ReconciliationSimulatorController::class, 'reset'])->name('conciliacion-sim.reiniciar');
     });
 
 // ── API MOBILE: endpoints consumidos por la app Flutter MegaFamilia ─────

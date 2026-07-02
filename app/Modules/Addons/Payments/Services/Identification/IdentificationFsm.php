@@ -37,6 +37,10 @@ class IdentificationFsm
         "Gracias. Voy a pasar tu caso con una persona del equipo para aplicar tu pago correctamente. "
         . "En breve te contactan. 🙌";
 
+    public const MSG_REMINDER =
+        "Seguimos pendientes de tu respuesta para aplicar tu pago 🙂. "
+        . "En cuanto me confirmes el nombre del titular, lo dejo listo.";
+
     public function __construct(
         private MegReferenceResolver $meg,
         private SubscriberSearchService $subs,
@@ -84,6 +88,23 @@ class IdentificationFsm
             Session::STATE_AWAITING_SERVICE => $this->handleDisambiguation($session, $reply),
             default                          => $this->step($session, null, terminal: false),
         };
+    }
+
+    /**
+     * Recordatorio (nudge) para un cliente que no ha respondido. En vivo lo
+     * dispara un job programado; en el simulador es acelerable. Solo una vez, y
+     * solo si la sesión sigue esperando respuesta (no terminal, no expirada).
+     * @return array step
+     */
+    public function reminder(Session $session): array
+    {
+        $waiting = in_array($session->state, [Session::STATE_AWAITING_NAME, Session::STATE_AWAITING_SERVICE], true);
+        if (!$waiting || $session->isExpired() || $session->reminder_sent_at !== null) {
+            return $this->step($session, null, terminal: false, extra: ['reminder_skipped' => true]);
+        }
+        $session->reminder_sent_at = now();
+        $session->save();
+        return $this->step($session, self::MSG_REMINDER, terminal: false, extra: ['reminder' => true]);
     }
 
     // ── Ramas ────────────────────────────────────────────────────────────────

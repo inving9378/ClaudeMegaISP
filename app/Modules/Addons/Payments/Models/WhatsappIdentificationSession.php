@@ -35,6 +35,7 @@ class WhatsappIdentificationSession extends BaseModel
     public const MAX_ATTEMPTS = 2;
 
     protected $fillable = [
+        'is_simulation',
         'extraction_id',
         'conversation_id',
         'message_id',
@@ -45,15 +46,18 @@ class WhatsappIdentificationSession extends BaseModel
         'candidate_client_ids',
         'attempts',
         'expires_at',
+        'reminder_sent_at',
         'escalated_to',
         'escalation_reason',
         'created_by',
     ];
 
     protected $casts = [
+        'is_simulation'        => 'boolean',
         'candidate_client_ids' => 'array',
         'attempts'             => 'integer',
         'expires_at'           => 'datetime',
+        'reminder_sent_at'     => 'datetime',
     ];
 
     public function extraction()
