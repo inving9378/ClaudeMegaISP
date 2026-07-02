@@ -93,6 +93,8 @@ class WhatsappReceiptReviewController extends Controller
             'conversation_id' => $message->conversation_id,
             'document_type'   => $result['document_type'] ?? SpeiTransferProfile::TYPE,
             'source_mime'     => $mime,
+            // Concepto denormalizado a columna top-level (F3 buscará la ref MEG aquí).
+            'concepto'        => $result['fields']['concepto']['value'] ?? null,
             'ok'              => $result['ok'] ?? false,
             'fields'          => $result['fields'] ?? [],
             'unreadable'      => $result['unreadable'] ?? [],

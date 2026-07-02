@@ -21,6 +21,7 @@ class WhatsappPaymentExtraction extends BaseModel
         'conversation_id',
         'document_type',
         'source_mime',
+        'concepto',
         'ok',
         'fields',
         'unreadable',
