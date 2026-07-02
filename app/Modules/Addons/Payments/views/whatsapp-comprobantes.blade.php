@@ -131,6 +131,16 @@
 
     function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+    // Etiquetas legibles (para distinguir claramente titular vs concepto).
+    const LABELS = {
+        clave_rastreo:     'Clave de rastreo',
+        monto:             'Monto',
+        fecha:             'Fecha',
+        titular_ordenante: 'Titular ordenante (dueño de la cuenta)',
+        banco_origen:      'Banco origen',
+        concepto:          'Concepto / referencia (lo escribió el pagador)',
+    };
+
     function render(data) {
         const r = data.result || {};
         const box = document.getElementById('result');
@@ -143,7 +153,8 @@
             const val = (v.value === null || v.value === undefined)
                 ? '<span class="val-null">— ilegible —</span>' : esc(v.value);
             const conf = (v.confidence || 'baja');
-            rows += '<tr><td>' + esc(k) + '</td><td>' + val + '</td><td><span class="badge conf-' + conf + '">' + conf + '</span></td></tr>';
+            const label = LABELS[k] || k;
+            rows += '<tr><td>' + esc(label) + '</td><td>' + val + '</td><td><span class="badge conf-' + conf + '">' + conf + '</span></td></tr>';
         }
         let unreadable = (r.unreadable && r.unreadable.length)
             ? '<p class="muted">Ilegibles: ' + r.unreadable.map(esc).join(', ') + '</p>' : '';
