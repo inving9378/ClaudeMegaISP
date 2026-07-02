@@ -63,7 +63,7 @@ class PayWeek
         //  - Semana de TRANSICIÓN de 8 días si $t cae en [cutover-7d 00:00, cutover]:
         //    la última semana legacy se extiende hasta el cutover (Opción 3, decisión de Irving).
         //  - Semanas legacy anteriores: Sáb 00:00 → Vie 23:59 normales, INTACTAS.
-        $transitionStart = $cutover->copy()->subDays(7)->startOfDay(); // sábado (cutover-7d) a las 00:00
+        $transitionStart = self::transitionStart($cutover); // sábado (cutover-7d) a las 00:00
         if ($t->gte($transitionStart)) {
             return [
                 'regime'        => 'transition',
@@ -127,6 +127,18 @@ class PayWeek
         $current    = self::current($now);
         $justBefore = $current['start_instant']->copy()->subSecond(); // 1s antes del arranque vigente
         return self::boundsFor($justBefore);
+    }
+
+    /**
+     * Inicio de la semana de TRANSICIÓN del go-live (= cutover − 7 días, a las 00:00).
+     * Es la LÍNEA del guard anti-recálculo (punto único de verdad): los períodos con
+     * period_start ANTERIOR a esta fecha son semanas ya pagadas con el método viejo y NO
+     * se pueden re-liquidar. La transición [transitionStart → cutover] y las semanas nuevas
+     * SÍ se pueden liquidar.
+     */
+    public static function transitionStart(?Carbon $cutover = null): Carbon
+    {
+        return ($cutover ?? self::cutover())->copy()->subDays(7)->startOfDay();
     }
 
     protected static function cutover(): Carbon

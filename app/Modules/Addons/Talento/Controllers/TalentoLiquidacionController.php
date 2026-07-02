@@ -8,6 +8,7 @@ use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoLiquidation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Services\LiquidationService;
+use App\Modules\Addons\Talento\Support\PayWeek;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -45,6 +46,17 @@ class TalentoLiquidacionController extends Controller
             'period_start'   => 'required|date',
             'period_end'     => 'required|date|after_or_equal:period_start',
         ]);
+
+        // Guard anti-recálculo (2.2): no re-liquidar semanas ya cerradas/pagadas con el método
+        // viejo. La línea es el inicio de la semana de transición (PayWeek::transitionStart(),
+        // = cutover − 7d). Se compara contra el period_start CANÓNICO que realmente se liquidaría.
+        $canonical = PayWeek::boundsFor(Carbon::parse($data['period_start'])->copy()->addDay());
+        $minPeriod = PayWeek::transitionStart()->toDateString();
+        if ($canonical['period_start'] < $minPeriod) {
+            return response()->json([
+                'error' => "No se puede liquidar un período anterior al {$minPeriod}: corresponde a semanas ya cerradas con el método anterior.",
+            ], 422);
+        }
 
         try {
             $liq = $this->service->calculate(
