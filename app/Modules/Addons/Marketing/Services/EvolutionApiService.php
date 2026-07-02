@@ -47,6 +47,34 @@ class EvolutionApiService
         return $this->post("/message/sendMedia/{$this->instance}", $payload);
     }
 
+    /**
+     * Descarga y descifra el binario de un mensaje multimedia entrante.
+     *
+     * La `url` que llega en el webhook (imageMessage.url = ...enc) apunta a
+     * bytes AES-cifrados de WhatsApp; NO son descargables directo. Evolution
+     * los baja, los descifra con la mediaKey del mensaje y devuelve base64.
+     *
+     * Endpoint Evolution API v2: POST /chat/getBase64FromMediaMessage/{instance}
+     * ⚠️ Evolution exige el objeto de mensaje COMPLETO (key + message), no solo
+     * key.id: internamente inspecciona message.ephemeralMessage y truena con 400
+     * si el sub-objeto `message` no viaja. Por eso recibimos el payload `data`
+     * tal cual quedó guardado en marketing_messages.metadata.
+     *
+     * @param array $evolutionData  el objeto `data` del webhook (metadata del Message)
+     *                              con al menos las claves `key` y `message`.
+     * @return array  ['base64' => '...', 'mimetype' => 'image/jpeg', 'fileName' => ..., 'size' => [...]]
+     */
+    public function getBase64FromMediaMessage(array $evolutionData): array
+    {
+        return $this->post("/chat/getBase64FromMediaMessage/{$this->instance}", [
+            'message' => [
+                'key'     => $evolutionData['key']     ?? [],
+                'message' => $evolutionData['message'] ?? [],
+            ],
+            'convertToMp4' => false,
+        ]);
+    }
+
     public function fetchInstanceStatus(): array
     {
         return $this->get("/instance/connectionState/{$this->instance}");
