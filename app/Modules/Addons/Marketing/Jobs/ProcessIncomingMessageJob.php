@@ -73,6 +73,17 @@ class ProcessIncomingMessageJob implements ShouldQueue
             'metadata'          => $data,
         ]);
 
+        // 5b. Descarga aislada del binario si es imagen/documento (comprobantes).
+        //     Best-effort: un fallo aquí NO afecta la persistencia del mensaje ni
+        //     el flujo de ventas (ya ocurrieron arriba). Job en cola aparte.
+        if (in_array($contentType, ['image', 'document'], true)) {
+            try {
+                DownloadWhatsAppMediaJob::dispatch($message->id)->onQueue('default');
+            } catch (\Throwable $e) {
+                Log::channel('evolution')->warning('dispatch DownloadWhatsAppMediaJob falló: ' . $e->getMessage());
+            }
+        }
+
         // 6. Update conversation counters
         $conversation->update([
             'last_inbound_at' => now(),
