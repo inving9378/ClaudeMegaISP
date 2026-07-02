@@ -63,20 +63,21 @@ class User extends Authenticatable
     ];
 
     /**
-     * Email canónico del usuario de sistema "Asistente IA" (FASE PAGOS 3).
-     * Las acciones automáticas de la IA (aplicar pagos, etc.) se atribuyen a
-     * este usuario para trazabilidad. Ver User::systemAi().
+     * Email canónico del usuario de sistema "MEGAISP" (FASE PAGOS 3).
+     * Las acciones automáticas del sistema/IA (aplicar pagos, etc.) se
+     * atribuyen a este usuario para trazabilidad → en el historial se lee
+     * "aplicado por MEGAISP". Ver User::systemBot().
      */
-    public const SYSTEM_AI_EMAIL = 'asistente.ia@sistema.local';
+    public const SYSTEM_BOT_EMAIL = 'megaisp@sistema.local';
 
     /**
-     * Resuelve de forma fiable el usuario de sistema "Asistente IA".
-     * Lo crea la migración 2026_07_01_*_create_system_ai_user (idempotente).
+     * Resuelve de forma fiable el usuario de sistema "MEGAISP".
+     * Lo crea la migración 2026_07_01_*_create_megaisp_system_user (idempotente).
      * Devuelve null si aún no existe (no revienta a los callers).
      */
-    public static function systemAi(): ?self
+    public static function systemBot(): ?self
     {
-        return static::where('email', self::SYSTEM_AI_EMAIL)
+        return static::where('email', self::SYSTEM_BOT_EMAIL)
             ->where('is_system', true)
             ->first();
     }
