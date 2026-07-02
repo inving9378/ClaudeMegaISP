@@ -40,6 +40,9 @@ class ReportedPayment extends BaseModel
         'verified_by',
         'verified_at',
         'conciliation_note',
+        'identified_by_user_id',
+        'confirmed_by_user_id',
+        'identification_session_id',
     ];
 
     protected $casts = [
