@@ -929,5 +929,8 @@ Versión web/PWA de la app de campo (reusa `/talento/api` + servicios Talento; g
 ### 🧹 Deuda menor OPCIONAL (sin urgencia)
 La maquinaria **legacy/transición** de `PayWeek` (modo `Sáb–Vie`, semana de 8 días, guard anti-recálculo) quedó en el código pero es **inalcanzable** (no hay datos pre-cutover que la activen). Funciona correcto como está; se puede **simplificar en el futuro** si se quiere (quitar el modo legacy y la transición, dejar solo `Sáb 18:00 → Sáb 18:00`), sin ninguna urgencia.
 
+### 🎯 Punto único del conteo de unidades — `countBillableUnits()`
+`LiquidationService::countBillableUnits($colaboradorId, $window)` es el **punto único de verdad** de "cuántas unidades cuentan para el pago": OTs (`talento_work_orders`) + tasks de campo (`tasks`) + puntos de proyecto externo (`ProjectActivityService`, Fase 5a). Lo comparten **`calculate()`** (liquidación) y **`breakdown()`** (desglose del Portal Técnico / `avance`) → **el portal muestra EXACTAMENTE lo que se paga**, no pueden divergir. **NO agregar cálculos de unidades paralelos** (antes `avance`/`breakdown` contaban WO-only y divergían del pago cuando había tasks/proyectos). Portal "Mi dinero": endpoints self-scoped `/talento/portal/dinero/{cuenta,desglose,fondo,prestamos}` (commit `eeb419f4`).
+
 ### 🐛 Deuda registrada aparte (NO de este trabajo)
 `DashboardService::tecnicoPreview` y `::team` truenan por `with('level')` (relación inexistente en `TalentoColaborador`) — **bug pre-existente**, no introducido en este arreglo. Arreglar en sesión futura (ver memoria `talento-fase8-9`).
