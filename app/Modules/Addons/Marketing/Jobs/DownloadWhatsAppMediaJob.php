@@ -12,6 +12,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Intervention\Image\ImageManagerStatic as Image;
 
 /**
  * FASE 1 (conciliación de pagos por IA) — Ladrillo 2.
@@ -42,6 +43,16 @@ class DownloadWhatsAppMediaJob implements ShouldQueue
     private const MAX_BYTES = 8 * 1024 * 1024;
 
     private const STORAGE_DIR = 'private/payments/whatsapp/comprobantes';
+
+    /**
+     * Compresión MODERADA de la copia archivada. Verificado con el
+     * PaymentReceiptExtractor (IA) sobre comprobantes SPEI sintéticos: a q80 y
+     * cap 1600px la clave de rastreo (27 chars) y el monto se leen idénticos al
+     * original (confianza 'alta'). No es compresión agresiva: preserva el texto.
+     * Solo aplica a imágenes raster; el PDF se archiva tal cual.
+     */
+    private const ARCHIVE_QUALITY   = 80;
+    private const ARCHIVE_MAX_WIDTH  = 1600;
 
     public function __construct(public int $messageId) {}
 
@@ -111,24 +122,72 @@ class DownloadWhatsAppMediaJob implements ShouldQueue
             return;
         }
 
-        // 4) Guardar con el patrón de comprobantes (disco local privado).
-        $ext      = $this->extensionForMime($mime);
+        // 4) Comprimir MODERADAMENTE la copia que se archiva (ver constantes).
+        //    Verificado: la IA lee la versión comprimida igual que el original.
+        [$storeBytes, $storeMime, $ext] = $this->compressForArchive($binary, $mime);
+
+        // 5) Guardar con el patrón de comprobantes (disco local privado).
         $safeId   = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $message->external_message_id) ?: (string) $message->id;
         $filename = self::STORAGE_DIR . '/' . $safeId . '_' . Str::random(8) . '.' . $ext;
 
-        Storage::disk('local')->put($filename, $binary);
+        Storage::disk('local')->put($filename, $storeBytes);
 
-        // 5) Persistir el path + sello de descarga (guardia de idempotencia).
+        // 6) Persistir el path + sello de descarga (guardia de idempotencia).
         $message->forceFill([
             'media_path'          => $filename,
             'media_downloaded_at' => now(),
         ])->save();
 
         Log::channel('evolution')->info('DownloadWhatsAppMedia: binario guardado', [
-            'message_id' => $message->id,
-            'bytes'      => $bytes,
-            'mime'       => $mime,
+            'message_id'     => $message->id,
+            'bytes_original' => $bytes,
+            'bytes_guardado' => strlen($storeBytes),
+            'mime'           => $storeMime,
         ]);
+    }
+
+    /**
+     * Compresión moderada de la copia archivada. Devuelve [bytes, mime, ext].
+     *
+     * - PDF: se archiva tal cual (GD no procesa PDF).
+     * - Imagen raster: cap de ancho a ARCHIVE_MAX_WIDTH (sin agrandar) + JPEG
+     *   calidad ARCHIVE_QUALITY. Preserva el texto (probado con la IA).
+     * - Guarda anti-inflado: WhatsApp ya comprime del lado servidor, así que
+     *   re-encodear una imagen pequeña ya optimizada puede AGRANDARLA. Si el
+     *   resultado no es más chico que el original, se archiva el original.
+     * - Si Intervention/GD falla (imagen corrupta, etc.): se archiva el original
+     *   sin comprimir — nunca perdemos el comprobante por un fallo de compresión.
+     */
+    private function compressForArchive(string $binary, string $mime): array
+    {
+        if ($mime === 'application/pdf') {
+            return [$binary, $mime, 'pdf'];
+        }
+
+        try {
+            $img = Image::make($binary);
+            if ($img->width() > self::ARCHIVE_MAX_WIDTH) {
+                $img->resize(self::ARCHIVE_MAX_WIDTH, null, function ($c) {
+                    $c->aspectRatio();
+                    $c->upsize();
+                });
+            }
+            $jpg = (string) $img->encode('jpg', self::ARCHIVE_QUALITY);
+            $img->destroy();
+
+            // Anti-inflado: si comprimir no reduce (imagen ya optimizada por
+            // WhatsApp), conservar el original.
+            if (strlen($jpg) >= strlen($binary)) {
+                return [$binary, $mime, $this->extensionForMime($mime)];
+            }
+
+            return [$jpg, 'image/jpeg', 'jpg'];
+        } catch (\Throwable $e) {
+            Log::channel('evolution')->warning('DownloadWhatsAppMedia: compresión falló, se archiva original', [
+                'error' => $e->getMessage(),
+            ]);
+            return [$binary, $mime, $this->extensionForMime($mime)];
+        }
     }
 
     private function sniffMime(string $binary): ?string
