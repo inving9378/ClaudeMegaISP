@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Payments;
 
 use App\Modules\Addons\Payments\Console\ApplyIdentifiedPaymentsCommand;
+use App\Modules\Addons\Payments\Console\ConciliacionDemoCommand;
 use App\Modules\BaseModuleServiceProvider;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
@@ -18,6 +19,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ApplyIdentifiedPaymentsCommand::class,
+                ConciliacionDemoCommand::class,
             ]);
         }
     }
