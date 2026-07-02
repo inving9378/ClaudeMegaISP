@@ -293,64 +293,8 @@ class AsteriskProvisioningService
 
     private function amiSend(string $action, bool $readAll = false): string
     {
-        $host   = config('voip.ami_host', '127.0.0.1');
-        $port   = (int) config('voip.ami_port', 5038);
-        $user   = config('voip.ami_user', 'megaisp');
-        $secret = config('voip.ami_pass', '');
-
-        $sock = @fsockopen($host, $port, $errno, $errstr, 5);
-        if (!$sock) {
-            throw new \RuntimeException("AMI connect failed: [{$errno}] {$errstr}");
-        }
-
-        stream_set_timeout($sock, 6);
-        fgets($sock, 1024); // Leer banner Asterisk
-
-        fwrite($sock, "Action: Login\r\nUsername: {$user}\r\nSecret: {$secret}\r\n\r\n");
-        $loginResp = $this->readAmiBlock($sock);
-        if (!str_contains($loginResp, 'Response: Success')) {
-            fclose($sock);
-            throw new \RuntimeException("AMI login failed: {$loginResp}");
-        }
-
-        fwrite($sock, $action);
-        $response = $readAll
-            ? $this->readAmiUntilComplete($sock)
-            : $this->readAmiBlock($sock);
-
-        @fwrite($sock, "Action: Logoff\r\n\r\n");
-        @fclose($sock);
-
-        return $response;
-    }
-
-    private function readAmiBlock($sock, int $timeout = 4): string
-    {
-        $buf      = '';
-        $deadline = microtime(true) + $timeout;
-        while (microtime(true) < $deadline) {
-            $line = @fgets($sock, 4096);
-            if ($line === false) break;
-            $buf .= $line;
-            if (str_ends_with(rtrim($buf, "\n"), "\r\n\r\n") || str_ends_with($buf, "\r\n\r\n")) break;
-        }
-        return $buf;
-    }
-
-    private function readAmiUntilComplete($sock, int $timeout = 8): string
-    {
-        $buf      = '';
-        $deadline = microtime(true) + $timeout;
-        while (microtime(true) < $deadline) {
-            $line = @fgets($sock, 4096);
-            if ($line === false) {
-                if (feof($sock)) break;
-                continue;
-            }
-            $buf .= $line;
-            if (str_contains($buf, 'EventList: Complete')) break;
-        }
-        return $buf;
+        // Delegado al cliente AMI único (Core\Voice\AmiClient) — no duplicar socket/login.
+        return app(\App\Modules\Core\Voice\AmiClient::class)->action($action, $readAll);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
