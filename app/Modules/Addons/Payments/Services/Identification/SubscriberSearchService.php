@@ -37,7 +37,7 @@ class SubscriberSearchService
      * @param string|null $phoneHint  Teléfono del remitente (solo desempata ranking).
      * @return array Lista de candidatos: [{client_id, full_name, colonia, address, services[], score, phone_match}]
      */
-    public function search(array $names, ?string $phoneHint = null, int $limit = 8): array
+    public function search(array $names, ?string $phoneHint = null, int $limit = 25): array
     {
         $queryTokens = $this->tokensFrom(implode(' ', array_filter($names)));
         if (count($queryTokens) < 2) {
@@ -64,8 +64,10 @@ class SubscriberSearchService
 
             $surnameHit = $this->anyMatch($queryTokens, $fatherTokens) || $this->anyMatch($queryTokens, $motherTokens);
 
-            // Umbral: >=2 tokens y al menos un apellido → precisión sobre recall.
-            if ($matched < 2 || !$surnameHit) {
+            // Umbral: >=2 tokens coincidentes (precisión sin matar nombres de
+            // pila comunes como "MARIA GUADALUPE"). El apellido ya no es filtro,
+            // solo eleva el ranking (un match con apellido es más confiable).
+            if ($matched < 2) {
                 continue;
             }
 
@@ -88,15 +90,17 @@ class SubscriberSearchService
                 // match_full = TODOS los tokens del nombre buscado coincidieron
                 // (tolerando truncamiento). Es lo que distingue "único" de "varios".
                 'match_full'  => $matched === count($queryTokens),
+                'surname_hit' => $surnameHit,
                 'score'       => $matched + ($phoneMatch ? 1 : 0),
                 'phone_match' => $phoneMatch,
             ];
         }
 
-        // Ranking: match_full primero, luego score, luego phone_match.
+        // Ranking: match_full, luego score, luego apellido, luego teléfono.
         usort($scored, fn ($a, $b) =>
             ($b['match_full'] <=> $a['match_full'])
             ?: ($b['score'] <=> $a['score'])
+            ?: ($b['surname_hit'] <=> $a['surname_hit'])
             ?: ($b['phone_match'] <=> $a['phone_match'])
         );
         $top = array_slice($scored, 0, $limit);
