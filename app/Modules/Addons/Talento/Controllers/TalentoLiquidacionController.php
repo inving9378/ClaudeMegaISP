@@ -117,46 +117,27 @@ class TalentoLiquidacionController extends Controller
     {
         $this->authorize('talento.liquidation.view');
 
-        $colaborador = TalentoColaborador::findOrFail($colaboradorId);
+        TalentoColaborador::findOrFail($colaboradorId); // valida existencia
 
-        // Semana en curso desde PayWeek (misma ventana que el motor de pago, corte 18:00).
-        $w            = \App\Modules\Addons\Talento\Support\PayWeek::current();
-        $currentStart = Carbon::parse($w['period_start']);
-        $currentEnd   = Carbon::parse($w['period_end']);
+        // Semana en curso desde PayWeek + desglose reusable (mismo cálculo que el portal técnico).
+        $w = PayWeek::current();
+        $b = $this->service->breakdown($colaboradorId, $w);
 
-        // Units validated this week (current, not settled)
-        $unitsCurrent = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
-            ->validatedBillable()
-            ->whereBetween('validated_at', [$w['start_instant'], $w['end_instant']])
-            ->sum('points');
-
-        // Pending orders this week
+        // Pending orders this week (específico del avance admin)
         $pendingCount = TalentoWorkOrder::where('colaborador_id', $colaboradorId)
             ->whereIn('status', ['pending', 'in_progress'])
             ->count();
 
-        // Effective rule
-        $ruleData = \App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory
-            ::where('colaborador_id', $colaboradorId)
-            ->orderBy('assigned_at', 'desc')
-            ->value('data');
-
-        $quota        = $ruleData ? (int)($ruleData['weekly_quota_units'] ?? 0) : 0;
-        $baseSalary   = $ruleData ? (float)($ruleData['base_salary'] ?? 0) : 0.0;
-        $valuePerUnit = ($quota > 0) ? round($baseSalary / $quota, 4) : 0;
-
-        $projectedPay = $baseSalary + max(0, ($unitsCurrent - $quota)) * $valuePerUnit;
-
         return response()->json([
             'colaborador_id'  => $colaboradorId,
-            'week_start'      => $currentStart->toDateString(),
-            'week_end'        => $currentEnd->toDateString(),
-            'units_this_week' => $unitsCurrent,
-            'quota'           => $quota,
+            'week_start'      => $b['period_start'],
+            'week_end'        => $b['period_end'],
+            'units_this_week' => $b['units'],
+            'quota'           => $b['quota'],
             'pending_orders'  => $pendingCount,
-            'base_salary'     => $baseSalary,
-            'value_per_unit'  => $valuePerUnit,
-            'projected_pay'   => round($projectedPay, 2),
+            'base_salary'     => $b['base_salary'],
+            'value_per_unit'  => $b['value_per_unit'],
+            'projected_pay'   => $b['projected_pay'],
         ]);
     }
 }

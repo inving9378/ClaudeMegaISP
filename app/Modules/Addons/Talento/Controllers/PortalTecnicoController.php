@@ -4,9 +4,15 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Models\TalentoFund;
+use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
+use App\Modules\Addons\Talento\Models\TalentoLoan;
 use App\Modules\Addons\Talento\Services\AttendanceService;
+use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Services\SignatureService;
+use App\Modules\Addons\Talento\Support\PayWeek;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
@@ -616,6 +622,128 @@ JS;
             return null;
         }
         return DB::table('talento_work_sites')->where('id', $siteId)->value('name');
+    }
+
+    // ── "Mi dinero" (Bloque 2) — wrappers GET self-scoped, SOLO LECTURA ─────────────────
+    // Resuelven el colaborador por la sesión (auth), derivan la ventana con PayWeek (la MISMA
+    // con la que se le paga) y delegan en el backend existente. Cero cálculo/agregación en el
+    // front: los subtotales, el neto y "pagado" se calculan/agrupan aquí (server-side).
+
+    /** Ventana PayWeek del período pedido (?period_start=YYYY-MM-DD); default = semana vigente. */
+    private function dineroWindow(Request $request): array
+    {
+        $ps = $request->query('period_start');
+        return $ps
+            ? PayWeek::boundsFor(Carbon::parse($ps)->copy()->addDay())
+            : PayWeek::current();
+    }
+
+    /** 1. Cuenta corriente: ledger del período AGRUPADO POR CONCEPTO + neto (server-side). */
+    public function dineroCuenta(Request $request)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+        $w = $this->dineroWindow($request);
+
+        $rows = TalentoLedgerEntry::where('colaborador_id', $col->id)
+            ->where('period_start', $w['period_start'])
+            ->where('period_end', $w['period_end'])
+            ->selectRaw('concept, type, SUM(amount) AS total, COUNT(*) AS n')
+            ->groupBy('concept', 'type')
+            ->get();
+
+        $credito = round((float) $rows->where('type', 'credit')->sum('total'), 2);
+        $debito  = round((float) $rows->where('type', 'debit')->sum('total'), 2);
+
+        return response()->json([
+            'period_start'  => $w['period_start'],
+            'period_end'    => $w['period_end'],
+            'regime'        => $w['regime'],
+            'conceptos'     => $rows->map(fn ($r) => [
+                'concepto' => $r->concept,
+                'tipo'     => $r->type,               // credit | debit
+                'subtotal' => round((float) $r->total, 2),
+                'n'        => (int) $r->n,
+            ])->values(),
+            'total_credito' => $credito,
+            'total_debito'  => $debito,
+            'neto'          => round($credito - $debito, 2),
+        ]);
+    }
+
+    /** 2. Desglose: cuota, valor por unidad, unidades, sobreproducción (reusa LiquidationService::breakdown). */
+    public function dineroDesglose(Request $request)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+        $w = $this->dineroWindow($request);
+
+        return response()->json(app(LiquidationService::class)->breakdown($col->id, $w));
+    }
+
+    /** 3. Fondo de ahorro: acumulado, objetivo, aporte semanal, authorized, progreso (reusa modelo/accessors). */
+    public function dineroFondo(Request $request)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+        $w = $this->dineroWindow($request);
+
+        $fondos = TalentoFund::where('colaborador_id', $col->id)->get()->map(fn ($f) => [
+            'purpose'          => $f->purpose,
+            'accumulated'      => round((float) $f->accumulated, 2),
+            'target'           => round((float) $f->target_amount, 2),
+            'weekly_deduction' => round((float) $f->weekly_deduction, 2),
+            'authorized'       => (bool) $f->authorized,
+            'status'           => $f->status,
+            'progress_pct'     => $f->progressPct(),
+            'weeks_remaining'  => $f->weeksRemaining(),
+        ])->values();
+
+        // Aporte del período (asientos fund_contribution del ledger en esta ventana).
+        $aportePeriodo = round((float) TalentoLedgerEntry::where('colaborador_id', $col->id)
+            ->where('concept', 'fund_contribution')
+            ->where('period_start', $w['period_start'])->where('period_end', $w['period_end'])
+            ->sum('amount'), 2);
+
+        return response()->json([
+            'period_start'   => $w['period_start'],
+            'period_end'     => $w['period_end'],
+            'fondos'         => $fondos,
+            'aporte_periodo' => $aportePeriodo,
+            'naturaleza'     => 'ahorro recuperable, no penalización',
+        ]);
+    }
+
+    /** 4. Préstamos (SOLO LECTURA): original, saldo, pagado (server-side), repago semanal. */
+    public function dineroPrestamos(Request $request)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+        $w = $this->dineroWindow($request);
+
+        $prestamos = TalentoLoan::where('colaborador_id', $col->id)->get()->map(fn ($l) => [
+            'reason'           => $l->reason,
+            'amount'           => round((float) $l->amount, 2),                          // original
+            'balance'          => round((float) $l->balance, 2),                         // saldo pendiente
+            'paid'             => round((float) $l->amount - (float) $l->balance, 2),    // PAGADO (server-side)
+            'repayment_weekly' => round((float) $l->repayment_weekly, 2),
+            'status'           => $l->status,
+            'weeks_remaining'  => $l->weeksRemaining(),
+        ])->values();
+
+        // Repago del período (asientos loan_repayment del ledger en esta ventana).
+        $repagoPeriodo = round((float) TalentoLedgerEntry::where('colaborador_id', $col->id)
+            ->where('concept', 'loan_repayment')
+            ->where('period_start', $w['period_start'])->where('period_end', $w['period_end'])
+            ->sum('amount'), 2);
+
+        return response()->json([
+            'period_start'   => $w['period_start'],
+            'period_end'     => $w['period_end'],
+            'prestamos'      => $prestamos,
+            'repago_periodo' => $repagoPeriodo,
+            'solo_consulta'  => true,
+        ]);
     }
 
     private function resolveColaborador(Request $request): ?TalentoColaborador

@@ -431,6 +431,12 @@ Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
         // Mi día — OTs del día (delega en OrdenTrabajoUnifiedService::summaryForHoy).
         Route::get('/ots/hoy', [PortalTecnicoController::class, 'otsHoy']);
 
+        // "Mi dinero" (Bloque 2) — wrappers GET self-scoped, SOLO LECTURA. ?period_start=YYYY-MM-DD
+        Route::get('/dinero/cuenta',    [PortalTecnicoController::class, 'dineroCuenta']);
+        Route::get('/dinero/desglose',  [PortalTecnicoController::class, 'dineroDesglose']);
+        Route::get('/dinero/fondo',     [PortalTecnicoController::class, 'dineroFondo']);
+        Route::get('/dinero/prestamos', [PortalTecnicoController::class, 'dineroPrestamos']);
+
         // Detalle de OT (por origen/id). {origen} = work_order|task.
         Route::get('/ot/{origen}/{id}', [PortalTecnicoController::class, 'otDetalle'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');

@@ -65,39 +65,9 @@ class LiquidationService
         $baseSalary       = $ruleSnapshot ? (float)($ruleSnapshot['base_salary'] ?? 0) : 0.0;
         $weeklyQuota      = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units'] ?? 0) : 0;
 
-        // Source 1: legacy OTs en talento_work_orders
-        $woUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
-            ->validatedBillable()
-            ->whereBetween('validated_at', [$filterStart, $filterEnd])
-            ->sum('points');
-
-        // Source 2: tasks tipo=campo validadas (Capa 4.4)
-        // Asignación via task_user pivot; validated_at se setea al pasar a Done.
-        $taskUnits = 0;
-        $taskUserId = TalentoColaborador::where('id', $colaboradorId)->value('user_id');
-        if ($taskUserId) {
-            $taskUnits = (int) Task::where('tipo', 'campo')
-                ->whereNotNull('talento_type_id')
-                ->where('is_billable', true)
-                ->where('points', '>', 0)
-                ->where('status', 'Done')
-                ->whereNotNull('validated_at')
-                ->whereBetween('validated_at', [$filterStart, $filterEnd])
-                ->whereHas('users', fn($q) => $q->where('users.id', $taskUserId))
-                ->sum('points');
-        }
-
-        $internalUnits = $woUnits + $taskUnits;
-
-        // Fase 5a: add points from external project activities in same period (1/N split, report_date in period)
-        $externalPoints = app(ProjectActivityService::class)->pointsForColaboradorInPeriod(
-            $colaboradorId,
-            $periodStart->toDateString(),
-            $periodEnd->toDateString()
-        );
-
-        // Single quota: internal OT points + external project activity points
-        $totalUnits = (int) round($internalUnits + $externalPoints);
+        // Unidades facturables — PUNTO ÚNICO DE VERDAD (mismas fuentes que el desglose del portal:
+        // OTs + tasks de campo + puntos de proyecto externo). Ver countBillableUnits().
+        $totalUnits = $this->countBillableUnits($colaboradorId, $window)['total'];
 
         // Attendance impact on base pay (Fase 3)
         // Count calendar working days in period (Mon-Sat default if shift not configured)
@@ -248,8 +218,92 @@ class LiquidationService
     }
 
     /**
-     * Returns the Saturday-to-Friday week boundaries for the most recently completed week.
+     * Unidades facturables de un colaborador en una ventana PayWeek — PUNTO ÚNICO DE VERDAD de
+     * "cuántas unidades cuentan para el pago". Lo llaman calculate() (liquidación) y breakdown()
+     * (desglose/portal), así el portal muestra EXACTAMENTE las mismas unidades que se pagan (no
+     * pueden divergir por construcción). Fuentes: OTs (talento_work_orders) + tasks de campo
+     * (tasks, Capa 4.4) + puntos de proyecto externo (ProjectActivityService, Fase 5a).
      */
+    public function countBillableUnits(int $colaboradorId, array $window): array
+    {
+        $filterStart = $window['start_instant'];
+        $filterEnd   = $window['end_instant'];
+
+        // Fuente 1: OTs legacy (talento_work_orders)
+        $woUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
+            ->validatedBillable()
+            ->whereBetween('validated_at', [$filterStart, $filterEnd])
+            ->sum('points');
+
+        // Fuente 2: tasks tipo=campo validadas (asignación via task_user pivot)
+        $taskUnits  = 0;
+        $taskUserId = TalentoColaborador::where('id', $colaboradorId)->value('user_id');
+        if ($taskUserId) {
+            $taskUnits = (int) Task::where('tipo', 'campo')
+                ->whereNotNull('talento_type_id')
+                ->where('is_billable', true)
+                ->where('points', '>', 0)
+                ->where('status', 'Done')
+                ->whereNotNull('validated_at')
+                ->whereBetween('validated_at', [$filterStart, $filterEnd])
+                ->whereHas('users', fn ($q) => $q->where('users.id', $taskUserId))
+                ->sum('points');
+        }
+
+        // Fuente 3: puntos de actividades de proyecto externo (reparto 1/N, report_date en período)
+        $externalPoints = (float) app(ProjectActivityService::class)->pointsForColaboradorInPeriod(
+            $colaboradorId,
+            $window['period_start'],
+            $window['period_end']
+        );
+
+        return [
+            'wo'       => $woUnits,
+            'task'     => $taskUnits,
+            'external' => $externalPoints,
+            'total'    => (int) round($woUnits + $taskUnits + $externalPoints),
+        ];
+    }
+
+    /**
+     * Desglose (LECTURA, sin escribir) de una ventana PayWeek: unidades, cuota, valor por
+     * unidad (base÷cuota), sobreproducción y pago proyectado. Reusado por el 'avance' admin
+     * y por el portal técnico self-scoped — NO recalcula nada en el front. Las unidades salen
+     * de countBillableUnits() (MISMO conteo que la liquidación). La regla se toma como estaba
+     * en el período (assigned_at <= period_end).
+     */
+    public function breakdown(int $colaboradorId, array $window): array
+    {
+        $u     = $this->countBillableUnits($colaboradorId, $window);
+        $units = $u['total'];
+
+        $ruleData = TalentoCompensationRuleHistory::where('colaborador_id', $colaboradorId)
+            ->where('assigned_at', '<=', $window['period_end'] . ' 23:59:59')
+            ->orderByDesc('assigned_at')
+            ->value('data');
+
+        $quota          = $ruleData ? (int)($ruleData['weekly_quota_units'] ?? 0) : 0;
+        $baseSalary     = $ruleData ? (float)($ruleData['base_salary'] ?? 0) : 0.0;
+        $valuePerUnit   = $quota > 0 ? round($baseSalary / $quota, 4) : 0.0;
+        $overUnits      = max(0, $units - $quota);
+        $overproduction = round($overUnits * $valuePerUnit, 2);
+
+        return [
+            'period_start'   => $window['period_start'],
+            'period_end'     => $window['period_end'],
+            'units'          => $units,
+            'units_wo'       => $u['wo'],        // desglose de fuentes (mismas que la liquidación)
+            'units_task'     => $u['task'],
+            'units_external' => $u['external'],
+            'quota'          => $quota,
+            'base_salary'    => round($baseSalary, 2),
+            'value_per_unit' => $valuePerUnit,
+            'over_units'     => $overUnits,
+            'overproduction' => $overproduction,
+            'projected_pay'  => round($baseSalary + $overproduction, 2),
+        ];
+    }
+
     public static function lastWeekBounds(): array
     {
         // Delega en PayWeek (punto único de verdad): última semana COMPLETADA, respetando
