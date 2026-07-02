@@ -195,6 +195,7 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 
 | Item | Descripción | Estado | Prioridad |
 |------|-------------|--------|-----------|
+| **Sidebar "Notificaciones pendientes" → 404 (preexistente)** | El link del menú **Finanzas** `/finanzas/notificaciones-pendientes` (`module-sidebar/finanzas.blade.php`, gateado por `facturacion.notif.gestionar`) **no tiene ruta registrada** → 404. Bug previo a la conciliación WhatsApp; detectado al integrar la cola de Tere (Fase 6). Revisar/crear la pantalla o quitar el link. | ⚠️ Pendiente | Baja |
 | **Auditar `$(document).on` global en componentes Vue** | Antipatrón: handlers jQuery delegados en `document` dentro de `onMounted` con **IDs de botón compartidos** entre componentes y **sin `.off()`** → se acumulan handlers stale al navegar la SPA y un clic dispara instancias muertas. Detectado en `shared/TextTemplate.vue` y `shared/ContractTemplate.vue` (corregido ahí, commits 669a40bf + b4ba27d2). **Falta auditar el resto del codebase** por el mismo patrón. | ⚠️ Pendiente | Media |
 | **Limpiar duplicación benigna de `#generateContract`** | `$(document).on("click", "#generateContract")` en `CrmTemplate.vue` y `PlantillasClientes.vue` usa el mismo antipatrón, pero **solo re-abre el modal** (sin consecuencia: NO duplica contratos). Aplicar el mismo fix (namespace + `.off()`) **junto con** la auditoría del item anterior. | ⚠️ Pendiente | Baja |
 
