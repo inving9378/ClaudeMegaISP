@@ -3,38 +3,39 @@
 
 @section('styles')
 <style>
-    /* Scopeado bajo .cc-wrap para NO afectar el layout/sidebar del sistema. */
-    .cc-wrap { padding: 6px 2px 40px; color: #e2e8f0; }
-    .cc-wrap h1 { font-size: 20px; margin: 0 0 4px; color: #e2e8f0; }
-    .cc-wrap .sub { color: #94a3b8; font-size: 13px; margin: 0 0 14px; }
+    /* Scopeado bajo .cc-wrap + 100% con tokens de dark-light-tokens.css → sigue el
+       tema claro/oscuro del sistema, nada hardcoded. */
+    .cc-wrap { padding: 6px 2px 40px; color: var(--text-primary); }
+    .cc-wrap h1 { font-size: 20px; margin: 0 0 4px; color: var(--text-primary); }
+    .cc-wrap .sub { color: var(--text-secondary); font-size: 13px; margin: 0 0 14px; }
     .cc-wrap .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-    .cc-wrap .tab { padding: 8px 16px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; cursor: pointer; font-size: 14px; }
-    .cc-wrap .tab.on { border-color: #06b6d4; background: #0b2b33; color: #67e8f9; }
-    .cc-wrap .tab .n { display: inline-block; margin-left: 6px; background: #334155; color: #e2e8f0; border-radius: 999px; padding: 0 7px; font-size: 12px; }
+    .cc-wrap .tab { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-surface); color: var(--text-primary); cursor: pointer; font-size: 14px; }
+    .cc-wrap .tab.on { border-color: var(--accent); color: var(--accent); }
+    .cc-wrap .tab .n { display: inline-block; margin-left: 6px; background: var(--bg-hover); color: var(--text-primary); border-radius: 999px; padding: 0 7px; font-size: 12px; }
     .cc-wrap .grid { display: grid; grid-template-columns: 380px 1fr; gap: 16px; align-items: start; }
     @media (max-width: 900px) { .cc-wrap .grid { grid-template-columns: 1fr; } }
-    .cc-wrap .cc-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; }
+    .cc-wrap .cc-card { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 10px; padding: 14px; box-shadow: var(--shadow-card); }
     .cc-wrap .cc-list { max-height: 74vh; overflow: auto; }
-    .cc-wrap .item { padding: 10px 12px; border: 1px solid #334155; border-radius: 8px; margin-bottom: 8px; cursor: pointer; font-size: 13px; }
-    .cc-wrap .item:hover { border-color: #06b6d4; } .cc-wrap .item.sel { border-color: #06b6d4; background: #0b2b33; }
-    .cc-wrap .cc-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .cc-wrap .b-prop { background: #422006; color: #fbbf24; border: 1px solid #a16207; }
-    .cc-wrap .b-multi { background: #3b0764; color: #d8b4fe; border: 1px solid #7e22ce; }
-    .cc-wrap .b-esc { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
-    .cc-wrap .muted { color: #64748b; font-size: 12px; }
-    .cc-wrap .cc-prev { min-height: 240px; display: flex; align-items: center; justify-content: center; background: #0b1220; border: 1px solid #334155; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+    .cc-wrap .item { padding: 10px 12px; border: 1px solid var(--border-default); border-radius: 8px; margin-bottom: 8px; cursor: pointer; font-size: 13px; background: var(--bg-primary); }
+    .cc-wrap .item:hover { border-color: var(--accent); } .cc-wrap .item.sel { border-color: var(--accent); background: var(--bg-hover); }
+    .cc-wrap .cc-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: transparent; }
+    .cc-wrap .b-prop { color: var(--warning); border: 1px solid var(--warning); }
+    .cc-wrap .b-multi { color: var(--info); border: 1px solid var(--info); }
+    .cc-wrap .b-esc { color: var(--danger); border: 1px solid var(--danger); }
+    .cc-wrap .muted { color: var(--text-secondary); font-size: 12px; }
+    .cc-wrap .cc-prev { min-height: 240px; display: flex; align-items: center; justify-content: center; background: var(--bg-secondary); border: 1px solid var(--border-default); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
     .cc-wrap .cc-prev img { max-width: 100%; max-height: 60vh; } .cc-wrap .cc-prev iframe { width: 100%; height: 60vh; border: 0; }
-    .cc-wrap table.cc-tbl { width: 100%; border-collapse: collapse; } .cc-wrap table.cc-tbl td, .cc-wrap table.cc-tbl th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #334155; font-size: 14px; color: #e2e8f0; }
-    .cc-wrap table.cc-tbl th { color: #94a3b8; font-size: 12px; text-transform: uppercase; width: 38%; }
-    .cc-wrap .cc-in { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; font-size: 14px; }
+    .cc-wrap table.cc-tbl { width: 100%; border-collapse: collapse; } .cc-wrap table.cc-tbl td, .cc-wrap table.cc-tbl th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border-default); font-size: 14px; color: var(--text-primary); }
+    .cc-wrap table.cc-tbl th { color: var(--text-secondary); font-size: 12px; text-transform: uppercase; width: 38%; }
+    .cc-wrap .cc-in { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-primary); color: var(--text-primary); font-size: 14px; }
     .cc-wrap .cc-btn { border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; font-size: 14px; font-weight: 600; }
-    .cc-wrap .cc-ok { background: #16a34a; color: #fff; } .cc-wrap .cc-no { background: #b91c1c; color: #fff; } .cc-wrap .cc-ghost { background: #334155; color: #e2e8f0; }
+    .cc-wrap .cc-ok { background: var(--success); color: #fff; } .cc-wrap .cc-no { background: var(--danger); color: #fff; } .cc-wrap .cc-ghost { background: var(--bg-hover); color: var(--text-primary); }
     .cc-wrap .cc-btn:disabled { opacity: .45; cursor: not-allowed; }
     .cc-wrap .row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
-    .cc-wrap .svc { display: block; padding: 7px 10px; border: 1px solid #334155; border-radius: 8px; margin: 4px 0; cursor: pointer; font-size: 13px; }
-    .cc-wrap .svc.on { border-color: #06b6d4; background: #0b2b33; }
-    .cc-wrap .note { color: #94a3b8; font-size: 12px; margin-top: 8px; }
-    .cc-wrap .warn { background: #422006; border: 1px solid #a16207; color: #fde68a; font-size: 12px; padding: 8px 10px; border-radius: 8px; margin: 10px 0; }
+    .cc-wrap .svc { display: block; padding: 7px 10px; border: 1px solid var(--border-default); border-radius: 8px; margin: 4px 0; cursor: pointer; font-size: 13px; background: var(--bg-primary); color: var(--text-primary); }
+    .cc-wrap .svc.on { border-color: var(--accent); background: var(--bg-hover); }
+    .cc-wrap .note { color: var(--text-secondary); font-size: 12px; margin-top: 8px; }
+    .cc-wrap .warn { border: 1px solid var(--warning); border-left-width: 4px; color: var(--text-primary); background: var(--bg-hover); font-size: 12px; padding: 8px 10px; border-radius: 8px; margin: 10px 0; }
     .cc-wrap .res { margin-top: 10px; font-size: 13px; }
 </style>
 @endsection
@@ -55,10 +56,15 @@
         <div class="cc-card"><div id="cc-detail"><p class="muted">Selecciona un caso de la lista.</p></div></div>
     </div>
 </div>
+@endsection
 
+@push('scripts')
+{{-- Fuera de #init-vue (en @stack('scripts')) para NO romper el montaje de Vue del
+     layout (topbar/versión + tema). Se carga en full-load (el enlace del sidebar
+     usa data-spa-skip). --}}
 <script>
 (function(){
-    const CSRF = document.querySelector('meta[name=csrf-token]').content;
+    const CSRF = "{{ csrf_token() }}";
     const U = "{{ url('finanzas/conciliacion-cola') }}";
     let tab = 'propuesto', current = null, chosenService = null, chosenClient = null;
 
@@ -75,7 +81,7 @@
 
     async function loadList(){
         const d = await get(U + '/list?type=' + tab);
-        const box = document.getElementById('cc-list');
+        const box = document.getElementById('cc-list'); if (!box) return;
         if (tab === 'verificacion'){
             box.innerHTML = d.rows.length ? d.rows.map(r =>
                 `<div class="item"><b>$${esc(r.amount)}</b> · cliente ${esc(r.client_id)}<div class="muted">clave ${esc(r.clave_rastreo)} · ${esc(r.fecha_pago)}</div></div>`).join('')
@@ -169,10 +175,10 @@
         const {status, data} = await post(U + '/' + current + '/confirmar', body);
         const el = document.getElementById('cc-actionRes');
         if (status === 200 && data.applied){
-            el.innerHTML = `<span style="color:#4ade80;">✓ Aplicado. Pago #${data.payment_id} (confirmado por ti).</span>`;
+            el.innerHTML = `<span style="color:var(--success);">✓ Aplicado. Pago #${data.payment_id} (confirmado por ti).</span>`;
             setTimeout(() => { refreshCounts(); loadList(); document.getElementById('cc-detail').innerHTML = '<p class="muted">Caso confirmado. Selecciona otro.</p>'; }, 900);
         } else {
-            el.innerHTML = `<span style="color:#f87171;">No se aplicó: ${esc(data.reason || data.message || 'error')}.</span>`;
+            el.innerHTML = `<span style="color:var(--danger);">No se aplicó: ${esc(data.reason || data.message || 'error')}.</span>`;
             document.getElementById('cc-ok').disabled = false;
         }
     };
@@ -191,7 +197,9 @@
         }
     }
 
-    loadList();
+    // Arranca cuando el DOM esté listo (el script va en @stack('scripts'), full-load).
+    if (document.getElementById('cc-list')) loadList();
+    else document.addEventListener('DOMContentLoaded', loadList);
 })();
 </script>
-@endsection
+@endpush
