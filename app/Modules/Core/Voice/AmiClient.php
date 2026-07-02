@@ -47,14 +47,17 @@ class AmiClient
         fgets($sock, 1024); // Banner de Asterisk
 
         fwrite($sock, "Action: Login\r\nUsername: {$this->user}\r\nSecret: {$this->secret}\r\n\r\n");
-        $loginResp = $this->readBlock($sock);
+        $loginResp = $this->readResponseBlock($sock);
         if (!str_contains($loginResp, 'Response: Success')) {
             @fclose($sock);
             throw new \RuntimeException("AMI login failed: {$loginResp}");
         }
 
         fwrite($sock, $action);
-        $response = $readAll ? $this->readUntilComplete($sock) : $this->readBlock($sock);
+        // readAll (EventList) drena todo; caso simple: leer LA respuesta, saltando
+        // eventos no solicitados (FullyBooted, etc.) que Asterisk inyecta con
+        // privilegio 'system' antes del bloque "Response:".
+        $response = $readAll ? $this->readUntilComplete($sock) : $this->readResponseBlock($sock);
 
         @fwrite($sock, "Action: Logoff\r\n\r\n");
         @fclose($sock);
@@ -76,6 +79,26 @@ class AmiClient
         $str .= "\r\n";
 
         return $this->action($str, $readAll);
+    }
+
+    /**
+     * Lee bloques saltando eventos NO solicitados hasta el que trae "Response:"
+     * (la respuesta real a la acción). Evita que un `Event: FullyBooted` u otro
+     * evento espontáneo se confunda con la respuesta.
+     */
+    public function readResponseBlock($sock, int $maxBlocks = 8): string
+    {
+        $block = '';
+        for ($i = 0; $i < $maxBlocks; $i++) {
+            $block = $this->readBlock($sock);
+            if ($block === '') {
+                break;
+            }
+            if (str_contains($block, 'Response:')) {
+                return $block;
+            }
+        }
+        return $block;
     }
 
     /** Lee un único bloque (termina en línea en blanco \r\n\r\n). */
