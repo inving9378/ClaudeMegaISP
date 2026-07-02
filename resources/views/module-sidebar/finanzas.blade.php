@@ -1,6 +1,6 @@
 <li>
     @if(auth()->user()->canAny(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments',
-             'finance_view_invoices', 'finance_view_general_accounting', 'payments_manage_providers']))
+             'finance_view_invoices', 'finance_view_general_accounting', 'payments_manage_providers', 'conciliacion.manage']))
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="grid"></i>
             <span data-key="t-finanzas">{{ $item->sidebar_label ?? 'Finanzas' }}</span>
@@ -48,6 +48,15 @@
             <li>
                 <a href="{{ url('/finanzas/metodos-pago') }}">
                     <span data-key="t-finanzas-spei"><small><i class="fas fa-university"></i></small> Métodos de Pago SPEI</span>
+                </a>
+            </li>
+        @endif
+
+        {{-- Conciliación de pagos por WhatsApp (Fase 6) — cola de Tere --}}
+        @if(auth()->user()->can('conciliacion.manage'))
+            <li>
+                <a href="{{ url('/finanzas/conciliacion-cola') }}" data-spa-skip>
+                    <span data-key="t-finanzas-conc-wa"><small><i class="fab fa-whatsapp"></i></small> Conciliación de pagos (WhatsApp)</span>
                 </a>
             </li>
         @endif
