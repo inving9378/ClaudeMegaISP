@@ -1,17 +1,14 @@
 <template>
-    <div class="dropdown d-inline-block">
+    <!-- Solo aparece cuando hay pendientes: su presencia = hay trabajo. -->
+    <div class="dropdown d-inline-block" v-if="count > 0">
         <button
             type="button"
             class="btn header-item noti-icon position-relative"
             @click="goToQueue"
-            :title="count > 0 ? `Conciliación de pagos: ${count} pendiente(s)` : 'Conciliación de pagos (sin pendientes)'"
+            :title="`Pagos por conciliar: ${count} pendiente(s)`"
         >
-            <i
-                class="mdi mdi-bell-ring-outline icon-lg"
-                style="font-size: 20px;"
-                :style="count > 0 ? '' : 'opacity:.55;'"
-            ></i>
-            <span v-if="count > 0" class="badge bg-danger rounded-pill">{{ count }}</span>
+            <i class="mdi mdi-cash-multiple icon-lg" style="font-size: 20px;"></i>
+            <span class="badge bg-danger rounded-pill">{{ count }}</span>
         </button>
     </div>
 </template>
