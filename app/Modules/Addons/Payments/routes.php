@@ -6,6 +6,7 @@ use App\Modules\Addons\Payments\Controllers\MobilePaymentController;
 use App\Modules\Addons\Payments\Controllers\PaymentProviderController;
 use App\Modules\Addons\Payments\Controllers\ReconciliationController;
 use App\Modules\Addons\Payments\Controllers\ReceiptController;
+use App\Modules\Addons\Payments\Controllers\ReceiptExtractionTestController;
 use App\Modules\Addons\Payments\Controllers\SpeiWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -71,6 +72,18 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/payments/{payment}/receipt/{receipt}/download', [ReceiptController::class, 'download'])
             ->whereNumber('payment')->whereNumber('receipt')
             ->name('payments.receipt.download');
+    });
+
+// ── PRUEBA IA (FASE PAGOS 3, pieza 2): extracción de comprobante ──────────
+// Pantalla AISLADA de prueba (Irving): sube imagen → ve qué extrajo la IA.
+// NO aplica pagos, NO busca cliente, NO WhatsApp. Gateada por ROL (temporal,
+// solo para pruebas) vía el middleware Spatie 'role' registrado en el Kernel.
+Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
+    ->prefix('finanzas')
+    ->name('finanzas.')
+    ->group(function () {
+        Route::get('/extraccion-comprobante',          [ReceiptExtractionTestController::class, 'index'])->name('extraccion-comprobante');
+        Route::post('/extraccion-comprobante/procesar', [ReceiptExtractionTestController::class, 'procesar'])->name('extraccion-comprobante.procesar');
     });
 
 // ── API MOBILE: endpoints consumidos por la app Flutter MegaFamilia ─────
