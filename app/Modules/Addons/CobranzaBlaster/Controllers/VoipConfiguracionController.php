@@ -49,7 +49,9 @@ class VoipConfiguracionController extends Controller
             'sip_host'        => 'required|string|max:255',
             'sip_port'        => 'nullable|integer|min:1|max:65535',
             'sip_username'    => 'required|string|max:100',
-            'sip_secret'      => 'required|string|min:4',
+            // sometimes: si el front omite el secret (no lo reescribieron), se conserva
+            // el existente; si viene, se valida. Evita 422 al re-guardar sin tocar el secret.
+            'sip_secret'      => 'sometimes|required|string|min:4',
             'sip_fromuser'    => 'nullable|string|max:100',
             'sip_fromdomain'  => 'nullable|string|max:255',
             'callerid_nombre' => 'nullable|string|max:100',
