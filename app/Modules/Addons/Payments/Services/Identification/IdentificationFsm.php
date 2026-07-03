@@ -24,10 +24,11 @@ class IdentificationFsm
 {
     // Textos (placeholder; se afinan con Irving en el simulador / F4). Sin markdown.
     public const MSG_ASK_CLIENT_ID =
-        "Hola 👋 Recibimos tu comprobante de pago. Para aplicarlo a tu cuenta, "
-        . "¿me compartes tu número de cliente? Lo encuentras en tu ticket, contrato, "
-        . "factura, correo o en el portal. Si no lo tienes a la mano, escríbeme el "
-        . "nombre completo del titular del servicio.";
+        "Hola 👋 Recibimos tu comprobante de pago y lo estamos revisando. Para "
+        . "aplicarlo a tu cuenta, ¿me compartes tu número de cliente? Lo encuentras "
+        . "en tu ticket, contrato, factura, correo o en el portal. Si no lo tienes a "
+        . "la mano, escríbeme el nombre completo del titular del servicio. En cuanto "
+        . "lo apliquemos, te avisaremos con un mensaje de confirmación. 🙂";
 
     public const MSG_ASK_NAME =
         "Gracias. ¿Me confirmas el nombre completo del titular del servicio, "
@@ -280,7 +281,9 @@ class IdentificationFsm
 
         // Proposed → gancho "educar MEG" (decisión 3): informar su referencia real.
         $meg    = DB::table('client_payment_references')->where('client_id', $clientId)->value('reference');
-        $notice = "¡Gracias! Recibimos tu comprobante y lo estamos validando. "
+        $notice = "¡Gracias! Recibimos tu comprobante y lo estamos revisando. En breve "
+            . "aplicamos tu pago y te avisaremos con un mensaje de confirmación cuando "
+            . "esté listo. "
             . ($meg ? "Para la próxima, incluye tu referencia {$meg} en el concepto y lo aplicamos más rápido." : "");
 
         return $this->step($session, $notice, terminal: true, extra: ['meg_hint' => $meg]);
