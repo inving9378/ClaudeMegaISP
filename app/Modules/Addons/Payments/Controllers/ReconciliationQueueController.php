@@ -185,14 +185,15 @@ class ReconciliationQueueController extends Controller
     /** RECHAZAR → marca rechazado, NO aplica. */
     public function reject(Request $request, int $sessionId)
     {
-        $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
+        // El motivo es OBLIGATORIO: un rechazo sin motivo se pierde sin rastro.
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:255']]);
         $s = Session::findOrFail($sessionId);
         abort_if($s->applied_at || $s->rejected_at, 409, 'El caso ya no está pendiente.');
 
         $s->update([
             'rejected_at'   => now(),
             'rejected_by'   => auth()->id(),
-            'reject_reason' => $data['reason'] ?? null,
+            'reject_reason' => $data['reason'],
         ]);
         return response()->json(['ok' => true]);
     }

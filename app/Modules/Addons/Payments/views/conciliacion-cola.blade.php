@@ -170,7 +170,9 @@
         let actions = `<div class="row">
             <button class="cc-btn cc-ok" id="cc-ok" ${canConfirm ? '' : 'disabled'} onclick="ccConfirm()">Confirmar y aplicar</button>
             <button class="cc-btn cc-no" onclick="ccReject()">Rechazar</button>
-        </div><div id="cc-actionRes" class="res"></div>
+        </div>
+        <div id="cc-reject-panel"></div>
+        <div id="cc-actionRes" class="res"></div>
         <p class="note">Confirmar respeta el anti-duplicado de Fase 4. No se envía WhatsApp al cliente.</p>`;
 
         document.getElementById('cc-detail').innerHTML =
@@ -221,11 +223,40 @@
         }
     };
 
-    window.ccReject = async function(){
+    const REJECT_REASONS = ['Duplicado', 'Comprobante ilegible', 'No es cliente', 'Monto no coincide', 'Otro'];
+
+    window.ccReject = function(){
         if (!current) return;
-        const reason = prompt('Motivo del rechazo (opcional):') || '';
-        const {status} = await post(U + '/' + current + '/rechazar', {reason});
-        if (status === 200){ refreshCounts(); loadList(); document.getElementById('cc-detail').innerHTML = '<p class="muted">Caso rechazado. Selecciona otro.</p>'; }
+        const opts = REJECT_REASONS.map(r => `<option value="${r}">${r}</option>`).join('');
+        document.getElementById('cc-reject-panel').innerHTML =
+            `<div class="warn" style="border-color:var(--danger);">
+                <div style="margin-bottom:6px;">Motivo del rechazo (obligatorio):</div>
+                <select class="cc-in" id="cc-rej-sel" style="margin-bottom:6px;">
+                    <option value="">— elige un motivo —</option>${opts}
+                </select>
+                <input class="cc-in" id="cc-rej-note" placeholder="Nota adicional (obligatoria si el motivo es 'Otro')">
+                <div class="row">
+                    <button class="cc-btn cc-no" onclick="ccRejectSubmit()">Confirmar rechazo</button>
+                    <button class="cc-btn cc-ghost" onclick="document.getElementById('cc-reject-panel').innerHTML=''">Cancelar</button>
+                </div>
+                <div id="cc-rej-err" class="res" style="color:var(--danger);"></div>
+             </div>`;
+    };
+
+    window.ccRejectSubmit = async function(){
+        const sel = document.getElementById('cc-rej-sel').value;
+        const note = (document.getElementById('cc-rej-note').value || '').trim();
+        const err = document.getElementById('cc-rej-err');
+        if (!sel){ err.textContent = 'Elige un motivo.'; return; }
+        if (sel === 'Otro' && !note){ err.textContent = 'Escribe la nota del motivo.'; return; }
+        const reason = (sel === 'Otro') ? note : (note ? `${sel} — ${note}` : sel);
+        const {status, data} = await post(U + '/' + current + '/rechazar', {reason});
+        if (status === 200){
+            refreshCounts(); loadList();
+            document.getElementById('cc-detail').innerHTML = '<p class="muted">Caso rechazado (queda en Historial). Selecciona otro.</p>';
+        } else {
+            err.textContent = data.message || 'No se pudo rechazar.';
+        }
     };
 
     window.ccAprobFrom = function(v){ aprobFrom = v; loadList(); };
