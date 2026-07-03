@@ -72,34 +72,70 @@ class ReconciliationQueueController extends Controller
             return response()->json(['type' => $type, 'rows' => $rows, 'readonly' => true]);
         }
 
-        // APROBADOS / HISTORIAL — pagos ya aplicados por este flujo (solo lectura).
-        if ($type === 'aprobados') {
-            $q = ReportedPayment::whereNotNull('identification_session_id');
-            if ($from = $request->input('from')) {
-                $q->whereDate('created_at', '>=', $from);
-            }
-            if ($to = $request->input('to')) {
-                $q->whereDate('created_at', '<=', $to);
-            }
-            $reported = $q->latest('id')->limit(300)->get();
-            // Fecha del pago = la del comprobante (extracción), no la de aplicación.
-            $fechas = DB::table('whatsapp_identification_sessions as s')
-                ->join('whatsapp_payment_extractions as e', 'e.id', '=', 's.extraction_id')
-                ->whereIn('s.id', $reported->pluck('identification_session_id')->filter())
-                ->pluck('e.fecha_pago', 's.id');
+        // HISTORIAL — aprobados Y rechazados de este flujo (solo lectura).
+        // estado = todos | aprobados | rechazados. from/to = rango de fecha.
+        if ($type === 'historial') {
+            $estado = $request->input('estado', 'todos');
+            $from   = $request->input('from');
+            $to     = $request->input('to');
+            $rows   = collect();
 
-            $rows = $reported->map(fn ($r) => [
-                'client'        => $this->clientInfo((int) $r->client_id),
-                'amount'        => $r->amount,
-                'fecha_pago'    => $fechas[$r->identification_session_id] ?? (string) $r->fecha_pago,
-                'clave_rastreo' => $r->clave_rastreo,
-                // Cómo se aprobó: automático (MEGAISP exact/MEG) vs confirmado por humano.
-                'auto'          => empty($r->confirmed_by_user_id),
-                'identified_by' => $this->userName($r->identified_by_user_id),
-                'confirmed_by'  => $r->confirmed_by_user_id ? $this->userName($r->confirmed_by_user_id) : null,
-                'applied_at'    => optional($r->created_at)->format('Y-m-d H:i'),
+            // ── Aprobados (reported_payments de este flujo) ──
+            if ($estado !== 'rechazados') {
+                $q = ReportedPayment::whereNotNull('identification_session_id');
+                if ($from) { $q->whereDate('created_at', '>=', $from); }
+                if ($to)   { $q->whereDate('created_at', '<=', $to); }
+                $reported = $q->latest('id')->limit(300)->get();
+                $fechas = DB::table('whatsapp_identification_sessions as s')
+                    ->join('whatsapp_payment_extractions as e', 'e.id', '=', 's.extraction_id')
+                    ->whereIn('s.id', $reported->pluck('identification_session_id')->filter())
+                    ->pluck('e.fecha_pago', 's.id');
+                foreach ($reported as $r) {
+                    $rows->push([
+                        'kind'          => 'aprobado',
+                        'client'        => $this->clientInfo((int) $r->client_id),
+                        'amount'        => $r->amount,
+                        'fecha_pago'    => $fechas[$r->identification_session_id] ?? (string) $r->fecha_pago,
+                        'clave_rastreo' => $r->clave_rastreo,
+                        'auto'          => empty($r->confirmed_by_user_id),
+                        'identified_by' => $this->userName($r->identified_by_user_id),
+                        'confirmed_by'  => $r->confirmed_by_user_id ? $this->userName($r->confirmed_by_user_id) : null,
+                        'when'          => optional($r->created_at)->format('Y-m-d H:i'),
+                        'when_ts'       => optional($r->created_at)->timestamp ?? 0,
+                    ]);
+                }
+            }
+
+            // ── Rechazados (sesiones con rejected_at) ──
+            if ($estado !== 'aprobados') {
+                $q = Session::where('is_simulation', false)->whereNotNull('rejected_at');
+                if ($from) { $q->whereDate('rejected_at', '>=', $from); }
+                if ($to)   { $q->whereDate('rejected_at', '<=', $to); }
+                $rej = $q->latest('rejected_at')->limit(300)->get();
+                $ext = DB::table('whatsapp_payment_extractions')
+                    ->whereIn('id', $rej->pluck('extraction_id')->filter())->get()->keyBy('id');
+                foreach ($rej as $s) {
+                    $e = $ext->get($s->extraction_id);
+                    $f = $e && $e->fields ? json_decode($e->fields, true) : [];
+                    $rows->push([
+                        'kind'          => 'rechazado',
+                        'client'        => $s->resolved_client_id ? $this->clientInfo((int) $s->resolved_client_id) : null,
+                        'amount'        => $f['monto']['value'] ?? null,
+                        'fecha_pago'    => $f['fecha_pago']['value'] ?? null,
+                        'clave_rastreo' => $f['clave_rastreo']['value'] ?? null,
+                        'reject_reason' => $s->reject_reason,
+                        'rejected_by'   => $this->userName($s->rejected_by),
+                        'when'          => optional($s->rejected_at)->format('Y-m-d H:i'),
+                        'when_ts'       => optional($s->rejected_at)->timestamp ?? 0,
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'type'     => 'historial',
+                'rows'     => $rows->sortByDesc('when_ts')->values(),
+                'readonly' => true,
             ]);
-            return response()->json(['type' => $type, 'rows' => $rows, 'readonly' => true]);
         }
 
         $sessions = ($type === 'escalado' ? Session::escalatedQueue() : Session::proposedQueue())

@@ -48,7 +48,7 @@
     <div class="tabs">
         <div class="tab on" data-type="propuesto" onclick="ccSwitch('propuesto')">Propuestos <span class="n" id="cc-n-propuesto">{{ $counts['propuesto'] }}</span></div>
         <div class="tab" data-type="escalado" onclick="ccSwitch('escalado')">Escalados <span class="n" id="cc-n-escalado">{{ $counts['escalado'] }}</span></div>
-        <div class="tab" data-type="aprobados" onclick="ccSwitch('aprobados')">Aprobados / Historial</div>
+        <div class="tab" data-type="historial" onclick="ccSwitch('historial')">Historial</div>
         <div class="tab" data-type="verificacion" onclick="ccSwitch('verificacion')">Verificación bancaria <span class="n" id="cc-n-verificacion">{{ $counts['verificacion'] }}</span></div>
     </div>
 
@@ -80,7 +80,7 @@
         loadList();
     };
 
-    let aprobFrom = '', aprobTo = '';
+    let aprobFrom = '', aprobTo = '', histEstado = 'todos';
 
     async function loadList(){
         const box = document.getElementById('cc-list'); if (!box) return;
@@ -96,30 +96,41 @@
             return;
         }
 
-        // APROBADOS / HISTORIAL — solo lectura, con filtro por fecha de aplicación.
-        if (tab === 'aprobados'){
-            const qs = new URLSearchParams({type:'aprobados'});
+        // HISTORIAL — aprobados Y rechazados (solo lectura), filtro por tipo + fecha.
+        if (tab === 'historial'){
+            const qs = new URLSearchParams({type:'historial', estado: histEstado});
             if (aprobFrom) qs.set('from', aprobFrom);
             if (aprobTo) qs.set('to', aprobTo);
             const d = await get(U + '/list?' + qs.toString());
-            const filter = `<div class="row" style="margin:2px 0 10px;">
-                <span class="muted">Aplicado del</span>
-                <input class="cc-in" style="width:auto;" type="date" value="${aprobFrom}" onchange="ccAprobFrom(this.value)">
-                <span class="muted">al</span>
-                <input class="cc-in" style="width:auto;" type="date" value="${aprobTo}" onchange="ccAprobTo(this.value)">
-                ${(aprobFrom||aprobTo)?'<button class="cc-btn cc-ghost" onclick="ccAprobClear()">Limpiar</button>':''}
-            </div>`;
-            document.getElementById('cc-detail').innerHTML = '<p class="muted">Historial de pagos ya aplicados por este flujo (solo lectura).</p>';
-            const rows = d.rows.length ? d.rows.map(r => {
-                const how = r.auto
-                    ? '<span class="cc-badge b-prop">automático · MEGAISP</span>'
-                    : `<span class="cc-badge b-multi">confirmado · ${esc(r.confirmed_by)}</span>`;
-                return `<div class="item" style="cursor:default;">
-                    <div>${how} <b>$${esc(r.amount)}</b></div>
-                    <div style="margin-top:3px;">${r.client ? esc(r.client.name) : 'cliente ?'}</div>
-                    <div class="muted">clave ${esc(r.clave_rastreo ?? '—')} · pago ${esc(r.fecha_pago ?? '—')} · aplicado ${esc(r.applied_at ?? '')}</div>
+            const seg = (v,l) => `<button class="cc-btn ${histEstado===v?'cc-ok':'cc-ghost'}" style="padding:5px 12px;" onclick="ccHistEstado('${v}')">${l}</button>`;
+            const filter = `<div class="row" style="margin:2px 0 8px;">
+                    ${seg('todos','Todos')}${seg('aprobados','Aprobados')}${seg('rechazados','Rechazados')}
+                </div>
+                <div class="row" style="margin:0 0 10px;">
+                    <span class="muted">del</span>
+                    <input class="cc-in" style="width:auto;" type="date" value="${aprobFrom}" onchange="ccAprobFrom(this.value)">
+                    <span class="muted">al</span>
+                    <input class="cc-in" style="width:auto;" type="date" value="${aprobTo}" onchange="ccAprobTo(this.value)">
+                    ${(aprobFrom||aprobTo)?'<button class="cc-btn cc-ghost" onclick="ccAprobClear()">Limpiar</button>':''}
                 </div>`;
-            }).join('') : '<p class="muted">Sin pagos aprobados en el rango.</p>';
+            document.getElementById('cc-detail').innerHTML = '<p class="muted">Historial de pagos por este flujo (solo lectura): aprobados y rechazados.</p>';
+            const rows = d.rows.length ? d.rows.map(r => {
+                let tag, extra;
+                if (r.kind === 'aprobado'){
+                    tag = r.auto
+                        ? '<span class="cc-badge" style="color:var(--success);border:1px solid var(--success);">Aprobado · auto MEGAISP</span>'
+                        : `<span class="cc-badge" style="color:var(--success);border:1px solid var(--success);">Aprobado · por ${esc(r.confirmed_by)}</span>`;
+                    extra = `clave ${esc(r.clave_rastreo ?? '—')} · pago ${esc(r.fecha_pago ?? '—')} · aplicado ${esc(r.when ?? '')}`;
+                } else {
+                    tag = '<span class="cc-badge b-esc">Rechazado</span>';
+                    extra = `motivo: ${esc(r.reject_reason ?? '—')} · por ${esc(r.rejected_by ?? '—')} · ${esc(r.when ?? '')}`;
+                }
+                return `<div class="item" style="cursor:default;">
+                    <div>${tag} <b>$${esc(r.amount ?? '?')}</b></div>
+                    <div style="margin-top:3px;">${r.client ? esc(r.client.name) : '<i>sin identificar</i>'}</div>
+                    <div class="muted">${extra}</div>
+                </div>`;
+            }).join('') : '<p class="muted">Sin registros en el historial para este filtro.</p>';
             box.innerHTML = filter + rows;
             return;
         }
@@ -262,6 +273,7 @@
     window.ccAprobFrom = function(v){ aprobFrom = v; loadList(); };
     window.ccAprobTo = function(v){ aprobTo = v; loadList(); };
     window.ccAprobClear = function(){ aprobFrom = ''; aprobTo = ''; loadList(); };
+    window.ccHistEstado = function(v){ histEstado = v; loadList(); };
 
     async function refreshCounts(){
         for (const t of ['propuesto','escalado','verificacion']){
