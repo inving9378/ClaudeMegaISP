@@ -353,6 +353,12 @@ php artisan schedule:run   # cron lo llama cada minuto en prod
 
 ## CONVENCIONES
 
+### ⚠️ CRÍTICO — Los `user_id` (y otros PK) de DEV y PROD NO coinciden
+DEV (`192.168.105.11`) y PROD (`192.168.105.198`) son **bases distintas que divergieron** (auto-increments independientes). **Un id de un entorno NO mapea al otro.**
+- Ejemplo real: en **DEV** `users.id=8` = **Irving** (dueño); en **PROD** `users.id=8` = **Oscar Adrian, un CLIENTE** (rol `client`), e Irving en prod es **`id=13`** (`login_user=Meganet`).
+- **Regla dura:** antes de tocar roles/permisos/datos de una cuenta **en prod**, resolver SIEMPRE la cuenta por **`login_user`/email**, JAMÁS por un `id` copiado de dev. Lo mismo aplica a cualquier PK sensible (módulos, clientes) entre entornos — ya documentado para `modules` más abajo.
+- **Por qué:** por poco le damos `super-administrator` a un cliente de prod arrastrando el `id=8` de dev. Lo evitó **investigar (read-only) antes de tocar**. (Ver también la nota "IDs de módulo divergentes dev↔prod".)
+
 - Vocabulario de dominio en español: `cliente`, `pago`, `factura`, `vendedor`, `morosos`, `red`, `caja`, `colonia`
 - Al agregar endpoint: registrar permiso correspondiente en tabla `permissions`
 - No saltear la capa repositorio para queries no triviales
