@@ -62,6 +62,16 @@
                 ],
                 "actions": ["Configurar OpenPay", "Asignar CLABE a cliente", "Ver log de webhooks"]
             }
+        },
+        {
+            "key": "conciliacion_automation",
+            "label": "Automatización de pagos (WhatsApp IA)",
+            "type": "pagos",
+            "category": "Finanzas",
+            "icon": "robot",
+            "url": "/finanzas/conciliacion-config",
+            "role": "super-administrator",
+            "description": "Interruptores del asistente de conciliación por WhatsApp: respuestas automáticas y aplicación automática de pagos. Sólo super-administrador."
         }
     ],
 

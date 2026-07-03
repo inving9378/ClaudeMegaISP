@@ -119,6 +119,16 @@ Route::middleware(['web', 'auth', 'permission:conciliacion.manage'])
         Route::post('/conciliacion-cola/{session}/rechazar',   [ReconciliationQueueController::class, 'reject'])->whereNumber('session')->name('conciliacion-cola.rechazar');
     });
 
+// Interruptores de automatización de conciliación (WhatsApp IA). Gateado ESTRICTO
+// por role:super-administrator (frontera dura: ni Tere ni Diana ni DESARROLLADOR).
+Route::middleware(['web', 'auth', 'role:super-administrator'])
+    ->prefix('finanzas')
+    ->name('finanzas.')
+    ->group(function () {
+        Route::get('/conciliacion-config',  [\App\Modules\Addons\Payments\Controllers\ConciliationConfigController::class, 'index'])->name('conciliacion-config');
+        Route::post('/conciliacion-config', [\App\Modules\Addons\Payments\Controllers\ConciliationConfigController::class, 'update'])->name('conciliacion-config.update');
+    });
+
 // ── API MOBILE: endpoints consumidos por la app Flutter MegaFamilia ─────
 // Mismo patrón que el módulo MegaFamilia (prefix api/megafamilia + sanctum +
 // log_api_mobile). NO usa 'web' middleware → no CSRF, ideal para multipart

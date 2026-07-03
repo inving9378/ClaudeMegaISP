@@ -105,9 +105,26 @@ class AdminPanelController extends Controller
 
     public function configSections(): JsonResponse
     {
+        $registry = ModuleRegistry::instance();
+        $user     = auth()->user();
+
+        // Una sección puede declarar `role` para gating estricto por ROL (no
+        // permiso, que se sincroniza a roles base). Sin `role` → visible como
+        // siempre (aditivo, sin regresión para otros módulos).
+        $roleOk = fn (array $section): bool =>
+            empty($section['role']) || ($user && $user->hasRole($section['role']));
+
+        $flat = array_values(array_filter($registry->getConfigSectionsFlat(), $roleOk));
+
+        // Re-agrupar por type respetando el filtro (mismo shape que el registry).
+        $grouped = [];
+        foreach ($flat as $section) {
+            $grouped[$section['type'] ?? 'general'][] = $section;
+        }
+
         return response()->json([
-            'sections'      => ModuleRegistry::instance()->getConfigSections(),
-            'sections_flat' => ModuleRegistry::instance()->getConfigSectionsFlat(),
+            'sections'      => $grouped,
+            'sections_flat' => $flat,
         ]);
     }
 }
