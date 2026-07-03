@@ -4,8 +4,8 @@
 <script src="{{ mix('js/app.js') }}"></script>
 {{-- OpenPay public credentials — usadas por DomiciliacionClientTab.vue (public key es segura en JS) --}}
 <script>
-    window.__OPENPAY_ID__      = {{ json_encode(config('openpay.id', '')) }};
-    window.__OPENPAY_PK__      = {{ json_encode(config('openpay.public_key', '')) }};
+    window.__OPENPAY_ID__      = {!! json_encode(config('openpay.id', '')) !!};
+    window.__OPENPAY_PK__      = {!! json_encode(config('openpay.public_key', '')) !!};
     window.__OPENPAY_SANDBOX__ = {{ config('openpay.sandbox', true) ? 'true' : 'false' }};
 </script>
 
