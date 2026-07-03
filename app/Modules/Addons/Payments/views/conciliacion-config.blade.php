@@ -98,6 +98,31 @@
         bind();
     }
 
+    // Aplica/quita el atenuado+deshabilitado de los 3 dependientes según el
+    // estado del maestro, SIN re-render — reactividad instantánea al mover el
+    // interruptor general (no espera al servidor).
+    function applyMasterGate(masterOn){
+        document.querySelectorAll('.ca-wrap .ca-card').forEach(cardEl => {
+            const lbl = cardEl.querySelector('.sw');
+            if (!lbl || lbl.dataset.key === 'wa_conciliation') return; // el maestro no se atenúa
+            const input = lbl.querySelector('input');
+            const off = !masterOn;
+            cardEl.classList.toggle('ca-dim', off);
+            lbl.classList.toggle('disabled', off);
+            if (input) input.disabled = off;
+            const txt = cardEl.querySelector('.ca-txt');
+            let note = cardEl.querySelector('.ca-note-off');
+            if (off && !note && txt) {
+                note = document.createElement('div');
+                note.className = 'ca-note-off';
+                note.textContent = 'Sin efecto mientras el interruptor general esté apagado.';
+                txt.appendChild(note);
+            } else if (!off && note) {
+                note.remove();
+            }
+        });
+    }
+
     function bind(){
         document.querySelectorAll('.ca-wrap .sw').forEach(lbl => {
             const input = lbl.querySelector('input');
@@ -112,6 +137,11 @@
                     if (!ok) { input.checked = false; return; }
                 }
 
+                // Reactividad INSTANTÁNEA: si es el maestro, atenúa/rehabilita los
+                // dependientes ya mismo (optimista), sin esperar al servidor.
+                const isMaster = key === 'wa_conciliation';
+                if (isMaster) applyMasterGate(want);
+
                 lbl.classList.add('busy');
                 try {
                     const r = await fetch(U, {
@@ -121,14 +151,16 @@
                     });
                     const data = await r.json().catch(()=>({}));
                     if (!r.ok || !data.ok) {
-                        input.checked = !want; // revertir en error
+                        input.checked = !want;              // revertir en error
+                        if (isMaster) applyMasterGate(!want); // revertir el gate también
                         alert('No se pudo guardar el cambio' + (r.status===403?' (sin permiso).':'.'));
                         lbl.classList.remove('busy');
                         return;
                     }
-                    render(data.switches); // re-render con estado fresco del servidor
+                    render(data.switches); // re-render con estado fresco del servidor (autoritativo)
                 } catch (err) {
                     input.checked = !want;
+                    if (isMaster) applyMasterGate(!want); // revertir el gate
                     alert('Error de red al guardar el cambio.');
                     lbl.classList.remove('busy');
                 }
