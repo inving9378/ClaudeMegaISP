@@ -32,7 +32,7 @@ class ApplyIdentifiedPaymentsCommand extends Command
         $sessions = $query->orderBy('id')->get();
 
         $this->info("Sesiones pendientes de aplicación: {$sessions->count()}");
-        $this->line('Freno maestro auto_apply_enabled = ' . var_export(config('payments.auto_apply_enabled'), true));
+        $this->line('Freno maestro auto_apply_enabled = ' . var_export(\App\Modules\Addons\Payments\Support\ConciliationSettings::enabled('auto_apply_enabled'), true) . ' (interruptor editable)');
 
         foreach ($sessions as $s) {
             // Reusa EXACTAMENTE la lógica de bifurcación del job (síncrono).

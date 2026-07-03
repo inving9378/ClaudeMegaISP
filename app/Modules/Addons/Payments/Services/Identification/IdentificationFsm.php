@@ -186,7 +186,7 @@ class IdentificationFsm
         if ($alpha <= 8 && preg_match('/\d{2,}/', $reply, $m)) {
             $cand = $this->subs->findById((int) $m[0]);
             if ($cand) {
-                $certainty = config('payments.id_cliente_auto_apply')
+                $certainty = \App\Modules\Addons\Payments\Support\ConciliationSettings::enabled('id_cliente_auto_apply')
                     ? Session::CERTAINTY_EXACT
                     : Session::CERTAINTY_PROPOSED;
                 return $this->resolve($session, $cand['client_id'], Session::METHOD_CLIENT_ID, $certainty);

@@ -75,7 +75,7 @@ class PaymentFromSessionService
 
         // FRENO MAESTRO: solo aquí (exact + auto-elegible). Con flag off, el
         // candidato exacto NO se aplica y espera (no molesta a Tere).
-        if ($automatic && !config('payments.auto_apply_enabled')) {
+        if ($automatic && !\App\Modules\Addons\Payments\Support\ConciliationSettings::enabled('auto_apply_enabled')) {
             Log::channel('evolution')->info('F4: auto-apply FRENADO (flag off) — candidato exact en espera', [
                 'session_id' => $session->id, 'client_id' => $session->resolved_client_id,
             ]);

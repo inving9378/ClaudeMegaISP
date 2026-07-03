@@ -42,7 +42,7 @@ class ConciliationResponder
         if (empty($text)) {
             return;
         }
-        if (!config('payments.wa_autorespond')) {
+        if (!\App\Modules\Addons\Payments\Support\ConciliationSettings::enabled('wa_autorespond')) {
             Log::channel('evolution')->info('Conciliación: respuesta SILENCIADA (wa_autorespond=false)', [
                 'conversation_id' => $conversation->id ?? null,
                 'preview'         => mb_substr($text, 0, 60),
