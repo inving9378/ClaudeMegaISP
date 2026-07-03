@@ -424,8 +424,45 @@
                 cargarOts();
             });
 
+            // ── "Mi dinero" (Bloque 2) — Cuenta + Desglose ──────────────────────────
+            const dineroTab = ref('cuenta');
+            const cuenta = ref(null);
+            const desglose = ref(null);
+            const cargandoDinero = ref(false);
+            const dineroCargado = ref(false);
+            const CONCEPTO_LABEL = {
+                salary_base: 'Sueldo base', overproduction: 'Sobreproducción', bonus: 'Bonos',
+                penalty: 'Penalización', fund_contribution: 'Aporte a fondo', loan_repayment: 'Pago de préstamo',
+                advance: 'Adelanto', adjustment: 'Ajuste', embajador: 'Embajadores',
+            };
+            // Formato de presentación (el backend ya calculó/redondeó el monto; el front NO recalcula).
+            function money(n) {
+                return '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            function conceptoLabel(c) { return CONCEPTO_LABEL[c] || c; }
+            function pctCuota(d) { return (d && d.quota) ? Math.min(1, (d.units || 0) / d.quota) : 0; }
+
+            async function cargarDinero() {
+                if (!colaborador.value) { cargandoDinero.value = false; return; }
+                cargandoDinero.value = true;
+                const [c, d] = await Promise.all([
+                    apiFetch('/talento/portal/dinero/cuenta'),
+                    apiFetch('/talento/portal/dinero/desglose'),
+                ]);
+                cuenta.value = (c.ok && c.data) ? c.data : null;
+                desglose.value = (d.ok && d.data) ? d.data : null;
+                cargandoDinero.value = false;
+                dineroCargado.value = true;
+            }
+            // Cierra el detalle de OT al cambiar de tab; carga "Mi dinero" al abrirlo por primera vez.
+            function onTabChange(val) {
+                cerrarDetalle();
+                if (val === 'dinero' && !dineroCargado.value) cargarDinero();
+            }
+
             return {
                 colaborador, tab, dark, savingTheme, nombre, tipoLabel,
+                dineroTab, cuenta, desglose, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
                 fmtHora, statusInfo,
@@ -723,6 +760,99 @@
                         </template>
                     </div>
 
+                    <!-- Mi dinero -->
+                    <div v-show="tab==='dinero'">
+                        <div class="q-px-md q-pt-md q-pb-none">
+                            <div class="text-caption text-grey-7">Semana de pago</div>
+                            <div class="text-subtitle2" v-if="cuenta || desglose">
+                                {{ (cuenta || desglose).period_start }} → {{ (cuenta || desglose).period_end }}
+                            </div>
+                        </div>
+                        <q-tabs v-model="dineroTab" no-caps dense active-color="teal-6" indicator-color="teal-6" align="justify" class="q-mt-xs">
+                            <q-tab name="cuenta"    label="Cuenta" />
+                            <q-tab name="desglose"  label="Desglose" />
+                            <q-tab name="fondo"     label="Fondo" />
+                            <q-tab name="prestamos" label="Préstamos" />
+                        </q-tabs>
+
+                        <div v-if="cargandoDinero" class="flex flex-center q-pa-xl">
+                            <q-spinner-dots size="40px" color="teal-6" />
+                        </div>
+
+                        <q-tab-panels v-else v-model="dineroTab" animated>
+                            <!-- CUENTA: ledger liquidado del período agrupado por concepto + neto -->
+                            <q-tab-panel name="cuenta" class="q-pa-md">
+                                <template v-if="cuenta">
+                                    <q-card flat bordered class="tp-card q-mb-md">
+                                        <div class="text-caption text-grey-7">Neto del período</div>
+                                        <div class="text-h5 text-teal-7">{{ money(cuenta.neto) }}</div>
+                                        <div class="row justify-between text-caption text-grey-7 q-mt-xs">
+                                            <span>Abonos {{ money(cuenta.total_credito) }}</span>
+                                            <span>Descuentos {{ money(cuenta.total_debito) }}</span>
+                                        </div>
+                                    </q-card>
+                                    <q-list separator v-if="cuenta.conceptos && cuenta.conceptos.length">
+                                        <q-item v-for="(c,i) in cuenta.conceptos" :key="i">
+                                            <q-item-section>
+                                                <q-item-label>{{ conceptoLabel(c.concepto) }}</q-item-label>
+                                                <q-item-label caption>{{ c.tipo==='credit' ? 'Abono' : 'Descuento' }}</q-item-label>
+                                            </q-item-section>
+                                            <q-item-section side>
+                                                <span :class="c.tipo==='credit' ? 'text-teal-7' : 'text-negative'">
+                                                    {{ c.tipo==='credit' ? '+' : '−' }}{{ money(c.subtotal) }}
+                                                </span>
+                                            </q-item-section>
+                                        </q-item>
+                                    </q-list>
+                                    <div v-else class="tp-empty">
+                                        <q-icon name="receipt_long" class="tp-empty-icon" />
+                                        <div class="text-subtitle1">Sin movimientos todavía</div>
+                                        <div class="text-caption">Tu cuenta se llena cuando se cierra la semana de pago (el sábado). Mientras tanto, mirá el <b>Desglose</b> para ver tu producción.</div>
+                                    </div>
+                                </template>
+                            </q-tab-panel>
+
+                            <!-- DESGLOSE: proyección viva (unidades vs cuota, valor x unidad, sobreproducción) -->
+                            <q-tab-panel name="desglose" class="q-pa-md">
+                                <template v-if="desglose">
+                                    <q-card flat bordered class="tp-card q-mb-md">
+                                        <div class="text-caption text-grey-7">Pago proyectado (producción)</div>
+                                        <div class="text-h5 text-teal-7">{{ money(desglose.projected_pay) }}</div>
+                                        <div class="text-caption text-grey-7 q-mt-xs">
+                                            Sueldo base {{ money(desglose.base_salary) }} · Sobreproducción {{ money(desglose.overproduction) }}
+                                        </div>
+                                    </q-card>
+                                    <q-card flat bordered class="tp-card q-mb-md">
+                                        <div class="row items-center justify-between">
+                                            <div class="text-caption text-grey-7">Unidades de la semana</div>
+                                            <div class="text-subtitle1">{{ desglose.units }} <span class="text-caption text-grey-7">/ cuota {{ desglose.quota }}</span></div>
+                                        </div>
+                                        <q-linear-progress :value="pctCuota(desglose)" color="teal-6" track-color="grey-3" size="10px" rounded class="q-mt-sm" />
+                                        <div class="text-caption text-grey-7 q-mt-sm">
+                                            Valor por unidad {{ money(desglose.value_per_unit) }}
+                                            <span v-if="desglose.over_units > 0"> · {{ desglose.over_units }} unidades sobre cuota</span>
+                                        </div>
+                                        <div class="text-caption text-grey-6 q-mt-xs" v-if="desglose.units_task || desglose.units_external">
+                                            Incluye {{ desglose.units_wo }} de OTs, {{ desglose.units_task }} de campo y {{ desglose.units_external }} de proyectos.
+                                        </div>
+                                    </q-card>
+                                </template>
+                            </q-tab-panel>
+
+                            <!-- Fondo / Préstamos: Sub-paso 3 -->
+                            <q-tab-panel name="fondo" class="tp-empty">
+                                <q-icon name="savings" class="tp-empty-icon" />
+                                <div class="text-subtitle1">Fondo de ahorro</div>
+                                <div class="text-caption">Próxima entrega.</div>
+                            </q-tab-panel>
+                            <q-tab-panel name="prestamos" class="tp-empty">
+                                <q-icon name="account_balance" class="tp-empty-icon" />
+                                <div class="text-subtitle1">Préstamos</div>
+                                <div class="text-caption">Próxima entrega.</div>
+                            </q-tab-panel>
+                        </q-tab-panels>
+                    </div>
+
                     <!-- Proyectos -->
                     <div v-show="tab==='proyectos'" class="tp-empty">
                         <q-icon name="account_tree" class="tp-empty-icon" />
@@ -825,8 +955,9 @@
             </q-dialog>
 
             <q-footer class="tp-footer">
-                <q-tabs v-model="tab" no-caps active-color="teal-6" indicator-color="teal-6" class="tp-footer" @update:model-value="cerrarDetalle">
+                <q-tabs v-model="tab" no-caps active-color="teal-6" indicator-color="teal-6" class="tp-footer" @update:model-value="onTabChange">
                     <q-tab name="inicio"    icon="today"        label="Mi día" />
+                    <q-tab name="dinero"    icon="payments"     label="Mi dinero" />
                     <q-tab name="proyectos" icon="account_tree" label="Proyectos" />
                     <q-tab name="perfil"    icon="person"       label="Perfil" />
                 </q-tabs>
