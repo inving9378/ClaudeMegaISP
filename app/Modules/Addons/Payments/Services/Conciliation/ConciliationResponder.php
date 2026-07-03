@@ -36,6 +36,33 @@ class ConciliationResponder
         }
     }
 
+    /**
+     * (b/c) Confirmación de pago APLICADO al cliente por WhatsApp. Solo debe
+     * llamarse en un ÉXITO REAL (desde PaymentFromSessionService::apply al
+     * retornar applied=true). Respeta wa_autorespond. El texto depende del
+     * estado del cliente: activo → "ya puedes navegar"; suspendido/bloqueado →
+     * "tu servicio se está reactivando".
+     */
+    public function notifyApplied(Session $session): void
+    {
+        if ($session->is_simulation) {
+            return;
+        }
+        $conv = $session->conversation_id
+            ? \App\Models\Marketing\Conversation::find($session->conversation_id)
+            : null;
+        if (!$conv) {
+            return;
+        }
+
+        $active = \App\Modules\Addons\Payments\Support\ClientStatus::isActive($session->resolved_client_id);
+        $text = $active
+            ? '✅ ¡Tu pago fue aplicado! Ya puedes disfrutar de tu navegación 🎉'
+            : '✅ ¡Tu pago fue aplicado! Tu servicio se está reactivando, en breve tendrás internet de nuevo 🎉';
+
+        $this->respond($conv, $text);
+    }
+
     /** Envía la respuesta al cliente — SOLO si el flag wa_autorespond está encendido. */
     public function respond($conversation, ?string $text): void
     {

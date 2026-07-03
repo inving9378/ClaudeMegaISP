@@ -144,6 +144,16 @@ class PaymentFromSessionService
                 'confirmed_by'=> $confirmedBy,
             ]);
 
+            // (b) Confirmación al cliente por WhatsApp — SOLO aquí, en el éxito REAL.
+            // Respeta wa_autorespond y el estado del cliente. Best-effort: un fallo
+            // al notificar NUNCA revierte el pago ya aplicado.
+            try {
+                app(\App\Modules\Addons\Payments\Services\Conciliation\ConciliationResponder::class)
+                    ->notifyApplied($session->fresh());
+            } catch (\Throwable $e) {
+                Log::channel('evolution')->warning('F4: notifyApplied falló (pago sí aplicado): ' . $e->getMessage());
+            }
+
             return [
                 'applied'              => true,
                 'reason'               => $automatic ? 'auto' : 'confirmed',
