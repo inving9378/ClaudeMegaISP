@@ -168,8 +168,8 @@ class ReconciliationQueueController extends Controller
         $client   = $s->resolved_client_id ? $this->clientInfo($s->resolved_client_id) : null;
         $services = $s->resolved_client_id ? $this->clientServices($s->resolved_client_id) : [];
 
-        // Antifraude: de qué número(s) se recibió esta clave de rastreo.
-        $claveSources = $this->claveSources($fields['clave_rastreo']['value'] ?? null);
+        // Antifraude: de qué número(s) se recibió este comprobante (por clave/ref o huella).
+        $claveSources = $this->dedupSources($fields);
 
         return response()->json([
             'id'                 => $s->id,
@@ -234,19 +234,38 @@ class ReconciliationQueueController extends Controller
         catch (\Throwable $e) { return null; }
     }
 
-    /** Recepciones (número + fecha) donde apareció esta clave de rastreo — antifraude. */
-    private function claveSources(?string $clave): array
+    /**
+     * Recepciones (número + fecha) donde apareció este comprobante — antifraude.
+     * Por clave/referencia si la hay; si no, por huella (monto+fecha+banco).
+     */
+    private function dedupSources(array $fields): array
     {
-        if ($clave === null || trim($clave) === '') {
-            return [];
+        $clave = trim((string) ($fields['clave_rastreo']['value'] ?? ''));
+        if ($clave === '') {
+            $clave = trim((string) ($fields['referencia']['value'] ?? ''));
         }
-        $rows = DB::table('whatsapp_payment_extractions')
-            ->where('fields->clave_rastreo->value', $clave)
-            ->whereNull('discarded_at')
-            ->orderBy('id')
-            ->get(['conversation_id', 'created_at']);
 
-        return $rows->map(function ($r) {
+        $q = DB::table('whatsapp_payment_extractions')->whereNull('discarded_at');
+
+        if ($clave !== '') {
+            $q->where(function ($w) use ($clave) {
+                $w->where('fields->clave_rastreo->value', $clave)
+                  ->orWhere('fields->referencia->value', $clave);
+            });
+        } else {
+            // Huella: monto + fecha + banco. Débil (solo monto) → no comparar.
+            $monto = trim((string) ($fields['monto']['value'] ?? ''));
+            $fecha = trim((string) ($fields['fecha_pago']['value'] ?? ''));
+            $banco = trim((string) ($fields['banco_origen']['value'] ?? ''));
+            if ($monto === '' || ($fecha === '' && $banco === '')) {
+                return [];
+            }
+            $q->where('fields->monto->value', $fields['monto']['value']);
+            if ($fecha !== '') { $q->where('fields->fecha_pago->value', $fields['fecha_pago']['value']); }
+            if ($banco !== '') { $q->where('fields->banco_origen->value', $fields['banco_origen']['value']); }
+        }
+
+        return $q->orderBy('id')->get(['conversation_id', 'created_at'])->map(function ($r) {
             $jid = DB::table('marketing_conversations')->where('id', $r->conversation_id)->value('external_thread_id');
             return [
                 'phone' => $jid ? \App\Modules\Addons\Marketing\Services\EvolutionApiService::jidToPhone($jid) : '—',

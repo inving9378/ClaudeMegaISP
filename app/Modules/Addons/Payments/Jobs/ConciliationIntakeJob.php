@@ -101,14 +101,22 @@ class ConciliationIntakeJob implements ShouldQueue
             return;
         }
 
-        // ANTIFRAUDE: si esta clave de rastreo ya se recibió antes desde OTRA
+        // ANTIFRAUDE: si este comprobante ya se recibió antes desde OTRA
         // conversación (otro número), es posible reenvío del comprobante de otra
-        // persona. NO se auto-procesa: el caso se crea directo en ESCALADOS
-        // marcado como duplicidad sospechosa, para revisión humana (la
-        // comparativa de números se calcula al abrir el caso). No se responde
-        // al cliente. El anti-duplicado de F4 sigue vigente al aplicar.
+        // persona. Identificador: clave/referencia si la hay; si no, huella
+        // (monto+fecha+banco). NO se auto-procesa: el caso se crea directo en
+        // ESCALADOS marcado como duplicidad sospechosa (la comparativa de números
+        // se calcula al abrir el caso). No se responde al cliente.
         $clave = trim((string) ($result['fields']['clave_rastreo']['value'] ?? ''));
-        if ($clave !== '' && $this->claveSeenInOtherConversation($clave, (int) $message->conversation_id)) {
+        if ($clave === '') {
+            $clave = trim((string) ($result['fields']['referencia']['value'] ?? ''));
+        }
+        $convId  = (int) $message->conversation_id;
+        $dupOther = $clave !== ''
+            ? $this->claveSeenInOtherConversation($clave, $convId)
+            : $this->fingerprintSeenInOtherConversation($result['fields'] ?? [], $convId);
+
+        if ($dupOther) {
             $session = Session::create([
                 'is_simulation'     => false,
                 'extraction_id'     => $extraction->id,
@@ -119,11 +127,11 @@ class ConciliationIntakeJob implements ShouldQueue
                 'attempts'          => 0,
                 'expires_at'        => now()->addHours((int) (Setting::get('reconciliation_session_hours', 1) ?? 12)),
             ]);
-            Log::channel('evolution')->warning('Conciliación: clave duplicada desde otra conversación → ESCALADO (posible fraude)', [
+            Log::channel('evolution')->warning('Conciliación: comprobante duplicado desde otra conversación → ESCALADO (posible fraude)', [
                 'message_id'    => $message->id,
                 'extraction_id' => $extraction->id,
                 'session_id'    => $session->id,
-                'clave'         => $clave,
+                'clave'         => $clave !== '' ? $clave : '(huella monto/fecha/banco)',
             ]);
             return; // NO FSM, NO auto-respuesta
         }
@@ -172,13 +180,37 @@ class ConciliationIntakeJob implements ShouldQueue
         return $has('monto') || $has('clave_rastreo');
     }
 
-    /** ¿Esta clave de rastreo ya se recibió en OTRA conversación (otro número)? */
+    /** ¿Esta clave/referencia ya se recibió en OTRA conversación (otro número)? */
     private function claveSeenInOtherConversation(string $clave, int $conversationId): bool
     {
         return WhatsappPaymentExtraction::where('conversation_id', '!=', $conversationId)
             ->whereNull('discarded_at')
-            ->where('fields->clave_rastreo->value', $clave)
+            ->where(function ($q) use ($clave) {
+                $q->where('fields->clave_rastreo->value', $clave)
+                  ->orWhere('fields->referencia->value', $clave);
+            })
             ->exists();
+    }
+
+    /**
+     * Sin clave: ¿el mismo comprobante (huella monto+fecha+banco) ya se recibió
+     * en OTRA conversación? Huella débil (solo monto) → no marca duplicidad,
+     * para evitar falsos positivos.
+     */
+    private function fingerprintSeenInOtherConversation(array $fields, int $conversationId): bool
+    {
+        $monto = trim((string) ($fields['monto']['value'] ?? ''));
+        $fecha = trim((string) ($fields['fecha_pago']['value'] ?? ''));
+        $banco = trim((string) ($fields['banco_origen']['value'] ?? ''));
+        if ($monto === '' || ($fecha === '' && $banco === '')) {
+            return false;
+        }
+        $q = WhatsappPaymentExtraction::where('conversation_id', '!=', $conversationId)
+            ->whereNull('discarded_at')
+            ->where('fields->monto->value', $fields['monto']['value']);
+        if ($fecha !== '') { $q->where('fields->fecha_pago->value', $fields['fecha_pago']['value']); }
+        if ($banco !== '') { $q->where('fields->banco_origen->value', $fields['banco_origen']['value']); }
+        return $q->exists();
     }
 
     private function phoneHint(Message $message): ?string
