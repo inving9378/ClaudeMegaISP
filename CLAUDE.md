@@ -944,6 +944,18 @@ Permiso base `portal.colaborador` + auto-asignación **aditiva** (observer) + `A
 
 **Deuda menor OPCIONAL (no urgente):** afinar la visibilidad del botón "Mi portal" a colaboradores de campo reales — hoy también lo ven super-admins/DESARROLLADOR que heredan `portal.colaborador` del rol base (inofensivo: entran y ven solo "Cuenta").
 
+### Fase A — Mi material (custodia de equipos) — ⏳ en validación visual
+Sección "Mi material" en el portal (SOLO LECTURA, self-scoped por Actor). **No existe `talento_custodia_equipos`** — la custodia es `inventory_item_stocks` (stock polimórfico a `App\Models\User` por `user_id`); reusa `InventoryService` (Inventario).
+- **A1** (commit `7abd68e2`): endpoint `GET /talento/portal/material` (gate `portal.colaborador`, user_id resuelto por `Actor::custodia()` → **IDOR cerrado**). Devuelve `en_custodia` / `pendientes_aceptar` / `historial`.
+- **A2** (commit `cf7ecfa8`): `Actor::sections()` `material` `built=true` + panel UI: **resumen** (cuenta SOLO `en_custodia` = lo que tiene ahora, + valor de reposición de referencia si hay datos) + **agrupación estado→tipo** (`inventory_item_types.name`) en `q-expansion-item` colapsables. `valor_reposicion` = **INFORMATIVO** (costo de referencia), **NUNCA adeudo**. Solo front; endpoint A1 intacto. ASSET_VER=12.
+- **Pendiente de cierre:** captura visual de Irving (Brandon) → recién ahí Fase A CERRADA.
+- **Datos de prueba en DEV** (limpiar): `DELETE FROM inventory_item_stocks WHERE id IN (1567,1568);` (TALADRO/CASCO asignados a user 4429).
+
+**Deudas menores registradas (no urgentes):**
+- (a) Agrupación conceptual **protección/consumible/herramienta**: el dato no existe (`inventory_item_types.type` tool/material está **mal clasificado**); requiere **mapeo manual** de tipos.
+- (b) `valor_reposicion` casi no poblado (**2 de 59** en la data real): para tener valor de referencia real en el material, hay que **poblarlo** en el inventario.
+- (c) Vínculo **custodia→adeudo→nómina** real (hoy inexistente; el valor es solo informativo): **fase futura**, junto con el **material de campo consumible** (subsistema nuevo).
+
 ---
 
 ## MOTOR DE COMPENSACIÓN TALENTO — Ventana de la semana de pago (arreglo 2026-07-02)
