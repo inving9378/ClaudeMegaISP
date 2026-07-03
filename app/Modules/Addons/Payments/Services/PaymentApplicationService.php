@@ -62,11 +62,21 @@ class PaymentApplicationService
         $methodId = $data['method_id'] ?? $this->resolveMethodId();
         $userId   = $data['add_by'] ?? $this->resolveSystemUserId();
 
-        // Matching contra factura pendiente: busca la más antigua del cliente
-        // con estado que empieza con 'Pagar' Y total == monto recibido. Si
-        // hay match → paymentable=ClientInvoice + marca como Pagado. Si no
-        // → pago en favor (paymentable=Client).
-        [$paymentableType, $paymentableId, $invoice] = $this->matchPendingInvoice($client, (float) $data['amount']);
+        // FIX (opción A, roadmap #191): el pago se registra SIEMPRE al Cliente
+        // (path de mostrador puro). paymentable=Client dispara el observer
+        // PaymentObserver→PaymentClientJob → abona balance + deja transacción de
+        // crédito + billing + avance de corte. Los 3 callers (conciliación, SPEI,
+        // captura-pago) quedan alineados a este flujo.
+        //
+        // matchPendingInvoice se deja INTACTO pero DESCONECTADO del default (ver el
+        // comentario del método): matcheaba el pool TERMINAL 'Pagar (del saldo)'
+        // (~40k facturas ya cubiertas por saldo, NO deuda viva), adjuntaba el pago a
+        // ClientInvoice y así se saltaba TODO el circuito contable (0 transacciones,
+        // balance sin abonar) → pago desregistrado. Su rediseño (match contra deuda
+        // VIVA) es el roadmap #193.
+        $paymentableType = Client::class;
+        $paymentableId   = $client->id;
+        $invoice         = null;
 
         // NO envolvemos en DB::transaction: con QUEUE_CONNECTION=sync, los
         // observers de Payment (PaymentObserver→PaymentClientJob) corren inline
@@ -127,6 +137,19 @@ class PaymentApplicationService
     /**
      * Busca factura pendiente que cuadre con el monto. Devuelve [type, id, invoice?]
      * para el polimórfico de payments.
+     */
+    /**
+     * ⚠️ DESCONECTADO del default de applyPayment (roadmap #191/#193). NO llamar
+     * desde los 3 flujos (conciliación / SPEI / captura-pago) tal cual.
+     *
+     * BUG: matchea el pool 'Pagar%' que incluye el estado TERMINAL 'Pagar (del
+     * saldo de la cuenta)' (~40k facturas ya cubiertas por saldo, NO deuda viva).
+     * Al matchear, escribe paymentable=ClientInvoice → el PaymentObserver NO
+     * dispara PaymentClientJob (solo mapea paymentable=Client) → el pago NO abona
+     * balance ni deja transacción: queda desregistrado (caso 7500).
+     *
+     * Se conserva como referencia para un rediseño futuro (match contra deuda VIVA,
+     * validando el ciclo de facturación con el co-owner) = roadmap #193.
      */
     private function matchPendingInvoice(Client $client, float $amount): array
     {
