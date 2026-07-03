@@ -274,19 +274,23 @@ class IdentificationFsm
         $session->resolved_multiple_services = $this->serviceCount($clientId) > 1;
         $session->save();
 
-        // Exacto (MEG, o ID con flag on): sin mensaje; F4 aplicará y confirmará.
-        if ($certainty === Session::CERTAINTY_EXACT) {
-            return $this->step($session, null, terminal: true);
+        // Aviso de recibido (a). Estado-aware (c): si el cliente está
+        // suspendido/bloqueado, se agrega tranquilidad de reactivación. Aplica
+        // tanto a EXACT (MEG) como a PROPOSED: en ambos F4 aplicará el pago y,
+        // al aplicarlo, enviará la confirmación (b).
+        $meg       = DB::table('client_payment_references')->where('client_id', $clientId)->value('reference');
+        $suspended = !\App\Modules\Addons\Payments\Support\ClientStatus::isActive($clientId);
+
+        $notice = "¡Gracias! Recibimos tu comprobante y lo estamos revisando. En breve "
+            . "aplicamos tu pago y te avisaremos con un mensaje de confirmación cuando esté listo. ";
+        if ($suspended) {
+            $notice .= "No te preocupes, en cuanto validemos tu pago reactivamos tu servicio lo antes posible. ";
+        }
+        if ($meg) {
+            $notice .= "Para la próxima, incluye tu referencia {$meg} en el concepto y lo aplicamos más rápido.";
         }
 
-        // Proposed → gancho "educar MEG" (decisión 3): informar su referencia real.
-        $meg    = DB::table('client_payment_references')->where('client_id', $clientId)->value('reference');
-        $notice = "¡Gracias! Recibimos tu comprobante y lo estamos revisando. En breve "
-            . "aplicamos tu pago y te avisaremos con un mensaje de confirmación cuando "
-            . "esté listo. "
-            . ($meg ? "Para la próxima, incluye tu referencia {$meg} en el concepto y lo aplicamos más rápido." : "");
-
-        return $this->step($session, $notice, terminal: true, extra: ['meg_hint' => $meg]);
+        return $this->step($session, trim($notice), terminal: true, extra: ['meg_hint' => $meg]);
     }
 
     private function escalate(Session $session, string $reason): array
