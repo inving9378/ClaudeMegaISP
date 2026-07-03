@@ -113,7 +113,10 @@
         });
     }
 
-    render(SWITCHES);
+    // Arranca cuando el DOM esté listo (el script va en @stack('scripts'), full-load;
+    // la ruta está en SPA_BLACKLIST para forzar recarga completa y que esto corra).
+    if (document.getElementById('ca-list')) render(SWITCHES);
+    else document.addEventListener('DOMContentLoaded', () => render(SWITCHES));
 })();
 </script>
 @endpush

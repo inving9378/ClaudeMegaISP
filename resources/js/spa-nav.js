@@ -14,6 +14,9 @@ const SPA_BLACKLIST = [
     '/embajadores/metrics',
     '/embajadores/video',
     '/administracion/documentation/documentation_content',
+    // Interruptores de conciliación: usa @push('scripts') propio (fuera de #init-vue)
+    // que spa-nav no re-ejecuta al intercambiar → full-load para que los toggles monten.
+    '/finanzas/conciliacion-config',
 ];
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
