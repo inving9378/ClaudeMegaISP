@@ -26,9 +26,13 @@ class ConciliationConfigController extends Controller
     {
         $this->guard();
 
-        return view('addon-payments::conciliacion-config', [
-            'switches' => ConciliationSettings::state(),
-        ]);
+        // no-store: la pantalla lleva el estado de los flags embebido (SWITCHES)
+        // y JS inline; evitamos que un navegador/proxy sirva una copia vieja.
+        return response()
+            ->view('addon-payments::conciliacion-config', [
+                'switches' => ConciliationSettings::state(),
+            ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
     public function update(Request $request)

@@ -102,13 +102,18 @@
     // estado del maestro, SIN re-render — reactividad instantánea al mover el
     // interruptor general (no espera al servidor).
     function applyMasterGate(masterOn){
-        document.querySelectorAll('.ca-wrap .ca-card').forEach(cardEl => {
+        // Ops de DOM universalmente seguras (add/remove/removeChild) — se evita
+        // classList.toggle(force) y Node.remove() para no lanzar en navegadores
+        // viejos; además la llamada va envuelta en try/catch (ver handler).
+        const cards = document.querySelectorAll('.ca-wrap .ca-card');
+        for (let i = 0; i < cards.length; i++) {
+            const cardEl = cards[i];
             const lbl = cardEl.querySelector('.sw');
-            if (!lbl || lbl.dataset.key === 'wa_conciliation') return; // el maestro no se atenúa
+            if (!lbl || lbl.dataset.key === 'wa_conciliation') continue; // el maestro no se atenúa
             const input = lbl.querySelector('input');
             const off = !masterOn;
-            cardEl.classList.toggle('ca-dim', off);
-            lbl.classList.toggle('disabled', off);
+            if (off) { cardEl.classList.add('ca-dim'); lbl.classList.add('disabled'); }
+            else     { cardEl.classList.remove('ca-dim'); lbl.classList.remove('disabled'); }
             if (input) input.disabled = off;
             const txt = cardEl.querySelector('.ca-txt');
             let note = cardEl.querySelector('.ca-note-off');
@@ -117,10 +122,10 @@
                 note.className = 'ca-note-off';
                 note.textContent = 'Sin efecto mientras el interruptor general esté apagado.';
                 txt.appendChild(note);
-            } else if (!off && note) {
-                note.remove();
+            } else if (!off && note && note.parentNode) {
+                note.parentNode.removeChild(note);
             }
-        });
+        }
     }
 
     function bind(){
@@ -139,8 +144,10 @@
 
                 // Reactividad INSTANTÁNEA: si es el maestro, atenúa/rehabilita los
                 // dependientes ya mismo (optimista), sin esperar al servidor.
+                // try/catch: un fallo en el gate visual NUNCA debe impedir el
+                // guardado (POST) — el guardado es lo crítico.
                 const isMaster = key === 'wa_conciliation';
-                if (isMaster) applyMasterGate(want);
+                if (isMaster) { try { applyMasterGate(want); } catch (e) { console.warn('gate visual falló (se guarda igual):', e); } }
 
                 lbl.classList.add('busy');
                 try {
