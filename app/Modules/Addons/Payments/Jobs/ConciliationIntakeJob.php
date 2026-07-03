@@ -101,6 +101,33 @@ class ConciliationIntakeJob implements ShouldQueue
             return;
         }
 
+        // ANTIFRAUDE: si esta clave de rastreo ya se recibió antes desde OTRA
+        // conversación (otro número), es posible reenvío del comprobante de otra
+        // persona. NO se auto-procesa: el caso se crea directo en ESCALADOS
+        // marcado como duplicidad sospechosa, para revisión humana (la
+        // comparativa de números se calcula al abrir el caso). No se responde
+        // al cliente. El anti-duplicado de F4 sigue vigente al aplicar.
+        $clave = trim((string) ($result['fields']['clave_rastreo']['value'] ?? ''));
+        if ($clave !== '' && $this->claveSeenInOtherConversation($clave, (int) $message->conversation_id)) {
+            $session = Session::create([
+                'is_simulation'     => false,
+                'extraction_id'     => $extraction->id,
+                'conversation_id'   => $message->conversation_id,
+                'message_id'        => $message->id,
+                'state'             => Session::STATE_ESCALATED,
+                'escalation_reason' => 'duplicate_clave',
+                'attempts'          => 0,
+                'expires_at'        => now()->addHours((int) (Setting::get('reconciliation_session_hours', 1) ?? 12)),
+            ]);
+            Log::channel('evolution')->warning('Conciliación: clave duplicada desde otra conversación → ESCALADO (posible fraude)', [
+                'message_id'    => $message->id,
+                'extraction_id' => $extraction->id,
+                'session_id'    => $session->id,
+                'clave'         => $clave,
+            ]);
+            return; // NO FSM, NO auto-respuesta
+        }
+
         // F3 — inicia la sesión de identificación.
         $session = Session::create([
             'is_simulation'   => false,
@@ -143,6 +170,15 @@ class ConciliationIntakeJob implements ShouldQueue
         };
 
         return $has('monto') || $has('clave_rastreo');
+    }
+
+    /** ¿Esta clave de rastreo ya se recibió en OTRA conversación (otro número)? */
+    private function claveSeenInOtherConversation(string $clave, int $conversationId): bool
+    {
+        return WhatsappPaymentExtraction::where('conversation_id', '!=', $conversationId)
+            ->whereNull('discarded_at')
+            ->where('fields->clave_rastreo->value', $clave)
+            ->exists();
     }
 
     private function phoneHint(Message $message): ?string

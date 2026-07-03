@@ -178,6 +178,16 @@
             ? (s.media_ext === 'pdf' ? `<iframe src="${U}/${id}/media"></iframe>` : `<img src="${U}/${id}/media">`)
             : '<span class="muted">Sin comprobante</span>';
 
+        // Antifraude: duplicidad sospechosa de clave de rastreo (misma clave de varios números).
+        let dupBlock = '';
+        if (s.suspicious_duplicate && s.clave_sources && s.clave_sources.length){
+            dupBlock = `<div class="warn" style="border-color:var(--danger);color:var(--danger);">
+                ⚠️ <b>Duplicidad sospechosa</b>: esta clave de rastreo se recibió de varios números. Compárales antes de aplicar (posible reenvío de comprobante ajeno):
+                <ul style="margin:6px 0 0 16px; padding:0;">
+                ${s.clave_sources.map(x => `<li>${esc(x.phone||'—')} · ${esc(x.when||'')}</li>`).join('')}
+                </ul></div>`;
+        }
+
         let clientBlock = s.client
             ? `<tr><th>Cliente propuesto</th><td><b>${esc(s.client.name)}</b> (id ${s.client.id})</td></tr>
                <tr><th>Identificado por</th><td>${esc(s.method || '—')} · certeza ${esc(s.certainty || '—')}</td></tr>`
@@ -205,7 +215,7 @@
         <p class="note">Confirmar respeta el anti-duplicado de Fase 4. No se envía WhatsApp al cliente.</p>`;
 
         document.getElementById('cc-detail').innerHTML =
-            `<div class="cc-prev">${media}</div>
+            `<div class="cc-prev">${media}</div>${dupBlock}
              <table class="cc-tbl">
                 <tr><th>Monto</th><td><b>$${fld('monto')}</b></td></tr>
                 <tr><th>Fecha del pago</th><td>${fld('fecha_pago')}</td></tr>

@@ -167,18 +167,46 @@ class ReconciliationQueueController extends Controller
         $client   = $s->resolved_client_id ? $this->clientInfo($s->resolved_client_id) : null;
         $services = $s->resolved_client_id ? $this->clientServices($s->resolved_client_id) : [];
 
+        // Antifraude: de qué número(s) se recibió esta clave de rastreo.
+        $claveSources = $this->claveSources($fields['clave_rastreo']['value'] ?? null);
+
         return response()->json([
             'id'                 => $s->id,
             'state'              => $s->state,
             'method'             => $s->method,
             'certainty'          => $s->certainty,
+            'escalation_reason'  => $s->escalation_reason,
             'multiple_services'  => (bool) $s->resolved_multiple_services,
             'fields'             => $fields,
             'client'             => $client,
             'services'           => $services,
             'has_media'          => $ext && $this->mediaPath($s),
             'media_ext'          => $this->mediaPath($s) ? strtolower(pathinfo($this->mediaPath($s), PATHINFO_EXTENSION)) : null,
+            // Duplicidad sospechosa: la misma clave se recibió en >1 recepción.
+            'suspicious_duplicate' => count($claveSources) > 1,
+            'clave_sources'        => count($claveSources) > 1 ? $claveSources : [],
         ]);
+    }
+
+    /** Recepciones (número + fecha) donde apareció esta clave de rastreo — antifraude. */
+    private function claveSources(?string $clave): array
+    {
+        if ($clave === null || trim($clave) === '') {
+            return [];
+        }
+        $rows = DB::table('whatsapp_payment_extractions')
+            ->where('fields->clave_rastreo->value', $clave)
+            ->whereNull('discarded_at')
+            ->orderBy('id')
+            ->get(['conversation_id', 'created_at']);
+
+        return $rows->map(function ($r) {
+            $jid = DB::table('marketing_conversations')->where('id', $r->conversation_id)->value('external_thread_id');
+            return [
+                'phone' => $jid ? \App\Modules\Addons\Marketing\Services\EvolutionApiService::jidToPhone($jid) : '—',
+                'when'  => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at)->format('d/m/Y H:i') : null,
+            ];
+        })->toArray();
     }
 
     /** Sirve el comprobante (imagen/PDF) del caso. */
