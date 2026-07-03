@@ -8,6 +8,7 @@
     "active": true,
 
     "permissions": [
+        { "name": "portal.colaborador",            "description": "Acceso base al Portal de Colaborador (atado a colaborador activo; solo el shell, no secciones)" },
         { "name": "talento.view",                  "description": "Ver el módulo de talento y listado de colaboradores" },
         { "name": "talento.manage",                "description": "Crear y editar perfiles de colaboradores" },
         { "name": "talento.custody.view",          "description": "Ver material en custodia por colaborador (solo lectura)" },
