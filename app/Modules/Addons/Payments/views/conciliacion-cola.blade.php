@@ -256,6 +256,7 @@
     let modalFichaUrl = null;
     const REASON_TEXT = {
         duplicate_clave: 'Este comprobante ya fue aplicado (clave de rastreo duplicada).',
+        duplicate_fingerprint: 'Este pago ya fue aplicado antes (mismo monto, fecha y banco).',
         already_applied: 'El caso ya había sido aplicado.',
         no_amount: 'El comprobante no tiene un monto legible.',
         no_clave: 'El comprobante no tiene clave de rastreo.',

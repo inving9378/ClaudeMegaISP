@@ -88,13 +88,22 @@ class PaymentFromSessionService
             return $this->blocked('no_amount');
         }
 
-        // Candado 1: clave_rastreo única. Sin clave o clave ya usada → no aplica.
-        if (empty($data['clave'])) {
-            return $this->blocked('no_clave');
+        // Candado 1: no re-aplicar el mismo comprobante. Identificador anti-duplicado:
+        // la clave de rastreo (o referencia) si la hay — más fuerte; si NO hay, una
+        // huella (monto + fecha + banco). Ya NO se bloquea por falta de clave: un
+        // comprobante legítimo sin clave (efectivo, algunos Mercado Pago) SÍ se aplica.
+        $clave       = $data['clave']; // clave_rastreo o referencia; puede ser null
+        $fingerprint = $clave ? null : $this->paymentFingerprint($data);
+
+        if ($clave) {
+            if ($this->claveAlreadyUsed($clave)) {
+                return $this->blocked('duplicate_clave');
+            }
+        } elseif ($fingerprint !== null && $this->fingerprintAlreadyUsed($fingerprint)) {
+            return $this->blocked('duplicate_fingerprint');
         }
-        if ($this->claveAlreadyUsed($data['clave'])) {
-            return $this->blocked('duplicate_clave');
-        }
+        // Si no hay clave y la huella es demasiado débil (solo monto) → se permite
+        // aplicar sin dedup, para no bloquear un pago legítimo.
 
         // Candado 2: claim ATÓMICO de la sesión (gana un solo proceso).
         $claimed = Session::where('id', $session->id)->whereNull('applied_at')
@@ -107,14 +116,19 @@ class PaymentFromSessionService
         try {
             $megaisp = User::systemBot()?->id ?? 1;
 
+            // Trazabilidad: dejar claro si se identificó por clave/ref o por huella.
+            $idLabel = $clave
+                ? 'clave/ref: ' . $clave
+                : 'SIN clave de rastreo; identificado por huella monto/fecha/banco';
+
             $payment = $this->payments->applyPayment([
                 'client_id'   => $session->resolved_client_id,
                 'amount'      => $data['amount'],
                 'method_id'   => self::METHOD_TRANSFERENCIA,
                 'add_by'      => $megaisp,
-                'external_id' => $data['clave'],
+                'external_id' => $clave, // null si el comprobante no trae clave/ref
                 'provider'    => 'whatsapp',
-                'comment'     => 'Pago por WhatsApp (conciliación IA, clave: ' . $data['clave'] . ')',
+                'comment'     => 'Pago por WhatsApp (conciliación IA, ' . $idLabel . ')',
             ]);
 
             $reported = ReportedPayment::create([
@@ -123,7 +137,8 @@ class PaymentFromSessionService
                 'method_of_payment_id'      => self::METHOD_TRANSFERENCIA,
                 'amount'                    => $data['amount'],
                 'fecha_pago'                => $data['fecha'] ?? now()->toDateString(),
-                'clave_rastreo'             => $data['clave'],
+                'clave_rastreo'             => $clave,
+                'dedup_fingerprint'         => $clave ? null : $fingerprint,
                 'titular'                   => $data['titular'] ?? null,
                 'banco_origen'              => $data['banco'] ?? null,
                 'comprobante_path'          => $data['comprobante_path'] ?? null,
@@ -174,7 +189,7 @@ class PaymentFromSessionService
 
     private function extractionData(Session $session): array
     {
-        $out = ['amount' => null, 'clave' => null, 'fecha' => null, 'titular' => null, 'banco' => null, 'comprobante_path' => null];
+        $out = ['amount' => null, 'clave' => null, 'fecha' => null, 'fecha_pago_raw' => null, 'titular' => null, 'banco' => null, 'comprobante_path' => null];
         if (!$session->extraction_id) {
             return $out;
         }
@@ -188,10 +203,16 @@ class PaymentFromSessionService
         $monto = $val('monto');
         $out['amount']  = ($monto !== null && is_numeric(str_replace(',', '', (string) $monto)))
             ? (float) str_replace(',', '', (string) $monto) : null;
-        $out['clave']   = $val('clave_rastreo');
-        $out['fecha']   = null; // la fecha del comprobante es texto libre; se usa la de hoy en applyPayment
-        $out['titular'] = $val('titular_ordenante');
-        $out['banco']   = $val('banco_origen');
+        // Clave: clave de rastreo SPEI (fuerte); si no hay, la referencia de operación.
+        $clave = $val('clave_rastreo');
+        if ($clave === null || trim((string) $clave) === '') {
+            $clave = $val('referencia');
+        }
+        $out['clave']          = ($clave !== null && trim((string) $clave) !== '') ? trim((string) $clave) : null;
+        $out['fecha']          = null; // la fecha del comprobante es texto libre; se usa la de hoy en applyPayment
+        $out['fecha_pago_raw'] = $val('fecha_pago'); // texto crudo, solo para la huella anti-duplicado
+        $out['titular']        = $val('titular_ordenante');
+        $out['banco']          = $val('banco_origen');
 
         // Ruta del comprobante desde el mensaje.
         $out['comprobante_path'] = DB::table('marketing_messages')->where('id', $ext->message_id)->value('media_path');
@@ -205,6 +226,36 @@ class PaymentFromSessionService
         $inReported = DB::table('reported_payments')->where('clave_rastreo', $clave)->whereNull('deleted_at')->exists();
         $inPayments = DB::table('payments')->where('number', $clave)->whereNull('deleted_at')->exists();
         return $inReported || $inPayments;
+    }
+
+    /**
+     * Huella anti-duplicado para comprobantes SIN clave: monto + fecha + banco.
+     * Devuelve null si es demasiado débil (solo monto, sin fecha ni banco) para
+     * NO bloquear pagos legítimos por una coincidencia de monto.
+     */
+    private function paymentFingerprint(array $data): ?string
+    {
+        $amount = $data['amount'];
+        $fecha  = $this->norm($data['fecha_pago_raw'] ?? null);
+        $banco  = $this->norm($data['banco'] ?? null);
+        if ($amount === null || ($fecha === '' && $banco === '')) {
+            return null;
+        }
+        return 'FP:' . number_format((float) $amount, 2, '.', '') . '|' . $fecha . '|' . $banco;
+    }
+
+    /** ¿Ya se aplicó antes un pago con esta misma huella? */
+    private function fingerprintAlreadyUsed(string $fingerprint): bool
+    {
+        return DB::table('reported_payments')
+            ->where('dedup_fingerprint', $fingerprint)
+            ->whereNull('deleted_at')
+            ->exists();
+    }
+
+    private function norm(?string $s): string
+    {
+        return trim(preg_replace('/\s+/', ' ', mb_strtolower((string) $s)));
     }
 
     private function blocked(string $reason): array

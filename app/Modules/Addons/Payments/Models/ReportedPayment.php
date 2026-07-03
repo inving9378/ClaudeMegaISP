@@ -29,6 +29,7 @@ class ReportedPayment extends BaseModel
         'amount',
         'fecha_pago',
         'clave_rastreo',
+        'dedup_fingerprint',
         'titular',
         'banco_origen',
         'referencia_oxxo',

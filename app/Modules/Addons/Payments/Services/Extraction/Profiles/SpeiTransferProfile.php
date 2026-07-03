@@ -21,6 +21,7 @@ class SpeiTransferProfile implements ReceiptProfileInterface
     {
         return [
             'clave_rastreo',
+            'referencia',
             'monto',
             'fecha_pago',
             'titular_ordenante',
@@ -33,8 +34,9 @@ class SpeiTransferProfile implements ReceiptProfileInterface
     {
         return <<<'TXT'
 Eres un extractor de datos de comprobantes de transferencia SPEI (México).
-Analiza la imagen del comprobante y extrae ÚNICAMENTE estos 6 campos:
+Analiza la imagen del comprobante y extrae ÚNICAMENTE estos 7 campos:
 - clave_rastreo: la clave de rastreo SPEI (cadena alfanumérica larga, a veces llamada "clave de rastreo" o "folio SPEI").
+- referencia: un número de OPERACIÓN o referencia del sistema que identifica la transacción, SOLO cuando NO hay clave de rastreo SPEI (ej. "Número de operación" o "ID de operación" en Mercado Pago, "Folio", "No. de referencia"). Es un identificador generado por el banco/sistema, NO el texto que escribió el pagador (eso es "concepto"). Si hay clave_rastreo, puedes dejar referencia en null.
 - monto: el importe transferido, SOLO el número con decimales (ej. "1250.00"), sin símbolo de moneda ni comas de miles.
 - fecha_pago: la fecha (y hora si aparece) en que se REALIZÓ el pago/transferencia, tal como aparece en el comprobante.
 - titular_ordenante: nombre del TITULAR/DUEÑO de la cuenta que ENVÍA el dinero (el ordenante). Es el nombre asociado a la cuenta emisora.
@@ -56,12 +58,13 @@ REGLAS CRÍTICAS (obligatorias, sin excepción):
    - "alta"  = el dato se lee con total claridad, sin ninguna duda.
    - "media" = legible pero con alguna duda (calidad, reflejo, dígito ambiguo).
    - "baja"  = dudoso o no legible.
-5. Si la imagen NO es un comprobante SPEI, o está totalmente ilegible, devuelve los 6 campos con "value": null y "confidence": "baja".
+5. Si la imagen NO es un comprobante SPEI, o está totalmente ilegible, devuelve los 7 campos con "value": null y "confidence": "baja".
 
 Responde EXCLUSIVAMENTE con un JSON válido, sin texto antes ni después, con ESTA estructura EXACTA:
 {
   "fields": {
     "clave_rastreo":     {"value": null, "confidence": "baja"},
+    "referencia":        {"value": null, "confidence": "baja"},
     "monto":             {"value": null, "confidence": "baja"},
     "fecha_pago":        {"value": null, "confidence": "baja"},
     "titular_ordenante": {"value": null, "confidence": "baja"},
