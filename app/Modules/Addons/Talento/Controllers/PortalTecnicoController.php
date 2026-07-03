@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Services\InventoryService;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoFund;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
@@ -746,6 +747,73 @@ JS;
             'prestamos'      => $prestamos,
             'repago_periodo' => $repagoPeriodo,
             'solo_consulta'  => true,
+        ]);
+    }
+
+    /**
+     * Mi material — custodia de equipos del colaborador (SOLO LECTURA, self-scoped por Actor).
+     *
+     * Reusa el backend de Inventario (InventoryService sobre inventory_item_stocks / inventory_movements).
+     * El user_id sale del Actor (resolveColaborador → colaborador->user_id), JAMÁS de un {id} de URL → IDOR cerrado.
+     * ⚠️ El "valor de reposición" es INFORMATIVO (costo de referencia del equipo), NO un adeudo: hoy NO existe
+     *    vínculo custodia→nómina, nada se descuenta. (El cobro por material solo ocurre en finiquito, SettlementService.)
+     */
+    public function material(Request $request)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+        $userId = $col->user_id;
+
+        $inv = new InventoryService();
+
+        $itemView = function ($item): array {
+            if (! $item) return ['equipo' => '—', 'tipo' => null, 'serie' => null];
+
+            return [
+                'equipo' => $item->name,
+                'tipo'   => optional($item->inventory_item_type)->name,
+                'serie'  => $item->serial_number_enable ? $item->serial_number : null,
+            ];
+        };
+
+        // 1. En custodia (aceptados, stock > 0). valor_reposicion = costo de referencia, INFORMATIVO.
+        $enCustodia = $inv->getItemsAcceptedByUser($userId)
+            ->load('inventory_item.inventory_item_type')
+            ->filter(fn ($s) => (float) $s->current_stock > 0)
+            ->map(fn ($s) => array_merge($itemView($s->inventory_item), [
+                'cantidad'         => (int) $s->current_stock,
+                'condicion'        => $s->condition,
+                'valor_reposicion' => round((float) $s->unit_cost, 2),
+                'fecha_asignacion' => optional($s->created_at)->toDateTimeString(),
+                'estado'           => 'en_custodia',
+            ]))->values();
+
+        // 2. Pendientes de aceptar (movimientos de Entrada en estado pending).
+        $pendientes = $inv->getItemsPendingByUser($userId)
+            ->load('inventory_item.inventory_item_type')
+            ->map(fn ($m) => array_merge($itemView($m->inventory_item), [
+                'cantidad'         => (int) $m->quantity,
+                'fecha_asignacion' => optional($m->created_at)->toDateTimeString(),
+                'estado'           => 'pendiente_aceptar',
+            ]))->values();
+
+        // 3. Historial de movimientos (Salida del colaborador = devolución).
+        $historial = $inv->getLastActionsByUser($userId)
+            ->load('inventory_item.inventory_item_type')
+            ->map(fn ($m) => array_merge($itemView($m->inventory_item), [
+                'tipo_movimiento' => $m->type,        // Entrada | Salida
+                'cantidad'        => (int) $m->quantity,
+                'estado_mov'      => $m->status,       // accepted | pending | rejected
+                'descripcion'     => $m->description,
+                'fecha'           => optional($m->created_at)->toDateTimeString(),
+            ]))->values();
+
+        return response()->json([
+            'en_custodia'        => $enCustodia,
+            'pendientes_aceptar' => $pendientes,
+            'historial'          => $historial,
+            'nota_valor'         => 'El valor de reposición es informativo (costo de referencia del equipo). No es un adeudo ni se descuenta.',
+            'solo_consulta'      => true,
         ]);
     }
 

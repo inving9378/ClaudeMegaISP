@@ -437,6 +437,9 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
         Route::get('/dinero/fondo',     [PortalTecnicoController::class, 'dineroFondo']);
         Route::get('/dinero/prestamos', [PortalTecnicoController::class, 'dineroPrestamos']);
 
+        // Mi material — custodia de equipos (SOLO LECTURA, self-scoped por Actor). Reusa InventoryService.
+        Route::get('/material',         [PortalTecnicoController::class, 'material']);
+
         // Detalle de OT (por origen/id). {origen} = work_order|task.
         Route::get('/ot/{origen}/{id}', [PortalTecnicoController::class, 'otDetalle'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
