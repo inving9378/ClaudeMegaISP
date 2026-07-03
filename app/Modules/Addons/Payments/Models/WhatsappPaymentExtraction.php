@@ -31,6 +31,8 @@ class WhatsappPaymentExtraction extends BaseModel
         'raw',
         'extracted_by',
         'extracted_at',
+        'discarded_at',
+        'discard_reason',
     ];
 
     protected $casts = [
@@ -38,6 +40,7 @@ class WhatsappPaymentExtraction extends BaseModel
         'fields'       => 'array',
         'unreadable'   => 'array',
         'extracted_at' => 'datetime',
+        'discarded_at' => 'datetime',
     ];
 
     public function message()
