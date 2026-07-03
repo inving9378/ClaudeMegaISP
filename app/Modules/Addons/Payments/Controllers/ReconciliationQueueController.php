@@ -86,13 +86,19 @@ class ReconciliationQueueController extends Controller
                 if ($from) { $q->whereDate('created_at', '>=', $from); }
                 if ($to)   { $q->whereDate('created_at', '<=', $to); }
                 $reported = $q->latest('id')->limit(300)->get();
+                $sessionIds = $reported->pluck('identification_session_id')->filter();
                 $fechas = DB::table('whatsapp_identification_sessions as s')
                     ->join('whatsapp_payment_extractions as e', 'e.id', '=', 's.extraction_id')
-                    ->whereIn('s.id', $reported->pluck('identification_session_id')->filter())
+                    ->whereIn('s.id', $sessionIds)
                     ->pluck('e.fecha_pago', 's.id');
+                $sessById = Session::whereIn('id', $sessionIds)->get()->keyBy('id');
                 foreach ($reported as $r) {
+                    $mp = $this->servableMedia($sessById->get($r->identification_session_id));
                     $rows->push([
                         'kind'          => 'aprobado',
+                        'session_id'    => $r->identification_session_id,
+                        'has_media'     => (bool) $mp,
+                        'media_ext'     => $mp ? strtolower(pathinfo($mp, PATHINFO_EXTENSION)) : null,
                         'client'        => $this->clientInfo((int) $r->client_id),
                         'amount'        => $r->amount,
                         'fecha_pago'    => $fechas[$r->identification_session_id] ?? (string) $r->fecha_pago,
@@ -117,8 +123,12 @@ class ReconciliationQueueController extends Controller
                 foreach ($rej as $s) {
                     $e = $ext->get($s->extraction_id);
                     $f = $e && $e->fields ? json_decode($e->fields, true) : [];
+                    $mp = $this->servableMedia($s);
                     $rows->push([
                         'kind'          => 'rechazado',
+                        'session_id'    => $s->id,
+                        'has_media'     => (bool) $mp,
+                        'media_ext'     => $mp ? strtolower(pathinfo($mp, PATHINFO_EXTENSION)) : null,
                         'client'        => $s->resolved_client_id ? $this->clientInfo((int) $s->resolved_client_id) : null,
                         'amount'        => $f['monto']['value'] ?? null,
                         'fecha_pago'    => $f['fecha_pago']['value'] ?? null,
@@ -347,6 +357,16 @@ class ReconciliationQueueController extends Controller
         }
         $msgId = DB::table('whatsapp_payment_extractions')->where('id', $s->extraction_id)->value('message_id');
         return $msgId ? DB::table('marketing_messages')->where('id', $msgId)->value('media_path') : null;
+    }
+
+    /** Ruta de comprobante REALMENTE servible por media() (mismo guard: prefijo + existe). */
+    private function servableMedia(?Session $s): ?string
+    {
+        if (!$s) {
+            return null;
+        }
+        $path = $this->mediaPath($s);
+        return ($path && str_starts_with($path, self::MEDIA_PREFIX) && Storage::disk('local')->exists($path)) ? $path : null;
     }
 
     private function mimeFor(string $path): string

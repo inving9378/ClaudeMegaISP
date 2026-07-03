@@ -136,10 +136,17 @@
                     tag = '<span class="cc-badge b-esc">Rechazado</span>';
                     extra = `motivo: ${esc(r.reject_reason ?? '—')} · por ${esc(r.rejected_by ?? '—')} · ${esc(r.when ?? '')}`;
                 }
-                return `<div class="item" style="cursor:default;">
+                const viewHint = r.has_media
+                    ? '<div class="muted" style="margin-top:4px;">📎 Ver comprobante</div>'
+                    : '<div class="muted" style="margin-top:4px;">Sin comprobante</div>';
+                const clickAttr = r.has_media
+                    ? `style="cursor:pointer;" onclick="ccHistView(${r.session_id}, '${esc(r.media_ext || '')}')"`
+                    : 'style="cursor:default;"';
+                return `<div class="item" ${clickAttr}>
                     <div>${tag} <b>$${esc(r.amount ?? '?')}</b></div>
                     <div style="margin-top:3px;">${r.client ? esc(r.client.name) : '<i>sin identificar</i>'}</div>
                     <div class="muted">${extra}</div>
+                    ${viewHint}
                 </div>`;
             }).join('') : '<p class="muted">Sin registros en el historial para este filtro.</p>';
             box.innerHTML = filter + rows;
@@ -326,6 +333,17 @@
     window.ccAprobTo = function(v){ aprobTo = v; loadList(); };
     window.ccAprobClear = function(){ aprobFrom = ''; aprobTo = ''; loadList(); };
     window.ccHistEstado = function(v){ histEstado = v; loadList(); };
+
+    // Historial: ver el comprobante original (imagen/PDF) en el panel de detalle.
+    // Reusa el endpoint protegido media/{session} (gateado por conciliacion.manage).
+    window.ccHistView = function(sessionId, ext){
+        const media = ext === 'pdf'
+            ? `<iframe src="${U}/${sessionId}/media"></iframe>`
+            : `<img src="${U}/${sessionId}/media">`;
+        document.getElementById('cc-detail').innerHTML =
+            `<h3 style="margin:0 0 8px;">Comprobante</h3><div class="cc-prev">${media}</div>
+             <p class="muted">Evidencia original enviada por el cliente (solo lectura).</p>`;
+    };
 
     async function refreshCounts(){
         for (const t of ['propuesto','escalado','verificacion']){
