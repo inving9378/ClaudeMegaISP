@@ -915,6 +915,27 @@ Versión web/PWA de la app de campo (reusa `/talento/api` + servicios Talento; g
 
 ---
 
+## PORTAL DE COLABORADOR — estrategia de migración + Fase 0
+
+Generalización del Portal Técnico a **Portal de Colaborador** (`/talento/portal`): hogar único para cualquier colaborador (técnico/vendedor/mostrador/embajador) en "modo colaborador" (solo SUS datos, fuera del panel admin). Gate: **`can:portal.colaborador`** (`routes.php:420`, ya aplicado 2026-07-03).
+
+### ⚠️ REGLA DE PERMISOS (CLAVE) — son ACUMULATIVOS
+Los permisos Spatie se **SUMAN**. Para AGREGAR usar SIEMPRE **`givePermissionTo`** (aditivo); **JAMÁS `syncRoles`/`syncPermissions`** (destructivos: reemplazan TODO). Así subir cualquier proyecto **no degrada a nadie** — una admin-colaboradora (Diana/Ariana/Tere) que recibe `portal.colaborador` conserva **todos** sus permisos admin.
+- `TalentoColaboradorObserver` cumple (`givePermissionTo`/`revokePermissionTo`, nunca sync).
+- ⚠️ **Footgun PENDIENTE de blindar:** `UserController::update` (~línea 278) hace `$user->syncRoles($roles)` **destructivo** desde el form de editar usuario, sin preservar roles de sistema → al guardar el form puede quitarle `super-administrator` a un dueño (pasó con Irving id=8 en dev). **NO está blindado todavía** (blindaje propuesto, no aplicado). **NO existe** ningún comando `talento:sync-user-roles` (mito descartado — el único punto destructivo es ese form).
+
+### Estrategia: migración GRADUAL, sin forzar a nadie
+El portal reemplaza al admin **fase por fase**. **POR AHORA todos entran al admin como hoy** — nadie cambia de flujo ni pierde su herramienta. Cada tipo de colaborador se "muda" (se le quita acceso admin + redirección al portal) **SOLO cuando el portal cubra TODO su trabajo** (ej: Isaac depende de Scheduling/Tareas → no se muda hasta que el portal tenga esa sección).
+- **La redirección post-login automática está DIFERIDA** al paso final de cada tipo (se descartó aplicarla ahora). Diseño validado y guardado para ese momento: **allowlist** de roles de campo (`Vendedor, TECNICO, TECNICO_INSTALADOR, TECNICO_PLANTA, conductor` + `client` neutro) con **admin-primero** — cualquier rol de oficina → dashboard admin (falla-seguro). Verificado: Diana/Ariana/Tere → admin (conservan control); Brandon/Isaac → portal.
+
+### Deuda de estilo
+El portal tiene look propio (header verde "Talento Campo") distinto al admin (estilo Splynx). Unificar poco a poco conforme madure — **no urgente**.
+
+### Fase 0 (fundación)
+Permiso base `portal.colaborador` + auto-asignación **aditiva** (observer) + `Actor` (identidad inmutable por request) + sidebar componible (`Actor::sections()`) + gate `portal.colaborador` + botón "Mi portal" en topbar. Redirección auto **diferida**. **Próximo: Fase A — Material.**
+
+---
+
 ## MOTOR DE COMPENSACIÓN TALENTO — Ventana de la semana de pago (arreglo 2026-07-02)
 
 **Estado: ✅ ARREGLO COMPLETO (DEV, forward-only).** La ventana de pago se corrigió de `Sáb 00:00 → Vie 23:59` (sin corte horario) a **`Sáb 18:00 → Sáb 18:00` con corte inclusivo a las 18:00** (regla real de Irving: lo validado después de las 18:00 del sábado pasa a la semana siguiente).
