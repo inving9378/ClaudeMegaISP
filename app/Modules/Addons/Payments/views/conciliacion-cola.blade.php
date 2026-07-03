@@ -199,11 +199,13 @@
                 s.services.map(sv => `<div class="svc" data-svc="${sv.id}" onclick="ccPickService(${sv.id}, this)">${esc(sv.type)}: ${esc(sv.description)}</div>`).join('');
         }
 
-        let searchBlock = '';
-        if (!s.client){
-            searchBlock = `<div class="row"><input class="cc-in" id="cc-q" placeholder="Busca por nombre o número de cliente" onkeydown="if(event.key==='Enter')ccSearch()">
-                <button class="cc-btn cc-ghost" onclick="ccSearch()">Buscar</button></div><div id="cc-res" class="res"></div>`;
-        }
+        // Buscador validado: identificar (escalado) o reasignar (propuesto). Busca
+        // por nombre, número de cliente o referencia MEG; valida que exista.
+        const searchLabel = s.client ? 'Reasignar a otro cliente' : 'Identificar cliente';
+        let searchBlock = `<div style="margin-top:12px;">
+            <div class="muted" style="margin-bottom:4px;">${searchLabel} — por nombre, número de cliente o referencia MEG (se valida contra la base):</div>
+            <div class="row"><input class="cc-in" id="cc-q" placeholder="Nombre / número de cliente / MEG-XXXXXXXX-XX" onkeydown="if(event.key==='Enter')ccSearch()">
+            <button class="cc-btn cc-ghost" onclick="ccSearch()">Buscar</button></div><div id="cc-res" class="res"></div></div>`;
 
         const canConfirm = !!s.client;
         let actions = `<div class="row">
@@ -240,10 +242,15 @@
             ? d.rows.map(r => `<div class="svc" onclick="ccPickClient(${r.client_id}, this)">${esc(r.name)} (id ${r.client_id})${r.colonia?' · '+esc(r.colonia):''}</div>`).join('')
             : '<span class="muted">Sin coincidencias.</span>';
     };
-    window.ccPickClient = function(id, el){
-        chosenClient = id;
+    window.ccPickClient = async function(id, el){
         document.querySelectorAll('#cc-res .svc').forEach(s => s.classList.toggle('on', s === el));
-        document.getElementById('cc-ok').disabled = false;
+        // Reasigna (valida existencia) y recarga el detalle con el cliente elegido.
+        const {status, data} = await post(U + '/' + current + '/reasignar', {client_id: id});
+        if (status === 200 && data.ok){
+            ccSelect(current);
+        } else {
+            alert('No se pudo reasignar: ' + (data.message || 'el cliente no existe.'));
+        }
     };
 
     let modalFichaUrl = null;

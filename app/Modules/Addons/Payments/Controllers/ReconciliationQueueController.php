@@ -7,6 +7,7 @@ use App\Modules\Addons\Payments\Models\ReportedPayment;
 use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
 use App\Modules\Addons\Payments\Services\Conciliation\PaymentFromSessionService;
 use App\Modules\Addons\Payments\Services\Identification\SubscriberSearchService;
+use App\Modules\Addons\Payments\Services\Identification\MegReferenceResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -350,16 +351,54 @@ class ReconciliationQueueController extends Controller
     }
 
     /** Búsqueda de cliente para identificar manualmente un ESCALADO. */
-    public function searchClients(Request $request, SubscriberSearchService $search)
+    public function searchClients(Request $request, SubscriberSearchService $search, MegReferenceResolver $meg)
     {
         $q = trim((string) $request->input('q', ''));
-        // Si es numérico → intenta por ID de cliente.
+
+        // Referencia MEG → resuelve directo al cliente ligado (mod-97 valida el DV).
+        if ($meg->extractReference($q)) {
+            $res = $meg->resolveFromText($q);
+            $c = ($res && !empty($res['client_id'])) ? $search->findById((int) $res['client_id']) : null;
+            return response()->json(['rows' => $c ? [$this->candidate($c)] : []]);
+        }
+        // Numérico → por ID de cliente.
         if (ctype_digit($q)) {
             $c = $search->findById((int) $q);
             return response()->json(['rows' => $c ? [$this->candidate($c)] : []]);
         }
+        // Texto → por nombre.
         $rows = collect($search->search([$q]))->map(fn ($c) => $this->candidate($c));
         return response()->json(['rows' => $rows]);
+    }
+
+    /**
+     * Reasigna el caso a un cliente elegido por el revisor (buscador validado).
+     * Valida que el cliente EXISTA antes de reasignar (evita aplicar a un id
+     * inventado). Deja el caso listo para confirmar (state=resolved, proposed).
+     */
+    public function reassign(Request $request, int $sessionId, SubscriberSearchService $search)
+    {
+        $data = $request->validate(['client_id' => ['required', 'integer']]);
+
+        $s = Session::findOrFail($sessionId);
+        abort_if($s->applied_at || $s->rejected_at, 409, 'El caso ya no está pendiente.');
+
+        // Validación dura: el cliente debe existir en la base.
+        $c = $search->findById((int) $data['client_id']);
+        abort_unless($c, 422, 'El cliente no existe.');
+
+        $s->update([
+            'resolved_client_id'         => (int) $data['client_id'],
+            'method'                     => 'manual',
+            'certainty'                  => Session::CERTAINTY_PROPOSED,
+            'state'                      => Session::STATE_RESOLVED,
+            'resolved_multiple_services' => $this->clientServiceCount((int) $data['client_id']) > 1,
+        ]);
+
+        return response()->json([
+            'ok'     => true,
+            'client' => $this->clientInfo((int) $data['client_id']),
+        ]);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -115,6 +115,7 @@ Route::middleware(['web', 'auth', 'permission:conciliacion.manage'])
         Route::get('/conciliacion-cola/clientes/buscar',       [ReconciliationQueueController::class, 'searchClients'])->name('conciliacion-cola.clientes');
         Route::get('/conciliacion-cola/{session}/detalle',     [ReconciliationQueueController::class, 'show'])->whereNumber('session')->name('conciliacion-cola.detalle');
         Route::get('/conciliacion-cola/{session}/media',       [ReconciliationQueueController::class, 'media'])->whereNumber('session')->name('conciliacion-cola.media');
+        Route::post('/conciliacion-cola/{session}/reasignar',  [ReconciliationQueueController::class, 'reassign'])->whereNumber('session')->name('conciliacion-cola.reasignar');
         Route::post('/conciliacion-cola/{session}/confirmar',  [ReconciliationQueueController::class, 'confirm'])->whereNumber('session')->name('conciliacion-cola.confirmar');
         Route::post('/conciliacion-cola/{session}/rechazar',   [ReconciliationQueueController::class, 'reject'])->whereNumber('session')->name('conciliacion-cola.rechazar');
     });
