@@ -223,6 +223,7 @@
                 <tr><th>Concepto</th><td>${fld('concepto')}</td></tr>
                 <tr><th>Banco origen</th><td>${fld('banco_origen')}</td></tr>
                 <tr><th>Titular</th><td>${fld('titular_ordenante')}</td></tr>
+                <tr><th>Enviado desde</th><td>${s.sender_phone ? esc(s.sender_phone) : '<span class="muted">—</span>'} <span class="muted">· solo contexto, no identifica al cliente</span></td></tr>
                 ${clientBlock}
              </table>${svcBlock}${searchBlock}${actions}`;
     };

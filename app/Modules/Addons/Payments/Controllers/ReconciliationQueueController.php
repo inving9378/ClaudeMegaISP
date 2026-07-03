@@ -187,7 +187,16 @@ class ReconciliationQueueController extends Controller
             'clave_sources'        => count($claveSources) > 1 ? $claveSources : [],
             // Alerta: la fecha del pago no es del mes actual ni del anterior.
             'fecha_vieja'          => $this->isOldPayment($fields['fecha_pago']['value'] ?? null),
+            // Número de WhatsApp que envió el comprobante (contexto/rastreo, NO identifica al cliente).
+            'sender_phone'         => $this->senderPhone($s),
         ]);
+    }
+
+    /** Número de WhatsApp del remitente del comprobante — solo contexto/rastreo. */
+    private function senderPhone(Session $s): ?string
+    {
+        $jid = DB::table('marketing_conversations')->where('id', $s->conversation_id)->value('external_thread_id');
+        return $jid ? \App\Modules\Addons\Marketing\Services\EvolutionApiService::jidToPhone($jid) : null;
     }
 
     /** ¿La fecha del pago es anterior al mes pasado? (solo si se puede parsear con confianza). */
