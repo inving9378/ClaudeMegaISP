@@ -246,7 +246,7 @@ class ReconciliationQueueController extends Controller
             'fecha_corte' => ($client && $client->fecha_corte)
                 ? \Illuminate\Support\Carbon::parse($client->fecha_corte)->format('d/m/Y')
                 : null,
-            'ficha_url'   => $client ? url('/cliente/editar/' . $client->id) : null,
+            'ficha_url'   => $client ? url('/cliente/editar/' . $client->id . '?tab=pagos') : null,
         ]), 200);
     }
 

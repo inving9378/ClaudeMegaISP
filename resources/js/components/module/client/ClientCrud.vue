@@ -230,6 +230,14 @@ const setTab = async () => {
 };
 
 const setInitialTab = async () => {
+    // Override por URL (?tab=pagos): permite abrir la ficha directo en una
+    // pestaña concreta sin pisar la preferencia guardada del usuario en DB.
+    // "pagos" = pestaña externa Facturación (el sub-tab Pagos lo resuelve ClientBilling).
+    const urlTab = new URLSearchParams(window.location.search).get("tab");
+    if (urlTab === "pagos" && tabs.value.includes("facture")) {
+        currentTab.value = "facture";
+        return;
+    }
     try {
         const savedTab = await configTabsHook.data.getFromDB("clients");
         const cleanSavedTab = savedTab.trim();

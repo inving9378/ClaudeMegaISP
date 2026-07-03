@@ -102,6 +102,13 @@ export default {
         });
 
         const setTab = async () => {
+            // Override por URL (?tab=pagos): abre directo el sub-tab Pagos sin
+            // pisar la preferencia guardada del usuario en DB.
+            const urlTab = new URLSearchParams(window.location.search).get("tab");
+            if (urlTab === "pagos") {
+                currentTab.value = "payment";
+                return;
+            }
             let tab = await configTabsHook.data.getFromDB("facture");
             const cleanSavedTab = tab.trim();
             currentTab.value = cleanSavedTab ? cleanSavedTab : "view";
