@@ -951,8 +951,10 @@ Sección "Mi material" en el portal (SOLO LECTURA, self-scoped por Actor). **No 
 - **Pendiente de cierre:** captura visual de Irving (Brandon) → recién ahí Fase A CERRADA.
 - **Datos de prueba en DEV** (limpiar): `DELETE FROM inventory_item_stocks WHERE id IN (1567,1568);` (TALADRO/CASCO asignados a user 4429).
 
+**Clasificación Herramienta/Material (aplicada — commit `dcb746fd`):** columna nueva `inventory_item_types.categoria` (`herramienta`|`material`|`null`), editable por admin, default `null`=sin clasificar (no se adivina). Backfill idempotente por nombre de los OBVIOS (**15 herramienta / 9 material**); los dudosos quedan `null`. UI "Mi material" agrupa **Categoría → Tipo** (grupo "Sin clasificar" visible como recordatorio). ASSET_VER 13. Brandon: 22 herram / 13 mat / 24 sin clasif.
+- ⏳ **Pendiente: clasificar los DUDOSOS** (Irving define herramienta/material o 3ª categoría "equipo de cliente"): `ONT, MODEM, TELEFONOS DE CASA, ACOPLADOR, SPLITTER, CONECTOR, CONECTORES, CABLE, PILAS, PAPELERIA, FLYERS, CARRETE, TENSOR, TENSORES, HOJAS, ELIMINADOR, POWER`.
+
 **Deudas menores registradas (no urgentes):**
-- (a) Agrupación conceptual **protección/consumible/herramienta**: el dato no existe (`inventory_item_types.type` tool/material está **mal clasificado**); requiere **mapeo manual** de tipos.
 - (b) `valor_reposicion` casi no poblado (**2 de 59** en la data real): para tener valor de referencia real en el material, hay que **poblarlo** en el inventario.
 - (c) Vínculo **custodia→adeudo→nómina** real (hoy inexistente; el valor es solo informativo): **fase futura**, junto con el **material de campo consumible** (subsistema nuevo).
 
