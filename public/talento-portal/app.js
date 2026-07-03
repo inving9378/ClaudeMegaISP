@@ -483,16 +483,30 @@
                     conValor: conValor.length,
                 };
             });
-            // Sub-grupos de "En custodia" por tipo (inventory_item_types.name), ordenados por cantidad desc.
-            const enCustodiaPorTipo = computed(() => {
-                const groups = {};
+            // "En custodia" → 2 niveles: CATEGORÍA (herramienta/material/sin clasificar) → TIPO.
+            const enCustodiaPorCategoria = computed(() => {
+                const LABEL = { herramienta: 'Herramienta', material: 'Material' };
+                const ORDER = { herramienta: 0, material: 1 };
+                const porCat = {};
                 (enCustodia.value || []).forEach((it) => {
-                    const k = it.tipo || 'Sin tipo';
-                    (groups[k] = groups[k] || []).push(it);
+                    const key = it.categoria || '__null__';
+                    (porCat[key] = porCat[key] || []).push(it);
                 });
-                return Object.keys(groups)
-                    .map((t) => ({ tipo: t, items: groups[t], count: groups[t].length }))
-                    .sort((a, b) => b.count - a.count || a.tipo.localeCompare(b.tipo));
+                return Object.keys(porCat).map((key) => {
+                    const items = porCat[key];
+                    const porTipo = {};
+                    items.forEach((it) => { const t = it.tipo || 'Sin tipo'; (porTipo[t] = porTipo[t] || []).push(it); });
+                    const tipos = Object.keys(porTipo)
+                        .map((t) => ({ tipo: t, items: porTipo[t], count: porTipo[t].length }))
+                        .sort((a, b) => b.count - a.count || a.tipo.localeCompare(b.tipo));
+                    return {
+                        key,
+                        label: key === '__null__' ? 'Sin clasificar' : (LABEL[key] || key),
+                        order: key === '__null__' ? 2 : (ORDER[key] ?? 1),
+                        count: items.length,
+                        tipos,
+                    };
+                }).sort((a, b) => a.order - b.order);
             });
 
             // Cierra el detalle de OT al cambiar de tab; carga la sección al abrirla por primera vez.
@@ -524,7 +538,7 @@
                 drawer, gruposMenu, irA,
                 dineroTab, cuenta, desglose, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
                 enCustodia, pendientes, historial, cargandoMaterial, cargarMaterial,
-                resumenCustodia, enCustodiaPorTipo,
+                resumenCustodia, enCustodiaPorCategoria,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
                 fmtHora, statusInfo,
@@ -960,25 +974,30 @@
                                     </q-card-section>
                                 </q-card>
 
-                                <!-- En custodia → sub-grupos por tipo (colapsables, ordenados por cantidad) -->
-                                <q-list v-if="enCustodiaPorTipo.length" bordered class="tp-card q-mb-md">
-                                    <q-expansion-item
-                                        v-for="g in enCustodiaPorTipo" :key="'g'+g.tipo"
-                                        icon="inventory_2" :label="g.tipo" :caption="g.count + (g.count===1 ? ' ítem' : ' ítems')"
-                                        header-class="text-teal-8" dense>
-                                        <q-list separator>
-                                            <q-item v-for="(it,i) in g.items" :key="'c'+i">
-                                                <q-item-section>
-                                                    <q-item-label>{{ it.equipo }}</q-item-label>
-                                                    <q-item-label caption>
-                                                        Cantidad: {{ it.cantidad }}<span v-if="it.serie"> · Serie: {{ it.serie }}</span><span v-if="it.fecha_asignacion"> · Asignado {{ it.fecha_asignacion.slice(0,10) }}</span>
-                                                    </q-item-label>
-                                                    <q-item-label v-if="it.valor_reposicion > 0" caption class="text-grey-7">Valor de reposición: {{ money(it.valor_reposicion) }}</q-item-label>
-                                                </q-item-section>
-                                            </q-item>
-                                        </q-list>
-                                    </q-expansion-item>
-                                </q-list>
+                                <!-- En custodia → CATEGORÍA (Herramienta/Material/Sin clasificar) → TIPO -->
+                                <template v-for="cat in enCustodiaPorCategoria" :key="'cat'+cat.key">
+                                    <div class="text-overline q-mt-sm q-mb-xs" :class="cat.key==='herramienta' ? 'text-teal-8' : (cat.key==='material' ? 'text-indigo-8' : 'text-grey-6')">
+                                        {{ cat.label }} ({{ cat.count }})
+                                    </div>
+                                    <q-list bordered class="tp-card q-mb-md">
+                                        <q-expansion-item
+                                            v-for="g in cat.tipos" :key="'g'+cat.key+g.tipo"
+                                            icon="inventory_2" :label="g.tipo" :caption="g.count + (g.count===1 ? ' ítem' : ' ítems')"
+                                            header-class="text-grey-8" dense>
+                                            <q-list separator>
+                                                <q-item v-for="(it,i) in g.items" :key="'c'+i">
+                                                    <q-item-section>
+                                                        <q-item-label>{{ it.equipo }}</q-item-label>
+                                                        <q-item-label caption>
+                                                            Cantidad: {{ it.cantidad }}<span v-if="it.serie"> · Serie: {{ it.serie }}</span><span v-if="it.fecha_asignacion"> · Asignado {{ it.fecha_asignacion.slice(0,10) }}</span>
+                                                        </q-item-label>
+                                                        <q-item-label v-if="it.valor_reposicion > 0" caption class="text-grey-7">Valor de reposición: {{ money(it.valor_reposicion) }}</q-item-label>
+                                                    </q-item-section>
+                                                </q-item>
+                                            </q-list>
+                                        </q-expansion-item>
+                                    </q-list>
+                                </template>
 
                                 <!-- Pendientes de aceptar (colapsable) -->
                                 <q-list v-if="pendientes.length" bordered class="tp-card q-mb-md">

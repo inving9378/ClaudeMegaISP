@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '12';
+    private const ASSET_VER = '13';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -767,12 +767,13 @@ JS;
         $inv = new InventoryService();
 
         $itemView = function ($item): array {
-            if (! $item) return ['equipo' => '—', 'tipo' => null, 'serie' => null];
+            if (! $item) return ['equipo' => '—', 'tipo' => null, 'categoria' => null, 'serie' => null];
 
             return [
-                'equipo' => $item->name,
-                'tipo'   => optional($item->inventory_item_type)->name,
-                'serie'  => $item->serial_number_enable ? $item->serial_number : null,
+                'equipo'    => $item->name,
+                'tipo'      => optional($item->inventory_item_type)->name,
+                'categoria' => optional($item->inventory_item_type)->categoria, // herramienta | material | null
+                'serie'     => $item->serial_number_enable ? $item->serial_number : null,
             ];
         };
 
