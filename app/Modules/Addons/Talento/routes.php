@@ -406,7 +406,7 @@ Route::middleware(['auth:sanctum'])
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Portal Técnico Web (PWA) — versión web de la app de campo.
-// Sesión Medussa (guard web) + permiso talento.portal_tecnico. Reutiliza la
+// Sesión Medussa (guard web) + permiso portal.colaborador (base de colaborador). Reutiliza la
 // misma capa de servicios que /talento/api. Fuera del grupo check_route_permission
 // a propósito: usa `can:` directo. Shell propio (no toca el sidebar admin).
 // ══════════════════════════════════════════════════════════════════════════════
@@ -417,7 +417,7 @@ Route::get('/talento/portal/manifest.webmanifest', [PortalTecnicoController::cla
 Route::get('/talento/portal/sw.js',                [PortalTecnicoController::class, 'serviceWorker'])->middleware('web');
 
 // Shell + preferencias (sesión + permiso).
-Route::middleware(['web', 'auth', 'can:talento.portal_tecnico'])
+Route::middleware(['web', 'auth', 'can:portal.colaborador'])
     ->prefix('talento/portal')
     ->group(function () {
         Route::get('/',                   [PortalTecnicoController::class, 'index']);
