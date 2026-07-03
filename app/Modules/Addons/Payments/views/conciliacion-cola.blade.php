@@ -56,6 +56,17 @@
         <div class="cc-card cc-list" id="cc-list"><p class="muted">Cargando…</p></div>
         <div class="cc-card"><div id="cc-detail"><p class="muted">Selecciona un caso de la lista.</p></div></div>
     </div>
+
+    <!-- Modal de resultado de la aplicación -->
+    <div id="cc-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; align-items:center; justify-content:center;">
+        <div class="cc-card" style="max-width:440px; width:92%;">
+            <div id="cc-modal-body"></div>
+            <div class="row">
+                <button class="cc-btn cc-ok" id="cc-modal-ficha" style="display:none;" onclick="ccGoFicha()">Ver ficha del cliente</button>
+                <button class="cc-btn cc-ghost" onclick="ccCloseModal()">Cerrar y seguir</button>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -217,6 +228,17 @@
         document.getElementById('cc-ok').disabled = false;
     };
 
+    let modalFichaUrl = null;
+    const REASON_TEXT = {
+        duplicate_clave: 'Este comprobante ya fue aplicado (clave de rastreo duplicada).',
+        already_applied: 'El caso ya había sido aplicado.',
+        no_amount: 'El comprobante no tiene un monto legible.',
+        no_clave: 'El comprobante no tiene clave de rastreo.',
+        not_resolved: 'El caso no tiene cliente identificado.',
+        auto_apply_disabled: 'La aplicación automática está deshabilitada.',
+    };
+    const fmtMoney = n => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2});
+
     window.ccConfirm = async function(){
         if (!current) return;
         document.getElementById('cc-ok').disabled = true;
@@ -224,15 +246,45 @@
         if (chosenService) body.service_id = chosenService;
         if (chosenClient) body.client_id = chosenClient;
         const {status, data} = await post(U + '/' + current + '/confirmar', body);
-        const el = document.getElementById('cc-actionRes');
         if (status === 200 && data.applied){
-            el.innerHTML = `<span style="color:var(--success);">✓ Aplicado. Pago #${data.payment_id} (confirmado por ti).</span>`;
-            setTimeout(() => { refreshCounts(); loadList(); document.getElementById('cc-detail').innerHTML = '<p class="muted">Caso confirmado. Selecciona otro.</p>'; }, 900);
+            showModalSuccess(data);
+            refreshCounts(); loadList();
+            document.getElementById('cc-detail').innerHTML = '<p class="muted">Selecciona otro caso.</p>';
         } else {
-            el.innerHTML = `<span style="color:var(--danger);">No se aplicó: ${esc(data.reason || data.message || 'error')}.</span>`;
+            const reason = REASON_TEXT[data.reason] || data.reason || data.message || 'Error desconocido.';
+            showModalError(reason);
             document.getElementById('cc-ok').disabled = false;
         }
     };
+
+    function showModalSuccess(d){
+        modalFichaUrl = d.ficha_url || null;
+        document.getElementById('cc-modal-body').innerHTML =
+            `<h1 style="color:var(--success); margin:0 0 4px;">✅ Pago aplicado con éxito</h1>
+             <table class="cc-tbl" style="margin-top:8px;">
+                <tr><th>Cliente</th><td>${esc(d.cliente || '—')}</td></tr>
+                <tr><th>Monto aplicado</th><td><b>$${fmtMoney(d.monto)}</b></td></tr>
+                <tr><th>Saldo anterior</th><td>$${fmtMoney(d.saldo_antes)}</td></tr>
+                <tr><th>Saldo nuevo</th><td><b>$${fmtMoney(d.saldo_nuevo)}</b></td></tr>
+                <tr><th>Fecha de corte</th><td>${esc(d.fecha_corte || '—')}</td></tr>
+             </table>
+             <p class="muted" style="margin-top:8px;">Aplicado como MEGAISP, confirmado por ti. No se notificó al cliente por WhatsApp.</p>`;
+        document.getElementById('cc-modal-ficha').style.display = modalFichaUrl ? '' : 'none';
+        document.getElementById('cc-modal').style.display = 'flex';
+    }
+
+    function showModalError(reason){
+        modalFichaUrl = null;
+        document.getElementById('cc-modal-body').innerHTML =
+            `<h1 style="color:var(--danger); margin:0 0 4px;">No se pudo aplicar</h1>
+             <p style="margin-top:6px;">Razón: <b>${esc(reason)}</b></p>
+             <p class="muted" style="margin-top:8px;">El pago NO se aplicó. Revisa el caso.</p>`;
+        document.getElementById('cc-modal-ficha').style.display = 'none';
+        document.getElementById('cc-modal').style.display = 'flex';
+    }
+
+    window.ccCloseModal = function(){ document.getElementById('cc-modal').style.display = 'none'; };
+    window.ccGoFicha = function(){ if (modalFichaUrl) window.location.href = modalFichaUrl; };
 
     const REJECT_REASONS = ['Duplicado', 'Comprobante ilegible', 'No es cliente', 'Monto no coincide', 'Otro'];
 

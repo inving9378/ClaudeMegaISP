@@ -248,7 +248,17 @@ class ConciliacionDemoCommand extends Command
             DB::table('marketing_leads')->where('id', $lead->id)->delete();
         }
 
-        $this->info("Demo limpiado. Casos borrados; pagos revertidos: {$reverted}. Saldo del cliente 17 restaurado.");
+        // Red de seguridad drift-proof: el cliente de prueba tiene baseline 0.
+        // Confirmaciones manuales durante pruebas pueden dejar créditos huérfanos
+        // (transaction sin sesión demo); forzamos el saldo del cliente ficticio a 0.
+        $testClient = Client::find(self::TEST_CLIENT);
+        $prev = $testClient && $testClient->balance ? (float) $testClient->balance->amount : 0.0;
+        if ($testClient && $testClient->balance && abs($prev) > 0.001) {
+            $testClient->balance->amount = 0;
+            $testClient->balance->save();
+        }
+
+        $this->info("Demo limpiado. Casos borrados; pagos revertidos: {$reverted}. Saldo del cliente " . self::TEST_CLIENT . " restaurado a 0 (estaba en {$prev}).");
         return self::SUCCESS;
     }
 

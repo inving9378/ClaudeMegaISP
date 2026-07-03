@@ -207,15 +207,47 @@ class ReconciliationQueueController extends Controller
             $s->refresh();
         }
 
+        // Saldo ANTES (para el antes→después del modal).
+        $client     = \App\Modules\Core\Clientes\Models\Client::find($s->resolved_client_id);
+        $saldoAntes = $client ? (float) optional($client->balance)->amount : null;
+
         $result = $this->applier->applyConfirmed($s->id, auth()->id());
 
+        // Falló (anti-duplicado u otro): el modal muestra el error REAL, sin falso éxito.
+        if (!($result['applied'] ?? false)) {
+            return response()->json($result, 422);
+        }
+
         // Registrar el servicio elegido por Tere (multi-servicio), para traza.
-        if ($result['applied'] && !empty($data['service_id']) && !empty($result['reported_payment_id'])) {
+        if (!empty($data['service_id']) && !empty($result['reported_payment_id'])) {
             ReportedPayment::where('id', $result['reported_payment_id'])
                 ->update(['conciliation_note' => 'Servicio elegido por Tere: #' . $data['service_id']]);
         }
 
-        return response()->json($result, $result['applied'] ? 200 : 422);
+        // Abono SÍNCRONO del saldo para mostrar el "después" real. El guard de
+        // idempotencia de PaymentClientJob hace no-op la copia async del worker.
+        $saldoNuevo = $saldoAntes;
+        $payment    = \App\Models\Payment::find($result['payment_id'] ?? 0);
+        if ($payment) {
+            try {
+                \App\Jobs\Client\Payment\PaymentClientJob::dispatchSync($payment, 'created');
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::channel('evolution')->warning('Modal: abono síncrono falló: ' . $e->getMessage());
+            }
+            $saldoNuevo = $client ? (float) optional($client->fresh()->balance)->amount : $saldoAntes;
+        }
+
+        return response()->json(array_merge($result, [
+            'cliente'     => $client ? ($this->clientInfo($client->id)['name'] ?? null) : null,
+            'client_id'   => $client?->id,
+            'monto'       => $payment?->amount,
+            'saldo_antes' => $saldoAntes,
+            'saldo_nuevo' => $saldoNuevo,
+            'fecha_corte' => ($client && $client->fecha_corte)
+                ? \Illuminate\Support\Carbon::parse($client->fecha_corte)->format('d/m/Y')
+                : null,
+            'ficha_url'   => $client ? url('/cliente/editar/' . $client->id) : null,
+        ]), 200);
     }
 
     /** RECHAZAR → marca rechazado, NO aplica. */
