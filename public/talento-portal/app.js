@@ -460,8 +460,26 @@
                 if (val === 'dinero' && !dineroCargado.value) cargarDinero();
             }
 
+            // ── Sidebar componible (SP3a) — grupos derivados de CFG.sections (Actor::sections()) ──
+            const drawer = ref(false);
+            const gruposMenu = computed(() => {
+                const secs = Array.isArray(CFG.sections) ? CFG.sections : [];
+                const out = []; let cur = null;
+                secs.forEach((s) => {
+                    if (!cur || cur.group !== s.group) { cur = { group: s.group, items: [] }; out.push(cur); }
+                    cur.items.push(s);
+                });
+                return out;
+            });
+            function irA(t) {
+                tab.value = t;
+                onTabChange(t);
+                if ($q.screen.lt.md) drawer.value = false; // en móvil, cerrar el drawer al navegar
+            }
+
             return {
                 colaborador, tab, dark, savingTheme, nombre, tipoLabel,
+                drawer, gruposMenu, irA,
                 dineroTab, cuenta, desglose, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
@@ -480,6 +498,7 @@
         <q-layout view="hHh lpr fFf">
             <q-header elevated class="tp-header">
                 <q-toolbar>
+                    <q-btn v-if="!otSeleccionada" flat round dense icon="menu" class="lt-md" @click="drawer = !drawer" aria-label="Menú" />
                     <q-btn v-if="otSeleccionada" flat round dense icon="arrow_back" @click="cerrarDetalle" aria-label="Volver" />
                     <q-avatar v-else size="30px" color="white" text-color="teal-8"><q-icon name="engineering" /></q-avatar>
                     <q-toolbar-title>
@@ -491,6 +510,25 @@
                     <q-btn flat round dense icon="logout" @click="logout" aria-label="Salir" />
                 </q-toolbar>
             </q-header>
+
+            <q-drawer v-model="drawer" side="left" show-if-above bordered :width="248" class="tp-drawer">
+                <div class="tp-drawer-brand">
+                    <q-avatar size="30px" color="teal-6" text-color="white"><q-icon name="engineering" /></q-avatar>
+                    <div class="tp-drawer-titles">
+                        <div class="tp-drawer-title">Portal Colaborador</div>
+                        <div class="tp-drawer-sub" v-if="colaborador">{{ nombre }}</div>
+                    </div>
+                </div>
+                <q-list padding>
+                    <template v-for="(grp, gi) in gruposMenu" :key="gi">
+                        <q-item-label header v-if="grp.group" class="tp-drawer-group">{{ grp.group }}</q-item-label>
+                        <q-item v-for="it in grp.items" :key="it.key" clickable v-ripple :active="tab===it.tab" active-class="tp-drawer-active" @click="irA(it.tab)">
+                            <q-item-section avatar><q-icon :name="it.icon" /></q-item-section>
+                            <q-item-section>{{ it.label }}</q-item-section>
+                        </q-item>
+                    </template>
+                </q-list>
+            </q-drawer>
 
             <q-page-container class="tp-page">
                 <q-page class="tp-page">
@@ -954,14 +992,7 @@
                 </q-card>
             </q-dialog>
 
-            <q-footer class="tp-footer">
-                <q-tabs v-model="tab" no-caps active-color="teal-6" indicator-color="teal-6" class="tp-footer" @update:model-value="onTabChange">
-                    <q-tab name="inicio"    icon="today"        label="Mi día" />
-                    <q-tab name="dinero"    icon="payments"     label="Mi dinero" />
-                    <q-tab name="proyectos" icon="account_tree" label="Proyectos" />
-                    <q-tab name="perfil"    icon="person"       label="Perfil" />
-                </q-tabs>
-            </q-footer>
+            <!-- Nav inferior reemplazada por el sidebar componible (q-drawer). SP3a. -->
         </q-layout>`,
     };
 

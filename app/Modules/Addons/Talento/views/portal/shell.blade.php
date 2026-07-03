@@ -31,6 +31,7 @@
             'csrf'        => csrf_token(),
             'theme'       => $theme,
             'colaborador' => $colaborador,
+            'sections'    => $sections ?? [],
             'assetVer'    => $assetVer,
             'endpoints'   => [
                 'saveTheme' => '/talento/portal/preferencias/tema',

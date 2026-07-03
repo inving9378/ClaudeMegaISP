@@ -83,4 +83,34 @@ final class Actor
     {
         return $this->talento();
     }
+
+    /**
+     * Secciones del sidebar del portal para ESTE colaborador. Cada entrada se incluye solo si
+     * (a) está CONSTRUIDA (flag 'built') y (b) APLICA según la faceta. Faceta null → oculta.
+     * Crece por fase: al construir una sección se pone built=true y se cablea su tab en app.js.
+     * Estructura de retorno: lista ordenada de items {key, group, label, icon, tab}.
+     */
+    public function sections(): array
+    {
+        $esColaborador = fn (): bool => (bool) $this->talento();
+
+        // key           grupo          label             icono           tab            aplica                                                built (fase)
+        $catalog = [
+            ['mi_dia',     'Mi Talento',  'Mi día',         'today',        'inicio',      $esColaborador,                                       true],   // Bloques 1-2
+            ['mi_dinero',  'Mi Talento',  'Mi dinero',      'payments',     'dinero',      $esColaborador,                                       true],   // Bloque 2
+            ['material',   'Mi trabajo',  'Mi material',    'inventory_2',  'material',    fn () => (bool) $this->custodia(),                     false],  // Fase A
+            ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       false],  // Fase C
+            ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
+            ['perfil',     'Cuenta',      'Perfil',         'person',       'perfil',      fn (): bool => true,                                  true],
+        ];
+
+        $out = [];
+        foreach ($catalog as [$key, $group, $label, $icon, $tab, $aplica, $built]) {
+            if ($built && $aplica()) {
+                $out[] = ['key' => $key, 'group' => $group, 'label' => $label, 'icon' => $icon, 'tab' => $tab];
+            }
+        }
+
+        return $out;
+    }
 }

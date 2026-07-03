@@ -30,17 +30,19 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '9';
+    private const ASSET_VER = '10';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
     {
-        $colaborador = $this->resolveColaborador($request);
+        $actor       = $this->currentActor($request);
+        $colaborador = $actor->talento();
         $theme       = $this->currentTheme($request);
 
         return view('addon-talento::portal.shell', [
             'assetVer'    => self::ASSET_VER,
             'theme'       => $theme,
+            'sections'    => $actor->sections(),
             'colaborador' => $colaborador ? [
                 'id'     => $colaborador->id,
                 // El nombre vive en el user vinculado; talento_colaboradores no tiene
