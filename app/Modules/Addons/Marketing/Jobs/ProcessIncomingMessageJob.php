@@ -92,12 +92,14 @@ class ProcessIncomingMessageJob implements ShouldQueue
         ]);
 
         // 6b. F3.5 — Ruteo de conciliación de pagos (ADITIVO, detrás del flag
-        //     maestro payments.wa_conciliation). Con el flag apagado (default)
-        //     esto es un no-op TOTAL y el mensaje sigue EXACTAMENTE igual a
-        //     ventas. Con el flag encendido, un mensaje detectado como pago se
-        //     desvía a conciliación y NO llega al bot de ventas; si NO es pago,
-        //     cae a ventas sin cambios. Un fallo aquí no rompe ventas (fail-open).
-        if (config('payments.wa_conciliation')) {
+        //     MAESTRO wa_conciliation). Con el flag apagado (default) esto es un
+        //     no-op TOTAL y el mensaje sigue EXACTAMENTE igual a ventas. Con el
+        //     flag encendido, un mensaje detectado como pago se desvía a
+        //     conciliación y NO llega al bot de ventas; si NO es pago, cae a
+        //     ventas sin cambios. Un fallo aquí no rompe ventas (fail-open).
+        //     Se lee vía ConciliationSettings (tabla, fallback a config/.env) →
+        //     el toggle del panel tiene efecto inmediato aun en workers vivos.
+        if (\App\Modules\Addons\Payments\Support\ConciliationSettings::enabled('wa_conciliation')) {
             try {
                 $router = app(\App\Modules\Addons\Payments\Services\Conciliation\ConciliationRouter::class);
                 if ($router->shouldHandle($conversation, $contentType, $text, $lead)) {

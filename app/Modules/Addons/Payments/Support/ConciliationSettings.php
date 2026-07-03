@@ -13,13 +13,20 @@ use Illuminate\Support\Facades\Schema;
  * para la clave, cae a config('payments.<key>') (que a su vez lee el .env).
  * Así, cambiar un toggle tiene efecto REAL inmediato, con el .env como default.
  *
- * Sólo se gestionan estas 3 claves (los demás flags — p.ej. wa_conciliation,
- * el maestro — siguen viviendo en config/.env y no se exponen como toggle).
+ * Se gestionan 4 claves: el MAESTRO wa_conciliation (activa el enrutamiento de
+ * comprobantes) + los 3 de comportamiento (wa_autorespond, auto_apply_enabled,
+ * id_cliente_auto_apply). Todas leen la tabla con config/.env como fallback.
  */
 class ConciliationSettings
 {
     /** Claves gestionadas → metadatos para la pantalla de interruptores. */
     public const KEYS = [
+        'wa_conciliation' => [
+            'label'   => 'Sistema de conciliación por WhatsApp',
+            'help'    => 'Interruptor general. Si está apagado, el sistema ignora los comprobantes que llegan por WhatsApp (se comportan como mensajes normales del bot de ventas). Debe estar encendido para que funcione todo lo demás de abajo.',
+            'danger'  => false,
+            'master'  => true,
+        ],
         'wa_autorespond' => [
             'label'   => 'La IA responde por WhatsApp a los clientes',
             'help'    => 'Si está encendido, el asistente contesta automáticamente por WhatsApp durante la identificación del pago. Apagado: la IA razona y prepara todo pero NO envía ningún mensaje al cliente.',

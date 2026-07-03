@@ -24,8 +24,17 @@
     .ca-wrap .sw input:checked + .track { background: var(--success); border-color: var(--success); }
     .ca-wrap .sw input:checked + .track + .knob { transform: translateX(22px); }
     .ca-wrap .sw.busy { opacity: .5; pointer-events: none; }
+    .ca-wrap .sw.disabled { opacity: .35; pointer-events: none; }
     .ca-wrap .banner { border: 1px solid var(--warning); border-left-width: 4px; background: var(--bg-hover); color: var(--text-primary); font-size: 13px; padding: 10px 12px; border-radius: 8px; margin-bottom: 16px; }
     .ca-wrap .src { color: var(--text-secondary); font-size: 11px; margin-top: 6px; }
+    /* maestro destacado */
+    .ca-wrap .ca-master { border: 2px solid var(--accent); background: var(--bg-hover); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
+    .ca-wrap .ca-master-tag { color: var(--accent); border: 1px solid var(--accent); font-size: 11px; font-weight: 700; padding: 0 8px; border-radius: 999px; margin-left: 8px; text-transform: uppercase; letter-spacing: .3px; }
+    /* dependiente atenuado cuando el maestro está OFF */
+    .ca-wrap .ca-dim { opacity: .5; }
+    .ca-wrap .ca-note-off { color: var(--warning); font-size: 12px; font-weight: 600; margin-top: 6px; }
+    /* separador visual entre el maestro y los dependientes */
+    .ca-wrap .ca-master { margin-bottom: 20px; }
 </style>
 @endsection
 
@@ -34,7 +43,7 @@
     <h1>Automatización de pagos (WhatsApp IA)</h1>
     <p class="sub">Interruptores del asistente de conciliación por WhatsApp. Cambiarlos tiene efecto inmediato en el sistema (no requiere tocar el servidor). Sólo el super-administrador ve y controla esta pantalla.</p>
 
-    <div class="banner">⚠️ Durante la semana de observación, lo recomendado es mantener los tres apagados y encenderlos de uno en uno vigilando el comportamiento.</div>
+    <div class="banner">⚠️ El <b>interruptor general</b> (arriba) activa todo el sistema. Los 3 de abajo solo tienen efecto si el general está encendido. Durante la semana de observación, enciende de uno en uno vigilando el comportamiento; deja apagados los que aplican dinero automáticamente.</div>
 
     <div id="ca-list"></div>
 </div>
@@ -50,28 +59,42 @@
     const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
     function render(list){
-        document.getElementById('ca-list').innerHTML = list.map(sw => {
+        // El maestro (master) manda: si está OFF, los dependientes se atenúan y
+        // se deshabilitan (no tienen efecto aunque estén encendidos).
+        const master = list.find(s => s.master);
+        const masterOn = master ? !!master.enabled : true;
+
+        const card = (sw) => {
             const on = !!sw.enabled;
-            const danger = sw.danger
-                ? '<span class="ca-danger-tag">mueve dinero</span>' : '';
+            const isMaster = !!sw.master;
+            const disabled = !isMaster && !masterOn;   // dependiente con maestro OFF
+            const danger = sw.danger ? '<span class="ca-danger-tag">mueve dinero</span>' : '';
+            const masterTag = isMaster ? '<span class="ca-master-tag">interruptor general</span>' : '';
             const state = on
                 ? '<span class="ca-state ca-on">ENCENDIDO</span>'
                 : '<span class="ca-state ca-off">APAGADO</span>';
-            return `<div class="ca-card">
+            const note = disabled
+                ? '<div class="ca-note-off">Sin efecto mientras el interruptor general esté apagado.</div>' : '';
+            return `<div class="ca-card ${isMaster?'ca-master':''} ${disabled?'ca-dim':''}">
                 <div class="ca-row">
                     <div class="ca-txt">
-                        <p class="ca-label">${esc(sw.label)}${danger}</p>
+                        <p class="ca-label">${esc(sw.label)}${masterTag}${danger}</p>
                         <p class="ca-help">${esc(sw.help)}</p>
                         ${state}
                         <div class="src">Estado leído de: ${sw.source === 'db' ? 'configuración del sistema' : 'valor por defecto (.env)'}</div>
+                        ${note}
                     </div>
-                    <label class="sw" data-key="${esc(sw.key)}" data-danger="${sw.danger?1:0}">
-                        <input type="checkbox" ${on?'checked':''}>
+                    <label class="sw ${disabled?'disabled':''}" data-key="${esc(sw.key)}" data-danger="${sw.danger?1:0}">
+                        <input type="checkbox" ${on?'checked':''} ${disabled?'disabled':''}>
                         <span class="track"></span><span class="knob"></span>
                     </label>
                 </div>
             </div>`;
-        }).join('');
+        };
+
+        // Maestro primero, luego los dependientes (en el orden de KEYS).
+        const ordered = [...list].sort((a,b) => (b.master?1:0) - (a.master?1:0));
+        document.getElementById('ca-list').innerHTML = ordered.map(card).join('');
         bind();
     }
 
