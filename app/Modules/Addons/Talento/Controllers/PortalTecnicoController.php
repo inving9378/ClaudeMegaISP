@@ -11,6 +11,7 @@ use App\Modules\Addons\Talento\Services\AttendanceService;
 use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Services\SignatureService;
+use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Support\PayWeek;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -746,12 +747,21 @@ JS;
         ]);
     }
 
+    /** Actor del portal — resuelto y cacheado UNA vez por request (punto único de identidad). */
+    private ?Actor $portalActor = null;
+
+    private function currentActor(Request $request): Actor
+    {
+        return $this->portalActor ??= Actor::for($request->user());
+    }
+
+    /**
+     * Colaborador Talento del usuario autenticado. Repuntado al Actor (DRY): los ~16 call-sites de
+     * los Bloques 1-2 siguen usando resolveColaborador() sin cambios; el resolver es el Actor.
+     */
     private function resolveColaborador(Request $request): ?TalentoColaborador
     {
-        return TalentoColaborador::with('user')
-            ->where('user_id', $request->user()->id)
-            ->where('status', 'active')
-            ->first();
+        return $this->currentActor($request)->talento();
     }
 
     private function currentTheme(Request $request): string
