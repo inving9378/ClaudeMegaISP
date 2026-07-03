@@ -218,7 +218,7 @@
             `<div class="cc-prev">${media}</div>${dupBlock}
              <table class="cc-tbl">
                 <tr><th>Monto</th><td><b>$${fld('monto')}</b></td></tr>
-                <tr><th>Fecha del pago</th><td>${fld('fecha_pago')}</td></tr>
+                <tr><th>Fecha del pago</th><td>${fld('fecha_pago')}${s.fecha_vieja ? ' <span class="cc-badge" style="color:var(--warning);border:1px solid var(--warning);">⚠️ fecha vieja</span>' : ''}</td></tr>
                 <tr><th>Clave de rastreo</th><td>${fld('clave_rastreo')}</td></tr>
                 <tr><th>Concepto</th><td>${fld('concepto')}</td></tr>
                 <tr><th>Banco origen</th><td>${fld('banco_origen')}</td></tr>

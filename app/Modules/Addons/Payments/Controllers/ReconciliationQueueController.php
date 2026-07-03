@@ -185,7 +185,43 @@ class ReconciliationQueueController extends Controller
             // Duplicidad sospechosa: la misma clave se recibió en >1 recepción.
             'suspicious_duplicate' => count($claveSources) > 1,
             'clave_sources'        => count($claveSources) > 1 ? $claveSources : [],
+            // Alerta: la fecha del pago no es del mes actual ni del anterior.
+            'fecha_vieja'          => $this->isOldPayment($fields['fecha_pago']['value'] ?? null),
         ]);
+    }
+
+    /** ¿La fecha del pago es anterior al mes pasado? (solo si se puede parsear con confianza). */
+    private function isOldPayment(?string $fechaPago): bool
+    {
+        $dt = $this->parseSpanishDate($fechaPago);
+        if (!$dt) {
+            return false; // sin fecha parseable → no alertar (conservador)
+        }
+        // "vieja" = anterior al primer día del mes PASADO (deja pasar mes actual y anterior).
+        $threshold = now()->startOfMonth()->subMonthNoOverflow()->startOfMonth();
+        return $dt->lt($threshold);
+    }
+
+    /** Parser best-effort de fecha en español; devuelve null si no hay año confiable. */
+    private function parseSpanishDate(?string $s): ?\Illuminate\Support\Carbon
+    {
+        if (!$s || !preg_match('/\b(20\d{2})\b/', $s)) {
+            return null; // exige un año de 4 dígitos para no dar falsas alarmas
+        }
+        $months = ['ene'=>1,'feb'=>2,'mar'=>3,'abr'=>4,'may'=>5,'jun'=>6,'jul'=>7,
+                   'ago'=>8,'sep'=>9,'set'=>9,'oct'=>10,'nov'=>11,'dic'=>12];
+        $low = mb_strtolower($s);
+        // "dd mmm yyyy" (con o sin "de")
+        if (preg_match('/(\d{1,2})\s*(?:de\s*)?([a-zñ]{3,})\.?\s*(?:de\s*)?(20\d{2})/u', $low, $m)) {
+            $mon = substr($m[2], 0, 3);
+            if (isset($months[$mon])) {
+                try { return \Illuminate\Support\Carbon::create((int) $m[3], $months[$mon], (int) $m[1]); }
+                catch (\Throwable $e) {}
+            }
+        }
+        // formatos numéricos (dd/mm/yyyy, yyyy-mm-dd, etc.)
+        try { return \Illuminate\Support\Carbon::parse($s); }
+        catch (\Throwable $e) { return null; }
     }
 
     /** Recepciones (número + fecha) donde apareció esta clave de rastreo — antifraude. */
