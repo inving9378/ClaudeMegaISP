@@ -454,10 +454,52 @@
                 cargandoDinero.value = false;
                 dineroCargado.value = true;
             }
-            // Cierra el detalle de OT al cambiar de tab; carga "Mi dinero" al abrirlo por primera vez.
+
+            // ── "Mi material" (Fase A) — custodia de equipos (SOLO LECTURA, self-scoped por el backend) ──
+            const materialCargado = ref(false);
+            const cargandoMaterial = ref(false);
+            const enCustodia = ref([]);
+            const pendientes = ref([]);
+            const historial = ref([]);
+            async function cargarMaterial() {
+                if (!colaborador.value) { cargandoMaterial.value = false; return; }
+                cargandoMaterial.value = true;
+                const r = await apiFetch('/talento/portal/material');
+                if (r && r.ok && r.data) {
+                    enCustodia.value = Array.isArray(r.data.en_custodia) ? r.data.en_custodia : [];
+                    pendientes.value = Array.isArray(r.data.pendientes_aceptar) ? r.data.pendientes_aceptar : [];
+                    historial.value = Array.isArray(r.data.historial) ? r.data.historial : [];
+                }
+                cargandoMaterial.value = false;
+                materialCargado.value = true;
+            }
+            // Resumen: cuenta SOLO lo que tiene en custodia AHORA (no historial ni pendientes).
+            const resumenCustodia = computed(() => {
+                const items = enCustodia.value || [];
+                const conValor = items.filter((x) => (Number(x.valor_reposicion) || 0) > 0);
+                return {
+                    count: items.length,
+                    valorTotal: conValor.reduce((s, x) => s + (Number(x.valor_reposicion) || 0), 0),
+                    conValor: conValor.length,
+                };
+            });
+            // Sub-grupos de "En custodia" por tipo (inventory_item_types.name), ordenados por cantidad desc.
+            const enCustodiaPorTipo = computed(() => {
+                const groups = {};
+                (enCustodia.value || []).forEach((it) => {
+                    const k = it.tipo || 'Sin tipo';
+                    (groups[k] = groups[k] || []).push(it);
+                });
+                return Object.keys(groups)
+                    .map((t) => ({ tipo: t, items: groups[t], count: groups[t].length }))
+                    .sort((a, b) => b.count - a.count || a.tipo.localeCompare(b.tipo));
+            });
+
+            // Cierra el detalle de OT al cambiar de tab; carga la sección al abrirla por primera vez.
             function onTabChange(val) {
                 cerrarDetalle();
                 if (val === 'dinero' && !dineroCargado.value) cargarDinero();
+                if (val === 'material' && !materialCargado.value) cargarMaterial();
             }
 
             // ── Sidebar componible (SP3a) — grupos derivados de CFG.sections (Actor::sections()) ──
@@ -481,6 +523,8 @@
                 colaborador, tab, dark, savingTheme, nombre, tipoLabel,
                 drawer, gruposMenu, irA,
                 dineroTab, cuenta, desglose, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
+                enCustodia, pendientes, historial, cargandoMaterial, cargarMaterial,
+                resumenCustodia, enCustodiaPorTipo,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
                 fmtHora, statusInfo,
@@ -889,6 +933,85 @@
                                 <div class="text-caption">Próxima entrega.</div>
                             </q-tab-panel>
                         </q-tab-panels>
+                    </div>
+
+                    <!-- Mi material (Fase A) — custodia de equipos, SOLO LECTURA -->
+                    <div v-show="tab==='material'" class="q-pa-md">
+                        <div v-if="cargandoMaterial" class="tp-empty">
+                            <q-spinner color="teal-6" size="2em" /><div class="text-caption q-mt-sm">Cargando…</div>
+                        </div>
+                        <template v-else>
+                            <div v-if="!enCustodia.length && !pendientes.length && !historial.length" class="tp-empty">
+                                <q-icon name="inventory_2" class="tp-empty-icon" />
+                                <div class="text-subtitle1">No tienes equipo asignado en custodia</div>
+                            </div>
+                            <template v-else>
+                                <!-- Resumen: cuenta SOLO lo que tiene en custodia AHORA -->
+                                <q-card flat bordered class="tp-card q-mb-md">
+                                    <q-card-section class="q-pa-sm">
+                                        <div class="text-h6 text-teal-8">{{ resumenCustodia.count }} en custodia</div>
+                                        <div v-if="resumenCustodia.valorTotal > 0" class="text-caption text-grey-7 q-mt-xs">
+                                            Valor de reposición de referencia: <b>{{ money(resumenCustodia.valorTotal) }}</b>
+                                            <span class="text-grey-6">({{ resumenCustodia.conValor }} de {{ resumenCustodia.count }} ítems con valor)</span>
+                                            <q-icon name="info" size="14px" class="q-ml-xs">
+                                                <q-tooltip>Valor de referencia informativo. No es un adeudo ni se descuenta.</q-tooltip>
+                                            </q-icon>
+                                        </div>
+                                    </q-card-section>
+                                </q-card>
+
+                                <!-- En custodia → sub-grupos por tipo (colapsables, ordenados por cantidad) -->
+                                <q-list v-if="enCustodiaPorTipo.length" bordered class="tp-card q-mb-md">
+                                    <q-expansion-item
+                                        v-for="g in enCustodiaPorTipo" :key="'g'+g.tipo"
+                                        icon="inventory_2" :label="g.tipo" :caption="g.count + (g.count===1 ? ' ítem' : ' ítems')"
+                                        header-class="text-teal-8" dense>
+                                        <q-list separator>
+                                            <q-item v-for="(it,i) in g.items" :key="'c'+i">
+                                                <q-item-section>
+                                                    <q-item-label>{{ it.equipo }}</q-item-label>
+                                                    <q-item-label caption>
+                                                        Cantidad: {{ it.cantidad }}<span v-if="it.serie"> · Serie: {{ it.serie }}</span><span v-if="it.fecha_asignacion"> · Asignado {{ it.fecha_asignacion.slice(0,10) }}</span>
+                                                    </q-item-label>
+                                                    <q-item-label v-if="it.valor_reposicion > 0" caption class="text-grey-7">Valor de reposición: {{ money(it.valor_reposicion) }}</q-item-label>
+                                                </q-item-section>
+                                            </q-item>
+                                        </q-list>
+                                    </q-expansion-item>
+                                </q-list>
+
+                                <!-- Pendientes de aceptar (colapsable) -->
+                                <q-list v-if="pendientes.length" bordered class="tp-card q-mb-md">
+                                    <q-expansion-item icon="pending_actions" label="Pendientes de aceptar" :caption="pendientes.length + (pendientes.length===1 ? ' ítem' : ' ítems')" header-class="text-orange-9" dense>
+                                        <q-list separator>
+                                            <q-item v-for="(it,i) in pendientes" :key="'p'+i">
+                                                <q-item-section>
+                                                    <q-item-label>{{ it.equipo }}</q-item-label>
+                                                    <q-item-label caption><span v-if="it.tipo">{{ it.tipo }} · </span>Cantidad: {{ it.cantidad }}</q-item-label>
+                                                </q-item-section>
+                                            </q-item>
+                                        </q-list>
+                                    </q-expansion-item>
+                                </q-list>
+
+                                <!-- Movimientos recientes (Salida = devolución; colapsado por defecto) -->
+                                <q-list v-if="historial.length" bordered class="tp-card">
+                                    <q-expansion-item icon="history" label="Movimientos recientes" :caption="historial.length + ' movimientos'" header-class="text-grey-7" dense>
+                                        <q-list separator>
+                                            <q-item v-for="(m,i) in historial" :key="'h'+i">
+                                                <q-item-section avatar>
+                                                    <q-icon :name="m.tipo_movimiento==='Salida' ? 'undo' : 'call_received'" :color="m.tipo_movimiento==='Salida' ? 'orange-8' : 'teal-6'" />
+                                                </q-item-section>
+                                                <q-item-section>
+                                                    <q-item-label>{{ m.equipo }}</q-item-label>
+                                                    <q-item-label caption>{{ m.tipo_movimiento }} · {{ m.cantidad }}<span v-if="m.fecha"> · {{ m.fecha.slice(0,10) }}</span></q-item-label>
+                                                </q-item-section>
+                                            </q-item>
+                                        </q-list>
+                                    </q-expansion-item>
+                                </q-list>
+                            </template>
+                        </template>
                     </div>
 
                     <!-- Proyectos -->

@@ -98,7 +98,7 @@ final class Actor
         $catalog = [
             ['mi_dia',     'Mi Talento',  'Mi día',         'today',        'inicio',      $esColaborador,                                       true],   // Bloques 1-2
             ['mi_dinero',  'Mi Talento',  'Mi dinero',      'payments',     'dinero',      $esColaborador,                                       true],   // Bloque 2
-            ['material',   'Mi trabajo',  'Mi material',    'inventory_2',  'material',    fn () => (bool) $this->custodia(),                     false],  // Fase A
+            ['material',   'Mi trabajo',  'Mi material',    'inventory_2',  'material',    fn () => (bool) $this->custodia(),                     true],   // Fase A (A2 activada)
             ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       false],  // Fase C
             ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
             ['perfil',     'Cuenta',      'Perfil',         'person',       'perfil',      fn (): bool => true,                                  true],
