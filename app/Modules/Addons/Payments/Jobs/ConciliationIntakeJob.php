@@ -52,6 +52,12 @@ class ConciliationIntakeJob implements ShouldQueue
             return;
         }
 
+        // Idempotencia: si ya se descartó este mensaje (no era comprobante), no
+        // reprocesar — evita re-llamar a la IA sobre la misma imagen basura.
+        if (WhatsappPaymentExtraction::where('message_id', $message->id)->whereNotNull('discarded_at')->exists()) {
+            return;
+        }
+
         // Esperar a que F1 haya descargado el binario.
         if (empty($message->media_path) || !Storage::disk('local')->exists($message->media_path)) {
             $this->release(30); // reintenta; el binario aún no está
@@ -80,6 +86,21 @@ class ConciliationIntakeJob implements ShouldQueue
             'extracted_at'    => now(),
         ]);
 
+        // FILTRO: ¿es un comprobante? Umbral CONSERVADOR — solo se descarta si NO
+        // hay ningún dato de pago (ni monto ni clave de rastreo). Ante duda (algún
+        // dato presente, aun de baja confianza) se trata como comprobante y sigue
+        // el flujo, para NO perder pagos reales. Una imagen sin monto ni clave
+        // (captura de chat, meme, foto del módem) se descarta EN SILENCIO: no crea
+        // sesión ni caso en la cola y NO se responde al cliente.
+        if (!$this->looksLikeReceipt($result)) {
+            $extraction->update(['discarded_at' => now(), 'discard_reason' => 'no_payment_fields']);
+            Log::channel('evolution')->info('Conciliación: imagen descartada (no es comprobante)', [
+                'message_id'    => $message->id,
+                'extraction_id' => $extraction->id,
+            ]);
+            return;
+        }
+
         // F3 — inicia la sesión de identificación.
         $session = Session::create([
             'is_simulation'   => false,
@@ -104,6 +125,24 @@ class ConciliationIntakeJob implements ShouldQueue
             'session_id'    => $session->id,
             'state'         => $session->fresh()->state,
         ]);
+    }
+
+    /**
+     * Umbral CONSERVADOR: es comprobante si la extracción trae monto O clave de
+     * rastreo (cualquier valor no vacío, aun de baja confianza). Solo cuando
+     * AMBOS críticos están vacíos se considera que la imagen no es un comprobante.
+     * Se calibra hacia NO perder pagos: preferimos un caso de más en la cola
+     * (que un humano descarte) a ignorar un pago real.
+     */
+    private function looksLikeReceipt(array $result): bool
+    {
+        $fields = $result['fields'] ?? [];
+        $has = static function (string $key) use ($fields): bool {
+            $v = $fields[$key]['value'] ?? null;
+            return $v !== null && trim((string) $v) !== '';
+        };
+
+        return $has('monto') || $has('clave_rastreo');
     }
 
     private function phoneHint(Message $message): ?string
