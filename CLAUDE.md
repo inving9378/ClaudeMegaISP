@@ -931,8 +931,18 @@ El portal reemplaza al admin **fase por fase**. **POR AHORA todos entran al admi
 ### Deuda de estilo
 El portal tiene look propio (header verde "Talento Campo") distinto al admin (estilo Splynx). Unificar poco a poco conforme madure — **no urgente**.
 
-### Fase 0 (fundación)
-Permiso base `portal.colaborador` + auto-asignación **aditiva** (observer) + `Actor` (identidad inmutable por request) + sidebar componible (`Actor::sections()`) + gate `portal.colaborador` + botón "Mi portal" en topbar. Redirección auto **diferida**. **Próximo: Fase A — Material.**
+### Fase 0 (fundación) — ✅ CERRADA (2026-07-03)
+Permiso base `portal.colaborador` + auto-asignación **aditiva** (observer) + `Actor` (identidad inmutable por request) + sidebar componible (`Actor::sections()`) + **gate switch aplicado** (`talento.portal_tecnico` → `portal.colaborador`, routes.php:420) + **botón "Mi portal"** en el dropdown de usuario del topbar (gate `portal.colaborador`, `data-spa-skip`). Redirección auto **DIFERIDA** a la migración final por tipo de colaborador.
+- **Validado en vivo con Brandon** (user 4429, colaborador Vendedor): entra al portal, se ve limpio (header verde "Talento Campo", sidebar Mi Talento / Cuenta, 4 sub-tabs de Mi dinero en cero — correcto, tablas vacías), Mi día / Mi dinero / Perfil funcionan.
+- **Próximo: Fase A — Material.**
+
+**Hallazgos de exploración como colaborador (Brandon) — para fases futuras:**
+- (a) **Embajadores** muestra datos de EMPRESA (dashboard global de 38 embajadores/comisiones), no del colaborador → aislar por colaborador en **Fase E**.
+- (b) **Portal de Pago / conciliación** accesible a colaborador (financiero interno) → **revisar aislamiento** (no debería verlo un colaborador de campo).
+- (c) Rutas de **Vendedores rotas** (404): `/sellers/prospectos`, `/sellers/statistics`, `/message/reminder` → reconstruir en **Fase D**.
+- (d) ✅ Aislamiento admin **OK confirmado**: `/dashboard`, `/cliente/listar`, `/message/inbox` frenan a un colaborador (403) — ese aislamiento ya funciona.
+
+**Deuda menor OPCIONAL (no urgente):** afinar la visibilidad del botón "Mi portal" a colaboradores de campo reales — hoy también lo ven super-admins/DESARROLLADOR que heredan `portal.colaborador` del rol base (inofensivo: entran y ven solo "Cuenta").
 
 ---
 

@@ -132,6 +132,14 @@
                     <i class="mdi mdi-chevron-down d-none d-xl-inline-block"></i>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end">
+                    {{-- Mi portal — atajo al Portal de Colaborador. Gate: portal.colaborador
+                         (@can no funciona en Blade). data-spa-skip: el portal es un SPA aparte. --}}
+                    @if(auth()->user()->can('portal.colaborador'))
+                        <a class="dropdown-item" href="{{ url('/talento/portal') }}" data-spa-skip>
+                            <i class="mdi mdi-account-hard-hat font-size-16 align-middle me-1"></i> Mi portal
+                        </a>
+                        <div class="dropdown-divider"></div>
+                    @endif
                     <!-- item-->
                     <a class="dropdown-item" href="{{ url('/perfil/' . auth()->user()->id) }}"><i
                             class="mdi mdi-face-profile font-size-16 align-middle me-1"></i> Perfil</a>
