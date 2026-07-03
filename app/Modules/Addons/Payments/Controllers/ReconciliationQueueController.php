@@ -197,8 +197,8 @@ class ReconciliationQueueController extends Controller
     public function confirm(Request $request, int $sessionId)
     {
         $data = $request->validate([
-            'client_id'  => ['nullable', 'integer'],   // para ESCALADOS: Tere identifica manual
-            'service_id' => ['nullable', 'integer'],   // para multi-servicio: Tere elige
+            'client_id'  => ['nullable', 'integer'],   // para ESCALADOS: el revisor identifica manual
+            'service_id' => ['nullable', 'integer'],   // para multi-servicio: el revisor elige
         ]);
 
         $s = Session::findOrFail($sessionId);
@@ -231,7 +231,7 @@ class ReconciliationQueueController extends Controller
         // Registrar el servicio elegido por Tere (multi-servicio), para traza.
         if (!empty($data['service_id']) && !empty($result['reported_payment_id'])) {
             ReportedPayment::where('id', $result['reported_payment_id'])
-                ->update(['conciliation_note' => 'Servicio elegido por Tere: #' . $data['service_id']]);
+                ->update(['conciliation_note' => 'Servicio elegido en revisión manual: #' . $data['service_id']]);
         }
 
         // Abono SÍNCRONO del saldo para mostrar el "después" real. El guard de

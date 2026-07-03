@@ -27,7 +27,7 @@ class ConciliationSettings
         ],
         'auto_apply_enabled' => [
             'label'   => 'La IA aplica automáticamente los pagos identificados con referencia MEG',
-            'help'    => 'Si está encendido, cuando el cliente se identifica de forma inequívoca (referencia MEG), el pago se aplica solo, sin intervención humana. Apagado: todo pasa por la cola de Tere.',
+            'help'    => 'Si está encendido, cuando el cliente se identifica de forma inequívoca (referencia MEG), el pago se aplica solo, sin intervención humana. Apagado: todo pasa por la cola de revisión manual.',
             'danger'  => true,
         ],
         'id_cliente_auto_apply' => [

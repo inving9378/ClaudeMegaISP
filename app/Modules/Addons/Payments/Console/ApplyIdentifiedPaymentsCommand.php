@@ -21,7 +21,7 @@ use Illuminate\Console\Command;
 class ApplyIdentifiedPaymentsCommand extends Command
 {
     protected $signature = 'payments:apply-identified {--session= : Procesar solo esta sesión}';
-    protected $description = 'Aplica (o rutea a Tere) los pagos de sesiones de identificación resueltas y pendientes.';
+    protected $description = 'Aplica (o rutea a revisión manual) los pagos de sesiones de identificación resueltas y pendientes.';
 
     public function handle(): int
     {
@@ -40,7 +40,7 @@ class ApplyIdentifiedPaymentsCommand extends Command
             $fresh = $s->fresh();
             $estado = $fresh->applied_payment_id
                 ? "APLICADO (payment #{$fresh->applied_payment_id})"
-                : 'no aplicado (frenado o encolado a Tere)';
+                : 'no aplicado (frenado o encolado a revisión manual)';
             $this->line("  sesión #{$s->id} cliente {$s->resolved_client_id} [{$s->certainty}] → {$estado}");
         }
 
