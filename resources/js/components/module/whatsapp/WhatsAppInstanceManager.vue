@@ -25,6 +25,10 @@
                         {{ statusLabel(ins.status) }}
                     </span>
                 </div>
+                <div v-if="isProduction(ins)" class="wim-prod-badge">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    En uso — producción · ventas · bot · conciliación
+                </div>
                 <div class="wim-card-body">
                     <div><span>Slug:</span> <code>{{ ins.slug }}</code></div>
                     <div><span>Instance ID:</span> <code>{{ ins.instance_id }}</code></div>
@@ -49,7 +53,12 @@
                         <i class="bi bi-arrow-clockwise" :class="{ 'wim-spin': syncing[ins.id] }"></i>
                         {{ syncing[ins.id] ? 'Sincronizando…' : 'Sincronizar' }}
                     </button>
-                    <button class="wim-btn danger" @click="remove(ins)">
+                    <button
+                        class="wim-btn"
+                        :class="isProduction(ins) ? 'muted' : 'danger'"
+                        @click="remove(ins)"
+                        :title="isProduction(ins) ? 'Instancia de producción — eliminar con precaución' : 'Eliminar instancia'"
+                    >
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -246,12 +255,28 @@ export default {
             }
         },
 
+        // La instancia de PRODUCCIÓN (meganet-ventas) es la que usan ventas, el bot y la
+        // conciliación. Se identifica por slug/instance_id — se protege visualmente y con
+        // una confirmación reforzada para que nadie la borre por reflejo.
+        isProduction(ins) {
+            return ins.slug === 'meganet-ventas' || ins.instance_id === 'meganet-ventas';
+        },
+
         async remove(ins) {
-            if (!confirm(`¿Eliminar la instancia "${ins.name}"?`)) return;
+            const msg = this.isProduction(ins)
+                ? `⚠️ Esto afecta el WhatsApp que usan conciliación y el bot.\n\n"${ins.name}" es el número de PRODUCCIÓN. Eliminarlo del panel quita su registro (no toca Evolution, pero perderías su seguimiento aquí).\n\n¿Seguro que quieres continuar?`
+                : `¿Eliminar la instancia "${ins.name}"?`;
+            if (!confirm(msg)) return;
             try {
                 await axios.delete(`/whatsapp/api/instances/${ins.id}`);
                 await this.load();
             } catch {}
+        },
+
+        // Refleja el estado real (open/close) de cada instancia consultando Evolution,
+        // sin esperar el clic manual en "Sincronizar".
+        autoSyncAll() {
+            this.instances.forEach(ins => this.syncStatus(ins));
         },
 
         async showQr(ins) {
@@ -317,8 +342,9 @@ export default {
         },
     },
 
-    mounted() {
-        this.load();
+    async mounted() {
+        await this.load();
+        this.autoSyncAll();
     },
 
     beforeUnmount() {
@@ -393,6 +419,14 @@ export default {
     margin-top: 4px;
     font-size: 12px;
 }
+.wim-prod-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: #f7c948; color: #2b2300;
+    font-weight: 700; font-size: 12.5px;
+    padding: 7px 12px; border-radius: 6px;
+    margin-bottom: 10px;
+    border: 1px solid #d9a800;
+}
 .wim-card-actions {
     display: flex; gap: 6px; margin-top: 12px;
 }
@@ -408,6 +442,8 @@ export default {
 }
 .wim-btn.primary { background: #25d366; color: #0a2b15; border-color: #25d366; font-weight: 600; }
 .wim-btn.danger { background: #2a1a1a; color: #f15c6d; border-color: #f15c6d40; }
+.wim-btn.muted { background: #1a2430; color: #6b7a86; border-color: #2a3a4a; opacity: .55; }
+.wim-btn.muted:hover { opacity: .85; }
 .wim-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 .wim-empty {
