@@ -131,6 +131,41 @@ class EvolutionApiService
         return $response->json() ?? ['state' => 'unknown'];
     }
 
+    /**
+     * Perfil de la instancia desde fetchInstances: número real (ownerJid, sin el sufijo
+     * @s.whatsapp.net) y nombre de perfil. Devuelve [] si no se puede leer. NO conecta ni
+     * modifica nada — solo lectura. (Fase 3: para persistir phone_number en el sync.)
+     */
+    public function getInstanceProfile(WhatsAppInstance $instance): array
+    {
+        if ($this->fakeMode) {
+            return [];
+        }
+
+        $response = Http::withHeaders(['apikey' => $this->apiKey])
+            ->get("{$this->baseUrl}/instance/fetchInstances");
+
+        $list = $response->json();
+        if (! is_array($list)) {
+            return [];
+        }
+
+        foreach ($list as $it) {
+            $name = $it['name'] ?? $it['instanceName'] ?? null;
+            if ($name === $instance->instance_id) {
+                $jid    = $it['ownerJid'] ?? null;
+                $number = $jid ? explode('@', $jid)[0] : ($it['number'] ?? null);
+
+                return [
+                    'number'      => $number,
+                    'profileName' => $it['profileName'] ?? null,
+                ];
+            }
+        }
+
+        return [];
+    }
+
     public function createInstance(WhatsAppInstance $instance): array
     {
         if ($this->fakeMode) {

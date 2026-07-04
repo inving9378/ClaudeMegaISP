@@ -32,13 +32,30 @@
                 <div class="wim-card-body">
                     <div><span>Slug:</span> <code>{{ ins.slug }}</code></div>
                     <div><span>Instance ID:</span> <code>{{ ins.instance_id }}</code></div>
-                    <div v-if="ins.phone_number">
-                        <span>Número:</span> {{ ins.phone_number }}
-                    </div>
+                    <div><span>Número:</span> {{ ins.phone_number || '—' }}</div>
                     <div v-if="ins.default_instance" class="wim-default-badge">
                         <i class="bi bi-star-fill"></i> Default
                     </div>
                 </div>
+
+                <div v-if="catalog.length" class="wim-functions">
+                    <div class="wim-functions-title">Funciones de esta línea</div>
+                    <div class="wim-func-list">
+                        <button
+                            v-for="fn in catalog" :key="fn.id"
+                            class="wim-func"
+                            :class="{ on: hasFunction(ins, fn.id) }"
+                            :disabled="funcBusy"
+                            @click="toggleFunction(ins, fn)"
+                            :title="fn.exclusive ? 'Exclusiva: una sola línea' : 'Compartida: puede estar en varias'"
+                        >
+                            <i class="bi" :class="hasFunction(ins, fn.id) ? 'bi-check-square-fill' : 'bi-square'"></i>
+                            {{ fn.name }}
+                            <small class="wim-func-tag" :class="fn.exclusive ? 'ex' : 'sh'">{{ fn.exclusive ? 'exclusiva' : 'compartida' }}</small>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="wim-card-actions">
                     <button class="wim-btn" @click="showQr(ins)">
                         <i class="bi bi-qr-code"></i>
@@ -121,6 +138,71 @@
                 </div>
             </div>
         </div>
+
+        <!-- Modal: mover función exclusiva -->
+        <div v-if="moveModal" class="wim-modal-backdrop" @click.self="moveModal = null">
+            <div class="wim-modal">
+                <h4>Mover función exclusiva</h4>
+                <p class="wim-modal-text">
+                    «<strong>{{ moveModal.fn.name }}</strong>» es exclusiva y hoy está en
+                    «<strong>{{ moveModal.fromName }}</strong>». ¿Moverla a
+                    «<strong>{{ moveModal.to.name }}</strong>»? Se quitará de la otra línea.
+                </p>
+                <div class="wim-modal-actions">
+                    <button class="wim-btn" @click="moveModal = null">Cancelar</button>
+                    <button class="wim-btn primary" @click="confirmMove" :disabled="funcBusy">Mover aquí</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: reasignar antes de quitar la última línea -->
+        <div v-if="reassignModal" class="wim-modal-backdrop" @click.self="reassignModal = null">
+            <div class="wim-modal">
+                <h4>Reasignar antes de quitar</h4>
+                <p class="wim-modal-text">
+                    «<strong>{{ reassignModal.fn.name }}</strong>» solo está en
+                    «<strong>{{ reassignModal.from.name }}</strong>». No puede quedar sin línea:
+                    reasígnala a otra antes de quitarla.
+                </p>
+                <template v-if="otherLines(reassignModal.from).length">
+                    <label class="wim-reassign-label">
+                        Mover a:
+                        <select v-model="reassignTarget">
+                            <option :value="null" disabled>Elige una línea…</option>
+                            <option v-for="l in otherLines(reassignModal.from)" :key="l.id" :value="l.id">{{ l.name }}</option>
+                        </select>
+                    </label>
+                    <div v-if="reassignError" class="wim-error">{{ reassignError }}</div>
+                    <div class="wim-modal-actions">
+                        <button class="wim-btn" @click="reassignModal = null">Cancelar</button>
+                        <button class="wim-btn primary" @click="confirmReassign" :disabled="!reassignTarget || funcBusy">Reasignar</button>
+                    </div>
+                </template>
+                <template v-else>
+                    <div class="wim-error">No hay otra línea disponible. Conecta o crea otra línea primero.</div>
+                    <div class="wim-modal-actions">
+                        <button class="wim-btn" @click="reassignModal = null">Cerrar</button>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Modal bloqueante: eliminar línea dueña única de funciones -->
+        <div v-if="blockModal" class="wim-modal-backdrop" @click.self="blockModal = null">
+            <div class="wim-modal">
+                <h4>No se puede eliminar todavía</h4>
+                <p class="wim-modal-text">
+                    «<strong>{{ blockModal.ins.name }}</strong>» es la única línea de:
+                    <strong>{{ blockModal.functions.join(', ') }}</strong>. Reasigna esas
+                    funciones a otra línea antes de eliminar/desconectar.
+                </p>
+                <div class="wim-modal-actions">
+                    <button class="wim-btn primary" @click="blockModal = null">Entendido</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="funcToast" class="wim-toast" :class="funcToast.type">{{ funcToast.msg }}</div>
     </div>
 </template>
 
@@ -142,6 +224,15 @@ export default {
             saving: false,
             syncing: {},        // { instanceId: true } mientras Sincronizar está en curso
             formError: '',
+            // Funciones por línea (Fase 3)
+            catalog: [],        // funciones activas para los checks
+            funcBusy: false,
+            moveModal: null,    // { fn, to, fromName }
+            reassignModal: null,// { fn, from }
+            reassignTarget: null,
+            reassignError: '',
+            blockModal: null,   // { ins, functions:[names] }
+            funcToast: null,
             form: {
                 name: '',
                 slug: '',
@@ -165,6 +256,14 @@ export default {
     },
 
     computed: {
+        // Mapa function_id -> [instance ids que la tienen], desde las funciones cargadas.
+        ownership() {
+            const map = {};
+            this.instances.forEach(ins => (ins.functions || []).forEach(f => {
+                (map[f.id] = map[f.id] || []).push(ins.id);
+            }));
+            return map;
+        },
         qrImageSrc() {
             if (!this.qrImage) return '';
             if (this.qrImage.startsWith('data:image')) return this.qrImage;
@@ -184,6 +283,108 @@ export default {
                 this.instances = [];
             } finally {
                 this.loading = false;
+            }
+        },
+
+        // ── Funciones por línea (Fase 3) ─────────────────────────────────────────
+        async loadCatalog() {
+            try {
+                const { data } = await axios.get('/whatsapp/api/instances/functions-catalog');
+                this.catalog = Array.isArray(data) ? data : [];
+            } catch (e) {
+                this.catalog = [];
+            }
+        },
+        hasFunction(ins, fnId) {
+            return (ins.functions || []).some(f => f.id === fnId);
+        },
+        otherLines(ins) {
+            return this.instances.filter(i => i.id !== ins.id);
+        },
+        soleOwnedFunctions(ins) {
+            return (ins.functions || [])
+                .filter(f => (this.ownership[f.id] || []).length <= 1)
+                .map(f => f.name);
+        },
+        funcErr(e) {
+            return e.response?.data?.message
+                || Object.values(e.response?.data?.errors || {}).flat().join(', ')
+                || 'No se pudo completar la operación.';
+        },
+        showFuncToast(msg, type) {
+            this.funcToast = { msg, type };
+            setTimeout(() => { this.funcToast = null; }, 3800);
+        },
+        async toggleFunction(ins, fn) {
+            if (this.funcBusy) return;
+            if (this.hasFunction(ins, fn.id)) {
+                // Quitar: si es la única línea de la función → reasignar primero.
+                if ((this.ownership[fn.id] || []).length <= 1) {
+                    this.reassignTarget = null;
+                    this.reassignError = '';
+                    this.reassignModal = { fn, from: ins };
+                    return;
+                }
+                await this.doUnassign(ins, fn);
+            } else {
+                // Asignar: exclusiva ya en otra línea → confirmar el movimiento.
+                if (fn.exclusive) {
+                    const otherId = (this.ownership[fn.id] || []).find(id => id !== ins.id);
+                    if (otherId) {
+                        const fromName = (this.instances.find(i => i.id === otherId) || {}).name || 'otra línea';
+                        this.moveModal = { fn, to: ins, fromName };
+                        return;
+                    }
+                }
+                await this.doAssign(ins, fn);
+            }
+        },
+        async doAssign(ins, fn) {
+            this.funcBusy = true;
+            try {
+                const { data } = await axios.post(`/whatsapp/api/instances/${ins.id}/functions`, { function_id: fn.id });
+                await this.load();
+                if (data.moved) this.showFuncToast(`«${fn.name}» se movió a «${ins.name}»`, 'ok');
+            } catch (e) {
+                this.showFuncToast(this.funcErr(e), 'error');
+            } finally {
+                this.funcBusy = false;
+            }
+        },
+        async doUnassign(ins, fn) {
+            this.funcBusy = true;
+            try {
+                await axios.delete(`/whatsapp/api/instances/${ins.id}/functions/${fn.id}`);
+                await this.load();
+            } catch (e) {
+                // 422 huérfana (por si el conteo cambió entre render y clic) → abrir reasignar.
+                this.showFuncToast(this.funcErr(e), 'error');
+                this.reassignTarget = null;
+                this.reassignError = '';
+                this.reassignModal = { fn, from: ins };
+            } finally {
+                this.funcBusy = false;
+            }
+        },
+        async confirmMove() {
+            const { fn, to } = this.moveModal;
+            this.moveModal = null;
+            await this.doAssign(to, fn);
+        },
+        async confirmReassign() {
+            if (!this.reassignTarget) return;
+            const { fn, from } = this.reassignModal;
+            this.funcBusy = true;
+            this.reassignError = '';
+            try {
+                await axios.post(`/whatsapp/api/instances/${from.id}/functions/${fn.id}/reassign`, { to_instance_id: this.reassignTarget });
+                this.reassignModal = null;
+                await this.load();
+                this.showFuncToast(`«${fn.name}» reasignada`, 'ok');
+            } catch (e) {
+                this.reassignError = this.funcErr(e);
+            } finally {
+                this.funcBusy = false;
             }
         },
 
@@ -263,6 +464,12 @@ export default {
         },
 
         async remove(ins) {
+            // Regla 6: si es la única línea de alguna función → bloquear y exigir reasignar.
+            const sole = this.soleOwnedFunctions(ins);
+            if (sole.length) {
+                this.blockModal = { ins, functions: sole };
+                return;
+            }
             const msg = this.isProduction(ins)
                 ? `⚠️ Esto afecta el WhatsApp que usan conciliación y el bot.\n\n"${ins.name}" es el número de PRODUCCIÓN. Eliminarlo del panel quita su registro (no toca Evolution, pero perderías su seguimiento aquí).\n\n¿Seguro que quieres continuar?`
                 : `¿Eliminar la instancia "${ins.name}"?`;
@@ -270,7 +477,10 @@ export default {
             try {
                 await axios.delete(`/whatsapp/api/instances/${ins.id}`);
                 await this.load();
-            } catch {}
+            } catch (e) {
+                // Backstop del observer (guardInstanceRemoval) → 422 con las funciones a reasignar.
+                this.showFuncToast(this.funcErr(e), 'error');
+            }
         },
 
         // Refleja el estado real (open/close) de cada instancia consultando Evolution,
@@ -344,6 +554,7 @@ export default {
 
     async mounted() {
         await this.load();
+        this.loadCatalog();
         this.autoSyncAll();
     },
 
@@ -447,6 +658,48 @@ export default {
 .wim-btn.muted { background: var(--bg-secondary); color: var(--text-secondary); border-color: var(--border-default); opacity: .6; }
 .wim-btn.muted:hover { opacity: .9; }
 .wim-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Funciones por línea (Fase 3) */
+.wim-functions {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--border-default);
+}
+.wim-functions-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .4px;
+    color: var(--text-secondary); margin-bottom: 6px;
+}
+.wim-func-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.wim-func {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg-hover); color: var(--text-secondary);
+    border: 1px solid var(--border-default); border-radius: 14px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.wim-func.on { background: var(--success); color: #fff; border-color: transparent; }
+.wim-func:disabled { opacity: .6; cursor: wait; }
+.wim-func-tag {
+    font-size: 10px; padding: 0 5px; border-radius: 8px; font-weight: 600;
+}
+.wim-func-tag.ex { background: var(--warning); color: #1f2937; }
+.wim-func-tag.sh { background: var(--bg-primary); color: var(--text-secondary); }
+.wim-func.on .wim-func-tag.sh { color: var(--text-secondary); }
+
+.wim-modal-text { color: var(--text-primary); font-size: 13.5px; line-height: 1.5; }
+.wim-reassign-label {
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 12px; color: var(--text-secondary); margin: 12px 0;
+}
+.wim-reassign-label select {
+    background: var(--bg-primary); color: var(--text-primary);
+    border: 1px solid var(--border-default); border-radius: 4px; padding: 7px 10px; font-size: 13px;
+}
+.wim-toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 10px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    z-index: 10001; box-shadow: var(--shadow-card); max-width: 90%; text-align: center;
+}
+.wim-toast.ok { background: var(--success); color: #fff; }
+.wim-toast.error { background: var(--danger); color: #fff; }
 
 .wim-empty {
     color: var(--text-secondary);
