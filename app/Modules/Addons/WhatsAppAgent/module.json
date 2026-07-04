@@ -11,6 +11,7 @@
         { "name": "whatsapp_view_conversations",  "description": "Ver conversaciones de WhatsApp" },
         { "name": "whatsapp_send_messages",        "description": "Enviar mensajes y responder chats" },
         { "name": "whatsapp_manage_instances",     "description": "Crear, conectar y eliminar instancias de WhatsApp" },
+        { "name": "whatsapp_manage_functions",     "description": "Gestionar el catálogo de funciones por línea (crear/editar/exclusiva/borrar)" },
         { "name": "whatsapp_view_logs",            "description": "Ver logs de mensajes y webhooks" },
         { "name": "whatsapp_use_ia",               "description": "Usar asistencia IA para sugerir respuestas" }
     ],
