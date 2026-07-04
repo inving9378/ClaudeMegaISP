@@ -93,6 +93,37 @@
                     @include('module-sidebar.marketing', ['item' => $sidebarItems['marketing']->first()])
                 @endif
 
+                {{-- WhatsApp — Fase 4a (Opción A, absorber): módulo único expuesto en el sidebar.
+                     addon-whatsapp-agent sigue en $sidebarSuppressed (evita duplicado del loop
+                     dinámico); este bloque hardcodeado es la navegación real (patrón Portal de Pago).
+                     "Funciones" queda oculto hasta Fase 3 (el permiso whatsapp_manage_functions aún
+                     no existe → can() = false); se auto-revela cuando Fase 3 cree permiso + ruta. --}}
+                @if(auth()->user() && auth()->user()->canany(['whatsapp_manage_instances','whatsapp_manage_functions','whatsapp_view_conversations']))
+                    <li>
+                        <a href="javascript: void(0);" class="has-arrow">
+                            <i data-feather="message-circle"></i>
+                            <span>WhatsApp</span>
+                        </a>
+                        <ul class="sub-menu" aria-expanded="false">
+                            @if(auth()->user()->can('whatsapp_manage_instances'))
+                                <li>
+                                    <a href="{{ url('/whatsapp/instances') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Líneas</span></a>
+                                </li>
+                            @endif
+                            @if(auth()->user()->can('whatsapp_manage_functions'))
+                                <li>
+                                    <a href="{{ url('/whatsapp/funciones') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Funciones</span></a>
+                                </li>
+                            @endif
+                            @if(auth()->user()->can('whatsapp_view_conversations'))
+                                <li>
+                                    <a href="{{ url('/whatsapp') }}"><span><small><i class="fa fa-fw fa-angle-right"></i></small> Conversaciones</span></a>
+                                </li>
+                            @endif
+                        </ul>
+                    </li>
+                @endif
+
                 {{-- VoIP — módulo VoIP PJSIP Realtime --}}
                 @if(isset($sidebarItems['voip']))
                     @include('module-sidebar.voip', ['item' => $sidebarItems['voip']->first()])
