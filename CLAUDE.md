@@ -179,6 +179,17 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 | **`DefaultValueRepository.php:35` (RESUELTO)** | `auth()->user()->id` → `auth()->user()?->id` en las **5** ocurrencias (26/35/44/54/64) → sin NPE en CLI/sin-sesión; path HTTP idéntico. Commit `617d03b4`. | ✅ **Resuelto** | — |
 | **IDs de módulo divergentes dev↔prod (NOTA)** | Tras el fix, `FiltersTaskCalendar` quedó **id=133 en dev vs id=78 en prod** (auto-increment distinto). No afecta hoy (todo resuelve por `name`), pero si algún código referencia módulos por **id numérico hardcodeado**, esa divergencia podría morder. | 📝 Nota | Baja |
 
+### ✅ CHECKLIST PRE-DEPLOY A PROD (verificar ANTES de cada release)
+
+> **V1.20 se CANCELÓ el 2026-07-03** (prod intacta: sin push a origin, sin tag, remote:deploy nunca disparado). Preparar bien el release antes de subir.
+
+1. **Backfill `portal.colaborador` portable** — la migración `Talento/…/create_portal_colaborador_permission.php` ya resuelve por `TalentoColaborador` activo (sin ids). El `4818` hardcodeado se movió a resolución por `login_user` en `SyncColaboradoresCommand` (commit `5efe0887`). ⚠️ **DECISIÓN ABIERTA:** el backfill da el permiso a **todo colaborador activo sin filtrar rol** (en dev incluye a `4818` rol `client` puro). **Verificar en prod que `talento_colaboradores` activos sean SOLO staff real** antes de subir, o decidir guard por allowlist de roles staff (`whereHas`, nunca `whereDoesntHave('client')`; ojo colaboradores nuevos sin rol). Staff-cliente legítimo (p.ej. técnico suscriptor) SÍ debe recibirlo.
+2. **`TALENTO_PAYWEEK_CUTOVER` (es PLATA)** — setear explícito en `.env` de PROD: `TALENTO_PAYWEEK_CUTOVER="2026-07-11 18:00:00"` (default seguro ya en `config/talento.php:27` si falta). PROD: 0 pagos reales → primera semana 07-11→07-18, sin histórico.
+3. **Migraciones aditivas** — confirmar que todas sean `create table`/`add column` (con guard `hasColumn`)/`firstOrCreate`; ninguna destructiva en `up()` (drops solo en `down()`). El `migrate_dryrun` aborta el deploy si truena (necesita `GRANT ALL ON megaisp_dryrun.*`). **NUNCA `migrate:fresh`.**
+4. **ids dev≠prod** — JAMÁS resolver una cuenta por id entre entornos; siempre por `login_user`/email/rol (Irving en prod = `id=13` login `Meganet`, NO id=8).
+5. **Validar en DEV antes de subir** — captura visual de Irving: pestañas "Mi material" (ASSET_VER 14) + Fase A. **Pendiente.**
+6. **`NO Payments/`** — V1.20 arrastraba todo el módulo Conciliación WhatsApp F1–F6; si no va a prod aún, separar ramas antes del deploy (freno maestro `payments.auto_apply_enabled` = OFF por default).
+
 ### Infraestructura de producción — verificación pendiente
 
 | Item | Descripción | Estado | Prioridad |
