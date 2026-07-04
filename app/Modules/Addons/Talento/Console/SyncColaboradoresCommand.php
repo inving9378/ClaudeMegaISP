@@ -17,10 +17,19 @@ class SyncColaboradoresCommand extends Command
     // Solo roles de PUESTO (no capacidades transversales como Vendedor).
     private const PRIORITY = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO', 'Mostrador'];
 
-    private const PROTECTED_USER_ID = 4818;
+    /**
+     * Colaborador de prueba a proteger de la sincronización.
+     * PORTABLE entre entornos: se resuelve por login_user (estable), NO por id
+     * hardcodeado (los ids de dev y prod divergen — un id de dev es otra persona
+     * en prod). En prod este login no existe → protectedId=null → no protege a nadie.
+     */
+    private const PROTECTED_TEST_LOGIN = 'Meganet6503bee0';
 
     public function handle(): int
     {
+        // Resuelto una sola vez; null si el colaborador de prueba no existe (p.ej. prod).
+        $protectedId = User::where('login_user', self::PROTECTED_TEST_LOGIN)->value('id');
+
         $mappings = TalentoRoleDepartment::pluck('department', 'role_name')->all();
 
         if (empty($mappings)) {
@@ -52,7 +61,7 @@ class SyncColaboradoresCommand extends Command
                 continue;
             }
 
-            if ($user->id === self::PROTECTED_USER_ID) {
+            if ($protectedId !== null && $user->id === $protectedId) {
                 $totalSkipped++;
                 $rows[] = [$user->id, $user->name, implode(',', $roleNames), 'omitido', '—', 'Colaborador de prueba protegido'];
                 continue;
@@ -116,7 +125,7 @@ class SyncColaboradoresCommand extends Command
 
         // Colaboradores activos cuyo user_id NO tiene ningún rol de puesto mapeado
         $sinPuesto = TalentoColaborador::where('status', 'active')
-            ->where('user_id', '!=', self::PROTECTED_USER_ID)
+            ->when($protectedId !== null, fn ($q) => $q->where('user_id', '!=', $protectedId))
             ->whereNotIn('user_id', $userIdsConPuesto)
             ->with('user.roles')
             ->get();
