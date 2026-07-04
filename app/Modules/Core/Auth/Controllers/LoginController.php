@@ -26,6 +26,23 @@ class LoginController extends Controller
     use AuthenticatesUsers;
 
     /**
+     * Roles de STAFF autorizados a entrar al panel admin (guard web).
+     * Solo estos roles pueden autenticar en el login admin: clientes y cuentas
+     * sin rol de staff quedan bloqueados (p.ej. las cuentas espejo con rol 'client',
+     * cuyo password es la Contraseña WEB del cliente, no deben acceder al admin).
+     */
+    private const STAFF_ROLES = [
+        'super-administrator',
+        'DESARROLLADOR',
+        'Super Administrador',
+        'Administrador',
+        'Vendedor',
+        'Mostrador',
+        'TECNICO',
+        'Almacen',
+    ];
+
+    /**
      * Resuelve la URL de destino post-login mediante PostLoginRedirectService:
      * 1. Última ruta visitada (si el usuario aún tiene permiso)
      * 2. Primera ruta de la lista de fallback que el usuario puede ver
@@ -89,6 +106,12 @@ class LoginController extends Controller
         // Verificación híbrida: acepta bcrypt y el legacy base64.
         if ($user && PasswordService::check($request->password, $user->password)) {
             if (($user->estado ?? 'activo') !== 'activo') {
+                return false;
+            }
+            // Gate de rol: solo staff entra al panel admin. Un usuario sin rol de
+            // staff (p.ej. cuenta espejo con rol 'client') recibe fallo genérico de
+            // credenciales (no-disclosure: no revela que el usuario/estado existe).
+            if (! $user->hasAnyRole(self::STAFF_ROLES)) {
                 return false;
             }
             // Upgrade-on-login: si seguía en base64 legacy, re-hashea a bcrypt.
