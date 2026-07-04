@@ -221,14 +221,18 @@ payments()->create(paymentable=Client)
 - Modelo/tabla: `.../Models/WhatsAppInstance.php` + `whatsapp_instances` (api_key **cifrada** vía `Crypt`; `webhook_secret` autogenerado en `creating()`).
 - UI: `resources/js/components/module/whatsapp/WhatsAppInstanceManager.vue` (registrado en `app.js` como `whatsapp-instance-manager`) + `views/instances.blade.php`.
 - Rutas: `.../WhatsAppAgent/routes.php`, prefijo `whatsapp`, permiso `whatsapp_manage_instances`.
-- **Acceso al panel:** NO está en el sidebar (addon en `$sidebarSuppressed`, `sidebar.blade.php`). Se llega por **`/configuracion` → Mensajería → "WhatsApp — Evolution API"** (config_sections del `module.json`, auto-compiladas por `ModuleRegistry`), o URL directa **`/whatsapp/instances`**.
+- **Acceso al panel (Fase 4a):** módulo **"WhatsApp" expuesto en el sidebar** (bloque hardcodeado en `sidebar.blade.php`, patrón Portal de Pago, ícono `message-circle`), con 3 submenús: **Líneas** (`/whatsapp/instances`, gate `whatsapp_manage_instances`), **Funciones** (`/whatsapp/funciones`, gate `whatsapp_manage_functions` — **oculto hasta Fase 3**, el permiso aún no existe → `can()`=false → se auto-revela cuando Fase 3 cree permiso+ruta), **Conversaciones** (`/whatsapp`, gate `whatsapp_view_conversations`). Padre gateado por `canany` de los tres. `addon-whatsapp-agent` **se mantiene en `$sidebarSuppressed`** (evita duplicado del loop dinámico). El enlace de **`/configuracion` → Mensajería** sigue conviviendo (se limpia después).
 - Consumidor automático a vigilar: `PaymentApplicationService::…sendAndLog($phone,$body, null,…)` (notificador SPEI) → `active()->default()->firstOrFail()`. Si una instancia se marca `default_instance=true`, ese path empieza a enviar por ella.
 
-### 7.3 Decisión: UNIFICAR por fases (el panel será el dueño único, sin romper Marketing)
+### 7.3 Decisión: UNIFICAR por fases — **Opción A (ABSORBER)**
+
+Decisión tomada: el módulo "WhatsApp" se construye **sobre el addon WhatsAppAgent** (renombrar/reencuadrar de cara al usuario, exponerlo al sidebar con submenús, y en la última fase jalar el envío de Marketing hacia acá). Menor reescritura y menor riesgo para el envío vivo; el único punto sensible es el switch final del sender, aislable tras flag. (Se descartó "módulo nuevo" por más reescritura/riesgo.)
 
 - **Fase 1 — HECHA (dev):** exponer el panel + **reflejar** `meganet-ventas`. Migración idempotente `2026_07_04_100000_seed_meganet_ventas_instance.php` (firstOrCreate por slug, datos reales de Marketing, api_key cifrada, **`default_instance=false` + `active=true`**, status open/close en vivo). Panel protege la fila de producción (badge "En uso — producción" + Eliminar atenuado + confirmación ⚠️). **Solo refleja; no cablea nada.** Commits `a273b746` (migración) + `5dea9ac5` (panel).
-- **Fase 3 (pendiente, roadmap 196/198):** Reiniciar/Desconectar reales con confirmación; capa de funciones por número (ventas/cobranza/soporte) con exclusividad configurable.
-- **Fase 4 (pendiente, roadmap 197):** unificar el **sender** — que conciliación y el bot lean la instancia/credenciales desde `whatsapp_instances` (marcar `default_instance=true` y repuntar consumidores), sin romper el flujo vivo.
+- **Fase 2 — HECHA (dev):** fix dark/light del `WhatsAppInstanceManager.vue` (hardcodes → tokens `dark-light-tokens.css`; conserva verde de marca + blanco del QR). Commit `9e79a8c7`.
+- **Fase 4a — HECHA (dev):** menú único "WhatsApp" en el sidebar (ver §7.2). **Solo UI de navegación** — no toca BD ni sender. Commit selectivo de `sidebar.blade.php`.
+- **Fase 3 (aprobada, sin construir — roadmap 196/198):** capa de funciones por línea (catálogo `whatsapp_functions` + pivote `whatsapp_instance_functions`, `exclusive` configurable, reglas no-huérfanas/mover-exclusiva/reasignar-antes-de-quitar en backend vía service+observers), pantalla en el submenú **Funciones**, permiso **nuevo `whatsapp_manage_functions`**. Al crearse ese permiso, el submenú Funciones se auto-revela. También: Reiniciar/Desconectar reales con confirmación. **Segura (metadata, no toca sender).**
+- **Fase 4c — SWITCH FINAL (pendiente, roadmap 197):** unificar el **sender** — que conciliación y el bot lean la instancia/credenciales desde `whatsapp_instances`/funciones (marcar `default_instance=true` y repuntar consumidores), **detrás de feature flag con fallback a Marketing**. Único punto que toca el envío vivo.
 
 ---
 
