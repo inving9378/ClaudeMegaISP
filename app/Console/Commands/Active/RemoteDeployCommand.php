@@ -103,7 +103,7 @@ class RemoteDeployCommand extends Command
             //    código → flag 'fail_deploy_no_rollback'. Timeout config('deployment.migrate_timeout')
             //    (default 2400s; antes 900s hardcodeado, y 300s antes de eso: un ALTER largo sobre una
             //    tabla grande timeouteaba y dejaba el sitio en 500 hasta que terminaba en background).
-            ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => config('deployment.migrate_timeout', 2400), 'critical' => false, 'fail_deploy_no_rollback' => true],
+            ['key' => 'migrate',       'name' => 'Aplicando cambios en la base de datos — puede tardar varios minutos, no cierres la ventana', 'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => config('deployment.migrate_timeout', 2400), 'critical' => false, 'fail_deploy_no_rollback' => true],
             // 5. Warm-up de cachés
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
             // 6. Reiniciar workers de cola
