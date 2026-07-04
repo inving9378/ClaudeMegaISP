@@ -356,14 +356,15 @@ export default {
 
 <style scoped>
 .wim-shell {
+    --wim-brand: #25d366; /* verde de marca WhatsApp — constante, legible en claro y oscuro */
     padding: 20px;
     max-width: 1200px;
     margin: 0 auto;
-    color: #e9edef;
+    color: var(--text-primary);
 }
 .wim-fake-banner {
-    background: #f7c948;
-    color: #2b2300;
+    background: var(--warning);
+    color: #1f2937;
     padding: 8px 14px;
     font-size: 13px;
     font-weight: 600;
@@ -376,17 +377,18 @@ export default {
     align-items: center;
     margin-bottom: 16px;
 }
-.wim-header h3 { margin: 0; color: #25d366; }
+.wim-header h3 { margin: 0; color: var(--wim-brand); }
 .wim-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 14px;
 }
 .wim-card {
-    background: #1a2a3a;
-    border: 1px solid #2a3a4a;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
     border-radius: 8px;
     padding: 14px;
+    box-shadow: var(--shadow-card);
 }
 .wim-card-head {
     display: flex; justify-content: space-between; align-items: center;
@@ -398,59 +400,59 @@ export default {
     font-size: 11px;
     font-weight: 600;
 }
-.wim-status.connected { background: #2ecc71; color: #0a2b15; }
-.wim-status.disconnected { background: #f15c6d; color: #fff; }
-.wim-status.pending { background: #f7c948; color: #2b2300; }
+.wim-status.connected { background: var(--success); color: #fff; }
+.wim-status.disconnected { background: var(--danger); color: #fff; }
+.wim-status.pending { background: var(--warning); color: #1f2937; }
 .wim-card-body {
     font-size: 13px;
-    color: #aebac1;
+    color: var(--text-secondary);
 }
 .wim-card-body div { margin-bottom: 4px; }
-.wim-card-body span { color: #8696a0; margin-right: 6px; }
+.wim-card-body span { color: var(--text-secondary); margin-right: 6px; }
 .wim-card-body code {
-    background: #0b141a;
+    background: var(--bg-primary);
     padding: 1px 5px;
     border-radius: 3px;
     font-size: 12px;
-    color: #9de0b3;
+    color: var(--success);
 }
 .wim-default-badge {
-    color: #f7c948;
+    color: var(--warning);
     margin-top: 4px;
     font-size: 12px;
 }
 .wim-prod-badge {
     display: flex; align-items: center; gap: 8px;
-    background: #f7c948; color: #2b2300;
+    background: var(--warning); color: #1f2937;
     font-weight: 700; font-size: 12.5px;
     padding: 7px 12px; border-radius: 6px;
     margin-bottom: 10px;
-    border: 1px solid #d9a800;
+    border: 1px solid rgba(0, 0, 0, 0.18);
 }
 .wim-card-actions {
     display: flex; gap: 6px; margin-top: 12px;
 }
 .wim-btn {
-    background: #2a3942;
-    color: #e9edef;
-    border: 1px solid #3a4a5a;
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     padding: 7px 12px;
     font-size: 13px;
     cursor: pointer;
     display: inline-flex; align-items: center; gap: 6px;
 }
-.wim-btn.primary { background: #25d366; color: #0a2b15; border-color: #25d366; font-weight: 600; }
-.wim-btn.danger { background: #2a1a1a; color: #f15c6d; border-color: #f15c6d40; }
-.wim-btn.muted { background: #1a2430; color: #6b7a86; border-color: #2a3a4a; opacity: .55; }
-.wim-btn.muted:hover { opacity: .85; }
+.wim-btn.primary { background: var(--wim-brand); color: #06251a; border-color: var(--wim-brand); font-weight: 600; }
+.wim-btn.danger { background: var(--bg-hover); color: var(--danger); border-color: var(--danger); }
+.wim-btn.muted { background: var(--bg-secondary); color: var(--text-secondary); border-color: var(--border-default); opacity: .6; }
+.wim-btn.muted:hover { opacity: .9; }
 .wim-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 .wim-empty {
-    color: #8696a0;
+    color: var(--text-secondary);
     text-align: center;
     padding: 32px;
-    background: #1a2a3a;
+    background: var(--bg-surface);
     border-radius: 8px;
 }
 
@@ -461,14 +463,15 @@ export default {
     z-index: 9999;
 }
 .wim-modal {
-    background: #1a2a3a;
+    background: var(--bg-surface);
     padding: 20px;
     border-radius: 8px;
     max-width: 480px;
     width: 90%;
-    color: #e9edef;
+    color: var(--text-primary);
+    box-shadow: var(--shadow-card);
 }
-.wim-modal h4 { margin-top: 0; color: #25d366; }
+.wim-modal h4 { margin-top: 0; color: var(--wim-brand); }
 .wim-modal.qr { max-width: 420px; text-align: center; }
 .wim-form {
     display: flex; flex-direction: column; gap: 10px;
@@ -476,13 +479,13 @@ export default {
 }
 .wim-form label {
     display: flex; flex-direction: column;
-    font-size: 12px; color: #aebac1;
+    font-size: 12px; color: var(--text-secondary);
     gap: 4px;
 }
 .wim-form input {
-    background: #0b141a;
-    color: #e9edef;
-    border: 1px solid #2a3a4a;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 7px 10px;
     font-size: 13px;
@@ -490,8 +493,8 @@ export default {
 .wim-checkbox { flex-direction: row !important; align-items: center; gap: 8px; }
 .wim-checkbox input { width: auto; }
 .wim-error {
-    background: #2a1a1a;
-    color: #f15c6d;
+    background: var(--bg-hover);
+    color: var(--danger);
     padding: 8px 12px;
     border-radius: 4px;
     font-size: 12px;
@@ -511,11 +514,11 @@ export default {
     padding: 8px;
     border-radius: 8px;
 }
-.wim-qr-meta { text-align: center; color: #aebac1; font-size: 13px; }
+.wim-qr-meta { text-align: center; color: var(--text-secondary); font-size: 13px; }
 .wim-qr-meta div { margin: 4px 0; }
 .wim-pairing {
-    background: #0b141a;
-    color: #9de0b3;
+    background: var(--bg-primary);
+    color: var(--success);
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 16px;
@@ -523,7 +526,7 @@ export default {
 }
 .wim-qr-help {
     font-size: 12px;
-    color: #8696a0;
+    color: var(--text-secondary);
     margin: 0;
 }
 .wim-qr-status {
