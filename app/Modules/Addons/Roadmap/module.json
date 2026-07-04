@@ -25,15 +25,7 @@
     "sidebar": {
         "location": "hidden"
     },
-    "admin_cards": [
-        {
-            "title": "Hoja de ruta",
-            "description": "Tablero de planeación con items, estado y prompts para Claude Code.",
-            "icon": "map",
-            "url": "/releases",
-            "permission": "roadmap_view"
-        }
-    ],
+    "admin_cards": [],
     "config_sections": [],
     "api_endpoints": [
         {
