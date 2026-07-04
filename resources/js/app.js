@@ -418,6 +418,7 @@ import AgentToggleButton from "./components/module/marketing/AgentToggleButton.v
 //WhatsApp Agent — 2026-05-22
 import WhatsAppPanel from "./components/module/whatsapp/WhatsAppPanel.vue";
 import WhatsAppInstanceManager from "./components/module/whatsapp/WhatsAppInstanceManager.vue";
+import WhatsAppFunctionManager from "./components/module/whatsapp/WhatsAppFunctionManager.vue";
 
 //Payments (SPEI / OpenPay) — 2026-05-23
 import PaymentMethods from "./components/module/finance/PaymentMethods.vue";
@@ -782,6 +783,7 @@ const app = createApp({
         //WhatsApp Agent — addon-whatsapp-agent (2026-05-22)
         'whatsapp-panel': WhatsAppPanel,
         'whatsapp-instance-manager': WhatsAppInstanceManager,
+        'whatsapp-function-manager': WhatsAppFunctionManager,
 
         // Payments (SPEI / OpenPay)
         'payment-methods': PaymentMethods,
