@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '13';
+    private const ASSET_VER = '14';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)

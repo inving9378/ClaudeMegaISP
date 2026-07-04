@@ -461,6 +461,8 @@
             const enCustodia = ref([]);
             const pendientes = ref([]);
             const historial = ref([]);
+            const materialTab = ref(null); // pestaña de categoría activa (nivel 2: Herramienta/Material/Sin clasificar)
+            const materialEstadoTab = ref('en_custodia'); // pestaña de estado activa (nivel 1)
             async function cargarMaterial() {
                 if (!colaborador.value) { cargandoMaterial.value = false; return; }
                 cargandoMaterial.value = true;
@@ -469,6 +471,9 @@
                     enCustodia.value = Array.isArray(r.data.en_custodia) ? r.data.en_custodia : [];
                     pendientes.value = Array.isArray(r.data.pendientes_aceptar) ? r.data.pendientes_aceptar : [];
                     historial.value = Array.isArray(r.data.historial) ? r.data.historial : [];
+                    const cats = enCustodiaPorCategoria.value; // pestaña inicial = primera categoría con ítems
+                    materialTab.value = cats.length ? cats[0].key : null;
+                    materialEstadoTab.value = estadosMaterial.value.length ? estadosMaterial.value[0].key : 'en_custodia';
                 }
                 cargandoMaterial.value = false;
                 materialCargado.value = true;
@@ -508,6 +513,14 @@
                     };
                 }).sort((a, b) => a.order - b.order);
             });
+            // Nivel 1: estados que tienen ítems (En custodia / Pendientes / Movimientos), en ese orden.
+            const estadosMaterial = computed(() => {
+                const out = [];
+                if ((enCustodia.value || []).length) out.push({ key: 'en_custodia', label: 'En custodia (' + enCustodia.value.length + ')' });
+                if ((pendientes.value || []).length) out.push({ key: 'pendientes', label: 'Pendientes de aceptar (' + pendientes.value.length + ')' });
+                if ((historial.value || []).length) out.push({ key: 'movimientos', label: 'Movimientos recientes (' + historial.value.length + ')' });
+                return out;
+            });
 
             // Cierra el detalle de OT al cambiar de tab; carga la sección al abrirla por primera vez.
             function onTabChange(val) {
@@ -538,7 +551,7 @@
                 drawer, gruposMenu, irA,
                 dineroTab, cuenta, desglose, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
                 enCustodia, pendientes, historial, cargandoMaterial, cargarMaterial,
-                resumenCustodia, enCustodiaPorCategoria,
+                resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
                 fmtHora, statusInfo,
@@ -974,49 +987,59 @@
                                     </q-card-section>
                                 </q-card>
 
-                                <!-- En custodia → CATEGORÍA (Herramienta/Material/Sin clasificar) → TIPO -->
-                                <template v-for="cat in enCustodiaPorCategoria" :key="'cat'+cat.key">
-                                    <div class="text-overline q-mt-sm q-mb-xs" :class="cat.key==='herramienta' ? 'text-teal-8' : (cat.key==='material' ? 'text-indigo-8' : 'text-grey-6')">
-                                        {{ cat.label }} ({{ cat.count }})
-                                    </div>
-                                    <q-list bordered class="tp-card q-mb-md">
-                                        <q-expansion-item
-                                            v-for="g in cat.tipos" :key="'g'+cat.key+g.tipo"
-                                            icon="inventory_2" :label="g.tipo" :caption="g.count + (g.count===1 ? ' ítem' : ' ítems')"
-                                            header-class="text-grey-8" dense>
-                                            <q-list separator>
-                                                <q-item v-for="(it,i) in g.items" :key="'c'+i">
-                                                    <q-item-section>
-                                                        <q-item-label>{{ it.equipo }}</q-item-label>
-                                                        <q-item-label caption>
-                                                            Cantidad: {{ it.cantidad }}<span v-if="it.serie"> · Serie: {{ it.serie }}</span><span v-if="it.fecha_asignacion"> · Asignado {{ it.fecha_asignacion.slice(0,10) }}</span>
-                                                        </q-item-label>
-                                                        <q-item-label v-if="it.valor_reposicion > 0" caption class="text-grey-7">Valor de reposición: {{ money(it.valor_reposicion) }}</q-item-label>
-                                                    </q-item-section>
-                                                </q-item>
-                                            </q-list>
-                                        </q-expansion-item>
-                                    </q-list>
-                                </template>
+                                <!-- Nivel 1: pestañas por ESTADO (patrón admin: q-tabs indigo-6) -->
+                                <q-tabs v-if="estadosMaterial.length" v-model="materialEstadoTab" no-caps dense active-color="indigo-6" align="justify" :breakpoint="0">
+                                    <q-tab v-for="e in estadosMaterial" :key="'e'+e.key" :name="e.key" :label="e.label" />
+                                </q-tabs>
+                                <q-separator v-if="estadosMaterial.length" />
+                                <q-tab-panels v-if="estadosMaterial.length" v-model="materialEstadoTab" animated style="background:transparent">
 
-                                <!-- Pendientes de aceptar (colapsable) -->
-                                <q-list v-if="pendientes.length" bordered class="tp-card q-mb-md">
-                                    <q-expansion-item icon="pending_actions" label="Pendientes de aceptar" :caption="pendientes.length + (pendientes.length===1 ? ' ítem' : ' ítems')" header-class="text-orange-9" dense>
-                                        <q-list separator>
+                                    <!-- Estado 'En custodia' → Nivel 2: sub-pestañas por CATEGORÍA → tipos -->
+                                    <q-tab-panel name="en_custodia" class="q-pa-none q-pt-sm">
+                                        <q-tabs v-if="enCustodiaPorCategoria.length" v-model="materialTab" no-caps dense active-color="indigo-6" align="justify" :breakpoint="0">
+                                            <q-tab v-for="cat in enCustodiaPorCategoria" :key="'t'+cat.key" :name="cat.key" :label="cat.label + ' (' + cat.count + ')'" />
+                                        </q-tabs>
+                                        <q-separator v-if="enCustodiaPorCategoria.length" />
+                                        <q-tab-panels v-if="enCustodiaPorCategoria.length" v-model="materialTab" animated style="background:transparent">
+                                            <q-tab-panel v-for="cat in enCustodiaPorCategoria" :key="'tp'+cat.key" :name="cat.key" class="q-pa-none q-pt-sm">
+                                                <q-list bordered class="tp-card">
+                                                    <q-expansion-item
+                                                        v-for="g in cat.tipos" :key="'g'+cat.key+g.tipo"
+                                                        icon="inventory_2" :label="g.tipo" :caption="g.count + (g.count===1 ? ' ítem' : ' ítems')"
+                                                        header-class="text-grey-8" dense>
+                                                        <q-list separator>
+                                                            <q-item v-for="(it,i) in g.items" :key="'c'+i">
+                                                                <q-item-section>
+                                                                    <q-item-label>{{ it.equipo }}</q-item-label>
+                                                                    <q-item-label caption>
+                                                                        Cantidad: {{ it.cantidad }}<span v-if="it.serie"> · Serie: {{ it.serie }}</span><span v-if="it.fecha_asignacion"> · Asignado {{ it.fecha_asignacion.slice(0,10) }}</span>
+                                                                    </q-item-label>
+                                                                    <q-item-label v-if="it.valor_reposicion > 0" caption class="text-grey-7">Valor de reposición: {{ money(it.valor_reposicion) }}</q-item-label>
+                                                                </q-item-section>
+                                                            </q-item>
+                                                        </q-list>
+                                                    </q-expansion-item>
+                                                </q-list>
+                                            </q-tab-panel>
+                                        </q-tab-panels>
+                                    </q-tab-panel>
+
+                                    <!-- Estado 'Pendientes de aceptar' → lista simple (sin sub-categorías) -->
+                                    <q-tab-panel name="pendientes" class="q-pa-none q-pt-sm">
+                                        <q-list bordered separator class="tp-card">
                                             <q-item v-for="(it,i) in pendientes" :key="'p'+i">
+                                                <q-item-section avatar><q-icon name="pending_actions" color="orange-8" /></q-item-section>
                                                 <q-item-section>
                                                     <q-item-label>{{ it.equipo }}</q-item-label>
                                                     <q-item-label caption><span v-if="it.tipo">{{ it.tipo }} · </span>Cantidad: {{ it.cantidad }}</q-item-label>
                                                 </q-item-section>
                                             </q-item>
                                         </q-list>
-                                    </q-expansion-item>
-                                </q-list>
+                                    </q-tab-panel>
 
-                                <!-- Movimientos recientes (Salida = devolución; colapsado por defecto) -->
-                                <q-list v-if="historial.length" bordered class="tp-card">
-                                    <q-expansion-item icon="history" label="Movimientos recientes" :caption="historial.length + ' movimientos'" header-class="text-grey-7" dense>
-                                        <q-list separator>
+                                    <!-- Estado 'Movimientos recientes' → lista simple, orden por fecha desc (backend) -->
+                                    <q-tab-panel name="movimientos" class="q-pa-none q-pt-sm">
+                                        <q-list bordered separator class="tp-card">
                                             <q-item v-for="(m,i) in historial" :key="'h'+i">
                                                 <q-item-section avatar>
                                                     <q-icon :name="m.tipo_movimiento==='Salida' ? 'undo' : 'call_received'" :color="m.tipo_movimiento==='Salida' ? 'orange-8' : 'teal-6'" />
@@ -1027,8 +1050,8 @@
                                                 </q-item-section>
                                             </q-item>
                                         </q-list>
-                                    </q-expansion-item>
-                                </q-list>
+                                    </q-tab-panel>
+                                </q-tab-panels>
                             </template>
                         </template>
                     </div>
