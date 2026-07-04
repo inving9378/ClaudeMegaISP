@@ -74,6 +74,23 @@ class WhatsAppInstance extends BaseModel
         return $query->where('default_instance', true);
     }
 
+    /** Funciones que atiende esta línea (Fase 3). */
+    public function functions(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(
+            WhatsAppFunction::class,
+            'whatsapp_instance_functions',
+            'instance_id',
+            'function_id'
+        )->withPivot('assigned_by', 'assigned_at');
+    }
+
+    /** Filas del pivote (para operar con eventos de modelo — los observers). */
+    public function functionAssignments(): HasMany
+    {
+        return $this->hasMany(WhatsAppInstanceFunction::class, 'instance_id');
+    }
+
     public function conversations(): HasMany
     {
         return $this->hasMany(WhatsAppConversation::class, 'instance_id');
