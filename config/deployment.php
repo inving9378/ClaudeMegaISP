@@ -29,6 +29,14 @@ $releaseArtifacts = [
 
 return [
 
+    // Timeout (segundos) del paso de migración en el pipeline REMOTO de prod
+    // (RemoteDeployCommand: pasos 'migrate' y 'migrate_dryrun', que lo leen de aquí).
+    // Un ALTER largo sobre una tabla grande puede tardar; con 900s el sitio quedaba en 500
+    // hasta que la migración terminaba en background. Subido a 2400s (40 min).
+    // NOTA: gobierna el Symfony Process de esos pasos en prod (que corre por nohup, sin
+    // techo de Supervisor). NO tiene relación con el --timeout del worker local del .conf.
+    'migrate_timeout' => env('DEPLOY_MIGRATE_TIMEOUT', 2400),
+
     'steps' => [
         [
             'key'      => 'db_backup',

@@ -84,9 +84,10 @@ class RemoteDeployCommand extends Command
             //     (solo se hizo backup + checkout → rollback = git reset limpio, sin esquema tocado).
             //     Esquema-only por defecto; para validar fallos dependientes de datos, añadir
             //     --with-data=tabla1,tabla2 al comando.
-            //     Timeout alineado con el del migrate real (900s): si el dry-run fuera más corto,
-            //     una migración lenta pasaría el dry-run pero timeoutearía el migrate real.
-            ['key' => 'migrate_dryrun', 'name' => 'Validar migraciones (dry-run)',     'type' => 'shell', 'cmd' => 'php artisan deploy:dry-run-migrations', 'timeout' => 900, 'critical' => true],
+            //     Timeout alineado con el del migrate real (config('deployment.migrate_timeout'),
+            //     default 2400s): si el dry-run fuera más corto, una migración lenta pasaría el
+            //     dry-run pero timeoutearía el migrate real. Ambos leen la MISMA clave de config.
+            ['key' => 'migrate_dryrun', 'name' => 'Validar migraciones (dry-run)',     'type' => 'shell', 'cmd' => 'php artisan deploy:dry-run-migrations', 'timeout' => config('deployment.migrate_timeout', 2400), 'critical' => true],
             // 3. Compilar el frontend EN el servidor (assets fuera de git) — crítico:
             //    si falla, se aborta y hace rollback (nunca deja prod con código nuevo y JS roto)
             //    NOTA: no se corre composer aquí a propósito — este prod usa deps de dev y
@@ -99,9 +100,10 @@ class RemoteDeployCommand extends Command
             //    El subproceso CLI con --force sí lo salta (verificado en prod).
             //    NO es critical (un git reset sobre un esquema ya modificado es peligroso), pero
             //    tampoco es decorativo: si falla, el deploy debe terminar en 'failed' SIN revertir
-            //    código → flag 'fail_deploy_no_rollback'. Timeout 900s (antes 300s: una migración
-            //    lenta timeouteaba y marcaba el paso failed, pero el deploy cerraba 'success').
-            ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => 900, 'critical' => false, 'fail_deploy_no_rollback' => true],
+            //    código → flag 'fail_deploy_no_rollback'. Timeout config('deployment.migrate_timeout')
+            //    (default 2400s; antes 900s hardcodeado, y 300s antes de eso: un ALTER largo sobre una
+            //    tabla grande timeouteaba y dejaba el sitio en 500 hasta que terminaba en background).
+            ['key' => 'migrate',       'name' => 'Ejecutar migraciones',            'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => config('deployment.migrate_timeout', 2400), 'critical' => false, 'fail_deploy_no_rollback' => true],
             // 5. Warm-up de cachés
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
             // 6. Reiniciar workers de cola
