@@ -201,6 +201,37 @@ payments()->create(paymentable=Client)
 
 ---
 
+## 7. WHATSAPP (dos mundos + unificación por fases)
+
+### 7.1 Los DOS mundos (hoy separados)
+
+| Mundo | Dónde vive la config | Instancia | Qué hace | Estado |
+|---|---|---|---|---|
+| **Marketing (VIVO)** | Integration Hub + `App\Models\Marketing\Setting` (`evolution_api_url`, `evolution_instance_name`, api_key del Hub/env) | `meganet-ventas` | Bot de ventas + conciliación de pagos por IA. Webhook Evolution → `/webhooks/marketing/evolution` | Producción, número real |
+| **WhatsAppAgent (PANEL)** | `config/whatsapp.php` (env `WHATSAPP_API_URL`=8080, `WHATSAPP_API_KEY`, `WHATSAPP_DEFAULT_INSTANCE`) + tabla `whatsapp_instances` | fila(s) del panel | Panel para conectar/ver/administrar números por QR desde Medussa | Andamiaje completo; estaba vacío |
+
+- **Ambos apuntan al MISMO servidor Evolution (:8080) y comparten la MISMA api_key** (64 chars; el Hub la resuelve igual que `WHATSAPP_API_KEY`). Lo que difería era el mecanismo de config (DB/Hub vs archivo/env) y la tabla.
+- El `EvolutionApiService` del **addon** usa la config **global** `config('whatsapp.*')` + `$instance->instance_id` para status/QR (NO las columnas `api_url`/`api_key` de la fila, que son de coherencia/futuro).
+- El `EvolutionApiService` de **Marketing** resuelve por Hub/Settings (`__construct(companyId=1)`).
+
+### 7.2 Mapa de archivos (addon WhatsAppAgent)
+
+- Controller: `app/Modules/Addons/WhatsAppAgent/Controllers/WhatsAppInstanceController.php` (`panel/index/store/getQr/connectionStatus/update/destroy`). ⚠️ `store()` llama `createInstance` en Evolution → NO usarlo para reflejar la instancia viva (duplicaría).
+- Service: `.../WhatsAppAgent/Services/EvolutionApiService.php` (`getQrCode/getConnectionStatus/createInstance/sendAndLog`).
+- Modelo/tabla: `.../Models/WhatsAppInstance.php` + `whatsapp_instances` (api_key **cifrada** vía `Crypt`; `webhook_secret` autogenerado en `creating()`).
+- UI: `resources/js/components/module/whatsapp/WhatsAppInstanceManager.vue` (registrado en `app.js` como `whatsapp-instance-manager`) + `views/instances.blade.php`.
+- Rutas: `.../WhatsAppAgent/routes.php`, prefijo `whatsapp`, permiso `whatsapp_manage_instances`.
+- **Acceso al panel:** NO está en el sidebar (addon en `$sidebarSuppressed`, `sidebar.blade.php`). Se llega por **`/configuracion` → Mensajería → "WhatsApp — Evolution API"** (config_sections del `module.json`, auto-compiladas por `ModuleRegistry`), o URL directa **`/whatsapp/instances`**.
+- Consumidor automático a vigilar: `PaymentApplicationService::…sendAndLog($phone,$body, null,…)` (notificador SPEI) → `active()->default()->firstOrFail()`. Si una instancia se marca `default_instance=true`, ese path empieza a enviar por ella.
+
+### 7.3 Decisión: UNIFICAR por fases (el panel será el dueño único, sin romper Marketing)
+
+- **Fase 1 — HECHA (dev):** exponer el panel + **reflejar** `meganet-ventas`. Migración idempotente `2026_07_04_100000_seed_meganet_ventas_instance.php` (firstOrCreate por slug, datos reales de Marketing, api_key cifrada, **`default_instance=false` + `active=true`**, status open/close en vivo). Panel protege la fila de producción (badge "En uso — producción" + Eliminar atenuado + confirmación ⚠️). **Solo refleja; no cablea nada.** Commits `a273b746` (migración) + `5dea9ac5` (panel).
+- **Fase 3 (pendiente, roadmap 196/198):** Reiniciar/Desconectar reales con confirmación; capa de funciones por número (ventas/cobranza/soporte) con exclusividad configurable.
+- **Fase 4 (pendiente, roadmap 197):** unificar el **sender** — que conciliación y el bot lean la instancia/credenciales desde `whatsapp_instances` (marcar `default_instance=true` y repuntar consumidores), sin romper el flujo vivo.
+
+---
+
 ## PROTOCOLO DE ACTUALIZACIÓN (para no re-investigar nunca lo mismo)
 
 **Al CERRAR cada sesión, CC debe actualizar este archivo** con lo que cambió:
