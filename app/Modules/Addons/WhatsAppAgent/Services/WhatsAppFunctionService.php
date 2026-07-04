@@ -2,16 +2,17 @@
 
 namespace App\Modules\Addons\WhatsAppAgent\Services;
 
-use App\Modules\Addons\WhatsAppAgent\Exceptions\WhatsAppFunctionException;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppFunction;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstance;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstanceFunction;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Punto único de verdad de la capa de funciones. Opera con el MODELO del pivote
- * (create()/delete()) para que los observers backstop disparen. Reglas 2-5 aquí;
- * regla 6 (borrado de línea dueña única) en guardInstanceRemoval() + observer.
+ * Punto único de verdad de la capa de funciones. assign mueve exclusivas y no duplica.
+ *
+ * REGLA DE NEGOCIO (decisión de Irving, permanente): una función SÍ puede quedar sin
+ * línea. unassign ya NO bloquea la última asignación y no hay guard al borrar una línea
+ * dueña única (los observers backstop se eliminaron). El aviso vive en la UI.
  */
 class WhatsAppFunctionService
 {
@@ -65,27 +66,20 @@ class WhatsAppFunctionService
     }
 
     /**
-     * Regla 3/5 — quitar una función de una línea. Si es la ÚNICA asignación de esa
-     * función → lanza excepción (no la deja huérfana; obliga a reasignar primero).
+     * Quitar una función de una línea. Puede dejar la función SIN líneas (0) — decisión
+     * de Irving: permitido, con aviso en la UI. Ya NO bloquea la última asignación.
      */
     public function unassign(WhatsAppInstance $instance, WhatsAppFunction $function): void
     {
-        $row = WhatsAppInstanceFunction::where('instance_id', $instance->id)
-            ->where('function_id', $function->id)->first();
-        if (! $row) {
-            return; // no estaba asignada — no-op
-        }
-
-        if (WhatsAppInstanceFunction::where('function_id', $function->id)->count() <= 1) {
-            throw WhatsAppFunctionException::wouldOrphan($function);
-        }
-
-        $row->delete();
+        WhatsAppInstanceFunction::where('instance_id', $instance->id)
+            ->where('function_id', $function->id)
+            ->delete();
     }
 
     /**
-     * Regla 4 — mover una función de una línea a otra en una transacción.
-     * Attach al destino primero, luego detach del origen (con la bandera para no bloquear).
+     * Mover una función de una línea a otra en una transacción. Sigue disponible (útil),
+     * pero YA NO es obligatorio antes de quitar (la función puede quedar sin línea).
+     * Attach al destino primero, luego detach del origen.
      */
     public function reassign(WhatsAppFunction $function, WhatsAppInstance $from, WhatsAppInstance $to, ?int $userId = null): void
     {
@@ -106,28 +100,5 @@ class WhatsAppFunctionService
                 }
             }
         });
-    }
-
-    /**
-     * Regla 5/6 — antes de borrar/desconectar una línea: si es la ÚNICA dueña de ≥1
-     * función → lanza excepción con la lista de funciones a reasignar (bloquea la operación).
-     * Lo invoca el observer WhatsAppInstance::deleting (backstop ante cualquier ->delete()).
-     */
-    public function guardInstanceRemoval(WhatsAppInstance $instance): void
-    {
-        $sole = [];
-        foreach ($instance->functionAssignments()->with('function')->get() as $assignment) {
-            if (! $assignment->function) {
-                continue;
-            }
-            $owners = WhatsAppInstanceFunction::where('function_id', $assignment->function_id)->count();
-            if ($owners <= 1) {
-                $sole[] = $assignment->function;
-            }
-        }
-
-        if (! empty($sole)) {
-            throw WhatsAppFunctionException::wouldOrphanOnRemoval($instance, $sole);
-        }
     }
 }

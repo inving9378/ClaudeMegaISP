@@ -3,10 +3,6 @@
 namespace App\Modules\Addons\WhatsAppAgent;
 
 use App\Modules\BaseModuleServiceProvider;
-use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstance;
-use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstanceFunction;
-use App\Modules\Addons\WhatsAppAgent\Observers\WhatsAppInstanceFunctionObserver;
-use App\Modules\Addons\WhatsAppAgent\Observers\WhatsAppInstanceObserver;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
 {
@@ -24,12 +20,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         );
     }
 
-    public function boot(): void
-    {
-        parent::boot();
-
-        // Capa de funciones (Fase 3) — observers backstop de las reglas 5 y 6.
-        WhatsAppInstance::observe(WhatsAppInstanceObserver::class);
-        WhatsAppInstanceFunction::observe(WhatsAppInstanceFunctionObserver::class);
-    }
+    // Nota: los observers backstop de la capa de funciones (Fase 3) se ELIMINARON al
+    // relajar la regla (una función puede quedar sin línea, con aviso en la UI). No hay
+    // boot() propio; BaseModuleServiceProvider::boot() (migraciones/vistas/rutas) se hereda.
 }
