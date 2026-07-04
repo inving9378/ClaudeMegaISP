@@ -50,7 +50,9 @@
                         <span v-if="fn.instances && fn.instances.length" class="wfm-lines">
                             {{ fn.instances.map(i => i.name).join(', ') }}
                         </span>
-                        <span v-else class="wfm-muted">Sin línea</span>
+                        <span v-else class="wfm-noline" title="Nadie atiende esta función todavía — estado válido">
+                            <i class="bi bi-pause-circle"></i> Sin línea
+                        </span>
                     </td>
                     <td>
                         <span class="wfm-status" :class="fn.active ? 'on' : 'off'">
@@ -251,6 +253,12 @@ export default {
 .wfm-desc { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
 .wfm-lines { color: var(--text-primary); }
 .wfm-muted { color: var(--text-secondary); }
+.wfm-noline {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--bg-hover); color: var(--text-secondary);
+    border: 1px solid var(--border-default); border-radius: 12px;
+    padding: 2px 10px; font-size: 12px; font-weight: 600;
+}
 .wfm-actions-col { white-space: nowrap; text-align: right; }
 
 .wfm-chip {

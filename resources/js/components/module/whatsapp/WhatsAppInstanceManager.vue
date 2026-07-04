@@ -71,6 +71,14 @@
                         {{ syncing[ins.id] ? 'Sincronizando…' : 'Sincronizar' }}
                     </button>
                     <button
+                        v-if="ins.status === 'connected'"
+                        class="wim-btn"
+                        @click="askDisconnect(ins)"
+                        title="Cerrar la sesión de WhatsApp en Evolution (logout). Se reconecta por QR."
+                    >
+                        <i class="bi bi-power"></i> Desconectar
+                    </button>
+                    <button
                         class="wim-btn"
                         :class="isProduction(ins) ? 'muted' : 'danger'"
                         @click="remove(ins)"
@@ -155,49 +163,78 @@
             </div>
         </div>
 
-        <!-- Modal: reasignar antes de quitar la última línea -->
-        <div v-if="reassignModal" class="wim-modal-backdrop" @click.self="reassignModal = null">
+        <!-- Modal: confirmar que la función quede sin línea (no bloqueante) -->
+        <div v-if="orphanModal" class="wim-modal-backdrop" @click.self="orphanModal = null">
             <div class="wim-modal">
-                <h4>Reasignar antes de quitar</h4>
+                <h4>Quitar la última línea</h4>
                 <p class="wim-modal-text">
-                    «<strong>{{ reassignModal.fn.name }}</strong>» solo está en
-                    «<strong>{{ reassignModal.from.name }}</strong>». No puede quedar sin línea:
-                    reasígnala a otra antes de quitarla.
+                    «<strong>{{ orphanModal.fn.name }}</strong>» quedará <strong>sin ninguna línea</strong>
+                    atendiéndola. ¿Continuar?
                 </p>
-                <template v-if="otherLines(reassignModal.from).length">
+                <div v-if="otherLines(orphanModal.from).length" class="wim-orphan-alt">
+                    <div class="wim-orphan-alt-title">o muévela a otra línea:</div>
                     <label class="wim-reassign-label">
-                        Mover a:
                         <select v-model="reassignTarget">
                             <option :value="null" disabled>Elige una línea…</option>
-                            <option v-for="l in otherLines(reassignModal.from)" :key="l.id" :value="l.id">{{ l.name }}</option>
+                            <option v-for="l in otherLines(orphanModal.from)" :key="l.id" :value="l.id">{{ l.name }}</option>
                         </select>
                     </label>
                     <div v-if="reassignError" class="wim-error">{{ reassignError }}</div>
-                    <div class="wim-modal-actions">
-                        <button class="wim-btn" @click="reassignModal = null">Cancelar</button>
-                        <button class="wim-btn primary" @click="confirmReassign" :disabled="!reassignTarget || funcBusy">Reasignar</button>
-                    </div>
-                </template>
-                <template v-else>
-                    <div class="wim-error">No hay otra línea disponible. Conecta o crea otra línea primero.</div>
-                    <div class="wim-modal-actions">
-                        <button class="wim-btn" @click="reassignModal = null">Cerrar</button>
-                    </div>
-                </template>
+                    <button class="wim-btn" :disabled="!reassignTarget || funcBusy" @click="confirmReassignFromOrphan">
+                        Mover en vez de quitar
+                    </button>
+                </div>
+                <div class="wim-modal-actions">
+                    <button class="wim-btn" @click="orphanModal = null">Cancelar</button>
+                    <button class="wim-btn danger" @click="confirmOrphan" :disabled="funcBusy">Quitar de todos modos</button>
+                </div>
             </div>
         </div>
 
-        <!-- Modal bloqueante: eliminar línea dueña única de funciones -->
-        <div v-if="blockModal" class="wim-modal-backdrop" @click.self="blockModal = null">
+        <!-- Modal AVISO (no bloqueante): eliminar línea que es dueña única de funciones -->
+        <div v-if="warnDeleteModal" class="wim-modal-backdrop" @click.self="warnDeleteModal = null">
             <div class="wim-modal">
-                <h4>No se puede eliminar todavía</h4>
+                <h4>Estas funciones quedarán sin línea</h4>
                 <p class="wim-modal-text">
-                    «<strong>{{ blockModal.ins.name }}</strong>» es la única línea de:
-                    <strong>{{ blockModal.functions.join(', ') }}</strong>. Reasigna esas
-                    funciones a otra línea antes de eliminar/desconectar.
+                    Al eliminar «<strong>{{ warnDeleteModal.ins.name }}</strong>», estas funciones quedarán
+                    <strong>sin ninguna línea</strong>: <strong>{{ warnDeleteModal.functions.join(', ') }}</strong>.
+                    <template v-if="isProduction(warnDeleteModal.ins)"><br>⚠️ Además es el número de <strong>PRODUCCIÓN</strong>.</template>
+                    ¿Eliminar de todos modos?
                 </p>
                 <div class="wim-modal-actions">
-                    <button class="wim-btn primary" @click="blockModal = null">Entendido</button>
+                    <button class="wim-btn" @click="warnDeleteModal = null">Cancelar</button>
+                    <button class="wim-btn danger" @click="confirmWarnDelete" :disabled="funcBusy">Eliminar de todos modos</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal FUERTE: desconectar (logout real). Producción exige escribir el nombre. -->
+        <div v-if="disconnectModal" class="wim-modal-backdrop" @click.self="disconnectModal = null">
+            <div class="wim-modal">
+                <h4>⚠️ Desconectar sesión de WhatsApp</h4>
+                <p class="wim-modal-text">
+                    Vas a <strong>cerrar la sesión</strong> de «<strong>{{ disconnectModal.ins.name }}</strong>»
+                    ({{ disconnectModal.ins.phone_number || disconnectModal.ins.instance_id }}) en Evolution.
+                    <template v-if="isProduction(disconnectModal.ins)">
+                        <br><br><strong>Dejarán de llegar comprobantes y el bot dejará de responder</strong>
+                        hasta que se reconecte escaneando el QR de nuevo.
+                    </template>
+                    <template v-else>
+                        <br>La línea quedará desconectada y se reconecta por QR.
+                    </template>
+                </p>
+                <div v-if="isProduction(disconnectModal.ins)" class="wim-confirm-type">
+                    <div>Para confirmar, escribe el nombre de la instancia: <code>{{ disconnectModal.ins.instance_id }}</code></div>
+                    <input v-model="disconnectModal.typed" placeholder="Escribe el nombre exacto" />
+                </div>
+                <div v-if="disconnectError" class="wim-error">{{ disconnectError }}</div>
+                <div class="wim-modal-actions">
+                    <button class="wim-btn" @click="disconnectModal = null">Cancelar</button>
+                    <button
+                        class="wim-btn danger"
+                        :disabled="funcBusy || (isProduction(disconnectModal.ins) && disconnectModal.typed !== disconnectModal.ins.instance_id)"
+                        @click="confirmDisconnect"
+                    >Desconectar</button>
                 </div>
             </div>
         </div>
@@ -228,10 +265,12 @@ export default {
             catalog: [],        // funciones activas para los checks
             funcBusy: false,
             moveModal: null,    // { fn, to, fromName }
-            reassignModal: null,// { fn, from }
+            orphanModal: null,  // { fn, from } — confirmar que la función quede sin línea
             reassignTarget: null,
             reassignError: '',
-            blockModal: null,   // { ins, functions:[names] }
+            warnDeleteModal: null, // { ins, functions:[names] } — aviso, NO bloqueo
+            disconnectModal: null, // { ins, typed } — logout real (producción exige teclear nombre)
+            disconnectError: '',
             funcToast: null,
             form: {
                 name: '',
@@ -318,11 +357,11 @@ export default {
         async toggleFunction(ins, fn) {
             if (this.funcBusy) return;
             if (this.hasFunction(ins, fn.id)) {
-                // Quitar: si es la única línea de la función → reasignar primero.
+                // Quitar: si es la única línea → CONFIRMAR que la función quede sin línea (no bloqueo).
                 if ((this.ownership[fn.id] || []).length <= 1) {
                     this.reassignTarget = null;
                     this.reassignError = '';
-                    this.reassignModal = { fn, from: ins };
+                    this.orphanModal = { fn, from: ins };
                     return;
                 }
                 await this.doUnassign(ins, fn);
@@ -357,11 +396,7 @@ export default {
                 await axios.delete(`/whatsapp/api/instances/${ins.id}/functions/${fn.id}`);
                 await this.load();
             } catch (e) {
-                // 422 huérfana (por si el conteo cambió entre render y clic) → abrir reasignar.
                 this.showFuncToast(this.funcErr(e), 'error');
-                this.reassignTarget = null;
-                this.reassignError = '';
-                this.reassignModal = { fn, from: ins };
             } finally {
                 this.funcBusy = false;
             }
@@ -371,18 +406,55 @@ export default {
             this.moveModal = null;
             await this.doAssign(to, fn);
         },
-        async confirmReassign() {
+        // Confirmar dejar la función sin línea (regla relajada).
+        async confirmOrphan() {
+            const { fn, from } = this.orphanModal;
+            this.orphanModal = null;
+            await this.doUnassign(from, fn);
+        },
+        // Opción secundaria del modal huérfana: mover a otra línea en vez de quitar.
+        async confirmReassignFromOrphan() {
             if (!this.reassignTarget) return;
-            const { fn, from } = this.reassignModal;
+            const { fn, from } = this.orphanModal;
             this.funcBusy = true;
             this.reassignError = '';
             try {
                 await axios.post(`/whatsapp/api/instances/${from.id}/functions/${fn.id}/reassign`, { to_instance_id: this.reassignTarget });
-                this.reassignModal = null;
+                this.orphanModal = null;
                 await this.load();
                 this.showFuncToast(`«${fn.name}» reasignada`, 'ok');
             } catch (e) {
                 this.reassignError = this.funcErr(e);
+            } finally {
+                this.funcBusy = false;
+            }
+        },
+        // Desconectar (logout real en Evolution) — distinto de Eliminar (fila local).
+        askDisconnect(ins) {
+            if (this.isProduction(ins)) {
+                this.disconnectError = '';
+                this.disconnectModal = { ins, typed: '' };
+                return;
+            }
+            if (!confirm(`¿Desconectar «${ins.name}»? Cierra la sesión de WhatsApp; se reconecta por QR.`)) return;
+            this.doDisconnect(ins);
+        },
+        async confirmDisconnect() {
+            const ins = this.disconnectModal.ins;
+            if (this.isProduction(ins) && this.disconnectModal.typed !== ins.instance_id) return;
+            await this.doDisconnect(ins);
+        },
+        async doDisconnect(ins) {
+            this.funcBusy = true;
+            this.disconnectError = '';
+            try {
+                const { data } = await axios.post(`/whatsapp/api/instances/${ins.id}/disconnect`);
+                this.disconnectModal = null;
+                await this.load();
+                this.showFuncToast(`«${ins.name}» desconectada — reconecta por QR`, 'ok');
+            } catch (e) {
+                this.disconnectError = this.funcErr(e);
+                if (!this.disconnectModal) this.showFuncToast(this.funcErr(e), 'error');
             } finally {
                 this.funcBusy = false;
             }
@@ -464,21 +536,28 @@ export default {
         },
 
         async remove(ins) {
-            // Regla 6: si es la única línea de alguna función → bloquear y exigir reasignar.
+            // Regla relajada: si es la única línea de funciones → AVISO (no bloqueo).
             const sole = this.soleOwnedFunctions(ins);
             if (sole.length) {
-                this.blockModal = { ins, functions: sole };
+                this.warnDeleteModal = { ins, functions: sole };
                 return;
             }
             const msg = this.isProduction(ins)
                 ? `⚠️ Esto afecta el WhatsApp que usan conciliación y el bot.\n\n"${ins.name}" es el número de PRODUCCIÓN. Eliminarlo del panel quita su registro (no toca Evolution, pero perderías su seguimiento aquí).\n\n¿Seguro que quieres continuar?`
                 : `¿Eliminar la instancia "${ins.name}"?`;
             if (!confirm(msg)) return;
+            await this.proceedDelete(ins);
+        },
+        async confirmWarnDelete() {
+            const ins = this.warnDeleteModal.ins;
+            this.warnDeleteModal = null;
+            await this.proceedDelete(ins);
+        },
+        async proceedDelete(ins) {
             try {
                 await axios.delete(`/whatsapp/api/instances/${ins.id}`);
                 await this.load();
             } catch (e) {
-                // Backstop del observer (guardInstanceRemoval) → 422 con las funciones a reasignar.
                 this.showFuncToast(this.funcErr(e), 'error');
             }
         },
@@ -692,6 +771,20 @@ export default {
 .wim-reassign-label select {
     background: var(--bg-primary); color: var(--text-primary);
     border: 1px solid var(--border-default); border-radius: 4px; padding: 7px 10px; font-size: 13px;
+}
+.wim-orphan-alt {
+    margin: 12px 0; padding: 10px; border-radius: 6px;
+    background: var(--bg-hover); border: 1px solid var(--border-default);
+}
+.wim-orphan-alt-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.wim-confirm-type { margin: 12px 0; font-size: 12.5px; color: var(--text-secondary); }
+.wim-confirm-type code {
+    background: var(--bg-primary); color: var(--success); padding: 1px 6px; border-radius: 3px;
+}
+.wim-confirm-type input {
+    display: block; width: 100%; margin-top: 6px;
+    background: var(--bg-primary); color: var(--text-primary);
+    border: 1px solid var(--danger); border-radius: 4px; padding: 7px 10px; font-size: 13px;
 }
 .wim-toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
