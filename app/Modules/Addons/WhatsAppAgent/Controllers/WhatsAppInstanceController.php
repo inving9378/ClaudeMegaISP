@@ -130,11 +130,26 @@ class WhatsAppInstanceController extends Controller
     /** DELETE /whatsapp/api/instances/{id} */
     public function destroy(int $id): JsonResponse
     {
-        // El observer WhatsAppInstance::deleting corre guardInstanceRemoval → si la línea
-        // es dueña única de alguna función, lanza WhatsAppFunctionException (render 422)
-        // y el borrado se aborta. Aquí no hay que hacer nada extra.
+        // Ya NO se bloquea por ser dueña única de funciones (decisión de Irving: una función
+        // puede quedar sin línea, con aviso en la UI). El FK cascadeOnDelete quita sus
+        // asignaciones y esas funciones quedan en 0 líneas.
         WhatsAppInstance::findOrFail($id)->delete();
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * POST /whatsapp/api/instances/{id}/disconnect — cierra la sesión REAL en Evolution
+     * (logout). NO borra la fila local; la línea queda 'disconnected' y se revincula por QR.
+     */
+    public function disconnect(Request $request, int $id): JsonResponse
+    {
+        abort_unless((bool) $request->user()?->can('whatsapp_manage_instances'), 403);
+
+        $instance = WhatsAppInstance::findOrFail($id);
+        $result   = app(EvolutionApiService::class)->disconnect($instance);
+        $instance->update(['status' => 'disconnected']);
+
+        return response()->json(['status' => 'disconnected', 'raw' => $result]);
     }
 
     // ── Funciones por línea (Fase 3) — gate whatsapp_manage_instances ────────────
@@ -170,7 +185,7 @@ class WhatsAppInstanceController extends Controller
         return response()->json(array_merge($result, ['from_name' => $fromName]));
     }
 
-    /** DELETE /whatsapp/api/instances/{id}/functions/{functionId} — quitar. 422 si huérfana. */
+    /** DELETE /whatsapp/api/instances/{id}/functions/{functionId} — quitar. Puede dejar la función en 0 líneas. */
     public function unassignFunction(Request $request, int $id, int $functionId): JsonResponse
     {
         abort_unless((bool) $request->user()?->can('whatsapp_manage_instances'), 403);
@@ -178,7 +193,7 @@ class WhatsAppInstanceController extends Controller
         $instance = WhatsAppInstance::findOrFail($id);
         $function = WhatsAppFunction::findOrFail($functionId);
 
-        // Si es la única línea → WhatsAppFunctionService::unassign lanza la excepción (422).
+        // Ya NO bloquea la última asignación (la función puede quedar sin línea; el aviso lo da la UI).
         app(WhatsAppFunctionService::class)->unassign($instance, $function);
 
         return response()->json(['success' => true]);

@@ -166,6 +166,24 @@ class EvolutionApiService
         return [];
     }
 
+    /**
+     * Cierra la sesión de WhatsApp de la instancia en Evolution (logout). Distinto de
+     * borrar la fila local: aquí la línea queda "disconnected" y se revincula por QR.
+     * Evolution v2.3.7: DELETE /instance/logout/{instance} — el nombre va en el path, así
+     * que SOLO afecta a esa instancia. No-op en fakeMode.
+     */
+    public function disconnect(WhatsAppInstance $instance): array
+    {
+        if ($this->fakeMode) {
+            return ['fake' => true, 'disconnected' => true];
+        }
+
+        $response = Http::withHeaders(['apikey' => $this->apiKey])
+            ->delete("{$this->baseUrl}/instance/logout/{$instance->instance_id}");
+
+        return $response->json() ?? [];
+    }
+
     public function createInstance(WhatsAppInstance $instance): array
     {
         if ($this->fakeMode) {
