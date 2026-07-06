@@ -557,6 +557,12 @@ const props = defineProps({
         type: Array,
         default: [],
     },
+    // Fase 1: lo inyecta la blade con auth()->user()->hasRole('super-administrator').
+    // Solo habilita la UI del override; el backend vuelve a verificarlo (fuente de verdad).
+    isSuperAdmin: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const showPassword = ref(false);
@@ -722,6 +728,28 @@ const clearServerErrors = (field) => {
     }
 };
 
+// Override Fase 1 (opción B): ante el bloqueo del guard (status 422), solo un
+// super-administrator puede forzar la promoción reenviando con el flag explícito.
+// El backend revalida SIEMPRE; esto es únicamente la confirmación visible.
+const resolveClientStaffGuard = async (message, formData, resubmit) => {
+    if (!props.isSuperAdmin) {
+        Swal.fire("Operación no permitida", message, "error");
+        return null;
+    }
+    const confirm = await Swal.fire({
+        title: "Cuenta de cliente",
+        html: `${message}<br><br>Como super-administrador puedes <b>forzar</b> la promoción a staff.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, forzar promoción",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#d33",
+    });
+    if (!confirm.isConfirmed) return null;
+    formData.append("promote_client_to_staff", 1);
+    return await resubmit();
+};
+
 const update = async (e) => {
     e.preventDefault();
     try {
@@ -733,7 +761,16 @@ const update = async (e) => {
                 if (key === "is_seller") value = value ? 1 : 0;
                 formData.append(key, value);
             });
-            const response = await updateUser(data.id, formData);
+            let response = await updateUser(data.id, formData);
+            // GUARD Fase 1: el backend bloquea (status 422) si es cuenta-cliente.
+            if (response && response.status === 422) {
+                response = await resolveClientStaffGuard(
+                    response.message,
+                    formData,
+                    () => updateUser(data.id, formData)
+                );
+                if (!response) return; // bloqueado y sin override
+            }
             if (response.status === 200) {
                 Swal.fire("¡Actualizado!", response.message, "success").then(
                     (result) => {

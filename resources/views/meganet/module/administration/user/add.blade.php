@@ -5,7 +5,7 @@
 @endsection
 
 @section('content')
-    <user-add :sucursals="{{ $sucursals }}"></user-add>
+    <user-add :sucursals="{{ $sucursals }}" :is-super-admin="{{ auth()->user()->hasRole('super-administrator') ? 'true' : 'false' }}"></user-add>
     {{-- <div>
         <h5 class="modal-title mb-3">Agregar Usuario</h5>
         <hr>
