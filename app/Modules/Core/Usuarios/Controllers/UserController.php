@@ -269,35 +269,55 @@ class UserController extends Controller
 
             $is_seller = $request->is_seller == "1" || in_array('Vendedor', $roles);
 
-            if ($is_seller) {
-                if (!in_array('Vendedor', $roles)) {
-                    $roles[] = 'Vendedor';
-                }
+            if ($is_seller && !in_array('Vendedor', $roles)) {
+                $roles[] = 'Vendedor';
+            }
 
+            // Registro de Vendedor (Seller): alta/actualización o baja según is_seller.
+            // El ROL 'Vendedor' se agrega/quita en el diff dirigido de más abajo.
+            if ($is_seller) {
                 $seller = Seller::firstOrNew(['user_id' => $id]);
-                if ($seller->exists) {
-                    // Actualizar registro existente
-                    $seller->status_id = 1;
-                    $seller->type_id = $request->type_id;
-                } else {
-                    // Manejar nuevo registro
-                    $seller->status_id = 1;
-                    $seller->type_id = $request->type_id;
-                }
+                $seller->status_id = 1;
+                $seller->type_id = $request->type_id;
                 $seller->save();
             } else {
-                // Si is_seller es false, eliminar el rol de vendedor y el registro de vendedor si existe
-                if ($user->hasRole('Vendedor')) {
-                    $user->removeRole('Vendedor');
-                }
-
                 $seller = Seller::where('user_id', $id)->first();
                 if ($seller) {
                     $seller->delete();
                 }
             }
 
-            $user->syncRoles($roles);
+            // PASO 2 — reemplazo de syncRoles (destructivo) por un diff DIRIGIDO.
+            // Nunca se quitan estos roles aunque no vengan en el payload:
+            //   super-administrator / DESARROLLADOR / ADMINISTRADOR_COMPLETO (sistema)
+            //   client (rompería MegaFamilia y el portal de un staff-cliente).
+            $neverRemove = ['super-administrator', 'DESARROLLADOR', 'ADMINISTRADOR_COMPLETO', 'client'];
+            $selected = array_values(array_unique($roles));
+            $current  = $user->roles()->pluck('name')->all();
+
+            // Quitar: roles de staff actuales NO seleccionados y NO protegidos.
+            $toRemove = array_values(array_filter($current, function ($r) use ($selected, $neverRemove) {
+                return !in_array($r, $selected, true) && !in_array($r, $neverRemove, true);
+            }));
+            // Agregar: seleccionados que aún no tiene.
+            $toAdd = array_values(array_diff($selected, $current));
+
+            foreach ($toRemove as $roleName) {
+                $user->removeRole($roleName);
+            }
+            foreach ($toAdd as $roleName) {
+                $user->assignRole($roleName);
+            }
+
+            if (!empty($toAdd) || !empty($toRemove)) {
+                \Log::info('Roles actualizados desde el form de Usuarios (diff dirigido)', [
+                    'actor'     => Auth::user()?->login_user,
+                    'target'    => $user->login_user,
+                    'agregados' => $toAdd,
+                    'quitados'  => $toRemove,
+                    'timestamp' => now()->toDateTimeString(),
+                ]);
+            }
 
             // Solo actualizar regla de comisión si llega un ID numérico válido y el usuario tiene vendedor.
             // isset($request->rule_id) era insuficiente: FormData convierte null → string "null", que
