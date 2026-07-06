@@ -165,6 +165,16 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 
 ## HOJA DE RUTA — Items pendientes
 
+### Rectificación de permisos/roles — pendientes de Fase 1 (2026-07-06)
+
+Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `463b99ed` guard cuenta-cliente, `2c2381fd` update aditivo sin `syncRoles`, `d5e4c353` UI override). Quedan registrados (NO ejecutar aún):
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| **Verificar `conciliacion.manage` en PROD** | En dev el rol **Mostrador** SÍ porta `conciliacion.manage` (ruta gateada por `permission:` de Spatie, que honra roles) → Diana entra por rol, NO quedó inerte. Falta confirmar que la migración `grant_conciliacion_manage_to_mostrador` haya corrido en prod (allá pudo no ejecutarse). | ⚠️ Verificar | Media |
+| **Limpiar ~14 asignaciones huérfanas del rol `client`** | `model_has_roles` del rol client referencia **1139** filas pero solo **1125** tienen `users` correspondiente → ~14 asignaciones apuntan a `model_id` sin fila en `users`. Depurar (read-only primero, validar en prod). | ⚠️ Pendiente | Baja |
+| **Consolidación de los 17 roles (Fase 4)** | 3 roles muertos (0 usuarios): `Socio`, `PUBLICADOR`, `conductor`. Duplicado super-admin ES/EN (`super-administrator` 674 perms/6 users vs `Super Administrador` 445 perms/1 user). Varios roles de un solo usuario. Consolidar/limpiar en Fase 4. | ⚠️ Pendiente | Media |
+
 ### Catálogo de módulos (form config DB-driven) — data-drift dev↔prod (2026-07-01)
 
 **Contexto:** el generador de contratos ("Generar Contrato" en CRM y Clientes) no pintaba los selectores en dev. El síntoma parecía frontend, pero la causa raíz fue **data-drift**: la config de cada formulario es DB-driven (`Module::getfields()` vía `HelperController::getFieldsByModule`, keyed por `name`), y el row de catálogo `DocumentTemplateClient` (+ sus campos) faltaba en dev porque las migraciones que lo crean fueron archivadas a `database/migrations_old/` y **no corren en un migrate fresco**. `->getfields()` sobre null → 500 mudo → `fieldsJson={}` → form vacío.
