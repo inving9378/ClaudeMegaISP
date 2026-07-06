@@ -165,6 +165,16 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 
 ## HOJA DE RUTA — Items pendientes
 
+### Rectificación de permisos/roles — pendientes de Fase 2.5 (2026-07-06)
+
+Fase 2.5 aplicada en dev (commits `179b288a` Grupo A + `af85a725` Grupo B): saneadas **395 cuentas espejo** contaminadas → 0 roles de staff y 0 permisos directos (incluidas 71 filas huérfanas). Detección final: **0 espejos contaminados**. Migraciones self-contained portables por selector (rol client + login∈CMI + is_seller=0 + patrón `^Meganet[0-9a-f]{8}$`), con rail por cuenta + pre-flight abort >450.
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| **CRÍTICO — Replicar saneo de espejos en PROD** | Correr en prod las migraciones `2026_07_06_130000_sanea_espejos_grupo_a_*` y `2026_07_06_130100_barre_directos_espejos_grupo_b` (descubren objetivos por selector, portables). En prod la triple-admin y las mega-admin (super-administrator con cientos de directos) **podrían estar vivas** = exposición real bajo el login gate actual. Verificar antes con el query de detección de Fase 2.5 PASO 0. | ⚠️ Pendiente | **Alta** |
+| **De dónde toman directos los espejos al crearse (Fase 3b)** | Neutralizar la fuente que copia permisos rol→directo al crear/editar espejos (copia del `store` línea 163-166 y/o import Splynx) para que nuevos espejos no reciban directos. Hoy inofensivo (el rol client limpio solo copiaría 8 redundantes), pero cerrar la fuente. | ⚠️ Pendiente | Media |
+| **Filas huérfanas globales en model_has_permissions/role_has_permissions** | Los espejos tenían filas con `permission_id` de permisos borrados (limpiadas para los 395). Puede haber más huérfanas en otras cuentas/roles (cruft de módulos desinstalados). Barrido global opcional de higiene. | 📝 Nota | Baja |
+
 ### Rectificación de permisos/roles — pendientes de Fase 2 (2026-07-06)
 
 Fase 2 aplicada en dev (commit `38c33feb`): rol `client` limpiado de 30→8 permisos (revocados 22 = CRM+seller+task; conservados calendar_filter_*/package/scheduling). Paso 1 (exclusión en reparto) ya estaba en `b9effb5f`. Pendientes (NO ejecutar):
