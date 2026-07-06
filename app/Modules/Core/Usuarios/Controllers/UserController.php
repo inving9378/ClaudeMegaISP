@@ -158,6 +158,15 @@ class UserController extends Controller
                 $seller->user_id = $user->id;
                 $seller->save();
             }
+            // GUARD Fase 1 — una cuenta-cliente (identidad en client_main_information)
+            // no puede recibir roles de staff. Se pasa null como usuario: en store el
+            // registro es nuevo (sin roles aún), así que sólo pesa la identidad de cliente.
+            $guard = $this->enforceClientStaffGuard(null, $request->login_user, $roles, $request);
+            if ($guard !== true) {
+                DB::rollBack();
+                return $guard;
+            }
+
             $user->assignRole($roles);
 
             $roles = Role::whereIn('name', $roles)->get();
@@ -245,6 +254,19 @@ class UserController extends Controller
                 $roles[] = \Spatie\Permission\Models\Role::findById($request->role)->name;
             }
 
+            // GUARD Fase 1 — una cuenta-cliente no puede recibir roles de staff.
+            // Roles que el form intenta asignar (incluye 'Vendedor' si is_seller),
+            // evaluados contra los roles ACTUALES del usuario (antes de mutarlos).
+            $intendedRoles = $roles;
+            if (($request->is_seller == "1" || in_array('Vendedor', $intendedRoles)) && !in_array('Vendedor', $intendedRoles)) {
+                $intendedRoles[] = 'Vendedor';
+            }
+            $guardResult = $this->enforceClientStaffGuard($user, $user->login_user, $intendedRoles, $request);
+            if ($guardResult !== true) {
+                DB::rollBack();
+                return $guardResult;
+            }
+
             $is_seller = $request->is_seller == "1" || in_array('Vendedor', $roles);
 
             if ($is_seller) {
@@ -290,6 +312,80 @@ class UserController extends Controller
             DB::rollBack();
             return response()->json(['status' => 500, 'message' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * ¿La cuenta debe tratarse como "solo-cliente" (espejo) para el guard de roles?
+     * Diseño confirmado (Fase 1):
+     *   es cuenta-cliente ⇔ login_user ∈ client_main_information.user
+     *                        Y (si ya existe) tiene rol 'client' Y NO porta rol de staff.
+     * En un espejo real esto coincide con tener el rol 'client' (1124/1125 en dev).
+     * Un usuario nuevo (store) aún no tiene roles → sólo pesa la identidad de cliente.
+     * Todos los roles se resuelven por NOMBRE.
+     */
+    private function isClientOnlyAccount(?User $user, string $loginUser): bool
+    {
+        // Identidad de cliente: el login existe en la ficha (client_main_information.user).
+        $boundToClient = DB::table('client_main_information')->where('user', $loginUser)->exists();
+        if (! $boundToClient) {
+            return false;
+        }
+
+        // Usuario existente (update): combinación estricta — rol 'client' y sin rol de staff.
+        // Un staff-cliente legítimo (técnico suscriptor con rol de staff) NO se trata como
+        // solo-cliente → el guard no lo bloquea.
+        if ($user && $user->exists) {
+            $hasClientRole = $user->roles()->where('name', 'client')->exists();
+            $hasStaffRole  = $user->roles()->where('name', '!=', 'client')->exists();
+            return $hasClientRole && ! $hasStaffRole;
+        }
+
+        // Usuario nuevo (store): sin roles todavía → sólo la identidad de cliente.
+        return true;
+    }
+
+    /**
+     * Guard Fase 1: una cuenta-cliente no puede recibir roles de staff.
+     * Devuelve true si la asignación es válida; si debe bloquearse devuelve el
+     * JsonResponse listo para retornar (el caller hace rollback si aplica).
+     *
+     * OVERRIDE (opción B, verificado SIEMPRE en backend): un super-administrator puede
+     * forzar la promoción si envía el flag explícito promote_client_to_staff=1. Nunca se
+     * confía sólo en el frontend. Cada override se audita (Log::warning con contexto).
+     *
+     * @param  User|null  $user       usuario existente (update) o null si es nuevo (store)
+     * @param  string     $loginUser  login_user del target (identidad de cliente vía CMI)
+     * @param  array      $roles      roles que se intentan asignar (por nombre)
+     */
+    private function enforceClientStaffGuard(?User $user, string $loginUser, array $roles, Request $request)
+    {
+        $staffRolesRequested = array_values(array_filter($roles, fn ($r) => $r !== 'client'));
+
+        if (empty($staffRolesRequested) || ! $this->isClientOnlyAccount($user, $loginUser)) {
+            return true; // el guard no aplica
+        }
+
+        $actor    = Auth::user();
+        $override = $actor
+            && $actor->hasRole('super-administrator')
+            && $request->boolean('promote_client_to_staff');
+
+        if (! $override) {
+            // Mismo patrón de respuesta que el resto del controller (HTTP 200 + status en el body).
+            return response()->json([
+                'status'  => 422,
+                'message' => 'Una cuenta de cliente no puede recibir roles de staff.',
+            ]);
+        }
+
+        \Log::warning('Promoción forzada de cuenta-cliente a staff (override super-administrator)', [
+            'actor'           => $actor->login_user,
+            'target'          => $loginUser,
+            'roles_asignados' => $staffRolesRequested,
+            'timestamp'       => now()->toDateTimeString(),
+        ]);
+
+        return true;
     }
 
     public function showPasswordForm()
