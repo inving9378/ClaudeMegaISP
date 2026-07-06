@@ -165,6 +165,16 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 
 ## HOJA DE RUTA — Items pendientes
 
+### Rectificación de permisos/roles — pendientes de Fase 2 (2026-07-06)
+
+Fase 2 aplicada en dev (commit `38c33feb`): rol `client` limpiado de 30→8 permisos (revocados 22 = CRM+seller+task; conservados calendar_filter_*/package/scheduling). Paso 1 (exclusión en reparto) ya estaba en `b9effb5f`. Pendientes (NO ejecutar):
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| **Replicar revocación del rol client en PROD** | Correr la migración `2026_07_06_120000_revoke_internal_permissions_from_client_role` en prod (idempotente/portable). Antes, verificar con el query de Fase 2 PASO 0 la lista real de permisos del rol client en prod (por si difiere). | ⚠️ Pendiente | Alta |
+| **Sanear 10 cuentas contaminadas (client + rol staff)** | En DEV quedan **10** cuentas espejo con rol client Y rol de staff (NO 0 — el incidente no se limpió). Crítica: `Meganet8f3d7255` = super-administrator+DESARROLLADOR+ADMINISTRADOR_COMPLETO. Query de detección en Fase 2 PASO 0 punto 3 (documentado para prod). Saneo = revocar el rol staff a esos *usuarios* (escritura sobre cuentas reales) → merece su propio gate; la lista de Administradores las OCULTA (filtro whereDoesntHave client) → hacerlo por tinker. NO es parte de la limpieza del rol. | ⚠️ Pendiente | **Alta** |
+| **Borrar roles muertos (Fase 4)** | `Socio`, `PUBLICADOR`, `conductor` (0 usuarios) ya excluidos del reparto; borrarlos en Fase 4. | ⚠️ Pendiente | Media |
+
 ### Rectificación de permisos/roles — pendientes de Fase 1 (2026-07-06)
 
 Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `463b99ed` guard cuenta-cliente, `2c2381fd` update aditivo sin `syncRoles`, `d5e4c353` UI override). Quedan registrados (NO ejecutar aún):
