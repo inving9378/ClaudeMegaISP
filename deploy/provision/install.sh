@@ -14,7 +14,7 @@
 # Overrides por variable de entorno (opcionales):
 #   MEGAISP_ROOT=/var/www/megaisp   # raíz del sistema MegaISP
 #   MEGAISP_USER=www-data           # usuario que corre artisan (dueño de caché)
-#   EVOLUTION_USER=<usuario>        # usuario dueño/ejecutor de Evolution
+#   EVOLUTION_USER=<usuario>        # dueño/ejecutor de Evolution (default: 'evolution', usuario de sistema dedicado)
 #   NGINX_VHOST=/ruta/al/vhost      # forzar el vhost si la autodetección falla
 #
 # Idempotente: correrlo 2 veces NO rompe ni duplica nada (cada paso detecta y omite).
@@ -25,6 +25,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=lib/05-evolution-user.sh
+source "${SCRIPT_DIR}/lib/05-evolution-user.sh"
 # shellcheck source=lib/10-node-pm2.sh
 source "${SCRIPT_DIR}/lib/10-node-pm2.sh"
 # shellcheck source=lib/20-evolution.sh
@@ -108,6 +110,7 @@ summary() {
 main() {
     log_step "== Provisioning de Evolution API (idempotente) =="
     preflight
+    provision_evolution_user # 05 — usuario de sistema dedicado 'evolution'
     provision_node_pm2      # 10 — Node 20 + PM2
     provision_evolution     # 20 — código + .env + DB + Prisma
     provision_nginx         # 30 — location /evolution/ en el vhost

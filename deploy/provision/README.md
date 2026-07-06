@@ -42,7 +42,7 @@ Idempotente: correrlo 2 veces no rompe ni duplica nada. Cada paso registra
 |---|---|---|
 | `MEGAISP_ROOT` | `/var/www/megaisp` | Raíz del sistema MegaISP |
 | `MEGAISP_USER` | `www-data` | Usuario que corre `php artisan` (dueño de la caché) |
-| `EVOLUTION_USER` | `${SUDO_USER}` o el usuario actual | Dueño/ejecutor de Evolution |
+| `EVOLUTION_USER` | `evolution` (usuario de sistema dedicado, se crea solo) | Dueño/ejecutor de Evolution |
 | `NGINX_VHOST` | autodetectado | Forzar el vhost si la autodetección falla |
 
 ## Valores que el script deriva/genera por server
@@ -95,6 +95,7 @@ deploy/provision/
 ├── install.sh              # orquestador (preflight → 10 → 20 → 30 → 40 → cierre)
 ├── lib/
 │   ├── common.sh           # helpers, guardas, lectura del .env del sistema
+│   ├── 05-evolution-user.sh # usuario de sistema dedicado 'evolution' (home, sin login)
 │   ├── 10-node-pm2.sh      # Node 20 + PM2
 │   ├── 20-evolution.sh     # clone fa09d378 + build + .env + DB + Prisma
 │   ├── 30-nginx.sh         # inyecta location /evolution/

@@ -21,9 +21,9 @@
 # =============================================================================
 
 # Usuario que será dueño del código y bajo el que correrá Evolution.
-# Por defecto, el usuario que invocó sudo (o el usuario actual). Override con
-# EVOLUTION_USER=... si se quiere un usuario dedicado.
-: "${EVOLUTION_USER:=${SUDO_USER:-$(id -un)}}"
+# Por defecto, el usuario de SISTEMA dedicado 'evolution' (lo crea
+# 05-evolution-user.sh). Override con EVOLUTION_USER=... si se quiere otro.
+: "${EVOLUTION_USER:=evolution}"
 
 # Bandera interna: ¿hay que compilar? (la fija _ensure_evolution_code)
 EVO_BUILD_NEEDED=0
