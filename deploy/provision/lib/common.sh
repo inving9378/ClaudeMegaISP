@@ -146,8 +146,17 @@ abort_if_dev_server() {
     host="$(hostname 2>/dev/null || echo '')"
     app_url="$(get_env_value APP_URL)"
 
+    # Override consciente del operador: ALLOW_PROVISION=1 salta SOLO el check de
+    # hostname (señal AMBIGUA: prod comparte 'meganet' con dev). Las demás guardas
+    # —incluida la de APP_URL, que SÍ distingue dev— siguen activas: aun con el
+    # override, correrlo en dev aborta por APP_URL. Sin el override, comportamiento
+    # idéntico a hoy (aborta si el hostname coincide con el marcador de dev).
     if [[ "$host" == "$DEV_HOSTNAME" ]]; then
-        die "Este parece ser el server de DESARROLLO (hostname='$host'). ABORTADO: este install.sh NO debe reconfigurar la Evolution de dev. Córrelo solo en un server nuevo o en producción."
+        if [[ "${ALLOW_PROVISION:-}" == "1" ]]; then
+            log_warn "hostname='$host' coincide con el marcador de dev, pero ALLOW_PROVISION=1 → se OMITE solo el check de hostname (las demás verificaciones siguen activas)."
+        else
+            die "Este parece ser el server de DESARROLLO (hostname='$host'). ABORTADO: este install.sh NO debe reconfigurar la Evolution de dev. Si de verdad es producción (comparte hostname con dev), corre con override consciente: ALLOW_PROVISION=1 sudo bash deploy/provision/install.sh"
+        fi
     fi
     if [[ "$app_url" == *"$DEV_APP_URL_MATCH"* ]]; then
         die "Este parece ser el server de DESARROLLO (APP_URL contiene '$DEV_APP_URL_MATCH'). ABORTADO: este install.sh NO debe reconfigurar la Evolution de dev. Córrelo solo en un server nuevo o en producción."

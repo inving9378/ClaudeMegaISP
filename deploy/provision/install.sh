@@ -16,6 +16,10 @@
 #   MEGAISP_USER=www-data           # usuario que corre artisan (dueño de caché)
 #   EVOLUTION_USER=<usuario>        # dueño/ejecutor de Evolution (default: 'evolution', usuario de sistema dedicado)
 #   NGINX_VHOST=/ruta/al/vhost      # forzar el vhost si la autodetección falla
+#   ALLOW_PROVISION=1               # override consciente: salta SOLO el check de
+#                                   #   hostname de la guarda anti-dev (prod comparte
+#                                   #   'meganet' con dev). Las demás guardas siguen
+#                                   #   activas (APP_URL sigue abortando en dev).
 #
 # Idempotente: correrlo 2 veces NO rompe ni duplica nada (cada paso detecta y omite).
 # =============================================================================
