@@ -16,10 +16,12 @@ if (csrfMeta) {
 // Refresca el token CSRF del <meta> y de axios.defaults con un token fresco.
 // Se usa ante un 419 (token stale por login/logout en otra pestaña — fix 419
 // multi-pestaña). Devuelve el token nuevo o null si el refresh falló.
-window.refreshCsrfToken = async function () {
+// endpoint por defecto '/csrf-refresh' (middleware SOLO 'web' → sirve a invitado
+// y autenticado por igual).
+window.refreshCsrfToken = async function (endpoint) {
     try {
         // GET no puede dar 419; no recursa en la rama 419 de abajo.
-        const { data } = await window.axios.get('/csrf-refresh', { _csrfRetried: true });
+        const { data } = await window.axios.get(endpoint || '/csrf-refresh', { _csrfRetried: true });
         const token = data && data.token;
         if (!token) return null;
         const meta = document.querySelector('meta[name="csrf-token"]');
@@ -31,20 +33,27 @@ window.refreshCsrfToken = async function () {
     }
 };
 
-// Logout con token CSRF fresco (Capa 1b). El form de logout es un submit NATIVO
-// (no axios) → el interceptor 419 de abajo NO lo cubre. Refresca el token, lo
-// escribe en el _token del form y en el <meta>, y recién entonces envía.
-window.__logoutWithFreshCsrf = async function (formId) {
+// Envía un form NATIVO con token CSRF fresco (Capa 1b). Los submit nativos
+// (login, logout) NO pasan por el interceptor axios del 419, así que refrescamos
+// el token, lo escribimos en el _token del form y en el <meta>, y recién entonces
+// enviamos. Defensivo: si el refresh falla, enviamos el form igual (nunca bloquear
+// login/logout).
+window.__submitFormWithFreshCsrf = async function (formId, endpoint) {
     const form = document.getElementById(formId);
     if (!form) return;
     try {
-        const token = await window.refreshCsrfToken();
+        const token = await window.refreshCsrfToken(endpoint);
         if (token) {
             const input = form.querySelector('input[name="_token"]');
             if (input) input.value = token;
         }
     } catch (e) {}
     form.submit();
+};
+
+// Logout: reusa el helper genérico (no duplicar lógica).
+window.__logoutWithFreshCsrf = function (formId) {
+    return window.__submitFormWithFreshCsrf(formId, '/csrf-refresh');
 };
 
 // Red de seguridad para errores 5xx silenciosos (Hoja de Ruta #109, Paso 2).

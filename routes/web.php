@@ -46,11 +46,14 @@ Route::middleware(['auth'])->get('/sin-modulos', function () {
 })->name('sin-modulos');
 
 // Token CSRF fresco para pestañas cuyo token se volvió stale tras un
-// login/logout en otra pestaña (fix 419 multi-pestaña). Solo 'auth', FUERA de
-// check_route_permission (una ruta no mapeada en config/route_permission sería
-// negada 403 a un no-admin) → cualquier usuario autenticado recibe 200. GET =
+// login/logout en otra pestaña (fix 419 multi-pestaña). Middleware SOLO 'web'
+// (sin 'auth'): sirve a invitado (form de login) y a autenticado (logout/axios)
+// con un solo endpoint. Es su propósito que sea accesible sin login — el token
+// CSRF no es secreto (protege contra cross-site, y same-origin impide la lectura
+// cross-origin); devuelve el token de la sesión que hace la petición, ya visible
+// en el <meta> de cada página. throttle por higiene (GET idempotente). GET =
 // nunca puede dar 419.
-Route::middleware(['auth'])->get('/csrf-refresh', function () {
+Route::middleware(['web', 'throttle:60,1'])->get('/csrf-refresh', function () {
     return response()->json(['token' => csrf_token()]);
 })->name('csrf.refresh');
 
