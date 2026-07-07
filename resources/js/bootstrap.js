@@ -13,6 +13,24 @@ if (csrfMeta) {
     window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfMeta.content;
 }
 
+// Refresca el token CSRF del <meta> y de axios.defaults con un token fresco.
+// Se usa ante un 419 (token stale por login/logout en otra pestaña — fix 419
+// multi-pestaña). Devuelve el token nuevo o null si el refresh falló.
+window.refreshCsrfToken = async function () {
+    try {
+        // GET no puede dar 419; no recursa en la rama 419 de abajo.
+        const { data } = await window.axios.get('/csrf-refresh', { _csrfRetried: true });
+        const token = data && data.token;
+        if (!token) return null;
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) meta.setAttribute('content', token);
+        window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+        return token;
+    } catch (e) {
+        return null;
+    }
+};
+
 // Red de seguridad para errores 5xx silenciosos (Hoja de Ruta #109, Paso 2).
 // Cualquier 500/502/503... deja rastro en consola aunque el .catch local esté vacío.
 // IMPORTANTE: este interceptor SOLO loguea. Re-lanza el error (Promise.reject) para
@@ -22,8 +40,23 @@ if (csrfMeta) {
 // (import axios from 'axios' === window.axios), basta registrarlo una vez aquí.
 window.axios.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
         const status = error?.response?.status;
+
+        // 419 = token CSRF stale (Capa 1a). Refresca el token y reintenta UNA vez.
+        // Guard anti-bucle: si el request ya se reintentó, propaga el error.
+        if (status === 419 && error.config && !error.config._csrfRetried) {
+            error.config._csrfRetried = true;
+            const token = await window.refreshCsrfToken();
+            if (token) {
+                // Sobreescribe el header del request fallido (cubre también los ~40
+                // componentes que pasan su propio X-CSRF-TOKEN: this.csrfToken).
+                error.config.headers = error.config.headers || {};
+                error.config.headers['X-CSRF-TOKEN'] = token;
+                return window.axios(error.config);
+            }
+        }
+
         if (status >= 500) {
             const cfg = error.config || {};
             const method = (cfg.method || 'get').toUpperCase();
