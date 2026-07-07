@@ -31,6 +31,22 @@ window.refreshCsrfToken = async function () {
     }
 };
 
+// Logout con token CSRF fresco (Capa 1b). El form de logout es un submit NATIVO
+// (no axios) → el interceptor 419 de abajo NO lo cubre. Refresca el token, lo
+// escribe en el _token del form y en el <meta>, y recién entonces envía.
+window.__logoutWithFreshCsrf = async function (formId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    try {
+        const token = await window.refreshCsrfToken();
+        if (token) {
+            const input = form.querySelector('input[name="_token"]');
+            if (input) input.value = token;
+        }
+    } catch (e) {}
+    form.submit();
+};
+
 // Red de seguridad para errores 5xx silenciosos (Hoja de Ruta #109, Paso 2).
 // Cualquier 500/502/503... deja rastro en consola aunque el .catch local esté vacío.
 // IMPORTANTE: este interceptor SOLO loguea. Re-lanza el error (Promise.reject) para
