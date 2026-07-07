@@ -123,6 +123,23 @@ async function spaNavigate(url, pushState) {
         const newTitle = doc.querySelector('title');
         if (newTitle) document.title = newTitle.textContent;
 
+        // 3.4 Refrescar el token CSRF desde el <head> de la respuesta (Capa 2a del
+        // fix 419 multi-pestaña). El <meta> y axios.defaults se congelan en el primer
+        // full-load (viven fuera de #init-vue); cada respuesta trae un <meta> fresco.
+        // Copiarlo al meta vivo + axios.defaults mantiene el token al día en la pestaña
+        // activa, previniendo el 419 antes de que ocurra. Defensivo: no bloquea nav.
+        try {
+            const freshMeta = doc.querySelector('meta[name="csrf-token"]');
+            const token = freshMeta && freshMeta.getAttribute('content');
+            if (token) {
+                const liveMeta = document.querySelector('meta[name="csrf-token"]');
+                if (liveMeta) liveMeta.setAttribute('content', token);
+                if (window.axios) window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+            }
+        } catch (e) {
+            console.warn('[spa-nav] refresco de token CSRF falló (no bloquea navegación):', e);
+        }
+
         // 3.5 Limpieza de modales/backdrops huérfanos (#111 Fase 1 → fix raíz de #126).
         // Bootstrap ancla el .modal-backdrop a <body>; al navegar con un modal abierto,
         // el innerHTML de abajo se lleva el modal pero el backdrop sobrevive y deja la
