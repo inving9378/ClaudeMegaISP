@@ -15,10 +15,15 @@ trait PermissionTrait
             return \Spatie\Permission\Models\Permission::pluck('id', 'name');
         }
 
-        // Combinar ambos conjuntos de permisos y eliminar duplicados por ID
-        $allPermissions = $user->permissions;
+        // Directos ∪ rol (getAllPermissions dedup por Spatie). El flip solo SUMA
+        // acceso: directos ⊆ (directos ∪ rol) → ningún staff pierde acceso.
+        // El bypass por nombre de rol (super-administrator/DESARROLLADOR/…) vive
+        // aparte: en CheckRoutePermission (línea 59) y en el short-circuit isAdmin()
+        // de arriba — ambos intactos, porque esos roles no tienen literalmente
+        // todos los permisos y no pueden resolverse por enumeración.
+        $allPermissions = $user->getAllPermissions();
 
-        // Opcionalmente, puedes pluckear el id y el nombre de los permisos
+        // Indexado por NOMBRE: el middleware lo consume con isset($permissions[$key]).
         return $allPermissions->pluck('id', 'name');
     }
 }
