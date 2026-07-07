@@ -45,6 +45,15 @@ Route::middleware(['auth'])->get('/sin-modulos', function () {
     return view('meganet.pages.sin-modulos');
 })->name('sin-modulos');
 
+// Token CSRF fresco para pestañas cuyo token se volvió stale tras un
+// login/logout en otra pestaña (fix 419 multi-pestaña). Solo 'auth', FUERA de
+// check_route_permission (una ruta no mapeada en config/route_permission sería
+// negada 403 a un no-admin) → cualquier usuario autenticado recibe 200. GET =
+// nunca puede dar 419.
+Route::middleware(['auth'])->get('/csrf-refresh', function () {
+    return response()->json(['token' => csrf_token()]);
+})->name('csrf.refresh');
+
 Route::group(['middleware' => ['auth']], function () {
     Route::get('script', 'TestScriptController@script');
     Route::get('log-client', 'TestScriptController@logClient');
