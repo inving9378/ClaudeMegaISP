@@ -165,6 +165,16 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 
 ## HOJA DE RUTA — Items pendientes
 
+### Rectificación de permisos/roles — Fase 3a (2026-07-07)
+
+**Flip aplicado en dev:** `CheckRoutePermission` ahora honra permisos de **ROL** (directos ∪ rol), no solo directos. Dos commits: `587d467f` (revoca `scheduling_view_calendar` del rol client — último permiso que abría ruta) + `708bcba0` (flip: `PermissionTrait::getPermissionForUserAuthenticated` cambia `$user->permissions` → `$user->getAllPermissions()`, conservando `->pluck('id','name')`). Bypass por nombre de rol (`CheckRoutePermission` línea 59 + short-circuit `isAdmin()` del trait) **intacto**. El flip afecta 3 consumidores del trait (middleware + `allViewHasPermission` + `hasPermissionToView`), todos aditivos. Propiedad: solo SUMA acceso (directos ⊆ directos∪rol) → ningún staff pierde acceso. Prueba de oro verificada en dev (usuario `prueba_flip` rol Vendedor, 0 directos → alcanza `/crm/listar` por rol). **Nota:** en dev el flip es hoy un no-op de *acceso* (todo staff ya carga sus permisos-de-ruta como directos = residuo Fase 3b); su valor es estructural + futuro.
+
+| Item | Descripción | Estado | Prioridad |
+|------|-------------|--------|-----------|
+| **Replicar flip en PROD** | Correr allá las 2 migraciones/commit de Fase 3a **DESPUÉS** de que Fase 2 + 2.5 estén replicadas en prod (honrar roles ANTES de limpiar los espejos contaminados sería peligroso: abriría rutas por rol a cuentas aún sucias). | ⚠️ Pendiente | **Alta** |
+| **Fase 3a-bis — puerta de autorización propia del módulo OLT** | `olt_view/onu_add/onu_edit` **NO** pasan por `config('route_permission')` → tienen su propio verificador que lee permisos **directos** aparte (distinto de `CheckRoutePermission`). Es el verificador real del **caso Alondra** (provisión de ONTs) y necesita el **mismo flip** (leer directos∪rol) para cerrar el caso de origen. Investigar ese middleware/gate OLT y aplicarle el flip equivalente. | ⚠️ Pendiente | **Alta** |
+| **Fase 3b — retirar copia rol→directo del `store` + huérfanos** | Quitar la copia de permisos rol→directo del alta de usuarios (`UserController::store` ~163-166) + migrar los 872 huérfanos de los 23 staff. Tras esto el flip deja de ser no-op (los directos redundantes desaparecen y el acceso pasa a resolverse por rol). | ⚠️ Pendiente | Media |
+
 ### Rectificación de permisos/roles — pendientes de Fase 2.5 (2026-07-06)
 
 Fase 2.5 aplicada en dev (commits `179b288a` Grupo A + `af85a725` Grupo B): saneadas **395 cuentas espejo** contaminadas → 0 roles de staff y 0 permisos directos (incluidas 71 filas huérfanas). Detección final: **0 espejos contaminados**. Migraciones self-contained portables por selector (rol client + login∈CMI + is_seller=0 + patrón `^Meganet[0-9a-f]{8}$`), con rail por cuenta + pre-flight abort >450.
