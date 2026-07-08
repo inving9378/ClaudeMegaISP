@@ -116,13 +116,21 @@ $c3-filled-states: (
     $accent: nth($vals, 4);
     $text:   nth($vals, 5);
 
+    /* Sombra de la TARJETA vía filter: drop-shadow() sobre la <tr>, NO box-shadow por-td.
+     * drop-shadow respeta la silueta COMPUESTA de toda la fila (los <td> contiguos) →
+     * una sola sombra continua alrededor del rectángulo → sin costura vertical entre
+     * celdas (la box-shadow por-td sí la producía: cada celda proyectaba su sombra
+     * lateral y la del vecino se encimaba). */
+    body[data-row-style="filled"] tr.#{$st},
+    body[data-row-style="filled"] tr.#{$alt} {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.14));
+    }
     body[data-row-style="filled"] tr.#{$st} > td,
     body[data-row-style="filled"] tr.#{$alt} > td {
         background-color: $bg !important;
         color: $text !important;
         border-top: 1.5px solid $border !important;
         border-bottom: 1.5px solid $border !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
     body[data-row-style="filled"] tr.#{$st} > td:first-child,
     body[data-row-style="filled"] tr.#{$alt} > td:first-child {
