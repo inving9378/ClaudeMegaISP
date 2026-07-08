@@ -48,19 +48,19 @@
 }
 
 [data-layout-mode="dark"] {
-    /* === Backgrounds === */
-    --bg-primary:     #1e2433;
-    --bg-secondary:   #252836;
-    --bg-surface:     #2a2d3e;
-    --bg-hover:       #343948;
+    /* === Backgrounds — Paleta C (alto contraste: negro casi puro) === */
+    --bg-primary:     #0A0A0A;  /* fondo de página */
+    --bg-secondary:   #141414;  /* un tono arriba */
+    --bg-surface:     #1A1A1A;  /* tarjetas/paneles */
+    --bg-hover:       #242424;  /* hover */
 
-    /* === Text === */
-    --text-primary:   #cdd6f4;
-    --text-secondary: #adb5bd;
+    /* === Text — Paleta C (blanco puro / gris legible) === */
+    --text-primary:   #FFFFFF;
+    --text-secondary: #B0B0B0;
 
     /* === Borders & Effects === */
-    --border-default: #3a3d50;
-    --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.3);
+    --border-default: #2A2A2A;
+    --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.5);
 
     /* === Accent (de marca) === */
     --accent:         var(--bs-primary, #6c84f7);

@@ -1,20 +1,20 @@
 [data-layout-mode="dark"] .pace-done {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 [data-layout-mode="dark"] #page-topbar {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 body[data-layout-mode=dark][data-sidebar=brand] .navbar-brand-box,
 body[data-layout-mode=dark][data-sidebar=brand] .vertical-menu,
 body[data-layout-mode=dark][data-sidebar=dark] .navbar-brand-box,
 body[data-layout-mode=dark][data-sidebar=dark] .vertical-menu {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 [data-layout-mode="dark"] .footer {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 body[data-layout-mode=dark] .border,
@@ -33,7 +33,7 @@ body[data-layout-mode=dark] .pagination .page-item .page-link:hover,
 body[data-layout-mode=dark] .progress-bar,
 body[data-layout-mode=dark] .progress-bar-animated,
 body[data-layout-mode=dark] .progress-bar-striped {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 
@@ -42,7 +42,7 @@ body[data-layout-mode=dark] .progress-bar-striped {
 }
 
 [data-layout-mode="dark"] a {
-    color: #858d98;
+    color: #B0B0B0;
 }
 
 [data-layout-mode="dark"] .fc .fc-daygrid-day-number {
@@ -54,80 +54,98 @@ body[data-layout-mode=dark] .progress-bar-striped {
 }
 
 body[data-layout-mode="dark"] {
-    background-color: #202c33 !important;
+    background-color: #0A0A0A !important;
 }
 
 [data-layout-mode="dark"] .card {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 [data-layout-mode="dark"] .card-header {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 [data-layout-mode="dark"] .card-body {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 [data-layout-mode="dark"] .q-pa-md .q-table__container .q-tab-panels {
-    background-color: #202c33 !important;
-    border: 1px solid #3b403d !important;
-    color: #adb5bd !important;
+    background-color: #1A1A1A !important;
+    border: 1px solid #2A2A2A !important;
+    color: #FFFFFF !important;
 }
 
 [data-layout-mode="dark"] .q-card {
-    background-color: #202c33 !important;
-    border: 1px solid #3b403d !important;
-    color: #adb5bd !important;
+    background-color: #1A1A1A !important;
+    border: 1px solid #2A2A2A !important;
+    color: #FFFFFF !important;
 }
 
 [data-layout-mode="dark"] .fullscreen {
-    background-color: #202c33 !important;
-    border: 1px solid #3b403d !important;
-    color: #adb5bd !important;
+    background-color: #1A1A1A !important;
+    border: 1px solid #2A2A2A !important;
+    color: #FFFFFF !important;
 }
 
 [data-layout-mode="dark"] span {
-    color: #adb5bd !important;
+    color: #FFFFFF !important;
 }
 
 
 [data-layout-mode="dark"] .q-menu {
-    background-color: #202c33 !important;
-    border: 1px solid #3b403d !important;
-    color: #adb5bd !important;
+    background-color: #1A1A1A !important;
+    border: 1px solid #2A2A2A !important;
+    color: #FFFFFF !important;
 }
 
 [data-layout-mode="dark"] .q-table__container {
-    background-color: #202c33 !important;
-    border: 1px solid #3b403d !important;
-    color: #adb5bd !important;
+    background-color: #1A1A1A !important;
+    border: 1px solid #2A2A2A !important;
+    color: #FFFFFF !important;
 }
 
 [data-layout-mode="dark"] .customer-buttons-wrapper {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 [data-layout-mode="dark"] .panel {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 [data-layout-mode="dark"] .panel-default {
-    background-color: #202c33 !important;
+    background-color: #1A1A1A !important;
 }
 
 [data-layout-mode="dark"] div.choices>.choices__inner {
-    background-color: #363a38 !important;
+    background-color: #141414 !important;
 }
 
 
 [data-layout-mode="dark"] .multiselect-native-select .btn-group button.multiselect.dropdown-toggle.custom-select {
-    background-color: #313533 !important;
-    border: 1px solid #3b403d !important;
-    color: #adb5bd !important;
+    background-color: #141414 !important;
+    border: 1px solid #2A2A2A !important;
+    color: #FFFFFF !important;
 }
 
 
 table.dataTable.table-striped>tbody>tr.even>* {
     box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.05);
+}
+
+/* Formularios (Paleta C): el tema vendor (public/assets/css/app.min.css) hardcodea los inputs
+   en dark con slate #363a38 y texto apagado #adb5bd → se quedaban en el look viejo, desalineados
+   del negro puro y con la baja legibilidad que se quería corregir. Los alineamos aquí (mismo
+   archivo central del tema oscuro). NO se tocan los form-check-input (checkbox/switch): conservan
+   su acento al marcarse. */
+[data-layout-mode="dark"] .form-control,
+[data-layout-mode="dark"] .form-select,
+[data-layout-mode="dark"] .input-group-text {
+    background-color: #141414 !important;
+    border: 1px solid #2A2A2A !important;
+    color: #FFFFFF !important;
+}
+
+[data-layout-mode="dark"] .form-control::placeholder {
+    color: #B0B0B0 !important;
+    opacity: 1;
 }
