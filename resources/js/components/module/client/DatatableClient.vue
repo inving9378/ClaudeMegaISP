@@ -60,26 +60,7 @@
               {{ add }}
             </a>
           </div>
-          <div class="d-flex">
-            <button
-              type="button"
-              class="btn btn-outline-info"
-              data-bs-toggle="modal"
-              data-bs-target="#modaleditcolumn"
-              style="margin-left: auto; margin-right: 10px"
-            >
-              ...
-            </button>
-
-            <button
-              type="button"
-              class="btn btn-outline-info"
-              @click="toogleBackgroundColor"
-              style="margin-right: 10px"
-            >
-              <i data-feather="droplet" class="icon-lg"></i>
-            </button>
-
+          <div class="d-flex ms-auto align-items-center">
             <div v-if="lengthButtons">
               <a
                 v-for="button in buttons"
@@ -90,30 +71,47 @@
                 <i :class="button.iclass"></i>
               </a>
             </div>
-            <div class="d-flex">
-              <q-btn
-                flat
-                round
-                dense
-                :icon="props.inFullscreen ? 'fullscreen_exit' : 'fullscreen'"
-                @click="props.toggleFullscreen"
-                class="q-ml-md"
-              />
+            <div class="d-flex align-items-center">
               <q-input
+                class="dt-search mb-0"
                 dense
                 v-model="search"
                 placeholder="Buscar"
-                class="mb-0"
-                style="margin-left: 16px; border: 1px solid; margin-right: 10px"
+                outlined
+                style="margin-left: 16px; margin-right: 10px"
                 :dark="darkMode"
+                @keyup.enter="searchNow"
               >
               </q-input>
-              <q-btn
-                color="primary"
-                label="Export"
-                no-caps
-                @click="exportTable(columns, rows, list, visibleColumns)"
-              />
+              <!-- Controles agrupados en un solo menú -->
+              <q-btn flat round dense icon="mdi-dots-vertical" class="dt-actions-toggle"
+                :dark="darkMode" aria-label="Acciones de la tabla">
+                <q-menu anchor="bottom right" self="top right" :dark="darkMode"
+                  transition-show="jump-down" transition-hide="jump-up">
+                  <q-list style="min-width: 220px">
+                    <q-item clickable v-close-popup data-bs-toggle="modal" data-bs-target="#modaleditcolumn">
+                      <q-item-section avatar><q-icon name="mdi-view-column" style="color: #85B7EB" /></q-item-section>
+                      <q-item-section>Ver columnas</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup @click="resetTable">
+                      <q-item-section avatar><q-icon name="mdi-refresh" style="color: #34D399" /></q-item-section>
+                      <q-item-section>Actualizar</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup @click="toogleBackgroundColor">
+                      <q-item-section avatar><q-icon name="mdi-palette" style="color: #ED93B1" /></q-item-section>
+                      <q-item-section>Alternar colores de estado</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup @click="props.toggleFullscreen">
+                      <q-item-section avatar><q-icon name="mdi-fullscreen" style="color: #9B7EDE" /></q-item-section>
+                      <q-item-section>{{ props.inFullscreen ? 'Salir de pantalla completa' : 'Expandir pantalla' }}</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup @click="exportTable(columns, rows, list, visibleColumns)">
+                      <q-item-section avatar><q-icon name="mdi-download" style="color: #EF9F27" /></q-item-section>
+                      <q-item-section>Exportar</q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-menu>
+              </q-btn>
             </div>
           </div>
         </template>
@@ -711,6 +709,14 @@ export default {
       );
     };
 
+    // Enter en el buscador → búsqueda inmediata (conserva el debounce al teclear).
+    const searchNow = () => {
+      onRequestDebounced.cancel();
+      pagination.value.page = 1;
+      startPagination.value = 0;
+      resetTable();
+    };
+
     watch(fechaCorte, () => {
       ffilters.value = {
         ...ffilters.value,
@@ -822,6 +828,7 @@ export default {
       setFilter,
       loading,
       exportTable,
+      searchNow,
       paginationText,
       iDClient,
       resetTable,

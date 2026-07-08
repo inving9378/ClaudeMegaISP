@@ -118,26 +118,46 @@
                                     </q-scroll-area>
                                 </q-menu>
                             </q-btn> -->
-                            <q-btn icon="mdi-dots-horizontal" data-bs-toggle="modal"
-                                :data-bs-target="`#modaleditcolumn_${idTable}`" class="btn btn-outline-info"
-                                style="margin-right: 15px" />
-                            <q-btn icon="mdi-history" class="btn btn-outline-info" style="margin-right: 25px"
-                                @click="reloadDataTable" />
                             <q-input class="dt-search" dense v-model="search" placeholder="Buscar..." outlined
-                                :dark="darkMode">
+                                :dark="darkMode" @keyup.enter="searchNow">
                             </q-input>
-                            <q-btn flat round dense :icon="props.inFullscreen
-                                ? 'fullscreen_exit'
-                                : 'fullscreen'
-                                " @click="props.toggleFullscreen" />
-                            <q-btn color="primary" icon="download" label="Exportar" no-caps @click="
-                                exportTable(
-                                    columns,
-                                    rows,
-                                    list,
-                                    visibleColumns
-                                )
-                                " />
+                            <!-- Controles agrupados en un solo menú (columnas / actualizar / expandir / exportar) -->
+                            <q-btn flat round dense icon="mdi-dots-vertical" class="dt-actions-toggle"
+                                :dark="darkMode" aria-label="Acciones de la tabla">
+                                <q-menu anchor="bottom right" self="top right" :dark="darkMode"
+                                    transition-show="jump-down" transition-hide="jump-up">
+                                    <q-list style="min-width: 210px">
+                                        <q-item clickable v-close-popup data-bs-toggle="modal"
+                                            :data-bs-target="`#modaleditcolumn_${idTable}`">
+                                            <q-item-section avatar>
+                                                <q-icon name="mdi-view-column" style="color: #85B7EB" />
+                                            </q-item-section>
+                                            <q-item-section>Ver columnas</q-item-section>
+                                        </q-item>
+                                        <q-item clickable v-close-popup @click="reloadDataTable">
+                                            <q-item-section avatar>
+                                                <q-icon name="mdi-refresh" style="color: #34D399" />
+                                            </q-item-section>
+                                            <q-item-section>Actualizar</q-item-section>
+                                        </q-item>
+                                        <q-item clickable v-close-popup @click="props.toggleFullscreen">
+                                            <q-item-section avatar>
+                                                <q-icon name="mdi-fullscreen" style="color: #9B7EDE" />
+                                            </q-item-section>
+                                            <q-item-section>
+                                                {{ props.inFullscreen ? 'Salir de pantalla completa' : 'Expandir pantalla' }}
+                                            </q-item-section>
+                                        </q-item>
+                                        <q-item clickable v-close-popup
+                                            @click="exportTable(columns, rows, list, visibleColumns)">
+                                            <q-item-section avatar>
+                                                <q-icon name="mdi-download" style="color: #EF9F27" />
+                                            </q-item-section>
+                                            <q-item-section>Exportar</q-item-section>
+                                        </q-item>
+                                    </q-list>
+                                </q-menu>
+                            </q-btn>
                         </div>
                     </div>
                 </template>
@@ -885,6 +905,16 @@ function onRequest(props) {
 
         resetTable();
     }
+}
+
+// Enter en el buscador → búsqueda INMEDIATA (sin esperar el debounce de 3s).
+// El debounce al teclear se conserva (onRequestDebounced); aquí solo lo cancelamos
+// para no disparar una segunda búsqueda tardía, y refrescamos ya desde la página 1.
+function searchNow() {
+    onRequestDebounced.cancel();
+    pagination.value.page = 1;
+    startPagination.value = 0;
+    resetTable();
 }
 
 const optionsFilters = ref([]);
