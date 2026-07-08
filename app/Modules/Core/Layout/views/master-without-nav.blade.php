@@ -15,6 +15,23 @@
 @endphp
 
 <body @if($config) data-layout-mode="{{ $config->color_mode }}" data-topbar="{{ $config->color_mode }}" data-sidebar="{{ $config->color_mode }}" @endif>
+    <script>
+        /* Tema INDEPENDIENTE POR PESTAÑA (sessionStorage, no compartido). Pestaña
+           nueva → default del usuario (data-layout-mode de BD) y lo fija. Corre
+           como primer elemento del <body> → sin parpadeo. */
+        (function () {
+            try {
+                var KEY = "layout-mode";
+                var def = document.body.getAttribute("data-layout-mode") || "light";
+                var stored = sessionStorage.getItem(KEY);
+                var mode = stored || def;
+                if (!stored) sessionStorage.setItem(KEY, mode);
+                document.body.setAttribute("data-layout-mode", mode);
+                document.body.setAttribute("data-topbar", mode);
+                document.body.setAttribute("data-sidebar", mode);
+            } catch (e) {}
+        })();
+    </script>
     <div id="init-vue">
         <div id="layout-wrapper">
 

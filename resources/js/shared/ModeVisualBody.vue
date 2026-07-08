@@ -8,81 +8,57 @@
         <i data-feather="moon" class="icon-lg layout-mode-dark"></i>
         <i data-feather="sun" class="icon-lg layout-mode-light"></i>
     </button>
-    <LoadingComponentModal></LoadingComponentModal>
 </template>
 
 <script>
-import { ref, onMounted, watch } from "vue";
-import LoadingComponentModal from "./LoadingComponentModal.vue";
-import { enableLoadingModal, disabledLoadingModal } from "../hook/loadingHook";
+import { ref, onMounted } from "vue";
 import { darkMode } from "../hook/appConfig";
 export default {
     name: "ModeVisualBody",
-    components: {
-        LoadingComponentModal,
-    },
-
+    // props se conservan por compatibilidad con el tag del blade; ya no se usan
+    // para persistir (el toggle es por-pestaña, no toca BD).
     props: {
         user: String,
         configlayout: String,
     },
-    setup(props) {
-        const configlayout = JSON.parse(props.configlayout);
-        const mode = ref();
+    setup() {
+        // `mode` = tema al que cambiará el PRÓXIMO clic (toggle).
+        const mode = ref("dark");
 
-        const changeMode = async (color) => {
-            enableLoadingModal();
-            await saveConfigModeInBD(color);
+        // Cambio de tema INSTANTÁNEO y SOLO en esta pestaña (sessionStorage).
+        // No hace petición al servidor ni afecta el default ni otras pestañas.
+        const applyTabTheme = (color) => {
+            document.body.setAttribute("data-layout-mode", color);
+            document.body.setAttribute("data-topbar", color);
+            document.body.setAttribute("data-sidebar", color);
+            try {
+                sessionStorage.setItem("layout-mode", color);
+            } catch (e) {}
+            // Sincronizar el radio del right-sidebar si está abierto
+            const radio = document.getElementById("layout-mode-" + color);
+            if (radio) radio.checked = true;
+            darkMode.value = color === "dark";
+            mode.value = color === "dark" ? "light" : "dark";
+        };
+
+        const changeMode = (color) => {
+            applyTabTheme(color);
         };
 
         onMounted(() => {
-            if (configlayout == null) {
-                mode.value = "dark";
-            } else if (configlayout.color_mode == "dark") {
-                mode.value = "light";
-            } else {
-                mode.value = "dark";
-            }
-            // feather.replace() corre antes de que Vue monte este componente,
-            // así que los <i data-feather="moon/sun"> que renderizamos nunca
-            // se convierten a SVG. Llamarlo de nuevo aquí lo arregla.
+            // Reflejar el tema REAL de esta pestaña (ya aplicado por el script de
+            // boot desde sessionStorage/BD), no el default de BD: el próximo clic
+            // debe togglear desde lo que se ve.
+            const current =
+                document.body.getAttribute("data-layout-mode") || "light";
+            mode.value = current === "dark" ? "light" : "dark";
+            darkMode.value = current === "dark";
+            // feather.replace() corre antes de que Vue monte este componente, así
+            // que los <i data-feather="moon/sun"> no se convierten a SVG solos.
             if (typeof window.feather !== "undefined") {
                 window.feather.replace();
             }
         });
-
-        const saveConfigModeInBD = (color) => {
-            axios
-                .post("/save-app-config-layout", {
-                    color_mode: color,
-                    user_id: props.user,
-                })
-                .then((response) => {
-                    const savedMode = response.data.color_mode; // "dark" o "light" recién guardado
-                    // Aplicar tema visualmente sin reload
-                    document.body.setAttribute('data-layout-mode', savedMode);
-                    document.body.setAttribute('data-topbar', savedMode);
-                    document.body.setAttribute('data-sidebar', savedMode);
-                    // Sincronizar radio del right-sidebar si está abierto
-                    const radio = document.getElementById('layout-mode-' + savedMode);
-                    if (radio) radio.checked = true;
-
-                    // Preparar el siguiente clic (toggle)
-                    mode.value = savedMode === "dark" ? "light" : "dark";
-                    darkMode.value = savedMode === "dark";
-                    setTimeout(() => {
-                        disabledLoadingModal();
-                    }, 400);
-                })
-                .catch((error) => {
-                    console.log(error);
-                    setTimeout(() => {
-                        disabledLoadingModal();
-                    }, 1000);
-                });
-
-            //set timeout
-        };
 
         return {
             mode,

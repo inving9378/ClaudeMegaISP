@@ -161,11 +161,15 @@
         });
     })(jQuery);
 
-    // Cambiar tema claro/oscuro desde el right-sidebar — global para onchange inline
+    // Right-sidebar = "config de usuario": cambia el tema de ESTA pestaña
+    // (instantáneo, sessionStorage) Y actualiza el DEFAULT de la cuenta en BD
+    // (para las pestañas NUEVAS). El toggle del topbar, en cambio, es por-pestaña
+    // y NO toca BD. Global para el onchange inline de los radios.
     window.changeLayoutMode = function (mode) {
         document.body.setAttribute("data-layout-mode", mode);
         document.body.setAttribute("data-topbar", mode);
         document.body.setAttribute("data-sidebar", mode);
+        try { sessionStorage.setItem("layout-mode", mode); } catch (e) {}
         window.axios && window.axios.post("/save-app-config-layout", { color_mode: mode })
             .catch(function (e) { console.warn("Layout mode save failed:", e); });
     };

@@ -15,6 +15,25 @@
 
 <body
     @if ($config) class="pace-done" data-layout-mode="{{ $config->color_mode }}" data-topbar="{{ $config->color_mode }}" data-sidebar="{{ $config->color_mode }}" @endif>
+    <script>
+        /* Tema INDEPENDIENTE POR PESTAÑA. Cada pestaña conserva su tema en
+           sessionStorage (NO compartido entre pestañas → sin conflicto). Una
+           pestaña nueva arranca con el default del usuario (el data-layout-mode
+           que ya vino renderizado desde BD) y lo fija para esta pestaña.
+           Corre como primer elemento del <body> → sin parpadeo. */
+        (function () {
+            try {
+                var KEY = "layout-mode";
+                var def = document.body.getAttribute("data-layout-mode") || "light";
+                var stored = sessionStorage.getItem(KEY);
+                var mode = stored || def;
+                if (!stored) sessionStorage.setItem(KEY, mode);
+                document.body.setAttribute("data-layout-mode", mode);
+                document.body.setAttribute("data-topbar", mode);
+                document.body.setAttribute("data-sidebar", mode);
+            } catch (e) {}
+        })();
+    </script>
     <div>
         <div id="topbar-vue-root">
             @include('core-layout::topbar')
