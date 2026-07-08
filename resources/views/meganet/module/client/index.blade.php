@@ -20,9 +20,6 @@
         color_datatable ="{{ $color_datatable }}" all_columns_by_module="{{ json_encode($allColumnsByModule) }}"
         header_columns_by_module ="{{ json_encode($columnsByUserAuthAndModule) }}"
         @if (isset($filters)) filters="{{ $filters }}" @endif
-        @can($group . '_add_' . $module)
-        add="Agregar Cliente"
-        @endcan
         array_all_status="{{ json_encode($allStatusToFilter) }}">
     </Datatable-Client>
     @if (session()->has('message'))
