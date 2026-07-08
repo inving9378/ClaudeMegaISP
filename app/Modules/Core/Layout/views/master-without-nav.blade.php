@@ -14,7 +14,7 @@
     $config = isset($configLayout) ? $configLayout(auth()->user()->id ?? null) : null;
 @endphp
 
-<body @if($config) data-layout-mode="{{ $config->color_mode }}" data-topbar="{{ $config->color_mode }}" data-sidebar="{{ $config->color_mode }}" @endif>
+<body data-row-style="{{ $config->row_status_style ?? 'underline' }}" @if($config) data-layout-mode="{{ $config->color_mode }}" data-topbar="{{ $config->color_mode }}" data-sidebar="{{ $config->color_mode }}" @endif>
     <script>
         /* Tema INDEPENDIENTE POR PESTAÑA (sessionStorage, no compartido). Pestaña
            nueva → default del usuario (data-layout-mode de BD) y lo fija. Corre

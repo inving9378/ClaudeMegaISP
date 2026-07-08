@@ -24,6 +24,29 @@ class ConfigAppLayoutController extends Controller
         return $config;
     }
 
+    /**
+     * Persiste POR USUARIO el estilo de fila por estado de las tablas.
+     * Mismo mecanismo que saveAppConfigLayout (color_mode). Aditivo, no toca color_mode.
+     * Valores válidos: 'underline' | 'filled'.
+     */
+    public function saveRowStatusStyle(Request $request)
+    {
+        $style = $request->row_status_style === 'filled' ? 'filled' : 'underline';
+
+        $config = AppLayoutConfiguration::where('user_id', auth()->id())->first();
+        if ($config) {
+            $config->row_status_style = $style;
+            $config->save();
+        } else {
+            $config = new AppLayoutConfiguration();
+            $config->user_id = auth()->id();
+            $config->color_mode = 'light';
+            $config->row_status_style = $style;
+            $config->save();
+        }
+        return response()->json(['row_status_style' => $config->row_status_style]);
+    }
+
     public function getConfigTabs(Request $request)
     {
         $config = AppLayoutConfiguration::where('user_id', auth()->id())->first();

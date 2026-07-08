@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/save-app-config-layout', [ConfigAppLayoutController::class, 'saveAppConfigLayout']);
+    Route::post('/save-row-status-style', [ConfigAppLayoutController::class, 'saveRowStatusStyle']);
     Route::post('/get-config-tabs', [ConfigAppLayoutController::class, 'getConfigTabs']);
     Route::post('/set-config-tabs', [ConfigAppLayoutController::class, 'setConfigTabs']);
 });

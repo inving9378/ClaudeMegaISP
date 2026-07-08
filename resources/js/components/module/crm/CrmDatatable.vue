@@ -113,25 +113,16 @@
                                     "
                                 />
                             </template>
-                            <q-input
-                                class="dt-search"
-                                dense
-                                v-model="search"
-                                placeholder="Buscar..."
-                                outlined
-                                :dark="darkMode"
-                                @keyup.enter="searchNow"
-                            >
-                            </q-input>
-                            <!-- Controles agrupados en un solo menú -->
+                            <!-- Controles agrupados en un solo menú (3 puntos a la IZQUIERDA del buscador) -->
                             <q-btn
                                 flat round dense
                                 icon="mdi-dots-vertical"
                                 class="dt-actions-toggle"
                                 :dark="darkMode"
                                 aria-label="Acciones de la tabla"
+                                style="margin-right: 4px"
                             >
-                                <q-menu anchor="bottom right" self="top right" :dark="darkMode"
+                                <q-menu anchor="bottom left" self="top left" :dark="darkMode"
                                     transition-show="jump-down" transition-hide="jump-up">
                                     <q-list style="min-width: 210px">
                                         <q-item clickable v-close-popup @click="showModal = true">
@@ -146,6 +137,23 @@
                                             </q-item-section>
                                             <q-item-section>Actualizar</q-item-section>
                                         </q-item>
+                                        <q-separator />
+                                        <q-item-label header class="q-py-xs">Estilo de estado</q-item-label>
+                                        <q-item clickable v-close-popup @click="setRowStatusStyle('underline')">
+                                            <q-item-section avatar>
+                                                <q-icon :name="rowStatusStyle === 'underline' ? 'mdi-check' : 'mdi-format-underline'"
+                                                    :style="{ color: rowStatusStyle === 'underline' ? '#34D399' : '#85B7EB' }" />
+                                            </q-item-section>
+                                            <q-item-section>Subrayado</q-item-section>
+                                        </q-item>
+                                        <q-item clickable v-close-popup @click="setRowStatusStyle('filled')">
+                                            <q-item-section avatar>
+                                                <q-icon :name="rowStatusStyle === 'filled' ? 'mdi-check' : 'mdi-format-color-fill'"
+                                                    :style="{ color: rowStatusStyle === 'filled' ? '#34D399' : '#ED93B1' }" />
+                                            </q-item-section>
+                                            <q-item-section>Relleno</q-item-section>
+                                        </q-item>
+                                        <q-separator />
                                         <q-item clickable v-close-popup @click="props.toggleFullscreen">
                                             <q-item-section avatar>
                                                 <q-icon name="mdi-fullscreen" style="color: #9B7EDE" />
@@ -164,6 +172,16 @@
                                     </q-list>
                                 </q-menu>
                             </q-btn>
+                            <q-input
+                                class="dt-search"
+                                dense
+                                v-model="search"
+                                placeholder="Buscar..."
+                                outlined
+                                :dark="darkMode"
+                                @keyup.enter="searchNow"
+                            >
+                            </q-input>
                         </div>
                     </div>
                 </template>
@@ -367,7 +385,7 @@ import { showLoading, hideLoading } from "../../../helpers/loading";
 import SelectFilter from "../../base/shared/SelectFilter.vue";
 import FilterDataTable from "../../base/shared/FilterDataTable.vue";
 import Swal from "sweetalert2";
-import { darkMode } from "../../../hook/appConfig";
+import { darkMode, rowStatusStyle, setRowStatusStyle } from "../../../hook/appConfig";
 import { useDataTable } from "../../../composables/useDataTable";
 import { cloneDeep } from "lodash";
 

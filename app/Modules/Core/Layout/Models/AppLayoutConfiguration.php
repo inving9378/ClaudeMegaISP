@@ -11,7 +11,8 @@ class AppLayoutConfiguration extends Model
     protected $fillable = [
         'user_id',
         'color_mode',
-        'client_datatable_color'
+        'client_datatable_color',
+        'row_status_style'
     ];
 
     protected $casts = [

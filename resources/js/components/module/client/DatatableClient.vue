@@ -72,21 +72,10 @@
               </a>
             </div>
             <div class="d-flex align-items-center">
-              <q-input
-                class="dt-search mb-0"
-                dense
-                v-model="search"
-                placeholder="Buscar"
-                outlined
-                style="margin-left: 16px; margin-right: 10px"
-                :dark="darkMode"
-                @keyup.enter="searchNow"
-              >
-              </q-input>
-              <!-- Controles agrupados en un solo menú -->
+              <!-- Controles agrupados en un solo menú (3 puntos a la IZQUIERDA del buscador) -->
               <q-btn flat round dense icon="mdi-dots-vertical" class="dt-actions-toggle"
-                :dark="darkMode" aria-label="Acciones de la tabla">
-                <q-menu anchor="bottom right" self="top right" :dark="darkMode"
+                :dark="darkMode" aria-label="Acciones de la tabla" style="margin-right: 4px">
+                <q-menu anchor="bottom left" self="top left" :dark="darkMode"
                   transition-show="jump-down" transition-hide="jump-up">
                   <q-list style="min-width: 220px">
                     <q-item clickable v-close-popup data-bs-toggle="modal" data-bs-target="#modaleditcolumn">
@@ -101,6 +90,23 @@
                       <q-item-section avatar><q-icon name="mdi-palette" style="color: #ED93B1" /></q-item-section>
                       <q-item-section>Alternar colores de estado</q-item-section>
                     </q-item>
+                    <q-separator />
+                    <q-item-label header class="q-py-xs">Estilo de estado</q-item-label>
+                    <q-item clickable v-close-popup @click="setRowStatusStyle('underline')">
+                      <q-item-section avatar>
+                        <q-icon :name="rowStatusStyle === 'underline' ? 'mdi-check' : 'mdi-format-underline'"
+                          :style="{ color: rowStatusStyle === 'underline' ? '#34D399' : '#85B7EB' }" />
+                      </q-item-section>
+                      <q-item-section>Subrayado</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup @click="setRowStatusStyle('filled')">
+                      <q-item-section avatar>
+                        <q-icon :name="rowStatusStyle === 'filled' ? 'mdi-check' : 'mdi-format-color-fill'"
+                          :style="{ color: rowStatusStyle === 'filled' ? '#34D399' : '#ED93B1' }" />
+                      </q-item-section>
+                      <q-item-section>Relleno</q-item-section>
+                    </q-item>
+                    <q-separator />
                     <q-item clickable v-close-popup @click="props.toggleFullscreen">
                       <q-item-section avatar><q-icon name="mdi-fullscreen" style="color: #9B7EDE" /></q-item-section>
                       <q-item-section>{{ props.inFullscreen ? 'Salir de pantalla completa' : 'Expandir pantalla' }}</q-item-section>
@@ -112,6 +118,17 @@
                   </q-list>
                 </q-menu>
               </q-btn>
+              <q-input
+                class="dt-search mb-0"
+                dense
+                v-model="search"
+                placeholder="Buscar"
+                outlined
+                style="margin-left: 8px; margin-right: 10px"
+                :dark="darkMode"
+                @keyup.enter="searchNow"
+              >
+              </q-input>
             </div>
           </div>
         </template>
@@ -301,7 +318,7 @@ import { exportTable, dataToFindExport } from "../../../helpers/ExportTablaExcel
 import { showLoading, hideLoading } from "../../../helpers/loading";
 import EditId from "./helpers/EditId.vue";
 import VueDatePicker from "@vuepic/vue-datepicker";
-import { darkMode } from "../../../hook/appConfig";
+import { darkMode, rowStatusStyle, setRowStatusStyle } from "../../../hook/appConfig";
 import { useOlts } from "../../../composables/useOlts";
 
 export default {
@@ -842,6 +859,8 @@ export default {
       menuChangeExpand,
       selectedRows,
       darkMode,
+      rowStatusStyle,
+      setRowStatusStyle,
       getOnuStatusClass,
       getOnuStatusIcon,
     };

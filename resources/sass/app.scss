@@ -87,6 +87,23 @@ tr.Inactivo  > td, tr.client-inactive > td { border-bottom: 2px solid #fbbf24 !i
 tr.Nuevo     > td, tr.client-new      > td { border-bottom: 2px solid #6c84f7 !important; }
 tr.Cancelado > td, tr.client-cancel   > td { border-bottom: 2px solid #9aa7b5 !important; }
 
+/* PREFERENCIA POR USUARIO — estilo RELLENO (body[data-row-style="filled"]).
+ * En vez de la línea inferior, la fila entera va con fondo de color por estado.
+ * El mapeo estado->color se conserva EXACTO (mismos hex que los swatches de leyenda).
+ * En claro gusta el relleno; en oscuro el subrayado (default) — cada usuario elige y se guarda. */
+body[data-row-style="filled"] tr.Activo    > td, body[data-row-style="filled"] tr.client-active   > td { background-color: #ccffcc !important; border-bottom: none !important; }
+body[data-row-style="filled"] tr.Bloqueado > td, body[data-row-style="filled"] tr.client-block    > td { background-color: #ffcccc !important; border-bottom: none !important; }
+body[data-row-style="filled"] tr.Inactivo  > td, body[data-row-style="filled"] tr.client-inactive > td { background-color: #ffffcc !important; border-bottom: none !important; }
+body[data-row-style="filled"] tr.Nuevo     > td, body[data-row-style="filled"] tr.client-new      > td { background-color: #ccccff !important; border-bottom: none !important; }
+body[data-row-style="filled"] tr.Cancelado > td, body[data-row-style="filled"] tr.client-cancel   > td { background-color: #cccccf !important; border-bottom: none !important; }
+
+/* En oscuro, el relleno pastel es claro → forzar texto oscuro para que sea legible. */
+body[data-row-style="filled"][data-layout-mode="dark"] tr.Activo    > td,
+body[data-row-style="filled"][data-layout-mode="dark"] tr.Bloqueado > td,
+body[data-row-style="filled"][data-layout-mode="dark"] tr.Inactivo  > td,
+body[data-row-style="filled"][data-layout-mode="dark"] tr.Nuevo     > td,
+body[data-row-style="filled"][data-layout-mode="dark"] tr.Cancelado > td { color: #000 !important; }
+
 /* Swatches de LEYENDA / celdas de estado (div/td con .client-*): CONSERVAN el relleno
  * pastel — ahí el color de fondo ES su significado (la clave del color), no una fila. */
 td.client-active,   div.client-active   { background-color: #ccffcc; }
