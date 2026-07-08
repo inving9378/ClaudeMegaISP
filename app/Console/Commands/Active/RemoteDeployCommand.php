@@ -53,6 +53,17 @@ class RemoteDeployCommand extends Command
 
     private function runDeploy(DeploymentLog $log): int
     {
+        // M2 — Higiene previa: matar procesos huérfanos de deploys anteriores (migrate/npm colgados
+        // con stdout abierto) ANTES de arrancar, para que no cuelguen ni contaminen este deploy. El
+        // DeploymentLock ya garantiza que ningún deploy legítimo corre en paralelo → cualquier proceso
+        // que empareje un patrón exclusivo de deploy es un zombie de una corrida previa.
+        $orphans = $this->killOrphanDeployProcesses();
+        if ($orphans) {
+            $this->warn('  [higiene]: procesos huérfanos de deploy terminados → ' . implode(', ', $orphans));
+        } else {
+            $this->line('  [higiene]: sin procesos huérfanos de deploy.');
+        }
+
         $version     = $this->option('app-version') ?? '';
         $title       = $this->option('title') ?? '';
         $summary     = $this->option('summary') ?? '';
@@ -85,7 +96,7 @@ class RemoteDeployCommand extends Command
             //     Esquema-only por defecto; para validar fallos dependientes de datos, añadir
             //     --with-data=tabla1,tabla2 al comando.
             //     Timeout alineado con el del migrate real (config('deployment.migrate_timeout'),
-            //     default 2400s): si el dry-run fuera más corto, una migración lenta pasaría el
+            //     default 600s): si el dry-run fuera más corto, una migración lenta pasaría el
             //     dry-run pero timeoutearía el migrate real. Ambos leen la MISMA clave de config.
             ['key' => 'migrate_dryrun', 'name' => 'Validar migraciones (dry-run)',     'type' => 'shell', 'cmd' => 'php artisan deploy:dry-run-migrations', 'timeout' => config('deployment.migrate_timeout', 2400), 'critical' => true],
             // 3. Compilar el frontend EN el servidor (assets fuera de git) — crítico:
@@ -101,8 +112,9 @@ class RemoteDeployCommand extends Command
             //    NO es critical (un git reset sobre un esquema ya modificado es peligroso), pero
             //    tampoco es decorativo: si falla, el deploy debe terminar en 'failed' SIN revertir
             //    código → flag 'fail_deploy_no_rollback'. Timeout config('deployment.migrate_timeout')
-            //    (default 2400s; antes 900s hardcodeado, y 300s antes de eso: un ALTER largo sobre una
-            //    tabla grande timeouteaba y dejaba el sitio en 500 hasta que terminaba en background).
+            //    (default 600s; antes 2400s: un migrate colgado hacía esperar 40 min inútiles). Combinado
+            //    con la verificación M1 (migrate:status): tras el timeout se comprueba el estado real y,
+            //    si no quedan migraciones pendientes, el fallo por exit se trata como éxito y el deploy sigue.
             ['key' => 'migrate',       'name' => 'Aplicando cambios en la base de datos — puede tardar varios minutos, no cierres la ventana', 'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => config('deployment.migrate_timeout', 2400), 'critical' => false, 'fail_deploy_no_rollback' => true],
             // 5. Warm-up de cachés
             ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
@@ -152,11 +164,46 @@ class RemoteDeployCommand extends Command
                 continue;
             }
 
+            // M3 — Saltar la compilación de frontend si ni las dependencias ni el frontend cambiaron
+            // respecto al deploy anterior: los assets ya compilados persisten en el servidor (están fuera
+            // de git → un checkout no los borra). Ahorra el grueso del tiempo cuando el deploy es solo PHP.
+            // git_sync (paso previo) ya corrió → HEAD apunta ya al código nuevo. Falla-seguro: ante cualquier
+            // duda compila (ver canSkipNpmBuild).
+            if ($step['key'] === 'npm_build' && $this->canSkipNpmBuild($previousCommit)) {
+                $log->updateStep($step['key'], [
+                    'status'      => 'success',
+                    'output'      => 'Omitido: package-lock.json y frontend sin cambios respecto al deploy anterior — se conservan los assets ya compilados.',
+                    'exit_code'   => 0,
+                    'duration_ms' => 0,
+                ]);
+                $this->line('  [npm_build]: OMITIDO (sin cambios en dependencias/frontend) — M3.');
+                continue;
+            }
+
             [$exitCode, $output, $ms] = $step['type'] === 'artisan'
                 ? $this->runArtisan($step['cmd'], $step['params'] ?? [])
                 : $this->runShell($step['cmd'], $step['timeout']);
 
             $success = $exitCode === 0;
+
+            // M1 — Verificar en vez de confiar en el exit code (LA clave anti-cuelgue): para el paso
+            // migrate, un proceso zombie con stdout abierto puede colgar/tumbar el pipeline por timeout
+            // aunque las migraciones SÍ se hayan aplicado. Antes de darlo por fallido consultamos el
+            // estado REAL con `migrate:status`: 0 pendientes → el migrate fue exitoso y el deploy sigue.
+            if ($step['key'] === 'migrate' && !$success) {
+                $pending = $this->pendingMigrationsCount();
+                if ($pending === 0) {
+                    $success = true;
+                    $output  = trim($output) . "\n[verificación migrate:status] 0 migraciones pendientes → "
+                             . "aplicadas por completo pese a exit {$exitCode} (probable proceso colgado). Deploy continúa.";
+                    $this->warn("  [migrate]: exit {$exitCode} pero migrate:status = 0 pendientes → tratado como OK (M1).");
+                } elseif ($pending > 0) {
+                    $output = trim($output) . "\n[verificación migrate:status] {$pending} migración(es) pendiente(s) → fallo real.";
+                } else {
+                    // -1 = no se pudo verificar (migrate:status falló) → conservador: se mantiene el fallo.
+                    $output = trim($output) . "\n[verificación migrate:status] no verificable → se mantiene el fallo por exit {$exitCode}.";
+                }
+            }
             $log->updateStep($step['key'], [
                 'status'      => $success ? 'success' : 'failed',
                 'output'      => mb_substr(trim($output), -2000),
@@ -277,7 +324,12 @@ class RemoteDeployCommand extends Command
         $startedAt = microtime(true);
         try {
             $process = Process::fromShellCommandline($command, base_path(), $this->buildEnv(), null, $timeout);
-            $process->run(fn($t, $b) => $output .= $b);
+            // OJO: el callback DEBE capturar $output por REFERENCIA. Una arrow fn (`fn(...) => $output .= $b`)
+            // captura por VALOR → nunca acumulaba y el output de todo paso shell salía vacío (bug latente).
+            // La verificación M1 (migrate:status) y la limpieza M2 (pgrep) dependen de leer este output.
+            $process->run(function ($type, $buffer) use (&$output) {
+                $output .= $buffer;
+            });
             $exitCode = $process->getExitCode() ?? 0;
             if ($exitCode !== 0 && empty(trim($output))) {
                 $output = sprintf('[exit %d] Sin output — PATH=%s', $exitCode, $this->buildEnv()['PATH'] ?? 'N/A');
@@ -297,6 +349,77 @@ class RemoteDeployCommand extends Command
         } catch (\Throwable $e) {
             return [1, $e->getMessage(), (int) ((microtime(true) - $startedAt) * 1000)];
         }
+    }
+
+    /**
+     * M1 — Cuenta las migraciones pendientes vía `migrate:status`. Devuelve -1 si NO se pudo verificar
+     * (el comando falló) para que el caller sea conservador y no dé por bueno un migrate incierto.
+     * En la salida de `migrate:status` cada fila termina en "Ran" (con su lote) o "Pending".
+     */
+    private function pendingMigrationsCount(): int
+    {
+        [$code, $output] = $this->runShell('php artisan migrate:status --no-ansi', 120);
+        if ($code !== 0) {
+            return -1;
+        }
+        return (int) preg_match_all('/\bPending\b/', $output);
+    }
+
+    /**
+     * M3 — ¿Se puede omitir `npm ci && npm run prod`? Sí cuando entre el commit anterior y el actual
+     * NO cambió nada que afecte al build (package.json, package-lock.json, webpack.mix.js, resources/)
+     * y ya existen assets compilados en el servidor. Falla-seguro: ante cualquier duda, compila.
+     */
+    private function canSkipNpmBuild(?string $previousCommit): bool
+    {
+        if (!$previousCommit) {
+            return false;
+        }
+        // Sin manifest previo no hay assets que conservar → hay que compilar.
+        if (!is_file(base_path('public/mix-manifest.json'))) {
+            return false;
+        }
+        // git diff --quiet: exit 0 = sin cambios (omitible) · exit 1 = hubo cambios · otro = error → no omitir.
+        [$code] = $this->runShell(
+            "git diff --quiet {$previousCommit} HEAD -- package.json package-lock.json webpack.mix.js resources/",
+            60
+        );
+        return $code === 0;
+    }
+
+    /**
+     * M2 — Mata procesos huérfanos de deploys anteriores (migrate/npm colgados) que podrían quedar con
+     * stdout abierto y colgar/contaminar este deploy. Solo toca procesos cuyo patrón de comando es
+     * EXCLUSIVO de un deploy; nunca procesos legítimos. El primer carácter de cada patrón va en clase de
+     * regex (`[p]hp`) para que ni el propio `pgrep` ni su shell se auto-emparejen. Se corre ANTES del
+     * primer paso: en este punto el deploy actual aún no lanzó su migrate/npm → toda coincidencia es huérfana.
+     *
+     * @return array<int,string> descripciones "pid (patrón)" de lo que se terminó
+     */
+    private function killOrphanDeployProcesses(): array
+    {
+        $self     = getmypid();
+        $patterns = [
+            '[p]hp artisan migrate --force',
+            '[p]hp artisan deploy:dry-run-migrations',
+            '[n]pm ci',
+            '[n]pm run prod',
+        ];
+
+        $killed = [];
+        foreach ($patterns as $pattern) {
+            [, $out] = $this->runShell('pgrep -f ' . escapeshellarg($pattern) . ' 2>/dev/null || true', 15);
+            foreach (preg_split('/\s+/', trim($out)) as $pid) {
+                if ($pid === '' || !ctype_digit($pid) || (int) $pid === $self) {
+                    continue;
+                }
+                // TERM primero; si sigue vivo, KILL. Silencioso: el proceso pudo morir entre el pgrep y el kill.
+                $this->runShell('kill -TERM ' . (int) $pid . ' 2>/dev/null; sleep 1; kill -KILL ' . (int) $pid . ' 2>/dev/null; true', 10);
+                $killed[] = "{$pid} ({$pattern})";
+            }
+        }
+
+        return $killed;
     }
 
     private function saveRelease(string $version, string $title, string $summary, string $releaseDate): string

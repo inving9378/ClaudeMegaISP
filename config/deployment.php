@@ -30,12 +30,15 @@ $releaseArtifacts = [
 return [
 
     // Timeout (segundos) del paso de migración en el pipeline REMOTO de prod
-    // (RemoteDeployCommand: pasos 'migrate' y 'migrate_dryrun', que lo leen de aquí).
-    // Un ALTER largo sobre una tabla grande puede tardar; con 900s el sitio quedaba en 500
-    // hasta que la migración terminaba en background. Subido a 2400s (40 min).
+    // (RemoteDeployCommand: pasos 'migrate' y 'migrate_dryrun', que lo leen de aquí →
+    //  siempre alineados: el dry-run nunca es más corto que el migrate real).
+    // Antes 2400s (40 min): un migrate colgado hacía esperar 40 min inútiles antes de cortar
+    // y marcar TODO el deploy failed aunque las migraciones sí se aplicaron. Bajado a 600s (10 min)
+    // combinado con la verificación M1 (`migrate:status`): si a los 600s el proceso sigue colgado,
+    // se corta y se comprueba el estado real — si no quedan migraciones pendientes, el deploy CONTINÚA.
     // NOTA: gobierna el Symfony Process de esos pasos en prod (que corre por nohup, sin
     // techo de Supervisor). NO tiene relación con el --timeout del worker local del .conf.
-    'migrate_timeout' => env('DEPLOY_MIGRATE_TIMEOUT', 2400),
+    'migrate_timeout' => env('DEPLOY_MIGRATE_TIMEOUT', 600),
 
     'steps' => [
         [
