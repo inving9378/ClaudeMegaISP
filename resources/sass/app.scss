@@ -72,54 +72,28 @@
 [data-layout-mode=dark] .client-inactive,
 [data-layout-mode=dark] .client-new,
 [data-layout-mode=dark] .client-cancel,
-[data-layout-mode=dark] tr.Activo a,
-[data-layout-mode=dark] tr.Bloqueado a,
-[data-layout-mode=dark] tr.Inactivo a,
-[data-layout-mode=dark] tr.Nuevo a,
-[data-layout-mode=dark] tr.Cancelado a,
-[data-layout-mode=dark] tr.Activo,
-[data-layout-mode=dark] tr.Bloqueado,
-[data-layout-mode=dark] tr.Inactivo,
-[data-layout-mode=dark] tr.Nuevo,
-[data-layout-mode=dark] tr.Cancelado,
 [data-layout-mode=dark] span.start-time {
     color: #000 !important;
 }
 
-tr.Activo,
-tr.client-active,
-td.client-active,
-div.client-active {
-    background-color: #ccffcc;
-}
+/* Filas de tabla por estado: LÍNEA INFERIOR de color (mismo criterio que los badges),
+ * fondo neutro del tema y texto del tema (blanco en oscuro). El mapeo estado->color se
+ * conserva EXACTO: verde=al corriente, rojo=vencido/corte, ámbar=pendiente/inactivo,
+ * azul=nuevo, gris=cancelado. Se aplica a los <td> (el separador de fila se recolorea) para
+ * que rinda igual en q-table y en DataTables. */
+tr.Activo    > td, tr.client-active   > td { border-bottom: 2px solid #34d399 !important; }
+tr.Bloqueado > td, tr.client-block    > td { border-bottom: 2px solid #f87171 !important; }
+tr.Inactivo  > td, tr.client-inactive > td { border-bottom: 2px solid #fbbf24 !important; }
+tr.Nuevo     > td, tr.client-new      > td { border-bottom: 2px solid #6c84f7 !important; }
+tr.Cancelado > td, tr.client-cancel   > td { border-bottom: 2px solid #9aa7b5 !important; }
 
-tr.Bloqueado,
-tr.client-block,
-td.client-block,
-div.client-block {
-    background-color: #ffcccc;
-}
-
-tr.Inactivo,
-tr.client-inactive,
-td.client-inactive,
-div.client-inactive {
-    background-color: #ffffcc;
-}
-
-tr.Nuevo,
-tr.client-new,
-td.client-new,
-div.client-new {
-    background-color: #ccccff;
-}
-
-tr.Cancelado,
-tr.client-cancel,
-td.client-cancel,
-div.client-cancel {
-    background-color: #cccccf;
-}
+/* Swatches de LEYENDA / celdas de estado (div/td con .client-*): CONSERVAN el relleno
+ * pastel — ahí el color de fondo ES su significado (la clave del color), no una fila. */
+td.client-active,   div.client-active   { background-color: #ccffcc; }
+td.client-block,    div.client-block    { background-color: #ffcccc; }
+td.client-inactive, div.client-inactive { background-color: #ffffcc; }
+td.client-new,      div.client-new      { background-color: #ccccff; }
+td.client-cancel,   div.client-cancel   { background-color: #cccccf; }
 
 .swal-error-container {
     color: red !important;
