@@ -54,9 +54,9 @@
     --bg-surface:     #1A1A1A;  /* tarjetas/paneles */
     --bg-hover:       #242424;  /* hover */
 
-    /* === Text — Paleta C (blanco puro / gris legible) === */
+    /* === Text — Paleta C (blanco puro / gris casi blanco para legibilidad) === */
     --text-primary:   #FFFFFF;
-    --text-secondary: #B0B0B0;
+    --text-secondary: #E0E0E0;
 
     /* === Borders & Effects === */
     --border-default: #2A2A2A;

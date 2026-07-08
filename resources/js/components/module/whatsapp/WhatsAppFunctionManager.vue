@@ -273,6 +273,22 @@ export default {
 .wfm-status.on { background: var(--success); color: #fff; }
 .wfm-status.off { background: var(--bg-hover); color: var(--text-secondary); }
 
+/* Modo oscuro: chips y estados con línea inferior (texto blanco + color abajo, sin fondo).
+   Solo dark → el modo claro conserva su pastilla de color. */
+[data-layout-mode="dark"] .wfm-chip,
+[data-layout-mode="dark"] .wfm-status {
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 2px solid var(--text-secondary) !important;
+    border-radius: 0 !important;
+    color: #fff !important;
+    padding: 2px 0;
+}
+[data-layout-mode="dark"] .wfm-chip.exclusive { border-bottom-color: var(--warning) !important; }
+[data-layout-mode="dark"] .wfm-status.on { border-bottom-color: var(--success) !important; }
+[data-layout-mode="dark"] .wfm-chip.shared,
+[data-layout-mode="dark"] .wfm-status.off { border-bottom-color: var(--text-secondary) !important; }
+
 .wfm-btn {
     background: var(--bg-hover); color: var(--text-primary);
     border: 1px solid var(--border-default); border-radius: 6px;

@@ -42,7 +42,7 @@ body[data-layout-mode=dark] .progress-bar-striped {
 }
 
 [data-layout-mode="dark"] a {
-    color: #B0B0B0;
+    color: #E0E0E0;
 }
 
 [data-layout-mode="dark"] .fc .fc-daygrid-day-number {
@@ -148,4 +148,74 @@ table.dataTable.table-striped>tbody>tr.even>* {
 [data-layout-mode="dark"] .form-control::placeholder {
     color: #B0B0B0 !important;
     opacity: 1;
+}
+
+/* ============================================================================
+ * AJUSTE 1 — Texto secundario más blanco en TODO el sistema
+ * El vendor (app.min.css) pinta .text-muted en #858d98 (apagado). Lo subimos a
+ * #E0E0E0 (casi blanco) de un golpe. Cubre labels, hints y descripciones.
+ * ========================================================================== */
+[data-layout-mode="dark"] .text-muted,
+[data-layout-mode="dark"] .text-secondary,
+[data-layout-mode="dark"] small.text-muted,
+[data-layout-mode="dark"] .form-text,
+[data-layout-mode="dark"] .no-data,
+[data-layout-mode="dark"] .comment-author {
+    color: #E0E0E0 !important;
+}
+
+/* ============================================================================
+ * AJUSTE 2 — Badges de estado: texto blanco + línea de color abajo (sin fondo
+ * de color). El color comunica el estado; el texto SIEMPRE se lee. Centralizado.
+ * Cubre: Bootstrap .badge (.bg-*), badges de vendedor (.badge-*), factura
+ * (.badge-invoice-). Los fondos de fila (.client- y tr. de estado) NO se tocan.
+ * ========================================================================== */
+[data-layout-mode="dark"] .badge,
+[data-layout-mode="dark"] .badge-Interno,
+[data-layout-mode="dark"] .badge-Externo,
+[data-layout-mode="dark"] .badge-Distribuidor,
+[data-layout-mode="dark"] .badge-Activo,
+[data-layout-mode="dark"] .badge-Inactivo,
+[data-layout-mode="dark"] .badge-Bloqueado,
+[data-layout-mode="dark"] [class*="badge-invoice-"] {
+    background-color: transparent !important;
+    background-image: none !important;
+    color: #FFFFFF !important;
+    border: 0 !important;
+    border-bottom: 2px solid #B0B0B0 !important; /* neutro por defecto; se especializa abajo */
+    border-radius: 0 !important;
+}
+
+/* Color de estado en la línea inferior (por variante) */
+[data-layout-mode="dark"] .badge-Interno            { border-bottom-color: #03c3ec !important; }
+[data-layout-mode="dark"] .badge-Externo            { border-bottom-color: #696cff !important; }
+[data-layout-mode="dark"] .badge-Distribuidor       { border-bottom-color: #9aa7b5 !important; }
+[data-layout-mode="dark"] .badge-Activo,
+[data-layout-mode="dark"] .badge.bg-success,
+[data-layout-mode="dark"] .badge-invoice-Pagada     { border-bottom-color: #34d399 !important; }
+[data-layout-mode="dark"] .badge-Inactivo,
+[data-layout-mode="dark"] .badge.bg-warning,
+[data-layout-mode="dark"] .badge-invoice-Parcialmente_Pagada { border-bottom-color: #fbbf24 !important; }
+[data-layout-mode="dark"] .badge-Bloqueado,
+[data-layout-mode="dark"] .badge.bg-danger,
+[data-layout-mode="dark"] .badge-invoice-Borrador,
+[data-layout-mode="dark"] .badge-invoice-Emitida,
+[data-layout-mode="dark"] .badge-invoice-Vencida    { border-bottom-color: #f87171 !important; }
+[data-layout-mode="dark"] .badge.bg-primary         { border-bottom-color: #6c84f7 !important; }
+[data-layout-mode="dark"] .badge.bg-info            { border-bottom-color: #60a5fa !important; }
+[data-layout-mode="dark"] .badge.bg-secondary       { border-bottom-color: #9aa7b5 !important; }
+
+/* ============================================================================
+ * AJUSTE 3 — Sidebar: módulo ACTIVO con línea inferior verde + texto blanco.
+ * El activo lo marca window.__updateSidebarActiveLink (clase .active, re-corre
+ * en navegación SPA). Aquí solo lo hacemos VISIBLE en modo oscuro.
+ * ========================================================================== */
+[data-layout-mode="dark"] #sidebar-menu a.active {
+    color: #FFFFFF !important;
+    border-bottom: 2px solid #34d399 !important;
+    border-radius: 0 !important;
+}
+/* Solo el TEXTO se fuerza a blanco; el icono conserva su color de módulo. */
+[data-layout-mode="dark"] #sidebar-menu a.active span {
+    color: #FFFFFF !important;
 }

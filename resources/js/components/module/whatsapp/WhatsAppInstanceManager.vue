@@ -687,6 +687,19 @@ export default {
 .wim-status.connected { background: var(--success); color: #fff; }
 .wim-status.disconnected { background: var(--danger); color: #fff; }
 .wim-status.pending { background: var(--warning); color: #1f2937; }
+
+/* Modo oscuro: estilo de línea inferior (texto blanco + color de estado abajo, sin fondo).
+   Solo dark → el modo claro conserva la pastilla de color de arriba. */
+[data-layout-mode="dark"] .wim-status {
+    background: transparent !important;
+    border-radius: 0;
+    border-bottom: 2px solid var(--text-secondary);
+    color: #fff !important;
+    padding: 2px 0;
+}
+[data-layout-mode="dark"] .wim-status.connected { border-bottom-color: var(--success); }
+[data-layout-mode="dark"] .wim-status.disconnected { border-bottom-color: var(--danger); }
+[data-layout-mode="dark"] .wim-status.pending { border-bottom-color: var(--warning); }
 .wim-card-body {
     font-size: 13px;
     color: var(--text-secondary);
