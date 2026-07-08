@@ -25,6 +25,30 @@ class EvolutionApiService
     }
 
     /**
+     * Identificador de la instancia hacia Evolution — FUENTE ÚNICA DE VERDAD.
+     *
+     * Se usa el SLUG (sin espacios, minúsculas, URL-safe) en TODAS las llamadas
+     * (create, connect, connectionState, qr, logout, sendText y el match de
+     * fetchInstances). El campo `instance_id` de la BD puede traer espacios/
+     * mayúsculas heredados (ej. "Pruebas DEV") y solo sirve como etiqueta en la UI;
+     * si se manda con espacios, Evolution crea con un nombre y luego no lo encuentra
+     * al consultar → 404 y el QR nunca aparece. Normalización conservadora e
+     * idempotente: no altera slugs ya limpios (meganet-ventas, pruebasdev).
+     */
+    private function evolutionName(WhatsAppInstance $instance): string
+    {
+        $raw  = ($instance->slug !== null && $instance->slug !== '')
+            ? $instance->slug
+            : (string) $instance->instance_id;
+
+        $name = strtolower(trim($raw));
+        $name = preg_replace('/[^a-z0-9._-]+/', '-', $name);
+        $name = trim($name, '-._');
+
+        return $name !== '' ? $name : 'instance-' . $instance->id;
+    }
+
+    /**
      * Punto de entrada principal desde otros módulos.
      * Persiste mensaje + dispatch del job; el envío real ocurre en sendTextViaApi().
      */
@@ -80,7 +104,7 @@ class EvolutionApiService
         $response = Http::withHeaders([
             'apikey'       => $apiKey,
             'Content-Type' => 'application/json',
-        ])->post("{$this->baseUrl}/message/sendText/{$instance->instance_id}", [
+        ])->post("{$this->baseUrl}/message/sendText/{$this->evolutionName($instance)}", [
             'number' => $number,
             'text'   => $message->body,
             'delay'  => 1000,
@@ -113,10 +137,54 @@ class EvolutionApiService
             ];
         }
 
+        // Crear-si-no-existe: la fila local puede existir sin que Evolution conozca la
+        // instancia (tarjeta sembrada por migración, o create previo fallido). Sin esto,
+        // connect da 404 "instance does not exist" y el QR nunca aparece. Idempotente:
+        // si ya existe (p.ej. meganet-ventas), no crea nada.
+        $this->ensureInstanceExists($instance);
+
         $response = Http::withHeaders(['apikey' => $this->apiKey])
-            ->get("{$this->baseUrl}/instance/connect/{$instance->instance_id}");
+            ->get("{$this->baseUrl}/instance/connect/{$this->evolutionName($instance)}");
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * Garantiza que la instancia exista en Evolution ANTES de pedir el QR. Consulta
+     * fetchInstances por el nombre (slug) y, si no está, la crea. Best-effort: si la
+     * verificación falla, intenta crear igual (create es idempotente del lado de Evolution).
+     */
+    public function ensureInstanceExists(WhatsAppInstance $instance): bool
+    {
+        if ($this->fakeMode) {
+            return true;
+        }
+
+        $wanted = $this->evolutionName($instance);
+
+        try {
+            $response = Http::withHeaders(['apikey' => $this->apiKey])
+                ->get("{$this->baseUrl}/instance/fetchInstances");
+            foreach ((is_array($response->json()) ? $response->json() : []) as $it) {
+                $name = $it['name'] ?? $it['instanceName'] ?? null;
+                if ($name === $wanted) {
+                    return true; // ya existe → nada que crear
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('fetchInstances falló al verificar existencia de instancia', [
+                'instance' => $wanted,
+                'error'    => $e->getMessage(),
+            ]);
+        }
+
+        $created = $this->createInstance($instance);
+        Log::info('Instancia creada on-demand en Evolution (flujo QR)', [
+            'instance' => $wanted,
+            'ok'       => empty($created['error']),
+        ]);
+
+        return true;
     }
 
     public function getConnectionStatus(WhatsAppInstance $instance): array
@@ -126,7 +194,7 @@ class EvolutionApiService
         }
 
         $response = Http::withHeaders(['apikey' => $this->apiKey])
-            ->get("{$this->baseUrl}/instance/connectionState/{$instance->instance_id}");
+            ->get("{$this->baseUrl}/instance/connectionState/{$this->evolutionName($instance)}");
 
         return $response->json() ?? ['state' => 'unknown'];
     }
@@ -150,9 +218,10 @@ class EvolutionApiService
             return [];
         }
 
+        $wanted = $this->evolutionName($instance);
         foreach ($list as $it) {
             $name = $it['name'] ?? $it['instanceName'] ?? null;
-            if ($name === $instance->instance_id) {
+            if ($name === $wanted) {
                 $jid    = $it['ownerJid'] ?? null;
                 $number = $jid ? explode('@', $jid)[0] : ($it['number'] ?? null);
 
@@ -179,7 +248,7 @@ class EvolutionApiService
         }
 
         $response = Http::withHeaders(['apikey' => $this->apiKey])
-            ->delete("{$this->baseUrl}/instance/logout/{$instance->instance_id}");
+            ->delete("{$this->baseUrl}/instance/logout/{$this->evolutionName($instance)}");
 
         return $response->json() ?? [];
     }
@@ -189,7 +258,7 @@ class EvolutionApiService
         if ($this->fakeMode) {
             return [
                 'instance' => [
-                    'instanceName' => $instance->instance_id,
+                    'instanceName' => $this->evolutionName($instance),
                     'status'       => 'created',
                 ],
                 'fake' => true,
@@ -199,20 +268,27 @@ class EvolutionApiService
         $webhookUrl = rtrim((string) config('whatsapp.webhook_base_url'), '/')
             . '/whatsapp/webhook/' . $instance->slug;
 
+        // Evolution v2 exige `integration` (sin él → 400 "Invalid integration") y espera
+        // `webhook` como OBJETO {url,byEvents,base64,events}, no como string plano. Sin esto
+        // la instancia NUNCA se crea → connect da 404 → el QR jamás aparece.
         $response = Http::withHeaders([
             'apikey'       => $this->apiKey,
             'Content-Type' => 'application/json',
         ])->post("{$this->baseUrl}/instance/create", [
-            'instanceName'    => $instance->instance_id,
-            'token'           => $this->decryptInstanceKey($instance),
-            'qrcode'          => true,
-            'webhook'         => $webhookUrl,
-            'webhookByEvents' => false,
-            'events'          => [
-                'MESSAGES_UPSERT',
-                'MESSAGES_UPDATE',
-                'CONNECTION_UPDATE',
-                'QRCODE_UPDATED',
+            'instanceName' => $this->evolutionName($instance),
+            'token'        => $this->decryptInstanceKey($instance),
+            'qrcode'       => true,
+            'integration'  => 'WHATSAPP-BAILEYS',
+            'webhook'      => [
+                'url'      => $webhookUrl,
+                'byEvents' => false,
+                'base64'   => true,
+                'events'   => [
+                    'MESSAGES_UPSERT',
+                    'MESSAGES_UPDATE',
+                    'CONNECTION_UPDATE',
+                    'QRCODE_UPDATED',
+                ],
             ],
         ]);
 
