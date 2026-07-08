@@ -9,7 +9,6 @@ use App\Modules\Addons\WhatsAppAgent\Services\EvolutionApiService;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppFunctionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 
 class WhatsAppInstanceController extends Controller
@@ -37,15 +36,20 @@ class WhatsAppInstanceController extends Controller
         $data = $request->validate([
             'name'             => 'required|string|max:100',
             'slug'             => 'required|string|unique:whatsapp_instances,slug|alpha_dash',
-            'instance_id'      => 'required|string|max:100',
-            'api_url'          => 'required|url',
-            'api_key'          => 'required|string',
+            'instance_id'      => 'nullable|string|max:100',
             'phone_number'     => 'nullable|string',
             'default_instance' => 'sometimes|boolean',
         ]);
 
-        $data['api_key'] = Crypt::encryptString($data['api_key']);
-        $instance        = WhatsAppInstance::create($data);
+        // Autenticación con Evolution INVISIBLE: la apikey y la URL salen SIEMPRE del .env
+        // (config/whatsapp), nunca del usuario/request. Las columnas api_url/api_key son
+        // NOT NULL: api_url se llena con la global (solo display) y api_key queda vacía —
+        // la credencial ya NO se guarda por-instancia; todas las llamadas usan la global.
+        $data['api_url']     = (string) config('whatsapp.api_url');
+        $data['api_key']     = '';
+        $data['instance_id'] = $data['instance_id'] ?? $data['slug']; // etiqueta; a Evolution va el slug
+
+        $instance = WhatsAppInstance::create($data);
 
         try {
             app(EvolutionApiService::class)->createInstance($instance);

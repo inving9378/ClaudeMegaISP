@@ -6,7 +6,6 @@ use App\Modules\Addons\WhatsAppAgent\Jobs\SendWhatsAppMessageJob;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppConversation;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstance;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppMessage;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -99,10 +98,11 @@ class EvolutionApiService
 
         $instance = $message->instance;
         $number   = $message->conversation->contact_number;
-        $apiKey   = $this->decryptInstanceKey($instance);
 
+        // Autenticación INVISIBLE: siempre la apikey global del .env (== AUTHENTICATION_API_KEY
+        // de Evolution). Nunca una key por-instancia provista por el usuario.
         $response = Http::withHeaders([
-            'apikey'       => $apiKey,
+            'apikey'       => $this->apiKey,
             'Content-Type' => 'application/json',
         ])->post("{$this->baseUrl}/message/sendText/{$this->evolutionName($instance)}", [
             'number' => $number,
@@ -276,7 +276,6 @@ class EvolutionApiService
             'Content-Type' => 'application/json',
         ])->post("{$this->baseUrl}/instance/create", [
             'instanceName' => $this->evolutionName($instance),
-            'token'        => $this->decryptInstanceKey($instance),
             'qrcode'       => true,
             'integration'  => 'WHATSAPP-BAILEYS',
             'webhook'      => [
@@ -306,14 +305,5 @@ class EvolutionApiService
                 'status' => 'open',
             ]
         );
-    }
-
-    private function decryptInstanceKey(WhatsAppInstance $instance): string
-    {
-        try {
-            return Crypt::decryptString($instance->api_key);
-        } catch (\Throwable $e) {
-            return (string) $instance->api_key;
-        }
     }
 }

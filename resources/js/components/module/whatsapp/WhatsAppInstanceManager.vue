@@ -97,9 +97,7 @@
                 <div class="wim-form">
                     <label>Nombre <input v-model="form.name" @input="autoSlug" placeholder="Ventas, Soporte..." /></label>
                     <label>Slug (URL) <input v-model="form.slug" placeholder="ventas-mx" /></label>
-                    <label>Instance ID (en Evolution API) <input v-model="form.instance_id" placeholder="meganet-ventas" /></label>
-                    <label>API URL <input v-model="form.api_url" placeholder="http://localhost/evolution" /></label>
-                    <label>API Key <input v-model="form.api_key" type="password" placeholder="apikey de Evolution" /></label>
+                    <label>Etiqueta / ID interno (opcional) <input v-model="form.instance_id" placeholder="Se usa el slug si lo dejas vacío" /></label>
                     <label>Número WhatsApp (display) <input v-model="form.phone_number" placeholder="+52 55 1234 5678" /></label>
                     <label class="wim-checkbox">
                         <input type="checkbox" v-model="form.default_instance" />
@@ -276,8 +274,6 @@ export default {
                 name: '',
                 slug: '',
                 instance_id: '',
-                api_url: 'http://localhost/evolution',
-                api_key: '',
                 phone_number: '',
                 default_instance: false,
             },
@@ -482,8 +478,6 @@ export default {
                 name: '',
                 slug: '',
                 instance_id: '',
-                api_url: 'http://localhost/evolution',
-                api_key: '',
                 phone_number: '',
                 default_instance: false,
             };
