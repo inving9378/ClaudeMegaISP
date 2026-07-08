@@ -87,22 +87,56 @@ tr.Inactivo  > td, tr.client-inactive > td { border-bottom: 2px solid #fbbf24 !i
 tr.Nuevo     > td, tr.client-new      > td { border-bottom: 2px solid #6c84f7 !important; }
 tr.Cancelado > td, tr.client-cancel   > td { border-bottom: 2px solid #9aa7b5 !important; }
 
-/* PREFERENCIA POR USUARIO — estilo RELLENO (body[data-row-style="filled"]).
- * En vez de la línea inferior, la fila entera va con fondo de color por estado.
- * El mapeo estado->color se conserva EXACTO (mismos hex que los swatches de leyenda).
- * En claro gusta el relleno; en oscuro el subrayado (default) — cada usuario elige y se guarda. */
-body[data-row-style="filled"] tr.Activo    > td, body[data-row-style="filled"] tr.client-active   > td { background-color: #ccffcc !important; border-bottom: none !important; }
-body[data-row-style="filled"] tr.Bloqueado > td, body[data-row-style="filled"] tr.client-block    > td { background-color: #ffcccc !important; border-bottom: none !important; }
-body[data-row-style="filled"] tr.Inactivo  > td, body[data-row-style="filled"] tr.client-inactive > td { background-color: #ffffcc !important; border-bottom: none !important; }
-body[data-row-style="filled"] tr.Nuevo     > td, body[data-row-style="filled"] tr.client-new      > td { background-color: #ccccff !important; border-bottom: none !important; }
-body[data-row-style="filled"] tr.Cancelado > td, body[data-row-style="filled"] tr.client-cancel   > td { background-color: #cccccf !important; border-bottom: none !important; }
+/* PREFERENCIA POR USUARIO — estilo RELLENO "C3" (body[data-row-style="filled"]).
+ * Cada fila con estado se convierte en TARJETA enmarcada: fondo pastel + borde completo
+ * del color + barra lateral izquierda gruesa (acento) + sombra sutil + esquinas
+ * redondeadas + separación entre filas. El mapeo estado->color se conserva IDÉNTICO;
+ * solo cambia el estilo visual. Mismo look en claro y oscuro (pastel claro + texto
+ * oscuro del color = legible sobre fondo claro Y oscuro → las tarjetas "flotan").
+ *
+ * TÉCNICA para radius/sombra en <tr> (que no las aceptan): Quasar q-table ya trae
+ * `border-collapse: initial` (= separate) con `border-spacing: 0`; solo ampliamos el
+ * border-spacing vertical a 6px (tarjetas separadas) y aplicamos marco/acento/radius/
+ * sombra a los <td> (primer td = barra + radio izq; último td = borde + radio der).
+ * Así NO se descuadran columnas ni anchos (no usamos display:block en tr). */
+body[data-row-style="filled"] .q-table { border-spacing: 0 6px; }
 
-/* En oscuro, el relleno pastel es claro → forzar texto oscuro para que sea legible. */
-body[data-row-style="filled"][data-layout-mode="dark"] tr.Activo    > td,
-body[data-row-style="filled"][data-layout-mode="dark"] tr.Bloqueado > td,
-body[data-row-style="filled"][data-layout-mode="dark"] tr.Inactivo  > td,
-body[data-row-style="filled"][data-layout-mode="dark"] tr.Nuevo     > td,
-body[data-row-style="filled"][data-layout-mode="dark"] tr.Cancelado > td { color: #000 !important; }
+$c3-filled-states: (
+    "Activo":    ("client-active",   #E4F4E4, #5FBF6E, #2FB344, #14421A),
+    "Bloqueado": ("client-block",    #FAE3E3, #E07070, #E24B4A, #571414),
+    "Inactivo":  ("client-inactive", #FBF1D8, #DFB35C, #EF9F27, #573D0C),
+    "Nuevo":     ("client-new",      #E1E7FD, #7E92E8, #4C63D2, #1A2454),
+    "Cancelado": ("client-cancel",   #ECEEF0, #A9B3BD, #6B7883, #2E353B),
+);
+
+@each $st, $vals in $c3-filled-states {
+    $alt:    nth($vals, 1);
+    $bg:     nth($vals, 2);
+    $border: nth($vals, 3);
+    $accent: nth($vals, 4);
+    $text:   nth($vals, 5);
+
+    body[data-row-style="filled"] tr.#{$st} > td,
+    body[data-row-style="filled"] tr.#{$alt} > td {
+        background-color: $bg !important;
+        color: $text !important;
+        border-top: 1.5px solid $border !important;
+        border-bottom: 1.5px solid $border !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+    body[data-row-style="filled"] tr.#{$st} > td:first-child,
+    body[data-row-style="filled"] tr.#{$alt} > td:first-child {
+        border-left: 5px solid $accent !important;
+        border-top-left-radius: 7px;
+        border-bottom-left-radius: 7px;
+    }
+    body[data-row-style="filled"] tr.#{$st} > td:last-child,
+    body[data-row-style="filled"] tr.#{$alt} > td:last-child {
+        border-right: 1.5px solid $border !important;
+        border-top-right-radius: 7px;
+        border-bottom-right-radius: 7px;
+    }
+}
 
 /* Swatches de LEYENDA / celdas de estado (div/td con .client-*): CONSERVAN el relleno
  * pastel — ahí el color de fondo ES su significado (la clave del color), no una fila. */
