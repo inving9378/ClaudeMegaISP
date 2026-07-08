@@ -16,6 +16,16 @@ export const getMap = async (id, obj) => {
     return data;
 };
 
+// Config para el RENDER del mapa: devuelve la api_key REAL (no enmascarada).
+// getMap()/edit se reserva para la pantalla de config (key enmascarada).
+export const getMapRenderConfig = async () => {
+    let data = null;
+    await axios["get"](`${route}/render-config`).then((response) => {
+        data = response.data;
+    });
+    return data;
+};
+
 export const updateMap = async (id, obj) => {
     let data = {};
     await axios["post"](`${route}/${id}/update`, obj).then((response) => {

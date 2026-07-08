@@ -200,6 +200,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::group(['prefix' => 'credenciales-google-maps'], function () {
             Route::get('/', [MapCredentialController::class, 'index']);
             Route::get('/edit', [MapCredentialController::class, 'edit']);
+            Route::get('/render-config', [MapCredentialController::class, 'renderConfig']);
             Route::post('/create', [MapCredentialController::class, 'store']);
             Route::post('/{id}/update', [MapCredentialController::class, 'update']);
             Route::delete('/{id}/destroy', [MapCredentialController::class, 'destroy']);

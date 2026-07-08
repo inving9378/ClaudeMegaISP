@@ -376,7 +376,7 @@ import JunctionBoxConfiguration from "./components/configuration/JunctionBoxConf
 
 import { darkMode } from "../../../hook/appConfig";
 
-import { getClientsWithoutProject, getMap, saveObject } from "./helper/request";
+import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./helper/request";
 
 import Swal from "sweetalert2";
 import {
@@ -470,7 +470,7 @@ const loadingExport = ref({
 });
 
 onBeforeMount(async () => {
-    serverData = await getMap();
+    serverData = await getMapRenderConfig();
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${serverData.api_key}`;
     script.async = true;

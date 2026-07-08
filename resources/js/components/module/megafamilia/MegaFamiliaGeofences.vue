@@ -282,7 +282,7 @@ export default {
         launchTour() { startTour('geofences'); },
         async loadMapsSDK() {
             try {
-                const { data } = await axios.get(`${this.rootUrl}/configuracion/credenciales-google-maps/edit`);
+                const { data } = await axios.get(`${this.rootUrl}/configuracion/credenciales-google-maps/render-config`);
                 const cfg = Array.isArray(data) ? data[0] : data;
                 if (!cfg?.api_key) { this.apiError = true; return; }
                 this.apiKey = cfg.api_key;

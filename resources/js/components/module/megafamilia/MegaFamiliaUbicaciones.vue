@@ -208,12 +208,12 @@ export default {
     methods: {
         launchTour() { startTour('ubicaciones'); },
         /**
-         * Carga la API key desde el backend (`/configuracion/credenciales-google-maps/edit`)
+         * Carga la API key desde el backend (`/configuracion/credenciales-google-maps/render-config`)
          * y luego inyecta el script SDK. Idéntico patrón al módulo Maps.
          */
         async loadMapsSDK() {
             try {
-                const { data } = await axios.get(`${this.rootUrl}/configuracion/credenciales-google-maps/edit`);
+                const { data } = await axios.get(`${this.rootUrl}/configuracion/credenciales-google-maps/render-config`);
                 const cfg = Array.isArray(data) ? data[0] : data;
                 if (!cfg?.api_key) {
                     this.apiError = true;

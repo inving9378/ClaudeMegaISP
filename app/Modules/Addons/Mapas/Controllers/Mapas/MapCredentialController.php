@@ -44,6 +44,27 @@ class MapCredentialController extends Controller
         return response()->json($credentials);
     }
 
+    /**
+     * Config para el RENDER del mapa (LeafletMap, MegaFamilia y widgets de
+     * posición geo). Devuelve la api_key REAL: es una key de CLIENTE que de
+     * todos modos viaja al navegador para poder cargar el SDK de Google Maps.
+     * El enmascarado (api_key_preview) solo aplica a la pantalla de CONFIG
+     * (edit()), donde no se debe mostrar la key en el formulario.
+     */
+    public function renderConfig()
+    {
+        $m = MapCredential::first();
+        if (!$m) {
+            return response()->json(null);
+        }
+        return response()->json([
+            'api_key'   => $m->api_key,
+            'latitude'  => $m->latitude,
+            'longitude' => $m->longitude,
+            'zoom'      => $m->zoom,
+        ]);
+    }
+
     public function update(Request $request, $id)
     {
         $this->validate($request, [
