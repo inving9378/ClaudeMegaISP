@@ -1,0 +1,36 @@
+/* ============================================================================
+ * Iconos del sidebar con color de referencia por módulo (navegación visual).
+ *
+ * Feather renderiza <i data-feather="x"> como <svg class="feather feather-x">
+ * (stroke: currentColor) → coloreamos por esa clase, scoped a #sidebar-menu.
+ * MISMO color en modo claro y oscuro: elegidos para contrastar tanto sobre
+ * blanco (claro) como sobre #0A0A0A (oscuro) — verificado WCAG en ambos fondos.
+ *
+ * El TEXTO no se toca (blanco/gris del tema). El módulo ACTIVO conserva el color
+ * de su icono; su marca es la línea inferior (ver dark_mode.scss, AJUSTE 3).
+ *
+ * Colores únicos por módulo, sin repetir entre vecinos.
+ * ========================================================================== */
+
+#sidebar-menu .feather-home           { color: #378ADD !important; } /* Dashboard */
+#sidebar-menu .feather-layers         { color: #9B7EDE !important; } /* Planes */
+#sidebar-menu .feather-user-x         { color: #E0705A !important; } /* CRM */
+#sidebar-menu .feather-user-check     { color: #5DCAA5 !important; } /* Clientes */
+#sidebar-menu .feather-box            { color: #AFA9EC !important; } /* Gestión de red */
+#sidebar-menu .feather-grid           { color: #97C459 !important; } /* Finanzas */
+#sidebar-menu .feather-archive        { color: #C79245 !important; } /* Inventario */
+#sidebar-menu .feather-server         { color: #85B7EB !important; } /* OLTs */
+#sidebar-menu .feather-map            { color: #ED93B1 !important; } /* Mapas */
+#sidebar-menu .feather-phone-call     { color: #F0997B !important; } /* Cobranza */
+#sidebar-menu .feather-shield         { color: #EF9F27 !important; } /* MegaFamilia */
+#sidebar-menu .feather-check-square   { color: #4FC1C1 !important; } /* Scheduling */
+#sidebar-menu .feather-award          { color: #D9B144 !important; } /* Embajadores */
+#sidebar-menu .feather-truck          { color: #7C8AE8 !important; } /* Flotas */
+#sidebar-menu .feather-users          { color: #C77DC7 !important; } /* Talento */
+#sidebar-menu .feather-target         { color: #E77E4E !important; } /* Marketing */
+#sidebar-menu .feather-message-circle { color: #25D366 !important; } /* WhatsApp */
+#sidebar-menu .feather-phone          { color: #5AA9D8 !important; } /* VoIP */
+#sidebar-menu .feather-credit-card    { color: #C98ACF !important; } /* Portal de Pago */
+#sidebar-menu .feather-command        { color: #9AA7B5 !important; } /* Administración */
+#sidebar-menu .feather-tool           { color: #C0A36B !important; } /* Configuración */
+#sidebar-menu .feather-code           { color: #B0B56A !important; } /* DevTools */

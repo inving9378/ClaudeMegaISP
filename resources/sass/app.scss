@@ -44,6 +44,9 @@
 
 @import url("base/quasar/_quasar.scss");
 
+// Iconos del sidebar coloreados por módulo (navegación visual, claro + oscuro)
+@import "module/sidebar_icons";
+
 .task-status-done {
     background-color: rgb(144, 238, 144);
 }

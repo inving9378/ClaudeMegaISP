@@ -1,7 +1,7 @@
 <li>
     @if(auth()->user()->canAny(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package', 'contratables.manage']))
         <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="grid"></i>
+            <i data-feather="layers"></i>
             <span data-key="t-planes">{{ $item->sidebar_label ?? 'Planes' }}</span>
         </a>
     @endcanany
