@@ -1,8 +1,12 @@
+/* Callout de aviso: sin fondo de color relleno; barra lateral izquierda ámbar
+   (warning) + fondo neutro + texto legible. El color comunica el significado.
+   (El modo oscuro se especializa en dark_mode.scss — Ajuste 4). */
 .card-text-body {
-    background-image: linear-gradient(to bottom,#fcf8e3 0,#f8efc0 100%);
-    background-repeat: repeat-x;
-    background-color: #f5e79e;
-    border-color: #f5e79e;
+    background-image: none;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-left: 4px solid #f59e0b;
+    border-radius: 4px;
 }
 
 .text-white-50 {

@@ -37,10 +37,6 @@ body[data-layout-mode=dark] .progress-bar-striped {
 }
 
 
-[data-layout-mode="dark"] .card-text-body {
-    background: unset;
-}
-
 [data-layout-mode="dark"] a {
     color: #E0E0E0;
 }
@@ -218,4 +214,119 @@ table.dataTable.table-striped>tbody>tr.even>* {
 /* Solo el TEXTO se fuerza a blanco; el icono conserva su color de módulo. */
 [data-layout-mode="dark"] #sidebar-menu a.active span {
     color: #FFFFFF !important;
+}
+
+/* ============================================================================
+ * AJUSTE 4 — Alertas / avisos / banners (bloques altos multilínea): BARRA
+ * LATERAL izquierda del color semántico + fondo neutro + texto legible, en vez
+ * de fondo de color relleno. En bloques altos el underline de abajo se ve raro
+ * → aquí border-left estilo callout. Centralizado.
+ * Cubre: Bootstrap .alert-*, Quasar .q-banner (bg-*), .card-text-body ("Hoy se
+ * emitirá…"). Conserva el significado del color.
+ * NO toca botones (.btn / .q-btn) — son acción y conservan su fondo.
+ * ========================================================================== */
+[data-layout-mode="dark"] .alert,
+[data-layout-mode="dark"] .q-banner,
+[data-layout-mode="dark"] .card-text-body {
+    background-color: #1A1A1A !important;
+    background-image: none !important;
+    color: #FFFFFF !important;
+    border: 1px solid #2A2A2A !important;
+    border-left: 4px solid #60a5fa !important; /* info por defecto */
+}
+
+/* Color de la barra lateral por significado */
+[data-layout-mode="dark"] .alert-success,
+[data-layout-mode="dark"] .q-banner.bg-positive,
+[data-layout-mode="dark"] .q-banner.bg-success,
+[data-layout-mode="dark"] .q-banner[class*="bg-green"] {
+    border-left-color: #34d399 !important; /* verde = éxito */
+}
+[data-layout-mode="dark"] .alert-warning,
+[data-layout-mode="dark"] .q-banner.bg-warning,
+[data-layout-mode="dark"] .q-banner[class*="bg-amber"],
+[data-layout-mode="dark"] .q-banner[class*="bg-orange"],
+[data-layout-mode="dark"] .card-text-body {
+    border-left-color: #fbbf24 !important; /* ámbar = aviso */
+}
+[data-layout-mode="dark"] .alert-danger,
+[data-layout-mode="dark"] .q-banner.bg-negative,
+[data-layout-mode="dark"] .q-banner[class*="bg-red"] {
+    border-left-color: #f87171 !important; /* rojo = peligro */
+}
+[data-layout-mode="dark"] .alert-info,
+[data-layout-mode="dark"] .alert-primary,
+[data-layout-mode="dark"] .alert-secondary,
+[data-layout-mode="dark"] .q-banner.bg-info,
+[data-layout-mode="dark"] .q-banner.bg-primary {
+    border-left-color: #60a5fa !important; /* azul = info */
+}
+
+/* ============================================================================
+ * AJUSTE 5 — Cabeceras de sección con color (.card-header.bg-*): LÍNEA INFERIOR
+ * fina del color + fondo neutro + texto legible, en vez de fondo relleno.
+ * Cabecera = bloque bajo → el underline encaja (no barra lateral).
+ * ========================================================================== */
+[data-layout-mode="dark"] .card-header[class*="bg-"] {
+    background-color: #1A1A1A !important;
+    background-image: none !important;
+    color: #FFFFFF !important;
+    border-bottom: 2px solid #60a5fa !important; /* info por defecto */
+}
+[data-layout-mode="dark"] .card-header.bg-success,
+[data-layout-mode="dark"] .card-header.bg-success-subtle {
+    border-bottom-color: #34d399 !important;
+}
+[data-layout-mode="dark"] .card-header.bg-warning,
+[data-layout-mode="dark"] .card-header.bg-warning-subtle {
+    border-bottom-color: #fbbf24 !important;
+}
+[data-layout-mode="dark"] .card-header.bg-danger,
+[data-layout-mode="dark"] .card-header.bg-danger-subtle {
+    border-bottom-color: #f87171 !important;
+}
+[data-layout-mode="dark"] .card-header.bg-info,
+[data-layout-mode="dark"] .card-header.bg-info-subtle,
+[data-layout-mode="dark"] .card-header.bg-primary {
+    border-bottom-color: #60a5fa !important;
+}
+
+/* ============================================================================
+ * AJUSTE 6 — Badges/chips de Quasar con color (.q-badge / .q-chip con bg-*):
+ * mismo tratamiento que los badges Bootstrap del Ajuste 2 (sin fondo relleno,
+ * línea inferior del color). Cierra el hueco: el Ajuste 2 solo cubría .badge de
+ * Bootstrap. Solo afecta los que llevan un bg-* de color (los neutros no se
+ * tocan). NO toca .q-btn (botones) — conservan su color de acción.
+ * ========================================================================== */
+[data-layout-mode="dark"] .q-badge[class*="bg-"],
+[data-layout-mode="dark"] .q-chip[class*="bg-"] {
+    background: transparent !important;
+    color: #FFFFFF !important;
+    border: 0 !important;
+    border-bottom: 2px solid #B0B0B0 !important; /* neutro por defecto */
+    border-radius: 0 !important;
+}
+[data-layout-mode="dark"] .q-badge.bg-positive,
+[data-layout-mode="dark"] .q-badge.bg-success,
+[data-layout-mode="dark"] .q-chip.bg-positive,
+[data-layout-mode="dark"] .q-chip.bg-success {
+    border-bottom-color: #34d399 !important;
+}
+[data-layout-mode="dark"] .q-badge.bg-warning,
+[data-layout-mode="dark"] .q-badge.bg-orange,
+[data-layout-mode="dark"] .q-chip.bg-warning,
+[data-layout-mode="dark"] .q-chip.bg-orange {
+    border-bottom-color: #fbbf24 !important;
+}
+[data-layout-mode="dark"] .q-badge.bg-negative,
+[data-layout-mode="dark"] .q-badge.bg-red,
+[data-layout-mode="dark"] .q-chip.bg-negative,
+[data-layout-mode="dark"] .q-chip.bg-red {
+    border-bottom-color: #f87171 !important;
+}
+[data-layout-mode="dark"] .q-badge.bg-info,
+[data-layout-mode="dark"] .q-badge.bg-primary,
+[data-layout-mode="dark"] .q-chip.bg-info,
+[data-layout-mode="dark"] .q-chip.bg-primary {
+    border-bottom-color: #60a5fa !important;
 }
