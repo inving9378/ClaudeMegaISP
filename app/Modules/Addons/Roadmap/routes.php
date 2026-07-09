@@ -21,6 +21,13 @@ Route::prefix('api/roadmap-externo')
     ->group(function () {
         Route::post('/{token}/item/{id}', [RoadmapExternalController::class, 'updateItem'])
             ->whereNumber('id');
+
+        // Variante de escritura por GET (query params) — el fetcher de Claude Cowork
+        // solo hace GET. Misma allowlist de 3 campos, mismas validaciones de enum,
+        // mismos guards y mismo log que el POST (delegan en el mismo writeItem()).
+        //   GET /{token}/item/{id}/set?estado_aprobacion=..&nivel_riesgo=..&comentarios_claude=..
+        Route::get('/{token}/item/{id}/set', [RoadmapExternalController::class, 'setItem'])
+            ->whereNumber('id');
     });
 
 Route::middleware(['web', 'auth'])

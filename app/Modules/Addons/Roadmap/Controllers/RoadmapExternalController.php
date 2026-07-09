@@ -54,9 +54,34 @@ class RoadmapExternalController extends Controller
             return $this->deny($request, 'POST', $token);
         }
 
+        return $this->writeItem($request, 'POST', $id);
+    }
+
+    /**
+     * GET /api/roadmap-externo/{token}/item/{id}/set?estado_aprobacion=..&nivel_riesgo=..&comentarios_claude=..
+     * Variante de escritura por GET para el fetcher de Cowork (solo hace GET).
+     * Idéntica al POST: mismo token de escritura, misma allowlist, mismos guards y log.
+     */
+    public function setItem(Request $request, string $token, int $id): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.write_token'))) {
+            return $this->deny($request, 'GET-SET', $token);
+        }
+
+        return $this->writeItem($request, 'GET-SET', $id);
+    }
+
+    /**
+     * Cuerpo ÚNICO de la escritura acotada — compartido por el POST y el GET/set,
+     * para que ambas vías tengan EXACTAMENTE la misma allowlist, validaciones,
+     * guards de seguridad y auditoría. `$request->validate` lee tanto body (POST)
+     * como query params (GET), así que sirve igual para las dos.
+     */
+    private function writeItem(Request $request, string $verb, int $id): JsonResponse
+    {
         $item = RoadmapItem::find($id);
         if (! $item) {
-            $this->audit($request, 'POST', 'not_found', ['id' => $id]);
+            $this->audit($request, $verb, 'not_found', ['id' => $id]);
             return response()->json(['error' => 'Item no encontrado'], 404);
         }
 
@@ -76,7 +101,7 @@ class RoadmapExternalController extends Controller
 
         $item->update($data);
 
-        $this->audit($request, 'POST', 'updated', ['id' => $id, 'campos' => array_keys($data)]);
+        $this->audit($request, $verb, 'updated', ['id' => $id, 'campos' => array_keys($data)]);
 
         return response()->json(['ok' => true, 'item' => $this->serialize($item->fresh())]);
     }
