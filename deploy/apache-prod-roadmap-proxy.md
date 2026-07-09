@@ -146,3 +146,16 @@ La respuesta se modela por MODOS para no truncar (el manual pesa ~134 KB y va ap
 - Guards server-side: `aprobado_claude` **solo** si el item es nivel A; B/C topan en `requiere_irving`.
   El `nivel_riesgo` solo se puede **endurecer** (A→B→C), nunca degradar. Violación → 422.
 - El token va en el path (enmascarado en el log de prod; auditoría real en dev).
+
+#### Escritura por PATH (para fetchers que descartan el query string, p.ej. Cowork)
+`GET …/<WRITE_TOKEN>/item/{id}/set/{estado_aprobacion}/{nivel_riesgo}/{comentario?}`  (`-` = no cambiar)
+
+| Acción | URL |
+|--------|-----|
+| Aprobar (solo A) | `…/item/{id}/set/aprobado_claude/-` |
+| Validado, falta Irving + comentario | `…/item/{id}/set/requiere_irving/-/Plan%20revisado%20OK` |
+| Endurecer nivel a C | `…/item/{id}/set/-/C` |
+
+- `comentario` (opcional, último segmento) va **URL-encoded**: `%20`=espacio, `%2F`=`/`, `%3F`=`?`,
+  `%23`=`#`, `%26`=`&`. Máx **1000** caracteres (422 si excede). Se decodifica con `urldecode`.
+- Mismos guards, enums y 422 que la escritura por query. `-` en un segmento = no tocar ese campo.
