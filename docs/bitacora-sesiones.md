@@ -128,3 +128,42 @@ Los 93 items del circuito viven en la DB (no en git), persistidos idempotentemen
 - Claude Cowork revisa los items `pendiente_revision` vía el endpoint y asigna `estado_aprobacion`.
 - Claude Code ejecuta SOLO `aprobado_claude` + `nivel_riesgo=A` en automático; B con Irving; C jamás sin Irving.
 - Decidir HTTPS para el endpoint si el fetcher de Cowork fuerza TLS.
+
+---
+
+## 2026-07-08 (tarde) — Circuito: acceso HTTPS por proxy de PROD + endurecimiento del endpoint
+
+**Contexto:** el fetcher de Cowork exige HTTPS con CA válida. El firewall de la red **bloquea
+80/443 entrantes hacia DEV** (certbot en dev no pudo completar el reto; export del Mikrotik 2024
+desactualizado → sin cirugía de router hoy). Registrado como **roadmap #297** (nivel B) para
+cuando se abra el acceso directo.
+
+**Solución en uso — reverse proxy PROD → DEV** (PROD es **Apache2**, no nginx):
+- `deploy/apache-prod-roadmap-proxy.md`: `<Location /api/roadmap-externo/>` con
+  ProxyPass/ProxyPassReverse a `http://192.168.105.11`, ProxyPreserveHost On,
+  X-Forwarded-Proto/X-Real-IP, timeouts. Solo ese prefijo se expone. Token excluido del
+  access log de prod (`SetEnvIf` + `env=!roadmapreq`); la auditoría real vive en dev.
+  PRE-CHECK obligatorio de alcance LAN prod→dev. (Se retiró el `deploy/nginx-prod-…` previo.)
+- **URL pública final:** `https://v1megaisp.meganett.com.mx/api/roadmap-externo/<token>` → **200 verificado por Cowork.**
+
+**Endurecimiento de seguridad del endpoint (hallazgos del auditor):**
+- Variante de **escritura por GET** `/{token}/item/{id}/set` (el fetcher solo hace GET); misma
+  allowlist/guards que el POST (writeItem compartido).
+- **Guards:** el nivel_riesgo solo se **endurece** (A→B→C), nunca se degrada; `aprobado_claude`
+  por la vía externa **solo para nivel A** (B y C topan en `requiere_irving`; la aprobación
+  final de B/C la da Irving en sesión).
+- Token en path enmascarado en logs + rotación documentada (`docs/circuito-seguridad-tokens.md`).
+
+**GET por MODOS (el manual de 134 KB truncaba los items):**
+- `?id=N` detalle · `?solo=manual` · `?solo=items` · default = resumen (conteos por estado/nivel)
+  + lista **compacta** paginada, sin manual.
+- Filtros `?estado= ?nivel= ?modulo=`, paginación `?page= ?per_page=` (def 50, máx 100) con `meta`.
+- Todo validado (whitelist/enums); inválido → **422 JSON** (no 302). Ejemplos de consulta en
+  `deploy/apache-prod-roadmap-proxy.md`.
+
+**Commits (dev/main, sin pushear):** `add0dc36` GET write · `d2c7b8ef`+`1b2885f4` guards ·
+`fe6841c7` token/log · `a88bbaba` runbook TLS dev · `dfae46e5` robots.txt · `ad026d63`(retirado)
++`027bf6cc` proxy Apache prod · `e3538a52` GET por modos.
+
+**Siguiente:** Cowork hace su primera revisión real (resumen → pendientes por tandas → escribe
+aprobaciones por `/set`).

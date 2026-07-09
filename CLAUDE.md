@@ -441,6 +441,9 @@ php artisan schedule:run   # cron lo llama cada minuto en prod
 
 ## CONVENCIONES
 
+### 🔒 SECRETOS SOLO EN `.env` — placeholders en TODA la documentación
+Las **bitácoras, runbooks, docs y configs de deploy versionados** llevan **solo placeholders** de secretos (`<READ_TOKEN>`, `<API_KEY>`, `<SECRET>`, …), **JAMÁS valores reales** (tokens, API keys, contraseñas, cadenas de conexión). Los valores viven **únicamente en `.env`** (gitignored). Antes de commitear cualquier doc, `git grep` el patrón del secreto para confirmar que no se cuela. Si un secreto se filtró a git: **rotarlo** (ya está comprometido) + redactar a placeholder + limpiar historial **antes** del primer push si aún no se subió. (Incidente 2026-07-08: los tokens del circuito quedaron en `docs/bitacora-sesiones.md` commiteado; se rotaron y redactaron. Ver `docs/circuito-seguridad-tokens.md`.)
+
 ### 🧩 SERVICIOS COMPARTIDOS ÚNICOS — PROHIBIDO DUPLICAR
 Antes de construir **cualquier capacidad** en **cualquier módulo** (existente o futuro), verificar si ya existe en el sistema. Si existe, el módulo se **CONECTA** al servicio existente; **nunca** construye su propia versión. Servicios únicos designados:
 1. **WhatsApp** → `WhatsAppAgent` es el **gateway único**. Los consumidores usan `WhatsAppGateway` + **eventos** (`WhatsAppMessageReceived`/`TextReceived`/`MediaReceived`); **nadie** monta webhook ni línea propia.
