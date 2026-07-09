@@ -9,6 +9,10 @@
 | Los valores viven SOLO en .env (nunca en git). Se leen vía config() para
 | que `config:cache` no rompa el acceso en producción.
 |
+| SEGURIDAD: el token viaja en el path → se filtra al access log de nginx.
+| Mitigación (enmascarado del log) + ROTACIÓN PERIÓDICA obligatoria (cada 90 días
+| o ante sospecha): ver docs/circuito-seguridad-tokens.md.
+|
 */
 
 return [
