@@ -1,0 +1,130 @@
+# Bitácora de sesiones
+
+Registro de cierre por sesión: qué se validó/entregó, con evidencia. Lo estructural
+y estable vive en `CONTEXTO-MEGAISP.md`; aquí van los cierres fechados.
+
+---
+
+## 2026-07-08 — Conciliación WhatsApp (Gateway) · Fase 1 · ✅ VALIDADA Y CERRADA
+
+**Alcance:** validar end-to-end la cadena de conciliación de pagos por el **gateway**
+(línea de panel `PruebasDEV` = `whatsapp_instances` id=4, número 5568175643), enviando
+**un comprobante real (una imagen)** y comprobando cada eslabón con evidencia de BD.
+
+**Test:** comprobante = imagen entrante, `whatsapp_messages` id=**39**, recibido `22:01:59`.
+
+### Evidencia por eslabón
+
+| # | Eslabón | Estado | Evidencia |
+|---|---------|--------|-----------|
+| 1 | Imagen entrante guardada | ✅ | `whatsapp_messages` id=39, `direction=in`, `message_type=image`, `mime=image/jpeg`, `size=37603`, `evo_id=AC500BA0…`, `status=received`, `created=22:01:59` |
+| 2 | `media_path` poblado | ✅ | `private/whatsapp/media/AC500BA0D7FC9113F1B0F10B249DA625_EQXCkD3l.jpg` |
+| 3 | `media_downloaded_at` poblado | ✅ | `22:02:00` (1s tras recibir); archivo en disco (dueño `www-data`), `media_size=37603` coincide, extracción `ok=1` prueba legibilidad |
+| 4 | `GatewayConciliationIntakeJob` corrió | ✅ | Produjo la extracción 151; 0 failed_jobs en la ventana 22:02; sin errores en `laravel.log` 22:01–22:02 |
+| 5 | Fila `whatsapp_payment_extractions` `source='gateway'` | ✅ | id=151, `source=gateway`, `source_message_id=39`, `source_conversation_id=4`, `ok=1`, `document_type=spei_transfer`, `model=claude-sonnet-4-6`, `extracted_at=22:02:04` |
+| 5b | Campos extraídos | ✅ | monto **450.00** (alta) · referencia **3756953** (alta) · banco_origen **"Guardadito (Banco Azteca)"** (alta) · fecha_pago **30/Jun/2026 16:28:23 (CST)** (alta) · concepto "fatima Valeria" (alta) · clave_rastreo `260630010067540454I` (media) |
+| 6 | UN SOLO acuse, sin duplicados | ✅ | `whatsapp_messages` id=40, `direction=out`, "Recibimos tu comprobante 🧾…", `status=sent`, `22:02:04` |
+
+**Dedup (riguroso):** `source_message_id=39` → **exactamente 1 extracción**; **1 solo acuse** (id 40).
+
+**Línea de tiempo (~5s):** `22:01:59` recibida → `22:02:00` descargada (media_path) → `22:02:04` extraída (id 151) + acuse enviado (msg 40).
+
+### Notas honestas (no del test de cierre)
+
+- Los otros **6 acuses** (21:11:20–21:11:42) **no son duplicados**: corresponden 1:1 a una
+  ráfaga previa de 6 imágenes (`whatsapp_messages` 25–30, recibidas 21:09:43–44). Total
+  7 acuses = 6 (ráfaga) + 1 (este cierre).
+- **1 failed_job a las 21:10:55** = `ConciliationListener` con `MaxAttemptsExceededException`,
+  de esa ráfaga de 6 imágenes simultáneas (probable timeout de la extracción IA en paralelo).
+  **No ocurre con un comprobante único.** → Registrado como **roadmap_item #211** (pending,
+  riesgo B): revisar `timeout`/`tries`/backoff del listener ante ráfagas, plan por 3 fases,
+  con el failed_job de 21:10:55 como evidencia.
+
+**Resultado:** Fase 1 (gateway: media → descarga → intake → extracción `source=gateway` →
+un acuse) **validada y cerrada**. Seguimiento único abierto: roadmap #211 (robustez bajo ráfaga).
+
+---
+
+## 2026-07-08 22:10 — Circuito de Mejora Continua: infraestructura + primera auditoría exhaustiva
+
+**Entorno:** DEV (192.168.105.11). Todo en `dev/main`, NO desplegado a prod.
+
+### PARTE 1 — Infraestructura (4 commits)
+
+- **1.1** Migración aditiva idempotente `2026_07_08_210000_add_circuito_fields_to_roadmap_items` sobre
+  `roadmap_items`: `modulo`, `nivel_riesgo` (enum A/B/C), `estado_aprobacion`
+  (pendiente_revision|aprobado_claude|requiere_irving|rechazado|en_progreso|completado, default
+  pendiente_revision), `comentarios_claude`, `revisado_at`, `aprobado_por`. `prompt_para_claude`
+  **reusa** la columna `prompt` existente. Modelo `RoadmapItem` actualizado (fillable/casts/constantes).
+  Commit **feat(circuito): campos de aprobacion en roadmap_items**.
+- **1.2** Acceso externo sin login con token: rutas fuera de `web`/`auth` (sin sesión/cookies), `hash_equals`,
+  rate limit, canal de auditoría `roadmap_externo`. Tokens SOLO en `.env`. **Verificado** GET 200/403, POST
+  acotado (allowlist ignora `title`), tokens separados. Commit **feat(circuito): acceso externo sin login…**.
+  (Irving añadió la variante de escritura por GET `/{token}/item/{id}/set` para el fetcher que solo hace GET —
+  verificada: write→200, read→403.)
+- **1.3** `docs/manual-criterios-circuito.md` (servicios únicos + convenciones + reglas del circuito + negocio)
+  **+ CLAUDE.md completo anexado vivo** por el controller. Servido en el GET (134 KB). Commit
+  **docs(circuito): manual de criterios consolidado…**.
+- **1.4** Reglas del circuito + esta regla de bitácora en `CLAUDE.md`. Commit **docs(circuito): reglas del
+  circuito + regla permanente de bitacora…**.
+
+### URLs públicas para Claude Cowork (IP pública 38.123.192.199, HTTP:80)
+- **Lectura:** `http://38.123.192.199/api/roadmap-externo/<READ_TOKEN>`
+- **Escritura POST:** `POST http://38.123.192.199/api/roadmap-externo/<WRITE_TOKEN>/item/{id}`
+  body `{ "estado_aprobacion":"…", "nivel_riesgo":"A|B|C", "comentarios_claude":"…" }`
+- **Escritura GET/set (fetcher solo-GET):** `GET http://38.123.192.199/api/roadmap-externo/<WRITE_TOKEN>/item/{id}/set?estado_aprobacion=…&nivel_riesgo=…&comentarios_claude=…`
+
+**Estructura JSON del GET:** `{ generated_at, manual_criterios (markdown), leyenda{nivel_riesgo,estado_aprobacion},
+items[ {id,title,modulo,description,status,priority,nivel_riesgo,estado_aprobacion,target_version,
+prompt_para_claude,comentarios_claude,subtasks,log,started_at,completed_at,revisado_at,aprobado_por,
+created_at,updated_at} ] }`
+
+### Acceso desde internet — estado + pendiente de infra
+- Puerto **80 en `0.0.0.0`**, responde por la IP pública. **Ningún firewall bloquea el 80** (fetch desde la
+  nube de Anthropic → `ECONNREFUSED` en 443, no timeout = los paquetes llegan al host).
+- **Solo HTTP; sin TLS/443** (`server_name _`). Herramientas que fuerzan HTTPS no alcanzan el `:80`.
+- **Recomendación**: si Cowork hace HTTP plano, ya funciona; si requiere HTTPS, abrir 443 + certificado
+  (dominio p.ej. `roadmap.meganet.mx`→38.123.192.199, o cert autofirmado). Nada que abrir para el 80.
+- Deuda de seguridad registrada como item del circuito: token en path/query se filtra al access log; el mismo
+  actor externo puede fijar `nivel_riesgo` y `estado_aprobacion` a la vez (degradar C→A y auto-aprobar).
+  Mitigación: token por header, no permitir bajar el nivel, rotación 90 días (ver
+  `docs/circuito-seguridad-tokens.md`).
+
+### PARTE 2 — Auditoría exhaustiva (READ-ONLY, 46 módulos: 31 addons + 15 core)
+- **12 auditores en paralelo** contra el manual (dimensiones a-e). Persistencia incremental idempotente por
+  título; progreso en `docs/auditoria-progreso.md`.
+- **93 items del circuito** en `roadmap_items` (ids 203+): 8 semillas conocidas + **85 hallazgos de auditoría**.
+  Todos `estado_aprobacion=pendiente_revision` (salvo 1 completado), con `nivel_riesgo` y `prompt_para_claude`
+  por fases. **Por nivel: A=35 · B=51 · C=7.**
+
+**Desglose por módulo (items del circuito):** Marketing 9 · CobranzaBlaster 7 · Core/Clientes 6 · Talento 5 ·
+Flotas 5 · Core/Usuarios 5 · Core/Release 4 · PortalCliente 3 · Payments 3 · Domiciliacion 3 · Inventario 3 ·
+MegaFamilia 3 · GestionRed 3 · Vendedores 2 · IA 2 · VoIP 2 · Manual 2 · Core/CRM 2 · Core/Auth 2 ·
+Core/Permisos 2 · IA/Configuración 2 · y 1 c/u en WhatsAppAgent, Hub, SmartImportExport, Roadmap, DevTools,
+EvaluadorEmpresarial, PortalPago, Core/Auditoria, Core/Layout, Core/Configuracion, Infraestructura/Colas,
+Tickets, Embajadores, Reportes, Demo (+ 3 semillas de Conciliación/Gateway).
+
+**Hallazgos más críticos (muestra):**
+- IDOR de PII cifrada en 3 endpoints `serve` de Talento (credenciales/penalizaciones/evidencia) — B.
+- Doble cobro en Domiciliación (intentos `pending` huérfanos + sin lock) y captura de mostrador sin
+  idempotencia (doble aplicación por doble submit) — B.
+- RCE por el campo `version` sin sanitizar hacia el shell del pipeline de deploy — C.
+- Webhooks Evolution/Meta fail-open (procesan sin token/secret) — B.
+- Contraseña en texto plano devuelta al frontend (getData/edit) + reset por teléfono sin OTP — B.
+- Múltiples clientes Claude/OpenAI propios por módulo (Marketing, Manual, DevTools, WhatsAppIAService,
+  Cobranza, bot María) violando el servicio IA único — B/C.
+- Escrituras a ONU gateadas bajo el permiso de LECTURA `olt_view` — B.
+
+### Commits de la sesión (dev/main, español, git add selectivo)
+1. feat(circuito): campos de aprobacion en roadmap_items (1.1)
+2. feat(circuito): acceso externo sin login a la Hoja de Ruta con token (1.2)
+3. docs(circuito): manual de criterios consolidado servido en el GET externo (1.3)
+4. docs(circuito): reglas del circuito + regla permanente de bitacora en CLAUDE.md (1.4)
+5. docs(circuito): progreso de auditoria + bitacora de sesiones (Parte 2/3)
+
+Los 93 items del circuito viven en la DB (no en git), persistidos idempotentemente.
+
+### Pendiente para el siguiente ciclo
+- Claude Cowork revisa los items `pendiente_revision` vía el endpoint y asigna `estado_aprobacion`.
+- Claude Code ejecuta SOLO `aprobado_claude` + `nivel_riesgo=A` en automático; B con Irving; C jamás sin Irving.
+- Decidir HTTPS para el endpoint si el fetcher de Cowork fuerza TLS.
