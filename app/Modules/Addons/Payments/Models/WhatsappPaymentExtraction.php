@@ -17,6 +17,9 @@ class WhatsappPaymentExtraction extends BaseModel
     protected $table = 'whatsapp_payment_extractions';
 
     protected $fillable = [
+        'source',
+        'source_message_id',
+        'source_conversation_id',
         'message_id',
         'conversation_id',
         'document_type',
