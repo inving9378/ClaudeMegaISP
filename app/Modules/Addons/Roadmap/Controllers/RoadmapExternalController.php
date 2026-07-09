@@ -96,6 +96,12 @@ class RoadmapExternalController extends Controller
             return response()->json(['error' => 'Nada que actualizar. Campos permitidos: estado_aprobacion, nivel_riesgo, comentarios_claude'], 422);
         }
 
+        // GUARDS DE SEGURIDAD (server-side, aplican a POST y GET por igual).
+        if ($motivo = $this->guardExternalWrite($item, $data)) {
+            $this->audit($request, $verb, 'rejected_guard', ['id' => $id, 'motivo' => $motivo]);
+            return response()->json(['error' => $motivo], 422);
+        }
+
         $data['revisado_at']  = now();
         $data['aprobado_por'] = 'claude-cowork';
 
@@ -104,6 +110,43 @@ class RoadmapExternalController extends Controller
         $this->audit($request, $verb, 'updated', ['id' => $id, 'campos' => array_keys($data)]);
 
         return response()->json(['ok' => true, 'item' => $this->serialize($item->fresh())]);
+    }
+
+    /**
+     * Candados que la vía externa NO puede saltar (hallazgos del auditor del circuito).
+     * Devuelve el motivo del rechazo (string) o null si pasa.
+     *
+     *  a) NO degradar nivel_riesgo hacia menos restrictivo (A<B<C): solo endurecer.
+     *     C→B, C→A y B→A quedan prohibidos; A→B, A→C, B→C o igual, permitidos.
+     *     Quitar la clasificación (X→null) también es degradar → prohibido.
+     *  b) Un item nivel C JAMÁS puede quedar 'aprobado_claude' por esta vía (sería
+     *     auto-ejecutable). Máximo 'requiere_irving'. Se evalúa contra el nivel
+     *     EFECTIVO tras el update (por si suben nivel y aprueban en la misma llamada).
+     */
+    private function guardExternalWrite(RoadmapItem $item, array $data): ?string
+    {
+        $rank = fn (?string $n): int => match ($n) {
+            'A'     => 0,
+            'B'     => 1,
+            'C'     => 2,
+            default => -1, // sin clasificar = lo menos restrictivo
+        };
+
+        // (a) No degradar el nivel de riesgo.
+        if (array_key_exists('nivel_riesgo', $data) && $rank($data['nivel_riesgo']) < $rank($item->nivel_riesgo)) {
+            return "La vía externa no puede degradar nivel_riesgo ({$item->nivel_riesgo} → "
+                . ($data['nivel_riesgo'] ?? 'null') . "); solo puede endurecer (A→B→C).";
+        }
+
+        // Nivel efectivo tras aplicar este update.
+        $nivelEfectivo = array_key_exists('nivel_riesgo', $data) ? $data['nivel_riesgo'] : $item->nivel_riesgo;
+
+        // (b) Un item C no puede quedar aprobado_claude por esta vía.
+        if (($data['estado_aprobacion'] ?? null) === 'aprobado_claude' && $nivelEfectivo === 'C') {
+            return "Un item nivel C no puede quedar 'aprobado_claude' por la vía externa; máximo 'requiere_irving'.";
+        }
+
+        return null;
     }
 
     // ---------------------------------------------------------------------
