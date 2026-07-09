@@ -30,7 +30,9 @@ class GatewayConciliationIntakeJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public string $queue = 'default';
+    // La cola se fija con ->onQueue('default') al despachar. NO redeclarar la
+    // propiedad $queue: el trait Queueable ya la define y una redeclaración
+    // TIPADA es incompatible en PHP 8 (FatalError al componer la clase).
 
     public function __construct(public int $messageId)
     {
