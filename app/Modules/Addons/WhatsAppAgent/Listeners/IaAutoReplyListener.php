@@ -26,6 +26,13 @@ class IaAutoReplyListener implements ShouldQueue
             return;
         }
 
+        // Gate por función de línea: el vendedor solo responde si la instancia
+        // tiene la función "Ventas" marcada (whatsapp_functions.slug='ventas',
+        // viaja en el evento vía lineFunctions). Sin ella, el bot de ventas calla.
+        if (!$event->hasFunction('ventas')) {
+            return;
+        }
+
         $message      = WhatsAppMessage::find($event->messageId);
         $conversation = WhatsAppConversation::find($event->conversationId);
         if (!$message || !$conversation) {
