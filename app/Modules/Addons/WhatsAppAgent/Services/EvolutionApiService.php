@@ -253,6 +253,35 @@ class EvolutionApiService
         return $response->json() ?? [];
     }
 
+    /**
+     * Descarga el binario (base64) de un mensaje con media desde Evolution.
+     * ⚠️ Evolution v2 exige el mensaje COMPLETO (`key` + `message`), no sólo
+     * `key.id` (internamente lee `message.ephemeralMessage`) → 400 sin él.
+     * Portado del EvolutionApiService de Marketing hacia el gateway único.
+     */
+    public function getBase64FromMediaMessage(WhatsAppInstance $instance, array $evolutionData): array
+    {
+        if ($this->fakeMode) {
+            return ['fake' => true];
+        }
+
+        $response = Http::withHeaders([
+            'apikey'       => $this->apiKey,
+            'Content-Type' => 'application/json',
+        ])->timeout(60)->post(
+            "{$this->baseUrl}/chat/getBase64FromMediaMessage/{$this->evolutionName($instance)}",
+            [
+                'message' => [
+                    'key'     => $evolutionData['key']     ?? [],
+                    'message' => $evolutionData['message'] ?? [],
+                ],
+                'convertToMp4' => false,
+            ]
+        );
+
+        return $response->json() ?? [];
+    }
+
     public function createInstance(WhatsAppInstance $instance): array
     {
         if ($this->fakeMode) {
