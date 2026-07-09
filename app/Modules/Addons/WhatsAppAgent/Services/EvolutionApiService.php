@@ -271,6 +271,10 @@ class EvolutionApiService
         // Evolution v2 exige `integration` (sin él → 400 "Invalid integration") y espera
         // `webhook` como OBJETO {url,byEvents,base64,events}, no como string plano. Sin esto
         // la instancia NUNCA se crea → connect da 404 → el QR jamás aparece.
+        // `headers.X-Webhook-Secret` es OBLIGATORIO: el controller entrante
+        // (WhatsAppWebhookController) valida ese header contra whatsapp_instances.webhook_secret;
+        // sin él, Evolution manda el POST sin auth y MegaISP lo rechaza con 401.
+        // El secret ya existe aquí (lo autogenera el hook creating() del modelo).
         $response = Http::withHeaders([
             'apikey'       => $this->apiKey,
             'Content-Type' => 'application/json',
@@ -280,6 +284,10 @@ class EvolutionApiService
             'integration'  => 'WHATSAPP-BAILEYS',
             'webhook'      => [
                 'url'      => $webhookUrl,
+                'headers'  => [
+                    'X-Webhook-Secret' => $instance->webhook_secret,
+                    'Content-Type'     => 'application/json',
+                ],
                 'byEvents' => false,
                 'base64'   => true,
                 'events'   => [
