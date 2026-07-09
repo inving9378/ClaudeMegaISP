@@ -34,6 +34,19 @@
         </div>
         <ul class="mnav-sheet-list" id="mnav-sheet-list"></ul>
     </div>
+
+    {{-- Buscador de respaldo ("lupa"). Lugar final = topbar delgada (pendiente mockup);
+         por ahora botón flotante. Busca sobre el MISMO espejo (módulos + hijos). --}}
+    <button type="button" class="mnav-search-btn" id="mnav-search-btn" aria-label="Buscar módulo">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+    </button>
+    <div class="mnav-search" id="mnav-search" hidden>
+        <div class="mnav-search-bar">
+            <input type="search" id="mnav-search-input" placeholder="Buscar módulo o pantalla…" autocomplete="off" />
+            <button type="button" id="mnav-search-close" aria-label="Cerrar">&times;</button>
+        </div>
+        <ul class="mnav-search-list" id="mnav-search-list"></ul>
+    </div>
 </div>
 
 <style>
@@ -115,9 +128,29 @@
     .mnav-sheet-list a:active { background: var(--mnav-active, rgba(0,0,0,.04)); }
     .mnav-sheet-list .mnav-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mnav-accent, #4f46e5); flex: 0 0 auto; }
 
+    /* ---- Buscador ---- */
+    .mnav-search-btn {
+        position: fixed; right: 12px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 1035;
+        width: 44px; height: 44px; border-radius: 50%; border: none;
+        background: var(--mnav-accent, #4f46e5); color: #fff;
+        box-shadow: 0 4px 14px rgba(0,0,0,.25); display: flex; align-items: center; justify-content: center;
+    }
+    .mnav-search { position: fixed; inset: 0; z-index: 1050; background: var(--mnav-bg, #fff); display: flex; flex-direction: column; }
+    .mnav-search[hidden] { display: none; }
+    .mnav-search-bar { display: flex; align-items: center; gap: 8px; padding: 12px 14px calc(12px + env(safe-area-inset-top)); border-bottom: 1px solid var(--mnav-border, #eef0f3); }
+    .mnav-search-bar input { flex: 1; border: 1px solid var(--mnav-border, #d1d5db); border-radius: 10px; padding: 10px 12px; font-size: 16px; background: transparent; color: var(--mnav-text, #111827); }
+    .mnav-search-bar button { border: none; background: transparent; font-size: 26px; line-height: 1; color: var(--mnav-text, #6b7280); }
+    .mnav-search-list { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; flex: 1; }
+    .mnav-search-list a { display: flex; flex-direction: column; padding: 11px 16px; text-decoration: none; color: var(--mnav-text, #374151); }
+    .mnav-search-list a:active { background: var(--mnav-active, rgba(0,0,0,.04)); }
+    .mnav-search-list .s-mod { font-size: 11px; opacity: .6; }
+    .mnav-search-list .s-lbl { font-size: 15px; }
+    .mnav-search-empty { padding: 20px 16px; opacity: .6; font-size: 14px; }
+
     /* ---- Tema oscuro ---- */
     body[data-layout-mode="dark"] .mnav-rail,
-    body[data-layout-mode="dark"] .mnav-sheet {
+    body[data-layout-mode="dark"] .mnav-sheet,
+    body[data-layout-mode="dark"] .mnav-search {
         --mnav-bg: #2a3042; --mnav-border: #3b4256; --mnav-text: #cbd2e0;
         --mnav-active: rgba(255,255,255,.06);
     }
@@ -129,6 +162,7 @@
 (function () {
     "use strict";
     var built = false;
+    var searchIndex = []; // {mod, lbl, href} — poblado durante build(), alimenta el buscador
 
     /* Paleta ÚNICA (placeholder — reemplazar por el MODS del mockup). Clave = label
        normalizado (minúsculas, sin acentos). Fallback determinista por hash si falta. */
@@ -192,6 +226,14 @@
                 el.type = "button";
                 el.addEventListener("click", function () { openSheet(label, accent, subLinks, href); });
             }
+            // Índice de búsqueda (mismo espejo): directo → 1 entrada; contenedor → sus hijos (+ ruta propia).
+            if (isReal(href) && subLinks.length === 0) {
+                searchIndex.push({ mod: label, lbl: label, href: href });
+            } else {
+                if (isReal(href)) searchIndex.push({ mod: label, lbl: "Abrir " + label, href: href });
+                subLinks.forEach(function (c) { searchIndex.push({ mod: label, lbl: c.label, href: c.href }); });
+            }
+
             el.className = "mnav-item";
             el.style.setProperty("--mnav-accent", accent);
 
@@ -235,7 +277,44 @@
         if (e.target && (e.target.id === "mnav-sheet-backdrop" || e.target.id === "mnav-sheet-close")) closeSheet();
     });
 
-    /* Construir una vez, después de que feather haya reemplocado los íconos. */
+    /* ---- Buscador (sobre searchIndex, mismo espejo) ---- */
+    function renderSearch(q) {
+        var list = document.getElementById("mnav-search-list");
+        if (!list) return;
+        list.innerHTML = "";
+        var nq = norm(q);
+        var res = nq ? searchIndex.filter(function (e) { return norm(e.mod + " " + e.lbl).indexOf(nq) !== -1; }) : searchIndex;
+        if (!res.length) {
+            var empty = document.createElement("li");
+            empty.className = "mnav-search-empty"; empty.textContent = "Sin resultados.";
+            list.appendChild(empty); return;
+        }
+        res.slice(0, 60).forEach(function (e) {
+            var li = document.createElement("li");
+            var a = document.createElement("a"); a.href = e.href;
+            var m = document.createElement("span"); m.className = "s-mod"; m.textContent = e.mod;
+            var l = document.createElement("span"); l.className = "s-lbl"; l.textContent = e.lbl;
+            a.appendChild(m); a.appendChild(l); li.appendChild(a); list.appendChild(li);
+        });
+    }
+    function openSearch() {
+        var ov = document.getElementById("mnav-search"); if (!ov) return;
+        ov.hidden = false;
+        var inp = document.getElementById("mnav-search-input");
+        if (inp) { inp.value = ""; renderSearch(""); setTimeout(function () { inp.focus(); }, 50); }
+    }
+    function closeSearch() { var ov = document.getElementById("mnav-search"); if (ov) ov.hidden = true; }
+    document.addEventListener("click", function (e) {
+        if (!e.target || !e.target.closest) return;
+        if (e.target.closest("#mnav-search-btn")) openSearch();
+        if (e.target.id === "mnav-search-close") closeSearch();
+    });
+    document.addEventListener("input", function (e) {
+        if (e.target && e.target.id === "mnav-search-input") renderSearch(e.target.value);
+    });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeSearch(); closeSheet(); } });
+
+    /* Construir una vez, después de que feather haya reemplazado los íconos. */
     function boot() { requestAnimationFrame(function () { setTimeout(build, 300); }); }
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", boot);
