@@ -119,9 +119,11 @@ class RoadmapExternalController extends Controller
      *  a) NO degradar nivel_riesgo hacia menos restrictivo (A<B<C): solo endurecer.
      *     C→B, C→A y B→A quedan prohibidos; A→B, A→C, B→C o igual, permitidos.
      *     Quitar la clasificación (X→null) también es degradar → prohibido.
-     *  b) Un item nivel C JAMÁS puede quedar 'aprobado_claude' por esta vía (sería
-     *     auto-ejecutable). Máximo 'requiere_irving'. Se evalúa contra el nivel
-     *     EFECTIVO tras el update (por si suben nivel y aprueban en la misma llamada).
+     *  b) SOLO un item nivel A puede quedar 'aprobado_claude' (= validado y listo para
+     *     ejecución automática) por esta vía. Para B y C —y sin clasificar— el máximo es
+     *     'requiere_irving' (Claude validó el plan; la confirmación final la da Irving en
+     *     sesión, NO por la vía externa). Se evalúa contra el nivel EFECTIVO tras el update
+     *     (bloquea subir el nivel y auto-aprobar en la misma llamada).
      */
     private function guardExternalWrite(RoadmapItem $item, array $data): ?string
     {
@@ -141,9 +143,12 @@ class RoadmapExternalController extends Controller
         // Nivel efectivo tras aplicar este update.
         $nivelEfectivo = array_key_exists('nivel_riesgo', $data) ? $data['nivel_riesgo'] : $item->nivel_riesgo;
 
-        // (b) Un item C no puede quedar aprobado_claude por esta vía.
-        if (($data['estado_aprobacion'] ?? null) === 'aprobado_claude' && $nivelEfectivo === 'C') {
-            return "Un item nivel C no puede quedar 'aprobado_claude' por la vía externa; máximo 'requiere_irving'.";
+        // (b) Solo un item nivel A puede quedar aprobado_claude (auto-ejecutable) por esta
+        //     vía. B, C y sin clasificar topan en requiere_irving.
+        if (($data['estado_aprobacion'] ?? null) === 'aprobado_claude' && $nivelEfectivo !== 'A') {
+            $n = $nivelEfectivo ?? 'sin clasificar';
+            return "Solo un item nivel A puede quedar 'aprobado_claude' por la vía externa "
+                . "(este es nivel {$n}); para B/C el máximo es 'requiere_irving'.";
         }
 
         return null;
