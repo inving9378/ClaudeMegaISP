@@ -191,7 +191,7 @@
         let clientBlock = s.client
             ? `<tr><th>Cliente propuesto</th><td><b>${esc(s.client.name)}</b> (id ${s.client.id})</td></tr>
                <tr><th>Identificado por</th><td>${esc(s.method || '—')} · certeza ${esc(s.certainty || '—')}</td></tr>`
-            : `<tr><th>Cliente</th><td><i>Sin identificar — búscalo abajo</i></td></tr>`;
+            : `<tr><th>Cliente</th><td><i>Sin identificar — búscalo abajo</i>${s.previous_client ? `<div class="muted" style="margin-top:4px;">↩︎ En un intento previo con esta misma clave se pretendía aplicar a <b>${esc(s.previous_client.name)}</b> (id ${s.previous_client.id})</div>` : ''}</td></tr>`;
 
         let svcBlock = '';
         if (s.multiple_services && s.services && s.services.length){

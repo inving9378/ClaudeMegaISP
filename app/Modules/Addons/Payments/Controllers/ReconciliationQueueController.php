@@ -29,6 +29,8 @@ use Illuminate\Support\Facades\Storage;
 class ReconciliationQueueController extends Controller
 {
     private const MEDIA_PREFIX = 'private/payments/whatsapp/comprobantes/';
+    // Prefijo donde el gateway (WhatsAppAgent) guarda la media descargada.
+    private const MEDIA_PREFIX_GATEWAY = 'private/whatsapp/media/';
 
     public function __construct(private PaymentFromSessionService $applier) {}
 
@@ -180,6 +182,9 @@ class ReconciliationQueueController extends Controller
             'multiple_services'  => (bool) $s->resolved_multiple_services,
             'fields'             => $fields,
             'client'             => $client,
+            // INFORMATIVO: si escaló por duplicado sin cliente propio, a quién se
+            // pretendía aplicar en un intento previo con la misma clave (contexto para Tere).
+            'previous_client'    => $this->previousClientForDuplicate($s, $fields),
             'services'           => $services,
             'has_media'          => $ext && $this->mediaPath($s),
             'media_ext'          => $this->mediaPath($s) ? strtolower(pathinfo($this->mediaPath($s), PATHINFO_EXTENSION)) : null,
@@ -279,7 +284,7 @@ class ReconciliationQueueController extends Controller
     {
         $s = Session::findOrFail($sessionId);
         $path = $this->mediaPath($s);
-        abort_unless($path && str_starts_with($path, self::MEDIA_PREFIX) && Storage::disk('local')->exists($path), 404);
+        abort_unless($this->isServablePath($path), 404);
         return Storage::disk('local')->response($path, null, [
             'Content-Type'        => $this->mimeFor($path),
             'Content-Disposition' => 'inline',
@@ -481,13 +486,68 @@ class ReconciliationQueueController extends Controller
         return ['client_id' => $c['client_id'], 'name' => $c['full_name'] ?? null, 'colonia' => $c['colonia'] ?? null];
     }
 
+    /**
+     * INFORMATIVO — si esta sesión escaló por duplicado (duplicate_clave/
+     * duplicate_applied) SIN cliente propio, devuelve el cliente que se pretendía
+     * aplicar en un intento PREVIO con la misma clave. Solo contexto para Tere; NO
+     * cambia la lógica de escalado ni aplica nada. Null si no aplica.
+     */
+    private function previousClientForDuplicate(Session $s, array $fields): ?array
+    {
+        if (!in_array($s->escalation_reason, ['duplicate_clave', 'duplicate_applied'], true) || $s->resolved_client_id) {
+            return null;
+        }
+        $clave = trim((string) ($fields['clave_rastreo']['value'] ?? ''));
+        if ($clave === '') {
+            $clave = trim((string) ($fields['referencia']['value'] ?? ''));
+        }
+        if ($clave === '') {
+            return null;
+        }
+
+        $extIds = DB::table('whatsapp_payment_extractions')
+            ->where(function ($q) use ($clave) {
+                $q->where('fields->clave_rastreo->value', $clave)
+                  ->orWhere('fields->referencia->value', $clave);
+            })
+            ->pluck('id');
+        if ($extIds->isEmpty()) {
+            return null;
+        }
+
+        $prev = Session::whereIn('extraction_id', $extIds)
+            ->where('id', '!=', $s->id)
+            ->whereNotNull('resolved_client_id')
+            ->orderByDesc('id')
+            ->first();
+
+        return $prev ? $this->clientInfo((int) $prev->resolved_client_id) : null;
+    }
+
     private function mediaPath(Session $s): ?string
     {
         if (!$s->extraction_id) {
             return null;
         }
         $msgId = DB::table('whatsapp_payment_extractions')->where('id', $s->extraction_id)->value('message_id');
-        return $msgId ? DB::table('marketing_messages')->where('id', $msgId)->value('media_path') : null;
+        if (!$msgId) {
+            return null;
+        }
+        // Source-aware: las sesiones del gateway apuntan a whatsapp_messages; las de
+        // Marketing a marketing_messages (INTACTO). Sin esto, el id del gateway
+        // colisiona con un marketing_messages ajeno → NULL → "Sin comprobante".
+        if ($s->source === 'gateway') {
+            return DB::table('whatsapp_messages')->where('id', $msgId)->value('media_path');
+        }
+        return DB::table('marketing_messages')->where('id', $msgId)->value('media_path');
+    }
+
+    /** ¿La ruta es servible? Acepta el prefijo de Marketing O el del gateway + existe. */
+    private function isServablePath(?string $path): bool
+    {
+        return $path
+            && (str_starts_with($path, self::MEDIA_PREFIX) || str_starts_with($path, self::MEDIA_PREFIX_GATEWAY))
+            && Storage::disk('local')->exists($path);
     }
 
     /** Ruta de comprobante REALMENTE servible por media() (mismo guard: prefijo + existe). */
@@ -497,7 +557,7 @@ class ReconciliationQueueController extends Controller
             return null;
         }
         $path = $this->mediaPath($s);
-        return ($path && str_starts_with($path, self::MEDIA_PREFIX) && Storage::disk('local')->exists($path)) ? $path : null;
+        return $this->isServablePath($path) ? $path : null;
     }
 
     private function mimeFor(string $path): string
