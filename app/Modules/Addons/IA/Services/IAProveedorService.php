@@ -144,13 +144,17 @@ class IAProveedorService
     {
         try {
             $adaptador = IAAdaptadorFactory::crear($proveedor);
-            $ok = $adaptador->probarConexion();
+            // Usamos enviarMensaje directo (no probarConexion, que traga la
+            // excepción y devuelve bool) para que el error REAL del proveedor
+            // (p.ej. "invalid x-api-key" de Anthropic) llegue al catch y se
+            // guarde en ultimo_error, en vez del genérico "Falló prueba de conexión".
+            $adaptador->enviarMensaje([], 'ping', []);
             $proveedor->update([
-                'estado' => $ok ? 'conectado' : 'error',
-                'ultimo_error' => $ok ? null : 'Falló prueba de conexión',
+                'estado' => 'conectado',
+                'ultimo_error' => null,
                 'probado_at' => Carbon::now(),
             ]);
-            return $ok;
+            return true;
         } catch (\Throwable $e) {
             $proveedor->update([
                 'estado' => 'error',

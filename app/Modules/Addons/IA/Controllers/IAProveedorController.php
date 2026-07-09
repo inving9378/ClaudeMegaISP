@@ -36,6 +36,11 @@ class IAProveedorController extends Controller
         }
 
         $datos = $validator->validated();
+        // Las API keys nunca llevan espacios/saltos: limpiar antes de guardar
+        // para evitar pegados corruptos (401 invalid x-api-key).
+        if (!empty($datos['api_key'])) {
+            $datos['api_key'] = preg_replace('/\s+/', '', $datos['api_key']);
+        }
         $datos['headers_personalizados'] = $this->parseJson($request->input('headers_personalizados'));
         $datos['config_extra'] = $this->parseJson($request->input('config_extra'));
         $datos['created_by'] = auth()->id();
@@ -56,6 +61,10 @@ class IAProveedorController extends Controller
         }
 
         $datos = $validator->validated();
+        // Igual que en store: limpiar espacios/saltos de la api_key.
+        if (!empty($datos['api_key'])) {
+            $datos['api_key'] = preg_replace('/\s+/', '', $datos['api_key']);
+        }
         $datos['headers_personalizados'] = $this->parseJson($request->input('headers_personalizados'));
         $datos['config_extra'] = $this->parseJson($request->input('config_extra'));
         $datos['updated_by'] = auth()->id();
