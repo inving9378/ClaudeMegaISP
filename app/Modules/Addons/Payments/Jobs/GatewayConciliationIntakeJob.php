@@ -149,6 +149,16 @@ class GatewayConciliationIntakeJob implements ShouldQueue
                 'session_id'        => $session->id,
                 'clave'             => $clave !== '' ? $clave : '(huella monto/fecha/banco)',
             ]);
+
+            // Aviso al cliente — UNA sola vez por (conversación + clave). Si reenvía
+            // el mismo comprobante, escala en silencio como hasta ahora.
+            if (!$this->duplicateAlreadyNotified($message, $session, $clave)) {
+                $this->respond(
+                    $gateway,
+                    $message,
+                    '¡Gracias por tu comprobante! 🧾 Este pago ya figura en nuestros registros, así que nuestro equipo lo está validando manualmente para confirmar que se aplique en la cuenta correcta. Te avisamos en cuanto quede listo. 🙌'
+                );
+            }
             return;
         }
 
@@ -210,6 +220,33 @@ class GatewayConciliationIntakeJob implements ShouldQueue
                 'error'             => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * "Una sola vez": ¿ya se avisó al cliente de un duplicado con esta clave en
+     * ESTA conversación? Si existe una sesión gateway escalada por
+     * duplicate_clave PREVIA (id menor) en la misma conversación con la misma
+     * clave, no re-avisar (reenvíos → escalan en silencio). Sin clave (huella) →
+     * una sola vez por conversación.
+     */
+    private function duplicateAlreadyNotified(WhatsAppMessage $message, Session $current, string $clave): bool
+    {
+        $q = Session::where('source', 'gateway')
+            ->where('escalation_reason', 'duplicate_clave')
+            ->where('source_conversation_id', $message->conversation_id)
+            ->where('id', '<', $current->id);
+
+        if ($clave !== '') {
+            $extIds = WhatsappPaymentExtraction::where('source', 'gateway')
+                ->where(function ($w) use ($clave) {
+                    $w->where('fields->clave_rastreo->value', $clave)
+                      ->orWhere('fields->referencia->value', $clave);
+                })
+                ->pluck('id');
+            $q->whereIn('extraction_id', $extIds);
+        }
+
+        return $q->exists();
     }
 
     /** Es comprobante si trae monto O clave de rastreo (cualquier valor no vacío). */

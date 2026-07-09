@@ -5,6 +5,9 @@ namespace App\Modules\Addons\Payments\Services\Conciliation;
 use App\Modules\Addons\Marketing\Jobs\SendOutboundMessageJob;
 use App\Modules\Addons\Marketing\Services\AgentTools\AssignToHumanTool;
 use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
+use App\Modules\Addons\Payments\Support\ConciliationSettings;
+use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppConversation;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -48,6 +51,20 @@ class ConciliationResponder
         if ($session->is_simulation) {
             return;
         }
+
+        $active = \App\Modules\Addons\Payments\Support\ClientStatus::isActive($session->resolved_client_id);
+        $text = $active
+            ? '🎉 ¡Listo! Tu pago quedó aplicado con éxito. Gracias por estar al corriente, ¡seguimos conectados a toda velocidad! 🚀'
+            : '🎉 ¡Excelente! Tu pago quedó aplicado y tu servicio se está reactivando en este momento. ¡Gracias y bienvenido de vuelta! 🙌';
+
+        // Fase 1.x-bis — canal source-aware. El gateway resuelve su propia
+        // conversación (whatsapp_conversations) y envía por WhatsAppGateway; el
+        // path Marketing queda INTACTO.
+        if ($session->source === 'gateway') {
+            $this->sendGateway($session, $text);
+            return;
+        }
+
         $conv = $session->conversation_id
             ? \App\Models\Marketing\Conversation::find($session->conversation_id)
             : null;
@@ -55,12 +72,37 @@ class ConciliationResponder
             return;
         }
 
-        $active = \App\Modules\Addons\Payments\Support\ClientStatus::isActive($session->resolved_client_id);
-        $text = $active
-            ? '✅ ¡Tu pago fue aplicado! Ya puedes disfrutar de tu navegación 🎉'
-            : '✅ ¡Tu pago fue aplicado! Tu servicio se está reactivando, en breve tendrás internet de nuevo 🎉';
-
         $this->respond($conv, $text);
+    }
+
+    /**
+     * Envío gateway-native (whatsapp_conversations → WhatsAppGateway), respetando
+     * wa_autorespond. Best-effort: un fallo aquí nunca revierte el pago aplicado.
+     */
+    private function sendGateway(Session $session, string $text): void
+    {
+        $conv = WhatsAppConversation::find($session->source_conversation_id ?? $session->conversation_id);
+        if (!$conv) {
+            return;
+        }
+        if (!ConciliationSettings::enabled('wa_autorespond')) {
+            Log::channel('evolution')->info('Conciliación gateway: notificación SILENCIADA (wa_autorespond=false)', [
+                'session_id' => $session->id,
+                'preview'    => mb_substr($text, 0, 60),
+            ]);
+            return;
+        }
+        try {
+            $slug = $conv->instance?->slug;
+            if ($slug && $conv->contact_number) {
+                app(WhatsAppGateway::class)->sendText($slug, $conv->contact_number, $text);
+            }
+        } catch (\Throwable $e) {
+            Log::channel('evolution')->warning('Conciliación gateway: notifyApplied falló al enviar', [
+                'session_id' => $session->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 
     /** Envía la respuesta al cliente — SOLO si el flag wa_autorespond está encendido. */
