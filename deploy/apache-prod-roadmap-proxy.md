@@ -100,3 +100,38 @@ HTML/login en vez de JSON, agregar al inicio del vhost, antes de cualquier rewri
 El fetcher pide `https://v1megaisp.meganett.com.mx/robots.txt`, servido por **PROD** (NO se
 proxya). Verificar permisivo: `curl -s https://v1megaisp.meganett.com.mx/robots.txt`. Si PROD
 tuviera `Disallow: /`, tratarlo aparte (es SEO de producción; no se toca a la ligera).
+
+---
+
+## Consultas del circuito vía PROD (para Claude Cowork)
+
+**Base lectura:** `https://v1megaisp.meganett.com.mx/api/roadmap-externo/<READ_TOKEN>`
+**Base escritura (GET/set):** `https://v1megaisp.meganett.com.mx/api/roadmap-externo/<WRITE_TOKEN>/item/{id}/set`
+
+La respuesta se modela por MODOS para no truncar (el manual pesa ~134 KB y va aparte).
+
+### Lectura
+| Consulta | URL |
+|----------|-----|
+| Resumen (conteos por estado/nivel) + primera tanda compacta | `…/<READ_TOKEN>` |
+| Pendientes nivel A | `…/<READ_TOKEN>?estado=pendiente_revision&nivel=A` |
+| Siguiente tanda (paginado) | `…/<READ_TOKEN>?solo=items&page=2&per_page=50` |
+| Filtrar por módulo | `…/<READ_TOKEN>?solo=items&modulo=Talento` |
+| Detalle completo de un item (description, prompt, log) | `…/<READ_TOKEN>?id=211` |
+| Solo el manual (respuesta pesada, una vez) | `…/<READ_TOKEN>?solo=manual` |
+
+- **default** = `resumen` + `leyenda` + `_ayuda` + `meta`(paginación) + `items`(compacto), SIN manual.
+- **compacto** = `id,title,modulo,nivel_riesgo,estado_aprobacion,priority,status`.
+- `per_page` def 50, máx 100. `meta` trae `total`, `page`, `total_pages`.
+- Parámetro inválido → **422 JSON** (no redirige).
+
+### Escritura (asignar aprobación)
+| Acción | URL |
+|--------|-----|
+| Aprobar para auto-ejecución (SOLO nivel A) | `…/<WRITE_TOKEN>/item/{id}/set?estado_aprobacion=aprobado_claude` |
+| Validado, falta Irving (B y C) | `…/<WRITE_TOKEN>/item/{id}/set?estado_aprobacion=requiere_irving&comentarios_claude=<texto>` |
+| Endurecer nivel de riesgo | `…/<WRITE_TOKEN>/item/{id}/set?nivel_riesgo=C` |
+
+- Guards server-side: `aprobado_claude` **solo** si el item es nivel A; B/C topan en `requiere_irving`.
+  El `nivel_riesgo` solo se puede **endurecer** (A→B→C), nunca degradar. Violación → 422.
+- El token va en el path (enmascarado en el log de prod; auditoría real en dev).
