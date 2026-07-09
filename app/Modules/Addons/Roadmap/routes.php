@@ -36,6 +36,13 @@ Route::prefix('api/roadmap-externo')
         //   GET /{token}/item/{id}/set?estado_aprobacion=..&nivel_riesgo=..&comentarios_claude=..
         Route::get('/{token}/item/{id}/set', [RoadmapExternalController::class, 'setItem'])
             ->whereNumber('id');
+
+        // Variante de ESCRITURA por PATH (el fetcher de Cowork descarta el query string).
+        //   GET /{token}/item/{id}/set/{estado}/{nivel}/{comentario?}   ("-" = no cambiar)
+        // `comentario` (opcional) URL-encoded; ->where('.+') admite el texto codificado.
+        Route::get('/{token}/item/{id}/set/{estado}/{nivel}/{comentario?}', [RoadmapExternalController::class, 'setItemPath'])
+            ->whereNumber('id')
+            ->where('comentario', '.+');
     });
 
 Route::middleware(['web', 'auth'])

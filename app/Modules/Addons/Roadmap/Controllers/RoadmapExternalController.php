@@ -273,6 +273,36 @@ class RoadmapExternalController extends Controller
     }
 
     /**
+     * GET /api/roadmap-externo/{token}/item/{id}/set/{estado}/{nivel}/{comentario?}
+     * ESCRITURA por PATH — el fetcher de Cowork descarta el query string (rechaza incluso
+     * la petición con ?params), así que los campos van en el path. "-" = comodín (no cambiar).
+     * `comentario` es el último segmento OPCIONAL, URL-encoded (%20 = espacio), máx 1000 chars.
+     * Traduce los segmentos a los MISMOS 3 campos y delega en writeItem() → hereda whitelist/
+     * enums, guards (solo A→aprobado_claude, no degradar nivel), 422 y auditoría.
+     */
+    public function setItemPath(Request $request, string $token, int $id, string $estado, string $nivel, ?string $comentario = null): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.write_token'))) {
+            return $this->deny($request, 'GET-SETPATH', $token);
+        }
+
+        $fields = [];
+        if ($estado !== '-') $fields['estado_aprobacion'] = $estado;
+        if ($nivel  !== '-') $fields['nivel_riesgo']      = $nivel;
+
+        if ($comentario !== null && $comentario !== '') {
+            $decoded = urldecode($comentario);
+            if (mb_strlen($decoded) > 1000) {
+                return response()->json(['error' => 'comentario excede 1000 caracteres'], 422);
+            }
+            $fields['comentarios_claude'] = $decoded;
+        }
+
+        // Mismo camino que el /set por query: validación de enums + guards + update + log.
+        return $this->writeItem(new Request($fields), 'GET-SETPATH', $id);
+    }
+
+    /**
      * Cuerpo ÚNICO de la escritura acotada — compartido por el POST y el GET/set,
      * para que ambas vías tengan EXACTAMENTE la misma allowlist, validaciones,
      * guards de seguridad y auditoría. `$request->validate` lee tanto body (POST)
