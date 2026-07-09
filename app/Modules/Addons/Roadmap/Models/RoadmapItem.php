@@ -13,14 +13,30 @@ class RoadmapItem extends Model
         'target_version', 'prompt', 'position',
         'started_at', 'completed_at',
         'subtasks', 'log',
+        // Circuito de mejora continua (Parte 1.1)
+        'modulo', 'nivel_riesgo', 'estado_aprobacion',
+        'comentarios_claude', 'revisado_at', 'aprobado_por',
     ];
 
     protected $casts = [
         'started_at'   => 'datetime',
         'completed_at' => 'datetime',
+        'revisado_at'  => 'datetime',
         'position'     => 'integer',
         'subtasks'     => 'array',
         'log'          => 'array',
+    ];
+
+    // Enums del circuito (fuente de verdad para validación en el endpoint externo)
+    public const NIVELES_RIESGO = ['A', 'B', 'C'];
+
+    public const ESTADOS_APROBACION = [
+        'pendiente_revision',
+        'aprobado_claude',
+        'requiere_irving',
+        'rechazado',
+        'en_progreso',
+        'completado',
     ];
 
     protected $attributes = [
