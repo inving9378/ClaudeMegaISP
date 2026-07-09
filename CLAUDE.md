@@ -407,6 +407,14 @@ php artisan schedule:run   # cron lo llama cada minuto en prod
 
 ## CONVENCIONES
 
+### 🧩 SERVICIOS COMPARTIDOS ÚNICOS — PROHIBIDO DUPLICAR
+Antes de construir **cualquier capacidad** en **cualquier módulo** (existente o futuro), verificar si ya existe en el sistema. Si existe, el módulo se **CONECTA** al servicio existente; **nunca** construye su propia versión. Servicios únicos designados:
+1. **WhatsApp** → `WhatsAppAgent` es el **gateway único**. Los consumidores usan `WhatsAppGateway` + **eventos** (`WhatsAppMessageReceived`/`TextReceived`/`MediaReceived`); **nadie** monta webhook ni línea propia.
+2. **Mapas** → un solo módulo provee mapas y credenciales; los demás **agregan sus funciones dentro del mapa compartido** (no su propio mapa/clave).
+3. **IA** → los proveedores viven **solo** en el módulo IA (`ia_proveedores`, `/ia/configuracion`); cualquier uso de IA se conecta a los **adaptadores existentes**, sin clientes HTTP propios ni keys por módulo.
+
+La lista **crece** al designar nuevos servicios únicos. **Ante la duda, inventario (grep cross-módulos) ANTES de escribir código nuevo.**
+
 ### ⚠️ CRÍTICO — Los `user_id` (y otros PK) de DEV y PROD NO coinciden
 DEV (`192.168.105.11`) y PROD (`192.168.105.198`) son **bases distintas que divergieron** (auto-increments independientes). **Un id de un entorno NO mapea al otro.**
 - Ejemplo real: en **DEV** `users.id=8` = **Irving** (dueño); en **PROD** `users.id=8` = **Oscar Adrian, un CLIENTE** (rol `client`), e Irving en prod es **`id=13`** (`login_user=Meganet`).
