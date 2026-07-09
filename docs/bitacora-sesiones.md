@@ -170,6 +170,33 @@ aprobaciones por `/set`).
 
 ---
 
+## 2026-07-09 (noche, autónomo) — Cierre de sesión nocturna
+
+**Reglas de la noche honradas:** sin sudo, sin prod (solo lectura por prod para verificar), sin push, sin bloqueos.
+
+### PRIORIDAD 1 — Escritura PATH del circuito ✅ (ya estaba; verificada en vivo)
+`GET …/<WRITE_TOKEN>/item/{id}/set/{estado}/{nivel}/{comentario?}` (commit `3f8d683d`, previo).
+**Verificado end-to-end por PROD:** escritura real `set/requiere_irving/-/Prueba%20nocturna` → `ok:true`, comentario decodificado, autor `claude-cowork`; guard `aprobado_claude` en item B → 422; item de prueba restaurado. **CANAL #298** ya tiene el aviso con la sintaxis exacta. Cowork puede estrenar aprobaciones.
+
+### PRIORIDAD 2 — Navegación móvil (riel espejo) — Fases 1 y 2 ✅
+Capa aditiva solo-móvil que espeja el `#side-menu` real. Detalle completo en `docs/nav-movil-progreso.md`.
+- **Fase 1** (commit `faf75064`): riel deslizable + hoja de submenú. Validado con **playwright headless** (móvil 390px: 10 módulos en orden, color+ícono SVG, directos vs hoja; sub-grupos anidados aplanados con rutas correctas; escritorio 1200px → `display:none`; claro/oscuro).
+- **Fase 2** (commit `24674523`): buscador de respaldo ("lupa") sobre el mismo espejo. Validado (query "listar" → rutas correctas).
+- Roadmap **#299** (`in_progress`).
+
+### ⚠️ Pendientes anotados (no bloquean)
+- **Mockup `medussa-nav-movil-mockup.html` NUNCA llegó** (prometido 3 veces, sin HTML) → paleta placeholder en `MNAV_COLORS` (un solo lugar), lista para reemplazar por el `MODS` del mockup; topbar delgada final y proporciones dependen del mockup.
+- Sub-grupos anidados se aplanan en la hoja (refinar encabezados); × nativo del `type=search` (trivial).
+- **Nada requirió sudo** esta noche.
+
+### A validar con screenshot (Irving, mañana)
+Abrir la app en móvil / navegador <992px: confirmar que el riel espeja el sidebar **real completo** (todos los módulos/hijos/rutas), probar tap directo, hoja de submenú, la lupa y el modo oscuro. (La validación automática usó un sidebar sintético porque el composer no se dispara en render CLI; en el navegador real se puebla por HTTP.)
+
+### Commits de la noche (dev/main, sin pushear)
+`faf75064` (nav-movil Fase 1) · `24674523` (nav-movil Fase 2). *(PRIORIDAD 1 ya estaba en `3f8d683d`.)*
+
+---
+
 ## 2026-07-08 (noche) — Circuito: limpieza de historial + variante PATH + canal CC→Cowork
 
 ### Seguridad — tokens fuera de git (rotación + rewrite)
