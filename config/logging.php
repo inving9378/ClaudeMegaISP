@@ -54,6 +54,14 @@ return [
             'days' => 14,
         ],
 
+        // Auditoría del acceso externo a la Hoja de Ruta (Circuito de Mejora Continua)
+        'roadmap_externo' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/roadmap-externo.log'),
+            'level' => 'info',
+            'days' => 90,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

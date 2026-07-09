@@ -1,8 +1,27 @@
 <?php
 
 use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
+use App\Modules\Addons\Roadmap\Controllers\RoadmapExternalController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMemoryController;
 use Illuminate\Support\Facades\Route;
+
+/*
+| ACCESO EXTERNO SIN LOGIN (Circuito de Mejora Continua) — Claude Cowork.
+| SIN middleware `web`/`auth` → sin sesión ni cookies. Protegido por token en
+| el path + rate limit. Fuera de menús y sitemap.
+*/
+Route::prefix('api/roadmap-externo')
+    ->middleware('throttle:' . config('roadmap_externo.rate_read', 60) . ',1')
+    ->group(function () {
+        Route::get('/{token}', [RoadmapExternalController::class, 'index']);
+    });
+
+Route::prefix('api/roadmap-externo')
+    ->middleware('throttle:' . config('roadmap_externo.rate_write', 30) . ',1')
+    ->group(function () {
+        Route::post('/{token}/item/{id}', [RoadmapExternalController::class, 'updateItem'])
+            ->whereNumber('id');
+    });
 
 Route::middleware(['web', 'auth'])
     ->prefix('api/roadmap')
