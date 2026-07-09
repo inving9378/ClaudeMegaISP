@@ -30,5 +30,12 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             \App\Modules\Addons\WhatsAppAgent\Events\WhatsAppMediaReceived::class,
             \App\Modules\Addons\Payments\Listeners\ConciliationListener::class,
         );
+
+        // TEXTO entrante → si hay identificación de conciliación en curso, la
+        // respuesta del cliente la maneja el FSM (no el bot de ventas).
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Modules\Addons\WhatsAppAgent\Events\WhatsAppTextReceived::class,
+            \App\Modules\Addons\Payments\Listeners\ConciliationTextListener::class,
+        );
     }
 }

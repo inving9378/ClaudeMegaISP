@@ -49,6 +49,26 @@ class WhatsAppAutoReplyService
             return;
         }
 
+        // Si esta conversación tiene una identificación de conciliación en curso,
+        // el bot de ventas NO responde: el reply del cliente lo maneja el FSM
+        // (Payments\ConciliationTextListener). Evita doble respuesta y que ventas
+        // descarrile la identificación. Query cruda a la tabla de sesiones para no
+        // acoplar el gateway al módulo Payments. El OR por updated_at cubre la
+        // carrera: si el FSM resolvió/escaló la sesión con ESTE mismo mensaje, la
+        // sesión ya es terminal pero su updated_at es >= la llegada del mensaje.
+        $inConciliation = \Illuminate\Support\Facades\DB::table('whatsapp_identification_sessions')
+            ->where('source', 'gateway')
+            ->where('source_conversation_id', $conversation->id)
+            ->where('is_simulation', false)
+            ->where(function ($q) use ($message) {
+                $q->whereNotIn('state', ['resolved', 'escalated'])
+                    ->orWhere('updated_at', '>=', $message->created_at);
+            })
+            ->exists();
+        if ($inConciliation) {
+            return;
+        }
+
         $minConfidence = (float) config('whatsapp.auto_reply_min_confidence', 0.80);
         $tone          = (string) config('whatsapp.auto_reply_tone', 'friendly');
 
