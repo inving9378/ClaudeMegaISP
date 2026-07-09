@@ -4,6 +4,40 @@ Guía de contexto para Claude Code en este repositorio. Leer antes de explorar.
 
 ---
 
+## ⭐ REGLA PERMANENTE — Bitácora de sesiones (los cortes de internet borran reportes)
+
+Al **cerrar cualquier tarea grande**, además del reporte en pantalla, **escribir el reporte en
+`docs/bitacora-sesiones.md`** con **fecha/hora** (formato `## YYYY-MM-DD HH:MM — <título>`).
+**Siempre APPEND, nunca sobrescribir.** Esto sobrevive a los cortes de conexión.
+
+---
+
+## 🔁 CIRCUITO DE MEJORA CONTINUA
+
+Ciclo de mejora entre **Claude Code (local, esta red)** y **Claude Cowork (nube de Anthropic, externo)**:
+1. Claude Code **audita** el sistema y **llena la Hoja de Ruta** (`roadmap_items`) con hallazgos +
+   `prompt_para_claude` (plan por fases).
+2. Claude Cowork **revisa** vía `GET/POST /api/roadmap-externo/{token}` (sin login, token en `.env`):
+   ajusta `nivel_riesgo` y pone `estado_aprobacion`.
+3. Claude Code **ejecuta solo lo aprobado**.
+
+**Niveles de riesgo:** `A` seguro (aditivo/reversible, NO toca dinero/permisos/auth/producción) ·
+`B` requiere confirmación de Irving · `C` decisión de diseño exclusiva de Irving.
+Ante la duda, elegir el nivel **más restrictivo**.
+
+**Reglas de ejecución:**
+- **Modo automático SOLO** si `estado_aprobacion = aprobado_claude` **Y** `nivel_riesgo = A`.
+- **Nivel B**: solo en sesión con Irving confirmando. **Nivel C**: jamás sin decisión de Irving.
+- Al trabajar un item: `estado_aprobacion = en_progreso` al arrancar → `completado` al cerrar,
+  **con el hash del commit referenciado en el item** (campo `log` o `comentarios_claude`).
+
+**Infra:** módulo `Roadmap` (`app/Modules/Addons/Roadmap/`), tabla `roadmap_items` (campos del circuito
+en migración `2026_07_08_210000`). Manual de criterios servido en el GET = `docs/manual-criterios-circuito.md`
++ este CLAUDE.md anexado vivo. Tokens en `.env` (`ROADMAP_EXTERNAL_READ_TOKEN`/`WRITE_TOKEN`), auditoría en
+`storage/logs/roadmap-externo-*.log`.
+
+---
+
 ## REGLAS PARA AHORRAR TOKENS
 
 - NO explorar directorios completos sin necesidad
