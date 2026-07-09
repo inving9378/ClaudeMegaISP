@@ -14,6 +14,14 @@ Route::prefix('api/roadmap-externo')
     ->middleware('throttle:' . config('roadmap_externo.rate_read', 60) . ',1')
     ->group(function () {
         Route::get('/{token}', [RoadmapExternalController::class, 'index']);
+
+        // Variantes PATH-BASED (el fetcher de Cowork descarta el query string).
+        //   Detalle:  GET /{token}/item/{id}
+        //   Lista:    GET /{token}/q/{estado}/{nivel}/{page}/{perpage}  ("-" = comodín)
+        Route::get('/{token}/item/{id}', [RoadmapExternalController::class, 'showItem'])
+            ->whereNumber('id');
+        Route::get('/{token}/q/{estado}/{nivel}/{page}/{perpage}', [RoadmapExternalController::class, 'queryPath'])
+            ->whereNumber('page')->whereNumber('perpage');
     });
 
 Route::prefix('api/roadmap-externo')

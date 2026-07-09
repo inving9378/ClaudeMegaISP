@@ -53,18 +53,9 @@ class RoadmapExternalController extends Controller
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
 
-        // ── Detalle completo de UN item ──
+        // ── Detalle completo de UN item (?id=N) ──
         if (isset($p['id'])) {
-            $item = RoadmapItem::find($p['id']);
-            if (! $item) {
-                $this->audit($request, 'GET', 'not_found', ['id' => $p['id']]);
-                return response()->json(['error' => 'Item no encontrado'], 404);
-            }
-            $this->audit($request, 'GET', 'ok', ['modo' => 'detalle', 'id' => $p['id']]);
-            return response()->json([
-                'generated_at' => now()->toIso8601String(),
-                'item'         => $this->serialize($item),
-            ]);
+            return $this->respondItem($request, 'GET', (int) $p['id']);
         }
 
         // ── Solo el manual (respuesta pesada, bajo demanda) ──
@@ -80,20 +71,89 @@ class RoadmapExternalController extends Controller
         // ── Lista compacta (default y ?solo=items): filtros + paginación ──
         $page    = (int) ($p['page'] ?? 1);
         $perPage = (int) ($p['per_page'] ?? 50);
+        $payload = $this->buildList($p['estado'] ?? null, $p['nivel'] ?? null, $p['modulo'] ?? null, $page, $perPage, ($p['solo'] ?? null) !== 'items');
 
+        $this->audit($request, 'GET', 'ok', ['modo' => $p['solo'] ?? 'default', 'filtros' => $payload['filtros_aplicados'], 'page' => $page]);
+
+        return response()->json($payload);
+    }
+
+    /**
+     * GET /api/roadmap-externo/{token}/item/{id}  — DETALLE por PATH (lectura).
+     * El fetcher de Cowork descarta el query string, así que ?id=N no le sirve; esta
+     * variante path-based es a prueba de cualquier fetcher. Mismo token de lectura.
+     */
+    public function showItem(Request $request, string $token, int $id): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.read_token'))) {
+            return $this->deny($request, 'GET-ITEM', $token);
+        }
+        return $this->respondItem($request, 'GET-ITEM', $id);
+    }
+
+    /**
+     * GET /api/roadmap-externo/{token}/q/{estado}/{nivel}/{page}/{perpage}
+     * Lista FILTRADA por PATH (a prueba de fetchers que descartan el query string).
+     * Cualquier segmento acepta "-" como comodín. Ej: /q/pendiente_revision/A/1/50,
+     * /q/-/B/2/50. Mismas validaciones whitelist/enums; segmento inválido → 422.
+     */
+    public function queryPath(Request $request, string $token, string $estado, string $nivel, string $page, string $perpage): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.read_token'))) {
+            return $this->deny($request, 'GET-Q', $token);
+        }
+
+        // "-" = comodín (sin filtro).
+        $estado = $estado === '-' ? null : $estado;
+        $nivel  = $nivel === '-' ? null : $nivel;
+
+        // Mismas whitelist/enums que el query string (nada de SQL crudo), vía Request sintético.
+        $v = $this->validateExternal(new Request([
+            'estado' => $estado, 'nivel' => $nivel, 'page' => $page, 'perpage' => $perpage,
+        ]), [
+            'estado'  => ['nullable', 'string', 'in:' . implode(',', RoadmapItem::ESTADOS_APROBACION)],
+            'nivel'   => ['nullable', 'string', 'in:' . implode(',', RoadmapItem::NIVELES_RIESGO)],
+            'page'    => ['required', 'integer', 'min:1'],
+            'perpage' => ['required', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $payload = $this->buildList($estado, $nivel, null, (int) $v['page'], (int) $v['perpage'], true);
+
+        $this->audit($request, 'GET-Q', 'ok', ['filtros' => $payload['filtros_aplicados'], 'page' => (int) $v['page']]);
+
+        return response()->json($payload);
+    }
+
+    /** Respuesta de detalle de un item (compartida por ?id=N y el path /item/{id}). */
+    private function respondItem(Request $request, string $verb, int $id): JsonResponse
+    {
+        $item = RoadmapItem::find($id);
+        if (! $item) {
+            $this->audit($request, $verb, 'not_found', ['id' => $id]);
+            return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+        $this->audit($request, $verb, 'ok', ['modo' => 'detalle', 'id' => $id]);
+        return response()->json([
+            'generated_at' => now()->toIso8601String(),
+            'item'         => $this->serialize($item),
+        ]);
+    }
+
+    /** Construye la lista compacta (filtros parametrizados + paginación). Compartida por index() y queryPath(). */
+    private function buildList(?string $estado, ?string $nivel, ?string $modulo, int $page, int $perPage, bool $conResumen): array
+    {
         $q = RoadmapItem::query();
-        if (! empty($p['estado'])) $q->where('estado_aprobacion', $p['estado']);
-        if (! empty($p['nivel']))  $q->where('nivel_riesgo', $p['nivel']);
-        if (isset($p['modulo']) && $p['modulo'] !== '') $q->where('modulo', 'like', '%' . $p['modulo'] . '%');
+        if ($estado) $q->where('estado_aprobacion', $estado);
+        if ($nivel)  $q->where('nivel_riesgo', $nivel);
+        if ($modulo !== null && $modulo !== '') $q->where('modulo', 'like', '%' . $modulo . '%');
 
         $total = (clone $q)->count();
         $items = $q->ordered()->forPage($page, $perPage)->get()->map(fn ($i) => $this->compactItem($i));
 
-        $filtros = array_filter([
-            'estado' => $p['estado'] ?? null,
-            'nivel'  => $p['nivel'] ?? null,
-            'modulo' => $p['modulo'] ?? null,
-        ], fn ($v) => $v !== null && $v !== '');
+        $filtros = array_filter(
+            ['estado' => $estado, 'nivel' => $nivel, 'modulo' => $modulo],
+            fn ($val) => $val !== null && $val !== ''
+        );
 
         $payload = [
             'generated_at'      => now()->toIso8601String(),
@@ -108,8 +168,7 @@ class RoadmapExternalController extends Controller
             'items'             => $items,
         ];
 
-        // El default añade resumen global + leyenda + ayuda; ?solo=items va escueto.
-        if (($p['solo'] ?? null) !== 'items') {
+        if ($conResumen) {
             $payload = array_merge([
                 'generated_at' => now()->toIso8601String(),
                 'resumen'      => $this->resumen(),
@@ -118,9 +177,7 @@ class RoadmapExternalController extends Controller
             ], $payload);
         }
 
-        $this->audit($request, 'GET', 'ok', ['modo' => $p['solo'] ?? 'default', 'filtros' => $filtros, 'page' => $page]);
-
-        return response()->json($payload);
+        return $payload;
     }
 
     /** Panorama global (todos los items, sin filtrar) para el modo resumen. */
@@ -180,6 +237,13 @@ class RoadmapExternalController extends Controller
                 'segunda tanda de items'  => '?solo=items&page=2&per_page=50',
                 'detalle de un item'      => '?id=211',
                 'solo el manual'          => '?solo=manual',
+            ],
+            // Si tu fetcher DESCARTA el query string (caso Cowork), usa la variante PATH:
+            'variante_path' => [
+                'lista_filtrada' => '/{token}/q/{estado}/{nivel}/{page}/{perpage}   ("-" = comodín)',
+                'ej_pendientes_A'=> '/{token}/q/pendiente_revision/A/1/50',
+                'ej_nivel_B_pag2'=> '/{token}/q/-/B/2/50',
+                'detalle'        => '/{token}/item/{id}',
             ],
         ];
     }
