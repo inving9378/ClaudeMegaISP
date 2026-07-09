@@ -132,10 +132,22 @@ class RoadmapExternalController extends Controller
 
     private function manualCriterios(): string
     {
-        $path = base_path('docs/manual-criterios-circuito.md');
-        if (is_file($path)) {
-            return file_get_contents($path);
+        // Manual destilado (reglas del circuito + convenciones + negocio) …
+        $destilado = base_path('docs/manual-criterios-circuito.md');
+        $partes = [];
+        $partes[] = is_file($destilado)
+            ? file_get_contents($destilado)
+            : "Manual destilado no disponible (docs/manual-criterios-circuito.md ausente).";
+
+        // … + el CLAUDE.md COMPLETO y VIVO (nunca desincronizado, se lee del repo).
+        $claudeMd = base_path('CLAUDE.md');
+        if (is_file($claudeMd)) {
+            $partes[] = "\n\n===================================================================\n"
+                . "# ANEXO — CLAUDE.md COMPLETO (fuente viva del repositorio)\n"
+                . "===================================================================\n\n"
+                . file_get_contents($claudeMd);
         }
-        return "Manual de criterios no disponible (docs/manual-criterios-circuito.md ausente).";
+
+        return implode("\n", $partes);
     }
 }
