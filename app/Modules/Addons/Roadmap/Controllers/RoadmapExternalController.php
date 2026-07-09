@@ -4,9 +4,11 @@ namespace App\Modules\Addons\Roadmap\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * CIRCUITO DE MEJORA CONTINUA — acceso externo sin login (Parte 1.2)
@@ -23,28 +25,163 @@ use Illuminate\Support\Facades\Log;
  */
 class RoadmapExternalController extends Controller
 {
-    /** GET /api/roadmap-externo/{token} */
+    /**
+     * GET /api/roadmap-externo/{token}
+     *
+     * El fetcher de Cowork trunca respuestas largas y el manual (134 KB) tapaba los
+     * items. Por eso la respuesta se modela por MODOS (mismo token, mismos guards):
+     *  - ?id=N          → detalle COMPLETO de un item.
+     *  - ?solo=manual   → solo el manual + leyenda (la respuesta pesada, bajo demanda).
+     *  - ?solo=items    → solo la lista compacta (filtrada/paginada), sin resumen ni manual.
+     *  - (default)      → resumen (conteos) + leyenda + lista compacta paginada. SIN manual.
+     * Filtros combinables: ?estado= ?nivel= ?modulo=  · Paginación: ?page= ?per_page=.
+     */
     public function index(Request $request, string $token): JsonResponse
     {
         if (! $this->tokenOk($token, (string) config('roadmap_externo.read_token'))) {
             return $this->deny($request, 'GET', $token);
         }
 
-        $this->audit($request, 'GET', 'ok', ['items' => RoadmapItem::count()]);
-
-        return response()->json([
-            'generated_at'    => now()->toIso8601String(),
-            'manual_criterios' => $this->manualCriterios(),
-            'leyenda'         => [
-                'nivel_riesgo'      => [
-                    'A' => 'Seguro: aditivo, reversible, NO toca dinero/permisos/autenticación/producción. Ejecutable en automático si estado_aprobacion=aprobado_claude.',
-                    'B' => 'Requiere confirmación de Irving en sesión.',
-                    'C' => 'Decisión de diseño exclusiva de Irving. Jamás sin su decisión.',
-                ],
-                'estado_aprobacion' => RoadmapItem::ESTADOS_APROBACION,
-            ],
-            'items'           => RoadmapItem::ordered()->get()->map(fn ($i) => $this->serialize($i)),
+        // Whitelist + enums de TODOS los parámetros (nada de SQL crudo con input externo).
+        $p = $this->validateExternal($request, [
+            'solo'     => ['sometimes', 'string', 'in:manual,items'],
+            'id'       => ['sometimes', 'integer', 'min:1'],
+            'estado'   => ['sometimes', 'string', 'in:' . implode(',', RoadmapItem::ESTADOS_APROBACION)],
+            'nivel'    => ['sometimes', 'string', 'in:' . implode(',', RoadmapItem::NIVELES_RIESGO)],
+            'modulo'   => ['sometimes', 'string', 'max:100'],
+            'page'     => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
+
+        // ── Detalle completo de UN item ──
+        if (isset($p['id'])) {
+            $item = RoadmapItem::find($p['id']);
+            if (! $item) {
+                $this->audit($request, 'GET', 'not_found', ['id' => $p['id']]);
+                return response()->json(['error' => 'Item no encontrado'], 404);
+            }
+            $this->audit($request, 'GET', 'ok', ['modo' => 'detalle', 'id' => $p['id']]);
+            return response()->json([
+                'generated_at' => now()->toIso8601String(),
+                'item'         => $this->serialize($item),
+            ]);
+        }
+
+        // ── Solo el manual (respuesta pesada, bajo demanda) ──
+        if (($p['solo'] ?? null) === 'manual') {
+            $this->audit($request, 'GET', 'ok', ['modo' => 'manual']);
+            return response()->json([
+                'generated_at'     => now()->toIso8601String(),
+                'manual_criterios' => $this->manualCriterios(),
+                'leyenda'          => $this->leyenda(),
+            ]);
+        }
+
+        // ── Lista compacta (default y ?solo=items): filtros + paginación ──
+        $page    = (int) ($p['page'] ?? 1);
+        $perPage = (int) ($p['per_page'] ?? 50);
+
+        $q = RoadmapItem::query();
+        if (! empty($p['estado'])) $q->where('estado_aprobacion', $p['estado']);
+        if (! empty($p['nivel']))  $q->where('nivel_riesgo', $p['nivel']);
+        if (isset($p['modulo']) && $p['modulo'] !== '') $q->where('modulo', 'like', '%' . $p['modulo'] . '%');
+
+        $total = (clone $q)->count();
+        $items = $q->ordered()->forPage($page, $perPage)->get()->map(fn ($i) => $this->compactItem($i));
+
+        $filtros = array_filter([
+            'estado' => $p['estado'] ?? null,
+            'nivel'  => $p['nivel'] ?? null,
+            'modulo' => $p['modulo'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        $payload = [
+            'generated_at'      => now()->toIso8601String(),
+            'filtros_aplicados' => (object) $filtros,
+            'meta'              => [
+                'total'       => $total,
+                'page'        => $page,
+                'per_page'    => $perPage,
+                'total_pages' => (int) ceil(($total ?: 0) / $perPage),
+                'count'       => $items->count(),
+            ],
+            'items'             => $items,
+        ];
+
+        // El default añade resumen global + leyenda + ayuda; ?solo=items va escueto.
+        if (($p['solo'] ?? null) !== 'items') {
+            $payload = array_merge([
+                'generated_at' => now()->toIso8601String(),
+                'resumen'      => $this->resumen(),
+                'leyenda'      => $this->leyenda(),
+                '_ayuda'       => $this->ayuda(),
+            ], $payload);
+        }
+
+        $this->audit($request, 'GET', 'ok', ['modo' => $p['solo'] ?? 'default', 'filtros' => $filtros, 'page' => $page]);
+
+        return response()->json($payload);
+    }
+
+    /** Panorama global (todos los items, sin filtrar) para el modo resumen. */
+    private function resumen(): array
+    {
+        return [
+            'total'      => RoadmapItem::count(),
+            'por_estado' => RoadmapItem::selectRaw('estado_aprobacion, count(*) as n')
+                ->groupBy('estado_aprobacion')->pluck('n', 'estado_aprobacion'),
+            'por_nivel'  => RoadmapItem::selectRaw("COALESCE(nivel_riesgo,'sin_clasificar') as nivel, count(*) as n")
+                ->groupBy('nivel')->pluck('n', 'nivel'),
+        ];
+    }
+
+    /** Fila compacta (sin description/prompt) — para listas. El detalle va por ?id=N. */
+    private function compactItem(RoadmapItem $i): array
+    {
+        return [
+            'id'                => $i->id,
+            'title'             => $i->title,
+            'modulo'            => $i->modulo,
+            'nivel_riesgo'      => $i->nivel_riesgo,
+            'estado_aprobacion' => $i->estado_aprobacion,
+            'priority'          => $i->priority,
+            'status'            => $i->status,
+        ];
+    }
+
+    private function leyenda(): array
+    {
+        return [
+            'nivel_riesgo' => [
+                'A' => 'Seguro: aditivo, reversible, NO toca dinero/permisos/autenticación/producción. Ejecutable en automático si estado_aprobacion=aprobado_claude.',
+                'B' => 'Requiere confirmación de Irving en sesión.',
+                'C' => 'Decisión de diseño exclusiva de Irving. Jamás sin su decisión.',
+            ],
+            'estado_aprobacion'  => RoadmapItem::ESTADOS_APROBACION,
+            'aprobacion_externa' => 'Por esta vía SOLO un item nivel A puede quedar aprobado_claude; B y C topan en requiere_irving. El nivel_riesgo solo se puede endurecer (A→B→C), nunca degradar.',
+        ];
+    }
+
+    private function ayuda(): array
+    {
+        return [
+            'parametros' => [
+                'solo'     => 'manual | items',
+                'id'       => 'detalle completo de un item (N)',
+                'estado'   => implode('|', RoadmapItem::ESTADOS_APROBACION),
+                'nivel'    => implode('|', RoadmapItem::NIVELES_RIESGO),
+                'modulo'   => 'texto (búsqueda parcial)',
+                'page'     => 'nº de página (def 1)',
+                'per_page' => 'por página (def 50, máx 100)',
+            ],
+            'ejemplos' => [
+                'resumen + primera tanda' => '(sin parámetros)',
+                'pendientes nivel A'      => '?estado=pendiente_revision&nivel=A',
+                'segunda tanda de items'  => '?solo=items&page=2&per_page=50',
+                'detalle de un item'      => '?id=211',
+                'solo el manual'          => '?solo=manual',
+            ],
+        ];
     }
 
     /** POST /api/roadmap-externo/{token}/item/{id} */
@@ -86,7 +223,7 @@ class RoadmapExternalController extends Controller
         }
 
         // SOLO estos 3 campos son escribibles por esta vía. Nada más.
-        $data = $request->validate([
+        $data = $this->validateExternal($request, [
             'estado_aprobacion'  => ['sometimes', 'string', 'in:' . implode(',', RoadmapItem::ESTADOS_APROBACION)],
             'nivel_riesgo'       => ['sometimes', 'nullable', 'string', 'in:' . implode(',', RoadmapItem::NIVELES_RIESGO)],
             'comentarios_claude' => ['sometimes', 'nullable', 'string', 'max:10000'],
@@ -155,6 +292,22 @@ class RoadmapExternalController extends Controller
     }
 
     // ---------------------------------------------------------------------
+
+    /**
+     * Valida con whitelist/enums SIEMPRE devolviendo 422 JSON si falla. Estas rutas
+     * viven FUERA del grupo `web`, así que `$request->validate()` redirigiría (302) a
+     * un curl/fetcher que no manda `Accept: application/json`. Aquí se fuerza JSON.
+     */
+    private function validateExternal(Request $request, array $rules): array
+    {
+        $validator = Validator::make($request->all(), $rules);
+        if ($validator->fails()) {
+            throw new HttpResponseException(
+                response()->json(['error' => 'Parámetros inválidos', 'detalles' => $validator->errors()], 422)
+            );
+        }
+        return $validator->validated();
+    }
 
     private function tokenOk(string $given, string $expected): bool
     {
