@@ -23,6 +23,13 @@ class ConciliationListener implements ShouldQueue
 
     public function handle(WhatsAppMediaReceived $event): void
     {
+        // Gate por función de línea (Opción A, apagado total): si la línea NO tiene
+        // "Conciliación" marcada, el comprobante se ignora ANTES de descargar media
+        // o crear cualquier registro → cero rastro, cero respuesta.
+        if (!$event->hasFunction('conciliacion')) {
+            return;
+        }
+
         $message = WhatsAppMessage::find($event->messageId);
         if (!$message) {
             return;

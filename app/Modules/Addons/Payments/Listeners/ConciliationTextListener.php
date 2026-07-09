@@ -32,6 +32,12 @@ class ConciliationTextListener implements ShouldQueue
 
     public function handle(WhatsAppTextReceived $event): void
     {
+        // Gate por función de línea (Opción A, apagado total): sin "Conciliación"
+        // marcada, la línea ni siquiera atiende las respuestas de identificación.
+        if (!$event->hasFunction('conciliacion')) {
+            return;
+        }
+
         if (!ConciliationSettings::enabled('wa_conciliation')) {
             return;
         }
