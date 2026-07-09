@@ -16,6 +16,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -124,12 +125,15 @@ class GatewayConciliationIntakeJob implements ShouldQueue
         if ($clave === '') {
             $clave = trim((string) ($result['fields']['referencia']['value'] ?? ''));
         }
-        $convId   = (int) $message->conversation_id;
-        $dupOther = $clave !== ''
-            ? $this->claveSeenInOtherConversation($clave, $convId)
-            : $this->fingerprintSeenInOtherConversation($result['fields'] ?? [], $convId);
+        // Detección de duplicado en la ENTRADA (3 tiers). Reemplaza el viejo
+        // "solo otra conversación": ahora caza reenvíos del MISMO número y, sobre
+        // todo, claves/huellas YA APLICADAS. Ninguna rama corre el FSM.
+        $status = $clave !== ''
+            ? $this->classifyClaveDuplicate($clave, $extraction->id)
+            : $this->classifyFingerprintDuplicate($result['fields'] ?? [], $extraction->id);
 
-        if ($dupOther) {
+        if ($status !== 'none') {
+            $reason = $status === 'applied' ? 'duplicate_applied' : 'duplicate_clave';
             $session = Session::create([
                 'is_simulation'          => false,
                 'source'                 => 'gateway',
@@ -139,25 +143,26 @@ class GatewayConciliationIntakeJob implements ShouldQueue
                 'conversation_id'        => $message->conversation_id,
                 'message_id'             => $message->id,
                 'state'                  => Session::STATE_ESCALATED,
-                'escalation_reason'      => 'duplicate_clave',
+                'escalation_reason'      => $reason,
                 'attempts'               => 0,
                 'expires_at'             => $expiresAt,
             ]);
-            Log::channel('evolution')->warning('Conciliación gateway: comprobante duplicado desde otra conversación → ESCALADO', [
+            Log::channel('evolution')->warning('Conciliación gateway: comprobante duplicado → ESCALADO', [
                 'source_message_id' => $message->id,
                 'extraction_id'     => $extraction->id,
                 'session_id'        => $session->id,
+                'status'            => $status,
+                'reason'            => $reason,
                 'clave'             => $clave !== '' ? $clave : '(huella monto/fecha/banco)',
             ]);
 
             // Aviso al cliente — UNA sola vez por (conversación + clave). Si reenvía
-            // el mismo comprobante, escala en silencio como hasta ahora.
+            // el mismo comprobante, escala en silencio.
             if (!$this->duplicateAlreadyNotified($message, $session, $clave)) {
-                $this->respond(
-                    $gateway,
-                    $message,
-                    '¡Gracias por tu comprobante! 🧾 Este pago ya figura en nuestros registros, así que nuestro equipo lo está validando manualmente para confirmar que se aplique en la cuenta correcta. Te avisamos en cuanto quede listo. 🙌'
-                );
+                $text = $status === 'applied'
+                    ? '¡Gracias! 🧾 Este pago ya lo tenemos registrado y aplicado en la cuenta. No necesitas hacer nada más. Si crees que falta algo, nuestro equipo puede revisarlo. 🙌'
+                    : '¡Gracias por tu comprobante! 🧾 Este pago ya figura en nuestros registros, así que nuestro equipo lo está validando manualmente para confirmar que se aplique en la cuenta correcta. Te avisamos en cuanto quede listo. 🙌';
+                $this->respond($gateway, $message, $text);
             }
             return;
         }
@@ -224,15 +229,15 @@ class GatewayConciliationIntakeJob implements ShouldQueue
 
     /**
      * "Una sola vez": ¿ya se avisó al cliente de un duplicado con esta clave en
-     * ESTA conversación? Si existe una sesión gateway escalada por
-     * duplicate_clave PREVIA (id menor) en la misma conversación con la misma
-     * clave, no re-avisar (reenvíos → escalan en silencio). Sin clave (huella) →
-     * una sola vez por conversación.
+     * ESTA conversación? Si existe una sesión gateway escalada por duplicado
+     * (duplicate_clave o duplicate_applied) PREVIA (id menor) en la misma
+     * conversación con la misma clave, no re-avisar (reenvíos → escalan en
+     * silencio). Sin clave (huella) → una sola vez por conversación.
      */
     private function duplicateAlreadyNotified(WhatsAppMessage $message, Session $current, string $clave): bool
     {
         $q = Session::where('source', 'gateway')
-            ->where('escalation_reason', 'duplicate_clave')
+            ->whereIn('escalation_reason', ['duplicate_clave', 'duplicate_applied'])
             ->where('source_conversation_id', $message->conversation_id)
             ->where('id', '<', $current->id);
 
@@ -261,38 +266,96 @@ class GatewayConciliationIntakeJob implements ShouldQueue
         return $has('monto') || $has('clave_rastreo');
     }
 
-    /** ¿Esta clave/referencia ya se recibió en OTRA conversación del GATEWAY? */
-    private function claveSeenInOtherConversation(string $clave, int $conversationId): bool
+    /**
+     * Clasifica el duplicado de una CLAVE (3 tiers). SOLO LECTURA — no toca el
+     * candado de dinero (claveAlreadyUsed/apply), solo lee las mismas tablas.
+     *  - 'applied'      → la clave YA está aplicada (payments.number o
+     *                     reported_payments.clave_rastreo). El más importante.
+     *  - 'pending_seen' → vista en una extracción gateway PREVIA (id < actual),
+     *                     en CUALQUIER conversación (caza reenvíos del mismo número).
+     *  - 'none'         → no es duplicado.
+     */
+    private function classifyClaveDuplicate(string $clave, int $currentExtractionId): string
     {
-        return WhatsappPaymentExtraction::where('source', 'gateway')
-            ->where('source_conversation_id', '!=', $conversationId)
+        if ($clave === '') {
+            return 'none';
+        }
+
+        $applied = DB::table('reported_payments')->where('clave_rastreo', $clave)->whereNull('deleted_at')->exists()
+            || DB::table('payments')->where('number', $clave)->whereNull('deleted_at')->exists();
+        if ($applied) {
+            return 'applied';
+        }
+
+        $seen = WhatsappPaymentExtraction::where('source', 'gateway')
+            ->where('id', '<', $currentExtractionId)
             ->whereNull('discarded_at')
             ->where(function ($q) use ($clave) {
                 $q->where('fields->clave_rastreo->value', $clave)
                   ->orWhere('fields->referencia->value', $clave);
             })
             ->exists();
+
+        return $seen ? 'pending_seen' : 'none';
     }
 
     /**
-     * Sin clave: ¿el mismo comprobante (huella monto+fecha+banco) ya se recibió
-     * en OTRA conversación del GATEWAY? Huella débil (solo monto) → no marca
-     * duplicidad, para evitar falsos positivos.
+     * Sin clave: clasifica el duplicado por HUELLA (monto+fecha+banco), simétrico
+     * a la clave.
+     *  - 'applied'      → la huella YA está aplicada (reported_payments.dedup_fingerprint,
+     *                     mismo formato que el motor de dinero).
+     *  - 'pending_seen' → misma huella en una extracción gateway PREVIA (id < actual).
+     *  - 'none'         → no es duplicado o la huella es demasiado débil.
      */
-    private function fingerprintSeenInOtherConversation(array $fields, int $conversationId): bool
+    private function classifyFingerprintDuplicate(array $fields, int $currentExtractionId): string
     {
+        $fp = $this->buildFingerprint($fields);
+        if ($fp !== null) {
+            $applied = DB::table('reported_payments')
+                ->where('dedup_fingerprint', $fp)->whereNull('deleted_at')->exists();
+            if ($applied) {
+                return 'applied';
+            }
+        }
+
         $monto = trim((string) ($fields['monto']['value'] ?? ''));
         $fecha = trim((string) ($fields['fecha_pago']['value'] ?? ''));
         $banco = trim((string) ($fields['banco_origen']['value'] ?? ''));
         if ($monto === '' || ($fecha === '' && $banco === '')) {
-            return false;
+            return 'none'; // huella débil → no marca duplicidad (evita falsos positivos)
         }
+
         $q = WhatsappPaymentExtraction::where('source', 'gateway')
-            ->where('source_conversation_id', '!=', $conversationId)
+            ->where('id', '<', $currentExtractionId)
             ->whereNull('discarded_at')
             ->where('fields->monto->value', $fields['monto']['value']);
         if ($fecha !== '') { $q->where('fields->fecha_pago->value', $fields['fecha_pago']['value']); }
         if ($banco !== '') { $q->where('fields->banco_origen->value', $fields['banco_origen']['value']); }
-        return $q->exists();
+
+        return $q->exists() ? 'pending_seen' : 'none';
+    }
+
+    /**
+     * Huella anti-duplicado con el MISMO formato que el motor de dinero
+     * (PaymentFromSessionService::paymentFingerprint) para que el Tier-1 case
+     * contra reported_payments.dedup_fingerprint. Null si es demasiado débil.
+     */
+    private function buildFingerprint(array $fields): ?string
+    {
+        $monto  = $fields['monto']['value'] ?? null;
+        $amount = ($monto !== null && is_numeric(str_replace(',', '', (string) $monto)))
+            ? (float) str_replace(',', '', (string) $monto) : null;
+        $fecha = $this->norm($fields['fecha_pago']['value'] ?? null);
+        $banco = $this->norm($fields['banco_origen']['value'] ?? null);
+        if ($amount === null || ($fecha === '' && $banco === '')) {
+            return null;
+        }
+        return 'FP:' . number_format($amount, 2, '.', '') . '|' . $fecha . '|' . $banco;
+    }
+
+    /** Igual que PaymentFromSessionService::norm (minúsculas + colapsa espacios + trim). */
+    private function norm(?string $s): string
+    {
+        return trim(preg_replace('/\s+/', ' ', mb_strtolower((string) $s)));
     }
 }
