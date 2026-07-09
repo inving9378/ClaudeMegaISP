@@ -40,6 +40,8 @@
             @include('core-layout::topbar')
         </div>
         @include('core-layout::sidebar')
+        {{-- Navegación móvil (capa aditiva, solo <=992px; escritorio intacto) --}}
+        @include('core-layout::mobile-nav')
         <div id="layout-wrapper" class="main-content">
             <div class="page-content">
                 <div class="container-fluid" id="init-vue">
