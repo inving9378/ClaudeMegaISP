@@ -2,6 +2,9 @@
 
 namespace App\Modules\Addons\WhatsAppAgent\Services;
 
+use App\Modules\Addons\WhatsAppAgent\Events\WhatsAppMediaReceived;
+use App\Modules\Addons\WhatsAppAgent\Events\WhatsAppMessageReceived;
+use App\Modules\Addons\WhatsAppAgent\Events\WhatsAppTextReceived;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppConversation;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstance;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppMessage;
@@ -93,18 +96,53 @@ class WhatsAppRouterService
             $conversation->incrementUnread();
             $conversation->update(['last_message_at' => now()]);
 
-            // Auto-reply: opcional, NO bloqueante. Errores van a logs sin
-            // propagarse — el mensaje IN ya quedó persistido arriba.
-            if ((bool) config('whatsapp.auto_reply', false)) {
-                try {
-                    app(WhatsAppAutoReplyService::class)->maybeReply($stored, $conversation);
-                } catch (\Throwable $e) {
-                    Log::warning('WhatsApp auto-reply: excepción no capturada', [
-                        'message_id' => $stored->id,
-                        'error'      => $e->getMessage(),
-                    ]);
-                }
-            }
+            // Gateway → EVENTOS. El transporte sólo normaliza y publica; los
+            // consumidores reaccionan como listeners (IA para texto, conciliación
+            // para media, y a futuro cualquier módulo) SIN tocar el gateway.
+            $this->publish($instance, $conversation, $stored, $contactNumber, $messageType, $body, $msg);
+        }
+    }
+
+    /**
+     * Publica los eventos del gateway para un mensaje entrante ya persistido:
+     * el base {@see WhatsAppMessageReceived} (suscriptores genéricos) más el
+     * especializado por tipo (texto → IA, media → conciliación). `lineFunctions`
+     * son los slugs de las funciones asignadas a la línea (cobranza/ventas/…),
+     * para que los listeners puedan autogatearse.
+     */
+    private function publish(
+        WhatsAppInstance $instance,
+        WhatsAppConversation $conversation,
+        WhatsAppMessage $stored,
+        string $contactNumber,
+        string $type,
+        ?string $body,
+        array $rawMessage
+    ): void {
+        try {
+            $lineFunctions = $instance->functions()->pluck('whatsapp_functions.slug')->all();
+        } catch (\Throwable $e) {
+            $lineFunctions = [];
+        }
+
+        $args = [
+            $instance->id,
+            (string) $instance->slug,
+            $conversation->id,
+            $stored->id,
+            $contactNumber,
+            $type,
+            $body,
+            $lineFunctions,
+            $rawMessage,
+        ];
+
+        WhatsAppMessageReceived::dispatch(...$args);
+
+        if (in_array($type, ['image', 'document'], true)) {
+            WhatsAppMediaReceived::dispatch(...$args);
+        } else {
+            WhatsAppTextReceived::dispatch(...$args);
         }
     }
 
