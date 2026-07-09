@@ -38,6 +38,9 @@ class WhatsappIdentificationSession extends BaseModel
 
     protected $fillable = [
         'is_simulation',
+        'source',
+        'source_message_id',
+        'source_conversation_id',
         'extraction_id',
         'conversation_id',
         'message_id',
