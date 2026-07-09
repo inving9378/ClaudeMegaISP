@@ -22,5 +22,13 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 ConciliacionDemoCommand::class,
             ]);
         }
+
+        // Consumidor del gateway ÚNICO de WhatsApp: media entrante → conciliación.
+        // Payments se conecta al gateway (WhatsAppAgent) como listener; no monta
+        // integración propia (ver convención "servicios compartidos únicos").
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Modules\Addons\WhatsAppAgent\Events\WhatsAppMediaReceived::class,
+            \App\Modules\Addons\Payments\Listeners\ConciliationListener::class,
+        );
     }
 }
