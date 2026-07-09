@@ -167,3 +167,32 @@ cuando se abra el acceso directo.
 
 **Siguiente:** Cowork hace su primera revisión real (resumen → pendientes por tandas → escribe
 aprobaciones por `/set`).
+
+---
+
+## 2026-07-08 (noche) — Circuito: limpieza de historial + variante PATH + canal CC→Cowork
+
+### Seguridad — tokens fuera de git (rotación + rewrite)
+- Los tokens read/write estaban en claro en `docs/bitacora-sesiones.md` (commit previo, **nunca
+  pusheado** — confirmado con `git fetch` + `merge-base`). `git grep` confirmó que era el ÚNICO
+  archivo trackeado con tokens reales.
+- **Rotados** (`openssl rand -hex 32` → `.env`, dev corre uncached → live): viejo→403, nuevo→200
+  verificado. Los valores NO se imprimieron (Irving los saca de `.env`).
+- **Redactados** a `<READ_TOKEN>`/`<WRITE_TOKEN>` + regla en CLAUDE.md ("secretos SOLO en .env").
+- **Historial reescrito** con `git filter-repo --replace-text` (backup previo: bundle 171M + copia
+  `.git` en scratchpad). Verificado: **0 ocurrencias de ambos tokens en TODA la historia**, árbol
+  limpio, **1063 commits** (nada perdido), 25 ahead de `origin/main`, base compartida `f90ef059`.
+  ⚠️ Los SHAs **desde el commit del token cambiaron** (`06b24a96`→**`265e4326`** y todo lo posterior);
+  los previos intactos. Equivalencias no rastreadas 1:1 — ver `git log`. HEAD tras el trabajo: **`62b970a2`**.
+
+### Defecto del GET y fix PATH-based (commit `62b970a2`)
+- **Diagnóstico:** el proxy Apache **conserva** el query string (curl por prod → filtros ok), pero el
+  **fetcher de Cowork lo descarta** (audit log: UA `Claude-User` → `filtros:[]`). Culpable = fetcher.
+- **Fix a prueba de fetchers:** `GET /{token}/q/{estado}/{nivel}/{page}/{perpage}` (`-`=comodín) y
+  `GET /{token}/item/{id}` (detalle por path). Misma whitelist/enums, mismos guards, 422 en segmento
+  inválido. Query string se conserva. Verificado localhost + end-to-end por PROD.
+
+### Canal CC→Cowork (roadmap #298)
+- Item fijo **"CANAL CC→COWORK"** (`status=in_progress`, `nivel_riesgo=C`, `estado_aprobacion=en_progreso`)
+  como buzón: Claude Code anota con fecha lo que Cowork deba saber (rutas nuevas, cambios de contrato,
+  auditorías, rotaciones). Cowork lo lee al inicio de cada ronda. Primer aviso ya cargado (variante path).

@@ -125,6 +125,17 @@ La respuesta se modela por MODOS para no truncar (el manual pesa ~134 KB y va ap
 - `per_page` def 50, máx 100. `meta` trae `total`, `page`, `total_pages`.
 - Parámetro inválido → **422 JSON** (no redirige).
 
+#### Variante PATH-based (para fetchers que descartan el query string, p.ej. Cowork)
+| Consulta | URL |
+|----------|-----|
+| Lista filtrada por PATH (`-` = comodín) | `…/<READ_TOKEN>/q/{estado}/{nivel}/{page}/{perpage}` |
+| Pendientes nivel A | `…/<READ_TOKEN>/q/pendiente_revision/A/1/50` |
+| Nivel B, página 2 | `…/<READ_TOKEN>/q/-/B/2/50` |
+| Detalle por PATH | `…/<READ_TOKEN>/item/{id}` |
+
+- Misma whitelist/enums y misma respuesta que la variante query; segmento inválido → **422**.
+- El query string se conserva para curl/humanos; el PATH es el camino a prueba de fetchers.
+
 ### Escritura (asignar aprobación)
 | Acción | URL |
 |--------|-----|
