@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapExternalController;
+use App\Modules\Addons\Roadmap\Controllers\RoadmapMcpController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMemoryController;
 use Illuminate\Support\Facades\Route;
 
@@ -43,6 +44,19 @@ Route::prefix('api/roadmap-externo')
         Route::get('/{token}/item/{id}/set/{estado}/{nivel}/{comentario?}', [RoadmapExternalController::class, 'setItemPath'])
             ->whereNumber('id')
             ->where('comentario', '.+');
+    });
+
+/*
+| CONECTOR MCP de la Hoja de Ruta (Circuito CC) — Streamable HTTP / JSON-RPC 2.0.
+| Custom connector de claude.ai para Cowork (sin allowlist de red). SIN middleware
+| `web`/`auth` → sin sesión ni CSRF. Protegido por secreto en el path + rate limit.
+| Endpoint: POST https://dev.meganett.com.mx/mcp/{secret}  (GET → 405).
+*/
+Route::prefix('mcp')
+    ->middleware('throttle:' . config('mcp_roadmap.rate', 120) . ',1')
+    ->group(function () {
+        Route::post('/{secret}', [RoadmapMcpController::class, 'handle']);
+        Route::get('/{secret}', [RoadmapMcpController::class, 'methodNotAllowed']);
     });
 
 Route::middleware(['web', 'auth'])
