@@ -1,5 +1,5 @@
 <template>
-  <div class="tc-wrap">
+  <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- Estado del circuito + kill switch -->
     <div class="tc-statusbar">
@@ -109,6 +109,7 @@
 <script>
 import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
+import { darkMode } from '../../../hook/appConfig.js';
 
 export default {
     name: 'TorreControl',
@@ -232,6 +233,7 @@ export default {
             cola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             sel, coment, deciding, decidir,
+            darkMode,
         };
     },
 };
@@ -297,5 +299,32 @@ export default {
 .tc-sev{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:5px;margin-top:1px;}
 .tc-sevA{background:#fef2f2;color:#b91c1c;} .tc-sevM{background:#fffbeb;color:#b45309;} .tc-sevB{background:#f1f5f9;color:#475569;}
 .tc-foot{font-size:11.5px;color:var(--tc-muted);margin-top:16px;text-align:center;}
+
+/* ── Modo oscuro (responde al toggle de tema del proyecto: body[data-layout-mode] → darkMode) ── */
+.tc-dark{
+  --tc-surface:#151d2e; --tc-ink:#e8edf6; --tc-muted:#8b97ab; --tc-line:#2a3550;
+  --tc-ok:#4ade80; --tc-info:#60a5fa; --tc-warn:#fbbf24; --tc-bad:#f87171; --tc-slate:#94a3b8; --tc-accent:#2dd4bf;
+}
+.tc-dark .tc-statusbar,.tc-dark .tc-kpi,.tc-dark .tc-card{box-shadow:0 1px 2px rgba(0,0,0,.35);}
+.tc-dark .tc-run{background:rgba(74,222,128,.14);color:#4ade80;}
+.tc-dark .tc-pause{background:rgba(248,113,113,.14);color:#f87171;}
+.tc-dark .tc-killbtn{background:#1c2740;color:#f87171;border-color:#5b2b2b;}
+.tc-dark .tc-killbtn.tc-resume{background:#132a1f;color:#4ade80;border-color:#2b5b3b;}
+.tc-dark .tc-lvA{background:rgba(74,222,128,.15);color:#4ade80;}
+.tc-dark .tc-lvB{background:rgba(251,191,36,.15);color:#fbbf24;}
+.tc-dark .tc-lvC{background:rgba(248,113,113,.15);color:#f87171;}
+.tc-dark .tc-lvNone{background:rgba(148,163,184,.15);color:#94a3b8;}
+.tc-dark .tc-sevA{background:rgba(248,113,113,.15);color:#f87171;}
+.tc-dark .tc-sevM{background:rgba(251,191,36,.15);color:#fbbf24;}
+.tc-dark .tc-sevB{background:rgba(148,163,184,.15);color:#cbd5e1;}
+.tc-dark .tc-opt{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
+.tc-dark .tc-opt:hover{border-color:#2dd4bf;}
+.tc-dark .tc-opt-sel{background:rgba(45,212,191,.15);color:#5eead4;border-color:#2dd4bf;box-shadow:0 0 0 2px rgba(45,212,191,.25);}
+.tc-dark .tc-coment{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
+.tc-dark .tc-coment::placeholder{color:#64748b;}
+.tc-dark .tc-btn-ok{background:rgba(74,222,128,.14);color:#4ade80;border-color:#2b5b3b;}
+.tc-dark .tc-btn-no{background:rgba(248,113,113,.14);color:#f87171;border-color:#5b2b2b;}
+.tc-dark .tc-btn-mut{background:#1c2740;color:#cbd5e1;border-color:#2a3550;}
+
 @media(max-width:820px){.tc-kpis{grid-template-columns:repeat(2,1fr)}.tc-grid{grid-template-columns:1fr}}
 </style>
