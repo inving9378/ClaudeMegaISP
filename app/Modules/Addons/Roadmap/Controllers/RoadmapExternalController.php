@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,13 @@ use Illuminate\Support\Facades\Validator;
  */
 class RoadmapExternalController extends Controller
 {
+    // La lógica de negocio (queries, serialización, allowlist y guards) vive en el
+    // servicio compartido; este controller solo aporta el transporte token-en-path,
+    // la validación de parámetros y la presentación (leyenda/ayuda/manual).
+    public function __construct(private RoadmapCircuitoService $svc)
+    {
+    }
+
     /**
      * GET /api/roadmap-externo/{token}
      *
@@ -135,75 +143,31 @@ class RoadmapExternalController extends Controller
         $this->audit($request, $verb, 'ok', ['modo' => 'detalle', 'id' => $id]);
         return response()->json([
             'generated_at' => now()->toIso8601String(),
-            'item'         => $this->serialize($item),
+            'item'         => $this->svc->serialize($item),
         ]);
     }
 
-    /** Construye la lista compacta (filtros parametrizados + paginación). Compartida por index() y queryPath(). */
+    /**
+     * Construye la lista compacta (filtros + paginación) para index()/queryPath().
+     * El NÚCLEO (filtros/meta/items) lo produce el servicio compartido; aquí solo se
+     * envuelve con resumen/leyenda/ayuda (presentación de esta vía) cuando corresponde.
+     * El orden de claves resultante es idéntico al histórico (el núcleo pisa el
+     * generated_at del merge → generated_at, resumen, leyenda, _ayuda, filtros…, meta, items).
+     */
     private function buildList(?string $estado, ?string $nivel, ?string $modulo, int $page, int $perPage, bool $conResumen): array
     {
-        $q = RoadmapItem::query();
-        if ($estado) $q->where('estado_aprobacion', $estado);
-        if ($nivel)  $q->where('nivel_riesgo', $nivel);
-        if ($modulo !== null && $modulo !== '') $q->where('modulo', 'like', '%' . $modulo . '%');
+        $core = $this->svc->listar($estado, $nivel, $modulo, $page, $perPage);
 
-        $total = (clone $q)->count();
-        $items = $q->ordered()->forPage($page, $perPage)->get()->map(fn ($i) => $this->compactItem($i));
-
-        $filtros = array_filter(
-            ['estado' => $estado, 'nivel' => $nivel, 'modulo' => $modulo],
-            fn ($val) => $val !== null && $val !== ''
-        );
-
-        $payload = [
-            'generated_at'      => now()->toIso8601String(),
-            'filtros_aplicados' => (object) $filtros,
-            'meta'              => [
-                'total'       => $total,
-                'page'        => $page,
-                'per_page'    => $perPage,
-                'total_pages' => (int) ceil(($total ?: 0) / $perPage),
-                'count'       => $items->count(),
-            ],
-            'items'             => $items,
-        ];
-
-        if ($conResumen) {
-            $payload = array_merge([
-                'generated_at' => now()->toIso8601String(),
-                'resumen'      => $this->resumen(),
-                'leyenda'      => $this->leyenda(),
-                '_ayuda'       => $this->ayuda(),
-            ], $payload);
+        if (! $conResumen) {
+            return $core;
         }
 
-        return $payload;
-    }
-
-    /** Panorama global (todos los items, sin filtrar) para el modo resumen. */
-    private function resumen(): array
-    {
-        return [
-            'total'      => RoadmapItem::count(),
-            'por_estado' => RoadmapItem::selectRaw('estado_aprobacion, count(*) as n')
-                ->groupBy('estado_aprobacion')->pluck('n', 'estado_aprobacion'),
-            'por_nivel'  => RoadmapItem::selectRaw("COALESCE(nivel_riesgo,'sin_clasificar') as nivel, count(*) as n")
-                ->groupBy('nivel')->pluck('n', 'nivel'),
-        ];
-    }
-
-    /** Fila compacta (sin description/prompt) — para listas. El detalle va por ?id=N. */
-    private function compactItem(RoadmapItem $i): array
-    {
-        return [
-            'id'                => $i->id,
-            'title'             => $i->title,
-            'modulo'            => $i->modulo,
-            'nivel_riesgo'      => $i->nivel_riesgo,
-            'estado_aprobacion' => $i->estado_aprobacion,
-            'priority'          => $i->priority,
-            'status'            => $i->status,
-        ];
+        return array_merge([
+            'generated_at' => now()->toIso8601String(),
+            'resumen'      => $this->svc->resumen(),
+            'leyenda'      => $this->leyenda(),
+            '_ayuda'       => $this->ayuda(),
+        ], $core);
     }
 
     private function leyenda(): array
@@ -316,73 +280,24 @@ class RoadmapExternalController extends Controller
             return response()->json(['error' => 'Item no encontrado'], 404);
         }
 
-        // SOLO estos 3 campos son escribibles por esta vía. Nada más.
-        $data = $this->validateExternal($request, [
-            'estado_aprobacion'  => ['sometimes', 'string', 'in:' . implode(',', RoadmapItem::ESTADOS_APROBACION)],
-            'nivel_riesgo'       => ['sometimes', 'nullable', 'string', 'in:' . implode(',', RoadmapItem::NIVELES_RIESGO)],
-            'comentarios_claude' => ['sometimes', 'nullable', 'string', 'max:10000'],
-        ]);
+        // SOLO estos 3 campos son escribibles por esta vía (allowlist única del servicio).
+        $data = $this->validateExternal($request, $this->svc->writeFieldRules());
 
         if (empty($data)) {
             return response()->json(['error' => 'Nada que actualizar. Campos permitidos: estado_aprobacion, nivel_riesgo, comentarios_claude'], 422);
         }
 
         // GUARDS DE SEGURIDAD (server-side, aplican a POST y GET por igual).
-        if ($motivo = $this->guardExternalWrite($item, $data)) {
+        if ($motivo = $this->svc->guard($item, $data)) {
             $this->audit($request, $verb, 'rejected_guard', ['id' => $id, 'motivo' => $motivo]);
             return response()->json(['error' => $motivo], 422);
         }
 
-        $data['revisado_at']  = now();
-        $data['aprobado_por'] = 'claude-cowork';
-
-        $item->update($data);
+        $fresh = $this->svc->applyWrite($item, $data, 'claude-cowork');
 
         $this->audit($request, $verb, 'updated', ['id' => $id, 'campos' => array_keys($data)]);
 
-        return response()->json(['ok' => true, 'item' => $this->serialize($item->fresh())]);
-    }
-
-    /**
-     * Candados que la vía externa NO puede saltar (hallazgos del auditor del circuito).
-     * Devuelve el motivo del rechazo (string) o null si pasa.
-     *
-     *  a) NO degradar nivel_riesgo hacia menos restrictivo (A<B<C): solo endurecer.
-     *     C→B, C→A y B→A quedan prohibidos; A→B, A→C, B→C o igual, permitidos.
-     *     Quitar la clasificación (X→null) también es degradar → prohibido.
-     *  b) SOLO un item nivel A puede quedar 'aprobado_claude' (= validado y listo para
-     *     ejecución automática) por esta vía. Para B y C —y sin clasificar— el máximo es
-     *     'requiere_irving' (Claude validó el plan; la confirmación final la da Irving en
-     *     sesión, NO por la vía externa). Se evalúa contra el nivel EFECTIVO tras el update
-     *     (bloquea subir el nivel y auto-aprobar en la misma llamada).
-     */
-    private function guardExternalWrite(RoadmapItem $item, array $data): ?string
-    {
-        $rank = fn (?string $n): int => match ($n) {
-            'A'     => 0,
-            'B'     => 1,
-            'C'     => 2,
-            default => -1, // sin clasificar = lo menos restrictivo
-        };
-
-        // (a) No degradar el nivel de riesgo.
-        if (array_key_exists('nivel_riesgo', $data) && $rank($data['nivel_riesgo']) < $rank($item->nivel_riesgo)) {
-            return "La vía externa no puede degradar nivel_riesgo ({$item->nivel_riesgo} → "
-                . ($data['nivel_riesgo'] ?? 'null') . "); solo puede endurecer (A→B→C).";
-        }
-
-        // Nivel efectivo tras aplicar este update.
-        $nivelEfectivo = array_key_exists('nivel_riesgo', $data) ? $data['nivel_riesgo'] : $item->nivel_riesgo;
-
-        // (b) Solo un item nivel A puede quedar aprobado_claude (auto-ejecutable) por esta
-        //     vía. B, C y sin clasificar topan en requiere_irving.
-        if (($data['estado_aprobacion'] ?? null) === 'aprobado_claude' && $nivelEfectivo !== 'A') {
-            $n = $nivelEfectivo ?? 'sin clasificar';
-            return "Solo un item nivel A puede quedar 'aprobado_claude' por la vía externa "
-                . "(este es nivel {$n}); para B/C el máximo es 'requiere_irving'.";
-        }
-
-        return null;
+        return response()->json(['ok' => true, 'item' => $this->svc->serialize($fresh)]);
     }
 
     // ---------------------------------------------------------------------
@@ -423,31 +338,6 @@ class RoadmapExternalController extends Controller
             'ip'     => $request->ip(),
             'ua'     => substr((string) $request->userAgent(), 0, 200),
         ], $extra));
-    }
-
-    private function serialize(RoadmapItem $i): array
-    {
-        return [
-            'id'                 => $i->id,
-            'title'              => $i->title,
-            'modulo'             => $i->modulo,
-            'description'        => $i->description,
-            'status'             => $i->status,
-            'priority'           => $i->priority,
-            'nivel_riesgo'       => $i->nivel_riesgo,
-            'estado_aprobacion'  => $i->estado_aprobacion,
-            'target_version'     => $i->target_version,
-            'prompt_para_claude' => $i->prompt,
-            'comentarios_claude' => $i->comentarios_claude,
-            'subtasks'           => $i->subtasks,
-            'log'                => $i->log,
-            'started_at'         => optional($i->started_at)->toIso8601String(),
-            'completed_at'       => optional($i->completed_at)->toIso8601String(),
-            'revisado_at'        => optional($i->revisado_at)->toIso8601String(),
-            'aprobado_por'       => $i->aprobado_por,
-            'created_at'         => optional($i->created_at)->toIso8601String(),
-            'updated_at'         => optional($i->updated_at)->toIso8601String(),
-        ];
     }
 
     private function manualCriterios(): string
