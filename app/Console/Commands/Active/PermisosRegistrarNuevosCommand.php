@@ -59,6 +59,11 @@ class PermisosRegistrarNuevosCommand extends Command
         'talento.employees.view' => 'Talento',
         // Falta-sync (materializar, Config)
         'config_view_messages' => 'Configuracion',
+        // Bloque B — gates de diseño (permisos para escrituras hoy sin control)
+        'crm_notification_send'      => 'CRM',                   // snake (convención CRM)
+        'ia.chat.use'                => 'IA',                    // dotted (convención IA)
+        'evaluador_add_evaluacion'   => 'EvaluadorEmpresarial', // snake (convención del módulo)
+        'evaluador_email_evaluacion' => 'EvaluadorEmpresarial',
     ];
 
     public function handle(): int
