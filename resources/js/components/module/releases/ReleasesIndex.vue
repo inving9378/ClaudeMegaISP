@@ -20,6 +20,11 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'integracion' }" href="#" @click.prevent="tab = 'integracion'">
+                    <i class="bi bi-diagram-3 me-1"></i> Integración
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'historial' }" href="#" @click.prevent="tab = 'historial'">
                     <i class="bi bi-clock-history me-1"></i> Historial de versiones
                 </a>
@@ -39,6 +44,9 @@
 
         <!-- ── Sub-sección: Panorama (dashboard de la Torre) ── -->
         <torre-control v-if="tab === 'panorama'" />
+
+        <!-- ── Sub-sección: Integración / Ramas ── -->
+        <integracion-ramas v-if="tab === 'integracion'" />
 
         <!-- ── Tab: Historial ── -->
         <template v-if="tab === 'historial'">
@@ -171,6 +179,7 @@ import ReleasesCrud from "./ReleasesCrud.vue";
 import AuditReport from "./AuditReport.vue";
 import RoadmapTab from "./RoadmapTab.vue";
 import TorreControl from "./TorreControl.vue";
+import IntegracionRamas from "./IntegracionRamas.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
@@ -178,7 +187,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, DeployProgressModal },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, IntegracionRamas, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },

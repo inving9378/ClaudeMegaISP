@@ -7,7 +7,9 @@ use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
 
 class RoadmapController extends Controller
 {
@@ -153,6 +155,174 @@ class RoadmapController extends Controller
                 'opcion_elegida'    => $item->opcion_elegida,
             ],
         ]);
+    }
+
+    /**
+     * GET /api/roadmap/integracion — Vista de Integración (#315): ramas del circuito
+     * (una por item con branch) con semáforo de verificación, archivos + diff y estado
+     * de merge. Alimenta la revisión visual antes de mergear a dev.
+     */
+    public function integracion(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $ramas = RoadmapItem::whereNotNull('branch')->orderByDesc('id')->limit(50)->get()
+            ->map(function (RoadmapItem $i) {
+                $git = $this->diffRama($i);
+                return [
+                    'id'                => $i->id,
+                    'title'             => $i->title,
+                    'branch'            => $i->branch,
+                    'autor'             => $i->aprobado_por,
+                    'nivel_riesgo'      => $i->nivel_riesgo,
+                    'estado_aprobacion' => $i->estado_aprobacion,
+                    'merged'            => ! empty($i->merge_commit),
+                    'merge_commit'      => $i->merge_commit,
+                    'verificacion'      => $this->semaforo($i),
+                    'existe_rama'       => $git['existe'],
+                    'stat'              => $git['stat'],
+                    'archivos'          => $git['archivos'],
+                    'diff'              => $git['diff'],
+                ];
+            });
+
+        return response()->json(['generated_at' => now()->toIso8601String(), 'ramas' => $ramas]);
+    }
+
+    /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */
+    public function integracionMerge(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate(['id' => ['required', 'integer', 'min:1']]);
+        $item = RoadmapItem::find($data['id']);
+        if (! $item || ! $item->branch) {
+            return response()->json(['error' => 'Item o rama no encontrada'], 404);
+        }
+
+        // El botón de Irving es la autoridad de merge (incluye C) → reutiliza el comando con --force.
+        $code = Artisan::call('circuito:integrar', ['id' => $item->id, '--force' => true]);
+        $salida = trim(Artisan::output());
+
+        Log::channel('roadmap_externo')->info('integracion-merge', ['item' => $item->id, 'por' => $this->actor(), 'ok' => $code === 0]);
+
+        return response()->json(['ok' => $code === 0, 'salida' => $salida, 'merge_commit' => $item->fresh()->merge_commit]);
+    }
+
+    /** POST /api/roadmap/integracion/rechazar — rechaza la rama: item vuelve a la bandeja. */
+    public function integracionRechazar(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'id'         => ['required', 'integer', 'min:1'],
+            'comentario' => ['sometimes', 'nullable', 'string', 'max:10000'],
+        ]);
+        $item = RoadmapItem::find($data['id']);
+        if (! $item) {
+            return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+
+        $item->estado_aprobacion = 'requiere_irving';
+        if (! empty($data['comentario'])) {
+            $item->comentarios_claude = $data['comentario'];
+        }
+        $item->aprobado_por = $this->actor();
+        $item->revisado_at  = now();
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'rechazo_rama', 'branch' => $item->branch, 'comentario' => $data['comentario'] ?? null];
+        $item->log = $log;
+        $item->save();
+
+        Log::channel('roadmap_externo')->info('integracion-rechazo', ['item' => $item->id, 'por' => $this->actor()]);
+
+        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'estado_aprobacion' => $item->estado_aprobacion]]);
+    }
+
+    /** POST /api/roadmap/integracion/revert — revierte un merge ya integrado a dev. */
+    public function integracionRevert(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate(['id' => ['required', 'integer', 'min:1']]);
+        $item = RoadmapItem::find($data['id']);
+        if (! $item || ! $item->merge_commit) {
+            return response()->json(['error' => 'No hay merge que revertir para este item'], 422);
+        }
+
+        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
+            return response()->json(['error' => 'El árbol de trabajo tiene cambios sin commitear'], 409);
+        }
+
+        $this->git(['checkout', 'main']);
+        $rev = $this->git(['revert', '--no-edit', '-m', '1', $item->merge_commit]);
+        if (! $rev->isSuccessful()) {
+            $this->git(['revert', '--abort']);
+            return response()->json(['error' => 'No se pudo revertir (conflicto): ' . $rev->getErrorOutput()], 409);
+        }
+
+        $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'revert_merge', 'revert_commit' => $sha, 'merge_revertido' => $item->merge_commit];
+        $item->log = $log;
+        $item->merge_commit = null;
+        $item->estado_aprobacion = 'requiere_irving';
+        $item->save();
+
+        Log::channel('roadmap_externo')->info('integracion-revert', ['item' => $item->id, 'por' => $this->actor(), 'revert' => $sha]);
+
+        return response()->json(['ok' => true, 'revert_commit' => $sha]);
+    }
+
+    /** Semáforo de verificación derivado del estado/merge (detalle fino = mejora futura). */
+    private function semaforo(RoadmapItem $i): array
+    {
+        if ($i->estado_aprobacion === 'rechazado') {
+            return ['estado' => 'fail', 'detalle' => 'Rechazado.'];
+        }
+        if (! empty($i->merge_commit) || in_array($i->estado_aprobacion, ['completado', 'aprobado_claude', 'aprobado_irving'], true)) {
+            return ['estado' => 'ok', 'detalle' => 'Verificado / aprobado (regresión cero registrada por el ejecutor).'];
+        }
+        return ['estado' => 'pending', 'detalle' => 'Pendiente de verificación/decisión.'];
+    }
+
+    /**
+     * Diff que introdujo la rama del item. Si ya está mergeada, se toma del merge commit
+     * (segundo padre: merge_commit^1..merge_commit), porque tras el merge el merge-base
+     * coincide con la punta de la rama y el diff daría vacío. Si NO está mergeada, se toma
+     * respecto al punto de fork con main (merge-base..branch).
+     */
+    private function diffRama(RoadmapItem $i): array
+    {
+        if (! empty($i->merge_commit)) {
+            if (! $this->git(['rev-parse', '--verify', $i->merge_commit])->isSuccessful()) {
+                return ['existe' => false, 'stat' => '', 'archivos' => [], 'diff' => ''];
+            }
+            $range = "{$i->merge_commit}^1..{$i->merge_commit}";
+        } else {
+            if (! $this->git(['rev-parse', '--verify', $i->branch])->isSuccessful()) {
+                return ['existe' => false, 'stat' => '', 'archivos' => [], 'diff' => ''];
+            }
+            $base  = trim($this->git(['merge-base', 'main', $i->branch])->getOutput());
+            $range = "{$base}..{$i->branch}";
+        }
+        $stat  = trim($this->git(['diff', '--stat', $range])->getOutput());
+        $files = array_values(array_filter(explode("\n", trim($this->git(['diff', '--name-only', $range])->getOutput()))));
+        $diff  = $this->git(['diff', $range])->getOutput();
+        if (mb_strlen($diff) > 20000) {
+            $diff = mb_substr($diff, 0, 20000) . "\n… (diff truncado; ver rama completa)";
+        }
+        return ['existe' => true, 'stat' => $stat, 'archivos' => $files, 'diff' => $diff];
+    }
+
+    private function actor(): string
+    {
+        $u = auth()->user();
+        return 'irving:' . ($u->login_user ?? $u->email ?? $u->id);
+    }
+
+    private function git(array $args): Process
+    {
+        $p = new Process(array_merge(['git'], $args), base_path());
+        $p->run();
+        return $p;
     }
 
     // GET /api/roadmap/items
