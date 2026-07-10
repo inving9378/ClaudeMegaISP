@@ -20,6 +20,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::get('/', [ReleaseController::class, 'index']);
     // Siguiente versión sugerida (antes de /{version}, que es catch-all)
     Route::get('/next-version', [ReleaseController::class, 'nextVersion']);
+    // Historial de deploys — DEBE ir antes de /{version} (catch-all) o queda sombreada -> 404
+    Route::get('/deployments',                    [DeploymentController::class, 'index']);
     Route::get('/{version}', [ReleaseController::class, 'show']);
     Route::post('/store', [ReleaseController::class, 'store']);
     Route::post('/update/{id}', [ReleaseController::class, 'update']);
@@ -40,8 +42,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     // Resumen de changelog con IA
     Route::post('/generate-changelog', [ReleaseController::class, 'generateChangelog']);
 
-    // Deploy pipeline
-    Route::get('/deployments',                    [DeploymentController::class, 'index']);
+    // Deploy pipeline (el historial GET /deployments se registró arriba, antes de /{version})
     Route::get('/deployment/{id}/status',         [DeploymentController::class, 'status'])->whereNumber('id');
     Route::get('/deployment/{id}/log',            [DeploymentController::class, 'log'])->whereNumber('id');
     Route::post('/deployment/{id}/retry',         [DeploymentController::class, 'retry'])->whereNumber('id');
