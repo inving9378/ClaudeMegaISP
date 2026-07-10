@@ -65,6 +65,7 @@ Route::middleware(['web', 'auth'])
         // Torre de control del Circuito (dashboard en vivo) + kill switch.
         Route::get('/torre',               [RoadmapController::class, 'torre']);
         Route::post('/circuito/toggle',    [RoadmapController::class, 'toggleCircuito']);
+        Route::post('/circuito/decidir',   [RoadmapController::class, 'decidir']);
 
         Route::get('/items',               [RoadmapController::class, 'index']);
         Route::post('/items',              [RoadmapController::class, 'store']);

@@ -158,7 +158,15 @@ class RoadmapCircuitoService
      */
     public function guard(RoadmapItem $item, array $data): ?string
     {
-        // (0) KILL SWITCH: en pausa, NADIE puede aprobar/ejecutar (aprobado_claude).
+        // (0.a) aprobado_irving es aprobación HUMANA: SOLO el endpoint autenticado de Irving
+        // (Torre de control) puede fijarlo. El ejecutor (vía externa/MCP) JAMÁS puede
+        // otorgarse a sí mismo la aprobación humana.
+        if (($data['estado_aprobacion'] ?? null) === 'aprobado_irving') {
+            return "La vía externa/MCP no puede fijar 'aprobado_irving': la aprobación humana "
+                . 'es exclusiva de Irving desde la Torre de control.';
+        }
+
+        // (0.b) KILL SWITCH: en pausa, NADIE puede aprobar/ejecutar (aprobado_claude).
         // Leer y reportar (comentarios_claude, requiere_irving, etc.) sigue permitido.
         if (($data['estado_aprobacion'] ?? null) === 'aprobado_claude' && $this->isPaused()) {
             return 'Circuito en PAUSA (kill switch activo): no se puede aprobar ni ejecutar '

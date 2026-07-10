@@ -7,6 +7,7 @@ use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class RoadmapController extends Controller
 {
@@ -78,6 +79,78 @@ class RoadmapController extends Controller
         $this->svc->setPaused($nuevo);
 
         return response()->json(['circuito_pausado' => $nuevo]);
+    }
+
+    /**
+     * POST /api/roadmap/circuito/decidir — DECISIÓN HUMANA de Irving sobre un item
+     * requiere_irving (bandeja de la Torre). Gateado por circuito.decidir. Escribe
+     * aprobado_irving | rechazado (o solo comenta), la opción elegida, el comentario,
+     * quién/cuándo, y audita. NO pasa por el guard externo (es la vía autenticada);
+     * es la ÚNICA que puede fijar aprobado_irving. Funciona aun con el circuito en pausa
+     * (el kill switch frena al ejecutor, no a Irving).
+     */
+    public function decidir(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+
+        $data = $request->validate([
+            'id'             => ['required', 'integer', 'min:1'],
+            'accion'         => ['required', 'string', 'in:aprobar,rechazar,comentar'],
+            'opcion_elegida' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'comentario'     => ['sometimes', 'nullable', 'string', 'max:10000'],
+        ]);
+
+        $item = RoadmapItem::find($data['id']);
+        if (! $item) {
+            return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+
+        $user  = auth()->user();
+        $autor = 'irving:' . ($user->login_user ?? $user->email ?? $user->id);
+
+        $nuevoEstado = match ($data['accion']) {
+            'aprobar'  => 'aprobado_irving',
+            'rechazar' => 'rechazado',
+            'comentar' => $item->estado_aprobacion, // sigue en su estado (normalmente requiere_irving)
+        };
+
+        if (! empty($data['opcion_elegida'])) {
+            $item->opcion_elegida = $data['opcion_elegida'];
+        }
+        if (! empty($data['comentario'])) {
+            $item->comentarios_claude = $data['comentario'];
+        }
+        $item->estado_aprobacion = $nuevoEstado;
+        $item->aprobado_por      = $autor;
+        $item->revisado_at       = now();
+
+        $log = $item->log ?: [];
+        $log[] = [
+            'ts'             => now()->toIso8601String(),
+            'por'            => $autor,
+            'decision'       => $data['accion'],
+            'estado'         => $nuevoEstado,
+            'opcion_elegida' => $data['opcion_elegida'] ?? null,
+            'comentario'     => $data['comentario'] ?? null,
+        ];
+        $item->log = $log;
+        $item->save();
+
+        Log::channel('roadmap_externo')->info('decision-irving', [
+            'item'   => $item->id,
+            'por'    => $autor,
+            'accion' => $data['accion'],
+            'estado' => $nuevoEstado,
+        ]);
+
+        return response()->json([
+            'ok'   => true,
+            'item' => [
+                'id'                => $item->id,
+                'estado_aprobacion' => $item->estado_aprobacion,
+                'opcion_elegida'    => $item->opcion_elegida,
+            ],
+        ]);
     }
 
     // GET /api/roadmap/items
