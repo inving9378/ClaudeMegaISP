@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Http\JsonResponse;
@@ -59,14 +60,31 @@ class RoadmapController extends Controller
             }
         }
 
+        $ejecuciones = CircuitoEjecucion::orderByDesc('id')->limit(12)->get()
+            ->map(fn (CircuitoEjecucion $e) => [
+                'id'            => $e->id,
+                'started_at'    => optional($e->started_at)->toIso8601String(),
+                'duracion_seg'  => $e->duracion_seg,
+                'modo'          => $e->modo,
+                'pausado'       => $e->pausado,
+                'rc'            => $e->rc,
+                'items_tocados' => $e->items_tocados,
+                'n_propuestas'  => $e->n_propuestas,
+                'n_decisiones'  => $e->n_decisiones,
+                'ejecuto'       => $e->ejecuto,
+                'resumen'       => $e->resumen,
+            ]);
+
         return response()->json([
             'generated_at'         => now()->toIso8601String(),
             'circuito_pausado'     => $this->svc->isPaused(),
+            'circuito_modo'        => $this->svc->getModo(),
             'resumen'              => $this->svc->resumen(),
             'cola_requiere_irving' => $cola,
             'actividad_reciente'   => $actividad,
             'riesgos_auditoria'    => $riesgos,
             'auditoria_item_id'    => $audit?->id,
+            'ejecuciones'          => $ejecuciones,
         ]);
     }
 

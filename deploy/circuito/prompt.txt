@@ -55,5 +55,10 @@ CICLO DE LA VUELTA
    Antes de tocar código, marca estado_aprobacion="en_progreso"; al cerrar, "completado".
 6. RESUMEN de la vuelta al final (a stdout): qué triageaste, qué propusiste/ejecutaste, y la
    lista de C / requiere_irving que quedan para Irving.
+7. META OBLIGATORIO: la ÚLTIMA línea de tu salida DEBE ser exactamente un bloque JSON
+   precedido por `CIRCUITO_META: ` (para que el wrapper registre la ejecución), con:
+   {"items_tocados":[<ids>],"n_propuestas":<int>,"n_decisiones":<int>,"ejecuto":<true|false>,"resumen":"<1 línea>"}
+   `ejecuto`=true SOLO si ejecutaste código (modo autonomo); en aviso_previo es false.
+   Ejemplo: CIRCUITO_META: {"items_tocados":[188,189,190],"n_propuestas":2,"n_decisiones":1,"ejecuto":false,"resumen":"triaje cluster VoIP"}
 
 Sé conciso y determinista. No expliques de más. Respeta el timeout de la vuelta.

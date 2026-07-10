@@ -42,8 +42,17 @@ PAUSED="$(printf '%s\n' "$FLAGS" | sed -n 's/^pausado=//p')"
 MODO="$(printf '%s\n' "$FLAGS" | sed -n 's/^modo=//p')"
 log "flags: pausado=${PAUSED:-?} modo=${MODO:-?}"
 
+# Registra la fila de ejecución (#319). Nunca tumba la vuelta si falla.
+registrar(){  # started finished modo pausado rc meta
+  php artisan circuito:registrar-ejecucion \
+    --started="$1" --finished="$2" --modo="$3" --pausado="$4" --rc="$5" \
+    --log="$LOG" --meta="$6" >>"$LOG" 2>&1 || log "aviso: no se pudo registrar la ejecución."
+}
+
 if [ "$PAUSED" = "1" ]; then
+  NOW="$(date +%s)"
   log "Circuito EN PAUSA (kill switch activo). No ejecuto nada."
+  registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "1" "0" '{}'
   exit 0
 fi
 
@@ -57,11 +66,13 @@ fi
 log "modo=${MODO:-aviso_previo} tools=[$TOOLS] timeout=${TIMEOUT}s maxturns=$MAXTURNS"
 log "===== inicio de la vuelta (claude -p) ====="
 
+START="$(date +%s)"
 timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_FILE")" \
   --allowed-tools $TOOLS \
   --max-turns "$MAXTURNS" \
   >>"$LOG" 2>&1
 RC=$?
+FIN="$(date +%s)"
 
 log "===== fin de la vuelta ====="
 if [ "$RC" -eq 124 ]; then
@@ -71,5 +82,11 @@ elif [ "$RC" -ne 0 ]; then
 else
   log "Vuelta OK."
 fi
+
+# Meta estructurado que emitió el ejecutor (última línea CIRCUITO_META: {...}).
+META="$(grep -a 'CIRCUITO_META:' "$LOG" | tail -1 | sed 's/^.*CIRCUITO_META: *//')"
+[ -z "$META" ] && META='{}'
+registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META"
+
 log "Log completo: $LOG"
 exit 0
