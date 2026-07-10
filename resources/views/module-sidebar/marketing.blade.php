@@ -1,7 +1,7 @@
-@if(auth()->user()->canAny(['view-marketing-leads', 'marketing_leads_view', 'view-conversations',
-         'view-marketing-forms', 'manage-marketing-forms', 'marketing_campaigns_view',
-         'marketing_templates_manage', 'view-video-templates', 'generate-video-content',
-         'create-marketing-campaigns', 'configure-brand-kit', 'test-voices',
+@if(auth()->user()->canAny(['marketing.leads.view', 'marketing.leads.view', 'marketing.conversations.view',
+         'marketing.forms.view', 'marketing.forms.create', 'marketing.campaigns.view',
+         'marketing.templates.manage', 'view-video-templates', 'generate-video-content',
+         'create-marketing-campaigns', 'marketing.brand_kit.configure', 'test-voices',
          'view-publishing-dashboard', 'publish-content', 'manage-publication-queue',
          'manage-publishing-channels']))
     <li>
@@ -10,19 +10,19 @@
             <span data-key="t-marketing">{{ $item->sidebar_label ?? 'Marketing' }}</span>
         </a>
         <ul class="sub-menu" aria-expanded="false">
-            @if(auth()->user()->canAny(['view-marketing-leads', 'marketing_leads_view']))
+            @if(auth()->user()->canAny(['marketing.leads.view', 'marketing.leads.view']))
                 <li><a href="{{ url('/marketing/leads') }}"><span data-key="t-mkt-leads"><small><i class="fa fa-fw fa-user-tag"></i></small> Leads</span></a></li>
             @endcanany
-            @if(auth()->user()->can('view-conversations'))
+            @if(auth()->user()->can('marketing.conversations.view'))
                 <li><a href="{{ url('/marketing/conversations') }}"><span data-key="t-mkt-conv"><small><i class="fa fa-fw fa-comments"></i></small> Conversaciones</span></a></li>
             @endif
-            @if(auth()->user()->canAny(['view-marketing-forms', 'manage-marketing-forms']))
+            @if(auth()->user()->canAny(['marketing.forms.view', 'marketing.forms.create']))
                 <li><a href="{{ url('/marketing/lead-forms') }}"><span data-key="t-mkt-forms"><small><i class="fa fa-fw fa-wpforms"></i></small> Formularios</span></a></li>
             @endcanany
-            @if(auth()->user()->can('marketing_campaigns_view'))
+            @if(auth()->user()->can('marketing.campaigns.view'))
                 <li><a href="{{ url('/marketing') }}"><span data-key="t-mkt-camp"><small><i class="fa fa-fw fa-bullhorn"></i></small> Campañas</span></a></li>
             @endif
-            @if(auth()->user()->can('marketing_templates_manage'))
+            @if(auth()->user()->can('marketing.templates.manage'))
                 <li><a href="{{ url('/marketing') }}?tab=templates"><span data-key="t-mkt-tpl"><small><i class="fa fa-fw fa-file-alt"></i></small> Plantillas</span></a></li>
             @endif
             @if(auth()->user()->canAny(['view-video-templates', 'generate-video-content']))
@@ -31,7 +31,7 @@
             @if(auth()->user()->can('create-marketing-campaigns'))
                 <li><a href="{{ url('/marketing/campaigns/generate') }}"><span data-key="t-mkt-ia"><small><i class="fa fa-fw fa-magic"></i></small> Campaña IA</span></a></li>
             @endif
-            @if(auth()->user()->can('configure-brand-kit'))
+            @if(auth()->user()->can('marketing.brand_kit.configure'))
                 <li><a href="{{ url('/marketing/brand-kit') }}"><span data-key="t-mkt-bk"><small><i class="fa fa-fw fa-palette"></i></small> Brand Kit</span></a></li>
             @endif
             @if(auth()->user()->can('test-voices'))
