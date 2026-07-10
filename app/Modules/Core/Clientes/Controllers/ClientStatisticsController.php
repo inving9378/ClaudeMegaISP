@@ -149,6 +149,7 @@ class ClientStatisticsController extends Controller
     public function getDailyUsage($id)
     {
         $client = Client::with('internet_service')->find($id);
+        if (!$client) return response()->json(['success' => false], 404);
         $usernames = $client->internet_service->pluck('client_name')->toArray();
 
         $results = DB::table('daily_internet_consumptions')
@@ -174,6 +175,7 @@ class ClientStatisticsController extends Controller
     public function getFupStatistics($id)
     {
         $client = Client::with('internet_service')->find($id);
+        if (!$client) return response()->json(['success' => false], 404);
         $usernames = $client->internet_service->pluck('client_name')->toArray();
 
         $periods = ['Día' => now()->today(), 'Semana' => now()->startOfWeek(), 'Mes' => now()->startOfMonth()];
@@ -204,6 +206,7 @@ class ClientStatisticsController extends Controller
     {
         $perPage = $request->get('per_page', 50);
         $client = Client::with('internet_service')->find($id);
+        if (!$client) return response()->json(['success' => false], 404);
         $usernames = $client->internet_service->pluck('client_name')->toArray();
 
         $sessions = DB::table('internet_consumptions')
