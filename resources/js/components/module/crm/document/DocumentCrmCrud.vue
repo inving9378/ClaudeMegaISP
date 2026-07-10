@@ -73,7 +73,7 @@ export default {
         onBeforeMount(async () => {
             hasPermission.data = new Permission(await allViewHasPermission());
             modal.data = new Modal("modalDocument");
-            if (hasPermission.data.canView('crm_document_add')){
+            if (hasPermission.data.canView('crm_document_add_crm')){
                 $(document).on("click", "#buttonmodaluploaddocument", function () {
                     showAddModal();
                 });
@@ -102,7 +102,7 @@ export default {
 
         const getButtonDatatable = () => {
             let buttons = {};
-            if (hasPermission.data.canView('crm_document_add')){
+            if (hasPermission.data.canView('crm_document_add_crm')){
                 buttons.upload = {
                     class: 'btn btn-outline-info waves-effect waves-light me-2',
                     iclass: 'fa fa-upload',
