@@ -22,6 +22,8 @@ class RoadmapItem extends Model
         'branch', 'merge_commit',
         // Acciones avanzadas de la bandeja (#320)
         'origen_item_id',
+        // Integración robusta (#325)
+        'marcado_version',
     ];
 
     protected $casts = [
@@ -32,6 +34,7 @@ class RoadmapItem extends Model
         'subtasks'     => 'array',
         'log'          => 'array',
         'opciones'     => 'array',
+        'marcado_version' => 'boolean',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)

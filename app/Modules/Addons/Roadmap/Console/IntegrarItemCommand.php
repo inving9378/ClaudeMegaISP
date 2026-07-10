@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Console\Command;
 use Symfony\Component\Process\Process;
 
@@ -33,6 +34,15 @@ class IntegrarItemCommand extends Command
         }
 
         $branch = $item->branch;
+
+        // (#325) Modo revisar-y-mergear: NADA se auto-integra; la rama espera el ✓ de Irving
+        // en la Torre. El botón de Irving (--force) sí procede.
+        if (! $this->option('force')
+            && app(RoadmapCircuitoService::class)->getModoIntegracion() === 'revisar-y-mergear') {
+            $this->warn("Modo integración = revisar-y-mergear: la rama {$branch} NO se auto-integra; "
+                . 'espera el ✓ de Irving en la Torre (Integración).');
+            return self::SUCCESS;
+        }
 
         if ($item->nivel_riesgo === 'C' && ! $this->option('force')) {
             $item->estado_aprobacion = 'requiere_irving';

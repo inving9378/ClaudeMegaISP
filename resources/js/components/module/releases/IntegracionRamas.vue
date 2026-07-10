@@ -2,7 +2,13 @@
   <div class="ig-wrap" :class="{ 'ig-dark': darkMode }">
     <div class="ig-head">
       <h2 class="ig-h2">Integración · Ramas del circuito</h2>
-      <button class="ig-refresh" :disabled="loading" @click="load">↻ Actualizar</button>
+      <div class="ig-head-r">
+        <span class="ig-modo">modo: <b>{{ modoIntegracion }}</b></span>
+        <button class="ig-refresh" :disabled="busy === 'modo'" @click="toggleModo">
+          ⇄ {{ modoIntegracion === 'auto-merge' ? 'revisar-y-mergear' : 'auto-merge' }}
+        </button>
+        <button class="ig-refresh" :disabled="loading" @click="load">↻ Actualizar</button>
+      </div>
     </div>
 
     <div v-if="loading" class="ig-meta">Cargando ramas…</div>
@@ -28,6 +34,15 @@
 
       <div class="ig-detalle">{{ r.verificacion.detalle }}</div>
 
+      <!-- Reporte del ejecutor (texto + voz) -->
+      <div v-if="r.reporte" class="ig-reporte">
+        <div class="ig-reporte-head">
+          <strong>Reporte del ejecutor — qué hace / cómo validar / verificación</strong>
+          <button class="ig-voz" @click="leer(r)">{{ hablando === r.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
+        </div>
+        <div class="ig-reporte-txt">{{ r.reporte }}</div>
+      </div>
+
       <!-- Qué cambió -->
       <div v-if="r.existe_rama" class="ig-changes">
         <div class="ig-files">
@@ -46,6 +61,9 @@
       <div class="ig-actions">
         <button v-if="!r.merged" class="ig-btn ig-btn-ok" :disabled="busy === r.id" @click="merge(r)">✓ Mergear a dev</button>
         <button v-if="r.merged" class="ig-btn ig-btn-warn" :disabled="busy === r.id" @click="revert(r)">↩ Revertir</button>
+        <button v-if="r.merged" class="ig-btn" :class="r.marcado_version ? 'ig-btn-ver-on' : 'ig-btn-ver'" :disabled="busy === r.id" @click="marcarVersion(r)">
+          {{ r.marcado_version ? '🏷 Marcada para versión' : '🏷 Marcar para versión' }}
+        </button>
         <button class="ig-btn ig-btn-no" :disabled="busy === r.id" @click="rechazar(r)">✕ Rechazar</button>
         <span v-if="busy === r.id" class="ig-meta">Procesando…</span>
         <span v-if="msg[r.id]" class="ig-msg">{{ msg[r.id] }}</span>
@@ -67,6 +85,8 @@ export default {
         const open = reactive({});
         const busy = ref(null);
         const msg = reactive({});
+        const modoIntegracion = ref('auto-merge');
+        const hablando = ref(null);
 
         const lvClass = (n) => (n === 'A' ? 'ig-lvA' : n === 'B' ? 'ig-lvB' : n === 'C' ? 'ig-lvC' : 'ig-lvNone');
         const toggle = (id) => { open[id] = !open[id]; };
@@ -76,8 +96,47 @@ export default {
             try {
                 const { data } = await axios.get('/api/roadmap/integracion');
                 ramas.value = data.ramas || [];
+                modoIntegracion.value = data.modo_integracion || 'auto-merge';
             } finally {
                 loading.value = false;
+            }
+        }
+
+        async function toggleModo() {
+            if (busy.value) return;
+            busy.value = 'modo';
+            try {
+                const nuevo = modoIntegracion.value === 'auto-merge' ? 'revisar-y-mergear' : 'auto-merge';
+                const { data } = await axios.post('/api/roadmap/integracion/modo', { modo: nuevo });
+                modoIntegracion.value = data.modo_integracion;
+            } finally {
+                busy.value = null;
+            }
+        }
+
+        function leer(r) {
+            const synth = window.speechSynthesis;
+            if (!synth) return;
+            if (hablando.value === r.id) { synth.cancel(); hablando.value = null; return; }
+            synth.cancel();
+            const txt = [r.title, r.reporte].filter(Boolean).join('. ');
+            const u = new SpeechSynthesisUtterance(txt);
+            u.lang = 'es-ES';
+            u.onend = () => { hablando.value = null; };
+            hablando.value = r.id;
+            synth.speak(u);
+        }
+
+        async function marcarVersion(r) {
+            if (busy.value) return;
+            busy.value = r.id;
+            msg[r.id] = '';
+            try {
+                const { data } = await axios.post('/api/roadmap/integracion/marcar-version', { id: r.id });
+                r.marcado_version = data.marcado_version;
+                msg[r.id] = data.marcado_version ? 'Marcada para versión ✓' : 'Desmarcada';
+            } finally {
+                busy.value = null;
             }
         }
 
@@ -126,7 +185,10 @@ export default {
 
         onMounted(load);
 
-        return { darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert };
+        return {
+            darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert,
+            modoIntegracion, hablando, toggleModo, leer, marcarVersion,
+        };
     },
 };
 </script>
@@ -167,6 +229,14 @@ export default {
 .ig-btn-no{background:#fef2f2;color:#b91c1c;border-color:#fecaca;}
 .ig-btn-warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}
 .ig-msg{font-size:12px;color:var(--ig-accent);font-weight:600;}
+.ig-head-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.ig-modo{font-size:12px;color:var(--ig-muted);}
+.ig-reporte{margin:8px 0 0 32px;padding:9px 11px;border:1px solid var(--ig-line);border-radius:8px;background:#f8fafc;}
+.ig-reporte-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--ig-muted);}
+.ig-voz{font-size:11.5px;font-weight:600;border:1px solid var(--ig-line);background:#fff;color:var(--ig-accent);border-radius:7px;padding:3px 8px;cursor:pointer;}
+.ig-reporte-txt{font-size:12.5px;line-height:1.4;margin-top:5px;white-space:pre-wrap;}
+.ig-btn-ver{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
+.ig-btn-ver-on{background:#dbeafe;color:#1e40af;border-color:#93c5fd;}
 
 /* ── Modo oscuro (mismo toggle del proyecto) ── */
 .ig-dark{
@@ -182,4 +252,8 @@ export default {
 .ig-dark .ig-btn-ok{background:rgba(74,222,128,.14);color:#4ade80;border-color:#2b5b3b;}
 .ig-dark .ig-btn-no{background:rgba(248,113,113,.14);color:#f87171;border-color:#5b2b2b;}
 .ig-dark .ig-btn-warn{background:rgba(251,191,36,.14);color:#fbbf24;border-color:#5b4a1f;}
+.ig-dark .ig-reporte{background:#0f172a;border-color:#2a3550;}
+.ig-dark .ig-voz{background:#0f172a;color:#2dd4bf;border-color:#2a3550;}
+.ig-dark .ig-btn-ver{background:rgba(96,165,250,.14);color:#60a5fa;border-color:#2b3f5b;}
+.ig-dark .ig-btn-ver-on{background:rgba(96,165,250,.24);color:#93c5fd;border-color:#3b5578;}
 </style>
