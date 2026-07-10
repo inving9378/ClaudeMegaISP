@@ -405,7 +405,9 @@ class ClientController extends Controller
     public function getClientDebit($id)
     {
         $client = Client::find($id);
-        $amount = $client->balance()->first()->amount;
+        if (!$client) return response()->json(['success' => false], 404);
+        $balance = $client->balance()->first();
+        $amount = $balance ? $balance->amount : 0;
         return $amount < 0 ? $amount : 0;
     }
 
