@@ -18,6 +18,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\FlagsCommand::class,
+                \App\Modules\Addons\Roadmap\Console\RegistrarEjecucionCommand::class,
             ]);
         }
     }

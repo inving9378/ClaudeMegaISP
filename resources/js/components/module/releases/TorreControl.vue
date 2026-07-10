@@ -9,7 +9,7 @@
         </span>
         <div>
           <h1 class="tc-h1">Circuito CC · Torre de control</h1>
-          <div class="tc-meta">{{ total }} items en la Hoja de Ruta<span v-if="generatedAt"> · actualizado {{ rel(generatedAt) }}</span></div>
+          <div class="tc-meta">{{ total }} items · modo <b>{{ modo }}</b><span v-if="generatedAt"> · actualizado {{ rel(generatedAt) }}</span></div>
         </div>
       </div>
       <button class="tc-killbtn" :class="{ 'tc-resume': pausado }" :disabled="toggling" @click="toggle">
@@ -101,6 +101,27 @@
         </div>
       </div>
 
+      <!-- Ejecuciones del cron (#319) -->
+      <div class="tc-card" style="margin-top:14px">
+        <h2 class="tc-h2">Ejecuciones del circuito (cron)</h2>
+        <div v-if="!ejecuciones.length" class="tc-meta">Sin ejecuciones registradas todavía.</div>
+        <div v-for="e in ejecuciones" :key="e.id" class="tc-ejec">
+          <span class="tc-tag" :class="e.pausado ? 'tc-lvC' : (e.ejecuto ? 'tc-lvA' : 'tc-lvNone')">
+            {{ e.pausado ? 'pausa' : (e.ejecuto ? 'ejecutó' : 'propuso') }}
+          </span>
+          <div class="tc-ejec-body">
+            <div class="tc-ejec-head">
+              <span>{{ rel(e.started_at) }}</span> · <span>{{ e.modo }}</span> · <span>{{ e.duracion_seg }}s</span>
+              <span v-if="e.n_propuestas"> · {{ e.n_propuestas }} prop.</span>
+              <span v-if="e.n_decisiones"> · {{ e.n_decisiones }} dec.</span>
+              <span v-if="e.items_tocados && e.items_tocados.length"> · items {{ e.items_tocados.join(', ') }}</span>
+              <span v-if="e.rc" class="tc-ejec-rc"> · rc={{ e.rc }}</span>
+            </div>
+            <div v-if="e.resumen" class="tc-s">{{ e.resumen }}</div>
+          </div>
+        </div>
+      </div>
+
       <p class="tc-foot">Torre de control del Circuito · datos en vivo de la Hoja de Ruta (dev).</p>
     </template>
   </div>
@@ -123,6 +144,8 @@ export default {
         const actividad = ref([]);
         const riesgos = ref([]);
         const auditItem = ref(null);
+        const ejecuciones = ref([]);
+        const modo = ref('aviso_previo');
 
         // Bandeja de decisiones interactiva (#313)
         const sel = reactive({});      // id -> opción elegida
@@ -192,6 +215,8 @@ export default {
                 actividad.value = data.actividad_reciente || [];
                 riesgos.value = data.riesgos_auditoria || [];
                 auditItem.value = data.auditoria_item_id || null;
+                ejecuciones.value = data.ejecuciones || [];
+                modo.value = data.circuito_modo || 'aviso_previo';
             } finally {
                 loading.value = false;
             }
@@ -233,7 +258,7 @@ export default {
             cola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             sel, coment, deciding, decidir,
-            darkMode,
+            darkMode, ejecuciones, modo,
         };
     },
 };
@@ -299,6 +324,11 @@ export default {
 .tc-sev{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:5px;margin-top:1px;}
 .tc-sevA{background:#fef2f2;color:#b91c1c;} .tc-sevM{background:#fffbeb;color:#b45309;} .tc-sevB{background:#f1f5f9;color:#475569;}
 .tc-foot{font-size:11.5px;color:var(--tc-muted);margin-top:16px;text-align:center;}
+.tc-ejec{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--tc-line);}
+.tc-ejec:first-of-type{border-top:none;}
+.tc-ejec-body{min-width:0;}
+.tc-ejec-head{font-size:12px;color:var(--tc-muted);}
+.tc-ejec-rc{color:var(--tc-bad);font-weight:600;}
 
 /* ── Modo oscuro (responde al toggle de tema del proyecto: body[data-layout-mode] → darkMode) ── */
 .tc-dark{
