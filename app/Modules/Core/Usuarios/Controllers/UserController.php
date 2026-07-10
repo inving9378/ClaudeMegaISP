@@ -169,10 +169,11 @@ class UserController extends Controller
 
             $user->assignRole($roles);
 
-            $roles = Role::whereIn('name', $roles)->get();
-            foreach ($roles as $role) {
-                $user->givePermissionTo($role->permissions()->pluck('name')->toArray());
-            }
+            // Reforma de permisos B1.1: el rol es la ÚNICA fuente de verdad.
+            // Se elimina la copia de permisos del rol como directos (antes:
+            // foreach roles -> givePermissionTo($role->permissions())). El acceso
+            // se resuelve por rol vía el flip getAllPermissions (PermissionTrait),
+            // así que un admin nuevo queda solo con assignRole y CERO directos.
 
             DB::commit();
             return response()->json(['status' => 200, 'message' => 'Administrador creado con éxito!']);
