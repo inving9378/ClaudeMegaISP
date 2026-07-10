@@ -214,7 +214,7 @@ export default {
 .ig-title{font-size:13.5px;font-weight:600;line-height:1.3;}
 .ig-idnum{color:var(--ig-accent);font-weight:700;}
 .ig-sub{font-size:11.5px;color:var(--ig-muted);margin-top:2px;word-break:break-all;}
-.ig-sub code{font-size:11px;}
+.ig-sub code{font-size:11px;color:#0369a1;font-weight:600;}
 .ig-merged{color:#047857;font-weight:600;} .ig-pending{color:#b45309;font-weight:600;}
 .ig-detalle{font-size:12px;color:var(--ig-muted);margin:8px 0 0 32px;}
 .ig-changes{margin:10px 0 0 32px;}
@@ -248,6 +248,7 @@ export default {
 .ig-dark .ig-sem-ok{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-sem-fail{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-sem-pending{background:rgba(148,163,184,.15);color:#94a3b8;}
 .ig-dark .ig-lvA{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-lvB{background:rgba(251,191,36,.15);color:#fbbf24;} .ig-dark .ig-lvC{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-lvNone{background:rgba(148,163,184,.15);color:#94a3b8;}
 .ig-dark .ig-merged{color:#4ade80;} .ig-dark .ig-pending{color:#fbbf24;}
+.ig-dark .ig-sub code{color:#7dd3fc;}
 .ig-dark .ig-file{background:#0f172a;border-color:#2a3550;}
 .ig-dark .ig-btn-ok{background:rgba(74,222,128,.14);color:#4ade80;border-color:#2b5b3b;}
 .ig-dark .ig-btn-no{background:rgba(248,113,113,.14);color:#f87171;border-color:#5b2b2b;}
