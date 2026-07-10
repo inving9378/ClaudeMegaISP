@@ -223,3 +223,37 @@ Abrir la app en móvil / navegador <992px: confirmar que el riel espeja el sideb
 - Item fijo **"CANAL CC→COWORK"** (`status=in_progress`, `nivel_riesgo=C`, `estado_aprobacion=en_progreso`)
   como buzón: Claude Code anota con fecha lo que Cowork deba saber (rutas nuevas, cambios de contrato,
   auditorías, rotaciones). Cowork lo lee al inicio de cada ronda. Primer aviso ya cargado (variante path).
+
+## 2026-07-09 20:48 — Circuito de mejora: ejecución items #210 y #215 (nivel A, aprobado_claude)
+
+Corrida automática del circuito (`estado_aprobacion=aprobado_claude` + `nivel_riesgo=A`). Ambos
+ejecutados de punta a punta: `en_progreso` → plan (campo `prompt`) → commit → `completado` con hash
+en el campo `log`. Cola de aprobados+A quedó en 0.
+
+### #210 — UX: campo API Key no indicaba que ya hay una key guardada
+- **Módulo:** IA / Configuración. Componente `resources/js/components/module/ia/IAProveedoresManager.vue`.
+- **Cambio (cosmético/aditivo):** al editar un proveedor que ya tiene `api_key` persistida, el placeholder
+  ahora dice `•••• guardada (dejar vacío para conservar)` y se muestra una nota verde explicando que
+  dejar el campo vacío conserva la key. No expone el valor.
+- **Backend ya correcto:** `IAProveedorController::update` conserva la key si el campo va vacío
+  (`unset($datos['api_key'])`, líneas 72-74); la bandera `tiene_api_key` ya viajaba en el listado.
+- `npm run dev` ✅ (2 warnings preexistentes benignos). Solo se commiteó el `.vue` (bundle gitignored).
+- **Commit:** `4085ef449a72600267c2b70af38513ad24c7e7ee`.
+- **Pendiente:** validación visual de Irving (abrir edición de un proveedor con key → ver el indicador;
+  guardar sin tocar el campo → la key se conserva).
+
+### #215 — ContextoProyectoService detectaba integraciones con env() en runtime
+- **Módulo:** IA. `app/Modules/Addons/IA/Services/ContextoProyectoService.php::detectarIntegraciones()`.
+- **Bug:** leía `env($key)` en tiempo de ejecución para marcar integraciones detectadas en el panel de
+  contexto. Con `config:cache` en producción, `env()` fuera de `config/` devuelve null → panel engañoso
+  (p.ej. Google Maps desaparecía aun estando configurado). Además reforzaba el antipatrón claves-por-env.
+- **Fix (aditivo, misma semántica):** nuevo `config/ia.php` con `integraciones_detectables` (los `env()`
+  viven SOLO ahí = cache-safe); el servicio ahora lee `config('ia.integraciones_detectables')`.
+- **Verificado FASE 3** con config **cacheado** (prueba atómica cache→verifica→clear, sin dejar dev cacheado):
+  detecta `["Google Maps"]` con y sin cache. Dev restaurado con `config:clear`.
+- **Nota:** las 8 claves son sondas informativas (MikroTik/Radius/WhatsApp/Telegram/Google Maps/Stripe/
+  PayPal/Mercado Pago), NO proveedores IA → no se cablearon a `ia_proveedores`/Hub (habría sido incorrecto);
+  se aplicó la vía que el plan permite (mover a `config/` y leer `config()`).
+- **Commit:** `7e344da44e4d6954cb66d02a4cc375ce290ec1f9`.
+
+**Warm-up dev:** `config:clear` + `queue:restart` (regla de dev: nunca `config:cache` en /var/www/megaisp).
