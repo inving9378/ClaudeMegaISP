@@ -1302,7 +1302,7 @@ return [
     'user_delete_user' => [
         '/administracion/user/destroy/{id}',
     ],
-    'user_permision_user' => [
+    'user_permission_user' => [
         //visual
     ],
 
@@ -1505,7 +1505,10 @@ return [
     //INventory
     'config_view_inventory' => [],
     //Intergrations
-    'config_view_integrations' => [],
+    'config_view_integrations' => [
+        '/integraciones',
+        '/integraciones/**',
+    ],
     //Voice
     'config_view_voice' => [],
     //Tools
@@ -1713,35 +1716,23 @@ return [
         '/voip/troncales/data',
         '/voip/troncales/{troncal}/verificar',
         '/voip/probar-conexion',
-    ],
-    'voip.troncales.manage' => [
-        '/voip/troncales',
         '/voip/troncales/{troncal}',
         '/voip/troncales/{troncal}/provisionar',
         '/voip/troncales/{troncal}/desprovisionar',
-        '/voip/troncales/{troncal}/verificar',
-        '/voip/probar-conexion',
     ],
     'voip.extensiones.view' => [
         '/voip/extensiones',
         '/voip/extensiones/data',
         '/voip/extensiones/usuarios',
         '/voip/extensiones/{extension}/verificar',
-    ],
-    'voip.extensiones.manage' => [
-        '/voip/extensiones',
         '/voip/extensiones/{extension}',
         '/voip/extensiones/{extension}/provisionar',
         '/voip/extensiones/{extension}/desprovisionar',
-        '/voip/extensiones/{extension}/verificar',
     ],
     'voip.grupos.view' => [
         '/voip/grupos-timbrado',
         '/voip/grupos-timbrado/data',
         '/voip/grupos-timbrado/extensiones-disponibles',
-    ],
-    'voip.grupos.manage' => [
-        '/voip/grupos-timbrado',
         '/voip/grupos-timbrado/{grupoTimbrado}',
     ],
     'voip.ia-bot.view' => [
@@ -1750,11 +1741,7 @@ return [
         '/voip/ia-bot/conversaciones',
         '/voip/ia-bot/leads',
         '/voip/ia-bot/kb',
-    ],
-    'voip.ia-bot.manage' => [
-        '/voip/ia-bot/config',
         '/voip/ia-bot/leads/{lead}',
-        '/voip/ia-bot/kb',
         '/voip/ia-bot/kb/{kb}',
     ],
 
@@ -1855,16 +1842,11 @@ return [
         '/warroom/api/meetings/{meeting}/detalle',
         '/warroom/api/meetings/{meeting}/notes',
         '/warroom/api/action-items',
-    ],
-    'warroom.manage' => [
-        '/warroom/api/action-items',
         '/warroom/api/action-items/{actionItem}',
         '/warroom/api/meetings/start',
         '/warroom/api/meetings/{meeting}/end',
         '/warroom/api/meetings/{meeting}/pause',
         '/warroom/api/meetings/{meeting}/resume',
-        '/warroom/api/meetings/{meeting}/notes',
-        '/warroom/api/insights/{view}/{period}/regenerate',
     ],
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -2003,7 +1985,7 @@ return [
         '/talento/api/asistencia/checkout',
         '/talento/api/asistencia/ping',
     ],
-    'talento.orders.view' => [
+    'talento.work_orders.view' => [
         '/talento/ordenes',
         '/talento/campo',
         '/talento/api/ots/**',
@@ -2018,17 +2000,6 @@ return [
         '/talento/api/sitios',
         '/talento/api/sitios/config/radio',
         '/talento/sitios',
-    ],
-    'talento.work_orders.view' => [
-        '/talento/ordenes',
-        '/talento/campo',
-        '/talento/api/ots/**',
-        '/talento/api/campo/{workOrderId}/estado',
-        '/talento/api/campo/{workOrderId}/firmas',
-        '/talento/api/campo/{workOrderId}/media',
-        '/talento/api/campo/{workOrderId}/activacion',
-        '/talento/api/campo/{workOrderId}/encuesta',
-        '/talento/api/campo/{workOrderId}/ia-validacion',
     ],
     'talento.work_orders.manage' => [
         '/talento/api/ots/**',
@@ -2057,12 +2028,6 @@ return [
     'talento.ia_validation.override' => [
         '/talento/api/campo/ia-validacion/{validationId}/override',
     ],
-    'talento.compensations.view' => [
-        '/talento/compensacion',
-        '/talento/cajas',
-        '/talento/api/compensacion/semana',
-        '/talento/api/cajas/**',
-    ],
     'talento.compensation.view' => [
         '/talento/compensacion',
         '/talento/cajas',
@@ -2073,12 +2038,6 @@ return [
         '/talento/api/cajas',
         '/talento/api/cajas/settings',
         '/talento/api/cajas/bonus-log/{workOrderId}/evaluate',
-    ],
-    'talento.liquidations.view' => [
-        '/talento/liquidaciones',
-        '/talento/finiquito',
-        '/talento/api/settlements',
-        '/talento/api/settlements/{id}',
     ],
     'talento.liquidation.view' => [
         '/talento/liquidaciones',
@@ -2336,10 +2295,6 @@ return [
     ],
 
     // Integration Hub accesible para configurar API keys
-    'view_integration_hub' => [
-        '/integraciones',
-        '/integraciones/**',
-    ],
 
     // ══════════════════════════════════════════════════════════════════════════
     // Domiciliación a Tarjeta (addon-domiciliacion) — acceso admin
