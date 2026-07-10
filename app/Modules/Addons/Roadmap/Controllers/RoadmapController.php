@@ -27,7 +27,9 @@ class RoadmapController extends Controller
         $cola = RoadmapItem::where('estado_aprobacion', 'requiere_irving')
             ->ordered()->limit(20)->get()
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
-                'comentario' => mb_strimwidth((string) $i->comentarios_claude, 0, 160, '…'),
+                'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
+                'opciones'      => $i->opciones,              // array de opciones | null (forks para elegir)
+                'opcion_elegida' => $i->opcion_elegida,
             ]));
 
         $actividad = RoadmapItem::whereNotNull('comentarios_claude')

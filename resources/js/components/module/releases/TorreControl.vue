@@ -36,9 +36,26 @@
           <div v-if="!cola.length" class="tc-meta">Nada requiere tu decisión ahora. ✓</div>
           <div v-for="it in cola" :key="it.id" class="tc-inbox-item">
             <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
-            <div>
+            <div class="tc-inbox-body">
               <div class="tc-t"><span class="tc-idnum">#{{ it.id }}</span> {{ it.title }}</div>
-              <div class="tc-s" v-if="it.comentario">{{ it.comentario }}</div>
+              <div class="tc-s" v-if="it.recomendacion">{{ it.recomendacion }}</div>
+
+              <!-- Opciones (forks) que dejó el decisor -->
+              <div v-if="it.opciones && it.opciones.length" class="tc-opts">
+                <button
+                  v-for="(op, oi) in it.opciones" :key="oi" type="button"
+                  class="tc-opt" :class="{ 'tc-opt-sel': sel[it.id] === op }"
+                  @click="sel[it.id] = op">{{ op }}</button>
+              </div>
+
+              <textarea v-model="coment[it.id]" class="tc-coment" rows="2" placeholder="Comentario (opcional)…"></textarea>
+
+              <div class="tc-actions">
+                <button class="tc-btn tc-btn-ok"  :disabled="deciding === it.id" @click="decidir(it, 'aprobar')">✓ Aprobar</button>
+                <button class="tc-btn tc-btn-no"  :disabled="deciding === it.id" @click="decidir(it, 'rechazar')">✕ Rechazar</button>
+                <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'comentar')">💬 Comentar</button>
+                <span v-if="deciding === it.id" class="tc-meta">Guardando…</span>
+              </div>
             </div>
           </div>
         </div>
@@ -90,7 +107,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 
 export default {
@@ -105,6 +122,11 @@ export default {
         const actividad = ref([]);
         const riesgos = ref([]);
         const auditItem = ref(null);
+
+        // Bandeja de decisiones interactiva (#313)
+        const sel = reactive({});      // id -> opción elegida
+        const coment = reactive({});   // id -> comentario
+        const deciding = ref(null);    // id en proceso
 
         const total = computed(() => resumen.value.total || 0);
         const est = (k) => (resumen.value.por_estado && resumen.value.por_estado[k]) || 0;
@@ -185,12 +207,31 @@ export default {
             }
         }
 
+        async function decidir(it, accion) {
+            if (deciding.value) return;
+            deciding.value = it.id;
+            try {
+                await axios.post('/api/roadmap/circuito/decidir', {
+                    id: it.id,
+                    accion,
+                    opcion_elegida: sel[it.id] || null,
+                    comentario: coment[it.id] || null,
+                });
+                delete sel[it.id];
+                delete coment[it.id];
+                await load(); // refresca bandeja + panorama con el estado ya decidido
+            } finally {
+                deciding.value = null;
+            }
+        }
+
         onMounted(load);
 
         return {
             loading, toggling, pausado, generatedAt, total, est, nivel, niveles, barH,
             cola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
+            sel, coment, deciding, decidir,
         };
     },
 };
@@ -230,6 +271,18 @@ export default {
 .tc-t{font-size:13.5px;font-weight:600;line-height:1.3;}
 .tc-s{font-size:12px;color:var(--tc-muted);margin-top:2px;}
 .tc-idnum{color:var(--tc-accent);font-weight:700;}
+.tc-inbox-body{flex:1;min-width:0;}
+.tc-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.tc-opt{font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--tc-line);background:#fff;color:var(--tc-ink);cursor:pointer;text-align:left;}
+.tc-opt:hover{border-color:var(--tc-accent);}
+.tc-opt-sel{border-color:var(--tc-accent);background:#f0fdfa;color:#0f766e;font-weight:600;box-shadow:0 0 0 2px #0d948822;}
+.tc-coment{width:100%;margin-top:8px;font-size:12.5px;padding:7px 9px;border:1px solid var(--tc-line);border-radius:8px;resize:vertical;font-family:inherit;}
+.tc-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.tc-btn{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;}
+.tc-btn:disabled{opacity:.6;cursor:default;}
+.tc-btn-ok{background:#ecfdf5;color:#047857;border-color:#bbf7d0;}
+.tc-btn-no{background:#fef2f2;color:#b91c1c;border-color:#fecaca;}
+.tc-btn-mut{background:#f8fafc;color:#475569;border-color:var(--tc-line);}
 .tc-feed{display:flex;flex-direction:column;}
 .tc-ev{display:flex;gap:11px;padding:9px 0;border-top:1px solid var(--tc-line);font-size:13px;line-height:1.35;}
 .tc-ev:first-child{border-top:none;}
