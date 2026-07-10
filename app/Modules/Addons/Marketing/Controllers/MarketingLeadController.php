@@ -13,12 +13,12 @@ class MarketingLeadController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:view-leads')->only(['index', 'show', 'activities']);
-        $this->middleware('permission:create-leads')->only('store');
-        $this->middleware('permission:update-leads')->only('update');
-        $this->middleware('permission:delete-leads')->only('destroy');
-        $this->middleware('permission:assign-leads')->only('assign');
-        $this->middleware('permission:score-leads')->only('triggerScoring');
+        $this->middleware('permission:marketing.leads.view')->only(['index', 'show', 'activities']);
+        $this->middleware('permission:marketing.leads.create')->only('store');
+        $this->middleware('permission:marketing.leads.update')->only('update');
+        $this->middleware('permission:marketing.leads.delete')->only('destroy');
+        $this->middleware('permission:marketing.leads.assign')->only('assign');
+        $this->middleware('permission:marketing.leads.score')->only('triggerScoring');
     }
 
     public function index(Request $request)
