@@ -99,7 +99,7 @@ export default {
             hasPermission.data = new Permission(await allViewHasPermission());
             modal.value = new Modal("modalvozservice");
 
-            if (hasPermission.data.canView('client_service_voz_add')) {
+            if (hasPermission.data.canView('client_service_voz_add_client')) {
                 $(document).on("click", "#buttonmodalvozservice", function () {
                     showAddModal();
                 });
@@ -147,7 +147,7 @@ export default {
 
         const getButtonDatatable = () => {
             let buttons = {};
-            if (hasPermission.data.canView('client_service_voz_add')) {
+            if (hasPermission.data.canView('client_service_voz_add_client')) {
                 buttons.upload = {
                     class: 'btn btn-outline-info waves-effect waves-light',
                     iclass: 'fa fa-plus',
