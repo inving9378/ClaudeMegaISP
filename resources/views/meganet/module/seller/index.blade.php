@@ -11,9 +11,9 @@
     <Datatable
         module="vendedor"
         model="Seller"
-        @can('seller_add_seller')
+        @if(auth()->user()->can('seller_add_seller'))
         add="Agregar Vendedor"
-        @endcan
+        @endif
         list="Listado de Vendedores"
     ></Datatable>
     @if(session()->has('message'))
