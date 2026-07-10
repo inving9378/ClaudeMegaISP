@@ -64,6 +64,18 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
     ->get('/admin/configuracion-nueva', [ModuleConfigPanelController::class, 'index'])
     ->name('admin.config.panel-nueva');
 
+/*
+ * Config de RENDER del mapa (api_key de Google + centro/zoom por defecto).
+ * SOLO 'web','auth' (a propósito, FUERA de check_route_permission): es
+ * infraestructura compartida que consumen /mapas, MegaFamilia, LeafletMap y
+ * widgets geo. Gatearla a un permiso rompería el mapa para staff que ve otra
+ * superficie sin ese permiso; sin login seguiría siendo inaccesible (protege la
+ * key de anónimos). La pantalla de CONFIG (edit/create/update/destroy) SÍ
+ * permanece gateada dentro del grupo de abajo.
+ */
+Route::middleware(['web', 'auth'])
+    ->get('/configuracion/credenciales-google-maps/render-config', [MapCredentialController::class, 'renderConfig']);
+
 Route::middleware(['web', 'auth', 'check_route_permission'])
     ->prefix('configuracion')
     ->group(function () {
@@ -200,7 +212,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::group(['prefix' => 'credenciales-google-maps'], function () {
             Route::get('/', [MapCredentialController::class, 'index']);
             Route::get('/edit', [MapCredentialController::class, 'edit']);
-            Route::get('/render-config', [MapCredentialController::class, 'renderConfig']);
+            // render-config se declara FUERA de este grupo (sin check_route_permission);
+            // ver ruta suelta 'web','auth' más arriba. Es infraestructura compartida de
+            // render de mapas que debe alcanzar cualquier staff autenticado.
             Route::post('/create', [MapCredentialController::class, 'store']);
             Route::post('/{id}/update', [MapCredentialController::class, 'update']);
             Route::delete('/{id}/destroy', [MapCredentialController::class, 'destroy']);
