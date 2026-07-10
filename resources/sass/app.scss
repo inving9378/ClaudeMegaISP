@@ -146,6 +146,53 @@ $c3-filled-states: (
     }
 }
 
+/* MODO OSCURO — estilo RELLENO "C3": el pastel claro + texto forzado a claro del
+ * tema oscuro dejaba texto claro sobre fondo claro (ilegible) y desentonaba con el
+ * fondo #0A0A0A. Aquí, SOLO en dark, cada estado usa una variante OSCURA y opaca del
+ * MISMO matiz (tinte del color sobre fondo oscuro) + texto claro del tema con contraste
+ * legible. Se conserva el marco 1.5px + barra lateral 5px del diseño C3 con el color
+ * saturado. Cubre TODAS las tablas con estilo Relleno (mismo mapeo estado->clase que
+ * arriba, toolbars unificados). En tema CLARO no cambia nada. El modo "Subrayado" no se
+ * toca (este bloque solo aplica con data-row-style="filled"). */
+$c3-filled-states-dark: (
+    "Activo":    ("client-active",   #14331D, #2E7D46, #34D399, #E0F5E6),
+    "Bloqueado": ("client-block",    #3A1518, #A33F3F, #F87171, #FADBDB),
+    "Inactivo":  ("client-inactive", #3A2C10, #A67C2E, #FBBF24, #F7ECCB),
+    "Nuevo":     ("client-new",      #1A2340, #3E4FA3, #6C84F7, #DDE3FB),
+    "Cancelado": ("client-cancel",   #24282C, #6B7883, #9AA7B5, #E6E6E6),
+);
+
+@each $st, $vals in $c3-filled-states-dark {
+    $alt:    nth($vals, 1);
+    $bg:     nth($vals, 2);
+    $border: nth($vals, 3);
+    $accent: nth($vals, 4);
+    $text:   nth($vals, 5);
+
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$st} > td,
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$alt} > td {
+        background-color: $bg !important;
+        color: $text !important;
+        border-top: 1.5px solid $border !important;
+        border-bottom: 1.5px solid $border !important;
+    }
+    /* texto plano de la celda (enlaces/spans sin color propio) hereda el tono claro */
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$st} > td a,
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$alt} > td a,
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$st} > td span:not([class*="badge"]):not([class*="chip"]),
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$alt} > td span:not([class*="badge"]):not([class*="chip"]) {
+        color: $text !important;
+    }
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$st} > td:first-child,
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$alt} > td:first-child {
+        border-left: 5px solid $accent !important;
+    }
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$st} > td:last-child,
+    body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$alt} > td:last-child {
+        border-right: 1.5px solid $border !important;
+    }
+}
+
 /* Swatches de LEYENDA / celdas de estado (div/td con .client-*): CONSERVAN el relleno
  * pastel — ahí el color de fondo ES su significado (la clave del color), no una fila. */
 td.client-active,   div.client-active   { background-color: #ccffcc; }
