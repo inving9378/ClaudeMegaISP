@@ -71,64 +71,21 @@ class PermissionController extends Controller
         return response()->json(['permissions' => $permissions], 200);
     }
 
+    /**
+     * Reforma de permisos B1.3 — RETIRADO. El candado de permisos individuales
+     * por usuario se eliminó: el rol es la única fuente de verdad y la asignación
+     * vive en la pantalla de Roles. Las rutas get/update-permission-for-user ya
+     * no se registran (ver Usuarios/routes.php). Se conservan estos stubs que
+     * abortan para evitar re-cableo accidental; borrar en una limpieza futura.
+     */
     public function getPermissionUser($userId)
     {
-        $user = User::find($userId);
-        $permissions = $user->permissions;
-        $permissions = $permissions->pluck('name')->toArray();
-        $all_promotions = Promotion::with(['promotionable'])->get();
-        $avaiables_promotions = $user->avaiablesPromotions;
-        return response()->json(['permissions' => $permissions, 'all_promotions' => $all_promotions, 'avaiables_promotions' => $avaiables_promotions], 200);
+        abort(410, 'Retirado (reforma de permisos B1.3): la asignación de permisos es por rol.');
     }
-
 
     public function updatePermissionUser(Request $request, $userId)
     {
-        $request->validate([
-            'permissions' => 'required|array',
-            'permissions.*' => 'required|string|exists:permissions,name',
-        ]);
-
-        $user = User::find($userId);
-        $roles = $user->roles;
-
-        // Obtener los permisos de cada rol y los permisos directos del usuario
-        $permissions = $roles->flatMap(function ($role) {
-            return $role->permissions;
-        })->merge($user->permissions) // Combina con permisos directos del usuario
-            ->unique('id'); // Eliminar duplicados basados en su id
-
-        // Extraer solo los nombres de los permisos en un array
-        $currentPermissions = $permissions->pluck('name')->toArray();
-
-        $newPermissions = $request->input('permissions');
-
-        // Permisos a añadir
-        $permissionsToAdd = array_diff($newPermissions, $currentPermissions);
-
-        // Permisos a revocar
-        $permissionsToRemove = array_diff($currentPermissions, $newPermissions);
-
-        // Añadir nuevos permisos
-        foreach ($permissionsToAdd as $permission) {
-            $user->givePermissionTo($permission);
-        }
-
-        // Revocar permisos eliminados
-        foreach ($permissionsToRemove as $permission) {
-            $user->revokePermissionTo($permission);
-        }
-
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
-
-        $promotions = $request->input('promotions', []);
-        if (!empty($promotions)) {
-            $user->avaiablesPromotions()->sync($promotions);
-        } else {
-            $user->avaiablesPromotions()->detach();
-        }
-
-        return response()->json(['status' => 200, 'message' => 'Permisos actualizados correctamente']);
+        abort(410, 'Retirado (reforma de permisos B1.3): la asignación de permisos es por rol.');
     }
 
 

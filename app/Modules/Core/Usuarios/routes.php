@@ -69,8 +69,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administra
         Route::get('/catalog', [PermissionController::class, 'catalog']);
         Route::get('/get-permission-for-role/{id}', [PermissionController::class, 'get']);
         Route::post('/update-permission-for-role/{id}', [PermissionController::class, 'update']);
-        Route::get('/get-permission-for-user/{id}', [PermissionController::class, 'getPermissionUser']);
-        Route::post('/update-permission-for-user/{id}', [PermissionController::class, 'updatePermissionUser']);
+        // Reforma de permisos B1.3: se elimina el candado de permisos individuales
+        // por usuario (el rol es la única fuente de verdad). Rutas retiradas:
+        //   Route::get('/get-permission-for-user/{id}', ...'getPermissionUser');
+        //   Route::post('/update-permission-for-user/{id}', ...'updatePermissionUser');
         Route::post('/sync-roles', [PermissionController::class, 'syncRoles']); // solo super-administrator
     });
 });

@@ -110,28 +110,10 @@
                                     >
                                         <i class="fa fa-id-badge me-1"></i>Talento
                                     </a>
-                                    <span
-                                        v-if="
-                                            hasPermission.data.canView(
-                                                'user_permission_user'
-                                            )
-                                        "
-                                        class="text-primary me-2"
-                                        role="button"
-                                        @click="
-                                            openModalPermissions(
-                                                props.row.id,
-                                                props.row.name
-                                            )
-                                        "
-                                        :class="{
-                                            'disabled-text': isSuperAdmin(
-                                                props.row.id
-                                            ),
-                                        }"
-                                    >
-                                        <i class="fas fa-lock"></i>
-                                    </span>
+                                    <!-- Reforma de permisos B1.3: eliminado el candado de
+                                         permisos individuales por usuario. El rol es la
+                                         única fuente de verdad; la asignación vive en la
+                                         pantalla de Roles. -->
                                     <span
                                         class="text-primary me-2"
                                         role="button"
@@ -241,13 +223,6 @@
             </template>
         </modal>
 
-        <!-- ---------------------------------------------------------------------- -->
-        <PermissionUser
-            :userId="idUser"
-            :userName="userName"
-            v-model:showModal="showModalPermissions"
-        />
-        <!-- ---------------------------------------------------------------------- -->
     </div>
 </template>
 
@@ -257,7 +232,6 @@ import Swal from "sweetalert2";
 import Modal from "../../../../shared/ModalSimple.vue";
 import { getAll, deleteUser, activeOrInactive, bloquearUser } from "./helper/request.js";
 import { adminStatusMeta } from "../../../../helpers/adminStatus.js";
-import PermissionUser from "./PermissionUser.vue";
 import Permission from "../../../../helpers/Permission";
 import { allViewHasPermission } from "../../../../helpers/Request";
 import { darkMode } from "../../../../hook/appConfig.js";
@@ -414,20 +388,11 @@ const pagination = ref({
     rowsNumber: 0,
 });
 
-const idUser = ref(0);
-const userName = ref("");
-const showModalPermissions = ref(false);
 onMounted(async () => {
     hasPermission.data = new Permission(await allViewHasPermission());
     getColumnsTable();
     tableRef.value.requestServerInteraction();
 });
-
-const openModalPermissions = async (userId, name) => {
-    idUser.value = userId;
-    userName.value = name;
-    showModalPermissions.value = true;
-};
 
 const isSuperAdmin = (id) => {
     return id == 1;
