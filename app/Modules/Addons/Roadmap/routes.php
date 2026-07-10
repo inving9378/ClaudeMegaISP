@@ -72,6 +72,8 @@ Route::middleware(['web', 'auth'])
         Route::post('/integracion/merge',     [RoadmapController::class, 'integracionMerge']);
         Route::post('/integracion/rechazar',  [RoadmapController::class, 'integracionRechazar']);
         Route::post('/integracion/revert',    [RoadmapController::class, 'integracionRevert']);
+        Route::post('/integracion/modo',          [RoadmapController::class, 'integracionModo']);
+        Route::post('/integracion/marcar-version', [RoadmapController::class, 'integracionMarcarVersion']);
 
         Route::get('/items',               [RoadmapController::class, 'index']);
         Route::post('/items',              [RoadmapController::class, 'store']);

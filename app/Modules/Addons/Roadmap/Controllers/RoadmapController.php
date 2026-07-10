@@ -270,7 +270,10 @@ class RoadmapController extends Controller
                     'estado_aprobacion' => $i->estado_aprobacion,
                     'merged'            => ! empty($i->merge_commit),
                     'merge_commit'      => $i->merge_commit,
+                    'marcado_version'   => (bool) $i->marcado_version,
                     'verificacion'      => $this->semaforo($i),
+                    'reporte'           => $i->comentarios_claude,   // reporte del ejecutor (qué hace/cómo validar/verificación)
+                    'descripcion'       => $i->description,
                     'existe_rama'       => $git['existe'],
                     'stat'              => $git['stat'],
                     'archivos'          => $git['archivos'],
@@ -278,7 +281,41 @@ class RoadmapController extends Controller
                 ];
             });
 
-        return response()->json(['generated_at' => now()->toIso8601String(), 'ramas' => $ramas]);
+        return response()->json([
+            'generated_at'     => now()->toIso8601String(),
+            'modo_integracion' => $this->svc->getModoIntegracion(),
+            'ramas'            => $ramas,
+        ]);
+    }
+
+    /** POST /api/roadmap/integracion/modo — cambia el modo de integración (auto-merge | revisar-y-mergear). */
+    public function integracionModo(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'modo' => ['required', 'string', 'in:' . implode(',', \App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::MODOS_INTEGRACION)],
+        ]);
+        $this->svc->setModoIntegracion($data['modo']);
+        Log::channel('roadmap_externo')->info('integracion-modo', ['modo' => $data['modo'], 'por' => $this->actor()]);
+        return response()->json(['ok' => true, 'modo_integracion' => $this->svc->getModoIntegracion()]);
+    }
+
+    /** POST /api/roadmap/integracion/marcar-version — marca/desmarca la rama para el armador de versiones (#312). */
+    public function integracionMarcarVersion(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate(['id' => ['required', 'integer', 'min:1']]);
+        $item = RoadmapItem::find($data['id']);
+        if (! $item) {
+            return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+        $item->marcado_version = ! $item->marcado_version;
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => $item->marcado_version ? 'marcado_para_version' : 'desmarcado_version'];
+        $item->log = $log;
+        $item->save();
+        Log::channel('roadmap_externo')->info('integracion-marcar-version', ['item' => $item->id, 'marcado' => $item->marcado_version, 'por' => $this->actor()]);
+        return response()->json(['ok' => true, 'marcado_version' => $item->marcado_version]);
     }
 
     /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */

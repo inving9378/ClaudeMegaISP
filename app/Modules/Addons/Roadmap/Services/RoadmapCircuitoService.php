@@ -27,6 +27,11 @@ class RoadmapCircuitoService
 
     public const MODOS = ['aviso_previo', 'autonomo'];
 
+    /** Llave del modo de integración de ramas (#325). */
+    public const MODO_INTEGRACION_KEY = 'circuito_modo_integracion';
+
+    public const MODOS_INTEGRACION = ['auto-merge', 'revisar-y-mergear'];
+
     public function find(int $id): ?RoadmapItem
     {
         return RoadmapItem::find($id);
@@ -64,6 +69,25 @@ class RoadmapCircuitoService
             $modo = 'aviso_previo';
         }
         $this->putSetting(self::MODO_KEY, $modo);
+    }
+
+    /**
+     * Modo de integración de ramas (#325): `auto-merge` (default; A/B se integran solas al
+     * verificar) | `revisar-y-mergear` (las ramas ESPERAN el ✓ de Irving en la Torre).
+     * Valor no reconocido → `auto-merge` (comportamiento actual).
+     */
+    public function getModoIntegracion(): string
+    {
+        $v = (string) DB::table('settings')->where('key', self::MODO_INTEGRACION_KEY)->value('value');
+        return in_array($v, self::MODOS_INTEGRACION, true) ? $v : 'auto-merge';
+    }
+
+    public function setModoIntegracion(string $modo): void
+    {
+        if (! in_array($modo, self::MODOS_INTEGRACION, true)) {
+            $modo = 'auto-merge';
+        }
+        $this->putSetting(self::MODO_INTEGRACION_KEY, $modo);
     }
 
     private function putSetting(string $key, string $val): void
