@@ -62,6 +62,14 @@ return [
             'days' => 90,
         ],
 
+        // Auditoría del conector MCP de la Hoja de Ruta (Circuito de Mejora Continua)
+        'mcp_roadmap' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/mcp-roadmap.log'),
+            'level' => 'info',
+            'days' => 90,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
