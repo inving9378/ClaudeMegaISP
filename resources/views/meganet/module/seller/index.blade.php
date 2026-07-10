@@ -11,7 +11,7 @@
     <Datatable
         module="vendedor"
         model="Seller"
-        @can('vendedor_add')
+        @can('seller_add_seller')
         add="Agregar Vendedor"
         @endcan
         list="Listado de Vendedores"
