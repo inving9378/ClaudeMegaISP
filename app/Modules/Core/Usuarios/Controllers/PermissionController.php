@@ -149,8 +149,6 @@ class PermissionController extends Controller
                 return response()->json(['status' => 404, 'message' => 'Rol no encontrado']);
             }
 
-            $users = User::role($role->name)->get();
-
             $currentPermissions = $role->permissions()->pluck('name')->toArray();
             $newPermissions = $request->input('permissions');
 
@@ -169,37 +167,15 @@ class PermissionController extends Controller
                 $role->revokePermissionTo($permission);
             }
 
-            // Actualizar los permisos de los usuarios del rol
-            foreach ($users as $user) {
-                // Obtener todos los roles del usuario
-                $userRoles = $user->roles;
-
-                // Verificar si el permiso a revocar está asociado a otros roles del usuario
-                foreach ($permissionsToRemove as $permission) {
-                    $hasPermissionThroughOtherRoles = false;
-
-                    foreach ($userRoles as $userRole) {
-                        if ($userRole->id !== $role->id && $userRole->hasPermissionTo($permission)) {
-                            $hasPermissionThroughOtherRoles = true;
-                            break;
-                        }
-                    }
-
-                    // Solo revocar el permiso si no está asociado a otros roles
-                    if (!$hasPermissionThroughOtherRoles) {
-                        $user->revokePermissionTo($permission);
-                    }
-                }
-
-                // Añadir permisos al usuario
-                foreach ($permissionsToAdd as $permission) {
-                    $user->givePermissionTo($permission);
-                }
-            }
+            // Reforma de permisos B1.2: editar un rol toca SOLO role_has_permissions.
+            // Se elimina la propagación que antes escribía/borraba los permisos como
+            // DIRECTOS en cada usuario del rol (re-sembraba directos en cada edición).
+            // Con el flip activo (getAllPermissions = directos ∪ rol) los usuarios
+            // reciben el cambio por su rol automáticamente, sin copia a directos.
 
             DB::commit();
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
-            return response()->json(['status' => 200, 'message' => 'Permisos del rol y de los usuarios actualizados correctamente']);
+            return response()->json(['status' => 200, 'message' => 'Permisos del rol actualizados correctamente']);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['status' => 500, 'message' => 'Error al actualizar los permisos', 'error' => $e->getMessage()]);
