@@ -16,6 +16,8 @@ class RoadmapItem extends Model
         // Circuito de mejora continua (Parte 1.1)
         'modulo', 'nivel_riesgo', 'estado_aprobacion',
         'comentarios_claude', 'revisado_at', 'aprobado_por',
+        // Bandeja de decisiones interactiva (#313)
+        'opciones', 'opcion_elegida',
     ];
 
     protected $casts = [
@@ -25,6 +27,7 @@ class RoadmapItem extends Model
         'position'     => 'integer',
         'subtasks'     => 'array',
         'log'          => 'array',
+        'opciones'     => 'array',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
@@ -34,6 +37,7 @@ class RoadmapItem extends Model
         'pendiente_revision',
         'aprobado_claude',
         'requiere_irving',
+        'aprobado_irving',
         'rechazado',
         'en_progreso',
         'completado',
