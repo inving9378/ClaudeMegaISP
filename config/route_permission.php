@@ -498,9 +498,6 @@ return [
         '/olts/onus/reboot/{id}',
     ],
 
-    'olt_zones' => [
-        '/olts/settings/zones',
-    ],
 
     'zone_add' => [
         '/olts/settings/zones/store',
