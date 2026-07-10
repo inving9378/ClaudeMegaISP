@@ -92,13 +92,17 @@
                                     :type="mostrarKey ? 'text' : 'password'"
                                     class="form-control"
                                     v-model="form.api_key"
-                                    :placeholder="form.id && form.tiene_api_key ? '(sin cambios)' : 'API key del proveedor'"
+                                    :placeholder="form.id && form.tiene_api_key ? '•••• guardada (dejar vacío para conservar)' : 'API key del proveedor'"
                                 />
                                 <button class="btn btn-outline-secondary" type="button"
                                     @click="mostrarKey = !mostrarKey">
                                     <i :class="mostrarKey ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
                                 </button>
                             </div>
+                            <small v-if="form.id && form.tiene_api_key" class="form-text text-success">
+                                <i class="bi bi-check-circle-fill"></i>
+                                Ya hay una API key guardada. Deja este campo vacío para conservarla; escribe una nueva solo si quieres reemplazarla.
+                            </small>
                         </div>
                         <div class="col-md-8">
                             <label class="form-label">Endpoint URL</label>
