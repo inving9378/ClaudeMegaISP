@@ -393,15 +393,6 @@ class ClientController extends Controller
         return $this->helper->fetch_datatable_data($request);
     }
 
-    public function getVal(Request $request, $id)
-    {
-        $model = $request->model;
-        $field = $request->field;
-
-        $data = $model::where('client_id', $id)->selectRaw($field)->first();
-        if ($data) return $data->toArray();
-    }
-
     public function getClientDebit($id)
     {
         $client = Client::find($id);
