@@ -54,7 +54,23 @@
                 <button class="tc-btn tc-btn-ok"  :disabled="deciding === it.id" @click="decidir(it, 'aprobar')">✓ Aprobar</button>
                 <button class="tc-btn tc-btn-no"  :disabled="deciding === it.id" @click="decidir(it, 'rechazar')">✕ Rechazar</button>
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'comentar')">💬 Comentar</button>
+                <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cerrar')">✔ Cerrar</button>
+                <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cancelar')">⊘ Cancelar</button>
+                <button class="tc-btn tc-btn-seg" :disabled="deciding === it.id" @click="toggleSeg(it)">＋ Seguimiento</button>
                 <span v-if="deciding === it.id" class="tc-meta">Guardando…</span>
+              </div>
+
+              <!-- Crear seguimiento vinculado (#320) -->
+              <div v-if="segOpen[it.id]" class="tc-seg">
+                <input v-model="seg[it.id].titulo" class="tc-seg-in" placeholder="Título del ítem de seguimiento…" />
+                <textarea v-model="seg[it.id].descripcion" class="tc-seg-in" rows="2" placeholder="Descripción (prellenada con el contexto)…"></textarea>
+                <div class="tc-seg-row">
+                  <select v-model="seg[it.id].nivel" class="tc-seg-sel">
+                    <option value="">nivel…</option><option>A</option><option>B</option><option>C</option>
+                  </select>
+                  <label class="tc-seg-chk"><input type="checkbox" v-model="seg[it.id].cerrar"> cerrar #{{ it.id }} al crear</label>
+                  <button class="tc-btn tc-btn-ok" :disabled="deciding === it.id || !seg[it.id].titulo" @click="crearSeguimiento(it)">Crear seguimiento</button>
+                </div>
               </div>
             </div>
           </div>
@@ -151,6 +167,8 @@ export default {
         const sel = reactive({});      // id -> opción elegida
         const coment = reactive({});   // id -> comentario
         const deciding = ref(null);    // id en proceso
+        const segOpen = reactive({});  // id -> form de seguimiento abierto
+        const seg = reactive({});      // id -> {titulo, descripcion, nivel, cerrar}
 
         const total = computed(() => resumen.value.total || 0);
         const est = (k) => (resumen.value.por_estado && resumen.value.por_estado[k]) || 0;
@@ -233,6 +251,39 @@ export default {
             }
         }
 
+        function toggleSeg(it) {
+            if (!seg[it.id]) {
+                seg[it.id] = {
+                    titulo: '',
+                    descripcion: `Origen #${it.id}: ${it.title}\n\n${it.recomendacion || ''}`.trim(),
+                    nivel: it.nivel_riesgo || '',
+                    cerrar: true,
+                };
+            }
+            segOpen[it.id] = !segOpen[it.id];
+        }
+
+        async function crearSeguimiento(it) {
+            if (deciding.value || !seg[it.id] || !seg[it.id].titulo) return;
+            deciding.value = it.id;
+            try {
+                const s = seg[it.id];
+                await axios.post('/api/roadmap/circuito/seguimiento', {
+                    origen_item_id: it.id,
+                    titulo: s.titulo,
+                    descripcion: s.descripcion || null,
+                    nivel_riesgo: s.nivel || null,
+                    cerrar_origen: !!s.cerrar,
+                    comentario: coment[it.id] || null,
+                });
+                delete seg[it.id];
+                segOpen[it.id] = false;
+                await load();
+            } finally {
+                deciding.value = null;
+            }
+        }
+
         async function decidir(it, accion) {
             if (deciding.value) return;
             deciding.value = it.id;
@@ -258,6 +309,7 @@ export default {
             cola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             sel, coment, deciding, decidir,
+            segOpen, seg, toggleSeg, crearSeguimiento,
             darkMode, ejecuciones, modo,
         };
     },
@@ -310,6 +362,12 @@ export default {
 .tc-btn-ok{background:#ecfdf5;color:#047857;border-color:#bbf7d0;}
 .tc-btn-no{background:#fef2f2;color:#b91c1c;border-color:#fecaca;}
 .tc-btn-mut{background:#f8fafc;color:#475569;border-color:var(--tc-line);}
+.tc-btn-seg{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
+.tc-seg{margin-top:8px;padding:10px;border:1px dashed var(--tc-line);border-radius:8px;}
+.tc-seg-in{width:100%;margin-bottom:6px;font-size:12.5px;padding:6px 9px;border:1px solid var(--tc-line);border-radius:7px;font-family:inherit;}
+.tc-seg-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;}
+.tc-seg-sel{font-size:12px;padding:5px 8px;border:1px solid var(--tc-line);border-radius:7px;background:#fff;}
+.tc-seg-chk{font-size:12px;color:var(--tc-muted);display:flex;align-items:center;gap:4px;}
 .tc-feed{display:flex;flex-direction:column;}
 .tc-ev{display:flex;gap:11px;padding:9px 0;border-top:1px solid var(--tc-line);font-size:13px;line-height:1.35;}
 .tc-ev:first-child{border-top:none;}
@@ -355,6 +413,9 @@ export default {
 .tc-dark .tc-btn-ok{background:rgba(74,222,128,.14);color:#4ade80;border-color:#2b5b3b;}
 .tc-dark .tc-btn-no{background:rgba(248,113,113,.14);color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-btn-mut{background:#1c2740;color:#cbd5e1;border-color:#2a3550;}
+.tc-dark .tc-btn-seg{background:rgba(96,165,250,.14);color:#60a5fa;border-color:#2b3f5b;}
+.tc-dark .tc-seg{border-color:#2a3550;}
+.tc-dark .tc-seg-in,.tc-dark .tc-seg-sel{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
 
 @media(max-width:820px){.tc-kpis{grid-template-columns:repeat(2,1fr)}.tc-grid{grid-template-columns:1fr}}
 </style>

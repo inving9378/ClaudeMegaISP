@@ -20,6 +20,8 @@ class RoadmapItem extends Model
         'opciones', 'opcion_elegida',
         // Aislamiento por rama (#311)
         'branch', 'merge_commit',
+        // Acciones avanzadas de la bandeja (#320)
+        'origen_item_id',
     ];
 
     protected $casts = [
@@ -43,6 +45,7 @@ class RoadmapItem extends Model
         'rechazado',
         'en_progreso',
         'completado',
+        'cancelado',
     ];
 
     protected $attributes = [
