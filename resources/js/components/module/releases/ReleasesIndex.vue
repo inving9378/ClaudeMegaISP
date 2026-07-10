@@ -18,6 +18,11 @@
                     <i class="bi bi-map me-1"></i> Hoja de ruta
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'torre' }" href="#" @click.prevent="tab = 'torre'">
+                    <i class="bi bi-broadcast-pin me-1"></i> Torre de control
+                </a>
+            </li>
         </ul>
 
         <!-- ── Tab: Reporte ── -->
@@ -25,6 +30,9 @@
 
         <!-- ── Tab: Hoja de ruta ── -->
         <roadmap-tab v-if="tab === 'roadmap'" />
+
+        <!-- ── Tab: Torre de control del Circuito ── -->
+        <torre-control v-if="tab === 'torre'" />
 
         <!-- ── Tab: Historial ── -->
         <template v-if="tab === 'historial'">
