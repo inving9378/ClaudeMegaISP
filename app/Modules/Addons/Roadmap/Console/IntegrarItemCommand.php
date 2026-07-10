@@ -46,8 +46,8 @@ class IntegrarItemCommand extends Command
             return self::FAILURE;
         }
 
-        // Árbol de trabajo limpio antes de cambiar de rama.
-        if (trim($this->git(['status', '--porcelain'])->getOutput()) !== '') {
+        // Árbol de trabajo limpio (solo cambios TRACKED; los untracked no afectan el merge).
+        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
             $this->error('El árbol de trabajo tiene cambios sin commitear; commitea o descarta antes de integrar.');
             return self::FAILURE;
         }

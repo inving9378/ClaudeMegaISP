@@ -37,7 +37,7 @@ class RamaItemCommand extends Command
             return self::SUCCESS;
         }
 
-        if (trim($this->git(['status', '--porcelain'])->getOutput()) !== '') {
+        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
             $this->error('El árbol de trabajo tiene cambios sin commitear; commitea o descarta antes de ramificar.');
             return self::FAILURE;
         }
