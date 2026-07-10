@@ -58,8 +58,14 @@ class PermissionController extends Controller
      */
     public function catalog()
     {
-        $permissions = Permission::orderBy('name')->pluck('name');
-        return response()->json(['permissions' => $permissions], 200);
+        // Reforma de permisos B3: se agrega `contexts` (nombre => panel|portal) para
+        // la pantalla de rol a dos columnas. `permissions` (solo nombres) se conserva
+        // idéntico para no romper el contrato del catálogo existente.
+        $permissions = Permission::orderBy('name')->get(['name', 'context']);
+        return response()->json([
+            'permissions' => $permissions->pluck('name'),
+            'contexts'    => $permissions->pluck('context', 'name'),
+        ], 200);
     }
 
     public function get($role_id)
