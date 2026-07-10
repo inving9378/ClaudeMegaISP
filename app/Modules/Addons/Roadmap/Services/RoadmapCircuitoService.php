@@ -22,6 +22,11 @@ class RoadmapCircuitoService
     /** Llave del kill switch en la tabla key-value `settings`. */
     public const PAUSE_KEY = 'circuito_pausado';
 
+    /** Llave del modo de ejecución del circuito. */
+    public const MODO_KEY = 'circuito_modo';
+
+    public const MODOS = ['aviso_previo', 'autonomo'];
+
     public function find(int $id): ?RoadmapItem
     {
         return RoadmapItem::find($id);
@@ -39,11 +44,34 @@ class RoadmapCircuitoService
 
     public function setPaused(bool $paused): void
     {
-        $val = $paused ? '1' : '0';
-        if (DB::table('settings')->where('key', self::PAUSE_KEY)->exists()) {
-            DB::table('settings')->where('key', self::PAUSE_KEY)->update(['value' => $val, 'updated_at' => now()]);
+        $this->putSetting(self::PAUSE_KEY, $paused ? '1' : '0');
+    }
+
+    /**
+     * Modo de ejecución del ejecutor on-box: `aviso_previo` (default; solo propone en
+     * comentarios_claude, no ejecuta código) | `autonomo` (ejecuta A/B en su rama con
+     * verificación). Un valor no reconocido cae a `aviso_previo` (falla-seguro).
+     */
+    public function getModo(): string
+    {
+        $v = (string) DB::table('settings')->where('key', self::MODO_KEY)->value('value');
+        return in_array($v, self::MODOS, true) ? $v : 'aviso_previo';
+    }
+
+    public function setModo(string $modo): void
+    {
+        if (! in_array($modo, self::MODOS, true)) {
+            $modo = 'aviso_previo';
+        }
+        $this->putSetting(self::MODO_KEY, $modo);
+    }
+
+    private function putSetting(string $key, string $val): void
+    {
+        if (DB::table('settings')->where('key', $key)->exists()) {
+            DB::table('settings')->where('key', $key)->update(['value' => $val, 'updated_at' => now()]);
         } else {
-            DB::table('settings')->insert(['key' => self::PAUSE_KEY, 'value' => $val, 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('settings')->insert(['key' => $key, 'value' => $val, 'created_at' => now(), 'updated_at' => now()]);
         }
     }
 

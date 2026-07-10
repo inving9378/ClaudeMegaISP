@@ -17,6 +17,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             $this->commands([
                 \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
+                \App\Modules\Addons\Roadmap\Console\FlagsCommand::class,
             ]);
         }
     }
