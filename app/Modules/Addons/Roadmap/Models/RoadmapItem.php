@@ -18,6 +18,8 @@ class RoadmapItem extends Model
         'comentarios_claude', 'revisado_at', 'aprobado_por',
         // Bandeja de decisiones interactiva (#313)
         'opciones', 'opcion_elegida',
+        // Aislamiento por rama (#311)
+        'branch', 'merge_commit',
     ];
 
     protected $casts = [
