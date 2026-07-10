@@ -117,7 +117,7 @@ class RoadmapController extends Controller
 
         $data = $request->validate([
             'id'             => ['required', 'integer', 'min:1'],
-            'accion'         => ['required', 'string', 'in:aprobar,rechazar,comentar'],
+            'accion'         => ['required', 'string', 'in:aprobar,rechazar,comentar,cerrar,cancelar'],
             'opcion_elegida' => ['sometimes', 'nullable', 'string', 'max:255'],
             'comentario'     => ['sometimes', 'nullable', 'string', 'max:10000'],
         ]);
@@ -133,8 +133,18 @@ class RoadmapController extends Controller
         $nuevoEstado = match ($data['accion']) {
             'aprobar'  => 'aprobado_irving',
             'rechazar' => 'rechazado',
+            'cerrar'   => 'completado',
+            'cancelar' => 'cancelado',
             'comentar' => $item->estado_aprobacion, // sigue en su estado (normalmente requiere_irving)
         };
+
+        // El status (pending/in_progress/done/cancelled) acompaña al cierre/cancelación.
+        if ($data['accion'] === 'cerrar') {
+            $item->status = 'done';
+            $item->completed_at = now();
+        } elseif ($data['accion'] === 'cancelar') {
+            $item->status = 'cancelled';
+        }
 
         if (! empty($data['opcion_elegida'])) {
             $item->opcion_elegida = $data['opcion_elegida'];
@@ -172,6 +182,70 @@ class RoadmapController extends Controller
                 'estado_aprobacion' => $item->estado_aprobacion,
                 'opcion_elegida'    => $item->opcion_elegida,
             ],
+        ]);
+    }
+
+    /**
+     * POST /api/roadmap/circuito/seguimiento — crea un item NUEVO vinculado (origen_item_id)
+     * desde una decisión, y opcionalmente cierra el origen (completado). El seguimiento entra
+     * en pendiente_revision para que el circuito lo triajee. Gateado por circuito.decidir.
+     */
+    public function seguimiento(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+
+        $data = $request->validate([
+            'origen_item_id' => ['required', 'integer', 'min:1'],
+            'titulo'         => ['required', 'string', 'max:255'],
+            'descripcion'    => ['sometimes', 'nullable', 'string', 'max:20000'],
+            'nivel_riesgo'   => ['sometimes', 'nullable', 'string', 'in:' . implode(',', RoadmapItem::NIVELES_RIESGO)],
+            'cerrar_origen'  => ['sometimes', 'boolean'],
+            'comentario'     => ['sometimes', 'nullable', 'string', 'max:10000'],
+        ]);
+
+        $origen = RoadmapItem::find($data['origen_item_id']);
+        if (! $origen) {
+            return response()->json(['error' => 'Item de origen no encontrado'], 404);
+        }
+
+        $autor = $this->actor();
+
+        $nuevo = RoadmapItem::create([
+            'title'             => $data['titulo'],
+            'modulo'            => $origen->modulo,
+            'description'       => $data['descripcion'] ?? null,
+            'status'            => 'pending',
+            'priority'          => $origen->priority ?: 'media',
+            'nivel_riesgo'      => $data['nivel_riesgo'] ?? null,
+            'estado_aprobacion' => 'pendiente_revision',
+            'origen_item_id'    => $origen->id,
+            'log'               => [[
+                'ts' => now()->toIso8601String(), 'por' => $autor,
+                'evento' => 'creado_como_seguimiento', 'origen' => $origen->id,
+            ]],
+        ]);
+
+        if (! empty($data['cerrar_origen'])) {
+            $origen->estado_aprobacion = 'completado';
+            $origen->status = 'done';
+            $origen->completed_at = now();
+            $origen->aprobado_por = $autor;
+            $origen->revisado_at = now();
+            if (! empty($data['comentario'])) {
+                $origen->comentarios_claude = $data['comentario'];
+            }
+            $log = $origen->log ?: [];
+            $log[] = ['ts' => now()->toIso8601String(), 'por' => $autor, 'evento' => 'cerrado_con_seguimiento', 'seguimiento' => $nuevo->id, 'comentario' => $data['comentario'] ?? null];
+            $origen->log = $log;
+            $origen->save();
+        }
+
+        Log::channel('roadmap_externo')->info('seguimiento-creado', ['origen' => $origen->id, 'nuevo' => $nuevo->id, 'por' => $autor, 'cerro_origen' => (bool) ($data['cerrar_origen'] ?? false)]);
+
+        return response()->json([
+            'ok'             => true,
+            'nuevo'          => ['id' => $nuevo->id, 'title' => $nuevo->title],
+            'origen_cerrado' => (bool) ($data['cerrar_origen'] ?? false),
         ]);
     }
 
