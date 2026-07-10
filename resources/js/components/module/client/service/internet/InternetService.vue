@@ -101,7 +101,7 @@ export default {
             hasPermission.data = new Permission(await allViewHasPermission());
             modal.value = new Modal("modalinternetservice");
 
-            if (hasPermission.data.canView("client_service_internet_add")) {
+            if (hasPermission.data.canView("client_service_internet_add_client")) {
                 $(document).on(
                     "click",
                     "#buttonmodalinternetservice",
@@ -191,7 +191,7 @@ export default {
 
         const getButtonDatatable = () => {
             let buttons = {};
-            if (hasPermission.data.canView("client_service_internet_add")) {
+            if (hasPermission.data.canView("client_service_internet_add_client")) {
                 buttons.upload = {
                     class: "btn btn-outline-info waves-effect waves-light",
                     iclass: "fa fa-plus",
