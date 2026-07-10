@@ -8,4 +8,16 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
 {
     protected string $moduleSlug = 'addon-roadmap';
     protected string $moduleType = 'addon';
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
+                \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
+            ]);
+        }
+    }
 }
