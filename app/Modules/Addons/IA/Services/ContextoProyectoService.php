@@ -289,19 +289,12 @@ MD;
 
     protected function detectarIntegraciones(): array
     {
-        $envKeys = [
-            'MIKROTIK_HOST' => 'MikroTik',
-            'RADIUS_HOST' => 'Radius',
-            'WHATSAPP_TOKEN' => 'WhatsApp',
-            'TELEGRAM_BOT_TOKEN' => 'Telegram',
-            'GOOGLE_MAPS_API_KEY' => 'Google Maps',
-            'STRIPE_KEY' => 'Stripe',
-            'PAYPAL_CLIENT_ID' => 'PayPal',
-            'MERCADOPAGO_TOKEN' => 'Mercado Pago',
-        ];
+        // Fuente canónica en config/ia.php (los env() viven SOLO allí, de modo
+        // que `config:cache` en producción no los deje en null → panel engañoso).
+        $integraciones = config('ia.integraciones_detectables', []);
         $detectadas = [];
-        foreach ($envKeys as $key => $label) {
-            if (!empty(env($key))) $detectadas[] = $label;
+        foreach ($integraciones as $label => $valor) {
+            if (!empty($valor)) $detectadas[] = $label;
         }
         return $detectadas;
     }
