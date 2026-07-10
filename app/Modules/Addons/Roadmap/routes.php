@@ -62,6 +62,10 @@ Route::prefix('mcp')
 Route::middleware(['web', 'auth'])
     ->prefix('api/roadmap')
     ->group(function () {
+        // Torre de control del Circuito (dashboard en vivo) + kill switch.
+        Route::get('/torre',               [RoadmapController::class, 'torre']);
+        Route::post('/circuito/toggle',    [RoadmapController::class, 'toggleCircuito']);
+
         Route::get('/items',               [RoadmapController::class, 'index']);
         Route::post('/items',              [RoadmapController::class, 'store']);
         Route::patch('/items/{id}',        [RoadmapController::class, 'update']);
