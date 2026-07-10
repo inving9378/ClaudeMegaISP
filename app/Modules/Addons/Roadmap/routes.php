@@ -66,6 +66,11 @@ Route::middleware(['web', 'auth'])
         Route::get('/torre',               [RoadmapController::class, 'torre']);
         Route::post('/circuito/toggle',    [RoadmapController::class, 'toggleCircuito']);
         Route::post('/circuito/decidir',   [RoadmapController::class, 'decidir']);
+        // Vista de Integración / Ramas (#315)
+        Route::get('/integracion',            [RoadmapController::class, 'integracion']);
+        Route::post('/integracion/merge',     [RoadmapController::class, 'integracionMerge']);
+        Route::post('/integracion/rechazar',  [RoadmapController::class, 'integracionRechazar']);
+        Route::post('/integracion/revert',    [RoadmapController::class, 'integracionRevert']);
 
         Route::get('/items',               [RoadmapController::class, 'index']);
         Route::post('/items',              [RoadmapController::class, 'store']);
