@@ -159,7 +159,7 @@ export default {
 
         const getButtonDatatable = () => {
             let buttons = {};
-            if (hasPermission.data.canView("client_service_bundle_add")) {
+            if (hasPermission.data.canView("client_service_bundle_add_client")) {
                 buttons.upload = {
                     class: "btn btn-outline-info waves-effect waves-light",
                     iclass: "fa fa-plus",
