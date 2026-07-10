@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Lógica de negocio ÚNICA de la Hoja de Ruta para el Circuito de Mejora Continua.
@@ -18,9 +19,32 @@ use App\Modules\Addons\Roadmap\Models\RoadmapItem;
  */
 class RoadmapCircuitoService
 {
+    /** Llave del kill switch en la tabla key-value `settings`. */
+    public const PAUSE_KEY = 'circuito_pausado';
+
     public function find(int $id): ?RoadmapItem
     {
         return RoadmapItem::find($id);
+    }
+
+    /**
+     * KILL SWITCH del Circuito. `true` = pausado: el ejecutor NO debe ejecutar nada
+     * (sigue leyendo/reportando). Persistido en `settings` para que lo respeten por
+     * igual la Torre de control (botón), la API externa y el conector MCP.
+     */
+    public function isPaused(): bool
+    {
+        return (string) DB::table('settings')->where('key', self::PAUSE_KEY)->value('value') === '1';
+    }
+
+    public function setPaused(bool $paused): void
+    {
+        $val = $paused ? '1' : '0';
+        if (DB::table('settings')->where('key', self::PAUSE_KEY)->exists()) {
+            DB::table('settings')->where('key', self::PAUSE_KEY)->update(['value' => $val, 'updated_at' => now()]);
+        } else {
+            DB::table('settings')->insert(['key' => self::PAUSE_KEY, 'value' => $val, 'created_at' => now(), 'updated_at' => now()]);
+        }
     }
 
     /** Panorama global (todos los items, sin filtrar) — conteos por estado y por nivel. */
@@ -32,6 +56,8 @@ class RoadmapCircuitoService
                 ->groupBy('estado_aprobacion')->pluck('n', 'estado_aprobacion'),
             'por_nivel'  => RoadmapItem::selectRaw("COALESCE(nivel_riesgo,'sin_clasificar') as nivel, count(*) as n")
                 ->groupBy('nivel')->pluck('n', 'nivel'),
+            // Kill switch expuesto al ejecutor (la Rutina lo consulta para no ejecutar en pausa).
+            'circuito_pausado' => $this->isPaused(),
         ];
     }
 
@@ -132,6 +158,14 @@ class RoadmapCircuitoService
      */
     public function guard(RoadmapItem $item, array $data): ?string
     {
+        // (0) KILL SWITCH: en pausa, NADIE puede aprobar/ejecutar (aprobado_claude).
+        // Leer y reportar (comentarios_claude, requiere_irving, etc.) sigue permitido.
+        if (($data['estado_aprobacion'] ?? null) === 'aprobado_claude' && $this->isPaused()) {
+            return 'Circuito en PAUSA (kill switch activo): no se puede aprobar ni ejecutar '
+                . '(aprobado_claude). Se permite leer y reportar (comentarios_claude, requiere_irving). '
+                . 'Reactiva el circuito desde la Torre de control para volver a ejecutar.';
+        }
+
         $rank = fn (?string $n): int => match ($n) {
             'A'     => 0,
             'B'     => 1,
