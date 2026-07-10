@@ -10,10 +10,10 @@ class MarketingLeadFormController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:view-marketing-forms')->only(['index', 'show']);
-        $this->middleware('permission:create-marketing-forms')->only('store');
-        $this->middleware('permission:update-marketing-forms')->only('update');
-        $this->middleware('permission:delete-marketing-forms')->only('destroy');
+        $this->middleware('permission:marketing.forms.view')->only(['index', 'show']);
+        $this->middleware('permission:marketing.forms.create')->only('store');
+        $this->middleware('permission:marketing.forms.update')->only('update');
+        $this->middleware('permission:marketing.forms.delete')->only('destroy');
     }
 
     public function index()
