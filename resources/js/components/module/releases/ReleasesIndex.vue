@@ -1,8 +1,24 @@
 <template>
     <div class="container my-5 release-timeline">
 
-        <!-- ── Tabs ── -->
+        <!-- ── Encabezado: la Torre de control es el contenedor/hub ── -->
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-broadcast-pin fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">Torre de control</h1>
+        </div>
+
+        <!-- ── Sub-secciones de la Torre ── -->
         <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'panorama' }" href="#" @click.prevent="tab = 'panorama'">
+                    <i class="bi bi-speedometer2 me-1"></i> Panorama
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'roadmap' }" href="#" @click.prevent="tab = 'roadmap'">
+                    <i class="bi bi-map me-1"></i> Hoja de ruta
+                </a>
+            </li>
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'historial' }" href="#" @click.prevent="tab = 'historial'">
                     <i class="bi bi-clock-history me-1"></i> Historial de versiones
@@ -13,16 +29,6 @@
                     <i class="bi bi-clipboard-data me-1"></i> Reporte
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" :class="{ active: tab === 'roadmap' }" href="#" @click.prevent="tab = 'roadmap'">
-                    <i class="bi bi-map me-1"></i> Hoja de ruta
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" :class="{ active: tab === 'torre' }" href="#" @click.prevent="tab = 'torre'">
-                    <i class="bi bi-broadcast-pin me-1"></i> Torre de control
-                </a>
-            </li>
         </ul>
 
         <!-- ── Tab: Reporte ── -->
@@ -31,8 +37,8 @@
         <!-- ── Tab: Hoja de ruta ── -->
         <roadmap-tab v-if="tab === 'roadmap'" />
 
-        <!-- ── Tab: Torre de control del Circuito ── -->
-        <torre-control v-if="tab === 'torre'" />
+        <!-- ── Sub-sección: Panorama (dashboard de la Torre) ── -->
+        <torre-control v-if="tab === 'panorama'" />
 
         <!-- ── Tab: Historial ── -->
         <template v-if="tab === 'historial'">
@@ -164,6 +170,7 @@ import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
 import AuditReport from "./AuditReport.vue";
 import RoadmapTab from "./RoadmapTab.vue";
+import TorreControl from "./TorreControl.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
@@ -171,13 +178,13 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, DeployProgressModal },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
     },
     setup(props) {
-        const tab = ref('historial');
+        const tab = ref('panorama');
         const releases = ref(JSON.parse(props.releases));
         const nextPageUrl = ref(props.next_page_url);
         const isLoading = ref(false);
