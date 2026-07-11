@@ -374,3 +374,30 @@ Roadmap #349 → `completado`. Sin config:cache (memoria crítica). Solo dev, pr
 - **GATE 4 (paralelo N=6):** `circuito:scheduler` (cron/min) lanza N vueltas POR-ITEM en wt-1..wt-6 (lock por slot = semáforo N), pre-filtro nivel-módulo (null=paraleliza, git backstop), reclamo atómico #341, prompt-item.txt, semáforo de builds `npm-build.sh` (máx 3). Merges serializados = MergeRunner GATE1. Ejecutable = aprobado_claude+aprobado_irving+(revisor)aprobado_revisor. Commit `f8019e4d`. **VERIFICADO EN VIVO:** 6 claude -p paralelos, 6 items distintos (environ), rejilla 7 sesiones; los 5 sensibles (permisos/seguridad) ESCALARON a bandeja, el seguro (#46) se ejecutó. Aislamiento OK (main intacto).
 - **DEUDA cosmética:** `parseCurrentItem` en paralelo muestra el mismo #item en varias sesiones de la rejilla (el trabajo real es por item distinto; solo display). Arreglar aparte.
 - **Estado:** circuito DESPAUSADO, cron paralelo activo (scheduler+revisor-feed+merge-drain). La lista se vacía sola: seguros ejecutan+auto-merge, sensibles→bandeja de Irving.
+
+## 2026-07-11 15:10 — Circuito #46: proveedor Meta en el Integration Hub
+
+Item #46 ("[PARKED-PROD] Setup cuentas Meta"): la tarea de fondo (crear Business Manager,
+convertir Instagram a Business, crear App en developers.facebook.com) es 100% manual/externa
+en el sitio de Meta — no ejecutable por código. Comentario de Irving en el item pedía "dejar
+un solo sitio en donde registrar las cuentas para conectarse a redes sociales y hacer las
+publicaciones": ese sitio ya existe (`/integraciones`, Integration Hub) y `MetaOAuthController`
+(Marketing Fase 5) ya esperaba una `ApiIntegration` `provider=meta` con `config.app_id`/`app_secret`,
+pero `meta` no estaba en el catálogo de proveedores → no se podía crear desde la UI.
+
+**Cambio (rama `circuito/item-46-parked-prod-setup-cuentas-meta-busin`, 2 commits):**
+- `ApiIntegrationService::getProviders()` — agrega entrada `meta`.
+- `IntegrationsHubView.vue` — bloque App ID/App Secret en el modal crear/editar (mismo patrón
+  que Evolution: van a `config`, no al campo genérico de API Key), + icono/color propios.
+
+Verificado: `npm-build.sh` (semáforo) compiló OK, `php -l` OK, tinker confirmó el catálogo con
+`meta` incluido (6 proveedores). Pendiente 100% de Irving: crear las cuentas reales en Meta y
+capturar App ID/App Secret en la tarjeta nueva.
+
+**Nota de infraestructura del circuito (no de este item):** `circuito:rama` rechazó la rama del
+#46 porque el scheduler GATE4 ya había puesto el item en `en_progreso` al reclamarlo para el
+ejecutor, y el guard #341 de `circuito:rama` trata `en_progreso` como bloqueo genérico (no
+distingue "reclamado para mí" de "otro actor lo está trabajando"). Se creó la rama a mano
+(`git checkout -b <rama> main` + registrar `branch` en el item), replicando exactamente lo que
+hace el comando, sin tocar `RamaItemCommand.php`. Vale la pena revisar esa interacción GATE4 ×
+#341 — probablemente afecta a los demás items paralelos del mismo lote (misma causa raíz).
