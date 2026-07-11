@@ -26,6 +26,7 @@ WT="$RUNTIME/wt-exec"
 SID="wt-exec"                            # id de sesión para el estado live por-sesión (#334)
 TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
 MAXTURNS="${CIRCUITO_MAXTURNS:-60}"
+MODEL="${CIRCUITO_MODEL:-sonnet}"       # #336: Sonnet por defecto (paralelo barato). Override con CIRCUITO_MODEL.
 
 mkdir -p "$LOGDIR"
 TS="$(date +%Y%m%d-%H%M%S)"
@@ -70,7 +71,7 @@ if [ "$MODO" = "autonomo" ]; then
 else
   TOOLS="Bash"
 fi
-log "modo=${MODO:-aviso_previo} tools=[$TOOLS] timeout=${TIMEOUT}s maxturns=$MAXTURNS"
+log "modo=${MODO:-aviso_previo} model=$MODEL tools=[$TOOLS] timeout=${TIMEOUT}s maxturns=$MAXTURNS"
 
 # ── Aislamiento por worktree (#334 Fase 0) ──────────────────────────────────────────────
 # Provisiona (idempotente) el worktree dedicado del ejecutor y lo sincroniza a main limpio.
@@ -102,6 +103,7 @@ php artisan circuito:vivo --watch --sid="$SID" --log="$LOG" >/dev/null 2>&1 &
 HB_PID=$!
 
 timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_FILE")" \
+  --model "$MODEL" \
   --allowed-tools $TOOLS \
   --max-turns "$MAXTURNS" \
   >>"$LOG" 2>&1
