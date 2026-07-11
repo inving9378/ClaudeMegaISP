@@ -20,6 +20,7 @@ class FlagsCommand extends Command
     {
         $this->line('pausado=' . ($svc->isPaused() ? '1' : '0'));
         $this->line('modo=' . $svc->getModo());
+        $this->line('revisor=' . ($svc->revisorEnabled() ? '1' : '0'));   // #338
 
         return self::SUCCESS;
     }
