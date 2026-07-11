@@ -267,6 +267,42 @@ class RoadmapExternalController extends Controller
     }
 
     /**
+     * GET /api/roadmap-externo/{token}/item/{id}/setb64/{estado}/{nivel}/{comentario_b64?}
+     * Variante de escritura por PATH con el comentario en BASE64URL (RFC 4648 §5: '-'/'_',
+     * sin padding). Existe porque nginx responde 403 si el segmento de /set/.../{comentario}
+     * contiene un '/' literal (%2F decodificado antes de llegar a Laravel) — un comentario con
+     * '/' o saltos de línea nunca llega por esa vía. Base64url no usa '/' ni '+', así que no
+     * depende de la config de nginx. Delega en el MISMO writeItem() → misma allowlist/enums/
+     * guards/auditoría; solo cambia cómo se transporta el comentario.
+     */
+    public function setItemPathB64(Request $request, string $token, int $id, string $estado, string $nivel, ?string $comentarioB64 = null): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.write_token'))) {
+            return $this->deny($request, 'GET-SETPATHB64', $token);
+        }
+
+        $fields = [];
+        if ($estado !== '-') $fields['estado_aprobacion'] = $estado;
+        if ($nivel  !== '-') $fields['nivel_riesgo']      = $nivel;
+
+        if ($comentarioB64 !== null && $comentarioB64 !== '') {
+            $padded  = strtr($comentarioB64, '-_', '+/');
+            $padded .= str_repeat('=', (4 - strlen($padded) % 4) % 4);
+            $decoded = base64_decode($padded, true);
+            if ($decoded === false) {
+                return response()->json(['error' => 'comentario_b64 no es base64url válido'], 422);
+            }
+            if (mb_strlen($decoded) > 1000) {
+                return response()->json(['error' => 'comentario excede 1000 caracteres'], 422);
+            }
+            $fields['comentarios_claude'] = $decoded;
+        }
+
+        // Mismo camino que /set y /set-por-path: validación de enums + guards + update + log.
+        return $this->writeItem(new Request($fields), 'GET-SETPATHB64', $id);
+    }
+
+    /**
      * Cuerpo ÚNICO de la escritura acotada — compartido por el POST y el GET/set,
      * para que ambas vías tengan EXACTAMENTE la misma allowlist, validaciones,
      * guards de seguridad y auditoría. `$request->validate` lee tanto body (POST)

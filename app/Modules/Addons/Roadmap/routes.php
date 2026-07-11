@@ -44,6 +44,13 @@ Route::prefix('api/roadmap-externo')
         Route::get('/{token}/item/{id}/set/{estado}/{nivel}/{comentario?}', [RoadmapExternalController::class, 'setItemPath'])
             ->whereNumber('id')
             ->where('comentario', '.+');
+
+        // Variante de ESCRITURA por PATH con comentario en BASE64URL (ver #317): evita el
+        // 403 de nginx cuando el comentario trae '/' (nginx bloquea %2F antes de Laravel).
+        //   GET /{token}/item/{id}/setb64/{estado}/{nivel}/{comentario_b64?}
+        Route::get('/{token}/item/{id}/setb64/{estado}/{nivel}/{comentarioB64?}', [RoadmapExternalController::class, 'setItemPathB64'])
+            ->whereNumber('id')
+            ->where('comentarioB64', '[A-Za-z0-9_-]+');
     });
 
 /*
