@@ -64,11 +64,11 @@ class DevToolsController extends Controller
             return response()->json(['success' => false, 'error' => 'Forbidden'], 403);
         }
 
-        $apiKey = env('CLAUDE_API_KEY', '');
+        $apiKey = config('services.anthropic.key', '');
         if (empty($apiKey)) {
             return response()->json([
                 'success' => false,
-                'error' => 'CLAUDE_API_KEY no configurada en .env',
+                'error' => 'CLAUDE_API_KEY no configurada (config services.anthropic.key)',
             ], 500);
         }
 
@@ -131,12 +131,14 @@ class DevToolsController extends Controller
                 ],
             ];
 
+            $endpoint = config('services.anthropic.endpoint', 'https://api.anthropic.com/v1/messages');
+
             $response = Http::withHeaders([
                 'x-api-key' => $apiKey,
                 'anthropic-version' => '2023-06-01',
                 'content-type' => 'application/json',
-            ])->timeout(60)->post('https://api.anthropic.com/v1/messages', [
-                'model' => env('CLAUDE_MODEL', self::CLAUDE_MODEL_DEFAULT),
+            ])->timeout(60)->post($endpoint, [
+                'model' => config('services.anthropic.model', self::CLAUDE_MODEL_DEFAULT),
                 'max_tokens' => self::CLAUDE_MAX_TOKENS,
                 'system' => $systemBlocks,
                 'messages' => $messages,
