@@ -73,6 +73,31 @@
                     </span>
                 </span>
             @endif
+
+            {{-- Badge CLAUDE TEST (#53): solo en instancias NO productivas (dev/test).
+                 Se oculta automáticamente donde se muestra el badge de PRODUCCIÓN. --}}
+            @unless ($showProductionBadge ?? false)
+                <span class="header-item d-flex align-items-center" style="cursor: default;">
+                    <span class="megaisp-claude-test-pill" title="Instancia de pruebas · Claude">
+                        CLAUDE TEST
+                    </span>
+                </span>
+                <style>
+                    .megaisp-claude-test-pill {
+                        display: inline-flex;
+                        align-items: center;
+                        padding: .22rem .7rem;
+                        border-radius: 999px;
+                        background: #FF7A00;
+                        color: #fff;
+                        font-size: 11.5px;
+                        font-weight: 600;
+                        letter-spacing: .03em;
+                        line-height: 1.4;
+                        white-space: nowrap;
+                    }
+                </style>
+            @endunless
         </div>
 
         <div class="d-flex">
