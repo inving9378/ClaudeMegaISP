@@ -48,6 +48,9 @@ class RoadmapCircuitoService
     /** Cuántas líneas del final del log se espejean a BD para el panel "Ver log en vivo". */
     private const LOG_TAIL_LINES = 60;
 
+    /** Enum canónico de fases del ejecutor (orden natural del stepper del visor #349). */
+    public const FASES = ['triage', 'decision', 'rama', 'editando', 'verificando', 'integrando'];
+
     /**
      * Flag de DISPARO manual pendiente (#337): lo escribe la Torre (www-data) y lo consume
      * el picker on-box (meganet). Un SOLO flag ⇒ debounce natural (N disparos en la ventana
@@ -329,7 +332,8 @@ class RoadmapCircuitoService
     /** Marca el ARRANQUE de una vuelta (lo llama el wrapper como meganet). */
     public function liveStart(string $logPath): void
     {
-        $now = time();
+        $now  = time();
+        $prev = $this->readLive() ?? [];
         $this->writeLive([
             'started_at'   => $now,
             'heartbeat_at' => $now,
@@ -337,6 +341,11 @@ class RoadmapCircuitoService
             'log_path'     => $logPath,
             'log_tail'     => $this->tailFile($logPath),
             'current_item' => null,
+            'fases'        => [],   // migas CIRCUITO_FASE de ESTA vuelta (#349)
+            'artefactos'   => [],   // rama/commits/archivos best-effort de ESTA vuelta (#349)
+            // El resumen (CIRCUITO_META) de la vuelta ANTERIOR se conserva visible hasta que
+            // esta vuelta cierre con el suyo (#349: "queda visible hasta la siguiente").
+            'meta'         => $prev['meta'] ?? null,
         ]);
     }
 
@@ -354,7 +363,14 @@ class RoadmapCircuitoService
             $tail = $this->tailFile($log);
             $d['log_path']     = $log;
             $d['log_tail']     = $tail;
-            $d['current_item'] = $this->parseCurrentItem($tail) ?? ($d['current_item'] ?? null);
+            // Fases y artefactos se parsean del log COMPLETO (no del tail) para no perder los
+            // pasos tempranos cuando el tail se desplaza. Corre como meganet (lee el archivo). (#349)
+            $lines             = $this->readLogLines($log);
+            $d['fases']        = $this->parseFases($lines, (array) ($d['fases'] ?? []));
+            $d['artefactos']   = $this->parseArtefactos($lines);
+            $d['current_item'] = $this->lastFaseItem($d['fases'])
+                ?? $this->parseCurrentItem($tail)
+                ?? ($d['current_item'] ?? null);
         }
 
         $this->writeLive($d);
@@ -371,6 +387,15 @@ class RoadmapCircuitoService
         $d['heartbeat_at'] = time();
         if (! empty($d['log_path'])) {
             $d['log_tail'] = $this->tailFile($d['log_path']);
+            $lines         = $this->readLogLines($d['log_path']);
+            $d['fases']    = $this->parseFases($lines, (array) ($d['fases'] ?? []));
+            // Captura el resumen de la vuelta (CIRCUITO_META) para dejarlo visible hasta la
+            // siguiente vuelta (#349, punto "resumen al terminar").
+            $meta = $this->parseMeta($lines);
+            if ($meta !== null) {
+                $meta['at'] = time();
+                $d['meta']  = $meta;
+            }
         }
         $this->writeLive($d);
     }
@@ -410,6 +435,92 @@ class RoadmapCircuitoService
     public function liveLogTail(): string
     {
         return (string) (($this->readLive() ?? [])['log_tail'] ?? '');
+    }
+
+    /**
+     * Estructura para el visor "Trabajando ahora" (#349). PURO-LECTURA de BD (no toca archivos)
+     * → seguro para www-data. Hoy `sesiones` trae UNA sesión (el `circuito_live` único; el flock
+     * garantiza una vuelta a la vez), pero la forma es un ARRAY listo para N: cuando #334
+     * (worktrees paralelos) escriba estado por sesión, los tabs se encienden sin rehacer nada.
+     * `resumen_ultima_vuelta` = CIRCUITO_META de la última vuelta, visible hasta la siguiente.
+     */
+    public function trabajandoAhora(): array
+    {
+        $d = $this->readLive();
+        if (! $d || empty($d['started_at'])) {
+            return ['sesiones' => [], 'resumen_ultima_vuelta' => null];
+        }
+
+        $now       = time();
+        $finished  = (bool) ($d['finished'] ?? false);
+        $hb        = (int) ($d['heartbeat_at'] ?? 0);
+        $sinceBeat = max(0, $now - $hb);
+        $running   = ! $finished;
+
+        $fases  = array_values(array_filter((array) ($d['fases'] ?? []), 'is_array'));
+        $itemId = isset($d['current_item']) ? ($d['current_item'] ?: null) : null;
+        $meta   = is_array($d['meta'] ?? null) ? $d['meta'] : null;
+
+        // Resuelve títulos de una sola query (item en curso + fases + items del resumen).
+        $titulos = $this->titulosDe(array_merge(
+            [$itemId],
+            array_map(fn ($f) => $f['item_id'] ?? null, $fases),
+            (array) ($meta['items_tocados'] ?? [])
+        ));
+
+        $pasos = array_map(function ($f) use ($titulos) {
+            $id = $f['item_id'] ?? null;
+
+            return [
+                'fase'    => $f['fase'] ?? null,
+                'item_id' => $id,
+                'title'   => $id ? ($titulos[$id] ?? null) : null,
+                'at'      => ! empty($f['at']) ? Carbon::createFromTimestamp((int) $f['at'])->toIso8601String() : null,
+            ];
+        }, $fases);
+
+        $sesion = [
+            'sid'                   => 'main',   // única hoy; #334 dará ids reales por worktree
+            'item'                  => $itemId ? ['id' => (int) $itemId, 'title' => $titulos[$itemId] ?? null] : null,
+            'fase_actual'           => $fases ? ($fases[count($fases) - 1]['fase'] ?? null) : null,
+            'pasos'                 => $pasos,
+            'artefactos'            => (array) ($d['artefactos'] ?? []),
+            'running'               => $running,
+            'finished'              => $finished,
+            'stale'                 => $running && $sinceBeat > self::HEARTBEAT_STALE_SEG,
+            'started_at'            => Carbon::createFromTimestamp((int) $d['started_at'])->toIso8601String(),
+            'heartbeat_at'          => $hb ? Carbon::createFromTimestamp($hb)->toIso8601String() : null,
+            'segundos_desde_latido' => $sinceBeat,
+            'segundos_corriendo'    => $running ? max(0, $now - (int) $d['started_at']) : null,
+        ];
+
+        $resumen = null;
+        if ($meta !== null) {
+            $resumen = [
+                'items_tocados' => array_map(
+                    fn ($id) => ['id' => (int) $id, 'title' => $titulos[(int) $id] ?? null],
+                    array_values((array) ($meta['items_tocados'] ?? []))
+                ),
+                'n_propuestas' => (int) ($meta['n_propuestas'] ?? 0),
+                'n_decisiones' => (int) ($meta['n_decisiones'] ?? 0),
+                'ejecuto'      => (bool) ($meta['ejecuto'] ?? false),
+                'resumen'      => (string) ($meta['resumen'] ?? ''),
+                'at'           => ! empty($meta['at']) ? Carbon::createFromTimestamp((int) $meta['at'])->toIso8601String() : null,
+            ];
+        }
+
+        return ['sesiones' => [$sesion], 'resumen_ultima_vuelta' => $resumen];
+    }
+
+    /** Mapa `id => title` para un set de ids de roadmap_items (una sola query). */
+    private function titulosDe(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', array_filter($ids))));
+        if (! $ids) {
+            return [];
+        }
+
+        return RoadmapItem::whereIn('id', $ids)->pluck('title', 'id')->toArray();
     }
 
     /**
@@ -455,6 +566,101 @@ class RoadmapCircuitoService
     {
         if (preg_match_all('/#(\d{1,6})\b/', $tail, $m) && ! empty($m[1])) {
             return (int) end($m[1]);
+        }
+
+        return null;
+    }
+
+    /** Lee TODAS las líneas del log de la vuelta (archivos pequeños). Solo meganet lo puede leer. */
+    private function readLogLines(string $path): array
+    {
+        if (! is_file($path) || ! is_readable($path)) {
+            return [];
+        }
+        $f = @file($path, FILE_IGNORE_NEW_LINES);
+
+        return $f === false ? [] : $f;
+    }
+
+    /**
+     * Parser DETERMINISTA de las migas `CIRCUITO_FASE: <fase> #<id>` (#349). Devuelve la
+     * secuencia de fases en orden de aparición; a cada fase NUEVA (no vista en $prev) le sella
+     * `at` = ahora (granularidad = intervalo del latido; honesto). El log solo crece, así que
+     * el prefijo de $prev es estable → los timestamps ya sellados se conservan por índice.
+     * Ignora tokens fuera del enum self::FASES.
+     */
+    private function parseFases(array $lines, array $prev): array
+    {
+        $seen = [];
+        foreach ($lines as $ln) {
+            if (! preg_match('/CIRCUITO_FASE:\s*([a-záéíóúñ]+)\s*(?:#(\d{1,6}))?/iu', $ln, $m)) {
+                continue;
+            }
+            $fase = mb_strtolower($m[1]);
+            if (! in_array($fase, self::FASES, true)) {
+                continue;
+            }
+            $seen[] = ['fase' => $fase, 'item_id' => isset($m[2]) && $m[2] !== '' ? (int) $m[2] : null];
+        }
+
+        $now = time();
+        $out = [];
+        foreach ($seen as $i => $ev) {
+            $out[] = [
+                'fase'    => $ev['fase'],
+                'item_id' => $ev['item_id'],
+                'at'      => (int) ($prev[$i]['at'] ?? $now),
+            ];
+        }
+
+        return $out;
+    }
+
+    /** Último item_id de la secuencia de fases (para "tocando #NNN" determinista). */
+    private function lastFaseItem(array $fases): ?int
+    {
+        for ($i = count($fases) - 1; $i >= 0; $i--) {
+            if (! empty($fases[$i]['item_id'])) {
+                return (int) $fases[$i]['item_id'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Artefactos best-effort del log (#349): rama del circuito, commits y archivos mencionados.
+     * INFORMATIVO — el log no siempre los expone; nunca es autoritativo.
+     */
+    private function parseArtefactos(array $lines): array
+    {
+        $text = implode("\n", $lines);
+
+        preg_match_all('/circuito\/item-[\w.\/-]+/', $text, $mr);
+        $ramas = array_values(array_unique($mr[0] ?? []));
+
+        preg_match_all('/\bcommit[a-z]*\s+`?([0-9a-f]{7,40})`?/i', $text, $mc);
+        $commits = array_values(array_unique($mc[1] ?? []));
+
+        preg_match_all('/\b[\w][\w.\/-]*\.(?:blade\.php|php|vue|js|json|css|scss|sh)\b/', $text, $mf);
+        $archivos = array_values(array_unique($mf[0] ?? []));
+
+        return [
+            'rama'     => $ramas ? $ramas[count($ramas) - 1] : null,   // la más reciente
+            'commits'  => array_slice($commits, -6),
+            'archivos' => array_slice($archivos, 0, 12),
+        ];
+    }
+
+    /** Extrae el último bloque `CIRCUITO_META: {...}` del log como array (o null). (#349) */
+    private function parseMeta(array $lines): ?array
+    {
+        for ($i = count($lines) - 1; $i >= 0; $i--) {
+            if (preg_match('/CIRCUITO_META:\s*(\{.*\})\s*$/', $lines[$i], $m)) {
+                $j = json_decode($m[1], true);
+
+                return is_array($j) ? $j : null;
+            }
         }
 
         return null;
