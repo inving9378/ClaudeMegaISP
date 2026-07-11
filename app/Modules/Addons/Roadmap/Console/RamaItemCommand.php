@@ -52,10 +52,13 @@ class RamaItemCommand extends Command
             return self::FAILURE;
         }
 
-        // Rama desde main.
-        $this->git(['checkout', 'main']);
-        if (! $this->git(['checkout', '-b', $branch])->isSuccessful()) {
-            $this->error("No se pudo crear la rama {$branch}.");
+        // Rama desde el ref `main` SIN checar main. En el modelo de worktree aislado (#334
+        // Fase 0) `main` vive checado en el checkout principal (/var/www/megaisp) y git PROHÍBE
+        // checarlo en dos worktrees a la vez. `checkout -b X main` crea la rama desde el tip de
+        // main y la checa, sin tocar main → funciona tanto en el worktree del ejecutor como en
+        // el checkout principal. (Antes: `checkout main` + `checkout -b X`, que rompía en worktree.)
+        if (! $this->git(['checkout', '-b', $branch, 'main'])->isSuccessful()) {
+            $this->error("No se pudo crear la rama {$branch} desde main.");
             return self::FAILURE;
         }
 

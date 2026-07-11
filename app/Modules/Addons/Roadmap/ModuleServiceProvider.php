@@ -21,6 +21,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\RegistrarEjecucionCommand::class,
                 \App\Modules\Addons\Roadmap\Console\VivoCommand::class,
                 \App\Modules\Addons\Roadmap\Console\DisparoCheckCommand::class,
+                // Aislamiento por worktree #334 Fase 0
+                \App\Modules\Addons\Roadmap\Console\ProvisionWorktreeCommand::class,
                 // Agente revisor #338
                 \App\Modules\Addons\Roadmap\Console\RevisarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisarBacklogCommand::class,
