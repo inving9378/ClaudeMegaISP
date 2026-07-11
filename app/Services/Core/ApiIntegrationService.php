@@ -210,6 +210,15 @@ class ApiIntegrationService
                 'docs_url'    => 'https://console.cloud.google.com/apis/credentials',
                 'key_format'  => 'AIza...',
             ],
+            [
+                'id'          => 'meta',
+                'name'        => 'Meta (Facebook / Instagram)',
+                'description' => 'Publicador multicanal — App ID + App Secret de Facebook/Instagram',
+                'icon'        => 'share',
+                'docs_url'    => 'https://developers.facebook.com/apps',
+                'key_format'  => 'App ID + App Secret',
+                'has_config'  => true,
+            ],
         ];
     }
 }
