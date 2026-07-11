@@ -19,6 +19,10 @@ class ClaudeApiClient
         'claude-opus-4-7'   => ['input' => 0.000015,  'output' => 0.000075],
         'claude-sonnet-4-6' => ['input' => 0.000003,  'output' => 0.000015],
         'claude-haiku-4-5'  => ['input' => 0.00000025, 'output' => 0.00000125],
+        // Alias defensivo: id de snapshot obsoleto que aún puede llegar de configs/llamadas
+        // viejas (#235). Sin esta fila, calculateCost caía al tier 'default' (precio de
+        // opus, ~5x el de sonnet) para un modelo que en realidad es sonnet.
+        'claude-sonnet-4-20250514' => ['input' => 0.000003,  'output' => 0.000015],
         'default'           => ['input' => 0.000015,  'output' => 0.000075],
     ];
 
