@@ -511,6 +511,9 @@ class RoadmapCircuitoService
             'item'                  => $itemId ? ['id' => (int) $itemId, 'title' => $titulos[$itemId] ?? null] : null,
             'fase_actual'           => $fases ? ($fases[count($fases) - 1]['fase'] ?? null) : null,
             'pasos'                 => $pasos,
+            // Log crudo de ESTA sesión para la rejilla de terminales (#350). Hoy = el tail del
+            // blob único; con #334 será el tail del log del worktree de cada sesión.
+            'log_tail'              => (string) ($d['log_tail'] ?? ''),
             'artefactos'            => (array) ($d['artefactos'] ?? []),
             'running'               => $running,
             'finished'              => $finished,
