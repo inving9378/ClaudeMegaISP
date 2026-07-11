@@ -34,63 +34,30 @@ class IntegrarItemCommand extends Command
         }
 
         $branch = $item->branch;
+        $svc = app(RoadmapCircuitoService::class);
+        $force = (bool) $this->option('force');
 
-        // (#325) Modo revisar-y-mergear: NADA se auto-integra; la rama espera el ✓ de Irving
-        // en la Torre. El botón de Irving (--force) sí procede.
-        if (! $this->option('force')
-            && app(RoadmapCircuitoService::class)->getModoIntegracion() === 'revisar-y-mergear') {
-            $this->warn("Modo integración = revisar-y-mergear: la rama {$branch} NO se auto-integra; "
-                . 'espera el ✓ de Irving en la Torre (Integración).');
+        // El merge YA NO lo hace este comando: el ejecutor puede correr en un worktree que NO puede
+        // checar `main` (#334), y www-data no puede escribir `.git`. Se ENCOLA y lo aplica el runner
+        // on-box (meganet) en el checkout principal, serializado y con verificación de regresión.
+
+        // Nivel C nunca se auto-integra (solo Irving con el botón / --force).
+        if ($item->nivel_riesgo === 'C' && ! $force) {
+            $item->estado_aprobacion = 'requiere_irving';
+            $item->save();
+            $this->warn("Item #{$item->id} es nivel C: NO se auto-integra; requiere el merge de Irving. Item → requiere_irving.");
             return self::SUCCESS;
         }
 
-        if ($item->nivel_riesgo === 'C' && ! $this->option('force')) {
-            $item->estado_aprobacion = 'requiere_irving';
-            $item->save();
-            $this->warn("Item #{$item->id} es nivel C: la rama {$branch} NO se auto-integra; requiere el merge de Irving. Item → requiere_irving.");
+        // Toggle OFF (manual): el ejecutor NO encola; la rama espera el botón de Irving en la Torre.
+        if (! $force && ! $svc->autoMergeOn()) {
+            $this->warn("Auto-merge OFF: la rama {$branch} NO se integra sola; espera el ✓ de Irving en la Torre.");
             return self::SUCCESS;
         }
 
-        if (! $this->git(['rev-parse', '--verify', $branch])->isSuccessful()) {
-            $this->error("La rama {$branch} no existe localmente.");
-            return self::FAILURE;
-        }
-
-        // Árbol de trabajo limpio (solo cambios TRACKED; los untracked no afectan el merge).
-        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
-            $this->error('El árbol de trabajo tiene cambios sin commitear; commitea o descarta antes de integrar.');
-            return self::FAILURE;
-        }
-
-        if (! $this->git(['checkout', 'main'])->isSuccessful()) {
-            $this->error('No se pudo cambiar a main.');
-            return self::FAILURE;
-        }
-
-        $merge = $this->git(['merge', '--no-ff', $branch, '-m', "Integra circuito #{$item->id} ({$branch}) a main"]);
-        if (! $merge->isSuccessful()) {
-            $this->git(['merge', '--abort']);
-            $item->estado_aprobacion = 'requiere_irving';
-            $item->save();
-            $this->error("Conflicto/fallo al mergear {$branch} → abortado; rama aislada, item → requiere_irving.\n"
-                . $merge->getErrorOutput() . $merge->getOutput());
-            return self::FAILURE;
-        }
-
-        $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
-        $item->merge_commit = $sha;
-        $log = $item->log ?: [];
-        $log[] = [
-            'ts'           => now()->toIso8601String(),
-            'por'          => 'circuito:integrar',
-            'evento'       => 'merge_a_main',
-            'branch'       => $branch,
-            'merge_commit' => $sha,
-        ];
-        $item->log = $log;
-        $item->save();
-
-        $this->info("Rama {$branch} integrada a main (merge {$sha}) para el item #{$item->id}.");
+        // Auto-merge ON (o --force de Irving): encola. El runner hace el merge real.
+        $svc->enqueueMerge($item->id, $force ? 'boton' : 'ejecutor', $force ? 'boton' : 'auto');
+        $this->info("Merge de la rama {$branch} ENCOLADO (lo aplica el runner on-box en el principal). Item #{$item->id}.");
         return self::SUCCESS;
     }
 

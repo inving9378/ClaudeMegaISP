@@ -3,10 +3,12 @@
     <div class="ig-head">
       <h2 class="ig-h2">Integración · Ramas del circuito</h2>
       <div class="ig-head-r">
-        <span class="ig-modo">modo: <b>{{ modoIntegracion }}</b></span>
-        <button class="ig-refresh" :disabled="busy === 'modo'" @click="toggleModo">
-          ⇄ {{ modoIntegracion === 'auto-merge' ? 'revisar-y-mergear' : 'auto-merge' }}
-        </button>
+        <label class="ig-toggle" :class="{ 'ig-toggle-on': autoMerge }"
+               title="ON: cada rama verificada se mergea sola a dev. OFF: mergeas tú cada una con el botón.">
+          <input type="checkbox" :checked="autoMerge" :disabled="busy === 'modo'" @change="toggleAutoMerge" />
+          <span class="ig-tk"><span class="ig-th"></span></span>
+          <span>Auto-merge a dev: <b>{{ autoMerge ? 'ON' : 'OFF' }}</b></span>
+        </label>
         <button class="ig-refresh" :disabled="loading" @click="load">↻ Actualizar</button>
       </div>
     </div>
@@ -59,7 +61,8 @@
 
       <!-- Acciones -->
       <div class="ig-actions">
-        <button v-if="!r.merged" class="ig-btn ig-btn-ok" :disabled="busy === r.id" @click="merge(r)">✓ Mergear a dev</button>
+        <button v-if="!r.merged" class="ig-btn ig-btn-ok" :disabled="busy === r.id || r.merge_pending" @click="merge(r)">✓ Mergear a dev</button>
+        <span v-if="r.merge_pending" class="ig-pill ig-pill-run">⏳ En cola / procesando…</span>
         <button v-if="r.merged" class="ig-btn ig-btn-warn" :disabled="busy === r.id" @click="revert(r)">↩ Revertir</button>
         <button v-if="r.merged" class="ig-btn" :class="r.marcado_version ? 'ig-btn-ver-on' : 'ig-btn-ver'" :disabled="busy === r.id" @click="marcarVersion(r)">
           {{ r.marcado_version ? '🏷 Marcada para versión' : '🏷 Marcar para versión' }}
@@ -67,6 +70,15 @@
         <button class="ig-btn ig-btn-no" :disabled="busy === r.id" @click="rechazar(r)">✕ Rechazar</button>
         <span v-if="busy === r.id" class="ig-meta">Procesando…</span>
         <span v-if="msg[r.id]" class="ig-msg">{{ msg[r.id] }}</span>
+      </div>
+
+      <!-- Resultado del último merge (ÉXITO o ERROR visible — nunca silencioso, #334) -->
+      <div v-if="!r.merged && r.merge_result && r.merge_result.ok === false && !r.merge_pending" class="ig-mergeerr">
+        <strong>✗ El merge falló{{ r.merge_result.escalado ? ' — escalado a tu bandeja (requiere_irving)' : '' }}.</strong>
+        <pre>{{ r.merge_result.salida }}</pre>
+      </div>
+      <div v-else-if="r.merged && r.merge_result && r.merge_result.ok" class="ig-mergeok">
+        ✓ {{ r.merge_result.salida }}
       </div>
     </div>
   </div>
@@ -86,6 +98,7 @@ export default {
         const busy = ref(null);
         const msg = reactive({});
         const modoIntegracion = ref('auto-merge');
+        const autoMerge = ref(true);
         const hablando = ref(null);
 
         const lvClass = (n) => (n === 'A' ? 'ig-lvA' : n === 'B' ? 'ig-lvB' : n === 'C' ? 'ig-lvC' : 'ig-lvNone');
@@ -97,18 +110,20 @@ export default {
                 const { data } = await axios.get('/api/roadmap/integracion');
                 ramas.value = data.ramas || [];
                 modoIntegracion.value = data.modo_integracion || 'auto-merge';
+                autoMerge.value = data.auto_merge !== undefined ? !!data.auto_merge : (modoIntegracion.value === 'auto-merge');
             } finally {
                 loading.value = false;
             }
         }
 
-        async function toggleModo() {
+        async function toggleAutoMerge() {
             if (busy.value) return;
             busy.value = 'modo';
             try {
-                const nuevo = modoIntegracion.value === 'auto-merge' ? 'revisar-y-mergear' : 'auto-merge';
+                const nuevo = autoMerge.value ? 'revisar-y-mergear' : 'auto-merge';
                 const { data } = await axios.post('/api/roadmap/integracion/modo', { modo: nuevo });
                 modoIntegracion.value = data.modo_integracion;
+                autoMerge.value = data.modo_integracion === 'auto-merge';
             } finally {
                 busy.value = null;
             }
@@ -147,11 +162,32 @@ export default {
             msg[r.id] = '';
             try {
                 const { data } = await axios.post('/api/roadmap/integracion/merge', { id: r.id });
-                msg[r.id] = data.ok ? 'Mergeada ✓' : ('Falló: ' + (data.salida || '').slice(0, 120));
+                // El merge lo aplica el runner on-box (meganet) en segundos → polleamos el resultado.
+                msg[r.id] = data.mensaje || 'Merge encolado…';
                 await load();
+                await pollMerge(r.id);
+            } catch (e) {
+                msg[r.id] = 'Error al encolar: ' + (e.response?.data?.error || e.message || '');
             } finally {
                 busy.value = null;
             }
+        }
+
+        // Sondea hasta que la rama quede mergeada o tenga un resultado de error (escalado). El error
+        // se pinta en la tarjeta (ig-mergeerr) — nunca silencioso.
+        async function pollMerge(id, tries = 15) {
+            for (let i = 0; i < tries; i++) {
+                await new Promise((res) => setTimeout(res, 2500));
+                await load();
+                const r = ramas.value.find((x) => x.id === id);
+                if (!r) return;
+                if (r.merged) { msg[id] = 'Mergeada a dev ✓'; return; }
+                if (r.merge_result && r.merge_result.ok === false && !r.merge_pending) {
+                    msg[id] = r.merge_result.escalado ? 'Falló → escalada a tu bandeja (ver detalle).' : 'Falló el merge (ver detalle).';
+                    return;
+                }
+            }
+            msg[id] = 'Sigue en proceso… usa ↻ Actualizar para ver el resultado.';
         }
 
         async function rechazar(r) {
@@ -187,7 +223,7 @@ export default {
 
         return {
             darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert,
-            modoIntegracion, hablando, toggleModo, leer, marcarVersion,
+            modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, marcarVersion,
         };
     },
 };
@@ -238,6 +274,22 @@ export default {
 .ig-btn-ver{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
 .ig-btn-ver-on{background:#dbeafe;color:#1e40af;border-color:#93c5fd;}
 
+/* Toggle Auto-merge ON/OFF */
+.ig-toggle{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ig-muted);cursor:pointer;user-select:none;}
+.ig-toggle input{display:none;}
+.ig-tk{width:34px;height:19px;border-radius:999px;background:#cbd5e1;position:relative;transition:background .15s;flex:0 0 auto;}
+.ig-th{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.3);}
+.ig-toggle-on .ig-tk{background:var(--ig-ok);}
+.ig-toggle-on .ig-th{left:17px;}
+.ig-toggle b{color:var(--ig-ink);}
+
+/* Pill "en cola" + cajas de resultado del merge */
+.ig-pill{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;}
+.ig-pill-run{background:#fffbeb;color:#b45309;border:1px solid #fde68a;}
+.ig-mergeerr{margin:10px 0 0 32px;padding:9px 11px;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;color:#b91c1c;font-size:12px;}
+.ig-mergeerr pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-word;font-size:11px;color:#7f1d1d;max-height:180px;overflow:auto;}
+.ig-mergeok{margin:10px 0 0 32px;font-size:12px;color:#047857;font-weight:600;}
+
 /* ── Modo oscuro (mismo toggle del proyecto) ── */
 .ig-dark{
   --ig-surface:#151d2e; --ig-ink:#e8edf6; --ig-muted:#8b97ab; --ig-line:#2a3550;
@@ -257,4 +309,9 @@ export default {
 .ig-dark .ig-voz{background:#0f172a;color:#2dd4bf;border-color:#2a3550;}
 .ig-dark .ig-btn-ver{background:rgba(96,165,250,.14);color:#60a5fa;border-color:#2b3f5b;}
 .ig-dark .ig-btn-ver-on{background:rgba(96,165,250,.24);color:#93c5fd;border-color:#3b5578;}
+.ig-dark .ig-tk{background:#334155;}
+.ig-dark .ig-pill-run{background:rgba(251,191,36,.14);color:#fbbf24;border-color:#5b4a1f;}
+.ig-dark .ig-mergeerr{background:rgba(248,113,113,.12);border-color:#5b2b2b;color:#f87171;}
+.ig-dark .ig-mergeerr pre{color:#fca5a5;}
+.ig-dark .ig-mergeok{color:#4ade80;}
 </style>

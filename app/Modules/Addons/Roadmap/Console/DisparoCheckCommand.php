@@ -60,6 +60,14 @@ class DisparoCheckCommand extends Command
     /** Una evaluación del flag. Best-effort: nunca revienta el loop. */
     private function tick(RoadmapCircuitoService $svc): void
     {
+        // Drena la cola de MERGE (#334 F0-fix): corre en el checkout principal como meganet →
+        // sí puede escribir .git. Serializado por su propio flock. Independiente del disparo.
+        try {
+            app(\App\Modules\Addons\Roadmap\Services\MergeRunner::class)->drain();
+        } catch (\Throwable $e) {
+            // no tumbar el picker por un fallo de merge; el resultado ya quedó registrado.
+        }
+
         try {
             if (! $svc->pendingDisparo()) {
                 return;
