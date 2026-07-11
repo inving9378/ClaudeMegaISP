@@ -342,3 +342,11 @@ Nivel A (read-only/aditivo), sesión con Irving. Se construyó la "pantalla de t
 **Pendiente:** (a) validación visual de Irving; (b) las fases EN VIVO aparecen desde la próxima vuelta (~30 min, el ejecutor toma el prompt nuevo). **Deudas:** multi-worktree real depende de #334; artefactos best-effort; timestamp de fase con granularidad del latido (~15s).
 
 Roadmap #349 → `completado`. Sin config:cache (memoria crítica). Solo dev, prod intacta.
+
+## 2026-07-11 13:15 — Integración #350: pestaña "Terminales en vivo" en la Torre (ventana controlada)
+- **Contexto de concurrencia:** al retomar había un ejecutor del Circuito vivo (`claude -p`, autónomo) + otra sesión interactiva en pts/1 tocando el mismo repo (footgun documentado). El cambio en `topbar.blade.php` "desapareció" del working tree entre dos lecturas por un `circuito:rama`/reset concurrente. Item #53 (badge CLAUDE TEST) resultó **ya completado** (commit `17385136` en su rama).
+- **Kill switch (autorización de Irving, #342):** `circuito_pausado=1`. Esperado a idle: 0 procesos `claude -p`, sin `.git/index.lock`.
+- **Trabajo de #350 recuperado:** la "rejilla de terminales" estaba commiteada en `circuito/item-350-rejilla-terminales-en-vivo` (`cd21a979`, TorreTerminales.vue + wiring en ReleasesIndex.vue). ⚠️ El nº de commit "#350" NO corresponde al item #350 del roadmap (ese es "agente revisor", nivel C, requiere_irving) — mislabel del ejecutor; NO se tocó el estado del item.
+- **Integración (solo dev, sin push):** merge fast-forward `e6e3faab..cd21a979` → main. `npm run dev` OK (39.7s, 2 warnings preexistentes). Warm-up sin `config:cache`: config/route/view:clear + queue:restart.
+- **Verificación server-side:** `trabajandoAhora()` → `{sesiones:[1]}` con sid/running/stale/fase_actual/pasos/log_tail; ruta `GET api/roadmap/circuito/estado` registrada; `darkMode` export OK. Componente lee `data.trabajando.sesiones` = forma exacta del backend.
+- **Pendiente:** validación visual de Irving (pestaña "Terminales" en /releases monta, rejilla + fullscreen + polling 3s). Circuito **NO reanudado** (queda `pausado=1` por decisión de Irving).
