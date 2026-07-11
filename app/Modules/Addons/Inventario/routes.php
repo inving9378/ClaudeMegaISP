@@ -34,7 +34,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
         Route::get('/', [InventoryItemController::class, 'index']);
         Route::post('/add', [InventoryItemController::class, 'store']);
         Route::post('/add-custom', [InventoryItemController::class, 'storeCustom']);
-        Route::get('/editar/{id}', [InventoryItemController::class, 'edit']);
         Route::post('/update/{id}', [InventoryItemController::class, 'update']);
         Route::post('/destroy/{id}', [InventoryItemController::class, 'destroy']);
         Route::post('/assign_to_user/{id}', [InventoryItemController::class, 'assignToUser']);
@@ -46,7 +45,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
     Route::prefix('inventory_item_type')->group(function () {
         Route::get('/', [InventoryItemTypeController::class, 'index']);
         Route::post('/add', [InventoryItemTypeController::class, 'store']);
-        Route::get('/editar/{id}', [InventoryItemTypeController::class, 'edit']);
         Route::post('/update/{id}', [InventoryItemTypeController::class, 'update']);
         Route::post('/destroy/{id}', [InventoryItemTypeController::class, 'destroy']);
         Route::post('/table', [InventoryItemTypeController::class, 'table']);
@@ -56,7 +54,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
         Route::get('/', [InventoryItemStockController::class, 'index']);
         Route::post('/add', [InventoryItemStockController::class, 'store']);
         Route::post('/change_stock', [InventoryItemStockController::class, 'changeStock']);
-        Route::get('/editar/{id}', [InventoryItemStockController::class, 'edit']);
         Route::post('/update/{id}', [InventoryItemStockController::class, 'update']);
         Route::post('/destroy/{id}', [InventoryItemStockController::class, 'destroy']);
         Route::post('/table', [InventoryItemStockController::class, 'table']);
@@ -73,7 +70,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
     Route::prefix('inventory_movement')->group(function () {
         Route::get('/', [InventoryMovementController::class, 'index']);
         Route::post('/add', [InventoryMovementController::class, 'store']);
-        Route::get('/editar/{id}', [InventoryMovementController::class, 'edit']);
         Route::post('/update/{id}', [InventoryMovementController::class, 'update']);
         Route::post('/destroy/{id}', [InventoryMovementController::class, 'destroy']);
         Route::post('/table', [InventoryMovementController::class, 'table']);
@@ -82,7 +78,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
     Route::prefix('inventory_store')->group(function () {
         Route::get('/', [InventoryStoreController::class, 'index']);
         Route::post('/add', [InventoryStoreController::class, 'store']);
-        Route::get('/editar/{id}', [InventoryStoreController::class, 'edit']);
         Route::post('/update/{id}', [InventoryStoreController::class, 'update']);
         Route::post('/destroy/{id}', [InventoryStoreController::class, 'destroy']);
         Route::post('/table', [InventoryStoreController::class, 'table']);
@@ -94,7 +89,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
     Route::prefix('store_zone')->group(function () {
         Route::get('/', [StoreZoneController::class, 'index']);
         Route::post('/add', [StoreZoneController::class, 'store']);
-        Route::get('/editar/{id}', [StoreZoneController::class, 'edit']);
         Route::post('/update/{id}', [StoreZoneController::class, 'update']);
         Route::post('/destroy/{id}', [StoreZoneController::class, 'destroy']);
         Route::post('/table', [StoreZoneController::class, 'table']);
