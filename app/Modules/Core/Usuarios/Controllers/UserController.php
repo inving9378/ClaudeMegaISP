@@ -439,6 +439,7 @@ class UserController extends Controller
     public function destroy($id)
     {
         $user = User::find($id);
+        abort_if(! $user, 404, 'Usuario no encontrado');
 
         $roleName = 'super-administrator';
 
