@@ -49,6 +49,9 @@
       ⚠ <b>Posible cron detenido</b> — la última vuelta fue hace {{ ultimaHace }} y el circuito debería correr cada {{ intervaloMin }} min. Verifica el cron del ejecutor.
     </div>
 
+    <!-- Visor "Trabajando ahora" (#349): stepper de fases por sesión + resumen de la vuelta -->
+    <torre-trabajando-ahora :sesiones="sesiones" :resumen="resumenUltima" :now-ms="nowMs" :pausado="pausado" :dark="darkMode" />
+
     <!-- Log en vivo (#335): tail espejeado por BD -->
     <div v-if="logOpen" class="tc-livelog">
       <div class="tc-livelog-head">
@@ -217,9 +220,11 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import { darkMode } from '../../../hook/appConfig.js';
+import TorreTrabajandoAhora from './TorreTrabajandoAhora.vue';
 
 export default {
     name: 'TorreControl',
+    components: { TorreTrabajandoAhora },
     setup() {
         const loading = ref(true);
         const toggling = ref(false);
@@ -237,6 +242,9 @@ export default {
 
         // Estado EN VIVO de la vuelta (#335)
         const live = ref({ running: false, stale: false, started_at: null, heartbeat_at: null, current_item: null });
+        // Visor "Trabajando ahora" (#349): sesiones (array listo-para-N) + resumen última vuelta
+        const sesiones = ref([]);
+        const resumenUltima = ref(null);
         const logTail = ref('');
         const logOpen = ref(false);
         const proximaAt = ref(null);
@@ -353,6 +361,10 @@ export default {
             pausado.value = !!data.circuito_pausado;
             modo.value = data.circuito_modo || modo.value;
             live.value = data.live || { running: false, stale: false };
+            if (data.trabajando) {
+                sesiones.value = data.trabajando.sesiones || [];
+                resumenUltima.value = data.trabajando.resumen_ultima_vuelta || null;
+            }
             if (typeof data.log_tail === 'string') logTail.value = data.log_tail;
             proximaAt.value = data.proxima_vuelta_at || null;
             ultimaAt.value = data.ultima_vuelta_at || null;
@@ -535,6 +547,8 @@ export default {
             // Estado en vivo (#335)
             live, running, estadoClass, estadoLabel, elapsedRunning, sinceBeat, fmtClock,
             ultimaHace, proximaEn, cronCaido, intervaloMin,
+            // Visor "Trabajando ahora" (#349)
+            sesiones, resumenUltima, nowMs,
             logOpen, logTail, logPre, toggleLog,
             // Disparo manual + urgente (#337) · cola ejecutable + prioridad (#348)
             canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente, prioLabel,
