@@ -141,7 +141,8 @@ class MarketingMultivariantCampaignController extends Controller
             'generation_engine' => 'mvm_ffmpeg',
         ]);
 
-        RenderVideoJob::dispatch($content->id, $template->id, $content->input_variables, [], 1);
+        RenderVideoJob::dispatch($content->id, $template->id, $content->input_variables, [], 1)
+            ->onQueue('video-render');
 
         // Add to campaign's variant list
         $variantIds   = $campaign->variant_content_ids ?? [];
