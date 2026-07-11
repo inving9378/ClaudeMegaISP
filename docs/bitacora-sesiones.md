@@ -311,3 +311,12 @@ posterior (10:51→10:54, autonomo, "Vuelta OK", triajeó #343 + diagnóstico #3
 re-pausó ni apagó el cron** (flag updated_at intacto @10:50:09, crontab md5 idéntico).
 
 **Aprendizaje:** NUNCA correr 2 sesiones de Claude Code sobre el mismo working tree /var/www/megaisp.
+
+## 2026-07-11 11:58 — Circuito #348: Prioridad vs 🔥 Urgente
+Sesión humana (Irving+CC), aislada en rama `circuito/item-348-...`, integrada a main (dev, sin push). Item 348 blindado con `en_desarrollo_humano=1` durante el trabajo (candado #341) y desbloqueado al cerrar; queda en `requiere_irving` (bandeja) para validación visual de Irving.
+- **scopeOrdered()**: ahora ordena `urgente(#337) → estado → PRIORIDAD (alta→media→baja→null) → antigüedad`. Antes NO respetaba `priority`. FIELD(priority,'baja','media','alta') DESC (null al final). Verificado monótono en 173 items.
+- **urgente()**: 🔥 dispara vuelta SOLO en items ejecutables; en la bandeja (`requiere_irving`) = "decisión urgente" (sube al tope vía ordered(), NO ejecuta). Devuelve `modo=bandeja|ejecucion`.
+- **torre()**: expone `cola_ejecutable` (pendientes/aprobados tomables).
+- **TorreControl.vue**: tarjeta "Cola ejecutable" con 🔥 + badge de prioridad (claro/oscuro); 🔥 de bandeja re-etiquetado a "Decisión urgente".
+- Aislamiento: se trabajó en `git worktree` (main tree lo usaba el ejecutor del circuito); el `vendor` symlinkeado hacía que artisan cargara el código del main tree → verificación backend real y build servido se hicieron tras integrar a main.
+- Verificado: `php -l` ok, `npx mix` ok, listar()/bandeja/cola-nueva sin regresión, torre() HTTP 200 con cola_ejecutable. Commits: `47e041f6` (backend) + `cd84242f` (frontend).
