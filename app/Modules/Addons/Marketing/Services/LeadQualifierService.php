@@ -15,7 +15,7 @@ class LeadQualifierService
     public function __construct()
     {
         $this->apiKey = env('CLAUDE_API_KEY', '');
-        $this->model  = env('CLAUDE_MODEL', 'claude-sonnet-4-20250514');
+        $this->model  = config('services.anthropic.model');
     }
 
     /**
