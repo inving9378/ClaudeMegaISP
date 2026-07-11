@@ -37,13 +37,23 @@ class RoadmapCircuitoService
     public const REVISOR_KEY = 'circuito_revisor';
 
     /**
-     * Estado EN VIVO de la vuelta actual (#335), espejeado en `settings` como un solo
-     * JSON. Es el canal compartido: lo ESCRIBE el ejecutor on-box (usuario meganet, que
-     * SÍ puede leer el log en /home/meganet) y lo LEE la Torre (php-fpm = www-data, que
-     * NO puede leer ese log por permisos). Forma:
-     *   { started_at, heartbeat_at, finished, log_path, log_tail, current_item }
+     * Estado EN VIVO de una vuelta (#335), espejeado en `settings`. Es el canal compartido:
+     * lo ESCRIBE el ejecutor on-box (usuario meganet, que SÍ puede leer el log en /home/meganet)
+     * y lo LEE la Torre (php-fpm = www-data, que NO puede leer ese log por permisos). Forma:
+     *   { started_at, heartbeat_at, finished, log_path, log_tail, current_item, fases, ... }
+     *
+     * #334 Fase 0 — estado POR SESIÓN: cada worktree/vuelta escribe su propia fila
+     * `circuito_live:<sid>` (LIVE_PREFIX + sid). Antes era un blob único `circuito_live`; ahora
+     * varias sesiones (paralelas en Fase 1) coexisten sin pisarse. `LIVE_KEY` queda como base
+     * del prefijo y como llave LEGACY que se ignora/limpia en la transición.
      */
     public const LIVE_KEY = 'circuito_live';
+
+    /** Prefijo de las filas de estado live por-sesión: `circuito_live:<sid>` (#334). */
+    public const LIVE_PREFIX = 'circuito_live:';
+
+    /** Una sesión TERMINADA se sigue mostrando este tiempo (seg) y luego se cae del visor. */
+    public const LIVE_ENDED_RETAIN_SEG = 300;
 
     /** Latido más frío que esto (seg) con la vuelta "corriendo" ⇒ posible circuito caído. */
     public const HEARTBEAT_STALE_SEG = 90;
@@ -339,10 +349,10 @@ class RoadmapCircuitoService
     // Las lecturas (liveState/liveLogTail) las llama la Torre como www-data.
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Lee el JSON crudo de estado en vivo (o null si no hay). */
-    private function readLive(): ?array
+    /** Lee el JSON crudo de estado en vivo de UNA sesión (o null si no hay). */
+    private function readLive(string $sid): ?array
     {
-        $raw = DB::table('settings')->where('key', self::LIVE_KEY)->value('value');
+        $raw = DB::table('settings')->where('key', self::LIVE_PREFIX . $sid)->value('value');
         if (! $raw) {
             return null;
         }
@@ -351,17 +361,54 @@ class RoadmapCircuitoService
         return is_array($d) ? $d : null;
     }
 
-    private function writeLive(array $d): void
+    private function writeLive(string $sid, array $d): void
     {
-        $this->putSetting(self::LIVE_KEY, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $this->putSetting(self::LIVE_PREFIX . $sid, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
-    /** Marca el ARRANQUE de una vuelta (lo llama el wrapper como meganet). */
-    public function liveStart(string $logPath): void
+    /**
+     * Todas las sesiones live vivas o recién terminadas: [sid => data]. Descarta las TERMINADAS
+     * cuyo último latido excede LIVE_ENDED_RETAIN_SEG (ya no aportan al visor). Solo lee filas
+     * `circuito_live:<sid>` (ignora la llave legacy `circuito_live` sin sufijo).
+     */
+    private function allLiveSessions(): array
     {
+        $rows = DB::table('settings')
+            ->where('key', 'like', self::LIVE_PREFIX . '%')
+            ->get(['key', 'value']);
+
+        $now = time();
+        $out = [];
+        foreach ($rows as $row) {
+            $sid = substr($row->key, strlen(self::LIVE_PREFIX));
+            if ($sid === '') {
+                continue;
+            }
+            $d = json_decode((string) $row->value, true);
+            if (! is_array($d) || empty($d['started_at'])) {
+                continue;
+            }
+            $finished = (bool) ($d['finished'] ?? false);
+            $hb       = (int) ($d['heartbeat_at'] ?? 0);
+            if ($finished && ($now - $hb) > self::LIVE_ENDED_RETAIN_SEG) {
+                continue; // terminada hace rato → fuera del visor
+            }
+            $out[$sid] = $d;
+        }
+
+        return $out;
+    }
+
+    /** Marca el ARRANQUE de una vuelta de la sesión $sid (lo llama el wrapper como meganet). */
+    public function liveStart(string $sid, string $logPath): void
+    {
+        // Transición #334: limpia la llave legacy `circuito_live` (blob único sin sufijo) la
+        // primera vez que arranca una sesión con sufijo, para que no quede colgada en el visor.
+        DB::table('settings')->where('key', self::LIVE_KEY)->delete();
+
         $now  = time();
-        $prev = $this->readLive() ?? [];
-        $this->writeLive([
+        $prev = $this->readLive($sid) ?? [];
+        $this->writeLive($sid, [
             'started_at'   => $now,
             'heartbeat_at' => $now,
             'finished'     => false,
@@ -377,9 +424,9 @@ class RoadmapCircuitoService
     }
 
     /** Latido: refresca heartbeat + tail del log + #item en curso (best-effort). */
-    public function liveBeat(?string $logPath = null): void
+    public function liveBeat(string $sid, ?string $logPath = null): void
     {
-        $d = $this->readLive() ?? [];
+        $d = $this->readLive($sid) ?? [];
         $log = $logPath ?: ($d['log_path'] ?? null);
 
         $d['heartbeat_at'] = time();
@@ -400,13 +447,13 @@ class RoadmapCircuitoService
                 ?? ($d['current_item'] ?? null);
         }
 
-        $this->writeLive($d);
+        $this->writeLive($sid, $d);
     }
 
-    /** Marca el FIN de la vuelta (deja de reportar "corriendo"). */
-    public function liveEnd(): void
+    /** Marca el FIN de la vuelta de la sesión $sid (deja de reportar "corriendo"). */
+    public function liveEnd(string $sid): void
     {
-        $d = $this->readLive();
+        $d = $this->readLive($sid);
         if (! $d) {
             return;
         }
@@ -424,21 +471,54 @@ class RoadmapCircuitoService
                 $d['meta']  = $meta;
             }
         }
-        $this->writeLive($d);
+        $this->writeLive($sid, $d);
+    }
+
+    /** ¿Hay ALGUNA sesión live corriendo (no terminada)? Barrera anti-solape del picker (#337). */
+    public function anyRunning(): bool
+    {
+        foreach ($this->allLiveSessions() as $d) {
+            if (! ($d['finished'] ?? false)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
-     * Estado derivado para la Torre. PURO-LECTURA de BD (no toca archivos) → seguro para
-     * www-data. `running` = arrancó y no ha terminado; `stale` = corriendo pero el latido
-     * se enfrió (posible circuito caído).
+     * Estado derivado AGREGADO para la Torre (badge "corriendo" + overlap del picker). PURO-LECTURA
+     * de BD (no toca archivos) → seguro para www-data. Con #334 puede haber varias sesiones a la
+     * vez: `running` = alguna corre; los campos escalares reflejan la sesión "principal" = la
+     * corriendo más reciente, o si ninguna corre la última que latió.
      */
     public function liveState(): array
     {
-        $d   = $this->readLive();
-        $now = time();
+        $now      = time();
+        $sessions = $this->allLiveSessions();
 
-        if (! $d || empty($d['started_at'])) {
+        if (! $sessions) {
             return ['running' => false, 'stale' => false, 'started_at' => null];
+        }
+
+        // Sesión principal: prioriza las corriendo; desempata por latido más reciente.
+        uasort($sessions, function ($a, $b) {
+            $ar = ! ($a['finished'] ?? false);
+            $br = ! ($b['finished'] ?? false);
+            if ($ar !== $br) {
+                return $ar ? -1 : 1;
+            }
+
+            return (int) ($b['heartbeat_at'] ?? 0) <=> (int) ($a['heartbeat_at'] ?? 0);
+        });
+        $d = reset($sessions);
+
+        $anyRunning = false;
+        foreach ($sessions as $s) {
+            if (! ($s['finished'] ?? false)) {
+                $anyRunning = true;
+                break;
+            }
         }
 
         $finished  = (bool) ($d['finished'] ?? false);
@@ -447,9 +527,10 @@ class RoadmapCircuitoService
         $running   = ! $finished;
 
         return [
-            'running'               => $running,
-            'finished'              => $finished,
+            'running'               => $anyRunning,
+            'finished'              => ! $anyRunning,
             'stale'                 => $running && $sinceBeat > self::HEARTBEAT_STALE_SEG,
+            'sesiones_activas'      => count($sessions),
             'started_at'            => Carbon::createFromTimestamp((int) $d['started_at'])->toIso8601String(),
             'heartbeat_at'          => $hb ? Carbon::createFromTimestamp($hb)->toIso8601String() : null,
             'segundos_desde_latido' => $sinceBeat,
@@ -458,27 +539,94 @@ class RoadmapCircuitoService
         ];
     }
 
-    /** Tail del log en vivo (espejo en BD) para el panel "Ver log en vivo". */
+    /** Tail del log en vivo de la sesión principal (espejo en BD) para "Ver log en vivo". */
     public function liveLogTail(): string
     {
-        return (string) (($this->readLive() ?? [])['log_tail'] ?? '');
+        $sessions = $this->allLiveSessions();
+        if (! $sessions) {
+            return '';
+        }
+        // Misma prioridad que liveState: corriendo primero, luego latido más reciente.
+        uasort($sessions, function ($a, $b) {
+            $ar = ! ($a['finished'] ?? false);
+            $br = ! ($b['finished'] ?? false);
+            if ($ar !== $br) {
+                return $ar ? -1 : 1;
+            }
+
+            return (int) ($b['heartbeat_at'] ?? 0) <=> (int) ($a['heartbeat_at'] ?? 0);
+        });
+
+        return (string) (reset($sessions)['log_tail'] ?? '');
     }
 
     /**
-     * Estructura para el visor "Trabajando ahora" (#349). PURO-LECTURA de BD (no toca archivos)
-     * → seguro para www-data. Hoy `sesiones` trae UNA sesión (el `circuito_live` único; el flock
-     * garantiza una vuelta a la vez), pero la forma es un ARRAY listo para N: cuando #334
-     * (worktrees paralelos) escriba estado por sesión, los tabs se encienden sin rehacer nada.
-     * `resumen_ultima_vuelta` = CIRCUITO_META de la última vuelta, visible hasta la siguiente.
+     * Estructura para el visor "Trabajando ahora" (#349) y la rejilla de terminales (#350).
+     * PURO-LECTURA de BD (no toca archivos) → seguro para www-data. Con #334 (worktrees paralelos)
+     * `sesiones` trae UNA entrada por cada `circuito_live:<sid>` viva → los tabs/rejilla se
+     * encienden solos. `resumen_ultima_vuelta` = CIRCUITO_META más reciente entre las sesiones.
      */
     public function trabajandoAhora(): array
     {
-        $d = $this->readLive();
-        if (! $d || empty($d['started_at'])) {
+        $sessions = $this->allLiveSessions();
+        if (! $sessions) {
             return ['sesiones' => [], 'resumen_ultima_vuelta' => null];
         }
 
-        $now       = time();
+        $now = time();
+
+        // Títulos de TODOS los ids referenciados (item en curso + fases + resúmenes) en 1 query.
+        $ids = [];
+        foreach ($sessions as $d) {
+            $ids[] = $d['current_item'] ?? null;
+            foreach ((array) ($d['fases'] ?? []) as $f) {
+                $ids[] = is_array($f) ? ($f['item_id'] ?? null) : null;
+            }
+            foreach ((array) (($d['meta'] ?? [])['items_tocados'] ?? []) as $mid) {
+                $ids[] = $mid;
+            }
+        }
+        $titulos = $this->titulosDe($ids);
+
+        $sesiones = [];
+        $resumen  = null;
+        $resumenAt = -1;
+        foreach ($sessions as $sid => $d) {
+            $sesiones[] = $this->buildSesion($sid, $d, $now, $titulos);
+
+            // El resumen mostrado = el CIRCUITO_META más reciente entre las sesiones.
+            $meta = is_array($d['meta'] ?? null) ? $d['meta'] : null;
+            if ($meta !== null && (int) ($meta['at'] ?? 0) >= $resumenAt) {
+                $resumenAt = (int) ($meta['at'] ?? 0);
+                $resumen   = [
+                    'items_tocados' => array_map(
+                        fn ($id) => ['id' => (int) $id, 'title' => $titulos[(int) $id] ?? null],
+                        array_values((array) ($meta['items_tocados'] ?? []))
+                    ),
+                    'n_propuestas' => (int) ($meta['n_propuestas'] ?? 0),
+                    'n_decisiones' => (int) ($meta['n_decisiones'] ?? 0),
+                    'ejecuto'      => (bool) ($meta['ejecuto'] ?? false),
+                    'resumen'      => (string) ($meta['resumen'] ?? ''),
+                    'at'           => ! empty($meta['at']) ? Carbon::createFromTimestamp((int) $meta['at'])->toIso8601String() : null,
+                ];
+            }
+        }
+
+        // Orden estable para la rejilla: corriendo primero, luego arranque más reciente.
+        usort($sesiones, function ($a, $b) {
+            if ($a['running'] !== $b['running']) {
+                return $a['running'] ? -1 : 1;
+            }
+
+            return strcmp((string) $b['started_at'], (string) $a['started_at']);
+        });
+
+        return ['sesiones' => $sesiones, 'resumen_ultima_vuelta' => $resumen];
+    }
+
+    /** Construye el objeto-sesión (una terminal del visor #349/#350) a partir del blob live. */
+    private function buildSesion(string $sid, array $d, int $now, array $titulos): array
+    {
         $finished  = (bool) ($d['finished'] ?? false);
         $hb        = (int) ($d['heartbeat_at'] ?? 0);
         $sinceBeat = max(0, $now - $hb);
@@ -486,14 +634,6 @@ class RoadmapCircuitoService
 
         $fases  = array_values(array_filter((array) ($d['fases'] ?? []), 'is_array'));
         $itemId = isset($d['current_item']) ? ($d['current_item'] ?: null) : null;
-        $meta   = is_array($d['meta'] ?? null) ? $d['meta'] : null;
-
-        // Resuelve títulos de una sola query (item en curso + fases + items del resumen).
-        $titulos = $this->titulosDe(array_merge(
-            [$itemId],
-            array_map(fn ($f) => $f['item_id'] ?? null, $fases),
-            (array) ($meta['items_tocados'] ?? [])
-        ));
 
         $pasos = array_map(function ($f) use ($titulos) {
             $id = $f['item_id'] ?? null;
@@ -506,13 +646,11 @@ class RoadmapCircuitoService
             ];
         }, $fases);
 
-        $sesion = [
-            'sid'                   => 'main',   // única hoy; #334 dará ids reales por worktree
+        return [
+            'sid'                   => $sid,
             'item'                  => $itemId ? ['id' => (int) $itemId, 'title' => $titulos[$itemId] ?? null] : null,
             'fase_actual'           => $fases ? ($fases[count($fases) - 1]['fase'] ?? null) : null,
             'pasos'                 => $pasos,
-            // Log crudo de ESTA sesión para la rejilla de terminales (#350). Hoy = el tail del
-            // blob único; con #334 será el tail del log del worktree de cada sesión.
             'log_tail'              => (string) ($d['log_tail'] ?? ''),
             'artefactos'            => (array) ($d['artefactos'] ?? []),
             'running'               => $running,
@@ -523,23 +661,6 @@ class RoadmapCircuitoService
             'segundos_desde_latido' => $sinceBeat,
             'segundos_corriendo'    => $running ? max(0, $now - (int) $d['started_at']) : null,
         ];
-
-        $resumen = null;
-        if ($meta !== null) {
-            $resumen = [
-                'items_tocados' => array_map(
-                    fn ($id) => ['id' => (int) $id, 'title' => $titulos[(int) $id] ?? null],
-                    array_values((array) ($meta['items_tocados'] ?? []))
-                ),
-                'n_propuestas' => (int) ($meta['n_propuestas'] ?? 0),
-                'n_decisiones' => (int) ($meta['n_decisiones'] ?? 0),
-                'ejecuto'      => (bool) ($meta['ejecuto'] ?? false),
-                'resumen'      => (string) ($meta['resumen'] ?? ''),
-                'at'           => ! empty($meta['at']) ? Carbon::createFromTimestamp((int) $meta['at'])->toIso8601String() : null,
-            ];
-        }
-
-        return ['sesiones' => [$sesion], 'resumen_ultima_vuelta' => $resumen];
     }
 
     /** Mapa `id => title` para un set de ids de roadmap_items (una sola query). */
