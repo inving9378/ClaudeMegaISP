@@ -2,9 +2,9 @@
 
 namespace App\Modules\Addons\Manual\Observers;
 
+use App\Modules\Addons\Manual\Jobs\RegenerateManualSectionJob;
 use App\Modules\Addons\Manual\Models\ManualSection;
 use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -34,18 +34,8 @@ class ModuleObserver
             return;
         }
 
-        Log::info("[Manual] Módulo activado '{$slug}' — disparando manual:regenerate --section={$slug}");
+        Log::info("[Manual] Módulo activado '{$slug}' — encolando RegenerateManualSectionJob (section={$slug})");
 
-        try {
-            Artisan::call('manual:regenerate', ['--section' => $slug]);
-            Log::info('[Manual] Regeneración por activación completada', [
-                'slug'   => $slug,
-                'output' => trim(Artisan::output()),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('[Manual] Falló regeneración por activación: ' . $e->getMessage(), [
-                'slug' => $slug,
-            ]);
-        }
+        RegenerateManualSectionJob::dispatch($slug);
     }
 }
