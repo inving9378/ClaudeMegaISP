@@ -402,6 +402,8 @@ class RoadmapController extends Controller
                     'estado_aprobacion' => $i->estado_aprobacion,
                     'merged'            => ! empty($i->merge_commit),
                     'merge_commit'      => $i->merge_commit,
+                    'merge_pending'     => $this->svc->isMergeQueued($i->id),   // en cola / procesando (#334)
+                    'merge_result'      => $this->svc->mergeResult($i->id),     // último intento (ok/error/escalado) → UI lo muestra
                     'marcado_version'   => (bool) $i->marcado_version,
                     'verificacion'      => $this->semaforo($i),
                     'reporte'           => $i->comentarios_claude,   // reporte del ejecutor (qué hace/cómo validar/verificación)
@@ -416,6 +418,7 @@ class RoadmapController extends Controller
         return response()->json([
             'generated_at'     => now()->toIso8601String(),
             'modo_integracion' => $this->svc->getModoIntegracion(),
+            'auto_merge'       => $this->svc->autoMergeOn(),   // toggle ON/OFF (#334 F0-fix)
             'ramas'            => $ramas,
         ]);
     }
@@ -460,13 +463,15 @@ class RoadmapController extends Controller
             return response()->json(['error' => 'Item o rama no encontrada'], 404);
         }
 
-        // El botón de Irving es la autoridad de merge (incluye C) → reutiliza el comando con --force.
-        $code = Artisan::call('circuito:integrar', ['id' => $item->id, '--force' => true]);
-        $salida = trim(Artisan::output());
+        // El botón de Irving = autoridad de merge (incluye C) → ENCOLA con trigger 'boton'. El merge
+        // REAL lo hace el runner on-box (meganet) en el checkout principal, porque www-data (esta
+        // request) NO puede escribir `.git` (antes fallaba en silencio). La Torre hace polling de
+        // `merge_result` y muestra éxito o el error/escalado. (#334 F0-fix)
+        $this->svc->enqueueMerge($item->id, $this->actor(), 'boton');
 
-        Log::channel('roadmap_externo')->info('integracion-merge', ['item' => $item->id, 'por' => $this->actor(), 'ok' => $code === 0]);
+        Log::channel('roadmap_externo')->info('integracion-merge-encolado', ['item' => $item->id, 'por' => $this->actor()]);
 
-        return response()->json(['ok' => $code === 0, 'salida' => $salida, 'merge_commit' => $item->fresh()->merge_commit]);
+        return response()->json(['ok' => true, 'queued' => true, 'mensaje' => 'Merge encolado; se aplica en unos segundos.']);
     }
 
     /** POST /api/roadmap/integracion/rechazar — rechaza la rama: item vuelve a la bandeja. */

@@ -71,6 +71,17 @@ class RoadmapCircuitoService
      */
     public const DISPARO_KEY = 'circuito_disparo_pendiente';
 
+    /**
+     * Cola de MERGE a dev (#334 F0-fix). La Torre (www-data) NO puede escribir `.git` (objetos/refs
+     * los creó el ejecutor=meganet, sin group-write para www-data), así que el merge NO lo hace
+     * www-data: se ENCOLA aquí y lo ejecuta el runner on-box (meganet, en el checkout PRINCIPAL,
+     * donde vive `main`) — mismo patrón que el disparo. FIFO de {item_id, by, trigger, at}.
+     */
+    public const MERGE_QUEUE_KEY = 'circuito_merge_cola';
+
+    /** Resultado del último intento de merge por item: `circuito_merge_result:<id>` (para la UI). */
+    public const MERGE_RESULT_PREFIX = 'circuito_merge_result:';
+
     public function find(int $id): ?RoadmapItem
     {
         return RoadmapItem::find($id);
@@ -900,5 +911,83 @@ class RoadmapCircuitoService
     public function clearDisparo(): void
     {
         DB::table('settings')->where('key', self::DISPARO_KEY)->delete();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLA DE MERGE (#334 F0-fix) — la Torre (www-data) encola; el runner on-box
+    // (meganet, en el checkout PRINCIPAL) ejecuta el merge real. Ver MergeRunner.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** ¿El toggle de auto-merge está ON? (default auto-merge). */
+    public function autoMergeOn(): bool
+    {
+        return $this->getModoIntegracion() === 'auto-merge';
+    }
+
+    /** Encola un merge (idempotente por item). trigger: 'boton' (Irving, autoridad) | 'auto'. */
+    public function enqueueMerge(int $itemId, string $by, string $trigger = 'boton'): void
+    {
+        $cola = $this->mergeQueue();
+        foreach ($cola as $e) {
+            if ((int) ($e['item_id'] ?? 0) === $itemId) {
+                return; // ya encolado
+            }
+        }
+        $cola[] = ['item_id' => $itemId, 'by' => $by, 'trigger' => $trigger, 'at' => time()];
+        $this->putSetting(self::MERGE_QUEUE_KEY, json_encode(array_values($cola), JSON_UNESCAPED_UNICODE));
+        // Marca "en cola" en el resultado para feedback inmediato en la UI.
+        $this->recordMergeResult($itemId, ['estado' => 'en_cola', 'by' => $by, 'trigger' => $trigger, 'at' => time()]);
+    }
+
+    /** Cola de merge pendiente (FIFO). */
+    public function mergeQueue(): array
+    {
+        $raw = DB::table('settings')->where('key', self::MERGE_QUEUE_KEY)->value('value');
+        $d = $raw ? json_decode((string) $raw, true) : [];
+
+        return is_array($d) ? array_values(array_filter($d, 'is_array')) : [];
+    }
+
+    /** Saca el primer merge de la cola (FIFO) y persiste el resto. */
+    public function dequeueMerge(): ?array
+    {
+        $cola = $this->mergeQueue();
+        if (! $cola) {
+            return null;
+        }
+        $first = array_shift($cola);
+        $this->putSetting(self::MERGE_QUEUE_KEY, json_encode(array_values($cola), JSON_UNESCAPED_UNICODE));
+
+        return $first;
+    }
+
+    /** ¿Este item está en la cola de merge? (para la UI). */
+    public function isMergeQueued(int $itemId): bool
+    {
+        foreach ($this->mergeQueue() as $e) {
+            if ((int) ($e['item_id'] ?? 0) === $itemId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Guarda el resultado del último intento de merge de un item (para la UI). */
+    public function recordMergeResult(int $itemId, array $result): void
+    {
+        $this->putSetting(self::MERGE_RESULT_PREFIX . $itemId, json_encode($result, JSON_UNESCAPED_UNICODE));
+    }
+
+    /** Resultado del último intento de merge de un item (o null). */
+    public function mergeResult(int $itemId): ?array
+    {
+        $raw = DB::table('settings')->where('key', self::MERGE_RESULT_PREFIX . $itemId)->value('value');
+        if (! $raw) {
+            return null;
+        }
+        $d = json_decode((string) $raw, true);
+
+        return is_array($d) ? $d : null;
     }
 }
