@@ -88,56 +88,69 @@ if ! php artisan circuito:provision-worktree --path="$WT" >>"$LOG" 2>&1; then
   registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "0" "1" '{}' 2>/dev/null || true
   exit 1
 fi
-# Sincroniza el worktree al tip de main y déjalo limpio (descarta restos de la vuelta previa).
-# `checkout --detach main` NO checa la rama main (que vive en $PROJ) → git lo permite en el worktree.
-git -C "$WT" checkout --detach -f main >>"$LOG" 2>&1 || log "aviso: no pude sincronizar $WT a main."
-git -C "$WT" clean -fdq >>"$LOG" 2>&1 || true
 cd "$WT" || { log "No pude cd a $WT"; exit 1; }
 log "Ejecutor aislado en worktree $WT (sid=$SID)."
 
-# Prompt: por-item (paralelo #334 F1) si CIRCUITO_ITEM, si no el backlog completo (legacy).
+# Ejecuta UNA vuelta para el $ITEM (o backlog) actual: sincroniza el worktree a main limpio,
+# arma el prompt, corre claude -p con latido en vivo y registra la ejecución.
+ejecutar_una() {
+  # Cada item arranca de MAIN fresco (con lo ya mergeado por los otros workers). `checkout
+  # --detach -f main` NO checa la rama main (vive en $PROJ) → git lo permite en el worktree.
+  git -C "$WT" checkout --detach -f main >>"$LOG" 2>&1 || log "aviso: no pude sincronizar $WT a main."
+  git -C "$WT" clean -fdq >>"$LOG" 2>&1 || true
+
+  if [ -n "$ITEM" ]; then
+    PROMPT_TEXT="$(sed "s/__ITEM_ID__/$ITEM/g" "$PROMPT_ITEM_FILE")"
+    log "modo POR-ITEM: trabajando SOLO el item #$ITEM"
+  else
+    PROMPT_TEXT="$(cat "$PROMPT_FILE")"
+  fi
+  log "===== inicio de la vuelta (claude -p) ====="
+
+  local START FIN RC HB_PID META
+  START="$(date +%s)"
+  php artisan circuito:vivo --start --sid="$SID" --log="$LOG" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar inicio live."
+  php artisan circuito:vivo --watch --sid="$SID" --log="$LOG" >/dev/null 2>&1 &
+  HB_PID=$!
+
+  timeout "$TIMEOUT" claude -p "$PROMPT_TEXT" \
+    --model "$MODEL" \
+    --allowed-tools $TOOLS \
+    --max-turns "$MAXTURNS" \
+    >>"$LOG" 2>&1
+  RC=$?
+  FIN="$(date +%s)"
+
+  if [ -n "${HB_PID:-}" ]; then kill "$HB_PID" 2>/dev/null; wait "$HB_PID" 2>/dev/null; fi
+  php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar fin live."
+
+  log "===== fin de la vuelta ====="
+  if [ "$RC" -eq 124 ]; then log "Vuelta cortada por timeout (${TIMEOUT}s)."
+  elif [ "$RC" -ne 0 ]; then log "claude terminó con código $RC."
+  else log "Vuelta OK."; fi
+
+  META="$(grep -a 'CIRCUITO_META:' "$LOG" | tail -1 | sed 's/^.*CIRCUITO_META: *//')"
+  [ -z "$META" ] && META='{}'
+  registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META"
+}
+
 if [ -n "$ITEM" ]; then
-  PROMPT_TEXT="$(sed "s/__ITEM_ID__/$ITEM/g" "$PROMPT_ITEM_FILE")"
-  log "modo POR-ITEM: trabajando SOLO el item #$ITEM"
+  # POOL CONTINUO (#334 F1): trabaja su item y, al terminar, PIDE el siguiente elegible SIN esperar
+  # al cron → mantiene el slot lleno mientras haya trabajo seguro (mata los valles). claim-next
+  # respeta el kill switch (pausa → nada que reclamar) y serializa por flock (reclamo atómico #341).
+  while true; do
+    ejecutar_una
+    NEXT="$(php artisan circuito:claim-next --sid="$SID" 2>/dev/null)"
+    if [ -z "$NEXT" ]; then
+      log "Sin más trabajo elegible (o pausa): worker $SID suelta el slot; el scheduler lo relanza al haber trabajo."
+      break
+    fi
+    ITEM="$NEXT"
+    log "Pool continuo: worker $SID toma de inmediato el siguiente item #$ITEM."
+  done
 else
-  PROMPT_TEXT="$(cat "$PROMPT_FILE")"
+  ejecutar_una
 fi
-log "===== inicio de la vuelta (claude -p) ====="
-
-START="$(date +%s)"
-
-# Estado EN VIVO (#335): marca el arranque y lanza el latido en background, que espejea a
-# BD el heartbeat + el tail del log para que la Torre muestre "corriendo AHORA". Corre como
-# meganet (sí lee el log); www-data no puede. Best-effort: nunca tumba la vuelta.
-php artisan circuito:vivo --start --sid="$SID" --log="$LOG" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar inicio live."
-php artisan circuito:vivo --watch --sid="$SID" --log="$LOG" >/dev/null 2>&1 &
-HB_PID=$!
-
-timeout "$TIMEOUT" claude -p "$PROMPT_TEXT" \
-  --model "$MODEL" \
-  --allowed-tools $TOOLS \
-  --max-turns "$MAXTURNS" \
-  >>"$LOG" 2>&1
-RC=$?
-FIN="$(date +%s)"
-
-# Detener el latido y marcar el fin del estado en vivo (#335).
-if [ -n "${HB_PID:-}" ]; then kill "$HB_PID" 2>/dev/null; wait "$HB_PID" 2>/dev/null; fi
-php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar fin live."
-
-log "===== fin de la vuelta ====="
-if [ "$RC" -eq 124 ]; then
-  log "Vuelta cortada por timeout (${TIMEOUT}s)."
-elif [ "$RC" -ne 0 ]; then
-  log "claude terminó con código $RC."
-else
-  log "Vuelta OK."
-fi
-
-# Meta estructurado que emitió el ejecutor (última línea CIRCUITO_META: {...}).
-META="$(grep -a 'CIRCUITO_META:' "$LOG" | tail -1 | sed 's/^.*CIRCUITO_META: *//')"
-[ -z "$META" ] && META='{}'
-registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META"
 
 log "Log completo: $LOG"
 exit 0

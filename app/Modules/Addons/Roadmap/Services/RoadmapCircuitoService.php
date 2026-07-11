@@ -1012,6 +1012,30 @@ class RoadmapCircuitoService
     }
 
     /**
+     * Reclama ATÓMICAMENTE el siguiente item elegible para un worker de pool continuo (#334 F1):
+     * el primer ejecutable módulo-disjunto de lo que ya está en vuelo. Devuelve el id reclamado
+     * (estado → en_progreso) o null si no hay trabajo / pausado. El llamador debe SERIALIZAR
+     * (flock) para que dos workers no tomen items del mismo módulo a la vez.
+     */
+    public function claimNextParalelo(): ?int
+    {
+        if ($this->isPaused()) {
+            return null;
+        }
+        $items = $this->ejecutablesParalelo($this->modulosEnVuelo(), 1);
+        if (! $items) {
+            return null;
+        }
+        $id = (int) $items[0]['id'];
+        $claimed = DB::table('roadmap_items')
+            ->where('id', $id)
+            ->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
+            ->update(['estado_aprobacion' => 'en_progreso', 'updated_at' => now()]);
+
+        return $claimed === 1 ? $id : null;
+    }
+
+    /**
      * Módulos NO-null de items EN VUELO (en_progreso — reclamados por una sesión o por un humano).
      * Se usan como pre-filtro conservador: no paralelizar dos items del mismo módulo (#334).
      */

@@ -31,18 +31,31 @@ return [
     |
     */
     'revisor' => [
-        'model'      => env('CIRCUITO_REVISOR_MODEL', 'claude-sonnet-4-6'),
-        'max_tokens' => (int) env('CIRCUITO_REVISOR_MAX_TOKENS', 700),
+        // MODELO ESCALONADO (#338): B rutinario → Sonnet; B difícil/borderline/baja-confianza → Opus
+        // (2ª opinión); C → Opus arma un BRIEF de decisión para Irving. Opus SOLO en lo difícil/C
+        // (con N=6, Opus en todo B quemaría límites).
+        'model'         => env('CIRCUITO_REVISOR_MODEL', 'claude-sonnet-4-6'),      // rutina (compat)
+        'model_routine' => env('CIRCUITO_REVISOR_MODEL', 'claude-sonnet-4-6'),
+        'model_hard'    => env('CIRCUITO_REVISOR_MODEL_HARD', 'claude-opus-4-7'),
+        'max_tokens'    => (int) env('CIRCUITO_REVISOR_MAX_TOKENS', 700),
+        'brief_tokens'  => (int) env('CIRCUITO_REVISOR_BRIEF_TOKENS', 1100),
+        // Perfil vivo de decisiones/preferencias de Irving, inlineado al prompt (menos falsos
+        // positivos → menos ruido en su bandeja). Editable por Irving; sin secretos.
+        'perfil_path'   => base_path('docs/perfil-decisiones-irving.md'),
         'alcance'    => [
+            // FRONTERA DURA (si el título/módulo/plan menciona esto → escala SIN gastar IA).
+            // Afinada (#338): se quitaron términos demasiado amplios que escalaban FALSOS POSITIVOS
+            // ('rol ', 'roles', 'auth', 'banco', 'prod' bare) — la sensibilidad real la cubren
+            // términos específicos (permiso/permisos/spatie, credencial/bcrypt, producción/deploy…).
             'denylist' => [
                 // dinero / cobros
                 'dinero', 'pago', 'cobro', 'factura', 'facturación', 'saldo', 'precio', 'tarifa',
-                'openpay', 'spei', 'clabe', 'banco', 'cargo', 'nómina', 'comisión',
-                // seguridad / permisos / auth
-                'permiso', 'permisos', 'rol ', 'roles', 'spatie', 'auth', 'login', 'password',
+                'openpay', 'spei', 'clabe', 'cargo', 'nómina', 'comisión',
+                // seguridad / permisos / auth (específicos, no substrings que peguen de más)
+                'permiso', 'permisos', 'spatie', 'login', 'password',
                 'contraseña', 'credencial', 'token', 'secret', 'seguridad', 'idor', 'bcrypt',
                 // producción / despliegue
-                'prod', 'producción', 'deploy', 'despliegue', 'remote:deploy', '.env',
+                'producción', 'deploy', 'despliegue', 'remote:deploy', '.env',
                 // datos destructivos
                 'migrate:fresh', 'drop ', 'truncate', 'delete from', 'borrado masivo', 'destructiv',
                 // negocio / estrategia / arquitectura

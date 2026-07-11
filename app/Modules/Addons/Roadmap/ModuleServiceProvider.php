@@ -27,10 +27,12 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\MergeRunCommand::class,
                 // Paralelo #334 Fase 1
                 \App\Modules\Addons\Roadmap\Console\SchedulerCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ClaimNextCommand::class,
                 // Agente revisor #338
                 \App\Modules\Addons\Roadmap\Console\RevisarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisarBacklogCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisorFlagCommand::class,
+                \App\Modules\Addons\Roadmap\Console\BriefCCommand::class,
             ]);
         }
     }

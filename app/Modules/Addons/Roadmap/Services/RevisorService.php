@@ -75,20 +75,53 @@ class RevisorService
             return $v;
         }
 
-        // 2) Revisor adversarial (Claude Sonnet, contexto fresco).
-        $model = (string) config('circuito.revisor.model', 'claude-sonnet-4-6');
+        // 2) Revisor adversarial ESCALONADO (#338). Rutina = Sonnet; si queda BORDERLINE (baja
+        //    confianza o categoría amplio/duda) y NO es frontera dura clara → 2ª opinión con Opus
+        //    (solo en lo difícil, para no quemar límites). Frontera dura ya escala sin gastar Opus.
+        $routine = (string) config('circuito.revisor.model_routine', config('circuito.revisor.model', 'claude-sonnet-4-6'));
+        $hard    = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+
+        $r = $this->callModel($routine, $item, $decisorCtx);
+        $v = $r['v'];
+        $modeloUsado = $routine;
+        $usage = $r['usage'];
+
+        $okRoutine    = ($v['_ok'] ?? true) !== false;
+        $fronteraDura = in_array($v['categoria_escalada'] ?? '', ['dinero', 'seguridad', 'prod', 'negocio'], true);
+        $borderline   = ($v['confianza'] ?? 'baja') === 'baja'
+            || in_array($v['categoria_escalada'] ?? '', ['amplio', 'duda'], true);
+
+        if ($okRoutine && $borderline && ! $fronteraDura && $routine !== $hard) {
+            $r2 = $this->callModel($hard, $item, $decisorCtx);
+            if (($r2['v']['_ok'] ?? true) !== false) {
+                $v = $r2['v'];
+                $modeloUsado = $hard . ' (2ª opinión)';
+                $usage = $r2['usage'];
+            }
+        }
+
+        unset($v['_ok']);
+        $v['en_alcance'] = true;
+        $v['_audit_id']  = $this->auditar($item, $v, [
+            'modelo'     => $modeloUsado,
+            'tokens_in'  => $usage['input_tokens'] ?? null,
+            'tokens_out' => $usage['output_tokens'] ?? null,
+        ], $decisorCtx);
+
+        return $v;
+    }
+
+    /** Una llamada al modelo dado. Devuelve ['v'=>veredicto parseado, 'usage'=>usage]. Falla-segura. */
+    private function callModel(string $model, RoadmapItem $item, ?string $decisorCtx): array
+    {
         try {
             $resp = (new ClaudeApiClient())->messages([
                 'model'       => $model,
                 'max_tokens'  => (int) config('circuito.revisor.max_tokens', 700),
                 'temperature' => 0,
                 'system'      => $this->systemPrompt(),
-                'messages'    => [[
-                    'role'    => 'user',
-                    'content' => $this->userPrompt($item, $decisorCtx),
-                ]],
+                'messages'    => [['role' => 'user', 'content' => $this->userPrompt($item, $decisorCtx)]],
             ]);
-
             $text = '';
             foreach ((array) ($resp['content'] ?? []) as $blk) {
                 if (($blk['type'] ?? '') === 'text') {
@@ -96,29 +129,17 @@ class RevisorService
                 }
             }
 
-            $v = $this->parse($text);
-            $v['en_alcance'] = true;
-            $v['_audit_id']  = $this->auditar($item, $v, [
-                'modelo'     => $model,
-                'tokens_in'  => $resp['usage']['input_tokens'] ?? null,
-                'tokens_out' => $resp['usage']['output_tokens'] ?? null,
-            ], $decisorCtx);
-
-            return $v;
+            return ['v' => $this->parse($text), 'usage' => $resp['usage'] ?? []];
         } catch (\Throwable $e) {
             // Falla-segura: IA caída o respuesta ilegible → ESCALA con confianza baja.
-            $v = [
+            return ['v' => [
                 'veredicto'          => 'escala',
-                'en_alcance'         => true,
                 'categoria_escalada' => 'duda',
                 'confianza'          => 'baja',
-                'razon'              => 'El revisor no pudo emitir veredicto (error/respuesta ilegible): '
-                    . mb_strimwidth($e->getMessage(), 0, 180, '…') . '. Falla-segura → escala a Irving.',
+                'razon'              => 'El revisor no pudo emitir veredicto (' . mb_strimwidth($e->getMessage(), 0, 160, '…') . '). Falla-segura → escala.',
                 'riesgos'            => ['revisor no concluyente'],
-            ];
-            $v['_audit_id'] = $this->auditar($item, $v, ['modelo' => $model], $decisorCtx);
-
-            return $v;
+                '_ok'                => false,
+            ], 'usage' => []];
         }
     }
 
@@ -208,17 +229,75 @@ class RevisorService
 
     private function systemPrompt(): string
     {
-        return <<<'TXT'
-Eres el REVISOR ADVERSARIAL e INDEPENDIENTE del Circuito CC de MegaISP (un ISP; codebase Laravel 10 / Vue 3 en español). Evalúas una DECISIÓN de nivel B (bug / infra / refactor técnico) que el ejecutor del circuito quiere realizar SOLO, sin Irving. Tu trabajo NO es aprobar: es intentar REFUTAR que sea seguro. Contexto FRESCO: no confíes en el decisor, busca el fallo.
+        $base = <<<'TXT'
+Eres el REVISOR ADVERSARIAL e INDEPENDIENTE del Circuito CC de MegaISP (un ISP; codebase Laravel 10 / Vue 3 en español). Evalúas una DECISIÓN de nivel B (bug / infra / refactor técnico) que el ejecutor del circuito quiere realizar SOLO, sin Irving. Tu trabajo NO es aprobar a ciegas: es decidir si es CLARAMENTE seguro (autoriza) o si merece el ojo de Irving (escala). Contexto FRESCO: no confíes en el decisor, busca el fallo.
 
-Autoriza ("autoriza") SOLO si TODO es cierto: es un cambio técnico / de corrección; ADITIVO y reversible; de alcance ACOTADO y claro; verificable con regresión cero; y NO toca dinero / cobros / pagos / facturación / saldos, NI permisos / roles / autenticación / seguridad, NI producción / despliegue, NI datos destructivos (drop / truncate / borrado masivo / migrate:fresh), NI es decisión de negocio / estrategia / diseño / arquitectura.
+ALCANCE (afinado, arranque ampliado un escalón): AUTORIZA con soltura los B claramente TÉCNICOS y de bajo riesgo aunque el alcance sea moderado — p.ej. bugs de null/NPE, rutas/enlaces muertos (404), typos, textos/labels, iconos, refactors locales, guards defensivos, endpoints de estadística/lectura, correcciones de UI no sensibles, código muerto acotado. Estos NO necesitan a Irving.
 
-Escala ("escala") SIEMPRE que toque alguna de esas fronteras duras, o el alcance sea amplio / ambiguo, o mezcle varias cosas, o no puedas verificar que sea seguro, o tengas CUALQUIER duda. Ante la duda, ESCALA. La IA recomienda; Irving decide lo dudoso.
+FRONTERA DURA (intacta — SIEMPRE escala, con cualquier modelo): dinero / cobros / pagos / facturación / saldos; permisos / roles / autenticación / seguridad / credenciales; producción / despliegue / .env; datos destructivos (drop / truncate / borrado masivo / migrate:fresh); decisión de negocio / estrategia / diseño / arquitectura. También escala si el alcance es amplio/ambiguo, mezcla varias cosas, o no puedes verificar que sea seguro. Ante la duda REAL en la frontera, ESCALA. La IA recomienda; Irving decide lo sensible.
 
 Responde EXCLUSIVAMENTE con un objeto JSON (sin texto extra, sin ```):
 {"veredicto":"autoriza"|"escala","razon":"1-2 frases concretas","riesgos":["..."],"categoria_escalada":"dinero"|"seguridad"|"prod"|"negocio"|"amplio"|"duda"|null,"confianza":"alta"|"media"|"baja"}
-categoria_escalada = null solo si autorizas. Nunca inventes: si el item es ambiguo, escala con confianza baja.
+categoria_escalada = null solo si autorizas. No inventes: si es ambiguo cerca de la frontera, escala con confianza baja.
 TXT;
+
+        // Perfil vivo de Irving (inlineado): alinea el criterio → menos falsos positivos de escalación.
+        $perfil = $this->perfilIrving();
+        if ($perfil !== '') {
+            $base .= "\n\n=== PERFIL DE DECISIONES DE IRVING (úsalo para decidir a su gusto; reduce escalaciones de lo que él ya resolvería igual, PERO no relaja la frontera dura) ===\n" . $perfil;
+        }
+
+        return $base;
+    }
+
+    /** Carga el perfil de decisiones de Irving (docs/perfil-decisiones-irving.md). Vacío si falta. */
+    private function perfilIrving(): string
+    {
+        $path = (string) config('circuito.revisor.perfil_path', base_path('docs/perfil-decisiones-irving.md'));
+        if (! is_file($path)) {
+            return '';
+        }
+
+        return mb_strimwidth(trim((string) @file_get_contents($path)), 0, 6000, "\n…(perfil truncado)");
+    }
+
+    /**
+     * BRIEF de decisión para un item C (arquitectura/negocio): NO se auto-autoriza — Opus prepara
+     * riesgos/opciones/recomendación para que IRVING decida. Escribe el brief en comentarios_claude
+     * y deja el item en requiere_irving. Falla-segura: si la IA falla, solo deja nota + requiere_irving.
+     */
+    public function briefarC(RoadmapItem $item): array
+    {
+        $hard = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+        $texto = '';
+        $modelo = $hard;
+        try {
+            $resp = (new ClaudeApiClient())->messages([
+                'model'       => $hard,
+                'max_tokens'  => (int) config('circuito.revisor.brief_tokens', 1100),
+                'temperature' => 0.2,
+                'system'      => "Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). Este item es de nivel C (arquitectura / negocio / decisión de diseño): NO se ejecuta solo, lo decide Irving. Prepárale un BRIEF de decisión BREVE y accionable en español, en markdown, con EXACTAMENTE estas secciones: **Qué se decide** (1-2 frases), **Opciones** (2-3 con pros/contras en una línea c/u), **Riesgos** (bullets), **Recomendación** (1 opción + por qué, alineada a sus preferencias: conservador, aditivo/reversible, dev-primero, no romper prod). Sé concreto, sin relleno. Considera el perfil de Irving:\n\n" . $this->perfilIrving(),
+                'messages'    => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
+            ]);
+            foreach ((array) ($resp['content'] ?? []) as $blk) {
+                if (($blk['type'] ?? '') === 'text') {
+                    $texto .= $blk['text'] ?? '';
+                }
+            }
+        } catch (\Throwable $e) {
+            $texto = '(No se pudo generar el brief automáticamente: ' . mb_strimwidth($e->getMessage(), 0, 160, '…') . ')';
+        }
+
+        $sello = "\n\n--- BRIEF DE DECISIÓN (C, Opus) " . now()->toDateTimeString() . " ---\n" . trim($texto) . "\n";
+        $item->estado_aprobacion  = 'requiere_irving';
+        $item->comentarios_claude = (string) $item->comentarios_claude . $sello;
+        $item->revisado_at        = now();
+        $item->aprobado_por       = 'revisor(brief-C)';
+        $item->save();
+        $this->auditar($item, ['veredicto' => 'escala', 'en_alcance' => false, 'categoria_escalada' => 'negocio',
+            'confianza' => 'alta', 'razon' => 'Brief de decisión C para Irving', 'riesgos' => []], ['modelo' => $modelo], null);
+
+        return ['ok' => true, 'modelo' => $modelo, 'brief' => trim($texto)];
     }
 
     private function userPrompt(RoadmapItem $item, ?string $decisorCtx): string
