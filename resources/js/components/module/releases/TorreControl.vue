@@ -28,12 +28,18 @@
         </div>
       </div>
       <div class="tc-barbtns">
+        <button v-if="canDisparar" class="tc-runbtn" :disabled="disparando || pausado || running"
+          :title="pausado ? 'Reanuda el circuito para ejecutar' : (running ? 'Ya hay una vuelta en curso' : '')"
+          @click="disparar">{{ disparando ? '⏳ Disparando…' : '▶ Ejecutar vuelta ahora' }}</button>
         <button class="tc-logbtn" :class="{ 'tc-logbtn-on': logOpen }" @click="toggleLog">{{ logOpen ? '✕ Ocultar log' : '👁 Ver log en vivo' }}</button>
         <button class="tc-killbtn" :class="{ 'tc-resume': pausado }" :disabled="toggling" @click="toggle">
           {{ toggling ? '…' : (pausado ? '▶ Reanudar circuito' : '⏸ Pausar circuito') }}
         </button>
       </div>
     </div>
+
+    <!-- Feedback del disparo manual (#337) -->
+    <div v-if="disparoMsg" class="tc-disparo-msg">{{ disparoMsg }}</div>
 
     <!-- Aviso: posible circuito caído -->
     <div v-if="running && live.stale" class="tc-alert">
@@ -92,6 +98,10 @@
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cerrar')">✔ Cerrar</button>
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cancelar')">⊘ Cancelar</button>
                 <button class="tc-btn tc-btn-seg" :disabled="deciding === it.id" @click="toggleSeg(it)">＋ Seguimiento</button>
+                <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
+                  :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
+                  :title="it.urgente ? 'Quitar urgente' : 'Marcar urgente y disparar una vuelta ya'">
+                  {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Urgente ✓' : '🔥 Urgente') }}</button>
                 <span v-if="deciding === it.id" class="tc-meta">Guardando…</span>
               </div>
 
@@ -210,6 +220,13 @@ export default {
         let estadoTimer = null;          // polling de /circuito/estado
         let tickTimer = null;            // ticker de 1s
 
+        // Disparo manual + urgente (#337)
+        const canDisparar = ref(false);
+        const disparando = ref(false);
+        const urgiendo = ref(null);      // id del item marcándose urgente
+        const disparoMsg = ref('');
+        let disparoMsgTimer = null;
+
         // Bandeja de decisiones interactiva (#313)
         const sel = reactive({});      // id -> opción elegida
         const coment = reactive({});   // id -> comentario
@@ -313,6 +330,46 @@ export default {
             proximaAt.value = data.proxima_vuelta_at || null;
             ultimaAt.value = data.ultima_vuelta_at || null;
             if (data.circuito_intervalo_min) intervaloMin.value = data.circuito_intervalo_min;
+            if (typeof data.can_disparar === 'boolean') canDisparar.value = data.can_disparar;
+        }
+
+        function flashDisparo(msg) {
+            disparoMsg.value = msg;
+            if (disparoMsgTimer) clearTimeout(disparoMsgTimer);
+            disparoMsgTimer = setTimeout(() => { disparoMsg.value = ''; }, 8000);
+        }
+
+        // Dispara una vuelta inmediata (#337). El estado en vivo se enciende solo por el polling.
+        async function disparar() {
+            if (disparando.value || pausado.value || running.value) return;
+            disparando.value = true;
+            try {
+                const { data } = await axios.post('/api/roadmap/circuito/disparar');
+                flashDisparo('▶ ' + (data.mensaje || 'Disparo encolado.'));
+                pollEstado();
+            } catch (e) {
+                flashDisparo('⚠ ' + (e.response?.data?.mensaje || 'No se pudo disparar (¿circuito en pausa?).'));
+            } finally {
+                disparando.value = false;
+            }
+        }
+
+        // Marca/desmarca un item como urgente; al marcar, dispara una vuelta (#337).
+        async function marcarUrgente(it) {
+            if (urgiendo.value) return;
+            urgiendo.value = it.id;
+            const nuevo = !it.urgente;
+            try {
+                const { data } = await axios.post(`/api/roadmap/items/${it.id}/urgente`, { urgente: nuevo });
+                it.urgente = data.urgente;
+                if (data.disparo?.mensaje) flashDisparo('🔥 #' + it.id + ' urgente · ' + data.disparo.mensaje);
+                else flashDisparo('#' + it.id + (data.urgente ? ' marcado urgente.' : ' ya no es urgente.'));
+                pollEstado();
+            } catch (e) {
+                flashDisparo('⚠ ' + (e.response?.data?.error || 'No se pudo marcar urgente.'));
+            } finally {
+                urgiendo.value = null;
+            }
         }
 
         async function pollEstado() {
@@ -422,6 +479,7 @@ export default {
         onUnmounted(() => {
             if (estadoTimer) clearInterval(estadoTimer);
             if (tickTimer) clearInterval(tickTimer);
+            if (disparoMsgTimer) clearTimeout(disparoMsgTimer);
         });
 
         return {
@@ -435,6 +493,8 @@ export default {
             live, running, estadoClass, estadoLabel, elapsedRunning, sinceBeat, fmtClock,
             ultimaHace, proximaEn, cronCaido, intervaloMin,
             logOpen, logTail, logPre, toggleLog,
+            // Disparo manual + urgente (#337)
+            canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente,
         };
     },
 };
@@ -470,6 +530,12 @@ export default {
 .tc-barbtns{display:flex;gap:8px;align-items:center;flex:0 0 auto;}
 .tc-logbtn{font-size:12.5px;font-weight:600;color:var(--tc-ink);background:var(--tc-surface);border:1px solid var(--tc-line);padding:7px 13px;border-radius:9px;cursor:pointer;}
 .tc-logbtn-on{border-color:var(--tc-accent);color:var(--tc-accent);}
+/* ── Disparo manual + urgente (#337) ── */
+.tc-runbtn{font-size:12.5px;font-weight:700;color:#fff;background:var(--tc-accent);border:1px solid var(--tc-accent);padding:7px 13px;border-radius:9px;cursor:pointer;}
+.tc-runbtn:disabled{opacity:.5;cursor:default;}
+.tc-btn-urg{background:#fff7ed;color:#c2410c;border-color:#fed7aa;}
+.tc-btn-urg-on{background:#fb923c;color:#fff;border-color:#f97316;}
+.tc-disparo-msg{margin-top:12px;padding:9px 14px;border-radius:10px;font-size:12.8px;background:rgba(45,212,191,.12);color:#0f766e;border:1px solid #99f6e4;}
 .tc-alert{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12.8px;line-height:1.4;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;}
 .tc-alert-soft{background:#fffbeb;color:#b45309;border-color:#fde68a;}
 .tc-livelog{margin-top:12px;background:#0a1120;border:1px solid #1e293b;border-radius:12px;overflow:hidden;}
@@ -542,6 +608,10 @@ export default {
 .tc-dark .tc-idle{background:rgba(148,163,184,.15);color:#94a3b8;}
 .tc-dark .tc-logbtn{background:#1c2740;color:#cbd5e1;border-color:#2a3550;}
 .tc-dark .tc-logbtn-on{border-color:#2dd4bf;color:#2dd4bf;}
+.tc-dark .tc-runbtn{background:#0f766e;border-color:#0f766e;color:#e8fffb;}
+.tc-dark .tc-btn-urg{background:rgba(251,146,60,.14);color:#fdba74;border-color:#7c3a1d;}
+.tc-dark .tc-btn-urg-on{background:#c2410c;color:#fff;border-color:#ea580c;}
+.tc-dark .tc-disparo-msg{background:rgba(45,212,191,.12);color:#5eead4;border-color:#155e52;}
 .tc-dark .tc-alert{background:rgba(248,113,113,.12);color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-alert-soft{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4a20;}
 .tc-dark .tc-lvA{background:rgba(74,222,128,.15);color:#4ade80;}

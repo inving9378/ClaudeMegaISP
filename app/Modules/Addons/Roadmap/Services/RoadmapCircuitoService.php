@@ -181,6 +181,7 @@ class RoadmapCircuitoService
             'estado_aprobacion' => $i->estado_aprobacion,
             'priority'          => $i->priority,
             'status'            => $i->status,
+            'urgente'           => (bool) $i->urgente,
         ];
     }
 
