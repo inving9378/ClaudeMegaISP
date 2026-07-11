@@ -401,3 +401,10 @@ distingue "reclamado para mí" de "otro actor lo está trabajando"). Se creó la
 (`git checkout -b <rama> main` + registrar `branch` en el item), replicando exactamente lo que
 hace el comando, sin tocar `RamaItemCommand.php`. Vale la pena revisar esa interacción GATE4 ×
 #341 — probablemente afecta a los demás items paralelos del mismo lote (misma causa raíz).
+
+## 2026-07-11 15:30 — Circuito: pool continuo + revisor afinado/escalonado + perfil de Irving
+- **Pool continuo (#334):** vuelta.sh en modo por-item ahora es un WORKER LOOP — al terminar su item pide el siguiente con `circuito:claim-next` (reclamo atómico serializado por flock, respeta pausa) SIN esperar el cron → slots llenos sin valles. PROBADO: worker wt-4 tomó 2 items más sin cron; 6 running sostenidos; box sano (load 1.6/4 cores). Commit `d50b0770`, merge a main.
+- **Revisor afinado (#338):** denylist sin falsos positivos ('rol '/'roles'/'auth'/'banco'/'prod' bare fuera; sensibilidad real cubierta por términos específicos) + alcance ampliado un escalón. **Backlog B restante es sensible-pesado** (login/token/permiso/prod/dinero) → escala correcto a la bandeja; autoriza los técnicos-seguros (#259 env→config). El pool seguro está limitado por la naturaleza del backlog, no por sobre-escalación.
+- **Modelo escalonado:** Sonnet rutina; Opus 2ª opinión SOLO en borderline/baja-confianza; C → Opus arma BRIEF (`circuito:brief-c`, cron 10 min). **Opus va por API (ClaudeApiClient), NO por el Max/CLI** → los ejecutores (claude -p) siguen en Sonnet, el Max no sube por el escalonado.
+- **Perfil de Irving** (docs/perfil-decisiones-irving.md) inlineado al prompt del revisor/decisor: guardrails+preferencias+frontera+decisiones pasadas. Editable, sin secretos. Loop de aprendizaje desde la bandeja = item nuevo registrado (aprobado_irving).
+- **Cron paralelo:** scheduler/min (bootstrap) + workers self-refill (pool) + revisar-backlog --apply/2min + brief-c/10min + disparo-check (merge drain).
