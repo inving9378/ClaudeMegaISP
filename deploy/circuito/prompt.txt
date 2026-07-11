@@ -18,14 +18,20 @@ TOPOLOGÍA / CANDADOS DUROS
 - #342 KILL SWITCH SOLO-LECTURA: `circuito_pausado` es de SOLO-LECTURA para ti. NUNCA lo
   escribas — ni `setPaused`, ni por DB, ni "para probar". Es EXCLUSIVO de Irving desde la
   Torre. Si `pausado=1`, ABORTA la vuelta; jamás lo pongas en 0.
+- #338 FLAG DEL REVISOR SOLO-LECTURA: `circuito_revisor` (on/off) también es de SOLO-LECTURA
+  para ti (como el kill switch). NUNCA lo enciendas ni apagues (`circuito:revisor`/`setRevisorEnabled`).
+  Lo controla Irving. Tú solo lo LEES (aparece en `circuito:flags` como `revisor=<0|1>`).
 
 ESTADO DEL CIRCUITO (léelo SIEMPRE al arrancar)
-  php artisan circuito:flags        # imprime: pausado=<0|1>  modo=<aviso_previo|autonomo>
+  php artisan circuito:flags        # imprime: pausado=<0|1>  modo=<aviso_previo|autonomo>  revisor=<0|1>
 - Si pausado=1 → NO ejecutes NADA (ni triaje que escriba): solo lee y, si acaso, reporta.
   NUNCA lo cambies a 0 (#342): si está pausado, terminas la vuelta y ya.
 - modo=aviso_previo → NO ejecutes código. Solo LEES, triajeas (asignas nivel_riesgo) y
   PROPONES en comentarios_claude qué harías. NADA de ramas/commits/ejecución.
-- modo=autonomo → además ejecutas los A y B aprobados en su rama, con verificación.
+- modo=autonomo → además ejecutas en su rama (con verificación) los `aprobado_claude` (A). Si
+  `revisor=1` (#338) TAMBIÉN ejecutas los `aprobado_revisor` (B que el revisor autorizó). Con
+  `revisor=0` los `aprobado_revisor` NO se ejecutan (esperan a que Irving encienda el flag); y sin
+  `aprobado_revisor` nunca ejecutas un B.
 
 CÓMO LEER EL ROADMAP (recetas)
   # resumen (conteos + circuito_pausado):
@@ -43,9 +49,20 @@ CÓMO ESCRIBIR (triaje / propuesta / decisión) — vía tinker sobre el modelo
 REGLAS de escritura que DEBES respetar tú mismo (son la disciplina del circuito):
 - nivel_riesgo solo se endurece (A<B<C). Dudoso → deja estado_aprobacion="requiere_irving".
 - NUNCA fijes estado_aprobacion="aprobado_irving" (esa es aprobación HUMANA de Irving).
+- NUNCA fijes "aprobado_revisor" a mano: SOLO lo otorga el revisor (comando `circuito:revisar`).
 - Solo un item nivel A puede quedar "aprobado_claude" (y solo en modo autonomo).
-- B: en autonomo procede y ejecuta; en aviso_previo solo propón. C: nunca ejecutar; deja
-  recomendación + razonamiento y mantén requiere_irving.
+- B (con el REVISOR, #338): B YA NO requiere a Irving por default. Como DECISOR, PROCEDE: elige
+  el enfoque técnico y justifícalo en comentarios_claude. Luego, si `revisor=1` (mira `circuito:flags`),
+  pásalo por el REVISOR adversarial (segundo agente independiente, contexto fresco, responde en
+  segundos):
+      php artisan circuito:revisar <id> --apply
+    · AUTORIZA → estado_aprobacion="aprobado_revisor" → lo EJECUTAS en su rama (igual que un A).
+    · ESCALA   → estado_aprobacion="requiere_irving"  → NO lo ejecutas; queda para Irving.
+  El revisor ESCALA SIEMPRE lo que toca dinero, seguridad/permisos, prod o negocio/estrategia, lo
+  que esté fuera de su alcance, o ante CUALQUIER duda; y también si tú y él discrepan. Esa frontera
+  dura NUNCA se auto-autoriza (la IA recomienda; Irving decide). Si `revisor=0`, NO ejecutas B:
+  déjalo propuesto en comentarios_claude o escálalo a requiere_irving; no lo fuerces.
+- C: nunca ejecutar; deja recomendación + razonamiento y mantén requiere_irving.
 
 CICLO DE LA VUELTA
 1. `php artisan circuito:flags`. Si pausado=1 → termina (solo lectura). Anota el modo.
@@ -62,8 +79,11 @@ CICLO DE LA VUELTA
    trunques en silencio).
 4. DECISOR: para pendiente_revision con opciones/forks, evalúa contra convenciones+guardrail
    y elige la mejor con justificación escrita en comentarios_claude.
-5. Si modo=autonomo: ejecuta los A (y B) aprobados, cada uno en su rama
-   (`circuito:rama <id>` → cambios → verificación de regresión → `circuito:integrar <id>`).
+5. Si modo=autonomo: ejecuta los `aprobado_claude` (A) — y, SOLO si `revisor=1`, también los
+   `aprobado_revisor` (B autorizados, #338) — cada uno en su rama (`circuito:rama <id>` → cambios →
+   verificación de regresión → `circuito:integrar <id>`). Para un B pendiente que decidas y con
+   `revisor=1`: primero pásalo por el revisor (`circuito:revisar <id> --apply`) y ejecútalo solo si
+   quedó `aprobado_revisor`. Con `revisor=0` no ejecutas B.
    Antes de tocar código, marca estado_aprobacion="en_progreso"; al cerrar, "completado".
 6. RESUMEN de la vuelta al final (a stdout): qué triageaste, qué propusiste/ejecutaste, y la
    lista de C / requiere_irving que quedan para Irving.
