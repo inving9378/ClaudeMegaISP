@@ -33,6 +33,9 @@ class RoadmapCircuitoService
 
     public const MODOS_INTEGRACION = ['auto-merge', 'revisar-y-mergear'];
 
+    /** Flag del agente REVISOR (#338): '1' = ON. Default OFF (arranque conservador). Control de Irving. */
+    public const REVISOR_KEY = 'circuito_revisor';
+
     /**
      * Estado EN VIVO de la vuelta actual (#335), espejeado en `settings` como un solo
      * JSON. Es el canal compartido: lo ESCRIBE el ejecutor on-box (usuario meganet, que
@@ -126,6 +129,23 @@ class RoadmapCircuitoService
             $modo = 'auto-merge';
         }
         $this->putSetting(self::MODO_INTEGRACION_KEY, $modo);
+    }
+
+    /**
+     * Agente REVISOR (#338): ¿está ON? Default OFF (arranque conservador). Cuando está ON, el
+     * ejecutor consulta al revisor para sus B (dentro de alcance) y EJECUTA los `aprobado_revisor`.
+     * Con OFF, el revisor no participa en el ciclo y los `aprobado_revisor` NO se ejecutan solos
+     * (quedan marcados esperando que Irving encienda el flag). El ejecutor NUNCA debe escribirlo.
+     */
+    public function revisorEnabled(): bool
+    {
+        return (string) DB::table('settings')->where('key', self::REVISOR_KEY)->value('value') === '1';
+    }
+
+    /** Enciende/apaga el flag del revisor (control de Irving; el ejecutor no lo toca). */
+    public function setRevisorEnabled(bool $on): void
+    {
+        $this->putSetting(self::REVISOR_KEY, $on ? '1' : '0');
     }
 
     private function putSetting(string $key, string $val): void
@@ -257,9 +277,16 @@ class RoadmapCircuitoService
                 . 'es exclusiva de Irving desde la Torre de control.';
         }
 
-        // (0.b) KILL SWITCH: en pausa, NADIE puede aprobar/ejecutar (aprobado_claude).
+        // (0.a-bis) #338: 'aprobado_revisor' lo otorga SOLO el revisor interno on-box
+        // (RevisorService). La vía externa/MCP no puede fijarlo (ni Cowork ni nadie de fuera).
+        if (($data['estado_aprobacion'] ?? null) === 'aprobado_revisor') {
+            return "La vía externa/MCP no puede fijar 'aprobado_revisor': lo otorga exclusivamente "
+                . 'el revisor adversarial interno on-box (#338).';
+        }
+
+        // (0.b) KILL SWITCH: en pausa, NADIE puede aprobar/ejecutar (aprobado_claude / aprobado_revisor).
         // Leer y reportar (comentarios_claude, requiere_irving, etc.) sigue permitido.
-        if (($data['estado_aprobacion'] ?? null) === 'aprobado_claude' && $this->isPaused()) {
+        if (in_array($data['estado_aprobacion'] ?? null, ['aprobado_claude', 'aprobado_revisor'], true) && $this->isPaused()) {
             return 'Circuito en PAUSA (kill switch activo): no se puede aprobar ni ejecutar '
                 . '(aprobado_claude). Se permite leer y reportar (comentarios_claude, requiere_irving). '
                 . 'Reactiva el circuito desde la Torre de control para volver a ejecutar.';
