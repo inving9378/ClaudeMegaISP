@@ -48,6 +48,13 @@ class RoadmapCircuitoService
     /** Cuántas líneas del final del log se espejean a BD para el panel "Ver log en vivo". */
     private const LOG_TAIL_LINES = 60;
 
+    /**
+     * Flag de DISPARO manual pendiente (#337): lo escribe la Torre (www-data) y lo consume
+     * el picker on-box (meganet). Un SOLO flag ⇒ debounce natural (N disparos en la ventana
+     * colapsan a una vuelta). JSON: { requested_at, by, origin, item_id }.
+     */
+    public const DISPARO_KEY = 'circuito_disparo_pendiente';
+
     public function find(int $id): ?RoadmapItem
     {
         return RoadmapItem::find($id);
@@ -436,5 +443,90 @@ class RoadmapCircuitoService
         }
 
         return null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DISPARO MANUAL / INMEDIATO (#337) — flag en BD + auditoría.
+    // La Torre (www-data) SOLICITA; el picker on-box (meganet) CONSUME y lanza vuelta.sh.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Solicita una vuelta inmediata. Decisión de Irving: EN PAUSA se BLOQUEA (no encola).
+     * Si ya corre una vuelta, el flag queda pendiente y el picker la dispara al terminar
+     * (= "encola", nunca solapa). `origin` = 'boton' | 'urgente'.
+     */
+    public function requestDisparo(string $by, string $origin = 'boton', ?int $itemId = null): array
+    {
+        if ($this->isPaused()) {
+            return [
+                'ok'      => false,
+                'motivo'  => 'pausado',
+                'mensaje' => 'El circuito está en pausa (kill switch). Reanúdalo para poder ejecutar.',
+            ];
+        }
+
+        $origin = in_array($origin, ['boton', 'urgente'], true) ? $origin : 'boton';
+        $now = now();
+
+        // Un solo flag = debounce natural (N disparos en la ventana → 1 vuelta).
+        $this->putSetting(self::DISPARO_KEY, json_encode([
+            'requested_at' => $now->timestamp,
+            'by'           => $by,
+            'origin'       => $origin,
+            'item_id'      => $itemId,
+        ], JSON_UNESCAPED_UNICODE));
+
+        DB::table('circuito_disparos')->insert([
+            'requested_by' => mb_substr($by, 0, 190),
+            'origin'       => $origin,
+            'item_id'      => $itemId,
+            'requested_at' => $now,
+            'created_at'   => $now,
+            'updated_at'   => $now,
+        ]);
+
+        $running = (bool) ($this->liveState()['running'] ?? false);
+
+        return [
+            'ok'           => true,
+            'ya_corriendo' => $running,
+            'mensaje'      => $running
+                ? 'Ya hay una vuelta corriendo; tu disparo quedó encolado para la siguiente.'
+                : 'Disparo encolado; la vuelta arranca en segundos.',
+        ];
+    }
+
+    /** Lee el flag de disparo pendiente (o null). */
+    public function pendingDisparo(): ?array
+    {
+        $raw = DB::table('settings')->where('key', self::DISPARO_KEY)->value('value');
+        if (! $raw) {
+            return null;
+        }
+        $d = json_decode((string) $raw, true);
+
+        return is_array($d) ? $d : null;
+    }
+
+    /**
+     * El picker CONSUME el flag: lo borra (atómico-suficiente para un único picker) y sella
+     * consumed_at en la auditoría pendiente. Devuelve el flag consumido (o null si no había).
+     */
+    public function consumeDisparo(): ?array
+    {
+        $flag = $this->pendingDisparo();
+        if (! $flag) {
+            return null;
+        }
+
+        $this->clearDisparo();
+        DB::table('circuito_disparos')->whereNull('consumed_at')->update(['consumed_at' => now()]);
+
+        return $flag;
+    }
+
+    public function clearDisparo(): void
+    {
+        DB::table('settings')->where('key', self::DISPARO_KEY)->delete();
     }
 }

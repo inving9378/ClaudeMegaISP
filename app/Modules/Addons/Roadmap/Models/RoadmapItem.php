@@ -24,6 +24,8 @@ class RoadmapItem extends Model
         'origen_item_id',
         // Integración robusta (#325)
         'marcado_version',
+        // Disparo/urgente (#337)
+        'urgente', 'urgente_at', 'urgente_by',
     ];
 
     protected $casts = [
@@ -35,6 +37,8 @@ class RoadmapItem extends Model
         'log'          => 'array',
         'opciones'     => 'array',
         'marcado_version' => 'boolean',
+        'urgente'      => 'boolean',
+        'urgente_at'   => 'datetime',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
@@ -63,7 +67,9 @@ class RoadmapItem extends Model
 
     public function scopeOrdered($query)
     {
-        return $query->orderByRaw("FIELD(status,'in_progress','pending','done','cancelled')")
+        // Urgentes (#337) primero, luego el orden habitual (estado, posición, id).
+        return $query->orderByDesc('urgente')
+                     ->orderByRaw("FIELD(status,'in_progress','pending','done','cancelled')")
                      ->orderBy('position')
                      ->orderBy('id');
     }
