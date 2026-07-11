@@ -1,20 +1,61 @@
 <template>
   <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <!-- Estado del circuito + kill switch -->
+    <!-- Estado EN VIVO del circuito (#335) + kill switch -->
     <div class="tc-statusbar">
       <div class="tc-left">
-        <span class="tc-pill" :class="pausado ? 'tc-pause' : 'tc-run'">
-          <span v-if="!pausado" class="tc-dotlive"></span>{{ pausado ? 'Circuito en pausa' : 'Circuito activo' }}
+        <span class="tc-pill" :class="estadoClass">
+          <span v-if="running" class="tc-livedot"></span>
+          <span v-else class="tc-statdot" :class="estadoClass"></span>
+          {{ estadoLabel }}
         </span>
         <div>
-          <h1 class="tc-h1">Circuito CC · Torre de control</h1>
-          <div class="tc-meta">{{ total }} items · modo <b>{{ modo }}</b><span v-if="generatedAt"> · actualizado {{ rel(generatedAt) }}</span></div>
+          <h1 class="tc-h1">
+            <template v-if="running">Vuelta en curso<span v-if="live.current_item" class="tc-hnorm"> · tocando <span class="tc-idnum">#{{ live.current_item }}</span></span></template>
+            <template v-else>Circuito CC · Torre de control</template>
+          </h1>
+          <div class="tc-meta">
+            <template v-if="running">
+              Corriendo hace <b class="tc-strong">{{ fmtClock(elapsedRunning) }}</b> · modo <b>{{ modo }}</b><span class="tc-beat"> · ♥ vivo hace {{ sinceBeat }}s</span>
+            </template>
+            <template v-else-if="pausado">
+              Circuito detenido · no ejecuta hasta reanudar · {{ total }} items
+            </template>
+            <template v-else>
+              <span v-if="ultimaHace">Última vuelta <b class="tc-strong">{{ ultimaHace }}</b></span><span v-else>Sin vueltas registradas aún</span><span v-if="proximaEn"> · próxima <b class="tc-strong">{{ proximaEn }}</b></span> · {{ total }} items · modo <b>{{ modo }}</b>
+            </template>
+          </div>
         </div>
       </div>
-      <button class="tc-killbtn" :class="{ 'tc-resume': pausado }" :disabled="toggling" @click="toggle">
-        {{ toggling ? '…' : (pausado ? '▶ Reanudar circuito' : '⏸ Pausar circuito') }}
-      </button>
+      <div class="tc-barbtns">
+        <button v-if="canDisparar" class="tc-runbtn" :disabled="disparando || pausado || running"
+          :title="pausado ? 'Reanuda el circuito para ejecutar' : (running ? 'Ya hay una vuelta en curso' : '')"
+          @click="disparar">{{ disparando ? '⏳ Disparando…' : '▶ Ejecutar vuelta ahora' }}</button>
+        <button class="tc-logbtn" :class="{ 'tc-logbtn-on': logOpen }" @click="toggleLog">{{ logOpen ? '✕ Ocultar log' : '👁 Ver log en vivo' }}</button>
+        <button class="tc-killbtn" :class="{ 'tc-resume': pausado }" :disabled="toggling" @click="toggle">
+          {{ toggling ? '…' : (pausado ? '▶ Reanudar circuito' : '⏸ Pausar circuito') }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Feedback del disparo manual (#337) -->
+    <div v-if="disparoMsg" class="tc-disparo-msg">{{ disparoMsg }}</div>
+
+    <!-- Aviso: posible circuito caído -->
+    <div v-if="running && live.stale" class="tc-alert">
+      ⚠ <b>Posible circuito caído</b> — la vuelta figura como corriendo, pero el latido no se actualiza hace {{ sinceBeat }}s. Revisa el ejecutor on-box (o pausa y reanuda).
+    </div>
+    <div v-else-if="cronCaido" class="tc-alert tc-alert-soft">
+      ⚠ <b>Posible cron detenido</b> — la última vuelta fue hace {{ ultimaHace }} y el circuito debería correr cada {{ intervaloMin }} min. Verifica el cron del ejecutor.
+    </div>
+
+    <!-- Log en vivo (#335): tail espejeado por BD -->
+    <div v-if="logOpen" class="tc-livelog">
+      <div class="tc-livelog-head">
+        <span class="tc-livelog-tag"><span class="tc-livedot"></span>LOG EN VIVO</span>
+        <span>{{ running ? 'streaming…' : 'última vuelta' }}<span v-if="live.current_item"> · #{{ live.current_item }}</span></span>
+      </div>
+      <pre ref="logPre" class="tc-livelog-pre">{{ logTail || 'Sin salida todavía…' }}</pre>
     </div>
 
     <div v-if="loading" class="tc-meta tc-loading">Cargando datos del circuito…</div>
@@ -57,6 +98,10 @@
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cerrar')">✔ Cerrar</button>
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cancelar')">⊘ Cancelar</button>
                 <button class="tc-btn tc-btn-seg" :disabled="deciding === it.id" @click="toggleSeg(it)">＋ Seguimiento</button>
+                <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
+                  :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
+                  :title="it.urgente ? 'Quitar urgente' : 'Marcar urgente y disparar una vuelta ya'">
+                  {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Urgente ✓' : '🔥 Urgente') }}</button>
                 <span v-if="deciding === it.id" class="tc-meta">Guardando…</span>
               </div>
 
@@ -144,7 +189,7 @@
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import { darkMode } from '../../../hook/appConfig.js';
 
@@ -162,6 +207,25 @@ export default {
         const auditItem = ref(null);
         const ejecuciones = ref([]);
         const modo = ref('aviso_previo');
+
+        // Estado EN VIVO de la vuelta (#335)
+        const live = ref({ running: false, stale: false, started_at: null, heartbeat_at: null, current_item: null });
+        const logTail = ref('');
+        const logOpen = ref(false);
+        const proximaAt = ref(null);
+        const ultimaAt = ref(null);
+        const intervaloMin = ref(30);
+        const logPre = ref(null);
+        const nowMs = ref(Date.now());   // ticker local para animar cronómetro/heartbeat entre polls
+        let estadoTimer = null;          // polling de /circuito/estado
+        let tickTimer = null;            // ticker de 1s
+
+        // Disparo manual + urgente (#337)
+        const canDisparar = ref(false);
+        const disparando = ref(false);
+        const urgiendo = ref(null);      // id del item marcándose urgente
+        const disparoMsg = ref('');
+        let disparoMsgTimer = null;
 
         // Bandeja de decisiones interactiva (#313)
         const sel = reactive({});      // id -> opción elegida
@@ -222,11 +286,115 @@ export default {
             return `hace ${Math.round(h / 24)} d`;
         };
 
+        // ── Estado en vivo derivado (#335) ──────────────────────────────────
+        // Prioridad: pausado > corriendo > inactivo (el kill switch manda sobre todo).
+        const running = computed(() => !pausado.value && !!live.value.running);
+        const estadoClass = computed(() => (pausado.value ? 'tc-pause' : running.value ? 'tc-run' : 'tc-idle'));
+        const estadoLabel = computed(() => (pausado.value ? 'Pausado' : running.value ? 'Ejecutando' : 'Inactivo'));
+
+        const secsSince = (iso) => (iso ? Math.max(0, Math.floor((nowMs.value - new Date(iso).getTime()) / 1000)) : null);
+        const elapsedRunning = computed(() => (running.value ? secsSince(live.value.started_at) : null));
+        const sinceBeat = computed(() => secsSince(live.value.heartbeat_at));
+
+        const fmtClock = (s) => {
+            if (s == null) return '—';
+            const m = Math.floor(s / 60), sec = s % 60;
+            if (m < 60) return `${m}:${String(sec).padStart(2, '0')}`;
+            const h = Math.floor(m / 60);
+            return `${h}:${String(m % 60).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        };
+
+        const ultimaHaceMin = computed(() => {
+            const s = secsSince(ultimaAt.value);
+            return s == null ? null : Math.floor(s / 60);
+        });
+        const ultimaHace = computed(() => (ultimaAt.value ? rel(ultimaAt.value) : null));
+        const proximaEn = computed(() => {
+            if (!proximaAt.value) return null;
+            const diff = new Date(proximaAt.value).getTime() - nowMs.value;
+            const m = Math.round(diff / 60000);
+            if (m <= 0) return 'en instantes';
+            return m < 60 ? `en ${m} min` : `en ${Math.round(m / 60)} h`;
+        });
+        // Cron detenido: inactivo pero la última vuelta es más vieja que 2× el intervalo esperado.
+        const cronCaido = computed(() =>
+            !pausado.value && !running.value && ultimaHaceMin.value != null &&
+            ultimaHaceMin.value > Math.max(2, intervaloMin.value * 2)
+        );
+
+        function applyEstado(data) {
+            pausado.value = !!data.circuito_pausado;
+            modo.value = data.circuito_modo || modo.value;
+            live.value = data.live || { running: false, stale: false };
+            if (typeof data.log_tail === 'string') logTail.value = data.log_tail;
+            proximaAt.value = data.proxima_vuelta_at || null;
+            ultimaAt.value = data.ultima_vuelta_at || null;
+            if (data.circuito_intervalo_min) intervaloMin.value = data.circuito_intervalo_min;
+            if (typeof data.can_disparar === 'boolean') canDisparar.value = data.can_disparar;
+        }
+
+        function flashDisparo(msg) {
+            disparoMsg.value = msg;
+            if (disparoMsgTimer) clearTimeout(disparoMsgTimer);
+            disparoMsgTimer = setTimeout(() => { disparoMsg.value = ''; }, 8000);
+        }
+
+        // Dispara una vuelta inmediata (#337). El estado en vivo se enciende solo por el polling.
+        async function disparar() {
+            if (disparando.value || pausado.value || running.value) return;
+            disparando.value = true;
+            try {
+                const { data } = await axios.post('/api/roadmap/circuito/disparar');
+                flashDisparo('▶ ' + (data.mensaje || 'Disparo encolado.'));
+                pollEstado();
+            } catch (e) {
+                flashDisparo('⚠ ' + (e.response?.data?.mensaje || 'No se pudo disparar (¿circuito en pausa?).'));
+            } finally {
+                disparando.value = false;
+            }
+        }
+
+        // Marca/desmarca un item como urgente; al marcar, dispara una vuelta (#337).
+        async function marcarUrgente(it) {
+            if (urgiendo.value) return;
+            urgiendo.value = it.id;
+            const nuevo = !it.urgente;
+            try {
+                const { data } = await axios.post(`/api/roadmap/items/${it.id}/urgente`, { urgente: nuevo });
+                it.urgente = data.urgente;
+                if (data.disparo?.mensaje) flashDisparo('🔥 #' + it.id + ' urgente · ' + data.disparo.mensaje);
+                else flashDisparo('#' + it.id + (data.urgente ? ' marcado urgente.' : ' ya no es urgente.'));
+                pollEstado();
+            } catch (e) {
+                flashDisparo('⚠ ' + (e.response?.data?.error || 'No se pudo marcar urgente.'));
+            } finally {
+                urgiendo.value = null;
+            }
+        }
+
+        async function pollEstado() {
+            try {
+                const { data } = await axios.get('/api/roadmap/circuito/estado');
+                const wasRunning = running.value;
+                applyEstado(data);
+                if (logOpen.value) nextTick(scrollLog);
+                // Al TERMINAR una vuelta, refresca el panorama (nuevas ejecuciones/decisiones).
+                if (wasRunning && !running.value) load();
+            } catch (e) { /* silencioso: no romper la Torre por un poll */ }
+        }
+
+        function toggleLog() {
+            logOpen.value = !logOpen.value;
+            if (logOpen.value) nextTick(scrollLog);
+        }
+        function scrollLog() {
+            if (logPre.value) logPre.value.scrollTop = logPre.value.scrollHeight;
+        }
+
         async function load() {
             loading.value = true;
             try {
                 const { data } = await axios.get('/api/roadmap/torre');
-                pausado.value = !!data.circuito_pausado;
                 generatedAt.value = data.generated_at;
                 resumen.value = data.resumen || { total: 0, por_estado: {}, por_nivel: {} };
                 cola.value = data.cola_requiere_irving || [];
@@ -234,7 +402,7 @@ export default {
                 riesgos.value = data.riesgos_auditoria || [];
                 auditItem.value = data.auditoria_item_id || null;
                 ejecuciones.value = data.ejecuciones || [];
-                modo.value = data.circuito_modo || 'aviso_previo';
+                applyEstado(data);
             } finally {
                 loading.value = false;
             }
@@ -302,7 +470,17 @@ export default {
             }
         }
 
-        onMounted(load);
+        onMounted(() => {
+            load();
+            // Polling en vivo del estado ligero + ticker local para el cronómetro/heartbeat.
+            estadoTimer = setInterval(pollEstado, 4000);
+            tickTimer = setInterval(() => { nowMs.value = Date.now(); }, 1000);
+        });
+        onUnmounted(() => {
+            if (estadoTimer) clearInterval(estadoTimer);
+            if (tickTimer) clearInterval(tickTimer);
+            if (disparoMsgTimer) clearTimeout(disparoMsgTimer);
+        });
 
         return {
             loading, toggling, pausado, generatedAt, total, est, nivel, niveles, barH,
@@ -311,6 +489,12 @@ export default {
             sel, coment, deciding, decidir,
             segOpen, seg, toggleSeg, crearSeguimiento,
             darkMode, ejecuciones, modo,
+            // Estado en vivo (#335)
+            live, running, estadoClass, estadoLabel, elapsedRunning, sinceBeat, fmtClock,
+            ultimaHace, proximaEn, cronCaido, intervaloMin,
+            logOpen, logTail, logPre, toggleLog,
+            // Disparo manual + urgente (#337)
+            canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente,
         };
     },
 };
@@ -335,6 +519,29 @@ export default {
 .tc-killbtn{font-size:12.5px;font-weight:600;color:#b91c1c;background:#fff;border:1px solid #fecaca;padding:7px 13px;border-radius:9px;cursor:pointer;}
 .tc-killbtn.tc-resume{color:#047857;border-color:#bbf7d0;background:#f0fdf4;}
 .tc-killbtn:disabled{opacity:.6;cursor:default;}
+/* ── Estado en vivo (#335) ── */
+.tc-idle{background:#f1f5f9;color:#475569;}
+.tc-livedot{width:9px;height:9px;border-radius:50%;background:#10b981;flex:0 0 auto;animation:tc-pulse 1.3s infinite;}
+@keyframes tc-pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+.tc-statdot{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.7;flex:0 0 auto;}
+.tc-hnorm{color:var(--tc-muted);font-weight:400;}
+.tc-strong{color:var(--tc-ink);}
+.tc-beat{color:var(--tc-ok);font-weight:600;}
+.tc-barbtns{display:flex;gap:8px;align-items:center;flex:0 0 auto;}
+.tc-logbtn{font-size:12.5px;font-weight:600;color:var(--tc-ink);background:var(--tc-surface);border:1px solid var(--tc-line);padding:7px 13px;border-radius:9px;cursor:pointer;}
+.tc-logbtn-on{border-color:var(--tc-accent);color:var(--tc-accent);}
+/* ── Disparo manual + urgente (#337) ── */
+.tc-runbtn{font-size:12.5px;font-weight:700;color:#fff;background:var(--tc-accent);border:1px solid var(--tc-accent);padding:7px 13px;border-radius:9px;cursor:pointer;}
+.tc-runbtn:disabled{opacity:.5;cursor:default;}
+.tc-btn-urg{background:#fff7ed;color:#c2410c;border-color:#fed7aa;}
+.tc-btn-urg-on{background:#fb923c;color:#fff;border-color:#f97316;}
+.tc-disparo-msg{margin-top:12px;padding:9px 14px;border-radius:10px;font-size:12.8px;background:rgba(45,212,191,.12);color:#0f766e;border:1px solid #99f6e4;}
+.tc-alert{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12.8px;line-height:1.4;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;}
+.tc-alert-soft{background:#fffbeb;color:#b45309;border-color:#fde68a;}
+.tc-livelog{margin-top:12px;background:#0a1120;border:1px solid #1e293b;border-radius:12px;overflow:hidden;}
+.tc-livelog-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #1e293b;font-size:12px;color:#8b97ab;}
+.tc-livelog-tag{display:inline-flex;align-items:center;gap:7px;color:#4ade80;font-weight:700;}
+.tc-livelog-pre{margin:0;padding:12px 14px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;line-height:1.55;color:#b8c4d8;height:240px;overflow:auto;white-space:pre-wrap;word-break:break-word;}
 .tc-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:14px;}
 .tc-kpi{background:var(--tc-surface);border:1px solid var(--tc-line);border-radius:12px;padding:13px 15px;}
 .tc-n{font-size:26px;font-weight:700;line-height:1.1;}
@@ -398,6 +605,15 @@ export default {
 .tc-dark .tc-pause{background:rgba(248,113,113,.14);color:#f87171;}
 .tc-dark .tc-killbtn{background:#1c2740;color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-killbtn.tc-resume{background:#132a1f;color:#4ade80;border-color:#2b5b3b;}
+.tc-dark .tc-idle{background:rgba(148,163,184,.15);color:#94a3b8;}
+.tc-dark .tc-logbtn{background:#1c2740;color:#cbd5e1;border-color:#2a3550;}
+.tc-dark .tc-logbtn-on{border-color:#2dd4bf;color:#2dd4bf;}
+.tc-dark .tc-runbtn{background:#0f766e;border-color:#0f766e;color:#e8fffb;}
+.tc-dark .tc-btn-urg{background:rgba(251,146,60,.14);color:#fdba74;border-color:#7c3a1d;}
+.tc-dark .tc-btn-urg-on{background:#c2410c;color:#fff;border-color:#ea580c;}
+.tc-dark .tc-disparo-msg{background:rgba(45,212,191,.12);color:#5eead4;border-color:#155e52;}
+.tc-dark .tc-alert{background:rgba(248,113,113,.12);color:#f87171;border-color:#5b2b2b;}
+.tc-dark .tc-alert-soft{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4a20;}
 .tc-dark .tc-lvA{background:rgba(74,222,128,.15);color:#4ade80;}
 .tc-dark .tc-lvB{background:rgba(251,191,36,.15);color:#fbbf24;}
 .tc-dark .tc-lvC{background:rgba(248,113,113,.15);color:#f87171;}

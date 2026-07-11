@@ -24,6 +24,10 @@ class RoadmapItem extends Model
         'origen_item_id',
         // Integración robusta (#325)
         'marcado_version',
+        // Disparo/urgente (#337)
+        'urgente', 'urgente_at', 'urgente_by',
+        // Candado anti-colisión (#341)
+        'en_desarrollo_humano',
     ];
 
     protected $casts = [
@@ -35,6 +39,9 @@ class RoadmapItem extends Model
         'log'          => 'array',
         'opciones'     => 'array',
         'marcado_version' => 'boolean',
+        'urgente'      => 'boolean',
+        'urgente_at'   => 'datetime',
+        'en_desarrollo_humano' => 'boolean',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
@@ -61,9 +68,30 @@ class RoadmapItem extends Model
         return static::where('status', 'in_progress')->first();
     }
 
+    /**
+     * #341 (anti-colisión): ¿este item lo está trabajando un humano/otra sesión? El circuito
+     * autónomo NUNCA debe tomarlo para una vuelta. Señal doble: estado en_progreso (alguien lo
+     * trabaja) O bandera explícita en_desarrollo_humano (candado manual). Fuente única del guard.
+     */
+    public function estaEnDesarrollo(): bool
+    {
+        return $this->estado_aprobacion === 'en_progreso' || (bool) $this->en_desarrollo_humano;
+    }
+
+    /** Items que el circuito SÍ puede tomar (excluye en_progreso y candados humanos). #341 */
+    public function scopeTomablePorCircuito($query)
+    {
+        return $query->where('estado_aprobacion', '!=', 'en_progreso')
+                     ->where(function ($q) {
+                         $q->whereNull('en_desarrollo_humano')->orWhere('en_desarrollo_humano', false);
+                     });
+    }
+
     public function scopeOrdered($query)
     {
-        return $query->orderByRaw("FIELD(status,'in_progress','pending','done','cancelled')")
+        // Urgentes (#337) primero, luego el orden habitual (estado, posición, id).
+        return $query->orderByDesc('urgente')
+                     ->orderByRaw("FIELD(status,'in_progress','pending','done','cancelled')")
                      ->orderBy('position')
                      ->orderBy('id');
     }

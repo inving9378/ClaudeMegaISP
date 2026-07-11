@@ -257,3 +257,26 @@ en el campo `log`. Cola de aprobados+A quedó en 0.
 - **Commit:** `7e344da44e4d6954cb66d02a4cc375ce290ec1f9`.
 
 **Warm-up dev:** `config:clear` + `queue:restart` (regla de dev: nunca `config:cache` en /var/www/megaisp).
+
+## 2026-07-10 18:05 — Circuito #335: estado en vivo (heartbeat + log en vivo) en la Torre
+
+Item #335 (nivel B, rama circuito/item-335-estado-en-vivo-del-circuito-heartbeat). Indicador
+en vivo en la barra de la Torre (/releases → Panorama): Ejecutando (pulso + "tocando #NNN" +
+cronómetro + ♥ heartbeat) / Inactivo (última hace Nm · próxima en Nm) / Pausado. Aviso
+"posible circuito caído" (latido frío en run, o cron detenido en idle). Botón "Ver log en vivo"
+= tail del log de la vuelta.
+
+Restricción clave: php-fpm sirve como www-data y /home/meganet es 700 → www-data NO lee los
+logs. Solución: heartbeat + tail se ESPEJEAN por BD (settings.circuito_live). El loop de latido
+(circuito:vivo --watch) corre como meganet (sí lee el log) y escribe a BD; la Torre lo lee de BD.
+Robusto y sirve en prod.
+
+Piezas: RoadmapCircuitoService liveStart/liveBeat/liveEnd/liveState/liveLogTail/proximaVueltaAt
+(key JSON circuito_live) · comando circuito:vivo (--start/--watch/--end, watch con SIGTERM) ·
+config/circuito.php (interval_min, espejo del cron) · wrapper vuelta.sh (3 líneas aditivas:
+start + watch bg + kill/end; historial intacto) · RoadmapController torre()+estado() · ruta
+GET /api/roadmap/circuito/estado (gate roadmap_view) · TorreControl.vue (polling 4s + ticker 1s).
+
+Commits (dev, NO push, NO prod): 7cb09f67 (servicio+comando) · 73e6c082 (wrapper) · a732f2ed
+(controller+ruta) · ed67bd5b (frontend). npm run dev OK. Verificado por CLI: 3 estados +
+current_item=331 + stale a 200s + endpoint HTTP 200 con gate. PENDIENTE: validación visual de Irving.

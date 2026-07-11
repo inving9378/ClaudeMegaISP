@@ -19,6 +19,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\FlagsCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RegistrarEjecucionCommand::class,
+                \App\Modules\Addons\Roadmap\Console\VivoCommand::class,
+                \App\Modules\Addons\Roadmap\Console\DisparoCheckCommand::class,
             ]);
         }
     }

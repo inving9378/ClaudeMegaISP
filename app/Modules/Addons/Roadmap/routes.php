@@ -64,6 +64,11 @@ Route::middleware(['web', 'auth'])
     ->group(function () {
         // Torre de control del Circuito (dashboard en vivo) + kill switch.
         Route::get('/torre',               [RoadmapController::class, 'torre']);
+        // Estado en vivo ligero para el polling de la Torre (#335).
+        Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);
+        // Disparo manual de una vuelta + marcar item urgente (#337).
+        Route::post('/circuito/disparar',  [RoadmapController::class, 'disparar']);
+        Route::post('/items/{id}/urgente', [RoadmapController::class, 'urgente'])->whereNumber('id');
         Route::post('/circuito/toggle',    [RoadmapController::class, 'toggleCircuito']);
         Route::post('/circuito/decidir',   [RoadmapController::class, 'decidir']);
         Route::post('/circuito/seguimiento', [RoadmapController::class, 'seguimiento']);
