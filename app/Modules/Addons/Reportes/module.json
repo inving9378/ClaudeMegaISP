@@ -23,7 +23,7 @@
             "title": "Reportes",
             "description": "Reportes operativos y novedades del sistema.",
             "icon": "file-alt",
-            "url": "/reportes",
+            "url": "/releases",
             "permission": "release_view_release"
         }
     ],
@@ -35,7 +35,7 @@
             "type": "herramientas",
             "category": "Herramientas",
             "icon": "file-alt",
-            "url": "/reportes",
+            "url": "/releases",
             "permission": "release_view_release",
             "description": "Gestión de notas de versión (release notes) y changelog interno del sistema.",
             "doc": {
