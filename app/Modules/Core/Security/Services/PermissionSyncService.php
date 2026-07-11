@@ -9,10 +9,12 @@ use Spatie\Permission\Models\Role;
 /**
  * Servicio centralizado de sincronización de permisos a roles base.
  *
- * Reglas de negocio (decisión Irving 2026-06-04):
- *  - super-administrator + DESARROLLADOR reciben TODOS los permisos.
- *  - Cualquier permiso que termine en .view se asigna también a TODOS los
- *    demás roles existentes (permiso "básico de lectura").
+ * Reglas de negocio:
+ *  - super-administrator + DESARROLLADOR reciben TODOS los permisos (siempre).
+ *  - El reparto automático de .view a los demás roles base está GATEADO por
+ *    config('permission_sync.auto_grant_view_base_roles') (default false, item #309).
+ *    Con el flag en false los roles base NO reciben .view automáticamente; en true
+ *    se restaura el comportamiento previo (decisión 2026-06-04).
  *  - Todo método es idempotente: correrlo N veces no produce duplicados.
  */
 class PermissionSyncService
@@ -32,7 +34,7 @@ class PermissionSyncService
 
         $this->giveToFullAccessRoles($perm);
 
-        if ($this->isViewPermission($permissionName)) {
+        if ($this->autoGrantViewToBaseRoles() && $this->isViewPermission($permissionName)) {
             $this->giveToAllOtherRoles($perm);
         }
 
@@ -60,7 +62,7 @@ class PermissionSyncService
                 }
             }
 
-            if ($this->isViewPermission($perm->name)) {
+            if ($this->autoGrantViewToBaseRoles() && $this->isViewPermission($perm->name)) {
                 $report['others_view'] += $this->giveToAllOtherRoles($perm);
             }
         }
@@ -156,6 +158,16 @@ class PermissionSyncService
     private function getViewExcludedRoles(): array
     {
         return config('permission_sync.view_excluded_roles', []);
+    }
+
+    /**
+     * ¿Debe auto-otorgarse .view a los roles base? (item #309)
+     * Default false: el auto-grant re-ensanchaba los roles base podados por la reforma.
+     * super-administrator/DESARROLLADOR NO dependen de este flag (reciben todo siempre).
+     */
+    private function autoGrantViewToBaseRoles(): bool
+    {
+        return (bool) config('permission_sync.auto_grant_view_base_roles', false);
     }
 
     private function resetCache(): void
