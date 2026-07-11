@@ -35,14 +35,23 @@ class RoadmapController extends Controller
                 'opcion_elegida' => $i->opcion_elegida,
             ]));
 
-        // #348: cola EJECUTABLE — lo que el circuito SÍ puede correr (pendientes de triaje +
-        // aprobados), tomable (excluye en_progreso y candados humanos, #341), ya ordenada por
-        // 🔥→prioridad→antigüedad. Aquí el 🔥 salta la fila de ejecución y dispara vuelta.
-        $colaEjecutable = RoadmapItem::whereIn('estado_aprobacion', ['pendiente_revision', 'aprobado_claude', 'aprobado_irving'])
-            ->where('status', 'pending')
-            ->tomablePorCircuito()
+        // #348: cola EJECUTABLE — SOLO lo que el circuito AUTO-CORRE (A/B o ya aprobado por Irving),
+        // NO los C/requiere_irving/negocio (esos esperan tu decisión y jamás los corre solo).
+        // Ya ordenada 🔥→prioridad→antigüedad; aquí el 🔥 salta la fila y dispara vuelta.
+        $colaEjecutable = RoadmapItem::autoEjecutable()
             ->ordered()->limit(25)->get()
             ->map(fn (RoadmapItem $i) => $this->svc->compact($i));
+
+        // #348: resumen de la cola — cuántos auto-corre el circuito vs cuántos esperan tu decisión
+        // (+ los sin clasificar que el circuito aún triará). Cuentan sobre TODA la cola, no el limit.
+        $resumenCola = [
+            'auto_ejecutables' => RoadmapItem::autoEjecutable()->count(),
+            'espera_decision'  => RoadmapItem::esperaDecision()->count(),
+            'sin_clasificar'   => RoadmapItem::where('status', 'pending')->tomablePorCircuito()
+                ->whereNull('nivel_riesgo')
+                ->whereNotIn('estado_aprobacion', ['requiere_irving', 'rechazado', 'completado', 'cancelado'])
+                ->count(),
+        ];
 
         $actividad = RoadmapItem::whereNotNull('comentarios_claude')
             ->orderByRaw('COALESCE(revisado_at, updated_at) DESC')
@@ -92,7 +101,8 @@ class RoadmapController extends Controller
             'circuito_modo'        => $this->svc->getModo(),
             'resumen'              => $this->svc->resumen(),
             'cola_requiere_irving' => $cola,
-            'cola_ejecutable'      => $colaEjecutable,   // #348: pendientes/aprobados con 🔥 para saltar fila
+            'cola_ejecutable'      => $colaEjecutable,   // #348: SOLO auto-ejecutables (A/B o aprobados) con 🔥
+            'resumen_cola'         => $resumenCola,      // #348: N auto-ejecutables · M esperan tu decisión
             'actividad_reciente'   => $actividad,
             'riesgos_auditoria'    => $riesgos,
             'auditoria_item_id'    => $audit?->id,

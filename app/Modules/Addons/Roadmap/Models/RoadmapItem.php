@@ -87,6 +87,41 @@ class RoadmapItem extends Model
                      });
     }
 
+    /**
+     * #348: items que el circuito AUTO-EJECUTA sin una nueva decisión de Irving —
+     * nivel A/B (aún sin proponer) o cualquiera YA aprobado por Irving (aprobado_irving).
+     * Excluye requiere_irving (bandeja), terminales y candados humanos (#341, vía tomable).
+     */
+    public function scopeAutoEjecutable($query)
+    {
+        return $query->where('status', 'pending')
+                     ->tomablePorCircuito()
+                     ->whereNotIn('estado_aprobacion', ['requiere_irving', 'rechazado', 'completado', 'cancelado'])
+                     ->where(function ($q) {
+                         $q->whereIn('nivel_riesgo', ['A', 'B'])
+                           ->orWhere('estado_aprobacion', 'aprobado_irving');
+                     });
+    }
+
+    /**
+     * #348: items que ESPERAN la decisión de Irving (el circuito NO los corre solo):
+     * los de la bandeja (requiere_irving, cualquier nivel) + los de negocio/diseño
+     * (nivel C aún sin aprobar). Terminales excluidos.
+     */
+    public function scopeEsperaDecision($query)
+    {
+        return $query->where('status', 'pending')
+                     ->tomablePorCircuito()
+                     ->whereNotIn('estado_aprobacion', ['rechazado', 'completado', 'cancelado'])
+                     ->where(function ($q) {
+                         $q->where('estado_aprobacion', 'requiere_irving')
+                           ->orWhere(function ($q2) {
+                               $q2->where('nivel_riesgo', 'C')
+                                  ->where('estado_aprobacion', '!=', 'aprobado_irving');
+                           });
+                     });
+    }
+
     public function scopeOrdered($query)
     {
         // Orden efectivo de la cola (#348): 🔥 urgentes primero → prioridad (alta→media→baja,
