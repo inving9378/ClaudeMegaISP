@@ -31,6 +31,10 @@ class VivoCommand extends Command
 
         if ($this->option('start')) {
             $svc->liveStart($log);
+            // Esta vuelta ya está comprometida (tiene el flock, no está en pausa): SIRVE el
+            // disparo manual pendiente (#337) aquí, no en el picker. Así una colisión con el
+            // lock nunca "pierde" un disparo: el flag solo lo consume la vuelta que arranca.
+            $svc->consumeDisparo();
             $this->info('live: start');
 
             return self::SUCCESS;

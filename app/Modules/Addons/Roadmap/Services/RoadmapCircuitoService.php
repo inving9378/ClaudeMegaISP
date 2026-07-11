@@ -334,7 +334,9 @@ class RoadmapCircuitoService
         $log = $logPath ?: ($d['log_path'] ?? null);
 
         $d['heartbeat_at'] = time();
-        $d['finished']     = $d['finished'] ?? false;
+        // Un latido SIEMPRE significa "viva": el --watch solo corre entre --start y --end.
+        // Forzar finished=false lo hace auto-sanable (si algo dejó finished=true colgado).
+        $d['finished']     = false;
         if ($log) {
             $tail = $this->tailFile($log);
             $d['log_path']     = $log;

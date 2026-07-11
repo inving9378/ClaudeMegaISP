@@ -72,13 +72,14 @@ class DisparoCheckCommand extends Command
                 return;
             }
 
-            // No solapar: si ya corre una vuelta, deja el flag pendiente (se dispara al terminar).
+            // No solapar: si ya corre una vuelta, deja el flag PENDIENTE (se sirve al terminar).
+            // No consumimos aquí; el flag lo consume vuelta.sh vía `circuito:vivo --start`, así
+            // una colisión con el flock nunca pierde el disparo.
             if (! empty($svc->liveState()['running'])) {
                 return;
             }
 
-            // Consume el flag (lo borra + sella la auditoría) y lanza la vuelta detached.
-            $svc->consumeDisparo();
+            // Lanza la vuelta detached. El flag se consume dentro de la vuelta que arranque.
             $this->lanzarVuelta();
         } catch (\Throwable $e) {
             // No tumbar el picker por un fallo puntual; el siguiente sondeo reintenta.
