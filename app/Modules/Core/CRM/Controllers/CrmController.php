@@ -124,8 +124,9 @@ class CrmController extends Controller
         $this->data['tabs'] = $this->getTabs();
         $crmLeadInformation = CrmLeadInformation::where('crm_id', $id)->first();
         if ($crmLeadInformation) {
-            $crmLeadInformation->score++;
-            $crmLeadInformation->update();
+            // No inflar el score al abrir/refrescar la ficha: abrir el form es render, no
+            // interacción real con el prospecto. El score++ aquí contaminaba el ranking del
+            // lead por simple navegación (item #268). Contar "veces visto" -> evento aparte.
             return view($this->data['url'] . '::edit', $this->data);
         }
         return view('meganet.pages.404');
