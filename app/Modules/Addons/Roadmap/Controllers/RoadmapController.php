@@ -109,6 +109,9 @@ class RoadmapController extends Controller
             'ejecuciones'          => $ejecuciones,
             // Estado EN VIVO de la vuelta (#335): corriendo/inactivo + heartbeat + próxima.
             'live'                 => $this->svc->liveState(),
+            // Visor "Trabajando ahora" (#349): sesiones (array listo-para-N, 1 hoy) con fases
+            // y stepper + resumen de la última vuelta (CIRCUITO_META).
+            'trabajando'           => $this->svc->trabajandoAhora(),
             'proxima_vuelta_at'    => $this->svc->proximaVueltaAt(),
             'ultima_vuelta_at'     => optional($ultima?->started_at)->toIso8601String(),
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
@@ -133,6 +136,8 @@ class RoadmapController extends Controller
             'circuito_modo'     => $this->svc->getModo(),
             'live'              => $this->svc->liveState(),
             'log_tail'          => $this->svc->liveLogTail(),
+            // Visor "Trabajando ahora" (#349): stepper de fases por sesión + resumen de la vuelta.
+            'trabajando'        => $this->svc->trabajandoAhora(),
             'proxima_vuelta_at' => $this->svc->proximaVueltaAt(),
             'ultima_vuelta_at'  => optional($ultima?->started_at)->toIso8601String(),
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
