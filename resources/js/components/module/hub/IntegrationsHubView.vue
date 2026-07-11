@@ -248,6 +248,16 @@ export default {
                 <input id="sw-instance" type="text" class="form-control" placeholder="meganet-ventas">
               </div>
             </div>
+            <div id="sw-meta-wrap" style="display:none">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">App ID</label>
+                <input id="sw-app-id" type="text" class="form-control font-monospace" placeholder="1234567890123456">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">App Secret</label>
+                <input id="sw-app-secret" type="password" class="form-control font-monospace" placeholder="App Secret de developers.facebook.com">
+              </div>
+            </div>
             <div class="form-check form-switch mt-2">
               <input class="form-check-input" type="checkbox" id="sw-active" checked>
               <label class="form-check-label" for="sw-active">Integración activa</label>
@@ -257,7 +267,11 @@ export default {
         didOpen: () => {
           const sel = document.getElementById('sw-provider');
           const evo = document.getElementById('sw-evolution-wrap');
-          const toggle = () => { evo.style.display = sel.value === 'evolution' ? 'block' : 'none'; };
+          const meta = document.getElementById('sw-meta-wrap');
+          const toggle = () => {
+            evo.style.display  = sel.value === 'evolution' ? 'block' : 'none';
+            meta.style.display = sel.value === 'meta' ? 'block' : 'none';
+          };
           sel.addEventListener('change', toggle);
           toggle();
         },
@@ -269,15 +283,17 @@ export default {
           return {
             provider,
             name,
-            key:      document.getElementById('sw-key').value,
-            active:   document.getElementById('sw-active').checked,
-            endpoint: document.getElementById('sw-endpoint')?.value ?? '',
-            instance: document.getElementById('sw-instance')?.value ?? '',
+            key:       document.getElementById('sw-key').value,
+            active:    document.getElementById('sw-active').checked,
+            endpoint:  document.getElementById('sw-endpoint')?.value ?? '',
+            instance:  document.getElementById('sw-instance')?.value ?? '',
+            appId:     document.getElementById('sw-app-id')?.value ?? '',
+            appSecret: document.getElementById('sw-app-secret')?.value ?? '',
           };
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { provider, name, key, active, endpoint, instance } = result.value;
+        const { provider, name, key, active, endpoint, instance, appId, appSecret } = result.value;
         try {
           const payload = {
             provider,
@@ -286,6 +302,7 @@ export default {
             slug: provider + '-' + Date.now(),
             ...(key ? { key } : {}),
             ...(provider === 'evolution' ? { config: { endpoint, instance } } : {}),
+            ...(provider === 'meta' ? { config: { app_id: appId, app_secret: appSecret } } : {}),
           };
           await axios.post('/api/hub/integrations', payload);
           this.toast('success', 'Integración creada');
@@ -297,7 +314,8 @@ export default {
     },
 
     openEdit(item) {
-      const isEvo = item.provider === 'evolution';
+      const isEvo  = item.provider === 'evolution';
+      const isMeta = item.provider === 'meta';
 
       Swal.fire({
         title: `Editar: ${item.name}`,
@@ -329,6 +347,19 @@ export default {
               <input id="sw-instance" type="text" class="form-control" value="${this.escHtml(item.config?.instance ?? '')}" placeholder="meganet-ventas">
             </div>
             ` : ''}
+            ${isMeta ? `
+            <div class="mb-3">
+              <label class="form-label fw-semibold">App ID</label>
+              <input id="sw-app-id" type="text" class="form-control font-monospace" value="${this.escHtml(item.config?.app_id ?? '')}" placeholder="1234567890123456">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                App Secret
+                <span class="fw-normal text-muted small">(dejar vacío para no cambiar)</span>
+              </label>
+              <input id="sw-app-secret" type="password" class="form-control font-monospace" placeholder="App Secret de developers.facebook.com">
+            </div>
+            ` : ''}
             <div class="form-check form-switch mt-2">
               <input class="form-check-input" type="checkbox" id="sw-active" ${item.active ? 'checked' : ''}>
               <label class="form-check-label" for="sw-active">Integración activa</label>
@@ -340,21 +371,24 @@ export default {
           if (!name) { Swal.showValidationMessage('El nombre es requerido'); return false; }
           return {
             name,
-            key:      document.getElementById('sw-key').value,
-            active:   document.getElementById('sw-active').checked,
-            endpoint: document.getElementById('sw-endpoint')?.value ?? '',
-            instance: document.getElementById('sw-instance')?.value ?? '',
+            key:       document.getElementById('sw-key').value,
+            active:    document.getElementById('sw-active').checked,
+            endpoint:  document.getElementById('sw-endpoint')?.value ?? '',
+            instance:  document.getElementById('sw-instance')?.value ?? '',
+            appId:     document.getElementById('sw-app-id')?.value ?? '',
+            appSecret: document.getElementById('sw-app-secret')?.value ?? '',
           };
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { name, key, active, endpoint, instance } = result.value;
+        const { name, key, active, endpoint, instance, appId, appSecret } = result.value;
         try {
           const payload = {
             name,
             active,
             ...(key ? { key } : {}),
             ...(isEvo ? { config: { endpoint, instance } } : {}),
+            ...(isMeta ? { config: { ...item.config, app_id: appId, ...(appSecret ? { app_secret: appSecret } : {}) } } : {}),
           };
           await axios.put(`/api/hub/integrations/${item.id}`, payload);
           this.toast('success', 'Integración actualizada');
@@ -527,6 +561,7 @@ export default {
         anthropic: '#7c3aed', 'anthropic-legacy': '#9e6fd0',
         openai: '#10a37f', evolution: '#25d366',
         pexels: '#05a081', 'google-maps': '#4285f4',
+        meta: '#0866ff',
       };
       return map[id] ?? '#6c757d';
     },
@@ -536,6 +571,7 @@ export default {
         anthropic: 'bi bi-robot', 'anthropic-legacy': 'bi bi-robot',
         openai: 'bi bi-stars', evolution: 'bi bi-whatsapp',
         pexels: 'bi bi-images', 'google-maps': 'bi bi-geo-alt-fill',
+        meta: 'bi bi-facebook',
       };
       return map[id] ?? 'bi bi-plugin';
     },
