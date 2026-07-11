@@ -50,6 +50,7 @@ class RoadmapItem extends Model
     public const ESTADOS_APROBACION = [
         'pendiente_revision',
         'aprobado_claude',
+        'aprobado_revisor',   // #338: autorizado por el revisor adversarial (B técnico seguro)
         'requiere_irving',
         'aprobado_irving',
         'rechazado',
