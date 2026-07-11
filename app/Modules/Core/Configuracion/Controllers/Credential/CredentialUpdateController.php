@@ -50,29 +50,40 @@ class CredentialUpdateController extends Controller
         return response()->json(null);
     }
 
+    /** Carpeta canónica de credenciales (coincide con el guardado físico y con la URL que sirve el frontend: /credencial/{name}). */
+    const CREDENTIAL_DIR = 'credencial';
+
     public function upload(Request $request) {
 
-        if($request->file('image')) {
-            $file = $request->file('image');
-            $file_name = Str::uuid() . "." . $file->extension();
-    
-            $file_server = Image::make($file);
-            $file_path = public_path('credencial') . '/' . $file_name;
-            $file_server->save($file_path);
+        $request->validate([
+            'image' => 'required|image',
+            'type'  => 'required|string',
+        ]);
+
+        $file = $request->file('image');
+        $file_name = Str::uuid() . "." . $file->extension();
+
+        $dir = public_path(self::CREDENTIAL_DIR);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
         }
-    
+
+        $file_server = Image::make($file);
+        $file_path = $dir . '/' . $file_name;
+        $file_server->save($file_path);
+
         $credential = Credential::firstWhere('type', $request->type);
-    
+
         if (!$credential) {
             $credential = new Credential;
         }
-    
+
         $credential->name = $file_name;
-        $credential->path = '/credential/' . $file_name;
+        $credential->path = '/' . self::CREDENTIAL_DIR . '/' . $file_name;
         $credential->type = $request->type;
-    
+
         $credential->save();
-    
+
         return response()->json(['status' => 200, 'message' => 'Imagen actualizada correctamente']);
     }
 }
