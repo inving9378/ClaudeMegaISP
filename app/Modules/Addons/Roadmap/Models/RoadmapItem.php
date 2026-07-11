@@ -89,9 +89,15 @@ class RoadmapItem extends Model
 
     public function scopeOrdered($query)
     {
-        // Urgentes (#337) primero, luego el orden habitual (estado, posición, id).
+        // Orden efectivo de la cola (#348): 🔥 urgentes primero → prioridad (alta→media→baja,
+        // sin-prioridad al final) → estado → antigüedad (posición, id).
+        // - `urgente` (#337) es la palanca DURA: salta toda la fila.
+        // - `priority` (alta/media/baja) es la palanca SUAVE: "hazlo más pronto". FIELD invertido
+        //   + DESC deja alta(3)→media(2)→baja(1)→null/otros(0 = al final), sin degradar el
+        //   agrupamiento por estado que ya existía (in_progress→pending→done→cancelled).
         return $query->orderByDesc('urgente')
                      ->orderByRaw("FIELD(status,'in_progress','pending','done','cancelled')")
+                     ->orderByRaw("FIELD(priority,'baja','media','alta') DESC")
                      ->orderBy('position')
                      ->orderBy('id');
     }

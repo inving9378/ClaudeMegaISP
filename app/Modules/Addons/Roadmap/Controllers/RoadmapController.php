@@ -35,6 +35,15 @@ class RoadmapController extends Controller
                 'opcion_elegida' => $i->opcion_elegida,
             ]));
 
+        // #348: cola EJECUTABLE — lo que el circuito SÍ puede correr (pendientes de triaje +
+        // aprobados), tomable (excluye en_progreso y candados humanos, #341), ya ordenada por
+        // 🔥→prioridad→antigüedad. Aquí el 🔥 salta la fila de ejecución y dispara vuelta.
+        $colaEjecutable = RoadmapItem::whereIn('estado_aprobacion', ['pendiente_revision', 'aprobado_claude', 'aprobado_irving'])
+            ->where('status', 'pending')
+            ->tomablePorCircuito()
+            ->ordered()->limit(25)->get()
+            ->map(fn (RoadmapItem $i) => $this->svc->compact($i));
+
         $actividad = RoadmapItem::whereNotNull('comentarios_claude')
             ->orderByRaw('COALESCE(revisado_at, updated_at) DESC')
             ->limit(8)->get()
@@ -83,6 +92,7 @@ class RoadmapController extends Controller
             'circuito_modo'        => $this->svc->getModo(),
             'resumen'              => $this->svc->resumen(),
             'cola_requiere_irving' => $cola,
+            'cola_ejecutable'      => $colaEjecutable,   // #348: pendientes/aprobados con 🔥 para saltar fila
             'actividad_reciente'   => $actividad,
             'riesgos_auditoria'    => $riesgos,
             'auditoria_item_id'    => $audit?->id,
@@ -150,10 +160,15 @@ class RoadmapController extends Controller
     }
 
     /**
-     * POST /api/roadmap/items/{id}/urgente (#337) — marca/desmarca un item como urgente.
-     * Al marcar: sube prioridad a 'alta', sella urgente_at/by y DISPARA una vuelta (origen
-     * 'urgente'); el ejecutor lo atiende primero (ordered() lo pone al frente). Gate
-     * circuito.disparar. Desmarcar solo limpia la bandera (no dispara).
+     * POST /api/roadmap/items/{id}/urgente (#337/#348) — marca/desmarca un item como urgente.
+     * Al marcar: sube prioridad a 'alta', sella urgente_at/by y sube el item al frente de
+     * `ordered()`. DOS semánticas según dónde vive el item (#348):
+     *   • Item EJECUTABLE (pendiente/aprobado) → 🔥 = "hazlo YA": salta la fila y DISPARA una
+     *     vuelta inmediata (origen 'urgente'); el ejecutor lo atiende primero.
+     *   • Item en la BANDEJA (estado_aprobacion=requiere_irving, espera decisión de Irving) →
+     *     🔥 = "decisión urgente": solo lo sube al TOPE de la bandeja (ordered() urgentes-primero);
+     *     NO dispara vuelta (el circuito no ejecuta lo que depende de Irving).
+     * Gate circuito.disparar. Desmarcar solo limpia la bandera (no dispara).
      */
     public function urgente(Request $request, int $id): JsonResponse
     {
@@ -180,12 +195,19 @@ class RoadmapController extends Controller
         }
         $item->save();
 
-        $disparo = $marcar ? $this->svc->requestDisparo($this->actorLabel(), 'urgente', $item->id) : null;
+        // #348: el 🔥 solo dispara una vuelta en items EJECUTABLES. Un item en la bandeja
+        // (requiere_irving) espera la decisión de Irving → el circuito no lo ejecuta; ahí el 🔥
+        // es "decisión urgente" y solo lo sube al tope de la bandeja (vía ordered()), sin disparar.
+        $esDecisionIrving = $item->estado_aprobacion === 'requiere_irving';
+        $disparo = ($marcar && ! $esDecisionIrving)
+            ? $this->svc->requestDisparo($this->actorLabel(), 'urgente', $item->id)
+            : null;
 
         return response()->json([
             'ok'       => true,
             'urgente'  => $item->urgente,
             'priority' => $item->priority,
+            'modo'     => $esDecisionIrving ? 'bandeja' : 'ejecucion',
             'disparo'  => $disparo,
         ]);
     }
