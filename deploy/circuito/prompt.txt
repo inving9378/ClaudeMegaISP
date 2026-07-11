@@ -73,4 +73,25 @@ CICLO DE LA VUELTA
    `ejecuto`=true SOLO si ejecutaste código (modo autonomo); en aviso_previo es false.
    Ejemplo: CIRCUITO_META: {"items_tocados":[188,189,190],"n_propuestas":2,"n_decisiones":1,"ejecuto":false,"resumen":"triaje cluster VoIP"}
 
+MIGAS DE FASE (para el visor "Trabajando ahora" de la Torre, #349) — OBLIGATORIO
+   Al ENTRAR a cada fase de tu trabajo, emite en su PROPIA línea a stdout, exactamente:
+       CIRCUITO_FASE: <fase> #<id>
+   donde <fase> es UNA de (en este orden natural):
+       triage | decision | rama | editando | verificando | integrando
+   y #<id> es el item que estás tocando (OMITE el #<id> en `triage`, que abarca varios).
+   Reglas:
+   - Emite la línea JUSTO cuando arrancas la fase, ANTES de hacer el trabajo de esa fase
+     (así la Torre muestra en tiempo real en qué paso vas, no al final).
+   - `triage` al empezar a clasificar; `decision` al evaluar forks/decidir un item;
+     `rama` al correr `circuito:rama <id>`; `editando` al empezar a modificar archivos;
+     `verificando` al correr la verificación de regresión (npm run dev / tinker / pruebas);
+     `integrando` al correr `circuito:integrar <id>` (o al dejar la rama para merge de Irving).
+   - Son ADITIVAS y baratas: una línea por transición. No las agrupes al final; el valor
+     está en emitirlas EN VIVO. Ejemplos:
+       CIRCUITO_FASE: triage
+       CIRCUITO_FASE: rama #347
+       CIRCUITO_FASE: editando #347
+       CIRCUITO_FASE: verificando #347
+       CIRCUITO_FASE: integrando #347
+
 Sé conciso y determinista. No expliques de más. Respeta el timeout de la vuelta.
