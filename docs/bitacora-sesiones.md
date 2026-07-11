@@ -326,3 +326,19 @@ Diagnóstico + arreglo de la "Cola ejecutable" de la Torre.
 - **Diagnóstico:** el circuito SÍ trabaja (casi toda vuelta ejecuta), pero (1) lo hecho queda en ramas esperando merge/✓Irving, (2) el tope de prioridad alta eran nivel C (#117/#121/#185) + #65 C/requiere_irving que el circuito rebota a la bandeja, (3) una vuelta (#52) se colgó por timeout (rc=124). Composición: 150 auto-ejecutables / 38 esperan decisión / sin clasificar. Hallazgo: 108 nivel B en pendiente_revision atascados (necesitan confirmación de Irving o revisión de Cowork).
 - **Arreglo:** `scopeAutoEjecutable()` (A/B o aprobado_irving; excluye C/requiere_irving/terminal/candado) + `scopeEsperaDecision()` (requiere_irving + C sin aprobar). `torre()` usa el scope + `resumen_cola{auto_ejecutables,espera_decision,sin_clasificar}`. Torre muestra "N auto-ejecutables · M esperan tu decisión". La cola ya no trae C pendiente.
 - Aislado en worktree (una vuelta corría; no se interrumpió), integrado a main tras terminar. Verificado: SQL + `torre()` end-to-end (150/38/0, cola 25 items todos B). Commits `5033847d` (backend) + `3254a8b6` (frontend). Solo dev, sin push.
+
+## 2026-07-11 12:45 — Visor "Trabajando ahora" del Circuito CC (#349)
+
+Nivel A (read-only/aditivo), sesión con Irving. Se construyó la "pantalla de trabajo" en vivo de la Torre: qué item y en qué fase trabaja cada sesión de CC.
+
+**Decisiones de Irving:** Fases = migas deterministas (`CIRCUITO_FASE:` en el prompt, no heurística que puede mentir); Multi-sesión = estructura lista para N, renderiza 1 hoy.
+
+**Sub-pasos / commits:**
+- `3bc06320` — migas `CIRCUITO_FASE: <fase> #<id>` en `deploy/circuito/prompt.txt` (fuente determinista de fases).
+- `c205f252` — parser de fases/artefactos/meta + `trabajandoAhora()` en `RoadmapCircuitoService` (liveBeat parsea el log completo como meganet; liveEnd captura CIRCUITO_META; método read-only seguro para www-data). Verificado en aislamiento + e2e con rollback.
+- `c871f411` — expone `trabajando` en `estado()`/`torre()` del `RoadmapController`.
+- `34426777` — UI `TorreTrabajandoAhora.vue` (stepper triage→decisión→rama→editando→verificando→integrando con timestamp/paso, tarjeta por sesión array-N-ready, tiempo+heartbeat, artefactos, timeline legible, resumen persistente de la última vuelta). Dark-aware por prop. `npm run dev` OK.
+
+**Pendiente:** (a) validación visual de Irving; (b) las fases EN VIVO aparecen desde la próxima vuelta (~30 min, el ejecutor toma el prompt nuevo). **Deudas:** multi-worktree real depende de #334; artefactos best-effort; timestamp de fase con granularidad del latido (~15s).
+
+Roadmap #349 → `completado`. Sin config:cache (memoria crítica). Solo dev, prod intacta.
