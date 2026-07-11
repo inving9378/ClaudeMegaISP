@@ -92,6 +92,7 @@ class RoadmapController extends Controller
             'proxima_vuelta_at'    => $this->svc->proximaVueltaAt(),
             'ultima_vuelta_at'     => optional($ultima?->started_at)->toIso8601String(),
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
+            'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
     }
 
@@ -115,6 +116,7 @@ class RoadmapController extends Controller
             'proxima_vuelta_at' => $this->svc->proximaVueltaAt(),
             'ultima_vuelta_at'  => optional($ultima?->started_at)->toIso8601String(),
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
+            'can_disparar'      => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
     }
 
@@ -131,6 +133,69 @@ class RoadmapController extends Controller
         $this->svc->setPaused($nuevo);
 
         return response()->json(['circuito_pausado' => $nuevo]);
+    }
+
+    /**
+     * POST /api/roadmap/circuito/disparar (#337) — dispara una vuelta inmediata desde la Torre.
+     * Gate circuito.disparar. En PAUSA se bloquea (decisión de Irving) → 423. El picker on-box
+     * consume el flag en segundos y lanza vuelta.sh (que enciende el estado en vivo #335).
+     */
+    public function disparar(): JsonResponse
+    {
+        $this->authorize('circuito.disparar');
+
+        $r = $this->svc->requestDisparo($this->actorLabel(), 'boton', null);
+
+        return response()->json($r, ($r['ok'] ?? false) ? 200 : 423); // 423 Locked = en pausa
+    }
+
+    /**
+     * POST /api/roadmap/items/{id}/urgente (#337) — marca/desmarca un item como urgente.
+     * Al marcar: sube prioridad a 'alta', sella urgente_at/by y DISPARA una vuelta (origen
+     * 'urgente'); el ejecutor lo atiende primero (ordered() lo pone al frente). Gate
+     * circuito.disparar. Desmarcar solo limpia la bandera (no dispara).
+     */
+    public function urgente(Request $request, int $id): JsonResponse
+    {
+        $this->authorize('circuito.disparar');
+
+        $data = $request->validate(['urgente' => ['sometimes', 'boolean']]);
+        $marcar = array_key_exists('urgente', $data) ? (bool) $data['urgente'] : true;
+
+        $item = RoadmapItem::find($id);
+        if (! $item) {
+            return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+
+        $item->urgente = $marcar;
+        if ($marcar) {
+            $item->urgente_at = now();
+            $item->urgente_by = $this->actorLabel();
+            if ($item->priority !== 'alta') {
+                $item->priority = 'alta';
+            }
+        } else {
+            $item->urgente_at = null;
+            $item->urgente_by = null;
+        }
+        $item->save();
+
+        $disparo = $marcar ? $this->svc->requestDisparo($this->actorLabel(), 'urgente', $item->id) : null;
+
+        return response()->json([
+            'ok'       => true,
+            'urgente'  => $item->urgente,
+            'priority' => $item->priority,
+            'disparo'  => $disparo,
+        ]);
+    }
+
+    /** Etiqueta del actor humano para auditoría (login/email/id). */
+    private function actorLabel(): string
+    {
+        $u = auth()->user();
+
+        return 'irving:' . ($u->login_user ?? $u->email ?? $u->id ?? '?');
     }
 
     /**

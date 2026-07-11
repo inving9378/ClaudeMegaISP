@@ -42,7 +42,11 @@ REGLAS de escritura que DEBES respetar tú mismo (son la disciplina del circuito
 
 CICLO DE LA VUELTA
 1. `php artisan circuito:flags`. Si pausado=1 → termina (solo lectura). Anota el modo.
-2. Lee resumen + una tanda de pendiente_revision.
+2. Lee resumen + una tanda de pendiente_revision. URGENTES PRIMERO (#337): antes del
+   triaje normal, atiende los items con urgente=1 (van al frente de `->ordered()`,
+   urgente→estado→posición→id). Recíbelos así, y procésalos según su nivel/modo igual que
+   cualquier item, solo que PRIMERO:
+     php artisan tinker --execute='echo json_encode(\App\Modules\Addons\Roadmap\Models\RoadmapItem::where("urgente",true)->ordered()->get(["id","title","nivel_riesgo","estado_aprobacion","priority"]), JSON_UNESCAPED_UNICODE);'
 3. TRIAGE de los sin clasificar (nivel_riesgo null): asigna A (aditivo/reversible, NO toca
    dinero/permisos/auth/prod) | B (bug/infra/refactor o toca dinero → confirmación) | C
    (negocio/decisión/arquitectura). Dudoso → requiere_irving. Trabaja una TANDA acotada
