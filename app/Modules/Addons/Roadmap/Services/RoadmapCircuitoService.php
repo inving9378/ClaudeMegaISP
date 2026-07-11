@@ -70,8 +70,20 @@ class RoadmapCircuitoService
         return (string) DB::table('settings')->where('key', self::PAUSE_KEY)->value('value') === '1';
     }
 
+    /**
+     * Escribe el KILL SWITCH. #342 (seguridad): SOLO desde la Torre — un humano autenticado
+     * (HTTP) con permiso `circuito.pause`. El ejecutor on-box corre por CLI SIN sesión, así
+     * que esta puerta lo bloquea: para él el flag es SOLO-LECTURA (`isPaused`). Si está en 1
+     * debe ABORTAR la vuelta, nunca cambiarlo. Cualquier intento fuera del contexto UI lanza.
+     */
     public function setPaused(bool $paused): void
     {
+        if (! (auth()->check() && auth()->user()->can('circuito.pause'))) {
+            throw new \RuntimeException(
+                'circuito_pausado es de solo-lectura fuera de la Torre: el kill switch solo lo '
+                . 'cambia un humano autenticado con permiso circuito.pause (el ejecutor no puede).'
+            );
+        }
         $this->putSetting(self::PAUSE_KEY, $paused ? '1' : '0');
     }
 

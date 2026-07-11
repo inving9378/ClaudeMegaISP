@@ -26,6 +26,8 @@ class RoadmapItem extends Model
         'marcado_version',
         // Disparo/urgente (#337)
         'urgente', 'urgente_at', 'urgente_by',
+        // Candado anti-colisión (#341)
+        'en_desarrollo_humano',
     ];
 
     protected $casts = [
@@ -39,6 +41,7 @@ class RoadmapItem extends Model
         'marcado_version' => 'boolean',
         'urgente'      => 'boolean',
         'urgente_at'   => 'datetime',
+        'en_desarrollo_humano' => 'boolean',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
@@ -63,6 +66,25 @@ class RoadmapItem extends Model
     public static function currentInProgress(): ?self
     {
         return static::where('status', 'in_progress')->first();
+    }
+
+    /**
+     * #341 (anti-colisión): ¿este item lo está trabajando un humano/otra sesión? El circuito
+     * autónomo NUNCA debe tomarlo para una vuelta. Señal doble: estado en_progreso (alguien lo
+     * trabaja) O bandera explícita en_desarrollo_humano (candado manual). Fuente única del guard.
+     */
+    public function estaEnDesarrollo(): bool
+    {
+        return $this->estado_aprobacion === 'en_progreso' || (bool) $this->en_desarrollo_humano;
+    }
+
+    /** Items que el circuito SÍ puede tomar (excluye en_progreso y candados humanos). #341 */
+    public function scopeTomablePorCircuito($query)
+    {
+        return $query->where('estado_aprobacion', '!=', 'en_progreso')
+                     ->where(function ($q) {
+                         $q->whereNull('en_desarrollo_humano')->orWhere('en_desarrollo_humano', false);
+                     });
     }
 
     public function scopeOrdered($query)

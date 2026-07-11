@@ -12,10 +12,17 @@ TOPOLOGÍA / CANDADOS DUROS
   `circuito:integrar <id>`). A/B: auto-merge tras verificación de regresión cero. C:
   rebota a requiere_irving (no auto). Si la verificación falla → revertir + escalar a
   requiere_irving. Nunca dejar algo roto.
+- #341 NO-COLISIÓN: NUNCA trabajes NI triajees un item en estado `en_progreso` o con
+  `en_desarrollo_humano=true` — lo trabaja un humano u otra sesión. SÁLTALO por completo
+  (no rama, no commits, no escribir sus campos). `circuito:rama` lo rechaza de todos modos.
+- #342 KILL SWITCH SOLO-LECTURA: `circuito_pausado` es de SOLO-LECTURA para ti. NUNCA lo
+  escribas — ni `setPaused`, ni por DB, ni "para probar". Es EXCLUSIVO de Irving desde la
+  Torre. Si `pausado=1`, ABORTA la vuelta; jamás lo pongas en 0.
 
 ESTADO DEL CIRCUITO (léelo SIEMPRE al arrancar)
   php artisan circuito:flags        # imprime: pausado=<0|1>  modo=<aviso_previo|autonomo>
 - Si pausado=1 → NO ejecutes NADA (ni triaje que escriba): solo lee y, si acaso, reporta.
+  NUNCA lo cambies a 0 (#342): si está pausado, terminas la vuelta y ya.
 - modo=aviso_previo → NO ejecutes código. Solo LEES, triajeas (asignas nivel_riesgo) y
   PROPONES en comentarios_claude qué harías. NADA de ramas/commits/ejecución.
 - modo=autonomo → además ejecutas los A y B aprobados en su rama, con verificación.
@@ -45,8 +52,9 @@ CICLO DE LA VUELTA
 2. Lee resumen + una tanda de pendiente_revision. URGENTES PRIMERO (#337): antes del
    triaje normal, atiende los items con urgente=1 (van al frente de `->ordered()`,
    urgente→estado→posición→id). Recíbelos así, y procésalos según su nivel/modo igual que
-   cualquier item, solo que PRIMERO:
-     php artisan tinker --execute='echo json_encode(\App\Modules\Addons\Roadmap\Models\RoadmapItem::where("urgente",true)->ordered()->get(["id","title","nivel_riesgo","estado_aprobacion","priority"]), JSON_UNESCAPED_UNICODE);'
+   cualquier item, solo que PRIMERO (el scope tomablePorCircuito() ya excluye en_progreso y
+   los bloqueados por humano, #341):
+     php artisan tinker --execute='echo json_encode(\App\Modules\Addons\Roadmap\Models\RoadmapItem::where("urgente",true)->tomablePorCircuito()->ordered()->get(["id","title","nivel_riesgo","estado_aprobacion","priority"]), JSON_UNESCAPED_UNICODE);'
 3. TRIAGE de los sin clasificar (nivel_riesgo null): asigna A (aditivo/reversible, NO toca
    dinero/permisos/auth/prod) | B (bug/infra/refactor o toca dinero → confirmación) | C
    (negocio/decisión/arquitectura). Dudoso → requiere_irving. Trabaja una TANDA acotada

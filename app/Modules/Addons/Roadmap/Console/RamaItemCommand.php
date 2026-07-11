@@ -26,6 +26,16 @@ class RamaItemCommand extends Command
             return self::FAILURE;
         }
 
+        // #341 (anti-colisión): el circuito NO toma items que un humano/otra sesión ya trabaja
+        // (en_progreso o bloqueado). `circuito:rama` es el punto de entrada al trabajo autónomo,
+        // así que aquí se corta antes de crear/checar la rama.
+        if ($item->estaEnDesarrollo()) {
+            $this->error("El item #{$item->id} está EN DESARROLLO (estado {$item->estado_aprobacion}"
+                . ($item->en_desarrollo_humano ? ', bloqueado por humano' : '')
+                . '). El circuito no puede tomarlo para una vuelta autónoma (candado #341).');
+            return self::FAILURE;
+        }
+
         $slug   = Str::slug(Str::limit($item->title, 40, ''));
         $branch = "circuito/item-{$item->id}-{$slug}";
 
