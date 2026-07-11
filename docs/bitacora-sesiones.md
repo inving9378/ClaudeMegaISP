@@ -280,3 +280,34 @@ GET /api/roadmap/circuito/estado (gate roadmap_view) · TorreControl.vue (pollin
 Commits (dev, NO push, NO prod): 7cb09f67 (servicio+comando) · 73e6c082 (wrapper) · a732f2ed
 (controller+ruta) · ed67bd5b (frontend). npm run dev OK. Verificado por CLI: 3 estados +
 current_item=331 + stale a 200s + endpoint HTTP 200 con gate. PENDIENTE: validación visual de Irving.
+
+## 2026-07-11 10:54 — Circuito CC: roto el loop de re-pausa + cierre #337/#341/#342
+
+**Causa raíz del "circuito_pausado=1 después de cada vuelta":** NO era un proceso
+automático. Era una **segunda sesión de Claude Code concurrente** (transcript 4f411f4b,
+PID 520630) que Irving había abierto para #341/#342. Su rutina anti-colisión, al detectar
+"un actor externo" (que era la otra sesión), (a) escribía `circuito_pausado=1` **directo a
+`settings`** (bypass del guard de `setPaused`) y (b) re-desactivaba el crontab. Descartados
+uno por uno: cron, picker (`DisparoCheckCommand` solo lee/descarta), `vuelta.sh` (solo lee),
+prompt del ejecutor, schedule DB-driven, triggers MySQL y jobs. El único escritor era esa
+sesión. `setPaused()` está auth-guardeado desde #318 → el ejecutor CLI NUNCA puede pausar.
+
+**Resolución:** identificada y terminada la sesión re-pauser (`kill 520630`; ⚠ el PID que
+Irving creyó era 630514 = ESTA sesión — no matarla). Quedó una sola sesión.
+
+**Merge único a main (dev, commit `72c5f2a4`, SIN push):** rama
+`circuito/candados-proceso-341-342` (superconjunto de #337) → subió a la vez:
+- **#341** — `circuito:rama` rechaza items `en_progreso`/`en_desarrollo_humano` antes de git.
+- **#342** — `setPaused()` solo desde la Torre (humano con `circuito.pause`); CLI lanza excepción. + prohibiciones en `prompt.txt`.
+- **#337** — botones ▶ Ejecutar vuelta ahora + 🔥 Urgente cableados en `TorreControl.vue`
+  (disparar()→POST /circuito/disparar, marcarUrgente()→POST /items/{id}/urgente). Regresión cero.
+Migraciones ya aplicadas; frontend recompilado. Items #337/#341/#342 → `completado`,
+`en_desarrollo_humano=0`.
+
+**Reanudado y VERIFICADO:** `circuito_pausado=0`, crontab restaurado (2 líneas; se añadió
+`cd /var/www/megaisp &&` a la línea del picker, que faltaba), warm-up = config:clear +
+route:clear + queue:restart (NUNCA config:cache). Banner Torre = 🟢 Inactivo. Vuelta real
+posterior (10:51→10:54, autonomo, "Vuelta OK", triajeó #343 + diagnóstico #302) **NO
+re-pausó ni apagó el cron** (flag updated_at intacto @10:50:09, crontab md5 idéntico).
+
+**Aprendizaje:** NUNCA correr 2 sesiones de Claude Code sobre el mismo working tree /var/www/megaisp.
