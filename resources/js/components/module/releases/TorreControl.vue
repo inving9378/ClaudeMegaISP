@@ -70,6 +70,25 @@
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-ok)">{{ est('completado') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
       </div>
 
+      <!-- #348: Cola ejecutable — pendientes/aprobados que el circuito corre por prioridad; 🔥 salta la fila -->
+      <div class="tc-card" style="margin-bottom:14px">
+        <h2 class="tc-h2">▶ Cola ejecutable — el circuito los corre por prioridad ({{ colaEjecutable.length }})</h2>
+        <div class="tc-meta" style="margin:-4px 0 10px">Ordenados por 🔥 urgente → prioridad (alta→media→baja) → antigüedad. El 🔥 salta toda la fila y dispara una vuelta ya.</div>
+        <div v-if="!colaEjecutable.length" class="tc-meta">Nada en cola de ejecución ahora. ✓</div>
+        <div v-for="it in colaEjecutable" :key="it.id" class="tc-exec-item">
+          <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
+          <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
+          <div class="tc-exec-body">
+            <span class="tc-idnum">#{{ it.id }}</span> {{ it.title }}
+            <span class="tc-exec-est">{{ it.estado_aprobacion }}</span>
+          </div>
+          <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
+            :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
+            :title="it.urgente ? 'Quitar urgente' : 'Marcar urgente: salta toda la fila y dispara una vuelta ya'">
+            {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Urgente ✓' : '🔥 Urgente') }}</button>
+        </div>
+      </div>
+
       <div class="tc-grid">
         <!-- Bandeja: requiere_irving -->
         <div class="tc-card">
@@ -100,8 +119,8 @@
                 <button class="tc-btn tc-btn-seg" :disabled="deciding === it.id" @click="toggleSeg(it)">＋ Seguimiento</button>
                 <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
                   :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
-                  :title="it.urgente ? 'Quitar urgente' : 'Marcar urgente y disparar una vuelta ya'">
-                  {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Urgente ✓' : '🔥 Urgente') }}</button>
+                  :title="it.urgente ? 'Quitar urgente' : 'Decisión urgente: subir al tope de tu bandeja (no ejecuta)'">
+                  {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Decisión ✓' : '🔥 Decisión urgente') }}</button>
                 <span v-if="deciding === it.id" class="tc-meta">Guardando…</span>
               </div>
 
@@ -202,6 +221,7 @@ export default {
         const generatedAt = ref(null);
         const resumen = ref({ total: 0, por_estado: {}, por_nivel: {} });
         const cola = ref([]);
+        const colaEjecutable = ref([]);   // #348: pendientes/aprobados que el circuito puede correr
         const actividad = ref([]);
         const riesgos = ref([]);
         const auditItem = ref(null);
@@ -354,7 +374,13 @@ export default {
             }
         }
 
-        // Marca/desmarca un item como urgente; al marcar, dispara una vuelta (#337).
+        // Etiqueta legible de prioridad (#348).
+        function prioLabel(p) {
+            return { alta: 'Alta', media: 'Media', baja: 'Baja' }[p] || 'Sin prioridad';
+        }
+
+        // Marca/desmarca un item como urgente (#337/#348). En items ejecutables dispara vuelta;
+        // en items de la bandeja (requiere_irving) solo los sube al tope (decisión urgente).
         async function marcarUrgente(it) {
             if (urgiendo.value) return;
             urgiendo.value = it.id;
@@ -362,8 +388,16 @@ export default {
             try {
                 const { data } = await axios.post(`/api/roadmap/items/${it.id}/urgente`, { urgente: nuevo });
                 it.urgente = data.urgente;
-                if (data.disparo?.mensaje) flashDisparo('🔥 #' + it.id + ' urgente · ' + data.disparo.mensaje);
-                else flashDisparo('#' + it.id + (data.urgente ? ' marcado urgente.' : ' ya no es urgente.'));
+                if (!data.urgente) {
+                    flashDisparo('#' + it.id + ' ya no es urgente.');
+                } else if (data.modo === 'bandeja') {
+                    flashDisparo('🔥 #' + it.id + ' subido al tope de tu bandeja (decisión urgente).');
+                } else if (data.disparo?.mensaje) {
+                    flashDisparo('🔥 #' + it.id + ' urgente · ' + data.disparo.mensaje);
+                } else {
+                    flashDisparo('🔥 #' + it.id + ' marcado urgente.');
+                }
+                load();        // re-ordena bandeja + cola ejecutable con el urgente al frente
                 pollEstado();
             } catch (e) {
                 flashDisparo('⚠ ' + (e.response?.data?.error || 'No se pudo marcar urgente.'));
@@ -398,6 +432,7 @@ export default {
                 generatedAt.value = data.generated_at;
                 resumen.value = data.resumen || { total: 0, por_estado: {}, por_nivel: {} };
                 cola.value = data.cola_requiere_irving || [];
+                colaEjecutable.value = data.cola_ejecutable || [];
                 actividad.value = data.actividad_reciente || [];
                 riesgos.value = data.riesgos_auditoria || [];
                 auditItem.value = data.auditoria_item_id || null;
@@ -484,7 +519,7 @@ export default {
 
         return {
             loading, toggling, pausado, generatedAt, total, est, nivel, niveles, barH,
-            cola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
+            cola, colaEjecutable, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             sel, coment, deciding, decidir,
             segOpen, seg, toggleSeg, crearSeguimiento,
@@ -493,8 +528,8 @@ export default {
             live, running, estadoClass, estadoLabel, elapsedRunning, sinceBeat, fmtClock,
             ultimaHace, proximaEn, cronCaido, intervaloMin,
             logOpen, logTail, logPre, toggleLog,
-            // Disparo manual + urgente (#337)
-            canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente,
+            // Disparo manual + urgente (#337) · cola ejecutable + prioridad (#348)
+            canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente, prioLabel,
         };
     },
 };
@@ -632,6 +667,16 @@ export default {
 .tc-dark .tc-btn-seg{background:rgba(96,165,250,.14);color:#60a5fa;border-color:#2b3f5b;}
 .tc-dark .tc-seg{border-color:#2a3550;}
 .tc-dark .tc-seg-in,.tc-dark .tc-seg-sel{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
+/* ── Cola ejecutable + prioridad (#348) ── */
+.tc-exec-item{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--tc-line);}
+.tc-exec-item:first-of-type{border-top:none;}
+.tc-exec-body{flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.3;}
+.tc-exec-est{font-size:11px;font-weight:500;color:var(--tc-muted);margin-left:8px;}
+.tc-prio{flex:0 0 auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;}
+.tc-prio-alta{background:#fef2f2;color:#b91c1c;} .tc-prio-media{background:#fffbeb;color:#b45309;}
+.tc-prio-baja{background:#eff6ff;color:#1d4ed8;} .tc-prio-none{background:#f1f5f9;color:#475569;}
+.tc-dark .tc-prio-alta{background:rgba(248,113,113,.15);color:#f87171;} .tc-dark .tc-prio-media{background:rgba(251,191,36,.15);color:#fbbf24;}
+.tc-dark .tc-prio-baja{background:rgba(96,165,250,.15);color:#60a5fa;} .tc-dark .tc-prio-none{background:rgba(148,163,184,.15);color:#94a3b8;}
 
 @media(max-width:820px){.tc-kpis{grid-template-columns:repeat(2,1fr)}.tc-grid{grid-template-columns:1fr}}
 </style>
