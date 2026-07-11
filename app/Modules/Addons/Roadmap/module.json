@@ -10,7 +10,7 @@
             "min_version": "0.1.0"
         }
     ],
-    "active": false,
+    "active": true,
     "permissions": [
         {
             "name": "roadmap_view",
