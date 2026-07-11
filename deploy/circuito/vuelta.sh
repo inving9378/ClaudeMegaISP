@@ -19,6 +19,11 @@ RUNTIME="/home/meganet/circuito"
 LOGDIR="$RUNTIME/logs"
 LOCK="$RUNTIME/vuelta.lock"
 PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
+# Aislamiento por worktree (#334 Fase 0): el ejecutor trabaja en SU worktree dedicado,
+# NUNCA en el checkout principal ($PROJ) donde viven las sesiones interactivas de CC.
+# Así un `git checkout` del ejecutor ya no mueve el HEAD/working-tree de una sesión humana.
+WT="$RUNTIME/wt-exec"
+SID="wt-exec"                            # id de sesión para el estado live por-sesión (#334)
 TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
 MAXTURNS="${CIRCUITO_MAXTURNS:-60}"
 
@@ -53,7 +58,7 @@ if [ "$PAUSED" = "1" ]; then
   NOW="$(date +%s)"
   log "Circuito EN PAUSA (kill switch activo). No ejecuto nada."
   # Cierra cualquier estado en vivo colgado (#335) para que la Torre no muestre "corriendo".
-  php artisan circuito:vivo --end >>"$LOG" 2>&1 || true
+  php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
   registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "1" "0" '{}'
   exit 0
 fi
@@ -66,6 +71,25 @@ else
   TOOLS="Bash"
 fi
 log "modo=${MODO:-aviso_previo} tools=[$TOOLS] timeout=${TIMEOUT}s maxturns=$MAXTURNS"
+
+# ── Aislamiento por worktree (#334 Fase 0) ──────────────────────────────────────────────
+# Provisiona (idempotente) el worktree dedicado del ejecutor y lo sincroniza a main limpio.
+# Se corre DESDE $PROJ (checkout principal) para que el comando resuelva bien la fuente de
+# los symlinks/vendor. Si falla, ABORTO la vuelta (no caigo al checkout principal → jamás
+# vuelvo a la colisión).
+if ! php artisan circuito:provision-worktree --path="$WT" >>"$LOG" 2>&1; then
+  log "No pude provisionar el worktree $WT. Aborto la vuelta (no toco el checkout principal)."
+  NOW="$(date +%s)"
+  php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
+  registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "0" "1" '{}' 2>/dev/null || true
+  exit 1
+fi
+# Sincroniza el worktree al tip de main y déjalo limpio (descarta restos de la vuelta previa).
+# `checkout --detach main` NO checa la rama main (que vive en $PROJ) → git lo permite en el worktree.
+git -C "$WT" checkout --detach -f main >>"$LOG" 2>&1 || log "aviso: no pude sincronizar $WT a main."
+git -C "$WT" clean -fdq >>"$LOG" 2>&1 || true
+cd "$WT" || { log "No pude cd a $WT"; exit 1; }
+log "Ejecutor aislado en worktree $WT (sid=$SID)."
 log "===== inicio de la vuelta (claude -p) ====="
 
 START="$(date +%s)"
@@ -73,8 +97,8 @@ START="$(date +%s)"
 # Estado EN VIVO (#335): marca el arranque y lanza el latido en background, que espejea a
 # BD el heartbeat + el tail del log para que la Torre muestre "corriendo AHORA". Corre como
 # meganet (sí lee el log); www-data no puede. Best-effort: nunca tumba la vuelta.
-php artisan circuito:vivo --start --log="$LOG" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar inicio live."
-php artisan circuito:vivo --watch --log="$LOG" >/dev/null 2>&1 &
+php artisan circuito:vivo --start --sid="$SID" --log="$LOG" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar inicio live."
+php artisan circuito:vivo --watch --sid="$SID" --log="$LOG" >/dev/null 2>&1 &
 HB_PID=$!
 
 timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_FILE")" \
@@ -86,7 +110,7 @@ FIN="$(date +%s)"
 
 # Detener el latido y marcar el fin del estado en vivo (#335).
 if [ -n "${HB_PID:-}" ]; then kill "$HB_PID" 2>/dev/null; wait "$HB_PID" 2>/dev/null; fi
-php artisan circuito:vivo --end >>"$LOG" 2>&1 || log "aviso: no se pudo marcar fin live."
+php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar fin live."
 
 log "===== fin de la vuelta ====="
 if [ "$RC" -eq 124 ]; then

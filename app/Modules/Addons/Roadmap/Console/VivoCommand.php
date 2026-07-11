@@ -20,6 +20,7 @@ class VivoCommand extends Command
         {--start : marca el arranque de la vuelta}
         {--watch : loop de latido hasta SIGTERM}
         {--end : marca el fin de la vuelta}
+        {--sid=main : id de la sesión/worktree (estado live por-sesión #334)}
         {--log= : ruta del log de la vuelta}
         {--interval=15 : segundos entre latidos en --watch}';
 
@@ -28,9 +29,10 @@ class VivoCommand extends Command
     public function handle(RoadmapCircuitoService $svc): int
     {
         $log = (string) ($this->option('log') ?: '');
+        $sid = (string) ($this->option('sid') ?: 'main');
 
         if ($this->option('start')) {
-            $svc->liveStart($log);
+            $svc->liveStart($sid, $log);
             // Esta vuelta ya está comprometida (tiene el flock, no está en pausa): SIRVE el
             // disparo manual pendiente (#337) aquí, no en el picker. Así una colisión con el
             // lock nunca "pierde" un disparo: el flag solo lo consume la vuelta que arranca.
@@ -41,14 +43,14 @@ class VivoCommand extends Command
         }
 
         if ($this->option('end')) {
-            $svc->liveEnd();
+            $svc->liveEnd($sid);
             $this->info('live: end');
 
             return self::SUCCESS;
         }
 
         if ($this->option('watch')) {
-            return $this->watch($svc, $log);
+            return $this->watch($svc, $sid, $log);
         }
 
         $this->error('Especifica --start, --watch o --end.');
@@ -57,7 +59,7 @@ class VivoCommand extends Command
     }
 
     /** Loop de latido; termina limpio al recibir SIGTERM/SIGINT (o si lo matan de plano). */
-    private function watch(RoadmapCircuitoService $svc, string $log): int
+    private function watch(RoadmapCircuitoService $svc, string $sid, string $log): int
     {
         $interval = max(3, (int) $this->option('interval'));
         $stop = false;
@@ -72,7 +74,7 @@ class VivoCommand extends Command
         }
 
         while (! $stop) {
-            $svc->liveBeat($log ?: null);
+            $svc->liveBeat($sid, $log ?: null);
             // Dormir en tramos de 1s para reaccionar rápido a la señal de paro.
             for ($i = 0; $i < $interval && ! $stop; $i++) {
                 sleep(1);

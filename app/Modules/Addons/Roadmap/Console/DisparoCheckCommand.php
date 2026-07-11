@@ -72,10 +72,10 @@ class DisparoCheckCommand extends Command
                 return;
             }
 
-            // No solapar: si ya corre una vuelta, deja el flag PENDIENTE (se sirve al terminar).
+            // No solapar: si YA corre alguna vuelta, deja el flag PENDIENTE (se sirve al terminar).
             // No consumimos aquí; el flag lo consume vuelta.sh vía `circuito:vivo --start`, así
-            // una colisión con el flock nunca pierde el disparo.
-            if (! empty($svc->liveState()['running'])) {
+            // una colisión con el flock nunca pierde el disparo. (#334: anyRunning agrega sesiones.)
+            if ($svc->anyRunning()) {
                 return;
             }
 
