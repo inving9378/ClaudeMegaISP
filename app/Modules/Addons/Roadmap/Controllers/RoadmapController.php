@@ -75,6 +75,8 @@ class RoadmapController extends Controller
                 'resumen'       => $e->resumen,
             ]);
 
+        $ultima = CircuitoEjecucion::orderByDesc('id')->first();
+
         return response()->json([
             'generated_at'         => now()->toIso8601String(),
             'circuito_pausado'     => $this->svc->isPaused(),
@@ -85,6 +87,34 @@ class RoadmapController extends Controller
             'riesgos_auditoria'    => $riesgos,
             'auditoria_item_id'    => $audit?->id,
             'ejecuciones'          => $ejecuciones,
+            // Estado EN VIVO de la vuelta (#335): corriendo/inactivo + heartbeat + próxima.
+            'live'                 => $this->svc->liveState(),
+            'proxima_vuelta_at'    => $this->svc->proximaVueltaAt(),
+            'ultima_vuelta_at'     => optional($ultima?->started_at)->toIso8601String(),
+            'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
+        ]);
+    }
+
+    /**
+     * GET /api/roadmap/circuito/estado — payload LIGERO para el polling en vivo de la Torre
+     * (#335). Solo el estado de la vuelta actual (corriendo/inactivo/pausado + heartbeat),
+     * próxima/última y el tail del log — sin recalcular todo el panorama cada pocos segundos.
+     */
+    public function estado(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $ultima = CircuitoEjecucion::orderByDesc('id')->first();
+
+        return response()->json([
+            'generated_at'      => now()->toIso8601String(),
+            'circuito_pausado'  => $this->svc->isPaused(),
+            'circuito_modo'     => $this->svc->getModo(),
+            'live'              => $this->svc->liveState(),
+            'log_tail'          => $this->svc->liveLogTail(),
+            'proxima_vuelta_at' => $this->svc->proximaVueltaAt(),
+            'ultima_vuelta_at'  => optional($ultima?->started_at)->toIso8601String(),
+            'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
         ]);
     }
 
