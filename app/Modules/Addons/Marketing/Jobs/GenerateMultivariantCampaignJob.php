@@ -108,7 +108,7 @@ class GenerateMultivariantCampaignJob implements ShouldQueue
                     $content->input_variables,
                     [],
                     $campaign->company_id
-                );
+                )->onQueue('video-render');
 
                 $variantIds[] = $content->id;
                 $variantCount++;
