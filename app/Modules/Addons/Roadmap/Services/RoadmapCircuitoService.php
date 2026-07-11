@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -31,6 +32,21 @@ class RoadmapCircuitoService
     public const MODO_INTEGRACION_KEY = 'circuito_modo_integracion';
 
     public const MODOS_INTEGRACION = ['auto-merge', 'revisar-y-mergear'];
+
+    /**
+     * Estado EN VIVO de la vuelta actual (#335), espejeado en `settings` como un solo
+     * JSON. Es el canal compartido: lo ESCRIBE el ejecutor on-box (usuario meganet, que
+     * SÍ puede leer el log en /home/meganet) y lo LEE la Torre (php-fpm = www-data, que
+     * NO puede leer ese log por permisos). Forma:
+     *   { started_at, heartbeat_at, finished, log_path, log_tail, current_item }
+     */
+    public const LIVE_KEY = 'circuito_live';
+
+    /** Latido más frío que esto (seg) con la vuelta "corriendo" ⇒ posible circuito caído. */
+    public const HEARTBEAT_STALE_SEG = 90;
+
+    /** Cuántas líneas del final del log se espejean a BD para el panel "Ver log en vivo". */
+    private const LOG_TAIL_LINES = 60;
 
     public function find(int $id): ?RoadmapItem
     {
@@ -265,5 +281,160 @@ class RoadmapCircuitoService
         $item->update($data);
 
         return $item->fresh();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ESTADO EN VIVO DE LA VUELTA (#335) — heartbeat + log espejeado por BD.
+    // Las escrituras (liveStart/liveBeat/liveEnd) las llama el wrapper como meganet.
+    // Las lecturas (liveState/liveLogTail) las llama la Torre como www-data.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Lee el JSON crudo de estado en vivo (o null si no hay). */
+    private function readLive(): ?array
+    {
+        $raw = DB::table('settings')->where('key', self::LIVE_KEY)->value('value');
+        if (! $raw) {
+            return null;
+        }
+        $d = json_decode((string) $raw, true);
+
+        return is_array($d) ? $d : null;
+    }
+
+    private function writeLive(array $d): void
+    {
+        $this->putSetting(self::LIVE_KEY, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /** Marca el ARRANQUE de una vuelta (lo llama el wrapper como meganet). */
+    public function liveStart(string $logPath): void
+    {
+        $now = time();
+        $this->writeLive([
+            'started_at'   => $now,
+            'heartbeat_at' => $now,
+            'finished'     => false,
+            'log_path'     => $logPath,
+            'log_tail'     => $this->tailFile($logPath),
+            'current_item' => null,
+        ]);
+    }
+
+    /** Latido: refresca heartbeat + tail del log + #item en curso (best-effort). */
+    public function liveBeat(?string $logPath = null): void
+    {
+        $d = $this->readLive() ?? [];
+        $log = $logPath ?: ($d['log_path'] ?? null);
+
+        $d['heartbeat_at'] = time();
+        $d['finished']     = $d['finished'] ?? false;
+        if ($log) {
+            $tail = $this->tailFile($log);
+            $d['log_path']     = $log;
+            $d['log_tail']     = $tail;
+            $d['current_item'] = $this->parseCurrentItem($tail) ?? ($d['current_item'] ?? null);
+        }
+
+        $this->writeLive($d);
+    }
+
+    /** Marca el FIN de la vuelta (deja de reportar "corriendo"). */
+    public function liveEnd(): void
+    {
+        $d = $this->readLive();
+        if (! $d) {
+            return;
+        }
+        $d['finished']     = true;
+        $d['heartbeat_at'] = time();
+        if (! empty($d['log_path'])) {
+            $d['log_tail'] = $this->tailFile($d['log_path']);
+        }
+        $this->writeLive($d);
+    }
+
+    /**
+     * Estado derivado para la Torre. PURO-LECTURA de BD (no toca archivos) → seguro para
+     * www-data. `running` = arrancó y no ha terminado; `stale` = corriendo pero el latido
+     * se enfrió (posible circuito caído).
+     */
+    public function liveState(): array
+    {
+        $d   = $this->readLive();
+        $now = time();
+
+        if (! $d || empty($d['started_at'])) {
+            return ['running' => false, 'stale' => false, 'started_at' => null];
+        }
+
+        $finished  = (bool) ($d['finished'] ?? false);
+        $hb        = (int) ($d['heartbeat_at'] ?? 0);
+        $sinceBeat = max(0, $now - $hb);
+        $running   = ! $finished;
+
+        return [
+            'running'               => $running,
+            'finished'              => $finished,
+            'stale'                 => $running && $sinceBeat > self::HEARTBEAT_STALE_SEG,
+            'started_at'            => Carbon::createFromTimestamp((int) $d['started_at'])->toIso8601String(),
+            'heartbeat_at'          => $hb ? Carbon::createFromTimestamp($hb)->toIso8601String() : null,
+            'segundos_desde_latido' => $sinceBeat,
+            'segundos_corriendo'    => $running ? max(0, $now - (int) $d['started_at']) : null,
+            'current_item'          => isset($d['current_item']) ? ($d['current_item'] ?: null) : null,
+        ];
+    }
+
+    /** Tail del log en vivo (espejo en BD) para el panel "Ver log en vivo". */
+    public function liveLogTail(): string
+    {
+        return (string) (($this->readLive() ?? [])['log_tail'] ?? '');
+    }
+
+    /**
+     * Próxima vuelta estimada a partir del intervalo del cron (config `circuito.interval_min`,
+     * ESPEJO del crontab cada-30-min). No controla el cron real; solo informa a la Torre.
+     */
+    public function proximaVueltaAt(): string
+    {
+        $min = (int) config('circuito.interval_min', 30);
+        if ($min < 1 || $min > 60) {
+            $min = 30;
+        }
+
+        $now     = Carbon::now()->second(0);
+        $nextMin = (intdiv($now->minute, $min) + 1) * $min;
+
+        $next = $now->copy();
+        if ($nextMin >= 60) {
+            $next->addHour()->minute($nextMin - 60);
+        } else {
+            $next->minute($nextMin);
+        }
+
+        return $next->toIso8601String();
+    }
+
+    /** Últimas N líneas de un archivo de log (logs de vuelta son pequeños, ~pocos KB). */
+    private function tailFile(string $path, int $lines = self::LOG_TAIL_LINES): string
+    {
+        if (! is_file($path) || ! is_readable($path)) {
+            return '';
+        }
+        $f = @file($path, FILE_IGNORE_NEW_LINES);
+        if ($f === false) {
+            return '';
+        }
+
+        return implode("\n", array_slice($f, -$lines));
+    }
+
+    /** Extrae el #item más reciente mencionado en el tail (best-effort, para "tocando #NNN"). */
+    private function parseCurrentItem(string $tail): ?int
+    {
+        if (preg_match_all('/#(\d{1,6})\b/', $tail, $m) && ! empty($m[1])) {
+            return (int) end($m[1]);
+        }
+
+        return null;
     }
 }
