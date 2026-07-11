@@ -106,7 +106,7 @@
           <div v-for="it in cola" :key="it.id" class="tc-inbox-item">
             <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
             <div class="tc-inbox-body">
-              <div class="tc-t"><span class="tc-idnum">#{{ it.id }}</span> {{ it.title }}</div>
+              <div class="tc-t"><span class="tc-idnum">#{{ it.id }}</span> <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span> {{ it.title }}</div>
               <div class="tc-s" v-if="it.recomendacion">{{ it.recomendacion }}</div>
 
               <!-- Opciones (forks) que dejó el decisor -->
