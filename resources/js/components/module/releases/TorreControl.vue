@@ -72,8 +72,14 @@
 
       <!-- #348: Cola ejecutable — pendientes/aprobados que el circuito corre por prioridad; 🔥 salta la fila -->
       <div class="tc-card" style="margin-bottom:14px">
-        <h2 class="tc-h2">▶ Cola ejecutable — el circuito los corre por prioridad ({{ colaEjecutable.length }})</h2>
-        <div class="tc-meta" style="margin:-4px 0 10px">Ordenados por 🔥 urgente → prioridad (alta→media→baja) → antigüedad. El 🔥 salta toda la fila y dispara una vuelta ya.</div>
+        <h2 class="tc-h2">▶ Cola ejecutable — lo que el circuito auto-corre</h2>
+        <div class="tc-execsum">
+          <span class="tc-execsum-auto">{{ resumenCola.auto_ejecutables }} auto-ejecutables</span>
+          <span class="tc-execsum-sep">·</span>
+          <span class="tc-execsum-dec">{{ resumenCola.espera_decision }} esperan tu decisión</span>
+          <template v-if="resumenCola.sin_clasificar"><span class="tc-execsum-sep">·</span><span class="tc-execsum-sin">{{ resumenCola.sin_clasificar }} sin clasificar</span></template>
+        </div>
+        <div class="tc-meta" style="margin:2px 0 10px">Solo A/B o ya aprobados por ti (los C/negocio están en tu bandeja). Ordenados por 🔥 urgente → prioridad (alta→media→baja) → antigüedad; el 🔥 salta la fila y dispara una vuelta ya.</div>
         <div v-if="!colaEjecutable.length" class="tc-meta">Nada en cola de ejecución ahora. ✓</div>
         <div v-for="it in colaEjecutable" :key="it.id" class="tc-exec-item">
           <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
@@ -221,7 +227,8 @@ export default {
         const generatedAt = ref(null);
         const resumen = ref({ total: 0, por_estado: {}, por_nivel: {} });
         const cola = ref([]);
-        const colaEjecutable = ref([]);   // #348: pendientes/aprobados que el circuito puede correr
+        const colaEjecutable = ref([]);   // #348: SOLO auto-ejecutables (A/B o aprobados por Irving)
+        const resumenCola = ref({ auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 });
         const actividad = ref([]);
         const riesgos = ref([]);
         const auditItem = ref(null);
@@ -433,6 +440,7 @@ export default {
                 resumen.value = data.resumen || { total: 0, por_estado: {}, por_nivel: {} };
                 cola.value = data.cola_requiere_irving || [];
                 colaEjecutable.value = data.cola_ejecutable || [];
+                resumenCola.value = data.resumen_cola || { auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 };
                 actividad.value = data.actividad_reciente || [];
                 riesgos.value = data.riesgos_auditoria || [];
                 auditItem.value = data.auditoria_item_id || null;
@@ -519,7 +527,7 @@ export default {
 
         return {
             loading, toggling, pausado, generatedAt, total, est, nivel, niveles, barH,
-            cola, colaEjecutable, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
+            cola, colaEjecutable, resumenCola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             sel, coment, deciding, decidir,
             segOpen, seg, toggleSeg, crearSeguimiento,
@@ -668,6 +676,10 @@ export default {
 .tc-dark .tc-seg{border-color:#2a3550;}
 .tc-dark .tc-seg-in,.tc-dark .tc-seg-sel{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
 /* ── Cola ejecutable + prioridad (#348) ── */
+.tc-execsum{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;font-weight:700;margin:-4px 0 4px;}
+.tc-execsum-auto{color:#047857;} .tc-execsum-dec{color:#b45309;} .tc-execsum-sin{color:var(--tc-muted);font-weight:600;}
+.tc-execsum-sep{color:var(--tc-muted);font-weight:400;}
+.tc-dark .tc-execsum-auto{color:#4ade80;} .tc-dark .tc-execsum-dec{color:#fbbf24;}
 .tc-exec-item{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--tc-line);}
 .tc-exec-item:first-of-type{border-top:none;}
 .tc-exec-body{flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.3;}
