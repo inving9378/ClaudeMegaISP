@@ -52,6 +52,8 @@ registrar(){  # started finished modo pausado rc meta
 if [ "$PAUSED" = "1" ]; then
   NOW="$(date +%s)"
   log "Circuito EN PAUSA (kill switch activo). No ejecuto nada."
+  # Cierra cualquier estado en vivo colgado (#335) para que la Torre no muestre "corriendo".
+  php artisan circuito:vivo --end >>"$LOG" 2>&1 || true
   registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "1" "0" '{}'
   exit 0
 fi
@@ -67,12 +69,24 @@ log "modo=${MODO:-aviso_previo} tools=[$TOOLS] timeout=${TIMEOUT}s maxturns=$MAX
 log "===== inicio de la vuelta (claude -p) ====="
 
 START="$(date +%s)"
+
+# Estado EN VIVO (#335): marca el arranque y lanza el latido en background, que espejea a
+# BD el heartbeat + el tail del log para que la Torre muestre "corriendo AHORA". Corre como
+# meganet (sí lee el log); www-data no puede. Best-effort: nunca tumba la vuelta.
+php artisan circuito:vivo --start --log="$LOG" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar inicio live."
+php artisan circuito:vivo --watch --log="$LOG" >/dev/null 2>&1 &
+HB_PID=$!
+
 timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_FILE")" \
   --allowed-tools $TOOLS \
   --max-turns "$MAXTURNS" \
   >>"$LOG" 2>&1
 RC=$?
 FIN="$(date +%s)"
+
+# Detener el latido y marcar el fin del estado en vivo (#335).
+if [ -n "${HB_PID:-}" ]; then kill "$HB_PID" 2>/dev/null; wait "$HB_PID" 2>/dev/null; fi
+php artisan circuito:vivo --end >>"$LOG" 2>&1 || log "aviso: no se pudo marcar fin live."
 
 log "===== fin de la vuelta ====="
 if [ "$RC" -eq 124 ]; then
