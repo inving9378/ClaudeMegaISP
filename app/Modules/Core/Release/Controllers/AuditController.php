@@ -50,26 +50,29 @@ class AuditController extends Controller
     {
         $metricas = [];
 
-        // 1. KPI War Room — ¿qué tabla usa?
+        // 1. KPI War Room — ¿qué tabla usa? (mes en curso, no congelado)
         try {
-            $invMayo = (float) DB::table('invoices')
+            $periodo    = now();
+            $mesLabel   = ucfirst($periodo->locale('es')->translatedFormat('F Y')); // ej. "Julio 2026"
+
+            $invMes = (float) DB::table('invoices')
                 ->where('status', 'paid')
-                ->whereYear('payment_date', 2026)->whereMonth('payment_date', 5)
+                ->whereYear('payment_date', $periodo->year)->whereMonth('payment_date', $periodo->month)
                 ->whereNull('deleted_at')->sum('total');
 
-            $ciMayo = (float) DB::table('client_invoices')
+            $ciMes = (float) DB::table('client_invoices')
                 ->where('estado', 'Pagado')
-                ->whereYear('payment_date', 2026)->whereMonth('payment_date', 5)
+                ->whereYear('payment_date', $periodo->year)->whereMonth('payment_date', $periodo->month)
                 ->sum('total');
 
             $metricas['kpi_warroom'] = [
-                'estado'    => $invMayo > 0 && $ciMayo == 0 ? 'error' : 'ok',
+                'estado'    => $invMes > 0 && $ciMes == 0 ? 'error' : 'ok',
                 'titulo'    => 'KPI War Room — tabla de facturas',
-                'valor'     => number_format($invMayo, 0, '.', ','),
-                'detalle'   => $invMayo > 0 && $ciMayo == 0
-                    ? "Muestra \$0 en prod. invoices tiene \${$invMayo} real en mayo 2026. Usar invoices con status='paid'."
-                    : "OK — Ingresos mayo 2026: \${$invMayo}",
-                'subtitulo' => "invoices mayo: \${$invMayo} | client_invoices mayo: \${$ciMayo}",
+                'valor'     => number_format($invMes, 0, '.', ','),
+                'detalle'   => $invMes > 0 && $ciMes == 0
+                    ? "Muestra \$0 en prod. invoices tiene \${$invMes} real en {$mesLabel}. Usar invoices con status='paid'."
+                    : "OK — Ingresos {$mesLabel}: \${$invMes}",
+                'subtitulo' => "invoices {$mesLabel}: \${$invMes} | client_invoices {$mesLabel}: \${$ciMes}",
             ];
         } catch (\Throwable $e) {
             $metricas['kpi_warroom'] = ['estado' => 'error', 'titulo' => 'KPI War Room', 'detalle' => $e->getMessage()];
