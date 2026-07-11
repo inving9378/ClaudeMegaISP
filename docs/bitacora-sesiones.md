@@ -408,3 +408,17 @@ hace el comando, sin tocar `RamaItemCommand.php`. Vale la pena revisar esa inter
 - **Modelo escalonado:** Sonnet rutina; Opus 2ª opinión SOLO en borderline/baja-confianza; C → Opus arma BRIEF (`circuito:brief-c`, cron 10 min). **Opus va por API (ClaudeApiClient), NO por el Max/CLI** → los ejecutores (claude -p) siguen en Sonnet, el Max no sube por el escalonado.
 - **Perfil de Irving** (docs/perfil-decisiones-irving.md) inlineado al prompt del revisor/decisor: guardrails+preferencias+frontera+decisiones pasadas. Editable, sin secretos. Loop de aprendizaje desde la bandeja = item nuevo registrado (aprobado_irving).
 - **Cron paralelo:** scheduler/min (bootstrap) + workers self-refill (pool) + revisar-backlog --apply/2min + brief-c/10min + disparo-check (merge drain).
+
+## 2026-07-11 17:19 — Item #111: auditoría APIs jQuery Bootstrap 4 legacy — SIN HALLAZGOS
+
+Item pedía auditar y migrar el resto de usos de `.collapse()/.tab()/.tooltip()/.popover()/.dropdown()`
+vía jQuery sobre Bootstrap 5 (mismo patrón del bug de `.modal()` corregido el 2026-06-03, 20+ archivos).
+
+**Auditoría ejecutada** (rama `circuito/item-111-auditar-apis-jquery-bootstrap-4-legacy-r`):
+```
+grep -rnE '\.(collapse|tab|tooltip|popover|dropdown)\(' resources/js   → 0 resultados
+```
+Confirmado con dos variantes de patrón (con y sin el prefijo `$(...)` explícito del item). **Cero
+usos** de esas 5 APIs jQuery-BS4 en todo `resources/js` — el fix de `.modal()` de junio fue,
+aparentemente, el único caso real; no quedó nada más por migrar. No hay código que cambiar.
+Nivel A, item cerrado sin cambios de comportamiento.
