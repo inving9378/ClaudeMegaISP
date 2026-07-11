@@ -990,4 +990,90 @@ class RoadmapCircuitoService
 
         return is_array($d) ? $d : null;
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PARALELISMO (#334 Fase 1) — N sesiones/worktrees a la vez.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public const PARALELISMO_KEY = 'circuito_paralelismo';
+
+    /** N = cuántas sesiones a la vez (setting runtime; default de config). Clamp 1..12. */
+    public function getParalelismo(): int
+    {
+        $v = DB::table('settings')->where('key', self::PARALELISMO_KEY)->value('value');
+        $n = $v !== null ? (int) $v : (int) config('circuito.paralelismo', 6);
+
+        return max(1, min(12, $n));
+    }
+
+    public function setParalelismo(int $n): void
+    {
+        $this->putSetting(self::PARALELISMO_KEY, (string) max(1, min(12, $n)));
+    }
+
+    /**
+     * Módulos NO-null de items EN VUELO (en_progreso — reclamados por una sesión o por un humano).
+     * Se usan como pre-filtro conservador: no paralelizar dos items del mismo módulo (#334).
+     */
+    public function modulosEnVuelo(): array
+    {
+        return DB::table('roadmap_items')
+            ->where('estado_aprobacion', 'en_progreso')
+            ->whereNotNull('modulo')
+            ->where('modulo', '!=', '')
+            ->pluck('modulo')
+            ->unique()->values()->all();
+    }
+
+    /**
+     * Items EJECUTABLES por el circuito en paralelo, módulo-disjuntos. Devuelve [{id, modulo}] hasta
+     * $limit. Criterio: A `aprobado_claude` (auto) + (si revisor ON) `aprobado_revisor` (B autorizado),
+     * excluyendo en_progreso/bloqueados (tomablePorCircuito, #341), urgentes primero (ordered, #337).
+     * Pre-filtro de módulo: salta un item si su `modulo` NO-null ya está en vuelo o ya se eligió esta
+     * ronda. `modulo` null = desconocido → SÍ se paraleliza (git serializa el merge y detecta choques).
+     */
+    public function ejecutablesParalelo(array $excludeModulos, int $limit): array
+    {
+        if ($limit <= 0) {
+            return [];
+        }
+        $revisor = $this->revisorEnabled();
+
+        $rows = RoadmapItem::query()
+            ->tomablePorCircuito()
+            ->where(function ($w) use ($revisor) {
+                // A auto-aprobado por el circuito
+                $w->where(function ($x) {
+                    $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'aprobado_claude');
+                });
+                // Irving aprobó explícitamente (cualquier nivel) → ejecutable
+                $w->orWhere('estado_aprobacion', 'aprobado_irving');
+                // B autorizado por el revisor (solo si el flag está ON)
+                if ($revisor) {
+                    $w->orWhere('estado_aprobacion', 'aprobado_revisor');
+                }
+            })
+            ->whereNotIn('status', ['done'])
+            ->ordered()
+            ->limit(200)
+            ->get(['id', 'modulo']);
+
+        $taken = array_map('strval', $excludeModulos);
+        $out   = [];
+        foreach ($rows as $r) {
+            $mod = $r->modulo !== null ? (string) $r->modulo : '';
+            if ($mod !== '' && in_array($mod, $taken, true)) {
+                continue; // mismo módulo ya en vuelo/elegido → serializa
+            }
+            $out[] = ['id' => (int) $r->id, 'modulo' => $mod];
+            if ($mod !== '') {
+                $taken[] = $mod;
+            }
+            if (count($out) >= $limit) {
+                break;
+            }
+        }
+
+        return $out;
+    }
 }

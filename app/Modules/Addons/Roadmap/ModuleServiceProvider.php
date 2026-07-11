@@ -25,6 +25,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\ProvisionWorktreeCommand::class,
                 // Runner de merge (#334 F0-fix): merge on-box como meganet
                 \App\Modules\Addons\Roadmap\Console\MergeRunCommand::class,
+                // Paralelo #334 Fase 1
+                \App\Modules\Addons\Roadmap\Console\SchedulerCommand::class,
                 // Agente revisor #338
                 \App\Modules\Addons\Roadmap\Console\RevisarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisarBacklogCommand::class,

@@ -51,4 +51,15 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Ejecución en PARALELO (#334 Fase 1)
+    |--------------------------------------------------------------------------
+    | N = cuántas sesiones/worktrees corren a la vez. Runtime en `settings`
+    | (circuito_paralelismo); aquí el default. Box de dev = 4 cores/17GB → N=6 seguro
+    | (con semáforo de builds). `max_builds` = builds npm simultáneos máx (CPU de 4 cores).
+    */
+    'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
+    'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
+
 ];

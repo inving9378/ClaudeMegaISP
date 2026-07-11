@@ -17,13 +17,16 @@ unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_API_KEY
 PROJ="/var/www/megaisp"
 RUNTIME="/home/meganet/circuito"
 LOGDIR="$RUNTIME/logs"
-LOCK="$RUNTIME/vuelta.lock"
-PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
 # Aislamiento por worktree (#334 Fase 0): el ejecutor trabaja en SU worktree dedicado,
 # NUNCA en el checkout principal ($PROJ) donde viven las sesiones interactivas de CC.
-# Así un `git checkout` del ejecutor ya no mueve el HEAD/working-tree de una sesión humana.
-WT="$RUNTIME/wt-exec"
-SID="wt-exec"                            # id de sesión para el estado live por-sesión (#334)
+# PARALELO (#334 Fase 1): el scheduler pasa CIRCUITO_ITEM/WT/SID → una vuelta POR item en su
+# worktree (wt-K). Sin CIRCUITO_ITEM = modo legacy (backlog completo en wt-exec).
+ITEM="${CIRCUITO_ITEM:-}"
+WT="${CIRCUITO_WT:-$RUNTIME/wt-exec}"
+SID="${CIRCUITO_SID:-wt-exec}"           # id de sesión para el estado live por-sesión (#334)
+LOCK="$RUNTIME/${SID}.lock"              # lock POR worktree → N vueltas en paralelo (una por slot)
+PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
+PROMPT_ITEM_FILE="$PROJ/deploy/circuito/prompt-item.txt"
 TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
 MAXTURNS="${CIRCUITO_MAXTURNS:-60}"
 MODEL="${CIRCUITO_MODEL:-sonnet}"       # #336: Sonnet por defecto (paralelo barato). Override con CIRCUITO_MODEL.
@@ -91,6 +94,14 @@ git -C "$WT" checkout --detach -f main >>"$LOG" 2>&1 || log "aviso: no pude sinc
 git -C "$WT" clean -fdq >>"$LOG" 2>&1 || true
 cd "$WT" || { log "No pude cd a $WT"; exit 1; }
 log "Ejecutor aislado en worktree $WT (sid=$SID)."
+
+# Prompt: por-item (paralelo #334 F1) si CIRCUITO_ITEM, si no el backlog completo (legacy).
+if [ -n "$ITEM" ]; then
+  PROMPT_TEXT="$(sed "s/__ITEM_ID__/$ITEM/g" "$PROMPT_ITEM_FILE")"
+  log "modo POR-ITEM: trabajando SOLO el item #$ITEM"
+else
+  PROMPT_TEXT="$(cat "$PROMPT_FILE")"
+fi
 log "===== inicio de la vuelta (claude -p) ====="
 
 START="$(date +%s)"
@@ -102,7 +113,7 @@ php artisan circuito:vivo --start --sid="$SID" --log="$LOG" >>"$LOG" 2>&1 || log
 php artisan circuito:vivo --watch --sid="$SID" --log="$LOG" >/dev/null 2>&1 &
 HB_PID=$!
 
-timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_FILE")" \
+timeout "$TIMEOUT" claude -p "$PROMPT_TEXT" \
   --model "$MODEL" \
   --allowed-tools $TOOLS \
   --max-turns "$MAXTURNS" \
