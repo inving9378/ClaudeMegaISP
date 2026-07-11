@@ -320,3 +320,9 @@ Sesión humana (Irving+CC), aislada en rama `circuito/item-348-...`, integrada a
 - **TorreControl.vue**: tarjeta "Cola ejecutable" con 🔥 + badge de prioridad (claro/oscuro); 🔥 de bandeja re-etiquetado a "Decisión urgente".
 - Aislamiento: se trabajó en `git worktree` (main tree lo usaba el ejecutor del circuito); el `vendor` symlinkeado hacía que artisan cargara el código del main tree → verificación backend real y build servido se hicieron tras integrar a main.
 - Verificado: `php -l` ok, `npx mix` ok, listar()/bandeja/cola-nueva sin regresión, torre() HTTP 200 con cola_ejecutable. Commits: `47e041f6` (backend) + `cd84242f` (frontend).
+
+## 2026-07-11 12:35 — Circuito #348 (seguimiento): Cola ejecutable = solo auto-ejecutables
+Diagnóstico + arreglo de la "Cola ejecutable" de la Torre.
+- **Diagnóstico:** el circuito SÍ trabaja (casi toda vuelta ejecuta), pero (1) lo hecho queda en ramas esperando merge/✓Irving, (2) el tope de prioridad alta eran nivel C (#117/#121/#185) + #65 C/requiere_irving que el circuito rebota a la bandeja, (3) una vuelta (#52) se colgó por timeout (rc=124). Composición: 150 auto-ejecutables / 38 esperan decisión / sin clasificar. Hallazgo: 108 nivel B en pendiente_revision atascados (necesitan confirmación de Irving o revisión de Cowork).
+- **Arreglo:** `scopeAutoEjecutable()` (A/B o aprobado_irving; excluye C/requiere_irving/terminal/candado) + `scopeEsperaDecision()` (requiere_irving + C sin aprobar). `torre()` usa el scope + `resumen_cola{auto_ejecutables,espera_decision,sin_clasificar}`. Torre muestra "N auto-ejecutables · M esperan tu decisión". La cola ya no trae C pendiente.
+- Aislado en worktree (una vuelta corría; no se interrumpió), integrado a main tras terminar. Verificado: SQL + `torre()` end-to-end (150/38/0, cola 25 items todos B). Commits `5033847d` (backend) + `3254a8b6` (frontend). Solo dev, sin push.
