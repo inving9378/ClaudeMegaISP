@@ -14,6 +14,7 @@ use App\Http\Requests\module\inventory\inventory_item_stock\InventoryItemStockCr
 use App\Models\InventoryItemMedia;
 use App\Models\InventoryReservation;
 use App\Models\SupplierInvoice;
+use App\Models\User;
 use App\Services\FileUploadService;
 use App\Services\InventoryItemMediaService;
 use App\Services\InventoryService;
@@ -97,8 +98,32 @@ class InventoryItemStockController extends CrudModalController
         }
     }
 
+    /**
+     * IDOR (#293): solo quien tiene permiso elevado de inventario puede consultar/gestionar
+     * la custodia de OTRO usuario/cliente; un colaborador sin ese permiso solo ve/gestiona lo suyo.
+     */
+    private function hasElevatedInventoryAccess(): bool
+    {
+        return (bool) auth()->user()?->can('inventory_view_inventory');
+    }
+
+    private function canManageMovement($model): bool
+    {
+        $user = auth()->user();
+        if (!$user || !$model) {
+            return false;
+        }
+        if ($model->movementable_to_type === User::class && (int) $model->movementable_to_id === (int) $user->id) {
+            return true;
+        }
+        return $user->can('inventory_movement_edit_inventory_movement');
+    }
+
     public function getItemsByUser($id, Request $request)
     {
+        if (!$this->hasElevatedInventoryAccess() && (int) $id !== (int) auth()->id()) {
+            $id = auth()->id();
+        }
         $inventoryService = new InventoryService();
         try {
             $tab = $request->tab;
@@ -133,6 +158,12 @@ class InventoryItemStockController extends CrudModalController
 
     public function getItemsByClient($id)
     {
+        if (!$this->hasElevatedInventoryAccess()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No tiene permiso para consultar esta información.',
+            ], 403);
+        }
         $inventoryService = new InventoryService();
         try {
             $itemsAccepted = $inventoryService->getItemsAcceptedByClient($id);
@@ -173,6 +204,18 @@ class InventoryItemStockController extends CrudModalController
     {
         $inventoryMovementRepository = new InventoryMovementRepository();
         $model = $inventoryMovementRepository->getModelById($id);
+        if (!$model) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ocurrio un error al procesar la solicitud',
+            ], 404);
+        }
+        if (!$this->canManageMovement($model)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No tiene permiso para procesar este movimiento.',
+            ], 403);
+        }
         $this->validateAcceptMovement($model);
         try {
             DB::beginTransaction();
@@ -258,6 +301,12 @@ class InventoryItemStockController extends CrudModalController
                 'success' => false,
                 'message' => 'Ocurrio un error al procesar la solicitud',
             ], 500);
+        }
+        if (!$this->canManageMovement($model)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No tiene permiso para procesar este movimiento.',
+            ], 403);
         }
         try {
             if ($model->status !== ComunConstantsController::INVENTORY_MOVEMENT_PENDING) {
