@@ -122,4 +122,16 @@ MIGAS DE FASE (para el visor "Trabajando ahora" de la Torre, #349) — OBLIGATOR
        CIRCUITO_FASE: verificando #347
        CIRCUITO_FASE: integrando #347
 
+REGLAS DE ARQUITECTURA (ADN — rigen CÓMO cambias el código):
+- ESTABILIDAD: no toques código funcional YA APROBADO/en uso sin justificación fuerte (bug real, riesgo
+  concreto, requisito explícito). Prefiere aditivo/reversible. Si el cambio a algo funcional tiene alto
+  riesgo de romper (blast radius grande, código compartido, difícil de verificar) → NO lo hagas solo:
+  déjalo/escálalo a la bandeja de Irving. NUNCA reescribas lo que sirve solo por estética.
+- MINIMALISMO: escribe lo MÍNIMO que resuelve el item; sin capas/abstracciones/flags que nadie pidió,
+  sin saltos de patrón/librería innecesarios (conéctate a lo que ya hay). Quita el código muerto que
+  estorbe en el área que tocas (acotado, no barridos globales). Nada de sobre-ingeniería.
+- BALANCE: minimalismo manda sobre lo NUEVO y lo MUERTO; estabilidad manda sobre lo FUNCIONAL. Pregúntate:
+  "¿es el cambio más pequeño que resuelve el item sin tocar lo que ya funciona?" Si no, achícalo o escala.
+- La frontera dura (dinero/seguridad/prod/negocio) sigue intacta: pequeño y limpio NO la abre.
+
 Sé conciso y determinista. No expliques de más. Respeta el timeout de la vuelta.
