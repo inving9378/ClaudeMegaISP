@@ -44,6 +44,12 @@
             'in_workshop' => ['En taller', 'badge-warning'],
             'inactive'    => ['Inactivo', 'badge-secondary'],
         ];
+        $liveEstados = [
+            'moving'  => ['En movimiento', 'badge-success'],
+            'stopped' => ['Detenido', 'badge-warning'],
+            'idle'    => ['Inactivo', 'badge-secondary'],
+            'offline' => ['Sin señal', 'badge-secondary'],
+        ];
     @endphp
 
     {{-- KPI Cards --}}
@@ -96,17 +102,36 @@
             <div class="table-responsive">
                 <table class="portal-table">
                     <thead>
-                        <tr><th>Vehículo</th><th>Placa</th><th>Tipo</th><th>Año</th><th>Estado</th></tr>
+                        <tr><th>Vehículo</th><th>Placa</th><th>Tipo</th><th>Año</th><th>Estado</th><th>Ubicación</th></tr>
                     </thead>
                     <tbody>
                         @foreach($vehicles as $v)
-                            @php [$estLabel, $estCls] = $estados[$v->status] ?? [ucfirst($v->status), 'badge-secondary']; @endphp
+                            @php
+                                [$estLabel, $estCls] = $estados[$v->status] ?? [ucfirst($v->status), 'badge-secondary'];
+                                $track = $tracking[$v->id] ?? null;
+                                $pos   = $track['position'] ?? null;
+                                [$liveLabel, $liveCls] = $liveEstados[$track['live_status'] ?? 'offline'] ?? ['Sin GPS', 'badge-secondary'];
+                            @endphp
                             <tr>
                                 <td>{{ trim($v->brand.' '.$v->model) ?: 'Vehículo' }}</td>
                                 <td>{{ $v->plates }}</td>
                                 <td>{{ $tipos[$v->vehicle_type] ?? 'Otro' }}</td>
                                 <td>{{ $v->year ?: '—' }}</td>
                                 <td><span class="badge {{ $estCls }}">{{ $estLabel }}</span></td>
+                                <td>
+                                    @if(! $track)
+                                        <span class="badge badge-secondary">Sin GPS</span>
+                                    @else
+                                        <span class="badge {{ $liveCls }}">{{ $liveLabel }}</span>
+                                        @if($pos)
+                                            <div style="font-size:.75rem; color:var(--text-muted); margin-top:.2rem">
+                                                {{ \Carbon\Carbon::parse($pos['recorded_at'])->diffForHumans() }}
+                                                ·
+                                                <a href="https://www.google.com/maps?q={{ $pos['lat'] }},{{ $pos['lng'] }}" target="_blank" rel="noopener">Ver mapa</a>
+                                            </div>
+                                        @endif
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
