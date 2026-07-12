@@ -474,7 +474,7 @@ return [
         '/olts/onus/get-by-client/{id}',
         '/olts/onus/get-mgmt-ip/{id}',
         '/olts/onus/get-ip-address/{id}',
-        '/olts/onus/get-status-and-signal/{id}',
+        '/olts/onus/get-signal-and-status/{id}',
         '/olts/onus/sync/{id}',
         '/olts/onus/full-status/{id}',
         '/olts/onus/running-config/{id}',
