@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
+use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
 use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
@@ -16,8 +17,12 @@ use Symfony\Component\Process\Process;
 
 class RoadmapController extends Controller
 {
-    public function __construct(private RoadmapCircuitoService $svc, private WatchdogService $watchdog, private SupervisorService $supervisor)
-    {
+    public function __construct(
+        private RoadmapCircuitoService $svc,
+        private WatchdogService $watchdog,
+        private SupervisorService $supervisor,
+        private SessionTreeService $sessionTree
+    ) {
     }
 
     /**
@@ -158,6 +163,20 @@ class RoadmapController extends Controller
             'supervisor'        => $this->supervisor->estado(),   // Thomas T + su feed (#334)
             'can_disparar'      => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
+    }
+
+    /**
+     * GET /api/roadmap/circuito/sesiones — árbol de sesiones `claude` vivas en el box (#345):
+     * SOLO LECTURA de sistema operativo (ps + /proc/{pid}/cwd), cruzado con el latido del
+     * circuito para enriquecer las sesiones autónomas. Incluye el banner de colisión (2+
+     * sesiones en el mismo cwd — el escenario del incidente 2026-07-11). Backend puro; el panel
+     * Vue de la Torre que lo consume queda para una siguiente entrega.
+     */
+    public function sesiones(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        return response()->json($this->sessionTree->arbol());
     }
 
     /**
