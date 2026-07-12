@@ -2,7 +2,6 @@
 
 use App\Modules\Core\Auth\Controllers\ForgotPasswordController;
 use App\Modules\Core\Auth\Controllers\LoginController;
-use App\Modules\Core\Auth\Controllers\RegisterController;
 use App\Modules\Core\Auth\Controllers\ResetPasswordController;
 use Illuminate\Support\Facades\Route;
 
@@ -33,8 +32,13 @@ Route::middleware(['web'])->group(function () {
     Route::post('login', [LoginController::class, 'login']);
     Route::post('logout', [LoginController::class, 'logout'])->name('logout');
 
-    Route::get('register',  [RegisterController::class, 'showRegistrationForm'])->name('register');
-    Route::post('register', [RegisterController::class, 'register']);
+    // Deshabilitado (item Roadmap #219): el alta de staff se hace SOLO desde
+    // /administracion/user (panel con permisos Spatie). Este scaffolding de Laravel
+    // Auth quedaba público sin autenticación e insertaba en `users` sin login_user
+    // (NOT NULL) ni el patrón base64/PasswordService -> 500 o cuentas huérfanas.
+    Route::any('register', function () {
+        abort(404);
+    })->name('register');
 
     Route::get('password/reset',          [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
     Route::post('password/email',         [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
