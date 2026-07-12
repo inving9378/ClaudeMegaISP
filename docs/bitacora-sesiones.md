@@ -457,3 +457,21 @@ Solo dev, sin push. Kill switch #342 y candados #341/#342 intactos.
 - **Verificado:** `--dry`=6 slots con salud; scheduler caído simulado→relanza+audita; 4º intento→escala; limpieza de la simulación OK.
 
 **Reconciliación con trabajo concurrente:** otro agente (Cowork/sesión paralela) arregló el mismo bug del crontab con un **wrapper `deploy/circuito/cron-wrap.sh`** (mejor que mi `cd` inline: ninguna línea puede olvidarlo). Respeté su enfoque, blindé el wrapper (commit) y sumé la línea del watchdog por él. ⚠️ Detectadas ediciones sueltas en main de ese agente (TorreTerminales.vue → stasheada; esta bitácora) — hay actividad concurrente en /var/www/megaisp, a coordinar con Irving.
+
+## 2026-07-12 00:10 — Item #299: cierre parcial (nav móvil) — sin construir topbar a ciegas
+
+Item #299 (orden directa de Irving, nivel_riesgo B) traía un DES-TRABE de Opus (2026-07-11 22:20)
+con 3 opciones ante el bloqueo del mockup `medussa-nav-movil-mockup.html` (nunca llegó, 3 promesas
+incumplidas): A) seguir esperando, B) topbar placeholder a ciegas, C) cerrar parcial + registrar
+deuda. El log del item muestra `aprobado_irving` a las 22:44 (posterior al brief) sin comentario
+que override la recomendación → se ejecutó **la opción C, la recomendada**.
+
+- Fases 1 (riel+hoja, `faf75064`) y 2 (buscador, `24674523`) ya vivían en `main` — cubren 4/5
+  subtasks del item (riel, hoja de submenú, activación solo-breakpoint sin UA, PASO 0).
+- Se documentó el cierre y la deuda restante (subtask 3 "topbar delgada" + paleta `MNAV_COLORS`
+  + aplanado de sub-grupos + validación visual pendiente) en `docs/nav-movil-progreso.md`
+  (sección nueva "Cierre parcial"), como fuente única de verdad para cuando el mockup llegue.
+- **NO se creó item nuevo en el roadmap** (se dejó para cuando exista el mockup, evitar
+  fragmentar antes de tener el insumo real). **NO se tocó código** (nada que construir sin el
+  mockup sin arriesgar retrabajo, tal como advertía el propio brief).
+- Item #299 cerrado `completado` (entrega parcial) referenciando los commits ya en `main`.

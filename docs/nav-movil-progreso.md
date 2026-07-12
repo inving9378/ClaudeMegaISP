@@ -48,3 +48,19 @@ llegó** (prometido 3 veces, sin HTML). Al llegar el array `MODS`, reemplazar SO
 
 ## ⚠️ A VALIDAR CON SCREENSHOT (Irving, mañana)
 La validación automática usó un `#side-menu` **sintético** (el composer no se dispara en render CLI). En el **navegador real** el sidebar se puebla por HTTP → **abrir la app en móvil (o navegador angosto <992px) y confirmar que el riel espeja el sidebar COMPLETO real** (todos los módulos que ve el usuario, en orden, con hijos y rutas). Probar: tap en módulo directo (navega), tap en módulo con hijos (abre hoja), la lupa (buscar y navegar), y el modo oscuro.
+
+## Cierre parcial (2026-07-12) — item #299
+
+Vía DES-TRABE de Opus (2026-07-11 22:20) ante bloqueo del mockup + aprobación de Irving en el
+log del item (22:44, posterior al brief): se cierra el item **como entrega parcial** (opción C
+del brief) en vez de construir la topbar a ciegas.
+
+- **Entregado y en `main`:** subtasks 1, 2, 4 y 5 (Fases 1+2, commits `faf75064`+`24674523`).
+- **NO entregado — requiere el mockup `medussa-nav-movil-mockup.html` (nunca llegó, 3 promesas
+  incumplidas):** subtask 3 (topbar delgada lupa+campana+tema) y la paleta final `MNAV_COLORS`.
+- **Debt registrada aquí** (secciones "Colores" y "Pendiente / deudas registradas" arriba) para
+  que, cuando el mockup llegue, se abra un item **nuevo y acotado** solo para: (a) topbar delgada,
+  (b) reemplazo de `MNAV_COLORS`, (c) refinar el aplanado de sub-grupos anidados en la hoja, y
+  (d) la validación visual con screenshot que sigue pendiente.
+- Este documento (`docs/nav-movil-progreso.md`) es la fuente de verdad de esa deuda — no se
+  duplicó en un nuevo item del roadmap todavía, para no fragmentar antes de tener el insumo.
