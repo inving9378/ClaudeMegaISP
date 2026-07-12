@@ -86,7 +86,7 @@ class CobranzaTtsService
             . "Su saldo vencido es de {$montoFormateado} pesos. "
             . "Le solicitamos realizar su pago antes del {$fecha}. "
             . "Su número de cliente es {$numClienteTts}. "
-            . "Para hablar con un asesor presione uno.";
+            . "Gracias por su atención.";
     }
 
     private function separarDigitos(string $valor): string
