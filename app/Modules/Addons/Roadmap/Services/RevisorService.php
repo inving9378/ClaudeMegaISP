@@ -305,6 +305,59 @@ TXT;
     }
 
     /**
+     * PASADA DE RIESGO (Opus): clasifica un candidato de seguridad/dinero y, si aplica, prepara un
+     * FIX + BRIEF accionable para la bandeja de Irving. NO muta el item (el comando decide qué hacer
+     * con la clasificación) — solo devuelve datos. FRONTERA DURA: seguridad/dinero/negocio/prod NO
+     * se auto-ejecutan; van a Irving. Devuelve:
+     *   { categoria: seguridad|dinero|negocio|prod|no_aplica, subcat, severidad: critica|alta|media|baja,
+     *     titulo_corto, texto_brief (markdown), modelo }
+     */
+    public function briefarSeguridad(RoadmapItem $item): array
+    {
+        $hard = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+        $sys = "Eres el AUDITOR DE RIESGO (Opus) del Circuito CC de MegaISP (ISP; Laravel 10/Vue; español; login por login_user; passwords base64 no bcrypt; permisos Spatie). Se te da un item del backlog. Clasifícalo por RIESGO y, si es de SEGURIDAD o DINERO real, prepara un FIX + BRIEF para que Irving lo apruebe rápido.\n"
+            . "CATEGORÍAS:\n"
+            . "- seguridad: vuln real de auth/permisos/roles (rol nuevo=todos los permisos, syncRoles destructivo, escalada de privilegio), IDOR/PII/LFPDPPP, auth bypass / endpoint sin gate / expuesto en PUBLIC_ROUTES, /register público sobre staff, account takeover, reset de contraseña sin OTP, contraseñas en texto plano, webhook forjable (sin HMAC/firma), credenciales/API keys expuestas o hardcodeadas.\n"
+            . "- dinero: doble cobro / falta de idempotencia / doble submit, recobro de la misma factura, saldo incorrecto, add_by inexistente en pagos, conciliación que pierde dinero.\n"
+            . "- negocio: decisión de estrategia/política/precios/paquetes o una migración con trade-off que SOLO Irving decide (p.ej. estrategia de migrar plano→bcrypt). Marca aquí lo ya rotulado [BLOCKED-NEGOCIO].\n"
+            . "- prod: toca PRODUCCIÓN / despliegue / .env de prod / infra del servidor productivo. Marca aquí lo ya rotulado [PARKED-PROD]. NO se toca desde dev.\n"
+            . "- no_aplica: NO es de seguridad ni dinero (feature, refactor, UI, reliability menor, falso positivo del filtro).\n"
+            . "REGLAS: ante duda entre seguridad/dinero y no_aplica cuando HAY exposición real → elige el riesgo. Si es claramente feature/UI → no_aplica. El fix debe ser CONCRETO, aditivo/reversible, dev-primero, sin romper prod; nombra archivos/rutas si el item los da.\n"
+            . "Responde EXCLUSIVAMENTE JSON (sin ```): {\"categoria\":\"seguridad|dinero|negocio|prod|no_aplica\",\"subcat\":\"etiqueta corta (p.ej. idor_pii, auth_bypass, roles_privilegio, passwords, webhook, secrets, idempotencia, doble_cobro)\",\"severidad\":\"critica|alta|media|baja\",\"titulo_corto\":\"5-9 palabras\",\"brief\":\"si seguridad/dinero: markdown con **Vulnerabilidad** (qué), **Impacto** (quién puede qué), **Fix** (pasos concretos aditivos/reversibles), **Riesgo del fix** (regresión a vigilar); si negocio: **Qué decide Irving** + **Opciones**; si prod: 1 frase de por qué está parkeado; si no_aplica: cadena vacía\"}\n\n"
+            . "Perfil de decisiones de Irving:\n" . $this->perfilIrving();
+
+        $modelo = $hard;
+        $v = ['categoria' => 'no_aplica', 'subcat' => '', 'severidad' => 'media', 'titulo_corto' => '', 'texto_brief' => '', 'modelo' => $modelo];
+        try {
+            $resp = (new ClaudeApiClient())->messages([
+                'model' => $hard, 'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100),
+                'system' => $sys, 'messages' => [['role' => 'user', 'content' => $this->userPrompt($item, (string) $item->comentarios_claude)]],
+            ]);
+            $text = '';
+            foreach ((array) ($resp['content'] ?? []) as $blk) {
+                if (($blk['type'] ?? '') === 'text') { $text .= $blk['text'] ?? ''; }
+            }
+            if (preg_match('/\{.*\}/s', $text, $m) && is_array($j = json_decode($m[0], true))) {
+                $cat = in_array($j['categoria'] ?? '', ['seguridad', 'dinero', 'negocio', 'prod', 'no_aplica'], true) ? $j['categoria'] : 'no_aplica';
+                $sev = in_array($j['severidad'] ?? '', ['critica', 'alta', 'media', 'baja'], true) ? $j['severidad'] : 'media';
+                $v = [
+                    'categoria'    => $cat,
+                    'subcat'       => (string) ($j['subcat'] ?? ''),
+                    'severidad'    => $sev,
+                    'titulo_corto' => (string) ($j['titulo_corto'] ?? ''),
+                    'texto_brief'  => (string) ($j['brief'] ?? ''),
+                    'modelo'       => $modelo,
+                ];
+            }
+        } catch (\Throwable $e) {
+            $v['texto_brief'] = '(Auditor de riesgo no concluyente: ' . mb_strimwidth($e->getMessage(), 0, 140, '…') . ' → queda para Irving.)';
+            $v['categoria'] = 'seguridad'; // falla-segura: ante fallo, trátalo como sensible (a Irving), no lo bajes
+        }
+
+        return $v;
+    }
+
+    /**
      * DES-TRABE (Opus) de un item de la bandeja (requiere_irving): re-clasifica y decide si el circuito
      * puede resolverlo SOLO. tecnico_seguro / falso-positivo → RE-APRUEBA (vuelve al pool). negocio/
      * dinero/seguridad/prod → queda en requiere_irving con TAG + BRIEF de Opus para Irving. Auditable.
