@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
+use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -14,7 +15,7 @@ use Symfony\Component\Process\Process;
 
 class RoadmapController extends Controller
 {
-    public function __construct(private RoadmapCircuitoService $svc)
+    public function __construct(private RoadmapCircuitoService $svc, private WatchdogService $watchdog)
     {
     }
 
@@ -120,6 +121,9 @@ class RoadmapController extends Controller
             'scheduler_beat_secs'  => $this->svc->schedulerBeatSecs(),
             'cron_vivo'            => ($s = $this->svc->schedulerBeatSecs()) !== null && $s < 180,
             'auto_ejecutables'     => RoadmapItem::autoEjecutable()->count(),
+            // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
+            'watchdog'             => $this->watchdog->estado(),
+            'watchdog_bitacora'    => $this->watchdog->bitacora(15),
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
     }
@@ -146,6 +150,8 @@ class RoadmapController extends Controller
             'proxima_vuelta_at' => $this->svc->proximaVueltaAt(),
             'ultima_vuelta_at'  => optional($ultima?->started_at)->toIso8601String(),
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
+            // Watchdog del equipo (#334): salud por slot + alertas para el polling en vivo.
+            'watchdog'          => $this->watchdog->estado(),
             'can_disparar'      => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
     }
