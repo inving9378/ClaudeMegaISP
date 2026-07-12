@@ -26,7 +26,10 @@
     <div v-else class="tt-grid" :class="{ 'tt-grid-solo': sesiones.length === 1 }">
       <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle }">
         <div class="tt-term-head">
-          <span class="tt-worker" title="Worker del equipo (firma auditable)">{{ s.sid }}</span>
+          <span class="tt-worker" :title="'Renombrar ' + (s.nombre || s.sid) + ' (' + s.sid + ')'" @click="renombrar(s)">
+            <i class="bi bi-person-badge"></i> {{ s.nombre || s.sid }}
+            <span class="tt-worker-sid">{{ s.sid }}</span>
+          </span>
           <span class="tt-state" :class="s.idle ? 'tt-s-idle' : (s.running ? (s.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off')">
             <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ s.idle ? 'esperando trabajo' : (s.running ? (s.stale ? 'latido frío' : 'corriendo') : 'terminada') }}
           </span>
@@ -134,6 +137,17 @@ export default {
             } catch (e) { /* silencioso: no romper la vista por un poll */ }
         }
 
+        // Renombrar un worker del roster (wt-K → nombre). Vacío = vuelve al default.
+        async function renombrar(s) {
+            const actual = s.nombre && s.nombre !== s.sid ? s.nombre : "";
+            const nombre = window.prompt(`Nombre para ${s.sid} (vacío = default):`, actual);
+            if (nombre === null) return;
+            try {
+                await axios.post("/api/roadmap/circuito/worker-nombre", { sid: s.sid, nombre });
+                await poll();
+            } catch (e) { /* silencioso */ }
+        }
+
         const openFs = (sid) => { fsSid.value = sid; nextTick(scrollAll); };
         const closeFs = () => { fsSid.value = null; };
         const onKey = (e) => { if (e.key === "Escape") closeFs(); };
@@ -154,7 +168,7 @@ export default {
             FASES, POLL_MS, dark: darkMode,
             sesiones, anyRunning, fsSesion, fsPre,
             secsSince, fmtClock, stepReached, stepClass, setPre,
-            openFs, closeFs,
+            openFs, closeFs, renombrar,
         };
     },
 };
@@ -198,8 +212,10 @@ export default {
 .tt-s-stale{ background:rgba(217,119,6,.15); color:var(--tt-warn); }
 .tt-s-off{ background:rgba(100,116,139,.15); color:var(--tt-muted); }
 .tt-s-idle{ background:rgba(100,116,139,.12); color:var(--tt-muted); font-style:italic; }
-/* Firma del worker (wt-K) — chip auditable, prueba de "son 6 reales" (#334 A) */
-.tt-worker{ font-size:11px; font-weight:800; letter-spacing:.02em; padding:2px 8px; border-radius:7px; background:rgba(13,148,136,.14); color:var(--tt-accent); font-variant-numeric:tabular-nums; white-space:nowrap; }
+/* Nombre del worker (roster) — clic para renombrar; wt-K secundario (#334) */
+.tt-worker{ font-size:11.5px; font-weight:800; letter-spacing:.01em; padding:2px 9px; border-radius:7px; background:rgba(13,148,136,.14); color:var(--tt-accent); white-space:nowrap; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+.tt-worker:hover{ background:rgba(13,148,136,.24); }
+.tt-worker-sid{ font-size:9.5px; font-weight:600; opacity:.6; font-variant-numeric:tabular-nums; }
 .tt-term.tt-idle{ opacity:.62; border-style:dashed; }
 .tt-term-item{ font-size:13px; font-weight:600; flex:1 1 160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tt-idnum{ color:var(--tt-accent); }

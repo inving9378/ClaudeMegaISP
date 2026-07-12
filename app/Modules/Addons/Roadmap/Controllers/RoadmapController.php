@@ -124,6 +124,7 @@ class RoadmapController extends Controller
             // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),
+            'worker_nombres'       => $this->svc->nombresWorkers(),   // roster editable (#334)
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
     }
@@ -440,6 +441,7 @@ class RoadmapController extends Controller
             'branch'            => $i->branch,
             'autor'             => $i->aprobado_por,
             'worker_sid'        => $i->worker_sid,   // firma del worker que lo ejecutó (#334 A)
+            'worker_nombre'     => $i->worker_sid ? $this->svc->nombreWorker($i->worker_sid) : null,   // roster (#334)
             'nivel_riesgo'      => $i->nivel_riesgo,
             'estado_aprobacion' => $i->estado_aprobacion,
             'merged'            => ! empty($i->merge_commit),
@@ -523,6 +525,19 @@ class RoadmapController extends Controller
         $item->save();
         Log::channel('roadmap_externo')->info('integracion-desarchivar', ['item' => $item->id, 'por' => $this->actor()]);
         return response()->json(['ok' => true, 'archivado' => false]);
+    }
+
+    /** POST /api/roadmap/circuito/worker-nombre — renombra un worker del roster (wt-K → nombre). */
+    public function workerNombre(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'sid'    => ['required', 'string', 'regex:/^wt-\d+$/'],
+            'nombre' => ['nullable', 'string', 'max:24'],
+        ]);
+        $this->svc->setNombreWorker($data['sid'], (string) ($data['nombre'] ?? ''));
+        Log::channel('roadmap_externo')->info('worker-nombre', ['sid' => $data['sid'], 'nombre' => $data['nombre'] ?? '', 'por' => $this->actor()]);
+        return response()->json(['ok' => true, 'nombres' => $this->svc->nombresWorkers()]);
     }
 
     /** Sella el archivo de una rama (idempotente): marca archivado_at/por + deja rastro en el log. */
