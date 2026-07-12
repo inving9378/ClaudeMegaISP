@@ -201,7 +201,6 @@ class TicketController extends Controller
 
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request);
 
-        //TODO revisar arriba si esta dando error
         SendTicketNotificationJob::dispatchAfterResponse($model, $model->ticket_thread()->first());
         return ['id' => $model->id];
     }
