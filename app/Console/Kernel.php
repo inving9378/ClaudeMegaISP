@@ -127,7 +127,8 @@ class Kernel extends ConsoleKernel
         })->everyFiveMinutes()->name('cobranza:blast-activas')->withoutOverlapping(10);
 
         // Domiciliación — cobro recurrente mensual; corre diario a las 10:00 para reintentos
-        // Solo opera si OPENPAY_SANDBOX=true Y domiciliacion_habilitada=true (self-gated en el command).
+        // Solo opera si domiciliacion.cobro_live_enabled=true Y domiciliacion_habilitada=true
+        // (self-gated en el command; independiente de OPENPAY_SANDBOX — ver config/domiciliacion.php).
         $schedule->command('domiciliacion:cobrar')
             ->dailyAt('10:00')
             ->withoutOverlapping(30)
