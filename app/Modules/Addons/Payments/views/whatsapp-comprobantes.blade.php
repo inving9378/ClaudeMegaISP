@@ -48,7 +48,7 @@
 <div class="wrap">
     <h1>Comprobantes recibidos por WhatsApp</h1>
     <p class="sub">Selecciona un comprobante, míralo y pulsa <b>Extraer con IA</b>. Acepta imagen y PDF.</p>
-    <p class="crit">⚠️ Alcance: SOLO lee y extrae. No aplica pago, no identifica al cliente, no responde por WhatsApp. La extracción se dispara únicamente a mano.</p>
+    <p class="crit">⚠️ Alcance: extrae y, ya extraído, puede identificar al cliente (F3). No aplica pago (F4). Ambos disparos son manuales.</p>
 
     <div class="grid">
         <div class="card list">
@@ -79,8 +79,10 @@
         <div class="card">
             <div id="preview" class="preview"><span class="muted">Selecciona un comprobante de la lista.</span></div>
             <button id="btnExtract" onclick="extract()" disabled>Extraer con IA</button>
+            <button id="btnIdentify" onclick="identify()" disabled>Identificar cliente</button>
             <span id="status" class="muted" style="margin-left:10px;"></span>
             <div id="result" style="margin-top:16px;"></div>
+            <div id="identifyResult" style="margin-top:10px;"></div>
         </div>
     </div>
 </div>
@@ -102,7 +104,9 @@
             box.innerHTML = '<img src="'+url+'" alt="comprobante">';
         }
         document.getElementById('btnExtract').disabled = false;
+        document.getElementById('btnIdentify').disabled = true;
         document.getElementById('result').innerHTML = '';
+        document.getElementById('identifyResult').innerHTML = '';
         document.getElementById('status').textContent = '';
     }
 
@@ -119,11 +123,42 @@
             const data = await res.json();
             render(data);
             document.getElementById('status').textContent = 'Extraído ' + (data.extracted_at || '');
-            // marca el item como extraído
-            const item = document.querySelector('.item[data-id="'+current+'"] .top');
+            document.getElementById('btnIdentify').disabled = !(data.result && data.result.ok);
         } catch (e) {
             document.getElementById('result').innerHTML = '<div class="err">Error de red: ' + e.message + '</div>';
             document.getElementById('status').textContent = '';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // Item #204 FASE A — dispara F3 (identificación) sobre la extracción ya hecha.
+    async function identify() {
+        if (!current) return;
+        const btn = document.getElementById('btnIdentify');
+        btn.disabled = true;
+        const box = document.getElementById('identifyResult');
+        box.innerHTML = '<span class="muted">Identificando…</span>';
+        try {
+            const res = await fetch(MEDIA + '/' + current + '/identificar', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                box.innerHTML = '<div class="err">' + esc(err.message || ('HTTP ' + res.status)) + '</div>';
+                return;
+            }
+            const data = await res.json();
+            const labels = {
+                created: 'Sesión de identificación iniciada',
+                already_exists: 'Ya existía una sesión para este comprobante',
+                duplicate_clave: '⚠️ Clave/referencia ya vista en OTRA conversación — escalado como posible duplicidad',
+            };
+            box.innerHTML = '<div class="done">' + esc(labels[data.status] || data.status)
+                + ' — sesión #' + esc(data.session_id) + ', estado: ' + esc(data.state) + '</div>';
+        } catch (e) {
+            box.innerHTML = '<div class="err">Error de red: ' + e.message + '</div>';
         } finally {
             btn.disabled = false;
         }

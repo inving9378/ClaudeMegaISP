@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Payments\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Marketing\Message;
 use App\Modules\Addons\Payments\Models\WhatsappPaymentExtraction;
+use App\Modules\Addons\Payments\Services\Conciliation\IdentificationSessionStarter;
 use App\Modules\Addons\Payments\Services\Extraction\PaymentReceiptExtractor;
 use App\Modules\Addons\Payments\Services\Extraction\Profiles\SpeiTransferProfile;
 use Illuminate\Http\Request;
@@ -13,13 +14,16 @@ use Illuminate\Support\Facades\Storage;
 /**
  * FASE 2 — Pantalla de revisión de comprobantes recibidos por WhatsApp.
  *
- * ALCANCE ESTRICTO: SOLO leer y mostrar. Un admin ve el comprobante (imagen o
- * PDF) y pulsa "Extraer con IA" → se corre el PaymentReceiptExtractor y se
- * guarda/muestra el resultado (campos + confianza + ilegibles + raw).
+ * ALCANCE: un admin ve el comprobante (imagen o PDF), pulsa "Extraer con IA"
+ * (PaymentReceiptExtractor guarda/muestra campos + confianza + ilegibles +
+ * raw) y, ya con la extracción hecha, puede pulsar "Identificar cliente"
+ * (item #204 FASE A) para arrancar la MISMA máquina de estados F3 que corre
+ * automático en vivo (IdentificationSessionStarter → IdentificationFsm +
+ * ConciliationResponder) — disparo manual, no gastar IA/mensajes de más.
  *
- * NO aplica pago, NO identifica cliente, NO responde por WhatsApp (F3-F4).
- * Disparo SOLO manual — nada automático (no gastar IA leyendo cada foto).
- * Gateada por rol (super-administrator|DESARROLLADOR) en las rutas.
+ * NO aplica pago (F4 sigue con su propio candado + freno maestro
+ * payments.auto_apply_enabled). Gateada por rol (super-administrator|DESARROLLADOR)
+ * en las rutas.
  */
 class WhatsappReceiptReviewController extends Controller
 {
@@ -111,6 +115,26 @@ class WhatsappReceiptReviewController extends Controller
             'extraction_id' => $extraction->id,
             'extracted_at'  => $extraction->extracted_at->format('Y-m-d H:i:s'),
         ]);
+    }
+
+    /**
+     * Item #204 FASE A — arranca la identificación F3 sobre la extracción MÁS
+     * RECIENTE de este mensaje (exige haber pulsado "Extraer con IA" antes).
+     * Idempotente: si ya existe una sesión real para este mensaje, la devuelve
+     * en vez de duplicarla.
+     */
+    public function identify(int $messageId, IdentificationSessionStarter $starter)
+    {
+        $message = $this->findReviewable($messageId);
+
+        $extraction = WhatsappPaymentExtraction::where('message_id', $message->id)
+            ->whereNull('discarded_at')
+            ->latest('id')
+            ->first();
+
+        abort_if(!$extraction, 422, 'Primero extrae el comprobante con IA.');
+
+        return response()->json($starter->startFromExtraction($extraction, $message));
     }
 
     /** Carga un mensaje que sea comprobante de WhatsApp descargado, o 404. */
