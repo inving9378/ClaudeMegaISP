@@ -300,6 +300,65 @@ TXT;
         return ['ok' => true, 'modelo' => $modelo, 'brief' => trim($texto)];
     }
 
+    /**
+     * DES-TRABE (Opus) de un item de la bandeja (requiere_irving): re-clasifica y decide si el circuito
+     * puede resolverlo SOLO. tecnico_seguro / falso-positivo → RE-APRUEBA (vuelve al pool). negocio/
+     * dinero/seguridad/prod → queda en requiere_irving con TAG + BRIEF de Opus para Irving. Auditable.
+     * FRONTERA DURA intacta: ante duda real en lo sensible → NO reejecutable.
+     */
+    public function destrabar(RoadmapItem $item): array
+    {
+        $hard = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+        $sys = "Eres el DES-TRABADOR (Opus) de la bandeja de Irving en el Circuito CC de MegaISP (ISP; Laravel/Vue; español). Este item quedó ESCALADO (requiere_irving). Re-evalúalo con criterio y decide su CATEGORÍA y si el circuito puede resolverlo SOLO:\n"
+            . "- tecnico_seguro: bug / refactor local / código muerto / guard de null / ruta o enlace muerto / typo / texto/label / UI NO sensible; ADITIVO y reversible; O una escalación que fue FALSO POSITIVO (el revisor lo mandó por un término amplio de la denylist, no por riesgo real). → el circuito lo ejecuta solo (reejecutable=true).\n"
+            . "- negocio: decisión de negocio/estrategia/política/precios/paquetes/'qué quiere Irving' → SOLO Irving decide (reejecutable=false; Opus NO inventa su criterio).\n"
+            . "- dinero: toca dinero/cobros/pagos/facturación/saldos → Irving confirma (reejecutable=false).\n"
+            . "- seguridad: permisos/roles/auth/credenciales/seguridad/IDOR → Irving confirma (reejecutable=false).\n"
+            . "- prod: producción/despliegue/.env/pipeline de release → Irving confirma (reejecutable=false).\n"
+            . "FRONTERA DURA: ante CUALQUIER duda real en dinero/seguridad/prod/negocio → reejecutable=false. Razona el porqué en 1-2 frases.\n"
+            . "Responde EXCLUSIVAMENTE JSON (sin ```): {\"categoria\":\"tecnico_seguro|negocio|dinero|seguridad|prod\",\"reejecutable\":true|false,\"razon\":\"por qué, 1-2 frases\",\"brief\":\"si reejecutable=false: markdown corto — **Qué se decide** / **Opciones** (con pros-contras) / **Recomendación**; si reejecutable=true: cadena vacía\"}\n\n"
+            . "Perfil de decisiones de Irving:\n" . $this->perfilIrving();
+
+        $modelo = $hard;
+        $v = ['categoria' => 'negocio', 'reejecutable' => false, 'razon' => '', 'brief' => ''];
+        try {
+            $resp = (new ClaudeApiClient())->messages([
+                'model' => $hard, 'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100), 'temperature' => 0.1,
+                'system' => $sys, 'messages' => [['role' => 'user', 'content' => $this->userPrompt($item, (string) $item->comentarios_claude)]],
+            ]);
+            $text = '';
+            foreach ((array) ($resp['content'] ?? []) as $blk) {
+                if (($blk['type'] ?? '') === 'text') { $text .= $blk['text'] ?? ''; }
+            }
+            if (preg_match('/\{.*\}/s', $text, $m) && is_array($j = json_decode($m[0], true))) {
+                $cat = in_array($j['categoria'] ?? '', ['tecnico_seguro', 'negocio', 'dinero', 'seguridad', 'prod'], true) ? $j['categoria'] : 'negocio';
+                $v = ['categoria' => $cat, 'reejecutable' => (bool) ($j['reejecutable'] ?? false) && $cat === 'tecnico_seguro',
+                    'razon' => (string) ($j['razon'] ?? ''), 'brief' => (string) ($j['brief'] ?? '')];
+            }
+        } catch (\Throwable $e) {
+            $v['razon'] = 'Des-trabador no concluyente (' . mb_strimwidth($e->getMessage(), 0, 140, '…') . ') → queda para Irving.';
+        }
+
+        if ($v['reejecutable']) {
+            // Técnico/seguro (o falso positivo) → vuelve al POOL. A→aprobado_claude, B→aprobado_revisor.
+            $item->estado_aprobacion = $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor';
+            $item->comentarios_claude = (string) $item->comentarios_claude
+                . "\n\n--- DES-TRABE (Opus) " . now()->toDateTimeString() . " → RE-APROBADO (tecnico_seguro) ---\nRazón: " . trim($v['razon']) . "\n";
+            $item->aprobado_por = 'destrabe(opus)';
+        } else {
+            // Genuinamente de Irving → queda con TAG de categoría + brief para despacho en lote.
+            $item->estado_aprobacion = 'requiere_irving';
+            $item->comentarios_claude = (string) $item->comentarios_claude
+                . "\n\n--- DES-TRABE (Opus) " . now()->toDateTimeString() . " [CATEGORIA:" . $v['categoria'] . "] ---\nRazón: " . trim($v['razon']) . "\n"
+                . (trim($v['brief']) !== '' ? "Brief:\n" . trim($v['brief']) . "\n" : '');
+            $item->aprobado_por = 'destrabe(opus)';
+        }
+        $item->revisado_at = now();
+        $item->save();
+
+        return ['categoria' => $v['categoria'], 'reejecutable' => $v['reejecutable'], 'razon' => trim($v['razon']), 'modelo' => $modelo];
+    }
+
     private function userPrompt(RoadmapItem $item, ?string $decisorCtx): string
     {
         $prompt = mb_strimwidth((string) $item->prompt, 0, 1800, '…');

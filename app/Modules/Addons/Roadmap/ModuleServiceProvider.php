@@ -34,6 +34,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\RevisarBacklogCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisorFlagCommand::class,
                 \App\Modules\Addons\Roadmap\Console\BriefCCommand::class,
+                \App\Modules\Addons\Roadmap\Console\DestrabeCommand::class,
             ]);
         }
     }
