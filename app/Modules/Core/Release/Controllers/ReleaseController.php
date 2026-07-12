@@ -16,6 +16,8 @@ use Illuminate\Validation\Rule;
 use Symfony\Component\Process\Process;
 class ReleaseController extends Controller
 {
+    /** Datos que se pasan a la vista (evita "Creation of dynamic property" en PHP 8.2). */
+    protected array $data = [];
 
     public function __construct()
     {

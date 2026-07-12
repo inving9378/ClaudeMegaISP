@@ -253,6 +253,11 @@ export default {
         const proximaAt = ref(null);
         const ultimaAt = ref(null);
         const intervaloMin = ref(30);
+        // Pool continuo (#334): estas 3 se USABAN sin declararse → `cronVivo is not defined` tumbaba
+        // el render de la Torre (pantalla negra). Declaradas aquí. cronVivo default true = "no alarmar".
+        const cronVivo = ref(true);
+        const schedulerBeatSecs = ref(null);
+        const autoEjecutables = ref(0);
         const logPre = ref(null);
         const nowMs = ref(Date.now());   // ticker local para animar cronómetro/heartbeat entre polls
         let estadoTimer = null;          // polling de /circuito/estado
@@ -551,7 +556,7 @@ export default {
             darkMode, ejecuciones, modo,
             // Estado en vivo (#335)
             live, running, estadoClass, estadoLabel, elapsedRunning, sinceBeat, fmtClock,
-            ultimaHace, proximaEn, cronCaido, intervaloMin,
+            ultimaHace, proximaEn, cronCaido, intervaloMin, schedulerBeatSecs, autoEjecutables,
             // Visor "Trabajando ahora" (#349)
             sesiones, resumenUltima, nowMs,
             logOpen, logTail, logPre, toggleLog,
