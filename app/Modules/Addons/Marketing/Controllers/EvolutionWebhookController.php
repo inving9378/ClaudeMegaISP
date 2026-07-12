@@ -20,8 +20,8 @@ class EvolutionWebhookController extends Controller
             ?? $request->header('X-Webhook-Token');
         $storedToken   = Setting::get('evolution_webhook_token', 1);
 
-        if ($storedToken && $incomingToken && !hash_equals($storedToken, $incomingToken)) {
-            Log::channel('evolution')->warning('Webhook token mismatch', [
+        if (! $storedToken || ! $incomingToken || ! hash_equals($storedToken, $incomingToken)) {
+            Log::channel('evolution')->warning('Webhook token mismatch or missing', [
                 'ip' => $request->ip(),
             ]);
             return response()->json(['error' => 'Unauthorized'], 401);
