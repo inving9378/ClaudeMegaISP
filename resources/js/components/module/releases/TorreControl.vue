@@ -46,7 +46,10 @@
       ⚠ <b>Posible circuito caído</b> — la vuelta figura como corriendo, pero el latido no se actualiza hace {{ sinceBeat }}s. Revisa el ejecutor on-box (o pausa y reanuda).
     </div>
     <div v-else-if="cronCaido" class="tc-alert tc-alert-soft">
-      ⚠ <b>Posible cron detenido</b> — la última vuelta fue hace {{ ultimaHace }} y el circuito debería correr cada {{ intervaloMin }} min. Verifica el cron del ejecutor.
+      ⚠ <b>Posible cron detenido</b> — el scheduler on-box no late hace {{ schedulerBeatSecs != null ? Math.round(schedulerBeatSecs/60) + ' min' : 'un rato' }}. Verifica el cron del ejecutor (meganet).
+    </div>
+    <div v-else-if="!pausado && !running && autoEjecutables > 0" class="tc-alert tc-alert-soft">
+      ⏸ <b>Ocioso</b> — {{ autoEjecutables }} auto-ejecutable(s) en cola; el pool los tomará en segundos (o esperan que el revisor apruebe los B).
     </div>
 
     <!-- Visor "Trabajando ahora" (#349): stepper de fases por sesión + resumen de la vuelta -->
@@ -351,11 +354,9 @@ export default {
             if (m <= 0) return 'en instantes';
             return m < 60 ? `en ${m} min` : `en ${Math.round(m / 60)} h`;
         });
-        // Cron detenido: inactivo pero la última vuelta es más vieja que 2× el intervalo esperado.
-        const cronCaido = computed(() =>
-            !pausado.value && !running.value && ultimaHaceMin.value != null &&
-            ultimaHaceMin.value > Math.max(2, intervaloMin.value * 2)
-        );
+        // Cron detenido REAL (#334 pool continuo): solo si el SCHEDULER dejó de latir (cronVivo=false).
+        // Estar inactivo con el scheduler VIVO = ocioso por falta de trabajo seguro (no es cron caído).
+        const cronCaido = computed(() => !pausado.value && cronVivo.value === false);
 
         function applyEstado(data) {
             pausado.value = !!data.circuito_pausado;
@@ -370,6 +371,10 @@ export default {
             ultimaAt.value = data.ultima_vuelta_at || null;
             if (data.circuito_intervalo_min) intervaloMin.value = data.circuito_intervalo_min;
             if (typeof data.can_disparar === 'boolean') canDisparar.value = data.can_disparar;
+            // Pool continuo (#334): latido del scheduler + auto-ejecutables en cola.
+            cronVivo.value = data.cron_vivo !== false;
+            schedulerBeatSecs.value = data.scheduler_beat_secs ?? null;
+            autoEjecutables.value = data.auto_ejecutables ?? 0;
         }
 
         function flashDisparo(msg) {

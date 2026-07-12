@@ -1,0 +1,41 @@
+<?php
+
+namespace App\Modules\Addons\Roadmap\Console;
+
+use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use Illuminate\Console\Command;
+
+/**
+ * REAPER de items atascados en `en_progreso` (#334 F1). En el pool continuo, un worker que muere o
+ * timeouté (600s) deja su item RECLAMADO (en_progreso) sin soltar → bloquea el item y su módulo, y
+ * seca el pool. Este comando libera los en_progreso viejos (updated_at > --minutes) que NO los trabaja
+ * un humano (en_desarrollo_humano=false) → los manda a la bandeja de Irving (requiere_irving) con nota.
+ * NUNCA toca los que un humano trabaja (#341). Cron cada pocos minutos.
+ */
+class ReapStuckCommand extends Command
+{
+    protected $signature = 'circuito:reap-stuck {--minutes=25 : antigüedad mínima en en_progreso para liberar}';
+
+    protected $description = 'Libera items atascados en en_progreso por workers muertos/timeout (#334 F1).';
+
+    public function handle(): int
+    {
+        $mins = max(5, (int) $this->option('minutes'));
+        $stuck = RoadmapItem::where('estado_aprobacion', 'en_progreso')
+            ->where('en_desarrollo_humano', false)
+            ->where('updated_at', '<', now()->subMinutes($mins))
+            ->get();
+
+        foreach ($stuck as $i) {
+            $i->estado_aprobacion  = 'requiere_irving';
+            $i->comentarios_claude = (string) $i->comentarios_claude
+                . "\n[reaper] worker murió/timeout con el item en en_progreso ({$i->updated_at->diffForHumans()}) → liberado a tu bandeja para revisión.";
+            $i->save();
+            $this->line("#{$i->id} liberado (estaba en_progreso desde {$i->updated_at->diffForHumans()}).");
+        }
+
+        $this->info('Reaper: ' . $stuck->count() . ' item(s) liberado(s) de en_progreso.');
+
+        return self::SUCCESS;
+    }
+}

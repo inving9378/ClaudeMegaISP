@@ -115,6 +115,11 @@ class RoadmapController extends Controller
             'proxima_vuelta_at'    => $this->svc->proximaVueltaAt(),
             'ultima_vuelta_at'     => optional($ultima?->started_at)->toIso8601String(),
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
+            // Pool continuo (#334): latido del scheduler → "cron vivo" aunque esté ocioso por falta de
+            // trabajo seguro (evita el falso "cron detenido"). + cuántos auto-ejecutables hay en cola.
+            'scheduler_beat_secs'  => $this->svc->schedulerBeatSecs(),
+            'cron_vivo'            => ($s = $this->svc->schedulerBeatSecs()) !== null && $s < 180,
+            'auto_ejecutables'     => RoadmapItem::autoEjecutable()->count(),
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
     }

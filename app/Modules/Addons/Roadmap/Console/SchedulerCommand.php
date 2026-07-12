@@ -36,6 +36,12 @@ class SchedulerCommand extends Command
         }
 
         try {
+            // Latido del SCHEDULER (aunque esté en pausa): distingue "scheduler VIVO pero ocioso/pausado"
+            // de "cron MUERTO". La Torre lo usa para no gritar "cron detenido" cuando solo falta trabajo.
+            if (! $this->option('dry')) {
+                DB::table('settings')->updateOrInsert(['key' => 'circuito_scheduler_beat'], ['value' => (string) time(), 'updated_at' => now()]);
+            }
+
             // Kill switch: en pausa NO lanza nada (el dry-run sí muestra el plan, no ejecuta).
             if ($svc->isPaused() && ! $this->option('dry')) {
                 return self::SUCCESS;
@@ -74,10 +80,13 @@ class SchedulerCommand extends Command
                     continue;
                 }
 
-                // RECLAMO atómico: solo si sigue aprobado_* (evita doble-toma con otra ronda/humano).
+                // RECLAMO atómico: solo si sigue aprobado_* o A-pendiente (evita doble-toma).
                 $claimed = DB::table('roadmap_items')
                     ->where('id', $id)
-                    ->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
+                    ->where(function ($q) {
+                        $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
+                            ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
+                    })
                     ->update(['estado_aprobacion' => 'en_progreso', 'updated_at' => now()]);
                 if ($claimed !== 1) {
                     continue; // ya lo tomó otro

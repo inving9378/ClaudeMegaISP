@@ -1011,6 +1011,14 @@ class RoadmapCircuitoService
         $this->putSetting(self::PARALELISMO_KEY, (string) max(1, min(12, $n)));
     }
 
+    /** Segundos desde el último latido del scheduler (cron), o null si nunca latió. */
+    public function schedulerBeatSecs(): ?int
+    {
+        $v = DB::table('settings')->where('key', 'circuito_scheduler_beat')->value('value');
+
+        return $v !== null ? max(0, time() - (int) $v) : null;
+    }
+
     /**
      * Reclama ATÓMICAMENTE el siguiente item elegible para un worker de pool continuo (#334 F1):
      * el primer ejecutable módulo-disjunto de lo que ya está en vuelo. Devuelve el id reclamado
@@ -1029,7 +1037,10 @@ class RoadmapCircuitoService
         $id = (int) $items[0]['id'];
         $claimed = DB::table('roadmap_items')
             ->where('id', $id)
-            ->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
+            ->where(function ($q) {
+                $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
+                    ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
+            })
             ->update(['estado_aprobacion' => 'en_progreso', 'updated_at' => now()]);
 
         return $claimed === 1 ? $id : null;
@@ -1069,6 +1080,12 @@ class RoadmapCircuitoService
                 // A auto-aprobado por el circuito
                 $w->where(function ($x) {
                     $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'aprobado_claude');
+                });
+                // A sin triaje (pendiente_revision): A = seguro/aditivo por definición → auto-ejecutable.
+                // El ejecutor por-item es la RED: si al leerlo resulta sensible, lo ESCALA (no lo ejecuta).
+                // Sin esto, en el modelo pool-continuo los A pendientes nunca corrían (no había triaje).
+                $w->orWhere(function ($x) {
+                    $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision');
                 });
                 // Irving aprobó explícitamente (cualquier nivel) → ejecutable
                 $w->orWhere('estado_aprobacion', 'aprobado_irving');
