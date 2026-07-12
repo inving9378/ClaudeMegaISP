@@ -423,6 +423,26 @@ class SmartImportService
     public const GLOBAL_MODE_SMART = 'smart';
     private const SUPPORTED_IMPORT_FORMATS = ['sql', 'zip'];
 
+    /**
+     * Catálogo RBAC + cuentas del sistema. Un dump trae ids de permissions/roles
+     * locales a su instalación (divergen entre entornos); sus pivotes
+     * (model_has_permissions/model_has_roles/role_has_permissions) referencian esos
+     * ids crudos sin remapear por nombre, así que mergearlos puede asignar el
+     * permiso/rol equivocado en destino. users/system_users podrían sobrescribir
+     * credenciales de cuentas vivas. Por eso el modo por defecto de estas tablas se
+     * fuerza a skip_existing salvo que el usuario elija explícitamente otro modo
+     * para esa tabla puntual (opt-in) — item #261.
+     */
+    private const SECURITY_CATALOG_TABLES = [
+        'permissions',
+        'roles',
+        'model_has_permissions',
+        'model_has_roles',
+        'role_has_permissions',
+        'users',
+        'system_users',
+    ];
+
     public function setDumpColumns(array $dumpColumns): void
     {
         $this->dumpColumnsByTable = $dumpColumns;
@@ -1147,14 +1167,19 @@ class SmartImportService
                 ?? $options[$table]['mode']
                 ?? null;
             $mode = $this->normalizeGlobalMode($rawMode ?? $globalMode);
+            $forcedSecurityDefault = $rawMode === null && in_array($table, self::SECURITY_CATALOG_TABLES, true);
+            if ($forcedSecurityDefault) {
+                $mode = self::GLOBAL_MODE_SKIP_EXISTING;
+            }
 
             $planTables[$table] = [
-                'table'                => $table,
-                'mode'                 => $mode,
-                'info'                 => $this->importDescriptor($table),
-                'source_schema'        => $analysis['source_tables'][$table] ?? $this->sourceTableSchemas[$table] ?? null,
-                'target_exists_before' => Schema::hasTable($table),
-                'disabled'             => false,
+                'table'                   => $table,
+                'mode'                    => $mode,
+                'info'                    => $this->importDescriptor($table),
+                'source_schema'           => $analysis['source_tables'][$table] ?? $this->sourceTableSchemas[$table] ?? null,
+                'target_exists_before'    => Schema::hasTable($table),
+                'disabled'                => false,
+                'forced_security_default' => $forcedSecurityDefault,
             ];
         }
 
@@ -1180,6 +1205,10 @@ class SmartImportService
         $summary = [];
         foreach ($plan['ordered_tables'] as $table) {
             $mode = $plan['tables'][$table]['mode'] ?? self::GLOBAL_MODE_SMART;
+            $warnings = [];
+            if ($plan['tables'][$table]['forced_security_default'] ?? false) {
+                $warnings[] = 'catalogo_seguridad_omitido_por_defecto';
+            }
             $summary[$table] = [
                 'imported'             => 0,
                 'skipped'              => 0,
@@ -1189,7 +1218,7 @@ class SmartImportService
                 'replaced'             => false,
                 'added_columns'        => [],
                 'auto_increment'       => null,
-                'warnings'             => [],
+                'warnings'             => $warnings,
                 'target_exists_before' => (bool) ($plan['tables'][$table]['target_exists_before'] ?? false),
             ];
         }
