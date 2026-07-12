@@ -172,13 +172,17 @@ class CrmController extends Controller
             $client = Client::create();
 
             // 1. Crear ClientMainInformation
-            $modules = Module::where('name', 'ClientMainInformation')->first()->fields->pluck('name')->toArray();
+            $mainInfoModule = Module::where('name', 'ClientMainInformation')->first();
+            abort_if(!$mainInfoModule, 500, 'Catálogo de módulo ClientMainInformation ausente');
+            $modules = $mainInfoModule->fields->pluck('name')->toArray();
             $input = $request->only($modules);
             $input['client_id'] = $client->id;
             $new_client = ClientMainInformation::create($input);
 
             // 2. Crear ClientAdditionalInformation
-            $modules = Module::where('name', 'ClientAdditionalInformation')->first()->fields->pluck('name')->toArray();
+            $additionalInfoModule = Module::where('name', 'ClientAdditionalInformation')->first();
+            abort_if(!$additionalInfoModule, 500, 'Catálogo de módulo ClientAdditionalInformation ausente');
+            $modules = $additionalInfoModule->fields->pluck('name')->toArray();
             $input = $request->only($modules);
             $input['client_id'] = $client->id;
             ClientAdditionalInformation::create($input);
