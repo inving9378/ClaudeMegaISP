@@ -74,13 +74,18 @@ class BlastCampanaJob implements ShouldQueue
 
             $result = $ami->originate($llamada->telefono, $audioPath, $llamada->id, $cmi->name);
 
+            $nuevosIntentos = $llamada->intentos + 1;
+            $puedeReintentar = !$result['success'] && $nuevosIntentos < $campana->max_intentos;
+
             $llamada->update([
-                'estado'             => $result['success'] ? 'marcando' : 'fallida',
+                'estado'             => $result['success'] ? 'marcando' : ($puedeReintentar ? 'pendiente' : 'fallida'),
                 'ultimo_intento_at'  => now(),
-                'intentos'           => $llamada->intentos + 1,
+                'intentos'           => $nuevosIntentos,
                 'ami_channel'        => $result['channel'] ?? null,
                 'ami_uniqueid'       => $result['uniqueid'] ?? null,
-                'proximo_intento_at' => now()->addMinutes($campana->minutos_entre_intentos),
+                'proximo_intento_at' => ($result['success'] || $puedeReintentar)
+                    ? now()->addMinutes($campana->minutos_entre_intentos)
+                    : null,
             ]);
 
             CobranzaLlamadaEvento::create([
