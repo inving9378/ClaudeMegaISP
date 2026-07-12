@@ -16,11 +16,19 @@ class CampanaController extends Controller
 
     public function index()
     {
+        if (! auth()->user()->can('cobranza.view')) {
+            abort(403);
+        }
+
         return view('addon-cobranza-blaster::campanas.index');
     }
 
     public function data(): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.view')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $campanas = DB::table('cobranza_campanas as c')
             ->leftJoin('cobranza_llamadas as l', 'l.campana_id', '=', 'c.id')
             ->select(
@@ -41,6 +49,10 @@ class CampanaController extends Controller
 
     public function kpis(): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.view')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $hoy = now()->toDateString();
 
         return response()->json([
@@ -56,6 +68,10 @@ class CampanaController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.manage')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $data = $request->validate([
             'nombre'                 => 'required|string|max:255',
             'fecha_inicio'           => 'nullable|date',
@@ -75,6 +91,10 @@ class CampanaController extends Controller
 
     public function activar(int $id): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.manage')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $campana = CobranzaCampana::findOrFail($id);
 
         if (!in_array($campana->estado, ['borrador', 'pausada'])) {
@@ -88,6 +108,10 @@ class CampanaController extends Controller
 
     public function pausar(int $id): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.manage')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $campana = CobranzaCampana::findOrFail($id);
 
         if ($campana->estado !== 'activa') {
@@ -101,6 +125,10 @@ class CampanaController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.manage')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $campana = CobranzaCampana::findOrFail($id);
 
         if ($campana->estado !== 'borrador') {
@@ -114,6 +142,10 @@ class CampanaController extends Controller
 
     public function llamadas(int $id, Request $request): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.view')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $campana  = CobranzaCampana::findOrFail($id);
 
         $llamadas = $campana->llamadas()
