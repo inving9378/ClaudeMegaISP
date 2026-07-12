@@ -579,10 +579,9 @@ class RoadmapCircuitoService
      */
     public function trabajandoAhora(): array
     {
+        // NOTA: no hay early-return con 0 sesiones — aunque el circuito esté ocioso, la rejilla
+        // debe mostrar los N slots fijos como "esperando trabajo" (#334 B, relleno abajo).
         $sessions = $this->allLiveSessions();
-        if (! $sessions) {
-            return ['sesiones' => [], 'resumen_ultima_vuelta' => null];
-        }
 
         $now = time();
 
