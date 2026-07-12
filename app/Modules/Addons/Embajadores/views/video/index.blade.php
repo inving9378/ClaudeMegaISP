@@ -97,7 +97,9 @@
     </div>
 </div>
 
-@push('scripts')
+{{-- Item #137: migrado a scripts-spa (piloto) — spa-nav.js lo re-ejecuta de forma
+     controlada en cada navegación SPA; ya no requiere recarga completa. --}}
+@push('scripts-spa')
 <script>
 document.querySelectorAll('.section-row').forEach(function(row) {
     row.addEventListener('click', function() {

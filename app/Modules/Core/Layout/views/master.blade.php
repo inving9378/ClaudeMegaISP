@@ -73,6 +73,12 @@
     @include('core-layout::vendor-scripts')
 
     @stack('scripts')
+
+    {{-- Item #137: stack opt-in para vistas rescatadas de SPA_BLACKLIST. Vive FUERA de
+         #init-vue (spa-nav.js no lo toca en el swap) y spa-nav.js lo re-ejecuta de forma
+         controlada (elimina + re-crea el <script>) tras cada navegación SPA. Vacío en
+         el resto de las vistas: no-op. --}}
+    <div id="__spa-scripts" style="display:none">@stack('scripts-spa')</div>
 </body>
 
 </html>

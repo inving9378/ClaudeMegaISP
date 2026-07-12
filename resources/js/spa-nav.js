@@ -6,13 +6,16 @@ const SPA_ENABLED = true;
 
 // Vistas con @push('scripts') propios: entrar O salir → recarga completa.
 // Usar prefijos; startsWith() cubre sub-rutas dinámicas (/{id}, etc.).
+// Item #137: /embajadores/video migrada a @push('scripts-spa') (piloto de
+// re-ejecución controlada) → ya no necesita blacklist. Las 3 restantes
+// (mapas, embajadores/metrics, administracion/documentation/documentation_content)
+// quedan pendientes de migrar en un siguiente item — no tocadas aquí.
 const SPA_BLACKLIST = [
     '/logout',
     '/talento/portal',
     '/mapas',
     '/olts/mapa-red',
     '/embajadores/metrics',
-    '/embajadores/video',
     '/administracion/documentation/documentation_content',
     // Interruptores de conciliación: usa @push('scripts') propio (fuera de #init-vue)
     // que spa-nav no re-ejecuta al intercambiar → full-load para que los toggles monten.
@@ -134,6 +137,38 @@ function finishLoader(el) {
     }, 200);
 }
 
+// ─── re-ejecución controlada de @push('scripts-spa') (item #137) ─────────────
+//
+// #stack('scripts') vive FUERA de #init-vue → spa-nav nunca lo ve (ni la red de
+// seguridad de scripts inline lo detecta). Vistas rescatadas de SPA_BLACKLIST
+// migran su <script> a @push('scripts-spa'), que master.blade.php renderiza en
+// un contenedor propio (#__spa-scripts) también fuera de #init-vue. En cada
+// navegación SPA: se borra la instancia anterior (si la hubo) y se re-crean los
+// <script> del contenedor nuevo vía createElement (innerHTML NO ejecuta scripts;
+// crear+adjuntar sí) — así el script corre limpio contra el DOM recién montado,
+// sin listeners duplicados de la vista previa.
+function reexecuteSpaScripts(doc) {
+    document.getElementById('__spa-scripts')?.remove();
+
+    const source = doc.querySelector('#__spa-scripts');
+    if (!source) return;
+
+    const scripts = source.querySelectorAll('script');
+    if (!scripts.length) return;
+
+    const container = document.createElement('div');
+    container.id = '__spa-scripts';
+    container.style.display = 'none';
+    document.body.appendChild(container);
+
+    scripts.forEach((old) => {
+        const fresh = document.createElement('script');
+        Array.from(old.attributes).forEach((attr) => fresh.setAttribute(attr.name, attr.value));
+        fresh.textContent = old.textContent;
+        container.appendChild(fresh);
+    });
+}
+
 // ─── overlay mientras carga ───────────────────────────────────────────────────
 
 function dimContainer(container) {
@@ -245,6 +280,14 @@ async function spaNavigate(url, pushState) {
         // 6. Re-montar app de contenido
         if (typeof window.createMainApp === 'function') {
             window.createMainApp();
+        }
+
+        // 6.5 Re-ejecutar scripts opt-in de la vista nueva (item #137). Defensivo:
+        // un fallo aquí nunca debe impedir la navegación.
+        try {
+            reexecuteSpaScripts(doc);
+        } catch (e) {
+            console.warn('[spa-nav] re-ejecución de scripts-spa falló (no bloquea navegación):', e);
         }
 
         // 7. Fade in del contenido nuevo
