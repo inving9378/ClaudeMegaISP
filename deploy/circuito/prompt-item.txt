@@ -44,6 +44,12 @@ al ENTRAR a cada fase, ANTES de hacer el trabajo:
    CIRCUITO_FASE: verificando #__ITEM_ID__
    CIRCUITO_FASE: integrando #__ITEM_ID__
 
+REGLAS DE ARQUITECTURA (ADN): ESTABILIDAD — no toques código funcional ya aprobado sin justificación
+fuerte; prefiere aditivo/reversible; si el riesgo de romper es alto, escala en vez de ejecutar; no
+reescribas lo que sirve por estética. MINIMALISMO — lo mínimo que resuelve el item, sin capas ni saltos
+innecesarios, quita el código muerto que estorbe (acotado). BALANCE — minimalismo sobre lo nuevo/muerto,
+estabilidad sobre lo funcional. La frontera dura (dinero/seguridad/prod/negocio) sigue intacta.
+
 META OBLIGATORIO: la ÚLTIMA línea de tu salida DEBE ser exactamente un bloque JSON precedido por
 `CIRCUITO_META: ` con:
    {"items_tocados":[__ITEM_ID__],"n_propuestas":0,"n_decisiones":0,"ejecuto":<true|false>,"resumen":"<1 línea>"}

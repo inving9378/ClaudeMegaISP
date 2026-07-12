@@ -247,6 +247,14 @@ Responde EXCLUSIVAMENTE con un objeto JSON (sin texto extra, sin ```):
 categoria_escalada = null solo si autorizas. No inventes: si es ambiguo cerca de la frontera, escala con confianza baja.
 TXT;
 
+        // Reglas de operación / ADN (estabilidad · minimalismo · balance): premia lo limpio/acotado,
+        // marca/escala lo que reescribe código funcional aprobado sin justificación fuerte.
+        $reglas = $this->reglasOperacion();
+        if ($reglas !== '') {
+            $base .= "\n\n=== REGLAS DE ARQUITECTURA (ADN — aplícalas al juzgar el cambio) ===\n" . $reglas
+                . "\nAl evaluar: un cambio que REESCRIBE código funcional ya aprobado SIN justificación fuerte → ESCALA (riesgo de romper). Premia lo mínimo/aditivo/limpio; penaliza la sobre-ingeniería y los saltos innecesarios.";
+        }
+
         // Perfil vivo de Irving (inlineado): alinea el criterio → menos falsos positivos de escalación.
         $perfil = $this->perfilIrving();
         if ($perfil !== '') {
@@ -265,6 +273,20 @@ TXT;
         }
 
         return mb_strimwidth(trim((string) @file_get_contents($path)), 0, 6000, "\n…(perfil truncado)");
+    }
+
+    /**
+     * Reglas de operación / ADN (estabilidad · minimalismo · balance) — doc vivo inyectable en los
+     * prompts. Afinan el CÓMO de todo cambio; NO relajan la frontera dura. Editable por Irving.
+     */
+    private function reglasOperacion(): string
+    {
+        $path = base_path('docs/reglas-operacion-circuito.md');
+        if (! is_file($path)) {
+            return '';
+        }
+
+        return mb_strimwidth(trim((string) @file_get_contents($path)), 0, 3000, "\n…(reglas truncadas)");
     }
 
     /**
