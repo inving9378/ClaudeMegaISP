@@ -45,7 +45,7 @@
           <div class="ig-title"><span class="ig-idnum">#{{ r.id }}</span> {{ r.title }}</div>
           <div class="ig-sub">
             <code>{{ r.branch }}</code>
-            <span v-if="r.worker_sid" class="ig-worker" title="Worker que lo ejecutó (firma auditable)">🛠 {{ r.worker_sid }}</span>
+            <span v-if="r.worker_sid" class="ig-worker" :title="'Trabajado por ' + (r.worker_nombre || r.worker_sid) + ' (' + r.worker_sid + ')'">🛠 trabajado por {{ r.worker_nombre || r.worker_sid }}</span>
             <span v-if="r.autor"> · {{ r.autor }}</span>
             <span v-if="r.merged" class="ig-merged">● mergeada a dev</span>
             <span v-else class="ig-pending">○ sin mergear</span>

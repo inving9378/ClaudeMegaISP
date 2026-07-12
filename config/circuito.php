@@ -80,4 +80,11 @@ return [
     'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
     'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
 
+    /*
+    | Nombres por default de los workers del equipo (wt-1..wt-N). Persisten y son
+    | RENOMBRABLES por Irving (override en `settings` → circuito_worker_nombres). Dan un
+    | ROSTER legible: "trabajado por Ada" en vez de "wt-3".
+    */
+    'worker_nombres'   => ['Samanta', 'Jenny', 'Tokyo', 'Maya', 'Beky', 'Dayan'],
+
 ];

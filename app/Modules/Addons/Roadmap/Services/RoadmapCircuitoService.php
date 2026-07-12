@@ -649,6 +649,13 @@ class RoadmapCircuitoService
             return strcmp((string) $a['sid'], (string) $b['sid']);
         });
 
+        // Nombre del roster por slot (wt-3 → "Tokyo"): la rejilla es un ROSTER del equipo (#334).
+        $nombres = $this->nombresWorkers();
+        foreach ($sesiones as &$s) {
+            $s['nombre'] = $nombres[$s['sid']] ?? $s['sid'];
+        }
+        unset($s);
+
         return ['sesiones' => $sesiones, 'resumen_ultima_vuelta' => $resumen];
     }
 
@@ -1054,6 +1061,61 @@ class RoadmapCircuitoService
     public function setParalelismo(int $n): void
     {
         $this->putSetting(self::PARALELISMO_KEY, (string) max(1, min(12, $n)));
+    }
+
+    /** Nombres de los workers (override runtime). Persisten y son renombrables por Irving. */
+    public const WORKER_NOMBRES_KEY = 'circuito_worker_nombres';
+
+    /**
+     * Mapa `wt-K => Nombre` para los N slots. Default de config (circuito.worker_nombres), pisado
+     * por los overrides de Irving en settings. Si faltan nombres para algún slot, cae a "wt-K".
+     */
+    public function nombresWorkers(): array
+    {
+        $defaults = (array) config('circuito.worker_nombres', []);
+        $over = [];
+        $raw = DB::table('settings')->where('key', self::WORKER_NOMBRES_KEY)->value('value');
+        if ($raw !== null && is_array($d = json_decode((string) $raw, true))) {
+            $over = $d;
+        }
+
+        $n = $this->getParalelismo();
+        $map = [];
+        for ($k = 1; $k <= $n; $k++) {
+            $sid = "wt-{$k}";
+            $nombre = trim((string) ($over[$sid] ?? ($defaults[$k - 1] ?? '')));
+            $map[$sid] = $nombre !== '' ? $nombre : $sid;
+        }
+
+        return $map;
+    }
+
+    /** Nombre de un slot concreto (o el propio sid si no hay). */
+    public function nombreWorker(?string $sid): ?string
+    {
+        $sid = trim((string) $sid);
+        if ($sid === '') {
+            return null;
+        }
+
+        return $this->nombresWorkers()[$sid] ?? $sid;
+    }
+
+    /** Renombra un worker (control de Irving). sid debe ser wt-K; nombre acotado. */
+    public function setNombreWorker(string $sid, string $nombre): void
+    {
+        if (! preg_match('/^wt-\d+$/', $sid)) {
+            return;
+        }
+        $raw = DB::table('settings')->where('key', self::WORKER_NOMBRES_KEY)->value('value');
+        $map = ($raw !== null && is_array($d = json_decode((string) $raw, true))) ? $d : [];
+        $nombre = mb_substr(trim($nombre), 0, 24);
+        if ($nombre === '') {
+            unset($map[$sid]);          // vaciar = volver al default
+        } else {
+            $map[$sid] = $nombre;
+        }
+        $this->putSetting(self::WORKER_NOMBRES_KEY, json_encode($map, JSON_UNESCAPED_UNICODE));
     }
 
     /** Segundos desde el último latido del scheduler (cron), o null si nunca latió. */
