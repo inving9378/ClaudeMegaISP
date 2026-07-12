@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Flotas\Models\FleetGeofence;
 use App\Modules\Addons\Flotas\Models\FleetMaintenance;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
+use App\Modules\Addons\Flotas\Services\FleetPositionService;
 use App\Modules\Addons\Flotas\Services\FleetSubscriptionService;
 use App\Services\Tenant\CurrentClientResolver;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class FlotasController extends Controller
 {
-    public function index(CurrentClientResolver $resolver, FleetSubscriptionService $subs)
+    public function index(CurrentClientResolver $resolver, FleetSubscriptionService $subs, FleetPositionService $positions)
     {
         $clientId = $resolver->resolve();
         $cmi      = Auth::guard('cliente')->user();
@@ -57,12 +58,17 @@ class FlotasController extends Controller
             'geocercas'      => $clientId ? FleetGeofence::forClient($clientId)->where('active', true)->count() : 0,
         ];
 
+        // Rastreo (solo lectura): última posición conocida por vehículo con GPS activo.
+        // getCurrentPositions() ya scopea por forClient($clientId) — mismo candado fail-closed.
+        $tracking = $positions->getCurrentPositions($clientId)->keyBy('vehicle_id');
+
         return view('addon-portal-cliente::flotas', [
             'cmi'          => $cmi,
             'active'       => true,
             'subscription' => $subscription,
             'vehicles'     => $vehicles,
             'standing'     => $standing,
+            'tracking'     => $tracking,
         ]);
     }
 }
