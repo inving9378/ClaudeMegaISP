@@ -121,6 +121,7 @@ class TalentoCredentialController extends Controller
 
     public function serveDocument(int $id)
     {
+        $this->authorize('talento.credentials.view');
         $cred = TalentoCredential::findOrFail($id);
         $path = $cred->getDecryptedPath();
         if (!$path || !Storage::disk('local')->exists($path)) abort(404);
