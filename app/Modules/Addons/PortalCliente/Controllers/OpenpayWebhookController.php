@@ -4,6 +4,7 @@ namespace App\Modules\Addons\PortalCliente\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\PortalCliente\Services\OpenpayService;
+use App\Modules\Addons\PortalCliente\Services\PortalPaymentReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -167,6 +168,15 @@ class OpenpayWebhookController extends Controller
             'invoice_id' => $factura->id,
             'amount'     => $intento->amount,
         ]);
+
+        // ── Recibo por email (best-effort, no bloquea ni revierte la conciliación) ──
+        PortalPaymentReceiptService::enviar(
+            $intento->client_id,
+            $factura->id,
+            $factura->number,
+            (float) $intento->amount,
+            $chargeId
+        );
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Modules\Addons\PortalCliente\Services\OpenpayService;
 use App\Modules\Addons\PortalCliente\Services\OpenpayTransactionException;
+use App\Modules\Addons\PortalCliente\Services\PortalPaymentReceiptService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -172,6 +173,15 @@ class PortalPagoController extends Controller
         if ($status === 'completed') {
             // ── Registrar el pago real en la estructura existente ──────
             $this->registrarPago($clientId, $factura, $chargeId, (float) $factura->total);
+
+            // ── Recibo por email (best-effort, no bloquea ni revierte el pago) ──
+            PortalPaymentReceiptService::enviar(
+                $clientId,
+                $factura->id,
+                $factura->number,
+                (float) $factura->total,
+                $chargeId
+            );
 
             return response()->json([
                 'success'      => true,
