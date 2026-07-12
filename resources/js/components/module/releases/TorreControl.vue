@@ -52,17 +52,6 @@
       ⏸ <b>Ocioso</b> — {{ autoEjecutables }} auto-ejecutable(s) en cola; el pool los tomará en segundos (o esperan que el revisor apruebe los B).
     </div>
 
-    <!-- Watchdog del equipo (#334): ESCALADAS que el supervisor no pudo auto-sanar -->
-    <div v-for="(al, ai) in watchdogAlertas" :key="'wd'+ai" class="tc-alert tc-alert-wd">
-      🔴 <b>{{ tituloAlerta(al) }}</b> — {{ al.detalle }}
-      <span v-if="al.intentos" class="tc-wd-tries">· {{ al.intentos }} intento(s) de auto-recuperación</span>
-    </div>
-    <!-- Watchdog: recuperación automática reciente (informativo, se auto-sanó solo) -->
-    <div v-if="!watchdogAlertas.length && watchdogUltimaRecup" class="tc-alert tc-alert-soft tc-alert-wdok">
-      🛡 <b>Supervisor auto-recuperó</b> — {{ watchdogUltimaRecup.detalle }}
-      <span class="tc-wd-when">· {{ hace(watchdogUltimaRecup.at) }}</span>
-    </div>
-
     <!-- Visor "Trabajando ahora" (#349): stepper de fases por sesión + resumen de la vuelta -->
     <torre-trabajando-ahora :sesiones="sesiones" :resumen="resumenUltima" :now-ms="nowMs" :pausado="pausado" :dark="darkMode" />
 
@@ -264,9 +253,6 @@ export default {
         const proximaAt = ref(null);
         const ultimaAt = ref(null);
         const intervaloMin = ref(30);
-        // Watchdog del equipo (#334): alertas escaladas + bitácora de auto-recuperación.
-        const watchdogAlertas = ref([]);
-        const watchdogBitacora = ref([]);
         const logPre = ref(null);
         const nowMs = ref(Date.now());   // ticker local para animar cronómetro/heartbeat entre polls
         let estadoTimer = null;          // polling de /circuito/estado
@@ -389,22 +375,7 @@ export default {
             cronVivo.value = data.cron_vivo !== false;
             schedulerBeatSecs.value = data.scheduler_beat_secs ?? null;
             autoEjecutables.value = data.auto_ejecutables ?? 0;
-            // Watchdog (#334): presente en /estado y /torre.
-            if (data.watchdog) watchdogAlertas.value = data.watchdog.alertas || [];
-            if (data.watchdog_bitacora) watchdogBitacora.value = data.watchdog_bitacora || [];
         }
-
-        // Última recuperación automática (para el aviso informativo "el supervisor se sanó solo").
-        const watchdogUltimaRecup = computed(() => watchdogBitacora.value[0] || null);
-        const tituloAlerta = (al) => {
-            const t = {
-                scheduler_caido: 'Scheduler caído',
-                worker_colgado: (al.sid || 'Worker') + ' colgado',
-                sin_despacho: 'Pool sin despachar',
-            };
-            return (t[al.tipo] || 'Anomalía') + ' · requiere revisión';
-        };
-        const hace = (iso) => (iso ? rel(iso) : '');
 
         function flashDisparo(msg) {
             disparoMsg.value = msg;
@@ -586,8 +557,6 @@ export default {
             logOpen, logTail, logPre, toggleLog,
             // Disparo manual + urgente (#337) · cola ejecutable + prioridad (#348)
             canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente, prioLabel,
-            // Watchdog del equipo (#334)
-            watchdogAlertas, watchdogUltimaRecup, tituloAlerta, hace,
         };
     },
 };
@@ -631,9 +600,6 @@ export default {
 .tc-disparo-msg{margin-top:12px;padding:9px 14px;border-radius:10px;font-size:12.8px;background:rgba(45,212,191,.12);color:#0f766e;border:1px solid #99f6e4;}
 .tc-alert{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12.8px;line-height:1.4;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;}
 .tc-alert-soft{background:#fffbeb;color:#b45309;border-color:#fde68a;}
-.tc-alert-wd{background:#fef2f2;color:#991b1b;border-color:#fca5a5;border-left:4px solid #dc2626;font-weight:500;}
-.tc-alert-wdok{background:#ecfdf5;color:#047857;border-color:#a7f3d0;}
-.tc-wd-tries,.tc-wd-when{opacity:.8;font-size:11.5px;}
 .tc-livelog{margin-top:12px;background:#0a1120;border:1px solid #1e293b;border-radius:12px;overflow:hidden;}
 .tc-livelog-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #1e293b;font-size:12px;color:#8b97ab;}
 .tc-livelog-tag{display:inline-flex;align-items:center;gap:7px;color:#4ade80;font-weight:700;}
@@ -710,8 +676,6 @@ export default {
 .tc-dark .tc-disparo-msg{background:rgba(45,212,191,.12);color:#5eead4;border-color:#155e52;}
 .tc-dark .tc-alert{background:rgba(248,113,113,.12);color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-alert-soft{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4a20;}
-.tc-dark .tc-alert-wd{background:rgba(248,113,113,.14);color:#fca5a5;border-color:#7f1d1d;border-left-color:#f87171;}
-.tc-dark .tc-alert-wdok{background:rgba(74,222,128,.12);color:#4ade80;border-color:#2b5b3b;}
 .tc-dark .tc-lvA{background:rgba(74,222,128,.15);color:#4ade80;}
 .tc-dark .tc-lvB{background:rgba(251,191,36,.15);color:#fbbf24;}
 .tc-dark .tc-lvC{background:rgba(248,113,113,.15);color:#f87171;}

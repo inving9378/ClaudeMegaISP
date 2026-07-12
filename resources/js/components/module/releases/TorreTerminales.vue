@@ -11,29 +11,6 @@
       </span>
     </div>
 
-    <!-- SUPERVISOR "Thomas T" — el jefe, arriba y resaltado, coordinando a los 6 (#334) -->
-    <div v-if="supervisor" class="tt-sup" :class="{ 'tt-sup-off': !supervisor.activo }">
-      <div class="tt-sup-head">
-        <span class="tt-sup-badge"><i class="bi bi-shield-shaded"></i> Supervisor</span>
-        <span class="tt-sup-name">{{ supervisor.nombre }}</span>
-        <span class="tt-sup-state" :class="supervisor.activo ? 'tt-s-run' : 'tt-s-off'">
-          <span v-if="supervisor.activo" class="tt-dot"></span>{{ supervisor.activo ? 'activo · coordinando' : (supervisor.pausado ? 'pausado' : 'inactivo') }}
-        </span>
-        <span class="tt-sup-beat" v-if="supervisor.latido_secs != null">♥ {{ supervisor.latido_secs }}s</span>
-        <span class="tt-sup-asig" v-if="supervisor.asignados && supervisor.asignados.length">
-          {{ supervisor.asignados.length }} en curso
-        </span>
-      </div>
-      <div class="tt-sup-feed">
-        <div v-if="!supervisor.actividad || !supervisor.actividad.length" class="tt-sup-empty">Sin actividad reciente…</div>
-        <div v-for="(e, ei) in supervisor.actividad" :key="ei" class="tt-sup-line" :class="'tt-sup-' + e.tipo">
-          <span class="tt-sup-ico">{{ feedIco(e.tipo) }}</span>
-          <span class="tt-sup-txt">{{ e.texto }}</span>
-        </div>
-      </div>
-      <div class="tt-sup-hier"><i class="bi bi-arrow-down-short"></i> equipo ejecutando</div>
-    </div>
-
     <!-- Empty state honesto (dependencia dura de #334) -->
     <div v-if="!sesiones.length" class="tt-empty">
       <i class="bi bi-terminal-x tt-empty-ico"></i>
@@ -49,17 +26,14 @@
     <div v-else class="tt-grid" :class="{ 'tt-grid-solo': sesiones.length === 1 }">
       <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle }">
         <div class="tt-term-head">
-          <span class="tt-worker" :title="'Renombrar ' + (s.nombre || s.sid) + ' (' + s.sid + ')'" @click="renombrar(s)">
-            <i class="bi bi-person-badge"></i> {{ s.nombre || s.sid }}
-            <span class="tt-worker-sid">{{ s.sid }}</span>
-          </span>
-          <span class="tt-state" :class="!s.running ? 'tt-s-idle' : (s.stale ? 'tt-s-stale' : 'tt-s-run')">
-            <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ !s.running ? '⚪ esperando trabajo' : (s.stale ? 'latido frío' : 'corriendo') }}
+          <span class="tt-worker" title="Worker del equipo (firma auditable)">{{ s.sid }}</span>
+          <span class="tt-state" :class="s.idle ? 'tt-s-idle' : (s.running ? (s.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off')">
+            <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ s.idle ? 'esperando trabajo' : (s.running ? (s.stale ? 'latido frío' : 'corriendo') : 'terminada') }}
           </span>
           <span class="tt-term-item">
             <template v-if="s.item"><b class="tt-idnum">#{{ s.item.id }}</b> {{ s.item.title || '(sin título)' }}</template>
-            <template v-else-if="s.running"><i class="tt-muted">triaje / preparando…</i></template>
-            <template v-else><i class="tt-muted">esperando trabajo — no hay item elegible en cola</i></template>
+            <template v-else-if="s.idle"><i class="tt-muted">slot libre</i></template>
+            <template v-else><i class="tt-muted">triaje / sin item fijo</i></template>
           </span>
           <span v-if="!s.idle" class="tt-term-clock">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
           <button v-if="!s.idle" class="tt-fs-btn" title="Pantalla completa" @click="openFs(s.sid)">⤢</button>
@@ -73,7 +47,7 @@
         </div>
 
         <!-- Terminal cruda -->
-        <pre :ref="el => setPre(s.sid, el)" class="tt-pre">{{ s.log_tail || (s.running ? 'Sin salida todavía…' : '⚪ esperando trabajo — no hay item elegible en cola. El supervisor le asignará el próximo item seguro.') }}</pre>
+        <pre :ref="el => setPre(s.sid, el)" class="tt-pre">{{ s.log_tail || (s.idle ? 'esperando trabajo… el supervisor le asignará el próximo item de la cola.' : 'Sin salida todavía…') }}</pre>
       </div>
     </div>
 
@@ -121,7 +95,6 @@ export default {
     name: "TorreTerminales",
     setup() {
         const sesiones = ref([]);
-        const supervisor = ref(null);
         const nowMs = ref(Date.now());
         const fsSid = ref(null);
         const pres = {};        // sid -> <pre> (rejilla)
@@ -157,22 +130,8 @@ export default {
             try {
                 const { data } = await axios.get("/api/roadmap/circuito/estado");
                 sesiones.value = (data.trabajando && data.trabajando.sesiones) || [];
-                supervisor.value = data.supervisor || null;
                 nextTick(scrollAll);
             } catch (e) { /* silencioso: no romper la vista por un poll */ }
-        }
-
-        const feedIco = (tipo) => ({ asigna: "📋", autoriza: "✅", escala: "⤴️", watchdog: "🛡" }[tipo] || "•");
-
-        // Renombrar un worker del roster (wt-K → nombre). Vacío = vuelve al default.
-        async function renombrar(s) {
-            const actual = s.nombre && s.nombre !== s.sid ? s.nombre : "";
-            const nombre = window.prompt(`Nombre para ${s.sid} (vacío = default):`, actual);
-            if (nombre === null) return;
-            try {
-                await axios.post("/api/roadmap/circuito/worker-nombre", { sid: s.sid, nombre });
-                await poll();
-            } catch (e) { /* silencioso */ }
         }
 
         const openFs = (sid) => { fsSid.value = sid; nextTick(scrollAll); };
@@ -195,8 +154,7 @@ export default {
             FASES, POLL_MS, dark: darkMode,
             sesiones, anyRunning, fsSesion, fsPre,
             secsSince, fmtClock, stepReached, stepClass, setPre,
-            openFs, closeFs, renombrar,
-            supervisor, feedIco,
+            openFs, closeFs,
         };
     },
 };
@@ -240,30 +198,8 @@ export default {
 .tt-s-stale{ background:rgba(217,119,6,.15); color:var(--tt-warn); }
 .tt-s-off{ background:rgba(100,116,139,.15); color:var(--tt-muted); }
 .tt-s-idle{ background:rgba(100,116,139,.12); color:var(--tt-muted); font-style:italic; }
-/* Nombre del worker (roster) — clic para renombrar; wt-K secundario (#334) */
-.tt-worker{ font-size:11.5px; font-weight:800; letter-spacing:.01em; padding:2px 9px; border-radius:7px; background:rgba(13,148,136,.14); color:var(--tt-accent); white-space:nowrap; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
-.tt-worker:hover{ background:rgba(13,148,136,.24); }
-.tt-worker-sid{ font-size:9.5px; font-weight:600; opacity:.6; font-variant-numeric:tabular-nums; }
-
-/* Supervisor "Thomas T" — el jefe, resaltado y arriba de la rejilla (#334) */
-.tt-sup{ border:1.5px solid var(--tt-accent); border-radius:14px; padding:0; margin-bottom:16px; background:linear-gradient(180deg, rgba(13,148,136,.08), transparent 60%); box-shadow:0 2px 10px rgba(13,148,136,.12); overflow:hidden; }
-.tt-sup-off{ border-color:var(--tt-line); opacity:.75; background:none; box-shadow:none; }
-.tt-sup-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px; border-bottom:1px solid var(--tt-line); }
-.tt-sup-badge{ font-size:10.5px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:var(--tt-accent); background:rgba(13,148,136,.14); padding:3px 9px; border-radius:7px; }
-.tt-sup-name{ font-size:15px; font-weight:800; color:var(--tt-ink); }
-.tt-sup-state{ font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; display:inline-flex; align-items:center; gap:5px; }
-.tt-sup-beat{ font-size:11px; color:var(--tt-live); font-variant-numeric:tabular-nums; }
-.tt-sup-asig{ font-size:11px; color:var(--tt-muted); margin-left:auto; font-weight:600; }
-.tt-sup-feed{ max-height:190px; overflow-y:auto; padding:6px 14px 10px; }
-.tt-sup-empty{ font-size:12px; color:var(--tt-muted); padding:8px 0; }
-.tt-sup-line{ display:flex; gap:8px; align-items:baseline; font-size:12.3px; line-height:1.5; padding:2px 0; border-bottom:1px dashed transparent; }
-.tt-sup-ico{ flex:0 0 auto; }
-.tt-sup-txt{ color:var(--tt-ink); }
-.tt-sup-escala .tt-sup-txt{ color:var(--tt-warn); font-weight:600; }
-.tt-sup-watchdog .tt-sup-txt{ color:var(--tt-accent); }
-.tt-sup-hier{ text-align:center; font-size:10.5px; color:var(--tt-muted); padding:3px 0 8px; letter-spacing:.03em; text-transform:uppercase; }
-.tt-dark .tt-sup{ background:linear-gradient(180deg, rgba(45,212,191,.10), transparent 60%); }
-.tt-dark .tt-sup-off{ background:none; }
+/* Firma del worker (wt-K) — chip auditable, prueba de "son 6 reales" (#334 A) */
+.tt-worker{ font-size:11px; font-weight:800; letter-spacing:.02em; padding:2px 8px; border-radius:7px; background:rgba(13,148,136,.14); color:var(--tt-accent); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .tt-term.tt-idle{ opacity:.62; border-style:dashed; }
 .tt-term-item{ font-size:13px; font-weight:600; flex:1 1 160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tt-idnum{ color:var(--tt-accent); }
