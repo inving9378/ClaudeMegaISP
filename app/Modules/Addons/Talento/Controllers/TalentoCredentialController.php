@@ -49,6 +49,7 @@ class TalentoCredentialController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('talento.credentials.manage');
         $data = $request->validate([
             'colaborador_id'     => 'required|integer|exists:talento_colaboradores,id',
             'type'               => 'required|in:driver_license,other',
@@ -92,6 +93,7 @@ class TalentoCredentialController extends Controller
 
     public function update(Request $request, int $id)
     {
+        $this->authorize('talento.credentials.manage');
         $cred = TalentoCredential::findOrFail($id);
         $data = $request->validate([
             'document_number'    => 'nullable|string|max:60',
@@ -145,6 +147,7 @@ class TalentoCredentialController extends Controller
 
     public function storeFund(Request $request)
     {
+        $this->authorize('talento.funds.manage');
         $data = $request->validate([
             'colaborador_id'   => 'required|integer|exists:talento_colaboradores,id',
             'purpose'          => 'required|in:license,other',
@@ -169,6 +172,7 @@ class TalentoCredentialController extends Controller
 
     public function authorizeFund(Request $request, int $fundId)
     {
+        $this->authorize('talento.funds.manage');
         $fund = TalentoFund::findOrFail($fundId);
         $resolved = $this->fundService->authorize($fund, auth()->id());
         return response()->json(array_merge($resolved->toArray(), [
@@ -179,6 +183,7 @@ class TalentoCredentialController extends Controller
 
     public function markFundSpent(int $fundId)
     {
+        $this->authorize('talento.funds.manage');
         $fund = TalentoFund::findOrFail($fundId);
         if ($fund->status !== 'ready') {
             return response()->json(['error' => 'Solo se puede marcar como spent un fondo en estado ready.'], 422);
