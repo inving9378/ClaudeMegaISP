@@ -671,39 +671,6 @@ class ApiController extends Controller
         return response()->json($profile->devices);
     }
 
-    /**
-     * Liga un dispositivo a un perfil usando un token de un solo uso
-     * (generado al escanear el QR en el dispositivo hijo).
-     */
-    public function linkDevice(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'link_token' => 'required|string|max:64',
-            'name' => 'sometimes|string',
-            'model' => 'sometimes|string',
-            'os' => 'sometimes|in:android,ios',
-            'os_version' => 'sometimes|string',
-            'app_version' => 'sometimes|string',
-            'fcm_token' => 'sometimes|string',
-        ]);
-
-        $device = ParentalDevice::where('link_token', $data['link_token'])->first();
-        if (! $device) {
-            return response()->json(['success' => false, 'error' => 'Token de vinculación inválido'], 404);
-        }
-        if ($device->linked_at) {
-            return response()->json(['success' => false, 'error' => 'Token ya usado'], 409);
-        }
-
-        $device->update(array_merge($data, [
-            'linked_at' => now(),
-            'last_seen_at' => now(),
-            'status' => 'online',
-        ]));
-
-        return response()->json(['success' => true, 'device' => $device]);
-    }
-
     public function deviceRules(int $id): JsonResponse
     {
         $device = $this->requireDevice($id);

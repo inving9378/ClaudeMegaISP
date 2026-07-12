@@ -270,7 +270,6 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::get('/profiles/{id}/tasks', [ApiController::class, 'profileTasks'])->whereNumber('id');
         Route::get('/profiles/{id}/location', [ApiController::class, 'profileLocation'])->whereNumber('id');
 
-        Route::post('/devices/link', [ApiController::class, 'linkDevice']);
         Route::get('/devices/{id}/rules', [ApiController::class, 'deviceRules'])->whereNumber('id');
         Route::put('/devices/{id}/rules', [ApiController::class, 'updateDeviceRules'])->whereNumber('id');
 
