@@ -205,9 +205,11 @@ class PaymentClientController extends Controller
                 $strategy = $this->getStrategy($comissionRules->period);
                 $results = [];
                 if ($strategy) {
-                    $data = $strategy->calculateSaldo($comissionRules, $vendedor);
-                    $ventasSaldo = $data['ventasSaldo'];
-                    $results = $data['results'];
+                    $mapped = $strategy instanceof MonthlyStrategy
+                        ? $this->mapMonthlySaldo($strategy, $vendedor)
+                        : $this->mapWeeklySaldo($strategy, $vendedor);
+                    $ventasSaldo = $mapped['ventasSaldo'];
+                    $results = $mapped['results'];
                     $mesesArray = array_filter($ventasSaldo, function ($key) {
                         return in_array($key, ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
                     }, ARRAY_FILTER_USE_KEY);
@@ -258,6 +260,64 @@ class PaymentClientController extends Controller
         ];
 
         return $strategies[$period] ?? null;
+    }
+
+    /**
+     * WeeklyStrategy::calculateSaldo devuelve prospects/sales/salary/applied_rules/payments
+     * (App\Services\CalculateBalanceSellerService::getSalary), no ventasSaldo/results.
+     * Se mapea aquí el desglose semanal (payments) al shape que espera el front,
+     * sin tocar CalculateBalanceSellerService (lo comparten cortes/cajas).
+     */
+    private function mapWeeklySaldo(WeeklyStrategy $strategy, $vendedor)
+    {
+        $from = Carbon::create(2024, 1, 1)->format('Y-m-d');
+        $to = Carbon::now()->format('Y-m-d');
+        $data = $strategy->calculateSaldo($vendedor, $from, $to, false);
+
+        $ventasSaldo = [];
+        foreach ($data['payments'] as $payment) {
+            $ventasSaldo[$payment['period']] = [
+                'total' => $payment['salary'],
+                'sales' => $payment['sales'],
+                'prospects' => $payment['prospects'],
+                'from' => $payment['from'],
+                'to' => $payment['to'],
+            ];
+        }
+
+        return [
+            'ventasSaldo' => $ventasSaldo,
+            'results' => $data,
+        ];
+    }
+
+    /**
+     * MonthlyStrategy::calculateSaldo devuelve prospects/sales/total/rule + una entrada
+     * por mes (App\Services\CalculateBalanceSellerService::getMonthlyBonus), no
+     * ventasSaldo/results. Se mapea aquí al shape que espera el front, sin tocar
+     * CalculateBalanceSellerService (lo comparten cortes/cajas).
+     */
+    private function mapMonthlySaldo(MonthlyStrategy $strategy, $vendedor)
+    {
+        $data = $strategy->calculateSaldo($vendedor, null);
+
+        $months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        $ventasSaldo = [];
+        foreach ($months as $month) {
+            if (!isset($data[$month])) {
+                continue;
+            }
+            $ventasSaldo[$month] = [
+                'total' => $data[$month]['Total a pagar'] ?? 0,
+                'sales' => $data[$month]['Ventas realizadas'] ?? 0,
+                'rule' => $data[$month]['Regla aplicada'] ?? null,
+            ];
+        }
+
+        return [
+            'ventasSaldo' => $ventasSaldo,
+            'results' => $data,
+        ];
     }
 
     // Definir calculateTotalSaldo dentro del controlador
