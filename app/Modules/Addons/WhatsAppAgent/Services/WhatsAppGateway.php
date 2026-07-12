@@ -28,9 +28,11 @@ class WhatsAppGateway
 
     /**
      * Envía texto por la línea (slug) y registra el mensaje OUT. Reusa sendAndLog
-     * (crea whatsapp_messages OUT + despacha el envío por cola).
+     * (crea whatsapp_messages OUT + despacha el envío por cola). $instanceSlug
+     * nulo cae a la instancia activa marcada default_instance (mismo fallback
+     * de sendAndLog) — útil para consumidores sin conversación previa.
      */
-    public function sendText(string $instanceSlug, string $to, string $body, array $context = []): WhatsAppMessage
+    public function sendText(?string $instanceSlug, string $to, string $body, array $context = []): WhatsAppMessage
     {
         return $this->evolution->sendAndLog($to, $body, $instanceSlug, $context);
     }
