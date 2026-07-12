@@ -422,3 +422,19 @@ Confirmado con dos variantes de patrón (con y sin el prefijo `$(...)` explícit
 usos** de esas 5 APIs jQuery-BS4 en todo `resources/js` — el fix de `.modal()` de junio fue,
 aparentemente, el único caso real; no quedó nada más por migrar. No hay código que cambiar.
 Nivel A, item cerrado sin cambios de comportamiento.
+
+## 2026-07-11 23:50 — Circuito CC: clasificación UI/backend + archivo del radar + firma de worker + 6 terminales + fix crontab
+
+**Bloque 1 — Archivar + clasificar UI/backend** (main `bb958e1b`):
+- `MergeRunner` clasifica cada rama al integrar por los archivos del merge (`git diff $sha^1 $sha`): `.vue/.blade.php/.css/.scss/resources/js/` → **UI-verificable** (`revision_ui=true` + `ui_hint` con qué mirar/probar); resto → **backend/interno** (`revision_ui=false` + **auto-archiva**). Falla-seguro: sin lista de archivos → UI=true.
+- `roadmap_items += revision_ui/ui_hint/archivado_at/archivado_por` (migración aditiva idempotente `2026_07_11_220000`). Scopes `archivado()/noArchivado()`.
+- Radar de Integración = SOLO no-archivados (UI-verificable + pendiente) con nota de revisión; Historial aparte (`GET /integracion/historial`), reversible: `/integracion/archivar` (individual + masivo `todos_mergeados`), `/integracion/desarchivar` ("quiero verlo": trae un backend al radar). `IntegracionRamas.vue`: segmentado Radar/Historial, badges 👁 Revisar visual / ⚙ Backend, botones archivar/traer.
+- Frontera dura intacta (dinero/seguridad/prod/negocio siguen a bandeja).
+
+**Bloque 2 — equipo de workers A+B** (main `dfc79a6f` + fix `aa1c90d7`):
+- **A firma:** `roadmap_items += worker_sid` (migración `2026_07_11_233000`), sellado en el reclamo atómico (`SchedulerCommand` `wt-{slot}` + `claimNextParalelo(?sid)` del pool continuo). Chip `wt-K` en la rejilla + `🛠 wt-K` en Integración. Probado en vivo: #302→wt-2, #332→wt-1.
+- **B 6 terminales fijas:** `trabajandoAhora()` rellena siempre N=6 slots (`wt-1..wt-6`); ociosos = "esperando trabajo" (idle), orden fijo por nº de slot. Fix: se quitó el early-return con 0 sesiones que saltaba el relleno.
+
+**Fix operativo crítico — crontab del circuito sin `cd`:** 4 líneas (`scheduler`, `brief-c`, `reap-stuck`, `destrabe`) corrían sin `cd /var/www/megaisp &&` → fallaban silenciosas (`Could not open input file: artisan`). Efecto: scheduler 27 min sin latido (0 workers), stuck sin reapear, bandeja sin drenar. Corregidas las 4. Backup `cron.bak` en scratchpad. Regla: toda línea del circuito necesita `cd` o ruta absoluta a artisan.
+
+Solo dev, sin push. Kill switch #342 y candados #341/#342 intactos.
