@@ -640,10 +640,11 @@ BLASTER_MINUTOS_ENTRE_INTENTOS=180
 
 ### Pendientes CRÍTICOS para producción
 1. **Credenciales Servnet** — ingresar en `/cobranza/voip` → "Guardar y aplicar" → verificar `sip show peers` = OK
-2. **Webhook AMI** — Asterisk → Laravel para eventos ANSWER/BUSY/NOANSWER/HANGUP
-   - Sin esto el blaster origina llamadas pero nunca actualiza estados
-   - Endpoint ya existe: `POST /webhooks/cobranza/ami-event` → `CobranzaWebhookController`
-   - Falta: configurar `manager.conf` para HTTP POST, o listener AMI en socket persistente
+2. **Webhook AMI (RESUELTO — via `cobranza:ami-listener`)** — Asterisk no hace HTTP POST por sí solo; el
+   camino real es el daemon `php artisan cobranza:ami-listener` (`AmiEventListenerCommand`), que mantiene
+   un socket abierto al AMI y despacha `ProcessCallResultJob`. El webhook HTTP `/webhooks/cobranza/ami-event`
+   (`CobranzaWebhookController`) era código muerto duplicado — eliminado (item roadmap #275). Correr el
+   listener bajo supervisor (`stubs/supervisor-ami-listener.conf`).
 3. **sudoers www-data** — `asterisk -rx sip reload` y `sip show peers` para que VoipConfiguracionController funcione
 4. **Prueba llamada real** — crear campaña con 1 cliente, verificar que Asterisk origina y audio llega
 
@@ -658,7 +659,7 @@ Cron 5min → CobranzaCampanaService::cargarMorosos()
   → Asterisk llama al cliente vía Servnet
   → Cliente contesta → escucha TTS OpenAI
   → Presiona 1 → transferencia a agente
-  → Asterisk POST → /webhooks/cobranza/ami-event
+  → cobranza:ami-listener (daemon, socket AMI) detecta el evento
   → ProcessCallResultJob actualiza estado
   → Si max_intentos sin pago → SuspendServiceJob (delay 24h)
 ```
