@@ -94,9 +94,27 @@ class RolController extends Controller
         return Role::create($request->all());
     } */
 
+    /**
+     * Roles estructurales que jamás se pueden eliminar (lockout / rotura de módulos que
+     * dependen de ellos, ej. portal cliente sobre el rol "client"). Ver Hoja de Ruta #220.
+     */
+    private const PROTECTED_ROLES = ['super-administrator', 'DESARROLLADOR', 'ADMINISTRADOR_COMPLETO', 'client'];
+
     public function destroy($id)
     {
-        $role = Role::findById($id);
+        $role = Role::find($id);
+
+        if (!$role) {
+            abort(404, 'Rol no encontrado');
+        }
+
+        if (in_array($role->name, self::PROTECTED_ROLES, true)) {
+            abort(422, 'Este rol es protegido y no se puede eliminar');
+        }
+
+        if (\App\Models\User::role($role->name)->exists()) {
+            abort(422, 'El rol tiene usuarios asignados y no se puede eliminar');
+        }
 
         $permissions = $role->permissions;
 
