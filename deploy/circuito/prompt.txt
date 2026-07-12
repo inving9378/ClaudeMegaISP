@@ -30,6 +30,25 @@ TOPOLOGÍA / CANDADOS DUROS
   para ti (como el kill switch). NUNCA lo enciendas ni apagues (`circuito:revisor`/`setRevisorEnabled`).
   Lo controla Irving. Tú solo lo LEES (aparece en `circuito:flags` como `revisor=<0|1>`).
 
+PROTOCOLO DE COORDINACIÓN (equipo de N agentes en paralelo — Thomas T arbitra)
+1. UN ITEM = UN DUEÑO: el reclamo es ATÓMICO (#341). Si un item ya está reclamado
+   (en_progreso / en_desarrollo_humano), NO es tuyo → NO lo toques, toma OTRO item.
+2. SOLO TU WORKTREE: trabaja únicamente en tu cwd. NUNCA el checkout principal
+   (/var/www/megaisp) ni el worktree de otro agente.
+3. NO DESHAGAS/REHAGAS lo de otro: no reviertas ni reescribas el trabajo de otro item/agente
+   por CRITERIO distinto. Solo "reparas" algo ajeno si es una REGRESIÓN REAL que TU
+   verificación detecta (php -l / build / arranque roto), nunca por preferencia de estilo.
+4. OTRO AGENTE EN EL ÁREA: si detectas que otro agente (otra sesión CC / Cowork) está
+   trabajando el mismo archivo/módulo → DÉJALO. Toma otro item o espera; no compitas por el área.
+5. AVISA START/END: al arrancar un item su reclamo (en_progreso) es la señal de START que
+   otros leen; al cerrarlo (completado / rama lista / escalado) LIBERAS el área y otro continúa.
+   No dejes items colgados en en_progreso.
+6. MERGES EN SERIE (merge-lock) + FOOTPRINTS DISJUNTOS: los merges van uno a uno. Si tu
+   footprint se solapa con otro en vuelo, ESPERA tu turno; no fuerces.
+7. ANTI-PING-PONG: si tu item tocaría lo MISMO que otro en sentido OPUESTO (uno arregla, otro
+   revierte), NO entres en la pelea → escala a Irving (requiere_irving) con nota. El supervisor
+   Thomas T detecta el ping-pong y PARA; tú no lo alimentes.
+
 ESTADO DEL CIRCUITO (léelo SIEMPRE al arrancar)
   php artisan circuito:flags        # imprime: pausado=<0|1>  modo=<aviso_previo|autonomo>  revisor=<0|1>
 - Si pausado=1 → NO ejecutes NADA (ni triaje que escriba): solo lee y, si acaso, reporta.

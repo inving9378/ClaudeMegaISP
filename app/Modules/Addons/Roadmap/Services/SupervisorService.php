@@ -41,6 +41,8 @@ class SupervisorService
 
         $latidoSecs = collect([$sched, $wdSecs])->filter(fn ($v) => $v !== null)->min();
 
+        $colis = $this->colisiones();
+
         return [
             'nombre'      => self::NOMBRE,
             'activo'      => $vivo,
@@ -49,8 +51,64 @@ class SupervisorService
             'scheduler_vivo' => $sched !== null && $sched < WatchdogService::SCHEDULER_STALE_SEG,
             'watchdog_vivo'  => (bool) ($wd['watchdog_vivo'] ?? false),
             'asignados'   => $this->asignadosAhora(),
-            'actividad'   => $this->actividad($limite),
+            'protocolo'   => $this->protocolo(),        // reglas que arbitra (identidad del jefe)
+            'colisiones'  => $colis['modulos_dobles'],  // 2 agentes en el mismo módulo (rule 6)
+            'pingpong'    => $colis['pingpong'],         // uno arregla / otro revierte (rule 7 → a Irving)
+            'actividad'   => $this->actividad($limite, $colis),
         ];
+    }
+
+    /** El PROTOCOLO DE COORDINACIÓN que Thomas T arbitra (para la identidad/UI del supervisor). */
+    public function protocolo(): array
+    {
+        return [
+            'Un item = un dueño (reclamo atómico #341); lo reclamado no se toca.',
+            'Cada agente solo en su worktree; nunca el principal ni el de otro.',
+            'No deshacer/rehacer lo de otro; reparar solo ante regresión real verificada.',
+            'Otro agente en el área → dejarlo; tomar otro item o esperar.',
+            'Avisar START/END por item; al cerrar se libera el área.',
+            'Merges en serie (merge-lock); footprints disjuntos, el que solapa espera.',
+            'Anti-ping-pong: si dos pelean por lo mismo, el supervisor para y escala a Irving.',
+        ];
+    }
+
+    /**
+     * Detección BARATA (solo DB, sin git — corre en el poll) de colisiones:
+     *  - modulos_dobles: >1 item en_progreso en el MISMO módulo (viola footprints disjuntos / #341).
+     *  - pingpong: un módulo con un REVERT reciente + otro item tocándolo → posible pelea → a Irving.
+     */
+    public function colisiones(): array
+    {
+        // (a) Módulos con 2+ items en vuelo a la vez.
+        $dobles = RoadmapItem::whereNotNull('modulo')->where('modulo', '!=', '')
+            ->where('estado_aprobacion', 'en_progreso')
+            ->selectRaw('modulo, count(*) n, group_concat(id) ids')
+            ->groupBy('modulo')->havingRaw('count(*) > 1')->get()
+            ->map(fn ($r) => ['modulo' => $r->modulo, 'n' => (int) $r->n, 'ids' => array_map('intval', explode(',', (string) $r->ids))])
+            ->values()->all();
+
+        // (b) Reverts REALES recientes por módulo: el evento estructurado 'revert_merge' del log
+        //     (integracionRevert). NO la palabra "reversible"/"revertir" de un brief (falso positivo).
+        $desde = now()->subHours(3);
+        $reverts = RoadmapItem::whereNotNull('modulo')->where('modulo', '!=', '')
+            ->where('updated_at', '>=', $desde)
+            ->where('log', 'like', '%revert_merge%')
+            ->get(['id', 'modulo']);
+
+        $pingpong = [];
+        foreach ($reverts->groupBy('modulo') as $modulo => $rows) {
+            // ¿hay OTRO item tocando el mismo módulo (en vuelo o cambiado en la ventana), distinto de los revertidos?
+            $revIds = $rows->pluck('id')->all();
+            $otro = RoadmapItem::where('modulo', $modulo)->whereNotIn('id', $revIds)
+                ->where('updated_at', '>=', $desde)
+                ->whereIn('estado_aprobacion', ['en_progreso', 'aprobado_claude', 'aprobado_revisor', 'completado'])
+                ->exists();
+            if ($otro) {
+                $pingpong[] = ['modulo' => $modulo, 'revert_ids' => array_map('intval', $revIds)];
+            }
+        }
+
+        return ['modulos_dobles' => $dobles, 'pingpong' => $pingpong];
     }
 
     /** Quién trabaja qué AHORA: [{sid, nombre, item}] de los en_progreso con firma de worker. */
@@ -68,10 +126,21 @@ class SupervisorService
         ])->values()->all();
     }
 
-    /** Feed unificado (merge de asignaciones + revisor + watchdog), orden cronológico desc. */
-    private function actividad(int $limite): array
+    /** Feed unificado (colisiones/ping-pong + asignaciones + revisor + watchdog), orden cronológico desc. */
+    private function actividad(int $limite, ?array $colis = null): array
     {
         $ev = [];
+
+        // (0) ARBITRAJE: ping-pong (a Irving) y colisiones de módulo — arriba del feed.
+        $colis ??= $this->colisiones();
+        foreach ($colis['pingpong'] as $pp) {
+            $ev[] = ['ts' => null, 'orden' => time() + 2, 'tipo' => 'pingpong',
+                'texto' => "⚠ PING-PONG en «{$pp['modulo']}» (revert de #" . implode(',#', $pp['revert_ids']) . ") → PARO y escalo a Irving"];
+        }
+        foreach ($colis['modulos_dobles'] as $md) {
+            $ev[] = ['ts' => null, 'orden' => time() + 1, 'tipo' => 'colision',
+                'texto' => "⚠ Colisión: {$md['n']} agentes en «{$md['modulo']}» (#" . implode(',#', $md['ids']) . ") — footprints deben ser disjuntos"];
+        }
 
         // (1) Asignaciones activas (qué item mandó a qué worker).
         foreach ($this->asignadosAhora() as $a) {
