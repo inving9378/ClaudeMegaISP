@@ -179,7 +179,7 @@ class RoadmapExternalController extends Controller
                 'C' => 'Decisión de diseño exclusiva de Irving. Jamás sin su decisión.',
             ],
             'estado_aprobacion'  => RoadmapItem::ESTADOS_APROBACION,
-            'aprobacion_externa' => 'Por esta vía SOLO un item nivel A puede quedar aprobado_claude; B y C topan en requiere_irving. El nivel_riesgo solo se puede endurecer (A→B→C), nunca degradar.',
+            'aprobacion_externa' => 'Por esta vía SOLO un item nivel A puede quedar aprobado_claude; B y C topan en requiere_irving. El nivel_riesgo solo se puede endurecer (A→B→C), nunca degradar. Además, el A que habilita aprobado_claude debe haber sido fijado por Claude Code/Irving (interno): si esta misma vía externa fija o sube el nivel_riesgo a A, el máximo alcanzable en esa escritura (o en cualquiera posterior mientras el origen siga siendo externo) es requiere_irving.',
         ];
     }
 

@@ -287,6 +287,12 @@ class RoadmapCircuitoService
      *  a) NO degradar nivel_riesgo hacia menos restrictivo (A<B<C): solo endurecer.
      *  b) SOLO un item nivel A puede quedar 'aprobado_claude'. B, C y sin clasificar
      *     topan en 'requiere_irving'. Se evalúa contra el nivel EFECTIVO tras el update.
+     *  c) (#260) El nivel A que habilita 'aprobado_claude' debe haber sido fijado por un
+     *     actor INTERNO (Claude Code / Irving). Si ESTA misma escritura externa es la que
+     *     sube/fija nivel_riesgo (aunque termine en A), o el item quedó en A por una subida
+     *     externa previa (nivel_riesgo_origen='externo'), el máximo alcanzable es
+     *     'requiere_irving' — el mismo actor externo no puede fijar el riesgo Y la
+     *     aprobación de ejecución automática en el mismo lazo.
      */
     public function guard(RoadmapItem $item, array $data): ?string
     {
@@ -336,18 +342,36 @@ class RoadmapCircuitoService
                 . "(este es nivel {$n}); para B/C el máximo es 'requiere_irving'.";
         }
 
+        // (c) #260: el A que habilita aprobado_claude debe venir de origen interno. Si esta
+        // MISMA escritura toca nivel_riesgo, applyWrite() la va a sellar como 'externo' →
+        // origen efectivo = externo. Si no la toca, el origen efectivo es el ya persistido.
+        if (($data['estado_aprobacion'] ?? null) === 'aprobado_claude') {
+            $origenEfectivo = array_key_exists('nivel_riesgo', $data) ? 'externo' : ($item->nivel_riesgo_origen ?? 'interno');
+            if ($origenEfectivo !== 'interno') {
+                return "El nivel A de este item fue fijado/subido por la vía externa: no puede "
+                    . "quedar 'aprobado_claude' en el mismo lazo (el mismo actor no puede fijar "
+                    . "nivel_riesgo Y la aprobación). Máximo alcanzable: 'requiere_irving'.";
+            }
+        }
+
         return null;
     }
 
     /**
      * Aplica la escritura acotada: sella revisado_at + aprobado_por (autor según la vía)
      * y persiste. Devuelve el item fresco. El llamador YA validó (writeFieldRules) y pasó
-     * el guard().
+     * el guard(). #260: toda llamada a applyWrite() viene de una vía EXTERNA (Cowork/MCP,
+     * únicos consumidores) → si toca nivel_riesgo, sella nivel_riesgo_origen='externo'
+     * para que el guard() lo detecte en escrituras futuras.
      */
     public function applyWrite(RoadmapItem $item, array $data, string $actor): RoadmapItem
     {
         $data['revisado_at']  = now();
         $data['aprobado_por'] = $actor;
+
+        if (array_key_exists('nivel_riesgo', $data)) {
+            $data['nivel_riesgo_origen'] = 'externo';
+        }
 
         $item->update($data);
 

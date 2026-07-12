@@ -123,7 +123,9 @@ class RoadmapMcpController extends Controller
                 . 'paginación), roadmap_leer_item para el detalle y roadmap_escribir_item para fijar '
                 . 'estado_aprobacion / nivel_riesgo / comentarios_claude. Guards: solo un item nivel A '
                 . 'puede quedar aprobado_claude; nivel_riesgo solo se endurece (A→B→C); B y C topan en '
-                . 'requiere_irving.',
+                . 'requiere_irving; y el A que habilita aprobado_claude debe haber sido fijado por Claude '
+                . 'Code/Irving (interno) — si esta vía fija o sube el nivel_riesgo a A, el máximo '
+                . 'alcanzable es requiere_irving, nunca aprobado_claude en el mismo lazo.',
         ];
     }
 
