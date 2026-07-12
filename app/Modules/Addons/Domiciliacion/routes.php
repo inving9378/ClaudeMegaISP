@@ -32,9 +32,14 @@ Route::prefix('domiciliacion')->name('admin.domiciliacion.')
     });
 
 // ── Pública — Liga de enrolamiento (sin auth) ─────────────────────────────────
+// 'throttle:30,1' limita a 30 solicitudes/min por IP en el grupo (GET vista/formulario).
+// El POST 'store' dispara OpenPay (crearClienteOpenpay + guardarTarjeta) → throttle
+// adicional más estricto 'throttle:5,1' para acotar el gasto/abuso real. Item #229.
 Route::prefix('d')->name('domiciliacion.public.')
-    ->middleware(['web'])
+    ->middleware(['web', 'throttle:30,1'])
     ->group(function () {
         Route::get('/{token}',  [EnrollmentLinkController::class, 'show'])->name('show');
-        Route::post('/{token}', [EnrollmentLinkController::class, 'store'])->name('store');
+        Route::post('/{token}', [EnrollmentLinkController::class, 'store'])
+            ->middleware('throttle:5,1')
+            ->name('store');
     });
