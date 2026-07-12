@@ -90,8 +90,7 @@
         { "method": "POST",   "path": "/cobranza/campanas",               "description": "Crear campaña",         "scope": "cobranza.manage",    "permission": "cobranza.manage" },
         { "method": "GET",    "path": "/cobranza/voip/configuracion",     "description": "Configuración VoIP",    "scope": "cobranza.configure", "permission": "cobranza.configure" },
         { "method": "POST",   "path": "/cobranza/voip/configuracion",     "description": "Guardar VoIP",          "scope": "cobranza.configure", "permission": "cobranza.configure" },
-        { "method": "GET",    "path": "/cobranza/voip/test",              "description": "Probar conexión AMI",   "scope": "cobranza.configure", "permission": "cobranza.configure" },
-        { "method": "POST",   "path": "/webhooks/cobranza/ami-event",     "description": "Webhook eventos AMI",   "scope": "public",             "permission": null }
+        { "method": "GET",    "path": "/cobranza/voip/test",              "description": "Probar conexión AMI",   "scope": "cobranza.configure", "permission": "cobranza.configure" }
     ],
 
     "ai": {
