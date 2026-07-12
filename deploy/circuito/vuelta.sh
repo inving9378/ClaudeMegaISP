@@ -33,7 +33,7 @@ MODEL="${CIRCUITO_MODEL:-sonnet}"       # #336: Sonnet por defecto (paralelo bar
 
 mkdir -p "$LOGDIR"
 TS="$(date +%Y%m%d-%H%M%S)"
-LOG="$LOGDIR/vuelta-$TS.log"
+LOG="$LOGDIR/vuelta-$TS-$SID.log"
 log(){ echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG"; }
 
 # Lock de instancia única: si ya hay una vuelta corriendo, salgo (nunca solapar).

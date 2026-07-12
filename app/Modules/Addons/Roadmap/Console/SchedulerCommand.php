@@ -29,6 +29,13 @@ class SchedulerCommand extends Command
 
     public function handle(RoadmapCircuitoService $svc): int
     {
+        // Latido del SCHEDULER PRIMERO (antes del flock, SIEMPRE): así cada corrida del cron marca
+        // "vivo" aunque otra instancia tenga el lock o esté pausado → cron_vivo confiable, sin falso
+        // "cron detenido". Distingue "scheduler VIVO pero ocioso" de "cron MUERTO".
+        if (! $this->option('dry')) {
+            DB::table('settings')->updateOrInsert(['key' => 'circuito_scheduler_beat'], ['value' => (string) time(), 'updated_at' => now()]);
+        }
+
         // Un solo scheduler a la vez.
         $lock = @fopen(self::SCHED_LOCK, 'c');
         if (! $lock || ! flock($lock, LOCK_EX | LOCK_NB)) {
@@ -36,12 +43,6 @@ class SchedulerCommand extends Command
         }
 
         try {
-            // Latido del SCHEDULER (aunque esté en pausa): distingue "scheduler VIVO pero ocioso/pausado"
-            // de "cron MUERTO". La Torre lo usa para no gritar "cron detenido" cuando solo falta trabajo.
-            if (! $this->option('dry')) {
-                DB::table('settings')->updateOrInsert(['key' => 'circuito_scheduler_beat'], ['value' => (string) time(), 'updated_at' => now()]);
-            }
-
             // Kill switch: en pausa NO lanza nada (el dry-run sí muestra el plan, no ejecuta).
             if ($svc->isPaused() && ! $this->option('dry')) {
                 return self::SUCCESS;
