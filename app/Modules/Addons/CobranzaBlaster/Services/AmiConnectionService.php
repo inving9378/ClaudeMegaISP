@@ -86,6 +86,24 @@ class AmiConnectionService
         // provisionado por VoiceGateway::configureTrunk). Antes: SIP/servnet-trunk (chan_sip).
         $channel   = 'PJSIP/servnet/' . $telefono;
 
+        // #277: sin CallerID configurado, resolveCallerId() ya no cae al placeholder
+        // 'Meganet Telecomunicaciones <5551234567>'. Se ABORTA el originate (fallback duro,
+        // aprobado por Irving) en vez de dejar salir un número placeholder a un cliente real.
+        $callerId = $this->resolveCallerId();
+
+        if ($callerId === null) {
+            Log::error('AMI Originate abortado: VoipConfiguracion sin callerid_nombre/callerid_numero configurado; no se llama con un CallerID placeholder.', [
+                'llamada_id' => $llamadaId,
+            ]);
+
+            return [
+                'success'  => false,
+                'actionid' => $actionId,
+                'channel'  => $channel,
+                'uniqueid' => $channelId,
+            ];
+        }
+
         $action = implode("\r\n", [
             'Action: Originate',
             'Channel: ' . $channel,
@@ -94,7 +112,7 @@ class AmiConnectionService
             'Exten: s',
             'Priority: 1',
             'Timeout: 30000',
-            'CallerID: ' . $this->resolveCallerId(),
+            'CallerID: ' . $callerId,
             'Variable: COBRANZA_LLAMADA_ID=' . $llamadaId,
             'Variable: COBRANZA_NOMBRE=' . $clienteNombre,
             'Variable: COBRANZA_AUDIO=' . $audioPath,
@@ -124,9 +142,10 @@ class AmiConnectionService
     /**
      * Lee callerid_nombre/callerid_numero de la VoipConfiguracion (BD, config única id=1, mismo
      * patrón que VoipConfiguracionController::first()). Si la config no existe o ambos campos
-     * vienen vacíos, cae al literal histórico (fallback, #189).
+     * vienen vacíos, devuelve null (#277: sin fallback a placeholder; originate() aborta la
+     * llamada en vez de identificarse con un número que no es real).
      */
-    private function resolveCallerId(): string
+    private function resolveCallerId(): ?string
     {
         try {
             $cfg = VoipConfiguracion::first();
@@ -139,7 +158,7 @@ class AmiConnectionService
         $numero = trim((string) ($cfg->callerid_numero ?? ''));
 
         if ($nombre === '' && $numero === '') {
-            return 'Meganet Telecomunicaciones <5551234567>';
+            return null;
         }
 
         return $numero !== '' ? "{$nombre} <{$numero}>" : $nombre;
