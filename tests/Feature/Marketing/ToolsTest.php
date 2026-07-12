@@ -191,7 +191,7 @@ class ToolsTest extends MarketingTestCase
         $this->assertEquals('Centro', $result['zone']);
     }
 
-    public function test_check_coverage_returns_false_when_no_match(): void
+    public function test_check_coverage_degrades_to_confirm_with_team_when_no_exact_match(): void
     {
         Setting::updateOrCreate(
             ['key' => 'coverage_zones', 'company_id' => 1],
@@ -201,7 +201,21 @@ class ToolsTest extends MarketingTestCase
         $tool   = new CheckCoverageTool();
         $result = $tool->execute('Calle Desconocida 99', 'Colonia Lejana', 'Otro Estado');
 
-        $this->assertFalse($result['has_coverage']);
+        $this->assertNull($result['has_coverage']);
+        $this->assertStringContainsString('confirmar', $result['message']);
+    }
+
+    public function test_check_coverage_does_not_match_by_partial_substring(): void
+    {
+        Setting::updateOrCreate(
+            ['key' => 'coverage_zones', 'company_id' => 1],
+            ['group' => 'general', 'value' => '["Roma Norte"]', 'encrypted' => false]
+        );
+
+        $tool   = new CheckCoverageTool();
+        $result = $tool->execute('Calle 5', 'Roma', 'CDMX');
+
+        $this->assertNull($result['has_coverage']);
     }
 
     // ── QueryPlansTool ──────────────────────────────────────────────────────────

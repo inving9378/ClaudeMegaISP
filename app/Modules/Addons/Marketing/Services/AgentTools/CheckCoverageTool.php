@@ -36,43 +36,61 @@ class CheckCoverageTool
             ];
         }
 
-        // Simple text matching against zones list
-        $searchTerms = array_filter([$address, $neighborhood, $city]);
-        $searchStr   = mb_strtolower(implode(' ', $searchTerms));
+        $searchTerms     = array_filter([$neighborhood, $address, $city]);
+        $normalizedTerms = array_filter(array_map([self::class, 'normalize'], $searchTerms));
 
-        $matched = null;
+        $matched      = null;
         $alternatives = [];
 
         foreach ($zones as $zone) {
-            $zoneName  = is_array($zone) ? ($zone['name'] ?? '') : $zone;
-            $zoneMatch = mb_strtolower($zoneName);
+            $zoneName = is_array($zone) ? ($zone['name'] ?? '') : $zone;
+            if ($zoneName === '') {
+                continue;
+            }
 
-            // Check if any search term appears in zone name or vice versa
-            foreach ($searchTerms as $term) {
-                $termLower = mb_strtolower($term);
-                if (str_contains($zoneMatch, $termLower) || str_contains($termLower, $zoneMatch)) {
+            $normalizedZone = self::normalize($zoneName);
+
+            // Match exacto de colonia (no substring): evita falsos positivos/negativos
+            // por coincidencia parcial de nombres de zona.
+            foreach ($normalizedTerms as $term) {
+                if ($normalizedZone !== '' && $term === $normalizedZone) {
                     $matched = $zoneName;
                     break 2;
                 }
             }
-            $alternatives[] = is_array($zone) ? ($zone['name'] ?? $zone) : $zone;
+            $alternatives[] = $zoneName;
         }
 
         if ($matched) {
             return [
                 'has_coverage'      => true,
                 'zone'              => $matched,
-                'confidence'        => 0.85,
+                'confidence'        => 0.95,
                 'alternative_zones' => [],
             ];
         }
 
+        // Ante duda (sin match exacto) NO se afirma cobertura ni se niega con confianza:
+        // se degrada a "confirmar con el equipo" para evitar prometer o descartar servicio
+        // por una coincidencia laxa de texto.
         return [
-            'has_coverage'      => false,
+            'has_coverage'      => null,
             'zone'              => null,
-            'confidence'        => 0.7,
+            'confidence'        => null,
             'alternative_zones' => array_slice($alternatives, 0, 3),
-            'message'           => 'No se encontró cobertura confirmada en esa zona. Puede que estemos expandiendo.',
+            'message'           => 'No pude confirmar cobertura exacta en esa colonia. Favor de confirmar disponibilidad con el equipo antes de comprometerse con el cliente.',
         ];
+    }
+
+    private static function normalize(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT', $value);
+        if ($transliterated !== false) {
+            $value = $transliterated;
+        }
+        $value = preg_replace('/[^a-z0-9]+/', ' ', $value);
+
+        return trim(preg_replace('/\s+/', ' ', $value));
     }
 }
