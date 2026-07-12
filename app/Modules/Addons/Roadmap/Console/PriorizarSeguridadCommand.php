@@ -24,6 +24,8 @@ class PriorizarSeguridadCommand extends Command
 
     private const MARCA = '⟪SEG-TRIAGE⟫';
 
+    private const LOCK = '/home/meganet/circuito/priorizar-seg.lock';
+
     /** Señales de pre-filtro (título+descripción+prompt+comentarios, sin acentos). */
     private const SENALES = [
         'texto plano', 'plaintext', 'base64', 'bcrypt', 'hash', 'contrasen', 'password',
@@ -37,6 +39,24 @@ class PriorizarSeguridadCommand extends Command
     ];
 
     public function handle(RevisorService $revisor): int
+    {
+        // Un solo triaje a la vez (evita que el cron y una corrida manual doble-briefen el mismo item).
+        @mkdir(dirname(self::LOCK), 0775, true);
+        $lock = @fopen(self::LOCK, 'c');
+        if (! $lock || ! flock($lock, LOCK_EX | LOCK_NB)) {
+            $this->info('Priorización de riesgo: otra pasada en curso (lock ocupado).');
+            return self::SUCCESS;
+        }
+
+        try {
+            return $this->correr($revisor);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    private function correr(RevisorService $revisor): int
     {
         $limit = max(1, (int) $this->option('limit'));
         $re = '~(' . implode('|', self::SENALES) . ')~i';
