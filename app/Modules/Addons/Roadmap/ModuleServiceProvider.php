@@ -29,6 +29,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\SchedulerCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ClaimNextCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ReapStuckCommand::class,
+                // Watchdog del equipo + auto-recuperación del supervisor (#334)
+                \App\Modules\Addons\Roadmap\Console\WatchdogCommand::class,
                 // Agente revisor #338
                 \App\Modules\Addons\Roadmap\Console\RevisarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisarBacklogCommand::class,
