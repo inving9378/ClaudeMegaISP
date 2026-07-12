@@ -478,8 +478,6 @@ return [
         '/olts/onus/sync/{id}',
         '/olts/onus/full-status/{id}',
         '/olts/onus/running-config/{id}',
-        '/olts/onus/change-web-user-pass/{id}',
-        '/olts/onus/set-catv/{id}',
 
         '/olts/settings/odbs',
         '/olts/settings/zones',
@@ -500,6 +498,8 @@ return [
     ],
 
     'onu_edit' => [
+        '/olts/onus/change-web-user-pass/{id}',
+        '/olts/onus/set-catv/{id}',
         '/olts/onus/move/{id}',
         '/olts/onus/update-location/{id}',
         '/olts/onus/update-external-id/{id}',
