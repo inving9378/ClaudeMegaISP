@@ -2,20 +2,27 @@
 
 namespace App\Modules\Addons\CobranzaBlaster\Services;
 
+use App\Services\Core\ApiIntegrationService;
+use App\Services\Core\UsesApiIntegration;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Credencial OpenAI resuelta vía el Hub de integraciones (api_integrations,
+ * mismo mecanismo que Marketing\Services\Tts\OpenAiTtsDriver), no env() directo.
+ * Prioridad: Hub → env('OPENAI_API_KEY') como respaldo. #273.
+ */
 class CobranzaTtsService
 {
+    use UsesApiIntegration;
+
     protected string $audioBasePath = '/var/lib/asterisk/sounds/cobranza/';
-    protected string $openAiKey;
     protected string $voice;
 
     public function __construct()
     {
-        $this->openAiKey = env('OPENAI_API_KEY', '');
-        $this->voice     = env('BLASTER_TTS_VOICE', 'nova');
+        $this->voice = env('BLASTER_TTS_VOICE', 'nova');
     }
 
     public function generateAudio(
@@ -90,8 +97,15 @@ class CobranzaTtsService
 
     private function callOpenAiTts(string $texto, string $destino): bool
     {
+        $apiKey = $this->resolveApiKey('openai', 'OPENAI_API_KEY');
+
+        if (empty($apiKey)) {
+            Log::error('CobranzaTtsService: sin API key de OpenAI configurada (Hub api_integrations ni env)');
+            return false;
+        }
+
         try {
-            $response = Http::withToken($this->openAiKey)
+            $response = Http::withToken($apiKey)
                 ->timeout(30)
                 ->post('https://api.openai.com/v1/audio/speech', [
                     'model'          => 'tts-1',
@@ -108,12 +122,25 @@ class CobranzaTtsService
 
             @mkdir(dirname($destino), 0755, true);
             file_put_contents($destino, $response->body());
+            $this->trackUsage($texto);
             return true;
 
         } catch (\Throwable $e) {
             Log::error('OpenAI TTS excepción', ['error' => $e->getMessage()]);
             return false;
         }
+    }
+
+    /** Telemetría de costo/uso en el Hub central (api_integrations_usage). Best-effort. */
+    private function trackUsage(string $texto): void
+    {
+        $integration = $this->resolveApiIntegration('openai');
+        if (!$integration) {
+            return;
+        }
+
+        $costUsd = (mb_strlen($texto) / 1000) * 0.015; // tts-1: $0.015 / 1000 chars
+        ApiIntegrationService::instance()->trackUsage($integration, 'cobranza_blaster_tts', 1, round($costUsd, 6));
     }
 
     private function convertToWav(string $mp3, string $wav): void
