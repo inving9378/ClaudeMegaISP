@@ -264,6 +264,7 @@ Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `46
 5. **Validar en DEV antes de subir** — captura visual de Irving: pestañas "Mi material" (ASSET_VER 14) + Fase A. **Pendiente.**
 6. **`NO Payments/`** — V1.20 arrastraba todo el módulo Conciliación WhatsApp F1–F6; si no va a prod aún, separar ramas antes del deploy (freno maestro `payments.auto_apply_enabled` = OFF por default).
 7. **`DOMICILIACION_COBRO_LIVE_ENABLED` (es PLATA)** — kill-switch de cobros REALES de `domiciliacion:cobrar`, independiente de `OPENPAY_SANDBOX` (`config/domiciliacion.php`). Default seguro `false` si falta el env. **NO poner `true` en PROD sin decisión explícita de Irving** — sube en `false` y actívalo aparte cuando él lo confirme. (Antes el gate de producción dependía de `OPENPAY_SANDBOX=false`, que es justo lo que pide este mismo checklist para OpenPay → bloqueaba el cobro real en silencio; item #225.)
+8. **`APP_DEBUG=false` + `DEBUGBAR_ENABLED=false` en PROD (fuga de info)** — en dev (.11) `APP_DEBUG=true` y la Debugbar están activos a propósito; en producción (.198) deben ir en `false` para no exponer stack traces/queries/env por HTTP. Acción manual de Irving en el `.env` de .198 (nunca tocar el `.env` de dev): setear ambos flags y luego `php artisan config:clear && php artisan route:clear && php artisan queue:restart` (**NUNCA `config:cache`** con debug activo por error). Item roadmap #156 — el circuito no lo ejecuta (frontera dura: no toca `.env` ni servicios de producción).
 
 ### Infraestructura de producción — verificación pendiente
 
