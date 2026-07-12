@@ -21,10 +21,6 @@ use Illuminate\Support\Facades\Route;
 
 // ── PÚBLICAS: sin auth ────────────────────────────────────────────────────────
 Route::middleware(['web'])->group(function () {
-    // Logo serve — auth via permission inside controller
-    Route::get('/api/marketing/brand-kit/logo/serve', [MarketingBrandKitController::class, 'serveLogo'])
-        ->name('marketing.brand-kit.logo.serve');
-
     // Meta Ads webhook (GET verify + POST receive)
     Route::match(['get', 'post'], '/webhooks/marketing/meta-ads', [MetaAdsWebhookController::class, 'handle'])
         ->name('marketing.webhook.meta-ads');
@@ -82,6 +78,7 @@ Route::middleware(['web', 'auth'])->prefix('api/marketing')->name('api.marketing
         Route::put('/',              [MarketingBrandKitController::class, 'update'])->name('update');
         Route::post('logo',          [MarketingBrandKitController::class, 'uploadLogo'])->name('logo.upload');
         Route::delete('logo',        [MarketingBrandKitController::class, 'deleteLogo'])->name('logo.delete');
+        Route::get('logo/serve',     [MarketingBrandKitController::class, 'serveLogo'])->name('logo.serve');
         Route::put('integrations',   [MarketingBrandKitController::class, 'updateIntegrations'])->name('integrations.update');
     });
 
