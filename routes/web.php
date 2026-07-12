@@ -230,3 +230,9 @@ Route::get('/notification-email', function () {
 Route::post('/ia/chat', [\App\Http\Controllers\IA\IAChatController::class, 'chat'])
     ->middleware('auth')
     ->name('ia.chat');
+
+// Sugerencias dinámicas del chat flotante (#9 Fase 3): derivadas de example_intents de
+// los módulos activos, en vez de hardcodearlas en el frontend.
+Route::get('/ia/suggestions', [\App\Http\Controllers\IA\IAChatController::class, 'suggestions'])
+    ->middleware('auth')
+    ->name('ia.suggestions');

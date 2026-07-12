@@ -30,6 +30,29 @@ class IAChatController extends Controller
     ) {
     }
 
+    /**
+     * Sugerencias dinámicas para los chips de bienvenida del chat flotante — Fase 3 de #9.
+     *
+     * Derivadas de `example_intents` que cada módulo declara en su module.json (vía
+     * ModuleRegistry::getAiContext()), NO hardcodeadas. Una sugerencia por módulo (en el
+     * orden en que el registro los compila) hasta un máximo, para no saturar la UI.
+     */
+    public function suggestions(): JsonResponse
+    {
+        $picked = [];
+        foreach ($this->registry->getAiContext() as $mod) {
+            $intent = ($mod['example_intents'] ?? [])[0] ?? null;
+            if ($intent !== null) {
+                $picked[] = ['text' => $intent, 'module' => $mod['_module'] ?? null];
+            }
+            if (count($picked) >= 6) {
+                break;
+            }
+        }
+
+        return response()->json(['success' => true, 'suggestions' => $picked]);
+    }
+
     public function chat(Request $request): JsonResponse
     {
         $data = $request->validate([
