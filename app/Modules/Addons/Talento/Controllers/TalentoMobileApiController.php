@@ -552,25 +552,12 @@ class TalentoMobileApiController extends Controller
         $filtroIni = $w['start_instant'];
         $filtroFin = $w['end_instant'];
 
-        // OTs completadas o validadas esta semana (fuente legacy)
-        $woUnidades = TalentoWorkOrder::where('colaborador_id', $colaborador->id)
-            ->whereIn('status', ['completed', 'validated'])
-            ->whereBetween('completed_at', [$filtroIni, $filtroFin])
-            ->count();
-
-        // Tasks campo validadas esta semana (Capa 5)
-        $taskUnidades = 0;
-        $taskUserId = TalentoColaborador::where('id', $colaborador->id)->value('user_id');
-        if ($taskUserId) {
-            $taskUnidades = \App\Models\Task::where('tipo', 'campo')
-                ->whereNotNull('talento_type_id')
-                ->where('status', 'Done')
-                ->whereNotNull('validated_at')
-                ->whereBetween('validated_at', [$filtroIni, $filtroFin])
-                ->whereHas('users', fn($q) => $q->where('users.id', $taskUserId))
-                ->count();
-        }
-        $unidades = $woUnidades + $taskUnidades;
+        // Unidades facturables — PUNTO ÚNICO DE VERDAD (item #241): reusa countBillableUnits()
+        // (misma fuente que la liquidación y el breakdown del portal: OTs + tasks de campo +
+        // puntos de proyecto externo) en vez de recalcular a mano, para que la app móvil muestre
+        // exactamente las unidades que se pagan.
+        $unidades = app(\App\Modules\Addons\Talento\Services\LiquidationService::class)
+            ->countBillableUnits($colaborador->id, $w)['total'];
 
         // Cuota semanal — talento_compensation_rules (global por target_type)
         $cuota = DB::table('talento_compensation_rules')
