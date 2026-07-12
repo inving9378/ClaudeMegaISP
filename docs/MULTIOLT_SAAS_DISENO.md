@@ -263,6 +263,36 @@ Regla de coexistencia: nunca cambiar `motor_modo` de una OLT mientras haya opera
 
 ---
 
+## 9. Estado: CONGELADO — paridad de escritura Huawei propia (2026-07-12)
+
+> Decisión de Irving, Hoja de Ruta item #415 (aprobado 2026-07-12 12:59). Congela el avance de
+> la sección 8, sin borrar ni revertir nada de lo ya construido.
+
+**Qué queda congelado:** el desarrollo de las operaciones write pendientes del `HuaweiDriver`
+(B5 — cambio de perfil de velocidad; y la gestión de service-ports/VLANs, aún más adelante).
+Lo ya implementado (reboot/activar-desactivar/autorizar/desautorizar ONT en dry-run, y el write
+real cosmético de W3) **se conserva tal cual, sin tocarse**. Ninguna OLT de producción tiene hoy
+`motor_modo=propio` (las 3 siguen en `smartolt`); el freeze no cambia el comportamiento en vivo.
+
+**Por qué:** decisión de negocio/arquitectura — el costo de mantenimiento por firmware/modelo y
+el riesgo de tocar aprovisionamiento en campo no se justifican sin un caso de uso vivo que lo
+empuje. Ver el brief completo de opciones (A/B/C) en `comentarios_claude` del item #415 de la
+Hoja de Ruta.
+
+**Trigger de reanudación** (cualquiera de estos, a criterio de Irving):
+- El método actual de escritura (SmartOLT / CLI manual) empieza a fallar de forma recurrente en
+  aprovisionamiento masivo o en operaciones diarias (reboot/activar-desactivar).
+- Entra un modelo/firmware de OLT Huawei nuevo que SmartOLT no soporte bien.
+- Aparece un caso de negocio concreto que exija independencia total de SmartOLT (p. ej. Camino A
+  multi-tenant de la sección 2, que si se persigue sí necesitaría el motor propio maduro).
+
+**Al retomar:** seguir la secuencia de la sección 8.4 desde donde quedó (B5 — perfil de
+velocidad), con la misma regla de coexistencia de la sección 8.5 (ventana de mantenimiento +
+presencia de Irving para el primer flip real de `motor_modo`).
+
+---
+
 *Documento creado por Claude Sonnet 4.6 como resultado de la sesión autónoma MultiOLT 2026-06-13.
 Sección 8 agregada en sesión W2 (2026-06-16) — decisiones acordadas Irving + asistente.*
+Sección 9 agregada por el circuito CC (item #415, 2026-07-12) — registra el congelamiento decidido por Irving.*
 *Basado en auditoría directa del codebase — no estimaciones.*
