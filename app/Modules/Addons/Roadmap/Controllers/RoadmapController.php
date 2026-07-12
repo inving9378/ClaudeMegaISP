@@ -100,6 +100,8 @@ class RoadmapController extends Controller
         return response()->json([
             'generated_at'         => now()->toIso8601String(),
             'circuito_pausado'     => $this->svc->isPaused(),
+            // #343: salvaguarda de "pausa olvidada" — null si no está pausado.
+            'circuito_pausado_info' => $this->svc->pausedInfo(),
             'circuito_modo'        => $this->svc->getModo(),
             'resumen'              => $this->svc->resumen(),
             'cola_requiere_irving' => $cola,
@@ -145,6 +147,8 @@ class RoadmapController extends Controller
         return response()->json([
             'generated_at'      => now()->toIso8601String(),
             'circuito_pausado'  => $this->svc->isPaused(),
+            // #343: salvaguarda de "pausa olvidada" en el polling ligero (el banner se actualiza solo).
+            'circuito_pausado_info' => $this->svc->pausedInfo(),
             'circuito_modo'     => $this->svc->getModo(),
             'live'              => $this->svc->liveState(),
             'log_tail'          => $this->svc->liveLogTail(),
