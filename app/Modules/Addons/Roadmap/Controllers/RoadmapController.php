@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
+use App\Modules\Addons\Roadmap\Services\SupervisorService;
 use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ use Symfony\Component\Process\Process;
 
 class RoadmapController extends Controller
 {
-    public function __construct(private RoadmapCircuitoService $svc, private WatchdogService $watchdog)
+    public function __construct(private RoadmapCircuitoService $svc, private WatchdogService $watchdog, private SupervisorService $supervisor)
     {
     }
 
@@ -125,6 +126,7 @@ class RoadmapController extends Controller
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),
             'worker_nombres'       => $this->svc->nombresWorkers(),   // roster editable (#334)
+            'supervisor'           => $this->supervisor->estado(),    // Thomas T: jefe + su feed (#334)
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
     }
@@ -153,6 +155,7 @@ class RoadmapController extends Controller
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
             // Watchdog del equipo (#334): salud por slot + alertas para el polling en vivo.
             'watchdog'          => $this->watchdog->estado(),
+            'supervisor'        => $this->supervisor->estado(),   // Thomas T + su feed (#334)
             'can_disparar'      => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
     }
