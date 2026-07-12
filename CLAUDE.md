@@ -352,7 +352,7 @@ Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `46
 |------|-------------|--------|-----------|
 | **OpenPay producción** | Completar certificación + cambiar llaves en `.env` + `OPENPAY_SANDBOX=false` | ⏳ Config | Alta |
 | **Webhook OpenPay** | Activar URL en dashboard OpenPay al publicar subdominio/SSL | ⏳ Config | Alta |
-| Portal: subdominio + SSL | Configurar `portal.meganet.mx` con nginx + certbot | ⏳ Pendiente | Alta |
+| Portal: subdominio + SSL | Configurar `portal.meganet.mx` con nginx + certbot. **Al publicar HTTPS, aplicar de una vez en el mismo corte**: `SESSION_SECURE_COOKIE=true` en el `.env` de PROD (.198) + warm-up (`config:clear && route:clear && queue:restart`, NUNCA `config:cache`) + probar login. Dejar `false`/vacío mientras siga por HTTP (si no, la cookie no viaja y rompe login). Acción manual de Irving en el box de prod — el circuito de dev no toca .198 (item roadmap #157). | ⏳ Pendiente | Alta |
 | Portal: CFDI timbrado | Generar PDF/XML de facturas fiscales desde el portal | ⏳ Pendiente | Media |
 | Portal: cobro/tarifas premium MegaFamilia | Planes de pago MegaFamilia vía OpenPay | ⏳ Pendiente | Media |
 | Portal: funciones cliente MegaFamilia | Perfiles, dispositivos, stats dentro del portal | ⏳ Pendiente | Media |
