@@ -69,7 +69,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
 
     Route::prefix('inventory_movement')->group(function () {
         Route::get('/', [InventoryMovementController::class, 'index']);
-        Route::post('/add', [InventoryMovementController::class, 'store']);
         Route::post('/update/{id}', [InventoryMovementController::class, 'update']);
         Route::post('/destroy/{id}', [InventoryMovementController::class, 'destroy']);
         Route::post('/table', [InventoryMovementController::class, 'table']);
