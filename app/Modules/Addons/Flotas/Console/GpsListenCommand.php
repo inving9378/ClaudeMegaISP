@@ -8,6 +8,7 @@ use App\Modules\Addons\Flotas\Services\Gps\DeviceFactory;
 use App\Modules\Addons\Flotas\Services\Gps\Drivers\RuptelaDriver;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Sub-fase 2.3a — Listener TCP para dispositivos GPS (Ruptela hoy; Concox/GT06 a futuro).
@@ -101,13 +102,37 @@ class GpsListenCommand extends Command
             $this->log("{$ip}: frame sin IMEI resoluble (" . strlen($frame) . " bytes).", 'warning');
             return;
         }
-        $crcNote = ($driver instanceof RuptelaDriver && !$driver->lastCrcOk) ? ' (CRC no coincide ⚠️)' : '';
+        $crcOk = !($driver instanceof RuptelaDriver) || $driver->lastCrcOk;
+        $crcNote = $crcOk ? '' : ' (CRC no coincide ⚠️)';
         $this->log("{$ip}: imei={$this->maskImei($imei)} records=" . count($parsed) . $crcNote);
+
+        // #283 — CRC estricto: frame corrupto/manipulado se descarta ANTES de tocar
+        // el device o persistir posiciones. Flag por env, default ON.
+        if (!$crcOk && config('gps.strict_crc', true)) {
+            $this->log("{$ip}: CRC inválido para imei={$this->maskImei($imei)} — frame descartado (gps.strict_crc).", 'warning');
+            return;
+        }
 
         $device = FleetDevice::where('imei', $imei)->first();
 
-        // Device desconocido → registrar como 'unregistered' (sin vehículo aún, no se guardan posiciones).
+        // Device desconocido → el alta legítima de un GPS físico SIEMPRE pasa antes
+        // por la UI (FleetGpsController::activateDevice), que ya vincula el device a
+        // un vehículo. Un IMEI no dado de alta no es un caso de uso normal: #283
+        // gatea el auto-registro (default OFF) y, si se habilita, lo limita por IP.
         if (!$device) {
+            if (!config('gps.auto_register_unknown_imei', false)) {
+                $this->log("{$ip}: IMEI {$this->maskImei($imei)} desconocido — auto-registro deshabilitado (gps.auto_register_unknown_imei). Descartado.", 'warning');
+                return;
+            }
+
+            $rateKey = 'gps-new-imei:' . $ip;
+            $perHour = (int) config('gps.imei_new_per_ip_per_hour', 3);
+            if (RateLimiter::tooManyAttempts($rateKey, $perHour)) {
+                $this->log("{$ip}: límite de IMEIs nuevos por hora alcanzado ({$perHour}). IMEI {$this->maskImei($imei)} descartado.", 'warning');
+                return;
+            }
+            RateLimiter::hit($rateKey, 3600);
+
             $device = FleetDevice::create([
                 'imei'         => $imei,
                 'brand'        => $driver->name(),

@@ -21,7 +21,8 @@ class SimulateRuptelaCommand extends Command
                             {--port=5027}
                             {--count=3 : Número de records en el frame}
                             {--lat=19.4326}
-                            {--lng=-99.1332}';
+                            {--lng=-99.1332}
+                            {--corrupt-crc : Envía el frame con CRC inválido (prueba #283 de gps.strict_crc)}';
 
     protected $description = 'Simula un dispositivo Ruptela enviando packets binarios al listener TCP';
 
@@ -37,6 +38,12 @@ class SimulateRuptelaCommand extends Command
         $lng   = (float) $this->option('lng');
 
         $frame = $this->buildFrame($imei, $count, $lat, $lng);
+
+        if ($this->option('corrupt-crc')) {
+            $frame = $this->corruptCrc($frame);
+            $this->warn('⚠️ CRC corrompido a propósito (--corrupt-crc): el listener debe descartar este frame si gps.strict_crc está activo.');
+        }
+
         $this->info("Frame Ruptela construido: " . strlen($frame) . " bytes, {$count} record(s), imei={$imei}");
         $this->line("  HEX (primeros 48): " . strtoupper(substr(bin2hex($frame), 0, 48)) . '…');
 
@@ -112,4 +119,14 @@ class SimulateRuptelaCommand extends Command
         $v = (int) round($val);
         return $v < 0 ? $v + 0x100000000 : $v;
     }
+
+    /** Invierte los 2 últimos bytes (CRC) del frame para simular un frame corrupto/manipulado. */
+    private function corruptCrc(string $frame): string
+    {
+        $len = strlen($frame);
+        $crc = ~$this->u16($frame, $len - 2) & 0xFFFF;
+        return substr($frame, 0, $len - 2) . pack('n', $crc);
+    }
+
+    private function u16(string $d, int $o): int { return unpack('n', substr($d, $o, 2))[1]; }
 }
