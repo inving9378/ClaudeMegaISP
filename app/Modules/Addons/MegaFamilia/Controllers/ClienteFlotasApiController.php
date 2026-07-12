@@ -7,6 +7,7 @@ use App\Modules\Addons\Flotas\Models\FleetDocument;
 use App\Modules\Addons\Flotas\Models\FleetGeofence;
 use App\Modules\Addons\Flotas\Models\FleetGeofenceEvent;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
+use App\Modules\Addons\Flotas\Services\FleetSubscriptionService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -182,6 +183,25 @@ class ClienteFlotasApiController extends Controller
             'documentos_por_vencer'  => $docsPorVencer,
             'eventos_geocerca_hoy'   => $eventosHoy,
             'mantenimientos_proximos'=> $mantProximos,
+        ]);
+    }
+
+    /** Estado de la suscripción de Flotas del cliente (trial/active/próxima renovación). Solo lectura. */
+    public function plan(FleetSubscriptionService $subs): JsonResponse
+    {
+        $cid = $this->clientId();
+        $sub = $cid ? $subs->forClient($cid) : null;
+
+        if (! $sub) {
+            return $this->ok(null);
+        }
+
+        return $this->ok([
+            'plan'              => $sub->plan_name,
+            'status'            => $sub->status,
+            'is_usable'         => $sub->is_usable,
+            'trial_days_left'   => $sub->trial_days_left,
+            'next_billing_date' => $sub->next_billing_date?->toDateString(),
         ]);
     }
 
