@@ -9,7 +9,6 @@ use App\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
 
 
 class RolController extends Controller
@@ -49,13 +48,7 @@ class RolController extends Controller
             'name' => 'required|unique:roles,name',
         ]);
 
-        $role = Role::create(['name' => $request->input('name')]);
-
-        $permissions = Permission::all();
-
-        foreach ($permissions as $permission) {
-            $role->givePermissionTo($permission);
-        }
+        Role::create(['name' => $request->input('name')]);
 
         return response()->json(['status' => 200, 'message' => 'Rol creado correctamente']);
     }
