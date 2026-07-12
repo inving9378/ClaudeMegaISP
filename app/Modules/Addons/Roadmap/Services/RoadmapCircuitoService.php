@@ -23,6 +23,9 @@ class RoadmapCircuitoService
     /** Llave del kill switch en la tabla key-value `settings`. */
     public const PAUSE_KEY = 'circuito_pausado';
 
+    /** Metadata de CUÁNDO/QUIÉN pausó (#343): JSON `{at, by}`. Solo existe mientras está en pausa. */
+    public const PAUSE_META_KEY = 'circuito_pausado_meta';
+
     /** Llave del modo de ejecución del circuito. */
     public const MODO_KEY = 'circuito_modo';
 
@@ -112,6 +115,46 @@ class RoadmapCircuitoService
             );
         }
         $this->putSetting(self::PAUSE_KEY, $paused ? '1' : '0');
+
+        // #343: sella cuándo/quién pausó (auditoría + salvaguarda de "pausa olvidada"). Al
+        // reanudar se limpia — la meta solo es relevante mientras sigue en pausa.
+        if ($paused) {
+            $u = auth()->user();
+            $this->putSetting(self::PAUSE_META_KEY, json_encode([
+                'at' => now()->timestamp,
+                'by' => 'irving:' . ($u->login_user ?? $u->email ?? $u->id ?? '?'),
+            ], JSON_UNESCAPED_UNICODE));
+        } else {
+            DB::table('settings')->where('key', self::PAUSE_META_KEY)->delete();
+        }
+    }
+
+    /**
+     * Info de la pausa vigente para la salvaguarda "pausa olvidada" (#343): PURO-LECTURA,
+     * NO reanuda nada — el kill switch lo sigue tocando solo un humano en la Torre. Devuelve
+     * null si no está pausado. `aviso` = ya pasó el umbral configurable (default 3h).
+     */
+    public function pausedInfo(): ?array
+    {
+        if (! $this->isPaused()) {
+            return null;
+        }
+        $raw  = DB::table('settings')->where('key', self::PAUSE_META_KEY)->value('value');
+        $meta = $raw ? json_decode((string) $raw, true) : null;
+        $at   = is_array($meta) ? (int) ($meta['at'] ?? 0) : 0;
+
+        $horas   = $at > 0 ? round((time() - $at) / 3600, 1) : null;
+        $umbral  = (float) config('circuito.pausa_aviso_horas', 3);
+
+        return [
+            'desde'       => $at > 0 ? Carbon::createFromTimestamp($at)->toIso8601String() : null,
+            'por'         => is_array($meta) ? ($meta['by'] ?? null) : null,
+            'horas'       => $horas,
+            'aviso_horas' => $umbral,
+            // Sin meta (pausada antes de este fix, o vía CLI legacy) → no se puede calcular
+            // antigüedad; se avisa igual por precaución (mejor falso-positivo que pausa olvidada).
+            'olvidada'    => $horas === null || $horas >= $umbral,
+        ];
     }
 
     /**
