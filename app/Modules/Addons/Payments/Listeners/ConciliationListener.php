@@ -21,6 +21,14 @@ class ConciliationListener implements ShouldQueue
 {
     public string $queue = 'default';
 
+    // #211: ráfagas de comprobantes casi simultáneos saturan la descarga de media
+    // (Evolution) y agotaban los 3 intentos por defecto del worker sin backoff entre
+    // ellos. Backoff espaciado + más intentos son seguros: downloadMedia() ya es
+    // idempotente (si el binario ya se descargó, retorna de inmediato).
+    public int $tries = 5;
+    public array $backoff = [10, 20, 40, 80];
+    public int $timeout = 120;
+
     public function handle(WhatsAppMediaReceived $event): void
     {
         // Gate por función de línea (Opción A, apagado total): si la línea NO tiene

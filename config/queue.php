@@ -38,7 +38,14 @@ return [
             'driver' => 'database',
             'table' => 'jobs',
             'queue' => 'default',
-            'retry_after' => 90,
+            // 300s: antes igualaba el --timeout=90 del worker (megaisp-queue.conf), la carrera
+            // clásica de Laravel donde un job en curso "pierde su lease" y otro worker lo re-toma
+            // antes de terminar, quemando intentos sin que el trabajo realmente falle (item #211:
+            // ConciliationListener con MaxAttemptsExceededException bajo ráfaga de comprobantes).
+            // 300s da margen sobrado sobre el $timeout=120 de los jobs de conciliación.
+            // NOTA aparte (no tocado aquí): el worker de deploy usa --timeout=1860 sobre esta MISMA
+            // conexión, ya con el mismo tipo de descalce hoy (pre-existente, fuera de alcance #211).
+            'retry_after' => 300,
             'after_commit' => false,
         ],
 
