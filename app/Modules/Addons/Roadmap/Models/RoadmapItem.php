@@ -28,6 +28,8 @@ class RoadmapItem extends Model
         'urgente', 'urgente_at', 'urgente_by',
         // Candado anti-colisión (#341)
         'en_desarrollo_humano',
+        // Clasificación UI/backend + ciclo de vida de archivo (#334)
+        'revision_ui', 'ui_hint', 'archivado_at', 'archivado_por',
     ];
 
     protected $casts = [
@@ -42,6 +44,8 @@ class RoadmapItem extends Model
         'urgente'      => 'boolean',
         'urgente_at'   => 'datetime',
         'en_desarrollo_humano' => 'boolean',
+        'revision_ui'  => 'boolean',
+        'archivado_at' => 'datetime',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
@@ -121,6 +125,17 @@ class RoadmapItem extends Model
                                   ->where('estado_aprobacion', '!=', 'aprobado_irving');
                            });
                      });
+    }
+
+    /** #334: fuera del radar activo (archivado). Su complemento = lo pendiente/visible. */
+    public function scopeArchivado($query)
+    {
+        return $query->whereNotNull('archivado_at');
+    }
+
+    public function scopeNoArchivado($query)
+    {
+        return $query->whereNull('archivado_at');
     }
 
     public function scopeOrdered($query)

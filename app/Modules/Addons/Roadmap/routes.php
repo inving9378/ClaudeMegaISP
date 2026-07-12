@@ -86,6 +86,10 @@ Route::middleware(['web', 'auth'])
         Route::post('/integracion/revert',    [RoadmapController::class, 'integracionRevert']);
         Route::post('/integracion/modo',          [RoadmapController::class, 'integracionModo']);
         Route::post('/integracion/marcar-version', [RoadmapController::class, 'integracionMarcarVersion']);
+        // Ciclo de vida / archivo (#334): historial + archivar (individual/masivo) + desarchivar ("quiero verlo")
+        Route::get('/integracion/historial',       [RoadmapController::class, 'integracionHistorial']);
+        Route::post('/integracion/archivar',       [RoadmapController::class, 'integracionArchivar']);
+        Route::post('/integracion/desarchivar',    [RoadmapController::class, 'integracionDesarchivar']);
 
         Route::get('/items',               [RoadmapController::class, 'index']);
         Route::post('/items',              [RoadmapController::class, 'store']);

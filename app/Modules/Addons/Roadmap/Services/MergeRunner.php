@@ -179,7 +179,7 @@ class MergeRunner
         return ['ok' => true, 'detalle' => 'OK'];
     }
 
-    /** Marca el item como integrado. */
+    /** Marca el item como integrado + CLASIFICA UI/backend y auto-archiva lo backend. */
     private function markMerged(RoadmapItem $item, string $sha, string $branch): void
     {
         $item->merge_commit = $sha;
@@ -187,11 +187,63 @@ class MergeRunner
             $item->status = 'done';
         }
         $item->estado_aprobacion = 'completado';
+
+        // Clasificación UI vs backend por los archivos que trajo el merge (HEAD^1..HEAD = main previo..fusión).
+        $clasif = $this->clasificarUi($sha);
+        $item->revision_ui = $clasif['ui'];
+        $item->ui_hint     = $clasif['hint'];
+
+        // Backend/interno (sin efecto visible) → fuera del radar: AUTO-ARCHIVA (queda en Historial, reversible).
+        // UI-verificable → NO se archiva: espera la revisión visual de Irving.
+        if ($clasif['ui'] === false) {
+            $item->archivado_at  = now();
+            $item->archivado_por = 'merge-runner (backend auto)';
+        }
+
         $log = $item->log ?: [];
         $log[] = ['ts' => now()->toIso8601String(), 'por' => 'merge-runner', 'evento' => 'merge_a_main',
-            'branch' => $branch, 'merge_commit' => $sha];
+            'branch' => $branch, 'merge_commit' => $sha,
+            'revision_ui' => $clasif['ui'], 'archivado' => ($clasif['ui'] === false)];
         $item->log = $log;
         $item->save();
+    }
+
+    /**
+     * ¿El merge tocó archivos con EFECTO VISIBLE en la UI? (.vue/.blade.php/.css/.scss/resources/js).
+     * Devuelve ['ui'=>bool, 'hint'=>?string]. `hint` (solo para UI) resume QUÉ cambió / DÓNDE mirarlo.
+     * Si no se pueden listar los archivos → ui=true (falla-seguro: mejor pedir revisión de más que archivar de más).
+     */
+    private function clasificarUi(string $sha): array
+    {
+        // Archivos que la fusión incorporó a main (primer padre = main previo; el merge = $sha).
+        $out = $this->git(['diff', '--name-only', $sha . '^1', $sha])->getOutput();
+        $files = array_values(array_filter(preg_split('/\R/', trim($out))));
+
+        if (! $files) {
+            return ['ui' => true, 'hint' => 'No se pudieron listar los archivos del merge — marcado para revisión visual por precaución.'];
+        }
+
+        $esUi = static function (string $f): bool {
+            return str_ends_with($f, '.vue')
+                || str_ends_with($f, '.blade.php')
+                || str_ends_with($f, '.css')
+                || str_ends_with($f, '.scss')
+                || str_starts_with($f, 'resources/js/');
+        };
+
+        $uiFiles = array_values(array_filter($files, $esUi));
+        if (! $uiFiles) {
+            return ['ui' => false, 'hint' => null];
+        }
+
+        // Pista para el radar visual: dónde mirar (rutas UI, hasta 6) + cuántos archivos totales.
+        $muestra = array_slice($uiFiles, 0, 6);
+        $extra   = count($uiFiles) - count($muestra);
+        $donde   = implode(', ', $muestra) . ($extra > 0 ? " (+{$extra} más)" : '');
+        $hint    = 'Cambió la interfaz. Revisar en el navegador: ' . $donde
+            . '. Probar que la pantalla afectada carga y el cambio se ve/funciona; recompilar assets si aplica (npm run dev).';
+
+        return ['ui' => true, 'hint' => $hint];
     }
 
     /** Construye un resultado de FALLO; $escalate marca que el item debe ir a la bandeja de Irving. */

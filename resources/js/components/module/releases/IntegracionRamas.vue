@@ -3,18 +3,36 @@
     <div class="ig-head">
       <h2 class="ig-h2">Integración · Ramas del circuito</h2>
       <div class="ig-head-r">
-        <label class="ig-toggle" :class="{ 'ig-toggle-on': autoMerge }"
+        <div class="ig-seg" role="tablist">
+          <button class="ig-segbtn" :class="{ 'ig-segbtn-on': vista === 'radar' }" @click="verRadar">
+            Para revisar
+          </button>
+          <button class="ig-segbtn" :class="{ 'ig-segbtn-on': vista === 'historial' }" @click="verHistorial">
+            Historial <span v-if="archivadasCount" class="ig-segcount">{{ archivadasCount }}</span>
+          </button>
+        </div>
+        <label v-if="vista === 'radar'" class="ig-toggle" :class="{ 'ig-toggle-on': autoMerge }"
                title="ON: cada rama verificada se mergea sola a dev. OFF: mergeas tú cada una con el botón.">
           <input type="checkbox" :checked="autoMerge" :disabled="busy === 'modo'" @change="toggleAutoMerge" />
           <span class="ig-tk"><span class="ig-th"></span></span>
           <span>Auto-merge a dev: <b>{{ autoMerge ? 'ON' : 'OFF' }}</b></span>
         </label>
+        <button v-if="vista === 'radar' && algunoMergeado" class="ig-refresh ig-arch-mass" :disabled="busy === 'masivo'"
+                title="Saca del radar TODAS las ramas ya mergeadas. Quedan en el Historial (reversible)."
+                @click="archivarMergeados">🗂 Archivar lo mergeado</button>
         <button class="ig-refresh" :disabled="loading" @click="load">↻ Actualizar</button>
       </div>
     </div>
 
+    <p v-if="vista === 'radar'" class="ig-hint-radar">
+      Aquí solo lo <b>verificable por interfaz</b> y lo pendiente. Lo backend/interno se verifica solo
+      (php&nbsp;-l + arranque + regresión + revisor) y se auto-archiva al Historial.
+    </p>
+
     <div v-if="loading" class="ig-meta">Cargando ramas…</div>
-    <div v-else-if="!ramas.length" class="ig-meta">No hay ramas del circuito todavía.</div>
+    <div v-else-if="!ramas.length" class="ig-meta">
+      {{ vista === 'historial' ? 'El historial está vacío.' : 'Nada pendiente por revisar. 🎉' }}
+    </div>
 
     <div v-for="r in ramas" :key="r.id" class="ig-card">
       <!-- Cabecera -->
@@ -30,8 +48,15 @@
             <span v-if="r.autor"> · {{ r.autor }}</span>
             <span v-if="r.merged" class="ig-merged">● mergeada a dev</span>
             <span v-else class="ig-pending">○ sin mergear</span>
+            <span v-if="r.revision_ui === true" class="ig-clz ig-clz-ui" title="Toca la interfaz — verifícalo en el navegador.">👁 Revisar visual</span>
+            <span v-else-if="r.revision_ui === false" class="ig-clz ig-clz-bk" title="Backend/interno — verificado por comprobaciones automáticas.">⚙ Backend/interno</span>
           </div>
         </div>
+      </div>
+
+      <!-- Nota de revisión visual (QUÉ mirar / QUÉ probar) — solo UI-verificable -->
+      <div v-if="r.revision_ui === true && r.ui_hint" class="ig-uihint">
+        <strong>👁 Cómo revisarlo:</strong> {{ r.ui_hint }}
       </div>
 
       <div class="ig-detalle">{{ r.verificacion.detalle }}</div>
@@ -61,13 +86,22 @@
 
       <!-- Acciones -->
       <div class="ig-actions">
-        <button v-if="!r.merged" class="ig-btn ig-btn-ok" :disabled="busy === r.id || r.merge_pending" @click="merge(r)">✓ Mergear a dev</button>
-        <span v-if="r.merge_pending" class="ig-pill ig-pill-run">⏳ En cola / procesando…</span>
-        <button v-if="r.merged" class="ig-btn ig-btn-warn" :disabled="busy === r.id" @click="revert(r)">↩ Revertir</button>
-        <button v-if="r.merged" class="ig-btn" :class="r.marcado_version ? 'ig-btn-ver-on' : 'ig-btn-ver'" :disabled="busy === r.id" @click="marcarVersion(r)">
-          {{ r.marcado_version ? '🏷 Marcada para versión' : '🏷 Marcar para versión' }}
-        </button>
-        <button class="ig-btn ig-btn-no" :disabled="busy === r.id" @click="rechazar(r)">✕ Rechazar</button>
+        <!-- RADAR -->
+        <template v-if="vista === 'radar'">
+          <button v-if="!r.merged" class="ig-btn ig-btn-ok" :disabled="busy === r.id || r.merge_pending" @click="merge(r)">✓ Mergear a dev</button>
+          <span v-if="r.merge_pending" class="ig-pill ig-pill-run">⏳ En cola / procesando…</span>
+          <button v-if="r.merged" class="ig-btn ig-btn-warn" :disabled="busy === r.id" @click="revert(r)">↩ Revertir</button>
+          <button v-if="r.merged" class="ig-btn" :class="r.marcado_version ? 'ig-btn-ver-on' : 'ig-btn-ver'" :disabled="busy === r.id" @click="marcarVersion(r)">
+            {{ r.marcado_version ? '🏷 Marcada para versión' : '🏷 Marcar para versión' }}
+          </button>
+          <button v-if="r.merged" class="ig-btn ig-btn-arch" :disabled="busy === r.id" title="Sacar del radar → Historial (reversible)." @click="archivar(r)">✓ Archivar</button>
+          <button class="ig-btn ig-btn-no" :disabled="busy === r.id" @click="rechazar(r)">✕ Rechazar</button>
+        </template>
+        <!-- HISTORIAL -->
+        <template v-else>
+          <span class="ig-meta" v-if="r.archivado_at">Archivada {{ fechaCorta(r.archivado_at) }}<span v-if="r.archivado_por"> · {{ r.archivado_por }}</span></span>
+          <button class="ig-btn ig-btn-ver" :disabled="busy === r.id" title="Traer de vuelta al radar (quiero verlo)." @click="desarchivar(r)">↩ Traer al radar</button>
+        </template>
         <span v-if="busy === r.id" class="ig-meta">Procesando…</span>
         <span v-if="msg[r.id]" class="ig-msg">{{ msg[r.id] }}</span>
       </div>
@@ -85,7 +119,7 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 import { darkMode } from '../../../hook/appConfig.js';
 
@@ -100,19 +134,77 @@ export default {
         const modoIntegracion = ref('auto-merge');
         const autoMerge = ref(true);
         const hablando = ref(null);
+        const vista = ref('radar');          // 'radar' | 'historial'
+        const archivadasCount = ref(0);
 
         const lvClass = (n) => (n === 'A' ? 'ig-lvA' : n === 'B' ? 'ig-lvB' : n === 'C' ? 'ig-lvC' : 'ig-lvNone');
         const toggle = (id) => { open[id] = !open[id]; };
+        const algunoMergeado = computed(() => ramas.value.some((r) => r.merged));
+        const fechaCorta = (iso) => { try { return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }); } catch (e) { return ''; } };
 
         async function load() {
+            if (vista.value === 'historial') return loadHistorial();
             loading.value = true;
             try {
                 const { data } = await axios.get('/api/roadmap/integracion');
                 ramas.value = data.ramas || [];
                 modoIntegracion.value = data.modo_integracion || 'auto-merge';
                 autoMerge.value = data.auto_merge !== undefined ? !!data.auto_merge : (modoIntegracion.value === 'auto-merge');
+                archivadasCount.value = data.archivadas_count || 0;
             } finally {
                 loading.value = false;
+            }
+        }
+
+        async function loadHistorial() {
+            loading.value = true;
+            try {
+                const { data } = await axios.get('/api/roadmap/integracion/historial');
+                ramas.value = data.ramas || [];
+                archivadasCount.value = ramas.value.length;
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        function verRadar() { if (vista.value !== 'radar') { vista.value = 'radar'; load(); } }
+        function verHistorial() { if (vista.value !== 'historial') { vista.value = 'historial'; loadHistorial(); } }
+
+        async function archivar(r) {
+            if (busy.value) return;
+            busy.value = r.id;
+            msg[r.id] = '';
+            try {
+                await axios.post('/api/roadmap/integracion/archivar', { id: r.id });
+                await load();
+            } catch (e) {
+                msg[r.id] = 'Error al archivar: ' + (e.response?.data?.error || e.message || '');
+            } finally {
+                busy.value = null;
+            }
+        }
+
+        async function archivarMergeados() {
+            if (busy.value) return;
+            if (!window.confirm('¿Archivar TODAS las ramas ya mergeadas? Quedan en el Historial (reversible).')) return;
+            busy.value = 'masivo';
+            try {
+                const { data } = await axios.post('/api/roadmap/integracion/archivar', { todos_mergeados: true });
+                await load();
+                window.alert(`Se archivaron ${data.archivadas || 0} rama(s).`);
+            } finally {
+                busy.value = null;
+            }
+        }
+
+        async function desarchivar(r) {
+            if (busy.value) return;
+            busy.value = r.id;
+            try {
+                await axios.post('/api/roadmap/integracion/desarchivar', { id: r.id });
+                await loadHistorial();
+            } finally {
+                busy.value = null;
             }
         }
 
@@ -224,6 +316,8 @@ export default {
         return {
             darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert,
             modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, marcarVersion,
+            vista, archivadasCount, algunoMergeado, fechaCorta,
+            verRadar, verHistorial, archivar, archivarMergeados, desarchivar,
         };
     },
 };
@@ -290,6 +384,21 @@ export default {
 .ig-mergeerr pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-word;font-size:11px;color:#7f1d1d;max-height:180px;overflow:auto;}
 .ig-mergeok{margin:10px 0 0 32px;font-size:12px;color:#047857;font-weight:600;}
 
+/* Segmentado Radar / Historial */
+.ig-seg{display:inline-flex;border:1px solid var(--ig-line);border-radius:8px;overflow:hidden;}
+.ig-segbtn{font-size:12px;font-weight:600;padding:6px 11px;border:none;background:#fff;color:var(--ig-muted);cursor:pointer;}
+.ig-segbtn-on{background:var(--ig-accent);color:#fff;}
+.ig-segcount{display:inline-block;min-width:16px;text-align:center;background:rgba(0,0,0,.14);border-radius:999px;padding:0 5px;font-size:10.5px;margin-left:4px;}
+.ig-arch-mass{border-color:#c7d2fe;color:#4338ca;}
+.ig-hint-radar{font-size:11.5px;color:var(--ig-muted);margin:-4px 0 12px;line-height:1.4;}
+
+/* Badge de clasificación + nota de revisión visual */
+.ig-clz{margin-left:7px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:6px;}
+.ig-clz-ui{background:#eff6ff;color:#1d4ed8;}
+.ig-clz-bk{background:#f1f5f9;color:#475569;}
+.ig-uihint{margin:8px 0 0 32px;padding:8px 11px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:8px;font-size:12px;color:#1e40af;line-height:1.45;}
+.ig-btn-arch{background:#eef2ff;color:#4338ca;border-color:#c7d2fe;}
+
 /* ── Modo oscuro (mismo toggle del proyecto) ── */
 .ig-dark{
   --ig-surface:#151d2e; --ig-ink:#e8edf6; --ig-muted:#8b97ab; --ig-line:#2a3550;
@@ -314,4 +423,11 @@ export default {
 .ig-dark .ig-mergeerr{background:rgba(248,113,113,.12);border-color:#5b2b2b;color:#f87171;}
 .ig-dark .ig-mergeerr pre{color:#fca5a5;}
 .ig-dark .ig-mergeok{color:#4ade80;}
+.ig-dark .ig-segbtn{background:#0f172a;color:#8b97ab;}
+.ig-dark .ig-segbtn-on{background:var(--ig-accent);color:#04211d;}
+.ig-dark .ig-arch-mass{background:#0f172a;color:#a5b4fc;border-color:#3b3f6b;}
+.ig-dark .ig-clz-ui{background:rgba(96,165,250,.14);color:#60a5fa;}
+.ig-dark .ig-clz-bk{background:rgba(148,163,184,.14);color:#94a3b8;}
+.ig-dark .ig-uihint{background:rgba(96,165,250,.10);border-color:#2b3f5b;color:#93c5fd;}
+.ig-dark .ig-btn-arch{background:rgba(129,140,248,.14);color:#a5b4fc;border-color:#3b3f6b;}
 </style>

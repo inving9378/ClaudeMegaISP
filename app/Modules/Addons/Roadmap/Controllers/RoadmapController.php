@@ -395,37 +395,141 @@ class RoadmapController extends Controller
     {
         $this->authorize('roadmap_view');
 
-        $ramas = RoadmapItem::whereNotNull('branch')->orderByDesc('id')->limit(50)->get()
-            ->map(function (RoadmapItem $i) {
-                $git = $this->diffRama($i);
-                return [
-                    'id'                => $i->id,
-                    'title'             => $i->title,
-                    'branch'            => $i->branch,
-                    'autor'             => $i->aprobado_por,
-                    'nivel_riesgo'      => $i->nivel_riesgo,
-                    'estado_aprobacion' => $i->estado_aprobacion,
-                    'merged'            => ! empty($i->merge_commit),
-                    'merge_commit'      => $i->merge_commit,
-                    'merge_pending'     => $this->svc->isMergeQueued($i->id),   // en cola / procesando (#334)
-                    'merge_result'      => $this->svc->mergeResult($i->id),     // último intento (ok/error/escalado) → UI lo muestra
-                    'marcado_version'   => (bool) $i->marcado_version,
-                    'verificacion'      => $this->semaforo($i),
-                    'reporte'           => $i->comentarios_claude,   // reporte del ejecutor (qué hace/cómo validar/verificación)
-                    'descripcion'       => $i->description,
-                    'existe_rama'       => $git['existe'],
-                    'stat'              => $git['stat'],
-                    'archivos'          => $git['archivos'],
-                    'diff'              => $git['diff'],
-                ];
-            });
+        // Radar ACTIVO (#334): solo NO-archivados. Lo backend/interno ya integrado se auto-archivó
+        // en el merge → sale del radar (queda en Historial). Aquí quedan: lo UI-verificable (aunque
+        // ya mergeado, esperando la revisión visual de Irving) + lo pendiente (en cola/escalado).
+        $ramas = RoadmapItem::whereNotNull('branch')->noArchivado()->orderByDesc('id')->limit(80)->get()
+            ->map(fn (RoadmapItem $i) => $this->ramaPayload($i));
 
         return response()->json([
             'generated_at'     => now()->toIso8601String(),
             'modo_integracion' => $this->svc->getModoIntegracion(),
             'auto_merge'       => $this->svc->autoMergeOn(),   // toggle ON/OFF (#334 F0-fix)
             'ramas'            => $ramas,
+            'archivadas_count' => RoadmapItem::whereNotNull('branch')->archivado()->count(),
         ]);
+    }
+
+    /** Historial de ramas ARCHIVADAS (#334) — fuera del radar, auditable y reversible ("quiero verlo"). */
+    public function integracionHistorial(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $ramas = RoadmapItem::whereNotNull('branch')->archivado()->orderByDesc('archivado_at')->limit(200)->get()
+            ->map(fn (RoadmapItem $i) => $this->ramaPayload($i));
+
+        return response()->json([
+            'generated_at' => now()->toIso8601String(),
+            'ramas'        => $ramas,
+        ]);
+    }
+
+    /** Payload común de una rama para el radar y el historial. */
+    private function ramaPayload(RoadmapItem $i): array
+    {
+        $git = $this->diffRama($i);
+        return [
+            'id'                => $i->id,
+            'title'             => $i->title,
+            'branch'            => $i->branch,
+            'autor'             => $i->aprobado_por,
+            'nivel_riesgo'      => $i->nivel_riesgo,
+            'estado_aprobacion' => $i->estado_aprobacion,
+            'merged'            => ! empty($i->merge_commit),
+            'merge_commit'      => $i->merge_commit,
+            'merge_pending'     => $this->svc->isMergeQueued($i->id),   // en cola / procesando (#334)
+            'merge_result'      => $this->svc->mergeResult($i->id),     // último intento (ok/error/escalado) → UI lo muestra
+            'marcado_version'   => (bool) $i->marcado_version,
+            'revision_ui'       => $i->revision_ui,   // true=verificable por UI · false=backend/interno · null=sin clasificar
+            'ui_hint'           => $i->ui_hint,       // QUÉ cambió / DÓNDE mirarlo / QUÉ probar (solo UI)
+            'archivado'         => ! empty($i->archivado_at),
+            'archivado_at'      => optional($i->archivado_at)->toIso8601String(),
+            'archivado_por'     => $i->archivado_por,
+            'verificacion'      => $this->semaforo($i),
+            'reporte'           => $i->comentarios_claude,   // reporte del ejecutor (qué hace/cómo validar/verificación)
+            'descripcion'       => $i->description,
+            'existe_rama'       => $git['existe'],
+            'stat'              => $git['stat'],
+            'archivos'          => $git['archivos'],
+            'diff'              => $git['diff'],
+        ];
+    }
+
+    /**
+     * POST /api/roadmap/integracion/archivar — saca una rama del radar → Historial (reversible).
+     * Con `todos_mergeados=true`: archiva EN MASA todo lo ya mergeado y aún no archivado.
+     */
+    public function integracionArchivar(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'id'               => ['nullable', 'integer', 'min:1'],
+            'todos_mergeados'  => ['nullable', 'boolean'],
+        ]);
+
+        // Modo masivo: "Archivar todo lo ya mergeado/validado".
+        if (! empty($data['todos_mergeados'])) {
+            $n = 0;
+            RoadmapItem::whereNotNull('branch')->whereNotNull('merge_commit')->noArchivado()
+                ->orderByDesc('id')->chunkById(100, function ($items) use (&$n) {
+                    foreach ($items as $i) {
+                        $this->sellarArchivo($i, $this->actor() . ' (masivo mergeados)');
+                        $n++;
+                    }
+                });
+            Log::channel('roadmap_externo')->info('integracion-archivar-masivo', ['n' => $n, 'por' => $this->actor()]);
+            return response()->json(['ok' => true, 'archivadas' => $n]);
+        }
+
+        // Modo individual.
+        if (empty($data['id'])) {
+            return response()->json(['error' => 'Falta id (o todos_mergeados=true).'], 422);
+        }
+        $item = RoadmapItem::whereNotNull('branch')->find($data['id']);
+        if (! $item) {
+            return response()->json(['error' => 'Rama no encontrada'], 404);
+        }
+        $this->sellarArchivo($item, $this->actor());
+        Log::channel('roadmap_externo')->info('integracion-archivar', ['item' => $item->id, 'por' => $this->actor()]);
+        return response()->json(['ok' => true, 'archivado' => true]);
+    }
+
+    /** POST /api/roadmap/integracion/desarchivar — devuelve una rama al radar ("quiero verlo"). */
+    public function integracionDesarchivar(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate(['id' => ['required', 'integer', 'min:1']]);
+        $item = RoadmapItem::whereNotNull('branch')->find($data['id']);
+        if (! $item) {
+            return response()->json(['error' => 'Rama no encontrada'], 404);
+        }
+        $item->archivado_at  = null;
+        $item->archivado_por = null;
+        // Si es backend y lo quiere ver, dejar constancia de que pidió verlo.
+        if ($item->revision_ui === false) {
+            $item->revision_ui = true;
+            $item->ui_hint = trim(($item->ui_hint ? $item->ui_hint . ' · ' : '') . 'Traído al radar por decisión de Irving ("quiero verlo").');
+        }
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'desarchivado'];
+        $item->log = $log;
+        $item->save();
+        Log::channel('roadmap_externo')->info('integracion-desarchivar', ['item' => $item->id, 'por' => $this->actor()]);
+        return response()->json(['ok' => true, 'archivado' => false]);
+    }
+
+    /** Sella el archivo de una rama (idempotente): marca archivado_at/por + deja rastro en el log. */
+    private function sellarArchivo(RoadmapItem $item, string $por): void
+    {
+        if ($item->archivado_at) {
+            return;
+        }
+        $item->archivado_at  = now();
+        $item->archivado_por = $por;
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => 'archivado'];
+        $item->log = $log;
+        $item->save();
     }
 
     /** POST /api/roadmap/integracion/modo — cambia el modo de integración (auto-merge | revisar-y-mergear). */
