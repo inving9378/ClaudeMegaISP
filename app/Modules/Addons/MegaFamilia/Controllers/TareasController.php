@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MegaFamilia\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
 use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
 use App\Modules\Addons\MegaFamilia\Models\ParentalReward;
@@ -11,6 +12,7 @@ use App\Modules\Addons\MegaFamilia\Services\FcmService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TareasController extends Controller
 {
@@ -63,6 +65,7 @@ class TareasController extends Controller
             'reward_detail' => 'nullable|string|max:255',
             'points'        => 'sometimes|integer|min:0',
         ]);
+        $this->guardProfileAccess(ParentalProfile::findOrFail($data['profile_id']));
         $data['status']   = 'pending';
         $data['priority'] = $data['priority'] ?? 'media';
         $task = ParentalTask::create($data);
@@ -78,6 +81,7 @@ class TareasController extends Controller
     public function approve(int $id): JsonResponse
     {
         $task = ParentalTask::findOrFail($id);
+        $this->guardProfileAccess($task->profile);
         $task->update(['status' => 'approved', 'approved_at' => Carbon::now()]);
 
         ParentalReward::create([
@@ -105,6 +109,7 @@ class TareasController extends Controller
         $data = $request->validate(['reason' => 'sometimes|nullable|string|max:500']);
 
         $task = ParentalTask::findOrFail($id);
+        $this->guardProfileAccess($task->profile);
         $task->update([
             'status' => 'rejected',
             'notes'  => $data['reason'] ?? null,
@@ -124,6 +129,7 @@ class TareasController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $task = ParentalTask::findOrFail($id);
+        $this->guardProfileAccess($task->profile);
         if ($task->status !== 'pending') {
             return response()->json([
                 'success' => false,
@@ -143,6 +149,28 @@ class TareasController extends Controller
             'badge'      => 'insignia ' . ($task->reward_detail ?: ''),
             default      => 'recompensa',
         };
+    }
+
+    private function accountForCurrentUser(): ?ParentalAccount
+    {
+        $userId = Auth::id();
+        if (! $userId) return null;
+        return ParentalAccount::where('user_id', $userId)->first();
+    }
+
+    /**
+     * Mismo criterio que PerfilesController::guardOwnership: el cliente final solo
+     * toca tareas de sus propios perfiles; sin cuenta parental propia (staff) se
+     * exige megafamilia_admin en vez de dejar pasar sin verificación.
+     */
+    private function guardProfileAccess(ParentalProfile $profile): void
+    {
+        $account = $this->accountForCurrentUser();
+        if (! $account) {
+            abort_unless(Auth::user()->can('megafamilia_admin'), 403);
+            return;
+        }
+        abort_unless($profile->account_id === $account->id, 403);
     }
 
     private function pushToProfileDevices(int $profileId, string $title, string $body, array $data = []): void

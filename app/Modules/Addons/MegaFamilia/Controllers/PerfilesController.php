@@ -96,7 +96,12 @@ class PerfilesController extends Controller
     private function guardOwnership(ParentalProfile $profile): void
     {
         $account = $this->accountForCurrentUser();
-        if (! $account) return;  // admin/support con permission megafamilia_admin
+        if (! $account) {
+            // Sin cuenta parental propia = usuario staff, no cliente final.
+            // Exigir megafamilia_admin en vez de dejar pasar sin verificación.
+            abort_unless(Auth::user()->can('megafamilia_admin'), 403);
+            return;
+        }
         abort_unless($profile->account_id === $account->id, 403);
     }
 }
