@@ -20,6 +20,12 @@
 #                                   #   hostname de la guarda anti-dev (prod comparte
 #                                   #   'meganet' con dev). Las demás guardas siguen
 #                                   #   activas (APP_URL sigue abortando en dev).
+#   EVOLUTION_FORCE_ROTATE_DB_PASSWORD=1  # override consciente: si el .env de
+#                                   #   Evolution se borró/regeneró y el usuario
+#                                   #   MySQL ya existía con el password viejo,
+#                                   #   rota el password de MySQL a juego con el
+#                                   #   .env nuevo. Sin este flag, el script ABORTA
+#                                   #   con instrucciones (no rota nada solo).
 #
 # Idempotente: correrlo 2 veces NO rompe ni duplica nada (cada paso detecta y omite).
 # =============================================================================
