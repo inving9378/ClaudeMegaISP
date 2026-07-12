@@ -13,12 +13,20 @@ class VoipConfiguracionController extends Controller
 {
     public function index()
     {
+        if (! auth()->user()->can('cobranza.configure')) {
+            abort(403);
+        }
+
         $config = VoipConfiguracion::first();
         return view('addon-cobranza-blaster::voip.index', compact('config'));
     }
 
     public function show(): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.configure')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $config = VoipConfiguracion::first();
 
         if (!$config) {
@@ -45,6 +53,10 @@ class VoipConfiguracionController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.configure')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $data = $request->validate([
             'sip_host'        => 'required|string|max:255',
             'sip_port'        => 'nullable|integer|min:1|max:65535',
@@ -101,6 +113,10 @@ class VoipConfiguracionController extends Controller
 
     public function testConexion(): JsonResponse
     {
+        if (! auth()->user()->can('cobranza.configure')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         try {
             // C4: estado real por PJSIP Realtime/ARI/AMI (ya NO `sip show peers` chan_sip).
             $status = app(VoiceGateway::class)->testConnection();
