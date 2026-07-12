@@ -22,6 +22,12 @@ FLUJO (haz EXACTAMENTE esto para el item #__ITEM_ID__):
    Revisa title/description/prompt/nivel_riesgo/estado_aprobacion/comentarios_claude.
    Si el item NO es claramente ejecutable, seguro y acotado (o toca dinero/seguridad/permisos/prod)
    → NO lo ejecutes: escálalo y termina (paso 6b).
+   • CÓDIGO MUERTO = REMOVER, NO ESCALAR: si el item pide cambiar/renderizar/usar algo que resulta
+     ser código muerto (grep del símbolo en TODO el repo — app/ resources/ routes/ config/ — y
+     confirmas CERO consumidores, solo la definición), la resolución SEGURA es BORRAR el dead-code
+     como nivel A (aditivo/reversible) y cerrar el item — NO se lo mandes a Irving. Un "no hay dónde
+     aplicarlo porque no tiene consumidores" es exactamente un borrado seguro, no una escalación.
+     Solo escala si NO puedes confirmar que está muerto (posible consumo dinámico/externo).
 2. Crea su rama:  php artisan circuito:rama __ITEM_ID__
 3. Implementa el cambio (Edit/Write en tu worktree). Add SELECTIVO + commit por sub-paso, en español.
 4. VERIFICA regresión (según lo que tocaste):
