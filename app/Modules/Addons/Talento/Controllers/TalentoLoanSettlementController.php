@@ -38,6 +38,7 @@ class TalentoLoanSettlementController extends Controller
 
     public function storeLoan(Request $request)
     {
+        $this->authorize('talento.loans.manage');
         $data = $request->validate([
             'colaborador_id'   => 'required|integer|exists:talento_colaboradores,id',
             'amount'           => 'required|numeric|min:1',
@@ -57,6 +58,7 @@ class TalentoLoanSettlementController extends Controller
 
     public function authorizeLoan(int $id)
     {
+        $this->authorize('talento.loans.manage');
         $loan     = TalentoLoan::findOrFail($id);
         $resolved = $this->loanSvc->authorize($loan, auth()->id());
         return response()->json($resolved->load('colaborador.user'));
@@ -76,6 +78,7 @@ class TalentoLoanSettlementController extends Controller
 
     public function draftSettlement(Request $request, int $colaboradorId)
     {
+        $this->authorize('talento.settlement.manage');
         $date       = $request->settlement_date ?? now()->toDateString();
         $settlement = $this->settlementSvc->draft($colaboradorId, $date);
         return response()->json($settlement->load('items'));
@@ -90,6 +93,7 @@ class TalentoLoanSettlementController extends Controller
 
     public function updateSettlementItem(Request $request, int $itemId)
     {
+        $this->authorize('talento.liquidation.manage');
         $item = TalentoSettlementItem::with('settlement')->findOrFail($itemId);
         $data = $request->validate([
             'disposition'  => 'required|in:returned,damaged,missing',
@@ -105,6 +109,7 @@ class TalentoLoanSettlementController extends Controller
 
     public function closeSettlement(int $id)
     {
+        $this->authorize('talento.settlement.manage');
         $settlement = TalentoSettlement::with(['items', 'colaborador.user'])->findOrFail($id);
         $closed     = $this->settlementSvc->close($settlement);
         return response()->json($closed->load('items'));
