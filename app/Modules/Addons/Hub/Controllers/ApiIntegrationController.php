@@ -15,7 +15,7 @@ class ApiIntegrationController extends Controller
     public function __construct(private ApiIntegrationService $svc)
     {
         $this->middleware('permission:view-integrations')->only(['index', 'show', 'logs', 'usage', 'providers']);
-        $this->middleware('permission:manage-integrations')->only(['store', 'update', 'setDefault']);
+        $this->middleware('permission:manage-integrations')->only(['store', 'update', 'setDefault', 'destroy']);
         $this->middleware('permission:rotate-integration-keys')->only('rotate');
         $this->middleware('permission:view-integration-logs')->only(['logs', 'usage']);
         $this->middleware('permission:validate-integrations')->only('validateKey');
