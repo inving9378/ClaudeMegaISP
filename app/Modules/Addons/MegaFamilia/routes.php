@@ -330,6 +330,7 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
             Route::get('/vehiculos/{id}/mantenimientos',                    [ClienteFlotasApiController::class, 'mantenimientos'])->whereNumber('id');
             Route::get('/geocercas',                                        [ClienteFlotasApiController::class, 'geocercas']);
             Route::get('/resumen',                                          [ClienteFlotasApiController::class, 'resumen']);
+            Route::get('/plan',                                             [ClienteFlotasApiController::class, 'plan']);
         });
     });
 });
