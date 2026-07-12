@@ -323,7 +323,7 @@ class RoadmapController extends Controller
         $item->revisado_at       = now();
 
         $log = $item->log ?: [];
-        $log[] = [
+        $entrada = [
             'ts'             => now()->toIso8601String(),
             'por'            => $autor,
             'decision'       => $data['accion'],
@@ -331,8 +331,14 @@ class RoadmapController extends Controller
             'opcion_elegida' => $data['opcion_elegida'] ?? null,
             'comentario'     => $data['comentario'] ?? null,
         ];
+        $log[] = $entrada;
         $item->log = $log;
         $item->save();
+
+        // Loop de aprendizaje del perfil (#351): captura la decisión como candidato crudo en
+        // docs/pendientes-perfil-irving.md para revisión batch. No crítico: nunca debe tumbar la
+        // decisión real de Irving si falla.
+        app(\App\Modules\Addons\Roadmap\Services\PerfilAprendizajeService::class)->capturar($item, $entrada);
 
         Log::channel('roadmap_externo')->info('decision-irving', [
             'item'   => $item->id,
