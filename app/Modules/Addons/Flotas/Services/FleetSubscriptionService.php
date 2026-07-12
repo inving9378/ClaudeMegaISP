@@ -5,9 +5,11 @@ namespace App\Modules\Addons\Flotas\Services;
 use App\Modules\Addons\Flotas\Models\FleetSubscription;
 use App\Modules\Addons\Flotas\Models\FleetSubscriptionEvent;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
+use App\Modules\Addons\Flotas\Services\Notifications\SubscriptionAlertDispatcher;
 use App\Modules\Addons\Flotas\Support\FleetPlans;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Lógica de negocio de las suscripciones SaaS de Flotas.
@@ -225,11 +227,19 @@ class FleetSubscriptionService
                     if ($threshold !== null && (int) $sub->trial_notified_days !== $threshold) {
                         $sub->trial_notified_days = $threshold;
                         $sub->save();
-                        $this->logEvent($sub, $threshold <= 7 ? 'trial_expiring' : 'trial_reminder', [
+                        $eventType = $threshold <= 7 ? 'trial_expiring' : 'trial_reminder';
+                        $this->logEvent($sub, $eventType, [
                             'days_left' => $daysLeft,
                             'threshold' => $threshold,
                         ]);
-                        // TODO (sub-tarea): disparar notificación real (WhatsApp/email) aquí.
+
+                        try {
+                            (new SubscriptionAlertDispatcher())->dispatchTrialReminder($sub, $eventType, $daysLeft);
+                        } catch (\Throwable $e) {
+                            // Best-effort: un fallo de notificación no debe tumbar el mantenimiento diario.
+                            Log::warning("Flotas SubscriptionAlert: fallo despachando recordatorio de la suscripción {$sub->id}: {$e->getMessage()}");
+                        }
+
                         $summary['reminders']++;
                     }
                 }
