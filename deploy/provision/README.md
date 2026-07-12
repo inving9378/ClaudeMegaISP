@@ -44,6 +44,7 @@ Idempotente: correrlo 2 veces no rompe ni duplica nada. Cada paso registra
 | `MEGAISP_USER` | `www-data` | Usuario que corre `php artisan` (dueño de la caché) |
 | `EVOLUTION_USER` | `evolution` (usuario de sistema dedicado, se crea solo) | Dueño/ejecutor de Evolution |
 | `NGINX_VHOST` | autodetectado | Forzar el vhost si la autodetección falla |
+| `EVOLUTION_FORCE_ROTATE_DB_PASSWORD` | (sin fijar) | Rota el password MySQL de `evolution_user` cuando se detecta un desajuste `.env`↔MySQL (ver caso borde abajo) |
 
 ## Valores que el script deriva/genera por server
 
@@ -57,6 +58,15 @@ Idempotente: correrlo 2 veces no rompe ni duplica nada. Cada paso registra
 El password de MySQL de Evolution también se genera (hex) y se preserva en el
 `.env` de Evolution entre corridas (no se rota).
 
+**Caso borde — `.env` borrado/regenerado a mano:** si se borra el `.env` de
+Evolution y se re-corre `install.sh`, se genera un `DB_PASSWORD` **nuevo**, pero
+`CREATE USER IF NOT EXISTS` **no** actualiza el password de un usuario MySQL que
+ya existe → desajuste `.env`↔MySQL (Evolution no podría conectar a la BD). El
+script lo **detecta antes de tocar nada** y por default **aborta** con un mensaje
+explicando las dos salidas: restaurar el `.env`/password viejo, o re-correr con
+`EVOLUTION_FORCE_ROTATE_DB_PASSWORD=1` para rotar el password de MySQL a juego
+con el `.env` nuevo (rotación explícita, nunca automática/silenciosa).
+
 ## Idempotencia (cómo detecta y omite)
 
 - **Node**: si ya está en 20.x → omite.
@@ -64,7 +74,9 @@ El password de MySQL de Evolution también se genera (hex) y se preserva en el
 - **Código Evolution**: si `/opt/evolution-api` ya está en `fa09d378` → no re-clona;
   compila solo si falta `dist/main.js`.
 - **`.env` de Evolution**: si existe → **no se sobrescribe** (preserva key/password).
-- **DB/usuario**: `CREATE ... IF NOT EXISTS` (no rota el password de un user existente);
+- **DB/usuario**: `CREATE ... IF NOT EXISTS` (no rota el password de un user existente).
+  Si el `.env` se regeneró y el user MySQL ya existía → **aborta** con mensaje claro
+  (ver caso borde arriba), salvo `EVOLUTION_FORCE_ROTATE_DB_PASSWORD=1`.
   `migrate deploy` corre siempre (Prisma lo hace idempotente).
 - **nginx**: si el vhost ya tiene `location /evolution/` → omite; si inyecta y
   `nginx -t` falla → **revierte** el vhost desde el backup.

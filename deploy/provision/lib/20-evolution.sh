@@ -14,6 +14,10 @@
 #   - Build:  si falta dist/main.js o cambió el commit → npm ci + build; si no → OMITIR.
 #   - .env:   si ya existe → NO se sobrescribe (preserva la key/password generados).
 #   - DB:     CREATE ... IF NOT EXISTS (no rota el password de un usuario existente).
+#             Caso borde (#201): si el .env se borró/regeneró (password NUEVO) pero el
+#             usuario MySQL YA existía (password VIEJO) → desajuste .env↔MySQL. Por
+#             default el script ABORTA con mensaje claro (no rota nada solo). Para
+#             re-sincronizar a propósito: EVOLUTION_FORCE_ROTATE_DB_PASSWORD=1.
 #   - migrate deploy: siempre corre (Prisma lo hace idempotente).
 #
 # Efectos exportados para el resumen final de install.sh:
@@ -77,6 +81,10 @@ _ensure_evolution_code() {
 
 # --- 2) Secretos + .env (preserva si existe) ---------------------------------
 # Define/exporta API_KEY, DB_PASSWORD, SERVER_URL para los pasos siguientes.
+# También fija EVO_ENV_FRESH=1 cuando el DB_PASSWORD es NUEVO (se acaba de generar),
+# para que _ensure_evolution_db pueda detectar el caso borde #201 (usuario MySQL
+# preexistente con el password VIEJO).
+EVO_ENV_FRESH=0
 _ensure_evolution_env() {
     local envf="$EVOLUTION_DIR/.env"
     if [[ -f "$envf" ]]; then
@@ -91,6 +99,7 @@ _ensure_evolution_env() {
         API_KEY="$(gen_secret)"          # key hex de 64 chars
         DB_PASSWORD="$(gen_secret)"       # password de DB hex (seguro dentro de la URI)
         SERVER_URL="$(derive_server_url)" # APP_URL del sistema + /evolution
+        EVO_ENV_FRESH=1
         # render (render_template lee API_KEY/DB_PASSWORD/SERVER_URL por scope dinámico)
         local tmp; tmp="$(mktemp)"
         render_template "${TEMPLATES_DIR}/evolution.env.tpl" > "$tmp"
@@ -138,6 +147,31 @@ _ensure_evolution_db() {
     else
         log_info "Creando base de datos '${EVO_DB_NAME}' y usuario '${EVO_DB_USER}'"
     fi
+
+    # Caso borde #201: si el .env se acaba de generar (password NUEVO) pero el
+    # usuario MySQL YA existía (password VIEJO), `CREATE USER IF NOT EXISTS` es
+    # un no-op → el .env queda con un password que MySQL no reconoce. Se detecta
+    # ANTES de tocar nada y, por default, se aborta con instrucciones claras en
+    # vez de rotar el password en silencio.
+    if [[ "$EVO_ENV_FRESH" -eq 1 ]]; then
+        local user_exists
+        user_exists="$(run_root mysql -N -B -e \
+            "SELECT User FROM mysql.user WHERE User='${EVO_DB_USER}' AND Host IN ('127.0.0.1','localhost') LIMIT 1" 2>/dev/null || true)"
+        if [[ "$user_exists" == "$EVO_DB_USER" ]]; then
+            if [[ "${EVOLUTION_FORCE_ROTATE_DB_PASSWORD:-0}" == "1" ]]; then
+                log_warn "Usuario MySQL '${EVO_DB_USER}' ya existía con password VIEJO; EVOLUTION_FORCE_ROTATE_DB_PASSWORD=1 → rotando a juego con el .env nuevo"
+                run_root mysql <<SQL
+ALTER USER '${EVO_DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASSWORD}';
+ALTER USER '${EVO_DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+FLUSH PRIVILEGES;
+SQL
+                log_ok "Password de '${EVO_DB_USER}' rotado para coincidir con el .env"
+            else
+                die "Desajuste .env↔MySQL: se generó un DB_PASSWORD nuevo en ${EVOLUTION_DIR}/.env pero el usuario MySQL '${EVO_DB_USER}' YA existía (con su password viejo) — 'CREATE USER IF NOT EXISTS' no lo actualiza. Evolution NO podrá conectar a la BD así. Opciones: (a) restaura el .env/password viejo si lo tienes; (b) re-corre con EVOLUTION_FORCE_ROTATE_DB_PASSWORD=1 para rotar el password de MySQL a juego con el .env nuevo."
+            fi
+        fi
+    fi
+
     # Idempotente: IF NOT EXISTS no rota el password de un usuario ya creado.
     # El password es hex (sin comillas ni backslashes) → seguro en el SQL.
     # Se pasa por stdin (heredoc), nunca por argv → no aparece en `ps`.
