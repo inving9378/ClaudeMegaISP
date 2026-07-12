@@ -65,7 +65,18 @@ return [
 
     //Client
     'client_view_dashboard' => ['/cliente', '/cliente/get-data-client-to-select-component/{id}'],
-    'client_view_client' => ['/cliente/listar', '/cliente/table', '/cliente/get-client-with-balance/{id}', '/cliente/get-tickets-open/{id}', '/configuracion/template-task/get-data-template/{id}', '/cliente/billing/get-type-of-billing-by-client-id/{id}', '/cliente/get-client-id-by-client-main-information-id/{id}'],
+    'client_view_client' => [
+        '/cliente/listar', '/cliente/table', '/cliente/get-client-with-balance/{id}', '/cliente/get-tickets-open/{id}', '/configuracion/template-task/get-data-template/{id}', '/cliente/billing/get-type-of-billing-by-client-id/{id}', '/cliente/get-client-id-by-client-main-information-id/{id}',
+        // Estadísticas + ping monitoring (item #264 — huérfanas, mismo permiso de lectura que el resto de la ficha)
+        '/cliente/statistics/get-active-connections/{id}',
+        '/cliente/statistics/get-consumption-summary/{id}',
+        '/cliente/statistics/get-daily-usage/{id}',
+        '/cliente/statistics/get-fup-stats/{id}',
+        '/cliente/statistics/get-history/{id}',
+        '/cliente/statistics/get-ping-status/{id}',
+        '/cliente/statistics/get-ping-history/{id}',
+        '/cliente/statistics/get-ping-daily/{id}',
+    ],
     'client_add_client' => ['/cliente/crear', '/cliente/add', '/cliente/success/{id}'],
     'client_edit_client' => [
         '/cliente/editar/{id}',
@@ -84,6 +95,11 @@ return [
         '/cliente/without-data-promotions',
         '/cliente/with-data-promotions/{id}',
         '/administracion/user/avaiables-promotions/{code}',
+        // Promociones del cliente (item #264 — huérfanas, mismo permiso que el resto de plan-promotions arriba)
+        '/cliente/{id}/plan-promotions',
+        '/cliente/cancel-promotion/{id}',
+        '/cliente/plan-promotions',
+        '/cliente/plan-promotions/{id}',
     ],
     'client_delete_client' => ['/cliente/destroy/{id}'],
     'client_edit_fecha_corte' => [
@@ -108,7 +124,9 @@ return [
     'client_service_internet_add_client' => ['/cliente/clientinternetservice/crear/{id}'],
     'client_service_internet_edit_client' => [
         '/cliente/clientinternetservice/update/{id}',
-        '/cliente/clientinternetservice/change-internet/{id}'
+        '/cliente/clientinternetservice/change-internet/{id}',
+        // item #264 — huérfana, mismo permiso de escritura sobre el servicio de internet
+        '/cliente/clientinternetservice/refresh-ip/{id}'
     ],
     'client_service_internet_delete_client' => ['/cliente/clientinternetservice/destroy/{id}'],
 
@@ -214,6 +232,22 @@ return [
     ],
     'client_billing_invoice_delete' => [
         '/cliente/billing/invoice/destroy/{id}'
+    ],
+
+    // Datos fiscales CFDI 4.0 (item #264 — huérfanas). Las claves reusan EXACTAMENTE los
+    // mismos permisos que ClientFiscalDataController ya exige vía $this->authorize() en cada
+    // acción (facturacion.ver/facturacion.fiscal.editar/facturacion.fiscal.timbrar) — el
+    // middleware solo es filtro previo (no distingue método HTTP, por eso la ruta base GET/POST
+    // vive en ambas claves); la autorización fina por acción la sigue haciendo el controller.
+    'facturacion.ver' => [
+        '/cliente/billing/datos-fiscales/{clientId}',
+    ],
+    'facturacion.fiscal.editar' => [
+        '/cliente/billing/datos-fiscales/{clientId}',
+        '/cliente/billing/datos-fiscales/{clientId}/constancia',
+    ],
+    'facturacion.fiscal.timbrar' => [
+        '/cliente/billing/datos-fiscales/{clientId}/timbrar',
     ],
 
     // Vendedores
