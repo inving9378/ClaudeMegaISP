@@ -695,6 +695,10 @@ class OLTsOnuController extends Controller
 
     public function changeWebUserPass($id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -715,6 +719,10 @@ class OLTsOnuController extends Controller
 
     public function setCATV(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
