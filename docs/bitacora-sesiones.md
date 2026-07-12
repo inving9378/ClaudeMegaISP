@@ -486,3 +486,22 @@ que override la recomendación → se ejecutó **la opción C, la recomendada**.
 - **Pendiente grande**: #308 API centralizada (registro de contratos + notificación de deprecación) — elegido "Fundación + notificación", build aparte.
 
 Solo dev, sin push. Kill switch #342 y candados #341 intactos.
+
+## 2026-07-12 00:53 — Item #218: patrones route_permission de gestión de usuarios corregidos
+
+**Ejecutor:** wt-3 (worktree aislado, item ya reclamado/en_progreso, aprobado por Irving en el log del item).
+
+**Diagnóstico (FASE 1, confirmado 1:1 contra `app/Modules/Core/Usuarios/routes.php`):**
+- `user_add_user` apuntaba a `/administracion/user/add` (ruta inexistente) → las reales son `/administracion/user/crear` (GET, form) y `/administracion/user/create` (POST, store).
+- `user_edit_user` apuntaba a `/administracion/user/editar/{id}` y `/administracion/user/update/{id}` ({id} en posición equivocada) → las reales son `/administracion/user/{id}/editar` y `/administracion/user/{id}/update`. La entrada `get-data-user/{id}` ya estaba correcta.
+- `user_delete_user` apuntaba a `/administracion/user/destroy/{id}` → la real es `/administracion/user/{id}/destroy`.
+- Efecto real (confirmado con `CheckRoutePermission::convertRouteToRegex`, match literal segmento-por-segmento): como ningún patrón matchea, esas 3 acciones son **fail-closed** para cualquier no-admin — el permiso delegado (directo o por rol vía el flip Fase 3a) queda inerte, solo el bypass admin/DESARROLLADOR/super-administrator llega a esas rutas hoy. No es una apertura de acceso, es un candado que no dejaba pasar ni a quien sí tenía el permiso.
+- `activity_log` del bloque revisado (últimos 30 días, filtro por "user"): sin registros — no hay evidencia de acceso previo afectado por el mismatch.
+
+**Fix (FASE 2):** `config/route_permission.php` — patrones de `user_add_user`/`user_edit_user`/`user_delete_user` alineados al literal real de las rutas. Sin tocar bypass admin, el flip Fase 3a, ni `user_view_user` (su entrada `/administracion/user/table` es un patrón muerto e inofensivo, fuera del alcance del prompt).
+
+**Verificación (FASE 3):** transacción tinker con rollback total — usuario no-admin sintético (rol de prueba sin permisos) contra `/administracion/user/7/editar` vía `CheckRoutePermission::handle()` real: **sin** `user_edit_user` → 403; **con** el permiso otorgado (`givePermissionTo`) → 200. También `/administracion/user/create` sin `user_add_user` → 403. `DB::rollBack()` confirmado (0 filas residuales en `users`/`roles`). `php -l` limpio, `php artisan --version` bootea.
+
+**Commit:** `fix(permisos): alinear patrones route_permission de gestión de usuarios` en `circuito/item-218-patrones-de-route-permission-de-editara`. Integrado con `circuito:integrar 218`.
+
+Solo dev, sin push. Kill switch #342 y candados #341 intactos.
