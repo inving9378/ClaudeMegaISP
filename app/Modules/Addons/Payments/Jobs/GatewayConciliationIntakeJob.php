@@ -44,6 +44,16 @@ class GatewayConciliationIntakeJob implements ShouldQueue
     // propiedad $queue: el trait Queueable ya la define y una redeclaración
     // TIPADA es incompatible en PHP 8 (FatalError al componer la clase).
 
+    // #211: la extracción por IA (ClaudeApiClient) reintenta internamente ante 429/5xx
+    // con hasta ~21s de sleeps + varias llamadas HTTP; bajo ráfaga de varios comprobantes
+    // simultáneos una sola extracción puede acercarse al timeout por defecto del worker
+    // (90s), agotando los 3 intentos sin backoff entre ellos. Backoff espaciado + más
+    // intentos son seguros: hay dedup por source_message_id (idempotencia) antes de
+    // volver a cobrar la IA.
+    public int $tries = 5;
+    public array $backoff = [10, 20, 40, 80];
+    public int $timeout = 120;
+
     public function __construct(public int $messageId)
     {
     }
