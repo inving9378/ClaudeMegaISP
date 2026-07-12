@@ -52,7 +52,7 @@ class ClientPaymentController extends Controller
         try {
             DB::beginTransaction();
             if ($client) {
-                $clientBalance = $client->balance->amount;
+                $clientBalance = optional($client->balance)->amount ?? 0;
                 $status = $client->client_main_information->estado;
                 $fechaDeCorte = $client->fecha_corte;
                 $fechaDePago = $client->fecha_pago;
