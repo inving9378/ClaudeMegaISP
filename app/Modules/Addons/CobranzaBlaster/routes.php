@@ -1,7 +1,6 @@
 <?php
 
 use App\Modules\Addons\CobranzaBlaster\Controllers\CampanaController;
-use App\Modules\Addons\CobranzaBlaster\Controllers\CobranzaWebhookController;
 use App\Modules\Addons\CobranzaBlaster\Controllers\VoipConfiguracionController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,10 +47,4 @@ Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
 
     Route::get('/voip/test',           [VoipConfiguracionController::class, 'testConexion'])
         ->name('cobranza.voip.test');
-});
-
-// Webhook AMI — sin auth, solo accesible desde 127.0.0.1
-Route::middleware(['web'])->prefix('webhooks/cobranza')->group(function () {
-    Route::post('/ami-event', [CobranzaWebhookController::class, 'amiEvent'])
-        ->name('cobranza.webhook.ami');
 });
