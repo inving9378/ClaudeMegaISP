@@ -2,10 +2,15 @@
 
 namespace App\Modules\Addons\Manual\Services;
 
+use App\Modules\Addons\IA\Models\IAProveedor;
+use App\Modules\Addons\IA\Models\IAUsoToken;
+use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
+use App\Modules\Addons\IA\Services\IAAdaptadorInterface;
+use App\Modules\Addons\IA\Services\IAPricingService;
 use App\Modules\Addons\Manual\Models\ManualSection;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
@@ -45,62 +50,72 @@ class ManualGeneratorService
         @set_time_limit(0);
         @ignore_user_abort(true);
 
-        $apiKey = config('services.anthropic.key');
-        if (!$apiKey) {
-            throw new RuntimeException('Falta CLAUDE_API_KEY en .env (config services.anthropic.key).');
+        $proveedor = IAProveedor::where('activo', true)->orderByDesc('id')->first();
+        if (!$proveedor) {
+            throw new RuntimeException('No hay proveedor de IA activo. Configure uno en /ia/configuracion.');
         }
 
-        $model    = config('services.anthropic.model', 'claude-sonnet-4-20250514');
-        $endpoint = config('services.anthropic.endpoint', 'https://api.anthropic.com/v1/messages');
+        $adaptador = IAAdaptadorFactory::crear($proveedor);
 
-        $modules     = $this->loadActiveModules();
-        if ($onlySlug !== null && $onlySlug !== '') {
-            $modules = $modules->filter(fn ($m) => $this->moduleSlug($m) === $onlySlug)->values();
+        // Candado contra corridas concurrentes: dos clicks del botón (o botón +
+        // comando) a la vez duplicarían las 122 llamadas a la IA sin control de costo.
+        $lock = Cache::lock('manual-generate-run', 3600);
+        if (!$lock->get()) {
+            throw new RuntimeException('Ya hay una generación de manual en curso. Intenta de nuevo en unos minutos.');
         }
-        $routesIndex = $this->loadRoutesIndex();
 
-        $generated = 0;
-        $errors    = [];
+        try {
+            $modules = $this->loadActiveModules();
+            if ($onlySlug !== null && $onlySlug !== '') {
+                $modules = $modules->filter(fn ($m) => $this->moduleSlug($m) === $onlySlug)->values();
+            }
+            $routesIndex = $this->loadRoutesIndex();
 
-        foreach ($modules as $module) {
-            $slug  = $this->moduleSlug($module);
-            $title = $module->name ?? $slug;
-            try {
-                $prompt  = $this->buildPrompt($module, $routesIndex);
-                $content = $this->callClaude($apiKey, $model, $endpoint, $prompt);
+            $generated = 0;
+            $errors    = [];
 
-                $latest = ManualSection::where('module_slug', $slug)->max('version');
-                $next   = $latest ? ((int) $latest) + 1 : 1;
+            foreach ($modules as $module) {
+                $slug  = $this->moduleSlug($module);
+                $title = $module->name ?? $slug;
+                try {
+                    $prompt  = $this->buildPrompt($module, $routesIndex);
+                    $content = $this->callClaude($adaptador, $proveedor, $prompt);
 
-                ManualSection::create([
-                    'module_slug'  => $slug,
-                    'title'        => $title,
-                    'content'      => $content,
-                    'version'      => $next,
-                    'generated_at' => now(),
-                ]);
+                    $latest = ManualSection::where('module_slug', $slug)->max('version');
+                    $next   = $latest ? ((int) $latest) + 1 : 1;
 
-                $this->pruneOldVersions($slug, $next);
+                    ManualSection::create([
+                        'module_slug'  => $slug,
+                        'title'        => $title,
+                        'content'      => $content,
+                        'version'      => $next,
+                        'generated_at' => now(),
+                    ]);
 
-                $generated++;
-                Log::info("[ManualGenerator] ✓ {$title} ({$slug}) v{$next}");
-                if ($this->progress) {
-                    ($this->progress)("✓ {$title} (v{$next})");
-                }
-            } catch (\Throwable $e) {
-                $errors[] = $title . ': ' . $e->getMessage();
-                Log::error('[ManualGenerator] ✗ ' . $title . ': ' . $e->getMessage(), ['module' => $title]);
-                if ($this->progress) {
-                    ($this->progress)("✗ {$title}: " . $e->getMessage());
+                    $this->pruneOldVersions($slug, $next);
+
+                    $generated++;
+                    Log::info("[ManualGenerator] ✓ {$title} ({$slug}) v{$next}");
+                    if ($this->progress) {
+                        ($this->progress)("✓ {$title} (v{$next})");
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = $title . ': ' . $e->getMessage();
+                    Log::error('[ManualGenerator] ✗ ' . $title . ': ' . $e->getMessage(), ['module' => $title]);
+                    if ($this->progress) {
+                        ($this->progress)("✗ {$title}: " . $e->getMessage());
+                    }
                 }
             }
-        }
 
-        return [
-            'generated' => $generated,
-            'skipped'   => 0,
-            'errors'    => $errors,
-        ];
+            return [
+                'generated' => $generated,
+                'skipped'   => 0,
+                'errors'    => $errors,
+            ];
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -322,37 +337,49 @@ Respuesta concisa.
 PROMPT;
     }
 
-    protected function callClaude(string $apiKey, string $model, string $endpoint, string $prompt): string
+    protected function callClaude(IAAdaptadorInterface $adaptador, IAProveedor $proveedor, string $prompt): string
     {
-        $response = Http::withHeaders([
-            'x-api-key'         => $apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type'      => 'application/json',
-        ])->timeout(120)->post($endpoint, [
-            'model'      => $model,
-            'max_tokens' => 2000,
-            'messages'   => [
-                ['role' => 'user', 'content' => $prompt],
-            ],
-        ]);
+        $respuesta = $adaptador->enviarMensaje([], $prompt, []);
 
-        if (!$response->successful()) {
-            throw new RuntimeException('Claude API error: ' . $response->status() . ' ' . $response->body());
+        $text = trim($respuesta['texto'] ?? '');
+        if ($text === '') {
+            throw new RuntimeException('Respuesta vacía del proveedor IA.');
         }
 
-        $json   = $response->json();
-        $blocks = $json['content'] ?? [];
-        $text   = '';
-        foreach ($blocks as $b) {
-            if (($b['type'] ?? '') === 'text') {
-                $text .= $b['text'] ?? '';
-            }
-        }
-
-        if (trim($text) === '') {
-            throw new RuntimeException('Respuesta vacía de Claude API.');
-        }
+        $this->registrarUso($proveedor, $respuesta);
 
         return $text;
+    }
+
+    /**
+     * Registro best-effort en ia_uso_tokens (mismo criterio que IAPricingService::registrarUso):
+     * un fallo aquí nunca debe tumbar la generación del manual.
+     */
+    protected function registrarUso(IAProveedor $proveedor, array $respuesta): void
+    {
+        try {
+            $tokensInput  = (int) ($respuesta['tokens_input'] ?? 0);
+            $tokensOutput = (int) ($respuesta['tokens_output'] ?? 0);
+            $costo        = app(IAPricingService::class)->calcularCosto($proveedor->modelo_default, $tokensInput, $tokensOutput);
+
+            IAUsoToken::create([
+                // generate() corre desde el botón web (con sesión) o desde Command/Job
+                // en background (sin auth); id=1 sigue el mismo fallback de "usuario
+                // sistema" que ya usa PaymentApplicationService::resolveSystemUserId().
+                'user_id'         => auth()->id() ?? 1,
+                'ia_proveedor_id' => $proveedor->id,
+                'proveedor'       => $proveedor->driver,
+                'modelo'          => $proveedor->modelo_default,
+                'tokens_input'    => $tokensInput,
+                'tokens_output'   => $tokensOutput,
+                'tokens_total'    => $tokensInput + $tokensOutput,
+                'costo_estimado'  => $costo,
+                'fecha'           => now()->toDateString(),
+                'origen'          => 'manual',
+                'created_at'      => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('[ManualGenerator] No se pudo registrar uso de tokens IA: ' . $e->getMessage());
+        }
     }
 }
