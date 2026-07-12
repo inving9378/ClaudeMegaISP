@@ -204,6 +204,18 @@ _ensure_build() {
 
 # --- 6) Aplicar esquema Prisma (siempre, es idempotente) ---------------------
 _ensure_prisma_deploy() {
+    # `prisma/migrations/` viene en el .gitignore de Evolution (línea
+    # "/prisma/migrations/*") → en un checkout nuevo (clon fresco) llega VACÍA.
+    # El propio script `db:deploy` de Evolution (package.json, vía runWithProvider.js)
+    # copia primero prisma/mysql-migrations → prisma/migrations y RECIÉN DESPUÉS corre
+    # `prisma migrate deploy` (que siempre resuelve migraciones contra prisma/migrations/,
+    # sin importar qué --schema se le pase). Sin este paso, `migrate deploy` no encuentra
+    # migraciones que aplicar y el esquema de Evolution nunca se crea en un server nuevo
+    # (item Hoja de Ruta #200). Replicado aquí explícito para no depender de scripts npm
+    # ajenos; idempotente (mismo resultado si ya existía o se re-corre).
+    log_info "Sincronizando prisma/mysql-migrations → prisma/migrations (mismo paso que el db:deploy de Evolution)"
+    _evo bash -c "cd '${EVOLUTION_DIR}' && rm -rf prisma/migrations && cp -r prisma/mysql-migrations prisma/migrations"
+
     log_info "prisma migrate deploy (aplicando esquema a MySQL)"
     # Prisma carga el .env del directorio del proyecto automáticamente
     # (DATABASE_PROVIDER y DATABASE_CONNECTION_URI) → sin secretos en argv.
