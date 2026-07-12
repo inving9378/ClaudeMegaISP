@@ -14,8 +14,7 @@ class MarketingBrandKitController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:marketing.brand_kit.configure')
-             ->except(['serveLogo']);
+        $this->middleware('permission:marketing.brand_kit.configure');
     }
 
     public function show(): JsonResponse
