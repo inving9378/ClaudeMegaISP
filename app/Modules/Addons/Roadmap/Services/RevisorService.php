@@ -115,13 +115,17 @@ class RevisorService
     private function callModel(string $model, RoadmapItem $item, ?string $decisorCtx): array
     {
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model'       => $model,
-                'max_tokens'  => (int) config('circuito.revisor.max_tokens', 700),
-                'temperature' => 0,
-                'system'      => $this->systemPrompt(),
-                'messages'    => [['role' => 'user', 'content' => $this->userPrompt($item, $decisorCtx)]],
-            ]);
+            $params = [
+                'model'      => $model,
+                'max_tokens' => (int) config('circuito.revisor.max_tokens', 700),
+                'system'     => $this->systemPrompt(),
+                'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, $decisorCtx)]],
+            ];
+            // `temperature` está DEPRECADO en Opus 4.x → solo lo mandamos a modelos que lo aceptan (Sonnet).
+            if (stripos($model, 'opus') === false) {
+                $params['temperature'] = 0;
+            }
+            $resp = (new ClaudeApiClient())->messages($params);
             $text = '';
             foreach ((array) ($resp['content'] ?? []) as $blk) {
                 if (($blk['type'] ?? '') === 'text') {
@@ -275,7 +279,7 @@ TXT;
             $resp = (new ClaudeApiClient())->messages([
                 'model'       => $hard,
                 'max_tokens'  => (int) config('circuito.revisor.brief_tokens', 1100),
-                'temperature' => 0.2,
+                
                 'system'      => "Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). Este item es de nivel C (arquitectura / negocio / decisión de diseño): NO se ejecuta solo, lo decide Irving. Prepárale un BRIEF de decisión BREVE y accionable en español, en markdown, con EXACTAMENTE estas secciones: **Qué se decide** (1-2 frases), **Opciones** (2-3 con pros/contras en una línea c/u), **Riesgos** (bullets), **Recomendación** (1 opción + por qué, alineada a sus preferencias: conservador, aditivo/reversible, dev-primero, no romper prod). Sé concreto, sin relleno. Considera el perfil de Irving:\n\n" . $this->perfilIrving(),
                 'messages'    => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
             ]);
@@ -323,7 +327,7 @@ TXT;
         $v = ['categoria' => 'negocio', 'reejecutable' => false, 'razon' => '', 'brief' => ''];
         try {
             $resp = (new ClaudeApiClient())->messages([
-                'model' => $hard, 'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100), 'temperature' => 0.1,
+                'model' => $hard, 'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100),
                 'system' => $sys, 'messages' => [['role' => 'user', 'content' => $this->userPrompt($item, (string) $item->comentarios_claude)]],
             ]);
             $text = '';
