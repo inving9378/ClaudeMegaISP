@@ -1289,15 +1289,16 @@ return [
         '/administracion/user/get-all-users',
     ],
     'user_add_user' => [
-        '/administracion/user/add',
+        '/administracion/user/crear',
+        '/administracion/user/create',
     ],
     'user_edit_user' => [
-        '/administracion/user/editar/{id}',
-        '/administracion/user/update/{id}',
+        '/administracion/user/{id}/editar',
+        '/administracion/user/{id}/update',
         '/administracion/user/get-data-user/{id}'
     ],
     'user_delete_user' => [
-        '/administracion/user/destroy/{id}',
+        '/administracion/user/{id}/destroy',
     ],
     'user_permission_user' => [
         //visual
