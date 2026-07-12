@@ -65,18 +65,27 @@ class EvaluadorEmpresarialController extends Controller
         }
     }
 
-    /** POST /evaluador-empresarial/enviar-email */
+    /**
+     * POST /evaluador-empresarial/enviar-email
+     *
+     * El destinatario NUNCA se toma del request (evitaba que la ruta pública se usara como
+     * relay de email a cualquier dirección arbitraria). Se envía SIEMPRE al email_contacto ya
+     * capturado en la propia evaluación.
+     */
     public function enviarEmail(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'evaluacion_id' => 'required|integer|exists:evaluaciones_empresariales,id',
-            'email_destino' => 'required|email|max:150',
         ]);
 
         try {
             $evaluacion = EvaluacionEmpresarial::findOrFail($validated['evaluacion_id']);
 
-            Mail::to($validated['email_destino'])
+            if (empty($evaluacion->email_contacto)) {
+                return response()->json(['success' => false, 'mensaje' => 'La evaluación no tiene email de contacto'], 422);
+            }
+
+            Mail::to($evaluacion->email_contacto)
                 ->send(new EvaluacionEmpresarialMail($evaluacion));
 
             return response()->json(['success' => true, 'mensaje' => 'Email enviado correctamente']);
