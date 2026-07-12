@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\StandardMail;
 use App\Modules\Addons\Domiciliacion\Models\EnrollmentLink;
 use App\Modules\Addons\Domiciliacion\Services\DomiciliacionEnrollmentService;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -140,8 +140,10 @@ class EnrollmentLinkController extends Controller
 
         if ($channel === 'whatsapp') {
             try {
-                $jid = EvolutionApiService::phoneToJid($cmi->phone ?? '');
-                app(EvolutionApiService::class)->sendText($jid, $mensaje);
+                $numero = $this->normalizeWhatsAppNumber($cmi->phone ?? '');
+                if ($numero !== '') {
+                    app(WhatsAppGateway::class)->sendText(null, $numero, $mensaje);
+                }
             } catch (\Throwable $e) {
                 Log::warning('domiciliacion.liga: fallo WhatsApp', ['error' => $e->getMessage()]);
             }
@@ -168,5 +170,17 @@ class EnrollmentLinkController extends Controller
                 Log::warning('domiciliacion.liga: fallo email', ['error' => $e->getMessage()]);
             }
         }
+    }
+
+    /** Igual al formato que usan las conversaciones de WhatsAppAgent (contact_number: MX 10 dígitos → prefijo 521). */
+    private function normalizeWhatsAppNumber(string $phone): string
+    {
+        $digits = preg_replace('/\D/', '', $phone);
+        if (strlen($digits) === 10) {
+            $digits = '521' . $digits;
+        } elseif (strlen($digits) === 12 && str_starts_with($digits, '52')) {
+            $digits = '521' . substr($digits, 2);
+        }
+        return $digits;
     }
 }
