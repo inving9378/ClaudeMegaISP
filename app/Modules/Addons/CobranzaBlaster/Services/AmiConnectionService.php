@@ -20,7 +20,16 @@ class AmiConnectionService
         $this->host     = env('AMI_HOST', '127.0.0.1');
         $this->port     = (int) env('AMI_PORT', 5038);
         $this->username = env('AMI_USERNAME', 'megaisp');
-        $this->secret   = env('AMI_SECRET', '');
+        $this->secret   = (string) env('AMI_SECRET', '');
+
+        // Item #280: un default vacío permitía intentar el login AMI sin secret.
+        // Fallar ruidoso aquí en vez de dejar que connect() intente con Secret vacío.
+        if ($this->secret === '') {
+            Log::error('AMI_SECRET no está seteado; AmiConnectionService rehúsa conectar.');
+            throw new \RuntimeException(
+                'AMI_SECRET no está configurado en .env. Configúralo antes de usar el blaster de cobranza.'
+            );
+        }
     }
 
     public function connect(): bool
