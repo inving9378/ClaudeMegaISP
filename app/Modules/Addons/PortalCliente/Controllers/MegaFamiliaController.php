@@ -66,6 +66,9 @@ class MegaFamiliaController extends Controller
         // Balance de puntos por perfil (gamificación) — única fuente de verdad.
         $balances = \App\Modules\Addons\PortalCliente\Support\MegaFamiliaBalance::forProfiles($profileIds->all());
 
+        // Estadísticas de uso (últimos 14 días), scopeadas a los perfiles del cliente.
+        $stats = \App\Modules\Addons\PortalCliente\Support\MegaFamiliaStats::forProfiles($profileIds->all());
+
         // Tareas a nivel de cuenta (las que tienen asignaciones) → tab "Asignación de tareas".
         $accountTasks = \App\Modules\Addons\MegaFamilia\Models\ParentalTask::whereIn('account_id', $accountIds)
             ->has('assignments')
@@ -97,6 +100,7 @@ class MegaFamiliaController extends Controller
             'balances'              => $balances,
             'solicitudes'           => $solicitudes,
             'accountTasks'          => $accountTasks,
+            'stats'                 => $stats,
         ]);
     }
 }

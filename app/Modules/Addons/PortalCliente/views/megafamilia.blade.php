@@ -55,6 +55,7 @@
             <button class="mf-tab-btn active" data-tab="cuentas">📦 Mis cuentas</button>
             <button class="mf-tab-btn" data-tab="perfiles">🧒 Perfiles de hijos</button>
             <button class="mf-tab-btn" data-tab="asignaciones">📋 Asignación de tareas</button>
+            <button class="mf-tab-btn" data-tab="estadisticas">📊 Estadísticas</button>
             <button class="mf-tab-btn" data-tab="solicitudes">🔔 Solicitudes
                 @if(($solicitudesPendientes ?? 0) > 0)<span class="badge badge-danger" style="margin-left:.4rem">{{ $solicitudesPendientes }}</span>@endif
             </button>
@@ -170,6 +171,11 @@
         {{-- ── TAB: ASIGNACIÓN DE TAREAS (account-level) ── --}}
         <div class="mf-tab-content" id="mf-tab-asignaciones">
             @include('addon-portal-cliente::partials.megafamilia_tab_asignaciones')
+        </div>
+
+        {{-- ── TAB: ESTADÍSTICAS ── --}}
+        <div class="mf-tab-content" id="mf-tab-estadisticas">
+            @include('addon-portal-cliente::partials.megafamilia_sec_estadisticas')
         </div>
 
         {{-- ── TAB: SOLICITUDES ── --}}
