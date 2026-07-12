@@ -93,6 +93,8 @@ Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
         Route::get('/whatsapp-comprobantes',                    [WhatsappReceiptReviewController::class, 'index'])->name('whatsapp-comprobantes');
         Route::get('/whatsapp-comprobantes/{message}/media',    [WhatsappReceiptReviewController::class, 'media'])->whereNumber('message')->name('whatsapp-comprobantes.media');
         Route::post('/whatsapp-comprobantes/{message}/extraer', [WhatsappReceiptReviewController::class, 'extract'])->whereNumber('message')->name('whatsapp-comprobantes.extraer');
+        // Item #204 FASE A — dispara F3 (identificación) sobre una extracción ya hecha.
+        Route::post('/whatsapp-comprobantes/{message}/identificar', [WhatsappReceiptReviewController::class, 'identify'])->whereNumber('message')->name('whatsapp-comprobantes.identificar');
 
         // FASE 3 (F3.4) — SIMULADOR de la conversación de identificación. NO envía
         // mensajes reales; corre el mismo FSM sobre sesiones is_simulation.
