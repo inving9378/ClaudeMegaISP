@@ -120,6 +120,23 @@ class MergeRunner
             return $this->fail("Conflicto al mergear {$branch} → abortado, main intacto.\n" . $salida, true);
         }
 
+        // GUARD DE FRONTEND (#fin-de-semana): si el gate está ON y el merge staged toca frontend
+        // (.vue/.js/.ts/.css/.scss), NO se auto-mergea — se pone EN COLA para la revisión VISUAL de
+        // Irving. `regression()` solo hace php -l + boot (NO renderiza), así que un frontend que
+        // COMPILA pero truena en runtime tumbaría la Torre en ausencia. Reversible: el cambio queda
+        // en su rama; Irving lo mergea a mano si está bien. Toggle: setting `circuito_frontend_gate`.
+        if ($this->frontendGateOn()) {
+            $staged = array_values(array_filter(preg_split('/\R/', trim(
+                $this->git(['diff', '--cached', '--name-only'])->getOutput()
+            ))));
+            $fe = array_values(array_filter($staged, fn ($f) => (bool) preg_match('/\.(vue|jsx?|tsx?|css|scss|sass)$/i', (string) $f)));
+            if ($fe !== []) {
+                $this->git(['merge', '--abort']);
+
+                return $this->holdForReview($item, $branch, $fe);
+            }
+        }
+
         // FASE 2: verificación de regresión sobre el árbol ya fusionado (aún sin commit).
         $reg = $this->regression();
         if (! $reg['ok']) {
@@ -177,6 +194,39 @@ class MergeRunner
         }
 
         return ['ok' => true, 'detalle' => 'OK'];
+    }
+
+    /** Toggle del guard de frontend: setting `circuito_frontend_gate`='1' (OFF por default). */
+    private function frontendGateOn(): bool
+    {
+        return (string) \Illuminate\Support\Facades\DB::table('settings')
+            ->where('key', 'circuito_frontend_gate')->value('value') === '1';
+    }
+
+    /**
+     * Frontend tocado con el gate ON: aborta el merge y deja el item EN COLA para la revisión visual
+     * de Irving (estado requiere_irving). NO es un error — el cambio queda intacto en su rama.
+     * Devuelve escalado=false porque ya fijamos el estado aquí (evita el re-log "escalado" del drain).
+     */
+    private function holdForReview(RoadmapItem $item, string $branch, array $fe): array
+    {
+        $lista = implode(', ', array_slice($fe, 0, 6)) . (count($fe) > 6 ? '…' : '');
+        $item->estado_aprobacion  = 'requiere_irving';
+        $item->revision_ui        = true;
+        $item->revisado_at        = now();
+        $item->aprobado_por       = 'merge-runner(frontend-gate)';
+        $item->comentarios_claude = (string) $item->comentarios_claude
+            . "\n\n--- EN COLA PARA REVISIÓN VISUAL (guard frontend, " . now()->toDateTimeString() . ") ---\n"
+            . "El merge de {$branch} toca frontend ({$lista}); con el gate ON NO se auto-mergea para que un "
+            . "render roto no tumbe la Torre en tu ausencia. Revísalo visual y mergéalo a mano si está bien "
+            . "(git merge --no-ff {$branch}), o quita el gate (setting circuito_frontend_gate=0).\n";
+        $item->save();
+
+        \Illuminate\Support\Facades\Log::channel('roadmap_externo')
+            ->info('merge-frontend-en-cola', ['item' => $item->id, 'branch' => $branch, 'archivos' => $fe]);
+
+        return ['estado' => 'en_cola', 'ok' => false, 'escalado' => false, 'merge_commit' => null,
+            'salida' => "Frontend EN COLA para tu revisión visual (no auto-mergeado): {$lista}", 'at' => time()];
     }
 
     /** Marca el item como integrado + CLASIFICA UI/backend y auto-archiva lo backend. */
