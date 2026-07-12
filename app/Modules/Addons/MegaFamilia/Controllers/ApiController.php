@@ -392,7 +392,9 @@ class ApiController extends Controller
             : collect();
 
         if ($rows->isEmpty()) {
-            return response()->json($this->demoFacturas());
+            return response()->json(
+                config('megafamilia.financial_demo_enabled') ? $this->demoFacturas() : []
+            );
         }
 
         return response()->json($rows->map(function ($r) {
@@ -402,6 +404,7 @@ class ApiController extends Controller
                 'date' => $r->due_date,
                 'amount' => (float) $r->total,
                 'status' => $this->mapInvoiceStatus($r->status),
+                'demo' => false,
             ];
         }));
     }
@@ -422,11 +425,11 @@ class ApiController extends Controller
         $now = now();
         return [
             ['id' => 1, 'number' => 'F-2026-00128', 'date' => $now->copy()->subDays(5)->toDateString(),
-             'amount' => 450.00, 'status' => 'pendiente'],
+             'amount' => 450.00, 'status' => 'pendiente', 'demo' => true],
             ['id' => 2, 'number' => 'F-2026-00118', 'date' => $now->copy()->subDays(35)->toDateString(),
-             'amount' => 450.00, 'status' => 'pagada'],
+             'amount' => 450.00, 'status' => 'pagada', 'demo' => true],
             ['id' => 3, 'number' => 'F-2026-00109', 'date' => $now->copy()->subDays(65)->toDateString(),
-             'amount' => 450.00, 'status' => 'pagada'],
+             'amount' => 450.00, 'status' => 'pagada', 'demo' => true],
         ];
     }
 
@@ -452,7 +455,9 @@ class ApiController extends Controller
             : collect();
 
         if ($rows->isEmpty()) {
-            return response()->json($this->demoPagos());
+            return response()->json(
+                config('megafamilia.financial_demo_enabled') ? $this->demoPagos() : []
+            );
         }
 
         return response()->json($rows->map(function ($r) {
@@ -461,6 +466,7 @@ class ApiController extends Controller
                 'date' => $r->date,
                 'amount' => (float) $r->amount,
                 'method' => $r->comment ?: 'Transferencia',
+                'demo' => false,
             ];
         }));
     }
@@ -470,43 +476,36 @@ class ApiController extends Controller
         $now = now();
         return [
             ['id' => 1, 'date' => $now->copy()->subDays(35)->toDateString(),
-             'amount' => 450.00, 'method' => 'Transferencia bancaria'],
+             'amount' => 450.00, 'method' => 'Transferencia bancaria', 'demo' => true],
             ['id' => 2, 'date' => $now->copy()->subDays(65)->toDateString(),
-             'amount' => 450.00, 'method' => 'OXXO'],
+             'amount' => 450.00, 'method' => 'OXXO', 'demo' => true],
             ['id' => 3, 'date' => $now->copy()->subDays(95)->toDateString(),
-             'amount' => 450.00, 'method' => 'Tarjeta de crédito'],
+             'amount' => 450.00, 'method' => 'Tarjeta de crédito', 'demo' => true],
         ];
     }
 
     /**
-     * Registra la intención de pago — v0.2 no procesa transacciones
-     * realmente (eso requiere integración con pasarela), solo crea un
-     * `payment_promise` para que el área administrativa lo recoja.
+     * v0.2 no tiene integración con pasarela ni persiste la intención de pago
+     * (el docblock original prometía un `payment_promise` que nunca se creaba
+     * — item roadmap #255). Responder éxito sin registrar nada podía
+     * confundirse con un cobro real, así que el endpoint queda deshabilitado
+     * hasta que se implemente persistencia real (decisión pendiente con
+     * Irving: payment_promise vs reported_payment).
      */
     public function crearPago(Request $request): JsonResponse
     {
-        $data = $request->validate([
+        $request->validate([
             'invoice_id' => 'nullable|integer',
             'amount' => 'required|numeric|min:0',
             'method' => 'required|string|in:tarjeta,spei,oxxo,efectivo',
             'reference' => 'nullable|string|max:64',
         ]);
 
-        $client = $this->resolveClientForCurrentUser();
-        if (! $client) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Intención registrada (demo). El equipo te contactará.',
-            ], 202);
-        }
-
         return response()->json([
-            'success' => true,
-            'message' => 'Intención de pago registrada. El equipo confirmará la transacción.',
-            'tracking_id' => 'PAY-' . strtoupper(\Illuminate\Support\Str::random(8)),
-            'amount' => (float) $data['amount'],
-            'method' => $data['method'],
-        ], 201);
+            'success' => false,
+            'error' => 'El pago desde la app aún no está disponible. Realiza tu pago por los canales habituales; el equipo lo confirmará manualmente.',
+            'code' => 'not_implemented',
+        ], 501);
     }
 
     // ---- ACCOUNT / PROFILE (ISP cliente) ---------------------------------
@@ -526,7 +525,9 @@ class ApiController extends Controller
         }
 
         if (! $client) {
-            return response()->json($this->demoAccount($user));
+            return response()->json(
+                config('megafamilia.financial_demo_enabled') ? $this->demoAccount($user) : $this->emptyAccount($user)
+            );
         }
 
         $info = $client->client_main_information;
@@ -604,6 +605,26 @@ class ApiController extends Controller
             'consumo_limite' => 500,
             'address' => 'Av. Reforma 123, Col. Centro, Acapulco',
             'demo' => true,
+        ];
+    }
+
+    /** Estado real (sin datos inventados) cuando el usuario no tiene cliente ISP ligado. */
+    private function emptyAccount(User $u): array
+    {
+        return [
+            'name' => $u->name,
+            'email' => $u->email,
+            'phone' => $u->phone ?? '—',
+            'contract_number' => null,
+            'plan_name' => 'Sin servicio activo',
+            'speed' => '—',
+            'estado' => 'sin_servicio',
+            'next_payment_date' => null,
+            'balance' => null,
+            'consumo_gb' => null,
+            'consumo_limite' => null,
+            'address' => null,
+            'demo' => false,
         ];
     }
 
