@@ -12,6 +12,9 @@
  *   skip_on_nothing_to_commit — exit-code 1 en este paso = skip, no error (para git commit)
  *   skip_if_tag_exists        — si el tag ya existe localmente, el paso se marca skip
  *   skip_if_no_remote         — omite el paso si DEPLOY_REMOTE_URL no está configurado
+ *   skip_if_not_production    — omite el paso (marcado 'skipped') si app()->environment() no es
+ *                               'production'. Item roadmap #245: evita que crear una Release en
+ *                               dev dispare push/GitHub Release/deploy remoto reales.
  *   type: 'http'              — el paso llama al webhook del servidor remoto (no es shell)
  *   type: 'github_release'   — crea/actualiza un GitHub Release con las mejoras de la versión
  *   type: 'backup'           — respaldo de la BD ANTES de publicar (streaming, en el worker)
@@ -104,6 +107,7 @@ return [
             'timeout'  => 180,
             'critical' => true,
             'enabled'  => true,
+            'skip_if_not_production' => true,
         ],
         [
             'key'      => 'github_release',
@@ -112,6 +116,7 @@ return [
             'timeout'  => 30,
             'critical' => false,
             'enabled'  => true,
+            'skip_if_not_production' => true,
         ],
         [
             'key'               => 'remote_deploy',
@@ -121,6 +126,7 @@ return [
             'critical'          => false,
             'enabled'           => true,
             'skip_if_no_remote' => true,
+            'skip_if_not_production' => true,
         ],
     ],
 

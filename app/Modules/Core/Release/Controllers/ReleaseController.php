@@ -70,12 +70,10 @@ class ReleaseController extends Controller
 
     public function store(Request $request)
     {
-//        if (!app()->environment('production')) {
-//            return response()->json([
-//                'success' => false,
-//                'message' => 'No se pueden crear versiones en entorno de desarrollo.',
-//            ], 422);
-//        }
+        // Dev SÍ puede crear Release y correr el pipeline para probarlo end-to-end, pero
+        // los pasos que publican de verdad (push a GitHub, GitHub Release, deploy remoto)
+        // quedan gateados por entorno en config/deployment.php ('skip_if_not_production').
+        // Ver DeploymentService::run(). Decisión item roadmap #245.
 
         try {
             $validator = Validator::make($request->all(), [
