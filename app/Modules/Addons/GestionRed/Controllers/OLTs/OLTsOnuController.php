@@ -104,6 +104,10 @@ class OLTsOnuController extends Controller
 
     public function store(Request $request)
     {
+        if (! auth()->user()->can('onu_add')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $data = $request->except('client_id');
         $response = $this->oltService->registerOnu($data);
         $onu = null;
@@ -132,6 +136,10 @@ class OLTsOnuController extends Controller
 
     public function remove($id)
     {
+        if (! auth()->user()->can('onu_remove')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -314,6 +322,10 @@ class OLTsOnuController extends Controller
 
     public function updateServicePort(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -341,6 +353,10 @@ class OLTsOnuController extends Controller
 
     public function configureEhernetPort(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -368,6 +384,10 @@ class OLTsOnuController extends Controller
 
     public function configureWifiPort(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -395,6 +415,10 @@ class OLTsOnuController extends Controller
 
     public function changeAttachedVlans(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -425,6 +449,10 @@ class OLTsOnuController extends Controller
 
     public function setOnuVoipPort(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -452,6 +480,10 @@ class OLTsOnuController extends Controller
 
     public function updateChannel(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -479,6 +511,10 @@ class OLTsOnuController extends Controller
 
     public function updateMgmtAndVoIp(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -520,6 +556,10 @@ class OLTsOnuController extends Controller
 
     public function updateMode(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -561,6 +601,10 @@ class OLTsOnuController extends Controller
 
     public function changeOnuType(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
@@ -619,6 +663,10 @@ class OLTsOnuController extends Controller
 
     public function updateExternalId(Request $request, $id)
     {
+        if (! auth()->user()->can('onu_edit')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $onu = OltOnu::find($id);
         if ($onu) {
             if (isset($onu->unique_external_id)) {
