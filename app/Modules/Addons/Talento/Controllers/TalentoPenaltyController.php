@@ -34,6 +34,7 @@ class TalentoPenaltyController extends Controller
 
     public function storeType(Request $request)
     {
+        $this->authorize('talento.penalties.manage');
         $data = $request->validate([
             'name'         => 'required|string|max:160',
             'category'     => 'required|in:safety,aesthetic,malpractice,other',
@@ -46,6 +47,7 @@ class TalentoPenaltyController extends Controller
 
     public function updateType(Request $request, int $id)
     {
+        $this->authorize('talento.penalties.manage');
         $type = TalentoPenaltyType::findOrFail($id);
         $data = $request->validate([
             'name'         => 'sometimes|string|max:160',
@@ -60,6 +62,7 @@ class TalentoPenaltyController extends Controller
 
     public function uploadTypeImage(Request $request, int $id)
     {
+        $this->authorize('talento.penalties.manage');
         $type = TalentoPenaltyType::findOrFail($id);
         $request->validate(['image' => 'required|image|max:4096']);
         $path = $request->file('image')->store('talento/penalty-types', 'public');
@@ -95,6 +98,7 @@ class TalentoPenaltyController extends Controller
      */
     public function applyPenalty(Request $request)
     {
+        $this->authorize('talento.penalties.manage');
         $data = $request->validate([
             'colaborador_id'  => 'required|integer|exists:talento_colaboradores,id',
             'penalty_type_id' => 'required|integer|exists:talento_penalty_types,id',
@@ -160,6 +164,7 @@ class TalentoPenaltyController extends Controller
 
     public function submitAppeal(Request $request, int $penaltyId)
     {
+        $this->authorize('talento.penalties.appeal');
         $penalty = TalentoPenalty::findOrFail($penaltyId);
 
         if (!in_array($penalty->status, ['applied'])) {
@@ -198,6 +203,7 @@ class TalentoPenaltyController extends Controller
 
     public function resolveAppeal(Request $request, int $appealId)
     {
+        $this->authorize('talento.penalties.resolve');
         $appeal = TalentoPenaltyAppeal::with('penalty')->findOrFail($appealId);
 
         if ($appeal->decision !== null) {
