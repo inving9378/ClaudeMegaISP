@@ -41,6 +41,11 @@ class MetaAdsWebhookController extends Controller
         $appSecret = Setting::get('meta_app_secret') ?? '';
         $rawBody   = $request->getContent();
 
+        if ($appSecret === '') {
+            Log::error('[Meta Webhook] meta_app_secret vacío: webhook rechazado (fail-closed)');
+            return response()->json(['error' => 'config'], 503);
+        }
+
         $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $appSecret);
 
         if (!hash_equals($expected, $signature)) {
