@@ -8,9 +8,9 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Modules\Addons\Domiciliacion\Models\ClientRecurringCard;
 use App\Modules\Addons\Domiciliacion\Models\RecurringChargeAttempt;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
 use App\Modules\Addons\PortalCliente\Services\OpenpayService;
 use App\Modules\Addons\PortalCliente\Services\OpenpayTransactionException;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -353,11 +353,23 @@ class DomiciliacionCobrarCommand extends Command
             if (empty(preg_replace('/\D/', '', $phone))) {
                 return;
             }
-            $jid = EvolutionApiService::phoneToJid($phone);
-            app(EvolutionApiService::class)->sendText($jid, $mensaje);
+            $numero = $this->normalizeWhatsAppNumber($phone);
+            app(WhatsAppGateway::class)->sendText(null, $numero, $mensaje);
         } catch (\Throwable $e) {
             Log::warning('domiciliacion.cobrar: fallo WhatsApp notificación', ['error' => $e->getMessage()]);
         }
+    }
+
+    /** Igual al formato que usan las conversaciones de WhatsAppAgent (contact_number: MX 10 dígitos → prefijo 521). */
+    private function normalizeWhatsAppNumber(string $phone): string
+    {
+        $digits = preg_replace('/\D/', '', $phone);
+        if (strlen($digits) === 10) {
+            $digits = '521' . $digits;
+        } elseif (strlen($digits) === 12 && str_starts_with($digits, '52')) {
+            $digits = '521' . substr($digits, 2);
+        }
+        return $digits;
     }
 
     private function enviarEmail(?object $cmi, string $asunto, string $html): void
