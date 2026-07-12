@@ -242,6 +242,7 @@ class TalentoAcademyController extends Controller
 
     public function serveEvidencePractical(int $id)
     {
+        $this->authorize('talento.academy.view');
         $eval = TalentoPracticalEvaluation::findOrFail($id);
         if (!$eval->evidence_path || !Storage::disk('local')->exists($eval->evidence_path)) abort(404);
         return response()->file(Storage::disk('local')->path($eval->evidence_path));

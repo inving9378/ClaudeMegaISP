@@ -129,6 +129,7 @@ class TalentoPenaltyController extends Controller
 
     public function serveEvidencePhoto(int $id)
     {
+        $this->authorize('talento.penalties.view');
         $penalty = TalentoPenalty::findOrFail($id);
         if (!$penalty->evidence_photo_path || !Storage::disk('local')->exists($penalty->evidence_photo_path)) {
             abort(404);
