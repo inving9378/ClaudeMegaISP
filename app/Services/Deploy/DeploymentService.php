@@ -66,6 +66,19 @@ class DeploymentService
                 continue;
             }
 
+            // Skip fuera de producción (item roadmap #245): impide que crear una Release en
+            // dev dispare push/GitHub Release/deploy remoto reales.
+            if (($step['skip_if_not_production'] ?? false) && !app()->environment('production')) {
+                $log->updateStep($step['key'], [
+                    'status'      => 'skipped',
+                    'output'      => 'Entorno no-producción — paso omitido (política de release, item #245).',
+                    'exit_code'   => 0,
+                    'duration_ms' => 0,
+                    'ran_at'      => now()->toIso8601String(),
+                ]);
+                continue;
+            }
+
             // Skip si el tag ya existe localmente
             if (($step['skip_if_tag_exists'] ?? false) && $this->tagExists($version)) {
                 $log->updateStep($step['key'], [
