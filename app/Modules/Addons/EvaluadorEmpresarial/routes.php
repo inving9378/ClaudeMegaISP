@@ -19,8 +19,10 @@ use Illuminate\Support\Facades\Route;
 // ---------------------------------------------------------------
 Route::middleware(['web'])->group(function () {
     Route::get('/evaluador-empresarial', [EvaluadorEmpresarialController::class, 'index']);
-    Route::post('/evaluador-empresarial/guardar', [EvaluadorEmpresarialController::class, 'guardar']);
-    Route::post('/evaluador-empresarial/enviar-email', [EvaluadorEmpresarialController::class, 'enviarEmail']);
+    Route::post('/evaluador-empresarial/guardar', [EvaluadorEmpresarialController::class, 'guardar'])
+        ->middleware('throttle:5,1');
+    Route::post('/evaluador-empresarial/enviar-email', [EvaluadorEmpresarialController::class, 'enviarEmail'])
+        ->middleware('throttle:5,1');
     Route::get('/evaluador-empresarial/resultado/{token}', [EvaluadorEmpresarialController::class, 'resultado']);
 });
 
