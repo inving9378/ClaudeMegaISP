@@ -263,6 +263,7 @@ Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `46
 4. **ids dev≠prod** — JAMÁS resolver una cuenta por id entre entornos; siempre por `login_user`/email/rol (Irving en prod = `id=13` login `Meganet`, NO id=8).
 5. **Validar en DEV antes de subir** — captura visual de Irving: pestañas "Mi material" (ASSET_VER 14) + Fase A. **Pendiente.**
 6. **`NO Payments/`** — V1.20 arrastraba todo el módulo Conciliación WhatsApp F1–F6; si no va a prod aún, separar ramas antes del deploy (freno maestro `payments.auto_apply_enabled` = OFF por default).
+7. **`DOMICILIACION_COBRO_LIVE_ENABLED` (es PLATA)** — kill-switch de cobros REALES de `domiciliacion:cobrar`, independiente de `OPENPAY_SANDBOX` (`config/domiciliacion.php`). Default seguro `false` si falta el env. **NO poner `true` en PROD sin decisión explícita de Irving** — sube en `false` y actívalo aparte cuando él lo confirme. (Antes el gate de producción dependía de `OPENPAY_SANDBOX=false`, que es justo lo que pide este mismo checklist para OpenPay → bloqueaba el cobro real en silencio; item #225.)
 
 ### Infraestructura de producción — verificación pendiente
 

@@ -39,9 +39,15 @@ class DomiciliacionCobrarCommand extends Command
         $dryRun = $this->option('dry-run');
 
         // ── Verificación de compuertas ─────────────────────────────────────
-        if (! config('openpay.sandbox')) {
-            $this->error('BLOQUEADO: OPENPAY_SANDBOX debe ser true para correr este comando.');
+        // Freno REAL de producción: flag explícito, independiente de OPENPAY_SANDBOX
+        // (ver config/domiciliacion.php). Dry-run siempre puede simular.
+        if (! $dryRun && ! config('domiciliacion.cobro_live_enabled')) {
+            $this->error('BLOQUEADO: domiciliacion.cobro_live_enabled=false (env DOMICILIACION_COBRO_LIVE_ENABLED). Usa --dry-run para simular.');
             return self::FAILURE;
+        }
+
+        if (config('openpay.sandbox')) {
+            $this->warn('AVISO: OPENPAY_SANDBOX=true — los cargos se procesarán contra el entorno sandbox de OpenPay (no son cobros reales).');
         }
 
         $habilitada = Setting::get('domiciliacion_habilitada') === 'true';
