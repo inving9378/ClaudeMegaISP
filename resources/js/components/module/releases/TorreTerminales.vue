@@ -53,13 +53,13 @@
             <i class="bi bi-person-badge"></i> {{ s.nombre || s.sid }}
             <span class="tt-worker-sid">{{ s.sid }}</span>
           </span>
-          <span class="tt-state" :class="s.idle ? 'tt-s-idle' : (s.running ? (s.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off')">
-            <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ s.idle ? 'esperando trabajo' : (s.running ? (s.stale ? 'latido frío' : 'corriendo') : 'terminada') }}
+          <span class="tt-state" :class="!s.running ? 'tt-s-idle' : (s.stale ? 'tt-s-stale' : 'tt-s-run')">
+            <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ !s.running ? '⚪ esperando trabajo' : (s.stale ? 'latido frío' : 'corriendo') }}
           </span>
           <span class="tt-term-item">
             <template v-if="s.item"><b class="tt-idnum">#{{ s.item.id }}</b> {{ s.item.title || '(sin título)' }}</template>
-            <template v-else-if="s.idle"><i class="tt-muted">slot libre</i></template>
-            <template v-else><i class="tt-muted">triaje / sin item fijo</i></template>
+            <template v-else-if="s.running"><i class="tt-muted">triaje / preparando…</i></template>
+            <template v-else><i class="tt-muted">esperando trabajo — no hay item elegible en cola</i></template>
           </span>
           <span v-if="!s.idle" class="tt-term-clock">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
           <button v-if="!s.idle" class="tt-fs-btn" title="Pantalla completa" @click="openFs(s.sid)">⤢</button>
@@ -73,7 +73,7 @@
         </div>
 
         <!-- Terminal cruda -->
-        <pre :ref="el => setPre(s.sid, el)" class="tt-pre">{{ s.log_tail || (s.idle ? 'esperando trabajo… el supervisor le asignará el próximo item de la cola.' : 'Sin salida todavía…') }}</pre>
+        <pre :ref="el => setPre(s.sid, el)" class="tt-pre">{{ s.log_tail || (s.running ? 'Sin salida todavía…' : '⚪ esperando trabajo — no hay item elegible en cola. El supervisor le asignará el próximo item seguro.') }}</pre>
       </div>
     </div>
 
