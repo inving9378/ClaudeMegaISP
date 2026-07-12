@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\CobranzaBlaster\Services;
 
+use App\Modules\Addons\CobranzaBlaster\Models\VoipConfiguracion;
 use Illuminate\Support\Facades\Log;
 
 class AmiConnectionService
@@ -84,7 +85,7 @@ class AmiConnectionService
             'Exten: s',
             'Priority: 1',
             'Timeout: 30000',
-            'CallerID: Meganet Telecomunicaciones <5551234567>',
+            'CallerID: ' . $this->resolveCallerId(),
             'Variable: COBRANZA_LLAMADA_ID=' . $llamadaId,
             'Variable: COBRANZA_NOMBRE=' . $clienteNombre,
             'Variable: COBRANZA_AUDIO=' . $audioPath,
@@ -109,6 +110,30 @@ class AmiConnectionService
             // Uniqueid determinista: el ChannelId que asignamos arriba.
             'uniqueid' => $channelId,
         ];
+    }
+
+    /**
+     * Lee callerid_nombre/callerid_numero de la VoipConfiguracion (BD, config única id=1, mismo
+     * patrón que VoipConfiguracionController::first()). Si la config no existe o ambos campos
+     * vienen vacíos, cae al literal histórico (fallback, #189).
+     */
+    private function resolveCallerId(): string
+    {
+        try {
+            $cfg = VoipConfiguracion::first();
+        } catch (\Throwable $e) {
+            Log::warning('AMI resolveCallerId: no se pudo leer VoipConfiguracion', ['error' => $e->getMessage()]);
+            $cfg = null;
+        }
+
+        $nombre = trim((string) ($cfg->callerid_nombre ?? ''));
+        $numero = trim((string) ($cfg->callerid_numero ?? ''));
+
+        if ($nombre === '' && $numero === '') {
+            return 'Meganet Telecomunicaciones <5551234567>';
+        }
+
+        return $numero !== '' ? "{$nombre} <{$numero}>" : $nombre;
     }
 
     public function sendRaw(string $action): string
