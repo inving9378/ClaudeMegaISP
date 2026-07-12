@@ -420,6 +420,17 @@ TXT;
             $v['razon'] = 'Des-trabador no concluyente (' . mb_strimwidth($e->getMessage(), 0, 140, '…') . ') → queda para Irving.';
         }
 
+        // ANTI-LOOP (no quemar Max): si el EJECUTOR ya corrió este item y NO ejecutó (lo escaló / no
+        // pudo), NO lo re-aprobamos aunque Opus lo crea técnico. El ejecutor es la AUTORIDAD de
+        // ejecutabilidad; re-aprobar reabre el ping-pong des-trabador↔ejecutor (p.ej. #170 dead
+        // exports: Opus dice "removible", el ejecutor dice "no hay dónde aplicarlo" → loop infinito).
+        // Se parquea para Irving con el conteo de rebotes; él re-aprueba a mano si quiere.
+        if ($v['reejecutable'] && ($rebotes = $this->rebotesDelEjecutor($item)) > 0) {
+            $v['reejecutable'] = false;
+            $v['categoria']    = 'ejecutor_no_pudo';
+            $v['razon']        = "ANTI-LOOP: el ejecutor ya corrió este item {$rebotes}× y NO lo ejecutó (lo re-escaló). No se re-aprueba, para no quemar Max en el ping-pong; necesita tu decisión o re-especificarlo para hacerlo accionable. " . trim($v['razon']);
+        }
+
         if ($v['reejecutable']) {
             // Técnico/seguro (o falso positivo) → vuelve al POOL. A→aprobado_claude, B→aprobado_revisor.
             $item->estado_aprobacion = $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor';
@@ -438,6 +449,29 @@ TXT;
         $item->save();
 
         return ['categoria' => $v['categoria'], 'reejecutable' => $v['reejecutable'], 'razon' => trim($v['razon']), 'modelo' => $modelo];
+    }
+
+    /**
+     * ANTI-LOOP — cuántas veces el EJECUTOR ya corrió este item y NO ejecutó (ejecuto=0). Si >0,
+     * re-aprobarlo reabre el ping-pong des-trabador↔ejecutor. Matchea el id como elemento distinto
+     * del arreglo JSON `items_tocados` (evita JSON_CONTAINS por filas legacy no-JSON, y no confunde
+     * 170 con 17/1700). Falla-abierta: ante error, 0 (no bloquea).
+     */
+    private function rebotesDelEjecutor(RoadmapItem $item): int
+    {
+        $id = (int) $item->id;
+        try {
+            // items_tocados es JSON (`[249, 170]`). JSON_CONTAINS con el id como literal JSON numérico
+            // (string '170') matchea el elemento exacto — no confunde 170 con 17/1700. whereNotNull
+            // evita el error "Invalid data type" de filas legacy sin items.
+            return (int) \App\Modules\Addons\Roadmap\Models\CircuitoEjecucion::query()
+                ->where('ejecuto', false)
+                ->whereNotNull('items_tocados')
+                ->whereRaw('JSON_CONTAINS(items_tocados, ?)', [(string) $id])
+                ->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     private function userPrompt(RoadmapItem $item, ?string $decisorCtx): string
