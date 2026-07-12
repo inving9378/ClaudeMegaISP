@@ -1676,6 +1676,7 @@ return [
     ],
     'smart_import_execute' => [
         '/configuracion/smart-import/upload',
+        '/configuracion/smart-import/analysis-status/{token}',
         '/configuracion/smart-import/preview',
         '/configuracion/smart-import/execute',
         '/configuracion/smart-import/status/{jobId}',
