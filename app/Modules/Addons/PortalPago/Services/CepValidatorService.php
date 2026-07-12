@@ -12,6 +12,7 @@ use App\Modules\Addons\PortalPago\Services\Cep\CepQuery;
 use App\Modules\Addons\PortalPago\Services\Cep\CepValidationResult;
 use App\Modules\Addons\PortalPago\Services\Cep\CepValidatorDriver;
 use App\Modules\Addons\PortalPago\Services\Cep\ManualCepDriver;
+use App\Modules\Addons\PortalPago\Support\BancosCatalogo;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -206,13 +207,14 @@ class CepValidatorService
             ? $report->fecha_operacion->format('d/m/Y')
             : '';
 
+        // Banxico requiere la CLAVE del participante; si el nombre no está en el
+        // catálogo verificado (fintechs con clave variable, "Otro", texto libre
+        // del admin), cae al nombre tal cual — comportamiento idéntico a hoy.
         return new CepQuery(
             fecha: $fecha,
             claveRastreo: (string) $report->clave_rastreo,
-            // TODO catálogo banco→clave Banxico (ver Hoja de Ruta). Hoy se envía
-            // tal cual; si no es la clave correcta, Banxico no encuentra → discrepancia.
-            bancoEmisor: (string) ($report->banco_emisor ?? ''),
-            bancoReceptor: (string) ($account->banco ?? ''),
+            bancoEmisor: BancosCatalogo::claveBanxico($report->banco_emisor) ?? (string) ($report->banco_emisor ?? ''),
+            bancoReceptor: BancosCatalogo::claveBanxico($account->banco) ?? (string) ($account->banco ?? ''),
             cuentaBeneficiaria: (string) $account->clabe,
             monto: number_format((float) $link->monto_esperado, 2, '.', '')
         );
