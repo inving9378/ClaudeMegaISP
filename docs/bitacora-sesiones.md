@@ -475,3 +475,14 @@ que override la recomendación → se ejecutó **la opción C, la recomendada**.
   fragmentar antes de tener el insumo real). **NO se tocó código** (nada que construir sin el
   mockup sin arriesgar retrabajo, tal como advertía el propio brief).
 - Item #299 cerrado `completado` (entrega parcial) referenciando los commits ya en `main`.
+
+## 2026-07-12 00:30 — Circuito CC: priorización por riesgo + ADN + roster + supervisor Thomas T
+
+- **Priorización por riesgo** (main): `RevisorService::briefarSeguridad()` (Opus clasifica seguridad/dinero/negocio/prod/no_aplica + fix-brief) + `circuito:priorizar-seguridad` (flock, idempotente ⟪SEG-TRIAGE⟫, cron `*/3`). Subió seguridad/dinero a ALTA + ⚡[SEG-TOP]/⚡[DINERO-TOP] + escaló a bandeja con brief; separó [BLOCKED-NEGOCIO] y [PARKED-PROD]. ~90 triados: 7 críticos (#219/#230/#244/#250/#251/#260/#272), 28 seguridad alta, 5 dinero, 33 negocio, 21 prod.
+- **Reglas al ADN (#356 Parte 1)**: `docs/reglas-operacion-circuito.md` (estabilidad·minimalismo·balance) inyectado en el `systemPrompt` del revisor + `prompt.txt`/`prompt-item.txt` del ejecutor. No relaja la frontera dura.
+- **Roster con nombres**: `config.worker_nombres` (Samanta/Jenny/Tokyo/Maya/Beky/Dayan) renombrables (settings) → `nombresWorkers/setNombreWorker`; en rejilla (clic=rename), firma e Integración ("trabajado por [nombre]"). Endpoint `POST /circuito/worker-nombre`.
+- **Pool continuo confirmado** para los 6 (logs: "toma el siguiente" parejo wt-1..6).
+- **Supervisor Thomas T**: `SupervisorService` (read-only, DERIVA feed de asignaciones+revisor+watchdog+escaladas; activo=maquinaria late y no pausado). Terminal RESALTADA arriba del roster en Terminales, con latido + feed 📋/✅/⤴️/🛡. Jerarquía: jefe arriba, 6 workers abajo con semáforo.
+- **Pendiente grande**: #308 API centralizada (registro de contratos + notificación de deprecación) — elegido "Fundación + notificación", build aparte.
+
+Solo dev, sin push. Kill switch #342 y candados #341 intactos.
