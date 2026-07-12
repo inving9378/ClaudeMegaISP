@@ -46,4 +46,7 @@ Route::middleware(['web', 'auth'])
     ->prefix('api/modules')
     ->group(function () {
         Route::get('/config-sections', [AdminPanelController::class, 'configSections'])->name('api.modules.config-sections');
+
+        // Tiles de /configuracion agrupados por configuracion_subsection (item #174).
+        Route::get('/config-moved-sections', [AdminPanelController::class, 'configMovedSections'])->name('api.modules.config-moved-sections');
     });
