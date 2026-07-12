@@ -155,6 +155,62 @@ class InvoiceService
         ];
     }
 
+    /**
+     * Item #194(b) — saldado FIFO de deuda VIVA cuando el pago NO trae period
+     * explícito (conciliación/SPEI, a diferencia del cajero que sí lo elige).
+     * A diferencia de updateProformaInvoicePendingDespuesDeUnPago, NO crea
+     * facturas de periodos faltantes (no hay period declarado para saber cuál
+     * crear): solo reparte el monto contra las proformas de deuda viva ya
+     * existentes, de la más antigua (period asc) a la más reciente.
+     */
+    public function saldarDeudaVivaFifo($client, $payment, $transaction = null): array
+    {
+        $client->refresh();
+
+        $facturasPendientes = Invoice::proforma()
+            ->where('client_id', $client->id)
+            ->notPaid()
+            ->where('pending_balance', '>', 0)
+            ->orderBy('period', 'asc')
+            ->get();
+
+        $facturasProcesadas = [];
+        $rest = $payment->amount;
+
+        foreach ($facturasPendientes as $invoice) {
+            if ($rest <= 0) {
+                break;
+            }
+
+            $pendingBalance = $invoice->pending_balance;
+
+            if ($rest >= $pendingBalance) {
+                // Pago completo
+                $invoice->pending_balance = 0;
+                $invoice->status = Invoice::STATUS_PAID;
+                $invoice->payment_date = now();
+                $rest -= $pendingBalance;
+            } else {
+                // Pago parcial
+                $invoice->pending_balance = $pendingBalance - $rest;
+                $invoice->status = Invoice::STATUS_PARTIALLY_PAID;
+                $rest = 0;
+            }
+
+            $invoice->payment_id = $payment->id;
+            $invoice->transaction_id = $transaction ? $transaction->id : null;
+            $invoice->payment_method = $payment->payment_method_id;
+            $invoice->save();
+            $facturasProcesadas[] = $invoice;
+        }
+
+        return [
+            'facturas_procesadas' => $facturasProcesadas,
+            'credito_restante' => $rest,
+            'mensaje' => 'Deuda viva saldada por FIFO (periodo más antiguo primero).',
+        ];
+    }
+
     private function crearNuevaFacturaProforma(Client $client, $period = null): Invoice
     {
         $client->refresh();

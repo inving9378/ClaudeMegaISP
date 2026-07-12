@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Modules\Addons\Payments\Models\ReportedPayment;
 use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
 use App\Modules\Addons\Payments\Services\PaymentApplicationService;
+use App\Modules\Core\Clientes\Models\Client;
+use App\Services\Finance\Invoice\InvoiceService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -28,7 +30,10 @@ class PaymentFromSessionService
 {
     private const METHOD_TRANSFERENCIA = 2; // method_of_payments: Transferencia Bancaria (SPEI)
 
-    public function __construct(private PaymentApplicationService $payments) {}
+    public function __construct(
+        private PaymentApplicationService $payments,
+        private InvoiceService $invoices
+    ) {}
 
     /**
      * FASE 6 — Punto de entrada para la confirmación humana (Tere). Aplica el
@@ -130,6 +135,22 @@ class PaymentFromSessionService
                 'provider'    => 'whatsapp',
                 'comment'     => 'Pago por WhatsApp (conciliación IA, ' . $idLabel . ')',
             ]);
+
+            // Item #194(b) — regresión del fix (a): applyPayment abona el balance
+            // pero deja la factura de adeudo ABIERTA. El mostrador la salda vía
+            // InvoiceService (period-based); conciliación/SPEI no traen period →
+            // saldar por deuda VIVA más antigua (FIFO). Best-effort: un fallo aquí
+            // NUNCA revierte el pago ya aplicado (mismo patrón que notifyApplied).
+            try {
+                $clienteDeuda = Client::find($session->resolved_client_id);
+                if ($clienteDeuda) {
+                    $this->invoices->saldarDeudaVivaFifo($clienteDeuda, $payment);
+                }
+            } catch (\Throwable $e) {
+                Log::channel('evolution')->warning('F4: saldarDeudaVivaFifo falló (pago sí aplicado): ' . $e->getMessage(), [
+                    'session_id' => $session->id, 'payment_id' => $payment->id,
+                ]);
+            }
 
             $reported = ReportedPayment::create([
                 'payment_id'                => $payment->id,
