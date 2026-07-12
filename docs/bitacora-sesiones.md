@@ -438,3 +438,22 @@ Nivel A, item cerrado sin cambios de comportamiento.
 **Fix operativo crítico — crontab del circuito sin `cd`:** 4 líneas (`scheduler`, `brief-c`, `reap-stuck`, `destrabe`) corrían sin `cd /var/www/megaisp &&` → fallaban silenciosas (`Could not open input file: artisan`). Efecto: scheduler 27 min sin latido (0 workers), stuck sin reapear, bandeja sin drenar. Corregidas las 4. Backup `cron.bak` en scratchpad. Regla: toda línea del circuito necesita `cd` o ruta absoluta a artisan.
 
 Solo dev, sin push. Kill switch #342 y candados #341/#342 intactos.
+
+## 2026-07-11 22:25 — Circuito CC: cron sin `cd` → wrapper único (dev)
+**Síntoma:** Terminales 0 sesiones; `circuito_pausado=0` (NO pausado). Scheduler #334 sin latir ~26 min (`cron_vivo=NO`) + 3 items huérfanos `en_progreso` (#174/#328/#331, ~30 min, sin `worker_sid`).
+**Causa raíz:** 4/6 líneas del crontab corrían `php artisan …` **sin `cd /var/www/megaisp`** → desde el home no existe `artisan`, fallan y el `>/dev/null 2>&1` lo oculta. Rotas: scheduler, reap-stuck, destrabe, brief-c (las que llevan `cd` —disparo-check, revisar-backlog— sí corrían). Mismo bug que ya pegó con el picker.
+**Fix:**
+1. `circuito:reap-stuck --minutes=25` a mano → liberó #174/#328/#331 (respetó la vuelta viva #302/wt-2).
+2. Wrapper único **`deploy/circuito/cron-wrap.sh`** (hace `cd` al proyecto + `exec php artisan "$@"`). Crontab reescrito: las 6 líneas van por el wrapper (0 sueltas). Ninguna línea futura puede olvidar el `cd`. Respaldo: `/home/meganet/circuito/crontab.bak.20260711_222215`.
+**Verificado:** cron re-latió SOLO a las 22:25:01 (+59s, sin intervención) → `cron_vivo=SI`; huérfanos liberados; pool relanzó (en_progreso volvió a 1); `trabajandoAhora()` devuelve 6 slots wt-1..6. `cron-wrap.sh` queda UNTRACKED (funciona en disco; pendiente commit para blindar vs git clean).
+
+## 2026-07-11 23:58 — Circuito CC: watchdog de los 6 workers + auto-recuperación del supervisor
+
+**Watchdog (#334, main `1db449bd`):** `WatchdogService` + `circuito:watchdog` (cron `*/2` por `cron-wrap.sh`).
+- **Salud por slot** (wt-1..wt-6): 🟢 trabajando · ⚪ esperando (idle normal, sin trabajo) · 🔴 caído/atascado. Distingue "ocioso sin trabajo" (normal) de "ocioso/caído habiendo trabajo" (problema).
+- **Detecta:** scheduler caído (beat >180s), worker colgado (latido frío >600s con vuelta abierta), y ocioso-con-trabajo pese a scheduler vivo (pool no despacha).
+- **Auto-recupera ACOTADO** (máx 3 intentos/causa): relanza el scheduler / reap del item atascado (reusa criterio #341, jamás toca en_desarrollo_humano). Cada acción se **audita** (bitácora watchdog). Tras 3 intentos → **ESCALA a Irving** (alerta en la Torre "🔴 … requiere revisión"). Respeta kill switch (#342: en pausa no relanza).
+- **Torre:** banner de escaladas + aviso "🛡 supervisor auto-recuperó"; `watchdog{}` en `/torre` y `/circuito/estado`.
+- **Verificado:** `--dry`=6 slots con salud; scheduler caído simulado→relanza+audita; 4º intento→escala; limpieza de la simulación OK.
+
+**Reconciliación con trabajo concurrente:** otro agente (Cowork/sesión paralela) arregló el mismo bug del crontab con un **wrapper `deploy/circuito/cron-wrap.sh`** (mejor que mi `cd` inline: ninguna línea puede olvidarlo). Respeté su enfoque, blindé el wrapper (commit) y sumé la línea del watchdog por él. ⚠️ Detectadas ediciones sueltas en main de ese agente (TorreTerminales.vue → stasheada; esta bitácora) — hay actividad concurrente en /var/www/megaisp, a coordinar con Irving.
