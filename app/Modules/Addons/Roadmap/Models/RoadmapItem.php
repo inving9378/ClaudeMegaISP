@@ -15,6 +15,8 @@ class RoadmapItem extends Model
         'subtasks', 'log',
         // Circuito de mejora continua (Parte 1.1)
         'modulo', 'nivel_riesgo', 'estado_aprobacion',
+        // Quién fijó el nivel_riesgo vigente: interno|externo (circuito #260)
+        'nivel_riesgo_origen',
         'comentarios_claude', 'revisado_at', 'aprobado_por',
         // Bandeja de decisiones interactiva (#313)
         'opciones', 'opcion_elegida',
