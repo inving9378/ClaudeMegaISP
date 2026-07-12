@@ -24,17 +24,19 @@
 
     <!-- Rejilla responsiva: 1 = ancho completo · 2-4 = grid · N = scroll -->
     <div v-else class="tt-grid" :class="{ 'tt-grid-solo': sesiones.length === 1 }">
-      <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running }">
+      <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle }">
         <div class="tt-term-head">
-          <span class="tt-state" :class="s.running ? (s.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off'">
-            <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ s.running ? (s.stale ? 'latido frío' : 'corriendo') : 'terminada' }}
+          <span class="tt-worker" title="Worker del equipo (firma auditable)">{{ s.sid }}</span>
+          <span class="tt-state" :class="s.idle ? 'tt-s-idle' : (s.running ? (s.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off')">
+            <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ s.idle ? 'esperando trabajo' : (s.running ? (s.stale ? 'latido frío' : 'corriendo') : 'terminada') }}
           </span>
           <span class="tt-term-item">
             <template v-if="s.item"><b class="tt-idnum">#{{ s.item.id }}</b> {{ s.item.title || '(sin título)' }}</template>
+            <template v-else-if="s.idle"><i class="tt-muted">slot libre</i></template>
             <template v-else><i class="tt-muted">triaje / sin item fijo</i></template>
           </span>
-          <span class="tt-term-clock">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
-          <button class="tt-fs-btn" title="Pantalla completa" @click="openFs(s.sid)">⤢</button>
+          <span v-if="!s.idle" class="tt-term-clock">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
+          <button v-if="!s.idle" class="tt-fs-btn" title="Pantalla completa" @click="openFs(s.sid)">⤢</button>
         </div>
 
         <!-- Stepper compacto de fases (de #349) -->
@@ -45,7 +47,7 @@
         </div>
 
         <!-- Terminal cruda -->
-        <pre :ref="el => setPre(s.sid, el)" class="tt-pre">{{ s.log_tail || 'Sin salida todavía…' }}</pre>
+        <pre :ref="el => setPre(s.sid, el)" class="tt-pre">{{ s.log_tail || (s.idle ? 'esperando trabajo… el supervisor le asignará el próximo item de la cola.' : 'Sin salida todavía…') }}</pre>
       </div>
     </div>
 
@@ -195,6 +197,10 @@ export default {
 .tt-s-run{ background:rgba(16,185,129,.15); color:var(--tt-live); }
 .tt-s-stale{ background:rgba(217,119,6,.15); color:var(--tt-warn); }
 .tt-s-off{ background:rgba(100,116,139,.15); color:var(--tt-muted); }
+.tt-s-idle{ background:rgba(100,116,139,.12); color:var(--tt-muted); font-style:italic; }
+/* Firma del worker (wt-K) — chip auditable, prueba de "son 6 reales" (#334 A) */
+.tt-worker{ font-size:11px; font-weight:800; letter-spacing:.02em; padding:2px 8px; border-radius:7px; background:rgba(13,148,136,.14); color:var(--tt-accent); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.tt-term.tt-idle{ opacity:.62; border-style:dashed; }
 .tt-term-item{ font-size:13px; font-weight:600; flex:1 1 160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tt-idnum{ color:var(--tt-accent); }
 .tt-muted{ color:var(--tt-muted); font-weight:400; }

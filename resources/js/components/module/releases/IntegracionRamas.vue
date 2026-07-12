@@ -45,6 +45,7 @@
           <div class="ig-title"><span class="ig-idnum">#{{ r.id }}</span> {{ r.title }}</div>
           <div class="ig-sub">
             <code>{{ r.branch }}</code>
+            <span v-if="r.worker_sid" class="ig-worker" title="Worker que lo ejecutó (firma auditable)">🛠 {{ r.worker_sid }}</span>
             <span v-if="r.autor"> · {{ r.autor }}</span>
             <span v-if="r.merged" class="ig-merged">● mergeada a dev</span>
             <span v-else class="ig-pending">○ sin mergear</span>
@@ -398,6 +399,7 @@ export default {
 .ig-clz-bk{background:#f1f5f9;color:#475569;}
 .ig-uihint{margin:8px 0 0 32px;padding:8px 11px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:8px;font-size:12px;color:#1e40af;line-height:1.45;}
 .ig-btn-arch{background:#eef2ff;color:#4338ca;border-color:#c7d2fe;}
+.ig-worker{margin-left:6px;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:6px;background:rgba(13,148,136,.12);color:var(--ig-accent);}
 
 /* ── Modo oscuro (mismo toggle del proyecto) ── */
 .ig-dark{

@@ -623,16 +623,61 @@ class RoadmapCircuitoService
             }
         }
 
-        // Orden estable para la rejilla: corriendo primero, luego arranque más reciente.
+        // 6 TERMINALES PERSISTENTES (#334 B): el equipo tiene N slots fijos (wt-1..wt-N). Rellena los
+        // que ahora mismo no tienen sesión live con un placeholder "esperando trabajo" (idle) → la
+        // rejilla SIEMPRE muestra los N slots, no desaparecen al quedar ociosos.
+        $n = $this->getParalelismo();
+        $presentes = [];
+        foreach ($sesiones as $s) {
+            $presentes[$s['sid']] = true;
+        }
+        for ($k = 1; $k <= $n; $k++) {
+            $sid = "wt-{$k}";
+            if (empty($presentes[$sid])) {
+                $sesiones[] = $this->buildSesionIdle($sid);
+            }
+        }
+
+        // Orden estable = por número de slot (posición fija en la rejilla: wt-3 siempre en su celda).
+        // Las sesiones legacy sin forma wt-K (p.ej. wt-exec) van al final.
         usort($sesiones, function ($a, $b) {
-            if ($a['running'] !== $b['running']) {
-                return $a['running'] ? -1 : 1;
+            $ka = $this->slotNum($a['sid']);
+            $kb = $this->slotNum($b['sid']);
+            if ($ka !== $kb) {
+                return $ka <=> $kb;
             }
 
-            return strcmp((string) $b['started_at'], (string) $a['started_at']);
+            return strcmp((string) $a['sid'], (string) $b['sid']);
         });
 
         return ['sesiones' => $sesiones, 'resumen_ultima_vuelta' => $resumen];
+    }
+
+    /** Nº de slot de un sid `wt-K` para ordenar (los no-wt-K se mandan al final). #334 B */
+    private function slotNum(string $sid): int
+    {
+        return preg_match('/^wt-(\d+)$/', $sid, $m) ? (int) $m[1] : PHP_INT_MAX;
+    }
+
+    /** Placeholder de un slot OCIOSO del equipo — "esperando trabajo" (#334 B). */
+    private function buildSesionIdle(string $sid): array
+    {
+        return [
+            'sid'                   => $sid,
+            'item'                  => null,
+            'fase_actual'           => null,
+            'pasos'                 => [],
+            'log_tail'              => '',
+            'artefactos'            => [],
+            'running'               => false,
+            'finished'              => false,
+            'idle'                  => true,   // el frontend pinta "esperando trabajo"
+            'stale'                 => false,
+            'started_at'            => null,
+            'heartbeat_at'          => null,
+            'segundos_desde_latido' => null,
+            'segundos_corriendo'    => null,
+        ];
     }
 
     /** Construye el objeto-sesión (una terminal del visor #349/#350) a partir del blob live. */
@@ -666,6 +711,7 @@ class RoadmapCircuitoService
             'artefactos'            => (array) ($d['artefactos'] ?? []),
             'running'               => $running,
             'finished'              => $finished,
+            'idle'                  => false,
             'stale'                 => $running && $sinceBeat > self::HEARTBEAT_STALE_SEG,
             'started_at'            => Carbon::createFromTimestamp((int) $d['started_at'])->toIso8601String(),
             'heartbeat_at'          => $hb ? Carbon::createFromTimestamp($hb)->toIso8601String() : null,
@@ -1025,7 +1071,7 @@ class RoadmapCircuitoService
      * (estado → en_progreso) o null si no hay trabajo / pausado. El llamador debe SERIALIZAR
      * (flock) para que dos workers no tomen items del mismo módulo a la vez.
      */
-    public function claimNextParalelo(): ?int
+    public function claimNextParalelo(?string $workerSid = null): ?int
     {
         if ($this->isPaused()) {
             return null;
@@ -1035,15 +1081,27 @@ class RoadmapCircuitoService
             return null;
         }
         $id = (int) $items[0]['id'];
+        $update = ['estado_aprobacion' => 'en_progreso', 'updated_at' => now()];
+        if ($sid = $this->normalizaSid($workerSid)) {
+            $update['worker_sid'] = $sid;   // firma del worker (#334 A)
+        }
         $claimed = DB::table('roadmap_items')
             ->where('id', $id)
             ->where(function ($q) {
                 $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
                     ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
             })
-            ->update(['estado_aprobacion' => 'en_progreso', 'updated_at' => now()]);
+            ->update($update);
 
         return $claimed === 1 ? $id : null;
+    }
+
+    /** Normaliza un id de worker a la forma `wt-K` (o null si no viene / inválido). #334 A */
+    public function normalizaSid(?string $sid): ?string
+    {
+        $sid = trim((string) $sid);
+
+        return preg_match('/^wt-\d+$/', $sid) ? $sid : null;
     }
 
     /**
