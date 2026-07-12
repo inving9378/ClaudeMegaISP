@@ -433,6 +433,7 @@ class RoadmapController extends Controller
             'title'             => $i->title,
             'branch'            => $i->branch,
             'autor'             => $i->aprobado_por,
+            'worker_sid'        => $i->worker_sid,   // firma del worker que lo ejecutó (#334 A)
             'nivel_riesgo'      => $i->nivel_riesgo,
             'estado_aprobacion' => $i->estado_aprobacion,
             'merged'            => ! empty($i->merge_commit),

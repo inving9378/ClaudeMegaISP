@@ -26,7 +26,7 @@ class ClaimNextCommand extends Command
             return self::SUCCESS; // sin lock → no reclama (imprime nada)
         }
         try {
-            $id = $svc->claimNextParalelo();
+            $id = $svc->claimNextParalelo($this->option('sid'));
             if ($id !== null) {
                 $this->output->write((string) $id); // SOLO el id, sin salto → fácil de capturar en shell
             }

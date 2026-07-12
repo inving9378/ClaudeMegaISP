@@ -30,6 +30,8 @@ class RoadmapItem extends Model
         'en_desarrollo_humano',
         // Clasificación UI/backend + ciclo de vida de archivo (#334)
         'revision_ui', 'ui_hint', 'archivado_at', 'archivado_por',
+        // Firma del worker que lo reclamó/ejecutó — wt-K (#334 A)
+        'worker_sid',
     ];
 
     protected $casts = [
