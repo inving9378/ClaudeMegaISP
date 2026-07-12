@@ -84,12 +84,17 @@ class UserController extends Controller
     public function getData($id)
     {
         $user = User::find($id);
-        // Sólo se puede "mostrar" la contraseña mientras siga en legacy base64.
-        // Una vez migrada a bcrypt es irreversible → se devuelve vacío y el
-        // admin sólo puede resetearla escribiendo una nueva.
-        $password = PasswordService::legacyPlain($user->password) ?? '';
+        abort_if(!$user, 404, 'El usuario no existe!');
+        // Item #216: la contraseña NUNCA se devuelve al frontend (ni siquiera la
+        // legacy base64 en claro). El admin solo puede RESETEARLA escribiendo una
+        // nueva; 'es_legacy' es informativo (si conviene invitar a re-guardarla).
         $seller = $user->seller;
-        return response()->json(['user' => $user, 'password' => $password, 'seller' => $seller]);
+        return response()->json([
+            'user' => $user,
+            'password' => '',
+            'es_legacy' => PasswordService::needsRehash($user->password),
+            'seller' => $seller,
+        ]);
     }
 
 
@@ -186,12 +191,13 @@ class UserController extends Controller
     public function edit($id)
     {
         $userModel = User::find($id);
+        abort_if(!$userModel, 404, 'El usuario no existe!');
         $user = $id;
-        // Vacío si ya es bcrypt (irreversible); sólo legacy base64 es visible.
-        $password = PasswordService::legacyPlain($userModel->password) ?? '';
+        // Item #216: ya no se calcula/pasa la contraseña en claro (la vista
+        // tampoco la consumía: se cargaba vía getData, que ahora la vacía).
         $seller = $userModel->seller;
         $sucursals = Sucursal::all();
-        return view('meganet.module.administration.user.edit', compact('user', 'password', 'seller', 'sucursals'));
+        return view('meganet.module.administration.user.edit', compact('user', 'seller', 'sucursals'));
     }
 
     public function update(Request $request, $id)

@@ -465,7 +465,7 @@
                                 <input
                                     :type="showPassword ? 'text' : 'password'"
                                     class="form-control"
-                                    placeholder="Ingresa la contraseña"
+                                    placeholder="Dejar en blanco para no cambiarla"
                                     v-model="data.password"
                                     @input="clearServerErrors('password')"
                                 />
@@ -622,7 +622,9 @@ const getDataUser = async () => {
         `/administracion/user/get-data-user/${props.user}`
     ).then((response) => {
         Object.assign(data, response.data.user);
-        data.password = response.data.password;
+        // Item #216: el backend ya no devuelve la contraseña en claro.
+        // El campo queda vacío; solo se envía si el admin escribe una nueva.
+        data.password = "";
     });
 };
 
@@ -689,11 +691,12 @@ const rules = computed(() => {
             required: helpers.withMessage("Este campo es requerido", required),
         },
         password: {
-            required: helpers.withMessage("Este campo es requerido", required),
+            // Item #216: en edición ya NO llega prellenada desde el backend, así
+            // que ya no puede ser "required" (dejar vacío = no cambiar la contraseña).
             isSecure: helpers.withMessage(
                 "La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número",
                 (value) => {
-                    if (!value) return false;
+                    if (!value) return true;
                     const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
                     return regex.test(value);
                 }
