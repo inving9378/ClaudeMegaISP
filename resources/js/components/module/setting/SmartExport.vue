@@ -3,7 +3,7 @@
         <div class="row q-col-gutter-md">
             <!-- Columna izquierda: selección -->
             <div class="col-12 col-md-7">
-                <q-card flat bordered>
+                <q-card flat bordered :dark="darkMode">
                     <q-card-section>
                         <div class="text-h6">
                             <i class="fas fa-cloud-download-alt text-primary"></i>
@@ -21,7 +21,11 @@
                             Cargando módulos y conteo de registros...
                         </div>
                     </q-card-section>
-                    <q-list separator v-else>
+                    <q-card-section v-else-if="!modules.length" class="text-center text-grey-7">
+                        <q-icon name="inbox" size="28px" class="q-mb-sm" />
+                        <div>No hay módulos disponibles para exportar.</div>
+                    </q-card-section>
+                    <q-list separator v-else :dark="darkMode">
                         <q-item
                             v-for="m in modules"
                             :key="m.key"
@@ -81,7 +85,7 @@
 
             <!-- Columna derecha: opciones + acción -->
             <div class="col-12 col-md-5">
-                <q-card flat bordered class="sticky-card">
+                <q-card flat bordered class="sticky-card" :dark="darkMode">
                     <q-card-section>
                         <div class="text-h6">
                             <i class="fas fa-cog text-primary"></i>
@@ -96,6 +100,7 @@
                             :options="formatOptions"
                             color="primary"
                             type="radio"
+                            :dark="darkMode"
                         />
                         <q-separator class="q-my-md" />
                         <q-toggle
@@ -153,6 +158,7 @@
 
 <script>
 import { computed, onMounted, ref } from "vue";
+import { darkMode } from "../../../hook/appConfig";
 
 export default {
     name: "SmartExport",
@@ -232,6 +238,7 @@ export default {
         onMounted(loadModules);
 
         return {
+            darkMode,
             modules,
             selected,
             format,
