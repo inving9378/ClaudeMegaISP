@@ -990,9 +990,9 @@ export default {
     font-size: 10px; font-weight: 700; padding: 2px 7px;
     border-radius: 10px; text-transform: uppercase; letter-spacing: 0.4px; flex-shrink: 0;
 }
-.rdm-tag-prio.prio-alta   { background: #fee2e2; color: #dc2626; }
-.rdm-tag-prio.prio-media  { background: #fef3c7; color: #d97706; }
-.rdm-tag-prio.prio-baja   { background: #f0f9ff; color: #0284c7; }
+.rdm-tag-prio.prio-alta   { background: #fee2e2; color: #7f1d1d; }
+.rdm-tag-prio.prio-media  { background: #fef3c7; color: #7c5e10; }
+.rdm-tag-prio.prio-baja   { background: #f0f9ff; color: #374151; }
 .rdm-tag-ver              { background: #f3f4f6; color: #4b5563; }
 .rdm-dark .rdm-tag-ver    { background: rgba(255,255,255,.1); color: rgba(255,255,255,.5); }
 /* Último avance — discreto, sin color de fondo */
