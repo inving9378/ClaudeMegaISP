@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Domiciliacion\Commands;
 use App\Mail\StandardMail;
 use App\Models\Marketing\Setting;
 use App\Models\Payment;
+use App\Models\User;
 use App\Modules\Addons\Domiciliacion\Models\ClientRecurringCard;
 use App\Modules\Addons\Domiciliacion\Models\RecurringChargeAttempt;
 use App\Modules\Addons\Marketing\Services\EvolutionApiService;
@@ -23,6 +24,8 @@ class DomiciliacionCobrarCommand extends Command
 
     private const METHOD_ID_OPENPAY = 9;
     private const MAX_ATTEMPTS      = 3;
+    // Fallback si User::systemBot() no resuelve (bot ausente en el entorno) — mantiene el
+    // comportamiento previo en vez de tronar un cobro ya exitoso en la pasarela.
     private const ADD_BY_SYSTEM     = 0;
 
     // Estados que representan deuda activa. Verificado contra client_invoices en producción:
@@ -85,6 +88,16 @@ class DomiciliacionCobrarCommand extends Command
         );
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Autor de los pagos automáticos: MEGAISP (User::systemBot(), resuelto por email —
+     * portable dev/prod). Si el bot no existe en el entorno, cae a ADD_BY_SYSTEM (0, sin
+     * FK en payments.add_by) para no bloquear un cargo ya cobrado en la pasarela.
+     */
+    private function systemUserId(): int
+    {
+        return User::systemBot()?->id ?? self::ADD_BY_SYSTEM;
     }
 
     private function obtenerCandidatos(): array
@@ -219,7 +232,7 @@ class DomiciliacionCobrarCommand extends Command
                     'comment'                 => 'Cobro automático mensual (Domiciliación)',
                     'receipt'                 => $chargeId,
                     'send_receipt_after_payment' => false,
-                    'add_by'                  => self::ADD_BY_SYSTEM,
+                    'add_by'                  => $this->systemUserId(),
                     'paymentable_id'          => $clientId,
                     'paymentable_type'        => 'App\\Models\\Client',
                     'is_first_payment'        => false,

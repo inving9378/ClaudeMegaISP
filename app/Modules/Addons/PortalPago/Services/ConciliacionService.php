@@ -6,6 +6,7 @@ use App\Events\InvoicePaid;
 use App\Models\Client;
 use App\Models\ClientInvoice;
 use App\Models\Payment;
+use App\Models\User;
 use App\Modules\Addons\PortalPago\Models\PortalPagoPaymentLink;
 use App\Modules\Addons\PortalPago\Models\PortalPagoPaymentReport;
 use Illuminate\Support\Facades\DB;
@@ -49,7 +50,7 @@ class ConciliacionService
                 'amount'                  => $link->monto_esperado,
                 'receipt'                 => $report->clave_rastreo, // clave de rastreo = comprobante externo
                 'comment'                 => 'Conciliado por CEP Banxico — Portal de Pago',
-                'add_by'                  => 0, // sistema/portal
+                'add_by'                  => User::systemBot()?->id ?? 0, // MEGAISP; sin FK en add_by, 0 como fallback si el bot no existe
                 'paymentable_id'          => $link->client_id,
                 'paymentable_type'        => Client::class,
                 'is_first_payment'        => 0,
