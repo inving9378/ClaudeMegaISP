@@ -12,6 +12,13 @@ use RuntimeException;
 
 class ManualGeneratorService
 {
+    /**
+     * Cuántas versiones se conservan por module_slug tras cada generación.
+     * Sin esto, cada corrida agrega una fila nueva por módulo sin límite
+     * (ver item #263: ~122 filas por click, manual_sections crecía indefinido).
+     */
+    protected const RETENTION_VERSIONS = 3;
+
     /** @var (\Closure(string):void)|null */
     protected $progress = null;
 
@@ -73,6 +80,8 @@ class ManualGeneratorService
                     'generated_at' => now(),
                 ]);
 
+                $this->pruneOldVersions($slug, $next);
+
                 $generated++;
                 Log::info("[ManualGenerator] ✓ {$title} ({$slug}) v{$next}");
                 if ($this->progress) {
@@ -92,6 +101,23 @@ class ManualGeneratorService
             'skipped'   => 0,
             'errors'    => $errors,
         ];
+    }
+
+    /**
+     * Conserva solo las últimas RETENTION_VERSIONS versiones de un module_slug
+     * y borra el resto. Se llama tras cada insert, así el historial nunca
+     * crece sin límite (antes: una fila nueva por módulo en cada corrida, sin poda).
+     */
+    protected function pruneOldVersions(string $slug, int $latestVersion): void
+    {
+        $threshold = $latestVersion - self::RETENTION_VERSIONS;
+        if ($threshold < 1) {
+            return;
+        }
+
+        ManualSection::where('module_slug', $slug)
+            ->where('version', '<=', $threshold)
+            ->delete();
     }
 
     /** @return \Illuminate\Support\Collection<int,object> */
@@ -158,6 +184,10 @@ class ManualGeneratorService
                     'name'        => $manifest['name'] ?? $slug,
                     'group'       => $manifest['type'] ?? 'addon',
                     'description' => $manifest['description'] ?? null,
+                    // Slug canónico del manifiesto (registry), no el slugificado
+                    // del name: evita que dos módulos con nombres que slugifican
+                    // igual se pisen/omitan (ver item #263, FASE 3).
+                    'slug'        => $slug,
                 ];
             }
 
@@ -202,6 +232,15 @@ class ManualGeneratorService
 
     protected function moduleSlug(object $module): string
     {
+        // Los módulos del registry traen su slug canónico del manifiesto
+        // (module.json); ese es el que evita colisiones entre dos módulos
+        // cuyo nombre slugifica igual. La tabla legacy `modules` no tiene
+        // columna de slug propia, así que ahí se sigue derivando del name.
+        if (!empty($module->slug)) {
+            $slug = preg_replace('/[^A-Za-z0-9]+/', '-', strtolower((string) $module->slug));
+            return trim($slug ?: 'modulo', '-');
+        }
+
         $base = (string) ($module->name ?? 'modulo');
         $slug = preg_replace('/[^A-Za-z0-9]+/', '-', strtolower($base));
         return trim($slug ?: 'modulo', '-');
