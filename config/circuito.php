@@ -52,8 +52,13 @@ return [
                 'dinero', 'pago', 'cobro', 'factura', 'facturación', 'saldo', 'precio', 'tarifa',
                 'openpay', 'spei', 'clabe', 'cargo', 'nómina', 'comisión',
                 // seguridad / permisos / auth (específicos, no substrings que peguen de más)
-                'permiso', 'permisos', 'spatie', 'login', 'password',
-                'contraseña', 'credencial', 'token', 'secret', 'seguridad', 'idor', 'bcrypt',
+                // NOTA: 'login' y 'token' REMOVIDOS — falsos positivos mecánicos por substring
+                // ('login' vive en `login_user`, campo de identidad; 'token' pega CSRF/sesión/API
+                // rutinarios). La frontera real de auth la cubren permiso/permisos/spatie/password/
+                // credencial/seguridad/idor/bcrypt + el prompt del revisor (que distingue registrar
+                // un permiso nuevo —rutina— de cambiar permisos/roles existentes —Irving—).
+                'permiso', 'permisos', 'spatie', 'password',
+                'contraseña', 'credencial', 'secret', 'seguridad', 'idor', 'bcrypt',
                 // producción / despliegue
                 'producción', 'deploy', 'despliegue', 'remote:deploy', '.env',
                 // datos destructivos
