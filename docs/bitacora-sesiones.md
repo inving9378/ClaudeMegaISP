@@ -541,3 +541,17 @@ Dos frentes, sin migración, sin config:cache.
 **Estado C:** 43 C en la bandeja sin opciones; #429 ya tiene 3 (verificación). Quedan 42 para llenar con `circuito:proponer-opciones --apply` cuando Irving confirme (Opus cuesta → tanda acotada por --limit).
 
 **Cierre:** npm run prod OK + view/route/config:clear + view:cache + queue:restart. El circuito auto-mergeó #426/#418/#417 en paralelo; los 5 commits de esta tanda están en main. Dev, sin push a prod.
+
+## 2026-07-13 12:49 — #430 Terminales con avatares + supervisor (+ resolución de colisión, 2 diagnósticos)
+
+**Colisión #430:** el scheduler auto-reclamó #430 (nivel A) en wt-1 a las 12:29 pero su worker `claude -p` murió por OOM; quedó huérfano el latido `circuito:vivo --watch --sid=wt-1`. Resuelto: candado #341 (`en_desarrollo_humano=true`) para sacarlo de `tomablePorCircuito`, zombie ya muerto solo, `en_progreso` liberado (→ pendiente_revision, worker_sid=null, fila live wt-1 borrada).
+
+**Build #430** (nivel A, dev/main):
+- `7a09d25d` (A): config/circuito.php worker_nombres = Maya/Leo/Sofía/Iván/Nora/Beto (editable); public/images/circuito/ + avatar-placeholder.svg + README (wt-K.png por slot, fallback si falta).
+- `328a1251` (B): TorreTerminales.vue tarjeta con avatar (por slot) + nombre grande + wt-K chico; animación enganchada a s.running/s.idle/s.stale (respira+halo+indicador vs reposo atenuado); prefers-reduced-motion off.
+- `35c6173d` (C): nodo supervisor (data.supervisor) + una línea por terminal con flujo verde animado solo hacia las running; stale ámbar; idle tenue; reduced-motion off.
+- Cierre: npm run prod OK + view/route/config:clear + view:cache + queue:restart. #430 → completado, candado quitado.
+
+**Diagnóstico "no fluye" (read-only):** no es cron ni locks (scheduler latió hace 11s). Pool auto-ejecutable = 0: 95 items en requiere_irving (esperan a Irving), 0 A/B en pendiente_revision. El único intento (#430) crasheó por RAM. Para reactivar: Irving debe decidir la bandeja. nivel_riesgo NULL = 0 (#419 sigue cerrado).
+
+**Diagnóstico "indicador de prioridad no cambia" (read-only):** patrón #417 = bundle stale. #347 (badge de prioridad) mergeado a main 07-11 14:32, pero el bundle de DEV no se recompiló hasta hoy 12:46 (mis builds de #430) → 2 días sirviendo JS viejo sin el badge. Ya compilado + cache-bust nuevo (app.js?id=e204a6…) → hard-refresh y aparece. Binding correcto: badge = item.priority (RoadmapTab.vue:96-97 + CSS 995-997). Deuda: en dev hay que correr npm run prod tras cada merge que toque .vue (prod lo hace en el deploy; dev no).
