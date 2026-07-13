@@ -210,10 +210,15 @@ class RoadmapItem extends Model
      *   - Terminal/archivado → done|completado|cancelado|cancelled o archivado_at.
      * $enCurso = ids de sesiones vivas (RoadmapCircuitoService::idsEnCurso), belt-and-suspenders
      * para la ventana en que un worker ya tomó el item pero aún no le creó la rama.
+     *
+     * `status='in_progress'` se excluye SIEMPRE (lo trabaje el circuito o no): un item en
+     * progreso ya no es backlog. Antes solo se filtraba `estado_aprobacion='en_progreso'`, así que
+     * un zombie con status=in_progress pero estado_aprobacion=pendiente_revision (dejado a mano,
+     * sin worker/rama/sesión) se colaba al backlog. Cerramos esa rendija por `status` también.
      */
     public function scopeBacklog($query, array $enCurso = [])
     {
-        return $query->whereNotIn('status', ['done', 'cancelled'])
+        return $query->whereNotIn('status', ['in_progress', 'done', 'cancelled'])
                      ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'en_progreso'])
                      ->whereNull('archivado_at')
                      ->whereNull('branch')   // con rama = ya está en Integración/Terminales
