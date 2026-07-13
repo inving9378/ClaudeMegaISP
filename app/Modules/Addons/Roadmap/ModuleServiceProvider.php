@@ -36,6 +36,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\RevisarBacklogCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisorFlagCommand::class,
                 \App\Modules\Addons\Roadmap\Console\BriefCCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ProponerOpcionesCommand::class,
                 \App\Modules\Addons\Roadmap\Console\DestrabeCommand::class,
                 // Pasada de priorización por riesgo (seguridad/dinero → ALTA + brief) (#334)
                 \App\Modules\Addons\Roadmap\Console\PriorizarSeguridadCommand::class,

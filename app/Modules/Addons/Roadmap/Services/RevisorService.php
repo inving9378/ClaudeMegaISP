@@ -404,6 +404,62 @@ TXT;
     }
 
     /**
+     * PROPONE 2-3 OPCIONES concretas para un item C (bandeja interactiva #313). El circuito PROPONE,
+     * NO decide: devuelve un array de strings (cada uno = una opción con su pro y su contra en una
+     * línea) y NO muta el item — el comando decide si escribir SOLO el campo `opciones`. Nunca toca
+     * opcion_elegida (esa la pone Irving) ni ejecuta nada. Falla-segura: IA caída → opciones vacías.
+     */
+    public function proponerOpciones(RoadmapItem $item): array
+    {
+        $hard = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+        $texto = '';
+        try {
+            $resp = (new ClaudeApiClient())->messages([
+                'model'      => $hard,
+                'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100),
+                'system'     => "Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). "
+                    . "Este item es nivel C (arquitectura / negocio / decisión de diseño): el circuito NO lo ejecuta, lo "
+                    . "decide Irving. Propón 2 o 3 OPCIONES concretas y accionables para resolverlo. NO elijas ni "
+                    . "recomiendes una (eso lo hace Irving). Responde EXCLUSIVAMENTE un array JSON de strings (sin texto "
+                    . "fuera del array, sin markdown). Cada string es UNA opción en una sola línea con este formato: "
+                    . "'Opción N: <qué se hace> — Pro: <ventaja breve>. Contra: <riesgo/costo breve>'. Alinéate al perfil "
+                    . "de Irving:\n\n" . $this->perfilIrving(),
+                'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
+            ]);
+            foreach ((array) ($resp['content'] ?? []) as $blk) {
+                if (($blk['type'] ?? '') === 'text') {
+                    $texto .= $blk['text'] ?? '';
+                }
+            }
+            $ops = $this->parseOpciones($texto);
+
+            return ['ok' => ! empty($ops), 'opciones' => $ops, 'modelo' => $hard, 'raw' => trim($texto)];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'opciones' => [], 'modelo' => $hard, 'error' => mb_strimwidth($e->getMessage(), 0, 160, '…')];
+        }
+    }
+
+    /** Extrae el array JSON de opciones del texto del modelo (tolera fences ```json). Máx 3, strings no vacíos. */
+    private function parseOpciones(string $text): array
+    {
+        if (! preg_match('/\[.*\]/s', $text, $m)) {
+            return [];
+        }
+        $arr = json_decode($m[0], true);
+        if (! is_array($arr)) {
+            return [];
+        }
+        $ops = [];
+        foreach ($arr as $x) {
+            if (is_string($x) && trim($x) !== '') {
+                $ops[] = trim($x);
+            }
+        }
+
+        return array_slice($ops, 0, 3);
+    }
+
+    /**
      * PASADA DE RIESGO (Opus): clasifica un candidato de seguridad/dinero y, si aplica, prepara un
      * FIX + BRIEF accionable para la bandeja de Irving. NO muta el item (el comando decide qué hacer
      * con la clasificación) — solo devuelve datos. FRONTERA DURA: seguridad/dinero/negocio/prod NO
