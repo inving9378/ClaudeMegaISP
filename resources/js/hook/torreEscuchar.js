@@ -39,18 +39,42 @@ export function useEscuchar() {
         const synth = window.speechSynthesis;
         if (!synth) return;
         if (hablando.value === item.id) { synth.cancel(); hablando.value = null; return; }
-        synth.cancel();
+        synth.cancel();   // corta cualquier locución en curso (incluida la de OTRA tarjeta)
         if (!voces.value.length) cargarVoces();
-        // El RESUMEN corto, no el texto extenso.
-        const txt = [item.title, item.resumen].filter(Boolean).join('. ');
+
+        // Texto a narrar: SIEMPRE el de ESTE item (el que se pasó, no un estado compartido).
+        // Evitar el título dos veces: el resumen (reporte_coloquial) suele venir con el título
+        // ya antepuesto desde el backend (RoadmapItem::generarReporteColoquial = title + '. ' +
+        // description). Si el resumen ya empieza con el título → narrar SOLO el resumen; si no,
+        // título + resumen. Nunca el título dos veces.
+        const norm = (s) => (s == null ? '' : String(s)).toLowerCase().replace(/\s+/g, ' ').trim();
+        const title = (item.title == null ? '' : String(item.title)).trim();
+        const resumen = (item.resumen == null ? '' : String(item.resumen)).trim();
+        const txt = (resumen && title && norm(resumen).startsWith(norm(title)))
+            ? resumen
+            : [title, resumen].filter(Boolean).join('. ');
+        if (!txt) return;
+
         const u = new SpeechSynthesisUtterance(txt);
         u.lang = 'es-MX';
         const voz = seleccionarVoz();
         if (voz) u.voice = voz;
         u.rate = Math.max(0.5, Math.min(2.0, Number(rateTts.value) || 1.0));   // #424: velocidad guardada
-        u.onend = () => { hablando.value = null; };
+        // Guard por id: si esta locución fue cancelada por una más nueva, su onend NO debe
+        // limpiar el estado de la nueva (evita apagar el botón del item que sí está sonando).
+        u.onend = () => { if (hablando.value === item.id) hablando.value = null; };
         hablando.value = item.id;
-        synth.speak(u);
+
+        // Chromium: cancel() no siempre purga al vuelo una locución en curso antes del speak()
+        // inmediato → la locución vieja (de otra tarjeta) se cuela y se narra el item EQUIVOCADO.
+        // Si algo estaba sonando, encolar el speak tras un tick deja que cancel() termine →
+        // gana SIEMPRE el item recién pedido.
+        const speakNow = () => window.speechSynthesis.speak(u);
+        if (synth.speaking || synth.pending) {
+            setTimeout(speakNow, 60);
+        } else {
+            speakNow();
+        }
     }
 
     // Llamar en onMounted: carga inicial + suscripción a onvoiceschanged.
