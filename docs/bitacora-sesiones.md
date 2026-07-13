@@ -505,3 +505,14 @@ Solo dev, sin push. Kill switch #342 y candados #341 intactos.
 **Commit:** `fix(permisos): alinear patrones route_permission de gestión de usuarios` en `circuito/item-218-patrones-de-route-permission-de-editara`. Integrado con `circuito:integrar 218`.
 
 Solo dev, sin push. Kill switch #342 y candados #341 intactos.
+
+## 2026-07-13 10:48 — Torre de Control: tarjetas de Integración (Escuchar + Ver más + resumen/badges)
+
+Mejora de las tarjetas de la pestaña Integración (`IntegracionRamas.vue`), continuación del pipeline por estado. 4 sub-pasos + build.
+
+- **PASO 0 (hallazgos):** (1) mapa módulo→ruta = `module_sidebar_config.module_key→sidebar_url`, pero `modulo` es texto libre → se normaliza (segmento base, sin acentos/minús/alfanum) y se casa contra module_key; (2) `reporte_coloquial` vacío en 188/189 ramas → Escuchar cae al fallback `description`~40 palabras; (3) **no existe página de detalle de item** → fallback "Ver más" = `/releases` (la Torre, hogar del item). Marcado a Irving.
+- **A** (`0d6aa942`): `ramaPayload` expone `modulo` + `modulo_url` (resolver memoizado `moduloUrl()`/`normalizeModulo()`). Botón "🔎 Ver más" abre la pantalla del módulo en pestaña nueva; null/no mapeable → `/releases`. Verificado: MegaFamilia→/megafamilia, Talento→/talento, VoIP→/voip/troncales, Roadmap/Marketing/Usuarios→null.
+- **B** (`ec74fff3`): `ramaPayload.resumen` = `reporte_coloquial` o `description` recortada ~40 palabras (`resumenItem()`). `leer()` narra `title + resumen` (antes narraba el reporte extenso). Voces = item aparte.
+- **C** (`ec71535b`): cabecera con badge de estado (mergeado✓/esperando/conflicto/sin mergear vía `estadoBadge()`) junto al nivel A/B/C; resumen corto arriba; Escuchar y Ver más movidos a la fila de botones de abajo; estilos claro/oscuro.
+- **D:** item roadmap **#424** "[UI] Selección de voces (es-MX) para Escuchar en la Torre, por administrador" — nivel B/interno, pendiente_revision, modulo=Roadmap, con opciones en el cuerpo (voz es-MX por defecto + selector global en settings / preferencia por admin) y 3 subtareas. Sin nulos críticos.
+- **Cierre:** `npm run prod` OK (3.61m) + view:clear/route:clear/config:clear + view:cache + queue:restart. NUNCA config:cache. Dev/main, sin push.
