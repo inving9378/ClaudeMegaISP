@@ -41,6 +41,7 @@
           {{ r.verificacion.estado === 'ok' ? '✓' : (r.verificacion.estado === 'fail' ? '✗' : '○') }}
         </span>
         <span class="ig-tag" :class="lvClass(r.nivel_riesgo)">{{ r.nivel_riesgo || '—' }}</span>
+        <span class="ig-badge" :class="estadoBadge(r).cls">{{ estadoBadge(r).txt }}</span>
         <div class="ig-titleblock">
           <div class="ig-title"><span class="ig-idnum">#{{ r.id }}</span> {{ r.title }}</div>
           <div class="ig-sub">
@@ -55,6 +56,9 @@
         </div>
       </div>
 
+      <!-- Resumen corto (coloquial → fallback descripción): lo primero que se lee y lo que narra Escuchar -->
+      <div v-if="r.resumen" class="ig-resumen">{{ r.resumen }}</div>
+
       <!-- Nota de revisión visual (QUÉ mirar / QUÉ probar) — solo UI-verificable -->
       <div v-if="r.revision_ui === true && r.ui_hint" class="ig-uihint">
         <strong>👁 Cómo revisarlo:</strong> {{ r.ui_hint }}
@@ -66,7 +70,6 @@
       <div v-if="r.reporte" class="ig-reporte">
         <div class="ig-reporte-head">
           <strong>Reporte del ejecutor — qué hace / cómo validar / verificación</strong>
-          <button class="ig-voz" @click="leer(r)">{{ hablando === r.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
         </div>
         <div class="ig-reporte-txt">{{ r.reporte }}</div>
       </div>
@@ -89,6 +92,7 @@
       <div class="ig-actions">
         <!-- RADAR -->
         <template v-if="vista === 'radar'">
+          <button class="ig-btn ig-voz" :title="hablando === r.id ? 'Detener' : 'Escuchar el resumen'" @click="leer(r)">{{ hablando === r.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
           <button v-if="!r.merged" class="ig-btn ig-btn-ok" :disabled="busy === r.id || r.merge_pending" @click="merge(r)">✓ Mergear a dev</button>
           <span v-if="r.merge_pending" class="ig-pill ig-pill-run">⏳ En cola / procesando…</span>
           <button v-if="r.merged" class="ig-btn ig-btn-warn" :disabled="busy === r.id" @click="revert(r)">↩ Revertir</button>
@@ -101,6 +105,7 @@
         </template>
         <!-- HISTORIAL -->
         <template v-else>
+          <button class="ig-btn ig-voz" :title="hablando === r.id ? 'Detener' : 'Escuchar el resumen'" @click="leer(r)">{{ hablando === r.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
           <span class="ig-meta" v-if="r.archivado_at">Archivada {{ fechaCorta(r.archivado_at) }}<span v-if="r.archivado_por"> · {{ r.archivado_por }}</span></span>
           <button class="ig-btn ig-btn-ver" :title="r.modulo_url ? ('Abrir ' + (r.modulo || 'la pantalla del módulo') + ' en pestaña nueva') : 'Abrir la Torre en pestaña nueva'" @click="verMas(r)">🔎 Ver más</button>
           <button class="ig-btn ig-btn-ver" :disabled="busy === r.id" title="Traer de vuelta al radar (quiero verlo)." @click="desarchivar(r)">↩ Traer al radar</button>
@@ -230,6 +235,14 @@ export default {
             window.open(r.modulo_url || '/releases', '_blank', 'noopener');
         }
 
+        // Badge de estado de integración de la rama (mergeado ✓ / esperando / conflicto / sin mergear).
+        function estadoBadge(r) {
+            if (r.merged) return { txt: 'mergeado ✓', cls: 'ig-badge-ok' };
+            if (r.merge_pending) return { txt: 'esperando…', cls: 'ig-badge-wait' };
+            if (r.merge_result && r.merge_result.ok === false) return { txt: 'conflicto ✗', cls: 'ig-badge-err' };
+            return { txt: 'sin mergear', cls: 'ig-badge-idle' };
+        }
+
         function leer(r) {
             const synth = window.speechSynthesis;
             if (!synth) return;
@@ -332,7 +345,7 @@ export default {
 
         return {
             darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert,
-            modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, verMas, marcarVersion,
+            modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, verMas, estadoBadge, marcarVersion,
             vista, archivadasCount, algunoMergeado, fechaCorta,
             verRadar, verHistorial, archivar, archivarMergeados, desarchivar,
         };
@@ -357,6 +370,9 @@ export default {
 .ig-sem-ok{background:#ecfdf5;color:#047857;} .ig-sem-fail{background:#fef2f2;color:#b91c1c;} .ig-sem-pending{background:#f1f5f9;color:#64748b;}
 .ig-tag{flex:0 0 auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:1px;}
 .ig-lvC{background:#fef2f2;color:#b91c1c;} .ig-lvB{background:#fffbeb;color:#b45309;} .ig-lvA{background:#ecfdf5;color:#047857;} .ig-lvNone{background:#f1f5f9;color:#475569;}
+.ig-badge{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:1px;white-space:nowrap;}
+.ig-badge-ok{background:#ecfdf5;color:#047857;} .ig-badge-wait{background:#eff6ff;color:#1d4ed8;} .ig-badge-err{background:#fef2f2;color:#b91c1c;} .ig-badge-idle{background:#f1f5f9;color:#475569;}
+.ig-resumen{margin:8px 0 0 32px;font-size:13px;line-height:1.5;color:var(--ig-ink,#0f172a);font-weight:500;}
 .ig-titleblock{min-width:0;}
 .ig-title{font-size:13.5px;font-weight:600;line-height:1.3;}
 .ig-idnum{color:var(--ig-accent);font-weight:700;}
@@ -427,6 +443,7 @@ export default {
 .ig-dark .ig-sem-ok{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-sem-fail{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-sem-pending{background:rgba(148,163,184,.15);color:#94a3b8;}
 .ig-dark .ig-lvA{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-lvB{background:rgba(251,191,36,.15);color:#fbbf24;} .ig-dark .ig-lvC{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-lvNone{background:rgba(148,163,184,.15);color:#94a3b8;}
 .ig-dark .ig-merged{color:#4ade80;} .ig-dark .ig-pending{color:#fbbf24;}
+.ig-dark .ig-badge-ok{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-badge-wait{background:rgba(96,165,250,.15);color:#60a5fa;} .ig-dark .ig-badge-err{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-badge-idle{background:rgba(148,163,184,.15);color:#94a3b8;}
 .ig-dark .ig-sub code{color:#7dd3fc;}
 .ig-dark .ig-file{background:#0f172a;border-color:#2a3550;}
 .ig-dark .ig-btn-ok{background:rgba(74,222,128,.14);color:#4ade80;border-color:#2b5b3b;}
