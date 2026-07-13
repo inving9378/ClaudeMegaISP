@@ -42,6 +42,9 @@ class RoadmapCircuitoService
      */
     public const VOICE_KEY = 'circuito_tts_voice';
 
+    /** Velocidad (SpeechSynthesisUtterance.rate) de 🔊 Escuchar (#424). Vacío/ausente = 1.0. Rango [0.5, 2.0]. */
+    public const RATE_KEY = 'circuito_tts_rate';
+
     /**
      * Estado EN VIVO de una vuelta (#335), espejeado en `settings`. Es el canal compartido:
      * lo ESCRIBE el ejecutor on-box (usuario meganet, que SÍ puede leer el log en /home/meganet)
@@ -186,6 +189,24 @@ class RoadmapCircuitoService
     public function setVozTts(?string $voz): void
     {
         $this->putSetting(self::VOICE_KEY, trim((string) $voz));
+    }
+
+    /** Velocidad (rate) de 🔊 Escuchar (#424). Default 1.0; se guarda acotada a [0.5, 2.0]. */
+    public function getRateTts(): float
+    {
+        $v = (string) DB::table('settings')->where('key', self::RATE_KEY)->value('value');
+        return $v !== '' ? $this->clampRate((float) $v) : 1.0;
+    }
+
+    /** Persiste la velocidad elegida por el administrador (acotada a [0.5, 2.0]). */
+    public function setRateTts(float $rate): void
+    {
+        $this->putSetting(self::RATE_KEY, (string) $this->clampRate($rate));
+    }
+
+    private function clampRate(float $rate): float
+    {
+        return max(0.5, min(2.0, $rate));
     }
 
     private function putSetting(string $key, string $val): void

@@ -136,6 +136,7 @@ class RoadmapController extends Controller
             'supervisor'           => $this->supervisor->estado(),    // Thomas T: jefe + su feed (#334)
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
             'voz_tts'              => $this->svc->getVozTts(),   // #424: voz guardada para 🔊 Escuchar (bandeja + Integración usan la misma)
+            'rate_tts'             => $this->svc->getRateTts(),  // #424: velocidad guardada
         ]);
     }
 
@@ -438,6 +439,7 @@ class RoadmapController extends Controller
             'modo_integracion' => $this->svc->getModoIntegracion(),
             'auto_merge'       => $this->svc->autoMergeOn(),   // toggle ON/OFF (#334 F0-fix)
             'voz_tts'          => $this->svc->getVozTts(),      // voz elegida para 🔊 Escuchar (#424, null = automática)
+            'rate_tts'         => $this->svc->getRateTts(),     // velocidad de 🔊 Escuchar (#424)
             'ramas'            => $ramas,
             'archivadas_count' => RoadmapItem::whereNotNull('branch')->archivado()->count(),
         ]);
@@ -447,10 +449,18 @@ class RoadmapController extends Controller
     public function integracionVoz(Request $request): JsonResponse
     {
         $this->authorize('circuito.decidir');
-        $data = $request->validate(['voz' => ['nullable', 'string', 'max:200']]);
-        $this->svc->setVozTts($data['voz'] ?? null);
-        Log::channel('roadmap_externo')->info('integracion-voz', ['voz' => $data['voz'] ?? null, 'por' => $this->actor()]);
-        return response()->json(['ok' => true, 'voz_tts' => $this->svc->getVozTts()]);
+        $data = $request->validate([
+            'voz'  => ['sometimes', 'nullable', 'string', 'max:200'],
+            'rate' => ['sometimes', 'nullable', 'numeric', 'between:0.5,2'],
+        ]);
+        if ($request->has('voz')) {
+            $this->svc->setVozTts($data['voz'] ?? null);
+        }
+        if ($request->has('rate') && $data['rate'] !== null) {
+            $this->svc->setRateTts((float) $data['rate']);
+        }
+        Log::channel('roadmap_externo')->info('integracion-voz', ['voz' => $data['voz'] ?? null, 'rate' => $data['rate'] ?? null, 'por' => $this->actor()]);
+        return response()->json(['ok' => true, 'voz_tts' => $this->svc->getVozTts(), 'rate_tts' => $this->svc->getRateTts()]);
     }
 
     /** Historial de ramas ARCHIVADAS (#334) — fuera del radar, auditable y reversible ("quiero verlo"). */
