@@ -516,3 +516,11 @@ Mejora de las tarjetas de la pestaña Integración (`IntegracionRamas.vue`), con
 - **C** (`ec71535b`): cabecera con badge de estado (mergeado✓/esperando/conflicto/sin mergear vía `estadoBadge()`) junto al nivel A/B/C; resumen corto arriba; Escuchar y Ver más movidos a la fila de botones de abajo; estilos claro/oscuro.
 - **D:** item roadmap **#424** "[UI] Selección de voces (es-MX) para Escuchar en la Torre, por administrador" — nivel B/interno, pendiente_revision, modulo=Roadmap, con opciones en el cuerpo (voz es-MX por defecto + selector global en settings / preferencia por admin) y 3 subtareas. Sin nulos críticos.
 - **Cierre:** `npm run prod` OK (3.61m) + view:clear/route:clear/config:clear + view:cache + queue:restart. NUNCA config:cache. Dev/main, sin push.
+
+## 2026-07-13 11:15 — Torre de Control: Escuchar + Ver más en la bandeja de Panorama
+
+Se lleva el patrón "resumen corto + 🔊 Escuchar + 🔎 Ver más" (ya en las tarjetas de Integración) a la bandeja `requiere_irving` de Panorama (`TorreControl.vue`). Sin migración, sin config:cache.
+
+- **A** (`e943b9d8`): `RoadmapController::torre()` agrega a cada item de `cola_requiere_irving` el `resumen` (helper `resumenItem`: coloquial→descripción ~40 palabras) + `modulo_url` (helper `moduloUrl`), reutilizando los privados YA existentes del controller. Expone `voz_tts` en el payload para narrar con la misma voz guardada (#424) que Integración.
+- **B** (`86c5185e`): lógica de 🔊 Escuchar (voces es-*, voz guardada, seleccionarVoz, narrar título+resumen) y 🔎 Ver más (resolver módulo→ruta, fallback `/releases`) **extraída a composable único** `resources/js/hook/torreEscuchar.js` (`useEscuchar()` + `verMas()`). `IntegracionRamas.vue` **refactorizado** para consumirlo (una sola fuente, sin divergir; conserva su selector de voz + persistencia `cambiarVoz`). `TorreControl.vue` suma a cada item de la bandeja: resumen corto arriba, badge "requiere tu decisión" + nivel A/B/C, y botones 🔊/🔎 junto a las acciones existentes (Aprobar/Rechazar/Comentar/Cerrar/Cancelar **intactas**). Estilos claro/oscuro.
+- **Cierre:** `npm run prod` OK (3.43m) + view/route/config:clear + view:cache + queue:restart. Dev/main, sin push.
