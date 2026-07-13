@@ -524,3 +524,20 @@ Se lleva el patrón "resumen corto + 🔊 Escuchar + 🔎 Ver más" (ya en las t
 - **A** (`e943b9d8`): `RoadmapController::torre()` agrega a cada item de `cola_requiere_irving` el `resumen` (helper `resumenItem`: coloquial→descripción ~40 palabras) + `modulo_url` (helper `moduloUrl`), reutilizando los privados YA existentes del controller. Expone `voz_tts` en el payload para narrar con la misma voz guardada (#424) que Integración.
 - **B** (`86c5185e`): lógica de 🔊 Escuchar (voces es-*, voz guardada, seleccionarVoz, narrar título+resumen) y 🔎 Ver más (resolver módulo→ruta, fallback `/releases`) **extraída a composable único** `resources/js/hook/torreEscuchar.js` (`useEscuchar()` + `verMas()`). `IntegracionRamas.vue` **refactorizado** para consumirlo (una sola fuente, sin divergir; conserva su selector de voz + persistencia `cambiarVoz`). `TorreControl.vue` suma a cada item de la bandeja: resumen corto arriba, badge "requiere tu decisión" + nivel A/B/C, y botones 🔊/🔎 junto a las acciones existentes (Aprobar/Rechazar/Comentar/Cerrar/Cancelar **intactas**). Estilos claro/oscuro.
 - **Cierre:** `npm run prod` OK (3.43m) + view/route/config:clear + view:cache + queue:restart. Dev/main, sin push.
+
+## 2026-07-13 12:20 — Torre de Control: velocidad de Escuchar (#424) + opciones en items C
+
+Dos frentes, sin migración, sin config:cache.
+
+**Frente 1 — voz/velocidad (cierra #424):**
+- `a9d5aef2`: setting `circuito_tts_rate` (getRateTts/setRateTts, clamp [0.5,2.0], default 1.0); endpoint `/integracion/voz` acepta `rate`; feeds /torre e /integracion exponen `rate_tts`.
+- `37095974`: `useEscuchar()` aplica `u.rate`; Integración suma slider velocidad 0.5×–2.0× + botón Probar (persiste en `/integracion/voz {rate}`); TorreControl carga `rate_tts`. Un solo punto de config (Integración), respetado en toda la Torre. El selector de voz ya existía.
+
+**Frente 2 — opciones en items C (circuito propone, Irving decide):**
+- `4fdb5d8b`: endpoint `POST /circuito/elegir-opcion` (gate circuito.decidir) persiste SOLO `opcion_elegida` sin cambiar estado; la tarjeta de la bandeja persiste al elegir + pre-selecciona desde el feed; C sin opciones muestra "Sin opciones aún".
+- `56dc9356`: `RevisorService::proponerOpciones()` (Opus, 2-3 opciones con pro/contra) + `parseOpciones()`; comando `circuito:proponer-opciones` (dry-run por defecto, `--apply`, `--limit`, `--id`) escribe SOLO `opciones`, nunca `opcion_elegida`/estado, fuera de la ruta de ejecución. Verificado en #429 (3 opciones, opcion_elegida/estado intactos).
+- `26eb9ae8`: scope `RoadmapItem::cSinOpciones` como invariante único; el generador lo consume (no pisa lo ya propuesto). Idempotencia verificada.
+
+**Estado C:** 43 C en la bandeja sin opciones; #429 ya tiene 3 (verificación). Quedan 42 para llenar con `circuito:proponer-opciones --apply` cuando Irving confirme (Opus cuesta → tanda acotada por --limit).
+
+**Cierre:** npm run prod OK + view/route/config:clear + view:cache + queue:restart. El circuito auto-mergeó #426/#418/#417 en paralelo; los 5 commits de esta tanda están en main. Dev, sin push a prod.
