@@ -174,6 +174,22 @@ class RoadmapItem extends Model
                      });
     }
 
+    /**
+     * #313: items C en la bandeja (requiere_irving) que AÚN no traen opciones — los únicos que el
+     * generador (circuito:proponer-opciones) puede tocar. Fuente ÚNICA del invariante "C sin
+     * opciones": un C debería nacer con opciones + opcion_elegida ya resueltas; este scope marca
+     * los que quedaron sin ellas para proponérselas SIN pisar los que ya las traen.
+     */
+    public function scopeCSinOpciones($query)
+    {
+        return $query->where('nivel_riesgo', 'C')
+                     ->where('estado_aprobacion', 'requiere_irving')
+                     ->whereNotIn('status', ['done', 'cancelled'])
+                     ->where(function ($w) {
+                         $w->whereNull('opciones')->orWhere('opciones', '[]')->orWhere('opciones', '');
+                     });
+    }
+
     /** #334: fuera del radar activo (archivado). Su complemento = lo pendiente/visible. */
     public function scopeArchivado($query)
     {

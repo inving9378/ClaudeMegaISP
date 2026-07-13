@@ -29,14 +29,8 @@ class ProponerOpcionesCommand extends Command
         $apply = (bool) $this->option('apply');
         $limit = max(1, (int) $this->option('limit'));
 
-        $q = RoadmapItem::query()
-            ->where('nivel_riesgo', 'C')
-            ->where('estado_aprobacion', 'requiere_irving')
-            ->whereNotIn('status', ['done', 'cancelled'])
-            // IDEMPOTENCIA: solo los que NO traen opciones (no pisa lo ya propuesto/elegido).
-            ->where(function ($w) {
-                $w->whereNull('opciones')->orWhere('opciones', '[]')->orWhere('opciones', '');
-            });
+        // Invariante ÚNICO (modelo): C en la bandeja SIN opciones → no pisa lo ya propuesto/elegido.
+        $q = RoadmapItem::query()->cSinOpciones();
 
         if ($this->option('id')) {
             $q->where('id', (int) $this->option('id'));
