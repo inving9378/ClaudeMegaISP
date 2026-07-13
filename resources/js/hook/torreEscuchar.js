@@ -65,8 +65,9 @@ export function useEscuchar() {
 
 /**
  * 🔎 Ver más: abre en pestaña nueva la pantalla del módulo que tocó el item (para
- * revisar/revertir). Fallback seguro si el módulo es null/no mapeable → la Torre.
+ * revisar/revertir). Fallback si el módulo es null/no mapeable → la página de detalle
+ * del item (#426), que sí tiene contexto (antes caía a /releases sin relación con el item).
  */
 export function verMas(item) {
-    window.open(item.modulo_url || '/releases', '_blank', 'noopener');
+    window.open(item.modulo_url || `/roadmap/item/${item.id}`, '_blank', 'noopener');
 }

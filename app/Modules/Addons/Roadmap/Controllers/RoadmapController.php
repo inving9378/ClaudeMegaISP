@@ -500,6 +500,54 @@ class RoadmapController extends Controller
         ]);
     }
 
+    /**
+     * GET /roadmap/item/{id} — página de detalle read-only de un item de la Hoja de Ruta (#426).
+     * Destino real de «Ver más» en Integración/Ramas cuando el item no mapea a la pantalla de
+     * ningún módulo (antes caía a /releases sin contexto del item). Abre en pestaña nueva.
+     */
+    public function itemDetalle(int $id)
+    {
+        $this->authorize('roadmap_view');
+
+        $item = RoadmapItem::findOrFail($id);
+
+        return view('meganet.module.roadmap.item', [
+            'item' => $this->itemDetallePayload($item),
+        ]);
+    }
+
+    /** Payload completo (read-only) para la página de detalle de un item. */
+    private function itemDetallePayload(RoadmapItem $i): array
+    {
+        return [
+            'id'                 => $i->id,
+            'title'              => $i->title,
+            'modulo'             => $i->modulo,
+            'resumen'            => $this->resumenItem($i),
+            'descripcion'        => $i->description,
+            'reporte_tecnico'    => $i->reporte_tecnico,
+            'reporte_coloquial'  => $i->reporte_coloquial,
+            'reporte'            => $i->comentarios_claude,
+            'opciones'           => $i->opciones,
+            'opcion_elegida'     => $i->opcion_elegida,
+            'nivel_riesgo'       => $i->nivel_riesgo,
+            'estado_aprobacion'  => $i->estado_aprobacion,
+            'status'             => $i->status,
+            'priority'           => $i->priority,
+            'branch'             => $i->branch,
+            'merge_commit'       => $i->merge_commit,
+            'target_version'     => $i->target_version,
+            'subtasks'           => $i->subtasks,
+            'log'                => $i->log,
+            'worker_sid'         => $i->worker_sid,
+            'worker_nombre'      => $i->worker_sid ? $this->svc->nombreWorker($i->worker_sid) : null,
+            'created_at'         => optional($i->created_at)->toIso8601String(),
+            'updated_at'         => optional($i->updated_at)->toIso8601String(),
+            'started_at'         => optional($i->started_at)->toIso8601String(),
+            'completed_at'       => optional($i->completed_at)->toIso8601String(),
+        ];
+    }
+
     /** Payload común de una rama para el radar y el historial. */
     /** Mapa normalizado module_key→sidebar_url (memoizado por request). */
     private ?array $moduloUrlMap = null;
