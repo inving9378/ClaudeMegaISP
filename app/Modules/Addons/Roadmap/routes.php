@@ -66,6 +66,14 @@ Route::prefix('mcp')
         Route::get('/{secret}', [RoadmapMcpController::class, 'methodNotAllowed']);
     });
 
+/*
+| Página de detalle read-only de un item (#426) — destino real de «Ver más» en
+| Integración/Ramas. Fuera del prefijo api/roadmap: es una vista HTML, no JSON.
+*/
+Route::middleware(['web', 'auth'])
+    ->get('/roadmap/item/{id}', [RoadmapController::class, 'itemDetalle'])
+    ->whereNumber('id');
+
 Route::middleware(['web', 'auth'])
     ->prefix('api/roadmap')
     ->group(function () {
