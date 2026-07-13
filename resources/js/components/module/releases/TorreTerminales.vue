@@ -22,8 +22,28 @@
       </p>
     </div>
 
+    <!-- Supervisor arriba, conectado por líneas a cada terminal (#430): el flujo se anima
+         SOLO hacia las que trabajan. El mapeo es 1:1 y en el mismo orden de la rejilla. -->
+    <div v-if="sesiones.length" class="tt-sup" :class="{ 'tt-sup-active': anyActive }">
+      <div class="tt-sup-node">
+        <span class="tt-avatar tt-av-sup">
+          <img class="tt-avatar-img" :src="supervisorUrl" :alt="(supervisor && supervisor.nombre) || 'Supervisor'" loading="lazy" @error="onAvatarError" />
+        </span>
+        <div class="tt-idblock">
+          <span class="tt-name">{{ (supervisor && supervisor.nombre) || 'Supervisor' }}</span>
+          <span class="tt-worker-sm">reparte el trabajo</span>
+        </div>
+      </div>
+      <div class="tt-sup-links">
+        <span v-for="s in sesiones" :key="s.sid" class="tt-link" :class="linkClass(s)" :title="(s.nombre || s.sid) + (s.running && !s.stale ? ' · recibiendo trabajo' : ' · en reposo')">
+          <span class="tt-link-line"></span>
+          <span class="tt-link-tip">{{ s.nombre || s.sid }}</span>
+        </span>
+      </div>
+    </div>
+
     <!-- Rejilla responsiva: 1 = ancho completo · 2-4 = grid · N = scroll -->
-    <div v-else class="tt-grid" :class="{ 'tt-grid-solo': sesiones.length === 1 }">
+    <div v-if="sesiones.length" class="tt-grid" :class="{ 'tt-grid-solo': sesiones.length === 1 }">
       <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle }">
         <div class="tt-term-head">
           <!-- Avatar de la persona (por slot wt-K) + animación enganchada al estado live -->
@@ -104,6 +124,7 @@ export default {
     name: "TorreTerminales",
     setup() {
         const sesiones = ref([]);
+        const supervisor = ref(null);   // #430: nodo supervisor (data.supervisor del feed estado)
         const nowMs = ref(Date.now());
         const fsSid = ref(null);
         const pres = {};        // sid -> <pre> (rejilla)
@@ -144,6 +165,10 @@ export default {
             if (!s.running) return "tt-av-off";
             return s.stale ? "tt-av-stale" : "tt-av-run";
         };
+        const supervisorUrl = AVATAR_BASE + "supervisor.png";
+        // Línea supervisor→terminal: flujo animado SOLO hacia las que trabajan (running y no frías).
+        const linkClass = (s) => (s.running && !s.stale ? "tt-link-active" : (s.stale ? "tt-link-stale" : "tt-link-idle"));
+        const anyActive = computed(() => sesiones.value.some((s) => s.running && !s.stale));
 
         const setPre = (sid, el) => { if (el) pres[sid] = el; };
         const scrollAll = () => {
@@ -155,6 +180,7 @@ export default {
             try {
                 const { data } = await axios.get("/api/roadmap/circuito/estado");
                 sesiones.value = (data.trabajando && data.trabajando.sesiones) || [];
+                supervisor.value = data.supervisor || null;
                 nextTick(scrollAll);
             } catch (e) { /* silencioso: no romper la vista por un poll */ }
         }
@@ -177,9 +203,9 @@ export default {
 
         return {
             FASES, POLL_MS, dark: darkMode,
-            sesiones, anyRunning, fsSesion, fsPre,
+            sesiones, supervisor, anyRunning, anyActive, fsSesion, fsPre,
             secsSince, fmtClock, stepReached, stepClass, setPre,
-            avatarUrl, onAvatarError, avatarClass,
+            avatarUrl, onAvatarError, avatarClass, supervisorUrl, linkClass,
             openFs, closeFs,
         };
     },
@@ -210,6 +236,32 @@ export default {
 .tt-empty-ico{ font-size:34px; color:var(--tt-muted); }
 .tt-empty-h{ font-weight:700; margin:10px 0 4px; }
 .tt-empty-p{ color:var(--tt-muted); font-size:13px; max-width:560px; margin:0 auto; line-height:1.55; }
+
+/* ── Supervisor + líneas de conexión (#430) ── */
+.tt-sup{ margin-bottom:6px; }
+.tt-sup-node{ display:inline-flex; align-items:center; gap:11px; padding:8px 14px 8px 8px; border:1px solid var(--tt-line); border-radius:14px; background:var(--tt-surface); }
+.tt-av-sup .tt-avatar-img{ width:48px; height:48px; border-radius:12px; }
+.tt-sup-links{ display:flex; gap:10px; padding:0 6px; }
+.tt-link{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px; }
+.tt-link-line{
+  width:2px; height:26px; border-radius:2px;
+  background:linear-gradient(var(--tt-line), var(--tt-line));
+}
+.tt-link-tip{ font-size:10px; font-weight:700; color:var(--tt-muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* ACTIVA: línea verde con flujo animado (dash cayendo del supervisor a la terminal) */
+.tt-link-active .tt-link-line{
+  background:repeating-linear-gradient(180deg, var(--tt-live) 0 6px, transparent 6px 12px);
+  background-size:100% 24px;
+  animation:tt-flow .7s linear infinite;
+}
+.tt-link-active .tt-link-tip{ color:var(--tt-live); }
+/* STALE: ámbar fijo · IDLE/off: gris tenue */
+.tt-link-stale .tt-link-line{ background:var(--tt-warn); opacity:.6; }
+.tt-link-idle .tt-link-line{ opacity:.45; }
+@keyframes tt-flow{ from{ background-position:0 0; } to{ background-position:0 24px; } }
+@media (prefers-reduced-motion: reduce){
+  .tt-link-active .tt-link-line{ animation:none !important; background:var(--tt-live); }
+}
 
 .tt-grid{ display:grid; gap:14px; grid-template-columns:repeat(auto-fill, minmax(400px, 1fr)); }
 .tt-grid-solo{ grid-template-columns:1fr; }
