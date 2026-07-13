@@ -627,33 +627,56 @@ class RoadmapController extends Controller
         return response()->json(['ok' => true, 'queued' => true, 'mensaje' => 'Merge encolado; se aplica en unos segundos.']);
     }
 
-    /** POST /api/roadmap/integracion/rechazar — rechaza la rama: item vuelve a la bandeja. */
+    /**
+     * POST /api/roadmap/integracion/rechazar — rechaza la rama. Comentario OBLIGATORIO + elección:
+     *   • accion=reciclar → vuelve al BACKLOG para un nuevo intento (pendiente_revision + status
+     *     pending; se descarta el puntero a la rama —la rama queda en git— para que el circuito
+     *     cree una nueva al re-tomarlo). El comentario le dice al próximo intento POR QUÉ se rechazó.
+     *   • accion=borrar   → cancelado + archivado (fila CONSERVADA, NO hard-delete).
+     */
     public function integracionRechazar(Request $request): JsonResponse
     {
         $this->authorize('circuito.decidir');
         $data = $request->validate([
             'id'         => ['required', 'integer', 'min:1'],
-            'comentario' => ['sometimes', 'nullable', 'string', 'max:10000'],
+            'comentario' => ['required', 'string', 'min:1', 'max:10000'],   // OBLIGATORIO
+            'accion'     => ['required', 'in:reciclar,borrar'],
         ]);
         $item = RoadmapItem::find($data['id']);
         if (! $item) {
             return response()->json(['error' => 'Item no encontrado'], 404);
         }
 
-        $item->estado_aprobacion = 'requiere_irving';
-        if (! empty($data['comentario'])) {
-            $item->comentarios_claude = $data['comentario'];
-        }
-        $item->aprobado_por = $this->actor();
+        $por        = $this->actor();
+        $comentario = trim($data['comentario']);
+        $item->comentarios_claude = (string) $item->comentarios_claude
+            . "\n\n--- RECHAZADA ({$data['accion']}, " . now()->toDateTimeString() . ", {$por}) ---\n" . $comentario;
+        $item->aprobado_por = $por;
         $item->revisado_at  = now();
         $log = $item->log ?: [];
-        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'rechazo_rama', 'branch' => $item->branch, 'comentario' => $data['comentario'] ?? null];
-        $item->log = $log;
-        $item->save();
 
-        Log::channel('roadmap_externo')->info('integracion-rechazo', ['item' => $item->id, 'por' => $this->actor()]);
+        if ($data['accion'] === 'reciclar') {
+            $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => 'rechazo_reciclar',
+                'branch_descartada' => $item->branch, 'comentario' => $comentario];
+            $item->log               = $log;
+            $item->branch            = null;   // suelta la rama → reentra al backlog; el circuito hará una nueva
+            $item->merge_commit      = null;
+            $item->estado_aprobacion = 'pendiente_revision';
+            $item->status            = 'pending';
+            $item->save();
+        } else { // borrar = cancelar + archivar (fila conservada)
+            $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => 'rechazo_borrar',
+                'branch' => $item->branch, 'comentario' => $comentario];
+            $item->log               = $log;
+            $item->estado_aprobacion = 'cancelado';
+            $item->status            = 'cancelled';
+            $item->save();
+            $this->sellarArchivo($item, $por . ' (rechazo/borrar)');
+        }
 
-        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'estado_aprobacion' => $item->estado_aprobacion]]);
+        Log::channel('roadmap_externo')->info('integracion-rechazo', ['item' => $item->id, 'accion' => $data['accion'], 'por' => $por]);
+
+        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'estado_aprobacion' => $item->estado_aprobacion, 'accion' => $data['accion']]]);
     }
 
     /** POST /api/roadmap/integracion/revert — revierte un merge ya integrado a dev. */

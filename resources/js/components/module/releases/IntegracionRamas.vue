@@ -285,13 +285,20 @@ export default {
 
         async function rechazar(r) {
             if (busy.value) return;
-            const comentario = window.prompt('Comentario de rechazo (vuelve a la bandeja de decisiones):', '');
-            if (comentario === null) return;
+            const comentario = window.prompt('Motivo del rechazo (OBLIGATORIO):', '');
+            if (comentario === null) return;                       // canceló el prompt
+            if (!comentario.trim()) { msg[r.id] = 'El comentario es obligatorio.'; return; }
+            // Aceptar = BORRAR (cancela + archiva, fila conservada) · Cancelar = RECICLAR (vuelve al backlog).
+            const borrar = window.confirm(
+                'Aceptar = BORRAR (se cancela y archiva; la fila se conserva).\n' +
+                'Cancelar = RECICLAR (vuelve al backlog para reintentar con tu comentario).'
+            );
+            const accion = borrar ? 'borrar' : 'reciclar';
             busy.value = r.id;
             msg[r.id] = '';
             try {
-                await axios.post('/api/roadmap/integracion/rechazar', { id: r.id, comentario });
-                msg[r.id] = 'Rechazada — volvió a la bandeja.';
+                await axios.post('/api/roadmap/integracion/rechazar', { id: r.id, comentario: comentario.trim(), accion });
+                msg[r.id] = borrar ? 'Rechazada y archivada (borrada).' : 'Reciclada — volvió al backlog.';
                 await load();
             } finally {
                 busy.value = null;
