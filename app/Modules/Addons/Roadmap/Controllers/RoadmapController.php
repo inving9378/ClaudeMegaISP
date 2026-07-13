@@ -434,9 +434,20 @@ class RoadmapController extends Controller
             'generated_at'     => now()->toIso8601String(),
             'modo_integracion' => $this->svc->getModoIntegracion(),
             'auto_merge'       => $this->svc->autoMergeOn(),   // toggle ON/OFF (#334 F0-fix)
+            'voz_tts'          => $this->svc->getVozTts(),      // voz elegida para 🔊 Escuchar (#424, null = automática)
             'ramas'            => $ramas,
             'archivadas_count' => RoadmapItem::whereNotNull('branch')->archivado()->count(),
         ]);
+    }
+
+    /** POST /api/roadmap/integracion/voz — guarda la voz (es-*) elegida por el administrador para 🔊 Escuchar (#424). */
+    public function integracionVoz(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate(['voz' => ['nullable', 'string', 'max:200']]);
+        $this->svc->setVozTts($data['voz'] ?? null);
+        Log::channel('roadmap_externo')->info('integracion-voz', ['voz' => $data['voz'] ?? null, 'por' => $this->actor()]);
+        return response()->json(['ok' => true, 'voz_tts' => $this->svc->getVozTts()]);
     }
 
     /** Historial de ramas ARCHIVADAS (#334) — fuera del radar, auditable y reversible ("quiero verlo"). */

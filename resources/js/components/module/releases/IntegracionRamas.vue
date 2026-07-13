@@ -11,6 +11,13 @@
             Historial <span v-if="archivadasCount" class="ig-segcount">{{ archivadasCount }}</span>
           </button>
         </div>
+        <div v-if="voces.length" class="ig-voz-sel" title="Voz usada por 🔊 Escuchar (guardada para todos los administradores)">
+          <label for="ig-voz-select" class="ig-voz-lbl">🔊 Voz:</label>
+          <select id="ig-voz-select" class="ig-voz-select" :value="vozTts || ''" @change="cambiarVoz($event.target.value)">
+            <option value="">Automática (es-MX)</option>
+            <option v-for="v in voces" :key="v.name" :value="v.name">{{ v.name }} ({{ v.lang }})</option>
+          </select>
+        </div>
         <label v-if="vista === 'radar'" class="ig-toggle" :class="{ 'ig-toggle-on': autoMerge }"
                title="ON: cada rama verificada se mergea sola a dev. OFF: mergeas tú cada una con el botón.">
           <input type="checkbox" :checked="autoMerge" :disabled="busy === 'modo'" @change="toggleAutoMerge" />
@@ -142,6 +149,8 @@ export default {
         const modoIntegracion = ref('auto-merge');
         const autoMerge = ref(true);
         const hablando = ref(null);
+        const voces = ref([]);       // voces es-* disponibles en el navegador (#424)
+        const vozTts = ref(null);    // nombre de la voz guardada por el administrador (null = automática)
         const vista = ref('radar');          // 'radar' | 'historial'
         const archivadasCount = ref(0);
 
@@ -159,6 +168,7 @@ export default {
                 modoIntegracion.value = data.modo_integracion || 'auto-merge';
                 autoMerge.value = data.auto_merge !== undefined ? !!data.auto_merge : (modoIntegracion.value === 'auto-merge');
                 archivadasCount.value = data.archivadas_count || 0;
+                vozTts.value = data.voz_tts || null;
             } finally {
                 loading.value = false;
             }
@@ -243,18 +253,52 @@ export default {
             return { txt: 'sin mergear', cls: 'ig-badge-idle' };
         }
 
+        // Refresca la lista de voces es-* del navegador. getVoices() carga async en algunos
+        // navegadores → se vuelve a llamar en onvoiceschanged (ver también DevtoolsPanel.vue).
+        function cargarVoces() {
+            const synth = window.speechSynthesis;
+            if (!synth) return;
+            voces.value = synth.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith('es'));
+        }
+
+        // Elige la voz a usar: la guardada por el administrador → es-MX → cualquier es-* → default del navegador.
+        function seleccionarVoz() {
+            if (!voces.value.length) return null;
+            if (vozTts.value) {
+                const guardada = voces.value.find((v) => v.name === vozTts.value);
+                if (guardada) return guardada;
+            }
+            const mx = voces.value.find((v) => v.lang.toLowerCase().startsWith('es-mx'));
+            return mx || voces.value[0];
+        }
+
         function leer(r) {
             const synth = window.speechSynthesis;
             if (!synth) return;
             if (hablando.value === r.id) { synth.cancel(); hablando.value = null; return; }
             synth.cancel();
+            if (!voces.value.length) cargarVoces();
             // Lee el RESUMEN corto (coloquial → fallback descripción ~40 palabras), no el texto extenso.
             const txt = [r.title, r.resumen].filter(Boolean).join('. ');
             const u = new SpeechSynthesisUtterance(txt);
-            u.lang = 'es-ES';
+            u.lang = 'es-MX';
+            const voz = seleccionarVoz();
+            if (voz) u.voice = voz;
             u.onend = () => { hablando.value = null; };
             hablando.value = r.id;
             synth.speak(u);
+        }
+
+        // Guarda la voz elegida por el administrador (#424, gate circuito.decidir en el backend).
+        async function cambiarVoz(nombre) {
+            const nuevo = nombre || null;
+            if (nuevo === vozTts.value) return;
+            vozTts.value = nuevo;
+            try {
+                await axios.post('/api/roadmap/integracion/voz', { voz: nuevo });
+            } catch (e) {
+                // No bloquea la UI: la preferencia local queda aplicada, se reintenta al recargar.
+            }
         }
 
         async function marcarVersion(r) {
@@ -341,13 +385,20 @@ export default {
             }
         }
 
-        onMounted(load);
+        onMounted(() => {
+            load();
+            if (window.speechSynthesis) {
+                cargarVoces();
+                window.speechSynthesis.onvoiceschanged = cargarVoces;
+            }
+        });
 
         return {
             darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert,
             modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, verMas, estadoBadge, marcarVersion,
             vista, archivadasCount, algunoMergeado, fechaCorta,
             verRadar, verHistorial, archivar, archivarMergeados, desarchivar,
+            voces, vozTts, cambiarVoz,
         };
     },
 };
@@ -417,6 +468,10 @@ export default {
 .ig-mergeerr pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-word;font-size:11px;color:#7f1d1d;max-height:180px;overflow:auto;}
 .ig-mergeok{margin:10px 0 0 32px;font-size:12px;color:#047857;font-weight:600;}
 
+/* Selector de voz (#424) */
+.ig-voz-sel{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ig-muted);}
+.ig-voz-select{font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--ig-line);background:#fff;color:var(--ig-ink);max-width:220px;}
+
 /* Segmentado Radar / Historial */
 .ig-seg{display:inline-flex;border:1px solid var(--ig-line);border-radius:8px;overflow:hidden;}
 .ig-segbtn{font-size:12px;font-weight:600;padding:6px 11px;border:none;background:#fff;color:var(--ig-muted);cursor:pointer;}
@@ -454,6 +509,7 @@ export default {
 .ig-dark .ig-btn-ver{background:rgba(96,165,250,.14);color:#60a5fa;border-color:#2b3f5b;}
 .ig-dark .ig-btn-ver-on{background:rgba(96,165,250,.24);color:#93c5fd;border-color:#3b5578;}
 .ig-dark .ig-tk{background:#334155;}
+.ig-dark .ig-voz-select{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
 .ig-dark .ig-pill-run{background:rgba(251,191,36,.14);color:#fbbf24;border-color:#5b4a1f;}
 .ig-dark .ig-mergeerr{background:rgba(248,113,113,.12);border-color:#5b2b2b;color:#f87171;}
 .ig-dark .ig-mergeerr pre{color:#fca5a5;}
