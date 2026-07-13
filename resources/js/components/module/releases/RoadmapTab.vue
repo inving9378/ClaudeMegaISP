@@ -93,8 +93,9 @@
                         <div class="rdm-item-title" @click="toggleExpand(item.id)">
                             <span class="rdm-item-text">{{ item.title }}</span>
                             <div class="rdm-item-tags">
-                                <span v-if="item.priority" class="rdm-tag rdm-tag-prio" :class="`prio-${item.priority}`">
-                                    {{ item.priority }}
+                                <span class="rdm-tag rdm-tag-prio"
+                                      :class="item.priority ? `prio-${item.priority}` : 'prio-none'">
+                                    {{ item.priority || 'Sin prioridad' }}
                                 </span>
                                 <span v-if="item.target_version" class="rdm-tag rdm-tag-ver">
                                     {{ item.target_version }}
@@ -992,9 +993,16 @@ export default {
     font-size: 10px; font-weight: 700; padding: 2px 7px;
     border-radius: 10px; text-transform: uppercase; letter-spacing: 0.4px; flex-shrink: 0;
 }
-.rdm-tag-prio.prio-alta   { background: #fee2e2; color: #7f1d1d; }
-.rdm-tag-prio.prio-media  { background: #fef3c7; color: #7c5e10; }
-.rdm-tag-prio.prio-baja   { background: #f0f9ff; color: #374151; }
+/* Prioridad — fondos saturados + texto de alto contraste (light) */
+.rdm-tag-prio.prio-alta   { background: #dc2626; color: #ffffff; }
+.rdm-tag-prio.prio-media  { background: #f59e0b; color: #422006; }
+.rdm-tag-prio.prio-baja   { background: #d1d5db; color: #374151; }
+.rdm-tag-prio.prio-none   { background: transparent; color: #9ca3af; border: 1px dashed #cbd5e1; font-weight: 600; }
+/* Prioridad — modo oscuro (fondos igual de saturados para que salten) */
+.rdm-dark .rdm-tag-prio.prio-alta  { background: #ef4444; color: #ffffff; }
+.rdm-dark .rdm-tag-prio.prio-media { background: #f59e0b; color: #3a1d00; }
+.rdm-dark .rdm-tag-prio.prio-baja  { background: rgba(255,255,255,.16); color: rgba(255,255,255,.82); }
+.rdm-dark .rdm-tag-prio.prio-none  { background: transparent; color: rgba(255,255,255,.4); border-color: rgba(255,255,255,.2); }
 .rdm-tag-ver              { background: #f3f4f6; color: #4b5563; }
 .rdm-dark .rdm-tag-ver    { background: rgba(255,255,255,.1); color: rgba(255,255,255,.5); }
 /* Último avance — discreto, sin color de fondo */
