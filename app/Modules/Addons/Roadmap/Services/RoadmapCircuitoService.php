@@ -406,6 +406,23 @@ class RoadmapCircuitoService
      * cuyo último latido excede LIVE_ENDED_RETAIN_SEG (ya no aportan al visor). Solo lee filas
      * `circuito_live:<sid>` (ignora la llave legacy `circuito_live` sin sufijo).
      */
+    /**
+     * IDs de items que AHORA MISMO toca alguna terminal viva (current_item de cada sesión live).
+     * Fuente única para excluirlos del backlog de la Hoja de ruta (pipeline por estado).
+     */
+    public function idsEnCurso(): array
+    {
+        $ids = [];
+        foreach ($this->allLiveSessions() as $d) {
+            $cur = $d['current_item'] ?? null;
+            if ($cur) {
+                $ids[] = (int) $cur;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
     private function allLiveSessions(): array
     {
         $rows = DB::table('settings')

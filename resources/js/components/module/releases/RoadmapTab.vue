@@ -831,7 +831,9 @@ export default {
         async function load() {
             loading.value = true;
             try {
-                const { data } = await axios.get('/api/roadmap/items');
+                // Pipeline por estado: la Hoja de ruta muestra SOLO el backlog (lo tomado/mergeado
+                // vive en Terminales/Integración). Un item tomado DESAPARECE de aquí.
+                const { data } = await axios.get('/api/roadmap/items?vista=backlog');
                 items.value = data;
             } catch {
                 showToast('Error al cargar la hoja de ruta.', 'error', 'bi bi-exclamation-circle-fill');

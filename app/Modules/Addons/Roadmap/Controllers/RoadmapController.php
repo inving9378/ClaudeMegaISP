@@ -749,7 +749,12 @@ class RoadmapController extends Controller
     {
         $this->authorize('roadmap_view');
 
-        $q = RoadmapItem::ordered();
+        // Pipeline por estado (#): ?vista=backlog deja SOLO lo que aún no entró a otra pestaña
+        // (Terminales/Integración/terminal). El default (sin vista) sigue devolviendo TODO —
+        // no rompe otros consumidores.
+        $q = $request->query('vista') === 'backlog'
+            ? RoadmapItem::backlog($this->svc->idsEnCurso())->ordered()
+            : RoadmapItem::ordered();
 
         if ($request->filled('status')) {
             $q->where('status', $request->status);

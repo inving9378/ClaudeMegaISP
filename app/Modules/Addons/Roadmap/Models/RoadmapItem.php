@@ -161,6 +161,25 @@ class RoadmapItem extends Model
         return $query->whereNull('archivado_at');
     }
 
+    /**
+     * BACKLOG (pipeline por estado): SOLO lo que aún vive en la pestaña "Hoja de ruta".
+     * Un item sale del backlog en cuanto entra a otra columna del pipeline:
+     *   - En Terminales / tomado por un worker → su id llega en $enCurso (current_item vivo)
+     *     o quedó en_progreso; también en cuanto tiene rama (branch != null → Integración).
+     *   - En Integración → whereNotNull('branch') & no archivado.
+     *   - Terminal/archivado → done|completado|cancelado|cancelled o archivado_at.
+     * $enCurso = ids de sesiones vivas (RoadmapCircuitoService::idsEnCurso), belt-and-suspenders
+     * para la ventana en que un worker ya tomó el item pero aún no le creó la rama.
+     */
+    public function scopeBacklog($query, array $enCurso = [])
+    {
+        return $query->whereNotIn('status', ['done', 'cancelled'])
+                     ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'en_progreso'])
+                     ->whereNull('archivado_at')
+                     ->whereNull('branch')   // con rama = ya está en Integración/Terminales
+                     ->when(! empty($enCurso), fn ($q) => $q->whereNotIn('id', $enCurso));
+    }
+
     public function scopeOrdered($query)
     {
         // Orden efectivo de la cola (#348): 🔥 urgentes primero → prioridad (alta→media→baja,
