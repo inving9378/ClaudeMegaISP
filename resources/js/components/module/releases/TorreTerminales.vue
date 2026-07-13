@@ -26,7 +26,16 @@
     <div v-else class="tt-grid" :class="{ 'tt-grid-solo': sesiones.length === 1 }">
       <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle }">
         <div class="tt-term-head">
-          <span class="tt-worker" title="Worker del equipo (firma auditable)">{{ s.sid }}</span>
+          <!-- Avatar de la persona (por slot wt-K) + animación enganchada al estado live -->
+          <span class="tt-avatar" :class="avatarClass(s)">
+            <img class="tt-avatar-img" :src="avatarUrl(s.sid)" :alt="s.nombre || s.sid" loading="lazy" @error="onAvatarError" />
+            <span class="tt-avatar-ring" aria-hidden="true"></span>
+            <span class="tt-avatar-dot" aria-hidden="true"></span>
+          </span>
+          <span class="tt-idblock">
+            <span class="tt-name">{{ s.nombre || s.sid }}</span>
+            <span class="tt-worker-sm" title="Worker del equipo (firma auditable)">{{ s.sid }}</span>
+          </span>
           <span class="tt-state" :class="s.idle ? 'tt-s-idle' : (s.running ? (s.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off')">
             <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ s.idle ? 'esperando trabajo' : (s.running ? (s.stale ? 'latido frío' : 'corriendo') : 'terminada') }}
           </span>
@@ -120,6 +129,22 @@ export default {
             return stepReached(s, key) ? "tt-step-done" : "tt-step-pend";
         };
 
+        // Avatar por SLOT (wt-K); si falta el png real cae al placeholder neutro (no truena).
+        const AVATAR_BASE = "/images/circuito/";
+        const AVATAR_PLACEHOLDER = AVATAR_BASE + "avatar-placeholder.svg";
+        const avatarUrl = (sid) => `${AVATAR_BASE}${sid}.png`;
+        const onAvatarError = (e) => {
+            if (e.target && e.target.src.indexOf("avatar-placeholder") === -1) {
+                e.target.src = AVATAR_PLACEHOLDER;   // swap único → sin bucle
+            }
+        };
+        // Estado visual del avatar (engancha la animación a los flags live existentes, sin tocar lógica).
+        const avatarClass = (s) => {
+            if (s.idle) return "tt-av-idle";
+            if (!s.running) return "tt-av-off";
+            return s.stale ? "tt-av-stale" : "tt-av-run";
+        };
+
         const setPre = (sid, el) => { if (el) pres[sid] = el; };
         const scrollAll = () => {
             Object.values(pres).forEach((el) => { if (el) el.scrollTop = el.scrollHeight; });
@@ -154,6 +179,7 @@ export default {
             FASES, POLL_MS, dark: darkMode,
             sesiones, anyRunning, fsSesion, fsPre,
             secsSince, fmtClock, stepReached, stepClass, setPre,
+            avatarUrl, onAvatarError, avatarClass,
             openFs, closeFs,
         };
     },
@@ -198,6 +224,33 @@ export default {
 .tt-s-stale{ background:rgba(217,119,6,.15); color:var(--tt-warn); }
 .tt-s-off{ background:rgba(100,116,139,.15); color:var(--tt-muted); }
 .tt-s-idle{ background:rgba(100,116,139,.12); color:var(--tt-muted); font-style:italic; }
+/* ── Avatar de la persona (#430) ── */
+.tt-avatar{ position:relative; width:44px; height:44px; flex:0 0 auto; border-radius:11px; overflow:visible; }
+.tt-avatar-img{ width:44px; height:44px; border-radius:11px; object-fit:cover; background:#e2e8f0; display:block; border:1px solid var(--tt-line); transition:filter .3s ease; }
+.tt-avatar-ring{ position:absolute; inset:-3px; border-radius:14px; pointer-events:none; }
+.tt-avatar-dot{ position:absolute; right:-2px; bottom:-2px; width:11px; height:11px; border-radius:50%; background:var(--tt-muted); border:2px solid var(--tt-surface); }
+/* ACTIVO (corriendo): respira + halo verde + indicador parpadeante */
+.tt-av-run .tt-avatar-img{ animation:tt-breathe 3.2s ease-in-out infinite; }
+.tt-av-run .tt-avatar-ring{ box-shadow:0 0 0 0 rgba(16,185,129,.55); animation:tt-halo 2s ease-out infinite; }
+.tt-av-run .tt-avatar-dot{ background:var(--tt-live); animation:tt-blink 1.1s steps(1,end) infinite; }
+/* LATIDO FRÍO (stale): halo ámbar lento, sin respirar */
+.tt-av-stale .tt-avatar-ring{ box-shadow:0 0 0 2px rgba(217,119,6,.4); }
+.tt-av-stale .tt-avatar-dot{ background:var(--tt-warn); }
+/* ESPERANDO (idle) / terminada: en reposo, atenuado, sin animación */
+.tt-av-idle .tt-avatar-img,.tt-av-off .tt-avatar-img{ filter:grayscale(.7) opacity(.72); }
+@keyframes tt-breathe{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.05); } }
+@keyframes tt-halo{ 0%{ box-shadow:0 0 0 0 rgba(16,185,129,.5); } 70%{ box-shadow:0 0 0 8px rgba(16,185,129,0); } 100%{ box-shadow:0 0 0 0 rgba(16,185,129,0); } }
+@keyframes tt-blink{ 0%,60%{ opacity:1; } 61%,100%{ opacity:.25; } }
+/* Respeto a quien pide menos movimiento: apaga TODA animación de las terminales */
+@media (prefers-reduced-motion: reduce){
+  .tt-av-run .tt-avatar-img,.tt-av-run .tt-avatar-ring,.tt-av-run .tt-avatar-dot,.tt-dot{ animation:none !important; }
+  .tt-av-run .tt-avatar-ring{ box-shadow:0 0 0 2px rgba(16,185,129,.5); }   /* halo fijo, sin pulso */
+}
+
+/* Bloque nombre + wt-K de referencia chica (el nombre reemplaza al wt-K como título) */
+.tt-idblock{ display:flex; flex-direction:column; line-height:1.15; min-width:0; }
+.tt-name{ font-weight:800; font-size:14px; color:var(--tt-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tt-worker-sm{ font-size:10px; font-weight:700; letter-spacing:.02em; color:var(--tt-accent); font-variant-numeric:tabular-nums; }
 /* Firma del worker (wt-K) — chip auditable, prueba de "son 6 reales" (#334 A) */
 .tt-worker{ font-size:11px; font-weight:800; letter-spacing:.02em; padding:2px 8px; border-radius:7px; background:rgba(13,148,136,.14); color:var(--tt-accent); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .tt-term.tt-idle{ opacity:.62; border-style:dashed; }
