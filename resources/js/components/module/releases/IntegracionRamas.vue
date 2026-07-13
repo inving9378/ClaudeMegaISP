@@ -96,11 +96,13 @@
             {{ r.marcado_version ? '🏷 Marcada para versión' : '🏷 Marcar para versión' }}
           </button>
           <button v-if="r.merged" class="ig-btn ig-btn-arch" :disabled="busy === r.id" title="Sacar del radar → Historial (reversible)." @click="archivar(r)">✓ Archivar</button>
+          <button class="ig-btn ig-btn-ver" :title="r.modulo_url ? ('Abrir ' + (r.modulo || 'la pantalla del módulo') + ' en pestaña nueva') : 'Abrir la Torre en pestaña nueva'" @click="verMas(r)">🔎 Ver más</button>
           <button class="ig-btn ig-btn-no" :disabled="busy === r.id" @click="rechazar(r)">✕ Rechazar</button>
         </template>
         <!-- HISTORIAL -->
         <template v-else>
           <span class="ig-meta" v-if="r.archivado_at">Archivada {{ fechaCorta(r.archivado_at) }}<span v-if="r.archivado_por"> · {{ r.archivado_por }}</span></span>
+          <button class="ig-btn ig-btn-ver" :title="r.modulo_url ? ('Abrir ' + (r.modulo || 'la pantalla del módulo') + ' en pestaña nueva') : 'Abrir la Torre en pestaña nueva'" @click="verMas(r)">🔎 Ver más</button>
           <button class="ig-btn ig-btn-ver" :disabled="busy === r.id" title="Traer de vuelta al radar (quiero verlo)." @click="desarchivar(r)">↩ Traer al radar</button>
         </template>
         <span v-if="busy === r.id" class="ig-meta">Procesando…</span>
@@ -222,6 +224,12 @@ export default {
             }
         }
 
+        // "Ver más": abre en pestaña nueva la pantalla del módulo que tocó el item (para revisar y
+        // revertir). Fallback seguro si el modulo es null/no mapeable → la Torre (hogar del item).
+        function verMas(r) {
+            window.open(r.modulo_url || '/releases', '_blank', 'noopener');
+        }
+
         function leer(r) {
             const synth = window.speechSynthesis;
             if (!synth) return;
@@ -323,7 +331,7 @@ export default {
 
         return {
             darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert,
-            modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, marcarVersion,
+            modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, verMas, marcarVersion,
             vista, archivadasCount, algunoMergeado, fechaCorta,
             verRadar, verHistorial, archivar, archivarMergeados, desarchivar,
         };

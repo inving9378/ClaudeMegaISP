@@ -454,6 +454,42 @@ class RoadmapController extends Controller
     }
 
     /** Payload común de una rama para el radar y el historial. */
+    /** Mapa normalizado module_key→sidebar_url (memoizado por request). */
+    private ?array $moduloUrlMap = null;
+
+    /**
+     * Deriva al vuelo la ruta de la pantalla del módulo que tocó el item, sin migración.
+     * `modulo` es texto libre ("Roadmap / Torre de control") → toma el segmento base y normaliza
+     * (sin acentos, minúsculas, solo alfanumérico) para casar contra module_sidebar_config.module_key.
+     * Devuelve null si no hay módulo o no mapea → la UI cae al fallback (la Torre).
+     */
+    private function moduloUrl(?string $modulo): ?string
+    {
+        if (! $modulo) {
+            return null;
+        }
+        if ($this->moduloUrlMap === null) {
+            $this->moduloUrlMap = [];
+            $rows = \Illuminate\Support\Facades\DB::table('module_sidebar_config')
+                ->whereNotNull('sidebar_url')->where('sidebar_url', '!=', '')
+                ->get(['module_key', 'sidebar_url']);
+            foreach ($rows as $row) {
+                $k = $this->normalizeModulo((string) $row->module_key);
+                if ($k !== '') {
+                    $this->moduloUrlMap[$k] = $row->sidebar_url;
+                }
+            }
+        }
+        $base = trim(explode('/', $modulo)[0]);   // "Roadmap / Torre de control" → "Roadmap"
+
+        return $this->moduloUrlMap[$this->normalizeModulo($base)] ?? null;
+    }
+
+    private function normalizeModulo(string $s): string
+    {
+        return preg_replace('/[^a-z0-9]/', '', strtolower(\Illuminate\Support\Str::ascii($s)));
+    }
+
     private function ramaPayload(RoadmapItem $i): array
     {
         $git = $this->diffRama($i);
@@ -476,6 +512,8 @@ class RoadmapController extends Controller
             'archivado'         => ! empty($i->archivado_at),
             'archivado_at'      => optional($i->archivado_at)->toIso8601String(),
             'archivado_por'     => $i->archivado_por,
+            'modulo'            => $i->modulo,
+            'modulo_url'        => $this->moduloUrl($i->modulo),   // "Ver más" → pantalla del módulo (null = fallback en la UI)
             'verificacion'      => $this->semaforo($i),
             'reporte'           => $i->comentarios_claude,   // reporte del ejecutor (qué hace/cómo validar/verificación)
             'descripcion'       => $i->description,
