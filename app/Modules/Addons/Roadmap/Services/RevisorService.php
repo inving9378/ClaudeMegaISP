@@ -182,6 +182,81 @@ class RevisorService
         return $item->fresh();
     }
 
+    /**
+     * #419 — Frontera dura para el TRIAJE de items nivel NULL. Términos INEQUÍVOCOS (match por
+     * substring sobre el heno en minúsculas): dinero/cobros/pagos/facturación, fiscal
+     * (Medussa/CFDI/Facturama), producción/deploy, permisos/Spatie, auth/passwords, migraciones
+     * destructivas. Los cortos/ambiguos van aparte (self::TRIAJE_C_WORD, con límite de palabra).
+     */
+    public const TRIAJE_C_PLAIN = [
+        'dinero', 'cobro', 'cobros', 'pago', 'pagos', 'factura', 'facturación', 'facturacion',
+        'medussa', 'cfdi', 'facturama', 'fiscal', 'timbrado',
+        'producción', 'produccion', 'deploy', 'despliegue', 'remote:deploy',
+        'permiso', 'permisos', 'spatie', 'login', 'password', 'passwords', 'contraseña', 'contrasena', 'credencial', 'bcrypt',
+        'migración destructiva', 'migrate:fresh', 'migrate:refresh', 'migrate:reset', 'truncate', 'delete from', 'drop table', 'drop column', 'destructiv',
+    ];
+
+    /** #419 — Cortos/ambiguos: SOLO con límite de palabra (evita "control"→rol, "privado"→iva, "producto"→prod). */
+    public const TRIAJE_C_WORD = ['iva', 'rol', 'roles', 'auth', 'sat', 'prod'];
+
+    /**
+     * #419 — Triaje DETERMINISTA de NIVEL para un item con nivel_riesgo NULL (punto ciego: ni el
+     * ejecutor —pide A— ni el revisor —pide B— lo toman). SIN IA y SIN autorizar nada. Devuelve la
+     * propuesta, NO escribe. NUNCA asigna A (A solo por decisión humana explícita).
+     *  - C (→ requiere_irving): frontera dura (dinero/fiscal/prod/permisos/auth/migración destructiva)
+     *    o marcador [BLOCKED-*]/[PARKED-*] en el título.
+     *  - B (→ sigue pendiente_revision): default seguro; la SIGUIENTE pasada del revisor lo evalúa como B.
+     */
+    public function triarNivelNull(RoadmapItem $item): array
+    {
+        // Marcador de bloqueo en el TÍTULO → C directo.
+        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
+            return ['nivel' => 'C', 'estado' => 'requiere_irving', 'match' => '[BLOCKED-/PARKED-]',
+                'motivo' => 'Título con marcador [BLOCKED-*]/[PARKED-*] → decisión de Irving.'];
+        }
+
+        $heno = mb_strtolower(trim(($item->title ?? '') . "\n" . ($item->modulo ?? '')
+            . "\n" . ($item->description ?? '') . "\n" . ($item->prompt ?? '')));
+
+        foreach (self::TRIAJE_C_PLAIN as $kw) {
+            if ($kw !== '' && str_contains($heno, $kw)) {
+                return ['nivel' => 'C', 'estado' => 'requiere_irving', 'match' => $kw,
+                    'motivo' => "Frontera dura: menciona \"{$kw}\" → nivel C, requiere_irving."];
+            }
+        }
+        foreach (self::TRIAJE_C_WORD as $kw) {
+            if (preg_match('/\b' . preg_quote($kw, '/') . '\b/u', $heno)) {
+                return ['nivel' => 'C', 'estado' => 'requiere_irving', 'match' => $kw,
+                    'motivo' => "Frontera dura: menciona \"{$kw}\" → nivel C, requiere_irving."];
+            }
+        }
+
+        return ['nivel' => 'B', 'estado' => 'pendiente_revision', 'match' => null,
+            'motivo' => 'Sin frontera dura → nivel B (default seguro); lo evaluará la próxima pasada B.'];
+    }
+
+    /**
+     * #419 — Aplica el triaje de nivel a un item NULL (idempotente: tras escribir deja de ser null,
+     * no re-entra). Escribe nivel_riesgo + nivel_riesgo_origen='interno' + (si C) estado→requiere_irving.
+     * NUNCA lo hace ejecutable: B queda pendiente_revision (el ejecutor solo toma A+pendiente_revision).
+     */
+    public function aplicarTriajeNull(RoadmapItem $item, array $t, string $actor = 'revisor:triaje-null'): RoadmapItem
+    {
+        $sello = "\n\n--- TRIAJE NIVEL NULL (#419) " . now()->toDateTimeString() . " ---\n"
+            . "Asignado nivel_riesgo={$t['nivel']} (origen interno). Estado → {$t['estado']}.\n"
+            . 'Motivo: ' . ($t['motivo'] ?? '') . "\n";
+
+        $item->nivel_riesgo        = $t['nivel'];
+        $item->nivel_riesgo_origen = 'interno';
+        $item->estado_aprobacion   = $t['estado'];
+        $item->comentarios_claude  = (string) $item->comentarios_claude . $sello;
+        $item->revisado_at         = now();
+        $item->aprobado_por        = $actor;
+        $item->save();
+
+        return $item->fresh();
+    }
+
     private function auditar(RoadmapItem $item, array $v, ?array $meta, ?string $ctx): int
     {
         return (int) DB::table('circuito_revisiones')->insertGetId([

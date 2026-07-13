@@ -45,40 +45,92 @@ class RevisarBacklogCommand extends Command
         $items = $q->ordered()->limit($limit)->get();
 
         if ($items->isEmpty()) {
-            $this->info('No hay B atascados (nivel B, pendiente_revision) en alcance. Nada que revisar.');
+            $this->info('No hay B atascados (nivel B, pendiente_revision) en alcance. Nada que revisar en la rama B.');
+        } else {
+            $this->info(($apply ? 'APLICANDO' : 'DRY-RUN (solo reporte)') . " — revisando {$items->count()} item(s) B con el revisor adversarial…");
+            $rows = [];
+            $nAuto = 0;
+            $nEsc = 0;
+            foreach ($items as $item) {
+                $v = $revisor->revisar($item, $item->comentarios_claude);
+                $aplicado = 'no';
+                if ($apply) {
+                    $revisor->aplicarVeredicto($item, $v, 'revisor:backlog');
+                    $aplicado = ($v['veredicto'] === 'autoriza' && ! $pausa) ? 'aprobado_revisor' : 'requiere_irving';
+                }
+                $v['veredicto'] === 'autoriza' ? $nAuto++ : $nEsc++;
+                $rows[] = [
+                    $item->id,
+                    mb_strimwidth($item->title, 0, 46, '…'),
+                    $v['veredicto'],
+                    $v['en_alcance'] ? 'sí' : 'no',
+                    $v['categoria_escalada'] ?? '-',
+                    $v['confianza'] ?? '-',
+                    $aplicado,
+                    mb_strimwidth((string) ($v['razon'] ?? ''), 0, 60, '…'),
+                ];
+            }
 
-            return self::SUCCESS;
+            $this->table(['#', 'título', 'veredicto', 'alcance', 'categoría', 'conf', 'aplicado', 'razón'], $rows);
+            $this->line('');
+            $this->info("Resumen B: {$nAuto} autoriza · {$nEsc} escala" . ($apply ? ' (aplicados)' : ' (dry-run, sin cambios)') . '.');
         }
 
-        $this->info(($apply ? 'APLICANDO' : 'DRY-RUN (solo reporte)') . " — revisando {$items->count()} item(s) B con el revisor adversarial…");
+        // #419 — Rama de TRIAJE de nivel para items con nivel_riesgo NULL (punto ciego: ni el
+        // ejecutor —pide A— ni la rama B de arriba —pide B— los toman). Corre SIEMPRE (aunque la
+        // rama B esté vacía, que es justo el caso que destapa la fuga).
+        $this->triarNulls($revisor, $apply, $limit);
+
+        $this->line('Auditoría de la rama B en la tabla `circuito_revisiones`.');
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * #419 — Recoge los pendiente_revision con nivel_riesgo NULL y les ASIGNA nivel de forma
+     * DETERMINISTA (nunca ejecuta, nunca asigna A): C→requiere_irving si toca frontera dura;
+     * B→sigue pendiente_revision (lo evalúa la próxima pasada B). Respeta el candado humano
+     * (tomablePorCircuito excluye en_desarrollo_humano=1) y la pausa (vía $apply ya bajado en handle).
+     */
+    private function triarNulls(RevisorService $revisor, bool $apply, int $limit): void
+    {
+        $q = RoadmapItem::whereNull('nivel_riesgo')
+            ->where('estado_aprobacion', 'pendiente_revision')
+            ->where('status', 'pending')
+            ->tomablePorCircuito();
+        if ($this->option('modulo')) {
+            $q->where('modulo', 'like', '%' . $this->option('modulo') . '%');
+        }
+        $items = $q->ordered()->limit($limit)->get();
+
+        if ($items->isEmpty()) {
+            $this->info('Triaje null (#419): no hay items nivel_riesgo=NULL pendientes. Nada que triar.');
+
+            return;
+        }
+
+        $this->info(($apply ? 'APLICANDO' : 'DRY-RUN (solo reporte)') . " — triando {$items->count()} item(s) nivel NULL (#419)…");
         $rows = [];
-        $nAuto = 0;
-        $nEsc = 0;
+        $nB = 0;
+        $nC = 0;
         foreach ($items as $item) {
-            $v = $revisor->revisar($item, $item->comentarios_claude);
-            $aplicado = 'no';
+            $t = $revisor->triarNivelNull($item);
             if ($apply) {
-                $revisor->aplicarVeredicto($item, $v, 'revisor:backlog');
-                $aplicado = ($v['veredicto'] === 'autoriza' && ! $pausa) ? 'aprobado_revisor' : 'requiere_irving';
+                $revisor->aplicarTriajeNull($item, $t);
             }
-            $v['veredicto'] === 'autoriza' ? $nAuto++ : $nEsc++;
+            $t['nivel'] === 'C' ? $nC++ : $nB++;
             $rows[] = [
                 $item->id,
                 mb_strimwidth($item->title, 0, 46, '…'),
-                $v['veredicto'],
-                $v['en_alcance'] ? 'sí' : 'no',
-                $v['categoria_escalada'] ?? '-',
-                $v['confianza'] ?? '-',
-                $aplicado,
-                mb_strimwidth((string) ($v['razon'] ?? ''), 0, 60, '…'),
+                $t['nivel'],
+                $t['estado'],
+                $t['match'] ?? '-',
+                $apply ? 'sí' : 'no',
+                mb_strimwidth((string) ($t['motivo'] ?? ''), 0, 52, '…'),
             ];
         }
 
-        $this->table(['#', 'título', 'veredicto', 'alcance', 'categoría', 'conf', 'aplicado', 'razón'], $rows);
-        $this->line('');
-        $this->info("Resumen: {$nAuto} autoriza · {$nEsc} escala" . ($apply ? ' (aplicados)' : ' (dry-run, sin cambios)') . '.');
-        $this->line('Auditoría completa en la tabla `circuito_revisiones`.');
-
-        return self::SUCCESS;
+        $this->table(['#', 'título', 'nivel→', 'estado→', 'match', 'aplicado', 'motivo'], $rows);
+        $this->info("Resumen triaje NULL: {$nB} → B · {$nC} → C" . ($apply ? ' (aplicados)' : ' (dry-run, sin cambios)') . '.');
     }
 }
