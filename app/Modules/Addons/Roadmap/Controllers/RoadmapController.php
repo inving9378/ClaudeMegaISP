@@ -40,6 +40,8 @@ class RoadmapController extends Controller
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
                 'opciones'      => $i->opciones,              // array de opciones | null (forks para elegir)
                 'opcion_elegida' => $i->opcion_elegida,
+                'resumen'       => $this->resumenItem($i),        // resumen corto para 🔊 Escuchar / tarjeta (mismo que Integración)
+                'modulo_url'    => $this->moduloUrl($i->modulo),  // 🔎 Ver más → pantalla del módulo (null = fallback en la UI)
             ]));
 
         // #348: cola EJECUTABLE — SOLO lo que el circuito AUTO-CORRE (A/B o ya aprobado por Irving),
@@ -133,6 +135,7 @@ class RoadmapController extends Controller
             'worker_nombres'       => $this->svc->nombresWorkers(),   // roster editable (#334)
             'supervisor'           => $this->supervisor->estado(),    // Thomas T: jefe + su feed (#334)
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
+            'voz_tts'              => $this->svc->getVozTts(),   // #424: voz guardada para 🔊 Escuchar (bandeja + Integración usan la misma)
         ]);
     }
 
