@@ -37,6 +37,12 @@ class RoadmapCircuitoService
     public const REVISOR_KEY = 'circuito_revisor';
 
     /**
+     * Voz (SpeechSynthesisVoice.name) elegida por el administrador para 🔊 Escuchar en la Torre
+     * de Integración (#424). Vacío/ausente = automática (la Torre elige es-MX → es-* → default).
+     */
+    public const VOICE_KEY = 'circuito_tts_voice';
+
+    /**
      * Estado EN VIVO de una vuelta (#335), espejeado en `settings`. Es el canal compartido:
      * lo ESCRIBE el ejecutor on-box (usuario meganet, que SÍ puede leer el log en /home/meganet)
      * y lo LEE la Torre (php-fpm = www-data, que NO puede leer ese log por permisos). Forma:
@@ -167,6 +173,19 @@ class RoadmapCircuitoService
     public function setRevisorEnabled(bool $on): void
     {
         $this->putSetting(self::REVISOR_KEY, $on ? '1' : '0');
+    }
+
+    /** Voz guardada para 🔊 Escuchar (#424). Null = sin preferencia → la Torre usa su fallback es-MX. */
+    public function getVozTts(): ?string
+    {
+        $v = (string) DB::table('settings')->where('key', self::VOICE_KEY)->value('value');
+        return $v !== '' ? $v : null;
+    }
+
+    /** Persiste la voz elegida por el administrador. Null/'' = borrar preferencia (vuelve a automática). */
+    public function setVozTts(?string $voz): void
+    {
+        $this->putSetting(self::VOICE_KEY, trim((string) $voz));
     }
 
     private function putSetting(string $key, string $val): void
