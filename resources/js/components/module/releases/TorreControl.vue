@@ -129,6 +129,9 @@
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cerrar')">✔ Cerrar</button>
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cancelar')">⊘ Cancelar</button>
                 <button class="tc-btn tc-btn-seg" :disabled="deciding === it.id" @click="toggleSeg(it)">＋ Seguimiento</button>
+                <button v-if="ttsSoportado" class="tc-btn tc-btn-mut" :class="{ 'tc-btn-tts-on': hablando === it.id }"
+                  @click="escuchar(it)" :title="hablando === it.id ? 'Detener lectura' : 'Leer en voz alta'">
+                  {{ hablando === it.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
                 <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
                   :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
                   :title="it.urgente ? 'Quitar urgente' : 'Decisión urgente: subir al tope de tu bandeja (no ejecuta)'">
@@ -276,6 +279,36 @@ export default {
         const deciding = ref(null);    // id en proceso
         const segOpen = reactive({});  // id -> form de seguimiento abierto
         const seg = reactive({});      // id -> {titulo, descripcion, nivel, cerrar}
+
+        // Botón "Escuchar" (TTS, #412): lee título+resumen con la Web Speech API del navegador.
+        const ttsSoportado = typeof window !== 'undefined' && 'speechSynthesis' in window;
+        const hablando = ref(null);    // id del item que se está leyendo (null = nada sonando)
+        let vocesEs = [];
+        function cargarVocesEs() {
+            vocesEs = window.speechSynthesis.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith('es'));
+        }
+        if (ttsSoportado) {
+            cargarVocesEs();
+            window.speechSynthesis.onvoiceschanged = cargarVocesEs; // getVoices() suele venir vacío en el primer llamado
+        }
+        function escuchar(it) {
+            if (!ttsSoportado) return;
+            const yaLeyendoEsta = hablando.value === it.id;
+            window.speechSynthesis.cancel(); // nunca encimar lecturas
+            if (yaLeyendoEsta) {
+                hablando.value = null;
+                return;
+            }
+            const texto = it.title + (it.recomendacion ? '. ' + it.recomendacion : '');
+            const utter = new SpeechSynthesisUtterance(texto);
+            utter.lang = 'es-MX';
+            const voz = vocesEs.find((v) => v.lang.toLowerCase() === 'es-mx') || vocesEs[0];
+            if (voz) utter.voice = voz;
+            utter.onend = () => { if (hablando.value === it.id) hablando.value = null; };
+            utter.onerror = () => { if (hablando.value === it.id) hablando.value = null; };
+            hablando.value = it.id;
+            window.speechSynthesis.speak(utter);
+        }
 
         const total = computed(() => resumen.value.total || 0);
         const est = (k) => (resumen.value.por_estado && resumen.value.por_estado[k]) || 0;
@@ -545,6 +578,7 @@ export default {
             if (estadoTimer) clearInterval(estadoTimer);
             if (tickTimer) clearInterval(tickTimer);
             if (disparoMsgTimer) clearTimeout(disparoMsgTimer);
+            if (ttsSoportado) window.speechSynthesis.cancel(); // no dejar voz sonando al salir de la Torre (spa-nav)
         });
 
         return {
@@ -562,6 +596,8 @@ export default {
             logOpen, logTail, logPre, toggleLog,
             // Disparo manual + urgente (#337) · cola ejecutable + prioridad (#348)
             canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente, prioLabel,
+            // Botón "Escuchar" TTS (#412)
+            ttsSoportado, hablando, escuchar,
         };
     },
 };
@@ -602,6 +638,7 @@ export default {
 .tc-runbtn:disabled{opacity:.5;cursor:default;}
 .tc-btn-urg{background:#fff7ed;color:#c2410c;border-color:#fed7aa;}
 .tc-btn-urg-on{background:#fb923c;color:#fff;border-color:#f97316;}
+.tc-btn-tts-on{background:var(--tc-accent);color:#fff;border-color:var(--tc-accent);}
 .tc-disparo-msg{margin-top:12px;padding:9px 14px;border-radius:10px;font-size:12.8px;background:rgba(45,212,191,.12);color:#0f766e;border:1px solid #99f6e4;}
 .tc-alert{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12.8px;line-height:1.4;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;}
 .tc-alert-soft{background:#fffbeb;color:#b45309;border-color:#fde68a;}
