@@ -84,7 +84,11 @@ return [
     | Nombres por default de los workers del equipo (wt-1..wt-N). Persisten y son
     | RENOMBRABLES por Irving (override en `settings` → circuito_worker_nombres). Dan un
     | ROSTER legible: "trabajado por Ada" en vez de "wt-3".
+    |
+    | #430: mapa fijo wt-1=Maya, wt-2=Leo, wt-3=Sofía, wt-4=Iván, wt-5=Nora, wt-6=Beto.
+    | El avatar de cada slot vive en public/images/circuito/{sid}.png (wt-1.png…wt-6.png);
+    | el NOMBRE es editable, el avatar va por SLOT (no por nombre) para que renombrar no rompa la cara.
     */
-    'worker_nombres'   => ['Samanta', 'Jenny', 'Tokyo', 'Maya', 'Beky', 'Dayan'],
+    'worker_nombres'   => ['Maya', 'Leo', 'Sofía', 'Iván', 'Nora', 'Beto'],
 
 ];

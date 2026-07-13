@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200" role="img" aria-label="Avatar pendiente">
+  <!-- Placeholder neutro (#430): silueta sobria en escritorio. Se usa como fallback cuando
+       aún no se sube el wt-K.png real. Paleta gris/azul/verde, sin texto. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef2f6"/>
+      <stop offset="1" stop-color="#dfe6ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="200" fill="url(#bg)"/>
+  <!-- estante -->
+  <rect x="18" y="34" width="54" height="7" rx="2" fill="#c3ccd8"/>
+  <rect x="24" y="24" width="9" height="10" rx="1.5" fill="#94a3b8"/>
+  <rect x="37" y="22" width="9" height="12" rx="1.5" fill="#7c8aa0"/>
+  <rect x="50" y="25" width="9" height="9" rx="1.5" fill="#a7b2c2"/>
+  <!-- planta -->
+  <path d="M120 40c-8-2-14 4-13 12 6 1 13-3 13-12z" fill="#6aa889"/>
+  <path d="M132 42c8-1 12 6 10 13-6 0-11-5-10-13z" fill="#7fbb9c"/>
+  <rect x="121" y="52" width="16" height="12" rx="2" fill="#b7856a"/>
+  <!-- persona -->
+  <circle cx="80" cy="104" r="26" fill="#9aa7b8"/>
+  <path d="M42 196c0-24 17-40 38-40s38 16 38 40z" fill="#7f8ea3"/>
+  <!-- laptop -->
+  <path d="M54 196l6-18h40l6 18z" fill="#3f4b5c"/>
+  <rect x="63" y="176" width="34" height="4" rx="1.5" fill="#2f9e77"/>
+</svg>
