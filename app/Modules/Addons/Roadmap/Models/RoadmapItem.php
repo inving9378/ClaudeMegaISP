@@ -94,6 +94,30 @@ class RoadmapItem extends Model
                 }
             }
         });
+
+        // #427: todo item nuevo nace con reporte_coloquial + modulo (nunca null). nivel_riesgo
+        // se deja fuera a propósito: null es su estado "sin triajear" y el circuito solo puede
+        // ENDURECERLO (A→B→C) después — forzar un default lo dejaría atascado para siempre.
+        static::creating(function (self $item) {
+            if (trim((string) $item->reporte_coloquial) === '') {
+                $item->reporte_coloquial = static::generarReporteColoquial($item->title, $item->description);
+            }
+            if (trim((string) $item->modulo) === '') {
+                $item->modulo = 'Sin clasificar';
+            }
+        });
+    }
+
+    /** Resumen ~40 palabras para "Escuchar" (#427). Idéntico criterio que RoadmapController::resumenItem. */
+    public static function generarReporteColoquial(?string $title, ?string $description): string
+    {
+        $texto = trim(($title ?? '') . '. ' . ($description ?? ''), " .\t\n\r\0\x0B");
+        if ($texto === '') {
+            return '';
+        }
+        $palabras = preg_split('/\s+/', $texto);
+
+        return count($palabras) > 40 ? implode(' ', array_slice($palabras, 0, 40)) . '…' : $texto;
     }
 
     /**
