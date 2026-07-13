@@ -235,7 +235,8 @@ export default {
             if (!synth) return;
             if (hablando.value === r.id) { synth.cancel(); hablando.value = null; return; }
             synth.cancel();
-            const txt = [r.title, r.reporte].filter(Boolean).join('. ');
+            // Lee el RESUMEN corto (coloquial → fallback descripción ~40 palabras), no el texto extenso.
+            const txt = [r.title, r.resumen].filter(Boolean).join('. ');
             const u = new SpeechSynthesisUtterance(txt);
             u.lang = 'es-ES';
             u.onend = () => { hablando.value = null; };

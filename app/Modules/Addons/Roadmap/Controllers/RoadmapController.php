@@ -490,6 +490,26 @@ class RoadmapController extends Controller
         return preg_replace('/[^a-z0-9]/', '', strtolower(\Illuminate\Support\Str::ascii($s)));
     }
 
+    /**
+     * Resumen CORTO del item para Escuchar (🔊) y la cabecera de la tarjeta. Usa el reporte
+     * coloquial si existe; si viene vacío (lo normal hoy), cae a la descripción recortada a ~40
+     * palabras. Nunca el texto extenso del reporte del ejecutor.
+     */
+    private function resumenItem(RoadmapItem $i): string
+    {
+        $coloq = trim((string) $i->reporte_coloquial);
+        if ($coloq !== '') {
+            return $coloq;
+        }
+        $desc = trim((string) $i->description);
+        if ($desc === '') {
+            return '';
+        }
+        $palabras = preg_split('/\s+/', $desc);
+
+        return count($palabras) > 40 ? implode(' ', array_slice($palabras, 0, 40)) . '…' : $desc;
+    }
+
     private function ramaPayload(RoadmapItem $i): array
     {
         $git = $this->diffRama($i);
@@ -516,6 +536,7 @@ class RoadmapController extends Controller
             'modulo_url'        => $this->moduloUrl($i->modulo),   // "Ver más" → pantalla del módulo (null = fallback en la UI)
             'verificacion'      => $this->semaforo($i),
             'reporte'           => $i->comentarios_claude,   // reporte del ejecutor (qué hace/cómo validar/verificación)
+            'resumen'           => $this->resumenItem($i),   // resumen CORTO para Escuchar/tarjeta (coloquial → fallback descripción)
             'descripcion'       => $i->description,
             'existe_rama'       => $git['existe'],
             'stat'              => $git['stat'],
