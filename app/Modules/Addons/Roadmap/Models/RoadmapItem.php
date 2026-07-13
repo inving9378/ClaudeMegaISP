@@ -78,6 +78,25 @@ class RoadmapItem extends Model
     }
 
     /**
+     * #420: guard de cierre — cualquier save() que deje estado_aprobacion=completado sincroniza
+     * status=done + completed_at. Evita que un cierre (tinker, endpoint, merge) deje status=pending
+     * colgado, que es justo lo que inflaba el contador "Pendientes" de la Torre (cuenta por status).
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $item) {
+            if ($item->estado_aprobacion === 'completado') {
+                if ($item->status !== 'done') {
+                    $item->status = 'done';
+                }
+                if (! $item->completed_at) {
+                    $item->completed_at = now();
+                }
+            }
+        });
+    }
+
+    /**
      * #341 (anti-colisión): ¿este item lo está trabajando un humano/otra sesión? El circuito
      * autónomo NUNCA debe tomarlo para una vuelta. Señal doble: estado en_progreso (alguien lo
      * trabaja) O bandera explícita en_desarrollo_humano (candado manual). Fuente única del guard.
