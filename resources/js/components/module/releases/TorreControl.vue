@@ -109,7 +109,13 @@
           <div v-for="it in cola" :key="it.id" class="tc-inbox-item">
             <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
             <div class="tc-inbox-body">
-              <div class="tc-t"><span class="tc-idnum">#{{ it.id }}</span> <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span> {{ it.title }}</div>
+              <div class="tc-t">
+                <span class="tc-idnum">#{{ it.id }}</span>
+                <span class="tc-badge tc-badge-dec">requiere tu decisión</span>
+                <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span> {{ it.title }}
+              </div>
+              <!-- Resumen corto (coloquial → descripción): lo primero, lo que narra 🔊 Escuchar -->
+              <div class="tc-resumen" v-if="it.resumen">{{ it.resumen }}</div>
               <div class="tc-s" v-if="it.recomendacion">{{ it.recomendacion }}</div>
 
               <!-- Opciones (forks) que dejó el decisor -->
@@ -123,6 +129,8 @@
               <textarea v-model="coment[it.id]" class="tc-coment" rows="2" placeholder="Comentario (opcional)…"></textarea>
 
               <div class="tc-actions">
+                <button class="tc-btn tc-btn-voz" :title="hablando === it.id ? 'Detener' : 'Escuchar el resumen'" @click="leer(it)">{{ hablando === it.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
+                <button class="tc-btn tc-btn-ver" :title="it.modulo_url ? ('Abrir ' + (it.modulo || 'la pantalla del módulo') + ' en pestaña nueva') : 'Abrir la Torre en pestaña nueva'" @click="verMas(it)">🔎 Ver más</button>
                 <button class="tc-btn tc-btn-ok"  :disabled="deciding === it.id" @click="decidir(it, 'aprobar')">✓ Aprobar</button>
                 <button class="tc-btn tc-btn-no"  :disabled="deciding === it.id" @click="decidir(it, 'rechazar')">✕ Rechazar</button>
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'comentar')">💬 Comentar</button>
@@ -223,12 +231,15 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import { darkMode } from '../../../hook/appConfig.js';
+import { useEscuchar, verMas } from '../../../hook/torreEscuchar.js';
 import TorreTrabajandoAhora from './TorreTrabajandoAhora.vue';
 
 export default {
     name: 'TorreControl',
     components: { TorreTrabajandoAhora },
     setup() {
+        // 🔊 Escuchar + 🔎 Ver más de la bandeja: MISMA lógica que la tarjeta de Integración.
+        const { hablando, vozTts, leer, initVoces } = useEscuchar();
         const loading = ref(true);
         const toggling = ref(false);
         const pausado = ref(false);
@@ -461,6 +472,7 @@ export default {
                 generatedAt.value = data.generated_at;
                 resumen.value = data.resumen || { total: 0, por_estado: {}, por_nivel: {} };
                 cola.value = data.cola_requiere_irving || [];
+                vozTts.value = data.voz_tts || null;   // #424: misma voz guardada que Integración
                 colaEjecutable.value = data.cola_ejecutable || [];
                 resumenCola.value = data.resumen_cola || { auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 };
                 actividad.value = data.actividad_reciente || [];
@@ -537,6 +549,7 @@ export default {
 
         onMounted(() => {
             load();
+            initVoces();
             // Polling en vivo del estado ligero + ticker local para el cronómetro/heartbeat.
             estadoTimer = setInterval(pollEstado, 4000);
             tickTimer = setInterval(() => { nowMs.value = Date.now(); }, 1000);
@@ -552,6 +565,8 @@ export default {
             cola, colaEjecutable, resumenCola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             sel, coment, deciding, decidir,
+            // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
+            hablando, leer, verMas,
             segOpen, seg, toggleSeg, crearSeguimiento,
             darkMode, ejecuciones, modo,
             // Estado en vivo (#335)
@@ -623,6 +638,11 @@ export default {
 .tc-lvC{background:#fef2f2;color:#b91c1c;} .tc-lvB{background:#fffbeb;color:#b45309;} .tc-lvA{background:#ecfdf5;color:#047857;} .tc-lvNone{background:#f1f5f9;color:#475569;}
 .tc-t{font-size:13.5px;font-weight:600;line-height:1.3;}
 .tc-s{font-size:12px;color:var(--tc-muted);margin-top:2px;}
+.tc-resumen{font-size:12.5px;line-height:1.45;color:var(--tc-ink);font-weight:500;margin-top:3px;}
+.tc-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;vertical-align:middle;white-space:nowrap;}
+.tc-badge-dec{background:#fffbeb;color:#b45309;}
+.tc-btn-voz{background:#fff;color:var(--tc-accent);border-color:var(--tc-line);}
+.tc-btn-ver{background:#f0fdfa;color:#0f766e;border-color:#99f6e4;}
 .tc-idnum{color:var(--tc-accent);font-weight:700;}
 .tc-inbox-body{flex:1;min-width:0;}
 .tc-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
@@ -672,6 +692,9 @@ export default {
 .tc-dark .tc-pause{background:rgba(248,113,113,.14);color:#f87171;}
 .tc-dark .tc-killbtn{background:#1c2740;color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-killbtn.tc-resume{background:#132a1f;color:#4ade80;border-color:#2b5b3b;}
+.tc-dark .tc-badge-dec{background:rgba(251,191,36,.15);color:#fbbf24;}
+.tc-dark .tc-btn-voz{background:#0f172a;color:#2dd4bf;border-color:#2a3550;}
+.tc-dark .tc-btn-ver{background:rgba(45,212,191,.12);color:#2dd4bf;border-color:#265b57;}
 .tc-dark .tc-idle{background:rgba(148,163,184,.15);color:#94a3b8;}
 .tc-dark .tc-logbtn{background:#1c2740;color:#cbd5e1;border-color:#2a3550;}
 .tc-dark .tc-logbtn-on{border-color:#2dd4bf;color:#2dd4bf;}

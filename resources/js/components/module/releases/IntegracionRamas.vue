@@ -137,6 +137,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 import { darkMode } from '../../../hook/appConfig.js';
+import { useEscuchar, verMas } from '../../../hook/torreEscuchar.js';
 
 export default {
     name: 'IntegracionRamas',
@@ -148,9 +149,8 @@ export default {
         const msg = reactive({});
         const modoIntegracion = ref('auto-merge');
         const autoMerge = ref(true);
-        const hablando = ref(null);
-        const voces = ref([]);       // voces es-* disponibles en el navegador (#424)
-        const vozTts = ref(null);    // nombre de la voz guardada por el administrador (null = automática)
+        // 🔊 Escuchar + selección de voz (#424): lógica compartida con la bandeja de Panorama.
+        const { hablando, voces, vozTts, leer, initVoces } = useEscuchar();
         const vista = ref('radar');          // 'radar' | 'historial'
         const archivadasCount = ref(0);
 
@@ -241,52 +241,12 @@ export default {
 
         // "Ver más": abre en pestaña nueva la pantalla del módulo que tocó el item (para revisar y
         // revertir). Fallback seguro si el modulo es null/no mapeable → la Torre (hogar del item).
-        function verMas(r) {
-            window.open(r.modulo_url || '/releases', '_blank', 'noopener');
-        }
-
         // Badge de estado de integración de la rama (mergeado ✓ / esperando / conflicto / sin mergear).
         function estadoBadge(r) {
             if (r.merged) return { txt: 'mergeado ✓', cls: 'ig-badge-ok' };
             if (r.merge_pending) return { txt: 'esperando…', cls: 'ig-badge-wait' };
             if (r.merge_result && r.merge_result.ok === false) return { txt: 'conflicto ✗', cls: 'ig-badge-err' };
             return { txt: 'sin mergear', cls: 'ig-badge-idle' };
-        }
-
-        // Refresca la lista de voces es-* del navegador. getVoices() carga async en algunos
-        // navegadores → se vuelve a llamar en onvoiceschanged (ver también DevtoolsPanel.vue).
-        function cargarVoces() {
-            const synth = window.speechSynthesis;
-            if (!synth) return;
-            voces.value = synth.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith('es'));
-        }
-
-        // Elige la voz a usar: la guardada por el administrador → es-MX → cualquier es-* → default del navegador.
-        function seleccionarVoz() {
-            if (!voces.value.length) return null;
-            if (vozTts.value) {
-                const guardada = voces.value.find((v) => v.name === vozTts.value);
-                if (guardada) return guardada;
-            }
-            const mx = voces.value.find((v) => v.lang.toLowerCase().startsWith('es-mx'));
-            return mx || voces.value[0];
-        }
-
-        function leer(r) {
-            const synth = window.speechSynthesis;
-            if (!synth) return;
-            if (hablando.value === r.id) { synth.cancel(); hablando.value = null; return; }
-            synth.cancel();
-            if (!voces.value.length) cargarVoces();
-            // Lee el RESUMEN corto (coloquial → fallback descripción ~40 palabras), no el texto extenso.
-            const txt = [r.title, r.resumen].filter(Boolean).join('. ');
-            const u = new SpeechSynthesisUtterance(txt);
-            u.lang = 'es-MX';
-            const voz = seleccionarVoz();
-            if (voz) u.voice = voz;
-            u.onend = () => { hablando.value = null; };
-            hablando.value = r.id;
-            synth.speak(u);
         }
 
         // Guarda la voz elegida por el administrador (#424, gate circuito.decidir en el backend).
@@ -387,10 +347,7 @@ export default {
 
         onMounted(() => {
             load();
-            if (window.speechSynthesis) {
-                cargarVoces();
-                window.speechSynthesis.onvoiceschanged = cargarVoces;
-            }
+            initVoces();
         });
 
         return {
