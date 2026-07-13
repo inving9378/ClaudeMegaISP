@@ -123,8 +123,9 @@
                 <button
                   v-for="(op, oi) in it.opciones" :key="oi" type="button"
                   class="tc-opt" :class="{ 'tc-opt-sel': sel[it.id] === op }"
-                  @click="sel[it.id] = op">{{ op }}</button>
+                  @click="elegirOpcion(it, op)">{{ op }}</button>
               </div>
+              <div v-else-if="it.nivel_riesgo === 'C'" class="tc-noopts">Sin opciones aún — el circuito las propondrá para que elijas.</div>
 
               <textarea v-model="coment[it.id]" class="tc-coment" rows="2" placeholder="Comentario (opcional)…"></textarea>
 
@@ -472,6 +473,8 @@ export default {
                 generatedAt.value = data.generated_at;
                 resumen.value = data.resumen || { total: 0, por_estado: {}, por_nivel: {} };
                 cola.value = data.cola_requiere_irving || [];
+                // Pre-selecciona la opción ya persistida (sobrevive al recargar).
+                cola.value.forEach((it) => { if (it.opcion_elegida) sel[it.id] = it.opcion_elegida; });
                 vozTts.value = data.voz_tts || null;   // #424: misma voz guardada que Integración
                 if (data.rate_tts) rateTts.value = Number(data.rate_tts);   // #424: misma velocidad
                 colaEjecutable.value = data.cola_ejecutable || [];
@@ -530,6 +533,16 @@ export default {
             }
         }
 
+        // Marca y PERSISTE la opción elegida al instante (sin cambiar el estado). Sobrevive al recargar.
+        async function elegirOpcion(it, op) {
+            sel[it.id] = op;
+            try {
+                await axios.post('/api/roadmap/circuito/elegir-opcion', { id: it.id, opcion: op });
+            } catch (e) {
+                // No bloquea: la selección local queda aplicada, se reintenta al recargar.
+            }
+        }
+
         async function decidir(it, accion) {
             if (deciding.value) return;
             deciding.value = it.id;
@@ -565,7 +578,7 @@ export default {
             loading, toggling, pausado, generatedAt, total, est, nivel, niveles, barH,
             cola, colaEjecutable, resumenCola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
-            sel, coment, deciding, decidir,
+            sel, coment, deciding, decidir, elegirOpcion,
             // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
             hablando, leer, verMas,
             segOpen, seg, toggleSeg, crearSeguimiento,
@@ -647,6 +660,7 @@ export default {
 .tc-idnum{color:var(--tc-accent);font-weight:700;}
 .tc-inbox-body{flex:1;min-width:0;}
 .tc-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.tc-noopts{margin-top:8px;font-size:12px;font-style:italic;color:var(--tc-muted);}
 .tc-opt{font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--tc-line);background:#fff;color:var(--tc-ink);cursor:pointer;text-align:left;}
 .tc-opt:hover{border-color:var(--tc-accent);}
 .tc-opt-sel{border-color:var(--tc-accent);background:#f0fdfa;color:#0f766e;font-weight:600;box-shadow:0 0 0 2px #0d948822;}

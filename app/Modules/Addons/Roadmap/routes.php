@@ -81,6 +81,7 @@ Route::middleware(['web', 'auth'])
         Route::post('/items/{id}/urgente', [RoadmapController::class, 'urgente'])->whereNumber('id');
         Route::post('/circuito/toggle',    [RoadmapController::class, 'toggleCircuito']);
         Route::post('/circuito/decidir',   [RoadmapController::class, 'decidir']);
+        Route::post('/circuito/elegir-opcion', [RoadmapController::class, 'elegirOpcion']);
         Route::post('/circuito/seguimiento', [RoadmapController::class, 'seguimiento']);
         // Vista de Integración / Ramas (#315)
         Route::get('/integracion',            [RoadmapController::class, 'integracion']);

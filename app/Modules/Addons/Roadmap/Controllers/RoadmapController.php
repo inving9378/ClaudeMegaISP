@@ -356,6 +356,29 @@ class RoadmapController extends Controller
     }
 
     /**
+     * POST /api/roadmap/circuito/elegir-opcion — persiste SOLO la opción marcada por Irving en la
+     * tarjeta (opcion_elegida), SIN cambiar el estado ni ejecutar nada. Así la elección sobrevive
+     * al recargar antes de tomar la acción final (aprobar/etc.). Gateado por circuito.decidir.
+     */
+    public function elegirOpcion(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'id'     => ['required', 'integer', 'min:1'],
+            'opcion' => ['nullable', 'string', 'max:255'],
+        ]);
+        $item = RoadmapItem::find($data['id']);
+        if (! $item) {
+            return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+        $item->opcion_elegida = $data['opcion'] ?: null;
+        $item->save();
+        Log::channel('roadmap_externo')->info('elegir-opcion', ['item' => $item->id, 'opcion' => $item->opcion_elegida, 'por' => $this->actor()]);
+
+        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'opcion_elegida' => $item->opcion_elegida]]);
+    }
+
+    /**
      * POST /api/roadmap/circuito/seguimiento — crea un item NUEVO vinculado (origen_item_id)
      * desde una decisión, y opcionalmente cierra el origen (completado). El seguimiento entra
      * en pendiente_revision para que el circuito lo triajee. Gateado por circuito.decidir.
