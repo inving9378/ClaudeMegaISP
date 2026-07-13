@@ -239,7 +239,7 @@ export default {
     components: { TorreTrabajandoAhora },
     setup() {
         // 🔊 Escuchar + 🔎 Ver más de la bandeja: MISMA lógica que la tarjeta de Integración.
-        const { hablando, vozTts, leer, initVoces } = useEscuchar();
+        const { hablando, vozTts, rateTts, leer, initVoces } = useEscuchar();
         const loading = ref(true);
         const toggling = ref(false);
         const pausado = ref(false);
@@ -473,6 +473,7 @@ export default {
                 resumen.value = data.resumen || { total: 0, por_estado: {}, por_nivel: {} };
                 cola.value = data.cola_requiere_irving || [];
                 vozTts.value = data.voz_tts || null;   // #424: misma voz guardada que Integración
+                if (data.rate_tts) rateTts.value = Number(data.rate_tts);   // #424: misma velocidad
                 colaEjecutable.value = data.cola_ejecutable || [];
                 resumenCola.value = data.resumen_cola || { auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 };
                 actividad.value = data.actividad_reciente || [];

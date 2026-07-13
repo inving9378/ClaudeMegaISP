@@ -17,6 +17,11 @@
             <option value="">Automática (es-MX)</option>
             <option v-for="v in voces" :key="v.name" :value="v.name">{{ v.name }} ({{ v.lang }})</option>
           </select>
+          <label for="ig-rate-range" class="ig-voz-lbl">Velocidad:</label>
+          <input id="ig-rate-range" class="ig-voz-rate" type="range" min="0.5" max="2" step="0.1"
+            :value="rateTts" @change="cambiarRate($event.target.value)" title="Velocidad de 🔊 Escuchar (0.5×–2.0×)" />
+          <span class="ig-voz-ratev">{{ Number(rateTts).toFixed(1) }}×</span>
+          <button class="ig-voz-test" @click="leer({ id: '__test__', title: 'Prueba de voz', resumen: 'Así se escucha el resumen en la Torre de Control.' })">▶ Probar</button>
         </div>
         <label v-if="vista === 'radar'" class="ig-toggle" :class="{ 'ig-toggle-on': autoMerge }"
                title="ON: cada rama verificada se mergea sola a dev. OFF: mergeas tú cada una con el botón.">
@@ -150,7 +155,7 @@ export default {
         const modoIntegracion = ref('auto-merge');
         const autoMerge = ref(true);
         // 🔊 Escuchar + selección de voz (#424): lógica compartida con la bandeja de Panorama.
-        const { hablando, voces, vozTts, leer, initVoces } = useEscuchar();
+        const { hablando, voces, vozTts, rateTts, leer, initVoces } = useEscuchar();
         const vista = ref('radar');          // 'radar' | 'historial'
         const archivadasCount = ref(0);
 
@@ -169,6 +174,7 @@ export default {
                 autoMerge.value = data.auto_merge !== undefined ? !!data.auto_merge : (modoIntegracion.value === 'auto-merge');
                 archivadasCount.value = data.archivadas_count || 0;
                 vozTts.value = data.voz_tts || null;
+                if (data.rate_tts) rateTts.value = Number(data.rate_tts);
             } finally {
                 loading.value = false;
             }
@@ -256,6 +262,17 @@ export default {
             vozTts.value = nuevo;
             try {
                 await axios.post('/api/roadmap/integracion/voz', { voz: nuevo });
+            } catch (e) {
+                // No bloquea la UI: la preferencia local queda aplicada, se reintenta al recargar.
+            }
+        }
+
+        // Guarda la velocidad (rate) elegida por el administrador (#424). Se acota en el backend.
+        async function cambiarRate(valor) {
+            const nuevo = Math.max(0.5, Math.min(2.0, Number(valor) || 1.0));
+            rateTts.value = nuevo;
+            try {
+                await axios.post('/api/roadmap/integracion/voz', { rate: nuevo });
             } catch (e) {
                 // No bloquea la UI: la preferencia local queda aplicada, se reintenta al recargar.
             }
@@ -355,7 +372,7 @@ export default {
             modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, verMas, estadoBadge, marcarVersion,
             vista, archivadasCount, algunoMergeado, fechaCorta,
             verRadar, verHistorial, archivar, archivarMergeados, desarchivar,
-            voces, vozTts, cambiarVoz,
+            voces, vozTts, cambiarVoz, rateTts, cambiarRate,
         };
     },
 };
@@ -428,6 +445,9 @@ export default {
 /* Selector de voz (#424) */
 .ig-voz-sel{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ig-muted);}
 .ig-voz-select{font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--ig-line);background:#fff;color:var(--ig-ink);max-width:220px;}
+.ig-voz-rate{vertical-align:middle;width:96px;accent-color:var(--ig-accent);}
+.ig-voz-ratev{font-size:11.5px;font-weight:700;color:var(--ig-ink);min-width:30px;}
+.ig-voz-test{font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:6px;border:1px solid var(--ig-line);background:#fff;color:var(--ig-accent);cursor:pointer;}
 
 /* Segmentado Radar / Historial */
 .ig-seg{display:inline-flex;border:1px solid var(--ig-line);border-radius:8px;overflow:hidden;}
@@ -467,6 +487,8 @@ export default {
 .ig-dark .ig-btn-ver-on{background:rgba(96,165,250,.24);color:#93c5fd;border-color:#3b5578;}
 .ig-dark .ig-tk{background:#334155;}
 .ig-dark .ig-voz-select{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
+.ig-dark .ig-voz-test{background:#0f172a;color:#2dd4bf;border-color:#2a3550;}
+.ig-dark .ig-voz-ratev{color:#e8edf6;}
 .ig-dark .ig-pill-run{background:rgba(251,191,36,.14);color:#fbbf24;border-color:#5b4a1f;}
 .ig-dark .ig-mergeerr{background:rgba(248,113,113,.12);border-color:#5b2b2b;color:#f87171;}
 .ig-dark .ig-mergeerr pre{color:#fca5a5;}

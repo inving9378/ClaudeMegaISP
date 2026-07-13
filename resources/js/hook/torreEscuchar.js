@@ -15,6 +15,7 @@ export function useEscuchar() {
     const hablando = ref(null);   // id del item que se está narrando (null = ninguno)
     const voces = ref([]);        // voces es-* disponibles en el navegador
     const vozTts = ref(null);     // nombre de la voz guardada por el admin (null = automática)
+    const rateTts = ref(1.0);     // velocidad guardada (#424); rango [0.5, 2.0], default 1.0
 
     // getVoices() carga async en algunos navegadores → se re-llama en onvoiceschanged.
     function cargarVoces() {
@@ -46,6 +47,7 @@ export function useEscuchar() {
         u.lang = 'es-MX';
         const voz = seleccionarVoz();
         if (voz) u.voice = voz;
+        u.rate = Math.max(0.5, Math.min(2.0, Number(rateTts.value) || 1.0));   // #424: velocidad guardada
         u.onend = () => { hablando.value = null; };
         hablando.value = item.id;
         synth.speak(u);
@@ -58,7 +60,7 @@ export function useEscuchar() {
         window.speechSynthesis.onvoiceschanged = cargarVoces;
     }
 
-    return { hablando, voces, vozTts, cargarVoces, seleccionarVoz, leer, initVoces };
+    return { hablando, voces, vozTts, rateTts, cargarVoces, seleccionarVoz, leer, initVoces };
 }
 
 /**
