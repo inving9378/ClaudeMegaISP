@@ -3,7 +3,6 @@
 namespace App\Modules\Addons\Payments\Services;
 
 use App\Modules\Core\Clientes\Models\Client;
-use App\Models\ClientInternetService;
 use App\Models\ClientInvoice;
 use App\Models\MethodOfPayment;
 use App\Models\Payment;
@@ -13,13 +12,15 @@ use App\Modules\Addons\WhatsAppAgent\Services\EvolutionApiService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 /**
  * Coordina los efectos secundarios cuando llega un pago SPEI:
- *   - registra fila en payments (polimórfica a Invoice o Client)
- *   - activa servicio del cliente (MikroTik / OLT vía flags de estado)
+ *   - registra fila en payments (polimórfica a Invoice o Client) — paymentable=
+ *     Client dispara PaymentObserver→PaymentClientJob→ClientBillingService::
+ *     billing(), ÚNICA ruta de reactivación de servicio (roadmap #160: la ruta
+ *     secundaria activateClientService() se eliminó por reactivar sin checar
+ *     balance)
  *   - notifica al cliente vía WhatsApp
  *   - guarda comprobante del webhook como JSON en payment_receipts
  *
@@ -164,59 +165,6 @@ class PaymentApplicationService
             return [ClientInvoice::class, $invoice->id, $invoice];
         }
         return [Client::class, $client->id, null];
-    }
-
-    /**
-     * Activa servicio del cliente. Patrón confirmado vía CreateClientWithServiceJob:
-     *   - MikroTik usa el campo ClientInternetService.estado. _isDisable() trata
-     *     'Pagado' como disabled='no' (activo en el router). El cron
-     *     `app:mikrotik-sync-command` (cada 5min) propaga al MikroTik.
-     *   - OLT (FTTH) usa OLTsService::enableDisableONU($uniqueExternalId, true).
-     *     El linkeo Client → OltOnu NO es directo en el schema (olt_onus no
-     *     tiene client_id); depende de mac/sn/portid del ClientInternetService.
-     *     Hasta confirmar el campo de enlace exacto, NO disparamos la llamada
-     *     OLT para evitar activar la ONU equivocada por adivinanza.
-     */
-    public function activateClientService(Client $client): void
-    {
-        // ── 1. Servicios Internet (MikroTik) — flip de estado en DB
-        $internetServices = ClientInternetService::where('client_id', $client->id)->get();
-        $updated = 0;
-        foreach ($internetServices as $service) {
-            $current = Str::lower((string) $service->estado);
-            // Estados que indican "ya activo" o "no aplicar" (excluimos Cancelado,
-            // Desactivado por baja explícita, etc. para no resucitar bajas).
-            if (in_array($current, ['cancelado', 'baja', 'desactivado', 'eliminado'], true)) {
-                Log::info('SPEI: activateClientService omite servicio inactivo', [
-                    'client_id'         => $client->id,
-                    'service_id'        => $service->id,
-                    'estado'            => $service->estado,
-                ]);
-                continue;
-            }
-            if ($current !== 'pagado') {
-                $service->update(['estado' => 'Pagado']);
-                $updated++;
-            }
-        }
-
-        // ── 2. Servicios FTTH (OLT) — TODO wiring exacto
-        // Cuando se confirme el campo que enlaza Client/ClientInternetService
-        // con OltOnu (probablemente ClientInternetService.mac o .portid contra
-        // olt_onus.sn, .name o .onu), descomentar:
-        //   $onu = $this->resolveClientOnu($client, $internetServices);
-        //   if ($onu && $onu->unique_external_id) {
-        //       app(\App\Services\OLTsService::class)
-        //           ->enableDisableONU($onu->unique_external_id, true);
-        //   }
-
-        Log::info('SPEI: activateClientService aplicado', [
-            'client_id'             => $client->id,
-            'internet_services'     => $internetServices->count(),
-            'internet_updated'      => $updated,
-            'mikrotik_sync'         => 'pendiente cron app:mikrotik-sync-command',
-            'olt_activation'        => 'pending: wiring Client→OltOnu sin confirmar',
-        ]);
     }
 
     /**
