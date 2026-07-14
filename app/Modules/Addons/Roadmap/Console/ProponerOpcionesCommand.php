@@ -14,42 +14,65 @@ use Illuminate\Support\Facades\Log;
  *
  * Por defecto es DRY-RUN (muestra qué propondría, no escribe). Con --apply persiste. Opus cuesta →
  * tanda ACOTADA por --limit. Fuera de la ruta de ejecución del ejecutor (proponer ≠ ejecutar).
+ *
+ * #440 — --todos amplía el alcance de C-only a TODA la bandeja (B y C): la mayoría de requiere_irving
+ * llegan por B (revisor/triaje), no solo C, y también merecen brief completo para que Irving decida
+ * en una sola pasada. Excluye [BLOCKED-NEGOCIO] (bloqueado por decisión de negocio pendiente, no por
+ * falta de brief). Sin --todos el comportamiento es IDÉNTICO al de antes (solo C).
  */
 class ProponerOpcionesCommand extends Command
 {
     protected $signature = 'circuito:proponer-opciones
         {--apply : escribe el brief (por defecto es dry-run: solo muestra)}
-        {--limit=5 : máximo de items C a briefear en esta pasada}
+        {--limit=5 : máximo de items a briefear en esta pasada}
         {--id= : briefear solo para este item (ignora el filtro de cola)}
-        {--rebrief : #432 BLOQUE 4 — re-briefea TODOS los C de la bandeja (aunque ya traigan brief) al modelo multi-pregunta}';
+        {--rebrief : #432 BLOQUE 4 — re-briefea TODOS los C de la bandeja (aunque ya traigan brief) al modelo multi-pregunta}
+        {--todos : #440 — amplía el alcance a TODA la bandeja requiere_irving (B y C), no solo C; excluye [BLOCKED-NEGOCIO]}';
 
-    protected $description = 'Brief de decisión para items C (multi-pregunta si el flag está ON; dry-run por defecto; Irving decide).';
+    protected $description = 'Brief de decisión para la bandeja requiere_irving (multi-pregunta si el flag está ON; dry-run por defecto; Irving decide).';
 
     public function handle(RevisorService $revisor): int
     {
         $apply   = (bool) $this->option('apply');
         $limit   = max(1, (int) $this->option('limit'));
         $rebrief = (bool) $this->option('rebrief');
+        $todos   = (bool) $this->option('todos');
         $multi   = RoadmapItem::multiPreguntaEnabled();
 
         // Selección: normal = C en la bandeja SIN brief (cSinOpciones, no pisa lo ya propuesto);
-        // --rebrief (#432 BLOQUE 4) = TODOS los C de la bandeja, para re-briefearlos al modelo nuevo.
-        $q = $rebrief
-            ? RoadmapItem::query()->where('estado_aprobacion', 'requiere_irving')->where('nivel_riesgo', 'C')
-            : RoadmapItem::query()->cSinOpciones();
+        // --rebrief (#432 BLOQUE 4) = TODOS los C de la bandeja, para re-briefearlos al modelo nuevo;
+        // --todos (#440) = B y C de la bandeja (sin brief, salvo --rebrief también los re-briefea),
+        // excluyendo lo ya rotulado [BLOCKED-NEGOCIO] (ese bloqueo no lo resuelve un brief).
+        if ($todos) {
+            $q = RoadmapItem::query()
+                ->where('estado_aprobacion', 'requiere_irving')
+                ->whereNotIn('status', ['done', 'cancelled'])
+                ->whereIn('nivel_riesgo', ['B', 'C'])
+                ->where('title', 'not like', '%BLOCKED-NEGOCIO%')
+                ->where(function ($w) {
+                    $w->whereNull('description')->orWhere('description', 'not like', '%BLOCKED-NEGOCIO%');
+                });
+            if ($multi && ! $rebrief) {
+                $q->whereNull('preguntas');
+            }
+        } elseif ($rebrief) {
+            $q = RoadmapItem::query()->where('estado_aprobacion', 'requiere_irving')->where('nivel_riesgo', 'C');
+        } else {
+            $q = RoadmapItem::query()->cSinOpciones();
+        }
         if ($this->option('id')) {
             $q->where('id', (int) $this->option('id'));
         }
         $items = $q->orderByDesc('id')->limit($limit)->get();
 
         if ($items->isEmpty()) {
-            $this->info('No hay items C que briefear en esta pasada.');
+            $this->info('No hay items que briefear en esta pasada.');
 
             return self::SUCCESS;
         }
 
-        $this->line(($apply ? 'APLICANDO' : 'DRY-RUN (no escribe)') . ' — ' . $items->count() . ' item(s) C'
-            . ($multi ? ' [multi-pregunta]' : ' [opciones legacy]') . ($rebrief ? ' [re-brief]' : '') . ':');
+        $this->line(($apply ? 'APLICANDO' : 'DRY-RUN (no escribe)') . ' — ' . $items->count() . ' item(s) ' . ($todos ? 'B/C' : 'C')
+            . ($multi ? ' [multi-pregunta]' : ' [opciones legacy]') . ($rebrief ? ' [re-brief]' : '') . ($todos ? ' [todos]' : '') . ':');
         $escritos = 0;
 
         foreach ($items as $item) {
