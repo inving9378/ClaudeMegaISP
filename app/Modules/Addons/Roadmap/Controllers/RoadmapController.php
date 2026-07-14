@@ -41,8 +41,9 @@ class RoadmapController extends Controller
             ->ordered()->limit(20)->get()
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
-                'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — clave estable para marcar/aprobar (#431)
+                'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — legacy/fallback (#431)
                 'opcion_elegida' => $i->opcion_elegida,       // clave estable de la opción marcada (o null)
+                'preguntas'     => $i->preguntasNormalizadas(), // #432 Fase 3 — todas las preguntas juntas (multi o 1 fallback)
                 'resumen'       => $this->resumenItem($i),        // resumen corto para 🔊 Escuchar / tarjeta (mismo que Integración)
                 'modulo_url'    => $this->moduloUrl($i->modulo),  // 🔎 Ver más → pantalla del módulo (null = fallback en la UI)
             ]));
@@ -292,6 +293,9 @@ class RoadmapController extends Controller
             // #431 Fase 1 — SIN cap de 255: aceptamos clave/prosa/índice y SIEMPRE persistimos la
             // clave estable (16 chars). El 2000 es solo un tope de sanidad para la prosa entrante.
             'opcion_elegida' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            // #432 Fase 3 — respuestas multi-pregunta: {preguntaId: opcion(clave/prosa/índice)}.
+            'respuestas'     => ['sometimes', 'array'],
+            'respuestas.*'   => ['nullable', 'string', 'max:2000'],
             'comentario'     => ['sometimes', 'nullable', 'string', 'max:10000'],
         ]);
 
@@ -303,22 +307,33 @@ class RoadmapController extends Controller
         $user  = auth()->user();
         $autor = 'irving:' . ($user->login_user ?? $user->email ?? $user->id);
 
-        // #431 Fase 1 — resolvemos la opción entrante (clave/prosa/índice) a su CLAVE ESTABLE; nunca
-        // guardamos prosa. `claveEfectiva` = la recién enviada o, si no vino, la ya persistida que
-        // siga siendo válida (auto-sana valores viejos truncados por el bug de max:255).
-        $claveEntrante = array_key_exists('opcion_elegida', $data)
-            ? $item->resolverClaveOpcion($data['opcion_elegida'])
-            : null;
-        $claveEfectiva = $claveEntrante ?? $item->resolverClaveOpcion($item->opcion_elegida);
+        // #432 Fase 3 — aplicar respuestas (multi-pregunta y/o legacy). `responderPregunta` resuelve
+        // cada entrada a la CLAVE estable de SU pregunta y muta el item (se persiste en el save()).
+        // Nunca guarda prosa; auto-sana valores viejos truncados por el bug de max:255 (#431).
+        if (! empty($data['respuestas']) && is_array($data['respuestas'])) {
+            foreach ($data['respuestas'] as $pid => $op) {
+                $item->responderPregunta((string) $pid, $op !== null ? (string) $op : null);
+            }
+        }
+        if (array_key_exists('opcion_elegida', $data) && $data['opcion_elegida'] !== null && $data['opcion_elegida'] !== '') {
+            $primera = $item->preguntasNormalizadas()[0]['id'] ?? 'q1';
+            $item->responderPregunta($primera, (string) $data['opcion_elegida']);
+        }
 
-        // Guard (#431): aprobar un item que EXIGE opción sin una opción válida → aviso claro, NUNCA
-        // falla en silencio. Cubre "no eligió nada" y "eligió algo que no es opción real del item".
-        if ($data['accion'] === 'aprobar' && $item->exigeOpcion() && $claveEfectiva === null) {
-            return response()->json([
-                'ok'    => false,
-                'code'  => 'opcion_requerida',
-                'error' => 'Elige una opción antes de aprobar este item.',
-            ], 422);
+        // Guard (#431/#432): aprobar sin responder TODAS las preguntas que exigen decisión → aviso
+        // claro, NUNCA falla en silencio.
+        if ($data['accion'] === 'aprobar' && $item->exigeOpcion()) {
+            $pend = $item->preguntasPendientes();
+            if (! empty($pend)) {
+                return response()->json([
+                    'ok'    => false,
+                    'code'  => 'preguntas_pendientes',
+                    'error' => count($pend) === 1
+                        ? 'Elige una opción antes de aprobar.'
+                        : ('Responde las ' . count($pend) . ' preguntas antes de aprobar.'),
+                    'preguntas_pendientes' => $pend,
+                ], 422);
+            }
         }
 
         $nuevoEstado = match ($data['accion']) {
@@ -337,9 +352,6 @@ class RoadmapController extends Controller
             $item->status = 'cancelled';
         }
 
-        if ($claveEfectiva !== null) {
-            $item->opcion_elegida = $claveEfectiva;   // clave estable (#431), nunca prosa
-        }
         if (! empty($data['comentario'])) {
             $item->comentarios_claude = $data['comentario'];
         }
@@ -353,7 +365,8 @@ class RoadmapController extends Controller
             'por'            => $autor,
             'decision'       => $data['accion'],
             'estado'         => $nuevoEstado,
-            'opcion_elegida' => $claveEfectiva,
+            'opcion_elegida' => $item->opcion_elegida,
+            'respuestas'     => $data['respuestas'] ?? null,
             'comentario'     => $data['comentario'] ?? null,
         ];
         $item->log = $log;
@@ -385,22 +398,29 @@ class RoadmapController extends Controller
     {
         $this->authorize('circuito.decidir');
         $data = $request->validate([
-            'id'     => ['required', 'integer', 'min:1'],
+            'id'          => ['required', 'integer', 'min:1'],
+            // #432 — a qué pregunta responde (multi-pregunta). Si falta, la primera (compat).
+            'pregunta_id' => ['sometimes', 'nullable', 'string', 'max:64'],
             // #431 — sin cap de 255; se persiste la clave estable resuelta, nunca la prosa.
-            'opcion' => ['nullable', 'string', 'max:2000'],
+            'opcion'      => ['nullable', 'string', 'max:2000'],
         ]);
         $item = RoadmapItem::find($data['id']);
         if (! $item) {
             return response()->json(['error' => 'Item no encontrado'], 404);
         }
-        // Resuelve clave/prosa/índice → CLAVE ESTABLE (o null para deseleccionar / entrada inválida).
-        $item->opcion_elegida = ! empty($data['opcion'])
-            ? $item->resolverClaveOpcion($data['opcion'])
-            : null;
+        // #432 — responde LA pregunta indicada (o la primera): resuelve clave/prosa/índice → clave
+        // estable de esa pregunta; null deselecciona. Persiste en `preguntas` (+ espejo legacy).
+        $pid = $data['pregunta_id'] ?? ($item->preguntasNormalizadas()[0]['id'] ?? 'q1');
+        $item->responderPregunta((string) $pid, ! empty($data['opcion']) ? (string) $data['opcion'] : null);
         $item->save();
-        Log::channel('roadmap_externo')->info('elegir-opcion', ['item' => $item->id, 'opcion' => $item->opcion_elegida, 'por' => $this->actor()]);
+        Log::channel('roadmap_externo')->info('elegir-opcion', ['item' => $item->id, 'pregunta' => $pid, 'opcion' => $item->opcion_elegida, 'por' => $this->actor()]);
 
-        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'opcion_elegida' => $item->opcion_elegida]]);
+        return response()->json(['ok' => true, 'item' => [
+            'id'             => $item->id,
+            'pregunta_id'    => $pid,
+            'opcion_elegida' => $item->opcion_elegida,
+            'preguntas'      => $item->preguntasNormalizadas(),
+        ]]);
     }
 
     /**
@@ -553,8 +573,9 @@ class RoadmapController extends Controller
             'reporte_tecnico'    => $i->reporte_tecnico,
             'reporte_coloquial'  => $i->reporte_coloquial,
             'reporte'            => $i->comentarios_claude,
-            'opciones'           => $i->opcionesDetalladas(),   // [{clave,texto,recomendada}] (#431)
+            'opciones'           => $i->opcionesDetalladas(),   // [{clave,texto,recomendada}] legacy (#431)
             'opcion_elegida'     => $i->opcion_elegida,          // clave estable
+            'preguntas'          => $i->preguntasNormalizadas(), // #432 Fase 3
             'nivel_riesgo'       => $i->nivel_riesgo,
             'estado_aprobacion'  => $i->estado_aprobacion,
             'status'             => $i->status,

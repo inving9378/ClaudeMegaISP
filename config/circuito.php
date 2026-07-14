@@ -91,4 +91,12 @@ return [
     */
     'worker_nombres'   => ['Maya', 'Leo', 'Sofía', 'Iván', 'Nora', 'Beto'],
 
+    /*
+    | #432 Fase 3 — Brief COMPLETO (multi-pregunta). ON: la bandeja usa la columna JSON `preguntas`
+    | (varias preguntas por item) y la escalación las puebla TODAS de una. OFF: fallback al modelo
+    | viejo de una sola `opciones`/`opcion_elegida`. Un item SIN `preguntas` cae al fallback aunque
+    | esté ON, así que activar esto NO rompe los items existentes.
+    */
+    'multi_pregunta'   => (bool) env('CIRCUITO_MULTI_PREGUNTA', true),
+
 ];

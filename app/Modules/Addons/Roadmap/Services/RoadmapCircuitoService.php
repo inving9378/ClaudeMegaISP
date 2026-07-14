@@ -1251,32 +1251,62 @@ class RoadmapCircuitoService
      * Módulos NO-null de items EN VUELO (en_progreso — reclamados por una sesión o por un humano).
      * Se usan como pre-filtro conservador: no paralelizar dos items del mismo módulo (#334).
      */
+    /** #432 B2 — sentinel de footprint SIN CLASIFICAR (lo pone el hook #427 al crear sin modulo). */
+    public const MODULO_DESCONOCIDO = 'Sin clasificar';
+
+    /** ¿El footprint es DESCONOCIDO? = null / vacío / el sentinel 'Sin clasificar'. */
+    private function esFootprintDesconocido(?string $m): bool
+    {
+        $m = trim((string) $m);
+
+        return $m === '' || strcasecmp($m, self::MODULO_DESCONOCIDO) === 0;
+    }
+
     public function modulosEnVuelo(): array
     {
         return DB::table('roadmap_items')
             ->where('estado_aprobacion', 'en_progreso')
             ->whereNotNull('modulo')
             ->where('modulo', '!=', '')
+            ->where('modulo', '!=', self::MODULO_DESCONOCIDO)   // #432 B2 — 'Sin clasificar' NO es módulo conocido
             ->pluck('modulo')
             ->unique()->values()->all();
+    }
+
+    /**
+     * #432 B2 — ¿hay un item con footprint DESCONOCIDO (null/vacío/'Sin clasificar') en vuelo? Si lo
+     * hay, no podemos garantizar que nada más se pise con él → nadie más se despacha hasta que integre.
+     */
+    public function desconocidoEnVuelo(): bool
+    {
+        return DB::table('roadmap_items')
+            ->where('estado_aprobacion', 'en_progreso')
+            ->where(fn ($q) => $q->whereNull('modulo')->orWhere('modulo', '')->orWhere('modulo', self::MODULO_DESCONOCIDO))
+            ->exists();
     }
 
     /**
      * Items EJECUTABLES por el circuito en paralelo, módulo-disjuntos. Devuelve [{id, modulo}] hasta
      * $limit. Criterio: A `aprobado_claude` (auto) + (si revisor ON) `aprobado_revisor` (B autorizado),
      * excluyendo en_progreso/bloqueados (tomablePorCircuito, #341), urgentes primero (ordered, #337).
-     * Pre-filtro de módulo: salta un item si su `modulo` NO-null ya está en vuelo o ya se eligió esta
-     * ronda. `modulo` null = desconocido → SÍ se paraleliza (git serializa el merge y detecta choques).
+     * #432 B2 — REGLA ÚNICA de no-colisión (conservadora):
+     *   - mismo `modulo` en vuelo o ya elegido esta ronda → SERIALIZA (se salta).
+     *   - footprint DESCONOCIDO (`modulo` null/vacío) → corre SOLO: se despacha únicamente si nada hay
+     *     en vuelo ni elegido esta ronda, y mientras corre no se despacha nada más (no sabemos qué
+     *     archivos toca → no se puede garantizar disjunto). Poblar el footprint (B3) reduce esto.
+     *   - [PARKED-PROD] (frontera dura de producción) queda FUERA del pool paralelo.
      */
     public function ejecutablesParalelo(array $excludeModulos, int $limit): array
     {
         if ($limit <= 0) {
             return [];
         }
-        $revisor = $this->revisorEnabled();
+        $revisor          = $this->revisorEnabled();
+        $unknownEnVuelo   = $this->desconocidoEnVuelo();
 
         $rows = RoadmapItem::query()
             ->tomablePorCircuito()
+            ->where('title', 'not like', '%[PARKED-PROD%')   // frontera dura de prod → nunca en paralelo
             ->where(function ($w) use ($revisor) {
                 // A auto-aprobado por el circuito
                 $w->where(function ($x) {
@@ -1300,17 +1330,31 @@ class RoadmapCircuitoService
             ->limit(200)
             ->get(['id', 'modulo']);
 
-        $taken = array_map('strval', $excludeModulos);
-        $out   = [];
+        $taken        = array_map('strval', $excludeModulos);
+        $out          = [];
+        $unknownTaken = false;
         foreach ($rows as $r) {
-            $mod = $r->modulo !== null ? (string) $r->modulo : '';
-            if ($mod !== '' && in_array($mod, $taken, true)) {
-                continue; // mismo módulo ya en vuelo/elegido → serializa
+            // #432 B2 — 'Sin clasificar'/null/'' = footprint DESCONOCIDO → se normaliza a '' (corre solo).
+            $mod = $this->esFootprintDesconocido($r->modulo) ? '' : trim((string) $r->modulo);
+
+            if ($mod === '') {
+                // Footprint desconocido → SOLO: nada en vuelo (excludeModulos → $taken), nada elegido
+                // esta ronda, y ningún otro desconocido en vuelo/elegido. Si algo hay, espera su turno.
+                if ($unknownEnVuelo || $unknownTaken || ! empty($taken) || ! empty($out)) {
+                    continue;
+                }
+                $out[]        = ['id' => (int) $r->id, 'modulo' => ''];
+                $unknownTaken = true;
+                break; // corre solo: no se despacha nada más esta ronda
             }
-            $out[] = ['id' => (int) $r->id, 'modulo' => $mod];
-            if ($mod !== '') {
-                $taken[] = $mod;
+
+            // Módulo conocido: serializa contra mismo módulo (en vuelo/elegido) y contra un desconocido
+            // en vuelo/elegido (podría pisar cualquier archivo).
+            if (in_array($mod, $taken, true) || $unknownEnVuelo || $unknownTaken) {
+                continue;
             }
+            $out[]   = ['id' => (int) $r->id, 'modulo' => $mod];
+            $taken[] = $mod;
             if (count($out) >= $limit) {
                 break;
             }

@@ -18,8 +18,8 @@ class RoadmapItem extends Model
         // Quién fijó el nivel_riesgo vigente: interno|externo (circuito #260)
         'nivel_riesgo_origen',
         'comentarios_claude', 'revisado_at', 'aprobado_por',
-        // Bandeja de decisiones interactiva (#313)
-        'opciones', 'opcion_elegida',
+        // Bandeja de decisiones interactiva (#313) + brief multi-pregunta (#432 Fase 3)
+        'opciones', 'opcion_elegida', 'preguntas',
         // Aislamiento por rama (#311)
         'branch', 'merge_commit',
         // Acciones avanzadas de la bandeja (#320)
@@ -44,6 +44,7 @@ class RoadmapItem extends Model
         'subtasks'     => 'array',
         'log'          => 'array',
         'opciones'     => 'array',
+        'preguntas'    => 'array',
         'marcado_version' => 'boolean',
         'urgente'      => 'boolean',
         'urgente_at'   => 'datetime',
@@ -196,10 +197,148 @@ class RoadmapItem extends Model
         return null;
     }
 
-    /** ¿Este item EXIGE elegir una opción antes de aprobar? = trae opciones propuestas. */
+    /** ¿Este item EXIGE decidir antes de aprobar? = alguna pregunta trae opciones (multi o legacy). */
     public function exigeOpcion(): bool
     {
-        return count($this->opcionesDetalladas()) > 0;
+        foreach ($this->preguntasNormalizadas() as $p) {
+            if (! empty($p['opciones'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // ── #432 Fase 3 — BRIEF MULTI-PREGUNTA ──────────────────────────────────────────────────────
+
+    /** ¿Modelo multi-pregunta activo? Feature flag con fallback al campo viejo (`opciones`). */
+    public static function multiPreguntaEnabled(): bool
+    {
+        return (bool) config('circuito.multi_pregunta', true);
+    }
+
+    /**
+     * Preguntas NORMALIZADAS para la bandeja/UI: SIEMPRE una lista uniforme
+     * [{id, pregunta, opciones:[{clave,texto,recomendada}], opcion_elegida, fase}].
+     * - flag ON + `preguntas` presentes → las usa (rellena claves estables).
+     * - si no (item viejo / flag OFF) → sintetiza UNA pregunta desde `opciones`/`opcion_elegida`
+     *   (fallback), para que la UI sea idéntica sin importar el origen.
+     */
+    public function preguntasNormalizadas(): array
+    {
+        if (static::multiPreguntaEnabled() && ! empty($this->preguntas) && is_array($this->preguntas)) {
+            $out = [];
+            foreach ($this->preguntas as $idx => $p) {
+                $ops = [];
+                foreach ((array) ($p['opciones'] ?? []) as $o) {
+                    $t = is_array($o) ? trim((string) ($o['texto'] ?? '')) : trim((string) $o);
+                    if ($t === '') {
+                        continue;
+                    }
+                    $ops[] = [
+                        'clave'       => static::claveOpcion($t),
+                        'texto'       => $t,
+                        'recomendada' => (is_array($o) && ! empty($o['recomendada'])) || stripos($t, 'RECOMENDADA') !== false,
+                    ];
+                }
+                $out[] = [
+                    'id'             => (string) ($p['id'] ?? ('q' . ($idx + 1))),
+                    'pregunta'       => trim((string) ($p['pregunta'] ?? '')),
+                    'opciones'       => $ops,
+                    'opcion_elegida' => $p['opcion_elegida'] ?? null,
+                    'fase'           => $p['fase'] ?? null,
+                ];
+            }
+
+            return $out;
+        }
+
+        // Fallback: una sola pregunta desde el campo viejo.
+        $ops = $this->opcionesDetalladas();
+        if (empty($ops)) {
+            return [];
+        }
+
+        return [[
+            'id'             => 'q1',
+            'pregunta'       => '',   // pregunta implícita = la recomendación/comentario del item
+            'opciones'       => $ops,
+            'opcion_elegida' => $this->opcion_elegida,
+            'fase'           => null,
+        ]];
+    }
+
+    /** IDs de preguntas SIN responder (guard "responde todas antes de aprobar"). */
+    public function preguntasPendientes(): array
+    {
+        $pend = [];
+        foreach ($this->preguntasNormalizadas() as $p) {
+            if (empty($p['opciones'])) {
+                continue;   // una pregunta sin opciones no bloquea
+            }
+            if (empty($p['opcion_elegida'])) {
+                $pend[] = $p['id'];
+            }
+        }
+
+        return $pend;
+    }
+
+    /**
+     * Registra la respuesta a UNA pregunta (por id), resolviendo la entrada a la CLAVE estable de
+     * una opción REAL de ESA pregunta. Persiste en `preguntas` (y espeja al legacy `opcion_elegida`
+     * la primera pregunta) o en el legacy si es el modelo viejo. Devuelve true si resolvió.
+     */
+    public function responderPregunta(string $preguntaId, ?string $inputOpcion): bool
+    {
+        $preguntas = $this->preguntasNormalizadas();
+        $target    = null;
+        foreach ($preguntas as $p) {
+            if ($p['id'] === $preguntaId) {
+                $target = $p;
+                break;
+            }
+        }
+        if ($target === null) {
+            return false;
+        }
+
+        // Resolver input → clave dentro de ESA pregunta (clave / prosa / índice).
+        $clave = null;
+        $input = $inputOpcion !== null ? trim($inputOpcion) : '';
+        if ($input !== '') {
+            foreach ($target['opciones'] as $o) {
+                if ($o['clave'] === $input || $o['texto'] === $input || static::claveOpcion($o['texto']) === static::claveOpcion($input)) {
+                    $clave = $o['clave'];
+                    break;
+                }
+            }
+            if ($clave === null && ctype_digit($input) && isset($target['opciones'][(int) $input])) {
+                $clave = $target['opciones'][(int) $input]['clave'];
+            }
+            if ($clave === null) {
+                return false;   // input inválido para esta pregunta
+            }
+        }
+
+        if (static::multiPreguntaEnabled() && ! empty($this->preguntas) && is_array($this->preguntas)) {
+            $preg = $this->preguntas;
+            foreach ($preg as &$p) {
+                if ((string) ($p['id'] ?? '') === $preguntaId) {
+                    $p['opcion_elegida'] = $clave;
+                    break;
+                }
+            }
+            unset($p);
+            $this->preguntas = $preg;
+            if ($preguntaId === ($preguntas[0]['id'] ?? null)) {
+                $this->opcion_elegida = $clave;   // espejo al legacy (primera pregunta)
+            }
+        } else {
+            $this->opcion_elegida = $clave;       // fallback una-pregunta
+        }
+
+        return true;
     }
 
     /** Items que el circuito SÍ puede tomar (excluye en_progreso y candados humanos). #341 */

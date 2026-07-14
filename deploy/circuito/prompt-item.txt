@@ -52,6 +52,11 @@ FLUJO (haz EXACTAMENTE esto para el item #__ITEM_ID__):
 6a. Éxito → termina con el META (abajo).
 6b. Escalar (no se puede hacer seguro / verificación falló):
    php artisan tinker --execute='$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__); $i->estado_aprobacion="requiere_irving"; $i->comentarios_claude=($i->comentarios_claude."\nESCALADO: <por qué>"); $i->save();'
+   • BRIEF COMPLETO (#432 Fase 3): al escalar, el item debe llegar a la bandeja de Irving con TODAS
+     sus preguntas de decisión de una (no en cuentagotas). Si detectas VARIAS decisiones (incluidas
+     las de fases posteriores), poblalas con `php artisan circuito:proponer-opciones --id=__ITEM_ID__ --apply`
+     (con el flag `circuito.multi_pregunta` ON escribe la columna JSON `preguntas`; marca las de fase
+     posterior con "fase":"Fase X"). Irving responde todo en una sola pasada.
 
 MIGAS DE FASE (para el visor "Trabajando ahora"/rejilla de Terminales) — OBLIGATORIO, una por línea,
 al ENTRAR a cada fase, ANTES de hacer el trabajo:

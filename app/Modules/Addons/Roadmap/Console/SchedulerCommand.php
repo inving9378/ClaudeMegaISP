@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Console;
 
+use App\Modules\Addons\Roadmap\Services\MergeRunner;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -46,6 +47,20 @@ class SchedulerCommand extends Command
             // Kill switch: en pausa NO lanza nada (el dry-run sí muestra el plan, no ejecuta).
             if ($svc->isPaused() && ! $this->option('dry')) {
                 return self::SUCCESS;
+            }
+
+            // #432 B1 — el scheduler es el ÚNICO despachador. Aquí (no en el viejo disparo-check
+            // 1-a-la-vez, eliminado) drena la cola de merges y consume el disparo manual: el botón
+            // "Disparar" solo adelanta esta corrida; el reparto real es SIEMPRE en paralelo abajo.
+            if (! $this->option('dry')) {
+                try {
+                    app(MergeRunner::class)->drain();
+                } catch (\Throwable $e) {
+                    // un fallo de merge no tumba el scheduler; queda registrado en su propio log.
+                }
+                if ($svc->pendingDisparo()) {
+                    $svc->clearDisparo();
+                }
             }
 
             $n = $svc->getParalelismo();

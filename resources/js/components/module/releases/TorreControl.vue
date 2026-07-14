@@ -118,15 +118,24 @@
               <div class="tc-resumen" v-if="it.resumen">{{ it.resumen }}</div>
               <div class="tc-s" v-if="it.recomendacion">{{ it.recomendacion }}</div>
 
-              <!-- Opciones (forks) que dejó el decisor. #431: objetos {clave,texto,recomendada};
-                   se marca por CLAVE estable (no por prosa). Verde = RECOMENDADA; borde = SELECCIONADA. -->
-              <div v-if="it.opciones && it.opciones.length" class="tc-opts">
-                <button
-                  v-for="op in it.opciones" :key="op.clave" type="button"
-                  class="tc-opt"
-                  :class="{ 'tc-opt-sel': sel[it.id] === op.clave, 'tc-opt-rec': op.recomendada }"
-                  @click="elegirOpcion(it, op)">
-                  <span v-if="op.recomendada" class="tc-opt-badge">RECOMENDADA</span>{{ op.texto }}</button>
+              <!-- #432 Fase 3 — brief COMPLETO: TODAS las preguntas del item juntas, cada una con sus
+                   opciones. #431: objetos {clave,texto,recomendada}; se marca por CLAVE estable.
+                   Verde = RECOMENDADA; anillo = SELECCIONADA. Una sola Aprobar responde todo. -->
+              <div v-if="it.preguntas && it.preguntas.length" class="tc-preguntas">
+                <div v-for="(pg, pi) in it.preguntas" :key="pg.id" class="tc-pregunta">
+                  <div v-if="pg.pregunta || pg.fase" class="tc-pregunta-t">
+                    <span v-if="it.preguntas.length > 1" class="tc-pregunta-num">{{ pi + 1 }}.</span>{{ pg.pregunta }}
+                    <span v-if="pg.fase" class="tc-fase-badge">se decide en {{ pg.fase }}</span>
+                  </div>
+                  <div v-if="pg.opciones && pg.opciones.length" class="tc-opts">
+                    <button
+                      v-for="op in pg.opciones" :key="op.clave" type="button"
+                      class="tc-opt"
+                      :class="{ 'tc-opt-sel': selPreg(it.id, pg.id) === op.clave, 'tc-opt-rec': op.recomendada }"
+                      @click="elegirOpcion(it, pg, op)">
+                      <span v-if="op.recomendada" class="tc-opt-badge">RECOMENDADA</span>{{ op.texto }}</button>
+                  </div>
+                </div>
               </div>
               <div v-else-if="it.nivel_riesgo === 'C'" class="tc-noopts">Sin opciones aún — el circuito las propondrá para que elijas.</div>
 
@@ -287,7 +296,7 @@ export default {
         let disparoMsgTimer = null;
 
         // Bandeja de decisiones interactiva (#313)
-        const sel = reactive({});      // id -> CLAVE estable de la opción elegida (#431)
+        const sel = reactive({});      // id -> { preguntaId: CLAVE estable } (#432 multi-pregunta)
         const coment = reactive({});   // id -> comentario
         const deciding = ref(null);    // id en proceso
         const aviso = reactive({});    // id -> {tipo:'err'|'ok'|'warn', texto} (#431, no falla en silencio)
@@ -296,6 +305,11 @@ export default {
         function setAviso(id, tipo, texto) {
             aviso[id] = { tipo, texto };
             if (tipo === 'ok') setTimeout(() => { if (aviso[id] && aviso[id].tipo === 'ok') delete aviso[id]; }, 3500);
+        }
+
+        // #432 — clave marcada para (item, pregunta).
+        function selPreg(itemId, pregId) {
+            return (sel[itemId] || {})[pregId];
         }
         const segOpen = reactive({});  // id -> form de seguimiento abierto
         const seg = reactive({});      // id -> {titulo, descripcion, nivel, cerrar}
@@ -484,8 +498,15 @@ export default {
                 generatedAt.value = data.generated_at;
                 resumen.value = data.resumen || { total: 0, por_estado: {}, por_nivel: {} };
                 cola.value = data.cola_requiere_irving || [];
-                // Pre-selecciona la opción ya persistida (sobrevive al recargar).
-                cola.value.forEach((it) => { if (it.opcion_elegida) sel[it.id] = it.opcion_elegida; });
+                // #432 — pre-selecciona las respuestas ya persistidas por pregunta (sobrevive al recargar).
+                cola.value.forEach((it) => {
+                    (it.preguntas || []).forEach((pg) => {
+                        if (pg.opcion_elegida) {
+                            if (!sel[it.id]) sel[it.id] = {};
+                            sel[it.id][pg.id] = pg.opcion_elegida;
+                        }
+                    });
+                });
                 vozTts.value = data.voz_tts || null;   // #424: misma voz guardada que Integración
                 if (data.rate_tts) rateTts.value = Number(data.rate_tts);   // #424: misma velocidad
                 colaEjecutable.value = data.cola_ejecutable || [];
@@ -544,13 +565,14 @@ export default {
             }
         }
 
-        // Marca y PERSISTE la opción elegida al instante (sin cambiar el estado). Sobrevive al recargar.
-        // #431: se guarda por CLAVE estable (op.clave), no por la prosa.
-        async function elegirOpcion(it, op) {
-            sel[it.id] = op.clave;
+        // Marca y PERSISTE la opción elegida de UNA pregunta al instante (sin cambiar el estado).
+        // #431/#432: se guarda por CLAVE estable (op.clave) contra su pregunta; sobrevive al recargar.
+        async function elegirOpcion(it, pg, op) {
+            if (!sel[it.id]) sel[it.id] = {};
+            sel[it.id][pg.id] = op.clave;
             delete aviso[it.id];
             try {
-                await axios.post('/api/roadmap/circuito/elegir-opcion', { id: it.id, opcion: op.clave });
+                await axios.post('/api/roadmap/circuito/elegir-opcion', { id: it.id, pregunta_id: pg.id, opcion: op.clave });
             } catch (e) {
                 // No bloquea: la selección local queda aplicada, se reintenta al recargar.
             }
@@ -558,10 +580,16 @@ export default {
 
         async function decidir(it, accion) {
             if (deciding.value) return;
-            // Guard #431: aprobar un item que trae opciones sin elegir una → aviso claro, sin POST.
-            if (accion === 'aprobar' && it.opciones && it.opciones.length && !sel[it.id] && !it.opcion_elegida) {
-                setAviso(it.id, 'warn', 'Elige una opción antes de aprobar.');
-                return;
+            // Guard #431/#432: aprobar sin responder TODAS las preguntas con opciones → aviso, sin POST.
+            if (accion === 'aprobar' && it.preguntas && it.preguntas.length) {
+                const faltan = it.preguntas.filter(pg => pg.opciones && pg.opciones.length
+                    && !selPreg(it.id, pg.id) && !pg.opcion_elegida);
+                if (faltan.length) {
+                    setAviso(it.id, 'warn', faltan.length === 1
+                        ? 'Elige una opción antes de aprobar.'
+                        : ('Responde las ' + faltan.length + ' preguntas antes de aprobar.'));
+                    return;
+                }
             }
             deciding.value = it.id;
             delete aviso[it.id];
@@ -569,7 +597,7 @@ export default {
                 await axios.post('/api/roadmap/circuito/decidir', {
                     id: it.id,
                     accion,
-                    opcion_elegida: sel[it.id] || null,
+                    respuestas: sel[it.id] || {},
                     comentario: coment[it.id] || null,
                 });
                 delete sel[it.id];
@@ -604,7 +632,7 @@ export default {
             loading, toggling, pausado, generatedAt, total, est, nivel, niveles, barH,
             cola, colaEjecutable, resumenCola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
-            sel, coment, deciding, decidir, elegirOpcion,
+            sel, coment, deciding, decidir, elegirOpcion, selPreg, aviso,
             // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
             hablando, leer, verMas,
             segOpen, seg, toggleSeg, crearSeguimiento,
@@ -687,6 +715,12 @@ export default {
 .tc-inbox-body{flex:1;min-width:0;}
 .tc-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .tc-noopts{margin-top:8px;font-size:12px;font-style:italic;color:var(--tc-muted);}
+/* #432 — brief multi-pregunta: cada pregunta un bloque con su texto + fase + opciones. */
+.tc-preguntas{margin-top:8px;display:flex;flex-direction:column;gap:12px;}
+.tc-pregunta{border-left:3px solid var(--tc-line);padding-left:10px;}
+.tc-pregunta-t{font-size:13px;font-weight:600;color:var(--tc-ink);}
+.tc-pregunta-num{color:var(--tc-accent);margin-right:4px;}
+.tc-fase-badge{display:inline-block;font-size:10px;font-weight:700;color:#3730a3;background:#e0e7ff;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
 .tc-opt{font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--tc-line);background:#fff;color:var(--tc-ink);cursor:pointer;text-align:left;}
 .tc-opt:hover{border-color:var(--tc-accent);}
 .tc-opt-sel{border-color:var(--tc-accent);background:#f0fdfa;color:#0f766e;font-weight:600;box-shadow:0 0 0 2px #0d948822;}
@@ -763,6 +797,8 @@ export default {
 .tc-dark .tc-opt{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
 .tc-dark .tc-opt:hover{border-color:#2dd4bf;}
 .tc-dark .tc-opt-sel{background:rgba(45,212,191,.15);color:#5eead4;border-color:#2dd4bf;box-shadow:0 0 0 2px rgba(45,212,191,.25);}
+.tc-dark .tc-pregunta{border-left-color:#2a3550;}
+.tc-dark .tc-fase-badge{color:#c7d2fe;background:rgba(99,102,241,.22);}
 .tc-dark .tc-opt-rec{border-color:#22c55e;background:rgba(34,197,94,.12);}
 .tc-dark .tc-opt-badge{color:#bbf7d0;background:rgba(34,197,94,.25);}
 .tc-dark .tc-aviso-err{color:#fecaca;background:rgba(239,68,68,.18);}
