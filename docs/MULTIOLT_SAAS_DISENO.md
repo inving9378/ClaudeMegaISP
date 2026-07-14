@@ -263,6 +263,41 @@ Regla de coexistencia: nunca cambiar `motor_modo` de una OLT mientras haya opera
 
 ---
 
+## 9. Estado: RETOMA — paridad de escritura Huawei propia (2026-07-13)
+
+> Decisión final de Irving, Hoja de Ruta item #415 (aprobado 2026-07-13 21:33, opción elegida:
+> "Retomar la paridad de escritura del motor Huawei propio ahora"). Esta decisión **reemplaza**
+> una aprobación previa del 2026-07-12 que había inclinado hacia congelar — esa rama nunca llegó
+> a mergearse a `main`, así que este documento nunca tuvo un estado "congelado" vigente; el
+> registro formal en esta sección 9 es directamente el de retomar. Reafirmada por Irving el
+> 2026-07-14 (misma opción elegida) tras un ciclo del circuito donde la rama previa de este
+> registro tampoco llegó a mergearse a `main`.
+
+**Qué se retoma:** el desarrollo de las operaciones write pendientes del `HuaweiDriver`, con
+**prioridad explícita en los comandos de aprovisionamiento (alta / baja / suspensión de ONU)**
+siguiendo la secuencia ya definida en la sección 8.4 (que ya tiene reboot/activar-desactivar/
+autorizar/desautorizar ONT en dry-run desde W1, y el write real cosmético de W3). Después de
+aprovisionamiento sigue B5 (cambio de perfil de velocidad) y, más adelante, la gestión de
+service-ports/VLANs.
+
+**Condición explícita de Irving (no negociable):** cualquier comando write nuevo se prueba
+primero contra una **OLT de laboratorio** (no productiva) antes de tocar equipos en campo. La
+regla de coexistencia de la sección 8.5 sigue intacta y no se relaja por esta decisión: ninguna
+OLT real cambia `motor_modo` a `propio` sin ventana de mantenimiento + presencia de Irving.
+Ninguna OLT de producción tiene hoy `motor_modo=propio` (las 3 siguen en `smartolt`); retomar el
+desarrollo no cambia por sí solo el comportamiento en vivo.
+
+**Alcance de este item (#415):** este item cierra la **decisión** (retomar, con la condición de
+lab-testing previo). La implementación real de los comandos de aprovisionamiento — acceso a la
+OLT de laboratorio, desarrollo del ciclo alta/baja/suspensión y su validación — es trabajo de
+ingeniería sustancial que corresponde a sesión(es) dedicada(s) del circuito o de desarrollo
+directo, no a este ciclo de decisión. Se ejecuta como próximo(s) item(s) de Hoja de Ruta cuando
+haya acceso confirmado a una OLT de laboratorio, respetando nivel de riesgo C (toca red en vivo).
+
+---
+
 *Documento creado por Claude Sonnet 4.6 como resultado de la sesión autónoma MultiOLT 2026-06-13.
 Sección 8 agregada en sesión W2 (2026-06-16) — decisiones acordadas Irving + asistente.*
+Sección 9 agregada por el circuito CC (item #415) — 2026-07-12: primer intento de registro
+(congelar), rama nunca mergeada. 2026-07-13: registro final — decisión de Irving de retomar.*
 *Basado en auditoría directa del codebase — no estimaciones.*
