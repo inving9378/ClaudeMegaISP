@@ -683,6 +683,20 @@ class RoadmapController extends Controller
     private function ramaPayload(RoadmapItem $i): array
     {
         $git = $this->diffRama($i);
+
+        // [BUG][CIRCUITO] Una rama SIN diff funcional y SIN merge NO está "lista para merge":
+        // branch existe + merge_commit NULL + 0 archivos ⇒ RAMA_SIN_CONTENIDO (el trabajo no se
+        // implementó, o ya está cubierto en main por otra vía). Antes salía con semáforo/botón de
+        // merge como si estuviera lista; y como el tip de esas ramas suele ser un commit de main,
+        // mergearla la marcaba "integrada" en falso, ocultando que no hay código. Se clasifica aparte.
+        $sinContenido  = empty($i->merge_commit) && $git['existe'] && empty($git['archivos']);
+        $clasificacion = ! empty($i->merge_commit) ? 'mergeado'
+            : (! $git['existe'] ? 'rama_perdida'
+            : ($sinContenido ? 'sin_contenido' : 'listo_para_merge'));
+        $verificacion  = $sinContenido
+            ? ['estado' => 'sin_contenido', 'detalle' => 'La rama existe pero no aporta cambios sobre main (diff vacío) y no está mergeada. Requiere revisión: el trabajo no se implementó o ya está cubierto en main por otra vía.']
+            : $this->semaforo($i);
+
         return [
             'id'                => $i->id,
             'title'             => $i->title,
@@ -692,6 +706,8 @@ class RoadmapController extends Controller
             'worker_nombre'     => $i->worker_sid ? $this->svc->nombreWorker($i->worker_sid) : null,   // roster (#334)
             'nivel_riesgo'      => $i->nivel_riesgo,
             'estado_aprobacion' => $i->estado_aprobacion,
+            'clasificacion'     => $clasificacion,   // [BUG][CIRCUITO] sin_contenido | listo_para_merge | mergeado | rama_perdida
+            'sin_contenido'     => $sinContenido,     // atajo UI: oculta el botón "Mergear" y marca "requiere revisión"
             'merged'            => ! empty($i->merge_commit),
             'merge_commit'      => $i->merge_commit,
             'merge_pending'     => $this->svc->isMergeQueued($i->id),   // en cola / procesando (#334)
@@ -705,7 +721,7 @@ class RoadmapController extends Controller
             'modulo'            => $i->modulo,
             'modulo_url'        => $this->moduloUrl($i->modulo),   // "Ver más" → pantalla del módulo (fallback)
             'enlace_revision'   => $i->enlace_revision,            // #432 ADENDA B — deep-link REAL (preferente en "Ver")
-            'verificacion'      => $this->semaforo($i),
+            'verificacion'      => $verificacion,   // [BUG][CIRCUITO] degradado a 'sin_contenido' cuando la rama no aporta diff
             'reporte'           => $i->comentarios_claude,   // reporte del ejecutor (qué hace/cómo validar/verificación)
             'resumen'           => $this->resumenItem($i),   // resumen CORTO para Escuchar/tarjeta (coloquial → fallback descripción)
             'descripcion'       => $i->description,

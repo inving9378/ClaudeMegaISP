@@ -105,7 +105,8 @@
         <!-- RADAR -->
         <template v-if="vista === 'radar'">
           <button class="ig-btn ig-voz" :title="hablando === r.id ? 'Detener' : 'Escuchar el resumen'" @click="leer(r)">{{ hablando === r.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
-          <button v-if="!r.merged" class="ig-btn ig-btn-ok" :disabled="busy === r.id || r.merge_pending" @click="merge(r)">✓ Mergear a dev</button>
+          <button v-if="!r.merged && !r.sin_contenido" class="ig-btn ig-btn-ok" :disabled="busy === r.id || r.merge_pending" @click="merge(r)">✓ Mergear a dev</button>
+          <span v-if="!r.merged && r.sin_contenido" class="ig-nocontent" title="La rama no tiene diff sobre main y no está mergeada: el trabajo no se implementó o ya está cubierto. Mergearla la marcaría 'integrada' en falso.">⚠ Sin contenido — requiere revisión</span>
           <span v-if="r.merge_pending" class="ig-pill ig-pill-run">⏳ En cola / procesando…</span>
           <button v-if="r.merged" class="ig-btn ig-btn-warn" :disabled="busy === r.id" @click="revert(r)">↩ Revertir</button>
           <button v-if="r.merged" class="ig-btn" :class="r.marcado_version ? 'ig-btn-ver-on' : 'ig-btn-ver'" :disabled="busy === r.id" @click="marcarVersion(r)">
@@ -250,6 +251,9 @@ export default {
         // Badge de estado de integración de la rama (mergeado ✓ / esperando / conflicto / sin mergear).
         function estadoBadge(r) {
             if (r.merged) return { txt: 'mergeado ✓', cls: 'ig-badge-ok' };
+            // [BUG][CIRCUITO] rama sin diff sobre main y sin merge: NO es "sin mergear" (listo), es
+            // trabajo inexistente/ya cubierto → requiere revisión, no ofrecer merge.
+            if (r.sin_contenido) return { txt: 'sin contenido', cls: 'ig-badge-warn' };
             if (r.merge_pending) return { txt: 'esperando…', cls: 'ig-badge-wait' };
             if (r.merge_result && r.merge_result.ok === false) return { txt: 'conflicto ✗', cls: 'ig-badge-err' };
             return { txt: 'sin mergear', cls: 'ig-badge-idle' };
@@ -396,7 +400,8 @@ export default {
 .ig-tag{flex:0 0 auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:1px;}
 .ig-lvC{background:#fef2f2;color:#b91c1c;} .ig-lvB{background:#fffbeb;color:#b45309;} .ig-lvA{background:#ecfdf5;color:#047857;} .ig-lvNone{background:#f1f5f9;color:#475569;}
 .ig-badge{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:1px;white-space:nowrap;}
-.ig-badge-ok{background:#ecfdf5;color:#047857;} .ig-badge-wait{background:#eff6ff;color:#1d4ed8;} .ig-badge-err{background:#fef2f2;color:#b91c1c;} .ig-badge-idle{background:#f1f5f9;color:#475569;}
+.ig-badge-ok{background:#ecfdf5;color:#047857;} .ig-badge-wait{background:#eff6ff;color:#1d4ed8;} .ig-badge-err{background:#fef2f2;color:#b91c1c;} .ig-badge-idle{background:#f1f5f9;color:#475569;} .ig-badge-warn{background:#fffbeb;color:#b45309;}
+.ig-nocontent{flex:0 0 auto;font-size:11px;font-weight:600;color:#b45309;background:#fffbeb;border:1px solid #fde68a;padding:3px 9px;border-radius:6px;white-space:nowrap;}
 .ig-resumen{margin:8px 0 0 32px;font-size:13px;line-height:1.5;color:var(--ig-ink,#0f172a);font-weight:500;}
 .ig-titleblock{min-width:0;}
 .ig-title{font-size:13.5px;font-weight:600;line-height:1.3;}
@@ -475,7 +480,8 @@ export default {
 .ig-dark .ig-sem-ok{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-sem-fail{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-sem-pending{background:rgba(148,163,184,.15);color:#94a3b8;}
 .ig-dark .ig-lvA{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-lvB{background:rgba(251,191,36,.15);color:#fbbf24;} .ig-dark .ig-lvC{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-lvNone{background:rgba(148,163,184,.15);color:#94a3b8;}
 .ig-dark .ig-merged{color:#4ade80;} .ig-dark .ig-pending{color:#fbbf24;}
-.ig-dark .ig-badge-ok{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-badge-wait{background:rgba(96,165,250,.15);color:#60a5fa;} .ig-dark .ig-badge-err{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-badge-idle{background:rgba(148,163,184,.15);color:#94a3b8;}
+.ig-dark .ig-badge-ok{background:rgba(74,222,128,.15);color:#4ade80;} .ig-dark .ig-badge-wait{background:rgba(96,165,250,.15);color:#60a5fa;} .ig-dark .ig-badge-err{background:rgba(248,113,113,.15);color:#f87171;} .ig-dark .ig-badge-idle{background:rgba(148,163,184,.15);color:#94a3b8;} .ig-dark .ig-badge-warn{background:rgba(251,191,36,.15);color:#fbbf24;}
+.ig-dark .ig-nocontent{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.35);color:#fbbf24;}
 .ig-dark .ig-sub code{color:#7dd3fc;}
 .ig-dark .ig-file{background:#0f172a;border-color:#2a3550;}
 .ig-dark .ig-btn-ok{background:rgba(74,222,128,.14);color:#4ade80;border-color:#2b5b3b;}
