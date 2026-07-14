@@ -17,6 +17,7 @@ class RegistrarEjecucionCommand extends Command
         {--started= : epoch de inicio}
         {--finished= : epoch de fin}
         {--modo=aviso_previo}
+        {--modelo= : alias del modelo CLI usado en esta vuelta (#336, ej. sonnet|opus)}
         {--pausado=0}
         {--rc= : código de salida}
         {--log= : ruta del log}
@@ -40,6 +41,8 @@ class RegistrarEjecucionCommand extends Command
             'finished_at'  => $finished ? Carbon::createFromTimestamp((int) $finished) : now(),
             'duracion_seg' => $dur,
             'modo'         => (string) ($this->option('modo') ?: 'aviso_previo'),
+            'modelo'       => $this->option('modelo') !== null && $this->option('modelo') !== ''
+                ? mb_substr((string) $this->option('modelo'), 0, 40) : null,
             'pausado'      => $this->option('pausado') === '1',
             'rc'           => $this->option('rc') !== null ? (int) $this->option('rc') : null,
             'items_tocados' => $meta['items_tocados'] ?? null,
