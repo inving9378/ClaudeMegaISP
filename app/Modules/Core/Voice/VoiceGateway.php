@@ -124,6 +124,43 @@ class VoiceGateway
         return ['ok' => true, 'warnings' => $warnings, 'ips' => $match];
     }
 
+    /**
+     * Origina una llamada por AMI (Action: Originate). Capa de abstracción compartida
+     * para que cualquier consumidor (CobranzaBlaster, futuros módulos VoIP) construya
+     * el Originate en UN solo lugar en vez de armar el texto AMI a mano.
+     *
+     * Item #185 (unificación incremental, opción elegida por Irving): esta pieza queda
+     * DISPONIBLE para consumidores nuevos; NO se migra aquí el hot-path de llamadas en
+     * vivo de CobranzaBlaster (AmiConnectionService::originate, conexión persistente
+     * reusada por lote en BlastCampanaJob) — esa migración es una fase separada que
+     * requiere validar contra la troncal real antes de tocar el flujo de cobranza.
+     *
+     * @param array<string,scalar> $params  Channel, Context, Exten, Priority, CallerID,
+     *                                       Variable(s), ActionID, Timeout, etc. — mismas
+     *                                       claves que la acción AMI Originate.
+     * @return array{success:bool, raw:string, parsed:array<string,string>}
+     */
+    public function originate(array $params): array
+    {
+        $params += ['Async' => 'true'];
+
+        $raw    = $this->ami->send('Originate', $params);
+        $parsed = [];
+        foreach (explode("\n", $raw) as $line) {
+            $line = trim($line);
+            if (str_contains($line, ': ')) {
+                [$key, $value] = explode(': ', $line, 2);
+                $parsed[trim($key)] = trim($value);
+            }
+        }
+
+        return [
+            'success' => ($parsed['Response'] ?? null) === 'Success',
+            'raw'     => $raw,
+            'parsed'  => $parsed,
+        ];
+    }
+
     /** Recarga res_pjsip.so por AMI para que Asterisk relea el realtime. */
     public function reloadPjsip(): bool
     {

@@ -5,6 +5,17 @@ namespace App\Modules\Addons\CobranzaBlaster\Services;
 use App\Modules\Addons\CobranzaBlaster\Models\VoipConfiguracion;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Item #185: la unificación incremental (opción elegida por Irving) agregó
+ * VoiceGateway::originate() (app/Modules/Core/Voice/VoiceGateway.php) como la
+ * abstracción AMI compartida para originar llamadas. Esta clase NO se migró a
+ * ella todavía a propósito: aquí usamos una conexión AMI PERSISTENTE reusada
+ * por lote (BlastCampanaJob conecta una vez y origina N llamadas), mientras
+ * VoiceGateway::originate() abre/cierra conexión por llamada (vía AmiClient,
+ * stateless). Migrar este hot-path de cobranza en vivo a la abstracción
+ * stateless es una fase separada que requiere validar contra la troncal real
+ * antes de tocarlo.
+ */
 class AmiConnectionService
 {
     protected string $host;
