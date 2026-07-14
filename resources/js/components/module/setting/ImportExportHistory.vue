@@ -8,25 +8,25 @@
         <!-- Métricas rápidas -->
         <div class="row q-col-gutter-md q-mb-md">
             <div class="col-6 col-md-3">
-                <q-card flat bordered class="q-pa-md text-center">
+                <q-card flat bordered class="q-pa-md text-center" :dark="darkMode">
                     <div class="text-h4">{{ stats.total }}</div>
                     <div class="text-caption text-grey-7">Total operaciones</div>
                 </q-card>
             </div>
             <div class="col-6 col-md-3">
-                <q-card flat bordered class="q-pa-md text-center bg-green-1">
+                <q-card flat bordered class="q-pa-md text-center" :class="darkMode ? '' : 'bg-green-1'" :dark="darkMode">
                     <div class="text-h4 text-positive">{{ stats.completed }}</div>
                     <div class="text-caption">Exitosas</div>
                 </q-card>
             </div>
             <div class="col-6 col-md-3">
-                <q-card flat bordered class="q-pa-md text-center bg-red-1">
+                <q-card flat bordered class="q-pa-md text-center" :class="darkMode ? '' : 'bg-red-1'" :dark="darkMode">
                     <div class="text-h4 text-negative">{{ stats.failed }}</div>
                     <div class="text-caption">Fallidas</div>
                 </q-card>
             </div>
             <div class="col-6 col-md-3">
-                <q-card flat bordered class="q-pa-md text-center bg-blue-1">
+                <q-card flat bordered class="q-pa-md text-center" :class="darkMode ? '' : 'bg-blue-1'" :dark="darkMode">
                     <div class="text-h4 text-primary">{{ stats.processing }}</div>
                     <div class="text-caption">En proceso</div>
                 </q-card>
@@ -42,6 +42,7 @@
             indicator-color="primary"
             align="left"
             narrow-indicator
+            :dark="darkMode"
         >
             <q-tab name="all" label="Todos" />
             <q-tab name="import" icon="cloud_upload" label="Importaciones" />
@@ -68,6 +69,7 @@
             flat
             bordered
             :loading="loading"
+            :dark="darkMode"
             :pagination="{ rowsPerPage: 15, sortBy: 'created_at', descending: true }"
             no-data-label="Sin registros todavía."
         >
@@ -207,7 +209,7 @@
                     :props="props"
                     no-hover
                 >
-                    <q-td colspan="100%" class="bg-grey-1">
+                    <q-td colspan="100%" :class="darkMode ? '' : 'bg-grey-1'">
                         <div class="q-pa-sm">
                             <!-- Detalle IMPORT: ai_analysis -->
                             <div
@@ -335,7 +337,7 @@
 
         <!-- Diálogo de error -->
         <q-dialog v-model="errorDialog">
-            <q-card style="min-width: 500px; max-width: 90vw">
+            <q-card style="min-width: 500px; max-width: 90vw" :dark="darkMode">
                 <q-card-section class="bg-red-1 text-red-10">
                     <div class="text-h6">
                         <i class="fas fa-exclamation-triangle"></i>
@@ -353,7 +355,7 @@
 
         <!-- Diálogo de confirmación de borrado -->
         <q-dialog v-model="deleteDialog" persistent>
-            <q-card style="min-width: 350px">
+            <q-card style="min-width: 350px" :dark="darkMode">
                 <q-card-section class="row items-center">
                     <q-icon
                         name="warning"
@@ -383,6 +385,7 @@
 
 <script>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { darkMode } from "../../../hook/appConfig";
 
 const STATUS_META = {
     pending:    { label: "Pendiente",  color: "grey-6",   icon: "schedule" },
@@ -591,6 +594,7 @@ export default {
         onBeforeUnmount(clearAllPolling);
 
         return {
+            darkMode,
             logs,
             loading,
             activeFilter,
