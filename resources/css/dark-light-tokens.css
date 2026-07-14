@@ -18,6 +18,12 @@
  *   - WhatsApp Panel: conservar #0b141a fijo hasta Tema 5
  *   - megafamilia.css (--mf-*): refactor a referencias globales en Tema 0.5
  *
+ * PLANTILLAS (item #333, Fase 2 — spec en docs/theming-fase2-spec-tokens.md):
+ *   data-layout-mode="light" | "dark" | "alto-contraste"
+ *   "alto-contraste" es plantilla NUEVA (sin consumidores todavía — nada en el
+ *   sistema escribe ese valor en el body; el selector de UI es Fase 3, diferida).
+ *   Acento de marca unificado aprobado por Irving para plantillas nuevas: #7dd3fc.
+ *
  * Generado: 2026-06-09 — Tema 0
  * ============================================================================ */
 
@@ -70,4 +76,29 @@
     --warning:        #fbbf24;
     --danger:         #f87171;
     --info:           #60a5fa;
+}
+
+[data-layout-mode="alto-contraste"] {
+    /* === Backgrounds — negro/blanco puros, sin grises de baja diferenciación === */
+    --bg-primary:     #000000;
+    --bg-secondary:   #0d0d0d;
+    --bg-surface:     #1a1a1a;
+    --bg-hover:       #2e2e2e;
+
+    /* === Text === */
+    --text-primary:   #ffffff;
+    --text-secondary: #f0f0f0;
+
+    /* === Borders & Effects — bordes marcados (accesibilidad) === */
+    --border-default: #6b6b6b;
+    --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.7);
+
+    /* === Accent (de marca) — acento base unificado aprobado por Irving === */
+    --accent:         #7dd3fc;
+
+    /* === Semantic === */
+    --success:        #4ade80;
+    --warning:        #ffd633;
+    --danger:         #ff6b6b;
+    --info:           #7dd3fc;
 }
