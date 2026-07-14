@@ -386,7 +386,7 @@
 <script>
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
-import { darkMode } from '../../../hook/appConfig.js';
+import { darkMode } from '../../../../hook/appConfig.js';
 
 const STATUS_ORDER = ['in_progress', 'pending', 'done', 'cancelled'];
 const STATUS_LABELS = {

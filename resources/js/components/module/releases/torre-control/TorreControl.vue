@@ -246,8 +246,8 @@
 <script>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
-import { darkMode } from '../../../hook/appConfig.js';
-import { useEscuchar, verMas } from '../../../hook/torreEscuchar.js';
+import { darkMode } from '../../../../hook/appConfig.js';
+import { useEscuchar, verMas } from './torreEscuchar.js';
 import TorreTrabajandoAhora from './TorreTrabajandoAhora.vue';
 
 export default {

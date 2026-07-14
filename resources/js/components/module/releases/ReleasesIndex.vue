@@ -184,11 +184,11 @@
 import { ref, onMounted, onBeforeUnmount, reactive } from "vue";
 import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
-import AuditReport from "./AuditReport.vue";
-import RoadmapTab from "./RoadmapTab.vue";
-import TorreControl from "./TorreControl.vue";
-import TorreTerminales from "./TorreTerminales.vue";
-import IntegracionRamas from "./IntegracionRamas.vue";
+import AuditReport from "./torre-control/AuditReport.vue";
+import RoadmapTab from "./torre-control/RoadmapTab.vue";
+import TorreControl from "./torre-control/TorreControl.vue";
+import TorreTerminales from "./torre-control/TorreTerminales.vue";
+import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";

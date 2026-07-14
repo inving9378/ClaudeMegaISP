@@ -108,7 +108,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import axios from "axios";
-import { darkMode } from "../../../hook/appConfig.js";
+import { darkMode } from "../../../../hook/appConfig.js";
 
 const FASES = [
     { key: "triage",      label: "Triage" },

@@ -141,8 +141,8 @@
 <script>
 import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
-import { darkMode } from '../../../hook/appConfig.js';
-import { useEscuchar, verMas } from '../../../hook/torreEscuchar.js';
+import { darkMode } from '../../../../hook/appConfig.js';
+import { useEscuchar, verMas } from './torreEscuchar.js';
 
 export default {
     name: 'IntegracionRamas',
