@@ -23,14 +23,18 @@ use Throwable;
  *   3. Idempotencia: lookup en PaymentWebhookLog por (provider, external_id).
  *      Si ya existe un row processed para esa transacción, responder 200
  *      sin duplicar pago.
- *   4. Buscar cliente por CLABE → aplicar pago → activar servicio → notificar.
- *   5. Respuesta SIEMPRE bajo 5s (la activación/notificación se hacen mejor
- *      effort pero no esperan).
+ *   4. Buscar cliente por CLABE → aplicar pago → notificar. La reactivación de
+ *      servicio NO se dispara aquí: applyPayment() registra paymentable=Client,
+ *      lo que ya dispara PaymentObserver→PaymentClientJob→ClientBillingService::
+ *      billing() (RUTA AUTORITATIVA, única — roadmap #160), que solo reactiva si
+ *      el balance cubre el costo. Igual que ConciliacionService (Portal de Pago).
+ *   5. Respuesta SIEMPRE bajo 5s (la notificación se hace mejor effort pero no
+ *      espera).
  *
- * Errores no-bloqueantes (WhatsApp falla, activación falla) NO abortan: el
- * pago ya quedó registrado en BD. Los logueamos y seguimos. Errores reales
- * (CLABE no encontrada, payload inválido) → status=failed, OpenPay no retry
- * (devolvemos 200 porque ya está en bitácora; reintento manual desde admin).
+ * Errores no-bloqueantes (WhatsApp falla) NO abortan: el pago ya quedó
+ * registrado en BD. Los logueamos y seguimos. Errores reales (CLABE no
+ * encontrada, payload inválido) → status=failed, OpenPay no retry (devolvemos
+ * 200 porque ya está en bitácora; reintento manual desde admin).
  */
 class SpeiWebhookController extends Controller
 {
@@ -139,14 +143,12 @@ class SpeiWebhookController extends Controller
             ]);
 
             // 8) Side effects (no-bloqueantes — errors no abortan el webhook)
-            try {
-                $this->paymentApp->activateClientService($client);
-            } catch (Throwable $e) {
-                Log::warning('SPEI webhook: activateClientService falló', [
-                    'error'   => $e->getMessage(),
-                    'log_id'  => $log->id,
-                ]);
-            }
+            // NOTA (roadmap #160): NO se llama activateClientService() aquí — esa
+            // ruta secundaria forzaba TODOS los servicios a 'Pagado' sin checar
+            // balance, pudiendo reactivar servicio con un pago insuficiente. La
+            // ÚNICA ruta de reactivación es la autoritativa, disparada por
+            // applyPayment() vía PaymentObserver→PaymentClientJob→
+            // ClientBillingService::billing() (igual que ConciliacionService).
             try {
                 $this->paymentApp->notifyClient($client, $payment);
             } catch (Throwable $e) {
