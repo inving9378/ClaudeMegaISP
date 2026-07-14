@@ -37,6 +37,19 @@ class IntegrarItemCommand extends Command
         $svc = app(RoadmapCircuitoService::class);
         $force = (bool) $this->option('force');
 
+        // #438 — colisión EN VUELO: si el scheduler ya marcó a este item como PERDEDOR (otro item
+        // en vuelo toca los mismos archivos y arrancó primero), este es su checkpoint natural para
+        // autopausarse — NUNCA se mata el proceso a mitad de la vuelta. Deja la rama intacta (con
+        // todo lo ya commiteado) y regresa el item a un estado que el circuito vuelve a despachar
+        // solo cuando el ganador termine (RoadmapCircuitoService::reanudarColisionesResueltas).
+        if ($item->colision_pausada_por && ! $force) {
+            $item->worker_sid = null;
+            $item->save();
+            $this->warn("Item #{$item->id} PAUSADO por colisión en vuelo con #{$item->colision_pausada_por} (candado #438); "
+                . "NO se integra ahora. Su rama {$branch} queda intacta; se reanuda automáticamente cuando el otro termine.");
+            return self::SUCCESS;
+        }
+
         // El merge YA NO lo hace este comando: el ejecutor puede correr en un worktree que NO puede
         // checar `main` (#334), y www-data no puede escribir `.git`. Se ENCOLA y lo aplica el runner
         // on-box (meganet) en el checkout principal, serializado y con verificación de regresión.
