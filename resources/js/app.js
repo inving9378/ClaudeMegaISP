@@ -356,7 +356,7 @@ import InvoiceListar from "./components/module/finance/invoice/InvoiceListar.vue
 import GeneralAccountingIndex from "./components/module/finance/general_accounting/GeneralAccountingIndex.vue";
 import ReleasesIndex from "./components/module/releases/ReleasesIndex.vue";
 import ReleasesDescription from "./components/module/releases/ReleasesDescription.vue";
-import RoadmapTab from "./components/module/releases/RoadmapTab.vue";
+import RoadmapTab from "./components/module/releases/torre-control/RoadmapTab.vue";
 import DeployProgressModal from "./components/module/releases/DeployProgressModal.vue";
 import UpdateBanner from "./components/module/releases/UpdateBanner.vue";
 import RoadmapItemDetalle from "./components/module/roadmap/RoadmapItemDetalle.vue";

@@ -13,6 +13,18 @@ class ReleaseChangelogService
         '/\.env/i', '/\.pem$/i', '/\.key$/i', '/credential/i', '/secret/i',
     ];
 
+    // [CIRCUITO-CC][REGLA] (item roadmap #434) — el versionado NUNCA incluye la Torre de
+    // control ni el "Desarrollador / Dev Tools" del sidebar: son herramientas internas de
+    // dev, jamás forman parte del historial de versiones. Exclusión por módulo/namespace
+    // (prefijo de ruta), no archivo por archivo: cualquier archivo nuevo dentro de estas
+    // carpetas queda excluido automáticamente sin tocar esta lista.
+    private const EXCLUDED_PATH_PREFIXES = [
+        'app/Modules/Addons/Roadmap',                          // Hoja de Ruta / circuito CC (backend de la Torre)
+        'app/Modules/Addons/DevTools',                         // Desarrollador / DevTools (backend)
+        'resources/js/components/module/releases/torre-control', // Torre de control (frontend: panorama, roadmap, terminales, integración, reporte)
+        'resources/js/components/module/devtools',             // Desarrollador / DevTools (frontend)
+    ];
+
     private const MAX_COMMITS = 40;
     private const MAX_STAT_LINES = 60;
 
@@ -48,22 +60,37 @@ class ReleaseChangelogService
         $prevTag = $this->findPreviousTag($env, $base, $newVersion);
 
         $range = $prevTag ? "{$prevTag}..HEAD" : null;
+        $excludePathspec = $this->buildExcludePathspec();
 
         $commits = $this->runGit(
             $range
-                ? "git log {$range} --oneline --no-merges --max-count=" . self::MAX_COMMITS
-                : "git log --oneline --no-merges --max-count=" . self::MAX_COMMITS,
+                ? "git log {$range} --oneline --no-merges --max-count=" . self::MAX_COMMITS . " -- . {$excludePathspec}"
+                : "git log --oneline --no-merges --max-count=" . self::MAX_COMMITS . " -- . {$excludePathspec}",
             $env,
             $base
         );
 
         $rawStat = $range
-            ? $this->runGit("git diff --stat {$range}", $env, $base)
-            : $this->runGit("git diff --stat HEAD~10..HEAD", $env, $base);
+            ? $this->runGit("git diff --stat {$range} -- . {$excludePathspec}", $env, $base)
+            : $this->runGit("git diff --stat HEAD~10..HEAD -- . {$excludePathspec}", $env, $base);
 
         $stat = $this->filterSensitiveStat($rawStat);
 
         return ['commits' => $commits, 'stat' => $stat];
+    }
+
+    /**
+     * Pathspec de exclusión ':(exclude)ruta' para dejar fuera del changelog (git log / diff
+     * --stat) a la Torre de control y al Dev Tools (item roadmap #434) — ver EXCLUDED_PATH_PREFIXES.
+     */
+    private function buildExcludePathspec(): string
+    {
+        $parts = array_map(
+            fn(string $path) => escapeshellarg(":(exclude){$path}"),
+            self::EXCLUDED_PATH_PREFIXES
+        );
+
+        return implode(' ', $parts);
     }
 
     private function findPreviousTag(array $env, string $base, string $newVersion): ?string
