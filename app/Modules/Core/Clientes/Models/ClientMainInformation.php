@@ -159,6 +159,29 @@ class ClientMainInformation extends BaseModel
         $this->attributes['type_of_billing'] = intval($value);
     }
 
+    /**
+     * Formato canónico (item roadmap #155): sin padding de ceros a la izquierda
+     * (ej. "004981" -> "4981"). Solo toca valores puramente numéricos — los
+     * ~1129 usernames de texto libre (no numéricos) quedan intactos.
+     */
+    public static function normalizeUserNumber($value)
+    {
+        if (!is_string($value) && !is_numeric($value)) {
+            return $value;
+        }
+        $trimmed = trim((string) $value);
+        if ($trimmed === '' || !ctype_digit($trimmed)) {
+            return $value;
+        }
+        $stripped = ltrim($trimmed, '0');
+        return $stripped === '' ? '0' : $stripped;
+    }
+
+    public function setUserAttribute($value)
+    {
+        $this->attributes['user'] = static::normalizeUserNumber($value);
+    }
+
     public function getClientNameWithFathersNamesAttribute()
     {
         return $this->name .
