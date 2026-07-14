@@ -21,5 +21,10 @@
 - Cuando choquen: **estabilidad gana** sobre lo funcional; minimalismo gana sobre lo nuevo/muerto.
 - Regla práctica: *"¿Este cambio es el más pequeño que resuelve el item sin tocar lo que ya funciona? Si toco algo funcional, ¿tengo justificación fuerte?"* Si la respuesta flaquea → achica el cambio o escala.
 
+## 4. Avisar antes de cambiar una API con consumidores
+- Antes de modificar o eliminar una función/endpoint/contrato **con consumidores conocidos**, verifica quién la usa (grep en `app/`, `resources/`, `routes/`, `config/`) y dilo en el commit/comentario — no rompas en silencio.
+- Si el registro central de contratos (#308) ya está mergeado a main, consúltalo primero en vez de solo grep.
+- Sin consumidores confirmados (grep en cero) → no es una API compartida; aplica minimalismo normal (§2), incluido borrar código muerto.
+
 ## Frontera dura (recordatorio, NO negociable)
 Dinero / seguridad-permisos-auth / producción-`.env`-deploy / negocio-estrategia → **siempre a Irving**, aunque el cambio sea pequeño y limpio. Estas reglas de arquitectura afinan el CÓMO; no abren la frontera.

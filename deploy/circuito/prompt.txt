@@ -151,6 +151,11 @@ REGLAS DE ARQUITECTURA (ADN — rigen CÓMO cambias el código):
   estorbe en el área que tocas (acotado, no barridos globales). Nada de sobre-ingeniería.
 - BALANCE: minimalismo manda sobre lo NUEVO y lo MUERTO; estabilidad manda sobre lo FUNCIONAL. Pregúntate:
   "¿es el cambio más pequeño que resuelve el item sin tocar lo que ya funciona?" Si no, achícalo o escala.
+- AVISAR ANTES DE CAMBIAR APIs: antes de modificar/eliminar una función, endpoint o contrato CON
+  CONSUMIDORES conocidos, greppea quién la usa (app/ resources/ routes/ config/) y decláralo en el
+  commit/comentario — no rompas en silencio. Si el registro central de contratos (#308) ya está
+  mergeado a main, consúltalo primero en vez de solo grep. Sin consumidores reales (grep en cero) no
+  es API compartida: aplica minimalismo normal.
 - La frontera dura (dinero/seguridad/prod/negocio) sigue intacta: pequeño y limpio NO la abre.
 
 Sé conciso y determinista. No expliques de más. Respeta el timeout de la vuelta.
