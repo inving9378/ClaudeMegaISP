@@ -63,18 +63,6 @@ export const getAllPaymentsOfCustomers = async (id) => {
     return data;
 };
 
-export const getDataSeller = async (id) => {
-    let data = [];
-    await axios["get"](`/vendedores/payments/${id}/getDataSeller`)
-        .then((response) => {
-            data = response.data;
-        })
-        .catch((e) => {
-            console.log(e);
-        });
-    return data;
-};
-
 export const getRuleDataSeller = async (
     id,
     from = null,

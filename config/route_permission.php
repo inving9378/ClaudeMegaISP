@@ -289,7 +289,7 @@ return [
     'seller_view_dashboard' => ['/vendedores/dashboard', '/vendedores/seguimiento-me', '/vendedores/{id}/getDataById', '/configuracion/metodos-de-pago/get-all-methods'],
     'seller_view_statics' => ['/vendedores/salesAndProspects/{startDate}/{endDate}/{id}', '/vendedores/{id}/compareSales', '/vendedores/salesByMedium/{startDate}/{endDate}/{id}', '/vendedores/{id}/prospectsByStatus/{startDate}/{endDate}'],
     'seller_view_sales' => ['/vendedores/ventas/{id}/salesBySeller'],
-    'seller_follow_payment_client' => ['/vendedores/payments/{id}/getDataSeller', '/configuracion/reglas-comisiones/get-rule-by-seller/{id}', '/vendedores/payments/{id}/getListPayments'],
+    'seller_follow_payment_client' => ['/configuracion/reglas-comisiones/get-rule-by-seller/{id}', '/vendedores/payments/{id}/getListPayments'],
     'seller_view_all_payments_for_seller' => ['/vendedores/payments-sellers/{id}/get-all-payments-of-seller'],
     'seller_view_all_transactions_for_seller' => ['/vendedores/transacciones/{id}/{startDate}/{endDate}/{methodPayment}/get-transactions-by-seller'],
     'seller_add_payment' => ['/vendedores/ventas/{id}/salesBySeller'],
