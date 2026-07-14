@@ -269,7 +269,9 @@ Regla de coexistencia: nunca cambiar `motor_modo` de una OLT mientras haya opera
 > "Retomar la paridad de escritura del motor Huawei propio ahora"). Esta decisión **reemplaza**
 > una aprobación previa del 2026-07-12 que había inclinado hacia congelar — esa rama nunca llegó
 > a mergearse a `main`, así que este documento nunca tuvo un estado "congelado" vigente; el
-> registro formal en esta sección 9 es directamente el de retomar.
+> registro formal en esta sección 9 es directamente el de retomar. Reafirmada por Irving el
+> 2026-07-14 (misma opción elegida) tras un ciclo del circuito donde la rama previa de este
+> registro tampoco llegó a mergearse a `main`.
 
 **Qué se retoma:** el desarrollo de las operaciones write pendientes del `HuaweiDriver`, con
 **prioridad explícita en los comandos de aprovisionamiento (alta / baja / suspensión de ONU)**
