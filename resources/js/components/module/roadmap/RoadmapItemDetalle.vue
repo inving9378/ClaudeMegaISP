@@ -110,6 +110,8 @@ export default {
         const textoOpcion = (op) => (typeof op === 'string' ? op : (op?.titulo || op?.title || op?.texto || JSON.stringify(op)));
         const esElegida = (op) => {
             if (!item.opcion_elegida) return false;
+            // #431: opcion_elegida es la CLAVE estable; las opciones traen {clave,texto,recomendada}.
+            if (op && typeof op === 'object' && op.clave) return op.clave === item.opcion_elegida;
             const val = typeof op === 'string' ? op : (op?.titulo || op?.title || op?.texto);
             return val === item.opcion_elegida;
         };

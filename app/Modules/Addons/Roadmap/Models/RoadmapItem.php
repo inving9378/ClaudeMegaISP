@@ -130,6 +130,78 @@ class RoadmapItem extends Model
         return $this->estado_aprobacion === 'en_progreso' || (bool) $this->en_desarrollo_humano;
     }
 
+    /**
+     * #431 Fase 1 — CLAVE ESTABLE de una opción (no su prosa). Deriva de un hash del texto
+     * normalizado → sobrevive al reordenamiento de las opciones (NO es índice posicional) y cabe
+     * de sobra en la columna (16 chars), matando el bug de `max:255` con opciones largas (la prosa
+     * de un fork C llega a 655 chars → 422 silencioso). Lo que se PERSISTE en `opcion_elegida` es
+     * esta clave; la prosa vive solo en `opciones`.
+     */
+    public static function claveOpcion(string $texto): string
+    {
+        return substr(sha1(trim(preg_replace('/\s+/', ' ', $texto))), 0, 16);
+    }
+
+    /** Opciones enriquecidas para la UI: [{clave, texto, recomendada}]. `opciones` = array de prosa. */
+    public function opcionesDetalladas(): array
+    {
+        $out = [];
+        foreach ((array) ($this->opciones ?? []) as $texto) {
+            $texto = trim((string) $texto);
+            if ($texto === '') {
+                continue;
+            }
+            $out[] = [
+                'clave'       => static::claveOpcion($texto),
+                'texto'       => $texto,
+                'recomendada' => stripos($texto, 'RECOMENDADA') !== false,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Resuelve la entrada del usuario (una clave estable, la prosa completa, o un índice "0/1/2")
+     * a la CLAVE de una opción REAL de este item. Devuelve null si no corresponde a ninguna (el
+     * controlador lo trata como "opción inválida / faltante"). NUNCA devuelve prosa.
+     */
+    public function resolverClaveOpcion(?string $input): ?string
+    {
+        $input = $input !== null ? trim($input) : '';
+        if ($input === '') {
+            return null;
+        }
+        $det = $this->opcionesDetalladas();
+        if (empty($det)) {
+            return null;
+        }
+        foreach ($det as $o) {                       // 1) ya es una clave válida
+            if ($o['clave'] === $input) {
+                return $o['clave'];
+            }
+        }
+        foreach ($det as $o) {                       // 2) es la prosa (exacta o normalizada)
+            if ($o['texto'] === $input || static::claveOpcion($o['texto']) === static::claveOpcion($input)) {
+                return $o['clave'];
+            }
+        }
+        if (ctype_digit($input)) {                    // 3) índice posicional "0".."n"
+            $i = (int) $input;
+            if (isset($det[$i])) {
+                return $det[$i]['clave'];
+            }
+        }
+
+        return null;
+    }
+
+    /** ¿Este item EXIGE elegir una opción antes de aprobar? = trae opciones propuestas. */
+    public function exigeOpcion(): bool
+    {
+        return count($this->opcionesDetalladas()) > 0;
+    }
+
     /** Items que el circuito SÍ puede tomar (excluye en_progreso y candados humanos). #341 */
     public function scopeTomablePorCircuito($query)
     {
