@@ -61,6 +61,18 @@ class SchedulerCommand extends Command
                 if ($svc->pendingDisparo()) {
                     $svc->clearDisparo();
                 }
+
+                // #438 — colisión EN VUELO: detecta footprint que se pisa entre dos items ya
+                // despachados (el pre-filtro de módulo de abajo no lo puede ver) y reanuda a los
+                // que ya quedaron libres (su "ganador" integró/salió de vuelo). Solo lee refs +
+                // escribe el flag propio del perdedor; nunca toca un worktree ajeno ni mata nada
+                // en vuelo. Un fallo aquí no tumba el scheduler.
+                try {
+                    $svc->detectarColisionesEnVuelo();
+                    $svc->reanudarColisionesResueltas();
+                } catch (\Throwable $e) {
+                    // best-effort, igual que el drain de arriba.
+                }
             }
 
             $n = $svc->getParalelismo();
