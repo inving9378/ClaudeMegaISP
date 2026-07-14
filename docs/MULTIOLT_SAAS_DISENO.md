@@ -263,36 +263,39 @@ Regla de coexistencia: nunca cambiar `motor_modo` de una OLT mientras haya opera
 
 ---
 
-## 9. Estado: CONGELADO — paridad de escritura Huawei propia (2026-07-12)
+## 9. Estado: RETOMA — paridad de escritura Huawei propia (2026-07-13)
 
-> Decisión de Irving, Hoja de Ruta item #415 (aprobado 2026-07-12 12:59). Congela el avance de
-> la sección 8, sin borrar ni revertir nada de lo ya construido.
+> Decisión final de Irving, Hoja de Ruta item #415 (aprobado 2026-07-13 21:33, opción elegida:
+> "Retomar la paridad de escritura del motor Huawei propio ahora"). Esta decisión **reemplaza**
+> una aprobación previa del 2026-07-12 que había inclinado hacia congelar — esa rama nunca llegó
+> a mergearse a `main`, así que este documento nunca tuvo un estado "congelado" vigente; el
+> registro formal en esta sección 9 es directamente el de retomar.
 
-**Qué queda congelado:** el desarrollo de las operaciones write pendientes del `HuaweiDriver`
-(B5 — cambio de perfil de velocidad; y la gestión de service-ports/VLANs, aún más adelante).
-Lo ya implementado (reboot/activar-desactivar/autorizar/desautorizar ONT en dry-run, y el write
-real cosmético de W3) **se conserva tal cual, sin tocarse**. Ninguna OLT de producción tiene hoy
-`motor_modo=propio` (las 3 siguen en `smartolt`); el freeze no cambia el comportamiento en vivo.
+**Qué se retoma:** el desarrollo de las operaciones write pendientes del `HuaweiDriver`, con
+**prioridad explícita en los comandos de aprovisionamiento (alta / baja / suspensión de ONU)**
+siguiendo la secuencia ya definida en la sección 8.4 (que ya tiene reboot/activar-desactivar/
+autorizar/desautorizar ONT en dry-run desde W1, y el write real cosmético de W3). Después de
+aprovisionamiento sigue B5 (cambio de perfil de velocidad) y, más adelante, la gestión de
+service-ports/VLANs.
 
-**Por qué:** decisión de negocio/arquitectura — el costo de mantenimiento por firmware/modelo y
-el riesgo de tocar aprovisionamiento en campo no se justifican sin un caso de uso vivo que lo
-empuje. Ver el brief completo de opciones (A/B/C) en `comentarios_claude` del item #415 de la
-Hoja de Ruta.
+**Condición explícita de Irving (no negociable):** cualquier comando write nuevo se prueba
+primero contra una **OLT de laboratorio** (no productiva) antes de tocar equipos en campo. La
+regla de coexistencia de la sección 8.5 sigue intacta y no se relaja por esta decisión: ninguna
+OLT real cambia `motor_modo` a `propio` sin ventana de mantenimiento + presencia de Irving.
+Ninguna OLT de producción tiene hoy `motor_modo=propio` (las 3 siguen en `smartolt`); retomar el
+desarrollo no cambia por sí solo el comportamiento en vivo.
 
-**Trigger de reanudación** (cualquiera de estos, a criterio de Irving):
-- El método actual de escritura (SmartOLT / CLI manual) empieza a fallar de forma recurrente en
-  aprovisionamiento masivo o en operaciones diarias (reboot/activar-desactivar).
-- Entra un modelo/firmware de OLT Huawei nuevo que SmartOLT no soporte bien.
-- Aparece un caso de negocio concreto que exija independencia total de SmartOLT (p. ej. Camino A
-  multi-tenant de la sección 2, que si se persigue sí necesitaría el motor propio maduro).
-
-**Al retomar:** seguir la secuencia de la sección 8.4 desde donde quedó (B5 — perfil de
-velocidad), con la misma regla de coexistencia de la sección 8.5 (ventana de mantenimiento +
-presencia de Irving para el primer flip real de `motor_modo`).
+**Alcance de este item (#415):** este item cierra la **decisión** (retomar, con la condición de
+lab-testing previo). La implementación real de los comandos de aprovisionamiento — acceso a la
+OLT de laboratorio, desarrollo del ciclo alta/baja/suspensión y su validación — es trabajo de
+ingeniería sustancial que corresponde a sesión(es) dedicada(s) del circuito o de desarrollo
+directo, no a este ciclo de decisión. Se ejecuta como próximo(s) item(s) de Hoja de Ruta cuando
+haya acceso confirmado a una OLT de laboratorio, respetando nivel de riesgo C (toca red en vivo).
 
 ---
 
 *Documento creado por Claude Sonnet 4.6 como resultado de la sesión autónoma MultiOLT 2026-06-13.
 Sección 8 agregada en sesión W2 (2026-06-16) — decisiones acordadas Irving + asistente.*
-Sección 9 agregada por el circuito CC (item #415, 2026-07-12) — registra el congelamiento decidido por Irving.*
+Sección 9 agregada por el circuito CC (item #415) — 2026-07-12: primer intento de registro
+(congelar), rama nunca mergeada. 2026-07-13: registro final — decisión de Irving de retomar.*
 *Basado en auditoría directa del codebase — no estimaciones.*
