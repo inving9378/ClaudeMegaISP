@@ -96,6 +96,7 @@ class RoadmapController extends Controller
                 'started_at'    => optional($e->started_at)->toIso8601String(),
                 'duracion_seg'  => $e->duracion_seg,
                 'modo'          => $e->modo,
+                'modelo'        => $e->modelo,
                 'pausado'       => $e->pausado,
                 'rc'            => $e->rc,
                 'items_tocados' => $e->items_tocados,

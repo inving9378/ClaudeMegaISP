@@ -225,7 +225,9 @@
           </span>
           <div class="tc-ejec-body">
             <div class="tc-ejec-head">
-              <span>{{ rel(e.started_at) }}</span> · <span>{{ e.modo }}</span> · <span>{{ e.duracion_seg }}s</span>
+              <span>{{ rel(e.started_at) }}</span> · <span>{{ e.modo }}</span>
+              <span v-if="e.modelo"> · <span class="tc-tag-modelo">{{ e.modelo }}</span></span>
+              · <span>{{ e.duracion_seg }}s</span>
               <span v-if="e.n_propuestas"> · {{ e.n_propuestas }} prop.</span>
               <span v-if="e.n_decisiones"> · {{ e.n_decisiones }} dec.</span>
               <span v-if="e.items_tocados && e.items_tocados.length"> · items {{ e.items_tocados.join(', ') }}</span>
@@ -764,6 +766,7 @@ export default {
 .tc-ejec-body{min-width:0;}
 .tc-ejec-head{font-size:12px;color:var(--tc-muted);}
 .tc-ejec-rc{color:var(--tc-bad);font-weight:600;}
+.tc-tag-modelo{font-weight:600;color:var(--tc-accent);}
 
 /* ── Modo oscuro (responde al toggle de tema del proyecto: body[data-layout-mode] → darkMode) ── */
 .tc-dark{
