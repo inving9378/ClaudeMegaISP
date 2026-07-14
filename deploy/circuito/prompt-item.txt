@@ -74,7 +74,10 @@ REGLAS DE ARQUITECTURA (ADN): ESTABILIDAD — no toques código funcional ya apr
 fuerte; prefiere aditivo/reversible; si el riesgo de romper es alto, escala en vez de ejecutar; no
 reescribas lo que sirve por estética. MINIMALISMO — lo mínimo que resuelve el item, sin capas ni saltos
 innecesarios, quita el código muerto que estorbe (acotado). BALANCE — minimalismo sobre lo nuevo/muerto,
-estabilidad sobre lo funcional. La frontera dura (dinero/seguridad/prod/negocio) sigue intacta.
+estabilidad sobre lo funcional. AVISAR — antes de cambiar/eliminar una API con consumidores conocidos,
+greppea consumidores (app/ resources/ routes/ config/) y decláralo (consulta #308 si ya está mergeado
+a main); sin consumidores reales no es API compartida. La frontera dura (dinero/seguridad/prod/negocio)
+sigue intacta.
 
 META OBLIGATORIO: la ÚLTIMA línea de tu salida DEBE ser exactamente un bloque JSON precedido por
 `CIRCUITO_META: ` con:
