@@ -29,7 +29,8 @@ PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
 PROMPT_ITEM_FILE="$PROJ/deploy/circuito/prompt-item.txt"
 TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
 MAXTURNS="${CIRCUITO_MAXTURNS:-60}"
-MODEL="${CIRCUITO_MODEL:-sonnet}"       # #336: Sonnet por defecto (paralelo barato). Override con CIRCUITO_MODEL.
+# MODEL se resuelve MÁS ABAJO desde `circuito:flags` (settings circuito_modelo_rutina/forzar, #336).
+# CIRCUITO_MODEL sigue siendo el override manual de más prioridad (pruebas ad-hoc sin tocar settings).
 
 mkdir -p "$LOGDIR"
 TS="$(date +%Y%m%d-%H%M%S)"
@@ -49,13 +50,15 @@ cd "$PROJ" || { log "No pude cd a $PROJ"; exit 1; }
 FLAGS="$(php artisan circuito:flags 2>>"$LOG")"
 PAUSED="$(printf '%s\n' "$FLAGS" | sed -n 's/^pausado=//p')"
 MODO="$(printf '%s\n' "$FLAGS" | sed -n 's/^modo=//p')"
-log "flags: pausado=${PAUSED:-?} modo=${MODO:-?}"
+MODELO_FLAG="$(printf '%s\n' "$FLAGS" | sed -n 's/^modelo=//p')"
+MODEL="${CIRCUITO_MODEL:-${MODELO_FLAG:-sonnet}}"   # #336: settings circuito_modelo_rutina/forzar; CIRCUITO_MODEL manda si viene.
+log "flags: pausado=${PAUSED:-?} modo=${MODO:-?} modelo=${MODEL:-?}"
 
 # Registra la fila de ejecución (#319). Nunca tumba la vuelta si falla.
-registrar(){  # started finished modo pausado rc meta
+registrar(){  # started finished modo pausado rc meta modelo
   php artisan circuito:registrar-ejecucion \
     --started="$1" --finished="$2" --modo="$3" --pausado="$4" --rc="$5" \
-    --log="$LOG" --meta="$6" >>"$LOG" 2>&1 || log "aviso: no se pudo registrar la ejecución."
+    --log="$LOG" --meta="$6" --modelo="${7:-}" >>"$LOG" 2>&1 || log "aviso: no se pudo registrar la ejecución."
 }
 
 if [ "$PAUSED" = "1" ]; then
@@ -63,7 +66,7 @@ if [ "$PAUSED" = "1" ]; then
   log "Circuito EN PAUSA (kill switch activo). No ejecuto nada."
   # Cierra cualquier estado en vivo colgado (#335) para que la Torre no muestre "corriendo".
   php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
-  registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "1" "0" '{}'
+  registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "1" "0" '{}' "$MODEL"
   exit 0
 fi
 
@@ -85,7 +88,7 @@ if ! php artisan circuito:provision-worktree --path="$WT" >>"$LOG" 2>&1; then
   log "No pude provisionar el worktree $WT. Aborto la vuelta (no toco el checkout principal)."
   NOW="$(date +%s)"
   php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
-  registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "0" "1" '{}' 2>/dev/null || true
+  registrar "$NOW" "$NOW" "${MODO:-aviso_previo}" "0" "1" '{}' "$MODEL" 2>/dev/null || true
   exit 1
 fi
 cd "$WT" || { log "No pude cd a $WT"; exit 1; }
@@ -142,7 +145,7 @@ ejecutar_una() {
     php artisan tinker --execute="\$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find($ITEM); if(\$i && !in_array(\$i->estado_aprobacion,['completado','cancelado','requiere_irving'],true)){ \$i->estado_aprobacion='requiere_irving'; \$i->aprobado_por='timeout'; \$i->save(); }" >>"$LOG" 2>&1 || log "aviso: no pude parquear #$ITEM tras timeout."
   fi
 
-  registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META"
+  registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META" "$MODEL"
 }
 
 if [ -n "$ITEM" ]; then
