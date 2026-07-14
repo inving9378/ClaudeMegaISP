@@ -207,6 +207,38 @@ class RevisorService
      *    o marcador [BLOCKED-*]/[PARKED-*] en el título.
      *  - B (→ sigue pendiente_revision): default seguro; la SIGUIENTE pasada del revisor lo evalúa como B.
      */
+    /**
+     * #432 ADENDA C — quita LÍNEAS de guardrail/boilerplate de proceso (no describen el trabajo) para
+     * que el triaje no marque C por el substring estándar del guardrail ("prod"/"dinero"/…). Conservador:
+     * solo borra líneas con marcadores inequívocos de proceso; deja intacto lo que describe la tarea.
+     */
+    private function stripBoilerplate(string $texto): string
+    {
+        $markers = [
+            'guardrail', 'solo en dev', 'sólo en dev', 'solo dev', 'nunca prod', 'no tocar prod',
+            'sin tocar prod', 'no toca prod', 'nunca tocar prod', 'jamás prod', 'jamas prod',
+            'circuito pausad', 'worktree aislad', 'rama propia', 'revisar-y-mergear', 'revisar y mergear',
+            'sin auto-merge', 'sin push', 'no mergear', 'checkpoint', 'reanudar el circuito', 'reanuda',
+            'trabajar solo en', 'dev.meganett', 'v1megaisp', '192.168.105', 'ejecución:', 'ejecucion:',
+        ];
+        $out = [];
+        foreach (preg_split('/\r?\n/', $texto) as $linea) {
+            $low  = mb_strtolower($linea);
+            $skip = false;
+            foreach ($markers as $m) {
+                if (str_contains($low, $m)) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if (! $skip) {
+                $out[] = $linea;
+            }
+        }
+
+        return implode("\n", $out);
+    }
+
     public function triarNivelNull(RoadmapItem $item): array
     {
         // Marcador de bloqueo en el TÍTULO → C directo.
@@ -215,8 +247,12 @@ class RevisorService
                 'motivo' => 'Título con marcador [BLOCKED-*]/[PARKED-*] → decisión de Irving.'];
         }
 
+        // #432 ADENDA C — clasificar por el TRABAJO, no por el guardrail: se quita el boilerplate de
+        // proceso (guardrail/ejecución/checkpoint) de description/prompt antes de buscar keywords, para
+        // no marcar C por el substring "prod"/"dinero" que viene del guardrail estándar (no de la tarea).
         $heno = mb_strtolower(trim(($item->title ?? '') . "\n" . ($item->modulo ?? '')
-            . "\n" . ($item->description ?? '') . "\n" . ($item->prompt ?? '')));
+            . "\n" . $this->stripBoilerplate((string) $item->description)
+            . "\n" . $this->stripBoilerplate((string) $item->prompt)));
 
         foreach (self::TRIAJE_C_PLAIN as $kw) {
             if ($kw !== '' && str_contains($heno, $kw)) {
