@@ -222,6 +222,28 @@ class RoadmapItem extends Model
                      ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'en_progreso'])
                      ->whereNull('archivado_at')
                      ->whereNull('branch')   // con rama = ya está en Integración/Terminales
+                     // #431 Fase 2 — las DECISIONES no son backlog: viven SOLO en la bandeja de
+                     // Irving y se ocultan de la Hoja de ruta (feed + contador de Pendientes) hasta
+                     // que Irving las apruebe. Al aprobar (→ aprobado_irving) el item REAPARECE aquí
+                     // como ejecutable, así que en todos los filtros de abajo `aprobado_irving` pasa.
+                     //   (a) requiere_irving = bandeja pura.
+                     ->where('estado_aprobacion', '!=', 'requiere_irving')
+                     //   (b) nivel C aún sin decidir (sin opcion_elegida y no aprobado por Irving).
+                     //       whereNot deja pasar los de nivel NULL (desconocido) y los ya aprobados.
+                     ->whereNot(function ($q) {
+                         $q->where('nivel_riesgo', 'C')
+                           ->whereNull('opcion_elegida')
+                           ->where('estado_aprobacion', '!=', 'aprobado_irving');
+                     })
+                     //   (c) tag [BLOCKED-NEGOCIO]/[PARKED-*] en el título = decisión de negocio,
+                     //       aunque el revisor aún no lo haya movido a requiere_irving. Fuera salvo
+                     //       que Irving ya lo aprobó explícitamente.
+                     ->whereNot(function ($q) {
+                         $q->where(function ($w) {
+                             $w->where('title', 'like', '%[BLOCKED-%')
+                               ->orWhere('title', 'like', '%[PARKED-%');
+                         })->where('estado_aprobacion', '!=', 'aprobado_irving');
+                     })
                      ->when(! empty($enCurso), fn ($q) => $q->whereNotIn('id', $enCurso));
     }
 
