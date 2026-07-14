@@ -156,11 +156,19 @@ class MergeRunner
         $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
         $this->markMerged($item, $sha, $branch);
 
+        // #432 ADENDA A — "mergeado" = DESPLEGADO y VISIBLE, no solo en git. Si el merge tocó
+        // frontend, recompila el bundle + limpia cachés (SIN config:cache) para servir el cambio de
+        // inmediato (antes quedaba en git pero el bundle servido seguía stale = "hecho pero no está").
+        $rebuild = '';
+        if (! empty($this->clasificarUi($sha)['ui'])) {
+            $rebuild = $this->rebuildFrontend() ? ' Bundle recompilado + cachés limpias.' : ' (⚠️ recompilación de bundle falló; revisar log).';
+        }
+
         Log::channel('roadmap_externo')->info('merge-ok', ['item' => $item->id, 'branch' => $branch, 'merge_commit' => $sha,
             'trigger' => $req['trigger'] ?? '?']);
 
         return ['estado' => 'ok', 'ok' => true, 'merge_commit' => $sha,
-            'salida' => "Integrada a dev (merge {$sha}). Regresión OK.", 'escalado' => false, 'at' => time()];
+            'salida' => "Integrada a dev (merge {$sha}). Regresión OK.{$rebuild}", 'escalado' => false, 'at' => time()];
     }
 
     /** Verificación de regresión ligera sobre el árbol fusionado (sin correr la suite destructiva). */
@@ -194,6 +202,41 @@ class MergeRunner
         }
 
         return ['ok' => true, 'detalle' => 'OK'];
+    }
+
+    /**
+     * #432 ADENDA A — recompila el bundle en el checkout PRINCIPAL (donde vive la web) + limpia cachés
+     * para que "mergeado" = DESPLEGADO y VISIBLE (no solo en git). Corre bajo el SEMÁFORO de builds
+     * (deploy/circuito/npm-build.sh) para no chocar con builds del ejecutor; CIRCUITO_BUILD_MODE=prod →
+     * build de producción. NUNCA config:cache (rompe env() en runtime en este box → IA/WhatsApp NULL).
+     * Best-effort: un fallo de build NO revierte el merge (el código ya está en main); se registra.
+     */
+    private function rebuildFrontend(): bool
+    {
+        try {
+            $build = Process::fromShellCommandline(
+                'CIRCUITO_BUILD_MODE=prod bash ' . escapeshellarg(base_path('deploy/circuito/npm-build.sh')),
+                base_path()
+            );
+            $build->setTimeout(600);
+            $build->run();
+            $ok = $build->isSuccessful();
+
+            foreach (['view:clear', 'route:clear', 'config:clear', 'view:cache'] as $cmd) {
+                $p = new Process(['php', 'artisan', $cmd], base_path());
+                $p->setTimeout(60);
+                $p->run();
+            }
+
+            Log::channel('roadmap_externo')->info('rebuild-frontend', ['ok' => $ok,
+                'salida' => mb_strimwidth(trim($build->getErrorOutput() . $build->getOutput()), 0, 300, '…')]);
+
+            return $ok;
+        } catch (\Throwable $e) {
+            Log::channel('roadmap_externo')->warning('rebuild-frontend-fail', ['error' => $e->getMessage()]);
+
+            return false;
+        }
     }
 
     /** Toggle del guard de frontend: setting `circuito_frontend_gate`='1' (OFF por default). */

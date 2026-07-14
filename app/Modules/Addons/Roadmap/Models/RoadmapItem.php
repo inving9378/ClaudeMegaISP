@@ -18,6 +18,8 @@ class RoadmapItem extends Model
         // Quién fijó el nivel_riesgo vigente: interno|externo (circuito #260)
         'nivel_riesgo_origen',
         'comentarios_claude', 'revisado_at', 'aprobado_por',
+        // Reportes + deep-link de revisión (#427 / #432 ADENDA B)
+        'reporte_tecnico', 'reporte_coloquial', 'enlace_revision',
         // Bandeja de decisiones interactiva (#313) + brief multi-pregunta (#432 Fase 3)
         'opciones', 'opcion_elegida', 'preguntas',
         // Aislamiento por rama (#311)

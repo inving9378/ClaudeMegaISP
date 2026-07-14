@@ -47,8 +47,13 @@ FLUJO (haz EXACTAMENTE esto para el item #__ITEM_ID__):
    Si la verificación FALLA → revierte tus commits de la rama y escala (paso 6b). Nunca dejes algo roto.
 5. Integra (encola el auto-merge; el runner on-box lo mergea a main serializado y con su verificación):
    php artisan circuito:integrar __ITEM_ID__
-   Marca el cierre:
-   php artisan tinker --execute='$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__); $i->estado_aprobacion="completado"; $i->comentarios_claude=($i->comentarios_claude."\nEJECUTADO: <qué hiciste + cómo verificaste>"); $i->save();'
+   Marca el cierre + POBLA el reporte coloquial y el enlace de revisión (#432 ADENDA B):
+     · reporte_coloquial = lenguaje LLANO, qué cambió y DÓNDE (NO repitas el título). Ej.:
+       "El modal de Agregar item ahora arranca en prioridad Media en vez de Sin prioridad."
+       ("Escuchar" lo lee.)
+     · enlace_revision = deep-link al lugar REAL de la UI para verlo/probarlo (ej. "/releases" →
+       pestaña Hoja de ruta → botón Agregar item). NUNCA "/roadmap/item/N". ("Ver" lo usa.)
+   php artisan tinker --execute='$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__); $i->estado_aprobacion="completado"; $i->comentarios_claude=($i->comentarios_claude."\nEJECUTADO: <qué hiciste + cómo verificaste>"); $i->reporte_coloquial="<qué cambió y dónde, en llano>"; $i->enlace_revision="<ruta REAL de la UI>"; $i->save();'
 6a. Éxito → termina con el META (abajo).
 6b. Escalar (no se puede hacer seguro / verificación falló):
    php artisan tinker --execute='$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__); $i->estado_aprobacion="requiere_irving"; $i->comentarios_claude=($i->comentarios_claude."\nESCALADO: <por qué>"); $i->save();'
