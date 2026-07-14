@@ -122,6 +122,14 @@
                                 </span>
                             </template>
                             <button
+                                v-if="speechSupported"
+                                class="btn btn-outline-secondary btn-sm"
+                                :title="speaking ? 'Detener lectura' : 'Escuchar esta sección'"
+                                @click="toggleSpeak">
+                                <i :data-feather="speaking ? 'stop-circle' : 'volume-2'" class="wiki-btn-icon"></i>
+                                {{ speaking ? 'Detener' : 'Escuchar' }}
+                            </button>
+                            <button
                                 v-if="isDeveloper"
                                 class="btn btn-outline-primary btn-sm"
                                 :disabled="generating"
@@ -250,6 +258,8 @@ export default {
             sidebarOpen: false,
             expanded: this.initialExpanded(),
             menu: MENU,
+            speechSupported: typeof window !== 'undefined' && 'speechSynthesis' in window,
+            speaking: false,
         };
     },
     computed: {
@@ -307,7 +317,10 @@ export default {
             this.refreshFeather();
         },
         expanded: { handler() { this.refreshFeather(); }, deep: true },
-        activeItem() { this.refreshFeather(); },
+        activeItem() {
+            this.refreshFeather();
+            this.stopSpeak();
+        },
     },
     mounted() {
         this.loadSections();
@@ -315,6 +328,9 @@ export default {
     },
     updated() {
         this.refreshFeather();
+    },
+    beforeUnmount() {
+        this.stopSpeak();
     },
     methods: {
         initialExpanded() {
@@ -395,6 +411,38 @@ export default {
             } finally {
                 this.generating = false;
             }
+        },
+        stripMarkdownForSpeech(md) {
+            return String(md || '')
+                .replace(/```[\s\S]*?```/g, ' [bloque de código] ')
+                .replace(/`([^`]+)`/g, '$1')
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .replace(/\*([^*]+)\*/g, '$1')
+                .replace(/^#+\s/gm, '')
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                .replace(/^\s*[-*+]\s/gm, '')
+                .replace(/\|/g, ' ');
+        },
+        toggleSpeak() {
+            if (!this.speechSupported || !this.activeSection) return;
+            if (this.speaking) {
+                this.stopSpeak();
+                return;
+            }
+            const texto = this.stripMarkdownForSpeech(
+                (this.activeItem?.label ? this.activeItem.label + '. ' : '') + this.activeSection.content
+            );
+            const utt = new SpeechSynthesisUtterance(texto);
+            utt.lang = 'es-MX';
+            utt.onend = () => { this.speaking = false; };
+            utt.onerror = () => { this.speaking = false; };
+            window.speechSynthesis.cancel();
+            this.speaking = true;
+            window.speechSynthesis.speak(utt);
+        },
+        stopSpeak() {
+            if (this.speechSupported) window.speechSynthesis.cancel();
+            this.speaking = false;
         },
         refreshFeather() {
             this.$nextTick(() => {
