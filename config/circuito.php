@@ -18,6 +18,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Salvaguarda de pausa olvidada (#343)
+    |--------------------------------------------------------------------------
+    | Horas de pausa seguidas tras las que la Torre pinta el banner "¿reanudar?". Puramente
+    | informativo — NUNCA reanuda solo (el kill switch #342 sigue siendo solo-humano).
+    */
+    'pausa_aviso_horas' => (float) env('CIRCUITO_PAUSA_AVISO_HORAS', 3),
+
+    /*
+    |--------------------------------------------------------------------------
     | Agente REVISOR (#338)
     |--------------------------------------------------------------------------
     |

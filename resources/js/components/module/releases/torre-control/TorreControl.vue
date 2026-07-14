@@ -41,6 +41,12 @@
     <!-- Feedback del disparo manual (#337) -->
     <div v-if="disparoMsg" class="tc-disparo-msg">{{ disparoMsg }}</div>
 
+    <!-- #343: salvaguarda de pausa olvidada — puramente informativo, nunca reanuda solo -->
+    <div v-if="pausaOlvidada" class="tc-alert">
+      ⚠ <b>Circuito pausado hace {{ pausaHorasTxt }}</b><span v-if="pausadoInfo?.por"> por {{ pausadoInfo.por }}</span> — ¿reanudar?
+      <button class="tc-killbtn tc-resume" style="margin-left:10px" :disabled="toggling" @click="toggle">{{ toggling ? '…' : '▶ Reanudar circuito' }}</button>
+    </div>
+
     <!-- Aviso: posible circuito caído -->
     <div v-if="running && live.stale" class="tc-alert">
       ⚠ <b>Posible circuito caído</b> — la vuelta figura como corriendo, pero el latido no se actualiza hace {{ sinceBeat }}s. Revisa el ejecutor on-box (o pausa y reanuda).
@@ -259,6 +265,7 @@ export default {
         const loading = ref(true);
         const toggling = ref(false);
         const pausado = ref(false);
+        const pausadoInfo = ref(null);   // #343: {desde, por, horas, aviso_horas, olvidada} | null
         const generatedAt = ref(null);
         const resumen = ref({ total: 0, por_estado: {}, por_nivel: {} });
         const cola = ref([]);
@@ -401,9 +408,16 @@ export default {
         // Cron detenido REAL (#334 pool continuo): solo si el SCHEDULER dejó de latir (cronVivo=false).
         // Estar inactivo con el scheduler VIVO = ocioso por falta de trabajo seguro (no es cron caído).
         const cronCaido = computed(() => !pausado.value && cronVivo.value === false);
+        // #343: salvaguarda de "pausa olvidada" — puramente informativo, nunca reanuda solo.
+        const pausaOlvidada = computed(() => pausado.value && !!pausadoInfo.value?.olvidada);
+        const pausaHorasTxt = computed(() => {
+            const h = pausadoInfo.value?.horas;
+            return h == null ? 'un buen rato' : (h < 1 ? 'menos de 1 h' : `${h} h`);
+        });
 
         function applyEstado(data) {
             pausado.value = !!data.circuito_pausado;
+            pausadoInfo.value = data.circuito_pausado_info || null;   // #343
             modo.value = data.circuito_modo || modo.value;
             live.value = data.live || { running: false, stale: false };
             if (data.trabajando) {
@@ -529,6 +543,7 @@ export default {
             try {
                 const { data } = await axios.post('/api/roadmap/circuito/toggle');
                 pausado.value = !!data.circuito_pausado;
+                pollEstado();   // #343: refresca circuito_pausado_info (desde/por) al toque
             } finally {
                 toggling.value = false;
             }
@@ -632,7 +647,7 @@ export default {
         });
 
         return {
-            loading, toggling, pausado, generatedAt, total, est, nivel, niveles, barH,
+            loading, toggling, pausado, pausadoInfo, pausaOlvidada, pausaHorasTxt, generatedAt, total, est, nivel, niveles, barH,
             cola, colaEjecutable, resumenCola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             sel, coment, deciding, decidir, elegirOpcion, selPreg, aviso,
