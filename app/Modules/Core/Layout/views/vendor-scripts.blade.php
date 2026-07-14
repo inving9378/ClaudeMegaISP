@@ -1,7 +1,7 @@
 <script src="{{ URL::asset('plugins/quasar/js/vue.global.prod.js') }}"></script>
 <script src="{{ URL::asset('plugins/quasar/js/quasar.umd.prod.js') }}"></script>
 <script src="{{ URL::asset('plugins/quasar/icon-set/fontawesome-v5.umd.prod.js') }}"></script>
-<script src="{{ mix('js/app.js') }}"></script>
+<script src="{{ URL::asset('js/app.js') }}?v={{ filemtime(public_path('js/app.js')) }}"></script>
 {{-- OpenPay public credentials — usadas por DomiciliacionClientTab.vue (public key es segura en JS) --}}
 <script>
     window.__OPENPAY_ID__      = {!! json_encode(config('openpay.id', '')) !!};
