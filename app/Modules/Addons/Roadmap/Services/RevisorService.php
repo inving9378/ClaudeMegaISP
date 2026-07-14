@@ -489,7 +489,7 @@ TXT;
                 'model'      => $hard,
                 'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100) * 2,
                 'system'     => 'Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). '
-                    . 'Este item es nivel C: lo decide Irving, no el circuito. Desglósalo en TODAS las preguntas de '
+                    . 'Este item está en tu bandeja de decisión (requiere tu aprobación, no la del circuito). Desglósalo en TODAS las preguntas de '
                     . 'decisión que Irving debe responder para desbloquearlo de una sola pasada (1 si es una sola '
                     . 'decisión; varias si el item esconde varias). Para CADA pregunta propón 2-3 opciones accionables; '
                     . "marca UNA con '(RECOMENDADA)' al final si hay una preferible (NO elijas tú). Si una decisión "
