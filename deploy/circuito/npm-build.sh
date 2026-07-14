@@ -20,7 +20,9 @@ while [ -z "$FD" ]; do
 done
 
 # Con la ranura tomada, compila. El flock se libera al cerrar el fd (fin del script).
-npm run dev "$@"
+# #432 ADENDA A: modo configurable (dev por default; prod para el rebuild-on-merge de MergeRunner).
+MODE="${CIRCUITO_BUILD_MODE:-dev}"
+npm run "$MODE" "$@"
 RC=$?
 eval "exec ${FD}>&-"
 exit $RC
