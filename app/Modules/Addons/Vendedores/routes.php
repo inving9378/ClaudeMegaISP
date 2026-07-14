@@ -108,7 +108,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('vendedores
         Route::get('/', [PaymentClientController::class, 'index'])->name('index');
         Route::get('{id}/getListPayments', [PaymentClientController::class, 'getListPaymentsOfCustomersBySeller'])->name('getListPayments');
         Route::get('{id}/getPayments', [PaymentClientController::class, 'getPaymentsOfCustomersBySeller'])->name('getPayments');
-        Route::get('{id}/getDataSeller', [PaymentClientController::class, 'getDataSeller'])->name('getDataSeller');
         Route::post('{id}/getRuleDataSeller', [PaymentClientController::class, 'getRuleDataSeller'])->name('getRuleDataSeller');
         Route::post('get-periods-from-seller/{id}', [PaymentClientController::class, 'getPeriodsFromSeller'])->name('getPeriodsFromSeller');
         Route::post('{id}/getMontlyCommissionsBySeller', [PaymentClientController::class, 'getMontlyCommissionsBySeller'])->name('getMontlyCommissionsBySeller');
