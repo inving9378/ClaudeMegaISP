@@ -91,6 +91,7 @@
                              rdm-item-text / rdm-item-tags permiten separar texto y tags
                              en dos filas en móvil. Patrón responsive Medussa. -->
                         <div class="rdm-item-title" @click="toggleExpand(item.id)">
+                            <span class="rdm-item-id">#{{ item.id }}</span>
                             <span class="rdm-item-text">{{ item.title }}</span>
                             <div class="rdm-item-tags">
                                 <span class="rdm-tag rdm-tag-prio"
@@ -1173,7 +1174,12 @@ export default {
 /* Desktop/default: rdm-filter-row es transparente al flexbox padre */
 .rdm-filter-row { display: contents; }
 
-/* rdm-item-title mantiene flex-row; text y tags son sus dos hijos */
+/* rdm-item-title mantiene flex-row; id, text y tags son sus hijos */
+.rdm-item-id {
+    font-family: monospace; font-size: 12px; color: #9ca3af;
+    margin-right: 6px; flex-shrink: 0;
+}
+.rdm-dark .rdm-item-id { color: rgba(255,255,255,.35); }
 .rdm-item-text { flex: 1; min-width: 0; line-height: 1.4; }
 .rdm-item-tags {
     display: flex; flex-wrap: wrap; gap: 4px; align-items: center; flex-shrink: 0;
