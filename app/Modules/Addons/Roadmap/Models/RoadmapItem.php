@@ -346,11 +346,16 @@ class RoadmapItem extends Model
      */
     public function scopeBacklog($query, array $enCurso = [])
     {
-        return $query->where('status', 'pending')
-                     ->where('estado_aprobacion', 'pendiente_revision')
-                     ->whereNull('nivel_riesgo')
-                     ->whereNull('archivado_at')
+        // #432 BLOQUE 0 — antipunto-ciego: el intake se define por `nivel_riesgo IS NULL` (sin triar),
+        // NO por un estado exacto. Así CUALQUIER item sin nivel es VISIBLE en la Hoja de ruta (jamás
+        // invisible) hasta que el revisor le asigna nivel y lo despacha a su estación. Excluye lo ya
+        // despachado (rama/terminal/done), lo aprobado_irving (→ listo) y las decisiones
+        // (requiere_irving / [BLOCKED-/PARKED-]). Mirror del branch `intake` del accessor.
+        return $query->whereNull('nivel_riesgo')
                      ->whereNull('branch')
+                     ->whereNull('archivado_at')
+                     ->whereNotIn('status', ['done', 'cancelled', 'in_progress'])
+                     ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado', 'en_progreso', 'aprobado_irving', 'requiere_irving'])
                      ->where(fn ($q) => $q->whereNull('en_desarrollo_humano')->orWhere('en_desarrollo_humano', false))
                      ->where('title', 'not like', '%[BLOCKED-%')
                      ->where('title', 'not like', '%[PARKED-%')
