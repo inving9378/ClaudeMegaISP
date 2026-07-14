@@ -106,6 +106,21 @@ class RoadmapController extends Controller
                 'resumen'       => $e->resumen,
             ]);
 
+        // #346 (punto 2): items "en progreso" sin actividad hace >10 días — aviso PASIVO en la
+        // Torre (no auto-cancela). Umbral fijo por ahora (política de N días queda para cuando
+        // Irving decida la regla dura/consejo; esto es solo detección, no la resuelve).
+        $estancados = RoadmapItem::posibleEstancado(10)
+            ->orderBy('updated_at')->limit(20)->get()
+            ->map(fn (RoadmapItem $i) => [
+                'id'                => $i->id,
+                'title'             => $i->title,
+                'estado_aprobacion' => $i->estado_aprobacion,
+                'worker_sid'        => $i->worker_sid,
+                'en_desarrollo_humano' => (bool) $i->en_desarrollo_humano,
+                'updated_at'        => optional($i->updated_at)->toIso8601String(),
+                'dias_sin_actividad' => (int) floor($i->updated_at->diffInDays(now())),
+            ]);
+
         $ultima = CircuitoEjecucion::orderByDesc('id')->first();
 
         return response()->json([
@@ -136,6 +151,8 @@ class RoadmapController extends Controller
             // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),
+            'estancados'           => $estancados,   // #346: items en_progreso sin actividad >10 días (aviso pasivo)
+            'estancados_count'     => RoadmapItem::posibleEstancado(10)->count(),
             'worker_nombres'       => $this->svc->nombresWorkers(),   // roster editable (#334)
             'supervisor'           => $this->supervisor->estado(),    // Thomas T: jefe + su feed (#334)
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),

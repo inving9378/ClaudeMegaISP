@@ -425,6 +425,23 @@ class RoadmapItem extends Model
                      });
     }
 
+    /**
+     * #346 (punto 2): detección PASIVA de items "en progreso" estancados — sin actividad
+     * (`updated_at`) hace más de N días. Solo INFORMA (aviso en la Torre); no auto-cancela ni
+     * archiva ni toca estado. Espejo del branch `terminal` del accessor `estacion` (en_progreso /
+     * in_progress / candado humano), excluyendo lo ya archivado.
+     */
+    public function scopePosibleEstancado($query, int $dias = 10)
+    {
+        return $query->whereNull('archivado_at')
+                     ->where(function ($q) {
+                         $q->where('estado_aprobacion', 'en_progreso')
+                           ->orWhere('status', 'in_progress')
+                           ->orWhere('en_desarrollo_humano', true);
+                     })
+                     ->where('updated_at', '<', now()->subDays($dias));
+    }
+
     /** #334: fuera del radar activo (archivado). Su complemento = lo pendiente/visible. */
     public function scopeArchivado($query)
     {
