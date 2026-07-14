@@ -118,15 +118,40 @@ class AuditController extends Controller
             $metricas['bot'] = ['estado' => 'warning', 'titulo' => 'Bot WhatsApp', 'detalle' => $e->getMessage()];
         }
 
-        // 4. Failed jobs
+        // 4. Failed jobs + driver de cola (item #205 — detecta sync sin worker / worker caído)
         try {
-            $failed = DB::table('failed_jobs')->count();
-            $pending = DB::table('jobs')->count();
+            $connection = config('queue.default');
+            $failed     = DB::table('failed_jobs')->count();
+            $pending    = DB::table('jobs')->count();
+
+            $oldestPendingMin = null;
+            if ($connection !== 'sync' && $pending > 0) {
+                $oldestCreatedAt = DB::table('jobs')->min('created_at');
+                if ($oldestCreatedAt) {
+                    $oldestPendingMin = (int) round((now()->timestamp - $oldestCreatedAt) / 60);
+                }
+            }
+            $workerAtascado = $oldestPendingMin !== null && $oldestPendingMin >= 10;
+
+            if ($connection === 'sync') {
+                $estado   = 'error';
+                $valor    = 'Driver: sync';
+                $detalle  = "QUEUE_CONNECTION=sync: los jobs (PaymentClientJob, descarga de media, notificaciones) corren DENTRO del request, sin worker async. Cambiar a 'database' + worker supervisor.";
+            } elseif ($workerAtascado) {
+                $estado  = 'error';
+                $valor   = "{$pending} pendientes (el más viejo lleva {$oldestPendingMin} min)";
+                $detalle = "Driver: {$connection}. Hay jobs sin procesar desde hace {$oldestPendingMin} min → el worker podría estar caído. Revisar supervisorctl status.";
+            } else {
+                $estado  = $failed > 0 ? 'warning' : 'ok';
+                $valor   = $failed > 0 ? "{$failed} fallidos" : 'Sin errores';
+                $detalle = "Driver: {$connection} | Failed jobs: {$failed} | Pendientes: {$pending}";
+            }
+
             $metricas['queue'] = [
-                'estado'    => $failed > 0 ? 'warning' : 'ok',
+                'estado'    => $estado,
                 'titulo'    => 'Cola de trabajos',
-                'valor'     => $failed > 0 ? "{$failed} fallidos" : 'Sin errores',
-                'detalle'   => "Failed jobs: {$failed} | Pendientes: {$pending}",
+                'valor'     => $valor,
+                'detalle'   => $detalle,
                 'subtitulo' => $failed > 0 ? 'Ver failed_jobs para detalle' : '',
             ];
         } catch (\Throwable $e) {
