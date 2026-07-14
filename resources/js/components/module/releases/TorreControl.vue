@@ -118,12 +118,15 @@
               <div class="tc-resumen" v-if="it.resumen">{{ it.resumen }}</div>
               <div class="tc-s" v-if="it.recomendacion">{{ it.recomendacion }}</div>
 
-              <!-- Opciones (forks) que dejó el decisor -->
+              <!-- Opciones (forks) que dejó el decisor. #431: objetos {clave,texto,recomendada};
+                   se marca por CLAVE estable (no por prosa). Verde = RECOMENDADA; borde = SELECCIONADA. -->
               <div v-if="it.opciones && it.opciones.length" class="tc-opts">
                 <button
-                  v-for="(op, oi) in it.opciones" :key="oi" type="button"
-                  class="tc-opt" :class="{ 'tc-opt-sel': sel[it.id] === op }"
-                  @click="elegirOpcion(it, op)">{{ op }}</button>
+                  v-for="op in it.opciones" :key="op.clave" type="button"
+                  class="tc-opt"
+                  :class="{ 'tc-opt-sel': sel[it.id] === op.clave, 'tc-opt-rec': op.recomendada }"
+                  @click="elegirOpcion(it, op)">
+                  <span v-if="op.recomendada" class="tc-opt-badge">RECOMENDADA</span>{{ op.texto }}</button>
               </div>
               <div v-else-if="it.nivel_riesgo === 'C'" class="tc-noopts">Sin opciones aún — el circuito las propondrá para que elijas.</div>
 
@@ -143,6 +146,7 @@
                   :title="it.urgente ? 'Quitar urgente' : 'Decisión urgente: subir al tope de tu bandeja (no ejecuta)'">
                   {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Decisión ✓' : '🔥 Decisión urgente') }}</button>
                 <span v-if="deciding === it.id" class="tc-meta">Guardando…</span>
+                <span v-if="aviso[it.id]" class="tc-aviso" :class="'tc-aviso-' + aviso[it.id].tipo">{{ aviso[it.id].texto }}</span>
               </div>
 
               <!-- Crear seguimiento vinculado (#320) -->
@@ -283,9 +287,16 @@ export default {
         let disparoMsgTimer = null;
 
         // Bandeja de decisiones interactiva (#313)
-        const sel = reactive({});      // id -> opción elegida
+        const sel = reactive({});      // id -> CLAVE estable de la opción elegida (#431)
         const coment = reactive({});   // id -> comentario
         const deciding = ref(null);    // id en proceso
+        const aviso = reactive({});    // id -> {tipo:'err'|'ok'|'warn', texto} (#431, no falla en silencio)
+
+        // #431 — aviso visible por item (autoborra los de éxito). Reemplaza el fallo-en-silencio.
+        function setAviso(id, tipo, texto) {
+            aviso[id] = { tipo, texto };
+            if (tipo === 'ok') setTimeout(() => { if (aviso[id] && aviso[id].tipo === 'ok') delete aviso[id]; }, 3500);
+        }
         const segOpen = reactive({});  // id -> form de seguimiento abierto
         const seg = reactive({});      // id -> {titulo, descripcion, nivel, cerrar}
 
@@ -534,10 +545,12 @@ export default {
         }
 
         // Marca y PERSISTE la opción elegida al instante (sin cambiar el estado). Sobrevive al recargar.
+        // #431: se guarda por CLAVE estable (op.clave), no por la prosa.
         async function elegirOpcion(it, op) {
-            sel[it.id] = op;
+            sel[it.id] = op.clave;
+            delete aviso[it.id];
             try {
-                await axios.post('/api/roadmap/circuito/elegir-opcion', { id: it.id, opcion: op });
+                await axios.post('/api/roadmap/circuito/elegir-opcion', { id: it.id, opcion: op.clave });
             } catch (e) {
                 // No bloquea: la selección local queda aplicada, se reintenta al recargar.
             }
@@ -545,7 +558,13 @@ export default {
 
         async function decidir(it, accion) {
             if (deciding.value) return;
+            // Guard #431: aprobar un item que trae opciones sin elegir una → aviso claro, sin POST.
+            if (accion === 'aprobar' && it.opciones && it.opciones.length && !sel[it.id] && !it.opcion_elegida) {
+                setAviso(it.id, 'warn', 'Elige una opción antes de aprobar.');
+                return;
+            }
             deciding.value = it.id;
+            delete aviso[it.id];
             try {
                 await axios.post('/api/roadmap/circuito/decidir', {
                     id: it.id,
@@ -555,7 +574,14 @@ export default {
                 });
                 delete sel[it.id];
                 delete coment[it.id];
+                if (accion === 'comentar') setAviso(it.id, 'ok', 'Comentario guardado.');
                 await load(); // refresca bandeja + panorama con el estado ya decidido
+            } catch (e) {
+                // #431: NUNCA fallar en silencio. Muestra el motivo (422 del guard, 403, etc.) y
+                //        CONSERVA la selección/comentario para reintentar.
+                const msg = (e && e.response && e.response.data && e.response.data.error)
+                    || 'No se pudo guardar la decisión. Revisa tu conexión e intenta de nuevo.';
+                setAviso(it.id, 'err', msg);
             } finally {
                 deciding.value = null;
             }
@@ -664,6 +690,14 @@ export default {
 .tc-opt{font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--tc-line);background:#fff;color:var(--tc-ink);cursor:pointer;text-align:left;}
 .tc-opt:hover{border-color:var(--tc-accent);}
 .tc-opt-sel{border-color:var(--tc-accent);background:#f0fdfa;color:#0f766e;font-weight:600;box-shadow:0 0 0 2px #0d948822;}
+/* #431 — RECOMENDADA (verde de marca) distinta de SELECCIONADA (borde/anillo). Pueden coexistir. */
+.tc-opt-rec{border-color:#16a34a;background:#f0fdf4;}
+.tc-opt-badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.03em;color:#166534;background:#bbf7d0;border-radius:6px;padding:1px 5px;margin-right:6px;vertical-align:middle;}
+.tc-opt-sel.tc-opt-rec{box-shadow:0 0 0 2px #0d948844;}
+.tc-aviso{font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;}
+.tc-aviso-err{color:#b91c1c;background:#fee2e2;}
+.tc-aviso-ok{color:#166534;background:#dcfce7;}
+.tc-aviso-warn{color:#92400e;background:#fef3c7;}
 .tc-coment{width:100%;margin-top:8px;font-size:12.5px;padding:7px 9px;border:1px solid var(--tc-line);border-radius:8px;resize:vertical;font-family:inherit;}
 .tc-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;}
 .tc-btn{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;}
@@ -729,6 +763,11 @@ export default {
 .tc-dark .tc-opt{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
 .tc-dark .tc-opt:hover{border-color:#2dd4bf;}
 .tc-dark .tc-opt-sel{background:rgba(45,212,191,.15);color:#5eead4;border-color:#2dd4bf;box-shadow:0 0 0 2px rgba(45,212,191,.25);}
+.tc-dark .tc-opt-rec{border-color:#22c55e;background:rgba(34,197,94,.12);}
+.tc-dark .tc-opt-badge{color:#bbf7d0;background:rgba(34,197,94,.25);}
+.tc-dark .tc-aviso-err{color:#fecaca;background:rgba(239,68,68,.18);}
+.tc-dark .tc-aviso-ok{color:#bbf7d0;background:rgba(34,197,94,.18);}
+.tc-dark .tc-aviso-warn{color:#fde68a;background:rgba(245,158,11,.18);}
 .tc-dark .tc-coment{background:#0f172a;color:#e8edf6;border-color:#2a3550;}
 .tc-dark .tc-coment::placeholder{color:#64748b;}
 .tc-dark .tc-btn-ok{background:rgba(74,222,128,.14);color:#4ade80;border-color:#2b5b3b;}

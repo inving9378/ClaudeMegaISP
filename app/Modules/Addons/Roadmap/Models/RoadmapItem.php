@@ -130,6 +130,78 @@ class RoadmapItem extends Model
         return $this->estado_aprobacion === 'en_progreso' || (bool) $this->en_desarrollo_humano;
     }
 
+    /**
+     * #431 Fase 1 — CLAVE ESTABLE de una opción (no su prosa). Deriva de un hash del texto
+     * normalizado → sobrevive al reordenamiento de las opciones (NO es índice posicional) y cabe
+     * de sobra en la columna (16 chars), matando el bug de `max:255` con opciones largas (la prosa
+     * de un fork C llega a 655 chars → 422 silencioso). Lo que se PERSISTE en `opcion_elegida` es
+     * esta clave; la prosa vive solo en `opciones`.
+     */
+    public static function claveOpcion(string $texto): string
+    {
+        return substr(sha1(trim(preg_replace('/\s+/', ' ', $texto))), 0, 16);
+    }
+
+    /** Opciones enriquecidas para la UI: [{clave, texto, recomendada}]. `opciones` = array de prosa. */
+    public function opcionesDetalladas(): array
+    {
+        $out = [];
+        foreach ((array) ($this->opciones ?? []) as $texto) {
+            $texto = trim((string) $texto);
+            if ($texto === '') {
+                continue;
+            }
+            $out[] = [
+                'clave'       => static::claveOpcion($texto),
+                'texto'       => $texto,
+                'recomendada' => stripos($texto, 'RECOMENDADA') !== false,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Resuelve la entrada del usuario (una clave estable, la prosa completa, o un índice "0/1/2")
+     * a la CLAVE de una opción REAL de este item. Devuelve null si no corresponde a ninguna (el
+     * controlador lo trata como "opción inválida / faltante"). NUNCA devuelve prosa.
+     */
+    public function resolverClaveOpcion(?string $input): ?string
+    {
+        $input = $input !== null ? trim($input) : '';
+        if ($input === '') {
+            return null;
+        }
+        $det = $this->opcionesDetalladas();
+        if (empty($det)) {
+            return null;
+        }
+        foreach ($det as $o) {                       // 1) ya es una clave válida
+            if ($o['clave'] === $input) {
+                return $o['clave'];
+            }
+        }
+        foreach ($det as $o) {                       // 2) es la prosa (exacta o normalizada)
+            if ($o['texto'] === $input || static::claveOpcion($o['texto']) === static::claveOpcion($input)) {
+                return $o['clave'];
+            }
+        }
+        if (ctype_digit($input)) {                    // 3) índice posicional "0".."n"
+            $i = (int) $input;
+            if (isset($det[$i])) {
+                return $det[$i]['clave'];
+            }
+        }
+
+        return null;
+    }
+
+    /** ¿Este item EXIGE elegir una opción antes de aprobar? = trae opciones propuestas. */
+    public function exigeOpcion(): bool
+    {
+        return count($this->opcionesDetalladas()) > 0;
+    }
+
     /** Items que el circuito SÍ puede tomar (excluye en_progreso y candados humanos). #341 */
     public function scopeTomablePorCircuito($query)
     {
@@ -202,26 +274,91 @@ class RoadmapItem extends Model
     }
 
     /**
-     * BACKLOG (pipeline por estado): SOLO lo que aún vive en la pestaña "Hoja de ruta".
-     * Un item sale del backlog en cuanto entra a otra columna del pipeline:
-     *   - En Terminales / tomado por un worker → su id llega en $enCurso (current_item vivo)
-     *     o quedó en_progreso; también en cuanto tiene rama (branch != null → Integración).
-     *   - En Integración → whereNotNull('branch') & no archivado.
-     *   - Terminal/archivado → done|completado|cancelado|cancelled o archivado_at.
-     * $enCurso = ids de sesiones vivas (RoadmapCircuitoService::idsEnCurso), belt-and-suspenders
-     * para la ventana en que un worker ya tomó el item pero aún no le creó la rama.
-     *
-     * `status='in_progress'` se excluye SIEMPRE (lo trabaje el circuito o no): un item en
-     * progreso ya no es backlog. Antes solo se filtraba `estado_aprobacion='en_progreso'`, así que
-     * un zombie con status=in_progress pero estado_aprobacion=pendiente_revision (dejado a mano,
-     * sin worker/rama/sesión) se colaba al backlog. Cerramos esa rendija por `status` también.
+     * ESTACIÓN — el "dónde vive" un item (#432, principio rector: la Hoja de ruta es la BANDEJA DE
+     * ENTRADA, no un almacén). Un item ocupa EXACTAMENTE UNA estación y se DESPACHA de la Hoja de
+     * ruta a la suya en cuanto se tria / decide / ejecuta:
+     *   - done        → terminal/archivado (done|completado|cancelado|cancelled|rechazado|archivado).
+     *   - integracion → tiene rama (branch != null) y no está en done.
+     *   - terminal    → lo trabaja un worker (in_progress|en_progreso|worker_sid|en_desarrollo_humano).
+     *   - bandeja     → decisión de Irving (requiere_irving | C sin decidir | [BLOCKED-/PARKED-]).
+     *   - listo       → ejecutable ya triado (A/B o aprobado_irving) esperando slot de terminal.
+     *   - intake      → recién creado SIN TRIAR: lo ÚNICO que vive en la Hoja de ruta.
+     */
+    public function getEstacionAttribute(): string
+    {
+        if ($this->archivado_at !== null
+            || in_array($this->status, ['done', 'cancelled'], true)
+            || in_array($this->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true)) {
+            return 'done';
+        }
+        // Terminal = ACTIVAMENTE trabajándose (estado en_progreso / status in_progress) o candado
+        // humano. NO se usa `worker_sid`: queda pegado tras el reaper (señal stale) y clasificaría
+        // como "terminal" items que en realidad rebotaron a la bandeja.
+        if ($this->estado_aprobacion === 'en_progreso'
+            || $this->status === 'in_progress'
+            || (bool) $this->en_desarrollo_humano) {
+            return 'terminal';
+        }
+        // Bandeja (decisión) ANTES que integración: un item con rama vieja que rebotó a Irving
+        // (requiere_irving / conflicto) SIGUE siendo una decisión, no integración.
+        $bloqueado  = (bool) preg_match('/\[(BLOCKED|PARKED)-/i', (string) $this->title);
+        $noAprobado = $this->estado_aprobacion !== 'aprobado_irving';
+        if ($this->estado_aprobacion === 'requiere_irving'
+            || ($this->nivel_riesgo === 'C' && $this->opcion_elegida === null && $noAprobado)
+            || ($bloqueado && $noAprobado)) {
+            return 'bandeja';
+        }
+        if (! empty($this->branch)) {
+            return 'integracion';
+        }
+        if (in_array($this->nivel_riesgo, ['A', 'B'], true) || $this->estado_aprobacion === 'aprobado_irving') {
+            return 'listo';
+        }
+
+        return 'intake';
+    }
+
+    /**
+     * BANDEJA (Panorama) — TODA la estación de decisión, no solo `requiere_irving`: incluye los C
+     * sin decidir y los [BLOCKED-/PARKED-] aunque el revisor aún no los haya movido a requiere_irving,
+     * y aunque arrastren una rama/worker vieja (rebote). Así el supervisor los ENRUTA a la bandeja de
+     * Irving y NINGUNO se queda perdido. Mirror EXACTO del accessor (precedencia done>terminal>bandeja).
+     */
+    public function scopeBandeja($query)
+    {
+        return $query->whereNull('archivado_at')
+                     ->whereNotIn('status', ['done', 'cancelled', 'in_progress'])
+                     ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado', 'en_progreso'])
+                     ->where(fn ($q) => $q->whereNull('en_desarrollo_humano')->orWhere('en_desarrollo_humano', false))
+                     ->where(function ($q) {
+                         $q->where('estado_aprobacion', 'requiere_irving')
+                           ->orWhere(fn ($c) => $c->where('nivel_riesgo', 'C')->whereNull('opcion_elegida')->where('estado_aprobacion', '!=', 'aprobado_irving'))
+                           ->orWhere(fn ($b) => $b->where(fn ($w) => $w->where('title', 'like', '%[BLOCKED-%')->orWhere('title', 'like', '%[PARKED-%'))
+                                                  ->where('estado_aprobacion', '!=', 'aprobado_irving'));
+                     });
+    }
+
+    /**
+     * INTAKE = lo ÚNICO que vive en la Hoja de ruta (#432): pending, SIN TRIAR (sin nivel_riesgo, en
+     * pendiente_revision), sin rama (→ integración) ni candado humano, y sin ser decisión de negocio
+     * ([BLOCKED-/PARKED-]). Todo lo demás ya fue enrutado a su estación → la Hoja de ruta queda casi
+     * vacía. `scopeBacklog` = intake.
      */
     public function scopeBacklog($query, array $enCurso = [])
     {
-        return $query->whereNotIn('status', ['in_progress', 'done', 'cancelled'])
-                     ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'en_progreso'])
+        // #432 BLOQUE 0 — antipunto-ciego: el intake se define por `nivel_riesgo IS NULL` (sin triar),
+        // NO por un estado exacto. Así CUALQUIER item sin nivel es VISIBLE en la Hoja de ruta (jamás
+        // invisible) hasta que el revisor le asigna nivel y lo despacha a su estación. Excluye lo ya
+        // despachado (rama/terminal/done), lo aprobado_irving (→ listo) y las decisiones
+        // (requiere_irving / [BLOCKED-/PARKED-]). Mirror del branch `intake` del accessor.
+        return $query->whereNull('nivel_riesgo')
+                     ->whereNull('branch')
                      ->whereNull('archivado_at')
-                     ->whereNull('branch')   // con rama = ya está en Integración/Terminales
+                     ->whereNotIn('status', ['done', 'cancelled', 'in_progress'])
+                     ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado', 'en_progreso', 'aprobado_irving', 'requiere_irving'])
+                     ->where(fn ($q) => $q->whereNull('en_desarrollo_humano')->orWhere('en_desarrollo_humano', false))
+                     ->where('title', 'not like', '%[BLOCKED-%')
+                     ->where('title', 'not like', '%[PARKED-%')
                      ->when(! empty($enCurso), fn ($q) => $q->whereNotIn('id', $enCurso));
     }
 

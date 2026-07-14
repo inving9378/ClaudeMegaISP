@@ -278,6 +278,7 @@ class RoadmapCircuitoService
             'priority'          => $i->priority,
             'status'            => $i->status,
             'urgente'           => (bool) $i->urgente,
+            'estacion'          => $i->estacion,   // #432: intake|bandeja|listo|terminal|integracion|done
         ];
     }
 

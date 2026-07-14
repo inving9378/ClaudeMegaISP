@@ -34,12 +34,15 @@ class RoadmapController extends Controller
     {
         $this->authorize('roadmap_view');
 
-        $cola = RoadmapItem::where('estado_aprobacion', 'requiere_irving')
+        // #432 — la bandeja es TODA la estación de decisión (requiere_irving + C sin decidir +
+        // [BLOCKED-/PARKED-]), no solo requiere_irving: el supervisor las enruta aquí y ninguna
+        // decisión se queda perdida en la Hoja de ruta.
+        $cola = RoadmapItem::bandeja()
             ->ordered()->limit(20)->get()
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
-                'opciones'      => $i->opciones,              // array de opciones | null (forks para elegir)
-                'opcion_elegida' => $i->opcion_elegida,
+                'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — clave estable para marcar/aprobar (#431)
+                'opcion_elegida' => $i->opcion_elegida,       // clave estable de la opción marcada (o null)
                 'resumen'       => $this->resumenItem($i),        // resumen corto para 🔊 Escuchar / tarjeta (mismo que Integración)
                 'modulo_url'    => $this->moduloUrl($i->modulo),  // 🔎 Ver más → pantalla del módulo (null = fallback en la UI)
             ]));
@@ -55,11 +58,9 @@ class RoadmapController extends Controller
         // (+ los sin clasificar que el circuito aún triará). Cuentan sobre TODA la cola, no el limit.
         $resumenCola = [
             'auto_ejecutables' => RoadmapItem::autoEjecutable()->count(),
-            'espera_decision'  => RoadmapItem::esperaDecision()->count(),
-            'sin_clasificar'   => RoadmapItem::where('status', 'pending')->tomablePorCircuito()
-                ->whereNull('nivel_riesgo')
-                ->whereNotIn('estado_aprobacion', ['requiere_irving', 'rechazado', 'completado', 'cancelado'])
-                ->count(),
+            'espera_decision'  => RoadmapItem::bandeja()->count(),      // #432: toda la estación bandeja
+            'sin_clasificar'   => RoadmapItem::backlog()->count(),       // #432: intake = lo que vive en la Hoja de ruta
+            'intake'           => RoadmapItem::backlog()->count(),
         ];
 
         $actividad = RoadmapItem::whereNotNull('comentarios_claude')
@@ -288,7 +289,9 @@ class RoadmapController extends Controller
         $data = $request->validate([
             'id'             => ['required', 'integer', 'min:1'],
             'accion'         => ['required', 'string', 'in:aprobar,rechazar,comentar,cerrar,cancelar'],
-            'opcion_elegida' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // #431 Fase 1 — SIN cap de 255: aceptamos clave/prosa/índice y SIEMPRE persistimos la
+            // clave estable (16 chars). El 2000 es solo un tope de sanidad para la prosa entrante.
+            'opcion_elegida' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'comentario'     => ['sometimes', 'nullable', 'string', 'max:10000'],
         ]);
 
@@ -299,6 +302,24 @@ class RoadmapController extends Controller
 
         $user  = auth()->user();
         $autor = 'irving:' . ($user->login_user ?? $user->email ?? $user->id);
+
+        // #431 Fase 1 — resolvemos la opción entrante (clave/prosa/índice) a su CLAVE ESTABLE; nunca
+        // guardamos prosa. `claveEfectiva` = la recién enviada o, si no vino, la ya persistida que
+        // siga siendo válida (auto-sana valores viejos truncados por el bug de max:255).
+        $claveEntrante = array_key_exists('opcion_elegida', $data)
+            ? $item->resolverClaveOpcion($data['opcion_elegida'])
+            : null;
+        $claveEfectiva = $claveEntrante ?? $item->resolverClaveOpcion($item->opcion_elegida);
+
+        // Guard (#431): aprobar un item que EXIGE opción sin una opción válida → aviso claro, NUNCA
+        // falla en silencio. Cubre "no eligió nada" y "eligió algo que no es opción real del item".
+        if ($data['accion'] === 'aprobar' && $item->exigeOpcion() && $claveEfectiva === null) {
+            return response()->json([
+                'ok'    => false,
+                'code'  => 'opcion_requerida',
+                'error' => 'Elige una opción antes de aprobar este item.',
+            ], 422);
+        }
 
         $nuevoEstado = match ($data['accion']) {
             'aprobar'  => 'aprobado_irving',
@@ -316,8 +337,8 @@ class RoadmapController extends Controller
             $item->status = 'cancelled';
         }
 
-        if (! empty($data['opcion_elegida'])) {
-            $item->opcion_elegida = $data['opcion_elegida'];
+        if ($claveEfectiva !== null) {
+            $item->opcion_elegida = $claveEfectiva;   // clave estable (#431), nunca prosa
         }
         if (! empty($data['comentario'])) {
             $item->comentarios_claude = $data['comentario'];
@@ -332,7 +353,7 @@ class RoadmapController extends Controller
             'por'            => $autor,
             'decision'       => $data['accion'],
             'estado'         => $nuevoEstado,
-            'opcion_elegida' => $data['opcion_elegida'] ?? null,
+            'opcion_elegida' => $claveEfectiva,
             'comentario'     => $data['comentario'] ?? null,
         ];
         $item->log = $log;
@@ -365,13 +386,17 @@ class RoadmapController extends Controller
         $this->authorize('circuito.decidir');
         $data = $request->validate([
             'id'     => ['required', 'integer', 'min:1'],
-            'opcion' => ['nullable', 'string', 'max:255'],
+            // #431 — sin cap de 255; se persiste la clave estable resuelta, nunca la prosa.
+            'opcion' => ['nullable', 'string', 'max:2000'],
         ]);
         $item = RoadmapItem::find($data['id']);
         if (! $item) {
             return response()->json(['error' => 'Item no encontrado'], 404);
         }
-        $item->opcion_elegida = $data['opcion'] ?: null;
+        // Resuelve clave/prosa/índice → CLAVE ESTABLE (o null para deseleccionar / entrada inválida).
+        $item->opcion_elegida = ! empty($data['opcion'])
+            ? $item->resolverClaveOpcion($data['opcion'])
+            : null;
         $item->save();
         Log::channel('roadmap_externo')->info('elegir-opcion', ['item' => $item->id, 'opcion' => $item->opcion_elegida, 'por' => $this->actor()]);
 
@@ -528,8 +553,8 @@ class RoadmapController extends Controller
             'reporte_tecnico'    => $i->reporte_tecnico,
             'reporte_coloquial'  => $i->reporte_coloquial,
             'reporte'            => $i->comentarios_claude,
-            'opciones'           => $i->opciones,
-            'opcion_elegida'     => $i->opcion_elegida,
+            'opciones'           => $i->opcionesDetalladas(),   // [{clave,texto,recomendada}] (#431)
+            'opcion_elegida'     => $i->opcion_elegida,          // clave estable
             'nivel_riesgo'       => $i->nivel_riesgo,
             'estado_aprobacion'  => $i->estado_aprobacion,
             'status'             => $i->status,
