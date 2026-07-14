@@ -417,18 +417,17 @@ const charoles = computed(() => {
 
 const onShowDialog = async () => {
     let tab = JSON.parse(getFromLocalStorage("tab-config")) ?? null;
-    tabCharoles.value =
-        tab && tab.type === "junction_box" && tab.key === props.object.key
-            ? tab.tab
-            : "marker-information";
-    currentCharole.value =
-        tab && tab.type === "junction_box" && tab.key === props.object.key
-            ? tab.charole
-            : null;
+    const hasStoredTab =
+        tab && tab.type === "junction_box" && tab.key === props.object.key;
+    tabCharoles.value = hasStoredTab ? tab.tab : "marker-information";
+    currentCharole.value = hasStoredTab ? tab.charole : null;
     setToLocalStorage("dialog-config", "junction_box_config");
     setToLocalStorage("layer-config", JSON.stringify(props.object));
     currentNode.value = props.object;
     await loadConfig();
+    if (!hasStoredTab && charoles.value.length > 0) {
+        tabCharoles.value = `charole-${charoles.value[0].id}`;
+    }
 };
 
 const onChangeClients = (change) => {
