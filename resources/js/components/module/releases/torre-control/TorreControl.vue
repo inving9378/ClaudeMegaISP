@@ -150,9 +150,6 @@
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cerrar')">✔ Cerrar</button>
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cancelar')">⊘ Cancelar</button>
                 <button class="tc-btn tc-btn-seg" :disabled="deciding === it.id" @click="toggleSeg(it)">＋ Seguimiento</button>
-                <button v-if="ttsSoportado" class="tc-btn tc-btn-mut" :class="{ 'tc-btn-tts-on': hablando === it.id }"
-                  @click="escuchar(it)" :title="hablando === it.id ? 'Detener lectura' : 'Leer en voz alta'">
-                  {{ hablando === it.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
                 <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
                   :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
                   :title="it.urgente ? 'Quitar urgente' : 'Decisión urgente: subir al tope de tu bandeja (no ejecuta)'">
@@ -318,36 +315,6 @@ export default {
         }
         const segOpen = reactive({});  // id -> form de seguimiento abierto
         const seg = reactive({});      // id -> {titulo, descripcion, nivel, cerrar}
-
-        // Botón "Escuchar" (TTS, #412): lee título+resumen con la Web Speech API del navegador.
-        const ttsSoportado = typeof window !== 'undefined' && 'speechSynthesis' in window;
-        const hablando = ref(null);    // id del item que se está leyendo (null = nada sonando)
-        let vocesEs = [];
-        function cargarVocesEs() {
-            vocesEs = window.speechSynthesis.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith('es'));
-        }
-        if (ttsSoportado) {
-            cargarVocesEs();
-            window.speechSynthesis.onvoiceschanged = cargarVocesEs; // getVoices() suele venir vacío en el primer llamado
-        }
-        function escuchar(it) {
-            if (!ttsSoportado) return;
-            const yaLeyendoEsta = hablando.value === it.id;
-            window.speechSynthesis.cancel(); // nunca encimar lecturas
-            if (yaLeyendoEsta) {
-                hablando.value = null;
-                return;
-            }
-            const texto = it.title + (it.recomendacion ? '. ' + it.recomendacion : '');
-            const utter = new SpeechSynthesisUtterance(texto);
-            utter.lang = 'es-MX';
-            const voz = vocesEs.find((v) => v.lang.toLowerCase() === 'es-mx') || vocesEs[0];
-            if (voz) utter.voice = voz;
-            utter.onend = () => { if (hablando.value === it.id) hablando.value = null; };
-            utter.onerror = () => { if (hablando.value === it.id) hablando.value = null; };
-            hablando.value = it.id;
-            window.speechSynthesis.speak(utter);
-        }
 
         const total = computed(() => resumen.value.total || 0);
         const est = (k) => (resumen.value.por_estado && resumen.value.por_estado[k]) || 0;
@@ -661,7 +628,7 @@ export default {
             if (estadoTimer) clearInterval(estadoTimer);
             if (tickTimer) clearInterval(tickTimer);
             if (disparoMsgTimer) clearTimeout(disparoMsgTimer);
-            if (ttsSoportado) window.speechSynthesis.cancel(); // no dejar voz sonando al salir de la Torre (spa-nav)
+            if (window.speechSynthesis) window.speechSynthesis.cancel(); // no dejar voz sonando al salir de la Torre (spa-nav)
         });
 
         return {
@@ -681,8 +648,6 @@ export default {
             logOpen, logTail, logPre, toggleLog,
             // Disparo manual + urgente (#337) · cola ejecutable + prioridad (#348)
             canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente, prioLabel,
-            // Botón "Escuchar" TTS (#412)
-            ttsSoportado, hablando, escuchar,
         };
     },
 };
