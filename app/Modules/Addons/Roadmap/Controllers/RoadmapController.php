@@ -34,7 +34,10 @@ class RoadmapController extends Controller
     {
         $this->authorize('roadmap_view');
 
-        $cola = RoadmapItem::where('estado_aprobacion', 'requiere_irving')
+        // #432 — la bandeja es TODA la estación de decisión (requiere_irving + C sin decidir +
+        // [BLOCKED-/PARKED-]), no solo requiere_irving: el supervisor las enruta aquí y ninguna
+        // decisión se queda perdida en la Hoja de ruta.
+        $cola = RoadmapItem::bandeja()
             ->ordered()->limit(20)->get()
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
@@ -55,11 +58,9 @@ class RoadmapController extends Controller
         // (+ los sin clasificar que el circuito aún triará). Cuentan sobre TODA la cola, no el limit.
         $resumenCola = [
             'auto_ejecutables' => RoadmapItem::autoEjecutable()->count(),
-            'espera_decision'  => RoadmapItem::esperaDecision()->count(),
-            'sin_clasificar'   => RoadmapItem::where('status', 'pending')->tomablePorCircuito()
-                ->whereNull('nivel_riesgo')
-                ->whereNotIn('estado_aprobacion', ['requiere_irving', 'rechazado', 'completado', 'cancelado'])
-                ->count(),
+            'espera_decision'  => RoadmapItem::bandeja()->count(),      // #432: toda la estación bandeja
+            'sin_clasificar'   => RoadmapItem::backlog()->count(),       // #432: intake = lo que vive en la Hoja de ruta
+            'intake'           => RoadmapItem::backlog()->count(),
         ];
 
         $actividad = RoadmapItem::whereNotNull('comentarios_claude')
