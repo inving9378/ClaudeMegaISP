@@ -37,6 +37,27 @@ class RoadmapCircuitoService
     public const REVISOR_KEY = 'circuito_revisor';
 
     /**
+     * #336: modelo del ejecutor CLI (`claude -p` en vuelta.sh) para la vuelta RUTINARIA
+     * (leer/triagear/ejecutar A-B). Alias del CLI (ej. 'sonnet', 'opus'), no id completo de API.
+     * Default 'sonnet' — cuida la cuota de Opus del plan Max para el uso interactivo.
+     */
+    public const MODELO_RUTINA_KEY = 'circuito_modelo_rutina';
+
+    /**
+     * #336: modelo reservado para razonamiento difícil (decisiones nivel C). El pase CLI en sí
+     * siempre corre en rutina; el razonamiento difícil lo hace el REVISOR (#338, API directa,
+     * `config('circuito.revisor.model_hard')`, ya en Opus) — esta llave queda como el equivalente
+     * en alias-CLI, documentada y lista para un futuro pase `claude -p --model opus` si se necesita.
+     */
+    public const MODELO_DIFICIL_KEY = 'circuito_modelo_dificil';
+
+    /**
+     * #336 (Opción D — escape hatch): si se setea, PISA tanto rutina como difícil para el CLI.
+     * Vacío/ausente = sin forzar (usa rutina/difícil normal). Control de Irving.
+     */
+    public const MODELO_FORZAR_KEY = 'circuito_modelo_forzar';
+
+    /**
      * Voz (SpeechSynthesisVoice.name) elegida por el administrador para 🔊 Escuchar en la Torre
      * de Integración (#424). Vacío/ausente = automática (la Torre elige es-MX → es-* → default).
      */
@@ -176,6 +197,52 @@ class RoadmapCircuitoService
     public function setRevisorEnabled(bool $on): void
     {
         $this->putSetting(self::REVISOR_KEY, $on ? '1' : '0');
+    }
+
+    /** Modelo (alias CLI) para la vuelta rutinaria del ejecutor. Vacío/ausente → 'sonnet'. */
+    public function getModeloRutina(): string
+    {
+        $v = trim((string) DB::table('settings')->where('key', self::MODELO_RUTINA_KEY)->value('value'));
+        return $v !== '' ? $v : 'sonnet';
+    }
+
+    public function setModeloRutina(string $modelo): void
+    {
+        $this->putSetting(self::MODELO_RUTINA_KEY, mb_substr(trim($modelo), 0, 40));
+    }
+
+    /** Modelo (alias CLI) reservado para razonamiento difícil (nivel C). Vacío/ausente → 'opus'. */
+    public function getModeloDificil(): string
+    {
+        $v = trim((string) DB::table('settings')->where('key', self::MODELO_DIFICIL_KEY)->value('value'));
+        return $v !== '' ? $v : 'opus';
+    }
+
+    public function setModeloDificil(string $modelo): void
+    {
+        $this->putSetting(self::MODELO_DIFICIL_KEY, mb_substr(trim($modelo), 0, 40));
+    }
+
+    /** Override que pisa rutina/difícil (Opción D, escape hatch). '' = sin forzar. */
+    public function getModeloForzar(): string
+    {
+        return trim((string) DB::table('settings')->where('key', self::MODELO_FORZAR_KEY)->value('value'));
+    }
+
+    public function setModeloForzar(string $modelo): void
+    {
+        $this->putSetting(self::MODELO_FORZAR_KEY, mb_substr(trim($modelo), 0, 40));
+    }
+
+    /**
+     * Resuelve el modelo (alias CLI) que debe usar el ejecutor en ESTA vuelta: `circuito_modelo_forzar`
+     * pisa todo si está seteado; si no, rutina (el `claude -p` de vuelta.sh SIEMPRE es la vuelta
+     * rutinaria — el razonamiento difícil de nivel C lo hace el REVISOR #338 por API, no este pase).
+     */
+    public function resolveModeloCli(): string
+    {
+        $forzar = $this->getModeloForzar();
+        return $forzar !== '' ? $forzar : $this->getModeloRutina();
     }
 
     /** Voz guardada para 🔊 Escuchar (#424). Null = sin preferencia → la Torre usa su fallback es-MX. */

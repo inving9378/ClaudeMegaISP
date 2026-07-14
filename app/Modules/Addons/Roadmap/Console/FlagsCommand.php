@@ -9,6 +9,8 @@ use Illuminate\Console\Command;
  * Imprime los flags del circuito en formato machine-readable (para el wrapper vuelta.sh):
  *   pausado=<0|1>
  *   modo=<aviso_previo|autonomo>
+ *   revisor=<0|1>
+ *   modelo=<alias CLI, ej. sonnet|opus> (#336)
  */
 class FlagsCommand extends Command
 {
@@ -21,6 +23,7 @@ class FlagsCommand extends Command
         $this->line('pausado=' . ($svc->isPaused() ? '1' : '0'));
         $this->line('modo=' . $svc->getModo());
         $this->line('revisor=' . ($svc->revisorEnabled() ? '1' : '0'));   // #338
+        $this->line('modelo=' . $svc->resolveModeloCli());                // #336
 
         return self::SUCCESS;
     }
