@@ -100,7 +100,7 @@ ejecutar_una() {
   git -C "$WT" clean -fdq >>"$LOG" 2>&1 || true
 
   if [ -n "$ITEM" ]; then
-    PROMPT_TEXT="$(sed "s/__ITEM_ID__/$ITEM/g" "$PROMPT_ITEM_FILE")"
+    PROMPT_TEXT="$(sed -e "s/__ITEM_ID__/$ITEM/g" -e "s/__SID__/$SID/g" "$PROMPT_ITEM_FILE")"
     log "modo POR-ITEM: trabajando SOLO el item #$ITEM"
   else
     PROMPT_TEXT="$(cat "$PROMPT_FILE")"

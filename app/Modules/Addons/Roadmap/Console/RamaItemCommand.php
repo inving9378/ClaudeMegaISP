@@ -14,7 +14,7 @@ use Symfony\Component\Process\Process;
  */
 class RamaItemCommand extends Command
 {
-    protected $signature = 'circuito:rama {id : ID del item}';
+    protected $signature = 'circuito:rama {id : ID del item} {--sid= : SID del worker que corre la vuelta (distingue su propio claim de otra terminal)}';
 
     protected $description = 'Crea/checkout la rama del item (circuito/item-<id>-<slug>) desde main y la registra en el item.';
 
@@ -26,13 +26,13 @@ class RamaItemCommand extends Command
             return self::FAILURE;
         }
 
-        // #341 (anti-colisión): el circuito NO toma items que un humano/otra sesión ya trabaja
-        // (en_progreso o bloqueado). `circuito:rama` es el punto de entrada al trabajo autónomo,
-        // así que aquí se corta antes de crear/checar la rama.
-        if ($item->estaEnDesarrollo()) {
-            $this->error("El item #{$item->id} está EN DESARROLLO (estado {$item->estado_aprobacion}"
-                . ($item->en_desarrollo_humano ? ', bloqueado por humano' : '')
-                . '). El circuito no puede tomarlo para una vuelta autónoma (candado #341).');
+        // #341 reconciliado (#432): la rama se crea DESPUÉS de que el scheduler marcó el item
+        // `en_progreso` y le selló su `worker_sid` (orden claim→rama). Por eso `en_progreso` por sí
+        // solo NO es colisión — es el flujo normal del propio worker. Solo colisiona un humano o
+        // OTRA terminal. El SID llega por --sid o por el env CIRCUITO_SID que exporta vuelta.sh.
+        $sid = $this->option('sid') ?: (getenv('CIRCUITO_SID') ?: null);
+        if ($motivo = $this->motivoColision($item, $sid)) {
+            $this->error("El item #{$item->id} no se puede ramificar: {$motivo} (candado #341).");
             return self::FAILURE;
         }
 
@@ -65,6 +65,26 @@ class RamaItemCommand extends Command
         $this->registrar($item, $branch);
         $this->info("Rama {$branch} creada desde main y registrada en el item #{$item->id}.");
         return self::SUCCESS;
+    }
+
+    /**
+     * #341: ¿hay colisión REAL que impida ramificar? `en_progreso` por sí solo NO lo es (el propio
+     * worker lo acaba de reclamar antes de correr la rama). Bloquea solo:
+     *   - candado humano (en_desarrollo_humano), o
+     *   - en_progreso pero con `worker_sid` de OTRA terminal (distinto al SID que corre la rama).
+     * Devuelve el motivo del bloqueo, o null si se puede ramificar. Público para testeo.
+     */
+    public function motivoColision(RoadmapItem $item, ?string $sid): ?string
+    {
+        if ((bool) $item->en_desarrollo_humano) {
+            return 'lo bloqueó un humano (en_desarrollo_humano)';
+        }
+        if ($item->estado_aprobacion === 'en_progreso'
+            && $sid !== null && $item->worker_sid !== null && $item->worker_sid !== $sid) {
+            return "lo trabaja otra terminal ({$item->worker_sid}, no {$sid})";
+        }
+
+        return null;
     }
 
     private function registrar(RoadmapItem $item, string $branch): void
