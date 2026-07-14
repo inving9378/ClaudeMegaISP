@@ -36,6 +36,8 @@ class RoadmapItem extends Model
         'revision_ui', 'ui_hint', 'archivado_at', 'archivado_por',
         // Firma del worker que lo reclamó/ejecutó — wt-K (#334 A)
         'worker_sid',
+        // Colisión en vuelo entre dos items paralelos (#438)
+        'colision_pausada_por', 'colision_pausada_at',
     ];
 
     protected $casts = [
@@ -53,6 +55,7 @@ class RoadmapItem extends Model
         'en_desarrollo_humano' => 'boolean',
         'revision_ui'  => 'boolean',
         'archivado_at' => 'datetime',
+        'colision_pausada_at' => 'datetime',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
