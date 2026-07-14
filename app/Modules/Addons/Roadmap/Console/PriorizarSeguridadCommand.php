@@ -65,6 +65,9 @@ class PriorizarSeguridadCommand extends Command
         // Candidatos: pendientes, aún SIN procesar por esta pasada, que disparan alguna señal.
         $pend = RoadmapItem::whereNotIn('status', ['done', 'cancelado'])
             ->where('en_desarrollo_humano', false)
+            // Fase 0 (anti-rebote): NUNCA re-triar un item con decisión de Irving ya vigente. Una
+            // re-lectura estática de señales no es un hallazgo material → no pisa su decisión.
+            ->whereNotIn('estado_aprobacion', ['aprobado_irving', 'aprobado_revisor', 'aprobado_claude'])
             ->where(function ($q) {
                 $q->whereNull('comentarios_claude')->orWhere('comentarios_claude', 'not like', '%' . self::MARCA . '%');
             })
@@ -119,8 +122,13 @@ class PriorizarSeguridadCommand extends Command
         // SEGURIDAD/DINERO real → ALTA + atacar primero + escalar a la bandeja.
         if (in_array($cat, ['seguridad', 'dinero'], true)) {
             $item->priority = 'alta';
-            $item->estado_aprobacion = 'requiere_irving';   // frontera dura → a Irving
-            $item->aprobado_por = 'priorizacion-riesgo(opus)';
+            // Fase 0 (anti-rebote): si Irving ya decidió este item, NO se devuelve a requiere_irving
+            // (su decisión vigente manda); solo se sube prioridad. Guard redundante con el filtro de la
+            // query — belt & suspenders para el caso de un item requiere_irving ya aprobado en bitácora.
+            if (! $item->tieneDecisionVigenteDeIrving()) {
+                $item->estado_aprobacion = 'requiere_irving';   // frontera dura → a Irving
+                $item->aprobado_por = 'priorizacion-riesgo(opus)';
+            }
         }
         // negocio/prod: NO se cambia prioridad ni estado (solo se etiqueta y separa).
 

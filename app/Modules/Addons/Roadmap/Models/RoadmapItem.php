@@ -156,6 +156,29 @@ class RoadmapItem extends Model
     }
 
     /**
+     * Fase 0 (anti-rebote): ¿este item ya trae una decisión VIGENTE de Irving? Un proceso automático
+     * (re-lectura de señales, priorización) NO debe devolverlo a `requiere_irving` salvo que exista un
+     * hallazgo NUEVO y MATERIAL (p.ej. conflicto real de merge, que sí lo escala legítimamente desde
+     * otro camino). Señal doble, sin depender de columnas nuevas todavía:
+     *   1) estado ya aprobado (aprobado_irving|aprobado_revisor|aprobado_claude), o
+     *   2) la ÚLTIMA acción de Irving en la bitácora fue una aprobación (aún no revertida).
+     */
+    public function tieneDecisionVigenteDeIrving(): bool
+    {
+        if (in_array($this->estado_aprobacion, ['aprobado_irving', 'aprobado_revisor', 'aprobado_claude'], true)) {
+            return true;
+        }
+        foreach (array_reverse((array) $this->log) as $e) {
+            if (! is_array($e) || strpos((string) ($e['por'] ?? ''), 'irving') === false) {
+                continue;   // solo cuenta la última entrada hecha por Irving
+            }
+            return ($e['decision'] ?? '') === 'aprobar';
+        }
+
+        return false;
+    }
+
+    /**
      * #431 Fase 1 — CLAVE ESTABLE de una opción (no su prosa). Deriva de un hash del texto
      * normalizado → sobrevive al reordenamiento de las opciones (NO es índice posicional) y cabe
      * de sobra en la columna (16 chars), matando el bug de `max:255` con opciones largas (la prosa
