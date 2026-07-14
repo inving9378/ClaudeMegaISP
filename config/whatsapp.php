@@ -28,6 +28,20 @@ return [
     'fake'             => env('WHATSAPP_FAKE', false),
 
     /*
+    | Freno maestro del envío REAL de texto (item #197, Fase 4 — unificar el
+    | sender). Distinto de `fake` (que también apaga QR/connectionState/etc.):
+    | este SOLO gatea el POST /message/sendText en EvolutionApiService::
+    | sendTextViaApi(). Con el flag OFF (default), el mensaje se marca
+    | `skipped` y se loguea el payload que se habría enviado — sin tocar
+    | Evolution. Necesario porque PaymentApplicationService::notifyClient()
+    | (conciliación de pagos) y otros consumidores futuros pasan por
+    | sendAndLog(null) -> WhatsAppInstance::active()->default(), y activar el
+    | default de una instancia real dispara envíos reales a clientes.
+    | Prender en prod es decisión aparte de Irving tras validar en dev.
+    */
+    'sender_enabled'   => (bool) env('WHATSAPP_SENDER_ENABLED', false),
+
+    /*
     | Modo auto-respuesta. Cuando está activo, cada mensaje entrante dispara
     | una llamada a la IA y, si la confianza de la intención supera el umbral,
     | envía automáticamente el borrador sin esperar al agente humano.

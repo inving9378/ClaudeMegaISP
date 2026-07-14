@@ -96,6 +96,20 @@ class EvolutionApiService
             return;
         }
 
+        // Freno maestro (item #197): con sender_enabled=false (default) NO se hace el
+        // POST real — se loguea el payload que se habría enviado y se marca 'skipped'.
+        // Distinto de fakeMode: esto NO toca QR/connectionState, solo el envío de texto.
+        if (! config('whatsapp.sender_enabled', false)) {
+            $message->update(['status' => 'skipped']);
+            Log::info('WhatsApp envío real DESHABILITADO (whatsapp.sender_enabled=false) — log-only', [
+                'message_id' => $message->id,
+                'instance'   => $this->evolutionName($message->instance),
+                'to'         => $message->conversation->contact_number,
+                'body'       => $message->body,
+            ]);
+            return;
+        }
+
         $instance = $message->instance;
         $number   = $message->conversation->contact_number;
 
