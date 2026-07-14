@@ -430,7 +430,7 @@ export default {
         const newLogText   = ref('');
         const activeFilter = ref('all');
         const showAddModal = ref(false);
-        const newItem      = ref({ title: '', priority: '', target_version: '', prompt: '' });
+        const newItem      = ref({ title: '', priority: 'media', target_version: '', prompt: '' });
         const toast        = ref({ visible: false, message: '', type: 'success', icon: '', timer: null });
 
         // ── Memoria CLAUDE.md ─────────────────────────────────────────────────
@@ -731,7 +731,7 @@ export default {
                 };
                 const { data } = await axios.post('/api/roadmap/items', payload);
                 items.value.push(data);
-                newItem.value = { title: '', priority: '', target_version: '', prompt: '' };
+                newItem.value = { title: '', priority: 'media', target_version: '', prompt: '' };
                 showAddModal.value = false;
                 showToast('Item agregado.', 'success', 'bi bi-plus-circle-fill');
             } catch {
