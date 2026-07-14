@@ -5,6 +5,25 @@
         </h2>
         <p class="text-muted mb-4">{{ submenu.description }}</p>
 
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-primary"
+                @click="speak"
+                :disabled="isSpeaking"
+            >
+                🔊 Escuchar
+            </button>
+            <button
+                v-if="isSpeaking"
+                type="button"
+                class="btn btn-sm btn-outline-danger"
+                @click="stopSpeaking"
+            >
+                ⏹ Detener
+            </button>
+        </div>
+
         <hr />
 
         <!-- Botón agregar y selector de orden -->
@@ -168,7 +187,7 @@
 console.log('>>> DocumentationContent.vue cargado');
 console.log('>>> ClassicEditor disponible al inicio:', typeof window !== 'undefined' ? typeof window.ClassicEditor : 'N/A');
 
-import { ref, reactive, nextTick, onMounted } from "vue";
+import { ref, reactive, nextTick, onMounted, onUnmounted } from "vue";
 import Swal from "sweetalert2";
 import ComponentFormDefault from "../../../../ComponentFormDefault.vue";
 import { showLoading, hideLoading } from "../../../../../helpers/loading";
@@ -201,6 +220,61 @@ export default {
 
         // NUEVO: Variable para controlar la dirección del orden
         const orderDirection = ref('asc'); // 'asc' por defecto (más antiguo primero)
+
+        // NUEVO: Lectura en voz alta con speechSynthesis del navegador
+        const isSpeaking = ref(false);
+
+        const stripHtml = (html) => {
+            const tmp = document.createElement("div");
+            tmp.innerHTML = html || "";
+            return tmp.textContent || tmp.innerText || "";
+        };
+
+        const stopSpeaking = () => {
+            if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+            }
+            isSpeaking.value = false;
+        };
+
+        const speak = () => {
+            if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+                Swal.fire(
+                    "No disponible",
+                    "Tu navegador no soporta lectura en voz alta.",
+                    "warning"
+                );
+                return;
+            }
+
+            stopSpeaking();
+
+            const text = [
+                submenu.title,
+                submenu.description,
+                ...contents.value.map((content) => stripHtml(content.content)),
+            ]
+                .filter((part) => part && part.trim())
+                .join(". ");
+
+            if (!text.trim()) return;
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = "es-ES";
+            utterance.onend = () => {
+                isSpeaking.value = false;
+            };
+            utterance.onerror = () => {
+                isSpeaking.value = false;
+            };
+
+            isSpeaking.value = true;
+            window.speechSynthesis.speak(utterance);
+        };
+
+        onUnmounted(() => {
+            stopSpeaking();
+        });
 
         const hasPermission = reactive({
             data: new Permission({}),
@@ -396,6 +470,9 @@ export default {
             setContentRef,
             hasPermission,
             changeOrder, // NUEVO: Exponer al template
+            isSpeaking, // NUEVO: Lectura en voz alta
+            speak,
+            stopSpeaking,
         };
     },
 };
