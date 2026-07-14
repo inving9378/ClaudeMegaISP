@@ -123,7 +123,6 @@ export default {
                         try {
                             await axios.post('/evaluador-empresarial/enviar-email', {
                                 evaluacion_id: data.id,
-                                email_destino: this.form.email_contacto,
                             });
                         } catch (e) {
                             // No-bloquear el flow si falla el email
