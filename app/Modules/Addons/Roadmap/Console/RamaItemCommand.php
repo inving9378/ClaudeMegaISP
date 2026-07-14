@@ -39,9 +39,22 @@ class RamaItemCommand extends Command
         $slug   = Str::slug(Str::limit($item->title, 40, ''));
         $branch = "circuito/item-{$item->id}-{$slug}";
 
-        // ¿ya existe la rama?
+        // ¿ya existe la rama? (resume de una vuelta previa: timeout, o #438 pausada por colisión
+        // y ya reanudada). La rebaso sobre `main` para que traiga lo que otros items ya integraron
+        // desde que se creó — así el merge final no choca. Best-effort: si el rebase truena
+        // (conflicto real), lo abandono y dejo la rama tal cual estaba; el backstop de
+        // `MergeRunner::performMerge` (merge de 2 fases con verificación) sigue intacto.
         if ($this->git(['rev-parse', '--verify', $branch])->isSuccessful()) {
             $this->git(['checkout', $branch]);
+            if (! $this->git(['merge-base', '--is-ancestor', 'main', $branch])->isSuccessful()) {
+                $rebase = $this->git(['rebase', 'main']);
+                if ($rebase->isSuccessful()) {
+                    $this->info("Rama {$branch} rebasada sobre main (#438).");
+                } else {
+                    $this->git(['rebase', '--abort']);
+                    $this->warn("No se pudo rebasar {$branch} sobre main (posible conflicto); sigue sobre su base anterior.");
+                }
+            }
             $this->registrar($item, $branch);
             $this->info("Rama {$branch} ya existía; checkout hecho. Registrada en el item #{$item->id}.");
             return self::SUCCESS;
