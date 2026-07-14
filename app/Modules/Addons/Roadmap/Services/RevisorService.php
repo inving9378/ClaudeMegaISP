@@ -439,6 +439,111 @@ TXT;
         }
     }
 
+    /**
+     * #432 Fase 3 — BRIEF COMPLETO: propone TODAS las preguntas de decisión del item de una, cada
+     * una con sus 2-3 opciones (marca UNA con '(RECOMENDADA)' si aplica) + fase opcional. Devuelve
+     * [{id,pregunta,opciones:[str],opcion_elegida:null,fase}]. PROPONE, NO decide. Falla-segura.
+     */
+    public function proponerPreguntas(RoadmapItem $item): array
+    {
+        $hard  = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+        $texto = '';
+        try {
+            $resp = (new ClaudeApiClient())->messages([
+                'model'      => $hard,
+                'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100) * 2,
+                'system'     => 'Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). '
+                    . 'Este item es nivel C: lo decide Irving, no el circuito. Desglósalo en TODAS las preguntas de '
+                    . 'decisión que Irving debe responder para desbloquearlo de una sola pasada (1 si es una sola '
+                    . 'decisión; varias si el item esconde varias). Para CADA pregunta propón 2-3 opciones accionables; '
+                    . "marca UNA con '(RECOMENDADA)' al final si hay una preferible (NO elijas tú). Si una decisión "
+                    . 'pertenece a una fase posterior, inclúyela igual con "fase":"Fase X". Responde EXCLUSIVAMENTE un '
+                    . 'array JSON (sin markdown) de objetos {"pregunta":"...","opciones":["Opción 1: <qué> — Pro: <x>. '
+                    . 'Contra: <y>", ...],"fase":null}. Perfil de Irving:' . "\n\n" . $this->perfilIrving(),
+                'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
+            ]);
+            foreach ((array) ($resp['content'] ?? []) as $blk) {
+                if (($blk['type'] ?? '') === 'text') {
+                    $texto .= $blk['text'] ?? '';
+                }
+            }
+            $pregs = $this->parsePreguntas($texto);
+
+            return ['ok' => ! empty($pregs), 'preguntas' => $pregs, 'modelo' => $hard, 'raw' => trim($texto)];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'preguntas' => [], 'modelo' => $hard, 'error' => mb_strimwidth($e->getMessage(), 0, 160, '…')];
+        }
+    }
+
+    /** Parsea el array JSON de preguntas: cada una {id,pregunta,opciones[str],opcion_elegida:null,fase}. Máx 6. */
+    private function parsePreguntas(string $text): array
+    {
+        if (! preg_match('/\[.*\]/s', $text, $m)) {
+            return [];
+        }
+        $arr = json_decode($m[0], true);
+        if (! is_array($arr)) {
+            return [];
+        }
+        $out = [];
+        foreach ($arr as $i => $p) {
+            if (! is_array($p)) {
+                continue;
+            }
+            $ops = [];
+            foreach ((array) ($p['opciones'] ?? []) as $o) {
+                $t = trim((string) (is_array($o) ? ($o['texto'] ?? '') : $o));
+                if ($t !== '') {
+                    $ops[] = $t;
+                }
+            }
+            if (empty($ops)) {
+                continue;
+            }
+            $out[] = [
+                'id'             => 'q' . (count($out) + 1),
+                'pregunta'       => trim((string) ($p['pregunta'] ?? '')),
+                'opciones'       => array_slice($ops, 0, 4),
+                'opcion_elegida' => null,
+                'fase'           => ! empty($p['fase']) ? (string) $p['fase'] : null,
+            ];
+            if (count($out) >= 6) {
+                break;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * #432 — escribe el brief completo (columna `preguntas`) SIN tocar opcion_elegida ni ejecutar.
+     * Reescribe el brief entero; deja el item en requiere_irving (bandeja). Preserva respuestas ya
+     * dadas a preguntas con el MISMO id (para no borrar lo que Irving ya contestó).
+     */
+    public function aplicarPreguntas(RoadmapItem $item, array $preguntas, string $actor = 'revisor:brief-completo'): RoadmapItem
+    {
+        $previas = [];
+        foreach ((array) $item->preguntas as $p) {
+            if (! empty($p['id']) && ! empty($p['opcion_elegida'])) {
+                $previas[$p['id']] = $p['opcion_elegida'];
+            }
+        }
+        foreach ($preguntas as &$p) {
+            if (isset($previas[$p['id']])) {
+                $p['opcion_elegida'] = $previas[$p['id']];
+            }
+        }
+        unset($p);
+
+        $item->preguntas          = $preguntas;
+        $item->estado_aprobacion  = 'requiere_irving';
+        $item->revisado_at        = now();
+        $item->aprobado_por       = $actor;
+        $item->save();
+
+        return $item->fresh();
+    }
+
     /** Extrae el array JSON de opciones del texto del modelo (tolera fences ```json). Máx 3, strings no vacíos. */
     private function parseOpciones(string $text): array
     {

@@ -39,14 +39,22 @@
       <p class="rid-txt">{{ item.reporte }}</p>
     </div>
 
-    <div v-if="item.opciones && item.opciones.length" class="rid-section">
-      <h2 class="rid-h2">Opciones</h2>
-      <ul class="rid-list">
-        <li v-for="(op, i) in item.opciones" :key="i" :class="{ 'rid-elegida': esElegida(op) }">
-          {{ textoOpcion(op) }}
-          <span v-if="esElegida(op)" class="rid-badge rid-badge-ok">elegida</span>
-        </li>
-      </ul>
+    <!-- #432 Fase 3 — preguntas (multi o 1 fallback), read-only -->
+    <div v-if="item.preguntas && item.preguntas.length" class="rid-section">
+      <h2 class="rid-h2">{{ item.preguntas.length > 1 ? 'Preguntas de decisión' : 'Opciones' }}</h2>
+      <div v-for="(pg, pi) in item.preguntas" :key="pg.id" class="rid-pregunta">
+        <p v-if="pg.pregunta" class="rid-pregunta-t">
+          <strong v-if="item.preguntas.length > 1">{{ pi + 1 }}.</strong> {{ pg.pregunta }}
+          <span v-if="pg.fase" class="rid-badge">se decide en {{ pg.fase }}</span>
+        </p>
+        <ul class="rid-list">
+          <li v-for="(op, i) in pg.opciones" :key="i" :class="{ 'rid-elegida': op.clave === pg.opcion_elegida }">
+            {{ op.texto }}
+            <span v-if="op.recomendada" class="rid-badge">recomendada</span>
+            <span v-if="op.clave === pg.opcion_elegida" class="rid-badge rid-badge-ok">elegida</span>
+          </li>
+        </ul>
+      </div>
     </div>
 
     <div v-if="item.subtasks && item.subtasks.length" class="rid-section">
