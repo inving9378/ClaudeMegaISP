@@ -51,4 +51,10 @@ Ante duda REAL en la frontera → **escala** (mejor un falso escalado que soltar
 
 ## Aprende de la bandeja (crece con el tiempo)
 Cada **aprobación/rechazo** de Irving (con su comentario) es una nueva preferencia → se agrega aquí →
-el revisor predice mejor su respuesta y escala menos lo que él ya aprobaría. (Loop de captura: item aparte.)
+el revisor predice mejor su respuesta y escala menos lo que él ya aprobaría.
+
+**Loop de captura (item #351, activo):** cada decisión de Irving sobre un item de su bandeja
+(`POST /api/roadmap/circuito/decidir`) se registra automáticamente como candidato crudo en
+[`docs/pendientes-perfil-irving.md`](pendientes-perfil-irving.md). Ese archivo NO se auto-inlinea
+aquí — Irving lo revisa en lote y decide a mano qué mover a este perfil. La frontera dura nunca se
+infiere automáticamente por este loop.
