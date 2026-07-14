@@ -87,6 +87,28 @@ class RoadmapItem extends Model
      */
     protected static function booted(): void
     {
+        // #456: guardia simétrica al #420 — causa raíz de la bandeja pendiente_revision llenándose de
+        // items done/in_progress. Las acciones MANUALES del Kanban legado (RoadmapController::start/
+        // complete/cancel, disparadas por el toggle de estado en RoadmapTab.vue) solo mutan `status` y
+        // nunca tocaron `estado_aprobacion`, que nace en 'pendiente_revision' para TODO item nuevo
+        // (incluidos los creados a mano vía "Agregar item"). Si `status` avanza mientras
+        // estado_aprobacion sigue en 'pendiente_revision' o en 'en_progreso' (el propio resultado de
+        // start() vía esta guardia, o un claim del circuito), sincroniza para que el item salga de la
+        // bandeja en vez de quedar "hecho" pero eternamente pendiente de revisión. Estados de decisión
+        // ya gobernados por el circuito (aprobado_*, requiere_irving, completado, cancelado, rechazado)
+        // NUNCA se tocan aquí — solo el tramo puramente Kanban.
+        static::saving(function (self $item) {
+            if (in_array($item->estado_aprobacion, ['pendiente_revision', 'en_progreso'], true) && $item->isDirty('status')) {
+                if ($item->status === 'done') {
+                    $item->estado_aprobacion = 'completado';
+                } elseif ($item->status === 'in_progress') {
+                    $item->estado_aprobacion = 'en_progreso';
+                } elseif ($item->status === 'cancelled') {
+                    $item->estado_aprobacion = 'cancelado';
+                }
+            }
+        });
+
         static::saving(function (self $item) {
             if ($item->estado_aprobacion === 'completado') {
                 if ($item->status !== 'done') {
