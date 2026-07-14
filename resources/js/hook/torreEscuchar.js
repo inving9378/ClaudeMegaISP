@@ -93,5 +93,7 @@ export function useEscuchar() {
  * del item (#426), que sí tiene contexto (antes caía a /releases sin relación con el item).
  */
 export function verMas(item) {
-    window.open(item.modulo_url || `/roadmap/item/${item.id}`, '_blank', 'noopener');
+    // #432 ADENDA B — "Ver" abre el deep-link REAL del cambio (enlace_revision) si el ejecutor lo pobló;
+    // si no, cae a la pantalla del módulo, y por último al detalle del item.
+    window.open(item.enlace_revision || item.modulo_url || `/roadmap/item/${item.id}`, '_blank', 'noopener');
 }

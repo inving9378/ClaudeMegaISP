@@ -45,7 +45,8 @@ class RoadmapController extends Controller
                 'opcion_elegida' => $i->opcion_elegida,       // clave estable de la opción marcada (o null)
                 'preguntas'     => $i->preguntasNormalizadas(), // #432 Fase 3 — todas las preguntas juntas (multi o 1 fallback)
                 'resumen'       => $this->resumenItem($i),        // resumen corto para 🔊 Escuchar / tarjeta (mismo que Integración)
-                'modulo_url'    => $this->moduloUrl($i->modulo),  // 🔎 Ver más → pantalla del módulo (null = fallback en la UI)
+                'modulo_url'    => $this->moduloUrl($i->modulo),  // 🔎 Ver más → pantalla del módulo (fallback)
+                'enlace_revision' => $i->enlace_revision,          // #432 ADENDA B — deep-link REAL del cambio (preferente en "Ver")
             ]));
 
         // #348: cola EJECUTABLE — SOLO lo que el circuito AUTO-CORRE (A/B o ya aprobado por Irving),
@@ -674,7 +675,8 @@ class RoadmapController extends Controller
             'archivado_at'      => optional($i->archivado_at)->toIso8601String(),
             'archivado_por'     => $i->archivado_por,
             'modulo'            => $i->modulo,
-            'modulo_url'        => $this->moduloUrl($i->modulo),   // "Ver más" → pantalla del módulo (null = fallback en la UI)
+            'modulo_url'        => $this->moduloUrl($i->modulo),   // "Ver más" → pantalla del módulo (fallback)
+            'enlace_revision'   => $i->enlace_revision,            // #432 ADENDA B — deep-link REAL (preferente en "Ver")
             'verificacion'      => $this->semaforo($i),
             'reporte'           => $i->comentarios_claude,   // reporte del ejecutor (qué hace/cómo validar/verificación)
             'resumen'           => $this->resumenItem($i),   // resumen CORTO para Escuchar/tarjeta (coloquial → fallback descripción)
