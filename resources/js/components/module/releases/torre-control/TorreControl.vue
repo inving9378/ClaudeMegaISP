@@ -112,33 +112,25 @@
         <div class="tc-card">
           <h2 class="tc-h2">⚑ Tu bandeja — requiere tu decisión ({{ cola.length }})</h2>
           <div v-if="!cola.length" class="tc-meta">Nada requiere tu decisión ahora. ✓</div>
-          <div v-for="it in cola" :key="it.id" :id="'tc-item-' + it.id" class="tc-inbox-item" :class="{ 'tc-inbox-compact': esCompacta(it), 'tc-highlight': highlightId === it.id }">
+          <div v-for="it in cola" :key="it.id" :id="'tc-item-' + it.id" class="tc-inbox-item tc-inbox-compact" :class="{ 'tc-highlight': highlightId === it.id }">
             <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
             <div class="tc-inbox-body">
-              <!-- #477: tarjeta COMPACTA para nivel C — encabezado corto + título, sin párrafos largos -->
-              <template v-if="esCompacta(it)">
-                <div class="tc-t-compact">
-                  <span class="tc-idnum">#{{ it.id }}</span>
-                  <span class="tc-badge tc-badge-dec">{{ estadoLabelItem(it) }}</span>
-                  <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
-                  <span v-if="it.modulo" class="tc-modulo-chip">{{ it.modulo }}</span>
-                </div>
-                <div class="tc-titulo-c">{{ it.title }}</div>
-              </template>
-              <div class="tc-t" v-else>
+              <!-- #477: tarjeta COMPACTA para TODA "Tu bandeja" (no solo nivel_riesgo=C: la bandeja
+                   también trae B/sin-clasificar vía [BLOCKED-/PARKED-] o requiere_irving directo —
+                   ver RoadmapItem::scopeBandeja) — encabezado corto + título, sin párrafos largos -->
+              <div class="tc-t-compact">
                 <span class="tc-idnum">#{{ it.id }}</span>
-                <span class="tc-badge tc-badge-dec">requiere tu decisión</span>
-                <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span> {{ it.title }}
+                <span class="tc-badge tc-badge-dec">{{ estadoLabelItem(it) }}</span>
+                <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
+                <span v-if="it.modulo" class="tc-modulo-chip">{{ it.modulo }}</span>
               </div>
-              <!-- Resumen corto (coloquial → descripción): lo primero, lo que narra 🔊 Escuchar (oculto en tarjeta compacta) -->
-              <div class="tc-resumen" v-if="it.resumen && !esCompacta(it)">{{ it.resumen }}</div>
-              <div class="tc-s" v-if="it.recomendacion && !esCompacta(it)">{{ it.recomendacion }}</div>
+              <div class="tc-titulo-c">{{ it.title }}</div>
 
               <!-- #432 Fase 3 — brief COMPLETO: TODAS las preguntas del item juntas, cada una con sus
                    opciones. #431: objetos {clave,texto,recomendada}; se marca por CLAVE estable.
                    Verde = RECOMENDADA; anillo = SELECCIONADA. Una sola Aprobar responde todo. -->
               <div v-if="it.preguntas && it.preguntas.length" class="tc-preguntas">
-                <div class="tc-dec-label" v-if="esCompacta(it)">Decisión requerida</div>
+                <div class="tc-dec-label">Decisión requerida</div>
                 <div v-for="(pg, pi) in it.preguntas" :key="pg.id" class="tc-pregunta">
                   <div v-if="pg.pregunta || pg.fase" class="tc-pregunta-t">
                     <span v-if="it.preguntas.length > 1" class="tc-pregunta-num">{{ pi + 1 }}.</span>{{ pg.pregunta }}
@@ -175,8 +167,8 @@
                 <span v-if="aviso[it.id]" class="tc-aviso" :class="'tc-aviso-' + aviso[it.id].tipo">{{ aviso[it.id].texto }}</span>
               </div>
 
-              <!-- #477: descripción completa colapsada por defecto (solo tarjeta compacta nivel C) -->
-              <div v-if="esCompacta(it) && tieneDescExtendida(it)" class="tc-desc-wrap">
+              <!-- #477: descripción completa colapsada por defecto (toda "Tu bandeja" es compacta) -->
+              <div v-if="tieneDescExtendida(it)" class="tc-desc-wrap">
                 <button type="button" class="tc-desc-toggle" @click="descOpen[it.id] = !descOpen[it.id]">
                   {{ descOpen[it.id] ? 'Ocultar descripción ▲' : 'Ver descripción ▼' }}
                 </button>
@@ -359,9 +351,8 @@ export default {
         const segOpen = reactive({});  // id -> form de seguimiento abierto
         const seg = reactive({});      // id -> {titulo, descripcion, nivel, cerrar}
 
-        // #477 — tarjeta compacta para nivel C: colapsa descripción/observaciones tras "Ver descripción".
+        // #477 — tarjeta compacta para TODA "Tu bandeja": colapsa descripción/observaciones tras "Ver descripción".
         const descOpen = reactive({}); // id -> bool (desplegable abierto)
-        const esCompacta = (it) => it.nivel_riesgo === 'C';
         const tieneDescExtendida = (it) => !!(it.description || it.alcance_autorizado || it.fuera_de_alcance || it.recomendacion);
         const estadoLabelItem = (it) => (it.estado_aprobacion === 'requiere_irving' ? 'requiere tu decisión' : (it.estado_aprobacion || 'requiere tu decisión'));
 
@@ -756,7 +747,7 @@ export default {
             openItem, verRecorrido, estadoAprobLabel, highlightId,
             sel, coment, deciding, decidir, elegirOpcion, selPreg, aviso,
             // #477: tarjeta compacta nivel C
-            descOpen, esCompacta, tieneDescExtendida, estadoLabelItem,
+            descOpen, tieneDescExtendida, estadoLabelItem,
             // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
             hablando, leer, verMas,
             segOpen, seg, toggleSeg, crearSeguimiento,
@@ -829,9 +820,7 @@ export default {
 .tc-inbox-item:first-of-type{border-top:none;}
 .tc-tag{flex:0 0 auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:1px;}
 .tc-lvC{background:#fef2f2;color:#b91c1c;} .tc-lvB{background:#fffbeb;color:#b45309;} .tc-lvA{background:#ecfdf5;color:#047857;} .tc-lvNone{background:#f1f5f9;color:#475569;}
-.tc-t{font-size:13.5px;font-weight:600;line-height:1.3;}
 .tc-s{font-size:12px;color:var(--tc-muted);margin-top:2px;}
-.tc-resumen{font-size:12.5px;line-height:1.45;color:var(--tc-ink);font-weight:500;margin-top:3px;}
 .tc-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;vertical-align:middle;white-space:nowrap;}
 .tc-badge-dec{background:#fffbeb;color:#b45309;}
 .tc-btn-voz{background:#fff;color:var(--tc-accent);border-color:var(--tc-line);}
