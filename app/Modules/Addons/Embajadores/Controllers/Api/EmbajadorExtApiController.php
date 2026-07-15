@@ -12,7 +12,7 @@ use App\Models\Referrals\ReferralCommission;
 use App\Models\Referrals\ReferralReward;
 use App\Models\Referrals\ReferralSetting;
 use App\Models\Referrals\ReferralShareLog;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\Embajadores\Events\ReferralShareRequested;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -242,30 +242,33 @@ class EmbajadorExtApiController extends Controller
         $template = $setting->share_template_default
             ?: '¡Hola {{contact_name}}! Te invito a unirte a Meganet con mi código {{code}}. Disfruta de internet de calidad: {{url}}';
 
-        $shareUrl  = url('/registro?ref=' . $profile->referral_code);
-        $evolution = app(EvolutionApiService::class);
+        $shareUrl = url('/registro?ref=' . $profile->referral_code);
 
-        $sent   = 0;
-        $failed = 0;
-
+        // Item #253: ya NO se llama a Marketing\EvolutionApiService directo — se
+        // publica el evento de dominio y el gateway único de WhatsApp (listener en
+        // WhatsAppAgent) lo consume. Embajadores solo arma los mensajes.
+        $contacts = [];
         foreach ($data['contacts'] as $contact) {
-            $body = str_replace(
-                ['{{contact_name}}', '{{name}}', '{{code}}', '{{url}}'],
-                [$contact['name'], $contact['name'], $profile->referral_code, $shareUrl],
-                $template
-            );
+            $contacts[] = [
+                'name'  => $contact['name'],
+                'phone' => $contact['phone'],
+                'body'  => str_replace(
+                    ['{{contact_name}}', '{{name}}', '{{code}}', '{{url}}'],
+                    [$contact['name'], $contact['name'], $profile->referral_code, $shareUrl],
+                    $template
+                ),
+            ];
+        }
 
-            try {
-                $jid = EvolutionApiService::phoneToJid($contact['phone']);
-                $evolution->sendText($jid, $body);
-                $sent++;
-            } catch (\Throwable $e) {
-                $failed++;
-                Log::warning('EmbajadorExtApiController@shareMasivo: fallo en contacto', [
-                    'phone' => $contact['phone'],
-                    'error' => $e->getMessage(),
-                ]);
-            }
+        $responses = event(new ReferralShareRequested($client->id, $profile->referral_code, $contacts));
+        $summary   = $responses[0] ?? null;
+        $sent      = $summary['sent'] ?? 0;
+        $failed    = $summary['failed'] ?? count($contacts);
+
+        if ($summary === null) {
+            Log::warning('EmbajadorExtApiController@shareMasivo: ReferralShareRequested sin listener respondiendo', [
+                'embajador_id' => $client->id,
+            ]);
         }
 
         // Registrar el share log
