@@ -23,17 +23,44 @@
     </div>
 
     <!-- Supervisor arriba, conectado por líneas a cada terminal (#430): el flujo se anima
-         SOLO hacia las que trabajan. El mapeo es 1:1 y en el mismo orden de la rejilla. -->
+         SOLO hacia las que trabajan. El mapeo es 1:1 y en el mismo orden de la rejilla.
+         Escritorio del supervisor (#475): revisa la cola y dos listas — lo recién resuelto
+         y lo que ya está listo para que un terminal lo tome. -->
     <div v-if="sesiones.length" class="tt-sup" :class="{ 'tt-sup-active': anyActive }">
-      <div class="tt-sup-node">
-        <span class="tt-avatar tt-av-sup">
-          <img class="tt-avatar-img" :src="supervisorUrl" :alt="(supervisor && supervisor.nombre) || 'Supervisor'" loading="lazy" @error="onAvatarError" />
-        </span>
-        <div class="tt-idblock">
-          <span class="tt-name">{{ (supervisor && supervisor.nombre) || 'Supervisor' }}</span>
-          <span class="tt-worker-sm">reparte el trabajo</span>
+      <div class="tt-sup-desk">
+        <div class="tt-sup-node">
+          <span class="tt-avatar tt-av-sup">
+            <img class="tt-avatar-img" :src="supervisorUrl" :alt="(supervisor && supervisor.nombre) || 'Supervisor'" loading="lazy" @error="onAvatarError" />
+            <span class="tt-desk-ico" aria-hidden="true"><i class="bi bi-clipboard-check"></i></span>
+          </span>
+          <div class="tt-idblock">
+            <span class="tt-name">{{ (supervisor && supervisor.nombre) || 'Supervisor' }}</span>
+            <span class="tt-worker-sm">{{ anyActive ? 'reparte el trabajo' : 'revisando la cola' }}</span>
+          </div>
+        </div>
+
+        <div class="tt-sup-lists">
+          <div class="tt-sup-list">
+            <span class="tt-sup-list-h"><i class="bi bi-check2-circle"></i> Recién resueltos</span>
+            <ul v-if="recienResueltos.length" class="tt-sup-list-ul">
+              <li v-for="r in recienResueltos" :key="'rr' + r.id" :title="r.title">
+                <b>#{{ r.id }}</b> {{ r.title }}
+              </li>
+            </ul>
+            <p v-else class="tt-sup-list-empty">Nada resuelto todavía</p>
+          </div>
+          <div class="tt-sup-list">
+            <span class="tt-sup-list-h"><i class="bi bi-inbox"></i> Listos para terminal</span>
+            <ul v-if="listosParaTerminal.length" class="tt-sup-list-ul">
+              <li v-for="r in listosParaTerminal" :key="'lp' + r.id" :title="r.title">
+                <b>#{{ r.id }}</b> {{ r.title }}
+              </li>
+            </ul>
+            <p v-else class="tt-sup-list-empty">Cola vacía</p>
+          </div>
         </div>
       </div>
+
       <div class="tt-sup-links">
         <span v-for="s in sesiones" :key="s.sid" class="tt-link" :class="linkClass(s)" :title="(s.nombre || s.sid) + (s.running && !s.stale ? ' · recibiendo trabajo' : ' · en reposo')">
           <span class="tt-link-line"></span>
@@ -51,6 +78,9 @@
             <img class="tt-avatar-img" :src="avatarUrl(s.sid)" :alt="s.nombre || s.sid" loading="lazy" @error="onAvatarError" />
             <span class="tt-avatar-ring" aria-hidden="true"></span>
             <span class="tt-avatar-dot" aria-hidden="true"></span>
+            <span v-if="gestureIcon(s)" class="tt-avatar-gesture" :class="gestureClass(s)" aria-hidden="true">
+              <i :class="gestureIcon(s)"></i>
+            </span>
           </span>
           <span class="tt-idblock">
             <span class="tt-name">{{ s.nombre || s.sid }}</span>
@@ -119,16 +149,21 @@ const FASES = [
     { key: "integrando",  label: "Integrando" },
 ];
 const POLL_MS = 3000;
+const STRETCH_MS = 2600;   // #475: cuánto dura el gesto de "estirarse" al terminar
 
 export default {
     name: "TorreTerminales",
     setup() {
         const sesiones = ref([]);
         const supervisor = ref(null);   // #430: nodo supervisor (data.supervisor del feed estado)
+        const recienResueltos = ref([]);      // #475: escritorio del supervisor — lista 1
+        const listosParaTerminal = ref([]);    // #475: escritorio del supervisor — lista 2
         const nowMs = ref(Date.now());
         const fsSid = ref(null);
         const pres = {};        // sid -> <pre> (rejilla)
         const fsPre = ref(null);
+        const prevRunning = {};   // #475: sid -> running anterior, para detectar "terminó ahora"
+        const stretchUntil = {};  // #475: sid -> ms hasta el que se muestra el gesto de estirarse
         let pollTimer = null, tickTimer = null;
 
         const anyRunning = computed(() => sesiones.value.some((s) => s.running));
@@ -161,6 +196,7 @@ export default {
         };
         // Estado visual del avatar (engancha la animación a los flags live existentes, sin tocar lógica).
         const avatarClass = (s) => {
+            if (isStretching(s.sid)) return "tt-av-stretch";   // #475: gesto de cansancio al terminar
             if (s.idle) return "tt-av-idle";
             if (!s.running) return "tt-av-off";
             return s.stale ? "tt-av-stale" : "tt-av-run";
@@ -169,6 +205,16 @@ export default {
         // Línea supervisor→terminal: flujo animado SOLO hacia las que trabajan (running y no frías).
         const linkClass = (s) => (s.running && !s.stale ? "tt-link-active" : (s.stale ? "tt-link-stale" : "tt-link-idle"));
         const anyActive = computed(() => sesiones.value.some((s) => s.running && !s.stale));
+
+        // #475: gesto sobre el avatar — "concentrado viendo la computadora" mientras trabaja,
+        // y un estiramiento breve de cansancio justo al terminar (transición running→terminado).
+        const isStretching = (sid) => !!stretchUntil[sid] && nowMs.value < stretchUntil[sid];
+        const gestureIcon = (s) => {
+            if (isStretching(s.sid)) return "bi bi-arrows-angle-expand";
+            if (!s.idle && s.running && !s.stale) return "bi bi-display";
+            return null;
+        };
+        const gestureClass = (s) => (isStretching(s.sid) ? "tt-gesture-stretch" : "tt-gesture-work");
 
         const setPre = (sid, el) => { if (el) pres[sid] = el; };
         const scrollAll = () => {
@@ -179,8 +225,18 @@ export default {
         async function poll() {
             try {
                 const { data } = await axios.get("/api/roadmap/circuito/estado");
-                sesiones.value = (data.trabajando && data.trabajando.sesiones) || [];
+                const nuevas = (data.trabajando && data.trabajando.sesiones) || [];
+                // #475: detecta running→terminado por sesión para disparar el gesto de "estirarse".
+                nuevas.forEach((s) => {
+                    if (prevRunning[s.sid] === true && !s.running) {
+                        stretchUntil[s.sid] = Date.now() + STRETCH_MS;
+                    }
+                    prevRunning[s.sid] = !!s.running;
+                });
+                sesiones.value = nuevas;
                 supervisor.value = data.supervisor || null;
+                recienResueltos.value = (data.supervisor && data.supervisor.recien_resueltos) || [];
+                listosParaTerminal.value = (data.supervisor && data.supervisor.listos_para_terminal) || [];
                 nextTick(scrollAll);
             } catch (e) { /* silencioso: no romper la vista por un poll */ }
         }
@@ -203,9 +259,9 @@ export default {
 
         return {
             FASES, POLL_MS, dark: darkMode,
-            sesiones, supervisor, anyRunning, anyActive, fsSesion, fsPre,
+            sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive, fsSesion, fsPre,
             secsSince, fmtClock, stepReached, stepClass, setPre,
-            avatarUrl, onAvatarError, avatarClass, supervisorUrl, linkClass,
+            avatarUrl, onAvatarError, avatarClass, gestureIcon, gestureClass, supervisorUrl, linkClass,
             openFs, closeFs,
         };
     },
@@ -239,8 +295,25 @@ export default {
 
 /* ── Supervisor + líneas de conexión (#430) ── */
 .tt-sup{ margin-bottom:6px; }
+.tt-sup-desk{ display:flex; align-items:stretch; gap:14px; flex-wrap:wrap; margin-bottom:8px; }
 .tt-sup-node{ display:inline-flex; align-items:center; gap:11px; padding:8px 14px 8px 8px; border:1px solid var(--tt-line); border-radius:14px; background:var(--tt-surface); }
 .tt-av-sup .tt-avatar-img{ width:48px; height:48px; border-radius:12px; }
+/* "Escritorio" del supervisor (#475): icono de portapapeles fijo sobre su avatar */
+.tt-desk-ico{
+  position:absolute; left:-5px; bottom:-5px; width:19px; height:19px; border-radius:50%;
+  background:var(--tt-surface); border:1px solid var(--tt-line); color:var(--tt-accent);
+  display:flex; align-items:center; justify-content:center; font-size:10.5px;
+}
+
+/* ── Listas del escritorio: recién resueltos / listos para terminal (#475) ── */
+.tt-sup-lists{ display:flex; gap:10px; flex:1 1 420px; min-width:260px; }
+.tt-sup-list{ flex:1 1 0; min-width:0; border:1px solid var(--tt-line); border-radius:12px; background:var(--tt-surface); padding:8px 10px; }
+.tt-sup-list-h{ display:block; font-size:11px; font-weight:800; color:var(--tt-muted); margin-bottom:5px; }
+.tt-sup-list-ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:3px; max-height:88px; overflow:auto; }
+.tt-sup-list-ul li{ font-size:11.5px; color:var(--tt-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tt-sup-list-ul li b{ color:var(--tt-accent); font-weight:800; }
+.tt-sup-list-empty{ margin:0; font-size:11.5px; color:var(--tt-muted); font-style:italic; }
+
 .tt-sup-links{ display:flex; gap:10px; padding:0 6px; }
 .tt-link{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px; }
 .tt-link-line{
@@ -293,10 +366,39 @@ export default {
 @keyframes tt-breathe{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.05); } }
 @keyframes tt-halo{ 0%{ box-shadow:0 0 0 0 rgba(16,185,129,.5); } 70%{ box-shadow:0 0 0 8px rgba(16,185,129,0); } 100%{ box-shadow:0 0 0 0 rgba(16,185,129,0); } }
 @keyframes tt-blink{ 0%,60%{ opacity:1; } 61%,100%{ opacity:.25; } }
+/* TERMINÓ AHORA (#475): estiramiento breve de cansancio, una sola vez, luego vuelve a "terminada" */
+.tt-av-stretch .tt-avatar-img{ animation:tt-body-stretch 2.4s ease-in-out 1; filter:none; }
+.tt-av-stretch .tt-avatar-dot{ background:var(--tt-warn); }
+@keyframes tt-body-stretch{
+  0%{ transform:scale(1) rotate(0deg) translateY(0); }
+  25%{ transform:scale(1.07) rotate(-4deg) translateY(-2px); }
+  50%{ transform:scale(1.11) rotate(4deg) translateY(-4px); }
+  75%{ transform:scale(1.05) rotate(-2deg) translateY(-1px); }
+  100%{ transform:scale(1) rotate(0deg) translateY(0); }
+}
+/* Gesto sobre el avatar (badge chico): "viendo la computadora" mientras trabaja / estiramiento al terminar */
+.tt-avatar-gesture{
+  position:absolute; left:-5px; top:-5px; width:17px; height:17px; border-radius:50%;
+  background:var(--tt-surface); border:1px solid var(--tt-line); color:var(--tt-accent);
+  display:flex; align-items:center; justify-content:center; font-size:9.5px; line-height:1;
+}
+.tt-gesture-work{ animation:tt-screen-glow 2.4s ease-in-out infinite; }
+.tt-gesture-stretch{ color:var(--tt-warn); animation:tt-stretch-pop .9s ease-out 2; }
+@keyframes tt-screen-glow{
+  0%,100%{ opacity:.55; box-shadow:0 0 0 0 rgba(13,148,136,0); }
+  50%{ opacity:1; box-shadow:0 0 6px 1px rgba(13,148,136,.45); }
+}
+@keyframes tt-stretch-pop{
+  0%{ transform:scale(.6) rotate(-12deg); opacity:0; }
+  40%{ transform:scale(1.25) rotate(8deg); opacity:1; }
+  100%{ transform:scale(1) rotate(0deg); opacity:.9; }
+}
 /* Respeto a quien pide menos movimiento: apaga TODA animación de las terminales */
 @media (prefers-reduced-motion: reduce){
   .tt-av-run .tt-avatar-img,.tt-av-run .tt-avatar-ring,.tt-av-run .tt-avatar-dot,.tt-dot{ animation:none !important; }
   .tt-av-run .tt-avatar-ring{ box-shadow:0 0 0 2px rgba(16,185,129,.5); }   /* halo fijo, sin pulso */
+  .tt-av-stretch .tt-avatar-img{ animation:none !important; }
+  .tt-gesture-work,.tt-gesture-stretch{ animation:none !important; }
 }
 
 /* Bloque nombre + wt-K de referencia chica (el nombre reemplaza al wt-K como título) */
