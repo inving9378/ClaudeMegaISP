@@ -58,8 +58,13 @@
 - **Es un MÓDULO en la BD**, tabla `roadmap_items`, alimenta la vista `/releases`
   (pestaña "Hoja de ruta"). **NO es un archivo en disco.** (CC intentó escribir en
   `storage/app/roadmap-memory/` y dio permiso denegado — ese path NO es la fuente.)
-- Regla: **una sola tarea en progreso a la vez.** Ítems nuevos entran como `pending`;
-  NO poner en `in_progress` sin cerrar el actual.
+- Regla: **una sola tarea en progreso a la vez POR TERMINAL** (no es un límite
+  global del sistema). El supervisor puede tener varias tareas listas en su
+  escritorio y trabajar hasta 6 simultáneas (una por terminal), siempre que
+  revise que no se pisen entre ellas (mismo archivo/módulo); si detecta ese
+  riesgo, asigna esa secuencia a una sola terminal para evitar colisiones.
+  Ítems nuevos entran como `pending`; una terminal NO toma un segundo ítem
+  (`in_progress`) sin cerrar el que ya tiene asignado.
 - Para registrar: insertar en `roadmap_items` con estado `pending` + prioridad.
 
 ---
