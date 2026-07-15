@@ -1472,4 +1472,183 @@ class RoadmapCircuitoService
 
         return $out;
     }
+
+    /**
+     * #438 — colisión EN VUELO (footprint que no se conocía al despachar): dos items `en_progreso`
+     * en distinto módulo/worktree cuyas ramas terminan tocando el(los) mismo(s) archivo(s). El
+     * pre-filtro de `ejecutablesParalelo` (mismo módulo / desconocido) es conservador pero NO puede
+     * ver esto — se detecta hasta que ambas ramas existen y tienen commits.
+     *
+     * Solo lee refs (git diff), NUNCA hace checkout/toca un worktree ajeno: las ramas son visibles
+     * desde el checkout PRINCIPAL (comparten el mismo .git). Seguro de correr aunque otras vueltas
+     * sigan corriendo en paralelo.
+     */
+
+    /** Archivos que cambia una rama vs su punto de partida en main (solo lectura, nunca falla fuerte). */
+    public function footprintDeRama(string $branch): array
+    {
+        $base = $this->git(['merge-base', 'main', $branch]);
+        if (! $base->isSuccessful()) {
+            return [];
+        }
+        $sha = trim($base->getOutput());
+        $diff = $this->git(['diff', '--name-only', $sha, $branch]);
+        if (! $diff->isSuccessful()) {
+            return [];
+        }
+
+        return array_values(array_filter(preg_split('/\R/', trim($diff->getOutput()))));
+    }
+
+    /**
+     * Detecta colisiones nuevas entre items `en_progreso` con rama registrada y AÚN no pausados,
+     * y PAUSA (marca `colision_pausada_por`) al perdedor: regla determinística = el que reclamó
+     * más tarde (`updated_at` mayor; empate → mayor id). El ganador sigue corriendo normal.
+     * NO toca `estado_aprobacion` (el perdedor se autopausa solo al llegar a `circuito:integrar`,
+     * su propio checkpoint natural — nunca se mata el proceso en vuelo). Devuelve las colisiones
+     * detectadas en esta pasada (para log/depuración).
+     */
+    public function detectarColisionesEnVuelo(): array
+    {
+        $rows = DB::table('roadmap_items')
+            ->where('estado_aprobacion', 'en_progreso')
+            ->whereNotNull('branch')
+            ->where('branch', '!=', '')
+            ->whereNull('colision_pausada_por')
+            ->get(['id', 'branch', 'updated_at']);
+
+        if ($rows->count() < 2) {
+            return [];
+        }
+
+        $footprints = [];
+        foreach ($rows as $r) {
+            $footprints[$r->id] = $this->footprintDeRama($r->branch);
+        }
+
+        $detectadas = [];
+        $porId = $rows->keyBy('id');
+        foreach ($rows as $a) {
+            foreach ($rows as $b) {
+                if ($a->id >= $b->id) {
+                    continue; // cada par una sola vez
+                }
+                $comunes = array_values(array_intersect($footprints[$a->id] ?? [], $footprints[$b->id] ?? []));
+                if (! $comunes) {
+                    continue;
+                }
+
+                // Perdedor = el que reclamó más tarde (updated_at mayor); empate → mayor id.
+                $ta = Carbon::parse($a->updated_at)->timestamp;
+                $tb = Carbon::parse($b->updated_at)->timestamp;
+                if ($ta === $tb) {
+                    $perdedor = $a->id > $b->id ? $porId[$a->id] : $porId[$b->id];
+                    $ganador  = $a->id > $b->id ? $porId[$b->id] : $porId[$a->id];
+                } else {
+                    $perdedor = $ta > $tb ? $a : $b;
+                    $ganador  = $ta > $tb ? $b : $a;
+                }
+
+                DB::table('roadmap_items')->where('id', $perdedor->id)->whereNull('colision_pausada_por')->update([
+                    'colision_pausada_por' => $ganador->id,
+                    'colision_pausada_at'  => now(),
+                    'updated_at'           => now(),
+                ]);
+                $this->appendLog((int) $perdedor->id, 'colision-check', 'colision_pausada', [
+                    'ganador' => $ganador->id, 'archivos' => array_slice($comunes, 0, 10),
+                ]);
+
+                $detectadas[] = ['ganador' => (int) $ganador->id, 'perdedor' => (int) $perdedor->id, 'archivos' => $comunes];
+            }
+        }
+
+        return $detectadas;
+    }
+
+    /**
+     * Reanuda items pausados por colisión cuyo ganador ya no bloquea: completado (integró), o ya
+     * no está en vuelo (se canceló/escaló/rechazó — no dejar al perdedor colgado para siempre).
+     * Limpia el flag + libera `worker_sid` + regresa `estado_aprobacion` al estado aprobado previo
+     * (el circuito lo vuelve a despachar en una vuelta futura; `circuito:rama` rebasa su rama
+     * existente sobre el main ya actualizado). Devuelve los ids reanudados.
+     */
+    public function reanudarColisionesResueltas(): array
+    {
+        $pausados = DB::table('roadmap_items')->whereNotNull('colision_pausada_por')->get(['id', 'colision_pausada_por', 'nivel_riesgo', 'log']);
+        if ($pausados->isEmpty()) {
+            return [];
+        }
+
+        $ganadorIds = $pausados->pluck('colision_pausada_por')->unique()->all();
+        $ganadores = DB::table('roadmap_items')->whereIn('id', $ganadorIds)->get(['id', 'estado_aprobacion'])->keyBy('id');
+
+        $reanudados = [];
+        foreach ($pausados as $p) {
+            $ganador = $ganadores->get($p->colision_pausada_por);
+            $resuelto = ! $ganador || in_array($ganador->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true);
+            if (! $resuelto) {
+                continue;
+            }
+
+            $item = RoadmapItem::find($p->id);
+            if (! $item) {
+                continue;
+            }
+            $estadoPrevio = $this->estadoResumibleTrasColision($item);
+            $item->colision_pausada_por = null;
+            $item->colision_pausada_at  = null;
+            $item->worker_sid           = null;
+            $item->estado_aprobacion    = $estadoPrevio;
+            $item->save();
+            $this->appendLog((int) $item->id, 'colision-check', 'colision_reanudado', ['estado' => $estadoPrevio]);
+            $reanudados[] = (int) $item->id;
+        }
+
+        return $reanudados;
+    }
+
+    /**
+     * A qué `estado_aprobacion` regresar un item pausado por colisión para que el scheduler lo
+     * vuelva a tomar sin re-triaje: el último `aprobado_*` de su propio log (respeta si fue Irving
+     * quien lo aprobó); si no hay rastro, A auto-ejecutable → `aprobado_claude`; si no, a la
+     * bandeja de Irving (fail-safe, nunca asumir que un B/C sin rastro es auto-ejecutable).
+     */
+    private function estadoResumibleTrasColision(RoadmapItem $item): string
+    {
+        $log = is_array($item->log) ? $item->log : [];
+        foreach (array_reverse($log) as $entry) {
+            $estado = $entry['estado'] ?? null;
+            if (in_array($estado, ['aprobado_irving', 'aprobado_revisor', 'aprobado_claude'], true)) {
+                return $estado;
+            }
+        }
+
+        return $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'requiere_irving';
+    }
+
+    /** Log entry corta y uniforme para eventos del circuito sobre un item (best-effort, nunca tumba). */
+    private function appendLog(int $itemId, string $por, string $evento, array $extra = []): void
+    {
+        try {
+            $item = RoadmapItem::find($itemId);
+            if (! $item) {
+                return;
+            }
+            $log = is_array($item->log) ? $item->log : [];
+            $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => $evento] + $extra;
+            $item->log = $log;
+            $item->save();
+        } catch (\Throwable $e) {
+            // best-effort, nunca tumba al llamador
+        }
+    }
+
+    private function git(array $args): \Symfony\Component\Process\Process
+    {
+        $p = new \Symfony\Component\Process\Process(array_merge(['git'], $args), base_path());
+        $p->setTimeout(30);
+        $p->run();
+
+        return $p;
+    }
 }
