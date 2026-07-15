@@ -112,22 +112,33 @@
         <div class="tc-card">
           <h2 class="tc-h2">⚑ Tu bandeja — requiere tu decisión ({{ cola.length }})</h2>
           <div v-if="!cola.length" class="tc-meta">Nada requiere tu decisión ahora. ✓</div>
-          <div v-for="it in cola" :key="it.id" class="tc-inbox-item">
+          <div v-for="it in cola" :key="it.id" class="tc-inbox-item" :class="{ 'tc-inbox-compact': esCompacta(it) }">
             <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
             <div class="tc-inbox-body">
-              <div class="tc-t">
+              <!-- #477: tarjeta COMPACTA para nivel C — encabezado corto + título, sin párrafos largos -->
+              <template v-if="esCompacta(it)">
+                <div class="tc-t-compact">
+                  <span class="tc-idnum">#{{ it.id }}</span>
+                  <span class="tc-badge tc-badge-dec">{{ estadoLabelItem(it) }}</span>
+                  <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
+                  <span v-if="it.modulo" class="tc-modulo-chip">{{ it.modulo }}</span>
+                </div>
+                <div class="tc-titulo-c">{{ it.title }}</div>
+              </template>
+              <div class="tc-t" v-else>
                 <span class="tc-idnum">#{{ it.id }}</span>
                 <span class="tc-badge tc-badge-dec">requiere tu decisión</span>
                 <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span> {{ it.title }}
               </div>
-              <!-- Resumen corto (coloquial → descripción): lo primero, lo que narra 🔊 Escuchar -->
-              <div class="tc-resumen" v-if="it.resumen">{{ it.resumen }}</div>
-              <div class="tc-s" v-if="it.recomendacion">{{ it.recomendacion }}</div>
+              <!-- Resumen corto (coloquial → descripción): lo primero, lo que narra 🔊 Escuchar (oculto en tarjeta compacta) -->
+              <div class="tc-resumen" v-if="it.resumen && !esCompacta(it)">{{ it.resumen }}</div>
+              <div class="tc-s" v-if="it.recomendacion && !esCompacta(it)">{{ it.recomendacion }}</div>
 
               <!-- #432 Fase 3 — brief COMPLETO: TODAS las preguntas del item juntas, cada una con sus
                    opciones. #431: objetos {clave,texto,recomendada}; se marca por CLAVE estable.
                    Verde = RECOMENDADA; anillo = SELECCIONADA. Una sola Aprobar responde todo. -->
               <div v-if="it.preguntas && it.preguntas.length" class="tc-preguntas">
+                <div class="tc-dec-label" v-if="esCompacta(it)">Decisión requerida</div>
                 <div v-for="(pg, pi) in it.preguntas" :key="pg.id" class="tc-pregunta">
                   <div v-if="pg.pregunta || pg.fase" class="tc-pregunta-t">
                     <span v-if="it.preguntas.length > 1" class="tc-pregunta-num">{{ pi + 1 }}.</span>{{ pg.pregunta }}
@@ -162,6 +173,19 @@
                   {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Decisión ✓' : '🔥 Decisión urgente') }}</button>
                 <span v-if="deciding === it.id" class="tc-meta">Guardando…</span>
                 <span v-if="aviso[it.id]" class="tc-aviso" :class="'tc-aviso-' + aviso[it.id].tipo">{{ aviso[it.id].texto }}</span>
+              </div>
+
+              <!-- #477: descripción completa colapsada por defecto (solo tarjeta compacta nivel C) -->
+              <div v-if="esCompacta(it) && tieneDescExtendida(it)" class="tc-desc-wrap">
+                <button type="button" class="tc-desc-toggle" @click="descOpen[it.id] = !descOpen[it.id]">
+                  {{ descOpen[it.id] ? 'Ocultar descripción ▲' : 'Ver descripción ▼' }}
+                </button>
+                <div v-if="descOpen[it.id]" class="tc-desc-panel">
+                  <div v-if="it.description" class="tc-desc-block"><b>Descripción completa</b><p>{{ it.description }}</p></div>
+                  <div v-if="it.alcance_autorizado" class="tc-desc-block"><b>Alcance</b><p>{{ it.alcance_autorizado }}</p></div>
+                  <div v-if="it.fuera_de_alcance" class="tc-desc-block"><b>Fuera de alcance</b><p>{{ it.fuera_de_alcance }}</p></div>
+                  <div v-if="it.recomendacion" class="tc-desc-block"><b>Contexto técnico / observaciones</b><p class="tc-desc-pre">{{ it.recomendacion }}</p></div>
+                </div>
               </div>
 
               <!-- Crear seguimiento vinculado (#320) -->
@@ -322,6 +346,12 @@ export default {
         }
         const segOpen = reactive({});  // id -> form de seguimiento abierto
         const seg = reactive({});      // id -> {titulo, descripcion, nivel, cerrar}
+
+        // #477 — tarjeta compacta para nivel C: colapsa descripción/observaciones tras "Ver descripción".
+        const descOpen = reactive({}); // id -> bool (desplegable abierto)
+        const esCompacta = (it) => it.nivel_riesgo === 'C';
+        const tieneDescExtendida = (it) => !!(it.description || it.alcance_autorizado || it.fuera_de_alcance || it.recomendacion);
+        const estadoLabelItem = (it) => (it.estado_aprobacion === 'requiere_irving' ? 'requiere tu decisión' : (it.estado_aprobacion || 'requiere tu decisión'));
 
         const total = computed(() => resumen.value.total || 0);
         const est = (k) => (resumen.value.por_estado && resumen.value.por_estado[k]) || 0;
@@ -651,6 +681,8 @@ export default {
             cola, colaEjecutable, resumenCola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             sel, coment, deciding, decidir, elegirOpcion, selPreg, aviso,
+            // #477: tarjeta compacta nivel C
+            descOpen, esCompacta, tieneDescExtendida, estadoLabelItem,
             // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
             hablando, leer, verMas,
             segOpen, seg, toggleSeg, crearSeguimiento,
@@ -734,6 +766,20 @@ export default {
 .tc-inbox-body{flex:1;min-width:0;}
 .tc-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .tc-noopts{margin-top:8px;font-size:12px;font-style:italic;color:var(--tc-muted);}
+/* #477 — tarjeta compacta nivel C */
+.tc-t-compact{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;}
+.tc-titulo-c{font-size:14px;font-weight:700;line-height:1.35;margin-top:4px;}
+.tc-modulo-chip{font-size:11px;font-weight:600;color:var(--tc-muted);background:var(--tc-line);border-radius:6px;padding:1px 8px;}
+.tc-dec-label{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--tc-muted);margin-bottom:2px;}
+.tc-desc-wrap{margin-top:10px;}
+.tc-desc-toggle{font-size:12px;font-weight:600;color:var(--tc-accent);background:none;border:none;padding:0;cursor:pointer;}
+.tc-desc-toggle:hover{text-decoration:underline;}
+.tc-desc-panel{margin-top:8px;padding:10px 12px;border:1px solid var(--tc-line);border-radius:8px;background:#f8fafc;}
+.tc-desc-block{margin-bottom:10px;}
+.tc-desc-block:last-child{margin-bottom:0;}
+.tc-desc-block b{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--tc-muted);}
+.tc-desc-block p{margin:3px 0 0;font-size:12.5px;line-height:1.5;color:var(--tc-ink);}
+.tc-desc-pre{white-space:pre-wrap;}
 /* #432 — brief multi-pregunta: cada pregunta un bloque con su texto + fase + opciones. */
 .tc-preguntas{margin-top:8px;display:flex;flex-direction:column;gap:12px;}
 .tc-pregunta{border-left:3px solid var(--tc-line);padding-left:10px;}
@@ -818,6 +864,8 @@ export default {
 .tc-dark .tc-opt:hover{border-color:#2dd4bf;}
 .tc-dark .tc-opt-sel{background:rgba(45,212,191,.15);color:#5eead4;border-color:#2dd4bf;box-shadow:0 0 0 2px rgba(45,212,191,.25);}
 .tc-dark .tc-pregunta{border-left-color:#2a3550;}
+.tc-dark .tc-modulo-chip{background:#1c2740;color:#8b97ab;}
+.tc-dark .tc-desc-panel{background:#0f172a;border-color:#2a3550;}
 .tc-dark .tc-fase-badge{color:#c7d2fe;background:rgba(99,102,241,.22);}
 .tc-dark .tc-opt-rec{border-color:#22c55e;background:rgba(34,197,94,.12);}
 .tc-dark .tc-opt-badge{color:#bbf7d0;background:rgba(34,197,94,.25);}

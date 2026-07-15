@@ -47,6 +47,10 @@ class RoadmapController extends Controller
                 'resumen'       => $this->resumenItem($i),        // resumen corto para 🔊 Escuchar / tarjeta (mismo que Integración)
                 'modulo_url'    => $this->moduloUrl($i->modulo),  // 🔎 Ver más → pantalla del módulo (fallback)
                 'enlace_revision' => $i->enlace_revision,          // #432 ADENDA B — deep-link REAL del cambio (preferente en "Ver")
+                // #477 — desplegable "Ver descripción" de la tarjeta compacta (solo lectura, campos ya existentes).
+                'description'      => $i->description,
+                'alcance_autorizado' => $i->alcance_autorizado,
+                'fuera_de_alcance'   => $i->fuera_de_alcance,
             ]));
 
         // #348: cola EJECUTABLE — SOLO lo que el circuito AUTO-CORRE (A/B o ya aprobado por Irving),
