@@ -196,6 +196,34 @@
           </div>
         </div>
 
+        <!-- FASE 1 — Cambios para que Irving pruebe (validación funcional, no código) -->
+        <div class="tc-card" v-if="cambiosValidacion.length">
+          <h2 class="tc-h2">✅ Cambios para que Irving pruebe ({{ cambiosValidacion.length }})</h2>
+          <div class="tc-meta" style="margin-bottom:8px">Revisa el <b>resultado</b>, no el código. Pruébalo y dinos si funciona.</div>
+          <div v-for="c in cambiosValidacion" :key="c.id" :id="'tc-val-' + c.id" class="tc-val">
+            <div class="tc-val-head">
+              <span class="tc-idnum">#{{ c.id }}</span>
+              <span class="tc-tag" :class="lvClass(c.nivel_riesgo)">{{ c.nivel_riesgo || '—' }}</span>
+              <b>{{ c.title }}</b>
+              <span v-if="c.modulo" class="tc-modulo-chip">{{ c.modulo }}</span>
+            </div>
+            <div class="tc-val-grid">
+              <div v-if="c.que_se_pidio"><span class="tc-val-k">Qué se pidió</span>{{ c.que_se_pidio }}</div>
+              <div v-if="c.que_se_hizo"><span class="tc-val-k">Qué se hizo</span>{{ c.que_se_hizo }}</div>
+              <div v-if="c.como_probar"><span class="tc-val-k">Cómo probarlo</span>{{ c.como_probar }}</div>
+              <div v-if="c.resultado_esperado"><span class="tc-val-k">Resultado esperado</span>{{ c.resultado_esperado }}</div>
+              <div v-if="c.que_no_se_toco"><span class="tc-val-k">Qué no se tocó</span>{{ c.que_no_se_toco }}</div>
+              <div><span class="tc-val-k">Riesgo</span>{{ c.riesgo }}</div>
+              <div><span class="tc-val-k">Integrado</span>{{ rel(c.integrado_at) }}<span v-if="c.merge_commit"> · {{ c.merge_commit.slice(0,10) }}</span></div>
+            </div>
+            <div class="tc-val-actions">
+              <button class="tc-btn tc-btn-ver" @click="abrirYProbar(c)">🔎 Abrir y probar</button>
+              <button class="tc-btn tc-btn-ok" :disabled="valBusy === c.id" @click="validarFunciona(c)">✓ Funciona correctamente</button>
+              <button class="tc-btn tc-btn-warn" :disabled="valBusy === c.id" @click="reportarProblema(c)">⚠ Reportar problema</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Actividad reciente -->
         <div class="tc-card">
           <h2 class="tc-h2">Actividad reciente del circuito</h2>
@@ -300,6 +328,9 @@ export default {
         const colaEjecutable = ref([]);   // #348: SOLO auto-ejecutables (A/B o aprobados por Irving)
         const resumenCola = ref({ auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 });
         const actividad = ref([]);
+        // FASE 1 — Cambios para que Irving pruebe (validación funcional)
+        const cambiosValidacion = ref([]);
+        const valBusy = ref(null);
         const riesgos = ref([]);
         const auditItem = ref(null);
         const ejecuciones = ref([]);
@@ -561,6 +592,7 @@ export default {
                 colaEjecutable.value = data.cola_ejecutable || [];
                 resumenCola.value = data.resumen_cola || { auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 };
                 actividad.value = data.actividad_reciente || [];
+                cambiosValidacion.value = data.cambios_validacion || [];   // FASE 1
                 riesgos.value = data.riesgos_auditoria || [];
                 auditItem.value = data.auditoria_item_id || null;
                 ejecuciones.value = data.ejecuciones || [];
@@ -725,6 +757,37 @@ export default {
             });
         }
 
+        // FASE 1 — Validación funcional por Irving.
+        function abrirYProbar(c) {
+            window.open(c.enlace_probar || ('/roadmap/item/' + c.id), '_blank', 'noopener');
+        }
+        async function validarFunciona(c) {
+            if (valBusy.value) return;
+            valBusy.value = c.id;
+            try {
+                await axios.post('/api/roadmap/validacion/aprobar', { id: c.id });
+                cambiosValidacion.value = cambiosValidacion.value.filter((x) => x.id !== c.id);
+            } catch (e) {
+                aviso.value = 'No se pudo marcar como validado. Reintenta.';
+            } finally {
+                valBusy.value = null;
+            }
+        }
+        async function reportarProblema(c) {
+            const comentario = window.prompt('¿Qué NO hace lo solicitado? Se guarda y pasa a revisión técnica. (NO se revierte — eso es una fase aparte.)');
+            if (!comentario || !comentario.trim()) return;
+            if (valBusy.value) return;
+            valBusy.value = c.id;
+            try {
+                await axios.post('/api/roadmap/validacion/reportar', { id: c.id, comentario: comentario.trim() });
+                cambiosValidacion.value = cambiosValidacion.value.filter((x) => x.id !== c.id);
+            } catch (e) {
+                aviso.value = 'No se pudo reportar el problema. Reintenta.';
+            } finally {
+                valBusy.value = null;
+            }
+        }
+
         onMounted(() => {
             load();
             initVoces();
@@ -745,6 +808,8 @@ export default {
             evIcon, evColor, rel, toggle,
             // #torre: Actividad reciente navegable (abrir item / deep-link / recorrido)
             openItem, verRecorrido, estadoAprobLabel, highlightId,
+            // FASE 1: Cambios para que Irving pruebe (validación funcional)
+            cambiosValidacion, valBusy, abrirYProbar, validarFunciona, reportarProblema,
             sel, coment, deciding, decidir, elegirOpcion, selPreg, aviso,
             // #477: tarjeta compacta nivel C
             descOpen, tieneDescExtendida, estadoLabelItem,
@@ -891,6 +956,17 @@ export default {
 @media (max-width:640px){.tc-ev{flex-wrap:wrap;}.tc-ev-actions{flex-direction:row;width:100%;justify-content:flex-end;}}
 @keyframes tc-pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.45);}100%{box-shadow:0 0 0 10px rgba(59,130,246,0);}}
 .tc-highlight{background:#eff6ff!important;border-radius:8px;animation:tc-pulse 1s ease-out 2;outline:2px solid #3b82f6;outline-offset:2px;}
+/* FASE 1 — Cambios para que Irving pruebe */
+.tc-val{border:1px solid var(--tc-line);border-radius:10px;padding:11px 13px;margin-bottom:10px;background:#fbfefc;}
+.tc-val-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px;}
+.tc-val-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin:8px 0;font-size:12.5px;line-height:1.4;}
+.tc-val-grid > div{min-width:0;}
+.tc-val-k{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;color:var(--tc-muted);}
+.tc-val-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+.tc-btn-warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}
+@media (max-width:640px){.tc-val-grid{grid-template-columns:1fr;}}
+.tc-dark .tc-val{background:rgba(74,222,128,.05);border-color:#243449;}
+.tc-dark .tc-btn-warn{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4b1f;}
 .tc-chartrow{display:flex;align-items:flex-end;gap:14px;height:150px;padding:6px 4px 0;}
 .tc-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;}
 .tc-colbar{width:100%;max-width:54px;border-radius:5px 5px 3px 3px;}
