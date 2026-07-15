@@ -44,6 +44,67 @@ function isGated(url) {
     return !isBlacklisted(url);
 }
 
+// ─── prefetch on hover (sidebar) ───────────────────────────────────────────
+// Item #138: al hacer hover sobre un link del sidebar, se dispara el fetch
+// en segundo plano (debounce 100ms) y se cachea la respuesta un rato corto.
+// spaNavigate() reutiliza esa respuesta si el click llega antes/después de
+// que termine, en vez de repetir la petición.
+
+const PREFETCH_TTL_MS = 15000;
+const prefetchCache = new Map(); // path -> { promise, expires }
+let hoverTimer = null;
+let hoverHref = null;
+
+function prefetchUrl(url) {
+    const path = normPath(url);
+    if (!path) return;
+    if (path === normPath(window.location.href)) return; // ya estamos aquí
+    if (isBlacklisted(url) || !isGated(url)) return;
+
+    const cached = prefetchCache.get(path);
+    if (cached && cached.expires > Date.now()) return; // ya en cache o en vuelo
+
+    const promise = fetch(url, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+    }).then((resp) => {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return resp.text();
+    }).catch((err) => {
+        prefetchCache.delete(path); // no cachear fallos
+        throw err;
+    });
+
+    prefetchCache.set(path, { promise, expires: Date.now() + PREFETCH_TTL_MS });
+}
+
+function isPrefetchableLink(link) {
+    if (!link) return false;
+    const rawHref = link.getAttribute('href');
+    if (!rawHref || rawHref.charAt(0) === '#') return false;
+    if (/^(javascript:|mailto:|tel:)/i.test(rawHref)) return false;
+    if (link.target || link.hasAttribute('download')) return false;
+    try {
+        if (new URL(link.href, window.location.origin).origin !== window.location.origin) return false;
+    } catch (_) {
+        return false;
+    }
+    return true;
+}
+
+function handleSidebarHover(e) {
+    if (!SPA_ENABLED) return;
+    const link = e.target.closest('#sidebar-menu a[href]');
+    if (!link || !isPrefetchableLink(link)) return;
+
+    if (hoverHref === link.href) return; // debounce ya corriendo/cumplido para este link
+    hoverHref = link.href;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => prefetchUrl(link.href), 100);
+}
+
+document.addEventListener('mouseover', handleSidebarHover, { passive: true });
+
 function showLoader() {
     let el = document.getElementById('__spa-loader');
     if (!el) {
@@ -100,13 +161,20 @@ async function spaNavigate(url, pushState) {
     dimContainer(container);
 
     try {
-        // 1. Fetch PRIMERO — el contenido viejo permanece visible mientras carga
-        const resp = await fetch(url, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'same-origin',
-        });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const html = await resp.text();
+        // 1. Fetch PRIMERO (o reutiliza el prefetch de hover si ya está en vuelo/listo)
+        //    — el contenido viejo permanece visible mientras carga
+        const path = normPath(url);
+        const prefetched = path && prefetchCache.get(path);
+        if (prefetched) prefetchCache.delete(path); // se consume, nunca stale en un 2do click
+        const html = prefetched
+            ? await prefetched.promise
+            : await fetch(url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            }).then((resp) => {
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                return resp.text();
+            });
 
         // 2. Parsear y extraer contenido
         const doc = new DOMParser().parseFromString(html, 'text/html');
