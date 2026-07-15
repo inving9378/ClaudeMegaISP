@@ -82,31 +82,6 @@
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-ok)">{{ est('completado') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
       </div>
 
-      <!-- #348: Cola ejecutable — pendientes/aprobados que el circuito corre por prioridad; 🔥 salta la fila -->
-      <div class="tc-card" style="margin-bottom:14px">
-        <h2 class="tc-h2">▶ Cola ejecutable — lo que el circuito auto-corre</h2>
-        <div class="tc-execsum">
-          <span class="tc-execsum-auto">{{ resumenCola.auto_ejecutables }} auto-ejecutables</span>
-          <span class="tc-execsum-sep">·</span>
-          <span class="tc-execsum-dec">{{ resumenCola.espera_decision }} esperan tu decisión</span>
-          <template v-if="resumenCola.sin_clasificar"><span class="tc-execsum-sep">·</span><span class="tc-execsum-sin">{{ resumenCola.sin_clasificar }} sin clasificar</span></template>
-        </div>
-        <div class="tc-meta" style="margin:2px 0 10px">Solo A/B o ya aprobados por ti (los C/negocio están en tu bandeja). Ordenados por 🔥 urgente → prioridad (alta→media→baja) → antigüedad; el 🔥 salta la fila y dispara una vuelta ya.</div>
-        <div v-if="!colaEjecutable.length" class="tc-meta">Nada en cola de ejecución ahora. ✓</div>
-        <div v-for="it in colaEjecutable" :key="it.id" class="tc-exec-item">
-          <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
-          <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
-          <div class="tc-exec-body">
-            <span class="tc-idnum">#{{ it.id }}</span> {{ it.title }}
-            <span class="tc-exec-est">{{ it.estado_aprobacion }}</span>
-          </div>
-          <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
-            :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
-            :title="it.urgente ? 'Quitar urgente' : 'Marcar urgente: salta toda la fila y dispara una vuelta ya'">
-            {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Urgente ✓' : '🔥 Urgente') }}</button>
-        </div>
-      </div>
-
       <div class="tc-grid">
         <!-- Bandeja: requiere_irving -->
         <div class="tc-card">
@@ -252,6 +227,32 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- #482: Cola ejecutable — pendientes/aprobados que el circuito corre por prioridad; 🔥 salta la fila
+           Debajo de "Tu bandeja" (antes iba arriba del grid, encima de la bandeja) -->
+      <div class="tc-card" style="margin-bottom:14px">
+        <h2 class="tc-h2">▶ Cola ejecutable — lo que el circuito auto-corre</h2>
+        <div class="tc-execsum">
+          <span class="tc-execsum-auto">{{ resumenCola.auto_ejecutables }} auto-ejecutables</span>
+          <span class="tc-execsum-sep">·</span>
+          <span class="tc-execsum-dec">{{ resumenCola.espera_decision }} esperan tu decisión</span>
+          <template v-if="resumenCola.sin_clasificar"><span class="tc-execsum-sep">·</span><span class="tc-execsum-sin">{{ resumenCola.sin_clasificar }} sin clasificar</span></template>
+        </div>
+        <div class="tc-meta" style="margin:2px 0 10px">Solo A/B o ya aprobados por ti (los C/negocio están en tu bandeja). Ordenados por 🔥 urgente → prioridad (alta→media→baja) → antigüedad; el 🔥 salta la fila y dispara una vuelta ya.</div>
+        <div v-if="!colaEjecutable.length" class="tc-meta">Nada en cola de ejecución ahora. ✓</div>
+        <div v-for="it in colaEjecutable" :key="it.id" class="tc-exec-item">
+          <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
+          <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
+          <div class="tc-exec-body">
+            <span class="tc-idnum">#{{ it.id }}</span> {{ it.title }}
+            <span class="tc-exec-est">{{ it.estado_aprobacion }}</span>
+          </div>
+          <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
+            :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
+            :title="it.urgente ? 'Quitar urgente' : 'Marcar urgente: salta toda la fila y dispara una vuelta ya'">
+            {{ urgiendo === it.id ? '⏳' : (it.urgente ? '🔥 Urgente ✓' : '🔥 Urgente') }}</button>
         </div>
       </div>
 
