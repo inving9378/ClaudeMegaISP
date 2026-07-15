@@ -300,4 +300,44 @@ haya acceso confirmado a una OLT de laboratorio, respetando nivel de riesgo C (t
 Sección 8 agregada en sesión W2 (2026-06-16) — decisiones acordadas Irving + asistente.*
 Sección 9 agregada por el circuito CC (item #415) — 2026-07-12: primer intento de registro
 (congelar), rama nunca mergeada. 2026-07-13: registro final — decisión de Irving de retomar.*
+
+---
+
+## 10. Decisión de arquitectura SaaS multi-tenant OLT (2026-07-15)
+
+> Decisión de Irving, Hoja de Ruta item #416 (aprobado 2026-07-15 09:04). Opción elegida:
+> **"Híbrido — BD por tenant pero mismo proceso Laravel"** (ni Camino A puro ni Camino B puro
+> de las secciones 2-3 de este documento).
+
+**Qué se decidió:** en vez de agregar `tenant_id` a las 13 tablas OLT (Camino A) o desplegar
+una instancia Laravel completa por ISP (Camino B), el modelo elegido es **multi-DB con switch
+de conexión por request**: mismo codebase y mismo proceso Laravel, pero cada ISP tiene su
+propia base de datos/esquema, resuelta en runtime (por subdominio o identificador de tenant)
+antes de cualquier query.
+
+**Por qué (trade-offs frente a A/B puros):**
+- Aislamiento de datos entre ISPs tan fuerte como el Camino B (bases de datos separadas —
+  no hay riesgo de `tenant_id` olvidado en un query, que era el riesgo central del Camino A).
+- Un solo deploy/codebase como el Camino A — los fixes y features nuevas se escriben una vez;
+  se corren en loop sobre N bases de datos en vez de N despliegues de servidor completos.
+- Costo de arranque menor que el Camino B puro para los primeros 2-3 ISPs (no requiere
+  orquestación de N servidores/contenedores desde el día uno).
+- **No requiere GR-6 como pre-requisito bloqueante**: los modelos pueden seguir en
+  `app/Models/` porque el aislamiento no depende de un global scope de Eloquent (que es lo
+  frágil), sino de que la conexión de base de datos ya esté resuelta al tenant correcto antes
+  de que el modelo ejecute cualquier query. GR-6 (encapsular los modelos OLT en el módulo)
+  sigue siendo deuda técnica válida, pero deja de ser bloqueante para este camino.
+
+**Alcance de este item (#416):** este item cierra la **decisión de arquitectura**, no la
+implementación. Construir el mecanismo real (resolución de tenant por subdominio, switch de
+conexión de base de datos antes de cada request, manejo de colas/jobs multi-tenant, comando de
+migración en loop sobre N bases de datos, y el manejo especial de `olt_smartolt_config`/el
+singleton `app('SmartOlt')` para que resuelva la configuración del tenant activo) es trabajo de
+ingeniería sustancial y corresponde a item(s) de Hoja de Ruta dedicados, cuando exista al menos
+un ISP piloto real para validar contra datos y tráfico reales — no a este ciclo de decisión. La
+secuencia recomendada (auditoría → prototipo con un ISP piloto → implementación) de la sección 6
+sigue vigente; solo cambia la casilla de "Camino A/B" por "Híbrido" en la fase **C3**.
+
+*Sección 10 agregada por el circuito CC (item #416) — 2026-07-15: registro de la decisión de
+Irving (Híbrido), sin código de implementación.*
 *Basado en auditoría directa del codebase — no estimaciones.*
