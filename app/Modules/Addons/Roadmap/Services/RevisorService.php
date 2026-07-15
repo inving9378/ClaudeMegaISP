@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
+use App\Modules\Addons\Roadmap\Jobs\ProponerOpcionesJob;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -174,12 +175,31 @@ class RevisorService
         $item->aprobado_por       = $actor;
         $item->save();
 
+        if ($nuevo === 'requiere_irving') {
+            $this->encolarBriefAsincrono($item);
+        }
+
         if (! empty($v['_audit_id'])) {
             DB::table('circuito_revisiones')->where('id', $v['_audit_id'])
                 ->update(['aplicado' => true, 'actor' => mb_substr($actor, 0, 190), 'updated_at' => now()]);
         }
 
         return $item->fresh();
+    }
+
+    /**
+     * #437 — GATE DE COMPLETITUD (Fase 3, pieza 1): al dejar un item en la bandeja (requiere_irving)
+     * SIN brief todavía, encola en background la generación de `preguntas` (mismo motor que
+     * `circuito:proponer-opciones`). Async por decisión de Irving: no bloquea el guardado del
+     * estado ni acopla esta llamada a una IA síncrona; la Torre muestra "brief pendiente" hasta que
+     * el job escriba el resultado. Idempotente: no encola si el item ya trae `preguntas`.
+     */
+    private function encolarBriefAsincrono(RoadmapItem $item): void
+    {
+        if (! RoadmapItem::multiPreguntaEnabled() || ! empty($item->preguntas)) {
+            return;
+        }
+        ProponerOpcionesJob::dispatch($item->id);
     }
 
     /**
@@ -433,6 +453,7 @@ TXT;
         $item->revisado_at        = now();
         $item->aprobado_por       = 'revisor(brief-C)';
         $item->save();
+        $this->encolarBriefAsincrono($item);
         $this->auditar($item, ['veredicto' => 'escala', 'en_alcance' => false, 'categoria_escalada' => 'negocio',
             'confianza' => 'alta', 'razon' => 'Brief de decisión C para Irving', 'riesgos' => []], ['modelo' => $modelo], null);
 
@@ -719,6 +740,10 @@ TXT;
         }
         $item->revisado_at = now();
         $item->save();
+
+        if (! $v['reejecutable']) {
+            $this->encolarBriefAsincrono($item);
+        }
 
         return ['categoria' => $v['categoria'], 'reejecutable' => $v['reejecutable'], 'razon' => trim($v['razon']), 'modelo' => $modelo];
     }
