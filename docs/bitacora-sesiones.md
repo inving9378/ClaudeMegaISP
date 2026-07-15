@@ -555,3 +555,21 @@ Dos frentes, sin migración, sin config:cache.
 **Diagnóstico "no fluye" (read-only):** no es cron ni locks (scheduler latió hace 11s). Pool auto-ejecutable = 0: 95 items en requiere_irving (esperan a Irving), 0 A/B en pendiente_revision. El único intento (#430) crasheó por RAM. Para reactivar: Irving debe decidir la bandeja. nivel_riesgo NULL = 0 (#419 sigue cerrado).
 
 **Diagnóstico "indicador de prioridad no cambia" (read-only):** patrón #417 = bundle stale. #347 (badge de prioridad) mergeado a main 07-11 14:32, pero el bundle de DEV no se recompiló hasta hoy 12:46 (mis builds de #430) → 2 días sirviendo JS viejo sin el badge. Ya compilado + cache-bust nuevo (app.js?id=e204a6…) → hard-refresh y aparece. Binding correcto: badge = item.priority (RoadmapTab.vue:96-97 + CSS 995-997). Deuda: en dev hay que correr npm run prod tras cada merge que toque .vue (prod lo hace en el deploy; dev no).
+
+## 2026-07-14 21:38 — Item #475 (wt-1): avatar interactivo + escritorio del supervisor en Terminales
+
+Ejecutado en worktree wt-1 sobre `circuito/item-475-ajustar-terminales` (integración encolada al runner on-box).
+Item venía escalado por el revisor + DES-TRABE (decisión UX de librería/alcance) y **aprobado por Irving**
+(log `aprobado_irving`) sobre el brief que recomendaba el MVP Opción A (CSS/SVG, sin dependencias nuevas).
+
+- **Backend** (`SupervisorService.php`): `recienResueltos()` (últimos completados) y `listosParaTerminal()`
+  (scope `autoEjecutable` + `branch` null + excluye `[BLOCKED-]/[PARKED-]`), expuestos en
+  `GET /api/roadmap/circuito/estado` → `data.supervisor.{recien_resueltos,listos_para_terminal}`.
+- **Frontend** (`TorreTerminales.vue`): badge con icono de pantalla (brillo pulsante) mientras la terminal
+  corre ("concentrado viendo la computadora"); al detectar la transición running→terminado dispara 2.4s de
+  animación de estiramiento (scale+rotate+translateY) + badge de "estirarse" (respeta
+  `prefers-reduced-motion`). Nodo del supervisor ahora es un "escritorio" (icono clipboard) con las 2 listas
+  nuevas al lado.
+- Verificado: `php -l` limpio, tinker con datos reales (6 recién resueltos, 4 listos para terminal tras
+  filtrar PARKED-PROD), `bash deploy/circuito/npm-build.sh` compiló sin errores.
+- Enlace de revisión: `/releases` → pestaña Torre de Control → sección "Terminales en vivo".
