@@ -55,7 +55,46 @@ class SupervisorService
             'colisiones'  => $colis['modulos_dobles'],  // 2 agentes en el mismo módulo (rule 6)
             'pingpong'    => $colis['pingpong'],         // uno arregla / otro revierte (rule 7 → a Irving)
             'actividad'   => $this->actividad($limite, $colis),
+            // #475: "escritorio" del supervisor — lo recién resuelto + la cola lista para el próximo terminal.
+            'recien_resueltos'     => $this->recienResueltos(),
+            'listos_para_terminal' => $this->listosParaTerminal(),
         ];
+    }
+
+    /** #475: últimos items COMPLETADOS — alimenta la lista "Recién resueltos" del escritorio. */
+    public function recienResueltos(int $limite = 6): array
+    {
+        return RoadmapItem::where('estado_aprobacion', 'completado')
+            ->whereNull('archivado_at')
+            ->orderByDesc('updated_at')
+            ->limit($limite)
+            ->get(['id', 'title', 'updated_at'])
+            ->map(fn ($r) => [
+                'id'    => (int) $r->id,
+                'title' => $r->title,
+                'at'    => optional($r->updated_at)->toIso8601String(),
+            ])->values()->all();
+    }
+
+    /**
+     * #475: items ya triados/ejecutables (estación "listo" — ver RoadmapItem::getEstacionAttribute)
+     * esperando que un worker los reclame. Alimenta "Listos para terminal" del escritorio.
+     */
+    public function listosParaTerminal(int $limite = 6): array
+    {
+        return RoadmapItem::autoEjecutable()
+            ->whereNull('archivado_at')
+            ->whereNull('branch')
+            ->where('title', 'not like', '%[BLOCKED-%')
+            ->where('title', 'not like', '%[PARKED-%')
+            ->ordered()
+            ->limit($limite)
+            ->get(['id', 'title', 'nivel_riesgo'])
+            ->map(fn ($r) => [
+                'id'    => (int) $r->id,
+                'title' => $r->title,
+                'nivel' => $r->nivel_riesgo,
+            ])->values()->all();
     }
 
     /** El PROTOCOLO DE COORDINACIÓN que Thomas T arbitra (para la identidad/UI del supervisor). */
