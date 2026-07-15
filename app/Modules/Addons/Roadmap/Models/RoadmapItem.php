@@ -38,6 +38,9 @@ class RoadmapItem extends Model
         'worker_sid',
         // Colisión en vuelo entre dos items paralelos (#438)
         'colision_pausada_por', 'colision_pausada_at',
+        // FASE 1 — Validación funcional por Irving (revisa el resultado, no el código)
+        'validacion_funcional_requerida', 'pendiente_validacion_irving', 'validado_por_irving',
+        'validado_at', 'validado_por', 'comentario_validacion', 'revision_tecnica', 'validacion_brief',
     ];
 
     protected $casts = [
@@ -56,6 +59,13 @@ class RoadmapItem extends Model
         'revision_ui'  => 'boolean',
         'archivado_at' => 'datetime',
         'colision_pausada_at' => 'datetime',
+        // FASE 1 — Validación funcional por Irving
+        'validacion_funcional_requerida' => 'boolean',
+        'pendiente_validacion_irving'    => 'boolean',
+        'validado_por_irving'            => 'boolean',
+        'revision_tecnica'               => 'boolean',
+        'validado_at'                    => 'datetime',
+        'validacion_brief'               => 'array',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
@@ -389,6 +399,17 @@ class RoadmapItem extends Model
         }
 
         return true;
+    }
+
+    /**
+     * FASE 1 — Cambios seguros YA integrados que esperan la validación funcional de Irving
+     * (revisa el resultado, no el código). Alimenta la sección "Cambios para que Irving pruebe".
+     */
+    public function scopePendienteValidacion($query)
+    {
+        return $query->where('pendiente_validacion_irving', true)
+                     ->whereNull('archivado_at')
+                     ->orderByDesc('updated_at');
     }
 
     /** Items que el circuito SÍ puede tomar (excluye en_progreso y candados humanos). #341 */

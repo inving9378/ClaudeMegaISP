@@ -106,6 +106,11 @@ Route::middleware(['web', 'auth'])
         Route::post('/integracion/archivar',       [RoadmapController::class, 'integracionArchivar']);
         Route::post('/integracion/desarchivar',    [RoadmapController::class, 'integracionDesarchivar']);
 
+        // FASE 1 — Validación funcional por Irving ("Cambios para que Irving pruebe").
+        Route::get('/validacion',            [RoadmapController::class, 'validacionPendiente']);
+        Route::post('/validacion/aprobar',   [RoadmapController::class, 'validacionAprobar']);
+        Route::post('/validacion/reportar',  [RoadmapController::class, 'validacionReportar']);
+
         Route::get('/items',               [RoadmapController::class, 'index']);
         Route::post('/items',              [RoadmapController::class, 'store']);
         Route::patch('/items/{id}',        [RoadmapController::class, 'update']);

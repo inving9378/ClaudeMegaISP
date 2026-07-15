@@ -150,6 +150,9 @@ class RoadmapController extends Controller
             'cola_ejecutable'      => $colaEjecutable,   // #348: SOLO auto-ejecutables (A/B o aprobados) con 🔥
             'resumen_cola'         => $resumenCola,      // #348: N auto-ejecutables · M esperan tu decisión
             'actividad_reciente'   => $actividad,
+            // FASE 1 — "Cambios para que Irving pruebe": cambios seguros integrados esperando validación funcional.
+            'cambios_validacion'   => RoadmapItem::pendienteValidacion()->limit(30)->get()
+                ->map(fn (RoadmapItem $i) => $this->validacionPayload($i)),
             'riesgos_auditoria'    => $riesgos,
             'auditoria_item_id'    => $audit?->id,
             'ejecuciones'          => $ejecuciones,
@@ -973,6 +976,106 @@ class RoadmapController extends Controller
         Log::channel('roadmap_externo')->info('integracion-revert', ['item' => $item->id, 'por' => $this->actor(), 'revert' => $sha]);
 
         return response()->json(['ok' => true, 'revert_commit' => $sha]);
+    }
+
+    /**
+     * FASE 1 — GET /api/roadmap/validacion — "Cambios para que Irving pruebe".
+     * Cambios seguros ya integrados que esperan su validación FUNCIONAL (revisa el resultado, no el código).
+     */
+    public function validacionPendiente(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+        $cambios = RoadmapItem::pendienteValidacion()->limit(30)->get()
+            ->map(fn (RoadmapItem $i) => $this->validacionPayload($i));
+
+        return response()->json(['generated_at' => now()->toIso8601String(), 'cambios' => $cambios]);
+    }
+
+    /** Tarjeta de validación funcional (muestra RESULTADO, no código). */
+    private function validacionPayload(RoadmapItem $i): array
+    {
+        $b = is_array($i->validacion_brief) ? $i->validacion_brief : [];
+
+        return [
+            'id'                 => $i->id,
+            'title'              => $i->title,
+            'modulo'             => $i->modulo,
+            'nivel_riesgo'       => $i->nivel_riesgo,
+            'que_se_pidio'       => $b['que_se_pidio']       ?? $i->description,
+            'que_se_hizo'        => $b['que_se_hizo']        ?? $i->comentarios_claude,
+            'como_probar'        => $b['como_probar']        ?? null,
+            'resultado_esperado' => $b['resultado_esperado'] ?? null,
+            'que_no_se_toco'     => $b['que_no_se_toco']     ?? $i->fuera_de_alcance,
+            'riesgo'             => $b['riesgo']             ?? ('nivel ' . ($i->nivel_riesgo ?: '—')),
+            'integrado_at'       => $b['integrado_at']       ?? optional($i->updated_at)->toIso8601String(),
+            'merge_commit'       => $i->merge_commit,
+            'enlace_probar'      => '/roadmap/item/' . $i->id,   // "Abrir y probar" → detalle real read-only
+            'modulo_url'         => $this->moduloUrl($i->modulo),
+        ];
+    }
+
+    /**
+     * FASE 1 — POST /api/roadmap/validacion/aprobar — Irving: "✓ Funciona correctamente".
+     * validado_por_irving=true, pendiente=false, completado + archivado. Conserva TODO el historial.
+     */
+    public function validacionAprobar(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate(['id' => ['required', 'integer', 'min:1']]);
+        $item = RoadmapItem::find($data['id']);
+        if (! $item || ! $item->pendiente_validacion_irving) {
+            return response()->json(['error' => 'Este item no está esperando validación.'], 422);
+        }
+
+        $item->validado_por_irving = true;
+        $item->pendiente_validacion_irving = false;
+        $item->validado_at = now();
+        $item->validado_por = $this->actor();
+        $item->estado_aprobacion = 'completado';   // el guard #420 sincroniza status=done + completed_at
+        $item->archivado_at = now();
+        $item->archivado_por = 'validacion-irving';
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'validacion_funcional_ok', 'merge_commit' => $item->merge_commit];
+        $item->log = $log;
+        $item->save();
+
+        Log::channel('roadmap_externo')->info('validacion-ok', ['item' => $item->id, 'por' => $this->actor()]);
+
+        return response()->json(['ok' => true, 'id' => $item->id, 'estado' => 'completado']);
+    }
+
+    /**
+     * FASE 1 — POST /api/roadmap/validacion/reportar — Irving: "⚠ Reportar problema".
+     * NO revierte (auto-revert = FASE 3). Guarda el comentario y manda a revisión técnica.
+     * Conserva rama, commits, merge_commit, historial y evidencia.
+     */
+    public function validacionReportar(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'id'         => ['required', 'integer', 'min:1'],
+            'comentario' => ['required', 'string', 'max:2000'],
+        ]);
+        $item = RoadmapItem::find($data['id']);
+        if (! $item || ! $item->pendiente_validacion_irving) {
+            return response()->json(['error' => 'Este item no está esperando validación.'], 422);
+        }
+
+        $item->pendiente_validacion_irving = false;
+        $item->validado_por_irving = false;
+        $item->revision_tecnica = true;                 // equivalente a requiere_revision_tecnica (sin tocar el enum)
+        $item->comentario_validacion = $data['comentario'];
+        $item->estado_aprobacion = 'requiere_irving';   // vuelve a revisión humana; NO se revierte código (FASE 3)
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'validacion_problema_reportado',
+            'comentario' => $data['comentario'], 'merge_commit' => $item->merge_commit,
+            'nota' => 'NO se revirtió (FASE 3 pendiente). Rama/commits/merge_commit/historial conservados.'];
+        $item->log = $log;
+        $item->save();
+
+        Log::channel('roadmap_externo')->info('validacion-problema', ['item' => $item->id, 'por' => $this->actor()]);
+
+        return response()->json(['ok' => true, 'id' => $item->id, 'estado' => 'revision_tecnica']);
     }
 
     /**
