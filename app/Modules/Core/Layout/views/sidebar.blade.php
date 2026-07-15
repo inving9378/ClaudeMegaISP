@@ -13,6 +13,11 @@
                     <script>console.warn('Sidebar composer returned empty. Check ModuleSidebarConfig.');</script>
                 @endif
 
+                {{-- Desarrollador — Fase 2.2 dinámico (item #481: reubicado al inicio del sidebar) --}}
+                @if(isset($sidebarItems['devtools']))
+                    @include('module-sidebar.devtools', ['item' => $sidebarItems['devtools']->first()])
+                @endif
+
                 {{-- 1. Dashboard — Fase 2.2 dinámico --}}
                 @if(isset($sidebarItems['dashboard']))
                     @include('module-sidebar.dashboard', ['item' => $sidebarItems['dashboard']->first()])
@@ -242,11 +247,6 @@
                 {{-- 15. Configuración — Fase 2.2 dinámico --}}
                 @if(isset($sidebarItems['configuracion']))
                     @include('module-sidebar.configuracion', ['item' => $sidebarItems['configuracion']->first()])
-                @endif
-
-                {{-- Desarrollador — Fase 2.2 dinámico --}}
-                @if(isset($sidebarItems['devtools']))
-                    @include('module-sidebar.devtools', ['item' => $sidebarItems['devtools']->first()])
                 @endif
 
             </ul>

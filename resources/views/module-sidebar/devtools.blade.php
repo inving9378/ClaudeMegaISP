@@ -10,6 +10,13 @@
                     <span data-key="t-devtools"><small><i class="fa fa-fw fa-terminal"></i></small> DevTools</span>
                 </a>
             </li>
+            @can('release_view_release')
+                <li>
+                    <a href="{{ url('/releases') }}">
+                        <span data-key="t-torre-control"><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Torre de Control</span>
+                    </a>
+                </li>
+            @endcan
 
             {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
             @foreach($item->dynamic_children ?? collect() as $child)
