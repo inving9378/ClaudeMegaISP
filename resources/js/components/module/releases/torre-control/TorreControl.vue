@@ -146,7 +146,10 @@
                   </div>
                 </div>
               </div>
-              <div v-else-if="it.nivel_riesgo === 'C'" class="tc-noopts">Sin opciones aún — el circuito las propondrá para que elijas.</div>
+              <!-- #437 — semáforo "brief pendiente": el gate async encoló proponer-opciones en
+                   background al escalar; hasta que ese job escriba `preguntas` no hay nada que
+                   responder aquí. Ya no se limita a nivel C (el gate corre para toda la bandeja). -->
+              <div v-else class="tc-noopts">Brief pendiente — el circuito está preparando las preguntas y opciones (puede tardar unos segundos)…</div>
 
               <textarea v-model="coment[it.id]" class="tc-coment" rows="2" placeholder="Comentario (opcional)…"></textarea>
 
