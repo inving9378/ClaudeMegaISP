@@ -69,18 +69,30 @@ class RoadmapController extends Controller
             'intake'           => RoadmapItem::backlog()->count(),
         ];
 
+        // [BUG][UI/UX][TORRE] Cada evento de Actividad reciente se enriquece con la UBICACIÓN ACTUAL
+        // REAL del item (no la del evento): status + estacion calculada (accessor) + etiqueta legible +
+        // pestaña destino + siguiente acción. Así la tarjeta puede navegar a donde el item está AHORA.
         $actividad = RoadmapItem::whereNotNull('comentarios_claude')
             ->orderByRaw('COALESCE(revisado_at, updated_at) DESC')
             ->limit(8)->get()
-            ->map(fn (RoadmapItem $i) => [
-                'id'                => $i->id,
-                'title'             => $i->title,
-                'nivel_riesgo'      => $i->nivel_riesgo,
-                'estado_aprobacion' => $i->estado_aprobacion,
-                'aprobado_por'      => $i->aprobado_por,
-                'comentario'        => mb_strimwidth((string) $i->comentarios_claude, 0, 220, '…'),
-                'cuando'            => optional($i->revisado_at ?? $i->updated_at)->toIso8601String(),
-            ]);
+            ->map(function (RoadmapItem $i) {
+                $ub = $this->ubicacionActual($i);
+                return [
+                    'id'                => $i->id,
+                    'title'             => $i->title,
+                    'nivel_riesgo'      => $i->nivel_riesgo,
+                    'estado_aprobacion' => $i->estado_aprobacion,
+                    'status'            => $i->status,
+                    'estacion'          => $i->estacion,          // accessor: done|terminal|bandeja|integracion|listo|intake
+                    'ubicacion'         => $ub['label'],          // "⚑ Tu Bandeja", "🔍 Integración", …
+                    'ubicacion_icono'   => $ub['icon'],
+                    'ubicacion_tab'     => $ub['tab'],            // panorama|roadmap|terminales|integracion|historial
+                    'siguiente_accion'  => $ub['siguiente_accion'],
+                    'aprobado_por'      => $i->aprobado_por,
+                    'comentario'        => mb_strimwidth((string) $i->comentarios_claude, 0, 220, '…'),
+                    'cuando'            => optional($i->revisado_at ?? $i->updated_at)->toIso8601String(),
+                ];
+            });
 
         // Riesgos de la última auditoría registrada en el log (fase1_auditoria).
         $riesgos = [];
@@ -961,6 +973,41 @@ class RoadmapController extends Controller
         Log::channel('roadmap_externo')->info('integracion-revert', ['item' => $item->id, 'por' => $this->actor(), 'revert' => $sha]);
 
         return response()->json(['ok' => true, 'revert_commit' => $sha]);
+    }
+
+    /**
+     * [BUG][UI/UX][TORRE] Ubicación ACTUAL real del item para Actividad reciente: mapea la `estacion`
+     * (accessor, precedencia done>terminal>bandeja>integracion>listo>intake) + los flags nuevos a una
+     * etiqueta legible, la pestaña destino de la Torre (/releases) y la siguiente acción. No usa la
+     * estación histórica del evento — lee el estado vivo del item.
+     */
+    private function ubicacionActual(RoadmapItem $i): array
+    {
+        $sig = $i->siguiente_accion ?: null;   // columna explícita si el circuito la fijó; si no, se deriva
+
+        switch ($i->estacion) {
+            case 'bandeja':
+                $tag = (bool) $i->bloqueado_por_bucle ? ' (Bloqueado por bucle)'
+                    : ((bool) $i->requiere_sesion_supervisada ? ' (Sesión supervisada)' : '');
+                return ['label' => '⚑ Tu Bandeja' . $tag, 'icon' => '⚑', 'tab' => 'panorama',
+                    'siguiente_accion' => $sig ?: 'Requiere tu decisión'];
+            case 'integracion':
+                $tag = (bool) $i->esperando_merge_irving ? ' (esperando tu merge)' : '';
+                return ['label' => '🔍 Integración' . $tag, 'icon' => '🔍', 'tab' => 'integracion',
+                    'siguiente_accion' => $sig ?: 'Revisar y mergear la rama'];
+            case 'terminal':
+                return ['label' => '🛠 En desarrollo', 'icon' => '🛠', 'tab' => 'terminales',
+                    'siguiente_accion' => $sig ?: 'En ejecución por un worker'];
+            case 'done':
+                return ['label' => '📦 Historial', 'icon' => '📦', 'tab' => 'historial',
+                    'siguiente_accion' => $sig ?: 'Completado — ver detalle'];
+            case 'listo':
+                return ['label' => '📋 Hoja de ruta (en cola)', 'icon' => '📋', 'tab' => 'roadmap',
+                    'siguiente_accion' => $sig ?: 'En cola de ejecución'];
+            default: // intake
+                return ['label' => '📋 Hoja de ruta', 'icon' => '📋', 'tab' => 'roadmap',
+                    'siguiente_accion' => $sig ?: 'Triaje pendiente'];
+        }
     }
 
     /** Semáforo de verificación derivado del estado/merge (detalle fino = mejora futura). */

@@ -112,7 +112,7 @@
         <div class="tc-card">
           <h2 class="tc-h2">⚑ Tu bandeja — requiere tu decisión ({{ cola.length }})</h2>
           <div v-if="!cola.length" class="tc-meta">Nada requiere tu decisión ahora. ✓</div>
-          <div v-for="it in cola" :key="it.id" class="tc-inbox-item" :class="{ 'tc-inbox-compact': esCompacta(it) }">
+          <div v-for="it in cola" :key="it.id" :id="'tc-item-' + it.id" class="tc-inbox-item" :class="{ 'tc-inbox-compact': esCompacta(it), 'tc-highlight': highlightId === it.id }">
             <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
             <div class="tc-inbox-body">
               <!-- #477: tarjeta COMPACTA para nivel C — encabezado corto + título, sin párrafos largos -->
@@ -209,11 +209,23 @@
           <h2 class="tc-h2">Actividad reciente del circuito</h2>
           <div v-if="!actividad.length" class="tc-meta">Sin actividad reciente.</div>
           <div class="tc-feed">
-            <div v-for="ev in actividad" :key="ev.id" class="tc-ev">
+            <div v-for="ev in actividad" :key="ev.id" class="tc-ev tc-ev-click" role="button" tabindex="0"
+                 :title="'Abrir #' + ev.id + ' — ' + (ev.ubicacion || '')"
+                 @click="openItem(ev)" @keyup.enter="openItem(ev)">
               <span class="tc-icn" :style="{ background: evColor(ev) }">{{ evIcon(ev) }}</span>
-              <div>
+              <div class="tc-ev-main">
                 <b>#{{ ev.id }} {{ ev.title }}</b><span v-if="ev.comentario"> — {{ ev.comentario }}</span>
-                <div class="tc-when">{{ rel(ev.cuando) }}<span v-if="ev.nivel_riesgo"> · nivel {{ ev.nivel_riesgo }}</span><span v-if="ev.aprobado_por"> · {{ ev.aprobado_por }}</span></div>
+                <div class="tc-ev-meta">
+                  <span v-if="ev.nivel_riesgo" class="tc-ev-badge" :class="lvClass(ev.nivel_riesgo)">nivel {{ ev.nivel_riesgo }}</span>
+                  <span class="tc-ev-badge tc-ev-estado">{{ estadoAprobLabel(ev.estado_aprobacion) }}</span>
+                  <span v-if="ev.ubicacion" class="tc-ev-badge tc-ev-ubic">{{ ev.ubicacion }}</span>
+                  <span v-if="ev.siguiente_accion" class="tc-ev-next">→ {{ ev.siguiente_accion }}</span>
+                </div>
+                <div class="tc-when">{{ rel(ev.cuando) }}<span v-if="ev.aprobado_por"> · {{ ev.aprobado_por }}</span></div>
+              </div>
+              <div class="tc-ev-actions">
+                <button class="tc-btn tc-btn-ok" @click.stop="openItem(ev)">Abrir item</button>
+                <button class="tc-btn tc-btn-ver" @click.stop="verRecorrido(ev)" title="Ver el detalle/recorrido del item en pestaña nueva">Ver recorrido</button>
               </div>
             </div>
           </div>
@@ -562,6 +574,7 @@ export default {
                 auditItem.value = data.auditoria_item_id || null;
                 ejecuciones.value = data.ejecuciones || [];
                 applyEstado(data);
+                maybeDeepLink();   // #torre: deep-link /releases?item=NNN tras poblar la bandeja
             } finally {
                 loading.value = false;
             }
@@ -662,6 +675,65 @@ export default {
             }
         }
 
+        // [BUG][UI/UX][TORRE] Navegación desde Actividad reciente a la ubicación ACTUAL del item.
+        const highlightId = ref(null);
+        let deepLinkDone = false;
+
+        function estadoAprobLabel(e) {
+            return {
+                pendiente_revision: 'pendiente revisión',
+                requiere_irving: 'requiere Irving',
+                en_progreso: 'en progreso',
+                aprobado_irving: 'aprobado',
+                aprobado_claude: 'aprobado (auto)',
+                completado: 'completado',
+                cancelado: 'cancelado',
+                rechazado: 'rechazado',
+            }[e] || e || '—';
+        }
+
+        // Detalle read-only real del item (funciona en CUALQUIER estación) — fallback y "Ver recorrido".
+        function verRecorrido(ev) {
+            window.open('/roadmap/item/' + ev.id, '_blank', 'noopener');
+        }
+
+        // Resalta + hace scroll a la tarjeta del item si está en ESTA vista (bandeja/panorama).
+        function highlightInPage(id) {
+            const el = document.getElementById('tc-item-' + id);
+            if (!el) return false;
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            highlightId.value = id;
+            setTimeout(() => { if (highlightId.value === id) highlightId.value = null; }, 3500);
+            return true;
+        }
+
+        // Abre el item en su ubicación ACTUAL: bandeja (panorama) → resalta in-page; resto → detalle real.
+        function openItem(ev) {
+            if (ev && ev.ubicacion_tab === 'panorama' && cola.value.some((c) => c.id === ev.id)) {
+                if (highlightInPage(ev.id)) return;
+            }
+            verRecorrido(ev);   // rule #5: nunca dejar al usuario en pantalla vacía
+        }
+
+        // Deep-link /releases?item=NNN — corre una vez tras cargar la bandeja: si el item está aquí lo
+        // resalta; si no, abre su detalle real (misma pestaña) para no dejar pantalla vacía.
+        function maybeDeepLink() {
+            if (deepLinkDone) return;
+            const params = new URLSearchParams(window.location.search);
+            const raw = params.get('item');
+            if (!raw) { deepLinkDone = true; return; }
+            const id = parseInt(raw, 10);
+            if (!id) { deepLinkDone = true; return; }
+            deepLinkDone = true;
+            nextTick(() => {
+                if (cola.value.some((c) => c.id === id)) {
+                    highlightInPage(id);
+                } else {
+                    window.location.assign('/roadmap/item/' + id);
+                }
+            });
+        }
+
         onMounted(() => {
             load();
             initVoces();
@@ -680,6 +752,8 @@ export default {
             loading, toggling, pausado, pausadoInfo, pausaOlvidada, pausaHorasTxt, generatedAt, total, est, nivel, niveles, barH,
             cola, colaEjecutable, resumenCola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
+            // #torre: Actividad reciente navegable (abrir item / deep-link / recorrido)
+            openItem, verRecorrido, estadoAprobLabel, highlightId,
             sel, coment, deciding, decidir, elegirOpcion, selPreg, aviso,
             // #477: tarjeta compacta nivel C
             descOpen, esCompacta, tieneDescExtendida, estadoLabelItem,
@@ -815,6 +889,19 @@ export default {
 .tc-ev:first-child{border-top:none;}
 .tc-icn{flex:0 0 auto;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;color:#fff;font-weight:700;margin-top:1px;}
 .tc-when{font-size:11.5px;color:var(--tc-muted);}
+/* [BUG][UI/UX][TORRE] Actividad reciente navegable */
+.tc-ev-click{cursor:pointer;border-radius:8px;transition:background .12s;}
+.tc-ev-click:hover{background:#f8fafc;}
+.tc-ev-main{flex:1 1 auto;min-width:0;}
+.tc-ev-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 2px;}
+.tc-ev-badge{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;}
+.tc-ev-estado{background:#eff6ff;color:#1d4ed8;}
+.tc-ev-ubic{background:#fefce8;color:#a16207;}
+.tc-ev-next{font-size:11px;color:var(--tc-muted);}
+.tc-ev-actions{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
+@media (max-width:640px){.tc-ev{flex-wrap:wrap;}.tc-ev-actions{flex-direction:row;width:100%;justify-content:flex-end;}}
+@keyframes tc-pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.45);}100%{box-shadow:0 0 0 10px rgba(59,130,246,0);}}
+.tc-highlight{background:#eff6ff!important;border-radius:8px;animation:tc-pulse 1s ease-out 2;outline:2px solid #3b82f6;outline-offset:2px;}
 .tc-chartrow{display:flex;align-items:flex-end;gap:14px;height:150px;padding:6px 4px 0;}
 .tc-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;}
 .tc-colbar{width:100%;max-width:54px;border-radius:5px 5px 3px 3px;}
@@ -844,6 +931,10 @@ export default {
 .tc-dark .tc-badge-dec{background:rgba(251,191,36,.15);color:#fbbf24;}
 .tc-dark .tc-btn-voz{background:#0f172a;color:#2dd4bf;border-color:#2a3550;}
 .tc-dark .tc-btn-ver{background:rgba(45,212,191,.12);color:#2dd4bf;border-color:#265b57;}
+.tc-dark .tc-ev-click:hover{background:rgba(148,163,184,.10);}
+.tc-dark .tc-ev-estado{background:rgba(96,165,250,.15);color:#60a5fa;}
+.tc-dark .tc-ev-ubic{background:rgba(251,191,36,.15);color:#fbbf24;}
+.tc-dark .tc-highlight{background:rgba(59,130,246,.15)!important;outline-color:#3b82f6;}
 .tc-dark .tc-idle{background:rgba(148,163,184,.15);color:#94a3b8;}
 .tc-dark .tc-logbtn{background:#1c2740;color:#cbd5e1;border-color:#2a3550;}
 .tc-dark .tc-logbtn-on{border-color:#2dd4bf;color:#2dd4bf;}
