@@ -58,7 +58,6 @@ class ActiveEquipmentTypeController extends Controller
             ], 200);
         }catch(Exception $e){
             DB::rollBack();
-            dd($e);
             return response()->json([
                 'res' => false,
                 'message' => 'Ha ocurrido un error',
