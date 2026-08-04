@@ -80,31 +80,16 @@ class GitHubUpdateService
                 return null;
             }
 
-            // Compara por fecha: el release de GitHub es más reciente que el instalado
+            // Compara por número de versión (major.minor), NO por fecha-como-string: el
+            // tag es la clave primaria; la fecha embebida solo desempata (VersionComparator).
             $installed = Release::latest('release_date')->latest('id')->first();
-            $installedDate = $installed?->release_date;
 
-            if (!$installedDate) {
+            if (!$installed || !$installed->version) {
                 // Sin registro local: siempre hay actualización disponible
                 return $this->buildResult($latest);
             }
 
-            // published_at de GitHub viene en UTC (sufijo Z); release_date se guarda en la zona
-            // local (app.timezone). Normalizamos AMBAS a la misma zona ANTES de comparar el día:
-            // si no, los startOfDay() caen en husos distintos (6h en America/Mexico_City) y una
-            // release del MISMO día se ve como "anterior" (00:00Z = 18:00 del día previo local).
-            $tz           = config('app.timezone') ?: 'UTC';
-            $githubDay    = \Carbon\Carbon::parse($latestPublishedAt)->setTimezone($tz)->startOfDay();
-            $installedDay = \Carbon\Carbon::parse($installedDate)->setTimezone($tz)->startOfDay();
-
-            // Hay actualización si el tag de GitHub DIFIERE del instalado y su release NO es de un
-            // día anterior (mismo día o posterior). Comparar por tag —no solo por día— cubre varias
-            // releases el MISMO día (p.ej. V1.9 y V1.11 el 26/06). El gate por fecha (>=) evita
-            // "downgrades" si se elimina la última release en GitHub.
-            $differentTag = $latestTag !== ($installed->version ?? null);
-            $notOlder     = $githubDay->gte($installedDay);
-
-            if ($differentTag && $notOlder) {
+            if (VersionComparator::isNewer($latestTag, $installed->version)) {
                 return $this->buildResult($latest);
             }
 
