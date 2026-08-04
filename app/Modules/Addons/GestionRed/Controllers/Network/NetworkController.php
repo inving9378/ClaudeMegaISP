@@ -78,8 +78,7 @@ class NetworkController extends Controller
             $Ipv4Calculator = new Ipv4CalculatorController();
             $ips = $Ipv4Calculator->createIpInNetwork($request->network, $request->bm);
 
-            //TODO agregar pasar a segundo plano.
-            CreateNetWorkIpRowsJob::dispatchAfterResponse($model, $ips);
+            CreateNetWorkIpRowsJob::dispatch($model, $ips);
 
             return $model;
         }
