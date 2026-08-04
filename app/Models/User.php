@@ -246,6 +246,32 @@ class User extends Authenticatable
         return $this->belongsToMany(Task::class, 'task_user', 'user_id', 'task_id');
     }
 
+    /** Relaciones padre-hijo (item #21) donde este usuario es el PADRE. */
+    public function childRelationships()
+    {
+        return $this->hasMany(UserRelationship::class, 'parent_user_id');
+    }
+
+    /** Relaciones padre-hijo (item #21) donde este usuario es el HIJO. */
+    public function parentRelationships()
+    {
+        return $this->hasMany(UserRelationship::class, 'child_user_id');
+    }
+
+    /** Cuentas hijo vinculadas activas (solo lectura por diseño, item #21). */
+    public function children()
+    {
+        return $this->belongsToMany(User::class, 'user_relationships', 'parent_user_id', 'child_user_id')
+            ->wherePivot('status', 'activa');
+    }
+
+    /** Cuentas padre/tutor/apoderado vinculadas activas (item #21). */
+    public function parents()
+    {
+        return $this->belongsToMany(User::class, 'user_relationships', 'child_user_id', 'parent_user_id')
+            ->wherePivot('status', 'activa');
+    }
+
 
     public function inventoryItemStocks()
     {
