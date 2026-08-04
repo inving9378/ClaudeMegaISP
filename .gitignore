@@ -66,3 +66,6 @@ storage/marketing_fase*.json
 # Asterisk configs con credenciales — usar manager.conf.example como plantilla
 config/asterisk/manager.conf
 config/asterisk/sip.conf
+
+# Auditorías — material de trabajo crudo (dumps/logs), no versionar
+docs/auditorias/_sets_*/
