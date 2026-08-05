@@ -289,6 +289,15 @@ class ApiController extends Controller
         $internet = optional(optional($service)->internet);
         $info = optional($client->client_main_information);
 
+        // Mismo query que PortalCliente\Controllers\DashboardController::index() (fuente
+        // única de saldo). NO usar $client->balance() (morphOne): el legacy guarda
+        // balanceable_type='App\Models\Client' (proxy), pero $client aquí es la instancia
+        // real App\Modules\Core\Clientes\Models\Client, cuyo getMorphClass() no matchea.
+        $saldo = DB::table('balances')
+            ->where('balanceable_id', $client->id)
+            ->where('balanceable_type', 'App\\Models\\Client')
+            ->value('amount') ?? 0;
+
         return response()->json([
             'plan_name' => $internet->service_name ?? $internet->title ?? 'Plan ISP',
             'speed' => $this->formatSpeed($internet->download_speed),
@@ -298,6 +307,12 @@ class ApiController extends Controller
             'consumo_limite' => null,
             'contract_number' => 'MGI-' . str_pad((string) $client->id, 6, '0', STR_PAD_LEFT),
             'address' => trim((string) ($info->address ?? '')) ?: null,
+            // Saldo como campo separado (antes solo venía fusionado en el módulo de
+            // facturas) + alerta de suspensión como booleano dedicado, ambos leídos de
+            // datos ya existentes, sin lógica de umbral/cálculo nueva (item roadmap #490,
+            // Opción C del brief: reusar fuente única, sin recalcular nada).
+            'saldo' => (float) $saldo,
+            'alerta_suspension' => (bool) $client->fecha_suspension,
         ]);
     }
 
