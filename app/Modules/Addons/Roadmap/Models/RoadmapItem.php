@@ -216,6 +216,11 @@ class RoadmapItem extends Model
                 'clave'       => static::claveOpcion($texto),
                 'texto'       => $texto,
                 'recomendada' => stripos($texto, 'RECOMENDADA') !== false,
+                // #507 sub-paso 1 — el modelo viejo (`opciones`: strings planos) NO trae datos
+                // estructurados. `null` = SIN DATO (no "false"): el autopilot exige el dato
+                // explícito, así que un item legacy nunca se auto-ejecuta por omisión.
+                'confianza'   => null,
+                'reversible'  => null,
             ];
         }
 
@@ -271,6 +276,32 @@ class RoadmapItem extends Model
 
     // ── #432 Fase 3 — BRIEF MULTI-PREGUNTA ──────────────────────────────────────────────────────
 
+    /**
+     * #507 sub-paso 1 — lector ESTRICTO de los booleanos del brief (`recomendada`, `reversible`).
+     * Devuelve null si la llave no viene (SIN DATO) y false ante cualquier valor que no sea un
+     * `true` inequívoco. Existe porque la coerción de PHP falla justo hacia el lado peligroso:
+     * `(bool) "si"` y `! empty("false")` dan TRUE, y con eso el autopilot leería como "reversible"
+     * una opción que el modelo nunca afirmó que lo fuera. Ante cualquier ambigüedad: false.
+     */
+    public static function boolEstricto(array $src, string $llave): ?bool
+    {
+        if (! array_key_exists($llave, $src)) {
+            return null;   // sin dato
+        }
+        $v = $src[$llave];
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_int($v)) {
+            return $v === 1;
+        }
+        if (is_string($v)) {
+            return in_array(strtolower(trim($v)), ['true', '1'], true);
+        }
+
+        return false;
+    }
+
     /** ¿Modelo multi-pregunta activo? Feature flag con fallback al campo viejo (`opciones`). */
     public static function multiPreguntaEnabled(): bool
     {
@@ -295,10 +326,18 @@ class RoadmapItem extends Model
                     if ($t === '') {
                         continue;
                     }
+                    // #507 sub-paso 1 — datos ESTRUCTURADOS por opción (los emite el Revisor en el
+                    // brief). `confianza`/`reversible` en null = SIN DATO: los items legacy (los 47
+                    // ya poblados) no los traen y el autopilot los trata como "no auto-ejecutable",
+                    // nunca como permiso. El `stripos` sigue de fallback SOLO para `recomendada`.
+                    $conf = is_array($o) ? strtolower(trim((string) ($o['confianza'] ?? ''))) : '';
                     $ops[] = [
                         'clave'       => static::claveOpcion($t),
                         'texto'       => $t,
-                        'recomendada' => (is_array($o) && ! empty($o['recomendada'])) || stripos($t, 'RECOMENDADA') !== false,
+                        'recomendada' => (is_array($o) && static::boolEstricto($o, 'recomendada') === true)
+                                         || stripos($t, 'RECOMENDADA') !== false,
+                        'confianza'   => in_array($conf, ['alta', 'media', 'baja'], true) ? $conf : null,
+                        'reversible'  => is_array($o) ? static::boolEstricto($o, 'reversible') : null,
                     ];
                 }
                 $out[] = [
@@ -307,6 +346,9 @@ class RoadmapItem extends Model
                     'opciones'       => $ops,
                     'opcion_elegida' => $p['opcion_elegida'] ?? null,
                     'fase'           => $p['fase'] ?? null,
+                    // #507 — el Revisor marca la pregunta que NO puede resolver con seguridad:
+                    // aunque haya recomendada de alta confianza, esta pregunta es de Irving.
+                    'requiere_irving' => static::boolEstricto($p, 'requiere_irving') === true,
                 ];
             }
 
@@ -325,6 +367,7 @@ class RoadmapItem extends Model
             'opciones'       => $ops,
             'opcion_elegida' => $this->opcion_elegida,
             'fase'           => null,
+            'requiere_irving' => false,   // #507 — sin dato en el modelo viejo; decide el nivel/confianza
         ]];
     }
 
