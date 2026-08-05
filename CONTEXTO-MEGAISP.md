@@ -243,6 +243,97 @@ Decisión tomada: el módulo "WhatsApp" se construye **sobre el addon WhatsAppAg
 
 ---
 
+## 8. CIRCUITO CC — cómo trabaja HOY (mapa estructural, #507)
+
+> Esto se re-investigó desde cero en la sesión del 2026-08-04 porque el modelo mental "el circuito
+> corre por rondas cada 30 min" **es falso**. No volver a asumirlo.
+
+### 8.1 Ejecución: CONTINUA, una vuelta POR ITEM
+
+- El cron corre **`circuito:scheduler` cada minuto** (no cada 30). Cada corrida busca slots libres
+  (`wt-1..wt-N`, flock por slot), toma items módulo-disjuntos y lanza `deploy/circuito/vuelta.sh` en
+  el worktree del slot, **una vuelta por item**.
+- Una terminal que termina **jala el siguiente sin esperar a nadie** (`circuito:claim-next`,
+  serializado por `claim.lock`).
+- **NO existe cron de rondas ni ventana de tiempo.** `config('circuito.interval_min')` está
+  **DEPRECADO**: solo alimentaba la estimación "próxima vuelta" de la UI y hoy solo se usa si se
+  apaga `circuito.continuo` (default true, que hace `proximaVueltaAt()` devolver null).
+- **Exclusión mutua** (dos terminales nunca toman el mismo item): `flock` + `UPDATE ... WHERE
+  estado_aprobacion IN (aprobado_*)` — gana quien afecta 1 fila. **Decisión de Irving: NO migrar a
+  `SELECT ... FOR UPDATE SKIP LOCKED`**; el mecanismo actual ya cumple y es el punto más caliente.
+- **Orden de la cola** = `scopeOrdenCola` (distinto de `ordered()`, que ordena la BANDEJA):
+  urgente → por concluirse/reanudables (`branch` no null o `colision_pausada_por` no null) →
+  prioridad → antigüedad.
+- **Lease**: `roadmap_items.claimed_at` se sella al reclamar y lo **renueva el latido**
+  (`circuito:vivo --watch` → `liveBeat` → `renovarLease`) con un UPDATE crudo que **no toca
+  `updated_at`**. `circuito:reap-stuck` libera solo si **AMBAS** señales están frías (antes bastaba
+  `updated_at` y mataba workers vivos que llevaban rato sin escribir en su item).
+
+### 8.2 Decisión: Revisor → AUTOPILOT → bandeja de Irving
+
+Cadena de triaje, de más automático a más humano:
+
+1. **Revisor** (#338, `RevisorService`): clasifica y autoriza B técnicos (`aprobado_revisor`). Tiene
+   una **denylist de frontera dura** (dinero/seguridad/permisos/prod/destructivo/negocio) que escala
+   **sin gastar IA**.
+2. **Autopilot** (#507, `AutopilotService`): corre **al escribirse cada brief**
+   (`RevisorService::aplicarPreguntas` → `intentar()`, best-effort). Toma la opción `recomendada`
+   solo si hay **dato explícito**: `confianza >= umbral` y (nivel A **o** `reversible === true`).
+   Config en `config/circuito.php` → `autopilot.*` (`max_nivel` **B** por decisión de Irving,
+   `umbral_confianza` alta, `requiere_reversible` true, `ventana_gracia` 0).
+   Escribe A→`aprobado_claude`, B→`aprobado_revisor`, y deja rastro en `log` con
+   `decidido_por='autopilot'` + la política vigente al decidir.
+   **Kill switch = el de siempre** (`circuito_pausado`): en pausa no decide nada.
+3. **Bandeja de Irving** (`RoadmapItem::scopeBandeja`): todo lo demás.
+
+**Regla de oro del autopilot:** ausencia, ambigüedad o error → **el item va a Irving, nunca se
+ejecuta**. Por eso los briefs viejos (sin `confianza`/`reversible`) NO califican: hay que regenerarlos
+con `circuito:rebrief-bandeja` (ver 8.4).
+
+**`guard()` NO es del flujo interno.** Sus únicos consumidores son `RoadmapExternalController` y
+`RoadmapMcpController` = la **vía externa** (token Cowork/MCP). Relajarlo para el autopilot sería
+abrirle a un token externo la aprobación de B/C. No tocarlo.
+
+### 8.3 Contrato del brief (`roadmap_items.preguntas`, JSON)
+
+```
+[{ id:"q1", pregunta:"…", fase:null, requiere_irving:false,
+   opciones:[{ texto:"…", recomendada:true, confianza:"alta|media|baja", reversible:true }],
+   opcion_elegida:null }]
+```
+
+- `confianza`/`reversible` en **null = SIN DATO** (briefs viejos) → el autopilot no los toma.
+- Los booleanos se leen con **`RoadmapItem::boolEstricto`**: la coerción de PHP falla hacia el lado
+  peligroso (`(bool)"si"` y `!empty("false")` dan TRUE). Ante cualquier ambigüedad: false.
+- `preguntasNormalizadas()` conserva el fallback `stripos('RECOMENDADA')` para los items legacy.
+- ⚠️ **Los IDs de pregunta son POSICIONALES** (`q1`, `q2`…). `aplicarPreguntas` conserva las
+  respuestas por ID, así que **re-briefear un item ya respondido pega la respuesta vieja a una
+  pregunta nueva**, con una clave de opción que ya no existe. Por eso el backfill los salta.
+
+### 8.4 Comandos útiles
+
+| Comando | Para qué |
+|---|---|
+| `circuito:autopilot --dry` | **Auditar la política** sin escribir (ignora la pausa a propósito) |
+| `circuito:rebrief-bandeja --solo-resumen` | Checkpoint: cuántos calificarían al autopilot, por nivel |
+| `circuito:rebrief-bandeja --apply` | Backfill de briefs viejos (**exige kill switch activo**) |
+| `circuito:proponer-opciones --todos --apply` | Brief para B/C de la bandeja sin brief |
+
+### 8.5 UI de la Torre (`/releases`)
+
+6 pestañas en `ReleasesIndex.vue` (Panorama, Hoja de ruta, Terminales, Integración, Historial,
+Reporte). El **Panorama** (`TorreControl.vue`) ya no habla de "vuelta": muestra terminales
+trabajando/libres, el **banner del autopilot**, la bandeja **una pregunta a la vez** ("Pregunta X de
+Y", Aprobar deshabilitado hasta responderlas todas) y un **sidebar interno** con bombitas por módulo
+(`GET /api/roadmap/torre/decisiones/contadores`) — ese sidebar es de la pantalla, **no** el sidebar
+global del sistema.
+
+⚠️ **`modulo` es texto libre** y hay *drift* (item #526): ~12 de 20 grupos no mapean a
+`module_sidebar_config`, y hay duplicados (`Auth` vs `Autenticación`). Además de las bombitas, eso
+degrada el pre-filtro de no-colisión, que serializa por ese mismo campo.
+
+---
+
 ## PROTOCOLO DE ACTUALIZACIÓN (para no re-investigar nunca lo mismo)
 
 **Al CERRAR cada sesión, CC debe actualizar este archivo** con lo que cambió:

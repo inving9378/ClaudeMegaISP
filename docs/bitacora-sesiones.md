@@ -573,3 +573,85 @@ Item venía escalado por el revisor + DES-TRABE (decisión UX de librería/alcan
 - Verificado: `php -l` limpio, tinker con datos reales (6 recién resueltos, 4 listos para terminal tras
   filtrar PARKED-PROD), `bash deploy/circuito/npm-build.sh` compiló sin errores.
 - Enlace de revisión: `/releases` → pestaña Torre de Control → sección "Terminales en vivo".
+
+## 2026-08-04 20:35 — Torre: autopilot continuo + reorganización de la UI (#507)
+
+Bloque completo pedido por Irving en documento propio. **Todo en dev/main, sin push, sin prod.**
+Item de coordinación **#507** (`[COORD] Torre — autopilot continuo + reorg UI`, marcado
+`en_desarrollo_humano` + `excluir_pool_automatico` para que el circuito no lo tome).
+
+### Decisiones de Irving en el Paso 0
+1. **Aislamiento:** pausar el circuito durante el trabajo (lo hizo él desde la Torre; el kill switch
+   `setPaused` exige sesión HTTP autenticada — CC no puede tocarlo por CLI, candado #342).
+2. **Tope del autopilot:** A + B reversible. **El nivel C SIEMPRE queda en su bandeja** (respeta la
+   regla dura de CLAUDE.md). El flag `autopilot.max_nivel` queda listo para subirlo a C sin redeploy.
+3. **Reclamo de cola:** conservar flock + UPDATE condicional atómico. **NO** migrar a SKIP LOCKED.
+
+### Hallazgos del Paso 0 que corrigieron el documento
+- **La ejecución continua YA existía** (#334 F1): el cron corre `circuito:scheduler` **cada minuto** y
+  lanza una vuelta POR ITEM en el primer slot libre; `circuito:claim-next` deja que una terminal jale
+  el siguiente al quedar libre. **No había cron de rondas que apagar**: lo que sobrevivía del modelo
+  viejo era la FICCIÓN de "próxima vuelta" en la UI (`circuito.interval_min`, que su propio comentario
+  ya declaraba espejo del crontab y sin control real).
+- `preguntasNormalizadas()` **ya** prefería el bool `recomendada` con fallback a `stripos`.
+- El autopilot ya existía a medias como el **Revisor** (#338), que autoriza B técnicos.
+- **`guard()` NO se relajó** (el documento asumía que bloqueaba el flujo interno): sus únicos
+  consumidores son `RoadmapExternalController` y `RoadmapMcpController` — es la puerta de la vía
+  EXTERNA (token Cowork/MCP). El autopilot es interno y ni la roza; abrirla habría dejado que el token
+  externo apruebe B/C.
+
+### Commits (dev/main)
+| Commit | Sub-paso |
+|---|---|
+| `23ca342a` | 1 — opciones del brief con `recomendada`/`confianza`/`reversible` + `requiere_irving` por pregunta |
+| `05317317` | 2 — `AutopilotService` + flags en `config/circuito.php` + `circuito:autopilot` + enganche |
+| `e8613f67` | 3 — `scopeOrdenCola`, lease `claimed_at`, reaper de dos señales, modo continuo |
+| `24cb27d8` | 5 — `GET /api/roadmap/torre/decisiones/contadores` |
+| `f873930b` | 4 — Panorama continuo, banner autopilot, una pregunta a la vez, sidebar interno |
+| `e920e19c` | backfill `circuito:rebrief-bandeja` + fix de impresión de opciones |
+
+### Piezas clave
+- **`RoadmapItem::boolEstricto`** (no estaba en el plan): la coerción de PHP falla hacia el lado
+  peligroso — `(bool)"si"` y `!empty("false")` dan TRUE. Sin esto, un `"reversible":"si"` del modelo se
+  habría leído como permiso para auto-ejecutar. Ante cualquier ambigüedad: false.
+- **`AutopilotService`**: solo actúa con DATO EXPLÍCITO; ausencia, ambigüedad o error mandan el item a
+  Irving. Reusa `responderPregunta` + los estados que el pool ya reconoce (A→`aprobado_claude`,
+  B→`aprobado_revisor`). Deja rastro en `log` con `decidido_por='autopilot'`, confianza,
+  reversibilidad y **la política vigente al decidir** (para que el histórico siga siendo legible si
+  mañana se afloja el tope).
+- **Lease explícito** (`claimed_at`): lo renueva el latido que ya existía (`circuito:vivo --watch` →
+  `liveBeat`) con un UPDATE crudo que **no toca `updated_at`**, así "sigo vivo" y "escribí en el item"
+  son señales independientes. El reaper ahora exige que **ambas** estén frías: antes mataba workers
+  VIVOS que llevaban 25 min sin escribir en su item.
+- **Orden de cola** (`scopeOrdenCola`, separado de `ordered()` que ordena la bandeja):
+  urgente → por concluirse/reanudables (rama abierta o colisión liberada) → prioridad → antigüedad.
+- **UI**: fuera "Vuelta en curso" (terminales trabajando/libres), banner de autopilot, **una pregunta a
+  la vez** con "Pregunta X de Y" + avance automático al contestar + Aprobar deshabilitado hasta
+  responder todas, y **sidebar interno** (dentro de la pantalla, NO toca el sidebar global) con
+  bombitas por módulo e índice de preguntas. Las 6 pestañas siguen intactas.
+- **Límite de la bandeja 20 → 100**: con las bombitas al lado, una lista truncada a 20 contra un
+  contador de 71 se lee como bug. Medido: traer los 71 cuesta 16 ms, `torre()` completo 157 ms.
+
+### Backfill de briefs — BLOQUEADO (no escribió nada)
+`circuito:rebrief-bandeja` regenera los briefs viejos para poblar `confianza`/`reversible` (sin eso el
+autopilot no puede tocar la bandeja vieja: **0 de 68 califican**). Dos candados:
+1. **No pisa items ya respondidos por Irving** — `aplicarPreguntas` conserva respuestas por ID, pero
+   esos IDs son POSICIONALES (q1, q2…): con un brief nuevo, la respuesta de la vieja q2 se pegaría a
+   otra pregunta y con una clave de opción inexistente. En la bandeja actual protege **31 de 68**.
+2. **Exige el kill switch activo.** Al lanzarlo, el circuito ya había sido **reanudado (20:21:08)** →
+   abortó sin escribir. Pendiente de que Irving vuelva a pausar.
+
+### Pendientes registrados
+- **#526** — drift del campo `modulo` (texto libre): 12 de 20 módulos no mapean a pantalla; duplicados
+  (`Auth` vs `Autenticación`, `Roadmap` vs `Circuito`). Además de las bombitas, degrada el pre-filtro
+  de no-colisión del despachador, que serializa por ese mismo campo.
+- Validación visual de Irving (Panorama, paginación, bombitas) — **no hecha**.
+- Regenerar los briefs viejos (backfill de arriba) cuando se vuelva a pausar.
+
+### Notas de proceso
+- **NUNCA `config:cache`** en este repo (rompe `env()` en runtime): se cerró cada sub-paso con
+  `view:clear && route:clear && config:clear`. El documento pedía `config:cache`; mandó la regla del repo.
+- `php artisan tinker <archivo>` **se cuelga si no se le cierra stdin** (`</dev/null`): se veía como
+  "torre() lentísimo" cuando en realidad esperaba entrada. Medido después: `torre()` = 121-157 ms.
+- Una corrida de `php artisan migrate` se colgó tras aplicar el ALTER; la migración quedó bien
+  (lote 641, sin pendientes, sin locks). Sin diagnóstico; no se repitió.
