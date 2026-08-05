@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Roadmap\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\AutopilotService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
@@ -22,7 +23,8 @@ class RoadmapController extends Controller
         private RoadmapCircuitoService $svc,
         private WatchdogService $watchdog,
         private SupervisorService $supervisor,
-        private SessionTreeService $sessionTree
+        private SessionTreeService $sessionTree,
+        private AutopilotService $autopilot
     ) {
     }
 
@@ -38,8 +40,13 @@ class RoadmapController extends Controller
         // #432 — la bandeja es TODA la estación de decisión (requiere_irving + C sin decidir +
         // [BLOCKED-/PARKED-]), no solo requiere_irving: el supervisor las enruta aquí y ninguna
         // decisión se queda perdida en la Hoja de ruta.
+        // #507 sub-paso 4 — límite 20 → 100: con las bombitas por módulo al lado, una lista truncada
+        // a 20 contra un contador de 71 se lee como un bug, y filtrar por módulo sobre una lista
+        // recortada devolvía menos items de los que anuncia su bombita. Medido en dev: traer los 71
+        // cuesta 16 ms y `torre()` completo 121 ms. Si algún día la bandeja pasa de 100, la UI avisa
+        // que está mostrando N de M en vez de mentir.
         $cola = RoadmapItem::bandeja()
-            ->ordered()->limit(20)->get()
+            ->ordered()->limit(100)->get()
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
                 'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — legacy/fallback (#431)
@@ -170,6 +177,8 @@ class RoadmapController extends Controller
             'scheduler_beat_secs'  => $this->svc->schedulerBeatSecs(),
             'cron_vivo'            => ($s = $this->svc->schedulerBeatSecs()) !== null && $s < 180,
             'auto_ejecutables'     => RoadmapItem::autoEjecutable()->count(),
+            // #507 sub-paso 4 — banner del autopilot: política vigente + qué decidió hoy.
+            'autopilot'            => $this->autopilot->resumen(),
             // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),

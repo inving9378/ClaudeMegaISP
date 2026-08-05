@@ -41,6 +41,26 @@ class AutopilotService
     }
 
     /**
+     * Estado del autopilot para el banner de la Torre (#507 sub-paso 4): la política vigente + qué
+     * decidió hoy. `auto_hoy` se cuenta por `aprobado_por='autopilot'` (lo sella `aplicar`), no
+     * escarbando el JSON del log — es la misma información y no cuesta un scan.
+     */
+    public function resumen(): array
+    {
+        return [
+            'enabled'             => $this->enabled(),
+            'pausado'             => $this->circuito->isPaused(),
+            'continuo'            => $this->circuito->esContinuo(),
+            'max_nivel'           => strtoupper((string) config('circuito.autopilot.max_nivel', 'B')),
+            'umbral_confianza'    => strtolower((string) config('circuito.autopilot.umbral_confianza', 'alta')),
+            'requiere_reversible' => (bool) config('circuito.autopilot.requiere_reversible', true),
+            'ventana_gracia'      => (int) config('circuito.autopilot.ventana_gracia', 0),
+            'auto_hoy'            => RoadmapItem::where('aprobado_por', 'autopilot')
+                                        ->whereDate('revisado_at', today())->count(),
+        ];
+    }
+
+    /**
      * ¿Puede el autopilot decidir este item? EVALÚA SIN ESCRIBIR NADA (lo usa el --dry del comando
      * y la propia `aplicar`). Devuelve:
      *   ['auto' => bool, 'motivo' => 'slug', 'detalle' => 'texto para el log',
