@@ -12,6 +12,7 @@ use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
@@ -211,6 +212,89 @@ class RoadmapController extends Controller
             'supervisor'        => $this->supervisor->estado(),   // Thomas T + su feed (#334)
             'can_disparar'      => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
+    }
+
+    /**
+     * GET /api/roadmap/torre/decisiones/contadores — cuántas decisiones te esperan, POR MÓDULO.
+     * (#507 sub-paso 5) Alimenta las "bombitas" del sidebar interno de la Torre.
+     *
+     * Cuenta EXACTAMENTE lo mismo que la bandeja (`RoadmapItem::bandeja()`) — si los números no
+     * cuadran con la tarjeta "Requiere tu decisión", es un bug, no una diferencia de criterio.
+     *
+     * Normaliza `modulo` con la MISMA `normalizeModulo()`/`moduloUrl()` que usa el resto de la
+     * Torre, para que las claves casen con `module_sidebar_config`. Ojo: `modulo` es texto libre
+     * escrito por el ejecutor, así que dos variantes del mismo módulo pueden no colapsar (deuda de
+     * *drift* registrada en la Hoja de ruta) — por eso `sin_clasificar` va aparte y visible, en vez
+     * de repartirse en silencio.
+     *
+     * Caché corta (45 s): la bandeja no cambia de un segundo a otro y el sidebar la pide seguido.
+     */
+    public function decisionesContadores(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        return response()->json(Cache::remember('roadmap:torre:decisiones-contadores', 45, function () {
+            $items = RoadmapItem::bandeja()->get(['id', 'modulo', 'urgente', 'nivel_riesgo']);
+
+            $grupos = [];
+            $sinClasificar = 0;
+
+            foreach ($items as $i) {
+                $modulo = trim((string) $i->modulo);
+                // Mismo criterio de "footprint desconocido" que usa el despachador.
+                if ($modulo === '' || strcasecmp($modulo, RoadmapCircuitoService::MODULO_DESCONOCIDO) === 0) {
+                    $sinClasificar++;
+                    continue;
+                }
+
+                $base  = trim(explode('/', $modulo)[0]);   // "Roadmap / Torre de control" → "Roadmap"
+                $clave = $this->normalizeModulo($base);
+                if ($clave === '') {
+                    $sinClasificar++;
+                    continue;
+                }
+
+                if (! isset($grupos[$clave])) {
+                    $grupos[$clave] = [
+                        'clave'    => $clave,
+                        'modulo'   => $base,                      // etiqueta legible (la primera que aparece)
+                        'url'      => $this->moduloUrl($modulo),  // null si no mapea a una pantalla
+                        'n'        => 0,
+                        'urgentes' => 0,
+                        'niveles'  => ['A' => 0, 'B' => 0, 'C' => 0],
+                    ];
+                }
+                $grupos[$clave]['n']++;
+                if ($i->urgente) {
+                    $grupos[$clave]['urgentes']++;
+                }
+                if (isset($grupos[$clave]['niveles'][(string) $i->nivel_riesgo])) {
+                    $grupos[$clave]['niveles'][(string) $i->nivel_riesgo]++;
+                }
+            }
+
+            // Más decisiones primero; a igualdad, alfabético (orden estable para la UI).
+            $porModulo = array_values($grupos);
+            usort($porModulo, fn ($a, $b) => [$b['n'], $a['modulo']] <=> [$a['n'], $b['modulo']]);
+
+            // Mapa listo para pintar la bombita junto a su entrada del sidebar: se indexa por
+            // `sidebar_url` (lo que la UI ya tiene a la mano), y solo con los que SÍ mapean.
+            $mapa = [];
+            foreach ($porModulo as $g) {
+                if ($g['url']) {
+                    $mapa[$g['url']] = ($mapa[$g['url']] ?? 0) + $g['n'];
+                }
+            }
+
+            return [
+                'generated_at'   => now()->toIso8601String(),
+                'total'          => $items->count(),
+                'urgentes'       => $items->where('urgente', true)->count(),
+                'por_modulo'     => $porModulo,
+                'mapa'           => $mapa,
+                'sin_clasificar' => $sinClasificar,
+            ];
+        }));
     }
 
     /**

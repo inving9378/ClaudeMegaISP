@@ -81,6 +81,8 @@ Route::middleware(['web', 'auth'])
         Route::get('/torre',               [RoadmapController::class, 'torre']);
         // Estado en vivo ligero para el polling de la Torre (#335).
         Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);
+        // Contadores de decisiones por módulo — "bombitas" del sidebar interno de la Torre (#507).
+        Route::get('/torre/decisiones/contadores', [RoadmapController::class, 'decisionesContadores']);
         // Árbol de sesiones `claude` vivas en el box + banner de colisión (#345). Solo backend
         // por ahora (endpoint de lectura); panel Vue de la Torre queda para una siguiente entrega.
         Route::get('/circuito/sesiones',   [RoadmapController::class, 'sesiones']);
