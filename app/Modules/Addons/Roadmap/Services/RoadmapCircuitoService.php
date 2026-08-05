@@ -1382,6 +1382,14 @@ class RoadmapCircuitoService
         }
         $claimed = DB::table('roadmap_items')
             ->where('id', $id)
+            // #507 — CANDADO ATÓMICO anti-reclamo de un item parqueado. El candidato ya viene filtrado
+            // por `elegibleParaPool`, pero el UPDATE lo re-garantiza: entre el SELECT y el UPDATE el
+            // item pudo quedar parqueado (otro worker lo cerró a esperando-merge, o el anti-bucle lo
+            // sacó). Sin esto, la carrera devuelve un item que nadie debía tocar.
+            ->where(fn ($q) => $q->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
+            ->where(fn ($q) => $q->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
+            ->where('title', 'not like', '%[BLOCKED-%')
+            ->where('title', 'not like', '%[PARKED-%')
             ->where(function ($q) {
                 $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
                     ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
@@ -1455,10 +1463,22 @@ class RoadmapCircuitoService
         }
         $revisor          = $this->revisorEnabled();
         $unknownEnVuelo   = $this->desconocidoEnVuelo();
+        // Tope de nivel vigente del autopilot (A < B < C) → niveles admisibles para lo aprobado
+        // automáticamente. Con tope 'C' (política actual) esto es un no-op; si Irving lo baja a 'B',
+        // el pool deja de despachar C auto-aprobados sin tocar nada más.
+        $tope             = strtoupper((string) config('circuito.autopilot.max_nivel', 'B'));
+        $idxTope          = array_search($tope, ['A', 'B', 'C'], true);
+        $nivelesTope      = array_slice(['A', 'B', 'C'], 0, $idxTope === false ? 2 : $idxTope + 1); // valor raro → default 'B'
 
         $rows = RoadmapItem::query()
             ->tomablePorCircuito()
-            ->where('title', 'not like', '%[PARKED-PROD%')   // frontera dura de prod → nunca en paralelo
+            // #507 — FUGA DEL POOL DE RECLAMO: antes solo se excluía [PARKED-PROD], así que un
+            // [BLOCKED-NEGOCIO] aprobado, un item parqueado esperando el merge de Irving o uno ya
+            // marcado por el anti-bucle SEGUÍAN siendo reclamables: el worker lo tomaba, leía el
+            // rótulo, lo re-escalaba sin ejecutar y volvía a la bandeja → se aprobaba otra vez y a
+            // empezar (#117 dio 13 vueltas, #99 dieciséis). Cada vuelta quema un slot y tokens para
+            // no hacer nada. Desbloquear = QUITAR el rótulo / mergear / destrabar, nunca re-aprobar.
+            ->elegibleParaPool()
             ->where(function ($w) use ($revisor) {
                 // A auto-aprobado por el circuito
                 $w->where(function ($x) {
@@ -1476,6 +1496,15 @@ class RoadmapCircuitoService
                 if ($revisor) {
                     $w->orWhere('estado_aprobacion', 'aprobado_revisor');
                 }
+            })
+            // #507 — TOPE DE NIVEL: un item que solo trae aprobación AUTOMÁTICA (autopilot/revisor)
+            // no puede estar por encima del tope vigente del autopilot. La aprobación EXPLÍCITA de
+            // Irving (`aprobado_irving`) siempre pasa: el tope gobierna lo que la máquina decide
+            // sola, no lo que él autoriza a mano.
+            ->where(function ($w) use ($nivelesTope) {
+                $w->whereIn('nivel_riesgo', $nivelesTope)
+                    ->orWhereNull('nivel_riesgo')
+                    ->orWhere('estado_aprobacion', 'aprobado_irving');
             })
             ->whereNotIn('status', ['done'])
             // #507 sub-paso 3 — orden de la COLA (urgente → por concluirse/reanudables → antigüedad),

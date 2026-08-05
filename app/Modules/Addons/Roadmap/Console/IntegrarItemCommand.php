@@ -55,16 +55,32 @@ class IntegrarItemCommand extends Command
         // on-box (meganet) en el checkout principal, serializado y con verificación de regresión.
 
         // Nivel C nunca se auto-integra (solo Irving con el botón / --force).
+        // #507 — Si la rama TRAE CONTENIDO (trabajo terminado), el item pasa a un estado TERMINAL de
+        // despacho: `esperando_merge_irving` (fuera del pool, fuera de la bandeja) en vez de volver a
+        // `requiere_irving`, que lo devolvía al churn: bandeja → Irving re-aprueba → worker lo toma →
+        // no puede mergear → bandeja otra vez (el #117 dio 13 vueltas así). Si la rama está VACÍA
+        // (el worker se rehusó a ejecutar) no hay nada que mergear → sí es decisión de Irving.
         if ($item->nivel_riesgo === 'C' && ! $force) {
-            $item->estado_aprobacion = 'requiere_irving';
-            $item->save();
-            $this->warn("Item #{$item->id} es nivel C: NO se auto-integra; requiere el merge de Irving. Item → requiere_irving.");
+            if ($this->ramaTieneContenido($branch)) {
+                $this->parquearEsperandoMerge($item, "nivel C con trabajo terminado en {$branch}");
+                $this->warn("Item #{$item->id} (nivel C) terminado → ESPERANDO TU MERGE. Sale del pool; ya no se re-despacha ni vuelve a la bandeja.");
+            } else {
+                $item->estado_aprobacion = 'requiere_irving';
+                $item->save();
+                $this->warn("Item #{$item->id} (nivel C) tiene rama SIN contenido (nada que mergear) → requiere_irving.");
+            }
             return self::SUCCESS;
         }
 
         // Toggle OFF (manual): el ejecutor NO encola; la rama espera el botón de Irving en la Torre.
+        // #507 — mismo trato que el C: con contenido, se parquea fuera del pool.
         if (! $force && ! $svc->autoMergeOn()) {
-            $this->warn("Auto-merge OFF: la rama {$branch} NO se integra sola; espera el ✓ de Irving en la Torre.");
+            if ($this->ramaTieneContenido($branch)) {
+                $this->parquearEsperandoMerge($item, "auto-merge OFF, rama {$branch} terminada");
+                $this->warn("Auto-merge OFF: rama {$branch} terminada → ESPERANDO TU MERGE (fuera del pool).");
+            } else {
+                $this->warn("Auto-merge OFF: la rama {$branch} no tiene contenido; no se parquea. Espera revisión de Irving.");
+            }
             return self::SUCCESS;
         }
 
@@ -72,6 +88,34 @@ class IntegrarItemCommand extends Command
         $svc->enqueueMerge($item->id, $force ? 'boton' : 'ejecutor', $force ? 'boton' : 'auto');
         $this->info("Merge de la rama {$branch} ENCOLADO (lo aplica el runner on-box en el principal). Item #{$item->id}.");
         return self::SUCCESS;
+    }
+
+    /**
+     * #507 — Parquea el item en el estado terminal de despacho "esperando el merge de Irving":
+     * conserva la autorización (`aprobado_irving`, no es una decisión pendiente) y lo saca del pool.
+     * Solo lo revive el merge (MergeRunner → `completado` con merge_commit) o Irving a mano.
+     */
+    private function parquearEsperandoMerge(RoadmapItem $item, string $motivo): void
+    {
+        $item->estado_aprobacion       = 'aprobado_irving';
+        $item->esperando_merge_irving  = true;
+        $item->decision_resuelta       = true;
+        $item->excluir_pool_automatico = true;
+        $item->worker_sid              = null;
+        $item->motivo_bloqueo          = "Esperando merge de Irving ({$motivo}).";
+        $item->save();
+    }
+
+    /**
+     * #507 — ¿la rama aporta CONTENIDO real sobre main (≥1 commit propio)? Los refs viven en el
+     * object-store compartido, así que resuelve igual desde cualquier worktree. Si git falla (rama
+     * perdida, etc.) devuelve false: conservador, no parquea como "listo para merge" algo dudoso.
+     */
+    private function ramaTieneContenido(string $branch): bool
+    {
+        $p = $this->git(['rev-list', '--count', 'main..' . $branch]);
+
+        return $p->isSuccessful() && (int) trim($p->getOutput()) > 0;
     }
 
     private function git(array $args): Process

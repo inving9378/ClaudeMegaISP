@@ -26,6 +26,9 @@ class DestrabeCommand extends Command
         $items = RoadmapItem::where('estado_aprobacion', 'requiere_irving')
             ->whereNotIn('status', ['done', 'cancelado'])
             ->where('en_desarrollo_humano', false)
+            // #507 — NUNCA re-aprobar al pool un item parqueado (espera-merge / anti-bucle) ni uno
+            // rotulado: eso era una de las puertas por las que el churn volvía a arrancar.
+            ->elegibleParaPool()
             ->where(function ($q) {
                 $q->whereNull('comentarios_claude')->orWhere('comentarios_claude', 'not like', '%DES-TRABE (Opus)%');
             })

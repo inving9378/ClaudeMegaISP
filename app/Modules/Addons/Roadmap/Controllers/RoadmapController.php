@@ -432,6 +432,10 @@ class RoadmapController extends Controller
             'respuestas'     => ['sometimes', 'array'],
             'respuestas.*'   => ['nullable', 'string', 'max:2000'],
             'comentario'     => ['sometimes', 'nullable', 'string', 'max:10000'],
+            // #507 — destrabe explícito: re-aprobar un item PARQUEADO (espera-merge / anti-bucle)
+            // limpiando su parqueo. Sin esto, aprobarlo otra vez sería un no-op que solo reabriría
+            // el ciclo de re-despacho.
+            'forzar'         => ['sometimes', 'boolean'],
         ]);
 
         $item = RoadmapItem::find($data['id']);
@@ -469,6 +473,37 @@ class RoadmapController extends Controller
                     'preguntas_pendientes' => $pend,
                 ], 422);
             }
+        }
+
+        // #507 — GUARD ANTI-RE-APROBACIÓN. Un item PARQUEADO (trabajo terminado esperando merge, o
+        // sacado del pool por el anti-bucle) ya no se destraba aprobándolo: aprobarlo otra vez es
+        // justo lo que alimentaba el ciclo (#117: 13 aprobaciones idénticas, ninguna cambió nada).
+        // Se responde qué acción SÍ lo mueve. `forzar=true` limpia el parqueo a propósito.
+        $parqueado = (bool) $item->esperando_merge_irving || (bool) $item->bloqueado_por_bucle;
+        if ($data['accion'] === 'aprobar' && $parqueado) {
+            if (! ($data['forzar'] ?? false)) {
+                return response()->json([
+                    'ok'    => false,
+                    'code'  => $item->esperando_merge_irving ? 'esperando_merge' : 'bloqueado_por_bucle',
+                    'error' => $item->esperando_merge_irving
+                        ? 'Este item YA está terminado y solo espera tu merge — aprobarlo otra vez no lo mueve. Usa "Mergear" (o circuito:integrar --force).'
+                        : ('Item fuera del pool por anti-bucle: ' . ($item->motivo_bloqueo ?: 'se re-escaló por la misma causa varias veces')
+                            . ' Aprobarlo igual reabre el ciclo; cambia algo material (decisión, alcance, rama) o vuelve a enviarlo con forzar=true.'),
+                    'motivo_bloqueo' => $item->motivo_bloqueo,
+                ], 422);
+            }
+            // Destrabe explícito de Irving: limpia el parqueo y lo devuelve al pool.
+            $item->esperando_merge_irving   = false;
+            $item->bloqueado_por_bucle      = false;
+            $item->excluir_pool_automatico  = false;
+            $item->escalaciones_fingerprint = null;
+            $item->motivo_bloqueo           = null;
+        }
+
+        // #507 — el cierre/cancelación MANUAL de Irving se respeta tal cual (el guard del modelo no
+        // debe reruteárselo a "esperando merge": él decidió cerrarlo sin merge).
+        if (in_array($data['accion'], ['cerrar', 'cancelar'], true)) {
+            $item->cierreManualIrving = true;
         }
 
         $nuevoEstado = match ($data['accion']) {
@@ -520,9 +555,19 @@ class RoadmapController extends Controller
             'estado' => $nuevoEstado,
         ]);
 
+        // #507 — aprobar un item ROTULADO no lo despacha (frontera dura: el pool excluye
+        // [BLOCKED-…]/[PARKED-…]). Se aprueba igual —la decisión queda registrada— pero se avisa cuál
+        // es la acción que de verdad lo destraba: QUITAR el rótulo del título.
+        $aviso = null;
+        if ($data['accion'] === 'aprobar' && $item->tieneRotuloBloqueo()) {
+            $aviso = 'Aprobado, pero el título lleva rótulo [BLOCKED-…]/[PARKED-…]: el circuito NO lo va a tomar. '
+                . 'Para desbloquearlo, quítale el rótulo al título.';
+        }
+
         return response()->json([
-            'ok'   => true,
-            'item' => [
+            'ok'    => true,
+            'aviso' => $aviso,
+            'item'  => [
                 'id'                => $item->id,
                 'estado_aprobacion' => $item->estado_aprobacion,
                 'opcion_elegida'    => $item->opcion_elegida,

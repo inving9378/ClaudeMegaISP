@@ -41,6 +41,9 @@ class RoadmapItem extends Model
         // FASE 1 — Validación funcional por Irving (revisa el resultado, no el código)
         'validacion_funcional_requerida', 'pendiente_validacion_irving', 'validado_por_irving',
         'validado_at', 'validado_por', 'comentario_validacion', 'revision_tecnica', 'validacion_brief',
+        // #507 anti-bucle — parqueo de items que YA no son ejecutables por un worker
+        'excluir_pool_automatico', 'decision_resuelta', 'requiere_sesion_supervisada',
+        'bloqueado_por_bucle', 'motivo_bloqueo', 'escalaciones_fingerprint', 'esperando_merge_irving',
     ];
 
     protected $casts = [
@@ -66,6 +69,13 @@ class RoadmapItem extends Model
         'revision_tecnica'               => 'boolean',
         'validado_at'                    => 'datetime',
         'validacion_brief'               => 'array',
+        // #507 anti-bucle
+        'excluir_pool_automatico'     => 'boolean',
+        'decision_resuelta'           => 'boolean',
+        'requiere_sesion_supervisada' => 'boolean',
+        'bloqueado_por_bucle'         => 'boolean',
+        'esperando_merge_irving'      => 'boolean',
+        'escalaciones_fingerprint'    => 'array',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
@@ -83,10 +93,25 @@ class RoadmapItem extends Model
         'cancelado',
     ];
 
+    /**
+     * #507 anti-bucle — si la MISMA causa de escalación se repite esta cantidad de veces sin que
+     * cambie nada material (rama, opción elegida, nivel, preguntas), el item sale del pool
+     * automático (`bloqueado_por_bucle`) y deja de quemar workers. Sigue visible para Irving.
+     */
+    public const ESCALACION_BUCLE_UMBRAL = 3;
+
     protected $attributes = [
         'subtasks' => '[]',
         'log'      => '[]',
     ];
+
+    /**
+     * #507 — bandera TRANSITORIA (no persistida, propiedad PHP real): la activa SOLO el cierre
+     * MANUAL de Irving (`RoadmapController::decidir` accion=cerrar/cancelar) para permitir cerrar un
+     * nivel C con rama sin merge. Sin ella, el guard de abajo retendría ese cierre en
+     * `esperando_merge_irving`.
+     */
+    public bool $cierreManualIrving = false;
 
     public static function currentInProgress(): ?self
     {
@@ -119,6 +144,39 @@ class RoadmapItem extends Model
                 } elseif ($item->status === 'cancelled') {
                     $item->estado_aprobacion = 'cancelado';
                 }
+            }
+        });
+
+        // #507 anti-bucle — DEBE ir ANTES del guard #420 de abajo: si reruteamos un cierre optimista
+        // de nivel C a "esperando merge", el #420 (que reacciona a estado==='completado') ya no debe
+        // forzarle status=done.
+        static::saving(function (self $item) {
+            // (1) Un nivel C CON rama que intenta cerrar a 'completado' SIN merge real
+            // (merge_commit vacío) NO está terminado: su trabajo espera el merge MANUAL de Irving.
+            // Se PARQUEA (esperando_merge_irving + fuera del pool) en vez de cerrarse o volver a la
+            // bandeja. El MergeRunner —único que trae merge_commit— sí lo cierra a completado.
+            // El cierre MANUAL de Irving se respeta ($cierreManualIrving).
+            if ($item->isDirty('estado_aprobacion')
+                && $item->estado_aprobacion === 'completado'
+                && ! $item->cierreManualIrving
+                && empty($item->merge_commit)
+                && $item->nivel_riesgo === 'C'
+                && ! empty($item->branch)) {
+                $item->estado_aprobacion       = 'aprobado_irving';   // sigue autorizado; NO es bandeja
+                $item->esperando_merge_irving  = true;
+                $item->decision_resuelta       = true;
+                $item->excluir_pool_automatico = true;
+                $item->status                  = 'pending';
+            }
+
+            // (2) Al ENTRAR a requiere_irving por cualquier camino automático, cuenta repeticiones de
+            // la MISMA causa. Si se repite ESCALACION_BUCLE_UMBRAL veces sin cambio material, sale
+            // del pool (sigue en la bandeja, pero ningún worker lo re-toma).
+            if ($item->exists
+                && $item->isDirty('estado_aprobacion')
+                && $item->estado_aprobacion === 'requiere_irving'
+                && $item->getOriginal('estado_aprobacion') !== 'requiere_irving') {
+                $item->contarEscalacion();
             }
         });
 
@@ -189,6 +247,69 @@ class RoadmapItem extends Model
         }
 
         return false;
+    }
+
+    // ── #507 anti-bucle — un item YA decidido nunca vuelve al pool de reclamo ────────────────────
+
+    /** ¿El título lleva rótulo de frontera dura ([BLOCKED-…] / [PARKED-…])? */
+    public function tieneRotuloBloqueo(): bool
+    {
+        return (bool) preg_match('/\[(BLOCKED|PARKED)-/i', (string) $this->title);
+    }
+
+    /**
+     * Huella ESTABLE de la causa de escalación: deriva de lo MATERIAL (rama, opción elegida, nivel,
+     * preguntas). No incluye timestamps ni prosa que crece cada vuelta → dos escalaciones "por lo
+     * mismo" comparten huella; un cambio real (otra opción, código en otra rama, preguntas nuevas)
+     * la cambia y REINICIA el contador.
+     */
+    public function escalacionFingerprint(): string
+    {
+        return substr(sha1(implode('|', [
+            (string) $this->branch,
+            (string) $this->opcion_elegida,
+            (string) $this->nivel_riesgo,
+            $this->preguntas ? json_encode($this->preguntas) : '',
+        ])), 0, 40);
+    }
+
+    /**
+     * Registra UNA escalación y aplica el anti-bucle. Huella igual a la previa → incrementa; distinta
+     * → reinicia a 1. Al llegar al umbral marca `bloqueado_por_bucle` + `excluir_pool_automatico`.
+     * SOLO muta atributos (se persiste en el save en curso); nunca guarda por su cuenta.
+     */
+    public function contarEscalacion(): void
+    {
+        $fp     = $this->escalacionFingerprint();
+        $estado = is_array($this->escalaciones_fingerprint) ? $this->escalaciones_fingerprint : [];
+        $n      = (($estado['fingerprint'] ?? null) === $fp) ? ((int) ($estado['count'] ?? 0)) + 1 : 1;
+
+        $this->escalaciones_fingerprint = ['fingerprint' => $fp, 'count' => $n, 'ultima' => now()->toIso8601String()];
+
+        if ($n >= self::ESCALACION_BUCLE_UMBRAL) {
+            $this->bloqueado_por_bucle     = true;
+            $this->excluir_pool_automatico = true;
+            if (trim((string) $this->motivo_bloqueo) === '') {
+                $this->motivo_bloqueo = "Anti-bucle: {$n} escalaciones seguidas por la MISMA causa sin cambio material. "
+                    . 'Fuera del pool automático hasta que cambie algo (decisión, rama, alcance) o lo destrabes a mano.';
+            }
+        }
+    }
+
+    /**
+     * GUARD ÚNICO de despacho: qué puede reclamar un worker. Un proceso automático (scheduler /
+     * claim-next / destrabe / priorizar) SOLO toca items que no esperan una acción HUMANA.
+     * Excluye: parqueados esperando merge manual, excluidos del pool (sesión supervisada, bucle) y
+     * los rotulados [BLOCKED-…]/[PARKED-…] (frontera dura: desbloquear = QUITAR el rótulo, no
+     * aprobar con el rótulo puesto).
+     */
+    public function scopeElegibleParaPool($query)
+    {
+        return $query
+            ->where(fn ($q) => $q->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
+            ->where(fn ($q) => $q->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
+            ->where('title', 'not like', '%[BLOCKED-%')
+            ->where('title', 'not like', '%[PARKED-%');
     }
 
     /**
@@ -473,6 +594,7 @@ class RoadmapItem extends Model
     {
         return $query->where('status', 'pending')
                      ->tomablePorCircuito()
+                     ->elegibleParaPool()   // #507: nunca un item parqueado (espera-merge / bucle / rotulado)
                      ->whereNotIn('estado_aprobacion', ['requiere_irving', 'rechazado', 'completado', 'cancelado'])
                      ->where(function ($q) {
                          $q->whereIn('nivel_riesgo', ['A', 'B'])
@@ -568,6 +690,11 @@ class RoadmapItem extends Model
             || $this->status === 'in_progress'
             || (bool) $this->en_desarrollo_humano) {
             return 'terminal';
+        }
+        // #507 — parqueado esperando el merge de Irving: vive SOLO en Integración. Va ANTES de la
+        // bandeja: aunque sea C, ya NO es una decisión pendiente (el trabajo está hecho).
+        if ((bool) $this->esperando_merge_irving) {
+            return 'integracion';
         }
         // Bandeja (decisión) ANTES que integración: un item con rama vieja que rebotó a Irving
         // (requiere_irving / conflicto) SIGUE siendo una decisión, no integración.

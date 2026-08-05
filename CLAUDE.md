@@ -28,6 +28,14 @@ Ante la duda, elegir el nivel **más restrictivo**.
 **Reglas de ejecución:**
 - **Modo automático SOLO** si `estado_aprobacion = aprobado_claude` **Y** `nivel_riesgo = A`.
 - **Nivel B**: solo en sesión con Irving confirmando. **Nivel C**: jamás sin decisión de Irving.
+- ⚠️ **ACTUALIZACIÓN 2026-08-04 (#507) — el AUTOPILOT modifica las dos reglas de arriba.** Decisión
+  explícita de Irving (máxima autonomía): el autopilot puede decidir **hasta nivel C** por su cuenta,
+  pero **solo** si el brief del Revisor trae, para la opción recomendada, `confianza: "alta"` **y**
+  `reversible: true` **explícitos**, y ninguna pregunta marcada `requiere_irving`. Todo lo demás
+  —irreversible, sin el dato, o rotulado `[BLOCKED-]`/`[PARKED-]`— **sigue yendo a su bandeja**.
+  Configurable sin redeploy en `config/circuito.php` → `autopilot.*` (`max_nivel` = `C`);
+  bajarlo a `B` o `A`, o `autopilot.enabled = false`, restaura el comportamiento anterior.
+  El **kill switch** (`circuito_pausado`, botón de la Torre) sigue frenando todo. Ver `CONTEXTO-MEGAISP.md` §8.
 - Al trabajar un item: `estado_aprobacion = en_progreso` al arrancar → `completado` al cerrar,
   **con el hash del commit referenciado en el item** (campo `log` o `comentarios_claude`).
 
