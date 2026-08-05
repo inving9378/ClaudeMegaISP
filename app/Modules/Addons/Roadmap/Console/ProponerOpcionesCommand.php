@@ -87,9 +87,23 @@ class ProponerOpcionesCommand extends Command
                     continue;
                 }
                 foreach ($pregs as $pg) {
-                    $this->line('  ▸ ' . ($pg['pregunta'] ?: '(decisión)') . ($pg['fase'] ? "  [{$pg['fase']}]" : ''));
+                    $this->line('  ▸ ' . ($pg['pregunta'] ?: '(decisión)') . ($pg['fase'] ? "  [{$pg['fase']}]" : '')
+                        . (! empty($pg['requiere_irving']) ? '  [decide Irving]' : ''));
                     foreach ($pg['opciones'] as $op) {
-                        $this->line('      • ' . $op);
+                        // #507 sub-paso 1 — cada opción es un OBJETO {texto,recomendada,confianza,
+                        // reversible}, ya no un string: concatenarla directo imprimía "Array".
+                        $meta = [];
+                        if (! empty($op['recomendada'])) {
+                            $meta[] = 'RECOMENDADA';
+                        }
+                        if (! empty($op['confianza'])) {
+                            $meta[] = 'confianza ' . $op['confianza'];
+                        }
+                        if (($op['reversible'] ?? null) !== null) {
+                            $meta[] = $op['reversible'] ? 'reversible' : 'no reversible';
+                        }
+                        $this->line('      • ' . ($op['texto'] ?? '')
+                            . ($meta ? '  [' . implode(' · ', $meta) . ']' : ''));
                     }
                 }
                 if (! $apply) {

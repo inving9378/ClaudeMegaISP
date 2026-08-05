@@ -44,6 +44,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\BackfillReporteColoquialCommand::class,
                 // Autopilot: decide solo lo respaldado, deja a Irving lo indispensable (#507)
                 \App\Modules\Addons\Roadmap\Console\AutopilotCommand::class,
+                // Backfill de briefs de la bandeja para poblar confianza/reversible (#507)
+                \App\Modules\Addons\Roadmap\Console\RebriefBandejaCommand::class,
             ]);
         }
     }
