@@ -116,7 +116,9 @@ class SchedulerCommand extends Command
                         $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
                             ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
                     })
-                    ->update(['estado_aprobacion' => 'en_progreso', 'worker_sid' => "wt-{$slot}", 'updated_at' => now()]);
+                    // #507 sub-paso 3 — `claimed_at` sella el lease del slot (lo renueva el latido).
+                    ->update(['estado_aprobacion' => 'en_progreso', 'worker_sid' => "wt-{$slot}",
+                        'claimed_at' => now(), 'updated_at' => now()]);
                 if ($claimed !== 1) {
                     continue; // ya lo tomó otro
                 }

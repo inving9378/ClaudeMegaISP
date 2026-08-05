@@ -4,8 +4,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Intervalo del cron del Circuito (espejo, NO controla el cron real)
+    | Modo CONTINUO — sin rondas (#507 sub-paso 3)
     |--------------------------------------------------------------------------
+    |
+    | El circuito ya NO trabaja por rondas con ventana de tiempo: `circuito:scheduler` corre cada
+    | minuto y lanza una vuelta POR ITEM en el primer slot libre, y una terminal que termina jala el
+    | siguiente de la cola (`circuito:claim-next`) sin esperar a nadie.
+    |
+    | Con esto en true la Torre deja de anunciar "próxima vuelta" (ver `proximaVueltaAt`), que era
+    | una ficción heredada del modelo viejo. Ponerlo en false revive esa estimación.
+    |
+    */
+    'continuo' => (bool) env('CIRCUITO_CONTINUO', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Intervalo del cron del Circuito — DEPRECADO (#507 sub-paso 3)
+    |--------------------------------------------------------------------------
+    |
+    | DEPRECADO: solo se usa si `continuo` está en false. Ya no describe cómo trabaja el circuito
+    | (el cron real dispara cada minuto, no cada 30). Se conserva para poder volver atrás.
     |
     | Espejo del crontab del ejecutor on-box (cada 30 min: la línea "cada-30" que corre
     | vuelta.sh). La Torre lo usa SOLO para estimar "próxima vuelta". Cambiarlo en el cron

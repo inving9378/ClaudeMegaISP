@@ -21,13 +21,24 @@ class ReapStuckCommand extends Command
     public function handle(): int
     {
         $mins = max(5, (int) $this->option('minutes'));
+        $corte = now()->subMinutes($mins);
+
+        // #507 sub-paso 3 — LEASE EXPLÍCITO: se libera solo si AMBAS señales están frías, el latido
+        // del worker (`claimed_at`, que renueva `circuito:vivo --watch`) y cualquier escritura sobre
+        // el item (`updated_at`). Antes bastaba con `updated_at`, y eso mataba workers VIVOS que
+        // simplemente llevaban rato sin escribir en el item. Los items reclamados antes de que
+        // existiera la columna traen `claimed_at` null y se evalúan como siempre (solo updated_at).
         $stuck = RoadmapItem::where('estado_aprobacion', 'en_progreso')
             ->where('en_desarrollo_humano', false)
-            ->where('updated_at', '<', now()->subMinutes($mins))
+            ->where('updated_at', '<', $corte)
+            ->where(function ($q) use ($corte) {
+                $q->whereNull('claimed_at')->orWhere('claimed_at', '<', $corte);
+            })
             ->get();
 
         foreach ($stuck as $i) {
             $i->estado_aprobacion  = 'requiere_irving';
+            $i->claimed_at         = null;   // el lease muere con el reclamo que lo sostenía
             $i->comentarios_claude = (string) $i->comentarios_claude
                 . "\n[reaper] worker murió/timeout con el item en en_progreso ({$i->updated_at->diffForHumans()}) → liberado a tu bandeja para revisión.";
             $i->save();

@@ -651,6 +651,31 @@ class RoadmapCircuitoService
         }
 
         $this->writeLive($sid, $d);
+
+        // #507 sub-paso 3 — el latido RENUEVA el lease del item que trabaja este worker. Se escribe
+        // con un UPDATE crudo a propósito: NO toca `updated_at`, para que "sigo vivo" (claimed_at) y
+        // "escribí algo en el item" (updated_at) queden como dos señales independientes — el reaper
+        // exige que ambas estén frías antes de dar por muerto al worker.
+        $this->renovarLease($sid);
+    }
+
+    /**
+     * Renueva el lease del item reclamado por este worker. Best-effort: un fallo aquí no debe tumbar
+     * el latido (la Torre seguiría mostrando la vuelta viva; a lo sumo el reaper la libera después).
+     */
+    public function renovarLease(string $sid): void
+    {
+        if (! $this->normalizaSid($sid)) {
+            return;   // 'main'/'wt-exec' y demás sesiones sin slot no tienen lease que renovar
+        }
+        try {
+            DB::table('roadmap_items')
+                ->where('worker_sid', $sid)
+                ->where('estado_aprobacion', 'en_progreso')
+                ->update(['claimed_at' => now()]);
+        } catch (\Throwable $e) {
+            // best-effort
+        }
     }
 
     /** Marca el FIN de la vuelta de la sesión $sid (deja de reportar "corriendo"). */
@@ -929,12 +954,27 @@ class RoadmapCircuitoService
         return RoadmapItem::whereIn('id', $ids)->pluck('title', 'id')->toArray();
     }
 
+    /** #507 sub-paso 3 — ¿el circuito corre en modo CONTINUO (sin rondas)? Flag reversible. */
+    public function esContinuo(): bool
+    {
+        return (bool) config('circuito.continuo', true);
+    }
+
     /**
      * Próxima vuelta estimada a partir del intervalo del cron (config `circuito.interval_min`,
      * ESPEJO del crontab cada-30-min). No controla el cron real; solo informa a la Torre.
+     *
+     * #507 sub-paso 3 — En modo CONTINUO devuelve null: no hay "próxima vuelta" que anunciar porque
+     * no hay rondas. Las terminales jalan trabajo en cuanto quedan libres, así que la pregunta útil
+     * dejó de ser "¿cuándo es la próxima vuelta?" y pasó a ser "¿qué está corriendo ahora?" (el
+     * panel de Terminales del sub-paso 4). Apagar `circuito.continuo` devuelve la estimación vieja.
      */
-    public function proximaVueltaAt(): string
+    public function proximaVueltaAt(): ?string
     {
+        if ($this->esContinuo()) {
+            return null;
+        }
+
         $min = (int) config('circuito.interval_min', 30);
         if ($min < 1 || $min > 60) {
             $min = 30;
@@ -1334,7 +1374,9 @@ class RoadmapCircuitoService
             return null;
         }
         $id = (int) $items[0]['id'];
-        $update = ['estado_aprobacion' => 'en_progreso', 'updated_at' => now()];
+        // #507 sub-paso 3 — sella el LEASE al reclamar: a partir de aquí el worker debe renovarlo
+        // con su latido (liveBeat) o el reaper libera el item.
+        $update = ['estado_aprobacion' => 'en_progreso', 'claimed_at' => now(), 'updated_at' => now()];
         if ($sid = $this->normalizaSid($workerSid)) {
             $update['worker_sid'] = $sid;   // firma del worker (#334 A)
         }
@@ -1436,7 +1478,9 @@ class RoadmapCircuitoService
                 }
             })
             ->whereNotIn('status', ['done'])
-            ->ordered()
+            // #507 sub-paso 3 — orden de la COLA (urgente → por concluirse/reanudables → antigüedad),
+            // no el de la bandeja: una terminal libre debe cerrar lo empezado antes de abrir nuevos.
+            ->ordenCola()
             ->limit(200)
             ->get(['id', 'modulo']);
 

@@ -632,6 +632,28 @@ class RoadmapItem extends Model
                      ->when(! empty($enCurso), fn ($q) => $q->whereNotIn('id', $enCurso));
     }
 
+    /**
+     * #507 sub-paso 3 — ORDEN DE LA COLA DE EJECUCIÓN (distinto del de la bandeja, `ordered`).
+     * En el pool continuo, cada terminal que queda libre jala el siguiente de aquí:
+     *   1. 🔥 `urgente` — la palanca dura de Irving, salta toda la fila.
+     *   2. POR CONCLUIRSE / REANUDABLES — items que ya tienen trabajo hecho: rama abierta
+     *      (`branch`) o pausados por colisión y ya liberados (`colision_pausada_por`). Cerrar lo
+     *      empezado antes de abrir frentes nuevos evita acumular ramas a medias, que es lo que
+     *      después choca en el merge.
+     *   3. prioridad declarada (alta → media → baja → sin prioridad).
+     *   4. más antiguos primero (`position`, `id`).
+     * Se mantiene aparte de `ordered()` a propósito: ese ordena lo que Irving VE en la bandeja y no
+     * debe cambiar porque cambie la política de despacho.
+     */
+    public function scopeOrdenCola($query)
+    {
+        return $query->orderByDesc('urgente')
+                     ->orderByRaw('CASE WHEN branch IS NOT NULL OR colision_pausada_por IS NOT NULL THEN 0 ELSE 1 END')
+                     ->orderByRaw("FIELD(priority,'baja','media','alta') DESC")
+                     ->orderBy('position')
+                     ->orderBy('id');
+    }
+
     public function scopeOrdered($query)
     {
         // Orden efectivo de la cola (#348): 🔥 urgentes primero → prioridad (alta→media→baja,
