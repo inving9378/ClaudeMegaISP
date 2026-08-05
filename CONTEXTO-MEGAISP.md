@@ -279,8 +279,9 @@ Cadena de triaje, de más automático a más humano:
 2. **Autopilot** (#507, `AutopilotService`): corre **al escribirse cada brief**
    (`RevisorService::aplicarPreguntas` → `intentar()`, best-effort). Toma la opción `recomendada`
    solo si hay **dato explícito**: `confianza >= umbral` y (nivel A **o** `reversible === true`).
-   Config en `config/circuito.php` → `autopilot.*` (`max_nivel` **B** por decisión de Irving,
-   `umbral_confianza` alta, `requiere_reversible` true, `ventana_gracia` 0).
+   Config en `config/circuito.php` → `autopilot.*` (`max_nivel` **C** desde 2026-08-04 por decisión
+   de Irving —máxima autonomía—, `umbral_confianza` alta, `requiere_reversible` true,
+   `ventana_gracia` 0).
    Escribe A→`aprobado_claude`, B→`aprobado_revisor`, y deja rastro en `log` con
    `decidido_por='autopilot'` + la política vigente al decidir.
    **Kill switch = el de siempre** (`circuito_pausado`): en pausa no decide nada.
@@ -293,6 +294,36 @@ con `circuito:rebrief-bandeja` (ver 8.4).
 **`guard()` NO es del flujo interno.** Sus únicos consumidores son `RoadmapExternalController` y
 `RoadmapMcpController` = la **vía externa** (token Cowork/MCP). Relajarlo para el autopilot sería
 abrirle a un token externo la aprobación de B/C. No tocarlo.
+
+### 8.2-bis Qué puede reclamar un worker (guard ÚNICO de despacho, 6e46d55a)
+
+**`RoadmapItem::scopeElegibleParaPool()` es la única puerta.** La usan `ejecutablesParalelo()`
+(scheduler + `claim-next`), `scopeAutoEjecutable()` y `circuito:destrabe`; `claimNextParalelo()`
+repite las mismas condiciones en el `UPDATE` como candado atómico. Deja FUERA:
+
+- Rótulos de frontera dura **`[BLOCKED-…]` / `[PARKED-…]`** (antes solo se excluía `[PARKED-PROD]`).
+  **Desbloquear un item rotulado = QUITARLE el rótulo al título**, nunca re-aprobarlo con el rótulo
+  puesto (aprobarlo así solo reabre el ciclo; el endpoint `decidir` lo avisa en la respuesta).
+- **`esperando_merge_irving`** = estado TERMINAL de despacho: nivel C (o auto-merge OFF) cuya rama
+  **tiene commits** ya no vuelve a `requiere_irving` desde `circuito:integrar` — se parquea con
+  `excluir_pool_automatico=1`, sale de la bandeja y vive en **Integración** hasta que Irving mergea
+  (`MergeRunner` → `completado` con `merge_commit`). Rama VACÍA = sí es decisión suya.
+- **`excluir_pool_automatico`** (master switch: lo activan `bloqueado_por_bucle` y
+  `requiere_sesion_supervisada`).
+- **Anti-bucle**: 3 escalaciones seguidas a `requiere_irving` con la MISMA huella
+  (`escalaciones_fingerprint` = rama + opción elegida + nivel + preguntas) → `bloqueado_por_bucle`
+  + fuera del pool. Un cambio material reinicia el contador.
+- **Tope de nivel del autopilot**: lo aprobado AUTOMÁTICAMENTE no puede superar
+  `autopilot.max_nivel`; `aprobado_irving` (aprobación explícita) siempre pasa.
+
+Re-aprobar un item parqueado desde la Torre responde **422** con la acción que sí lo mueve
+(mergear / destrabar); `forzar=true` limpia el parqueo a propósito. El cierre manual de Irving
+(`cerrar`/`cancelar`) se respeta siempre (bandera transitoria `cierreManualIrving`).
+
+**Por qué existe esto:** sin el guard, un `[BLOCKED-NEGOCIO]` aprobado o un C que solo esperaba
+merge seguía siendo reclamable → el worker lo tomaba, leía el rótulo, lo re-escalaba sin ejecutar y
+volvía a la bandeja → se aprobaba otra vez. **#117 dio 13 vueltas idénticas; #99, dieciséis.** Cada
+vuelta quema un slot de terminal y tokens para no hacer nada.
 
 ### 8.3 Contrato del brief (`roadmap_items.preguntas`, JSON)
 

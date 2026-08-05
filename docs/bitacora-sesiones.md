@@ -655,3 +655,56 @@ autopilot no puede tocar la bandeja vieja: **0 de 68 califican**). Dos candados:
   "torre() lentísimo" cuando en realidad esperaba entrada. Medido después: `torre()` = 121-157 ms.
 - Una corrida de `php artisan migrate` se colgó tras aplicar el ALTER; la migración quedó bien
   (lote 641, sin pendientes, sin locks). Sin diagnóstico; no se repitió.
+
+## 2026-08-04 20:55 — Circuito CC: fuga del pool de reclamo (raíz del bucle) + autopilot a nivel C
+
+**Síntoma reportado por Irving:** wt-1 gastando minutos en el #66 `[BLOCKED-NEGOCIO]`, el #117
+re-confirmado 9+ veces, la Torre anunciando "hasta nivel B" pese a la decisión de subirlo a C.
+
+**Qué estaba pasando (diagnóstico, no teoría):**
+- `ejecutablesParalelo()` solo excluía `[PARKED-PROD]`. Todo lo demás no-ejecutable
+  (`[BLOCKED-…]`, `[PARKED-ESPEC]`, C esperando merge manual, items ya marcados por el anti-bucle)
+  seguía siendo **reclamable**. Del pool de 86 reclamables, **35 no eran trabajo real**.
+- El ciclo: Irving aprueba → worker lo reclama → lee el rótulo / no puede mergear → re-escala a
+  `requiere_irving` sin ejecutar → reaparece en la bandeja → se aprueba otra vez. #117 acumuló
+  **13 entradas `aprobar` idénticas** en su log; #99, 16 escalaciones.
+- Log de wt-1: trabajó el #99 (20:28:03–20:28:37, lo reconfirmó bloqueado), tomó el #66 por pool
+  continuo y estuvo en él 20:28:38–20:36:00 (~7.5 min) **sin tocar código**; terminó marcándolo
+  `status=done` por su cuenta "para romper el ciclo de re-reclamo".
+- Los flags `excluir_pool_automatico` / `bloqueado_por_bucle` / `esperando_merge_irving` YA existían
+  en BD (migrados) pero **nadie los leía en el despacho**: eran decorativos.
+- El `max_nivel=C` y el filtro `[BLOCKED-]` estaban **sin commitear** en el checkout principal → los
+  worktrees (que corren `git checkout --detach -f main` en cada vuelta) nunca los veían.
+
+**Fix — commit `6e46d55a` (dev/main, sin push):**
+- `RoadmapItem::scopeElegibleParaPool()` = guard ÚNICO de despacho, aplicado en
+  `ejecutablesParalelo()`, `scopeAutoEjecutable()` y `circuito:destrabe`; mismas condiciones
+  repetidas en el `UPDATE` de `claimNextParalelo()` como candado atómico.
+- Estado terminal **"esperando merge de Irving"**: en `circuito:integrar`, un C (o auto-merge OFF)
+  con rama que **tiene commits** se parquea fuera del pool y fuera de la bandeja (vive en
+  Integración) en vez de volver a `requiere_irving`. Rama vacía → sí es decisión de Irving.
+- Guard en el modelo: el cierre optimista a `completado` de un C con rama y sin `merge_commit` se
+  retiene como esperando-merge; el cierre MANUAL de Irving se respeta (`cierreManualIrving`).
+- Anti-bucle: 3 escalaciones seguidas con la misma huella (rama+opción+nivel+preguntas) →
+  `bloqueado_por_bucle` + fuera del pool. Cambio material = contador a cero.
+- `POST decidir`: re-aprobar un item parqueado → **422** con la acción que sí lo mueve
+  (mergear/destrabar), escape hatch `forzar=true`. Aprobar un rotulado avisa que hay que quitarle
+  el rótulo al título.
+- Tope de nivel del autopilot respetado en el despacho de lo aprobado automáticamente.
+- `config/circuito.php`: `autopilot.max_nivel` B → **C** + CLAUDE.md/CONTEXTO §8.2 alineados.
+
+**Verificación:** pool reclamable **86 → 51** (35 no-ejecutables fuera, 0 rotulados/parqueados
+pasan). Parqueo, cierre manual y contador anti-bucle probados en transacción con rollback.
+**En vivo:** el propio #117 (el de las 13 vueltas) fue trabajado por wt-1 con el código nuevo, dejó
+**3 commits** en `circuito/item-117-…`, quedó `esperando_merge_irving` / `estacion=integracion` y
+`elegibleParaPool` = 0 → ningún worker lo vuelve a tomar. Espera el merge de Irving.
+
+**Pendiente / notas:**
+- El **#66 quedó `status=done` sin implementarse** (lo cerró wt-1 por su cuenta). Decidir si se
+  reabre con el rótulo puesto (ya no se re-despacha) o se archiva.
+- El lote de "respondidos": 36 items con todas sus preguntas contestadas ya estaban en
+  `aprobado_irving` (Irving los aprobó a mano entre 20:42 y 20:47). Quedaban 2 sin aprobar
+  (#155, #465) y ambos rebotaron a la bandeja tras ser reclamados → ahora el contador anti-bucle
+  los instrumenta. No se aprobó nada en lote desde aquí.
+- Los workers vivos toman el código nuevo al inicio de su siguiente vuelta (wt-2/3/5/6 ya en
+  `6e46d55a`); wt-4 puede hacer un último reclamo con código viejo antes de sincronizar.
