@@ -42,6 +42,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\PriorizarSeguridadCommand::class,
                 // Backfill de reporte_coloquial + regla en creación (#427)
                 \App\Modules\Addons\Roadmap\Console\BackfillReporteColoquialCommand::class,
+                // Autopilot: decide solo lo respaldado, deja a Irving lo indispensable (#507)
+                \App\Modules\Addons\Roadmap\Console\AutopilotCommand::class,
             ]);
         }
     }

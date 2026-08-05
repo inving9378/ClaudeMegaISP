@@ -636,6 +636,11 @@ TXT;
         $item->aprobado_por       = $actor;
         $item->save();
 
+        // #507 sub-paso 2 — AUTOPILOT: con el brief recién escrito, intenta decidir SOLO antes de
+        // que el item se estacione en la bandeja. Best-effort y falla-segura: si no califica (o si
+        // truena), el item se queda en `requiere_irving` exactamente como hasta ahora.
+        app(AutopilotService::class)->intentar($item);
+
         return $item->fresh();
     }
 

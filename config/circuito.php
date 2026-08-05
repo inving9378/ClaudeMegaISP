@@ -101,6 +101,47 @@ return [
     'worker_nombres'   => ['Maya', 'Leo', 'Sofía', 'Iván', 'Nora', 'Beto'],
 
     /*
+    |--------------------------------------------------------------------------
+    | AUTOPILOT (#507 sub-paso 2)
+    |--------------------------------------------------------------------------
+    |
+    | Capa que corre DESPUÉS del brief del Revisor y ANTES de la bandeja: si el brief trae una
+    | opción `recomendada` con datos estructurados suficientes (sub-paso 1), la toma sola y manda el
+    | item a la cola ejecutable, en vez de esperar a Irving. Solo le consulta lo indispensable.
+    |
+    | La decisión se registra en el `log` del item con `decidido_por='autopilot'` (confianza,
+    | reversibilidad y motivo incluidos) → trazable y reversible como cualquier decisión humana.
+    |
+    | KILL SWITCH: es el MISMO de siempre (`circuito_pausado`, botón de la Torre). En pausa el
+    | autopilot no decide nada; lo que ya estaba en vuelo termina.
+    |
+    | Endurecer o relajar NO requiere redeploy: son flags.
+    |
+    */
+    'autopilot' => [
+        'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
+
+        // Nivel MÁXIMO que el autopilot puede decidir solo (A < B < C).
+        // DECISIÓN DE IRVING (2026-08-04): tope en 'B'. El nivel C es decisión de diseño/negocio y
+        // SIEMPRE cae en su bandeja — es la regla dura de CLAUDE.md ("Nivel C: jamás sin decisión
+        // de Irving"). Subirlo a 'C' es un cambio de una línea el día que él lo decida (y entonces
+        // hay que actualizar también esa regla en CLAUDE.md, si no quedan contradiciéndose).
+        'max_nivel'           => env('CIRCUITO_AUTOPILOT_MAX_NIVEL', 'B'),
+
+        // Exigir que la opción recomendada esté marcada `reversible: true`. Aplica a B y C; el
+        // nivel A ya es reversible por DEFINICIÓN (aditivo, no toca dinero/permisos/auth/prod).
+        'requiere_reversible' => (bool) env('CIRCUITO_AUTOPILOT_REVERSIBLE', true),
+
+        // Confianza MÍNIMA de la opción recomendada: alta | media | baja. Con 'alta' (default) una
+        // opción sin el dato explícito NO califica → los items de briefs viejos van a la bandeja.
+        'umbral_confianza'    => env('CIRCUITO_AUTOPILOT_CONFIANZA', 'alta'),
+
+        // Minutos de gracia entre que se escribe el brief y el autopilot decide (ventana para que
+        // Irving alcance a vetar). DECISIÓN DE IRVING: 0 = sin ventana, decide de inmediato.
+        'ventana_gracia'      => (int) env('CIRCUITO_AUTOPILOT_GRACIA', 0),
+    ],
+
+    /*
     | #432 Fase 3 — Brief COMPLETO (multi-pregunta). ON: la bandeja usa la columna JSON `preguntas`
     | (varias preguntas por item) y la escalación las puebla TODAS de una. OFF: fallback al modelo
     | viejo de una sola `opciones`/`opcion_elegida`. Un item SIN `preguntas` cae al fallback aunque
