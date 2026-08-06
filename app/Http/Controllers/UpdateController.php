@@ -49,10 +49,16 @@ class UpdateController extends Controller
         $enabled  = (bool) config('updates.enabled');
         $canCheck = auth()->check() && auth()->user()->can('updates.apply');
 
+        // "No se pudo consultar" NO es "estás al día" (item #529): sin esta distinción, un
+        // token vencido o un corte de red se veían idénticos a no tener actualizaciones.
+        $checkFailed = $enabled && ($result['check_failed'] ?? false);
+
         return [
             'enabled'           => $enabled,
-            'update_available'  => $enabled && $result !== null,
-            'release'           => $enabled ? $result : null,
+            'update_available'  => $enabled && $result !== null && !$checkFailed,
+            'release'           => ($enabled && !$checkFailed) ? $result : null,
+            'check_failed'      => $checkFailed,
+            'check_error'       => $checkFailed ? ($result['error'] ?? null) : null,
             'can_check'         => $canCheck,
             'show_check_button' => $enabled && $canCheck && (bool) config('updates.manual_check_button', true),
             // Deploy en curso (si lo hay) → el banner del dashboard se re-engancha solo:
@@ -102,8 +108,12 @@ class UpdateController extends Controller
         }
 
         $result = $this->github->check();
-        if (!$result) {
-            return response()->json(['success' => false, 'message' => 'No hay actualización disponible o no se pudo consultar GitHub.'], 422);
+
+        // Blindaje: un estado "no se pudo consultar" trae check_failed y NO trae 'tag'.
+        // Sin este corte, se dispararía un deploy con versión nula.
+        if (($result['check_failed'] ?? false) || empty($result['tag'])) {
+            $motivo = $result['error'] ?? 'No hay actualización disponible.';
+            return response()->json(['success' => false, 'message' => $motivo], 422);
         }
 
         // Evita arrancar un 2º deploy si ya hay uno en curso (el comando remote:deploy

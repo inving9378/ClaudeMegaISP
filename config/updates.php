@@ -19,5 +19,8 @@ return [
     'repo'                => env('GITHUB_REPO', 'inving9378/ClaudeMegaISP'),
     'read_token'          => env('GITHUB_READ_TOKEN', env('GITHUB_TOKEN', '')),
     'cache_minutes'       => (int) env('GITHUB_UPDATES_CACHE_MINUTES', 30),
+    // Un fallo de consulta (red/token/rate-limit) se cachea muy poco: es transitorio y el
+    // usuario espera que reintentar sirva de algo. Ver item #529.
+    'error_cache_minutes' => (int) env('GITHUB_UPDATES_ERROR_CACHE_MINUTES', 2),
     'manual_check_button' => (bool) env('UPDATES_MANUAL_CHECK_BUTTON', true),
 ];
