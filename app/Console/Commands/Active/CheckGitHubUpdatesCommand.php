@@ -22,6 +22,13 @@ class CheckGitHubUpdatesCommand extends Command
         $service->refresh();
         $result = $service->check();
 
+        // Tres estados: un fallo de consulta también devuelve array (truthy) pero SIN 'tag'
+        // — reportarlo como "actualización disponible" sería mentir. Ver item #529.
+        if ($result['check_failed'] ?? false) {
+            $this->warn('No se pudo consultar GitHub: ' . ($result['error'] ?? 'motivo no disponible'));
+            return 1;
+        }
+
         if ($result) {
             $this->info("Actualización disponible: {$result['tag']} (publicada {$result['published_at']})");
         } else {
