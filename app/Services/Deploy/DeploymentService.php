@@ -66,8 +66,24 @@ class DeploymentService
                 continue;
             }
 
+            // Skip si esta instancia NO es la publicadora (item #530). Publicar CÓDIGO al
+            // remoto es justo el trabajo del publicador — no contradice el #245, que existe
+            // para que dev no dispare DEPLOYS a producción (`remote_deploy` sigue gateado por
+            // entorno). Omitir el push dejó a origin/main 637 commits atrás y a los tags
+            // colgando de commits inalcanzables → el git_sync de prod no podía bajarlos.
+            if (($step['skip_if_not_publisher'] ?? false) && config('deployment.publisher', false) !== true) {
+                $log->updateStep($step['key'], [
+                    'status'      => 'skipped',
+                    'output'      => 'Instancia no publicadora — paso omitido (DEPLOY_IS_PUBLISHER=false).',
+                    'exit_code'   => 0,
+                    'duration_ms' => 0,
+                    'ran_at'      => now()->toIso8601String(),
+                ]);
+                continue;
+            }
+
             // Skip fuera de producción (item roadmap #245): impide que crear una Release en
-            // dev dispare push/GitHub Release/deploy remoto reales.
+            // dev dispare deploy remoto real.
             if (($step['skip_if_not_production'] ?? false) && !app()->environment('production')) {
                 $log->updateStep($step['key'], [
                     'status'      => 'skipped',

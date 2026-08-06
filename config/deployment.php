@@ -107,7 +107,11 @@ return [
             'timeout'  => 180,
             'critical' => true,
             'enabled'  => true,
-            'skip_if_not_production' => true,
+            // Gate de PUBLICADOR, no de entorno (item #530): con `skip_if_not_production` el
+            // publicador (dev, APP_ENV=local) nunca empujaba, así que origin/main se quedó en
+            // V1.25 y los tags de V1.26-V1.29 apuntaban a commits inalcanzables desde la rama
+            // → el `git fetch origin && git checkout tags/{v}` de prod fallaba con exit 1.
+            'skip_if_not_publisher' => true,
         ],
         [
             'key'      => 'github_release',
@@ -116,7 +120,8 @@ return [
             'timeout'  => 30,
             'critical' => false,
             'enabled'  => true,
-            'skip_if_not_production' => true,
+            // Mismo gate que git_push: publicar el Release es trabajo del publicador.
+            'skip_if_not_publisher' => true,
         ],
         [
             'key'               => 'remote_deploy',
