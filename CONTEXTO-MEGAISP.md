@@ -365,6 +365,72 @@ degrada el pre-filtro de no-colisión, que serializa por ese mismo campo.
 
 ---
 
+## 9. ACTUALIZACIONES DE INSTANCIA (modelo PULL) — #529
+
+> Investigado y arreglado el 2026-08-06. Antes de tocar nada aquí, leer esta sección: el
+> síntoma ("prod dice *Estás al día* con una versión nueva publicada") NO es del comparador.
+
+### 9.1 La cadena, de punta a punta
+
+```
+Botón "Buscar actualizaciones"  (UpdateBanner.vue)
+  → POST /api/updates/check → UpdateController::check()
+  → GitHubUpdateService::refresh()/check()
+  → GET https://api.github.com/repos/{GITHUB_REPO}/releases/latest
+  → compara contra la versión INSTALADA (tabla local `releases`, la más reciente)
+```
+
+- **La fuente de verdad es la GitHub Releases API, NO la BD ni los tags de git.** La tabla
+  `releases` local solo dice qué está instalado en esa instancia.
+- `releases/latest` devuelve **solo objetos Release** (no-draft, no-prerelease). **Un tag de
+  git NO es un Release**: se puede tener el tag en origin y el checker no verlo. Fue
+  exactamente el bug de V1.26–V1.29.
+- **Comparación** (`GitHubUpdateService`): por **tag** (`!==`, cubre varias releases el mismo
+  día) + gate de fecha con Carbon **normalizado a `app.timezone`** (`gte` sobre `startOfDay`,
+  evita "downgrades"). `releases.release_date` es `DATE` real. **La comparación está sana —
+  no la "arregles" por fecha ni por número de versión.**
+
+### 9.2 Publicador vs consumidoras (quién crea el Release)
+
+| | DEV (.11) | PROD (.108) |
+|---|---|---|
+| Rol | **publicador** | consumidora |
+| `GITHUB_UPDATES_ENABLED` | false (no consulta) | true (consulta y ofrece) |
+| `DEPLOY_IS_PUBLISHER` | **true** | ausente ⇒ false |
+
+- El paso `github_release` del pipeline lleva **`skip_if_not_production`**, y dev es
+  `APP_ENV=local` ⇒ **se omite siempre en el publicador**. Es la política del item **#245**
+  (que dev no dispare deploys reales) y **NO se reabre**.
+- Por eso publicar es un acto **explícito**: `php artisan releases:publish-github {version}`
+  (`--dry-run` muestra las notas sin llamar a la API). Guard duro por
+  `config('deployment.publisher')` ⇒ **producción aborta aunque se corra allá**. Cada
+  publicación queda en `deployment_logs`, atribuida al usuario de sistema MEGAISP.
+- Las notas se arman en **`DeploymentService::buildReleaseBody()`** — punto **único**
+  compartido por el pipeline y el comando. Orden: `ReleaseDescription` → `releases.summary` →
+  `releases.description`. Tolera el caso en que el generador por IA dejó **JSON crudo** en la
+  columna (pasó en V1.27) y rescata las notas en vez de publicar el JSON.
+- **Publicar en orden ascendente** cuando son varias: `releases/latest` debe terminar en la
+  más nueva.
+
+### 9.3 Tres estados del checker (no confundir los dos últimos)
+
+`GitHubUpdateService::check()` devuelve:
+
+| Resultado | Significado | Banner |
+|---|---|---|
+| array con `tag` | hay actualización | ofrece actualizar |
+| `null` | no hay actualización — **respuesta confiable** | "Estás al día" |
+| array con `check_failed` | **no se pudo consultar** (red, token, 403 rate-limit) | "No se pudo verificar" |
+
+- Antes, el fallo devolvía `null` ⇒ un token vencido se veía **idéntico** a "estás al día".
+- `UpdateController::apply()` **aborta con 422** ante `check_failed` (sin ese corte
+  dispararía un deploy con versión nula).
+- El error se cachea solo `updates.error_cache_minutes` (2 min), no los 30 del resultado bueno.
+- ⚠️ El resultado "sin actualización" (`null`) **no se cachea** → cada carga del dashboard de
+  una consumidora consulta GitHub. Preexistente; vigilar rate-limit si crecen las instancias.
+
+---
+
 ## PROTOCOLO DE ACTUALIZACIÓN (para no re-investigar nunca lo mismo)
 
 **Al CERRAR cada sesión, CC debe actualizar este archivo** con lo que cambió:
