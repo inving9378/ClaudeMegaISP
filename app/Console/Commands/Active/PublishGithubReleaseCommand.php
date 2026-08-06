@@ -75,11 +75,20 @@ class PublishGithubReleaseCommand extends Command
             return self::SUCCESS;
         }
 
+        // Corre por CLI (sin sesión), pero `deployment_logs.triggered_by` es NOT NULL: la
+        // publicación se atribuye al usuario de sistema MEGAISP, resuelto por email
+        // (los ids NO coinciden entre dev y prod).
+        $sistema = \App\Models\User::systemBot();
+        if (!$sistema) {
+            $this->error('ABORTADO — no existe el usuario de sistema MEGAISP para atribuir la publicación.');
+            return self::FAILURE;
+        }
+
         // Queda registro en deployment_logs igual que cualquier otra operación de release,
         // para que la publicación sea auditable desde la pantalla de Historial.
         $log = DeploymentLog::create([
             'release_id'   => $release->id,
-            'triggered_by' => null,
+            'triggered_by' => $sistema->id,
             'status'       => 'running',
             'steps'        => [],
             'payload'      => [
