@@ -24,9 +24,38 @@ class PublishGithubReleaseCommand extends Command
 {
     protected $signature = 'releases:publish-github
                             {version : Versión a publicar, tal como está en la tabla releases (ej. V1.29-05.08.2026)}
-                            {--dry-run : Muestra qué se publicaría (incluidas las notas) sin llamar a la API de GitHub}';
+                            {--dry-run : Muestra qué se publicaría (incluidas las notas) sin llamar a la API de GitHub}
+                            {--force : Publica aunque el código del tag no esté en origin/main (NO recomendado)}';
 
     protected $description = 'Publica en GitHub el Release de una versión ya tageada (solo en la instancia publicadora)';
+
+    /**
+     * ¿El commit al que apunta el tag es alcanzable desde origin/main?
+     *
+     * No basta con que el tag exista en el remoto: si su commit cuelga fuera de la rama, un
+     * clon o un repo consumidor configurado sin tags no puede llegar a él. Se refresca
+     * `origin/main` antes de comparar para no decidir con una referencia local vieja.
+     */
+    private function codigoPublicadoEnRemoto(string $version): bool
+    {
+        // --force es obligatorio: hay tags antiguos cuyo objeto local difiere del remoto y sin
+        // él git RECHAZA el fetch entero con exit 1 ("sobrescribiría tag existente").
+        exec('git fetch origin main --tags --force 2>&1', $o, $c);
+        if ($c !== 0) {
+            $this->warn('No se pudo refrescar origin (git fetch falló); se evalúa con la referencia local, '
+                . 'que solo puede estar atrasada → el guard falla-seguro (aborta de más, nunca de menos).');
+        }
+
+        exec('git rev-list -n1 ' . escapeshellarg($version) . ' 2>/dev/null', $salida, $codigo);
+        $commit = trim($salida[0] ?? '');
+        if ($codigo !== 0 || $commit === '') {
+            return false;
+        }
+
+        exec('git merge-base --is-ancestor ' . escapeshellarg($commit) . ' origin/main 2>/dev/null', $x, $esAncestro);
+
+        return $esAncestro === 0;
+    }
 
     public function handle(DeploymentService $deploy, GitHubUpdateService $updates): int
     {
@@ -58,6 +87,23 @@ class PublishGithubReleaseCommand extends Command
             $this->error("ABORTADO — el tag «{$version}» no existe en este repositorio local.");
             $this->line('  Publicar un Release exige que el tag ya esté creado y empujado a origin.');
             return self::FAILURE;
+        }
+
+        // ── Guard de alcanzabilidad (item #530) ───────────────────────────────────────────
+        // Publicar el Release ANUNCIA la versión a producción. Si el commit del tag no es
+        // alcanzable desde origin/main, prod la ve, la intenta aplicar y su
+        // `git fetch origin && git checkout tags/{v}` falla con exit 1 → rollback.
+        // Esto fue exactamente lo que pasó con V1.26-V1.29.
+        if (!$this->codigoPublicadoEnRemoto($version)) {
+            if (!$this->option('force')) {
+                $this->error("ABORTADO — el código de «{$version}» no está en origin/main.");
+                $this->line('  Publicar el Release ofrecería a producción una actualización que NO va a poder aplicar');
+                $this->line('  (su git checkout del tag fallaría con exit 1 y haría rollback).');
+                $this->line('  Solución: `git push origin main` desde el publicador y reintentar.');
+                $this->line('  Para publicar de todas formas: --force');
+                return self::FAILURE;
+            }
+            $this->warn('AVISO: el código no está en origin/main, se publica igual por --force.');
         }
 
         $body = $deploy->buildReleaseBody($release, $version);
