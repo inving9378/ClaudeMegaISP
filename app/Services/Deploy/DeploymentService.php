@@ -476,7 +476,10 @@ class DeploymentService
         $body = trim($body) ?: "Versión {$version}";
 
         try {
-            $apiUrl = "https://api.github.com/repos/{$repo}/releases/by_tag/{$version}";
+            // Endpoint correcto de la API: /releases/tags/{tag}. El anterior (/releases/by_tag/)
+            // NO existe → respondía 404 siempre → nunca detectaba un Release ya publicado y caía
+            // al POST de creación, que devuelve 422 "already_exists" al re-publicar una versión.
+            $apiUrl = "https://api.github.com/repos/{$repo}/releases/tags/{$version}";
             $existing = Http::withToken($token)
                 ->withHeaders(['Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2022-11-28'])
                 ->get($apiUrl);
