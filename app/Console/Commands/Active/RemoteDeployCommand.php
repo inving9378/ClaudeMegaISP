@@ -80,8 +80,20 @@ class RemoteDeployCommand extends Command
         // - Sin versión: fallback a reset --hard origin/main (webhook legacy sin tag)
         // El frontend se compila EN el servidor (paso npm_build) — los assets ya NO
         // viajan en git. Por eso el checkout/reset solo trae el código fuente.
+        // --tags --force: trae los tags explícitamente en vez de confiar en el auto-follow, y
+        // el --force es OBLIGATORIO porque hay tags antiguos cuyo objeto local difiere del
+        // remoto; sin él git rechaza el fetch COMPLETO con exit 1 ("sobrescribiría tag
+        // existente") y el && corta antes del checkout.
+        // La verificación previa del tag convierte el "exit 1" mudo del checkout
+        // ("pathspec ... did not match") en un mensaje diagnosticable. Item #530.
         $gitSyncCmd = $version
-            ? "git fetch origin && git checkout tags/{$version}"
+            ? sprintf(
+                'git fetch origin --tags --force && { git rev-parse -q --verify refs/tags/%1$s >/dev/null '
+                . '|| { echo "ERROR: el tag %1$s no existe en el remoto configurado ($(git remote get-url origin)). '
+                . 'Verifica que el codigo de esa version este publicado en origin."; exit 1; }; } '
+                . '&& git checkout tags/%1$s',
+                $version
+            )
             : 'git fetch origin main && git reset --hard origin/main';
 
         $stepDefs = [
