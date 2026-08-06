@@ -145,6 +145,16 @@ return [
         'repo'  => env('GITHUB_REPO', 'inving9378/ClaudeMegaISP'),
     ],
 
+    // ¿Esta instancia es el PUBLICADOR de releases (la que crea los GitHub Releases que
+    // luego consumen las instancias de producción)? Hoy: solo dev (.11), con
+    // DEPLOY_IS_PUBLISHER=true en su .env.
+    //
+    // Gobierna ÚNICAMENTE el comando `releases:publish-github`. NO reabre el gate del
+    // pipeline (git_push/github_release siguen con 'skip_if_not_production', política del
+    // item #245): publicar es un acto explícito y manual, nunca un efecto secundario de
+    // crear una versión. Default false ⇒ producción no puede publicar aunque se corra ahí.
+    'publisher' => (bool) env('DEPLOY_IS_PUBLISHER', false),
+
     // URL base del servidor remoto donde se desplegará (ej: http://192.168.105.11)
     // Dejar vacío para omitir el paso remote_deploy
     'remote_url'     => env('DEPLOY_REMOTE_URL', ''),

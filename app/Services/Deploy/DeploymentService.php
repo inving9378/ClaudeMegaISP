@@ -438,6 +438,108 @@ class DeploymentService
         return false;
     }
 
+    /**
+     * Publica (o actualiza) el GitHub Release de una versión ya tageada, fuera del pipeline
+     * de deploy. Punto de entrada del comando `releases:publish-github`, que existe porque en
+     * el publicador (dev, APP_ENV=local) el paso `github_release` se omite por
+     * `skip_if_not_production` — política del item #245, que NO se reabre. Ver item #529.
+     *
+     * @return array [exitCode, output, durationMs]
+     */
+    public function publishGithubRelease(string $version, DeploymentLog $log): array
+    {
+        return $this->executeGithubRelease([], $version, $log);
+    }
+
+    /**
+     * Construye el cuerpo (markdown) de las notas del GitHub Release.
+     *
+     * Fuente, en orden: ReleaseDescription (notas por bloque) → releases.summary →
+     * releases.description. Punto ÚNICO compartido por el paso `github_release` del pipeline
+     * y por el comando `releases:publish-github` — no duplicar la construcción de notas.
+     */
+    public function buildReleaseBody(?\App\Models\Release $release, string $version): string
+    {
+        $body = '';
+
+        if ($release) {
+            $descriptions = \App\Models\ReleaseDescription::where('release_id', $release->id)
+                ->orderBy('id')
+                ->get();
+
+            foreach ($descriptions as $desc) {
+                $texto = $this->normalizeReleaseNotes((string) $desc->description);
+
+                // El título del bloque se omite cuando el cuerpo ya trae su propio encabezado
+                // markdown (evita el duplicado "### Mejoras de esta versión (generado por IA)"
+                // + "### Mejoras en esta versión" que producía el generador por IA).
+                if ($desc->title && $texto !== '' && !str_starts_with($texto, '#')) {
+                    $body .= "### {$desc->title}\n";
+                }
+                if ($texto !== '') {
+                    $body .= $texto . "\n\n";
+                }
+            }
+
+            // Fallbacks para releases sin bloques de notas utilizables.
+            if (!trim($body)) {
+                $body = trim((string) $release->summary);
+            }
+            if (!trim($body)) {
+                $body = $this->normalizeReleaseNotes((string) $release->description);
+            }
+        }
+
+        return trim($body) ?: "Versión {$version}";
+    }
+
+    /**
+     * ¿El contenido guardado es en realidad el JSON crudo del generador por IA?
+     * (Ocurrió en V1.27-04.08.2026: el JSON quedó sin parsear en la columna.)
+     */
+    private function looksLikeJsonNotes(string $raw): bool
+    {
+        $t = trim(html_entity_decode($raw));
+        return str_starts_with($t, '{') && str_contains($t, '"improvements"');
+    }
+
+    /**
+     * Normaliza las notas a markdown legible.
+     *
+     * Tolera tres formas: (1) HTML/markdown normal, (2) JSON válido del generador por IA,
+     * (3) JSON con comillas internas sin escapar — inválido para json_decode, pero del que
+     * igual se rescata el campo `improvements` por regex en vez de publicar el JSON crudo
+     * de cara al usuario final.
+     */
+    private function normalizeReleaseNotes(string $raw): string
+    {
+        $texto = trim(html_entity_decode($raw));
+
+        if ($texto === '' || !$this->looksLikeJsonNotes($texto)) {
+            return trim(strip_tags($texto));
+        }
+
+        // (2) JSON bien formado.
+        $json = json_decode($texto, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+            $partes = array_filter([
+                trim((string) ($json['summary'] ?? '')),
+                trim((string) ($json['improvements'] ?? '')),
+            ]);
+            if ($partes) {
+                return trim(implode("\n\n", $partes));
+            }
+        }
+
+        // (3) JSON corrupto: rescatar `improvements` (hasta el cierre del objeto).
+        if (preg_match('/"improvements"\s*:\s*"(.*)"\s*}\s*$/s', $texto, $m)) {
+            $rescatado = str_replace(['\\n', '\\"', '\\\\'], ["\n", '"', '\\'], $m[1]);
+            return trim(strip_tags($rescatado));
+        }
+
+        return trim(strip_tags($texto));
+    }
+
     private function executeGithubRelease(array $step, string $version, DeploymentLog $log): array
     {
         $startedAt = microtime(true);
@@ -451,29 +553,7 @@ class DeploymentService
         }
 
         $release = $log->release;
-
-        // Construir el cuerpo: descriptions manuales + summary del release
-        $body  = '';
-        if ($release) {
-            $descriptions = \App\Models\ReleaseDescription::where('release_id', $release->id)
-                ->orderBy('id')
-                ->get();
-
-            foreach ($descriptions as $desc) {
-                if ($desc->title) {
-                    $body .= "### {$desc->title}\n";
-                }
-                if ($desc->description) {
-                    $body .= strip_tags(html_entity_decode($desc->description)) . "\n\n";
-                }
-            }
-
-            if ($release->summary && !$body) {
-                $body = $release->summary;
-            }
-        }
-
-        $body = trim($body) ?: "Versión {$version}";
+        $body    = $this->buildReleaseBody($release, $version);
 
         try {
             // Endpoint correcto de la API: /releases/tags/{tag}. El anterior (/releases/by_tag/)
