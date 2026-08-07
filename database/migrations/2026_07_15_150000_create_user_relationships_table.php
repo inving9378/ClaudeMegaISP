@@ -26,20 +26,25 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('user_relationships', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('parent_user_id')->constrained('users')->cascadeOnDelete();
-            $table->foreignId('child_user_id')->constrained('users')->cascadeOnDelete();
-            $table->enum('type', ['padre', 'tutor', 'apoderado'])->default('padre');
-            $table->enum('status', ['activa', 'inactiva'])->default('activa');
-            $table->unsignedBigInteger('created_by')->nullable();
-            $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
+        // Guard hasTable: el pipeline de deploy NO revierte un migrate fallido
+        // (fail_deploy_no_rollback), asi que el migrate de recuperacion debe poder
+        // re-ejecutarse si se interrumpe o se dispara dos veces.
+        if (! Schema::hasTable('user_relationships')) {
+            Schema::create('user_relationships', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('parent_user_id')->constrained('users')->cascadeOnDelete();
+                $table->foreignId('child_user_id')->constrained('users')->cascadeOnDelete();
+                $table->enum('type', ['padre', 'tutor', 'apoderado'])->default('padre');
+                $table->enum('status', ['activa', 'inactiva'])->default('activa');
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
 
-            $table->unique(['parent_user_id', 'child_user_id']);
-            $table->index('status');
-        });
+                $table->unique(['parent_user_id', 'child_user_id']);
+                $table->index('status');
+            });
+        }
 
         // Permiso explícito de lectura (solo super-administrator + DESARROLLADOR por
         // defecto — no termina en ".view" a propósito para NO auto-repartirse a los

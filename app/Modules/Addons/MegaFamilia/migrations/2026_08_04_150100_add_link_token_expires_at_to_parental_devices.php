@@ -9,14 +9,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('parental_devices', function (Blueprint $table) {
-            $table->timestamp('link_token_expires_at')->nullable()->after('link_token');
+            if (! Schema::hasColumn('parental_devices', 'link_token_expires_at')) {
+                $table->timestamp('link_token_expires_at')->nullable()->after('link_token');
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('parental_devices', function (Blueprint $table) {
-            $table->dropColumn('link_token_expires_at');
+            if (Schema::hasColumn('parental_devices', 'link_token_expires_at')) {
+                $table->dropColumn('link_token_expires_at');
+            }
         });
     }
 };
