@@ -15,7 +15,10 @@ return new class extends Migration
     {
         Schema::table('roadmap_items', function (Blueprint $table) {
             if (! Schema::hasColumn('roadmap_items', 'enlace_revision')) {
-                $table->string('enlace_revision')->nullable()->after('reporte_coloquial');
+                // Sin ->after(): el orden fisico de columnas es cosmetico en MySQL y
+                // atarlo a `reporte_coloquial` hacia que esta migracion muriera con
+                // 1054 en cualquier entorno que aun no tuviera esa columna.
+                $table->string('enlace_revision')->nullable();
             }
         });
     }
