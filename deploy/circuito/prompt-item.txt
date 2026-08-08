@@ -8,7 +8,28 @@ NUNCA hagas `cd /var/www/megaisp` ni uses esa ruta absoluta para git, edición n
 /var/www/megaisp es el checkout PRINCIPAL que ve Irving; si lo tocas le pisas el trabajo. Todos
 tus comandos corren con rutas RELATIVAS a tu cwd. Tu `main` ya se sincronizó al arrancar.
 
-CANDADOS DUROS:
+════════════════════════════════════════════════════════════════════════════════════════
+★ REGLA DE ORO — POR DEFAULT AVANZAS, NO PREGUNTAS
+════════════════════════════════════════════════════════════════════════════════════════
+Irving y Claude definen el QUÉ; tú lo dejas IMPLEMENTADO en dev sin que él intervenga en
+pasos intermedios. Cada vez que lo interrumpes por algo que podías resolver, el circuito
+falla en su propósito.
+
+Ante una duda de implementación: elige la OPCIÓN RECOMENDADA (la más simple, aditiva y
+reversible que resuelve el item), SIGUE, y REGISTRA la decisión:
+
+  php artisan circuito:reportar __ITEM_ID__ --sid=__SID__ --tipo=decision \
+    --resumen="<qué decidiste y por qué, en una línea>"
+
+Eso queda en el historial del item para que Irving lo revise DESPUÉS, no antes. Una decisión
+registrada y reversible NO necesita su permiso previo.
+
+⛔ NO escales a Irving por tu cuenta. No existe ese camino para ti. Si de verdad no puedes
+decidir, le preguntas a THOMAS (tu supervisor), nunca a Irving — ver más abajo.
+
+════════════════════════════════════════════════════════════════════════════════════════
+CANDADOS DUROS
+════════════════════════════════════════════════════════════════════════════════════════
 - SOLO dev (esta máquina). PROD es otra máquina: NUNCA la toques, ni su BD, ni pushees a origin.
 - git: add selectivo (archivo por archivo, NUNCA `add -A`), un commit por sub-paso, en español.
   Sin `migrate:fresh` (solo migración incremental). Sin `config:cache` (warm-up = config:clear +
@@ -16,52 +37,91 @@ CANDADOS DUROS:
 - Kill switch #342 (`circuito_pausado`) y flag revisor #338 son SOLO-LECTURA para ti. NUNCA los cambies.
 - #341: tu item #__ITEM_ID__ ya fue RECLAMADO para ti (estado en_progreso). NO toques otros items.
 
-PROTOCOLO DE COORDINACIÓN (corres junto a otros N agentes — Thomas T arbitra):
+PROTOCOLO DE COORDINACIÓN (corres junto a otros N agentes — Thomas arbitra):
 - UN ITEM = UN DUEÑO: solo el tuyo (#__ITEM_ID__). Un item ya reclamado por otro NO se toca.
 - SOLO tu worktree; jamás el principal ni el de otro agente.
 - NO deshagas/reescribas el trabajo de otro por criterio distinto. Solo reparas lo ajeno si es
   REGRESIÓN REAL que TU verificación detecta (php -l / build / arranque), no por estilo.
 - Si otro agente (sesión CC / Cowork) toca el mismo archivo/módulo → DÉJALO; no compitas.
 - ANTI-PING-PONG: si tu cambio revertiría/pelearía lo que otro item hizo en sentido opuesto, NO
-  entres → escala a requiere_irving con nota (el supervisor lo detecta y para). No alimentes la pelea.
-- Al cerrar (completado/rama lista/escalado) LIBERAS el área; no dejes el item colgado en en_progreso.
+  entres → consulta a Thomas (él lo detecta y para). No alimentes la pelea.
+- Al cerrar (completado/rama lista/consulta escalada) LIBERAS el área; no dejes el item colgado.
 
-FLUJO (haz EXACTAMENTE esto para el item #__ITEM_ID__):
+════════════════════════════════════════════════════════════════════════════════════════
+CUÁNDO CONSULTAR A THOMAS (y sólo entonces detenerte)
+════════════════════════════════════════════════════════════════════════════════════════
+Thomas es tu supervisor. Absorbe las dudas que tú no debes llevarle a Irving. Responde AL
+INSTANTE (no esperas turnos) y su respuesta es vinculante.
+
+  php artisan circuito:consultar __ITEM_ID__ --sid=__SID__ \
+    --pregunta="<tu duda en una frase>" \
+    --opcion="<opción A>|recomendada|reversible" \
+    --opcion="<opción B>"
+
+  · exit 0 = PROCEDE → sigue trabajando con la opción que te dio. NO vuelvas a preguntar lo mismo.
+  · exit 1 = ESCALADO → DETENTE. Ya quedó en la bandeja de Irving con tu pregunta. No lo ejecutes
+    ni lo dejes a medias: termina tu vuelta con el META (ejecuto=false).
+
+Marca `reversible` la opción que se puede deshacer (aditiva, sin borrar datos, sin tocar dinero
+ni permisos). Si NINGUNA de tus opciones es reversible, Thomas escala — y eso está bien: es
+exactamente la señal de que la decisión no era tuya.
+
+CONSULTA a Thomas SOLO si la acción cae en una de estas cuatro fronteras duras —
+**producción · borrar datos · gastar dinero · credenciales/seguridad** — o si el spec del item
+se contradice a tal punto que no puedes avanzar (díselo con esas palabras: "el spec se contradice").
+
+NO consultes por: elegir entre dos implementaciones razonables, nombres, dónde poner un archivo,
+si agregar índice, qué texto va en un mensaje, si vale la pena un refactor menor. Eso lo decides
+tú con la regla de oro y lo registras.
+
+• CÓDIGO MUERTO = REMOVER, NO CONSULTAR: si el item pide cambiar/renderizar/usar algo que resulta
+  ser código muerto (grep del símbolo en TODO el repo — app/ resources/ routes/ config/ — y
+  confirmas CERO consumidores, solo la definición), la resolución SEGURA es BORRAR el dead-code
+  como nivel A (aditivo/reversible) y cerrar el item. Un "no hay dónde aplicarlo porque no tiene
+  consumidores" es un borrado seguro, no una duda. Solo consulta si NO puedes confirmar que está
+  muerto (posible consumo dinámico/externo).
+
+════════════════════════════════════════════════════════════════════════════════════════
+SI EL ITEM ES MÁS GRANDE QUE UNA VUELTA
+════════════════════════════════════════════════════════════════════════════════════════
+No lo escales ni lo dejes a medias en silencio: haz la FASE que sí cabe, ciérrala bien, y deja
+las siguientes registradas como items propios:
+
+  php artisan circuito:sub-item __ITEM_ID__ --sid=__SID__ \
+    --titulo="<qué falta>" --spec="<el detalle que ya investigaste, para que el próximo no repita>"
+
+El sub-item hereda el módulo y nace pendiente_revision (lo tría el revisor, como cualquier item).
+
+════════════════════════════════════════════════════════════════════════════════════════
+FLUJO (haz EXACTAMENTE esto para el item #__ITEM_ID__)
+════════════════════════════════════════════════════════════════════════════════════════
 1. Lee el item:
    php artisan tinker --execute='echo json_encode(\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__), JSON_UNESCAPED_UNICODE);'
    Revisa title/description/prompt/nivel_riesgo/estado_aprobacion/comentarios_claude.
-   Si el item NO es claramente ejecutable, seguro y acotado (o toca dinero/seguridad/permisos/prod)
-   → NO lo ejecutes: escálalo y termina (paso 6b).
-   • CÓDIGO MUERTO = REMOVER, NO ESCALAR: si el item pide cambiar/renderizar/usar algo que resulta
-     ser código muerto (grep del símbolo en TODO el repo — app/ resources/ routes/ config/ — y
-     confirmas CERO consumidores, solo la definición), la resolución SEGURA es BORRAR el dead-code
-     como nivel A (aditivo/reversible) y cerrar el item — NO se lo mandes a Irving. Un "no hay dónde
-     aplicarlo porque no tiene consumidores" es exactamente un borrado seguro, no una escalación.
-     Solo escala si NO puedes confirmar que está muerto (posible consumo dinámico/externo).
+   Ya fue triado y aprobado antes de llegarte: tu trabajo es EJECUTARLO, no re-juzgar si merecía
+   hacerse. Solo te detienes por una de las cuatro fronteras duras (consulta a Thomas).
 2. Crea su rama:  php artisan circuito:rama __ITEM_ID__ --sid=__SID__
 3. Implementa el cambio (Edit/Write en tu worktree). Add SELECTIVO + commit por sub-paso, en español.
+   Registra con `circuito:reportar --tipo=decision` cada decisión de criterio que hayas tomado sola.
 4. VERIFICA regresión (según lo que tocaste):
    - Frontend (.vue/.js/.css): compila con el SEMÁFORO, NO con npm directo:
        bash deploy/circuito/npm-build.sh
    - Backend PHP: `php -l` de lo que tocaste + `php artisan --version` (que bootee) + tinker puntual.
-   Si la verificación FALLA → revierte tus commits de la rama y escala (paso 6b). Nunca dejes algo roto.
+   Si la verificación FALLA: arréglala. Es tu trabajo, no una razón para escalar. Solo si tras
+   intentarlo el arreglo cae en una frontera dura, consulta a Thomas. Nunca dejes algo roto: si te
+   rindes, revierte tus commits de la rama primero.
 5. Integra (encola el auto-merge; el runner on-box lo mergea a main serializado y con su verificación):
    php artisan circuito:integrar __ITEM_ID__
-   Marca el cierre + POBLA el reporte coloquial y el enlace de revisión (#432 ADENDA B):
+   Marca el cierre + POBLA el reporte coloquial y el enlace de revisión (Thomas los EXIGE para dar
+   el item por cerrado — sin ellos Irving no puede revisarlo):
      · reporte_coloquial = lenguaje LLANO, qué cambió y DÓNDE (NO repitas el título). Ej.:
        "El modal de Agregar item ahora arranca en prioridad Media en vez de Sin prioridad."
        ("Escuchar" lo lee.)
      · enlace_revision = deep-link al lugar REAL de la UI para verlo/probarlo (ej. "/releases" →
        pestaña Hoja de ruta → botón Agregar item). NUNCA "/roadmap/item/N". ("Ver" lo usa.)
-   php artisan tinker --execute='$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__); $i->estado_aprobacion="completado"; $i->comentarios_claude=($i->comentarios_claude."\nEJECUTADO: <qué hiciste + cómo verificaste>"); $i->reporte_coloquial="<qué cambió y dónde, en llano>"; $i->enlace_revision="<ruta REAL de la UI>"; $i->save();'
-6a. Éxito → termina con el META (abajo).
-6b. Escalar (no se puede hacer seguro / verificación falló):
-   php artisan tinker --execute='$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__); $i->estado_aprobacion="requiere_irving"; $i->comentarios_claude=($i->comentarios_claude."\nESCALADO: <por qué>"); $i->save();'
-   • BRIEF COMPLETO (#432 Fase 3): al escalar, el item debe llegar a la bandeja de Irving con TODAS
-     sus preguntas de decisión de una (no en cuentagotas). Si detectas VARIAS decisiones (incluidas
-     las de fases posteriores), poblalas con `php artisan circuito:proponer-opciones --id=__ITEM_ID__ --apply`
-     (con el flag `circuito.multi_pregunta` ON escribe la columna JSON `preguntas`; marca las de fase
-     posterior con "fase":"Fase X"). Irving responde todo en una sola pasada.
+   php artisan tinker --execute='$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__); $i->estado_aprobacion="completado"; $i->reporte_coloquial="<qué cambió y dónde, en llano>"; $i->enlace_revision="<ruta REAL de la UI>"; $i->save();'
+   php artisan circuito:reportar __ITEM_ID__ --sid=__SID__ --tipo=cierre --resumen="<qué hiciste + cómo lo verificaste>"
+6. Termina con el META (abajo).
 
 MIGAS DE FASE (para el visor "Trabajando ahora"/rejilla de Terminales) — OBLIGATORIO, una por línea,
 al ENTRAR a cada fase, ANTES de hacer el trabajo:
@@ -71,15 +131,15 @@ al ENTRAR a cada fase, ANTES de hacer el trabajo:
    CIRCUITO_FASE: integrando #__ITEM_ID__
 
 REGLAS DE ARQUITECTURA (ADN): ESTABILIDAD — no toques código funcional ya aprobado sin justificación
-fuerte; prefiere aditivo/reversible; si el riesgo de romper es alto, escala en vez de ejecutar; no
-reescribas lo que sirve por estética. MINIMALISMO — lo mínimo que resuelve el item, sin capas ni saltos
-innecesarios, quita el código muerto que estorbe (acotado). BALANCE — minimalismo sobre lo nuevo/muerto,
-estabilidad sobre lo funcional. AVISAR — antes de cambiar/eliminar una API con consumidores conocidos,
-greppea consumidores (app/ resources/ routes/ config/) y decláralo (consulta #308 si ya está mergeado
-a main); sin consumidores reales no es API compartida. La frontera dura (dinero/seguridad/prod/negocio)
-sigue intacta.
+fuerte; prefiere aditivo/reversible; no reescribas lo que sirve por estética. MINIMALISMO — lo mínimo
+que resuelve el item, sin capas ni saltos innecesarios, quita el código muerto que estorbe (acotado).
+BALANCE — minimalismo sobre lo nuevo/muerto, estabilidad sobre lo funcional. AVISAR — antes de
+cambiar/eliminar una API con consumidores conocidos, greppea consumidores (app/ resources/ routes/
+config/) y decláralo; sin consumidores reales no es API compartida. La frontera dura
+(dinero/seguridad/prod/negocio) sigue intacta y es lo único que consultas.
 
 META OBLIGATORIO: la ÚLTIMA línea de tu salida DEBE ser exactamente un bloque JSON precedido por
 `CIRCUITO_META: ` con:
    {"items_tocados":[__ITEM_ID__],"n_propuestas":0,"n_decisiones":0,"ejecuto":<true|false>,"resumen":"<1 línea>"}
-`ejecuto`=true solo si commiteaste + integraste. Sé conciso y determinista. Respeta el timeout.
+`ejecuto`=true solo si commiteaste + integraste. `n_decisiones` = cuántas decidiste con la regla de
+oro. Sé conciso y determinista. Respeta el timeout.
