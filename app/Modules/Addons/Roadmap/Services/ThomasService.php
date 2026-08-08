@@ -227,6 +227,165 @@ class ThomasService
     }
 
     // =================================================================
+    // 1-bis. CARRIL MECÁNICO (#566) — aprobar lo que no tiene nada que decidir
+    // =================================================================
+
+    /**
+     * ¿Este item es MECÁNICO + REVERSIBLE + no-prod, es decir, trabajo sin decisión pendiente?
+     *
+     * El autopilot exige un brief con `confianza`/`reversible` explícitos, así que un item obvio
+     * pero sin brief se queda en la bandeja pidiéndole a Irving que "decida" algo que ya está
+     * decidido por el enunciado (cerrar un hueco ruteado, borrar andamiaje muerto, registrar una
+     * ruta que da 404). Eso es peaje puro y es lo que seca la cola.
+     *
+     * PURA: no escribe nada, para poder auditarla en seco.
+     * Devuelve ['mecanico' => bool, 'motivo' => string, 'senal' => ?string].
+     */
+    public function clasificarMecanico(RoadmapItem $item): array
+    {
+        $no = fn (string $m) => ['mecanico' => false, 'motivo' => $m, 'senal' => null];
+
+        if (! config('circuito.thomas.mecanico.enabled', true)) {
+            return $no('El carril mecánico está apagado (circuito.thomas.mecanico.enabled).');
+        }
+        if (! config('circuito.thomas.enabled', true) || $this->circuito->isPaused()) {
+            return $no('Circuito en pausa o Thomas apagado: no se aprueba nada.');
+        }
+
+        // Rótulo de frontera dura: es de Irving por definición, sin importar el contenido.
+        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
+            return $no('Item rotulado [BLOCKED-]/[PARKED-]: decisión de Irving por definición.');
+        }
+
+        // Un C es una decisión de diseño; un item sin nivel no está triado.
+        $nivel = (string) $item->nivel_riesgo;
+        $orden = ['A' => 1, 'B' => 2, 'C' => 3];
+        $tope  = strtoupper((string) config('circuito.thomas.mecanico.max_nivel', 'B'));
+        if (! isset($orden[$nivel])) {
+            return $no('Sin nivel de riesgo: sin triar no entra al carril mecánico.');
+        }
+        if ($orden[$nivel] > ($orden[$tope] ?? 2)) {
+            return $no("Nivel {$nivel} por encima del tope mecánico ({$tope}): es decisión de diseño.");
+        }
+
+        $heno = mb_strtolower(preg_replace('/\s+/', ' ',
+            (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt));
+
+        // (1) Frontera dura: prod / borrar datos / dinero / credenciales. Se reusa EXACTAMENTE el
+        // mismo conjunto que gobierna las consultas de las terminales — una sola definición de
+        // "esto no lo decide la máquina", no dos que puedan divergir.
+        foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
+            foreach ((array) $terminos as $t) {
+                if ($t !== '' && str_contains($heno, mb_strtolower($t))) {
+                    return $no("Cae en la frontera dura «{$categoria}» («{$t}»): irreversible o de alto impacto.");
+                }
+            }
+        }
+
+        // (2) Negocio/producto: qué DEBE hacer una feature no lo decide una máquina.
+        foreach ((array) config('circuito.thomas.mecanico.negocio', []) as $t) {
+            if ($t !== '' && $this->apareceComoPalabra($heno, mb_strtolower($t))) {
+                return $no("Menciona «{$t}»: es decisión de negocio/producto, no trabajo mecánico.");
+            }
+        }
+
+        // (3) Señal mecánica explícita. ALLOWLIST: sin señal conocida, se queda con Irving.
+        foreach ((array) config('circuito.thomas.mecanico.senales', []) as $t) {
+            if ($t !== '' && $this->apareceComoPalabra($heno, mb_strtolower($t))) {
+                return [
+                    'mecanico' => true,
+                    'senal'    => $t,
+                    'motivo'   => "Trabajo mecánico y reversible (señal «{$t}»), nivel {$nivel}, "
+                        . 'fuera de la frontera dura y sin componente de negocio.',
+                ];
+            }
+        }
+
+        return $no('No coincide con ninguna señal mecánica conocida: ante la duda, se queda con Irving.');
+    }
+
+    /** ¿Cuántas auto-aprobaciones mecánicas van hoy? (para el tope diario) */
+    public function mecanicosHoy(): int
+    {
+        return RoadmapItem::where('aprobado_por', self::APROBADOR_MECANICO)
+            ->whereDate('revisado_at', now()->toDateString())
+            ->count();
+    }
+
+    public const APROBADOR_MECANICO = 'thomas-mecanico';
+
+    /**
+     * Aprueba un item por el carril mecánico y lo manda a la cola ejecutable.
+     *
+     * Reusa los estados que el pool YA reconoce (A → `aprobado_claude`, B → `aprobado_revisor`):
+     * no se inventa un estado nuevo ni se toca `ejecutablesParalelo`.
+     * Devuelve ['aprobado' => bool, 'estado' => ?string, 'motivo' => string].
+     */
+    public function aprobarMecanico(RoadmapItem $item): array
+    {
+        $c = $this->clasificarMecanico($item);
+        if (! $c['mecanico']) {
+            return ['aprobado' => false, 'estado' => null, 'motivo' => $c['motivo']];
+        }
+
+        $tope = (int) config('circuito.thomas.mecanico.tope_diario', 25);
+        if ($tope > 0 && $this->mecanicosHoy() >= $tope) {
+            return ['aprobado' => false, 'estado' => null,
+                'motivo' => "Tope diario del carril mecánico alcanzado ({$tope}). Se reanuda mañana."];
+        }
+
+        $estado = $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor';
+
+        $log = $item->log ?: [];
+        $log[] = [
+            'ts'           => now()->toIso8601String(),
+            'por'          => self::APROBADOR_MECANICO,
+            'decidido_por' => self::APROBADOR_MECANICO,
+            'decision'     => 'aprobar',
+            'estado'       => $estado,
+            'nivel'        => $item->nivel_riesgo,
+            'senal'        => $c['senal'],
+            'motivo'       => $c['motivo'],
+            // Con qué política se decidió: si mañana se afloja, el histórico sigue siendo legible.
+            'politica'     => [
+                'max_nivel'   => config('circuito.thomas.mecanico.max_nivel'),
+                'tope_diario' => $tope,
+            ],
+        ];
+
+        $item->forceFill([
+            'estado_aprobacion' => $estado,
+            'aprobado_por'      => self::APROBADOR_MECANICO,
+            'revisado_at'       => now(),
+            'log'               => $log,
+        ])->save();
+
+        $this->reportes->append(
+            $item,
+            self::NOMBRE,
+            'decision',
+            "Auto-aprobado por el carril mecánico → {$estado}.",
+            $c['motivo'],
+            ['senal' => $c['senal'], 'estado' => $estado, 'reversible' => true]
+        );
+
+        Log::channel('roadmap_externo')->info('thomas-mecanico', [
+            'item' => $item->id, 'nivel' => $item->nivel_riesgo, 'estado' => $estado, 'senal' => $c['senal'],
+        ]);
+
+        return ['aprobado' => true, 'estado' => $estado, 'motivo' => $c['motivo']];
+    }
+
+    /**
+     * Coincidencia por PALABRA COMPLETA. `\b` de PCRE no sirve con acentos (en «auditoría» la í
+     * rompe el borde), así que se delimita con `\p{L}\p{N}` y el modificador /u.
+     */
+    private function apareceComoPalabra(string $heno, string $termino): bool
+    {
+        return (bool) preg_match('/(?<![\p{L}\p{N}])' . preg_quote($termino, '/') . '(?![\p{L}\p{N}])/u', $heno);
+    }
+
+    // =================================================================
     // 2. ESTIMACIÓN DE ESFUERZO (orientativa, nunca bloqueante)
     // =================================================================
 

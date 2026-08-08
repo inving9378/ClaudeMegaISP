@@ -238,6 +238,61 @@ return [
         ],
 
         /*
+        |----------------------------------------------------------------------
+        | CARRIL MECÁNICO (#566) — auto-aprobar lo que no tiene nada que decidir
+        |----------------------------------------------------------------------
+        |
+        | El autopilot exige un brief con `confianza`/`reversible` explícitos, y un item sin brief
+        | se queda en la bandeja aunque sea trabajo obvio. Pero hay una clase de item donde no hay
+        | NADA que decidir: cerrar un hueco ruteado, borrar andamiaje muerto, registrar una ruta
+        | declarada que da 404, clasificar un módulo. Pedirle a Irving que "decida" eso es puro
+        | peaje: la decisión ya está tomada por el enunciado del item.
+        |
+        | Este carril los aprueba sin brief, y SOLO si pasan las cuatro puertas:
+        |   1. NO cae en el conjunto de escalamiento (prod / borrar datos / dinero / credenciales).
+        |   2. NO menciona nada de `negocio` (qué DEBE hacer una feature no lo decide una máquina).
+        |   3. SÍ coincide con una `senal` mecánica explícita (allowlist, no "todo lo que no sea…").
+        |   4. Nivel A o B. Un C es, por definición, una decisión de diseño de Irving.
+        |
+        | Allowlist y no denylist a propósito: si un item no encaja en ninguna señal conocida, se
+        | queda con Irving. Lo que se baja es el umbral para lo mecánico, no la prudencia.
+        |
+        | Las `senales` se matchean por PALABRA COMPLETA (misma lección de substring del #338).
+        |
+        */
+        'mecanico' => [
+            'enabled'   => (bool) env('CIRCUITO_THOMAS_MECANICO', true),
+            'max_nivel' => env('CIRCUITO_THOMAS_MECANICO_MAX_NIVEL', 'B'),
+
+            // Tope de auto-aprobaciones mecánicas por día. Freno de mano: si la política se
+            // desmadra, el daño está acotado a este número y se ve en un solo día.
+            'tope_diario' => (int) env('CIRCUITO_THOMAS_MECANICO_TOPE_DIA', 25),
+
+            // (3) SEÑALES — lo que sí se reconoce como mecánico. Ampliar esto es ampliar autonomía.
+            'senales' => [
+                // andamiaje muerto / código sin consumidores
+                'código muerto', 'codigo muerto', 'dead code', 'andamiaje', 'cascarón vacío',
+                'cascaron vacio', 'sin consumidores', 'no ruteado', 'no ruteados', 'método vacío',
+                'metodo vacio', 'métodos vacíos', 'metodos vacios', 'duplicado', 'duplicada',
+                // huecos y rutas
+                'hueco ruteado', 'huecos ruteados', 'ruta no registrada', 'rutas no registradas',
+                'ruta declarada', '404', 'enlace roto', 'link roto',
+                // higiene mecánica
+                'typo', 'renombrar', 'clasificar', 'footprint', 'todo mecánico', 'todo mecanico',
+                'registrar permiso', 'registrar en module_registry', 'guard de null', 'null safe',
+                'php -l', 'lint',
+            ],
+
+            // (2) NEGOCIO — si aparece algo de esto, no es mecánico por más que traiga una señal.
+            'negocio' => [
+                'negocio', 'producto', 'estrategia', 'precio', 'precios', 'tarifa', 'tarifas',
+                'comercial', 'modelo de cobro', 'qué debe hacer', 'que debe hacer', 'rediseñar',
+                'rediseño', 'redisenar', 'ux', 'decidir el alcance', 'política de', 'politica de',
+                'item madre', 'ítem madre',
+            ],
+        ],
+
+        /*
         | CIERRE — qué exige Thomas antes de dar un item por terminado. Son los criterios de
         | aceptación mínimos y comunes a todo item; los específicos viven en el propio item.
         */

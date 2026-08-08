@@ -54,6 +54,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\SubItemCommand::class,
                 // #566 — footprint a los "Sin clasificar": sin él cada uno serializa la flota.
                 \App\Modules\Addons\Roadmap\Console\ClasificarModuloCommand::class,
+                // #566 — re-triaje de la bandeja con el carril mecánico
+                \App\Modules\Addons\Roadmap\Console\RetriarBandejaCommand::class,
             ]);
         }
     }
