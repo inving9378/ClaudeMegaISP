@@ -20,16 +20,31 @@ class FleetDocument extends BaseModel
         'alert_30_days', 'alert_7_days', 'alert_1_day', 'alert_same_day', 'alert_channels',
     ];
 
+    /**
+     * #580 — Las columnas `ocr_*` quedan FUERA de $fillable a propósito: las escribe el controller
+     * con forceFill desde la bitácora `fleet_document_ocr_runs`. `update()` hace mass assignment
+     * con `$request->except([...])`, así que dejarlas fillable permitiría que el cliente se
+     * autodeclarara "leído por IA" o se quitara la marca de revisión manual.
+     */
     protected $casts = [
-        'issue_date'      => 'date',
-        'expiration_date' => 'date',
-        'cost'            => 'decimal:2',
-        'alert_30_days'   => 'boolean',
-        'alert_7_days'    => 'boolean',
-        'alert_1_day'     => 'boolean',
-        'alert_same_day'  => 'boolean',
-        'alert_channels'  => 'array',
+        'issue_date'       => 'date',
+        'expiration_date'  => 'date',
+        'cost'             => 'decimal:2',
+        'alert_30_days'    => 'boolean',
+        'alert_7_days'     => 'boolean',
+        'alert_1_day'      => 'boolean',
+        'alert_same_day'   => 'boolean',
+        'alert_channels'   => 'array',
+        'ocr_needs_review' => 'boolean',
+        'ocr_fields'       => 'array',
+        'ocr_ran_at'       => 'datetime',
+        'ocr_reviewed_at'  => 'datetime',
     ];
+
+    public function ocrRuns()
+    {
+        return $this->hasMany(FleetDocumentOcrRun::class, 'document_id');
+    }
 
     public function vehicle()
     {

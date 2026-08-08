@@ -3,6 +3,9 @@
 namespace App\Modules\Addons\Flotas\Controllers;
 
 use App\Modules\Addons\Flotas\Models\FleetDocument;
+use App\Modules\Addons\Flotas\Models\FleetDocumentOcrRun;
+use App\Modules\Addons\Flotas\Services\Ocr\FleetDocumentOcrService;
+use App\Modules\Addons\Flotas\Services\Ocr\VehicleDocumentProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -54,6 +57,8 @@ class FleetDocumentController extends FleetBaseController
             'alert_channels'   => 'nullable|array',
             'alert_channels.*' => 'in:email,whatsapp,push,sms',
             'file'             => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            // #580 — corrida de OCR que la pantalla mostró al usuario antes de confirmar.
+            'ocr_run_id'       => 'nullable|integer',
         ]);
 
         $this->vehicleForClient($data['vehicle_id']);
@@ -66,9 +71,122 @@ class FleetDocumentController extends FleetBaseController
             );
         }
 
+        $runId = $data['ocr_run_id'] ?? null;
+        unset($data['ocr_run_id']);   // no es columna de `fleet_documents`
+
         $doc = FleetDocument::create($data);
 
-        return response()->json(['document' => $this->decorate($doc)], 201);
+        // El resultado de la IA se toma de la BITÁCORA, nunca de lo que mande el cliente.
+        // Best-effort: un problema aquí jamás debe tumbar un documento ya guardado.
+        if ($runId) {
+            try {
+                $this->vincularCorridaOcr($doc, (int) $runId);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        return response()->json(['document' => $this->decorate($doc->fresh())], 201);
+    }
+
+    /**
+     * #580 — Lee un documento de vehículo con la IA para PRELLENAR el formulario.
+     *
+     * NO crea el documento ni toca nada: solo lee y deja rastro en la bitácora. La persona
+     * confirma (o corrige) en pantalla y guarda con el `store` de siempre. Responde SIEMPRE 200,
+     * incluso cuando la lectura falla: el criterio del item es que el OCR nunca bloquee la subida.
+     */
+    public function ocr(Request $request, FleetDocumentOcrService $ocr): JsonResponse
+    {
+        $this->authorize('fleet.documents.manage');
+
+        $request->validate([
+            'vehicle_id' => 'nullable|integer',
+            'file'       => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
+        ]);
+
+        if ($request->filled('vehicle_id')) {
+            $this->vehicleForClient((int) $request->input('vehicle_id'));   // tenant check
+        }
+
+        $file  = $request->file('file');
+        $bytes = (string) file_get_contents($file->getRealPath());
+
+        $resultado = $ocr->extract($bytes, (string) $file->getMimeType());
+
+        $run = FleetDocumentOcrRun::create([
+            'vehicle_id'   => $request->input('vehicle_id'),
+            'user_id'      => auth()->id(),
+            'ok'           => $resultado['ok'],
+            'needs_review' => $resultado['needs_review'],
+            'mime'         => $file->getMimeType(),
+            'bytes'        => strlen($bytes),
+            'file_hash'    => hash('sha256', $bytes),
+            'fields'       => $resultado['fields'],
+            'unreadable'   => $resultado['unreadable'],
+            'error'        => $resultado['error'],
+            'provider'     => $resultado['provider'],
+            'model'        => $resultado['model'],
+            'raw'          => mb_substr($resultado['raw'] ?? '', 0, 20000),
+            'created_at'   => now(),
+        ]);
+
+        return response()->json([
+            'ocr_run_id'   => $run->id,
+            'ok'           => $resultado['ok'],
+            'needs_review' => $resultado['needs_review'],
+            'fields'       => $resultado['fields'],
+            'unreadable'   => $resultado['unreadable'],
+            'labels'       => $ocr->labels(),
+            'type_labels'  => VehicleDocumentProfile::TIPOS,
+            'error'        => $resultado['error'],
+        ]);
+    }
+
+    /**
+     * #580 — "Ya lo revisé": apaga la marca de revisión manual de un documento.
+     */
+    public function markOcrReviewed(int $id): JsonResponse
+    {
+        $this->authorize('fleet.documents.manage');
+
+        $doc = FleetDocument::forClient($this->clientId())->findOrFail($id);
+
+        $doc->forceFill([
+            'ocr_needs_review' => false,
+            'ocr_reviewed_at'  => now(),
+            'ocr_reviewed_by'  => auth()->id(),
+        ])->save();
+
+        return response()->json(['document' => $this->decorate($doc->fresh())]);
+    }
+
+    /**
+     * Liga la corrida de OCR al documento recién creado y copia su veredicto.
+     *
+     * Solo acepta corridas del MISMO usuario y aún sin documento: así un id ajeno o reciclado no
+     * puede pintar de "leído por IA" un documento que se capturó a mano.
+     */
+    private function vincularCorridaOcr(FleetDocument $doc, int $runId): void
+    {
+        $run = FleetDocumentOcrRun::where('id', $runId)
+            ->where('user_id', auth()->id())
+            ->whereNull('document_id')
+            ->first();
+
+        if (! $run) {
+            return;
+        }
+
+        $run->document_id = $doc->id;
+        $run->save();
+
+        $doc->forceFill([
+            'ocr_status'       => $run->estadoParaDocumento(),
+            'ocr_needs_review' => $run->needs_review,
+            'ocr_fields'       => $run->fields,
+            'ocr_ran_at'       => $run->created_at,
+        ])->save();
     }
 
     public function show(int $id): JsonResponse
@@ -233,6 +351,8 @@ class FleetDocumentController extends FleetBaseController
             'status'                => $d->status,
             'days_until_expiration' => $d->days_until_expiration,
             'has_file'              => (bool) $d->file_path,
+            'ocr_needs_review'      => (bool) $d->ocr_needs_review,   // #580 "revisar manualmente"
+            'ocr_status'            => $d->ocr_status,
         ]);
     }
 

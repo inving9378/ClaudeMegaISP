@@ -119,6 +119,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/',                      [FleetDocumentController::class, 'store']);
             Route::get('/alertas/proximos',       [FleetDocumentController::class, 'proximos']);    // ANTES de /{id}
             Route::get('/dashboard/all',          [FleetDocumentController::class, 'dashboard']);   // ANTES de /{id}
+            Route::post('/ocr',                   [FleetDocumentController::class, 'ocr']);         // #580 — ANTES de /{id}
+            Route::post('/{id}/ocr/revisado',     [FleetDocumentController::class, 'markOcrReviewed']);
             Route::get('/{id}',                   [FleetDocumentController::class, 'show']);
             Route::post('/{id}',                  [FleetDocumentController::class, 'update']);      // multipart/form-data no admite PATCH en algunos navegadores
             Route::patch('/{id}',                 [FleetDocumentController::class, 'update']);
