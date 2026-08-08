@@ -12,7 +12,6 @@ use App\Http\Requests\module\scheduling\project\TaskCreateRequest;
 use App\Http\Traits\NotificationTrait;
 use App\Models\FrequencyEstimatedDedicatedTime;
 use App\Models\ListTemplateVerificationTask;
-use App\Models\LogActivity;
 use App\Models\ObservationTask;
 use App\Models\Task;
 use App\Services\DocumentTemplateService;
@@ -210,11 +209,6 @@ class TaskController extends Controller
             $array[$key] = $value;
         }
         return json_encode($array);
-    }
-
-    public function show(LogActivity $log)
-    {
-        //
     }
 
     /**

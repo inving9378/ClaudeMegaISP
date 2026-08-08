@@ -5,7 +5,6 @@ namespace App\Modules\Addons\Scheduling\Controllers;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\scheduling\project\ProjectDatatableHelper;
 use App\Http\Requests\module\scheduling\project\ProjectCreateRequest;
-use App\Models\LogActivity;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
@@ -62,11 +61,6 @@ class ProjectController extends Controller
         $model = $this->data['model']::create($input);
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request, 'sync');
         return redirect()->back()->with('message', $this->data['module'] . 'Proyecto añadido correctamente');
-    }
-
-    public function show(LogActivity $log)
-    {
-        //
     }
 
     /**
