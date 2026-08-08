@@ -189,8 +189,7 @@ class ClientBundleServiceController extends Controller
 
                 $plan_input = $plan_service->toArray();
 
-                // TODO arreglar optimizar y agregar constante
-                $this->removeUnusedFieldsByIpv4AssignmentInPlanInput($plan_input);
+                $plan_input = $this->removeUnusedFieldsByIpv4AssignmentInPlanInput($plan_input);
                 if ($bundleService) {
                     $clientInternetService = ClientInternetService::where('client_bundle_service_id', $bundleService->id)
                         ->where('internet_id', $id_plan)
@@ -302,7 +301,7 @@ class ClientBundleServiceController extends Controller
                 }
 
                 $plan_input = $plan_service->toArray();
-                $this->removeUnusedFieldsByIpv4AssignmentInPlanInput($plan_input);
+                $plan_input = $this->removeUnusedFieldsByIpv4AssignmentInPlanInput($plan_input);
                 if ($bundleService) {
                     $clientCustomService = ClientCustomService::where('client_bundle_service_id', $bundleService->id)
                         ->where('custom_id', $id_plan)->first();
@@ -948,9 +947,11 @@ class ClientBundleServiceController extends Controller
     {
         if ($plan_input['ipv4_assignment'] == ClientInternetService::IPV4_ASSIGNMENT_STATIC) {
             $plan_input['ipv4_pool'] = null;
-        } else {
+        } elseif ($plan_input['ipv4_assignment'] == ClientInternetService::IPV4_ASSIGNMENT_POOL_IP) {
             $plan_input['ipv4'] = null;
         }
+
+        return $plan_input;
     }
 
     public function objectToArray($object)
