@@ -79,8 +79,44 @@ class CheckRoutePermission
             return $next($request);
         }
 
-        // 5. Si no cumple nada, denegar acceso
+        // 5. Si no cumple nada, denegar acceso.
+        // Política de denegación silenciosa (item #537 Fase 1, decisión q2 de
+        // Irving): la navegación de página completa a algo sin permiso ya NO
+        // muestra la pantalla 403 — redirige en silencio al Dashboard. Las
+        // llamadas AJAX/JSON conservan el 403 real intacto (resources/js/
+        // helpers/Form.js atrapa error.response.status===403 en varios flujos
+        // existentes; cambiarles el código de respuesta los rompería en silencio).
+        if ($this->shouldDenySilently($request)) {
+            return $this->silentDenialResponse($requestPath);
+        }
+
         return response(view('meganet.pages.403'), 403);
+    }
+
+    /** ¿Aplica la denegación silenciosa a esta petición? Solo navegación de página completa. */
+    protected function shouldDenySilently(Request $request): bool
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return false;
+        }
+
+        return (bool) config('permission_hierarchy.silent_denial_enabled', true);
+    }
+
+    /**
+     * Redirige en silencio al destino configurado. Si la ruta pedida YA es ese
+     * destino y también se deniega, cae al 403 clásico para evitar un loop de
+     * redirección infinito.
+     */
+    protected function silentDenialResponse(string $requestPath)
+    {
+        $target = config('permission_hierarchy.silent_denial_redirect', '/');
+
+        if (rtrim($requestPath, '/') === rtrim($target, '/') || $requestPath === $target) {
+            return response(view('meganet.pages.403'), 403);
+        }
+
+        return redirect($target);
     }
 
     /**
