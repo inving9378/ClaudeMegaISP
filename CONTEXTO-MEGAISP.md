@@ -352,6 +352,41 @@ vuelta quema un slot de terminal y tokens para no hacer nada.
 | `circuito:thomas --diagnostico` | Estado del reparto: libres/ocupadas, cola, colisiones, ocio-con-cola |
 | `circuito:thomas --dry` | Evalúa consultas colgadas sin escribir |
 | `circuito:reap-stuck --minutes=N` | Libera reclamos huérfanos de workers muertos (**ojo**: los manda a `requiere_irving`) |
+| `circuito:auditor` | **DRY-RUN** del Motor de Auditoría: qué items crearía y por qué (no escribe) |
+| `circuito:auditor --dod` | Qué módulos están en su DoD de Fase 1 (sin gaps mecánicos) |
+| `circuito:auditor --apply` | Genera trabajo en vivo (respeta umbral, intervalo y los dos kill-switches) |
+
+### 8.4-ter MOTOR DE AUDITORÍA CONTINUA — el generador de trabajo (#559, 2026-08-08)
+
+> El circuito sabía **repartir** (scheduler) y **juzgar** (Thomas/revisor/autopilot), pero no
+> **generar**: con la cola vacía, las 6 terminales quedaban ociosas hasta que un humano escribiera
+> items. Este motor cierra ese hueco. Manual completo: **`docs/motor-auditoria.md`**.
+
+- **Dónde vive:** `AuditorService` + `circuito:auditor` + `config/circuito.auditor` +
+  `Support/InventarioSemilla.php`. Enganchado DENTRO de `circuito:scheduler` (mismo motivo que
+  Thomas: el scheduler es el único despachador), **antes** de calcular slots → lo que genera se
+  reparte en esa misma vuelta.
+- **Corre si:** motor encendido **Y** circuito sin pausar **Y** cola < `umbral_cola` (3) **Y** pasó
+  `min_intervalo_minutos` (15). **Kill-switches:** `auditor.enabled` (propio, `--forzar` NO lo salta)
+  y `circuito_pausado` (global). **Cap** duro: 10 items/ciclo.
+- **La cola se mide con `ejecutablesParalelo()`**, la misma puerta del scheduler — NO contando
+  `aprobado_irving`: al 2026-08-08 había 87 aprobados y **0 reclamables** (35 fuera del pool, 26
+  esperando merge, 25 rotulados). Contar en bruto = creer que hay cola con la flota parada.
+- **Round-robin entre módulos, no un módulo a la vez.** `modulo` es el footprint con el que el
+  scheduler serializa: 10 items del mismo módulo ocupan UNA terminal y dejan 5 ociosas.
+- **Seis detectores:** hueco ruteado (ruta activa + cuerpo vacío) · enlace de `module.json` que no
+  resuelve · TODO/FIXME en comentario · andamiaje resource sin ruta (1 item por módulo) · items sin
+  footprint · semilla del inventario (con `vigente` auto-verificable).
+- **Clasificación:** frontera dura de Thomas (reusada, no duplicada) → producto; texto que pide
+  decidir → producto; resto → mecánico nivel A. Producto = `requiere_irving` + `preguntas` con
+  `requiere_irving: true`, jamás reclamable.
+- **Dedup en 3 capas:** huella `roadmap_items.auditor_fingerprint` (abiertos Y cerrados) · título
+  contra lo que crearon Irving/Cowork/terminales · re-chequeo pre-escritura. ⚠️ **El módulo es parte
+  de la identidad**: sin ese guard, "GestionRed: eliminar 1 método de andamiaje" mataba a "Mapas:
+  eliminar 93 métodos de andamiaje" (primera corrida creó 6 de 10).
+- **Fase 2 (enganche listo):** `AuditorService::medirContraSpec()` devuelve `[]` a propósito. Cuando
+  existan los spec items por módulo con su DoD, se llena ahí y no se toca nada más; `InventarioSemilla`
+  se retira.
 
 ### 8.4-bis TORRE V2 — Thomas, la autoridad intermedia (2026-08-08)
 
