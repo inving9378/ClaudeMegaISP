@@ -33,16 +33,6 @@ class DocumentCrmController extends Controller
 
 
     /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
-    {
-      //  return view($this->data['url'] . '::index',$this->data);
-    }
-
-    /**
      * Show the form for creating a new resource.
      *
      * @return \Illuminate\Http\Response
@@ -63,17 +53,6 @@ class DocumentCrmController extends Controller
     {
         $this->validateFieldByRulesInTableFiledModules($this->data['module'],$request);
         return Crm::findOrFail($idCrm)->createDocument($request);
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  \App\Models\DocumentCrm  $documentCrm
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        //
     }
 
     /**
