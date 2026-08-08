@@ -61,15 +61,6 @@
             </li>
         @endif
 
-        {{-- Facturación — Notificaciones pendientes --}}
-        @if(auth()->user()->can('facturacion.notif.gestionar'))
-            <li>
-                <a href="{{ url('/finanzas/notificaciones-pendientes') }}">
-                    <span data-key="t-finanzas-notif"><small><i class="fas fa-paper-plane"></i></small> Notificaciones pendientes</span>
-                </a>
-            </li>
-        @endif
-
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5).
              Marketing dejó de ser caso especial: ahora es módulo top-level
              con su propio partial (module-sidebar/marketing.blade.php). --}}
