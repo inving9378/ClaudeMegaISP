@@ -121,7 +121,6 @@ const SLUG_CATEGORY = {
     'addon-mensajes':              'Operación',
     'addon-payments':              'Finanzas',
     'addon-planes':                'Red',
-    'addon-reportes':              'IA y Marketing',
     'addon-roadmap':               'Sistema',
     'addon-scheduling':            'Sistema',
     'addon-smart-import-export':   'Auditoría y Docs',
