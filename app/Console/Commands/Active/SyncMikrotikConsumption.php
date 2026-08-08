@@ -73,15 +73,25 @@ class SyncMikrotikConsumption extends Command
                             $currentOut = (int)$i->getProperty('tx-byte');
                             $prev = DB::table('internet_consumptions')
                                 ->where('session_id', $sessionId)
-                                ->first(['bytes_in', 'bytes_out']);
+                                ->first(['bytes_in', 'bytes_out', 'updated_at']);
                             $deltaIn = 0;
                             $deltaOut = 0;
+                            $rateInBps = null;
+                            $rateOutBps = null;
 
                             if ($prev) {
                                 // Si el contador subió, restamos para saber el consumo del intervalo
                                 if ($currentIn >= $prev->bytes_in) {
                                     $deltaIn = $currentIn - $prev->bytes_in;
                                     $deltaOut = $currentOut - $prev->bytes_out;
+
+                                    // Velocidad reciente = delta de bytes / tiempo transcurrido desde la pasada anterior.
+                                    // Es un promedio del intervalo (job cada ~10min), no un throughput instantáneo.
+                                    $elapsed = $prev->updated_at ? now()->diffInSeconds($prev->updated_at) : 0;
+                                    if ($elapsed > 0) {
+                                        $rateInBps = (int) round(($deltaIn * 8) / $elapsed);
+                                        $rateOutBps = (int) round(($deltaOut * 8) / $elapsed);
+                                    }
                                 } else {
                                     // Si el contador bajó, el router reinició contadores: el delta es el total actual
                                     $deltaIn = $currentIn;
@@ -114,6 +124,8 @@ class SyncMikrotikConsumption extends Command
                                     'client_name'   => $clientName,
                                     'bytes_in'      => $currentIn,
                                     'bytes_out'     => $currentOut,
+                                    'rate_in_bps'   => $rateInBps,
+                                    'rate_out_bps'  => $rateOutBps,
                                     'uptime'        => $this->parseMikrotikUptimeToSeconds($meta['uptime']),
                                     'ip_address'    => $meta['ip'],
                                     'mac_address'   => $meta['mac'],
