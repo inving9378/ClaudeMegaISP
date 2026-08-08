@@ -428,6 +428,8 @@
             const dineroTab = ref('cuenta');
             const cuenta = ref(null);
             const desglose = ref(null);
+            const fondo = ref(null);
+            const prestamos = ref(null);
             const cargandoDinero = ref(false);
             const dineroCargado = ref(false);
             const CONCEPTO_LABEL = {
@@ -445,12 +447,16 @@
             async function cargarDinero() {
                 if (!colaborador.value) { cargandoDinero.value = false; return; }
                 cargandoDinero.value = true;
-                const [c, d] = await Promise.all([
+                const [c, d, f, p] = await Promise.all([
                     apiFetch('/talento/portal/dinero/cuenta'),
                     apiFetch('/talento/portal/dinero/desglose'),
+                    apiFetch('/talento/portal/dinero/fondo'),
+                    apiFetch('/talento/portal/dinero/prestamos'),
                 ]);
                 cuenta.value = (c.ok && c.data) ? c.data : null;
                 desglose.value = (d.ok && d.data) ? d.data : null;
+                fondo.value = (f.ok && f.data) ? f.data : null;
+                prestamos.value = (p.ok && p.data) ? p.data : null;
                 cargandoDinero.value = false;
                 dineroCargado.value = true;
             }
@@ -549,7 +555,7 @@
             return {
                 colaborador, tab, dark, savingTheme, nombre, tipoLabel,
                 drawer, gruposMenu, irA,
-                dineroTab, cuenta, desglose, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
+                dineroTab, cuenta, desglose, fondo, prestamos, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
                 enCustodia, pendientes, historial, cargandoMaterial, cargarMaterial,
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
@@ -948,16 +954,63 @@
                                 </template>
                             </q-tab-panel>
 
-                            <!-- Fondo / Préstamos: Sub-paso 3 -->
-                            <q-tab-panel name="fondo" class="tp-empty">
-                                <q-icon name="savings" class="tp-empty-icon" />
-                                <div class="text-subtitle1">Fondo de ahorro</div>
-                                <div class="text-caption">Próxima entrega.</div>
+                            <!-- FONDO: ahorro recuperable, SOLO LECTURA -->
+                            <q-tab-panel name="fondo" class="q-pa-md">
+                                <template v-if="fondo && fondo.fondos && fondo.fondos.length">
+                                    <q-card flat bordered class="tp-card q-mb-md">
+                                        <div class="text-caption text-grey-7">Aporte del período</div>
+                                        <div class="text-h5 text-teal-7">{{ money(fondo.aporte_periodo) }}</div>
+                                        <div class="text-caption text-grey-6 q-mt-xs">{{ fondo.naturaleza }}</div>
+                                    </q-card>
+                                    <q-card v-for="(f, i) in fondo.fondos" :key="i" flat bordered class="tp-card q-mb-md">
+                                        <div class="row items-center justify-between">
+                                            <div class="text-weight-medium">{{ f.purpose }}</div>
+                                            <q-chip dense :color="f.status === 'active' ? 'teal-6' : 'grey-6'" text-color="white">{{ f.status }}</q-chip>
+                                        </div>
+                                        <div class="text-caption text-grey-7 q-mt-xs">
+                                            Acumulado {{ money(f.accumulated) }} <span v-if="f.target"> / meta {{ money(f.target) }}</span>
+                                        </div>
+                                        <q-linear-progress v-if="f.target" :value="(f.progress_pct || 0) / 100" color="teal-6" track-color="grey-3" size="10px" rounded class="q-mt-sm" />
+                                        <div class="text-caption text-grey-6 q-mt-sm">
+                                            Descuento semanal {{ money(f.weekly_deduction) }}
+                                            <span v-if="f.weeks_remaining != null"> · {{ f.weeks_remaining }} semanas restantes</span>
+                                        </div>
+                                    </q-card>
+                                </template>
+                                <div v-else class="tp-empty">
+                                    <q-icon name="savings" class="tp-empty-icon" />
+                                    <div class="text-subtitle1">Sin fondos activos</div>
+                                    <div class="text-caption">Aquí verás tu fondo de ahorro cuando tengas uno autorizado.</div>
+                                </div>
                             </q-tab-panel>
-                            <q-tab-panel name="prestamos" class="tp-empty">
-                                <q-icon name="account_balance" class="tp-empty-icon" />
-                                <div class="text-subtitle1">Préstamos</div>
-                                <div class="text-caption">Próxima entrega.</div>
+
+                            <!-- PRÉSTAMOS: SOLO LECTURA -->
+                            <q-tab-panel name="prestamos" class="q-pa-md">
+                                <template v-if="prestamos && prestamos.prestamos && prestamos.prestamos.length">
+                                    <q-card flat bordered class="tp-card q-mb-md">
+                                        <div class="text-caption text-grey-7">Repago del período</div>
+                                        <div class="text-h5 text-teal-7">{{ money(prestamos.repago_periodo) }}</div>
+                                    </q-card>
+                                    <q-card v-for="(l, i) in prestamos.prestamos" :key="i" flat bordered class="tp-card q-mb-md">
+                                        <div class="row items-center justify-between">
+                                            <div class="text-weight-medium">{{ l.reason }}</div>
+                                            <q-chip dense :color="l.status === 'active' ? 'teal-6' : 'grey-6'" text-color="white">{{ l.status }}</q-chip>
+                                        </div>
+                                        <div class="text-caption text-grey-7 q-mt-xs">
+                                            Saldo {{ money(l.balance) }} / original {{ money(l.amount) }}
+                                        </div>
+                                        <div class="text-caption text-grey-6 q-mt-xs">Pagado {{ money(l.paid) }}</div>
+                                        <div class="text-caption text-grey-6 q-mt-sm">
+                                            Pago semanal {{ money(l.repayment_weekly) }}
+                                            <span v-if="l.weeks_remaining != null"> · {{ l.weeks_remaining }} semanas restantes</span>
+                                        </div>
+                                    </q-card>
+                                </template>
+                                <div v-else class="tp-empty">
+                                    <q-icon name="account_balance" class="tp-empty-icon" />
+                                    <div class="text-subtitle1">Sin préstamos activos</div>
+                                    <div class="text-caption">Aquí verás tus préstamos cuando tengas uno registrado.</div>
+                                </div>
                             </q-tab-panel>
                         </q-tab-panels>
                     </div>
