@@ -396,6 +396,130 @@ return [
     ],
 
     /*
+    |--------------------------------------------------------------------------
+    | MOTOR DE AUDITORÍA CONTINUA — el generador de trabajo (#559, "Item Madre")
+    |--------------------------------------------------------------------------
+    |
+    | Qué resuelve: el circuito ya sabe REPARTIR (scheduler) y JUZGAR (Thomas/revisor/autopilot),
+    | pero no sabe GENERAR. Cuando la cola se vacía, las 6 terminales se quedan ociosas esperando
+    | que un humano escriba items. Este motor escanea el sistema módulo por módulo, detecta lo que
+    | falta y CREA los items-hijo que cierran esos huecos.
+    |
+    | Lo que NO es: no reparte (eso es del scheduler), no aprueba (los items nacen sin aprobar como
+    | cualquier otro) y no decide de producto (lo que huele a decisión va a la bandeja de Irving).
+    |
+    | KILL-SWITCH: `enabled` en false lo apaga al instante (o CIRCUITO_AUDITOR=false en .env).
+    | Además respeta el kill switch global del circuito (`circuito_pausado`, botón de la Torre):
+    | en pausa NO crea nada.
+    |
+    */
+    'auditor' => [
+        // ── KILL-SWITCH del motor ──────────────────────────────────────────────────────────────
+        'enabled' => (bool) env('CIRCUITO_AUDITOR', true),
+
+        /*
+        | CAP por ciclo — tope DURO de items nuevos por corrida. Es la contención principal contra
+        | un desbordamiento: aunque el escaneo encuentre 300 gaps, nunca se crean más de esto de
+        | una. Arranca conservador; subirlo es un cambio de una línea (ver docs/motor-auditoria.md).
+        */
+        'cap_por_ciclo' => (int) env('CIRCUITO_AUDITOR_CAP', 10),
+
+        /*
+        | Cuántos items se toman de UN MISMO módulo por ciclo antes de pasar al siguiente.
+        |
+        | Ojo, esto NO es cosmético: `modulo` es el footprint con el que el scheduler SERIALIZA
+        | (#432 B2). Si un ciclo generara sus 10 items para Mapas, el scheduler los correría de a
+        | uno y 5 terminales quedarían ociosas — justo lo que este motor viene a evitar. Por eso el
+        | reparto es ROUND-ROBIN entre módulos: pocos items de muchos módulos llenan las 6
+        | terminales; muchos items de un módulo llenan una.
+        */
+        'items_por_modulo_por_ciclo' => (int) env('CIRCUITO_AUDITOR_POR_MODULO', 2),
+
+        /*
+        | UMBRAL de disparo: el motor sólo corre si la cola REALMENTE reclamable (lo que el
+        | scheduler podría despachar ahora mismo) está por debajo de esto. Con la cola llena se
+        | queda quieto: generar más trabajo no ayudaría y sólo ensuciaría la Hoja de Ruta.
+        */
+        'umbral_cola' => (int) env('CIRCUITO_AUDITOR_UMBRAL', 3),
+
+        /*
+        | Minutos mínimos entre escaneos. El scheduler corre cada minuto; escanear ~1,500 archivos
+        | PHP cada minuto sería un desperdicio. Con la cola vacía, un escaneo cada 15 min basta de
+        | sobra para que las terminales nunca se queden sin trabajo.
+        */
+        'min_intervalo_minutos' => (int) env('CIRCUITO_AUDITOR_INTERVALO', 15),
+
+        /*
+        | LOS DOS CARRILES (inventario de módulos, 2026-08-08).
+        |
+        | `paralelo`: módulos con acoplamiento ~0 (nadie los consume, no consumen a nadie) → sus
+        | items pueden correr a la vez en distintas terminales sin pisarse.
+        |
+        | `serializado`: la base acoplada. Clientes (in=8), Configuracion (in=9), CRM (in=8) y
+        | ModuleManager (in=7) sostienen a casi todo el sistema; dos cambios simultáneos ahí se
+        | pisan. Van al final y de a uno (el scheduler ya serializa por `modulo`; esto además evita
+        | que el motor los ponga en cabeza de cola).
+        |
+        | El orden de la lista ES el orden de trabajo. Un módulo sin gaps se salta solo (está en su
+        | DoD de Fase 1), así que la lista no hay que mantenerla a mano cuando algo se termina.
+        */
+        'carriles' => [
+            'paralelo' => [
+                'GestionRed', 'Inventario', 'Mapas', 'Tickets', 'Scheduling', 'Hub',
+                'Finanzas', 'Mensajes', 'Vendedores', 'Talento', 'Flotas', 'Marketing',
+                'Payments', 'MegaFamilia', 'VoIP', 'WhatsAppAgent', 'PortalCliente', 'PortalPago',
+                'Embajadores', 'Reportes', 'Usuarios', 'Roadmap / Circuito CC',
+            ],
+            'serializado' => ['Clientes', 'Configuracion', 'CRM', 'ModuleManager'],
+        ],
+
+        /*
+        | DETECTORES de Fase 1. Apagar uno deja de generar ESE tipo de item sin tocar el resto.
+        |
+        |  - hueco_ruteado: método con RUTA ACTIVA y cuerpo vacío. El hueco real (el usuario hace
+        |    clic y no pasa nada). Sólo había 3 en todo el sistema al 2026-08-08.
+        |  - enlace_roto:   URL declarada en el module.json (menú/admin_cards/config_sections) que
+        |    NO resuelve a ninguna ruta registrada → 404 desde el menú.
+        |  - todo:          TODO/FIXME/HACK reales en comentario (no la palabra española "todo").
+        |  - andamiaje:     métodos resource vacíos SIN ruta (basura de make:controller --resource).
+        |    Es limpieza, no funcionalidad: un item por módulo, no uno por método.
+        |  - sin_clasificar: items de la Hoja de Ruta con footprint desconocido, que por diseño
+        |    corren SOLOS y bloquean a las 6 terminales (#526). Clasificarlos libera la flota.
+        |  - semilla:       pendientes del inventario 2026-08-08 que el escaneo no puede ver.
+        */
+        'detectores' => [
+            'hueco_ruteado'  => (bool) env('CIRCUITO_AUDITOR_D_HUECOS', true),
+            'enlace_roto'    => (bool) env('CIRCUITO_AUDITOR_D_ENLACES', true),
+            'todo'           => (bool) env('CIRCUITO_AUDITOR_D_TODOS', true),
+            'andamiaje'      => (bool) env('CIRCUITO_AUDITOR_D_ANDAMIAJE', true),
+            'sin_clasificar' => (bool) env('CIRCUITO_AUDITOR_D_SINCLAS', true),
+            'semilla'        => (bool) env('CIRCUITO_AUDITOR_D_SEMILLA', true),
+        ],
+
+        /*
+        | Términos que delatan una DECISIÓN DE PRODUCTO dentro de un TODO/FIXME. Si el texto del
+        | comentario trae alguno, el gap NO se crea como item mecánico: se manda a la bandeja de
+        | Irving con la pregunta. "Refactorizar esto" es mecánico; "preguntar si eliminamos el
+        | archivo" no lo es, y adivinarlo sería fabricar una decisión suya.
+        |
+        | Nota: ADEMÁS de esto, todo gap pasa por la frontera dura de Thomas
+        | (`circuito.thomas.escalamiento`: producción / borrar datos / dinero / credenciales). Lo
+        | que cae ahí NUNCA sale como item mecánico, sin importar lo que diga este listado.
+        */
+        'terminos_producto' => [
+            'preguntar', 'pregunta', 'decidir', 'definir', 'confirmar con', 'revisar con',
+            'pedido por', 'consultar', 'evaluar si', 'validar con', 'depende de',
+        ],
+
+        /*
+        | Módulos que el motor NO audita.
+        |  - Demo: es el addon de EJEMPLO del kit modular; sus huecos son didácticos a propósito.
+        |  - Security / Voice: son librerías internas sin module.json ni provider, no módulos.
+        */
+        'excluir_modulos' => ['Demo', 'Security', 'Voice'],
+    ],
+
+    /*
     | #432 Fase 3 — Brief COMPLETO (multi-pregunta). ON: la bandeja usa la columna JSON `preguntas`
     | (varias preguntas por item) y la escalación las puebla TODAS de una. OFF: fallback al modelo
     | viejo de una sola `opciones`/`opcion_elegida`. Un item SIN `preguntas` cae al fallback aunque
