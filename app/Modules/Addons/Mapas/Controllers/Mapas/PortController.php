@@ -86,17 +86,6 @@ class PortController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show(Request $request)
-    {
-
-    }
-
-    /**
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -151,7 +140,6 @@ class PortController extends Controller
             $this->SimpleService->catch($e);
         }
     }
-
 
     public function search(Request $request)
     {
