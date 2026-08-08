@@ -10,31 +10,45 @@
           {{ estadoLabel }}
         </span>
         <div>
+          <!-- #507 sub-paso 4 — se retira "Vuelta en curso": ya no hay rondas. Lo que importa ahora
+               es QUÉ TERMINAL está trabajando y cuánto queda en cola (modo continuo). -->
           <h1 class="tc-h1">
-            <template v-if="running">Vuelta en curso<span v-if="live.current_item" class="tc-hnorm"> · tocando <span class="tc-idnum">#{{ live.current_item }}</span></span></template>
+            <template v-if="running">{{ terminalesActivas }} {{ terminalesActivas === 1 ? 'terminal trabajando' : 'terminales trabajando' }}<span v-if="live.current_item" class="tc-hnorm"> · tocando <span class="tc-idnum">#{{ live.current_item }}</span></span></template>
             <template v-else>Circuito CC · Torre de control</template>
+            <span class="tc-v2-badge" title="Circuito CC v2 aplicada — ver nota abajo">v2</span>
           </h1>
           <div class="tc-meta">
             <template v-if="running">
-              Corriendo hace <b class="tc-strong">{{ fmtClock(elapsedRunning) }}</b> · modo <b>{{ modo }}</b><span class="tc-beat"> · ♥ vivo hace {{ sinceBeat }}s</span>
+              Modo continuo · {{ terminalesLibres }} {{ terminalesLibres === 1 ? 'terminal libre' : 'terminales libres' }} · <b class="tc-strong">{{ autoEjecutables }}</b> en cola<span class="tc-beat"> · ♥ vivo hace {{ sinceBeat }}s</span>
             </template>
             <template v-else-if="pausado">
               Circuito detenido · no ejecuta hasta reanudar · {{ total }} items
             </template>
             <template v-else>
-              <span v-if="ultimaHace">Última vuelta <b class="tc-strong">{{ ultimaHace }}</b></span><span v-else>Sin vueltas registradas aún</span><span v-if="proximaEn"> · próxima <b class="tc-strong">{{ proximaEn }}</b></span> · {{ total }} items · modo <b>{{ modo }}</b>
+              Modo continuo · las terminales libres jalan trabajo solas · <b class="tc-strong">{{ autoEjecutables }}</b> en cola · {{ total }} items<span v-if="ultimaHace"> · último cierre <b class="tc-strong">{{ ultimaHace }}</b></span>
             </template>
           </div>
         </div>
       </div>
       <div class="tc-barbtns">
-        <button v-if="canDisparar" class="tc-runbtn" :disabled="disparando || pausado || running"
-          :title="pausado ? 'Reanuda el circuito para ejecutar' : (running ? 'Ya hay una vuelta en curso' : '')"
-          @click="disparar">{{ disparando ? '⏳ Disparando…' : '▶ Ejecutar vuelta ahora' }}</button>
+        <!-- #507: en modo continuo el botón ADELANTA la corrida del scheduler; ya no espera a que
+             termine "la vuelta", así que deja de deshabilitarse porque haya terminales trabajando. -->
+        <button v-if="canDisparar" class="tc-runbtn" :disabled="disparando || pausado"
+          :title="pausado ? 'Reanuda el circuito para ejecutar' : 'Adelanta el reparto: las terminales libres jalan trabajo ya'"
+          @click="disparar">{{ disparando ? '⏳ Jalando…' : '▶ Jalar trabajo ahora' }}</button>
         <button class="tc-logbtn" :class="{ 'tc-logbtn-on': logOpen }" @click="toggleLog">{{ logOpen ? '✕ Ocultar log' : '👁 Ver log en vivo' }}</button>
         <button class="tc-killbtn" :class="{ 'tc-resume': pausado }" :disabled="toggling" @click="toggle">
           {{ toggling ? '…' : (pausado ? '▶ Reanudar circuito' : '⏸ Pausar circuito') }}
         </button>
+      </div>
+    </div>
+
+    <!-- #560: marcador visual de confirmación — Circuito CC v2 aplicada (Torre v2) -->
+    <div class="tc-v2-note">
+      <span class="tc-v2-note-badge">v2</span>
+      <div class="tc-v2-note-body">
+        <b>Circuito CC v2 aplicada.</b> Torre v2: (1) API de alta de items + historial <code>roadmap_item_reports</code> + estado_cola/terminal asignada · (2) Thomas (autoridad determinista, 5 categorías de escalamiento) · (3) harness no-interactivo con regla de oro · (4) <code>docs/politica-thomas.md</code>.
+        <div class="tc-v2-note-links">Prueba real: <b>#555</b>, <b>#556</b> · commits <code>ea744de0</code>, <code>502a4866</code>.</div>
       </div>
     </div>
 
@@ -58,6 +72,23 @@
       ⏸ <b>Ocioso</b> — {{ autoEjecutables }} auto-ejecutable(s) en cola; el pool los tomará en segundos (o esperan que el revisor apruebe los B).
     </div>
 
+    <!-- #507 sub-paso 4 — AUTOPILOT: qué decide solo, qué te consulta y qué lleva hecho hoy.
+         El kill switch NO se duplica aquí a propósito: vive en la barra de arriba, siempre visible. -->
+    <div class="tc-ap" :class="{ 'tc-ap-off': !autopilot.enabled, 'tc-ap-pausa': pausado }">
+      <div class="tc-ap-l">
+        <span class="tc-ap-dot" :class="autopilot.enabled && !pausado ? 'tc-ap-on' : 'tc-ap-dim'"></span>
+        <b class="tc-ap-t">Autopilot {{ !autopilot.enabled ? 'apagado' : (pausado ? 'en pausa' : 'activo') }}</b>
+        <span class="tc-ap-pol">
+          decide solo hasta <b>nivel {{ autopilot.max_nivel }}</b> con confianza <b>{{ autopilot.umbral_confianza }}</b><template v-if="autopilot.requiere_reversible"> y marcado reversible</template>. Lo demás te lo pregunta.
+        </span>
+      </div>
+      <div class="tc-ap-r">
+        <span class="tc-ap-kpi"><b>{{ autopilot.auto_hoy }}</b> auto-ejecutados hoy</span>
+        <span class="tc-ap-kpi"><b>{{ autoEjecutables }}</b> en cola</span>
+        <span class="tc-ap-kpi tc-ap-kpi-dec"><b>{{ cola.length }}</b> te esperan</span>
+      </div>
+    </div>
+
     <!-- Visor "Trabajando ahora" (#349): stepper de fases por sesión + resumen de la vuelta -->
     <torre-trabajando-ahora :sesiones="sesiones" :resumen="resumenUltima" :now-ms="nowMs" :pausado="pausado" :dark="darkMode" />
 
@@ -73,6 +104,43 @@
     <div v-if="loading" class="tc-meta tc-loading">Cargando datos del circuito…</div>
 
     <template v-else>
+     <div class="tc-layout">
+
+      <!-- #507 sub-paso 4 — SIDEBAR INTERNO de la Torre. NO toca el sidebar global del sistema:
+           vive dentro de esta pantalla. Trae las "bombitas" (decisiones por módulo) y el índice de
+           preguntas del item en revisión, sincronizado con la paginación de la tarjeta. -->
+      <aside class="tc-side">
+        <div class="tc-side-h">Decisiones por módulo</div>
+        <div v-if="!contadores.por_modulo.length" class="tc-side-vacio">Nada pendiente ✓</div>
+        <button v-for="g in contadores.por_modulo" :key="g.clave" type="button"
+                class="tc-side-mod" :class="{ 'tc-side-mod-on': moduloFiltro === g.clave }"
+                :title="g.url ? ('Pantalla del módulo: ' + g.url) : 'Este módulo no mapea a ninguna pantalla del sidebar'"
+                @click="filtrarModulo(g.clave)">
+          <span class="tc-side-name">{{ g.modulo }}</span>
+          <span class="tc-bombita" :class="{ 'tc-bombita-urg': g.urgentes > 0 }">{{ g.n }}</span>
+        </button>
+        <button v-if="contadores.sin_clasificar" type="button" class="tc-side-mod tc-side-mod-mut"
+                :class="{ 'tc-side-mod-on': moduloFiltro === SIN_MODULO }"
+                title="Items sin módulo declarado: no se pueden agrupar" @click="filtrarModulo(SIN_MODULO)">
+          <span class="tc-side-name">Sin clasificar</span>
+          <span class="tc-bombita tc-bombita-mut">{{ contadores.sin_clasificar }}</span>
+        </button>
+        <button v-if="moduloFiltro" type="button" class="tc-side-clear" @click="filtrarModulo(null)">✕ quitar filtro</button>
+
+        <!-- Índice de preguntas del item en revisión (sincronizado con la paginación) -->
+        <template v-if="itemEnRevision && (itemEnRevision.preguntas || []).length">
+          <div class="tc-side-h tc-side-h2">Preguntas de <span class="tc-idnum">#{{ itemEnRevision.id }}</span></div>
+          <button v-for="(pg, i) in itemEnRevision.preguntas" :key="pg.id" type="button"
+                  class="tc-side-preg" :class="{ 'tc-side-preg-on': pregIdx(itemEnRevision) === i }"
+                  @click="irAPregunta(itemEnRevision, i)">
+            <span class="tc-side-preg-n">{{ i + 1 }}</span>
+            <span class="tc-side-preg-t">{{ pg.pregunta || 'Decisión' }}</span>
+            <span v-if="preguntaRespondida(itemEnRevision, pg)" class="tc-side-preg-ok">✓</span>
+          </button>
+        </template>
+      </aside>
+
+      <div class="tc-main">
       <!-- KPIs por estado -->
       <div class="tc-kpis">
         <div class="tc-kpi"><div class="tc-n">{{ total }}</div><div class="tc-l">Items totales</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
@@ -85,9 +153,20 @@
       <div class="tc-grid">
         <!-- Bandeja: requiere_irving -->
         <div class="tc-card">
-          <h2 class="tc-h2">⚑ Tu bandeja — requiere tu decisión ({{ cola.length }})</h2>
+          <h2 class="tc-h2">⚑ Tu bandeja — requiere tu decisión (<template v-if="bandejaTruncada">{{ cola.length }} de {{ contadores.total }}</template><template v-else>{{ cola.length }}</template>)</h2>
+          <!-- Si el servidor recortó la lista, se dice; jamás se enseña un número que no cuadre
+               con las bombitas del sidebar. -->
+          <div v-if="bandejaTruncada" class="tc-meta tc-trunc">Mostrando los primeros {{ cola.length }}; hay {{ contadores.total }} en total.</div>
+          <!-- #507 — con el autopilot decidiendo lo respaldado, aquí solo debe quedar lo que de
+               verdad necesita a Irving. -->
+          <div class="tc-meta tc-bandeja-sub">Solo lo indispensable: el autopilot ya resolvió lo que traía respaldo suficiente.</div>
+          <div v-if="moduloFiltro" class="tc-filtro-aviso">
+            Filtrando por <b>{{ moduloFiltroLabel }}</b> ({{ colaFiltrada.length }} de {{ cola.length }})
+            <button type="button" class="tc-filtro-x" @click="filtrarModulo(null)">✕</button>
+          </div>
           <div v-if="!cola.length" class="tc-meta">Nada requiere tu decisión ahora. ✓</div>
-          <div v-for="it in cola" :key="it.id" :id="'tc-item-' + it.id" class="tc-inbox-item tc-inbox-compact" :class="{ 'tc-highlight': highlightId === it.id }">
+          <div v-else-if="!colaFiltrada.length" class="tc-meta">Ningún item de ese módulo en tu bandeja.</div>
+          <div v-for="it in colaFiltrada" :key="it.id" :id="'tc-item-' + it.id" class="tc-inbox-item tc-inbox-compact" :class="{ 'tc-highlight': highlightId === it.id, 'tc-inbox-rev': itemEnRevision && itemEnRevision.id === it.id }">
             <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
             <div class="tc-inbox-body">
               <!-- #477: tarjeta COMPACTA para TODA "Tu bandeja" (no solo nivel_riesgo=C: la bandeja
@@ -104,20 +183,36 @@
               <!-- #432 Fase 3 — brief COMPLETO: TODAS las preguntas del item juntas, cada una con sus
                    opciones. #431: objetos {clave,texto,recomendada}; se marca por CLAVE estable.
                    Verde = RECOMENDADA; anillo = SELECCIONADA. Una sola Aprobar responde todo. -->
+              <!-- #507 sub-paso 4 — UNA PREGUNTA A LA VEZ. Antes se apilaban todas y una sola
+                   "Aprobar" respondía todo, que es justo donde se decide sin leer. Ahora se navega
+                   con "Pregunta X de Y" (o desde el índice del sidebar) y Aprobar no se habilita
+                   hasta responderlas todas. -->
               <div v-if="it.preguntas && it.preguntas.length" class="tc-preguntas">
-                <div class="tc-dec-label">Decisión requerida</div>
-                <div v-for="(pg, pi) in it.preguntas" :key="pg.id" class="tc-pregunta">
-                  <div v-if="pg.pregunta || pg.fase" class="tc-pregunta-t">
-                    <span v-if="it.preguntas.length > 1" class="tc-pregunta-num">{{ pi + 1 }}.</span>{{ pg.pregunta }}
-                    <span v-if="pg.fase" class="tc-fase-badge">se decide en {{ pg.fase }}</span>
+                <div class="tc-dec-head">
+                  <span class="tc-dec-label">Decisión requerida</span>
+                  <span v-if="it.preguntas.length > 1" class="tc-preg-nav">
+                    <button type="button" class="tc-preg-arrow" :disabled="pregIdx(it) === 0"
+                            title="Pregunta anterior" @click="pregPrev(it)">‹</button>
+                    <span class="tc-preg-cnt">Pregunta {{ pregIdx(it) + 1 }} de {{ it.preguntas.length }}</span>
+                    <button type="button" class="tc-preg-arrow" :disabled="pregIdx(it) >= it.preguntas.length - 1"
+                            title="Siguiente pregunta" @click="pregNext(it)">›</button>
+                  </span>
+                  <span v-if="faltanPreguntas(it)" class="tc-preg-falta">faltan {{ faltanPreguntas(it) }} por responder</span>
+                  <span v-else class="tc-preg-ok">todas respondidas ✓</span>
+                </div>
+                <div v-if="pregActual(it)" class="tc-pregunta">
+                  <div v-if="pregActual(it).pregunta || pregActual(it).fase" class="tc-pregunta-t">
+                    <span v-if="it.preguntas.length > 1" class="tc-pregunta-num">{{ pregIdx(it) + 1 }}.</span>{{ pregActual(it).pregunta }}
+                    <span v-if="pregActual(it).fase" class="tc-fase-badge">se decide en {{ pregActual(it).fase }}</span>
                   </div>
-                  <div v-if="pg.opciones && pg.opciones.length" class="tc-opts">
+                  <div v-if="pregActual(it).opciones && pregActual(it).opciones.length" class="tc-opts">
                     <button
-                      v-for="op in pg.opciones" :key="op.clave" type="button"
+                      v-for="op in pregActual(it).opciones" :key="op.clave" type="button"
                       class="tc-opt"
-                      :class="{ 'tc-opt-sel': selPreg(it.id, pg.id) === op.clave, 'tc-opt-rec': op.recomendada }"
-                      @click="elegirOpcion(it, pg, op)">
-                      <span v-if="op.recomendada" class="tc-opt-badge">RECOMENDADA</span>{{ op.texto }}</button>
+                      :class="{ 'tc-opt-sel': selPreg(it.id, pregActual(it).id) === op.clave, 'tc-opt-rec': op.recomendada }"
+                      @click="elegirOpcion(it, pregActual(it), op)">
+                      <span v-if="op.recomendada" class="tc-opt-badge">RECOMENDADA</span>{{ op.texto }}<span
+                        v-if="op.confianza" class="tc-opt-meta">confianza {{ op.confianza }}<template v-if="op.reversible === true"> · reversible</template><template v-else-if="op.reversible === false"> · no reversible</template></span></button>
                   </div>
                 </div>
               </div>
@@ -131,7 +226,9 @@
               <div class="tc-actions">
                 <button class="tc-btn tc-btn-voz" :title="hablando === it.id ? 'Detener' : 'Escuchar el resumen'" @click="leer(it)">{{ hablando === it.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
                 <button class="tc-btn tc-btn-ver" :title="it.modulo_url ? ('Abrir ' + (it.modulo || 'la pantalla del módulo') + ' en pestaña nueva') : 'Abrir la Torre en pestaña nueva'" @click="verMas(it)">🔎 Ver más</button>
-                <button class="tc-btn tc-btn-ok"  :disabled="deciding === it.id" @click="decidir(it, 'aprobar')">✓ Aprobar</button>
+                <button class="tc-btn tc-btn-ok" :disabled="deciding === it.id || faltanPreguntas(it) > 0"
+                  :title="faltanPreguntas(it) ? ('Responde las ' + faltanPreguntas(it) + ' pregunta(s) pendientes antes de aprobar') : 'Aprobar con las respuestas dadas'"
+                  @click="decidir(it, 'aprobar')">✓ Aprobar</button>
                 <button class="tc-btn tc-btn-no"  :disabled="deciding === it.id" @click="decidir(it, 'rechazar')">✕ Rechazar</button>
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'comentar')">💬 Comentar</button>
                 <button class="tc-btn tc-btn-mut" :disabled="deciding === it.id" @click="decidir(it, 'cerrar')">✔ Cerrar</button>
@@ -304,6 +401,9 @@
         </div>
       </div>
 
+      </div><!-- /tc-main -->
+     </div><!-- /tc-layout -->
+
       <p class="tc-foot">Torre de control del Circuito · datos en vivo de la Hoja de Ruta (dev).</p>
     </template>
   </div>
@@ -385,6 +485,97 @@ export default {
         }
         const segOpen = reactive({});  // id -> form de seguimiento abierto
         const seg = reactive({});      // id -> {titulo, descripcion, nivel, cerrar}
+
+        // ── #507 sub-paso 4 — autopilot, bombitas por módulo y paginación de preguntas ──────────
+        const autopilot = ref({
+            enabled: true, pausado: false, continuo: true, max_nivel: 'B',
+            umbral_confianza: 'alta', requiere_reversible: true, ventana_gracia: 0, auto_hoy: 0,
+        });
+        // Contadores por módulo del sidebar interno (endpoint propio, caché de 45 s en el server).
+        const contadores = ref({ total: 0, urgentes: 0, por_modulo: [], mapa: {}, sin_clasificar: 0 });
+        const SIN_MODULO = '__sin_clasificar__';
+        const moduloFiltro = ref(null);
+
+        // Espejo en JS de RoadmapController::normalizeModulo (base antes de "/", sin acentos, solo
+        // alfanumérico). Solo se usa para FILTRAR la lista visible; el conteo autoritativo lo da el
+        // endpoint. Si algún día divergen, manda el servidor.
+        function claveModulo(m) {
+            const base = String(m || '').split('/')[0].trim();
+            return base.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        }
+
+        const colaFiltrada = computed(() => {
+            if (!moduloFiltro.value) return cola.value;
+            if (moduloFiltro.value === SIN_MODULO) {
+                return cola.value.filter((it) => !claveModulo(it.modulo) || String(it.modulo || '').trim() === 'Sin clasificar');
+            }
+            return cola.value.filter((it) => claveModulo(it.modulo) === moduloFiltro.value);
+        });
+        const moduloFiltroLabel = computed(() => {
+            if (moduloFiltro.value === SIN_MODULO) return 'Sin clasificar';
+            const g = contadores.value.por_modulo.find((x) => x.clave === moduloFiltro.value);
+            return g ? g.modulo : moduloFiltro.value;
+        });
+        function filtrarModulo(clave) {
+            moduloFiltro.value = moduloFiltro.value === clave ? null : clave;
+            revisandoId.value = null;   // el item en revisión se recalcula sobre la lista filtrada
+        }
+
+        // Paginación de preguntas: itemId -> índice de la pregunta visible.
+        const pregPos = reactive({});
+        const revisandoId = ref(null);   // item cuyo índice de preguntas muestra el sidebar
+
+        // El item "en revisión" es aquel con el que Irving está interactuando; por defecto, el
+        // primero de la bandeja visible, para que el índice del sidebar nunca aparezca vacío.
+        const itemEnRevision = computed(() => {
+            const lista = colaFiltrada.value;
+            if (!lista.length) return null;
+            return lista.find((it) => it.id === revisandoId.value) || lista[0];
+        });
+
+        const pregIdx = (it) => {
+            const n = (it.preguntas || []).length;
+            const i = pregPos[it.id] ?? 0;
+            return Math.min(Math.max(0, i), Math.max(0, n - 1));
+        };
+        const pregActual = (it) => (it.preguntas || [])[pregIdx(it)] || null;
+        function irAPregunta(it, i) {
+            pregPos[it.id] = i;
+            revisandoId.value = it.id;
+        }
+        function pregPrev(it) { irAPregunta(it, Math.max(0, pregIdx(it) - 1)); }
+        function pregNext(it) { irAPregunta(it, Math.min((it.preguntas || []).length - 1, pregIdx(it) + 1)); }
+
+        // Una pregunta cuenta como respondida si ya tiene selección local o respuesta persistida.
+        // Las preguntas SIN opciones no exigen respuesta (mismo criterio que el guard del backend).
+        const preguntaRespondida = (it, pg) => !(pg.opciones || []).length || !!(selPreg(it.id, pg.id) || pg.opcion_elegida);
+        const faltanPreguntas = (it) => (it.preguntas || []).filter((pg) => !preguntaRespondida(it, pg)).length;
+
+        // Salta a la siguiente pregunta sin responder (tras contestar una): evita que haya que
+        // navegar a mano en los items de varias preguntas.
+        function avanzarAPendiente(it) {
+            const pregs = it.preguntas || [];
+            const desde = pregIdx(it);
+            for (let k = 1; k <= pregs.length; k++) {
+                const i = (desde + k) % pregs.length;
+                if (!preguntaRespondida(it, pregs[i])) { irAPregunta(it, i); return; }
+            }
+        }
+
+        // ¿El servidor recortó la bandeja? (compara contra el total autoritativo del endpoint)
+        const bandejaTruncada = computed(() => (contadores.value.total || 0) > cola.value.length);
+
+        const terminalesActivas = computed(() => sesiones.value.filter((s) => s.running).length);
+        const terminalesLibres = computed(() => sesiones.value.filter((s) => s.idle && !s.running).length);
+
+        async function cargarContadores() {
+            try {
+                const { data } = await axios.get('/api/roadmap/torre/decisiones/contadores');
+                contadores.value = data || contadores.value;
+            } catch (e) {
+                // Las bombitas son accesorias: si fallan, la bandeja sigue funcionando igual.
+            }
+        }
 
         // #477 — tarjeta compacta para TODA "Tu bandeja": colapsa descripción/observaciones tras "Ver descripción".
         const descOpen = reactive({}); // id -> bool (desplegable abierto)
@@ -600,7 +791,9 @@ export default {
                 riesgos.value = data.riesgos_auditoria || [];
                 auditItem.value = data.auditoria_item_id || null;
                 ejecuciones.value = data.ejecuciones || [];
+                if (data.autopilot) autopilot.value = data.autopilot;   // #507 banner del autopilot
                 applyEstado(data);
+                cargarContadores();   // #507 bombitas por módulo (endpoint propio, no bloquea)
                 maybeDeepLink();   // #torre: deep-link /releases?item=NNN tras poblar la bandeja
             } finally {
                 loading.value = false;
@@ -658,11 +851,14 @@ export default {
             if (!sel[it.id]) sel[it.id] = {};
             sel[it.id][pg.id] = op.clave;
             delete aviso[it.id];
+            revisandoId.value = it.id;   // #507: el sidebar sigue al item con el que se interactúa
             try {
                 await axios.post('/api/roadmap/circuito/elegir-opcion', { id: it.id, pregunta_id: pg.id, opcion: op.clave });
             } catch (e) {
                 // No bloquea: la selección local queda aplicada, se reintenta al recargar.
             }
+            // #507: al contestar, avanza sola a la siguiente pregunta pendiente del item.
+            avanzarAPendiente(it);
         }
 
         async function decidir(it, accion) {
@@ -829,6 +1025,11 @@ export default {
             logOpen, logTail, logPre, toggleLog,
             // Disparo manual + urgente (#337) · cola ejecutable + prioridad (#348)
             canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente, prioLabel,
+            // #507 sub-paso 4 — autopilot, terminales en vivo, bombitas por módulo y paginación
+            autopilot, terminalesActivas, terminalesLibres,
+            contadores, moduloFiltro, moduloFiltroLabel, filtrarModulo, colaFiltrada, SIN_MODULO, bandejaTruncada,
+            itemEnRevision, pregIdx, pregActual, pregPrev, pregNext, irAPregunta,
+            preguntaRespondida, faltanPreguntas,
         };
     },
 };
@@ -848,6 +1049,11 @@ export default {
 .tc-pause{background:#fef2f2;color:#b91c1c;}
 .tc-dotlive{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 3px #10b98133;}
 .tc-h1{font-size:16px;margin:0;font-weight:700;}
+.tc-v2-badge{display:inline-flex;align-items:center;margin-left:8px;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:2px 8px;border-radius:999px;background:var(--tc-accent);color:#fff;vertical-align:middle;}
+.tc-v2-note{margin-top:12px;display:flex;gap:12px;align-items:flex-start;padding:11px 14px;border-radius:10px;font-size:12.6px;line-height:1.5;background:#f0fdfa;color:#0f766e;border:1px solid #99f6e4;}
+.tc-v2-note-badge{flex:0 0 auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--tc-accent);color:#fff;margin-top:1px;}
+.tc-v2-note-body code{background:rgba(15,118,110,.12);border-radius:4px;padding:0 4px;font-size:11.5px;}
+.tc-v2-note-links{margin-top:4px;color:#0f766e;opacity:.85;}
 .tc-meta{font-size:12.5px;color:var(--tc-muted);}
 .tc-loading{padding:24px 4px;}
 .tc-killbtn{font-size:12.5px;font-weight:600;color:#b91c1c;background:#fff;border:1px solid #fecaca;padding:7px 13px;border-radius:9px;cursor:pointer;}
@@ -988,11 +1194,92 @@ export default {
 .tc-tag-modelo{font-weight:600;color:var(--tc-accent);}
 
 /* ── Modo oscuro (responde al toggle de tema del proyecto: body[data-layout-mode] → darkMode) ── */
+/* ── #507 sub-paso 4 — autopilot, layout con sidebar interno, bombitas y paginación ─────────────
+   Todo se pinta con las variables del componente (--tc-*), que ya cambian solas en .tc-dark. */
+
+/* Banner del autopilot */
+.tc-ap{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  background:var(--tc-surface);border:1px solid var(--tc-line);border-left:3px solid var(--tc-accent);
+  border-radius:12px;padding:10px 14px;margin-top:12px;}
+.tc-ap-off{border-left-color:var(--tc-slate);opacity:.75;}
+.tc-ap-pausa{border-left-color:var(--tc-bad);}
+.tc-ap-l{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-width:0;}
+.tc-ap-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.tc-ap-on{background:var(--tc-accent);box-shadow:0 0 0 3px rgba(13,148,136,.22);}
+.tc-ap-dim{background:var(--tc-slate);}
+.tc-ap-t{font-size:13px;}
+.tc-ap-pol{font-size:12px;color:var(--tc-muted);}
+.tc-ap-r{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.tc-ap-kpi{font-size:12px;color:var(--tc-muted);}
+.tc-ap-kpi b{color:var(--tc-ink);font-size:13.5px;}
+.tc-ap-kpi-dec b{color:var(--tc-warn);}
+
+/* Layout de dos columnas: sidebar interno + contenido */
+.tc-layout{display:flex;align-items:flex-start;gap:16px;margin-top:14px;}
+.tc-side{flex:0 0 216px;position:sticky;top:12px;background:var(--tc-surface);border:1px solid var(--tc-line);
+  border-radius:14px;padding:10px;max-height:calc(100vh - 40px);overflow:auto;}
+.tc-main{flex:1 1 auto;min-width:0;}
+.tc-side-h{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tc-muted);padding:4px 6px 8px;}
+.tc-side-h2{border-top:1px solid var(--tc-line);margin-top:10px;padding-top:10px;}
+.tc-side-vacio{font-size:12px;color:var(--tc-muted);padding:2px 6px 8px;}
+.tc-side-mod{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+  background:transparent;border:0;border-radius:8px;padding:6px 7px;cursor:pointer;text-align:left;color:var(--tc-ink);}
+.tc-side-mod:hover{background:rgba(13,148,136,.07);}
+.tc-side-mod-on{background:rgba(13,148,136,.13);font-weight:600;}
+.tc-side-mod-mut .tc-side-name{color:var(--tc-muted);font-style:italic;}
+.tc-side-name{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tc-bombita{flex:none;min-width:20px;height:20px;padding:0 6px;border-radius:999px;font-size:11px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;background:var(--tc-warn);color:#fff;}
+.tc-bombita-urg{background:var(--tc-bad);box-shadow:0 0 0 3px rgba(220,38,38,.20);}
+.tc-bombita-mut{background:var(--tc-slate);}
+.tc-side-clear{width:100%;margin-top:6px;background:transparent;border:1px dashed var(--tc-line);border-radius:8px;
+  padding:5px;font-size:11.5px;color:var(--tc-muted);cursor:pointer;}
+.tc-side-preg{display:flex;align-items:flex-start;gap:7px;width:100%;background:transparent;border:0;border-radius:8px;
+  padding:6px 7px;cursor:pointer;text-align:left;color:var(--tc-ink);}
+.tc-side-preg:hover{background:rgba(13,148,136,.07);}
+.tc-side-preg-on{background:rgba(13,148,136,.13);}
+.tc-side-preg-n{flex:none;width:16px;height:16px;border-radius:50%;background:var(--tc-line);color:var(--tc-muted);
+  font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;}
+.tc-side-preg-t{font-size:11.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.tc-side-preg-ok{flex:none;color:var(--tc-ok);font-size:12px;font-weight:700;}
+
+/* Bandeja: subtítulo, filtro activo e item en revisión */
+.tc-bandeja-sub{margin:-4px 0 10px;}
+.tc-trunc{margin:-6px 0 10px;font-style:italic;}
+.tc-filtro-aviso{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tc-muted);
+  background:rgba(13,148,136,.07);border-radius:8px;padding:5px 9px;margin-bottom:10px;}
+.tc-filtro-x{background:transparent;border:0;color:var(--tc-muted);cursor:pointer;font-size:12px;}
+.tc-inbox-rev{box-shadow:inset 3px 0 0 var(--tc-accent);}
+
+/* Paginación de preguntas */
+.tc-dec-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.tc-preg-nav{display:inline-flex;align-items:center;gap:6px;}
+.tc-preg-arrow{width:22px;height:22px;border-radius:6px;border:1px solid var(--tc-line);background:var(--tc-surface);
+  color:var(--tc-ink);cursor:pointer;font-size:14px;line-height:1;}
+.tc-preg-arrow:disabled{opacity:.4;cursor:default;}
+.tc-preg-cnt{font-size:11.5px;font-weight:600;color:var(--tc-muted);}
+.tc-preg-falta{font-size:11.5px;font-weight:600;color:var(--tc-warn);}
+.tc-preg-ok{font-size:11.5px;font-weight:600;color:var(--tc-ok);}
+.tc-opt-meta{display:block;margin-top:3px;font-size:10.5px;color:var(--tc-muted);text-transform:uppercase;letter-spacing:.03em;}
+
+@media (max-width:900px){
+  .tc-layout{flex-direction:column;}
+  .tc-side{position:static;flex:1 1 auto;width:100%;max-height:none;}
+}
+
 .tc-dark{
   --tc-surface:#151d2e; --tc-ink:#e8edf6; --tc-muted:#8b97ab; --tc-line:#2a3550;
   --tc-ok:#4ade80; --tc-info:#60a5fa; --tc-warn:#fbbf24; --tc-bad:#f87171; --tc-slate:#94a3b8; --tc-accent:#2dd4bf;
 }
 .tc-dark .tc-statusbar,.tc-dark .tc-kpi,.tc-dark .tc-card{box-shadow:0 1px 2px rgba(0,0,0,.35);}
+/* #507 — tintes del sidebar interno/autopilot en oscuro (el teal claro no contrasta ahí) */
+.tc-dark .tc-side,.tc-dark .tc-ap{box-shadow:0 1px 2px rgba(0,0,0,.35);}
+.tc-dark .tc-side-mod:hover,.tc-dark .tc-side-preg:hover{background:rgba(45,212,191,.10);}
+.tc-dark .tc-side-mod-on,.tc-dark .tc-side-preg-on{background:rgba(45,212,191,.16);}
+.tc-dark .tc-filtro-aviso{background:rgba(45,212,191,.10);}
+.tc-dark .tc-ap-on{box-shadow:0 0 0 3px rgba(45,212,191,.22);}
+.tc-dark .tc-bombita-urg{box-shadow:0 0 0 3px rgba(248,113,113,.22);}
+.tc-dark .tc-bombita{color:#0b1220;}
 .tc-dark .tc-run{background:rgba(74,222,128,.14);color:#4ade80;}
 .tc-dark .tc-pause{background:rgba(248,113,113,.14);color:#f87171;}
 .tc-dark .tc-killbtn{background:#1c2740;color:#f87171;border-color:#5b2b2b;}
@@ -1011,6 +1298,9 @@ export default {
 .tc-dark .tc-btn-urg{background:rgba(251,146,60,.14);color:#fdba74;border-color:#7c3a1d;}
 .tc-dark .tc-btn-urg-on{background:#c2410c;color:#fff;border-color:#ea580c;}
 .tc-dark .tc-disparo-msg{background:rgba(45,212,191,.12);color:#5eead4;border-color:#155e52;}
+.tc-dark .tc-v2-note{background:rgba(45,212,191,.10);color:#5eead4;border-color:#155e52;}
+.tc-dark .tc-v2-note-links{color:#5eead4;}
+.tc-dark .tc-v2-note-body code{background:rgba(94,234,212,.14);}
 .tc-dark .tc-alert{background:rgba(248,113,113,.12);color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-alert-soft{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4a20;}
 .tc-dark .tc-lvA{background:rgba(74,222,128,.15);color:#4ade80;}

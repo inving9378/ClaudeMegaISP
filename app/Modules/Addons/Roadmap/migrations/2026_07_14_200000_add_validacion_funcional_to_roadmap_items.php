@@ -16,7 +16,10 @@ return new class extends Migration
     {
         Schema::table('roadmap_items', function (Blueprint $table) {
             if (! Schema::hasColumn('roadmap_items', 'validacion_funcional_requerida')) {
-                $table->boolean('validacion_funcional_requerida')->default(false)->after('esperando_merge_irving');
+                // Sin ->after(): el orden fisico de columnas es cosmetico en MySQL y
+                // atarlo a `esperando_merge_irving` hacia que esta migracion muriera con
+                // 1054 en cualquier entorno que aun no tuviera esa columna.
+                $table->boolean('validacion_funcional_requerida')->default(false);
             }
             if (! Schema::hasColumn('roadmap_items', 'pendiente_validacion_irving')) {
                 $table->boolean('pendiente_validacion_irving')->default(false)->index()->after('validacion_funcional_requerida');

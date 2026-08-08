@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MegaFamilia\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\BillingNotification;
 use App\Models\Client;
 use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\ClientMainInformation;
@@ -25,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -289,6 +291,15 @@ class ApiController extends Controller
         $internet = optional(optional($service)->internet);
         $info = optional($client->client_main_information);
 
+        // Mismo query que PortalCliente\Controllers\DashboardController::index() (fuente
+        // única de saldo). NO usar $client->balance() (morphOne): el legacy guarda
+        // balanceable_type='App\Models\Client' (proxy), pero $client aquí es la instancia
+        // real App\Modules\Core\Clientes\Models\Client, cuyo getMorphClass() no matchea.
+        $saldo = DB::table('balances')
+            ->where('balanceable_id', $client->id)
+            ->where('balanceable_type', 'App\\Models\\Client')
+            ->value('amount') ?? 0;
+
         return response()->json([
             'plan_name' => $internet->service_name ?? $internet->title ?? 'Plan ISP',
             'speed' => $this->formatSpeed($internet->download_speed),
@@ -298,6 +309,12 @@ class ApiController extends Controller
             'consumo_limite' => null,
             'contract_number' => 'MGI-' . str_pad((string) $client->id, 6, '0', STR_PAD_LEFT),
             'address' => trim((string) ($info->address ?? '')) ?: null,
+            // Saldo como campo separado (antes solo venía fusionado en el módulo de
+            // facturas) + alerta de suspensión como booleano dedicado, ambos leídos de
+            // datos ya existentes, sin lógica de umbral/cálculo nueva (item roadmap #490,
+            // Opción C del brief: reusar fuente única, sin recalcular nada).
+            'saldo' => (float) $saldo,
+            'alerta_suspension' => (bool) $client->fecha_suspension,
         ]);
     }
 
@@ -506,6 +523,39 @@ class ApiController extends Controller
             'error' => 'El pago desde la app aún no está disponible. Realiza tu pago por los canales habituales; el equipo lo confirmará manualmente.',
             'code' => 'not_implemented',
         ], 501);
+    }
+
+    /**
+     * Descarga el PDF del recibo de un pago ya realizado. Reusa el PDF que
+     * `BillingDocumentService::generarTicketYRecibo` ya generó al confirmarse
+     * el pago (vía `PaymentBillingObserver`) — no genera nada nuevo, solo lo
+     * sirve, escopado al cliente autenticado (anti-IDOR: item roadmap #491).
+     */
+    public function pagoPdf(int $id)
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) {
+            return response()->json(['error' => 'Cuenta sin cliente ISP asociado.'], 404);
+        }
+
+        $notif = BillingNotification::query()
+            ->where('client_id', $client->id)
+            ->where('payment_id', $id)
+            ->where('document_type', BillingNotification::TYPE_RECIBO)
+            ->whereNotNull('pdf_path')
+            ->latest('id')
+            ->first();
+
+        if (! $notif) {
+            return response()->json(['error' => 'No hay un PDF disponible para este pago.'], 404);
+        }
+
+        $disk = config('billing.pdf_disk', 'local');
+        if (! Storage::disk($disk)->exists($notif->pdf_path)) {
+            return response()->json(['error' => 'El archivo PDF ya no está disponible.'], 404);
+        }
+
+        return Storage::disk($disk)->download($notif->pdf_path, "recibo-{$id}.pdf");
     }
 
     // ---- ACCOUNT / PROFILE (ISP cliente) ---------------------------------

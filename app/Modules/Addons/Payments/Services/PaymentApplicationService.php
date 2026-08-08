@@ -69,12 +69,10 @@ class PaymentApplicationService
         // crédito + billing + avance de corte. Los 3 callers (conciliación, SPEI,
         // captura-pago) quedan alineados a este flujo.
         //
-        // matchPendingInvoice se deja INTACTO pero DESCONECTADO del default (ver el
-        // comentario del método): matcheaba el pool TERMINAL 'Pagar (del saldo)'
-        // (~40k facturas ya cubiertas por saldo, NO deuda viva), adjuntaba el pago a
-        // ClientInvoice y así se saltaba TODO el circuito contable (0 transacciones,
-        // balance sin abonar) → pago desregistrado. Su rediseño (match contra deuda
-        // VIVA) es el roadmap #193.
+        // matchPendingInvoice ya fue REDISEÑADO (roadmap #193, algoritmo híbrido sobre
+        // deuda VIVA) pero sigue DESCONECTADO del default a propósito (ver comentario
+        // del método): reconectarlo a los 3 callers reales es una decisión de dinero en
+        // vivo aparte, fuera del alcance de este item.
         $paymentableType = Client::class;
         $paymentableId   = $client->id;
         $invoice         = null;
@@ -136,30 +134,51 @@ class PaymentApplicationService
     }
 
     /**
+     * Estados de factura que representan deuda VIVA (roadmap #193). Excluye a propósito
+     * el pool terminal "Pagar (del saldo de la cuenta)" (ya cubierto por balance, no es
+     * deuda pendiente real) — ese era justo el bug del matcher anterior. Medido contra
+     * datos reales de client_invoices (2026-08-04): Atrasado=8,292 / impagado=16,151 /
+     * Partially paid=22.
+     */
+    private const ESTADOS_DEUDA_VIVA = ['Atrasado', 'impagado', 'Partially paid'];
+
+    /**
      * Busca factura pendiente que cuadre con el monto. Devuelve [type, id, invoice?]
      * para el polimórfico de payments.
-     */
-    /**
-     * ⚠️ DESCONECTADO del default de applyPayment (roadmap #191/#193). NO llamar
-     * desde los 3 flujos (conciliación / SPEI / captura-pago) tal cual.
      *
-     * BUG: matchea el pool 'Pagar%' que incluye el estado TERMINAL 'Pagar (del
-     * saldo de la cuenta)' (~40k facturas ya cubiertas por saldo, NO deuda viva).
-     * Al matchear, escribe paymentable=ClientInvoice → el PaymentObserver NO
-     * dispara PaymentClientJob (solo mapea paymentable=Client) → el pago NO abona
-     * balance ni deja transacción: queda desregistrado (caso 7500).
+     * ⚠️ DESCONECTADO del default de applyPayment (roadmap #191/#193) — sigue SIN
+     * llamadores; NO invocar desde los 3 flujos (conciliación / SPEI / captura-pago)
+     * sin decisión aparte de Irving para reconectarlo (eso es dinero en vivo, fuera
+     * de alcance de este item).
      *
-     * Se conserva como referencia para un rediseño futuro (match contra deuda VIVA,
-     * validando el ciclo de facturación con el co-owner) = roadmap #193.
+     * Algoritmo HÍBRIDO (Opción C, elegida por Irving en la Torre 2026-08-04) sobre
+     * deuda VIVA (self::ESTADOS_DEUDA_VIVA): si hay EXACTAMENTE una factura viva con
+     * el monto exacto, se usa esa (respeta la intención del pagador); si hay 0 o 2+
+     * (ambiguo — medido: 1,698 combinaciones cliente+monto con 2+ facturas vivas del
+     * mismo total), cae a FIFO sobre deuda viva (la más antigua no cubierta).
+     *
+     * El bug original: matcheaba 'Pagar%' (incluye el estado TERMINAL 'Pagar (del
+     * saldo de la cuenta)', ~40k facturas ya cubiertas por saldo, NO deuda viva). Al
+     * matchear, escribía paymentable=ClientInvoice → el PaymentObserver NO dispara
+     * PaymentClientJob (solo mapea paymentable=Client) → el pago no abonaba balance
+     * ni dejaba transacción: quedaba desregistrado (caso 7500).
      */
     private function matchPendingInvoice(Client $client, float $amount): array
     {
-        $invoice = ClientInvoice::query()
+        $vivas = ClientInvoice::query()
             ->where('client_id', $client->id)
-            ->where('estado', 'LIKE', 'Pagar%') // "Pagar (del saldo de la cuenta)", "Pagar (Recargo...)", etc.
+            ->whereIn('estado', self::ESTADOS_DEUDA_VIVA)
             ->where('total', $amount)
-            ->orderBy('id', 'asc') // más antigua primero
-            ->first();
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $invoice = $vivas->count() === 1
+            ? $vivas->first()
+            : ClientInvoice::query()
+                ->where('client_id', $client->id)
+                ->whereIn('estado', self::ESTADOS_DEUDA_VIVA)
+                ->orderBy('id', 'asc') // FIFO: más antigua no cubierta primero
+                ->first();
 
         if ($invoice) {
             return [ClientInvoice::class, $invoice->id, $invoice];

@@ -262,6 +262,7 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::get('/facturas', [ApiController::class, 'facturas']);
         Route::get('/pagos', [ApiController::class, 'pagos']);
         Route::post('/pagos', [ApiController::class, 'crearPago']);
+        Route::get('/pagos/{id}/pdf', [ApiController::class, 'pagoPdf'])->whereNumber('id');
 
         Route::get('/profiles', [ApiController::class, 'profiles']);
         Route::post('/profiles', [ApiController::class, 'storeProfile']);

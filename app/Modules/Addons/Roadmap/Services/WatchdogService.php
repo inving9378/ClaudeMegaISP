@@ -149,7 +149,7 @@ class WatchdogService
                 if ($n <= self::MAX_INTENTOS) {
                     $lib = $this->reapItemDeSlot($clave);
                     $acciones[] = $this->audita('worker_colgado_reap',
-                        "{$clave} colgado (latido frío {$sinceBeat}s)" . ($lib ? " → item #{$lib} liberado a tu bandeja" : ' → sin item que liberar')
+                        "{$clave} colgado (latido frío {$sinceBeat}s)" . ($lib ? " → item #{$lib} liberado (re-encolado)" : ' → sin item que liberar')
                         . "; el scheduler relanzará el slot (intento {$n}/" . self::MAX_INTENTOS . ').');
                     $this->dispararScheduler();
                 } else {
@@ -271,7 +271,9 @@ class WatchdogService
 
     /**
      * Libera (reap) el item que el slot dejó atascado en en_progreso — mismo criterio que
-     * `circuito:reap-stuck` (#341: jamás toca en_desarrollo_humano). Devuelve el id liberado o null.
+     * `circuito:reap-stuck` (#341: jamás toca en_desarrollo_humano). #561 — RE-ENCOLA vía
+     * `RoadmapCircuitoService::reencolarHuerfano` en vez de escalar directo a la bandeja de Irving
+     * (solo escala tras el tope de reclamos fallidos del propio item). Devuelve el id liberado o null.
      */
     private function reapItemDeSlot(string $sid): ?int
     {
@@ -285,10 +287,7 @@ class WatchdogService
             return null;
         }
 
-        $item->estado_aprobacion  = 'requiere_irving';
-        $item->comentarios_claude = (string) $item->comentarios_claude
-            . "\n[watchdog] {$sid} se colgó con el item en en_progreso → liberado a tu bandeja para revisión.";
-        $item->save();
+        $this->svc->reencolarHuerfano($item, 'watchdog', "{$sid} se colgó con el item en en_progreso");
 
         return (int) $item->id;
     }

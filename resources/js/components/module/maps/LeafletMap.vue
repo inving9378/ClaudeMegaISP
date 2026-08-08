@@ -435,7 +435,6 @@ const $q = useQuasar();
 const splitterModel = ref(350);
 
 let map = null;
-let baseLayers = null;
 const projects = ref([]);
 let searchLayers = null;
 let clientsLayers = null;
@@ -1014,9 +1013,6 @@ const initMap = async () => {
     document.addEventListener("MSFullscreenChange", handleFullscreenChange);
 
     reloadProjects.value = true;
-
-    // await initGoogleMapsLayer(data);
-    // onGoogleMapsReady();
 };
 
 const handleFullscreenChange = () => {
@@ -1031,34 +1027,6 @@ const handleFullscreenChange = () => {
     } else {
         fullscreenBtns.state("show-fullscreen");
         setFullScreen(false);
-    }
-};
-
-const initGoogleMapsLayer = (data) => {
-    if (data.api_key) {
-        return new Promise((resolve) => {
-            const script = document.createElement("script");
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${data.api_key}`;
-            script.async = true;
-            script.defer = true;
-            script.onload = () => {
-                const googleLayer = L.gridLayer.googleMutant({
-                    type: "hybrid",
-                    maxZoom: 24,
-                    apiKey: data.api_key,
-                });
-                baseLayers["Satelital"] = googleLayer;
-                resolve(googleLayer);
-            };
-            document.head.appendChild(script);
-        });
-    }
-    return null;
-};
-
-const onGoogleMapsReady = () => {
-    if (Object.keys(baseLayers).length > 1) {
-        L.control.groupedLayers(baseLayers).addTo(map);
     }
 };
 

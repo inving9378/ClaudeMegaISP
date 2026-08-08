@@ -389,6 +389,12 @@ class RoadmapCircuitoService
             'status'            => $i->status,
             'urgente'           => (bool) $i->urgente,
             'estacion'          => $i->estacion,   // #432: intake|bandeja|listo|terminal|integracion|done
+            // TORRE V2 — el reparto, visible ya en la LISTA (no hay que abrir item por item para
+            // saber qué está en manos de quién).
+            'estado_cola'       => $i->estado_cola,
+            'terminal_asignada' => $i->worker_sid,
+            'item_padre'        => $i->origen_item_id ? (int) $i->origen_item_id : null,
+            'consulta_viva'     => $i->tieneConsultaViva(),
         ];
     }
 
@@ -407,6 +413,23 @@ class RoadmapCircuitoService
             'target_version'     => $i->target_version,
             'prompt_para_claude' => $i->prompt,
             'comentarios_claude' => $i->comentarios_claude,
+            // TORRE V2 — estado de COLA y ASIGNACIÓN. Sin esto, quien define el trabajo desde
+            // fuera no puede saber si un item ya está en manos de una terminal, terminado y
+            // esperando merge, o parado esperando a Irving — y volvía a preguntar por chat.
+            'estado_cola'        => $i->estado_cola,
+            'terminal_asignada'  => $i->worker_sid,
+            'asignado_at'        => optional($i->claimed_at)->toIso8601String(),
+            'rama'               => $i->branch,
+            'merge_commit'       => $i->merge_commit,
+            'item_padre'         => $i->origen_item_id ? (int) $i->origen_item_id : null,
+            'eta_minutos'        => $i->eta_minutos !== null ? (int) $i->eta_minutos : null,
+            // Consulta viva a Thomas (la terminal preguntó y espera respuesta).
+            'consulta_supervisor' => $i->tieneConsultaViva() ? [
+                'pregunta' => $i->consulta_supervisor,
+                'terminal' => $i->consulta_supervisor_sid,
+                'at'       => optional($i->consulta_supervisor_at)->toIso8601String(),
+                'opciones' => $i->consulta_opciones,
+            ] : null,
             'subtasks'           => $i->subtasks,
             'log'                => $i->log,
             'started_at'         => optional($i->started_at)->toIso8601String(),
@@ -651,6 +674,31 @@ class RoadmapCircuitoService
         }
 
         $this->writeLive($sid, $d);
+
+        // #507 sub-paso 3 — el latido RENUEVA el lease del item que trabaja este worker. Se escribe
+        // con un UPDATE crudo a propósito: NO toca `updated_at`, para que "sigo vivo" (claimed_at) y
+        // "escribí algo en el item" (updated_at) queden como dos señales independientes — el reaper
+        // exige que ambas estén frías antes de dar por muerto al worker.
+        $this->renovarLease($sid);
+    }
+
+    /**
+     * Renueva el lease del item reclamado por este worker. Best-effort: un fallo aquí no debe tumbar
+     * el latido (la Torre seguiría mostrando la vuelta viva; a lo sumo el reaper la libera después).
+     */
+    public function renovarLease(string $sid): void
+    {
+        if (! $this->normalizaSid($sid)) {
+            return;   // 'main'/'wt-exec' y demás sesiones sin slot no tienen lease que renovar
+        }
+        try {
+            DB::table('roadmap_items')
+                ->where('worker_sid', $sid)
+                ->where('estado_aprobacion', 'en_progreso')
+                ->update(['claimed_at' => now()]);
+        } catch (\Throwable $e) {
+            // best-effort
+        }
     }
 
     /** Marca el FIN de la vuelta de la sesión $sid (deja de reportar "corriendo"). */
@@ -929,12 +977,27 @@ class RoadmapCircuitoService
         return RoadmapItem::whereIn('id', $ids)->pluck('title', 'id')->toArray();
     }
 
+    /** #507 sub-paso 3 — ¿el circuito corre en modo CONTINUO (sin rondas)? Flag reversible. */
+    public function esContinuo(): bool
+    {
+        return (bool) config('circuito.continuo', true);
+    }
+
     /**
      * Próxima vuelta estimada a partir del intervalo del cron (config `circuito.interval_min`,
      * ESPEJO del crontab cada-30-min). No controla el cron real; solo informa a la Torre.
+     *
+     * #507 sub-paso 3 — En modo CONTINUO devuelve null: no hay "próxima vuelta" que anunciar porque
+     * no hay rondas. Las terminales jalan trabajo en cuanto quedan libres, así que la pregunta útil
+     * dejó de ser "¿cuándo es la próxima vuelta?" y pasó a ser "¿qué está corriendo ahora?" (el
+     * panel de Terminales del sub-paso 4). Apagar `circuito.continuo` devuelve la estimación vieja.
      */
-    public function proximaVueltaAt(): string
+    public function proximaVueltaAt(): ?string
     {
+        if ($this->esContinuo()) {
+            return null;
+        }
+
         $min = (int) config('circuito.interval_min', 30);
         if ($min < 1 || $min > 60) {
             $min = 30;
@@ -1334,12 +1397,22 @@ class RoadmapCircuitoService
             return null;
         }
         $id = (int) $items[0]['id'];
-        $update = ['estado_aprobacion' => 'en_progreso', 'updated_at' => now()];
+        // #507 sub-paso 3 — sella el LEASE al reclamar: a partir de aquí el worker debe renovarlo
+        // con su latido (liveBeat) o el reaper libera el item.
+        $update = ['estado_aprobacion' => 'en_progreso', 'claimed_at' => now(), 'updated_at' => now()];
         if ($sid = $this->normalizaSid($workerSid)) {
             $update['worker_sid'] = $sid;   // firma del worker (#334 A)
         }
         $claimed = DB::table('roadmap_items')
             ->where('id', $id)
+            // #507 — CANDADO ATÓMICO anti-reclamo de un item parqueado. El candidato ya viene filtrado
+            // por `elegibleParaPool`, pero el UPDATE lo re-garantiza: entre el SELECT y el UPDATE el
+            // item pudo quedar parqueado (otro worker lo cerró a esperando-merge, o el anti-bucle lo
+            // sacó). Sin esto, la carrera devuelve un item que nadie debía tocar.
+            ->where(fn ($q) => $q->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
+            ->where(fn ($q) => $q->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
+            ->where('title', 'not like', '%[BLOCKED-%')
+            ->where('title', 'not like', '%[PARKED-%')
             ->where(function ($q) {
                 $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
                     ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
@@ -1413,10 +1486,22 @@ class RoadmapCircuitoService
         }
         $revisor          = $this->revisorEnabled();
         $unknownEnVuelo   = $this->desconocidoEnVuelo();
+        // Tope de nivel vigente del autopilot (A < B < C) → niveles admisibles para lo aprobado
+        // automáticamente. Con tope 'C' (política actual) esto es un no-op; si Irving lo baja a 'B',
+        // el pool deja de despachar C auto-aprobados sin tocar nada más.
+        $tope             = strtoupper((string) config('circuito.autopilot.max_nivel', 'B'));
+        $idxTope          = array_search($tope, ['A', 'B', 'C'], true);
+        $nivelesTope      = array_slice(['A', 'B', 'C'], 0, $idxTope === false ? 2 : $idxTope + 1); // valor raro → default 'B'
 
         $rows = RoadmapItem::query()
             ->tomablePorCircuito()
-            ->where('title', 'not like', '%[PARKED-PROD%')   // frontera dura de prod → nunca en paralelo
+            // #507 — FUGA DEL POOL DE RECLAMO: antes solo se excluía [PARKED-PROD], así que un
+            // [BLOCKED-NEGOCIO] aprobado, un item parqueado esperando el merge de Irving o uno ya
+            // marcado por el anti-bucle SEGUÍAN siendo reclamables: el worker lo tomaba, leía el
+            // rótulo, lo re-escalaba sin ejecutar y volvía a la bandeja → se aprobaba otra vez y a
+            // empezar (#117 dio 13 vueltas, #99 dieciséis). Cada vuelta quema un slot y tokens para
+            // no hacer nada. Desbloquear = QUITAR el rótulo / mergear / destrabar, nunca re-aprobar.
+            ->elegibleParaPool()
             ->where(function ($w) use ($revisor) {
                 // A auto-aprobado por el circuito
                 $w->where(function ($x) {
@@ -1435,8 +1520,19 @@ class RoadmapCircuitoService
                     $w->orWhere('estado_aprobacion', 'aprobado_revisor');
                 }
             })
+            // #507 — TOPE DE NIVEL: un item que solo trae aprobación AUTOMÁTICA (autopilot/revisor)
+            // no puede estar por encima del tope vigente del autopilot. La aprobación EXPLÍCITA de
+            // Irving (`aprobado_irving`) siempre pasa: el tope gobierna lo que la máquina decide
+            // sola, no lo que él autoriza a mano.
+            ->where(function ($w) use ($nivelesTope) {
+                $w->whereIn('nivel_riesgo', $nivelesTope)
+                    ->orWhereNull('nivel_riesgo')
+                    ->orWhere('estado_aprobacion', 'aprobado_irving');
+            })
             ->whereNotIn('status', ['done'])
-            ->ordered()
+            // #507 sub-paso 3 — orden de la COLA (urgente → por concluirse/reanudables → antigüedad),
+            // no el de la bandeja: una terminal libre debe cerrar lo empezado antes de abrir nuevos.
+            ->ordenCola()
             ->limit(200)
             ->get(['id', 'modulo']);
 
@@ -1594,7 +1690,7 @@ class RoadmapCircuitoService
             if (! $item) {
                 continue;
             }
-            $estadoPrevio = $this->estadoResumibleTrasColision($item);
+            $estadoPrevio = $this->estadoAprobadoPrevio($item);
             $item->colision_pausada_por = null;
             $item->colision_pausada_at  = null;
             $item->worker_sid           = null;
@@ -1608,12 +1704,12 @@ class RoadmapCircuitoService
     }
 
     /**
-     * A qué `estado_aprobacion` regresar un item pausado por colisión para que el scheduler lo
-     * vuelva a tomar sin re-triaje: el último `aprobado_*` de su propio log (respeta si fue Irving
-     * quien lo aprobó); si no hay rastro, A auto-ejecutable → `aprobado_claude`; si no, a la
-     * bandeja de Irving (fail-safe, nunca asumir que un B/C sin rastro es auto-ejecutable).
+     * A qué `estado_aprobacion` regresar un item que necesita volver a la cola sin re-triaje (tras
+     * colisión resuelta o reap de huérfano, #561): el último `aprobado_*` de su propio log (respeta
+     * si fue Irving quien lo aprobó); si no hay rastro, A auto-ejecutable → `aprobado_claude`; si
+     * no, a la bandeja de Irving (fail-safe, nunca asumir que un B/C sin rastro es auto-ejecutable).
      */
-    private function estadoResumibleTrasColision(RoadmapItem $item): string
+    private function estadoAprobadoPrevio(RoadmapItem $item): string
     {
         $log = is_array($item->log) ? $item->log : [];
         foreach (array_reverse($log) as $entry) {
@@ -1624,6 +1720,136 @@ class RoadmapCircuitoService
         }
 
         return $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'requiere_irving';
+    }
+
+    /**
+     * #561 — reap de un item HUÉRFANO (worker muerto/colgado con el item en_progreso): en vez de
+     * escalar directo a la bandeja de Irving, lo RE-ENCOLA al estado aprobado que tenía antes de
+     * ser reclamado (mismo criterio que la colisión, `estadoAprobadoPrevio`) para que el pool lo
+     * vuelva a tomar. Lleva la cuenta de reclamos fallidos en `reap_count`; solo tras superar el
+     * tope (`circuito.reaper.max_reintentos`, default 3) escala a `requiere_irving` — así un item
+     * genuinamente roto no cicla infinito y sí llega a la bandeja. Usado por `circuito:reap-stuck`
+     * y el watchdog (#334/#526), que comparten este único camino.
+     *
+     * @param  string  $origen  quién detectó el huérfano ('reaper'|'watchdog', para el log/nota)
+     * @param  string  $motivo  frase corta de por qué se considera huérfano (para el log/nota)
+     * @return array{resultado:string,estado:string,reap_count:int,tope:int}
+     */
+    /** Runtime del circuito on-box (mismo path que deploy/circuito/vuelta.sh y el scheduler). */
+    public const RUNTIME_DIR = '/home/meganet/circuito';
+
+    /**
+     * ¿El slot (worktree wt-K) está LIBRE? = su flock no lo tiene una vuelta viva.
+     *
+     * Es la señal de vida MÁS FUERTE que hay: el flock lo sostiene el proceso de `vuelta.sh`
+     * mientras corre y lo suelta el kernel aunque el proceso muera de golpe. No depende de que
+     * nadie escriba un timestamp, así que no miente ni por exceso ni por defecto.
+     *
+     * FAIL-CLOSED: si el archivo no se puede abrir (permisos, runtime ausente), devuelve `false`
+     * = "ocupado". Así quien lo use para decidir si mata algo se abstiene ante la duda.
+     */
+    public function slotLibre(string $sid): bool
+    {
+        $sid = trim($sid);
+        // Solo nombres de slot conocidos: nunca construir un path con texto arbitrario del item.
+        if (! preg_match('/^wt-\d+$/', $sid)) {
+            return false;
+        }
+
+        $path = self::RUNTIME_DIR . "/{$sid}.lock";
+
+        // Sin archivo = ninguna vuelta usó nunca ese slot → está libre. Se abre en 'r' y no en 'c'
+        // a propósito: preguntar por un slot no debe CREAR su lock (con 'c' se sembraban archivos
+        // vacíos para slots inexistentes).
+        if (! is_file($path)) {
+            return true;
+        }
+
+        $f = @fopen($path, 'r');
+        if (! $f) {
+            return false;
+        }
+        $libre = flock($f, LOCK_EX | LOCK_NB);
+        if ($libre) {
+            flock($f, LOCK_UN);
+        }
+        fclose($f);
+
+        return $libre;
+    }
+
+    /**
+     * Archivos que una rama cambió respecto de main (`git diff --name-only main...rama`).
+     *
+     * Existe para que el auto-merge de Thomas decida por el DIFF y no por el título: "el item dice
+     * que no toca prod" no es verificable; "el diff no toca `deploy/`" sí. Devuelve null si no se
+     * puede leer (rama inexistente, git que falla) → el llamador debe tratarlo como fail-closed.
+     */
+    public function archivosDeRama(string $branch): ?array
+    {
+        if (! preg_match('#^[\w./-]+$#', $branch)) {
+            return null;   // nunca construir un comando con una ref arbitraria
+        }
+
+        $p = $this->git(['diff', '--name-only', '-z', 'main...' . $branch]);
+
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+
+        return array_values(array_filter(explode("\0", $p->getOutput()), fn ($r) => $r !== ''));
+    }
+
+    /**
+     * Contenido concatenado de unos archivos EN la rama (para inspeccionar qué hace una migración
+     * antes de auto-mergearla). Devuelve '' si no se puede leer alguno — el llamador decide.
+     */
+    public function contenidoDeRama(string $branch, array $archivos): string
+    {
+        if (! preg_match('#^[\w./-]+$#', $branch)) {
+            return '';
+        }
+
+        $out = '';
+        foreach (array_slice($archivos, 0, 20) as $archivo) {
+            $p = $this->git(['show', "{$branch}:{$archivo}"]);
+            if ($p->isSuccessful()) {
+                $out .= $p->getOutput() . "\n";
+            }
+        }
+
+        return $out;
+    }
+
+    public function reencolarHuerfano(RoadmapItem $item, string $origen, string $motivo): array
+    {
+        $tope = max(1, (int) config('circuito.reaper.max_reintentos', 3));
+        $item->reap_count = ((int) $item->reap_count) + 1;
+        $item->claimed_at = null;   // el lease muere con el reclamo que lo sostenía
+        $item->worker_sid = null;
+
+        if ($item->reap_count > $tope) {
+            $item->estado_aprobacion  = 'requiere_irving';
+            $item->comentarios_claude = (string) $item->comentarios_claude
+                . "\n[{$origen}] {$motivo} → escalado a tu bandeja tras {$item->reap_count} reclamos fallidos (tope {$tope}).";
+            $item->save();
+            $this->appendLog((int) $item->id, $origen, 'huerfano_escalado', [
+                'reap_count' => $item->reap_count, 'tope' => $tope, 'motivo' => $motivo,
+            ]);
+
+            return ['resultado' => 'escalado', 'estado' => $item->estado_aprobacion, 'reap_count' => $item->reap_count, 'tope' => $tope];
+        }
+
+        $estadoPrevio             = $this->estadoAprobadoPrevio($item);
+        $item->estado_aprobacion  = $estadoPrevio;
+        $item->comentarios_claude = (string) $item->comentarios_claude
+            . "\n[{$origen}] {$motivo} → re-encolado (intento {$item->reap_count}/{$tope}), vuelve a {$estadoPrevio}.";
+        $item->save();
+        $this->appendLog((int) $item->id, $origen, 'huerfano_reencolado', [
+            'reap_count' => $item->reap_count, 'tope' => $tope, 'estado' => $estadoPrevio, 'motivo' => $motivo,
+        ]);
+
+        return ['resultado' => 'reencolado', 'estado' => $estadoPrevio, 'reap_count' => $item->reap_count, 'tope' => $tope];
     }
 
     /** Log entry corta y uniforme para eventos del circuito sobre un item (best-effort, nunca tumba). */

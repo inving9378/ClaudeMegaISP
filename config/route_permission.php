@@ -974,6 +974,11 @@ return [
     'calendar_filter_assigned_to' => [],
     'calendar_filter_filter' => [],
 
+    //Plantillas de tareas (alias que redirige a /configuracion/template-task)
+    'templatetask_view_templatetask' => [
+        '/scheduling/task-templates',
+    ],
+
     //Administracion
     'admin_view_module' => ['/administracion'],
 

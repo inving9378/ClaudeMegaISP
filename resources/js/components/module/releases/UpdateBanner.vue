@@ -113,6 +113,10 @@
             <span v-if="upToDate" class="small text-success">
                 <i class="bi bi-check-circle me-1"></i> Estás al día
             </span>
+            <!-- "No se pudo verificar" ≠ "estás al día": ver item #529. -->
+            <span v-if="checkFailed" class="small text-warning" :title="checkError || ''">
+                <i class="bi bi-exclamation-triangle me-1"></i> No se pudo verificar
+            </span>
         </div>
 
         <!-- Modal de mejoras -->
@@ -169,6 +173,8 @@ export default {
         const progressModal   = ref(null);
         const checking        = ref(false);
         const upToDate        = ref(false);
+        const checkFailed     = ref(false);   // no se pudo consultar GitHub (≠ estás al día)
+        const checkError      = ref(null);    // motivo, como tooltip del aviso
 
         // ── Deploy en curso (auto-reenganche + banner persistente) ──────────────
         const activeDeploy = ref(null); // { id, version, status, percent, currentStep, progressText }
@@ -231,6 +237,8 @@ export default {
         const applyStatus = (data) => {
             enabled.value         = !!data.enabled;
             showCheckButton.value = !!data.show_check_button;
+            checkFailed.value     = !!data.check_failed;
+            checkError.value      = data.check_error || null;
             if (data.update_available && data.release) {
                 updateAvailable.value = true;
                 release.value = data.release;
@@ -268,9 +276,13 @@ export default {
             try {
                 const { data } = await axios.post("/api/updates/check");
                 applyStatus(data);
-                if (!data.update_available) {
+                // Solo se afirma "estás al día" cuando la consulta SÍ pudo hacerse.
+                if (!data.update_available && !data.check_failed) {
                     upToDate.value = true;
                     setTimeout(() => { upToDate.value = false; }, 4000);
+                }
+                if (data.check_failed) {
+                    setTimeout(() => { checkFailed.value = false; }, 8000);
                 }
             } catch (e) {
                 Swal.fire("Error", e.response?.data?.message || "No se pudo consultar actualizaciones.", "error");
@@ -324,6 +336,7 @@ export default {
 
         return {
             enabled, showCheckButton, updateAvailable, release, showChangelog, applying, progressModal, checking, upToDate,
+            checkFailed, checkError,
             checkNow, applyUpdate, onDeployClosed, dismiss, formatDate,
             activeDeploy, activeRunning, activeBannerClass, reopenModal, reloadPage, dismissActive,
         };

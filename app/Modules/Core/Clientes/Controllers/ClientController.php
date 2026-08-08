@@ -181,6 +181,10 @@ class ClientController extends Controller
         $input = \Illuminate\Support\Arr::only($input, $key);
         $input['created_at'] = (new FormatDateService($request->created_at))->formatDateWithTime();
         $input['client_id'] = $model->id;
+        if (array_key_exists('user', $input)) {
+            // Alta bypassa el mutator del modelo (insertGetId crudo) — normaliza aquí (item #155).
+            $input['user'] = ClientMainInformation::normalizeUserNumber($input['user']);
+        }
         $clientMainInformationId = DB::table('client_main_information')->insertGetId($input);
         $clientMainInformationModel = ClientMainInformation::where('id', $clientMainInformationId)->first();
 

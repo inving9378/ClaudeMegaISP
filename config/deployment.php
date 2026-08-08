@@ -107,7 +107,11 @@ return [
             'timeout'  => 180,
             'critical' => true,
             'enabled'  => true,
-            'skip_if_not_production' => true,
+            // Gate de PUBLICADOR, no de entorno (item #530): con `skip_if_not_production` el
+            // publicador (dev, APP_ENV=local) nunca empujaba, así que origin/main se quedó en
+            // V1.25 y los tags de V1.26-V1.29 apuntaban a commits inalcanzables desde la rama
+            // → el `git fetch origin && git checkout tags/{v}` de prod fallaba con exit 1.
+            'skip_if_not_publisher' => true,
         ],
         [
             'key'      => 'github_release',
@@ -116,7 +120,8 @@ return [
             'timeout'  => 30,
             'critical' => false,
             'enabled'  => true,
-            'skip_if_not_production' => true,
+            // Mismo gate que git_push: publicar el Release es trabajo del publicador.
+            'skip_if_not_publisher' => true,
         ],
         [
             'key'               => 'remote_deploy',
@@ -144,6 +149,16 @@ return [
         'token' => env('GITHUB_TOKEN', ''),
         'repo'  => env('GITHUB_REPO', 'inving9378/ClaudeMegaISP'),
     ],
+
+    // ¿Esta instancia es el PUBLICADOR de releases (la que crea los GitHub Releases que
+    // luego consumen las instancias de producción)? Hoy: solo dev (.11), con
+    // DEPLOY_IS_PUBLISHER=true en su .env.
+    //
+    // Gobierna ÚNICAMENTE el comando `releases:publish-github`. NO reabre el gate del
+    // pipeline (git_push/github_release siguen con 'skip_if_not_production', política del
+    // item #245): publicar es un acto explícito y manual, nunca un efecto secundario de
+    // crear una versión. Default false ⇒ producción no puede publicar aunque se corra ahí.
+    'publisher' => (bool) env('DEPLOY_IS_PUBLISHER', false),
 
     // URL base del servidor remoto donde se desplegará (ej: http://192.168.105.11)
     // Dejar vacío para omitir el paso remote_deploy

@@ -84,7 +84,7 @@
                 },
                 {
                     "label": "Campañas",
-                    "url": "/marketing/campanas",
+                    "url": "/marketing/campaigns",
                     "permission": "create-marketing-campaigns"
                 },
                 {

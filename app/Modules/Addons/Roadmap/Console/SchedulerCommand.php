@@ -6,6 +6,7 @@ use App\Modules\Addons\Roadmap\Services\MergeRunner;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
 /**
@@ -73,6 +74,42 @@ class SchedulerCommand extends Command
                 } catch (\Throwable $e) {
                     // best-effort, igual que el drain de arriba.
                 }
+
+                // TORRE V2 — vuelta de Thomas. Va ENGANCHADA aquí, y no en su propia línea de cron,
+                // porque el scheduler ya es el único despachador (#432 B1) y corre cada minuto: un
+                // cron paralelo abriría una segunda carrera sobre los mismos items.
+                // Recoge consultas que quedaron colgadas (la terminal preguntó y se le acabó el
+                // turno) y sella estimaciones. Best-effort: un fallo suyo no frena el reparto.
+                try {
+                    app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)->tick();
+                } catch (\Throwable $e) {
+                    Log::channel('roadmap_externo')->warning('thomas-tick-fallo', ['error' => $e->getMessage()]);
+                }
+
+                // #559 — MOTOR DE AUDITORÍA CONTINUA. El generador de trabajo va enganchado aquí,
+                // igual que Thomas, y por el mismo motivo: el scheduler es el único despachador y
+                // ya corre cada minuto; una línea de cron aparte abriría una segunda carrera sobre
+                // los mismos items.
+                //
+                // Va ANTES de calcular slots libres a propósito: los items que genere quedan
+                // disponibles para el reparto de ESTA MISMA vuelta, no de la siguiente.
+                //
+                // El propio servicio decide si toca correr (cola bajo el umbral + intervalo mínimo
+                // + sus dos kill-switches), así que aquí no hay política: sólo la llamada.
+                // Best-effort — que el generador falle nunca debe frenar el reparto.
+                try {
+                    $auditor = app(\App\Modules\Addons\Roadmap\Services\AuditorService::class);
+                    if ($auditor->debeCorrer()['corre']) {
+                        $r = $auditor->ciclo(true);
+                        if ($r['creados']) {
+                            Log::channel('roadmap_externo')->info('auditor-genero-trabajo', [
+                                'creados' => count($r['creados']),
+                            ]);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Log::channel('roadmap_externo')->warning('auditor-fallo', ['error' => $e->getMessage()]);
+                }
             }
 
             $n = $svc->getParalelismo();
@@ -116,7 +153,9 @@ class SchedulerCommand extends Command
                         $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
                             ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
                     })
-                    ->update(['estado_aprobacion' => 'en_progreso', 'worker_sid' => "wt-{$slot}", 'updated_at' => now()]);
+                    // #507 sub-paso 3 — `claimed_at` sella el lease del slot (lo renueva el latido).
+                    ->update(['estado_aprobacion' => 'en_progreso', 'worker_sid' => "wt-{$slot}",
+                        'claimed_at' => now(), 'updated_at' => now()]);
                 if ($claimed !== 1) {
                     continue; // ya lo tomó otro
                 }

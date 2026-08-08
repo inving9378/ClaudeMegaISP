@@ -18,7 +18,8 @@ Violarlas ha causado incidentes reales (exposición de credenciales, pérdida de
 
 ## Caché y deploy
 - Tras cambios en Blade/config: `php artisan view:clear && php artisan config:clear && php artisan route:clear`.
-- SIEMPRE cerrar con warm-up: `php artisan view:cache && php artisan config:cache`.
+- Cerrar con warm-up: `php artisan config:clear && php artisan route:clear && php artisan queue:restart && php artisan view:cache`.
+- PROHIBIDO `php artisan config:cache` (y `php artisan optimize`, que lo incluye) mientras exista código que lea `env()` fuera de `config/*.php` — hoy IA y WhatsApp quedan en NULL con la config cacheada. `view:cache` sí está permitido. Ver roadmap ítem #520.
 - PROHIBIDO `php artisan migrate:fresh` (BD productiva). Solo `migrate` incremental. Migraciones aditivas únicamente.
 - No compilar APKs ni builds pesados en el servidor (disco cerca de capacidad).
 

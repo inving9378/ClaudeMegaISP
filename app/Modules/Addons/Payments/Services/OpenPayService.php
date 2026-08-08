@@ -22,10 +22,10 @@ use Illuminate\Support\Facades\Log;
  * El config viene del modelo PaymentProvider (campo encriptado JSON):
  *   ['merchant_id' => '...', 'api_key' => '...', 'webhook_secret' => '...', 'sandbox' => true]
  *
- * IMPORTANTE: este servicio se entrega con STUBS para createClabe() y
- * getTransaction() cuando provider.config no tiene api_key — facilita
- * desarrollo sin sandbox real. Cuando lleguen las credenciales se quita
- * el bypass y queda solo el camino real (marcado TODO abajo).
+ * IMPORTANTE: getTransaction() responde con un stub cuando provider.config
+ * no tiene api_key real — facilita desarrollo sin sandbox real (ver
+ * credsAreStub()). createClabe() en cambio nunca degrada a stub: si las
+ * credenciales no son reales, bloquea la emisión (ver isNonRoutable()).
  */
 class OpenPayService
 {
@@ -97,7 +97,8 @@ class OpenPayService
     {
         $cfg = $provider->config ?? [];
         if ($this->credsAreStub($cfg)) {
-            // TODO: stub fallback hasta tener creds reales
+            // Stub controlado sin creds reales (ver docblock de la clase): evita golpear
+            // sandbox-api.openpay.mx con credenciales basura mientras no haya sandbox real.
             return ['id' => $transactionId, '_stub' => true];
         }
 
@@ -201,14 +202,18 @@ class OpenPayService
             Log::warning('OpenPay customer lookup falló, intentando crear', ['error' => $e->getMessage()]);
         }
 
-        // Crear cliente nuevo
-        // TODO: la BD megaisp guarda nombre completo en client_main_information,
-        // no directo en clients. Se extrae al armar el payload cuando esté
-        // disponible; por ahora usamos id como fallback.
+        // Crear cliente nuevo. El nombre real vive en client_main_information (no
+        // directo en clients); si la ficha no existe o viene vacía, cae al fallback
+        // por id que ya se usaba antes.
+        $info = $client->client_main_information;
+        $name = filled($info?->name) ? $info->name : "Cliente {$client->id}";
+        $lastName = trim(($info?->father_last_name ?? '') . ' ' . ($info?->mother_last_name ?? ''));
+        $email = filled($info?->email) ? $info->email : "cliente-{$client->id}@megaisp.local";
+
         $created = $this->postJson("{$base}/customers", $cfg['api_key'], [
-            'name'        => "Cliente {$client->id}",
-            'last_name'   => '',
-            'email'       => "cliente-{$client->id}@megaisp.local",
+            'name'        => $name,
+            'last_name'   => $lastName,
+            'email'       => $email,
             'external_id' => (string) $client->id,
         ]);
 

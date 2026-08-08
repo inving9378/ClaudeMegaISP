@@ -508,15 +508,24 @@ TXT;
         try {
             $resp = (new ClaudeApiClient())->messages([
                 'model'      => $hard,
-                'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100) * 2,
+                // #507 sub-paso 1 — las opciones pasaron de string plano a objeto con 3 campos más;
+                // el margen sube a x3 para que el JSON no se trunque (un array sin cerrar no parsea
+                // y el item se queda en "brief pendiente").
+                'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100) * 3,
                 'system'     => 'Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). '
                     . 'Este item está en tu bandeja de decisión (requiere tu aprobación, no la del circuito). Desglósalo en TODAS las preguntas de '
                     . 'decisión que Irving debe responder para desbloquearlo de una sola pasada (1 si es una sola '
-                    . 'decisión; varias si el item esconde varias). Para CADA pregunta propón 2-3 opciones accionables; '
-                    . "marca UNA con '(RECOMENDADA)' al final si hay una preferible (NO elijas tú). Si una decisión "
+                    . 'decisión; varias si el item esconde varias). Para CADA pregunta propón 2-3 opciones accionables. Si una decisión '
                     . 'pertenece a una fase posterior, inclúyela igual con "fase":"Fase X". Responde EXCLUSIVAMENTE un '
-                    . 'array JSON (sin markdown) de objetos {"pregunta":"...","opciones":["Opción 1: <qué> — Pro: <x>. '
-                    . 'Contra: <y>", ...],"fase":null}. Perfil de Irving:' . "\n\n" . $this->perfilIrving(),
+                    . 'array JSON (sin markdown) de objetos con esta forma EXACTA: '
+                    . '{"pregunta":"...","requiere_irving":false,"fase":null,"opciones":['
+                    . '{"texto":"Opción 1: <qué> — Pro: <x>. Contra: <y>","recomendada":true,"confianza":"alta","reversible":true}, …]}.' . "\n\n"
+                    . "CÓMO LLENAR LOS CAMPOS (importante — un AUTOPILOT los lee y puede EJECUTAR la opción recomendada sin preguntarle a Irving):\n"
+                    . "- \"recomendada\": true en A LO MÁS UNA opción por pregunta, la que recomiendas. Si no hay una claramente preferible, ninguna. NO escribas '(RECOMENDADA)' dentro del texto.\n"
+                    . "- \"confianza\": \"alta\" | \"media\" | \"baja\" — qué tan seguro estás de que esa opción es la correcta SIN consultarle a Irving. \"alta\" es un COMPROMISO: úsala solo si te parecería bien que se ejecutara sola. Si hay supuestos sin verificar, contexto faltante o un trade-off real → \"media\" o \"baja\". ANTE LA DUDA: \"baja\".\n"
+                    . "- \"reversible\": true SOLO si aplicarla y arrepentirse se deshace fácil (cambio aditivo, detrás de flag, un revert limpio) SIN migración destructiva y SIN tocar dinero, permisos/roles, credenciales, datos de clientes ni producción. ANTE LA DUDA: false. Sé CONSERVADOR aquí.\n"
+                    . "- \"requiere_irving\" (por pregunta): true si la decisión es de negocio/estrategia/precio/política, si toca dinero, seguridad, permisos o producción, o si simplemente no puedes elegir con seguridad. Con true, la pregunta va a Irving aunque marques una recomendada.\n\n"
+                    . 'Perfil de Irving:' . "\n\n" . $this->perfilIrving(),
                 'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
             ]);
             foreach ((array) ($resp['content'] ?? []) as $blk) {
@@ -532,7 +541,16 @@ TXT;
         }
     }
 
-    /** Parsea el array JSON de preguntas: cada una {id,pregunta,opciones[str],opcion_elegida:null,fase}. Máx 6. */
+    /**
+     * Parsea el array JSON de preguntas: cada una
+     * {id, pregunta, opciones[{texto,recomendada,confianza,reversible}], opcion_elegida:null, fase,
+     * requiere_irving}. Máx 6 preguntas × 4 opciones.
+     *
+     * #507 sub-paso 1 — las opciones pasaron de string plano a OBJETO con datos estructurados (los
+     * que lee el autopilot). Tolera las dos formas: si el modelo devuelve strings (o un brief viejo
+     * se reprocesa), se normaliza igual, con `confianza`/`reversible` en null = SIN DATO → el
+     * autopilot NO lo toma. Falla-segura por omisión.
+     */
     private function parsePreguntas(string $text): array
     {
         if (! preg_match('/\[.*\]/s', $text, $m)) {
@@ -548,11 +566,30 @@ TXT;
                 continue;
             }
             $ops = [];
+            $yaRecomendada = false;
             foreach ((array) ($p['opciones'] ?? []) as $o) {
                 $t = trim((string) (is_array($o) ? ($o['texto'] ?? '') : $o));
-                if ($t !== '') {
-                    $ops[] = $t;
+                if ($t === '') {
+                    continue;
                 }
+                // Una sola recomendada por pregunta: si el modelo marca varias, gana la primera y
+                // las demás se degradan (el autopilot necesita UNA recomendación inequívoca).
+                // Booleanos por lector ESTRICTO (RoadmapItem::boolEstricto): un "si"/"false" del
+                // modelo NO se cuela como true — ante la ambigüedad, el dato NO habilita nada.
+                $rec = (is_array($o) && RoadmapItem::boolEstricto($o, 'recomendada') === true)
+                       || stripos($t, 'RECOMENDADA') !== false;
+                if ($rec && $yaRecomendada) {
+                    $rec = false;
+                }
+                $yaRecomendada = $yaRecomendada || $rec;
+
+                $conf = is_array($o) ? strtolower(trim((string) ($o['confianza'] ?? ''))) : '';
+                $ops[] = [
+                    'texto'       => $t,
+                    'recomendada' => $rec,
+                    'confianza'   => in_array($conf, ['alta', 'media', 'baja'], true) ? $conf : null,
+                    'reversible'  => is_array($o) ? RoadmapItem::boolEstricto($o, 'reversible') : null,
+                ];
             }
             if (empty($ops)) {
                 continue;
@@ -563,6 +600,7 @@ TXT;
                 'opciones'       => array_slice($ops, 0, 4),
                 'opcion_elegida' => null,
                 'fase'           => ! empty($p['fase']) ? (string) $p['fase'] : null,
+                'requiere_irving' => RoadmapItem::boolEstricto($p, 'requiere_irving') === true,
             ];
             if (count($out) >= 6) {
                 break;
@@ -597,6 +635,11 @@ TXT;
         $item->revisado_at        = now();
         $item->aprobado_por       = $actor;
         $item->save();
+
+        // #507 sub-paso 2 — AUTOPILOT: con el brief recién escrito, intenta decidir SOLO antes de
+        // que el item se estacione en la bandeja. Best-effort y falla-segura: si no califica (o si
+        // truena), el item se queda en `requiere_irving` exactamente como hasta ahora.
+        app(AutopilotService::class)->intentar($item);
 
         return $item->fresh();
     }

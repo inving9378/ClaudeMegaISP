@@ -1,12 +1,6 @@
 <template>
     <div class="rdm-wrap" :class="{ 'rdm-dark': darkMode }">
 
-        <!-- Banner regla -->
-        <div class="rdm-rule-banner">
-            <i class="bi bi-info-circle-fill me-2"></i>
-            Solo una tarea en progreso a la vez. Termina la actual antes de empezar otra.
-        </div>
-
         <!-- KPIs -->
         <div class="rdm-kpis">
             <div class="rdm-kpi rdm-kpi-progress">
@@ -502,32 +496,13 @@ export default {
 
         // ── Status helpers ────────────────────────────────────────────────────
 
-        function inProgressItem() {
-            return items.value.find(i => i.status === 'in_progress') ?? null;
-        }
-
-        function nextPendingItem() {
-            return groups.value.find(g => g.key === 'pending')?.items[0] ?? null;
-        }
-
         function canLaunch(item, idx, group) {
-            if (item.status === 'in_progress') return true;
-            if (item.status === 'pending') {
-                if (inProgressItem()) return false;
-                const next = nextPendingItem();
-                return next && next.id === item.id;
-            }
-            return false;
+            return item.status === 'in_progress' || item.status === 'pending';
         }
 
         function launchTitle(item, idx, group) {
             if (item.status === 'in_progress') return 'Copiar prompt al portapapeles';
-            if (item.status === 'pending') {
-                if (inProgressItem()) return 'Hay otra tarea en curso, termínala primero.';
-                const next = nextPendingItem();
-                if (!next || next.id !== item.id) return 'No es el siguiente en la fila.';
-                return 'Iniciar y copiar prompt al portapapeles';
-            }
+            if (item.status === 'pending') return 'Iniciar y copiar prompt al portapapeles';
             return 'Sin acción disponible';
         }
 
@@ -575,12 +550,7 @@ export default {
 
         async function launchItem(item, idx, group) {
             if (!canLaunch(item, idx, group)) {
-                const current = inProgressItem();
-                if (current && item.status === 'pending') {
-                    showToast('Hay otra tarea en curso, termínala primero.', 'warning', 'bi bi-exclamation-triangle-fill');
-                } else {
-                    showToast('No es el siguiente en la fila.', 'warning', 'bi bi-exclamation-triangle-fill');
-                }
+                showToast('Sin acción disponible.', 'warning', 'bi bi-exclamation-triangle-fill');
                 return;
             }
             const prompt = item.prompt?.trim() ?? '';
@@ -869,22 +839,6 @@ export default {
 <style scoped>
 /* ── Base ── */
 .rdm-wrap { padding: 24px 0; font-size: 14px; }
-
-/* ── Banner ── */
-.rdm-rule-banner {
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    border-radius: 8px;
-    padding: 10px 16px;
-    color: #1d4ed8;
-    font-size: 13px;
-    margin-bottom: 20px;
-}
-.rdm-dark .rdm-rule-banner {
-    background: rgba(59, 130, 246, 0.12);
-    border-color: rgba(96, 165, 250, 0.3);
-    color: #93c5fd;
-}
 
 /* ── KPIs ── */
 .rdm-kpis { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -1213,9 +1167,6 @@ export default {
 @media (max-width: 639px) {
     /* ── Contenedor base ── */
     .rdm-wrap { padding: 12px 0; font-size: 13px; }
-
-    /* ── Banner ── */
-    .rdm-rule-banner { font-size: 12px; padding: 10px 12px; line-height: 1.5; }
 
     /* ── KPIs: grid 2×2 ── */
     .rdm-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

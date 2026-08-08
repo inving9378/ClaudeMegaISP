@@ -79,7 +79,7 @@
         }
     ],
     "ai": {
-        "knowledge": "La Hoja de ruta es el tablero de planeación del sistema Medussa. Cada item tiene un estado (pending/in_progress/done/cancelled), prioridad (alta/media/baja), versión objetivo y un prompt para Claude Code. Regla: solo puede haber una tarea en in_progress a la vez. El botón de lanzar copia el prompt al portapapeles para pegarlo en Claude Code.",
+        "knowledge": "La Hoja de ruta es el tablero de planeación del sistema Medussa. Cada item tiene un estado (pending/in_progress/done/cancelled), prioridad (alta/media/baja), versión objetivo y un prompt para Claude Code. Puede haber varias tareas en in_progress a la vez (pool en paralelo). El botón de lanzar copia el prompt al portapapeles para pegarlo en Claude Code.",
         "example_intents": [
             "ver qué está en progreso",
             "qué sigue en la hoja de ruta",
@@ -127,7 +127,7 @@
             "terms": [
                 {
                     "term": "Item en progreso",
-                    "definition": "Tarea actualmente en ejecución. Solo puede haber una a la vez."
+                    "definition": "Tarea actualmente en ejecución. Pueden coexistir varias en paralelo."
                 },
                 {
                     "term": "Prompt",

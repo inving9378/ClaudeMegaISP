@@ -573,3 +573,363 @@ Item venía escalado por el revisor + DES-TRABE (decisión UX de librería/alcan
 - Verificado: `php -l` limpio, tinker con datos reales (6 recién resueltos, 4 listos para terminal tras
   filtrar PARKED-PROD), `bash deploy/circuito/npm-build.sh` compiló sin errores.
 - Enlace de revisión: `/releases` → pestaña Torre de Control → sección "Terminales en vivo".
+
+## 2026-08-04 20:35 — Torre: autopilot continuo + reorganización de la UI (#507)
+
+Bloque completo pedido por Irving en documento propio. **Todo en dev/main, sin push, sin prod.**
+Item de coordinación **#507** (`[COORD] Torre — autopilot continuo + reorg UI`, marcado
+`en_desarrollo_humano` + `excluir_pool_automatico` para que el circuito no lo tome).
+
+### Decisiones de Irving en el Paso 0
+1. **Aislamiento:** pausar el circuito durante el trabajo (lo hizo él desde la Torre; el kill switch
+   `setPaused` exige sesión HTTP autenticada — CC no puede tocarlo por CLI, candado #342).
+2. **Tope del autopilot:** A + B reversible. **El nivel C SIEMPRE queda en su bandeja** (respeta la
+   regla dura de CLAUDE.md). El flag `autopilot.max_nivel` queda listo para subirlo a C sin redeploy.
+3. **Reclamo de cola:** conservar flock + UPDATE condicional atómico. **NO** migrar a SKIP LOCKED.
+
+### Hallazgos del Paso 0 que corrigieron el documento
+- **La ejecución continua YA existía** (#334 F1): el cron corre `circuito:scheduler` **cada minuto** y
+  lanza una vuelta POR ITEM en el primer slot libre; `circuito:claim-next` deja que una terminal jale
+  el siguiente al quedar libre. **No había cron de rondas que apagar**: lo que sobrevivía del modelo
+  viejo era la FICCIÓN de "próxima vuelta" en la UI (`circuito.interval_min`, que su propio comentario
+  ya declaraba espejo del crontab y sin control real).
+- `preguntasNormalizadas()` **ya** prefería el bool `recomendada` con fallback a `stripos`.
+- El autopilot ya existía a medias como el **Revisor** (#338), que autoriza B técnicos.
+- **`guard()` NO se relajó** (el documento asumía que bloqueaba el flujo interno): sus únicos
+  consumidores son `RoadmapExternalController` y `RoadmapMcpController` — es la puerta de la vía
+  EXTERNA (token Cowork/MCP). El autopilot es interno y ni la roza; abrirla habría dejado que el token
+  externo apruebe B/C.
+
+### Commits (dev/main)
+| Commit | Sub-paso |
+|---|---|
+| `23ca342a` | 1 — opciones del brief con `recomendada`/`confianza`/`reversible` + `requiere_irving` por pregunta |
+| `05317317` | 2 — `AutopilotService` + flags en `config/circuito.php` + `circuito:autopilot` + enganche |
+| `e8613f67` | 3 — `scopeOrdenCola`, lease `claimed_at`, reaper de dos señales, modo continuo |
+| `24cb27d8` | 5 — `GET /api/roadmap/torre/decisiones/contadores` |
+| `f873930b` | 4 — Panorama continuo, banner autopilot, una pregunta a la vez, sidebar interno |
+| `e920e19c` | backfill `circuito:rebrief-bandeja` + fix de impresión de opciones |
+
+### Piezas clave
+- **`RoadmapItem::boolEstricto`** (no estaba en el plan): la coerción de PHP falla hacia el lado
+  peligroso — `(bool)"si"` y `!empty("false")` dan TRUE. Sin esto, un `"reversible":"si"` del modelo se
+  habría leído como permiso para auto-ejecutar. Ante cualquier ambigüedad: false.
+- **`AutopilotService`**: solo actúa con DATO EXPLÍCITO; ausencia, ambigüedad o error mandan el item a
+  Irving. Reusa `responderPregunta` + los estados que el pool ya reconoce (A→`aprobado_claude`,
+  B→`aprobado_revisor`). Deja rastro en `log` con `decidido_por='autopilot'`, confianza,
+  reversibilidad y **la política vigente al decidir** (para que el histórico siga siendo legible si
+  mañana se afloja el tope).
+- **Lease explícito** (`claimed_at`): lo renueva el latido que ya existía (`circuito:vivo --watch` →
+  `liveBeat`) con un UPDATE crudo que **no toca `updated_at`**, así "sigo vivo" y "escribí en el item"
+  son señales independientes. El reaper ahora exige que **ambas** estén frías: antes mataba workers
+  VIVOS que llevaban 25 min sin escribir en su item.
+- **Orden de cola** (`scopeOrdenCola`, separado de `ordered()` que ordena la bandeja):
+  urgente → por concluirse/reanudables (rama abierta o colisión liberada) → prioridad → antigüedad.
+- **UI**: fuera "Vuelta en curso" (terminales trabajando/libres), banner de autopilot, **una pregunta a
+  la vez** con "Pregunta X de Y" + avance automático al contestar + Aprobar deshabilitado hasta
+  responder todas, y **sidebar interno** (dentro de la pantalla, NO toca el sidebar global) con
+  bombitas por módulo e índice de preguntas. Las 6 pestañas siguen intactas.
+- **Límite de la bandeja 20 → 100**: con las bombitas al lado, una lista truncada a 20 contra un
+  contador de 71 se lee como bug. Medido: traer los 71 cuesta 16 ms, `torre()` completo 157 ms.
+
+### Backfill de briefs — BLOQUEADO (no escribió nada)
+`circuito:rebrief-bandeja` regenera los briefs viejos para poblar `confianza`/`reversible` (sin eso el
+autopilot no puede tocar la bandeja vieja: **0 de 68 califican**). Dos candados:
+1. **No pisa items ya respondidos por Irving** — `aplicarPreguntas` conserva respuestas por ID, pero
+   esos IDs son POSICIONALES (q1, q2…): con un brief nuevo, la respuesta de la vieja q2 se pegaría a
+   otra pregunta y con una clave de opción inexistente. En la bandeja actual protege **31 de 68**.
+2. **Exige el kill switch activo.** Al lanzarlo, el circuito ya había sido **reanudado (20:21:08)** →
+   abortó sin escribir. Pendiente de que Irving vuelva a pausar.
+
+### Pendientes registrados
+- **#526** — drift del campo `modulo` (texto libre): 12 de 20 módulos no mapean a pantalla; duplicados
+  (`Auth` vs `Autenticación`, `Roadmap` vs `Circuito`). Además de las bombitas, degrada el pre-filtro
+  de no-colisión del despachador, que serializa por ese mismo campo.
+- Validación visual de Irving (Panorama, paginación, bombitas) — **no hecha**.
+- Regenerar los briefs viejos (backfill de arriba) cuando se vuelva a pausar.
+
+### Notas de proceso
+- **NUNCA `config:cache`** en este repo (rompe `env()` en runtime): se cerró cada sub-paso con
+  `view:clear && route:clear && config:clear`. El documento pedía `config:cache`; mandó la regla del repo.
+- `php artisan tinker <archivo>` **se cuelga si no se le cierra stdin** (`</dev/null`): se veía como
+  "torre() lentísimo" cuando en realidad esperaba entrada. Medido después: `torre()` = 121-157 ms.
+- Una corrida de `php artisan migrate` se colgó tras aplicar el ALTER; la migración quedó bien
+  (lote 641, sin pendientes, sin locks). Sin diagnóstico; no se repitió.
+
+## 2026-08-04 20:55 — Circuito CC: fuga del pool de reclamo (raíz del bucle) + autopilot a nivel C
+
+**Síntoma reportado por Irving:** wt-1 gastando minutos en el #66 `[BLOCKED-NEGOCIO]`, el #117
+re-confirmado 9+ veces, la Torre anunciando "hasta nivel B" pese a la decisión de subirlo a C.
+
+**Qué estaba pasando (diagnóstico, no teoría):**
+- `ejecutablesParalelo()` solo excluía `[PARKED-PROD]`. Todo lo demás no-ejecutable
+  (`[BLOCKED-…]`, `[PARKED-ESPEC]`, C esperando merge manual, items ya marcados por el anti-bucle)
+  seguía siendo **reclamable**. Del pool de 86 reclamables, **35 no eran trabajo real**.
+- El ciclo: Irving aprueba → worker lo reclama → lee el rótulo / no puede mergear → re-escala a
+  `requiere_irving` sin ejecutar → reaparece en la bandeja → se aprueba otra vez. #117 acumuló
+  **13 entradas `aprobar` idénticas** en su log; #99, 16 escalaciones.
+- Log de wt-1: trabajó el #99 (20:28:03–20:28:37, lo reconfirmó bloqueado), tomó el #66 por pool
+  continuo y estuvo en él 20:28:38–20:36:00 (~7.5 min) **sin tocar código**; terminó marcándolo
+  `status=done` por su cuenta "para romper el ciclo de re-reclamo".
+- Los flags `excluir_pool_automatico` / `bloqueado_por_bucle` / `esperando_merge_irving` YA existían
+  en BD (migrados) pero **nadie los leía en el despacho**: eran decorativos.
+- El `max_nivel=C` y el filtro `[BLOCKED-]` estaban **sin commitear** en el checkout principal → los
+  worktrees (que corren `git checkout --detach -f main` en cada vuelta) nunca los veían.
+
+**Fix — commit `6e46d55a` (dev/main, sin push):**
+- `RoadmapItem::scopeElegibleParaPool()` = guard ÚNICO de despacho, aplicado en
+  `ejecutablesParalelo()`, `scopeAutoEjecutable()` y `circuito:destrabe`; mismas condiciones
+  repetidas en el `UPDATE` de `claimNextParalelo()` como candado atómico.
+- Estado terminal **"esperando merge de Irving"**: en `circuito:integrar`, un C (o auto-merge OFF)
+  con rama que **tiene commits** se parquea fuera del pool y fuera de la bandeja (vive en
+  Integración) en vez de volver a `requiere_irving`. Rama vacía → sí es decisión de Irving.
+- Guard en el modelo: el cierre optimista a `completado` de un C con rama y sin `merge_commit` se
+  retiene como esperando-merge; el cierre MANUAL de Irving se respeta (`cierreManualIrving`).
+- Anti-bucle: 3 escalaciones seguidas con la misma huella (rama+opción+nivel+preguntas) →
+  `bloqueado_por_bucle` + fuera del pool. Cambio material = contador a cero.
+- `POST decidir`: re-aprobar un item parqueado → **422** con la acción que sí lo mueve
+  (mergear/destrabar), escape hatch `forzar=true`. Aprobar un rotulado avisa que hay que quitarle
+  el rótulo al título.
+- Tope de nivel del autopilot respetado en el despacho de lo aprobado automáticamente.
+- `config/circuito.php`: `autopilot.max_nivel` B → **C** + CLAUDE.md/CONTEXTO §8.2 alineados.
+
+**Verificación:** pool reclamable **86 → 51** (35 no-ejecutables fuera, 0 rotulados/parqueados
+pasan). Parqueo, cierre manual y contador anti-bucle probados en transacción con rollback.
+**En vivo:** el propio #117 (el de las 13 vueltas) fue trabajado por wt-1 con el código nuevo, dejó
+**3 commits** en `circuito/item-117-…`, quedó `esperando_merge_irving` / `estacion=integracion` y
+`elegibleParaPool` = 0 → ningún worker lo vuelve a tomar. Espera el merge de Irving.
+
+**Pendiente / notas:**
+- El **#66 quedó `status=done` sin implementarse** (lo cerró wt-1 por su cuenta). Decidir si se
+  reabre con el rótulo puesto (ya no se re-despacha) o se archiva.
+- El lote de "respondidos": 36 items con todas sus preguntas contestadas ya estaban en
+  `aprobado_irving` (Irving los aprobó a mano entre 20:42 y 20:47). Quedaban 2 sin aprobar
+  (#155, #465) y ambos rebotaron a la bandeja tras ser reclamados → ahora el contador anti-bucle
+  los instrumenta. No se aprobó nada en lote desde aquí.
+- Los workers vivos toman el código nuevo al inicio de su siguiente vuelta (wt-2/3/5/6 ya en
+  `6e46d55a`); wt-4 puede hacer un último reclamo con código viejo antes de sincronizar.
+
+---
+
+## 2026-08-08 11:45 — Torre de Control v2: motor de Thomas + API del Roadmap extendida
+
+**Encargo:** convertir el Circuito CC en un lazo de automatización máxima — Irving y Cowork definen
+el QUÉ, el circuito lo deja implementado en dev sin intervención en pasos intermedios. Supervisor
+(Thomas) que absorba las dudas de las 6 terminales y solo escale a Irving lo irreversible de alto
+impacto. Todo en dev; prod nunca se tocó (14 commits locales, `origin/main` intacto).
+
+### HALLAZGO PREVIO (la causa real de buena parte del "flujo detenido")
+
+El `MergeRunner` exigía el checkout principal **completamente limpio** y, si no, **escalaba el item
+a la bandeja de Irving**. El árbol tenía **7 323 archivos "modificados"**, de los cuales **7 316 eran
+solo cambios de permisos** (`chmod` recursivo con `core.fileMode=true`) y 1 era
+`docs/pendientes-perfil-irving.md`, al que **el propio circuito le escribe en cada decisión de Irving**
+sin commitearlo nunca.
+
+Resultado: **desde el 6-ago ninguna rama podía integrarse.** Items con el trabajo YA HECHO rebotaban
+a `requiere_irving` con el motivo "cambios sin commitear" (#531, #532, #533, #536, #540 — 8
+escalaciones falsas registradas). No era un problema de política: era este bug.
+
+**Arreglado:** `core.fileMode=false` (7 323 → 1 sucio) + commit del perfil capturado + **guard de
+merge quirúrgico** (`1384daf8`): ahora solo bloquea si lo sucio **intersecta el footprint real de la
+rama** (`git diff main...rama`), que es el único caso donde mergear perdería trabajo. Fail-closed si
+no se puede calcular el footprint. **#532, #533 y #540 se integraron y quedaron `completado`.**
+
+### ENTREGABLES
+
+1. **API extendida** (`fef247e9`) — la deuda "Opción 2".
+   - Alta de items: `POST /{token}/item` + `GET /{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}`
+     (base64url, para el fetcher de Cowork que solo hace GET y descarta el query string).
+   - Punto único `RoadmapIntakeService`, compartido por la vía externa, las terminales (sub-items) y
+     Thomas. **Candado: el item nace SIEMPRE `pendiente_revision`** — crear no aprueba; el nivel
+     declarado se sella con su origen real, así el guard #260 sigue vigente.
+   - Historial append-only `roadmap_item_reports` + `RoadmapReportService`. Antes cada terminal
+     concatenaba a mano sobre `comentarios_claude`: con seis escribiendo, dos reportes se pisaban.
+     La columna se conserva como espejo legible acotado.
+   - `estado_cola` **derivado** (no almacenado, para no crear una segunda verdad que se
+     desincronice): `en_cola|asignado|en_progreso|en_verificacion|completado|esperando_irving|sin_triar`,
+     + `terminal_asignada`, `asignado_at`, `item_padre`, consulta viva. Expuesto en lista y detalle.
+   - Token `create_token` propio y rotable, con fallback al `write_token` para no romper a Cowork.
+
+2. **Thomas** (`ce14a359`) — autoridad intermedia. Política **determinista** en
+   `config/circuito.php → thomas` (sin llamada a IA): la terminal pregunta con `circuito:consultar`
+   y recibe respuesta **en el acto**; el contrato es el exit code (0 procede / 1 detente).
+   Escala solo: **producción · borrar datos · gastar dinero · credenciales/seguridad** + spec
+   contradictorio. Suma estimación de esfuerzo (`eta_minutos`, orientativa), verificación de cierre
+   y diagnóstico de invariantes.
+   **Thomas NO reparte:** el reparto ya lo hace `circuito:scheduler` (único despachador desde #432
+   B1); su vuelta va **enganchada** ahí y no en un cron paralelo que abriría una carrera.
+
+3. **Harness de terminales** (`8c534be9`) — el cambio de fondo. El prompt mandaba **escalar como
+   primera reacción** ("Si el item NO es claramente ejecutable… escálalo"). Ahora la **regla de oro**
+   va al frente: opción recomendada → avanza → registra; revisión posterior, no previa. La terminal
+   **ya no puede escalar a Irving por su cuenta**. Se enumera explícitamente lo que NO se consulta.
+
+4. **Política documentada** (`fb73121a`) — `docs/politica-thomas.md`, anexada al manual que sirve la
+   API externa (quien redacta un spec necesita saber qué frontera detiene a una terminal).
+
+### VERIFICACIÓN
+
+- curl: alta (#550), sub-item con padre y módulo heredado (#551), 3 reportes acumulados sin pisarse,
+  alta por GET+base64url con `/` y acentos (#552). Compatibilidad: lista, `/set` y guards intactos;
+  token inválido → 403. Items de prueba borrados (cascada verificada).
+- Política: caso normal → PROCEDE (exit 0); "DELETE FROM" → ESCALADO (exit 1) con el item en
+  `requiere_irving` y la terminal liberada; sin opción reversible → escala. Rastro completo en el
+  historial.
+- Serialización: con 2 items del mismo módulo el planificador despacha **1** y deja el otro en cola.
+- Cola vacía → 6 terminales libres, `ocio_con_cola=false`, ninguna inventa trabajo.
+
+### PENDIENTES / NOTAS
+
+- ⚠️ **Un item con módulo "Sin clasificar" bloquea a las 6 terminales** (diseño #432 B2: footprint
+  desconocido corre solo). Hay **27 de 286** items activos así. Peor: un reclamo huérfano de un
+  worker muerto mantiene ese bloqueo hasta que el reaper lo libera (**25 min**). Es el mayor freno de
+  throughput que queda y es territorio del item **#526** (drift de `modulo`).
+- `deploy/circuito/prompt.txt` (modo backlog) conserva la política vieja pero quedó **inalcanzable**:
+  el scheduler es el único que lanza `vuelta.sh` y siempre pasa `CIRCUITO_ITEM`.
+- El reaper manda los items de workers muertos a `requiere_irving`: otra vía que llena la bandeja.
+  Evaluar si conviene re-encolar en vez de escalar.
+- Falta validación visual de Irving en la Torre (`/releases`) de las claves nuevas.
+
+---
+
+## 2026-08-08 16:40 — #566 Destrabar la cola: carril mecánico, frenos de flujo y crear=ejecutar
+
+**Todo en DEV. `origin/main` intacto (32 commits locales).**
+
+### La premisa del item no coincidió con lo medido
+
+El item asumía que la cola estaba vacía **porque el autopilot es demasiado conservador**. Los números
+dicen otra cosa:
+
+| Lo que decía el item | Lo medido |
+|---|---|
+| ~37 esperando decisión | `pendiente_revision` = **1** |
+| ~44 en `requiere_irving` | 41 ✓ — pero **23** son `bloqueado_por_bucle` y **25** ya traen rama |
+| 82 aprobados listos para correr | de 87 `aprobado_irving`, **0** pasan los guards del pool |
+
+De esos 87: **26 son `esperando_merge_irving`** (trabajo TERMINADO esperando el merge de Irving),
+27 traen rótulo `[BLOCKED-/PARKED-]`, 25 están `done`, 6 en anti-bucle.
+
+**El re-triaje con la política nueva encontró CERO items mecánicos** entre los 17 re-triables
+(incluso incluyendo los del anti-bucle). La bandeja contiene sólo lo que legítimamente es de Irving.
+Ensanchar la aprobación era la palanca equivocada: la cola no está vacía por falta de permiso, está
+vacía porque **el backlog ejecutable se agotó**.
+
+### Lo construido
+
+- **E3 · frenos** (`15775b82`) — `circuito:clasificar-modulo`: 23 de 25 items sin footprint
+  clasificados (2 sin match a propósito). Un item "Sin clasificar" corre SOLO y bloquea a las 6
+  (#432 B2). Reaper con **vía rápida por flock del slot**: ya no espera 25 min, pregunta al kernel
+  quién tiene el lock. `slotLibre()` al servicio compartido, fail-closed. Cron 5 → 2 min.
+- **E1 · carril mecánico** (`b5d1c334`) — `ThomasService::clasificarMecanico`, cuatro puertas
+  (frontera dura reusando el MISMO config de las consultas · sin negocio · **allowlist** de señales ·
+  nivel ≤ B). Tope diario 25 + kill switch. Reusa `aprobado_claude`/`aprobado_revisor`.
+- **E2 · re-triaje** (`b5d1c334`) — `circuito:retriar-bandeja`, agrupa por motivo lo que se queda.
+  Respeta anti-bucle, ramas empezadas y lo que sólo espera merge.
+- **E4 · crear=ejecutar** (`ce6950bc`) — item creado en la Torre entra como `aprobado_irving` con
+  footprint auto-asignado; la vía externa sigue naciendo `pendiente_revision`. Excepción: si declara
+  frontera dura, se para. `circuito:disparo-check` revive como **watcher** (no como despachador):
+  adelanta una corrida del scheduler en **0.45 s**.
+
+### Dos lecciones de forma (mismas dos veces)
+
+1. **Match por palabra completa, no substring.** «Portal colaborador» caía en el módulo del circuito
+   porque *cola* vive dentro de *colaborador* — el mismo accidente del denylist del revisor (#338).
+   El `\b` de PCRE no sirve con acentos; hay que usar `\p{L}\p{N}` con `/u`.
+2. **El match por términos no distingue mención de negación.** Un spec que dice "esto NO es decisión
+   de negocio" contiene *negocio* y se queda con Irving. Falla hacia el lado seguro, pero castiga
+   los specs bien escritos.
+
+### Verificado
+
+- Carril mecánico end-to-end: **#567** (hueco ruteado real, `BoxInputController@update` respondía
+  `null` en silencio) se auto-aprobó, lo tomó una terminal, se ejecutó y **se mergeó** (`ae3e7a30`)
+  sin tocar la bandeja.
+- Crear=ejecutar: item normal → `aprobado_irving`/`en_cola`, **reclamado por wt-2 en segundos**;
+  item con "DELETE FROM" → se quedó en `pendiente_revision` con su aviso.
+- Reaper rápido con un worker VIVO en wt-1 → 0 reapeados (no mata vivos).
+
+### ⚠️ Pendientes reales
+
+- **Criterio 1 NO cumplido** (cola > 0 y 6 terminales ejecutando). No es alcanzable por la vía del
+  item: no hay trabajo aprobado-y-sin-empezar. Las palancas reales son **los 26
+  `esperando_merge_irving`** (merge de Irving) y **los 23 `bloqueado_por_bucle`** (necesitan cambio
+  material, no re-aprobación — re-aprobarlos reabre el bucle que #117 dio 13 veces).
+- **Hay una SEGUNDA sesión de CC en el repo** (PID 3248245, 11:18) escribiendo sin commitear en
+  `main`: bloque `auditor` en `config/circuito.php` + `auditor_fingerprint` en `RoadmapItem.php`
+  (#559, sin rama). No se tocó. Con el guard quirúrgico sólo bloquea merges que toquen esos dos
+  archivos, pero son archivos calientes del circuito.
+
+---
+
+## 2026-08-08 17:30 — #566 Thomas DECIDE: auto-merge, auto-decisión y la raíz del anti-bucle
+
+**Todo en DEV.** Precondición atendida: la otra sesión de CC (#559) había commiteado y `main`
+estaba limpio; se trabajó ahí con commits por sub-paso, verificando el árbol antes de cada uno.
+
+### LA RAÍZ DEL BUCLE (E3) — no era falta de permiso
+
+#117 dio 13 vueltas y #19 **nueve aprobaciones** entre el 12-jul y el 6-ago sin avanzar. La causa
+la dejó escrita un worker en el propio #19:
+
+> «No ejecuto nada en #19 (nivel C = decisión de negocio exclusiva de Irving). Nota para des-atorar
+> el loop: **reaprobar el mismo brief no avanza nada** — lo único pendiente es que Irving mergee la
+> rama.»
+
+**Aprobar se trataba como responder.** Un item cuya única pendiente era el MERGE volvía a
+`aprobado_irving` con cada clic, el pool lo re-despachaba, el worker veía que no había nada que
+hacer y lo re-escalaba. Tres sabores del mismo error:
+
+| Item | Qué esperaba de verdad | Por qué ciclaba |
+|---|---|---|
+| #117 | el merge (trabajo hecho) | cada "aprobar" lo re-armaba para el pool |
+| #29 | nada (superseded) | se re-aprobaba solo a diario con las mismas respuestas q1-q6 |
+| #99 | una respuesta puntual | 15 aprobaciones genéricas, ninguna respondía la pregunta |
+
+**Fix:** `ThomasService::pendienteReal()` clasifica qué le falta a cada item
+(`merge | respuesta | ejecucion | dependencia | cierre`) y lo enruta ahí. Consulta a **git** cuando
+las banderas de rama están frías — #19 tenía trabajo real con `branch_has_content` en cero y por eso
+se leía como "falta ejecutarlo".
+
+### Lo construido
+
+- **E1 auto-merge** (`540b6aa0`): Thomas no reimplementa el merge — decide ELEGIBILIDAD y se lo
+  encola al MergeRunner de siempre. Retiene lo que apunta a prod o es irreversible **mirando el
+  DIFF, no el título**: #117 quedó retenido por traer `dropIfExists` (una migración que agrega es
+  reversible con `git revert`; una que dropea ya cambió el esquema).
+- **E2 "ya decidido"** (`d24c9e5e`): el autopilot reportaba 11 items con *«no quedan preguntas sin
+  responder»* y aun así retenidos — el mismo error: "no hay nada que decidir" tratado como "no
+  aprobar". Si el brief está contestado y nada pendiente es de Irving, el item pasa a la cola.
+- **E4 consolidado** (`9005721b`): `docs/decisiones-pendientes-irving.md` — 4 puntos con la
+  recomendación de Thomas cada uno, marcados ♻️ reversible o no. Default de 48 h configurable, y
+  **sólo aplica a los reversibles**.
+
+### Dos inconsistencias entre carriles, cerradas
+
+- `'permiso'` a secas en la frontera dura: estaba `'permiso de rol'`, así que **#542** («los
+  permisos editados en un rol no se reflejan») se colaba al carril automático por no coincidir con
+  la frase exacta.
+- Los dos carriles miraban textos distintos (uno incluía `prompt`, el otro no) → misma regla,
+  veredictos distintos. Ahora ambos usan título+descripción+prompt.
+
+### Resultado medido
+
+| | antes | después |
+|---|---|---|
+| Cola ejecutable | **0** | **14** |
+| Auto-decididos por Thomas | 0 | **10** (9 "ya decidido" + 1 mecánico) |
+| Enviados a auto-merge | 0 | **23** |
+| `bloqueado_por_bucle` | 30 | **24** (6 liberados; el resto tiene causa real) |
+| Decisiones para Irving | dispersas | **4, en un solo documento** |
+
+**Kill-switch verificado**: en pausa, los tres carriles y el `tick()` se detienen; al reanudar
+vuelven a evaluar. Cap de auto-merge = 5/ciclo (`thomas.automerge.cap_por_ciclo`), tope de
+auto-decisión mecánica = 25/día, ambos en `config/circuito.php`.
+
+### Pendientes
+
+- De los 23 auto-merges, el drenado es serial (regresión + build por rama) y quedó corriendo.
+- 24 siguen en anti-bucle **con causa real**: 14 esperan ejecución pero son C/frontera dura,
+  6 esperan merge no elegible, 3 dependen de otro item, 1 es cierre.
+- `--cap=30` se usó para drenar la pila histórica; el régimen normal sigue en 5.

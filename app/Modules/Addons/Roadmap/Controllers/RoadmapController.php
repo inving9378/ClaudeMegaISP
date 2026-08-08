@@ -5,13 +5,16 @@ namespace App\Modules\Addons\Roadmap\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\AutopilotService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
+use App\Modules\Addons\Roadmap\Services\ThomasService;
 use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
@@ -21,7 +24,8 @@ class RoadmapController extends Controller
         private RoadmapCircuitoService $svc,
         private WatchdogService $watchdog,
         private SupervisorService $supervisor,
-        private SessionTreeService $sessionTree
+        private SessionTreeService $sessionTree,
+        private AutopilotService $autopilot
     ) {
     }
 
@@ -37,8 +41,13 @@ class RoadmapController extends Controller
         // #432 — la bandeja es TODA la estación de decisión (requiere_irving + C sin decidir +
         // [BLOCKED-/PARKED-]), no solo requiere_irving: el supervisor las enruta aquí y ninguna
         // decisión se queda perdida en la Hoja de ruta.
+        // #507 sub-paso 4 — límite 20 → 100: con las bombitas por módulo al lado, una lista truncada
+        // a 20 contra un contador de 71 se lee como un bug, y filtrar por módulo sobre una lista
+        // recortada devolvía menos items de los que anuncia su bombita. Medido en dev: traer los 71
+        // cuesta 16 ms y `torre()` completo 121 ms. Si algún día la bandeja pasa de 100, la UI avisa
+        // que está mostrando N de M en vez de mentir.
         $cola = RoadmapItem::bandeja()
-            ->ordered()->limit(20)->get()
+            ->ordered()->limit(100)->get()
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
                 'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — legacy/fallback (#431)
@@ -169,6 +178,8 @@ class RoadmapController extends Controller
             'scheduler_beat_secs'  => $this->svc->schedulerBeatSecs(),
             'cron_vivo'            => ($s = $this->svc->schedulerBeatSecs()) !== null && $s < 180,
             'auto_ejecutables'     => RoadmapItem::autoEjecutable()->count(),
+            // #507 sub-paso 4 — banner del autopilot: política vigente + qué decidió hoy.
+            'autopilot'            => $this->autopilot->resumen(),
             // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),
@@ -211,6 +222,89 @@ class RoadmapController extends Controller
             'supervisor'        => $this->supervisor->estado(),   // Thomas T + su feed (#334)
             'can_disparar'      => (bool) auth()->user()?->can('circuito.disparar'),
         ]);
+    }
+
+    /**
+     * GET /api/roadmap/torre/decisiones/contadores — cuántas decisiones te esperan, POR MÓDULO.
+     * (#507 sub-paso 5) Alimenta las "bombitas" del sidebar interno de la Torre.
+     *
+     * Cuenta EXACTAMENTE lo mismo que la bandeja (`RoadmapItem::bandeja()`) — si los números no
+     * cuadran con la tarjeta "Requiere tu decisión", es un bug, no una diferencia de criterio.
+     *
+     * Normaliza `modulo` con la MISMA `normalizeModulo()`/`moduloUrl()` que usa el resto de la
+     * Torre, para que las claves casen con `module_sidebar_config`. Ojo: `modulo` es texto libre
+     * escrito por el ejecutor, así que dos variantes del mismo módulo pueden no colapsar (deuda de
+     * *drift* registrada en la Hoja de ruta) — por eso `sin_clasificar` va aparte y visible, en vez
+     * de repartirse en silencio.
+     *
+     * Caché corta (45 s): la bandeja no cambia de un segundo a otro y el sidebar la pide seguido.
+     */
+    public function decisionesContadores(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        return response()->json(Cache::remember('roadmap:torre:decisiones-contadores', 45, function () {
+            $items = RoadmapItem::bandeja()->get(['id', 'modulo', 'urgente', 'nivel_riesgo']);
+
+            $grupos = [];
+            $sinClasificar = 0;
+
+            foreach ($items as $i) {
+                $modulo = trim((string) $i->modulo);
+                // Mismo criterio de "footprint desconocido" que usa el despachador.
+                if ($modulo === '' || strcasecmp($modulo, RoadmapCircuitoService::MODULO_DESCONOCIDO) === 0) {
+                    $sinClasificar++;
+                    continue;
+                }
+
+                $base  = trim(explode('/', $modulo)[0]);   // "Roadmap / Torre de control" → "Roadmap"
+                $clave = $this->normalizeModulo($base);
+                if ($clave === '') {
+                    $sinClasificar++;
+                    continue;
+                }
+
+                if (! isset($grupos[$clave])) {
+                    $grupos[$clave] = [
+                        'clave'    => $clave,
+                        'modulo'   => $base,                      // etiqueta legible (la primera que aparece)
+                        'url'      => $this->moduloUrl($modulo),  // null si no mapea a una pantalla
+                        'n'        => 0,
+                        'urgentes' => 0,
+                        'niveles'  => ['A' => 0, 'B' => 0, 'C' => 0],
+                    ];
+                }
+                $grupos[$clave]['n']++;
+                if ($i->urgente) {
+                    $grupos[$clave]['urgentes']++;
+                }
+                if (isset($grupos[$clave]['niveles'][(string) $i->nivel_riesgo])) {
+                    $grupos[$clave]['niveles'][(string) $i->nivel_riesgo]++;
+                }
+            }
+
+            // Más decisiones primero; a igualdad, alfabético (orden estable para la UI).
+            $porModulo = array_values($grupos);
+            usort($porModulo, fn ($a, $b) => [$b['n'], $a['modulo']] <=> [$a['n'], $b['modulo']]);
+
+            // Mapa listo para pintar la bombita junto a su entrada del sidebar: se indexa por
+            // `sidebar_url` (lo que la UI ya tiene a la mano), y solo con los que SÍ mapean.
+            $mapa = [];
+            foreach ($porModulo as $g) {
+                if ($g['url']) {
+                    $mapa[$g['url']] = ($mapa[$g['url']] ?? 0) + $g['n'];
+                }
+            }
+
+            return [
+                'generated_at'   => now()->toIso8601String(),
+                'total'          => $items->count(),
+                'urgentes'       => $items->where('urgente', true)->count(),
+                'por_modulo'     => $porModulo,
+                'mapa'           => $mapa,
+                'sin_clasificar' => $sinClasificar,
+            ];
+        }));
     }
 
     /**
@@ -339,6 +433,10 @@ class RoadmapController extends Controller
             'respuestas'     => ['sometimes', 'array'],
             'respuestas.*'   => ['nullable', 'string', 'max:2000'],
             'comentario'     => ['sometimes', 'nullable', 'string', 'max:10000'],
+            // #507 — destrabe explícito: re-aprobar un item PARQUEADO (espera-merge / anti-bucle)
+            // limpiando su parqueo. Sin esto, aprobarlo otra vez sería un no-op que solo reabriría
+            // el ciclo de re-despacho.
+            'forzar'         => ['sometimes', 'boolean'],
         ]);
 
         $item = RoadmapItem::find($data['id']);
@@ -376,6 +474,37 @@ class RoadmapController extends Controller
                     'preguntas_pendientes' => $pend,
                 ], 422);
             }
+        }
+
+        // #507 — GUARD ANTI-RE-APROBACIÓN. Un item PARQUEADO (trabajo terminado esperando merge, o
+        // sacado del pool por el anti-bucle) ya no se destraba aprobándolo: aprobarlo otra vez es
+        // justo lo que alimentaba el ciclo (#117: 13 aprobaciones idénticas, ninguna cambió nada).
+        // Se responde qué acción SÍ lo mueve. `forzar=true` limpia el parqueo a propósito.
+        $parqueado = (bool) $item->esperando_merge_irving || (bool) $item->bloqueado_por_bucle;
+        if ($data['accion'] === 'aprobar' && $parqueado) {
+            if (! ($data['forzar'] ?? false)) {
+                return response()->json([
+                    'ok'    => false,
+                    'code'  => $item->esperando_merge_irving ? 'esperando_merge' : 'bloqueado_por_bucle',
+                    'error' => $item->esperando_merge_irving
+                        ? 'Este item YA está terminado y solo espera tu merge — aprobarlo otra vez no lo mueve. Usa "Mergear" (o circuito:integrar --force).'
+                        : ('Item fuera del pool por anti-bucle: ' . ($item->motivo_bloqueo ?: 'se re-escaló por la misma causa varias veces')
+                            . ' Aprobarlo igual reabre el ciclo; cambia algo material (decisión, alcance, rama) o vuelve a enviarlo con forzar=true.'),
+                    'motivo_bloqueo' => $item->motivo_bloqueo,
+                ], 422);
+            }
+            // Destrabe explícito de Irving: limpia el parqueo y lo devuelve al pool.
+            $item->esperando_merge_irving   = false;
+            $item->bloqueado_por_bucle      = false;
+            $item->excluir_pool_automatico  = false;
+            $item->escalaciones_fingerprint = null;
+            $item->motivo_bloqueo           = null;
+        }
+
+        // #507 — el cierre/cancelación MANUAL de Irving se respeta tal cual (el guard del modelo no
+        // debe reruteárselo a "esperando merge": él decidió cerrarlo sin merge).
+        if (in_array($data['accion'], ['cerrar', 'cancelar'], true)) {
+            $item->cierreManualIrving = true;
         }
 
         $nuevoEstado = match ($data['accion']) {
@@ -427,9 +556,19 @@ class RoadmapController extends Controller
             'estado' => $nuevoEstado,
         ]);
 
+        // #507 — aprobar un item ROTULADO no lo despacha (frontera dura: el pool excluye
+        // [BLOCKED-…]/[PARKED-…]). Se aprueba igual —la decisión queda registrada— pero se avisa cuál
+        // es la acción que de verdad lo destraba: QUITAR el rótulo del título.
+        $aviso = null;
+        if ($data['accion'] === 'aprobar' && $item->tieneRotuloBloqueo()) {
+            $aviso = 'Aprobado, pero el título lleva rótulo [BLOCKED-…]/[PARKED-…]: el circuito NO lo va a tomar. '
+                . 'Para desbloquearlo, quítale el rótulo al título.';
+        }
+
         return response()->json([
-            'ok'   => true,
-            'item' => [
+            'ok'    => true,
+            'aviso' => $aviso,
+            'item'  => [
                 'id'                => $item->id,
                 'estado_aprobacion' => $item->estado_aprobacion,
                 'opcion_elegida'    => $item->opcion_elegida,
@@ -871,6 +1010,47 @@ class RoadmapController extends Controller
         return response()->json(['ok' => true, 'marcado_version' => $item->marcado_version]);
     }
 
+    /**
+     * GET /api/roadmap/armar-version — Sub-item A (#312): vista de SOLO LECTURA que previsualiza
+     * lo ya marcado con 🏷 "Marcar para versión" (Integración/Ramas), agrupado por target_version.
+     * NO mergea ni etiqueta nada — la orquestación de merge a release/vX.Y (Sub-item B) y la
+     * integración con tag/changelog del módulo Releases (Sub-item C) quedan pendientes.
+     */
+    public function armarVersion(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $items = RoadmapItem::where('marcado_version', true)
+            ->whereNotNull('branch')
+            ->whereNotNull('merge_commit')
+            ->noArchivado()
+            ->orderByRaw('target_version IS NULL, target_version')
+            ->orderByDesc('id')
+            ->get();
+
+        $grupos = [];
+        foreach ($items as $i) {
+            $clave = $i->target_version ?: '(sin versión asignada)';
+            $grupos[$clave][] = [
+                'id'             => $i->id,
+                'title'          => $i->title,
+                'branch'         => $i->branch,
+                'merge_commit'   => $i->merge_commit,
+                'target_version' => $i->target_version,
+                'nivel_riesgo'   => $i->nivel_riesgo,
+                'resumen'        => $this->resumenItem($i),
+                'worker_sid'     => $i->worker_sid,
+                'worker_nombre'  => $i->worker_sid ? $this->svc->nombreWorker($i->worker_sid) : null,
+            ];
+        }
+
+        return response()->json([
+            'generated_at' => now()->toIso8601String(),
+            'total'        => $items->count(),
+            'grupos'       => $grupos,
+        ]);
+    }
+
     /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */
     public function integracionMerge(Request $request): JsonResponse
     {
@@ -1200,6 +1380,8 @@ class RoadmapController extends Controller
             'priority'       => 'nullable|in:alta,media,baja',
             'target_version' => 'nullable|string|max:20',
             'prompt'         => 'nullable|string',
+            'modulo'         => 'nullable|string|max:100',
+            'nivel_riesgo'   => 'nullable|in:A,B,C',
         ]);
 
         $data['status']   = 'pending';
@@ -1210,9 +1392,58 @@ class RoadmapController extends Controller
             $data['subtasks'] = self::defaultSubtasks();
         }
 
+        /*
+         * #566 — CREAR ES APROBAR (solo por esta vía).
+         *
+         * Un item que Irving escribe a mano en la Torre nacía `pendiente_revision` y se quedaba
+         * ahí hasta que alguien lo aprobara: él pedía el trabajo y después tenía que autorizarse
+         * a sí mismo. Su creación YA es la aprobación, así que entra directo a la cola ejecutable
+         * como `aprobado_irving` — el estado que el pool reconoce y que el tope del autopilot no
+         * limita (la aprobación explícita siempre pasa).
+         *
+         * El candado de la máquina NO cambia: la vía externa (Cowork/auditor, RoadmapIntakeService)
+         * sigue naciendo `pendiente_revision`. Esta ruta exige sesión + `roadmap_manage`, así que
+         * "lo creó un humano autorizado en la UI" es exactamente lo que la distingue.
+         */
+        $thomas = app(ThomasService::class);
+        $texto  = trim(($data['title'] ?? '') . ' ' . ($data['description'] ?? '') . ' ' . ($data['prompt'] ?? ''));
+
+        // EXCEPCIÓN: si el item declara algo de la frontera dura (prod / borrar datos / dinero /
+        // credenciales), NO corre solo. Se queda esperando que él lo confirme a propósito — que
+        // lo haya escrito no vuelve reversible un borrado de datos.
+        $frontera = $thomas->categoriaFronteraDura($texto);
+
+        if ($frontera === null) {
+            $data['estado_aprobacion'] = 'aprobado_irving';
+            $data['aprobado_por']      = $this->actorLabel();
+            $data['revisado_at']       = now();
+        }
+
+        // Footprint: un item sin `modulo` corre SOLO y bloquea a las 6 terminales (#432 B2), así
+        // que se le asigna aquí mismo en vez de dejarlo para el barrido posterior.
+        if (empty($data['modulo'])) {
+            $data['modulo'] = $thomas->clasificarModulo($texto);
+        }
+
         $item = RoadmapItem::create($data);
 
-        return response()->json($item, 201);
+        $item->log = [[
+            'ts'      => now()->toIso8601String(),
+            'por'     => $this->actorLabel(),
+            'evento'  => 'item_creado_ui',
+            'via'     => 'torre',
+            'directo_a_cola' => $frontera === null,
+            'frontera'       => $frontera,
+        ]];
+        $item->save();
+
+        return response()->json([
+            'item'  => $item,
+            'aviso' => $frontera === null
+                ? 'Creado y aprobado: entra directo a la cola. Una terminal libre lo toma en segundos.'
+                : "Creado, pero NO entra solo a la cola: declara «{$frontera}» (frontera dura). "
+                    . 'Apruébalo desde la bandeja si es lo que quieres.',
+        ], 201);
     }
 
     // PATCH /api/roadmap/items/{id}
@@ -1245,13 +1476,6 @@ class RoadmapController extends Controller
 
         if ($item->status === 'in_progress') {
             return response()->json($item);
-        }
-
-        $current = RoadmapItem::currentInProgress();
-        if ($current && $current->id !== $id) {
-            return response()->json([
-                'message' => "Ya hay una tarea en progreso: \"{$current->title}\". Termínala antes de empezar otra.",
-            ], 422);
         }
 
         $item->update([

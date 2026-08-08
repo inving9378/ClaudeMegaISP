@@ -243,6 +243,315 @@ Decisión tomada: el módulo "WhatsApp" se construye **sobre el addon WhatsAppAg
 
 ---
 
+## 8. CIRCUITO CC — cómo trabaja HOY (mapa estructural, #507)
+
+> Esto se re-investigó desde cero en la sesión del 2026-08-04 porque el modelo mental "el circuito
+> corre por rondas cada 30 min" **es falso**. No volver a asumirlo.
+
+### 8.1 Ejecución: CONTINUA, una vuelta POR ITEM
+
+- El cron corre **`circuito:scheduler` cada minuto** (no cada 30). Cada corrida busca slots libres
+  (`wt-1..wt-N`, flock por slot), toma items módulo-disjuntos y lanza `deploy/circuito/vuelta.sh` en
+  el worktree del slot, **una vuelta por item**.
+- Una terminal que termina **jala el siguiente sin esperar a nadie** (`circuito:claim-next`,
+  serializado por `claim.lock`).
+- **NO existe cron de rondas ni ventana de tiempo.** `config('circuito.interval_min')` está
+  **DEPRECADO**: solo alimentaba la estimación "próxima vuelta" de la UI y hoy solo se usa si se
+  apaga `circuito.continuo` (default true, que hace `proximaVueltaAt()` devolver null).
+- **Exclusión mutua** (dos terminales nunca toman el mismo item): `flock` + `UPDATE ... WHERE
+  estado_aprobacion IN (aprobado_*)` — gana quien afecta 1 fila. **Decisión de Irving: NO migrar a
+  `SELECT ... FOR UPDATE SKIP LOCKED`**; el mecanismo actual ya cumple y es el punto más caliente.
+- **Orden de la cola** = `scopeOrdenCola` (distinto de `ordered()`, que ordena la BANDEJA):
+  urgente → por concluirse/reanudables (`branch` no null o `colision_pausada_por` no null) →
+  prioridad → antigüedad.
+- **Lease**: `roadmap_items.claimed_at` se sella al reclamar y lo **renueva el latido**
+  (`circuito:vivo --watch` → `liveBeat` → `renovarLease`) con un UPDATE crudo que **no toca
+  `updated_at`**. `circuito:reap-stuck` libera solo si **AMBAS** señales están frías (antes bastaba
+  `updated_at` y mataba workers vivos que llevaban rato sin escribir en su item).
+
+### 8.2 Decisión: Revisor → AUTOPILOT → bandeja de Irving
+
+Cadena de triaje, de más automático a más humano:
+
+1. **Revisor** (#338, `RevisorService`): clasifica y autoriza B técnicos (`aprobado_revisor`). Tiene
+   una **denylist de frontera dura** (dinero/seguridad/permisos/prod/destructivo/negocio) que escala
+   **sin gastar IA**.
+2. **Autopilot** (#507, `AutopilotService`): corre **al escribirse cada brief**
+   (`RevisorService::aplicarPreguntas` → `intentar()`, best-effort). Toma la opción `recomendada`
+   solo si hay **dato explícito**: `confianza >= umbral` y (nivel A **o** `reversible === true`).
+   Config en `config/circuito.php` → `autopilot.*` (`max_nivel` **C** desde 2026-08-04 por decisión
+   de Irving —máxima autonomía—, `umbral_confianza` alta, `requiere_reversible` true,
+   `ventana_gracia` 0).
+   Escribe A→`aprobado_claude`, B→`aprobado_revisor`, y deja rastro en `log` con
+   `decidido_por='autopilot'` + la política vigente al decidir.
+   **Kill switch = el de siempre** (`circuito_pausado`): en pausa no decide nada.
+3. **Bandeja de Irving** (`RoadmapItem::scopeBandeja`): todo lo demás.
+
+**Regla de oro del autopilot:** ausencia, ambigüedad o error → **el item va a Irving, nunca se
+ejecuta**. Por eso los briefs viejos (sin `confianza`/`reversible`) NO califican: hay que regenerarlos
+con `circuito:rebrief-bandeja` (ver 8.4).
+
+**`guard()` NO es del flujo interno.** Sus únicos consumidores son `RoadmapExternalController` y
+`RoadmapMcpController` = la **vía externa** (token Cowork/MCP). Relajarlo para el autopilot sería
+abrirle a un token externo la aprobación de B/C. No tocarlo.
+
+### 8.2-bis Qué puede reclamar un worker (guard ÚNICO de despacho, 6e46d55a)
+
+**`RoadmapItem::scopeElegibleParaPool()` es la única puerta.** La usan `ejecutablesParalelo()`
+(scheduler + `claim-next`), `scopeAutoEjecutable()` y `circuito:destrabe`; `claimNextParalelo()`
+repite las mismas condiciones en el `UPDATE` como candado atómico. Deja FUERA:
+
+- Rótulos de frontera dura **`[BLOCKED-…]` / `[PARKED-…]`** (antes solo se excluía `[PARKED-PROD]`).
+  **Desbloquear un item rotulado = QUITARLE el rótulo al título**, nunca re-aprobarlo con el rótulo
+  puesto (aprobarlo así solo reabre el ciclo; el endpoint `decidir` lo avisa en la respuesta).
+- **`esperando_merge_irving`** = estado TERMINAL de despacho: nivel C (o auto-merge OFF) cuya rama
+  **tiene commits** ya no vuelve a `requiere_irving` desde `circuito:integrar` — se parquea con
+  `excluir_pool_automatico=1`, sale de la bandeja y vive en **Integración** hasta que Irving mergea
+  (`MergeRunner` → `completado` con `merge_commit`). Rama VACÍA = sí es decisión suya.
+- **`excluir_pool_automatico`** (master switch: lo activan `bloqueado_por_bucle` y
+  `requiere_sesion_supervisada`).
+- **Anti-bucle**: 3 escalaciones seguidas a `requiere_irving` con la MISMA huella
+  (`escalaciones_fingerprint` = rama + opción elegida + nivel + preguntas) → `bloqueado_por_bucle`
+  + fuera del pool. Un cambio material reinicia el contador.
+- **Tope de nivel del autopilot**: lo aprobado AUTOMÁTICAMENTE no puede superar
+  `autopilot.max_nivel`; `aprobado_irving` (aprobación explícita) siempre pasa.
+
+Re-aprobar un item parqueado desde la Torre responde **422** con la acción que sí lo mueve
+(mergear / destrabar); `forzar=true` limpia el parqueo a propósito. El cierre manual de Irving
+(`cerrar`/`cancelar`) se respeta siempre (bandera transitoria `cierreManualIrving`).
+
+**Por qué existe esto:** sin el guard, un `[BLOCKED-NEGOCIO]` aprobado o un C que solo esperaba
+merge seguía siendo reclamable → el worker lo tomaba, leía el rótulo, lo re-escalaba sin ejecutar y
+volvía a la bandeja → se aprobaba otra vez. **#117 dio 13 vueltas idénticas; #99, dieciséis.** Cada
+vuelta quema un slot de terminal y tokens para no hacer nada.
+
+### 8.3 Contrato del brief (`roadmap_items.preguntas`, JSON)
+
+```
+[{ id:"q1", pregunta:"…", fase:null, requiere_irving:false,
+   opciones:[{ texto:"…", recomendada:true, confianza:"alta|media|baja", reversible:true }],
+   opcion_elegida:null }]
+```
+
+- `confianza`/`reversible` en **null = SIN DATO** (briefs viejos) → el autopilot no los toma.
+- Los booleanos se leen con **`RoadmapItem::boolEstricto`**: la coerción de PHP falla hacia el lado
+  peligroso (`(bool)"si"` y `!empty("false")` dan TRUE). Ante cualquier ambigüedad: false.
+- `preguntasNormalizadas()` conserva el fallback `stripos('RECOMENDADA')` para los items legacy.
+- ⚠️ **Los IDs de pregunta son POSICIONALES** (`q1`, `q2`…). `aplicarPreguntas` conserva las
+  respuestas por ID, así que **re-briefear un item ya respondido pega la respuesta vieja a una
+  pregunta nueva**, con una clave de opción que ya no existe. Por eso el backfill los salta.
+
+### 8.4 Comandos útiles
+
+| Comando | Para qué |
+|---|---|
+| `circuito:autopilot --dry` | **Auditar la política** sin escribir (ignora la pausa a propósito) |
+| `circuito:rebrief-bandeja --solo-resumen` | Checkpoint: cuántos calificarían al autopilot, por nivel |
+| `circuito:rebrief-bandeja --apply` | Backfill de briefs viejos (**exige kill switch activo**) |
+| `circuito:proponer-opciones --todos --apply` | Brief para B/C de la bandeja sin brief |
+| `circuito:thomas --diagnostico` | Estado del reparto: libres/ocupadas, cola, colisiones, ocio-con-cola |
+| `circuito:thomas --dry` | Evalúa consultas colgadas sin escribir |
+| `circuito:reap-stuck --minutes=N` | Libera reclamos huérfanos de workers muertos (**ojo**: los manda a `requiere_irving`) |
+| `circuito:auditor` | **DRY-RUN** del Motor de Auditoría: qué items crearía y por qué (no escribe) |
+| `circuito:auditor --dod` | Qué módulos están en su DoD de Fase 1 (sin gaps mecánicos) |
+| `circuito:auditor --apply` | Genera trabajo en vivo (respeta umbral, intervalo y los dos kill-switches) |
+
+### 8.4-ter MOTOR DE AUDITORÍA CONTINUA — el generador de trabajo (#559, 2026-08-08)
+
+> El circuito sabía **repartir** (scheduler) y **juzgar** (Thomas/revisor/autopilot), pero no
+> **generar**: con la cola vacía, las 6 terminales quedaban ociosas hasta que un humano escribiera
+> items. Este motor cierra ese hueco. Manual completo: **`docs/motor-auditoria.md`**.
+
+- **Dónde vive:** `AuditorService` + `circuito:auditor` + `config/circuito.auditor` +
+  `Support/InventarioSemilla.php`. Enganchado DENTRO de `circuito:scheduler` (mismo motivo que
+  Thomas: el scheduler es el único despachador), **antes** de calcular slots → lo que genera se
+  reparte en esa misma vuelta.
+- **Corre si:** motor encendido **Y** circuito sin pausar **Y** cola < `umbral_cola` (3) **Y** pasó
+  `min_intervalo_minutos` (15). **Kill-switches:** `auditor.enabled` (propio, `--forzar` NO lo salta)
+  y `circuito_pausado` (global). **Cap** duro: 10 items/ciclo.
+- **La cola se mide con `ejecutablesParalelo()`**, la misma puerta del scheduler — NO contando
+  `aprobado_irving`: al 2026-08-08 había 87 aprobados y **0 reclamables** (35 fuera del pool, 26
+  esperando merge, 25 rotulados). Contar en bruto = creer que hay cola con la flota parada.
+- **Round-robin entre módulos, no un módulo a la vez.** `modulo` es el footprint con el que el
+  scheduler serializa: 10 items del mismo módulo ocupan UNA terminal y dejan 5 ociosas.
+- **Seis detectores:** hueco ruteado (ruta activa + cuerpo vacío) · enlace de `module.json` que no
+  resuelve · TODO/FIXME en comentario · andamiaje resource sin ruta (1 item por módulo) · items sin
+  footprint · semilla del inventario (con `vigente` auto-verificable).
+- **Clasificación:** frontera dura de Thomas (reusada, no duplicada) → producto; texto que pide
+  decidir → producto; resto → mecánico nivel A. Producto = `requiere_irving` + `preguntas` con
+  `requiere_irving: true`, jamás reclamable.
+- **Dedup en 3 capas:** huella `roadmap_items.auditor_fingerprint` (abiertos Y cerrados) · título
+  contra lo que crearon Irving/Cowork/terminales · re-chequeo pre-escritura. ⚠️ **El módulo es parte
+  de la identidad**: sin ese guard, "GestionRed: eliminar 1 método de andamiaje" mataba a "Mapas:
+  eliminar 93 métodos de andamiaje" (primera corrida creó 6 de 10).
+- **Fase 2 (enganche listo):** `AuditorService::medirContraSpec()` devuelve `[]` a propósito. Cuando
+  existan los spec items por módulo con su DoD, se llena ahí y no se toca nada más; `InventarioSemilla`
+  se retira.
+
+### 8.4-bis TORRE V2 — Thomas, la autoridad intermedia (2026-08-08)
+
+> Antes, la ÚNICA salida de una terminal que dudaba era `requiere_irving`: no había nadie entre las
+> seis terminales e Irving, así que cualquier titubeo lo despertaba. Thomas es ese eslabón.
+
+- **`ThomasService`** + `config/circuito.php → thomas`. La política es **DETERMINISTA** (coincidencia
+  de términos, sin llamada a IA): la terminal corre `circuito:consultar` y recibe respuesta **en el
+  acto**. El contrato es el **exit code**: `0` procede, `1` detente. No espera turnos del loop.
+- **Conjunto de escalamiento** (lo único que llega a Irving): **producción · borrar datos · gastar
+  dinero · credenciales/seguridad**, más el spec contradictorio. Todo lo demás lo decide Thomas.
+  Si ninguna opción propuesta es `reversible`, esa ausencia es la señal → escala.
+- **Thomas NO reparte trabajo.** El reparto (slots, módulo-disjunto, reclamo atómico, lease) sigue
+  siendo del `circuito:scheduler`, único despachador desde #432 B1. La vuelta de Thomas va
+  **enganchada** al scheduler (que ya corre cada minuto), NO en un cron paralelo — uno aparte abriría
+  una segunda carrera sobre los mismos items. Respeta el kill switch como el autopilot.
+- **Prompt del ejecutor** (`deploy/circuito/prompt-item.txt`): la **regla de oro** va al frente —
+  ante duda, opción recomendada → avanza → registra (`circuito:reportar --tipo=decision`); revisión
+  POSTERIOR, no previa. La terminal **ya no puede escalar a Irving por su cuenta**.
+  `deploy/circuito/prompt.txt` (modo backlog) conserva la política vieja pero está **inalcanzable**:
+  el scheduler siempre pasa `CIRCUITO_ITEM`.
+- **Kit de la terminal:** `circuito:consultar`, `circuito:reportar`, `circuito:sub-item`.
+- Doc de la política: `docs/politica-thomas.md` (se anexa al manual que sirve la API externa).
+
+### 8.4-ter API EXTERNA extendida — alta de items e historial (2026-08-08)
+
+- **Alta:** `POST /{token}/item` y `GET /{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}` (base64url,
+  porque el fetcher de Cowork solo hace GET y descarta el query string — mismo motivo que `/setb64`).
+  Punto único **`RoadmapIntakeService`**, compartido por la vía externa, las terminales (sub-items) y
+  Thomas. **Candado: el item nace SIEMPRE `pendiente_revision`** — crear no aprueba. El nivel
+  declarado se sella con su origen real, así el guard #260 sigue impidiendo el auto-aprobado externo.
+- **Historial append-only:** tabla `roadmap_item_reports` + `RoadmapReportService`
+  (`POST /{token}/item/{id}/reporte`, `GET /{token}/item/{id}/historial`). Antes cada terminal
+  concatenaba a mano sobre `comentarios_claude` y con seis escribiendo se pisaban. Esa columna
+  ahora es un **espejo legible acotado**, no la fuente.
+- **`estado_cola`** es un accessor **DERIVADO, no una columna** (a propósito: los datos ya viven en
+  `estado_aprobacion`/`worker_sid`/`branch`/`merge_commit`, y un espejo almacenado se
+  desincronizaría entre scheduler, reaper, merge-runner y las seis terminales):
+  `en_cola|asignado|en_progreso|en_verificacion|completado|esperando_irving|sin_triar`.
+- Token `create_token` propio y rotable; **cae al `write_token`** si no se define (no rompe a Cowork).
+
+### 8.4-quinquies CARRIL MECÁNICO y crear=ejecutar (#566, 2026-08-08)
+
+- **Carril mecánico** (`ThomasService::clasificarMecanico`): auto-aprueba lo que **no tiene nada que
+  decidir** (hueco ruteado, andamiaje muerto, ruta 404, clasificar footprint) sin exigir brief, que
+  es lo que dejaba items obvios parados en la bandeja. **Cuatro puertas**: (1) fuera del conjunto de
+  escalamiento —se reusa el MISMO `thomas.escalamiento` de las consultas, no una copia—, (2) sin
+  negocio/producto, (3) **allowlist** de señales mecánicas (sin señal conocida → se queda con
+  Irving), (4) nivel ≤ B (un C es decisión de diseño). Tope diario 25 + kill switch de siempre.
+  Reusa `aprobado_claude`/`aprobado_revisor`: no inventa estado.
+- `circuito:retriar-bandeja` pasa esa política sobre la bandeja y **agrupa por motivo** lo que se
+  queda. **NO toca**: `bloqueado_por_bucle` (re-aprobar sin cambio material reabre el bucle),
+  items con rama empezada, ni los que sólo esperan merge.
+- **Crear = ejecutar** (`RoadmapController::store`): un item creado en la Torre nace
+  `aprobado_irving` y entra directo a la cola, con footprint auto-asignado. **La vía externa
+  (Cowork/auditor) sigue naciendo `pendiente_revision`** — el candado de la máquina no cambió.
+  Excepción: si declara frontera dura, se para y avisa qué categoría lo detuvo.
+- `circuito:disparo-check` dejó de ser NO-OP: es un **watcher** que adelanta una corrida del
+  scheduler (~0.45 s). **No es un segundo despachador** — invoca al scheduler, que sigue siendo el
+  único y tiene su propio flock. Corre como `meganet` (dueño de los worktrees).
+- **Reaper rápido**: además del camino lento por timestamps, pregunta por el **flock del slot** (el
+  kernel lo suelta aunque el proceso muera de golpe) → libera en minutos, no en 25.
+  `RoadmapCircuitoService::slotLibre()`, fail-closed. Cron cada 2 min.
+
+⚠️ **DOS LECCIONES DE FORMA que ya costaron dos veces** (aplican a TODO mapa de términos del
+circuito: denylist del revisor, escalamiento de Thomas, clasificador, señales mecánicas):
+
+1. **Palabra completa, no substring.** «Portal colaborador» caía en el módulo del circuito porque
+   *cola* vive dentro de *colaborador* — igual que 'login'/'token' en el denylist del revisor (#338).
+   El `\b` de PCRE **no sirve con acentos** (la í de «auditoría» rompe el borde): usar
+   `(?<![\p{L}\p{N}])…(?![\p{L}\p{N}])` con `/u`.
+2. **No distingue mención de negación.** Un spec que dice "esto NO es decisión de negocio" contiene
+   *negocio* y se escala igual. Falla hacia el lado seguro, pero castiga los specs bien escritos.
+
+### 8.4-quater ⚠️ EL FRENO QUE QUEDA — footprint desconocido serializa TODO
+
+- Un item con `modulo` **"Sin clasificar"/null/vacío** tiene footprint DESCONOCIDO y por diseño
+  (#432 B2) **corre SOLO: bloquea a las 6 terminales** mientras esté en vuelo. Hoy son **27 de 286**
+  items activos.
+- Peor: un **reclamo huérfano** (worker muerto que dejó el item en `en_progreso`) mantiene ese
+  bloqueo hasta que `circuito:reap-stuck` lo libera, y el reaper exige **25 min con AMBAS señales
+  frías**. Media hora con la flota entera parada por un item que ya no se está trabajando.
+- Es el mayor freno de throughput que queda y es territorio del item **#526** (drift de `modulo`).
+
+### 8.5 UI de la Torre (`/releases`)
+
+6 pestañas en `ReleasesIndex.vue` (Panorama, Hoja de ruta, Terminales, Integración, Historial,
+Reporte). El **Panorama** (`TorreControl.vue`) ya no habla de "vuelta": muestra terminales
+trabajando/libres, el **banner del autopilot**, la bandeja **una pregunta a la vez** ("Pregunta X de
+Y", Aprobar deshabilitado hasta responderlas todas) y un **sidebar interno** con bombitas por módulo
+(`GET /api/roadmap/torre/decisiones/contadores`) — ese sidebar es de la pantalla, **no** el sidebar
+global del sistema.
+
+⚠️ **`modulo` es texto libre** y hay *drift* (item #526): ~12 de 20 grupos no mapean a
+`module_sidebar_config`, y hay duplicados (`Auth` vs `Autenticación`). Además de las bombitas, eso
+degrada el pre-filtro de no-colisión, que serializa por ese mismo campo.
+
+---
+
+## 9. ACTUALIZACIONES DE INSTANCIA (modelo PULL) — #529
+
+> Investigado y arreglado el 2026-08-06. Antes de tocar nada aquí, leer esta sección: el
+> síntoma ("prod dice *Estás al día* con una versión nueva publicada") NO es del comparador.
+
+### 9.1 La cadena, de punta a punta
+
+```
+Botón "Buscar actualizaciones"  (UpdateBanner.vue)
+  → POST /api/updates/check → UpdateController::check()
+  → GitHubUpdateService::refresh()/check()
+  → GET https://api.github.com/repos/{GITHUB_REPO}/releases/latest
+  → compara contra la versión INSTALADA (tabla local `releases`, la más reciente)
+```
+
+- **La fuente de verdad es la GitHub Releases API, NO la BD ni los tags de git.** La tabla
+  `releases` local solo dice qué está instalado en esa instancia.
+- `releases/latest` devuelve **solo objetos Release** (no-draft, no-prerelease). **Un tag de
+  git NO es un Release**: se puede tener el tag en origin y el checker no verlo. Fue
+  exactamente el bug de V1.26–V1.29.
+- **Comparación** (`GitHubUpdateService`): por **tag** (`!==`, cubre varias releases el mismo
+  día) + gate de fecha con Carbon **normalizado a `app.timezone`** (`gte` sobre `startOfDay`,
+  evita "downgrades"). `releases.release_date` es `DATE` real. **La comparación está sana —
+  no la "arregles" por fecha ni por número de versión.**
+
+### 9.2 Publicador vs consumidoras (quién crea el Release)
+
+| | DEV (.11) | PROD (.108) |
+|---|---|---|
+| Rol | **publicador** | consumidora |
+| `GITHUB_UPDATES_ENABLED` | false (no consulta) | true (consulta y ofrece) |
+| `DEPLOY_IS_PUBLISHER` | **true** | ausente ⇒ false |
+
+- El paso `github_release` del pipeline lleva **`skip_if_not_production`**, y dev es
+  `APP_ENV=local` ⇒ **se omite siempre en el publicador**. Es la política del item **#245**
+  (que dev no dispare deploys reales) y **NO se reabre**.
+- Por eso publicar es un acto **explícito**: `php artisan releases:publish-github {version}`
+  (`--dry-run` muestra las notas sin llamar a la API). Guard duro por
+  `config('deployment.publisher')` ⇒ **producción aborta aunque se corra allá**. Cada
+  publicación queda en `deployment_logs`, atribuida al usuario de sistema MEGAISP.
+- Las notas se arman en **`DeploymentService::buildReleaseBody()`** — punto **único**
+  compartido por el pipeline y el comando. Orden: `ReleaseDescription` → `releases.summary` →
+  `releases.description`. Tolera el caso en que el generador por IA dejó **JSON crudo** en la
+  columna (pasó en V1.27) y rescata las notas en vez de publicar el JSON.
+- **Publicar en orden ascendente** cuando son varias: `releases/latest` debe terminar en la
+  más nueva.
+
+### 9.3 Tres estados del checker (no confundir los dos últimos)
+
+`GitHubUpdateService::check()` devuelve:
+
+| Resultado | Significado | Banner |
+|---|---|---|
+| array con `tag` | hay actualización | ofrece actualizar |
+| `null` | no hay actualización — **respuesta confiable** | "Estás al día" |
+| array con `check_failed` | **no se pudo consultar** (red, token, 403 rate-limit) | "No se pudo verificar" |
+
+- Antes, el fallo devolvía `null` ⇒ un token vencido se veía **idéntico** a "estás al día".
+- `UpdateController::apply()` **aborta con 422** ante `check_failed` (sin ese corte
+  dispararía un deploy con versión nula).
+- El error se cachea solo `updates.error_cache_minutes` (2 min), no los 30 del resultado bueno.
+- ⚠️ El resultado "sin actualización" (`null`) **no se cachea** → cada carga del dashboard de
+  una consumidora consulta GitHub. Preexistente; vigilar rate-limit si crecen las instancias.
+
+---
+
 ## PROTOCOLO DE ACTUALIZACIÓN (para no re-investigar nunca lo mismo)
 
 **Al CERRAR cada sesión, CC debe actualizar este archivo** con lo que cambió:

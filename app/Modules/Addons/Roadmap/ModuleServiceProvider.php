@@ -44,6 +44,25 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\BackfillReporteColoquialCommand::class,
                 // Consejo asesor — piloto mínimo, 1 rol, manual (#344)
                 \App\Modules\Addons\Roadmap\Console\AdvisorCobranzaCommand::class,
+                // Autopilot: decide solo lo respaldado, deja a Irving lo indispensable (#507)
+                \App\Modules\Addons\Roadmap\Console\AutopilotCommand::class,
+                // Backfill de briefs de la bandeja para poblar confianza/reversible (#507)
+                \App\Modules\Addons\Roadmap\Console\RebriefBandejaCommand::class,
+                // TORRE V2 — Thomas (autoridad intermedia) y el kit de la terminal:
+                // consultar en vez de despertar a Irving, reportar sin pisar, y partir en sub-items.
+                \App\Modules\Addons\Roadmap\Console\ThomasCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ConsultarSupervisorCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ReportarItemCommand::class,
+                \App\Modules\Addons\Roadmap\Console\SubItemCommand::class,
+                // #566 — footprint a los "Sin clasificar": sin él cada uno serializa la flota.
+                \App\Modules\Addons\Roadmap\Console\ClasificarModuloCommand::class,
+                // #566 — re-triaje de la bandeja con el carril mecánico
+                \App\Modules\Addons\Roadmap\Console\RetriarBandejaCommand::class,
+                // #566 — destrabe: enruta cada item a lo que ESPERA de verdad (merge/decisión/consolidado)
+                \App\Modules\Addons\Roadmap\Console\DestrabarCommand::class,
+                // #559 — MOTOR DE AUDITORÍA CONTINUA: el generador de trabajo. Cierra el hueco que
+                // quedaba (repartir y juzgar ya existían; generar, no), para que la cola no se vacíe.
+                \App\Modules\Addons\Roadmap\Console\AuditorCommand::class,
             ]);
         }
     }

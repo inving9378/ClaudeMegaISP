@@ -19,6 +19,7 @@ use App\Models\MikrotikClientHostpotUser;
 use App\Models\MikrotikClientPpoe;
 use App\Models\NetworkIp;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use PEAR2\Net\RouterOS\Request as RouterOSRequest;
 use PEAR2\Net\RouterOS\Response;
@@ -85,17 +86,6 @@ class RouterController extends Controller
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request);
 
         return $model;
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show(Router $router)
-    {
-        //
     }
 
     /**
@@ -261,7 +251,12 @@ class RouterController extends Controller
             );
             return 'Usuario creado' . $this->getIdByName($connection, '/ppp/secret/', $client->clientGetUser());
         } else {
-            dd('no conectado');
+            Log::error("No se pudo conectar al router MikroTik para crear el usuario PPPoE", [
+                'router_id' => $router->id ?? null,
+                'client_id' => $client->id ?? null,
+                'device_ip' => $device_ip,
+            ]);
+            throw new \Exception("No se pudo conectar al router MikroTik ($device_ip) para crear el usuario PPPoE.");
         }
     }
 
@@ -287,7 +282,12 @@ class RouterController extends Controller
             );
             return 'Usuario creado' . $this->getIdByName($connection, '/ip/hotspot/user/', $client->clientGetUser());
         } else {
-            dd('no conectado');
+            Log::error("No se pudo conectar al router MikroTik para crear el usuario Hotspot", [
+                'router_id' => $router->id ?? null,
+                'client_id' => $client->id ?? null,
+                'device_ip' => $device_ip,
+            ]);
+            throw new \Exception("No se pudo conectar al router MikroTik ($device_ip) para crear el usuario Hotspot.");
         }
     }
 

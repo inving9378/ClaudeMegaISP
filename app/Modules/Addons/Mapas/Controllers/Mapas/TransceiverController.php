@@ -119,7 +119,10 @@ class TransceiverController extends Controller
      */
     public function update(Request $request)
     {
-
+        return response()->json([
+            'res' => false,
+            'message' => 'No implementado',
+        ], 501);
     }
 
     /**

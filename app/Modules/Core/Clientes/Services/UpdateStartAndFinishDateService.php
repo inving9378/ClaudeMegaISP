@@ -28,7 +28,6 @@ class UpdateStartAndFinishDateService
         } else {
             if ($this->esUnCustomService()) {
                 $this->updateFinishDateCustomService();
-                dd($this->model->finish_date);
             } else {
                 $this->model->update([
                     'start_date' => Carbon::now()->toDateTimeString(),
