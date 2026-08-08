@@ -860,3 +860,76 @@ vacía porque **el backlog ejecutable se agotó**.
   `main`: bloque `auditor` en `config/circuito.php` + `auditor_fingerprint` en `RoadmapItem.php`
   (#559, sin rama). No se tocó. Con el guard quirúrgico sólo bloquea merges que toquen esos dos
   archivos, pero son archivos calientes del circuito.
+
+---
+
+## 2026-08-08 17:30 — #566 Thomas DECIDE: auto-merge, auto-decisión y la raíz del anti-bucle
+
+**Todo en DEV.** Precondición atendida: la otra sesión de CC (#559) había commiteado y `main`
+estaba limpio; se trabajó ahí con commits por sub-paso, verificando el árbol antes de cada uno.
+
+### LA RAÍZ DEL BUCLE (E3) — no era falta de permiso
+
+#117 dio 13 vueltas y #19 **nueve aprobaciones** entre el 12-jul y el 6-ago sin avanzar. La causa
+la dejó escrita un worker en el propio #19:
+
+> «No ejecuto nada en #19 (nivel C = decisión de negocio exclusiva de Irving). Nota para des-atorar
+> el loop: **reaprobar el mismo brief no avanza nada** — lo único pendiente es que Irving mergee la
+> rama.»
+
+**Aprobar se trataba como responder.** Un item cuya única pendiente era el MERGE volvía a
+`aprobado_irving` con cada clic, el pool lo re-despachaba, el worker veía que no había nada que
+hacer y lo re-escalaba. Tres sabores del mismo error:
+
+| Item | Qué esperaba de verdad | Por qué ciclaba |
+|---|---|---|
+| #117 | el merge (trabajo hecho) | cada "aprobar" lo re-armaba para el pool |
+| #29 | nada (superseded) | se re-aprobaba solo a diario con las mismas respuestas q1-q6 |
+| #99 | una respuesta puntual | 15 aprobaciones genéricas, ninguna respondía la pregunta |
+
+**Fix:** `ThomasService::pendienteReal()` clasifica qué le falta a cada item
+(`merge | respuesta | ejecucion | dependencia | cierre`) y lo enruta ahí. Consulta a **git** cuando
+las banderas de rama están frías — #19 tenía trabajo real con `branch_has_content` en cero y por eso
+se leía como "falta ejecutarlo".
+
+### Lo construido
+
+- **E1 auto-merge** (`540b6aa0`): Thomas no reimplementa el merge — decide ELEGIBILIDAD y se lo
+  encola al MergeRunner de siempre. Retiene lo que apunta a prod o es irreversible **mirando el
+  DIFF, no el título**: #117 quedó retenido por traer `dropIfExists` (una migración que agrega es
+  reversible con `git revert`; una que dropea ya cambió el esquema).
+- **E2 "ya decidido"** (`d24c9e5e`): el autopilot reportaba 11 items con *«no quedan preguntas sin
+  responder»* y aun así retenidos — el mismo error: "no hay nada que decidir" tratado como "no
+  aprobar". Si el brief está contestado y nada pendiente es de Irving, el item pasa a la cola.
+- **E4 consolidado** (`9005721b`): `docs/decisiones-pendientes-irving.md` — 4 puntos con la
+  recomendación de Thomas cada uno, marcados ♻️ reversible o no. Default de 48 h configurable, y
+  **sólo aplica a los reversibles**.
+
+### Dos inconsistencias entre carriles, cerradas
+
+- `'permiso'` a secas en la frontera dura: estaba `'permiso de rol'`, así que **#542** («los
+  permisos editados en un rol no se reflejan») se colaba al carril automático por no coincidir con
+  la frase exacta.
+- Los dos carriles miraban textos distintos (uno incluía `prompt`, el otro no) → misma regla,
+  veredictos distintos. Ahora ambos usan título+descripción+prompt.
+
+### Resultado medido
+
+| | antes | después |
+|---|---|---|
+| Cola ejecutable | **0** | **14** |
+| Auto-decididos por Thomas | 0 | **10** (9 "ya decidido" + 1 mecánico) |
+| Enviados a auto-merge | 0 | **23** |
+| `bloqueado_por_bucle` | 30 | **24** (6 liberados; el resto tiene causa real) |
+| Decisiones para Irving | dispersas | **4, en un solo documento** |
+
+**Kill-switch verificado**: en pausa, los tres carriles y el `tick()` se detienen; al reanudar
+vuelven a evaluar. Cap de auto-merge = 5/ciclo (`thomas.automerge.cap_por_ciclo`), tope de
+auto-decisión mecánica = 25/día, ambos en `config/circuito.php`.
+
+### Pendientes
+
+- De los 23 auto-merges, el drenado es serial (regresión + build por rama) y quedó corriendo.
+- 24 siguen en anti-bucle **con causa real**: 14 esperan ejecución pero son C/frontera dura,
+  6 esperan merge no elegible, 3 dependen de otro item, 1 es cierre.
+- `--cap=30` se usó para drenar la pila histórica; el régimen normal sigue en 5.
