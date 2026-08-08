@@ -76,12 +76,19 @@ class InventarioSemilla
                         . 'Arreglo mecánico: quitar el link del sidebar (si la pantalla no existe) o registrar la ruta '
                         . 'a la pantalla que sí la cubre.',
                     // El detector `enlace_roto` sólo lee module.json; este link vive en un partial
-                    // Blade del sidebar, así que la comprobación va aquí.
+                    // Blade del sidebar, así que la comprobación va aquí. Cierra si YA HAY ruta
+                    // registrada (se optó por construir la pantalla) O si el link ya no está en el
+                    // sidebar (se optó por quitarlo, item #575) — cualquiera de las dos resuelve el gap.
                     'vigente' => function () {
                         foreach (\Illuminate\Support\Facades\Route::getRoutes() as $r) {
                             if (str_starts_with(ltrim($r->uri(), '/'), 'finanzas/notificaciones-pendientes')) {
                                 return false;
                             }
+                        }
+
+                        $sidebar = base_path('resources/views/module-sidebar/finanzas.blade.php');
+                        if (is_file($sidebar) && !str_contains(file_get_contents($sidebar), 'notificaciones-pendientes')) {
+                            return false;
                         }
 
                         return true;
