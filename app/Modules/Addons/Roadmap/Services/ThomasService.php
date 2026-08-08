@@ -322,6 +322,7 @@ class ThomasService
             'terminales'          => ['total' => $n, 'ocupadas' => $ocupadas, 'libres' => $libres],
             'en_vuelo'            => $enVuelo->map(fn ($i) => [
                 'id' => (int) $i->id, 'modulo' => $i->modulo, 'terminal' => $i->worker_sid,
+                'terminal_nombre' => $this->circuito->nombreWorker($i->worker_sid),
                 'desde' => optional($i->claimed_at)->toIso8601String(), 'eta_min' => $i->eta_minutos,
             ])->values()->all(),
             'cola_ejecutable'     => count($cola),
