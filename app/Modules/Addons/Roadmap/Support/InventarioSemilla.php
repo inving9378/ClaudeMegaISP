@@ -101,6 +101,26 @@ class InventarioSemilla
                     'tipo'    => 'mecanico',
                     'detalle' => 'El validador devuelve valid:false pero el ternario que lo consume lo invierte; el campo '
                         . 'autoritativo es last_validation_status. Normalizar el retorno para que un solo campo mande.',
+                    // #574: verificado extremo a extremo (ApiIntegrationService::validate(),
+                    // ApiIntegrationController y IntegrationsHubView.vue) — hoy el backend ya NO
+                    // expone una key 'valid' cruda (solo 'success'/'status' en la respuesta puntual,
+                    // y 'last_validation_status' es el único campo persistido/autoritativo que lee
+                    // todo el frontend). El gap descrito no existe en el código actual; esta
+                    // comprobación lo apaga solo y solo revive si alguien reintroduce la key 'valid'
+                    // cruda en el backend o el frontend vuelve a leerla directo.
+                    'vigente' => function () {
+                        $service = base_path('app/Services/Core/ApiIntegrationService.php');
+                        $view    = base_path('resources/js/components/module/hub/IntegrationsHubView.vue');
+
+                        if (!is_file($service) || !is_file($view)) {
+                            return false;
+                        }
+
+                        $backendExponeValid = (bool) preg_match("/'valid'\s*=>/", file_get_contents($service));
+                        $frontendLeeValid   = (bool) preg_match('/\.valid\b|\[.valid.\]/', file_get_contents($view));
+
+                        return $backendExponeValid || $frontendLeeValid;
+                    },
                 ],
             ],
 
