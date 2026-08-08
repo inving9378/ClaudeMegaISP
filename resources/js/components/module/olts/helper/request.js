@@ -9,6 +9,14 @@ export const getOLTData = async (url, params = null) => {
         })
         .catch((e) => {
             result = [];
+            if (e.response?.status === 403) {
+                const message = "No tienes permiso para ver esta información.";
+                if (window.Quasar?.Notify) {
+                    window.Quasar.Notify.create({ type: "negative", message, position: "top-right", timeout: 4000 });
+                } else {
+                    alert(message);
+                }
+            }
         });
     return result;
 };
