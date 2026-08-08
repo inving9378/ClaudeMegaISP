@@ -664,13 +664,28 @@ class AuditorService
             ->whereNotIn('estado_aprobacion', ['rechazado', 'cancelado'])
             ->orderByDesc('id')
             ->limit(500)
-            ->get(['id', 'title', 'description']);
+            ->get(['id', 'title', 'description', 'modulo']);
+
+        $modNorm = $this->normalizar($gap['modulo']);
 
         foreach ($candidatos as $c) {
             $suyas = $this->palabrasClave((string) $c->title);
             if (! $suyas) {
                 continue;
             }
+
+            // EL MÓDULO ES PARTE DE LA IDENTIDAD. Sin este guard, la rama de búsqueda por palabras
+            // colapsa gaps estructuralmente idénticos de módulos DISTINTOS: "GestionRed: eliminar 1
+            // método de andamiaje resource sin ruta" y "Mapas: eliminar 93 métodos de andamiaje
+            // resource sin ruta" comparten 5 palabras, así que crear el primero mataba al segundo.
+            // Pasó de verdad en la primera corrida en vivo: se crearon 6 items en vez de 10.
+            $mismoModulo = $this->normalizar((string) $c->modulo) === $modNorm
+                || str_contains($this->normalizar((string) $c->title), $modNorm)
+                || str_contains($this->normalizar((string) $c->description), $modNorm);
+            if (! $mismoModulo) {
+                continue;
+            }
+
             $comunes = count(array_intersect($firma, $suyas));
 
             // Umbral relativo al conjunto MÁS CHICO, no a la firma del gap. Medido contra la firma
