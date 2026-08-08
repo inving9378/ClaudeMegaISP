@@ -393,6 +393,39 @@ vuelta quema un slot de terminal y tokens para no hacer nada.
   `en_cola|asignado|en_progreso|en_verificacion|completado|esperando_irving|sin_triar`.
 - Token `create_token` propio y rotable; **cae al `write_token`** si no se define (no rompe a Cowork).
 
+### 8.4-quinquies CARRIL MECÁNICO y crear=ejecutar (#566, 2026-08-08)
+
+- **Carril mecánico** (`ThomasService::clasificarMecanico`): auto-aprueba lo que **no tiene nada que
+  decidir** (hueco ruteado, andamiaje muerto, ruta 404, clasificar footprint) sin exigir brief, que
+  es lo que dejaba items obvios parados en la bandeja. **Cuatro puertas**: (1) fuera del conjunto de
+  escalamiento —se reusa el MISMO `thomas.escalamiento` de las consultas, no una copia—, (2) sin
+  negocio/producto, (3) **allowlist** de señales mecánicas (sin señal conocida → se queda con
+  Irving), (4) nivel ≤ B (un C es decisión de diseño). Tope diario 25 + kill switch de siempre.
+  Reusa `aprobado_claude`/`aprobado_revisor`: no inventa estado.
+- `circuito:retriar-bandeja` pasa esa política sobre la bandeja y **agrupa por motivo** lo que se
+  queda. **NO toca**: `bloqueado_por_bucle` (re-aprobar sin cambio material reabre el bucle),
+  items con rama empezada, ni los que sólo esperan merge.
+- **Crear = ejecutar** (`RoadmapController::store`): un item creado en la Torre nace
+  `aprobado_irving` y entra directo a la cola, con footprint auto-asignado. **La vía externa
+  (Cowork/auditor) sigue naciendo `pendiente_revision`** — el candado de la máquina no cambió.
+  Excepción: si declara frontera dura, se para y avisa qué categoría lo detuvo.
+- `circuito:disparo-check` dejó de ser NO-OP: es un **watcher** que adelanta una corrida del
+  scheduler (~0.45 s). **No es un segundo despachador** — invoca al scheduler, que sigue siendo el
+  único y tiene su propio flock. Corre como `meganet` (dueño de los worktrees).
+- **Reaper rápido**: además del camino lento por timestamps, pregunta por el **flock del slot** (el
+  kernel lo suelta aunque el proceso muera de golpe) → libera en minutos, no en 25.
+  `RoadmapCircuitoService::slotLibre()`, fail-closed. Cron cada 2 min.
+
+⚠️ **DOS LECCIONES DE FORMA que ya costaron dos veces** (aplican a TODO mapa de términos del
+circuito: denylist del revisor, escalamiento de Thomas, clasificador, señales mecánicas):
+
+1. **Palabra completa, no substring.** «Portal colaborador» caía en el módulo del circuito porque
+   *cola* vive dentro de *colaborador* — igual que 'login'/'token' en el denylist del revisor (#338).
+   El `\b` de PCRE **no sirve con acentos** (la í de «auditoría» rompe el borde): usar
+   `(?<![\p{L}\p{N}])…(?![\p{L}\p{N}])` con `/u`.
+2. **No distingue mención de negación.** Un spec que dice "esto NO es decisión de negocio" contiene
+   *negocio* y se escala igual. Falla hacia el lado seguro, pero castiga los specs bien escritos.
+
 ### 8.4-quater ⚠️ EL FRENO QUE QUEDA — footprint desconocido serializa TODO
 
 - Un item con `modulo` **"Sin clasificar"/null/vacío** tiene footprint DESCONOCIDO y por diseño

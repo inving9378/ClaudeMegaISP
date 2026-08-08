@@ -790,3 +790,73 @@ no se puede calcular el footprint. **#532, #533 y #540 se integraron y quedaron 
 - El reaper manda los items de workers muertos a `requiere_irving`: otra vía que llena la bandeja.
   Evaluar si conviene re-encolar en vez de escalar.
 - Falta validación visual de Irving en la Torre (`/releases`) de las claves nuevas.
+
+---
+
+## 2026-08-08 16:40 — #566 Destrabar la cola: carril mecánico, frenos de flujo y crear=ejecutar
+
+**Todo en DEV. `origin/main` intacto (32 commits locales).**
+
+### La premisa del item no coincidió con lo medido
+
+El item asumía que la cola estaba vacía **porque el autopilot es demasiado conservador**. Los números
+dicen otra cosa:
+
+| Lo que decía el item | Lo medido |
+|---|---|
+| ~37 esperando decisión | `pendiente_revision` = **1** |
+| ~44 en `requiere_irving` | 41 ✓ — pero **23** son `bloqueado_por_bucle` y **25** ya traen rama |
+| 82 aprobados listos para correr | de 87 `aprobado_irving`, **0** pasan los guards del pool |
+
+De esos 87: **26 son `esperando_merge_irving`** (trabajo TERMINADO esperando el merge de Irving),
+27 traen rótulo `[BLOCKED-/PARKED-]`, 25 están `done`, 6 en anti-bucle.
+
+**El re-triaje con la política nueva encontró CERO items mecánicos** entre los 17 re-triables
+(incluso incluyendo los del anti-bucle). La bandeja contiene sólo lo que legítimamente es de Irving.
+Ensanchar la aprobación era la palanca equivocada: la cola no está vacía por falta de permiso, está
+vacía porque **el backlog ejecutable se agotó**.
+
+### Lo construido
+
+- **E3 · frenos** (`15775b82`) — `circuito:clasificar-modulo`: 23 de 25 items sin footprint
+  clasificados (2 sin match a propósito). Un item "Sin clasificar" corre SOLO y bloquea a las 6
+  (#432 B2). Reaper con **vía rápida por flock del slot**: ya no espera 25 min, pregunta al kernel
+  quién tiene el lock. `slotLibre()` al servicio compartido, fail-closed. Cron 5 → 2 min.
+- **E1 · carril mecánico** (`b5d1c334`) — `ThomasService::clasificarMecanico`, cuatro puertas
+  (frontera dura reusando el MISMO config de las consultas · sin negocio · **allowlist** de señales ·
+  nivel ≤ B). Tope diario 25 + kill switch. Reusa `aprobado_claude`/`aprobado_revisor`.
+- **E2 · re-triaje** (`b5d1c334`) — `circuito:retriar-bandeja`, agrupa por motivo lo que se queda.
+  Respeta anti-bucle, ramas empezadas y lo que sólo espera merge.
+- **E4 · crear=ejecutar** (`ce6950bc`) — item creado en la Torre entra como `aprobado_irving` con
+  footprint auto-asignado; la vía externa sigue naciendo `pendiente_revision`. Excepción: si declara
+  frontera dura, se para. `circuito:disparo-check` revive como **watcher** (no como despachador):
+  adelanta una corrida del scheduler en **0.45 s**.
+
+### Dos lecciones de forma (mismas dos veces)
+
+1. **Match por palabra completa, no substring.** «Portal colaborador» caía en el módulo del circuito
+   porque *cola* vive dentro de *colaborador* — el mismo accidente del denylist del revisor (#338).
+   El `\b` de PCRE no sirve con acentos; hay que usar `\p{L}\p{N}` con `/u`.
+2. **El match por términos no distingue mención de negación.** Un spec que dice "esto NO es decisión
+   de negocio" contiene *negocio* y se queda con Irving. Falla hacia el lado seguro, pero castiga
+   los specs bien escritos.
+
+### Verificado
+
+- Carril mecánico end-to-end: **#567** (hueco ruteado real, `BoxInputController@update` respondía
+  `null` en silencio) se auto-aprobó, lo tomó una terminal, se ejecutó y **se mergeó** (`ae3e7a30`)
+  sin tocar la bandeja.
+- Crear=ejecutar: item normal → `aprobado_irving`/`en_cola`, **reclamado por wt-2 en segundos**;
+  item con "DELETE FROM" → se quedó en `pendiente_revision` con su aviso.
+- Reaper rápido con un worker VIVO en wt-1 → 0 reapeados (no mata vivos).
+
+### ⚠️ Pendientes reales
+
+- **Criterio 1 NO cumplido** (cola > 0 y 6 terminales ejecutando). No es alcanzable por la vía del
+  item: no hay trabajo aprobado-y-sin-empezar. Las palancas reales son **los 26
+  `esperando_merge_irving`** (merge de Irving) y **los 23 `bloqueado_por_bucle`** (necesitan cambio
+  material, no re-aprobación — re-aprobarlos reabre el bucle que #117 dio 13 veces).
+- **Hay una SEGUNDA sesión de CC en el repo** (PID 3248245, 11:18) escribiendo sin commitear en
+  `main`: bloque `auditor` en `config/circuito.php` + `auditor_fingerprint` en `RoadmapItem.php`
+  (#559, sin rama). No se tocó. Con el guard quirúrgico sólo bloquea merges que toquen esos dos
+  archivos, pero son archivos calientes del circuito.
