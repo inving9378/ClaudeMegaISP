@@ -433,6 +433,188 @@ class ThomasService
     }
 
     // =================================================================
+    // 1-ter. ¿QUÉ ESPERA REALMENTE ESTE ITEM? (#566 — la raíz del bucle)
+    // =================================================================
+
+    /**
+     * DIAGNÓSTICO: qué le falta de verdad a un item para avanzar.
+     *
+     * ESTA ES LA PIEZA QUE FALTABA. El bucle que dio 13 vueltas en #117 y 9 aprobaciones en #19 no
+     * era falta de permiso: era que **aprobar se trataba como responder**. Un item cuya única
+     * pendiente era el MERGE volvía a `aprobado_irving` con cada clic, el pool lo re-despachaba, el
+     * worker veía que no había nada que hacer y lo re-escalaba. Aprobar más fuerte nunca lo iba a
+     * mover, porque la aprobación no era lo que faltaba.
+     *
+     * Devuelve ['pendiente' => …, 'detalle' => …]:
+     *   merge       → el trabajo está HECHO en su rama; falta integrarlo (→ E1 auto-merge).
+     *   respuesta   → hay una pregunta puntual sin contestar; aprobar en genérico no la responde.
+     *   ejecucion   → está listo para que una terminal lo trabaje (el caso normal).
+     *   dependencia → espera a otro item.
+     *   cierre      → ya no hay nada que hacer (superseded o terminado).
+     *
+     * PURA: no escribe nada.
+     */
+    public function pendienteReal(RoadmapItem $item): array
+    {
+        $r = fn (string $p, string $d) => ['pendiente' => $p, 'detalle' => $d];
+
+        if (in_array($item->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true)
+            || $item->status === 'done' || $item->archivado_at !== null) {
+            return $r('cierre', 'El item ya está cerrado o archivado.');
+        }
+
+        // (1) MERGE — trabajo hecho esperando integración. Va PRIMERO: es la bolsa más grande y la
+        // que más se confundía con "falta decidir".
+        if (! empty($item->branch) && empty($item->merge_commit)) {
+            // Las banderas de BD (`branch_has_content`, `branch_ahead_count`) las sella un chequeo
+            // periódico y se quedan FRÍAS: #19 tenía trabajo real en su rama y las banderas en
+            // cero, así que se leía como "falta ejecutarlo" y volvía al pool eternamente. Cuando
+            // las banderas no son concluyentes se le pregunta a git, que es la única fuente que no
+            // se desactualiza.
+            $tieneTrabajo = (bool) $item->esperando_merge_irving
+                || (bool) $item->branch_has_content
+                || (int) $item->branch_ahead_count > 0;
+
+            if (! $tieneTrabajo) {
+                $tieneTrabajo = (bool) $this->circuito->archivosDeRama((string) $item->branch);
+            }
+
+            if ($tieneTrabajo) {
+                return $r('merge', "La rama {$item->branch} tiene trabajo sin integrar: lo pendiente "
+                    . 'es el merge, no una aprobación.');
+            }
+        }
+
+        // (2) RESPUESTA — una pregunta concreta sin contestar. Aprobar en genérico NO la responde,
+        // y ése fue el bucle de #99 (15 aprobaciones, ninguna respondía la pregunta).
+        foreach ((array) $item->preguntasNormalizadas() as $p) {
+            $sinResponder = ($p['opcion_elegida'] ?? null) === null && ! empty($p['opciones']);
+            if ($sinResponder && RoadmapItem::boolEstricto($p, 'requiere_irving') === true) {
+                return $r('respuesta', 'Tiene una pregunta marcada `requiere_irving` sin contestar: '
+                    . 'aprobar en genérico no la responde.');
+            }
+        }
+
+        // (3) DEPENDENCIA — lo declara el propio item.
+        $texto = (string) $item->comentarios_claude . ' ' . (string) $item->description;
+        if (preg_match('/\b(depende de|bloqueado por|espera a)\s+#(\d+)/ui', $texto, $m)) {
+            return $r('dependencia', "Depende de #{$m[2]} según su propio registro.");
+        }
+
+        return $r('ejecucion', 'Listo para que una terminal lo trabaje.');
+    }
+
+    // =================================================================
+    // 1-quater. AUTO-MERGE de trabajo verificado (#566 E1)
+    // =================================================================
+
+    /**
+     * ¿La rama de este item se puede auto-mergear?
+     *
+     * Thomas NO reimplementa el merge: decide la ELEGIBILIDAD y se lo encola al MergeRunner de
+     * siempre, que ya corre la verificación de regresión, el gate de frontend y aborta ante
+     * conflicto dejando main intacto.
+     *
+     * Lo que retiene para Irving es lo que apunta a prod o es irreversible — y se decide mirando el
+     * DIFF, no el título: "el item dice que no toca prod" no es verificable; "el diff no toca
+     * `deploy/`" sí.
+     */
+    public function elegibleAutoMerge(RoadmapItem $item): array
+    {
+        $no = fn (string $m) => ['elegible' => false, 'motivo' => $m];
+
+        if (! config('circuito.thomas.automerge.enabled', true)) {
+            return $no('El auto-merge está apagado (circuito.thomas.automerge.enabled).');
+        }
+        if ($this->circuito->isPaused()) {
+            return $no('Circuito en pausa (kill switch): no se auto-mergea nada.');
+        }
+        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
+            return $no('Item rotulado [BLOCKED-]/[PARKED-]: frontera dura.');
+        }
+        if (empty($item->branch)) {
+            return $no('No tiene rama que integrar.');
+        }
+        if (! empty($item->merge_commit)) {
+            return $no('Ya está integrado.');
+        }
+
+        // Frontera dura por texto (prod/dinero/credenciales/borrar) — mismo config que gobierna
+        // las consultas de las terminales. Una sola definición, no una copia que pueda divergir.
+        $texto = (string) $item->title . ' ' . (string) $item->description;
+        if ($cat = $this->categoriaFronteraDura($texto)) {
+            return $no("Declara «{$cat}» (frontera dura): lo mergea Irving.");
+        }
+
+        // El DIFF manda: rutas sensibles y migraciones destructivas.
+        $diff = $this->circuito->archivosDeRama((string) $item->branch);
+        if ($diff === null) {
+            return $no('No se pudo leer el diff de la rama: fail-closed, lo revisa Irving.');
+        }
+        if (! $diff) {
+            return $no('La rama no trae cambios: no hay nada que integrar.');
+        }
+
+        foreach ((array) config('circuito.thomas.automerge.rutas_sensibles', []) as $ruta) {
+            foreach ($diff as $archivo) {
+                if ($ruta !== '' && str_contains($archivo, $ruta)) {
+                    return $no("La rama toca «{$archivo}» (ruta sensible): lo mergea Irving.");
+                }
+            }
+        }
+
+        // Migraciones: agregar es reversible con `git revert`; un drop/truncate ya cambió el
+        // esquema y el revert del código no lo deshace.
+        $migraciones = array_filter($diff, fn ($f) => str_contains($f, 'migrations/'));
+        if ($migraciones) {
+            $cuerpo = $this->circuito->contenidoDeRama((string) $item->branch, $migraciones);
+            foreach ((array) config('circuito.thomas.automerge.patrones_destructivos', []) as $p) {
+                if ($p !== '' && stripos($cuerpo, $p) !== false) {
+                    return $no("Trae una migración con «{$p}»: no se deshace con git revert, lo revisa Irving.");
+                }
+            }
+        }
+
+        return ['elegible' => true, 'motivo' => 'Trabajo verificado, reversible y sin tocar prod ('
+            . count($diff) . ' archivo(s)).'];
+    }
+
+    /**
+     * Encola el auto-merge de un item elegible. El MergeRunner hace el resto (verificación,
+     * gate de frontend, abort ante conflicto). Devuelve ['ok' => bool, 'motivo' => string].
+     */
+    public function autoMergear(RoadmapItem $item): array
+    {
+        $e = $this->elegibleAutoMerge($item);
+        if (! $e['elegible']) {
+            return ['ok' => false, 'motivo' => $e['motivo']];
+        }
+
+        // Sale del parqueo: ya no espera a Irving, lo integra Thomas.
+        $item->forceFill([
+            'esperando_merge_irving'  => false,
+            'excluir_pool_automatico' => false,
+        ])->save();
+
+        $this->circuito->enqueueMerge((int) $item->id, self::NOMBRE, 'auto');
+
+        $this->reportes->append(
+            $item,
+            self::NOMBRE,
+            'decision',
+            'Auto-merge encolado: trabajo verificado, reversible y sin tocar prod.',
+            $e['motivo'],
+            ['rama' => $item->branch, 'reversible' => true]
+        );
+
+        Log::channel('roadmap_externo')->info('thomas-automerge', [
+            'item' => $item->id, 'rama' => $item->branch, 'motivo' => $e['motivo'],
+        ]);
+
+        return ['ok' => true, 'motivo' => $e['motivo']];
+    }
+
+    // =================================================================
     // 2. ESTIMACIÓN DE ESFUERZO (orientativa, nunca bloqueante)
     // =================================================================
 

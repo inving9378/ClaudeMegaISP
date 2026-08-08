@@ -293,6 +293,72 @@ return [
         ],
 
         /*
+        |----------------------------------------------------------------------
+        | AUTO-MERGE de trabajo verificado (#566 E1)
+        |----------------------------------------------------------------------
+        |
+        | El problema: un nivel C con la rama terminada se parqueaba en `esperando_merge_irving` y
+        | ahí se quedaba hasta que Irving mergeara a mano. Peor: cada clic de "aprobar" en la
+        | bandeja lo volvía a poner `aprobado_irving` y lo re-armaba para el pool, así que un worker
+        | lo tomaba, veía que no había nada que hacer y lo re-escalaba. Ese es el bucle de #117
+        | (13 vueltas) — no era falta de permiso, era que lo pendiente NO era una aprobación.
+        |
+        | Thomas ahora mergea ese trabajo él mismo. NO reimplementa el merge: se lo encola al
+        | MergeRunner de siempre, que ya corre la verificación de regresión (php -l + boot), el
+        | gate de frontend y aborta ante conflicto dejando main intacto. Thomas sólo decide QUÉ
+        | ramas son elegibles.
+        |
+        | RETIENE para Irving lo que apunte a prod o sea irreversible: la rama se inspecciona
+        | archivo por archivo, no sólo el título.
+        |
+        */
+        'automerge' => [
+            'enabled' => (bool) env('CIRCUITO_THOMAS_AUTOMERGE', true),
+
+            // Tope de auto-merges por ciclo. Cap chico a propósito: un merge malo es más caro de
+            // deshacer que una aprobación mala, y así el daño de un ciclo cabe en un vistazo.
+            'cap_por_ciclo' => (int) env('CIRCUITO_THOMAS_AUTOMERGE_CAP', 5),
+
+            /*
+            | RUTAS SENSIBLES — si la rama toca alguna, NO se auto-mergea aunque el título sea
+            | inocente. Es la diferencia entre "el item dice que no toca prod" y "el diff no toca
+            | prod": lo segundo es verificable.
+            */
+            'rutas_sensibles' => [
+                '.env', 'deploy/', 'config/deployment.php', 'config/database.php',
+                'app/Console/Commands/Active/RemoteDeployCommand.php',
+                'app/Modules/Addons/Releases/', 'database/migrations_old/',
+            ],
+
+            /*
+            | PATRONES DESTRUCTIVOS en el diff de migraciones. Una migración que sólo agrega es
+            | reversible; una que hace drop/truncate no se deshace con `git revert` — el esquema
+            | ya cambió. Esas quedan para Irving.
+            */
+            'patrones_destructivos' => [
+                'dropColumn', 'dropIfExists', 'dropTable', 'truncate', 'delete from', 'DROP ',
+            ],
+        ],
+
+        /*
+        |----------------------------------------------------------------------
+        | CONSOLIDADO ESTRATÉGICO (#566 E4)
+        |----------------------------------------------------------------------
+        |
+        | Lo genuinamente estratégico no se adivina, pero tampoco tiene por qué bloquear N items
+        | por separado: se junta en UNA sola pregunta con la recomendación de Thomas para cada
+        | punto, para que Irving conteste en bloque.
+        |
+        | `horas_default`: si no contesta en ese plazo, Thomas procede con la opción reversible
+        | recomendada y la deja registrada para revisión POSTERIOR. 0 = nunca procede solo.
+        */
+        'consolidado' => [
+            'enabled'       => (bool) env('CIRCUITO_THOMAS_CONSOLIDADO', true),
+            'horas_default' => (int) env('CIRCUITO_THOMAS_CONSOLIDADO_HORAS', 48),
+            'doc_path'      => base_path('docs/decisiones-pendientes-irving.md'),
+        ],
+
+        /*
         | CIERRE — qué exige Thomas antes de dar un item por terminado. Son los criterios de
         | aceptación mínimos y comunes a todo item; los específicos viven en el propio item.
         */

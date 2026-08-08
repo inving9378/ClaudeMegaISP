@@ -1778,6 +1778,49 @@ class RoadmapCircuitoService
         return $libre;
     }
 
+    /**
+     * Archivos que una rama cambió respecto de main (`git diff --name-only main...rama`).
+     *
+     * Existe para que el auto-merge de Thomas decida por el DIFF y no por el título: "el item dice
+     * que no toca prod" no es verificable; "el diff no toca `deploy/`" sí. Devuelve null si no se
+     * puede leer (rama inexistente, git que falla) → el llamador debe tratarlo como fail-closed.
+     */
+    public function archivosDeRama(string $branch): ?array
+    {
+        if (! preg_match('#^[\w./-]+$#', $branch)) {
+            return null;   // nunca construir un comando con una ref arbitraria
+        }
+
+        $p = $this->git(['diff', '--name-only', '-z', 'main...' . $branch]);
+
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+
+        return array_values(array_filter(explode("\0", $p->getOutput()), fn ($r) => $r !== ''));
+    }
+
+    /**
+     * Contenido concatenado de unos archivos EN la rama (para inspeccionar qué hace una migración
+     * antes de auto-mergearla). Devuelve '' si no se puede leer alguno — el llamador decide.
+     */
+    public function contenidoDeRama(string $branch, array $archivos): string
+    {
+        if (! preg_match('#^[\w./-]+$#', $branch)) {
+            return '';
+        }
+
+        $out = '';
+        foreach (array_slice($archivos, 0, 20) as $archivo) {
+            $p = $this->git(['show', "{$branch}:{$archivo}"]);
+            if ($p->isSuccessful()) {
+                $out .= $p->getOutput() . "\n";
+            }
+        }
+
+        return $out;
+    }
+
     public function reencolarHuerfano(RoadmapItem $item, string $origen, string $motivo): array
     {
         $tope = max(1, (int) config('circuito.reaper.max_reintentos', 3));
