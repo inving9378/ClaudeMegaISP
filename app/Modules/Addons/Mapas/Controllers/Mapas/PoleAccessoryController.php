@@ -42,18 +42,6 @@ class PoleAccessoryController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     *
-     * @param  \App\Models\PoleAccessory  $poleAccessory
-     * @return \Illuminate\Http\Response
-     */
-    public function show(PoleAccessory $poleAccessory)
-    {
-
-    }
-
-
-    /**
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request

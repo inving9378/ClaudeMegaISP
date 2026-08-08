@@ -39,16 +39,6 @@ class EquipmentLinkController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
      * Store a newly created resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -64,55 +54,9 @@ class EquipmentLinkController extends Controller
         });
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        //
-    }
-
     public function fusionUpdate(Request $request)
     {
         return $this->SimpleService->simpleTransaction(function() use($request) {
-
 
             $port = $this->PortRepository->find($request->port_id);
 
@@ -132,7 +76,6 @@ class EquipmentLinkController extends Controller
                 $firstMapLink = $this->MapLinkRepository->findByInputBox($request->first_box_input_id);
             }
 
-
             $secondPort = $this->PortRepository->getByData(
                 $request->second_box_input_id,
                 $request->second_fiber_id
@@ -140,7 +83,6 @@ class EquipmentLinkController extends Controller
 
             if(!empty($secondPort->fusionPort()))
                     throw new Exception("el puerto selecionado o ruta selecionada no esta diponible para conexión", 5525);
-
 
             $secondMapLink = $this->MapLinkRepository->findByInputBox($request->second_box_input_id);
 
