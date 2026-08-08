@@ -9,14 +9,15 @@ use Illuminate\Support\Facades\Log;
  * Loop de aprendizaje del perfil de decisiones de Irving (item #351, Opción 2 — semi-automática
  * con revisión batch, recomendada en el brief C y aprobada por Irving al soltar el item al pool).
  *
- * Captura cada aprobación/rechazo de Irving sobre un item de su bandeja (con su comentario
- * opcional) como candidato CRUDO trazable en `docs/pendientes-perfil-irving.md`. NO inlinea nada
- * automáticamente en `docs/perfil-decisiones-irving.md` — ese archivo lo edita SOLO Irving, en
- * lote, cuando decide que un patrón (≥3 decisiones consistentes) merece volverse preferencia.
- * Frontera dura (dinero/seguridad/prod/negocio) NUNCA se infiere aquí, solo se registra el crudo.
+ * Captura cada aprobación/rechazo de Irving sobre un item de su bandeja, y cada "⚠ Reportar
+ * problema" sobre un item ya validado, como candidato CRUDO trazable en
+ * `docs/pendientes-perfil-irving.md`. NO inlinea nada automáticamente en
+ * `docs/perfil-decisiones-irving.md` — ese archivo lo edita SOLO Irving, en lote, cuando decide
+ * que un patrón (≥3 decisiones consistentes) merece volverse preferencia. Frontera dura
+ * (dinero/seguridad/prod/negocio) NUNCA se infiere aquí, solo se registra el crudo.
  *
  * Falla-segura y NO crítica: cualquier error de escritura se loguea y se ignora — nunca debe
- * tumbar la decisión real de Irving en `RoadmapController::decidir`.
+ * tumbar la decisión real de Irving en `RoadmapController::decidir`/`validacionReportar`.
  */
 class PerfilAprendizajeService
 {
@@ -34,6 +35,33 @@ class PerfilAprendizajeService
             return;
         }
 
+        $this->escribirBloque($item, $this->formatear($item, $logEntry, $accion));
+    }
+
+    /**
+     * #545 — Registra un "⚠ Reportar problema" (`RoadmapController::validacionReportar`) como
+     * candidato crudo: el circuito dio por buena una ejecución y a Irving NO le gustó el resultado
+     * — señal de aprendizaje tan real como un rechazo en bandeja. Mismo archivo, misma ancla, mismo
+     * criterio de "solo Irving lo promueve al perfil en lote".
+     */
+    public function capturarProblema(RoadmapItem $item, string $comentario): void
+    {
+        $lineas = [
+            '### #' . $item->id . ' — PROBLEMA REPORTADO — ' . now()->toIso8601String(),
+            '- Título: ' . mb_strimwidth((string) $item->title, 0, 160, '…'),
+            '- Módulo: ' . ($item->modulo ?: '(sin módulo)') . ' · Nivel de riesgo: ' . ($item->nivel_riesgo ?: '?'),
+        ];
+        $comentario = trim($comentario);
+        if ($comentario !== '') {
+            $lineas[] = '- Comentario: ' . mb_strimwidth($comentario, 0, 600, '…');
+        }
+        $lineas[] = '';
+
+        $this->escribirBloque($item, implode("\n", $lineas));
+    }
+
+    private function escribirBloque(RoadmapItem $item, string $bloque): void
+    {
         try {
             $path = $this->path();
             if (! is_file($path)) {
@@ -45,7 +73,6 @@ class PerfilAprendizajeService
                 return;
             }
 
-            $bloque = $this->formatear($item, $logEntry, $accion);
             $contenido = str_replace(self::ANCLA, self::ANCLA . "\n" . $bloque, $contenido);
             file_put_contents($path, $contenido);
         } catch (\Throwable $e) {

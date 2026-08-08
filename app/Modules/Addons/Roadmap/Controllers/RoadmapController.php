@@ -1253,6 +1253,11 @@ class RoadmapController extends Controller
         $item->log = $log;
         $item->save();
 
+        // Loop de aprendizaje del perfil (#351/#545): un "Reportar problema" es señal de aprendizaje
+        // tan real como un rechazo en bandeja. No crítico: nunca debe tumbar el reporte real.
+        app(\App\Modules\Addons\Roadmap\Services\PerfilAprendizajeService::class)
+            ->capturarProblema($item, $data['comentario']);
+
         Log::channel('roadmap_externo')->info('validacion-problema', ['item' => $item->id, 'por' => $this->actor()]);
 
         return response()->json(['ok' => true, 'id' => $item->id, 'estado' => 'revision_tecnica']);

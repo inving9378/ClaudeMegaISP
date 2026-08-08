@@ -376,6 +376,7 @@ FRONTERA DURA (intacta — SIEMPRE escala, con cualquier modelo): dinero / cobro
 Responde EXCLUSIVAMENTE con un objeto JSON (sin texto extra, sin ```):
 {"veredicto":"autoriza"|"escala","razon":"1-2 frases concretas","riesgos":["..."],"categoria_escalada":"dinero"|"seguridad"|"prod"|"negocio"|"amplio"|"duda"|null,"confianza":"alta"|"media"|"baja"}
 categoria_escalada = null solo si autorizas. No inventes: si es ambiguo cerca de la frontera, escala con confianza baja.
+TRAZABILIDAD (#545): si el PERFIL DE DECISIONES DE IRVING (abajo) influyó tu veredicto, cítalo dentro de "razon" en el formato "... — por preferencia: <resumen de 3-6 palabras de la regla del perfil>" (ej. "autorizo por preferencia: costo sobre potencia salvo que se pida Opus"). "razon" se escribe tal cual en la bitácora del item (comentarios_claude) — así queda auditable qué preferencia se usó. Si el perfil no influyó (p.ej. es un caso puramente técnico), no inventes una cita.
 TXT;
 
         // Reglas de operación / ADN (estabilidad · minimalismo · balance): premia lo limpio/acotado,
