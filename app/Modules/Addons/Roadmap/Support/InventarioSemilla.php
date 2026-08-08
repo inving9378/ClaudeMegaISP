@@ -63,6 +63,16 @@ class InventarioSemilla
                     'detalle' => 'Cuando el usuario no trae el permiso, getOLTData captura el 403 y devuelve vacío en vez de '
                         . 'propagar el error → el operador ve una pantalla en blanco sin saber que le falta permiso. '
                         . 'Arreglo: propagar el estado de error y que el front muestre el aviso.',
+                    // El fix (item #571) agregó el aviso de 403 dentro del catch de getOLTData;
+                    // si ese literal desaparece del helper, el gap volvió a abrirse.
+                    'vigente' => function () {
+                        $path = base_path('resources/js/components/module/olts/helper/request.js');
+                        if (! is_file($path)) {
+                            return false;
+                        }
+
+                        return ! str_contains(file_get_contents($path), 'No tienes permiso para ver esta información');
+                    },
                 ],
             ],
 
