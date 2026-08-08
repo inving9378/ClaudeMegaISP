@@ -32,16 +32,6 @@ class DocumentClientController extends Controller
 
 
     /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
-    {
-        //  return view($this->data['url'] . '.index',$this->data);
-    }
-
-    /**
      * Show the form for creating a new resource.
      *
      * @return \Illuminate\Http\Response
@@ -62,17 +52,6 @@ class DocumentClientController extends Controller
     {
         $this->validateFieldByRulesInTableFiledModules($this->data['module'], $request);
         return Client::findOrFail($idClient)->clientCreateDocument($request);
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  \App\Models\DocumentClient  $documentClient
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        //
     }
 
     /**

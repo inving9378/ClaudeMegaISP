@@ -66,16 +66,6 @@ class ClientBundleServiceController extends Controller
     }
 
     /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
      * Show the form for creating a new resource.
      *
      * @return \Illuminate\Http\Response
@@ -370,28 +360,6 @@ class ClientBundleServiceController extends Controller
         return $plan->filter(function ($val, $key) use ($id) {
             return Str::endsWith($key, '_' . $id);
         })->count();
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param \App\Models\ClientBundleService $clientBundleService
-     * @return \Illuminate\Http\Response
-     */
-    public function show(ClientBundleService $clientBundleService)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param \App\Models\ClientBundleService $clientBundleService
-     * @return \Illuminate\Http\Response
-     */
-    public function edit(ClientBundleService $clientBundleService)
-    {
-        //
     }
 
     /**

@@ -25,59 +25,6 @@ use Spatie\Activitylog\Models\Activity;
 class ClientInformationController extends Controller
 {
     /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param \Illuminate\Http\Request $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param \App\Models\ClientInformation $clientMainInformation
-     * @return \Illuminate\Http\Response
-     */
-    public function show(ClientInformation $clientMainInformation)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param \App\Models\ClientInformation $clientMainInformation
-     * @return \Illuminate\Http\Response
-     */
-    public function edit(ClientInformation $clientMainInformation)
-    {
-        //
-    }
-
-    /**
      * Update the specified resource in storage.
      *
      * @param \Illuminate\Http\Request $request
@@ -174,17 +121,6 @@ class ClientInformationController extends Controller
             Log::info($e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param \App\Models\ClientInformation $clientMainInformation
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy(ClientInformation $clientMainInformation)
-    {
-        //
     }
 
     public function getClientWithBalance($id)

@@ -43,16 +43,6 @@ class ClientInternetServiceController extends Controller
     }
 
     /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
      * Show the form for creating a new resource.
      *
      * @return \Illuminate\Http\Response
@@ -208,28 +198,6 @@ class ClientInternetServiceController extends Controller
                 'client_id' => $model->client_id
             ]);
         }
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param \App\Models\ClientInternetService $clientInternetService
-     * @return \Illuminate\Http\Response
-     */
-    public function show(ClientInternetService $clientInternetService)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param \App\Models\ClientInternetService $clientInternetService
-     * @return \Illuminate\Http\Response
-     */
-    public function edit(ClientInternetService $clientInternetService)
-    {
-        //
     }
 
     /**
