@@ -13,6 +13,7 @@ use App\Models\Client;
 use App\Models\District;
 use App\Models\Nomenclature;
 use App\Models\Zone;
+use App\Modules\Core\Configuracion\Services\NomenclatureAssignmentService;
 use App\Services\LogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -186,33 +187,11 @@ class NomenclatureController extends CrudModalController
 
     public function assignClient(Request $request, $id)
     {
-        //TODO PASAR PARA UN SERVICIO
-        $nomenclature = $this->data['model']::find($request->nomenclature_id);
+        $result = (new NomenclatureAssignmentService())->assignClient($request->nomenclature_id, $id);
 
-        if ($nomenclature->client_id != null) {
-            // Preparamos el mensaje de error con los duplicados
-            $errors = [
-                'nomenclature_id' => ["Esta Nomenclatura esta siendo Usada"]
-            ];
-
-            return response()->json([
-                'errors' => $errors
-            ], 422);
+        if (!$result['success']) {
+            return response()->json(['errors' => $result['errors']], 422);
         }
-
-        $logService = new LogService();
-        $client = Client::find($id);
-        $oldNomenclature = $this->data['model']::where('client_id', $id)->first();
-        if ($oldNomenclature) {
-            Nomenclature::where('client_id', $client->id)->update(['client_id' => null]);
-            $logService->log($client, 'Nomenclatura cambiada de ' . $oldNomenclature->name . ' a ' . $nomenclature->name . ' por ' . auth()->user()->name . ' desde el NomenclatureController::assignClient');
-        } else {
-            $logService->log($client, 'Nomenclatura Asignada ' . $nomenclature->name . ' por ' . auth()->user()->name . ' desde el NomenclatureController::assignClient');
-        }
-
-        $nomenclature->update([
-            'client_id' => $id,
-        ]);
 
         return response()->json(['status' => 'success'], 200);
     }
