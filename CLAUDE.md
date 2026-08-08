@@ -462,6 +462,38 @@ Antes de construir **cualquier capacidad** en **cualquier módulo** (existente o
 
 La lista **crece** al designar nuevos servicios únicos. **Ante la duda, inventario (grep cross-módulos) ANTES de escribir código nuevo.**
 
+### 🌳 Convención OFICIAL de permisos jerárquicos por módulo (item #538, 2026-08-08)
+Estándar para permisos `.view` granulares dentro de un módulo (pantalla → bloque/tarjeta → info puntual),
+**ya en uso en Dashboard** (10 permisos reales en `config/route_permission.php` + consumidos en
+`HomeController.php` + `Dashboard.vue`) y adoptado como convención para instrumentar módulos futuros:
+
+```
+{modulo}_view_dashboard        → pantalla/módulo completo (equivalente al "Ver módulo")
+{modulo}_view_block_{seccion}  → bloque/sección dentro de la pantalla
+{modulo}_view_card_{tarjeta}   → tarjeta individual
+{modulo}_view_info_{x}         → info puntual
+```
+
+Guion bajo, sin puntos (difiere de otros permisos `modulo.accion` del sistema — decisión de Irving:
+cero riesgo de renombrar permisos ya asignados a roles en BD por algo estético).
+
+**Editor de roles (`administracion/rol` → `PermissionAssignmentModal.vue` +
+`rol/helper/constants.js`):** cada permiso hijo se declara con `depend: "{permiso_padre}"` dentro del
+array plano del módulo en `fieldsJson`, y el módulo agrupa sus anclas en `accordions[modulo]`
+(`{title, filter}`). El modal ya **indenta visualmente** (clase `.perm-child`) cualquier permiso con
+`depend` dentro de su accordion — el árbol se arma solo con declarar `depend`, sin tocar el template.
+Los 10 permisos de Dashboard son el piloto: 1 padre (`dashboard_view_dashboard`) + 9 hijos, todos bajo
+un único accordion "Ver Dashboard". **NO requiere crear permisos intermedios** ("sección" como nodo
+propio) — dos niveles (padre → hijos planos indentados) bastan; no inventar un tercer nivel sin un
+caso real que lo necesite.
+
+**Denegación (alcance confirmado, sin cambio de código):** el 403 duro de
+`CheckRoutePermission.php` para navegación directa por URL sin permiso **se mantiene intacto** — es
+el único punto de denegación de rutas del sistema (~1750 líneas de `routes/web.php`), cambiarlo es
+alto blast radius y no se justificó. La "denegación silenciosa" que pedía el item ya existe donde
+importa: sidebar/tarjetas se **ocultan** (no error) vía `auth()->user()->can(...)` en Blade y `v-if`
+en Vue — eso YA es el comportamiento correcto, no un gap.
+
 ### ⚠️ CRÍTICO — Los `user_id` (y otros PK) de DEV y PROD NO coinciden
 DEV (`192.168.105.11`) y PROD (`192.168.105.198`) son **bases distintas que divergieron** (auto-increments independientes). **Un id de un entorno NO mapea al otro.**
 - Ejemplo real: en **DEV** `users.id=8` = **Irving** (dueño); en **PROD** `users.id=8` = **Oscar Adrian, un CLIENTE** (rol `client`), e Irving en prod es **`id=13`** (`login_user=Meganet`).
