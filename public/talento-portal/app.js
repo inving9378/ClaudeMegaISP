@@ -496,8 +496,9 @@
             });
             // "En custodia" → 2 niveles: CATEGORÍA (herramienta/material/sin clasificar) → TIPO.
             const enCustodiaPorCategoria = computed(() => {
-                const LABEL = { herramienta: 'Herramienta', material: 'Material' };
-                const ORDER = { herramienta: 0, material: 1 };
+                // Espejo de InventoryItemType::CATEGORIAS (backend). Agregar categoría = agregarla aquí también.
+                const LABEL = { herramienta: 'Herramienta', material: 'Material', equipo_cliente: 'Equipo de cliente' };
+                const ORDER = { herramienta: 0, material: 1, equipo_cliente: 2 };
                 const porCat = {};
                 (enCustodia.value || []).forEach((it) => {
                     const key = it.categoria || '__null__';
@@ -513,7 +514,7 @@
                     return {
                         key,
                         label: key === '__null__' ? 'Sin clasificar' : (LABEL[key] || key),
-                        order: key === '__null__' ? 2 : (ORDER[key] ?? 1),
+                        order: key === '__null__' ? 99 : (ORDER[key] ?? 98), // "Sin clasificar" siempre al final
                         count: items.length,
                         tipos,
                     };
