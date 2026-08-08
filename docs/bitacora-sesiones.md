@@ -708,3 +708,85 @@ pasan). Parqueo, cierre manual y contador anti-bucle probados en transacción co
   los instrumenta. No se aprobó nada en lote desde aquí.
 - Los workers vivos toman el código nuevo al inicio de su siguiente vuelta (wt-2/3/5/6 ya en
   `6e46d55a`); wt-4 puede hacer un último reclamo con código viejo antes de sincronizar.
+
+---
+
+## 2026-08-08 11:45 — Torre de Control v2: motor de Thomas + API del Roadmap extendida
+
+**Encargo:** convertir el Circuito CC en un lazo de automatización máxima — Irving y Cowork definen
+el QUÉ, el circuito lo deja implementado en dev sin intervención en pasos intermedios. Supervisor
+(Thomas) que absorba las dudas de las 6 terminales y solo escale a Irving lo irreversible de alto
+impacto. Todo en dev; prod nunca se tocó (14 commits locales, `origin/main` intacto).
+
+### HALLAZGO PREVIO (la causa real de buena parte del "flujo detenido")
+
+El `MergeRunner` exigía el checkout principal **completamente limpio** y, si no, **escalaba el item
+a la bandeja de Irving**. El árbol tenía **7 323 archivos "modificados"**, de los cuales **7 316 eran
+solo cambios de permisos** (`chmod` recursivo con `core.fileMode=true`) y 1 era
+`docs/pendientes-perfil-irving.md`, al que **el propio circuito le escribe en cada decisión de Irving**
+sin commitearlo nunca.
+
+Resultado: **desde el 6-ago ninguna rama podía integrarse.** Items con el trabajo YA HECHO rebotaban
+a `requiere_irving` con el motivo "cambios sin commitear" (#531, #532, #533, #536, #540 — 8
+escalaciones falsas registradas). No era un problema de política: era este bug.
+
+**Arreglado:** `core.fileMode=false` (7 323 → 1 sucio) + commit del perfil capturado + **guard de
+merge quirúrgico** (`1384daf8`): ahora solo bloquea si lo sucio **intersecta el footprint real de la
+rama** (`git diff main...rama`), que es el único caso donde mergear perdería trabajo. Fail-closed si
+no se puede calcular el footprint. **#532, #533 y #540 se integraron y quedaron `completado`.**
+
+### ENTREGABLES
+
+1. **API extendida** (`fef247e9`) — la deuda "Opción 2".
+   - Alta de items: `POST /{token}/item` + `GET /{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}`
+     (base64url, para el fetcher de Cowork que solo hace GET y descarta el query string).
+   - Punto único `RoadmapIntakeService`, compartido por la vía externa, las terminales (sub-items) y
+     Thomas. **Candado: el item nace SIEMPRE `pendiente_revision`** — crear no aprueba; el nivel
+     declarado se sella con su origen real, así el guard #260 sigue vigente.
+   - Historial append-only `roadmap_item_reports` + `RoadmapReportService`. Antes cada terminal
+     concatenaba a mano sobre `comentarios_claude`: con seis escribiendo, dos reportes se pisaban.
+     La columna se conserva como espejo legible acotado.
+   - `estado_cola` **derivado** (no almacenado, para no crear una segunda verdad que se
+     desincronice): `en_cola|asignado|en_progreso|en_verificacion|completado|esperando_irving|sin_triar`,
+     + `terminal_asignada`, `asignado_at`, `item_padre`, consulta viva. Expuesto en lista y detalle.
+   - Token `create_token` propio y rotable, con fallback al `write_token` para no romper a Cowork.
+
+2. **Thomas** (`ce14a359`) — autoridad intermedia. Política **determinista** en
+   `config/circuito.php → thomas` (sin llamada a IA): la terminal pregunta con `circuito:consultar`
+   y recibe respuesta **en el acto**; el contrato es el exit code (0 procede / 1 detente).
+   Escala solo: **producción · borrar datos · gastar dinero · credenciales/seguridad** + spec
+   contradictorio. Suma estimación de esfuerzo (`eta_minutos`, orientativa), verificación de cierre
+   y diagnóstico de invariantes.
+   **Thomas NO reparte:** el reparto ya lo hace `circuito:scheduler` (único despachador desde #432
+   B1); su vuelta va **enganchada** ahí y no en un cron paralelo que abriría una carrera.
+
+3. **Harness de terminales** (`8c534be9`) — el cambio de fondo. El prompt mandaba **escalar como
+   primera reacción** ("Si el item NO es claramente ejecutable… escálalo"). Ahora la **regla de oro**
+   va al frente: opción recomendada → avanza → registra; revisión posterior, no previa. La terminal
+   **ya no puede escalar a Irving por su cuenta**. Se enumera explícitamente lo que NO se consulta.
+
+4. **Política documentada** (`fb73121a`) — `docs/politica-thomas.md`, anexada al manual que sirve la
+   API externa (quien redacta un spec necesita saber qué frontera detiene a una terminal).
+
+### VERIFICACIÓN
+
+- curl: alta (#550), sub-item con padre y módulo heredado (#551), 3 reportes acumulados sin pisarse,
+  alta por GET+base64url con `/` y acentos (#552). Compatibilidad: lista, `/set` y guards intactos;
+  token inválido → 403. Items de prueba borrados (cascada verificada).
+- Política: caso normal → PROCEDE (exit 0); "DELETE FROM" → ESCALADO (exit 1) con el item en
+  `requiere_irving` y la terminal liberada; sin opción reversible → escala. Rastro completo en el
+  historial.
+- Serialización: con 2 items del mismo módulo el planificador despacha **1** y deja el otro en cola.
+- Cola vacía → 6 terminales libres, `ocio_con_cola=false`, ninguna inventa trabajo.
+
+### PENDIENTES / NOTAS
+
+- ⚠️ **Un item con módulo "Sin clasificar" bloquea a las 6 terminales** (diseño #432 B2: footprint
+  desconocido corre solo). Hay **27 de 286** items activos así. Peor: un reclamo huérfano de un
+  worker muerto mantiene ese bloqueo hasta que el reaper lo libera (**25 min**). Es el mayor freno de
+  throughput que queda y es territorio del item **#526** (drift de `modulo`).
+- `deploy/circuito/prompt.txt` (modo backlog) conserva la política vieja pero quedó **inalcanzable**:
+  el scheduler es el único que lanza `vuelta.sh` y siempre pasa `CIRCUITO_ITEM`.
+- El reaper manda los items de workers muertos a `requiere_irving`: otra vía que llena la bandeja.
+  Evaluar si conviene re-encolar en vez de escalar.
+- Falta validación visual de Irving en la Torre (`/releases`) de las claves nuevas.

@@ -349,6 +349,59 @@ vuelta quema un slot de terminal y tokens para no hacer nada.
 | `circuito:rebrief-bandeja --solo-resumen` | Checkpoint: cuántos calificarían al autopilot, por nivel |
 | `circuito:rebrief-bandeja --apply` | Backfill de briefs viejos (**exige kill switch activo**) |
 | `circuito:proponer-opciones --todos --apply` | Brief para B/C de la bandeja sin brief |
+| `circuito:thomas --diagnostico` | Estado del reparto: libres/ocupadas, cola, colisiones, ocio-con-cola |
+| `circuito:thomas --dry` | Evalúa consultas colgadas sin escribir |
+| `circuito:reap-stuck --minutes=N` | Libera reclamos huérfanos de workers muertos (**ojo**: los manda a `requiere_irving`) |
+
+### 8.4-bis TORRE V2 — Thomas, la autoridad intermedia (2026-08-08)
+
+> Antes, la ÚNICA salida de una terminal que dudaba era `requiere_irving`: no había nadie entre las
+> seis terminales e Irving, así que cualquier titubeo lo despertaba. Thomas es ese eslabón.
+
+- **`ThomasService`** + `config/circuito.php → thomas`. La política es **DETERMINISTA** (coincidencia
+  de términos, sin llamada a IA): la terminal corre `circuito:consultar` y recibe respuesta **en el
+  acto**. El contrato es el **exit code**: `0` procede, `1` detente. No espera turnos del loop.
+- **Conjunto de escalamiento** (lo único que llega a Irving): **producción · borrar datos · gastar
+  dinero · credenciales/seguridad**, más el spec contradictorio. Todo lo demás lo decide Thomas.
+  Si ninguna opción propuesta es `reversible`, esa ausencia es la señal → escala.
+- **Thomas NO reparte trabajo.** El reparto (slots, módulo-disjunto, reclamo atómico, lease) sigue
+  siendo del `circuito:scheduler`, único despachador desde #432 B1. La vuelta de Thomas va
+  **enganchada** al scheduler (que ya corre cada minuto), NO en un cron paralelo — uno aparte abriría
+  una segunda carrera sobre los mismos items. Respeta el kill switch como el autopilot.
+- **Prompt del ejecutor** (`deploy/circuito/prompt-item.txt`): la **regla de oro** va al frente —
+  ante duda, opción recomendada → avanza → registra (`circuito:reportar --tipo=decision`); revisión
+  POSTERIOR, no previa. La terminal **ya no puede escalar a Irving por su cuenta**.
+  `deploy/circuito/prompt.txt` (modo backlog) conserva la política vieja pero está **inalcanzable**:
+  el scheduler siempre pasa `CIRCUITO_ITEM`.
+- **Kit de la terminal:** `circuito:consultar`, `circuito:reportar`, `circuito:sub-item`.
+- Doc de la política: `docs/politica-thomas.md` (se anexa al manual que sirve la API externa).
+
+### 8.4-ter API EXTERNA extendida — alta de items e historial (2026-08-08)
+
+- **Alta:** `POST /{token}/item` y `GET /{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}` (base64url,
+  porque el fetcher de Cowork solo hace GET y descarta el query string — mismo motivo que `/setb64`).
+  Punto único **`RoadmapIntakeService`**, compartido por la vía externa, las terminales (sub-items) y
+  Thomas. **Candado: el item nace SIEMPRE `pendiente_revision`** — crear no aprueba. El nivel
+  declarado se sella con su origen real, así el guard #260 sigue impidiendo el auto-aprobado externo.
+- **Historial append-only:** tabla `roadmap_item_reports` + `RoadmapReportService`
+  (`POST /{token}/item/{id}/reporte`, `GET /{token}/item/{id}/historial`). Antes cada terminal
+  concatenaba a mano sobre `comentarios_claude` y con seis escribiendo se pisaban. Esa columna
+  ahora es un **espejo legible acotado**, no la fuente.
+- **`estado_cola`** es un accessor **DERIVADO, no una columna** (a propósito: los datos ya viven en
+  `estado_aprobacion`/`worker_sid`/`branch`/`merge_commit`, y un espejo almacenado se
+  desincronizaría entre scheduler, reaper, merge-runner y las seis terminales):
+  `en_cola|asignado|en_progreso|en_verificacion|completado|esperando_irving|sin_triar`.
+- Token `create_token` propio y rotable; **cae al `write_token`** si no se define (no rompe a Cowork).
+
+### 8.4-quater ⚠️ EL FRENO QUE QUEDA — footprint desconocido serializa TODO
+
+- Un item con `modulo` **"Sin clasificar"/null/vacío** tiene footprint DESCONOCIDO y por diseño
+  (#432 B2) **corre SOLO: bloquea a las 6 terminales** mientras esté en vuelo. Hoy son **27 de 286**
+  items activos.
+- Peor: un **reclamo huérfano** (worker muerto que dejó el item en `en_progreso`) mantiene ese
+  bloqueo hasta que `circuito:reap-stuck` lo libera, y el reaper exige **25 min con AMBAS señales
+  frías**. Media hora con la flota entera parada por un item que ya no se está trabajando.
+- Es el mayor freno de throughput que queda y es territorio del item **#526** (drift de `modulo`).
 
 ### 8.5 UI de la Torre (`/releases`)
 
