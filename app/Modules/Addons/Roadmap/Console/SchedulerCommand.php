@@ -85,6 +85,31 @@ class SchedulerCommand extends Command
                 } catch (\Throwable $e) {
                     Log::channel('roadmap_externo')->warning('thomas-tick-fallo', ['error' => $e->getMessage()]);
                 }
+
+                // #559 — MOTOR DE AUDITORÍA CONTINUA. El generador de trabajo va enganchado aquí,
+                // igual que Thomas, y por el mismo motivo: el scheduler es el único despachador y
+                // ya corre cada minuto; una línea de cron aparte abriría una segunda carrera sobre
+                // los mismos items.
+                //
+                // Va ANTES de calcular slots libres a propósito: los items que genere quedan
+                // disponibles para el reparto de ESTA MISMA vuelta, no de la siguiente.
+                //
+                // El propio servicio decide si toca correr (cola bajo el umbral + intervalo mínimo
+                // + sus dos kill-switches), así que aquí no hay política: sólo la llamada.
+                // Best-effort — que el generador falle nunca debe frenar el reparto.
+                try {
+                    $auditor = app(\App\Modules\Addons\Roadmap\Services\AuditorService::class);
+                    if ($auditor->debeCorrer()['corre']) {
+                        $r = $auditor->ciclo(true);
+                        if ($r['creados']) {
+                            Log::channel('roadmap_externo')->info('auditor-genero-trabajo', [
+                                'creados' => count($r['creados']),
+                            ]);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Log::channel('roadmap_externo')->warning('auditor-fallo', ['error' => $e->getMessage()]);
+                }
             }
 
             $n = $svc->getParalelismo();
