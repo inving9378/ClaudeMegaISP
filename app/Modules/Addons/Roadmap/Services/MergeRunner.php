@@ -101,9 +101,27 @@ class MergeRunner
                 'salida' => "La rama {$branch} ya estaba integrada en main.", 'escalado' => false, 'at' => time()];
         }
 
-        // El árbol principal debe estar limpio (solo tracked); untracked no afecta al merge.
-        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
-            return $this->fail('El checkout principal tiene cambios sin commitear; no se puede mergear con seguridad.', true);
+        // El árbol principal no debe tener cambios sin commitear QUE ESTE MERGE VAYA A TOCAR.
+        //
+        // ANTES exigía el árbol COMPLETAMENTE limpio, y eso volvía el circuito un embudo: basta un
+        // solo archivo trackeado sucio —ajeno al merge— para que TODA rama terminada rebote a la
+        // bandeja de Irving como `requiere_irving`. Pasó de verdad y en grande: el capturador de
+        // decisiones (PerfilAprendizajeService) le escribe a `docs/pendientes-perfil-irving.md` en
+        // cada decisión de Irving sin commitearlo nunca, y un `chmod` recursivo con
+        // `core.fileMode=true` dejó 7.3k modificaciones fantasma. Resultado: días de merges
+        // rechazados y trabajo YA HECHO parado en la bandeja por un motivo que nada tenía que ver
+        // con el item.
+        //
+        // El guard real es la INTERSECCIÓN: solo importa lo sucio que el merge también toca (ahí sí
+        // se perdería/pisaría trabajo no commiteado). Lo sucio ajeno al footprint no corre peligro.
+        // Fail-closed: si no se puede calcular el footprint, se conserva el criterio conservador.
+        if ($sucio = $this->sucioEnConflictoCon($branch)) {
+            return $this->fail(
+                "El checkout principal tiene cambios sin commitear en archivos que ESTE merge toca "
+                . "({$sucio}). Commitea o descarta esos cambios y reintenta; mergear encima "
+                . 'los perdería.',
+                true
+            );
         }
 
         // Asegura estar en main (donde vive el working tree de dev).
@@ -344,6 +362,56 @@ class MergeRunner
     {
         return ['estado' => 'error', 'ok' => false, 'merge_commit' => null,
             'salida' => $salida, 'escalado' => $escalate, 'at' => time()];
+    }
+
+    /**
+     * ¿Hay cambios sin commitear en archivos que este merge TAMBIÉN toca?
+     *
+     * Devuelve la lista (recortada, para el mensaje de error) de los archivos en conflicto, o null
+     * si no hay ninguno — que es el caso normal aunque el árbol tenga otras cosas sucias.
+     *
+     * FAIL-CLOSED: si no se puede calcular el footprint de la rama (ref rara, git que falla), se
+     * cae al criterio conservador de antes y se reporta TODO lo sucio → el merge se rechaza. Nunca
+     * al revés: la duda jamás abre la puerta a pisar trabajo no commiteado.
+     */
+    private function sucioEnConflictoCon(string $branch): ?string
+    {
+        // Cambios sin commitear en archivos TRACKEADOS (staged + unstaged) vs HEAD.
+        // -z evita el quoting de git para rutas con espacios/acentos (este repo tiene ambos).
+        $diffSucio = $this->git(['diff', '--name-only', '-z', 'HEAD']);
+        if (! $diffSucio->isSuccessful()) {
+            return 'no se pudo leer el estado del árbol';
+        }
+        $sucios = $this->rutasZ($diffSucio->getOutput());
+        if (! $sucios) {
+            return null; // árbol limpio: nada que proteger
+        }
+
+        // Footprint del merge = lo que la rama cambió desde su punto de partida con main.
+        $diffRama = $this->git(['diff', '--name-only', '-z', 'main...' . $branch]);
+        if (! $diffRama->isSuccessful()) {
+            return $this->listaCorta($sucios); // fail-closed
+        }
+        $footprint = $this->rutasZ($diffRama->getOutput());
+
+        $choque = array_values(array_intersect($sucios, $footprint));
+
+        return $choque ? $this->listaCorta($choque) : null;
+    }
+
+    /** Parte una salida de git `-z` (rutas separadas por NUL) en un arreglo de rutas. */
+    private function rutasZ(string $out): array
+    {
+        return array_values(array_filter(explode("\0", $out), fn ($r) => $r !== ''));
+    }
+
+    /** Lista legible para el mensaje de error: primeras 5 rutas + "y N más". */
+    private function listaCorta(array $rutas): string
+    {
+        $muestra = array_slice($rutas, 0, 5);
+        $resto   = count($rutas) - count($muestra);
+
+        return implode(', ', $muestra) . ($resto > 0 ? " y {$resto} más" : '');
     }
 
     private function git(array $args): Process
