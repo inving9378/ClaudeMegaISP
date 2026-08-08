@@ -304,6 +304,53 @@ class ThomasService
         return $no('No coincide con ninguna señal mecánica conocida: ante la duda, se queda con Irving.');
     }
 
+    /**
+     * FOOTPRINT de un texto (título + descripción) según el mapa determinista de
+     * `config/circuito.clasificador`. Devuelve el módulo o null si nada matchea.
+     *
+     * Vive aquí y no en el comando porque tiene DOS consumidores: el barrido
+     * `circuito:clasificar-modulo` y el alta desde la Torre, que necesita darle footprint al item
+     * en el momento de crearlo (un item nuevo sin módulo nace bloqueando a las 6 terminales).
+     *
+     * Palabra completa, no substring — ver `apareceComoPalabra`.
+     */
+    public function clasificarModulo(string $texto): ?string
+    {
+        $heno = mb_strtolower(preg_replace('/\s+/', ' ', $texto));
+
+        foreach ((array) config('circuito.clasificador.reglas', []) as $modulo => $terminos) {
+            foreach ((array) $terminos as $t) {
+                if ($t !== '' && $this->apareceComoPalabra($heno, mb_strtolower($t))) {
+                    return $modulo;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * ¿El texto de un item declara algo de la frontera dura (prod / borrar datos / dinero /
+     * credenciales)? Devuelve la categoría o null.
+     *
+     * Lo usa el alta desde la Torre: un item que Irving crea corre solo por default, pero si
+     * declara algo irreversible se para para que él lo confirme a propósito.
+     */
+    public function categoriaFronteraDura(string $texto): ?string
+    {
+        $heno = mb_strtolower(preg_replace('/\s+/', ' ', $texto));
+
+        foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
+            foreach ((array) $terminos as $t) {
+                if ($t !== '' && str_contains($heno, mb_strtolower($t))) {
+                    return $categoria;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /** ¿Cuántas auto-aprobaciones mecánicas van hoy? (para el tope diario) */
     public function mecanicosHoy(): int
     {

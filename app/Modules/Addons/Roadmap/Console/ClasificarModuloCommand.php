@@ -99,42 +99,13 @@ class ClasificarModuloCommand extends Command
     }
 
     /**
-     * Primer término que aparezca como PALABRA COMPLETA en título+descripción gana.
-     *
-     * Palabra completa y no substring: con `str_contains`, «Portal colaborador» caía en el módulo
-     * del circuito porque "cola" vive dentro de "colaborador" — el mismo accidente que obligó a
-     * sacar 'login'/'token' del denylist del revisor (#338).
-     *
-     * Devuelve null si nada matchea (y eso está bien: no clasificar es mejor que clasificar mal).
+     * Delega en el punto ÚNICO de clasificación (`ThomasService::clasificarModulo`), que comparte
+     * con el alta desde la Torre. Devuelve null si nada matchea, y eso está bien: no clasificar es
+     * mejor que clasificar mal.
      */
     private function clasificar(RoadmapItem $item): ?string
     {
-        $heno = mb_strtolower(preg_replace('/\s+/', ' ',
-            (string) $item->title . ' ' . (string) $item->description));
-
-        foreach ((array) config('circuito.clasificador.reglas', []) as $modulo => $terminos) {
-            foreach ((array) $terminos as $t) {
-                if ($t !== '' && $this->apareceComoPalabra($heno, mb_strtolower($t))) {
-                    return $modulo;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * ¿El término aparece delimitado por algo que no sea letra/dígito?
-     *
-     * `\b` de PCRE no sirve tal cual con acentos: en «auditoría» la í es no-ASCII y rompe el
-     * borde. Se usa `\p{L}\p{N}` con el modificador /u, que sí entiende unicode. Los términos
-     * que ya traen espacios o guiones (frases) también funcionan porque el delimitador se evalúa
-     * en los extremos del término completo.
-     */
-    private function apareceComoPalabra(string $heno, string $termino): bool
-    {
-        $re = '/(?<![\p{L}\p{N}])' . preg_quote($termino, '/') . '(?![\p{L}\p{N}])/u';
-
-        return (bool) preg_match($re, $heno);
+        return app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)
+            ->clasificarModulo((string) $item->title . ' ' . (string) $item->description);
     }
 }

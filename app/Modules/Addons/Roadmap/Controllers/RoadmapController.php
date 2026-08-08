@@ -9,6 +9,7 @@ use App\Modules\Addons\Roadmap\Services\AutopilotService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
+use App\Modules\Addons\Roadmap\Services\ThomasService;
 use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -1338,6 +1339,8 @@ class RoadmapController extends Controller
             'priority'       => 'nullable|in:alta,media,baja',
             'target_version' => 'nullable|string|max:20',
             'prompt'         => 'nullable|string',
+            'modulo'         => 'nullable|string|max:100',
+            'nivel_riesgo'   => 'nullable|in:A,B,C',
         ]);
 
         $data['status']   = 'pending';
@@ -1348,9 +1351,58 @@ class RoadmapController extends Controller
             $data['subtasks'] = self::defaultSubtasks();
         }
 
+        /*
+         * #566 — CREAR ES APROBAR (solo por esta vía).
+         *
+         * Un item que Irving escribe a mano en la Torre nacía `pendiente_revision` y se quedaba
+         * ahí hasta que alguien lo aprobara: él pedía el trabajo y después tenía que autorizarse
+         * a sí mismo. Su creación YA es la aprobación, así que entra directo a la cola ejecutable
+         * como `aprobado_irving` — el estado que el pool reconoce y que el tope del autopilot no
+         * limita (la aprobación explícita siempre pasa).
+         *
+         * El candado de la máquina NO cambia: la vía externa (Cowork/auditor, RoadmapIntakeService)
+         * sigue naciendo `pendiente_revision`. Esta ruta exige sesión + `roadmap_manage`, así que
+         * "lo creó un humano autorizado en la UI" es exactamente lo que la distingue.
+         */
+        $thomas = app(ThomasService::class);
+        $texto  = trim(($data['title'] ?? '') . ' ' . ($data['description'] ?? '') . ' ' . ($data['prompt'] ?? ''));
+
+        // EXCEPCIÓN: si el item declara algo de la frontera dura (prod / borrar datos / dinero /
+        // credenciales), NO corre solo. Se queda esperando que él lo confirme a propósito — que
+        // lo haya escrito no vuelve reversible un borrado de datos.
+        $frontera = $thomas->categoriaFronteraDura($texto);
+
+        if ($frontera === null) {
+            $data['estado_aprobacion'] = 'aprobado_irving';
+            $data['aprobado_por']      = $this->actorLabel();
+            $data['revisado_at']       = now();
+        }
+
+        // Footprint: un item sin `modulo` corre SOLO y bloquea a las 6 terminales (#432 B2), así
+        // que se le asigna aquí mismo en vez de dejarlo para el barrido posterior.
+        if (empty($data['modulo'])) {
+            $data['modulo'] = $thomas->clasificarModulo($texto);
+        }
+
         $item = RoadmapItem::create($data);
 
-        return response()->json($item, 201);
+        $item->log = [[
+            'ts'      => now()->toIso8601String(),
+            'por'     => $this->actorLabel(),
+            'evento'  => 'item_creado_ui',
+            'via'     => 'torre',
+            'directo_a_cola' => $frontera === null,
+            'frontera'       => $frontera,
+        ]];
+        $item->save();
+
+        return response()->json([
+            'item'  => $item,
+            'aviso' => $frontera === null
+                ? 'Creado y aprobado: entra directo a la cola. Una terminal libre lo toma en segundos.'
+                : "Creado, pero NO entra solo a la cola: declara «{$frontera}» (frontera dura). "
+                    . 'Apruébalo desde la bandeja si es lo que quieres.',
+        ], 201);
     }
 
     // PATCH /api/roadmap/items/{id}
