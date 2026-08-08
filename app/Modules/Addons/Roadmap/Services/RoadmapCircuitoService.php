@@ -1735,6 +1735,49 @@ class RoadmapCircuitoService
      * @param  string  $motivo  frase corta de por qué se considera huérfano (para el log/nota)
      * @return array{resultado:string,estado:string,reap_count:int,tope:int}
      */
+    /** Runtime del circuito on-box (mismo path que deploy/circuito/vuelta.sh y el scheduler). */
+    public const RUNTIME_DIR = '/home/meganet/circuito';
+
+    /**
+     * ¿El slot (worktree wt-K) está LIBRE? = su flock no lo tiene una vuelta viva.
+     *
+     * Es la señal de vida MÁS FUERTE que hay: el flock lo sostiene el proceso de `vuelta.sh`
+     * mientras corre y lo suelta el kernel aunque el proceso muera de golpe. No depende de que
+     * nadie escriba un timestamp, así que no miente ni por exceso ni por defecto.
+     *
+     * FAIL-CLOSED: si el archivo no se puede abrir (permisos, runtime ausente), devuelve `false`
+     * = "ocupado". Así quien lo use para decidir si mata algo se abstiene ante la duda.
+     */
+    public function slotLibre(string $sid): bool
+    {
+        $sid = trim($sid);
+        // Solo nombres de slot conocidos: nunca construir un path con texto arbitrario del item.
+        if (! preg_match('/^wt-\d+$/', $sid)) {
+            return false;
+        }
+
+        $path = self::RUNTIME_DIR . "/{$sid}.lock";
+
+        // Sin archivo = ninguna vuelta usó nunca ese slot → está libre. Se abre en 'r' y no en 'c'
+        // a propósito: preguntar por un slot no debe CREAR su lock (con 'c' se sembraban archivos
+        // vacíos para slots inexistentes).
+        if (! is_file($path)) {
+            return true;
+        }
+
+        $f = @fopen($path, 'r');
+        if (! $f) {
+            return false;
+        }
+        $libre = flock($f, LOCK_EX | LOCK_NB);
+        if ($libre) {
+            flock($f, LOCK_UN);
+        }
+        fclose($f);
+
+        return $libre;
+    }
+
     public function reencolarHuerfano(RoadmapItem $item, string $origen, string $motivo): array
     {
         $tope = max(1, (int) config('circuito.reaper.max_reintentos', 3));

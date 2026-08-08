@@ -29,6 +29,37 @@ class ReapStuckCommand extends Command
         $mins = max(5, (int) $this->option('minutes'));
         $corte = now()->subMinutes($mins);
 
+        // ── VÍA RÁPIDA (#566): liberar en MINUTOS, no en 25 ────────────────────────────────
+        // El camino lento de abajo espera a que DOS timestamps se enfríen, y mientras tanto un
+        // huérfano con footprint desconocido ("Sin clasificar") tiene parada a TODA la flota,
+        // porque por diseño (#432 B2) ese footprint corre solo. Media hora de seis terminales
+        // ociosas por un item que ya nadie trabaja.
+        //
+        // Aquí no se adivina por tiempo: se pregunta por el FLOCK del slot, que el kernel suelta
+        // aunque el proceso muera de golpe. Si el slot está libre, no hay vuelta corriendo ahí y
+        // el reclamo es huérfano, punto. La gracia corta solo evita pisar una vuelta que apenas
+        // arranca (el scheduler reclama el item ANTES de que vuelta.sh tome el flock).
+        $gracia = max(1, (int) config('circuito.reaper.gracia_minutos', 3));
+        $huerfanos = RoadmapItem::where('estado_aprobacion', 'en_progreso')
+            ->where('en_desarrollo_humano', false)
+            ->whereNotNull('worker_sid')
+            ->where('claimed_at', '<', now()->subMinutes($gracia))
+            ->get()
+            ->filter(fn (RoadmapItem $i) => $svc->slotLibre((string) $i->worker_sid));
+
+        $rapidos = 0;
+        foreach ($huerfanos as $i) {
+            $motivo = "el slot {$i->worker_sid} está libre (ninguna vuelta corriendo ahí): reclamo huérfano";
+            $r = $svc->reencolarHuerfano($i, 'reaper-rapido', $motivo);
+            $rapidos++;
+            $this->line($r['resultado'] === 'escalado'
+                ? "#{$i->id} escalado a tu bandeja tras {$r['reap_count']} reclamos fallidos (tope {$r['tope']})."
+                : "#{$i->id} re-encolado por slot libre → {$r['estado']} (intento {$r['reap_count']}/{$r['tope']}).");
+        }
+        if ($rapidos > 0) {
+            $this->info("Reaper rápido: {$rapidos} huérfano(s) detectado(s) por slot libre.");
+        }
+
         // #507 sub-paso 3 — LEASE EXPLÍCITO: se libera solo si AMBAS señales están frías, el latido
         // del worker (`claimed_at`, que renueva `circuito:vivo --watch`) y cualquier escritura sobre
         // el item (`updated_at`). Antes bastaba con `updated_at`, y eso mataba workers VIVOS que

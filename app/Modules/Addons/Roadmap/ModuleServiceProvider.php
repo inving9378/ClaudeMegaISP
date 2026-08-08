@@ -52,6 +52,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\ConsultarSupervisorCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ReportarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\SubItemCommand::class,
+                // #566 — footprint a los "Sin clasificar": sin él cada uno serializa la flota.
+                \App\Modules\Addons\Roadmap\Console\ClasificarModuloCommand::class,
             ]);
         }
     }

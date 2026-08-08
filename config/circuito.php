@@ -262,6 +262,82 @@ return [
     */
     'reaper' => [
         'max_reintentos' => (int) env('CIRCUITO_REAPER_MAX_REINTENTOS', 3),
+
+        /*
+        | #566 — VÍA RÁPIDA por flock del slot. Minutos de gracia desde que se reclamó el item
+        | antes de creerle al flock. Solo existe para no pisar una vuelta que apenas arranca: el
+        | scheduler reclama el item ANTES de que `vuelta.sh` tome el flock, así que durante esos
+        | primeros segundos el slot se ve "libre" sin estarlo.
+        |
+        | Pasada la gracia, un slot libre significa que NO hay vuelta corriendo ahí — el kernel
+        | suelta el flock aunque el proceso muera de golpe — y el item se re-encola de inmediato,
+        | sin esperar los 25 min del camino lento. Eso importa porque un huérfano con footprint
+        | desconocido tiene parada a TODA la flota mientras dure.
+        */
+        'gracia_minutos' => (int) env('CIRCUITO_REAPER_GRACIA_MIN', 3),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLASIFICADOR DE FOOTPRINT (#566, liga con #526)
+    |--------------------------------------------------------------------------
+    |
+    | Por qué existe: `modulo` NO es una etiqueta cosmética — es el FOOTPRINT con el que el
+    | scheduler serializa. Un item con módulo desconocido ("Sin clasificar"/null/vacío) podría
+    | tocar cualquier archivo, así que por diseño (#432 B2) **corre SOLO y bloquea a las 6
+    | terminales** mientras dure. Un puñado de items sin clasificar basta para tener la flota
+    | entera parada de a uno.
+    |
+    | Mapa DETERMINISTA término → módulo, evaluado contra título + descripción.
+    |
+    | DOS REGLAS DE FORMA, aprendidas a golpes:
+    |
+    |  1. Se matchea por PALABRA COMPLETA, no por substring. Con `str_contains`, «Portal
+    |     colaborador» caía en el módulo del circuito porque "cola" vive dentro de "colaborador".
+    |     Es el mismo accidente que obligó a sacar 'login' y 'token' del denylist del revisor
+    |     (#338). Por eso tampoco hay términos de 2-3 letras aquí: son minas de substring.
+    |
+    |  2. El ORDEN va de específico a genérico y el PRIMER match gana. Las palabras del circuito
+    |     ("cola", "terminal", "vuelta") son las más genéricas del vocabulario, así que van al
+    |     final: si un item de Talento menciona "terminal", gana Talento.
+    |
+    | Los destinos salen del vocabulario YA en uso: la idea es dar footprint, no inventar más
+    | variantes (eso agravaría el drift de #526).
+    |
+    | Lo que NO matchea se queda sin clasificar A PROPÓSITO: adivinar mal es peor que no adivinar
+    | (dos items con footprint equivocado corren en paralelo y se pisan). Esos los ve Irving.
+    |
+    */
+    'clasificador' => [
+        'reglas' => [
+            // — Lo más específico primero (nombres propios y frases, no palabras sueltas) —
+            'ModuleManager'   => ['module_registry', 'module registry', 'módulo reportes', 'modulo reportes', 'registrar addon', 'modulemanager'],
+            'Auditoria'       => ['auditoría', 'auditoria'],
+            'Gestión de Red'  => ['caja', 'cajas', 'olt', 'onu', 'nap', 'fibra'],
+            'Talento'         => ['talento', 'colaborador', 'colaboradores', 'técnico de campo', 'tecnico de campo'],
+            'MegaFamilia'     => ['megafamilia', 'control parental'],
+            'Flotas'          => ['flotas', 'vehículo', 'vehiculo', 'vehículos', 'geocerca', 'geocercas'],
+            'PortalPago'      => ['portal de pago', 'portalpago', 'clabe', 'openpay'],
+            'Marketing'       => ['marketing', 'whatsapp', 'evolution'],
+
+            // — Núcleo —
+            'Core / Permisos' => ['permiso', 'permisos', 'roles', 'spatie'],
+            'Core / Layout'   => ['sidebar', 'menú lateral', 'menu lateral', 'layout', 'regresión visual', 'regresion visual'],
+            'Core / Release'  => ['buscar actualizaciones', 'estás al día', 'estas al dia', 'release', 'deploy', 'despliegue'],
+            'Core / arquitectura' => ['arquitectura', 'config:cache', 'multi-terminal'],
+
+            // — Infra del circuito: lo más GENÉRICO, al final —
+            'Roadmap / Torre de control' => [
+                'torre', 'panorama', 'reloj', 'cuenta atrás', 'cuenta atras',
+                'buscador con ia', 'pestaña hoja de ruta',
+            ],
+            'Roadmap / Circuito CC' => [
+                'autopilot', 'revisor', 'scheduler', 'worker', 'terminal', 'terminales', 'bandeja',
+                'cola', 'auto-merge', 'automerge', 'reaper', 'thomas', 'circuito', 'escalamiento',
+                'destrabar', 'anti-bucle', 'vuelta',
+            ],
+            'Roadmap' => ['hoja de ruta', 'roadmap'],
+        ],
     ],
 
     /*
