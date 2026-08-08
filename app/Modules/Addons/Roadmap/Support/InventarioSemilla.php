@@ -205,6 +205,17 @@ class InventarioSemilla
                     'titulo'  => 'Marketing: el nicho gamer cae a la voz \'nova\' en vez de \'echo\'/\'onyx\'',
                     'tipo'    => 'mecanico',
                     'detalle' => 'Bug en el mapeo de preferred_voice_id del nicho: el fallback pisa la voz configurada.',
+                    // #583: la causa real era que VideoTemplateRenderer::render() llamaba a
+                    // TtsService::synthesize() SIN opciones → OpenAiTtsDriver siempre usaba su
+                    // default hardcodeado 'nova', sin importar el preferred_voice_id del nicho.
+                    // Fix: resolveVoiceForNiche() resuelve el slug del nicho (mismo fallback chain
+                    // que resolveBrollSource) y lo pasa como opción 'voice'. Se apaga sola si el
+                    // método desaparece del renderer (bug reintroducido).
+                    'vigente' => function () {
+                        $f = base_path('app/Modules/Addons/Marketing/Services/Video/VideoTemplateRenderer.php');
+
+                        return ! is_file($f) || ! str_contains((string) file_get_contents($f), 'resolveVoiceForNiche');
+                    },
                 ],
                 [
                     'clave'   => 'tts-lee-telefonos-corridos',

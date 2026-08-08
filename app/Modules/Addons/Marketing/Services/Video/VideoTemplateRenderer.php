@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Marketing\Services\Video;
 
 use App\Models\Marketing\Asset;
 use App\Models\Marketing\GeneratedContent;
+use App\Models\Marketing\MarketingNiche;
 use App\Models\Marketing\Setting;
 use App\Models\Marketing\VideoTemplate;
 use App\Modules\Addons\Marketing\Services\Tts\TtsService;
@@ -90,7 +91,11 @@ class VideoTemplateRenderer
                 $voiceAbsPath = storage_path("app/{$voiceFile}");
 
                 $this->logStep("TTS: synthesizing voiceover ({$script})");
-                $ttsResult = $this->tts->synthesize($script, $voiceAbsPath);
+                $ttsOptions = [];
+                if ($voiceId = $this->resolveVoiceForNiche($context, $companyId)) {
+                    $ttsOptions['voice'] = $voiceId;
+                }
+                $ttsResult = $this->tts->synthesize($script, $voiceAbsPath, $ttsOptions);
 
                 if ($ttsResult['success']) {
                     $voiceoverPath = $voiceAbsPath;
@@ -780,6 +785,22 @@ class VideoTemplateRenderer
         }
 
         return $result['success'];
+    }
+
+    // ── Voiceover helpers ──────────────────────────────────────────────────────────
+
+    protected function resolveVoiceForNiche(array $ctx, int $companyId): ?string
+    {
+        $nicheSlug = $ctx['_niche_slug']
+            ?? ($ctx['_creative_brief']['niche_slug'] ?? null);
+
+        if (!$nicheSlug) {
+            return null;
+        }
+
+        return MarketingNiche::where('company_id', $companyId)
+            ->where('slug', $nicheSlug)
+            ->value('preferred_voice_id');
     }
 
     // ── Kinetic/B-roll helpers ────────────────────────────────────────────────────
