@@ -162,6 +162,93 @@ return [
     ],
 
     /*
+    |--------------------------------------------------------------------------
+    | THOMAS — política de decisión y escalamiento (Torre v2)
+    |--------------------------------------------------------------------------
+    |
+    | El problema que resuelve: hasta ahora la ÚNICA salida de una terminal que dudaba era
+    | `requiere_irving`, así que cualquier titubeo despertaba al humano y el item se quedaba
+    | esperando en vez de avanzar sobre la opción recomendada. No había autoridad intermedia.
+    |
+    | REGLA DE ORO (default): opción recomendada → avanza → registra la decisión en el historial
+    | del item. Revisión POSTERIOR, no previa.
+    |
+    | Thomas escala a Irving SOLO si la acción es IRREVERSIBLE y de ALTO IMPACTO. Ese conjunto es
+    | el de abajo y es corto a propósito: cada término que se agregue aquí es una interrupción más
+    | para Irving. Al revés también: quitar términos abre autonomía, así que se tocan con cuidado.
+    |
+    | La evaluación es DETERMINISTA (coincidencia de términos, sin llamada a IA): la terminal
+    | pregunta y recibe respuesta en el acto, sin quedarse bloqueada esperando un turno del loop.
+    |
+    */
+    'thomas' => [
+        'enabled' => (bool) env('CIRCUITO_THOMAS', true),
+
+        /*
+        | CONJUNTO DE ESCALAMIENTO — las cuatro fronteras duras del encargo, más el caso de spec
+        | contradictorio (que se detecta aparte, no por término). Se evalúa contra la PREGUNTA de
+        | la terminal + el título/módulo del item.
+        |
+        | Ojo con los substrings: los términos van con el contexto suficiente para no pegar de más
+        | (lección del revisor #338, donde 'token'/'login' escalaban falsos positivos mecánicos).
+        */
+        'escalamiento' => [
+            // 1) Tocar PRODUCCIÓN
+            'produccion' => [
+                'producción', 'produccion', 'prod .108', '192.168.105.108', '38.123.192.198',
+                'v1megaisp', 'ClaudeMegaISP', 'remote:deploy', 'desplegar a prod', 'deploy a prod',
+                'push a origin', 'git push',
+            ],
+            // 2) BORRAR datos
+            'borrar_datos' => [
+                'migrate:fresh', 'drop table', 'drop column', 'truncate', 'delete from',
+                'borrado masivo', 'borrar la tabla', 'purgar datos', 'destructiv',
+            ],
+            // 3) GASTAR dinero (mover dinero real o contratar consumo)
+            'dinero' => [
+                'cobrar', 'cobro real', 'aplicar pago', 'mover dinero', 'openpay', 'spei',
+                'domiciliación', 'domiciliacion', 'facturar', 'timbrar', 'nómina', 'nomina',
+                'contratar', 'costo por uso', 'api de pago',
+            ],
+            // 4) CREDENCIALES / seguridad
+            'credenciales' => [
+                'credencial', 'api key', 'api_key', 'secreto', 'secret', 'contraseña', 'password',
+                'rotar token', '.env', 'llave privada', 'certificado', 'permiso de rol',
+                'dar permiso', 'otorgar permiso', 'spatie', 'bcrypt', 'idor',
+            ],
+        ],
+
+        /*
+        | Cuando la terminal NO marca opción recomendada, Thomas toma la primera opción declarada
+        | `reversible: true`. Si NINGUNA lo es, eso ya es una señal de irreversibilidad: escala.
+        | Ponerlo en false hace que Thomas tome la primera opción sin más (más autonomía, más riesgo).
+        */
+        'exige_reversible_sin_recomendada' => (bool) env('CIRCUITO_THOMAS_EXIGE_REVERSIBLE', true),
+
+        /*
+        | ESTIMACIÓN DE ESFUERZO — orientativa y NUNCA bloqueante (nada se rechaza por pasarse).
+        | Alimenta `roadmap_items.eta_minutos` para que la Torre muestre cuánto lleva cada terminal
+        | y para ordenar el reparto. Minutos base por nivel + ajuste por tamaño del spec.
+        */
+        'esfuerzo' => [
+            'base_por_nivel'   => ['A' => 20, 'B' => 45, 'C' => 90],
+            'base_sin_nivel'   => 45,
+            'min_por_kb_spec'  => 8,     // cada KB de description+prompt suma esto
+            'tope_minutos'     => 240,   // techo del estimado (el timeout real lo pone vuelta.sh)
+        ],
+
+        /*
+        | CIERRE — qué exige Thomas antes de dar un item por terminado. Son los criterios de
+        | aceptación mínimos y comunes a todo item; los específicos viven en el propio item.
+        */
+        'cierre' => [
+            // El item debe traer con qué revisarlo: en llano y con el lugar de la UI donde verlo.
+            'exige_reporte_coloquial' => (bool) env('CIRCUITO_THOMAS_EXIGE_REPORTE', true),
+            'exige_enlace_revision'   => (bool) env('CIRCUITO_THOMAS_EXIGE_ENLACE', true),
+        ],
+    ],
+
+    /*
     | #432 Fase 3 — Brief COMPLETO (multi-pregunta). ON: la bandeja usa la columna JSON `preguntas`
     | (varias preguntas por item) y la escalación las puebla TODAS de una. OFF: fallback al modelo
     | viejo de una sola `opciones`/`opcion_elegida`. Un item SIN `preguntas` cae al fallback aunque

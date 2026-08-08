@@ -6,6 +6,7 @@ use App\Modules\Addons\Roadmap\Services\MergeRunner;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
 /**
@@ -72,6 +73,17 @@ class SchedulerCommand extends Command
                     $svc->reanudarColisionesResueltas();
                 } catch (\Throwable $e) {
                     // best-effort, igual que el drain de arriba.
+                }
+
+                // TORRE V2 — vuelta de Thomas. Va ENGANCHADA aquí, y no en su propia línea de cron,
+                // porque el scheduler ya es el único despachador (#432 B1) y corre cada minuto: un
+                // cron paralelo abriría una segunda carrera sobre los mismos items.
+                // Recoge consultas que quedaron colgadas (la terminal preguntó y se le acabó el
+                // turno) y sella estimaciones. Best-effort: un fallo suyo no frena el reparto.
+                try {
+                    app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)->tick();
+                } catch (\Throwable $e) {
+                    Log::channel('roadmap_externo')->warning('thomas-tick-fallo', ['error' => $e->getMessage()]);
                 }
             }
 

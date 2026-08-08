@@ -46,6 +46,12 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\AutopilotCommand::class,
                 // Backfill de briefs de la bandeja para poblar confianza/reversible (#507)
                 \App\Modules\Addons\Roadmap\Console\RebriefBandejaCommand::class,
+                // TORRE V2 — Thomas (autoridad intermedia) y el kit de la terminal:
+                // consultar en vez de despertar a Irving, reportar sin pisar, y partir en sub-items.
+                \App\Modules\Addons\Roadmap\Console\ThomasCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ConsultarSupervisorCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ReportarItemCommand::class,
+                \App\Modules\Addons\Roadmap\Console\SubItemCommand::class,
             ]);
         }
     }
