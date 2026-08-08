@@ -24,7 +24,7 @@
             "url": "/message/inbox",
             "children": [
                 { "label": "Inbox",          "url": "/message/inbox",         "permission": "inbox_view_inbox" },
-                { "label": "Recordatorios",  "url": "/message/reminder",      "permission": "inbox_view_inbox" }
+                { "label": "Recordatorios",  "url": "/message/inbox",         "permission": "inbox_view_inbox" }
             ]
         }
     ],
