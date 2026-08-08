@@ -933,3 +933,47 @@ auto-decisión mecánica = 25/día, ambos en `config/circuito.php`.
 - 24 siguen en anti-bucle **con causa real**: 14 esperan ejecución pero son C/frontera dura,
   6 esperan merge no elegible, 3 dependen de otro item, 1 es cierre.
 - `--cap=30` se usó para drenar la pila histórica; el régimen normal sigue en 5.
+
+## 2026-08-08 17:55 — Cierre de #572 (Inventario: 3ª categoría) y #580 (Flotas: OCR)
+
+Sesión directa con Irving: ambos items estaban en la bandeja (`requiere_irving`); Irving decidió y
+esta sesión ejecutó y cerró. DEV, sin push a origin. El circuito estaba corriendo en paralelo (3
+terminales), así que **lo primero fue sacar ambos items del pool** (`excluir_pool_automatico=1` +
+`en_progreso`) para que ningún worker los reclamara a mitad del trabajo; la bandera se limpió al
+cerrar para que un eventual reabrir no quede excluido en silencio.
+
+### #572 — Inventario: tercera categoría "equipo de cliente" · commits 3f0fc034 + 2888b0be
+- `inventory_item_types.categoria` resultó ser **varchar(20) nullable, no enum** → sin ALTER.
+- `InventoryItemType::CATEGORIAS` como punto único de verdad; `categoria` al `$fillable`
+  (antes solo se podía poblar por migración), accessor `categoria_name`, validación
+  `nullable|in:` en store y update.
+- Seleccionable de verdad: el form y el listado son DB-driven → migración idempotente que agrega
+  la fila de `field_modules` (select) y la de `column_datatable_modules`.
+- **Discrepancia con el enunciado:** el item decía "~18 tipos en null" (era la lista de dudosos de
+  la Fase A). En la BD había **377 de 401**. Se clasificaron 302; quedan **75 ambiguos a
+  propósito**, documentados por 3 motivos: 20 de equipo de red (sugieren una 4ª categoría), 3
+  dudosos de negocio (ELIMINADOR/POE/POWER) y 52 de nombre genérico o erratas del catálogo.
+- Resultado dev: 220 material / 95 herramienta / 11 equipo_cliente / 75 sin clasificar. En la
+  custodia real 26 ítems ya agrupan bajo "Equipo de cliente"; "Sin clasificar" baja a 14.
+- Portal "Mi material": etiqueta y orden de la nueva categoría; "Sin clasificar" siempre al final
+  (antes empataba en `order=2`). ASSET_VER 15 → 16.
+
+### #580 — Flotas: OCR de documentos (Fase 7) · commits 37c6afdd + 80ca8e39
+- Construido sobre el **servicio único de IA**: resuelve el proveedor de `ia_proveedores` y habla
+  por `IAAdaptadorFactory`. Sin cliente HTTP ni API key propios. (Patrón de consumo one-shot del
+  módulo IA documentado en CONTEXTO-MEGAISP §4.)
+- Extrae solo columnas reales de `fleet_documents`; `cost` fuera a propósito. Anti-invención:
+  ilegible → null + baja. Fechas ISO, con DD/MM/AAAA aceptado defensivamente y nunca leído MM/DD.
+- Confirmación humana: `POST /api/documentos/ocr` solo lee y deja rastro; el `store` toma el
+  veredicto de la bitácora `fleet_document_ocr_runs`, no del request (run_id ajeno se ignora).
+- Fallo o baja confianza → **se guarda igual**, marcado `ocr_needs_review` ("revisar
+  manualmente") con botón "Ya lo revisé". Nunca bloquea la subida.
+- El vencimiento confirmado lo levanta el cron existente `flotas:check-document-expirations`.
+- Verificado en dev con llamadas reales a la IA: imagen (5/5 campos, alta), PDF nativo
+  (insurance_policy), imagen no-documento (0 inventados), flujo completo, camino de fallo,
+  captura manual sin OCR intacta, y los guardas (kill switch, mime, PDF con proveedor no-Claude).
+- 8 ambigüedades de producto anotadas en el historial del item (tipos soportados, multipágina,
+  umbral de confianza, disparo automático, costo en IA sin cache, permiso, doble subida y el
+  detalle preexistente de que sin canales marcados no hay alerta).
+
+**Pendiente en ambos:** validación visual de Irving. Nada desplegado a prod.

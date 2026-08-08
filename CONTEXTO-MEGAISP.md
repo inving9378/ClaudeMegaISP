@@ -173,6 +173,39 @@ payments()->create(paymentable=Client)
   `ALL_CLIENT_SERVICE` (no dentro — expondría a SuspendService/PromotionService).
 - **Portal SPEI nativo:** `CepValidatorService` (BanxicoCepDriver/ManualCepDriver),
   tablas `portal_pago_*`. Seam Medussa gated pendiente de revisión legal.
+- **Inventario — `inventory_item_types.categoria`** (#572, 2026-08-08): clasificación de
+  negocio, **varchar(20) nullable, NO enum** → agregar una categoría es datos + código, sin
+  ALTER. Punto único de verdad = `InventoryItemType::CATEGORIAS`
+  (`herramienta` · `material` · `equipo_cliente`). Es **distinta** de la columna legacy
+  `type` (enum tool/material), que está mal poblada y la consume la lógica de inventario.
+  El form y el listado de "Tipos de Artículo" son **DB-driven** (`field_modules` +
+  `column_datatable_modules` sobre `modules.name='InventoryItemType'`): exponer un campo
+  = agregar esas filas por migración, no tocar Blade. Consumidor final: "Mi material" del
+  Portal de Colaborador (`public/talento-portal/app.js` espeja el mapa de etiquetas).
+  ⚠️ Quedan **75 tipos sin clasificar A PROPÓSITO** (documentados en la migración
+  `2026_08_08_150100`): 20 son **equipo de red** y sugieren una 4ª categoría, 3 son los
+  dudosos de negocio de Irving (ELIMINADOR/POE/POWER) y 52 tienen nombre genérico o son
+  erratas del catálogo. NO "resolverlos" adivinando.
+- **Cómo consumir el MÓDULO IA para una extracción de una sola vez** (patrón nuevo, #580):
+  `IAProveedor::where('activo',1)->where('soporta_imagenes',1)->first()` →
+  `IAAdaptadorFactory::crear($p)` → `$adaptador->enviarMensaje([], $prompt, [['mime'=>…,
+  'data'=>base64]], $system)`. **NO** se usa `IAProveedorService::enviarMensaje`: ése es el
+  camino de CHAT (exige `IAConversacion`, persiste mensajes, inyecta el system prompt del
+  proyecto y corre extracción de memoria). Así se cumple la convención de servicio único
+  sin cliente HTTP ni key por módulo.
+  ⚠️ **Solo `ClaudeAdaptador` manda `application/pdf` como bloque `document`**; los de
+  OpenAI/Gemini empujan todo como imagen y el proveedor responde un error críptico → si un
+  consumidor acepta PDF, tiene que cortar antes por `driver !== 'claude'`.
+  ⚠️ `IAProveedorService::MIMES_VALIDOS` **no incluye PDF**, pero esa validación vive en el
+  camino de chat, no en el adaptador: quien llame al adaptador directo valida por su cuenta.
+- **Flotas — OCR de documentos** (#580, Fase 7, dev): `FleetDocumentOcrService` +
+  `VehicleDocumentProfile`. `POST /flotas/api/documentos/ocr` **solo lee** (no crea nada) y
+  deja fila en `fleet_document_ocr_runs` (append-only); `store` recibe `ocr_run_id` y copia
+  el veredicto **desde la bitácora**, nunca desde el request. Columnas `ocr_*` de
+  `fleet_documents` **fuera de `$fillable`** a propósito (`update()` hace mass assignment con
+  `$request->except([...])`). El OCR jamás bloquea la subida: falla → se guarda igual con
+  `ocr_needs_review=1`. El vencimiento confirmado lo levanta el cron ya existente
+  `flotas:check-document-expirations` — no se tocó ese pipeline.
 
 ---
 
