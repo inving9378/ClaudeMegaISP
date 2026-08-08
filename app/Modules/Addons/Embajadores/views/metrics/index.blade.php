@@ -1,13 +1,13 @@
 @extends('core-layout::master')
 
 @section('title')
-    Embajadores · Métricas de Performance
+    Embajadores Meganet · Métricas de Performance
 @endsection
 
 @section('content')
 <div class="container-fluid py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="mb-0"><i class="fas fa-chart-line mr-2"></i>Métricas de Performance — Embajadores</h4>
+        <h4 class="mb-0"><i class="fas fa-chart-line mr-2"></i>Métricas de Performance — Embajadores Meganet</h4>
         <div>
             <select id="days-select" class="form-control form-control-sm d-inline-block w-auto mr-2">
                 <option value="7">Últimos 7 días</option>

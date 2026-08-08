@@ -1,7 +1,7 @@
 @extends('core-layout::master')
 
 @section('title')
-    Embajadores · Video explicativo
+    Embajadores Meganet · Video explicativo
 @endsection
 
 @section('content')

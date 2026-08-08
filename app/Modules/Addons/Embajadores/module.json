@@ -19,7 +19,7 @@
 
     "menu": [
         {
-            "label": "Embajadores",
+            "label": "Embajadores Meganet",
             "icon": "users",
             "permission": "embajadores.view",
             "url": "/embajadores",
@@ -45,7 +45,7 @@
     "config_sections": [
         {
             "key": "embajadores_programa",
-            "label": "Embajadores — Reglas del Programa",
+            "label": "Embajadores Meganet — Reglas del Programa",
             "type": "general",
             "category": "Ventas",
             "icon": "award",
