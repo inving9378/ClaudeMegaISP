@@ -40,16 +40,6 @@ class ClientCustomServiceController extends Controller
     }
 
     /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
      * Show the form for creating a new resource.
      *
      * @return \Illuminate\Http\Response
@@ -151,28 +141,6 @@ class ClientCustomServiceController extends Controller
         $fechaCarbon = Carbon::createFromFormat('m/d/Y', $date);
         $fechaFormateada = $fechaCarbon->format('Y-m-d');
         return $fechaFormateada;
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param \App\Models\ClientCustomService $clientInternetService
-     * @return \Illuminate\Http\Response
-     */
-    public function show(ClientCustomService $clientInternetService)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param \App\Models\ClientCustomService $clientInternetService
-     * @return \Illuminate\Http\Response
-     */
-    public function edit(ClientCustomService $clientInternetService)
-    {
-        //
     }
 
     /**

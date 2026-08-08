@@ -231,17 +231,6 @@ class ClientController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     *
-     * @param \App\Models\Client $client
-     * @return \Illuminate\Http\Response
-     */
-    public function show(Client $client)
-    {
-        //
-    }
-
-    /**
      * Show the form for editing the specified resource.
      *
      * @param \App\Models\Client $id
@@ -328,18 +317,6 @@ class ClientController extends Controller
         }
 
         return json_encode($out);
-    }
-
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param \Illuminate\Http\Request $request
-     * @param \App\Models\Client $client
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, Client $client)
-    {
-        //
     }
 
     /**
