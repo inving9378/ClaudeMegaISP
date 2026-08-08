@@ -29,6 +29,10 @@ class InventoryItemTypeDatatableHelper extends HelperModuleDatatable
                     if ($val == 'type') {
                         $value->type = $value->type_name ?? '';
                     }
+                    // Sin clasificar (null) se pinta como guion, no como celda vacía ni "null".
+                    if ($val == 'categoria') {
+                        $value->categoria = $value->categoria_name !== '' ? $value->categoria_name : '—';
+                    }
                     $nestedData[$val] = $value->$val;
                 }
 

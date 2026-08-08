@@ -9,6 +9,25 @@ class InventoryItemType extends BaseModel
 {
     use HasFactory;
 
+    /**
+     * Clasificación de negocio del tipo de artículo (columna `categoria`). PUNTO ÚNICO DE VERDAD:
+     * el formulario del admin, la validación y el agrupado de "Mi material" del Portal de
+     * Colaborador leen de aquí. Agregar una categoría = agregar una entrada a este arreglo.
+     *
+     * herramienta    = durable, se USA y se DEVUELVE (casco, taladro, OTDR, uniforme…).
+     * material       = consumible, se GASTA o queda instalado (cinta, fibra, tornillo, splitter…).
+     * equipo_cliente = equipo que se PRESTA/INSTALA en el cliente (ONT, módem, teléfono de casa…).
+     * null           = SIN CLASIFICAR (default; NO se adivina).
+     *
+     * ⚠️ La clave persistida es el slug (`equipo_cliente`), NO la etiqueta: `categoria` es
+     * varchar(20) y las otras dos claves ya son tokens en minúscula sin espacios.
+     */
+    public const CATEGORIAS = [
+        'herramienta'    => 'Herramienta',
+        'material'       => 'Material',
+        'equipo_cliente' => 'Equipo de cliente',
+    ];
+
     public static function boot()
     {
         parent::boot();
@@ -21,10 +40,11 @@ class InventoryItemType extends BaseModel
         'name',
         'description',
         'created_by',
-        'type'
+        'type',
+        'categoria'
     ];
 
-    protected $appends = ['type_name'];
+    protected $appends = ['type_name', 'categoria_name'];
 
     public function inventory_items()
     {
@@ -45,6 +65,12 @@ class InventoryItemType extends BaseModel
         ];
 
         return $types[$this->type];
+    }
+
+    /** Etiqueta legible de la categoría. Sin clasificar (null) → cadena vacía, nunca "null". */
+    public function getCategoriaNameAttribute()
+    {
+        return self::CATEGORIAS[$this->categoria] ?? '';
     }
 
 
