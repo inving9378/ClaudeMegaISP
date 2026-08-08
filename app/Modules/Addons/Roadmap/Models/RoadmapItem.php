@@ -51,6 +51,8 @@ class RoadmapItem extends Model
         'eta_minutos', 'eta_asignada_at',
         // #561 — contador de reclamos fallidos (reap) antes de escalar a Irving
         'reap_count',
+        // #559 — huella del Motor de Auditoría Continua (dedup contra abiertos Y cerrados)
+        'auditor_fingerprint',
     ];
 
     protected $casts = [
