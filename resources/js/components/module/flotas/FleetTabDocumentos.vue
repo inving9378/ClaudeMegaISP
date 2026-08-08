@@ -29,9 +29,53 @@
         </div>
 
         <div v-if="showForm" class="flt-inline-form mb-4">
-            <div class="alert alert-light border d-flex align-items-center small mb-3">
-                <i class="bi bi-robot me-2 text-primary"></i>
-                <span><strong>Detección automática con IA (Fase 7)</strong> — pronto podrás subir el documento y se llenarán los campos solos.</span>
+            <!-- #580 — Lectura por IA: adjunta el documento y se prellenan los campos. -->
+            <div v-if="ocrRunning" class="alert alert-light border d-flex align-items-center small mb-3">
+                <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                <span>Leyendo el documento con IA… puedes seguir capturando a mano mientras tanto.</span>
+            </div>
+
+            <div v-else-if="ocrResult" class="mb-3">
+                <div v-if="!ocrResult.ok" class="alert alert-warning border d-flex align-items-start small mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                    <div>
+                        <strong>No se pudo leer el documento con IA.</strong>
+                        <div>{{ ocrResult.error }}</div>
+                        <div class="mt-1">Captura los datos a mano — el documento se guardará igual, marcado para revisión manual.</div>
+                    </div>
+                </div>
+
+                <div v-else class="border rounded p-3 bg-light">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-robot me-2 text-primary"></i>
+                        <strong class="small">Datos leídos del documento</strong>
+                        <span class="badge ms-2" :class="ocrResult.needs_review ? 'bg-warning text-dark' : 'bg-success'">
+                            {{ ocrResult.needs_review ? 'Requiere revisión' : 'Lectura confiable' }}
+                        </span>
+                        <button type="button" class="btn btn-sm btn-link ms-auto text-decoration-none py-0" @click="resetOcr">
+                            Ocultar
+                        </button>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-md-6" v-for="f in readFields()" :key="f.key">
+                            <div class="d-flex align-items-center small">
+                                <span class="text-muted" style="min-width:150px">{{ f.label }}</span>
+                                <span class="fw-semibold flex-grow-1">{{ f.value ?? '—' }}</span>
+                                <span class="badge" :class="confBadge(f.confidence)">{{ confLabel(f.confidence) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="small text-muted mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <span v-if="ocrResult.needs_review">
+                            La <strong>fecha de vencimiento</strong> no se leyó con seguridad: verifícala antes de guardar
+                            (es la que dispara las alertas). El documento se guardará marcado para revisión manual.
+                        </span>
+                        <span v-else>Revisa y corrige lo que haga falta. Nada se guarda hasta que presiones <strong>Guardar</strong>.</span>
+                    </div>
+                </div>
             </div>
             <div class="row g-3">
                 <div class="col-md-4">
@@ -104,6 +148,14 @@
                         <span v-if="d.folio_number"> · Folio {{ d.folio_number }}</span>
                         <span v-if="d.expiration_date"> · Vence {{ fmtDate(d.expiration_date) }}</span>
                     </div>
+                    <!-- #580 — la IA no pudo leerlo con seguridad: alguien debe verificarlo. -->
+                    <div v-if="d.ocr_needs_review" class="small text-warning-emphasis mt-1">
+                        <i class="bi bi-robot me-1"></i>Revisar manualmente — la IA no leyó los datos con seguridad.
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none align-baseline"
+                                :disabled="reviewing === d.id" @click="markReviewed(d)">
+                            {{ reviewing === d.id ? 'Guardando…' : 'Ya lo revisé' }}
+                        </button>
+                    </div>
                 </div>
                 <div class="d-flex gap-1 align-items-center">
                     <a v-if="d.has_file"
@@ -126,6 +178,7 @@
 import { ref, reactive, computed } from 'vue';
 import axios from 'axios';
 import { useFleetFormatters } from './useFleetFormatters.js';
+import { useFleetDocumentOcr } from './useFleetDocumentOcr.js';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_MIME   = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -141,6 +194,12 @@ export default {
     emits: ['reload', 'toast'],
     setup(props, { emit }) {
         const { fmtMoney, fmtDate, docTypeLabels, docIcon, docStatus, docDays } = useFleetFormatters();
+
+        // #580 — lectura por IA del documento adjunto (vía el módulo IA, servicio único).
+        const {
+            ocrRunning, ocrResult, ocrRunId,
+            runOcr, resetOcr, applyToForm, readFields, confBadge, confLabel,
+        } = useFleetDocumentOcr(props.baseUrl);
 
         const thisYear = new Date().getFullYear();
         const decorated = computed(() =>
@@ -178,6 +237,7 @@ export default {
             const file = e.target.files?.[0];
             fileError.value = '';
             selectedFile.value = null;
+            resetOcr();
             if (!file) return;
             if (!ALLOWED_EXT.test(file.name) || !ALLOWED_MIME.includes(file.type)) {
                 fileError.value = 'Solo se permiten archivos PDF, JPG o PNG.';
@@ -188,11 +248,27 @@ export default {
                 return;
             }
             selectedFile.value = file;
+
+            // #580 — adjuntar el archivo dispara la lectura por IA. Best-effort: si falla, el
+            // formulario sigue disponible tal cual y el guardado no se bloquea.
+            runOcr(file, props.vehicleId).then((res) => {
+                if (!res?.ok) return;
+                // El tipo trae un default de pantalla ('circulation_card'), no una elección del
+                // usuario -> sí se puede sobrescribir. El resto solo llena huecos.
+                const aplicados = applyToForm(form, { overwriteKeys: ['document_type'] });
+                if (aplicados.length) {
+                    emit('toast', {
+                        message: `IA: se prellenaron ${aplicados.length} campo(s). Revísalos antes de guardar.`,
+                        type: 'success',
+                    });
+                }
+            });
         }
 
         function clearFile() {
             selectedFile.value = null;
             fileError.value    = '';
+            resetOcr();
             if (fileInput.value) fileInput.value.value = '';
         }
 
@@ -238,6 +314,8 @@ export default {
                 fd.append('alert_same_day',form.alert_same_day ? '1' : '0');
                 fd.append('alert_channels', JSON.stringify(form.alert_channels));
                 if (selectedFile.value) fd.append('file', selectedFile.value);
+                // #580 — el backend lee el veredicto de la IA de su propia bitácora usando este id.
+                if (ocrRunId.value) fd.append('ocr_run_id', ocrRunId.value);
 
                 await axios.post(`${props.baseUrl}/api/documentos`, fd);
                 showForm.value = false;
@@ -250,6 +328,21 @@ export default {
                 emit('toast', { message: msg, type: 'error' });
             } finally {
                 saving.value = false;
+            }
+        }
+
+        // #580 — apaga la marca "revisar manualmente" de un documento ya verificado por una persona.
+        const reviewing = ref(null);
+        async function markReviewed(d) {
+            reviewing.value = d.id;
+            try {
+                await axios.post(`${props.baseUrl}/api/documentos/${d.id}/ocr/revisado`);
+                emit('reload');
+                emit('toast', { message: 'Documento marcado como revisado.', type: 'success' });
+            } catch (e) {
+                emit('toast', { message: 'No se pudo marcar como revisado.', type: 'error' });
+            } finally {
+                reviewing.value = null;
             }
         }
 
@@ -282,6 +375,8 @@ export default {
             showForm, saving, form, openNewForm, cancelForm, save, renew,
             fileInput, selectedFile, fileError, handleFileChange, clearFile, fmtFileSize,
             docTypeLabels, docIcon, fmtMoney, fmtDate,
+            ocrRunning, ocrResult, ocrRunId, resetOcr, readFields, confBadge, confLabel,
+            reviewing, markReviewed,
         };
     },
 };

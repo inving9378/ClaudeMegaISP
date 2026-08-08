@@ -120,7 +120,12 @@
                                         {{ vehicleLabel(d) }}
                                     </a>
                                 </td>
-                                <td>{{ docTypeLabels[d.document_type] || d.document_type }}</td>
+                                <td>
+                                    {{ docTypeLabels[d.document_type] || d.document_type }}
+                                    <!-- #580 — la IA no leyó los datos con seguridad. -->
+                                    <i v-if="d.ocr_needs_review" class="bi bi-robot text-warning ms-1"
+                                       title="Revisar manualmente — la IA no leyó los datos con seguridad."></i>
+                                </td>
                                 <td class="text-muted">{{ d.folio_number || '—' }}</td>
                                 <td>
                                     <span v-if="d.expiration_date">
@@ -251,6 +256,36 @@
                                         </button>
                                     </div>
                                     <div v-if="renewFileError" class="text-danger small mt-1">{{ renewFileError }}</div>
+
+                                    <!-- #580 — Lectura por IA del documento adjunto. -->
+                                    <div v-if="ocrRunning" class="d-flex align-items-center small text-muted mt-2">
+                                        <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                                        Leyendo el documento con IA…
+                                    </div>
+                                    <div v-else-if="ocrResult" class="mt-2">
+                                        <div v-if="!ocrResult.ok" class="alert alert-warning small py-2 mb-0">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                            No se pudo leer con IA. {{ ocrResult.error }}
+                                            Captura los datos a mano — la renovación se guardará igual, marcada para revisión.
+                                        </div>
+                                        <div v-else class="border rounded p-2 bg-light">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <i class="bi bi-robot me-2 text-primary"></i>
+                                                <strong class="small">Datos leídos</strong>
+                                                <span class="badge ms-2" :class="ocrResult.needs_review ? 'bg-warning text-dark' : 'bg-success'">
+                                                    {{ ocrResult.needs_review ? 'Requiere revisión' : 'Lectura confiable' }}
+                                                </span>
+                                            </div>
+                                            <div class="d-flex align-items-center small" v-for="f in readFields()" :key="f.key">
+                                                <span class="text-muted" style="min-width:150px">{{ f.label }}</span>
+                                                <span class="fw-semibold flex-grow-1">{{ f.value ?? '—' }}</span>
+                                                <span class="badge" :class="confBadge(f.confidence)">{{ confLabel(f.confidence) }}</span>
+                                            </div>
+                                            <div class="small text-muted mt-1">
+                                                El tipo no se toca (es una renovación del mismo documento). Revisa y guarda.
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <!-- Alertas -->
                                 <div class="col-12">
@@ -298,6 +333,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 import { useFleetFormatters } from './useFleetFormatters.js';
+import { useFleetDocumentOcr } from './useFleetDocumentOcr.js';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EXT   = /\.(pdf|jpg|jpeg|png)$/i;
@@ -310,6 +346,12 @@ export default {
     },
     setup(props) {
         const { fmtMoney, fmtDate, docTypeLabels, docIcon } = useFleetFormatters();
+
+        // #580 — lectura por IA del documento adjunto (vía el módulo IA, servicio único).
+        const {
+            ocrRunning, ocrResult, ocrRunId,
+            runOcr, resetOcr, applyToForm, readFields, confBadge, confLabel,
+        } = useFleetDocumentOcr(props.baseUrl);
 
         // ── Estado principal ───────────────────────────────────────────────────
         const loading   = ref(false);
@@ -480,6 +522,7 @@ export default {
             const file = e.target.files?.[0];
             renewFileError.value = '';
             renewFile.value = null;
+            resetOcr();
             if (!file) return;
             if (!ALLOWED_EXT.test(file.name) || !ALLOWED_MIME.includes(file.type)) {
                 renewFileError.value = 'Solo se permiten PDF, JPG o PNG.';
@@ -490,11 +533,22 @@ export default {
                 return;
             }
             renewFile.value = file;
+
+            // #580 — en la renovación el TIPO está bloqueado (es el mismo documento), así que no se
+            // sobrescribe: la IA solo llena folio/emisor/fechas que estén vacíos.
+            runOcr(file, renewVehicleId).then((res) => {
+                if (!res?.ok) return;
+                const aplicados = applyToForm(renewForm);
+                if (aplicados.length) {
+                    showToast(`IA: se prellenaron ${aplicados.length} campo(s). Revísalos antes de guardar.`, 'success');
+                }
+            });
         }
 
         function clearRenewFile() {
             renewFile.value = null;
             renewFileError.value = '';
+            resetOcr();
             if (renewFileInput.value) renewFileInput.value.value = '';
         }
 
@@ -522,6 +576,7 @@ export default {
                 fd.append('alert_same_day',  renewForm.alert_same_day ? '1' : '0');
                 fd.append('alert_channels',  JSON.stringify(renewForm.alert_channels));
                 if (renewFile.value) fd.append('file', renewFile.value);
+                if (ocrRunId.value) fd.append('ocr_run_id', ocrRunId.value);   // #580
 
                 await axios.post(`${props.baseUrl}/api/documentos`, fd);
                 closeRenew();
@@ -546,6 +601,7 @@ export default {
             renewModal, renewSaving, renewFileInput, renewFile, renewFileError, renewErrors, renewForm,
             openRenew, closeRenew, handleRenewFile, clearRenewFile, saveRenew,
             docTypeLabels, docIcon, fmtMoney, fmtDate,
+            ocrRunning, ocrResult, ocrRunId, readFields, confBadge, confLabel,
         };
     },
 };
