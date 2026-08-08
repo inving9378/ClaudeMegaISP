@@ -1690,7 +1690,7 @@ class RoadmapCircuitoService
             if (! $item) {
                 continue;
             }
-            $estadoPrevio = $this->estadoResumibleTrasColision($item);
+            $estadoPrevio = $this->estadoAprobadoPrevio($item);
             $item->colision_pausada_por = null;
             $item->colision_pausada_at  = null;
             $item->worker_sid           = null;
@@ -1704,12 +1704,12 @@ class RoadmapCircuitoService
     }
 
     /**
-     * A qué `estado_aprobacion` regresar un item pausado por colisión para que el scheduler lo
-     * vuelva a tomar sin re-triaje: el último `aprobado_*` de su propio log (respeta si fue Irving
-     * quien lo aprobó); si no hay rastro, A auto-ejecutable → `aprobado_claude`; si no, a la
-     * bandeja de Irving (fail-safe, nunca asumir que un B/C sin rastro es auto-ejecutable).
+     * A qué `estado_aprobacion` regresar un item que necesita volver a la cola sin re-triaje (tras
+     * colisión resuelta o reap de huérfano, #561): el último `aprobado_*` de su propio log (respeta
+     * si fue Irving quien lo aprobó); si no hay rastro, A auto-ejecutable → `aprobado_claude`; si
+     * no, a la bandeja de Irving (fail-safe, nunca asumir que un B/C sin rastro es auto-ejecutable).
      */
-    private function estadoResumibleTrasColision(RoadmapItem $item): string
+    private function estadoAprobadoPrevio(RoadmapItem $item): string
     {
         $log = is_array($item->log) ? $item->log : [];
         foreach (array_reverse($log) as $entry) {
@@ -1720,6 +1720,50 @@ class RoadmapCircuitoService
         }
 
         return $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'requiere_irving';
+    }
+
+    /**
+     * #561 — reap de un item HUÉRFANO (worker muerto/colgado con el item en_progreso): en vez de
+     * escalar directo a la bandeja de Irving, lo RE-ENCOLA al estado aprobado que tenía antes de
+     * ser reclamado (mismo criterio que la colisión, `estadoAprobadoPrevio`) para que el pool lo
+     * vuelva a tomar. Lleva la cuenta de reclamos fallidos en `reap_count`; solo tras superar el
+     * tope (`circuito.reaper.max_reintentos`, default 3) escala a `requiere_irving` — así un item
+     * genuinamente roto no cicla infinito y sí llega a la bandeja. Usado por `circuito:reap-stuck`
+     * y el watchdog (#334/#526), que comparten este único camino.
+     *
+     * @param  string  $origen  quién detectó el huérfano ('reaper'|'watchdog', para el log/nota)
+     * @param  string  $motivo  frase corta de por qué se considera huérfano (para el log/nota)
+     * @return array{resultado:string,estado:string,reap_count:int,tope:int}
+     */
+    public function reencolarHuerfano(RoadmapItem $item, string $origen, string $motivo): array
+    {
+        $tope = max(1, (int) config('circuito.reaper.max_reintentos', 3));
+        $item->reap_count = ((int) $item->reap_count) + 1;
+        $item->claimed_at = null;   // el lease muere con el reclamo que lo sostenía
+        $item->worker_sid = null;
+
+        if ($item->reap_count > $tope) {
+            $item->estado_aprobacion  = 'requiere_irving';
+            $item->comentarios_claude = (string) $item->comentarios_claude
+                . "\n[{$origen}] {$motivo} → escalado a tu bandeja tras {$item->reap_count} reclamos fallidos (tope {$tope}).";
+            $item->save();
+            $this->appendLog((int) $item->id, $origen, 'huerfano_escalado', [
+                'reap_count' => $item->reap_count, 'tope' => $tope, 'motivo' => $motivo,
+            ]);
+
+            return ['resultado' => 'escalado', 'estado' => $item->estado_aprobacion, 'reap_count' => $item->reap_count, 'tope' => $tope];
+        }
+
+        $estadoPrevio             = $this->estadoAprobadoPrevio($item);
+        $item->estado_aprobacion  = $estadoPrevio;
+        $item->comentarios_claude = (string) $item->comentarios_claude
+            . "\n[{$origen}] {$motivo} → re-encolado (intento {$item->reap_count}/{$tope}), vuelve a {$estadoPrevio}.";
+        $item->save();
+        $this->appendLog((int) $item->id, $origen, 'huerfano_reencolado', [
+            'reap_count' => $item->reap_count, 'tope' => $tope, 'estado' => $estadoPrevio, 'motivo' => $motivo,
+        ]);
+
+        return ['resultado' => 'reencolado', 'estado' => $estadoPrevio, 'reap_count' => $item->reap_count, 'tope' => $tope];
     }
 
     /** Log entry corta y uniforme para eventos del circuito sobre un item (best-effort, nunca tumba). */
