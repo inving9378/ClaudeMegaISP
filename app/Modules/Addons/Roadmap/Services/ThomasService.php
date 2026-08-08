@@ -724,6 +724,96 @@ class ThomasService
     }
 
     // =================================================================
+    // 1-quinquies. CONSOLIDADO ESTRATÉGICO (#566 E4)
+    // =================================================================
+
+    /**
+     * Junta en UNA sola pregunta lo estratégico que Thomas no debe decidir.
+     *
+     * El problema no era el volumen sino la FORMA: N items bloqueados por separado, cada uno
+     * pidiendo una decisión suelta, se leen como una montaña y no se despachan nunca. Juntos, con
+     * la recomendación de Thomas al lado de cada punto, se contestan de una pasada.
+     *
+     * Thomas NO decide aquí: recomienda. La recomendación es la opción que él tomaría si pudiera,
+     * y sirve para dos cosas — que Irving conteste con un sí/no en vez de redactar, y que exista un
+     * default por si no contesta (ver `procederPorDefault`).
+     */
+    public function consolidar(array $items): array
+    {
+        $puntos = [];
+
+        foreach ($items as $item) {
+            $rec = null;
+            foreach ((array) $item->preguntasNormalizadas() as $p) {
+                if (($p['opcion_elegida'] ?? null) !== null || empty($p['opciones'])) {
+                    continue;
+                }
+                // La recomendada del brief; si no hay, la primera reversible.
+                foreach ($p['opciones'] as $o) {
+                    if (is_array($o) && RoadmapItem::boolEstricto($o, 'recomendada') === true) {
+                        $rec = ['pregunta' => $p['pregunta'] ?? '', 'opcion' => (string) ($o['texto'] ?? ''),
+                            'reversible' => RoadmapItem::boolEstricto($o, 'reversible') === true];
+                        break 2;
+                    }
+                }
+                foreach ($p['opciones'] as $o) {
+                    if (is_array($o) && RoadmapItem::boolEstricto($o, 'reversible') === true) {
+                        $rec = ['pregunta' => $p['pregunta'] ?? '', 'opcion' => (string) ($o['texto'] ?? ''),
+                            'reversible' => true];
+                        break 2;
+                    }
+                }
+            }
+
+            $puntos[] = [
+                'id'            => (int) $item->id,
+                'title'         => (string) $item->title,
+                'modulo'        => (string) $item->modulo,
+                'nivel'         => (string) $item->nivel_riesgo,
+                'pregunta'      => $rec['pregunta'] ?? 'Sin pregunta estructurada; requiere su criterio.',
+                'recomendacion' => $rec['opcion'] ?? null,
+                'reversible'    => $rec['reversible'] ?? false,
+            ];
+        }
+
+        return $puntos;
+    }
+
+    /** Escribe el consolidado como un solo documento legible para Irving. */
+    public function escribirConsolidado(array $puntos): string
+    {
+        $path  = (string) config('circuito.thomas.consolidado.doc_path', base_path('docs/decisiones-pendientes-irving.md'));
+        $horas = (int) config('circuito.thomas.consolidado.horas_default', 48);
+
+        $md  = "# Decisiones pendientes — una sola pasada\n\n";
+        $md .= '> Generado por Thomas el ' . now()->format('Y-m-d H:i') . ". Son las decisiones que **no**\n";
+        $md .= "> puede tomar solo: estratégicas o irreversibles. Todo lo demás ya lo resolvió y está corriendo.\n";
+        $md .= ">\n";
+        $md .= $horas > 0
+            ? "> **Si no contestas en {$horas} h**, Thomas procede con la recomendación en los puntos marcados\n"
+                . "> ♻️ *reversible* y lo deja registrado para que lo revises después. Los no reversibles esperan.\n\n"
+            : "> Thomas **no** procede solo en ninguno: todos esperan tu respuesta.\n\n";
+
+        foreach ($puntos as $i => $p) {
+            $n = $i + 1;
+            $md .= "## {$n}. #{$p['id']} — {$p['title']}\n\n";
+            $md .= "- **Módulo:** {$p['modulo']} · **Nivel:** {$p['nivel']}\n";
+            $md .= "- **Qué hay que definir:** {$p['pregunta']}\n";
+            if ($p['recomendacion']) {
+                $md .= '- **Recomendación de Thomas:** ' . $p['recomendacion']
+                    . ($p['reversible'] ? "  ♻️ *reversible*" : '  ⚠️ *no reversible — espera tu respuesta*') . "\n";
+            } else {
+                $md .= "- **Recomendación de Thomas:** — (no hay opción estructurada que recomendar)\n";
+            }
+            $md .= "\n";
+        }
+
+        @file_put_contents($path, $md);
+
+        return $path;
+    }
+
+    // =================================================================
     // 2. ESTIMACIÓN DE ESFUERZO (orientativa, nunca bloqueante)
     // =================================================================
 

@@ -133,6 +133,23 @@ class DestrabarCommand extends Command
             }
         }
 
+        // E4 — lo estratégico se junta en UNA pregunta, no en N items bloqueados por separado.
+        if ($consolida && config('circuito.thomas.consolidado.enabled', true)) {
+            $puntos = $thomas->consolidar($consolida);
+            if ($aplicar) {
+                $path = $thomas->escribirConsolidado($puntos);
+                $this->newLine();
+                $this->info('Consolidado escrito en: ' . $path);
+            }
+            $this->newLine();
+            $this->comment('Para definir de una pasada (' . count($puntos) . '):');
+            foreach ($puntos as $p) {
+                $this->line("  #{$p['id']} · {$p['pregunta']}");
+                $this->line('      Thomas recomienda: ' . ($p['recomendacion'] ?? '—')
+                    . ($p['reversible'] ? '  ♻️ reversible' : ''));
+            }
+        }
+
         if (! $aplicar) {
             $this->newLine();
             $this->comment('DRY — nada escrito. Corre con --apply.');
