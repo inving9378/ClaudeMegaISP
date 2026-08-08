@@ -136,7 +136,8 @@
                                                     </template>
                                                     <template v-else>
                                                         <div
-                                                            class="form-check form-switch form-switch-md mx-3 mb-3"
+                                                            class="form-check form-switch form-switch-md mb-3"
+                                                            :class="perm.depend ? 'perm-child' : 'mx-3'"
                                                             v-for="perm in fieldsJson[
                                                                 tab.ref
                                                             ].filter(
@@ -516,5 +517,14 @@ const updateShow = (newValue) => {
 }
 .perm-counter strong {
     color: var(--bs-body-color, inherit);
+}
+/* #538 — jerarquía visual: cualquier permiso con `depend` (~380 en constants.js) se
+   indenta y marca como sub-permiso de su ancla dentro del mismo accordion, en vez de
+   verse como lista plana. Puramente visual: no toca fieldsJson ni el guardado. */
+.perm-child {
+    margin-left: 2.25rem;
+    margin-right: 0.75rem;
+    padding-left: 0.6rem;
+    border-left: 2px solid var(--bs-border-color, #e5e7eb);
 }
 </style>
