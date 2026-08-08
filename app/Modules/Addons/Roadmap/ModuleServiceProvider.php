@@ -56,6 +56,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\ClasificarModuloCommand::class,
                 // #566 — re-triaje de la bandeja con el carril mecánico
                 \App\Modules\Addons\Roadmap\Console\RetriarBandejaCommand::class,
+                // #559 — MOTOR DE AUDITORÍA CONTINUA: el generador de trabajo. Cierra el hueco que
+                // quedaba (repartir y juzgar ya existían; generar, no), para que la cola no se vacíe.
+                \App\Modules\Addons\Roadmap\Console\AuditorCommand::class,
             ]);
         }
     }
