@@ -15,6 +15,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('scheduling')->group(function () {
 
+    // El menú "Plantillas" promete esta URL (module.json + sidebar) pero la pantalla real
+    // ya existe en Configuracion — se reusa en vez de duplicarla (item roadmap #573).
+    Route::get('/task-templates', fn () => redirect('/configuracion/template-task'));
+
     Route::prefix('project')->group(function () {
         Route::get('/', [ProjectController::class, 'index']);
         Route::post('/table', [ProjectController::class, 'table']);
