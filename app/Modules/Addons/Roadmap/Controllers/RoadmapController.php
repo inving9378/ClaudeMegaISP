@@ -1010,6 +1010,47 @@ class RoadmapController extends Controller
         return response()->json(['ok' => true, 'marcado_version' => $item->marcado_version]);
     }
 
+    /**
+     * GET /api/roadmap/armar-version — Sub-item A (#312): vista de SOLO LECTURA que previsualiza
+     * lo ya marcado con 🏷 "Marcar para versión" (Integración/Ramas), agrupado por target_version.
+     * NO mergea ni etiqueta nada — la orquestación de merge a release/vX.Y (Sub-item B) y la
+     * integración con tag/changelog del módulo Releases (Sub-item C) quedan pendientes.
+     */
+    public function armarVersion(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $items = RoadmapItem::where('marcado_version', true)
+            ->whereNotNull('branch')
+            ->whereNotNull('merge_commit')
+            ->noArchivado()
+            ->orderByRaw('target_version IS NULL, target_version')
+            ->orderByDesc('id')
+            ->get();
+
+        $grupos = [];
+        foreach ($items as $i) {
+            $clave = $i->target_version ?: '(sin versión asignada)';
+            $grupos[$clave][] = [
+                'id'             => $i->id,
+                'title'          => $i->title,
+                'branch'         => $i->branch,
+                'merge_commit'   => $i->merge_commit,
+                'target_version' => $i->target_version,
+                'nivel_riesgo'   => $i->nivel_riesgo,
+                'resumen'        => $this->resumenItem($i),
+                'worker_sid'     => $i->worker_sid,
+                'worker_nombre'  => $i->worker_sid ? $this->svc->nombreWorker($i->worker_sid) : null,
+            ];
+        }
+
+        return response()->json([
+            'generated_at' => now()->toIso8601String(),
+            'total'        => $items->count(),
+            'grupos'       => $grupos,
+        ]);
+    }
+
     /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */
     public function integracionMerge(Request $request): JsonResponse
     {

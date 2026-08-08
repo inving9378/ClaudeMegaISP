@@ -121,6 +121,8 @@ Route::middleware(['web', 'auth'])
         Route::post('/integracion/revert',    [RoadmapController::class, 'integracionRevert']);
         Route::post('/integracion/modo',          [RoadmapController::class, 'integracionModo']);
         Route::post('/integracion/marcar-version', [RoadmapController::class, 'integracionMarcarVersion']);
+        // Armador de versiones — Sub-item A (#312): previsualización de solo lectura.
+        Route::get('/armar-version',               [RoadmapController::class, 'armarVersion']);
         // Voz (es-*) para 🔊 Escuchar en la Torre (#424).
         Route::post('/integracion/voz',            [RoadmapController::class, 'integracionVoz']);
         // Ciclo de vida / archivo (#334): historial + archivar (individual/masivo) + desarchivar ("quiero verlo")
