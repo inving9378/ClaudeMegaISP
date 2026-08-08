@@ -351,6 +351,115 @@ class ThomasService
         return null;
     }
 
+    /**
+     * #566 E2 — LA DECISIÓN YA ESTÁ TOMADA, el item sólo no avanzó.
+     *
+     * El autopilot audita 25 items de la bandeja y 11 salen con «no quedan preguntas sin responder
+     * que el autopilot deba decidir» → y aun así se quedan ahí. Es el mismo error de fondo que el
+     * bucle del merge: se trata «no hay nada que decidir» como «no aprobar», cuando significa lo
+     * contrario — el brief está contestado, no falta nadie. Ése es el síntoma que #29 describía
+     * como «se re-aprueba solo con las mismas respuestas q1-q6 cada día».
+     *
+     * Aquí se cierra: si todas las preguntas están contestadas y ninguna pendiente es de Irving,
+     * el item pasa a la cola. Aplica hasta nivel C porque la decisión de C ya la tomó quien
+     * respondió el brief; Thomas no está decidiendo por él, está dejando de retenerlo.
+     */
+    public function aprobarYaDecidido(RoadmapItem $item): array
+    {
+        $v = $this->evaluarYaDecidido($item);
+        if (! $v['aprobado']) {
+            return $v;
+        }
+
+        $estado = $v['estado'];
+
+        $log = $item->log ?: [];
+        $log[] = [
+            'ts' => now()->toIso8601String(), 'por' => self::APROBADOR_YA_DECIDIDO,
+            'decidido_por' => self::APROBADOR_YA_DECIDIDO, 'decision' => 'aprobar',
+            'estado' => $estado, 'nivel' => $item->nivel_riesgo,
+            'motivo' => 'Brief completamente respondido: la decisión ya estaba tomada y el item '
+                . 'seguía retenido sin que faltara nadie.',
+        ];
+
+        $item->forceFill([
+            'estado_aprobacion'       => $estado,
+            'aprobado_por'            => self::APROBADOR_YA_DECIDIDO,
+            'revisado_at'             => now(),
+            'log'                     => $log,
+            // Sale del parqueo: lo que lo retenía no era una decisión pendiente.
+            'excluir_pool_automatico' => false,
+            'bloqueado_por_bucle'     => false,
+        ])->save();
+
+        $this->reportes->append(
+            $item, self::NOMBRE, 'decision',
+            "Brief ya respondido → a la cola ({$estado}).",
+            'Todas las preguntas del brief estaban contestadas; el item seguía retenido sin que '
+                . 'faltara ninguna decisión.',
+            ['estado' => $estado, 'reversible' => true]
+        );
+
+        Log::channel('roadmap_externo')->info('thomas-ya-decidido', [
+            'item' => $item->id, 'nivel' => $item->nivel_riesgo, 'estado' => $estado,
+        ]);
+
+        return $v;
+    }
+
+    /** Evaluación PURA del carril "ya decidido" (no escribe): para auditar en seco. */
+    public function evaluarYaDecidido(RoadmapItem $item): array
+    {
+        $no = fn (string $m) => ['aprobado' => false, 'estado' => null, 'motivo' => $m];
+
+        if (! config('circuito.thomas.enabled', true) || $this->circuito->isPaused()) {
+            return $no('Circuito en pausa o Thomas apagado.');
+        }
+        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
+            return $no('Item rotulado [BLOCKED-]/[PARKED-]: decisión de Irving por definición.');
+        }
+        // MISMO texto que el carril mecánico (título + descripción + prompt): antes este carril
+        // miraba sólo título+descripción y un término de frontera que viviera en el `prompt` se le
+        // escapaba, así que dos carriles con la misma regla daban veredictos distintos.
+        $texto = (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt;
+
+        if ($cat = $this->categoriaFronteraDura($texto)) {
+            return $no("Declara «{$cat}» (frontera dura): decide Irving.");
+        }
+
+        // REGLA DURA QUE NO CAMBIA: Thomas nunca inventa dirección de negocio/producto. Que el
+        // brief esté contestado no convierte una decisión de producto en trabajo mecánico.
+        foreach ((array) config('circuito.thomas.mecanico.negocio', []) as $t) {
+            if ($t !== '' && $this->apareceComoPalabra(mb_strtolower($texto), mb_strtolower($t))) {
+                return $no("Menciona «{$t}»: es decisión de negocio/producto.");
+            }
+        }
+
+        $preguntas = (array) $item->preguntasNormalizadas();
+        if (! $preguntas) {
+            return $no('No tiene brief: no hay una decisión previa que respetar.');
+        }
+
+        foreach ($preguntas as $p) {
+            $sinResponder = ($p['opcion_elegida'] ?? null) === null && ! empty($p['opciones']);
+            if (! $sinResponder) {
+                continue;
+            }
+            // Queda algo sin contestar: si es de Irving, es suyo; si no, que lo tome el autopilot.
+            return RoadmapItem::boolEstricto($p, 'requiere_irving') === true
+                ? $no('Tiene una pregunta marcada `requiere_irving` sin contestar.')
+                : $no('Todavía tiene preguntas sin responder: las decide el autopilot con su brief.');
+        }
+
+        return [
+            'aprobado' => true,
+            'estado'   => $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor',
+            'motivo'   => 'Brief ya respondido: no falta ninguna decisión.',
+        ];
+    }
+
+    public const APROBADOR_YA_DECIDIDO = 'thomas-ya-decidido';
+
     /** ¿Cuántas auto-aprobaciones mecánicas van hoy? (para el tope diario) */
     public function mecanicosHoy(): int
     {

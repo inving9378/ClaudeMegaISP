@@ -213,8 +213,13 @@ return [
             // 4) CREDENCIALES / seguridad
             'credenciales' => [
                 'credencial', 'api key', 'api_key', 'secreto', 'secret', 'contraseña', 'password',
-                'rotar token', '.env', 'llave privada', 'certificado', 'permiso de rol',
-                'dar permiso', 'otorgar permiso', 'spatie', 'bcrypt', 'idor',
+                'rotar token', '.env', 'llave privada', 'certificado',
+                // 'permiso' a secas y no 'permiso de rol': #542 («los permisos editados en un rol
+                // no se reflejan») se colaba al carril automático porque no coincidía con la
+                // frase exacta. Como esta lista se evalúa por SUBSTRING, 'permiso' cubre también
+                // 'permisos' y no pega dentro de ninguna palabra ajena — sobre-cubrir aquí es el
+                // lado seguro: de más, un item va a Irving; de menos, se decide solo algo de auth.
+                'permiso', 'spatie', 'bcrypt', 'idor',
             ],
         ],
 

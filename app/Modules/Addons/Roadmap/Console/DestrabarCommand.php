@@ -83,10 +83,19 @@ class DestrabarCommand extends Command
                     break;
 
                 case 'ejecucion':
-                    $r = $aplicar
-                        ? $thomas->aprobarMecanico($item)
-                        : ['aprobado' => $thomas->clasificarMecanico($item)['mecanico'],
-                            'motivo' => $thomas->clasificarMecanico($item)['motivo']];
+                    // Dos carriles, del más barato al más amplio:
+                    //  (a) YA DECIDIDO — el brief está contestado y el item seguía retenido sin
+                    //      que faltara nadie. Es la bolsa más grande y la menos discutible.
+                    //  (b) MECÁNICO — no había nada que decidir desde el enunciado.
+                    $r = $aplicar ? $thomas->aprobarYaDecidido($item) : $thomas->evaluarYaDecidido($item);
+
+                    if (! $r['aprobado']) {
+                        $r = $aplicar
+                            ? $thomas->aprobarMecanico($item)
+                            : ['aprobado' => $thomas->clasificarMecanico($item)['mecanico'],
+                                'motivo'  => $thomas->clasificarMecanico($item)['motivo']];
+                    }
+
                     if ($r['aprobado']) {
                         $decididos[] = $item->id;
                         $this->line(($aplicar ? '' : 'DRY ') . "→ DECIDIDO  #{$item->id}  " . $this->corto($item));
