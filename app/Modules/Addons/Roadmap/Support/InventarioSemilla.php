@@ -223,6 +223,11 @@ class InventarioSemilla
                     'tipo'    => 'mecanico',
                     'detalle' => 'OpenAI TTS pronuncia el teléfono como un número gigante. Preprocesar el texto insertando '
                         . 'separación entre dígitos antes de mandarlo al TTS.',
+                    'vigente' => function () {
+                        $f = base_path('app/Modules/Addons/Marketing/Services/Tts/Support/SpeechTextPreprocessor.php');
+
+                        return ! is_file($f) || ! str_contains((string) file_get_contents($f), 'formatPhoneNumbers');
+                    },
                 ],
             ],
 
