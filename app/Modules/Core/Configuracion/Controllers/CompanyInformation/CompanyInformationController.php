@@ -92,7 +92,27 @@ class CompanyInformationController extends Controller
         ];
     }
 
-    public function destroy($id) {}
+    public function destroy($id)
+    {
+        // Información de la empresa es un registro único que alimenta facturación
+        // y documentos del sistema (BillingDocumentService, DocumentTemplateService):
+        // nunca se debe permitir dejar la tabla sin registros.
+        if ($this->data['model']::count() <= 1) {
+            return response()->json([
+                'status' => 422,
+                'message' => 'No se puede eliminar: debe existir al menos un registro de información de la empresa.',
+            ], 422);
+        }
+
+        $model = $this->data['model']::find($id);
+        if (!$model) {
+            return response()->json(['status' => 404, 'message' => 'Registro no encontrado'], 404);
+        }
+
+        $model->delete();
+
+        return response()->json(['status' => 200, 'message' => 'Información de la empresa eliminada']);
+    }
 
     public function getDataCompany()
     {
