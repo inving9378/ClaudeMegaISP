@@ -113,11 +113,6 @@ class RoadmapItem extends Model
      */
     public bool $cierreManualIrving = false;
 
-    public static function currentInProgress(): ?self
-    {
-        return static::where('status', 'in_progress')->first();
-    }
-
     /**
      * #420: guard de cierre — cualquier save() que deje estado_aprobacion=completado sincroniza
      * status=done + completed_at. Evita que un cierre (tinker, endpoint, merge) deje status=pending
