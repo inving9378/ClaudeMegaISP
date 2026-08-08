@@ -1385,13 +1385,6 @@ class RoadmapController extends Controller
             return response()->json($item);
         }
 
-        $current = RoadmapItem::currentInProgress();
-        if ($current && $current->id !== $id) {
-            return response()->json([
-                'message' => "Ya hay una tarea en progreso: \"{$current->title}\". Termínala antes de empezar otra.",
-            ], 422);
-        }
-
         $item->update([
             'status'     => 'in_progress',
             'started_at' => $item->started_at ?? now(),
