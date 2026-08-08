@@ -49,6 +49,8 @@ class RoadmapItem extends Model
         'consulta_respuesta', 'consulta_resuelta_at', 'consulta_resuelta_por',
         // Estimación de esfuerzo del reparto (orientativa, nunca bloqueante)
         'eta_minutos', 'eta_asignada_at',
+        // #561 — contador de reclamos fallidos (reap) antes de escalar a Irving
+        'reap_count',
     ];
 
     protected $casts = [
@@ -86,6 +88,7 @@ class RoadmapItem extends Model
         'consulta_resuelta_at'        => 'datetime',
         'consulta_opciones'           => 'array',
         'eta_asignada_at'             => 'datetime',
+        'reap_count'                  => 'integer',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
