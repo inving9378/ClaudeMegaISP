@@ -23,6 +23,10 @@ Route::prefix('api/roadmap-externo')
             ->whereNumber('id');
         Route::get('/{token}/q/{estado}/{nivel}/{page}/{perpage}', [RoadmapExternalController::class, 'queryPath'])
             ->whereNumber('page')->whereNumber('perpage');
+
+        // TORRE V2 — historial append-only de reportes del item (lectura).
+        Route::get('/{token}/item/{id}/historial', [RoadmapExternalController::class, 'itemHistorial'])
+            ->whereNumber('id');
     });
 
 Route::prefix('api/roadmap-externo')
@@ -51,6 +55,23 @@ Route::prefix('api/roadmap-externo')
         Route::get('/{token}/item/{id}/setb64/{estado}/{nivel}/{comentarioB64?}', [RoadmapExternalController::class, 'setItemPathB64'])
             ->whereNumber('id')
             ->where('comentarioB64', '[A-Za-z0-9_-]+');
+
+        /*
+        | TORRE V2 — ESCRITURA EXTENDIDA (token `create_token`, cae al write_token si no se define).
+        | Crear items alimenta la cola de trabajo del circuito, por eso es un scope aparte del
+        | write acotado de 3 campos. El item creado nace SIEMPRE en pendiente_revision.
+        */
+        Route::post('/{token}/item', [RoadmapExternalController::class, 'createItem']);
+
+        // Alta por PATH + BASE64URL para el fetcher de Cowork (solo GET, descarta query string).
+        //   GET /{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}   ("-" = sin módulo)
+        Route::get('/{token}/crear/{modulo}/{tituloB64}/{specB64?}', [RoadmapExternalController::class, 'createItemPathB64'])
+            ->where('tituloB64', '[A-Za-z0-9_-]+')
+            ->where('specB64', '[A-Za-z0-9_-]+');
+
+        // Reporte nuevo al historial del item (se ACUMULA, no pisa el anterior).
+        Route::post('/{token}/item/{id}/reporte', [RoadmapExternalController::class, 'addReport'])
+            ->whereNumber('id');
     });
 
 /*

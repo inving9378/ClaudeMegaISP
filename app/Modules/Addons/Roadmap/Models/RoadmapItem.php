@@ -44,6 +44,11 @@ class RoadmapItem extends Model
         // #507 anti-bucle — parqueo de items que YA no son ejecutables por un worker
         'excluir_pool_automatico', 'decision_resuelta', 'requiere_sesion_supervisada',
         'bloqueado_por_bucle', 'motivo_bloqueo', 'escalaciones_fingerprint', 'esperando_merge_irving',
+        // TORRE V2 — canal de consulta terminal → Thomas (autoridad intermedia antes de Irving)
+        'consulta_supervisor', 'consulta_supervisor_sid', 'consulta_supervisor_at', 'consulta_opciones',
+        'consulta_respuesta', 'consulta_resuelta_at', 'consulta_resuelta_por',
+        // Estimación de esfuerzo del reparto (orientativa, nunca bloqueante)
+        'eta_minutos', 'eta_asignada_at',
     ];
 
     protected $casts = [
@@ -76,6 +81,11 @@ class RoadmapItem extends Model
         'bloqueado_por_bucle'         => 'boolean',
         'esperando_merge_irving'      => 'boolean',
         'escalaciones_fingerprint'    => 'array',
+        // TORRE V2 — consulta a Thomas
+        'consulta_supervisor_at'      => 'datetime',
+        'consulta_resuelta_at'        => 'datetime',
+        'consulta_opciones'           => 'array',
+        'eta_asignada_at'             => 'datetime',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
@@ -708,6 +718,68 @@ class RoadmapItem extends Model
         }
 
         return 'intake';
+    }
+
+    /**
+     * TORRE V2 — ESTADO DE COLA del item, en el vocabulario del reparto de Thomas.
+     *
+     * DERIVADO, nunca almacenado: los datos ya viven en `estado_aprobacion` + `worker_sid` +
+     * `branch` + `merge_commit`. Una columna paralela solo agregaría una segunda verdad que se
+     * desincroniza (el circuito escribe esos campos desde el scheduler, el reaper, el merge-runner
+     * y las seis terminales; mantener un espejo consistente entre todos ellos es justo el tipo de
+     * bug que ya costó caro aquí).
+     *
+     *   en_cola        → triado y ejecutable, esperando terminal libre.
+     *   asignado       → reclamado por una terminal, todavía sin rama.
+     *   en_progreso    → la terminal ya abrió rama y está trabajando.
+     *   en_verificacion→ trabajo terminado, rama esperando verificación/merge.
+     *   completado     → mergeado y cerrado.
+     *   esperando_irving → fuera del lazo automático: es decisión suya.
+     *   sin_triar      → recién creado, todavía sin nivel/aprobación.
+     */
+    public function getEstadoColaAttribute(): string
+    {
+        $estacion = $this->estacion;
+
+        if ($estacion === 'done') {
+            return in_array($this->estado_aprobacion, ['cancelado', 'rechazado'], true)
+                ? 'cancelado'
+                : 'completado';
+        }
+
+        if ($estacion === 'bandeja') {
+            return 'esperando_irving';
+        }
+
+        // Trabajo terminado esperando integración (o el merge manual de Irving en los C).
+        if ($estacion === 'integracion') {
+            return 'en_verificacion';
+        }
+
+        if ($estacion === 'terminal') {
+            // Con rama = ya está editando; sin rama = apenas reclamado.
+            return ! empty($this->branch) ? 'en_progreso' : 'asignado';
+        }
+
+        return $estacion === 'listo' ? 'en_cola' : 'sin_triar';
+    }
+
+    /** Historial append-only de reportes de este item (Torre v2). */
+    public function reports()
+    {
+        return $this->hasMany(RoadmapItemReport::class, 'roadmap_item_id');
+    }
+
+    /** ¿Hay una consulta a Thomas viva (preguntada y sin responder)? */
+    public function tieneConsultaViva(): bool
+    {
+        return $this->consulta_supervisor_at !== null && $this->consulta_resuelta_at === null;
+    }
+
+    /** Items con una consulta esperando resolución de Thomas. */
+    public function scopeConConsultaViva($query)
+    {
+        return $query->whereNotNull('consulta_supervisor_at')->whereNull('consulta_resuelta_at');
     }
 
     /**

@@ -4,7 +4,10 @@ namespace App\Modules\Addons\Roadmap\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Models\RoadmapItemReport;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
+use App\Modules\Addons\Roadmap\Services\RoadmapIntakeService;
+use App\Modules\Addons\Roadmap\Services\RoadmapReportService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,8 +32,11 @@ class RoadmapExternalController extends Controller
     // La lógica de negocio (queries, serialización, allowlist y guards) vive en el
     // servicio compartido; este controller solo aporta el transporte token-en-path,
     // la validación de parámetros y la presentación (leyenda/ayuda/manual).
-    public function __construct(private RoadmapCircuitoService $svc)
-    {
+    public function __construct(
+        private RoadmapCircuitoService $svc,
+        private RoadmapIntakeService $intake,
+        private RoadmapReportService $reportes,
+    ) {
     }
 
     /**
@@ -300,6 +306,181 @@ class RoadmapExternalController extends Controller
 
         // Mismo camino que /set y /set-por-path: validación de enums + guards + update + log.
         return $this->writeItem(new Request($fields), 'GET-SETPATHB64', $id);
+    }
+
+    // =====================================================================
+    // TORRE V2 — ESCRITURA EXTENDIDA: crear items y acumular reportes.
+    //
+    // Scope aparte del write_token (ver config/roadmap_externo.php): crear items alimenta la cola
+    // de trabajo del circuito, no solo anota sobre un item existente.
+    // =====================================================================
+
+    /**
+     * POST /api/roadmap-externo/{token}/item   — CREA un item en la Hoja de Ruta.
+     *
+     * Cuerpo: title (req), description, prompt, modulo, nivel_riesgo, priority, origen_item_id,
+     * target_version. El item NACE `pendiente_revision` siempre (crear ≠ aprobar).
+     */
+    public function createItem(Request $request, string $token): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.create_token'))) {
+            return $this->deny($request, 'POST-CREATE', $token);
+        }
+
+        return $this->writeNewItem($request, 'POST-CREATE');
+    }
+
+    /**
+     * GET /api/roadmap-externo/{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}
+     *
+     * Variante por PATH con BASE64URL para el fetcher de Cowork, que solo hace GET y descarta el
+     * query string (mismo motivo y mismo formato que /setb64 — ver #317: nginx rechaza un '/'
+     * literal en el segmento, y base64url no usa '/' ni '+').
+     * `modulo` acepta "-" como "sin módulo".
+     */
+    public function createItemPathB64(Request $request, string $token, string $modulo, string $tituloB64, ?string $specB64 = null): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.create_token'))) {
+            return $this->deny($request, 'GET-CREATEB64', $token);
+        }
+
+        $titulo = $this->desdeB64($tituloB64, 255);
+        if ($titulo === null) {
+            return response()->json(['error' => 'titulo_b64 no es base64url válido o excede 255 caracteres'], 422);
+        }
+
+        $campos = ['title' => $titulo];
+        if ($modulo !== '-' && $modulo !== '') {
+            $campos['modulo'] = urldecode($modulo);
+        }
+        if ($specB64 !== null && $specB64 !== '') {
+            $spec = $this->desdeB64($specB64, 20000);
+            if ($spec === null) {
+                return response()->json(['error' => 'spec_b64 no es base64url válido o excede 20000 caracteres'], 422);
+            }
+            $campos['description'] = $spec;
+        }
+
+        return $this->writeNewItem(new Request($campos), 'GET-CREATEB64');
+    }
+
+    /** Cuerpo ÚNICO del alta (POST y GET/b64 comparten validación, tope diario y auditoría). */
+    private function writeNewItem(Request $request, string $verb): JsonResponse
+    {
+        $data = $this->validateExternal($request, [
+            'title'          => ['required', 'string', 'max:255'],
+            'description'    => ['sometimes', 'nullable', 'string', 'max:20000'],
+            'prompt'         => ['sometimes', 'nullable', 'string', 'max:20000'],
+            'modulo'         => ['sometimes', 'nullable', 'string', 'max:100'],
+            'nivel_riesgo'   => ['sometimes', 'nullable', 'string', 'in:' . implode(',', RoadmapItem::NIVELES_RIESGO)],
+            'priority'       => ['sometimes', 'nullable', 'string', 'in:alta,media,baja'],
+            'origen_item_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'target_version' => ['sometimes', 'nullable', 'string', 'max:20'],
+        ]);
+
+        // Freno de mano: un lazo descontrolado del otro lado no puede inundar la Hoja de Ruta.
+        $tope = (int) config('roadmap_externo.max_items_dia', 60);
+        $hoy  = RoadmapItem::where('created_at', '>=', now()->startOfDay())
+            ->where('log', 'like', '%"via":"externo"%')->count();
+        if ($tope > 0 && $hoy >= $tope) {
+            $this->audit($request, $verb, 'rejected_tope', ['creados_hoy' => $hoy, 'tope' => $tope]);
+
+            return response()->json([
+                'error' => "Tope diario de alta externa alcanzado ({$hoy}/{$tope}). Se reinicia mañana; "
+                    . 'súbelo con ROADMAP_EXTERNAL_MAX_ITEMS_DIA si es intencional.',
+            ], 429);
+        }
+
+        try {
+            $item = $this->intake->crear($data, 'claude-cowork', false);
+        } catch (\InvalidArgumentException $e) {
+            $this->audit($request, $verb, 'rejected_validacion', ['motivo' => $e->getMessage()]);
+
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        $this->audit($request, $verb, 'created', ['id' => $item->id, 'modulo' => $item->modulo]);
+
+        return response()->json([
+            'ok'    => true,
+            'aviso' => 'El item nace en pendiente_revision: crear no aprueba. Lo tría el revisor/autopilot '
+                . 'y el circuito lo ejecuta cuando quede en la cola.',
+            'item'  => $this->svc->serialize($item),
+        ], 201);
+    }
+
+    /**
+     * POST /api/roadmap-externo/{token}/item/{id}/reporte  — AGREGA un reporte al historial.
+     * Nunca pisa el anterior (tabla append-only `roadmap_item_reports`).
+     * Cuerpo: tipo (req), resumen (req), cuerpo, meta.
+     */
+    public function addReport(Request $request, string $token, int $id): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.create_token'))) {
+            return $this->deny($request, 'POST-REPORTE', $token);
+        }
+
+        $item = RoadmapItem::find($id);
+        if (! $item) {
+            $this->audit($request, 'POST-REPORTE', 'not_found', ['id' => $id]);
+
+            return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+
+        $data = $this->validateExternal($request, [
+            'tipo'    => ['required', 'string', 'in:' . implode(',', RoadmapItemReport::TIPOS)],
+            'resumen' => ['required', 'string', 'max:500'],
+            'cuerpo'  => ['sometimes', 'nullable', 'string', 'max:20000'],
+        ]);
+
+        $reporte = $this->reportes->append(
+            $item,
+            'claude-cowork',
+            $data['tipo'],
+            $data['resumen'],
+            $data['cuerpo'] ?? null
+        );
+
+        $this->audit($request, 'POST-REPORTE', 'reported', ['id' => $id, 'tipo' => $data['tipo']]);
+
+        return response()->json(['ok' => true, 'reporte' => $reporte->toApi()], 201);
+    }
+
+    /**
+     * GET /api/roadmap-externo/{token}/item/{id}/historial  — lee el historial completo de reportes.
+     * Va con el token de LECTURA: leer el rastro no requiere el scope extendido.
+     */
+    public function itemHistorial(Request $request, string $token, int $id): JsonResponse
+    {
+        if (! $this->tokenOk($token, (string) config('roadmap_externo.read_token'))) {
+            return $this->deny($request, 'GET-HISTORIAL', $token);
+        }
+
+        if (! RoadmapItem::whereKey($id)->exists()) {
+            return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+
+        $this->audit($request, 'GET-HISTORIAL', 'ok', ['id' => $id]);
+
+        return response()->json([
+            'generated_at' => now()->toIso8601String(),
+            'item_id'      => $id,
+            'reportes'     => $this->reportes->historial($id, 200),
+        ]);
+    }
+
+    /** Decodifica un segmento base64url (RFC 4648 §5) con tope de longitud. null = inválido. */
+    private function desdeB64(string $b64, int $max): ?string
+    {
+        $padded  = strtr($b64, '-_', '+/');
+        $padded .= str_repeat('=', (4 - strlen($padded) % 4) % 4);
+        $decoded = base64_decode($padded, true);
+
+        if ($decoded === false || trim($decoded) === '' || mb_strlen($decoded) > $max) {
+            return null;
+        }
+
+        return trim($decoded);
     }
 
     /**

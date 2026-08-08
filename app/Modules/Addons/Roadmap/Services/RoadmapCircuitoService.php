@@ -389,6 +389,12 @@ class RoadmapCircuitoService
             'status'            => $i->status,
             'urgente'           => (bool) $i->urgente,
             'estacion'          => $i->estacion,   // #432: intake|bandeja|listo|terminal|integracion|done
+            // TORRE V2 — el reparto, visible ya en la LISTA (no hay que abrir item por item para
+            // saber qué está en manos de quién).
+            'estado_cola'       => $i->estado_cola,
+            'terminal_asignada' => $i->worker_sid,
+            'item_padre'        => $i->origen_item_id ? (int) $i->origen_item_id : null,
+            'consulta_viva'     => $i->tieneConsultaViva(),
         ];
     }
 
@@ -407,6 +413,23 @@ class RoadmapCircuitoService
             'target_version'     => $i->target_version,
             'prompt_para_claude' => $i->prompt,
             'comentarios_claude' => $i->comentarios_claude,
+            // TORRE V2 — estado de COLA y ASIGNACIÓN. Sin esto, quien define el trabajo desde
+            // fuera no puede saber si un item ya está en manos de una terminal, terminado y
+            // esperando merge, o parado esperando a Irving — y volvía a preguntar por chat.
+            'estado_cola'        => $i->estado_cola,
+            'terminal_asignada'  => $i->worker_sid,
+            'asignado_at'        => optional($i->claimed_at)->toIso8601String(),
+            'rama'               => $i->branch,
+            'merge_commit'       => $i->merge_commit,
+            'item_padre'         => $i->origen_item_id ? (int) $i->origen_item_id : null,
+            'eta_minutos'        => $i->eta_minutos !== null ? (int) $i->eta_minutos : null,
+            // Consulta viva a Thomas (la terminal preguntó y espera respuesta).
+            'consulta_supervisor' => $i->tieneConsultaViva() ? [
+                'pregunta' => $i->consulta_supervisor,
+                'terminal' => $i->consulta_supervisor_sid,
+                'at'       => optional($i->consulta_supervisor_at)->toIso8601String(),
+                'opciones' => $i->consulta_opciones,
+            ] : null,
             'subtasks'           => $i->subtasks,
             'log'                => $i->log,
             'started_at'         => optional($i->started_at)->toIso8601String(),

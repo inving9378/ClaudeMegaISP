@@ -22,6 +22,24 @@ return [
     // Token de escritura acotada: POST /api/roadmap-externo/{token}/item/{id}
     'write_token' => env('ROADMAP_EXTERNAL_WRITE_TOKEN'),
 
+    /*
+    | TORRE V2 — token de ESCRITURA EXTENDIDA: crear items y agregar reportes al historial.
+    |
+    | Es un scope más ancho que el write_token (que solo toca 3 campos de un item que ya existe):
+    | crear items alimenta la cola de trabajo del circuito. Por eso admite token PROPIO y rotable
+    | por separado, para poder revocarle a un integrador la capacidad de crear sin quitarle la de
+    | revisar.
+    |
+    | Si no se define, CAE al write_token: así la extensión funciona el día uno sin tocar el .env
+    | de nadie y sin romper a Cowork. Para separarlos, agregar ROADMAP_EXTERNAL_CREATE_TOKEN al
+    | .env (mismo procedimiento de rotación que los otros: docs/circuito-seguridad-tokens.md).
+    */
+    'create_token' => env('ROADMAP_EXTERNAL_CREATE_TOKEN') ?: env('ROADMAP_EXTERNAL_WRITE_TOKEN'),
+
+    // Tope de items que la vía externa puede crear por día. Freno de mano contra un lazo
+    // descontrolado del otro lado (un agente en bucle llenando la Hoja de Ruta).
+    'max_items_dia' => (int) env('ROADMAP_EXTERNAL_MAX_ITEMS_DIA', 60),
+
     // Límite de peticiones por minuto (rate limit) para cada verbo.
     'rate_read'   => (int) env('ROADMAP_EXTERNAL_RATE_READ', 60),
     'rate_write'  => (int) env('ROADMAP_EXTERNAL_RATE_WRITE', 30),
