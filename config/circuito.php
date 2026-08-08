@@ -249,6 +249,22 @@ return [
     ],
 
     /*
+    |--------------------------------------------------------------------------
+    | REAPER — huérfanos por worker muerto/colgado (#561)
+    |--------------------------------------------------------------------------
+    |
+    | Un item huérfano (worker muerto/colgado con el item en_progreso) ya NO escala directo a la
+    | bandeja de Irving: se RE-ENCOLA al estado aprobado que tenía antes de reclamarse, para que el
+    | pool lo vuelva a tomar. `max_reintentos` es el tope de reclamos fallidos DEL MISMO item
+    | (`roadmap_items.reap_count`) antes de rendirse y escalar a `requiere_irving` — evita ciclar
+    | infinito en un item genuinamente roto.
+    |
+    */
+    'reaper' => [
+        'max_reintentos' => (int) env('CIRCUITO_REAPER_MAX_REINTENTOS', 3),
+    ],
+
+    /*
     | #432 Fase 3 — Brief COMPLETO (multi-pregunta). ON: la bandeja usa la columna JSON `preguntas`
     | (varias preguntas por item) y la escalación las puebla TODAS de una. OFF: fallback al modelo
     | viejo de una sola `opciones`/`opcion_elegida`. Un item SIN `preguntas` cae al fallback aunque
