@@ -98,6 +98,11 @@
                                 <span v-if="lastAdvance(item)" class="rdm-tag rdm-tag-age" :title="lastAdvance(item).full">
                                     <i class="bi bi-clock me-1"></i>{{ lastAdvance(item).rel }}
                                 </span>
+                                <span v-if="item.eta_minutos && (item.status === 'pending' || item.status === 'in_progress')"
+                                      class="rdm-tag rdm-tag-eta"
+                                      :title="`Thomas lo estimó ${fullDateTime(item.eta_asignada_at)} · ponlo en tu temporizador`">
+                                    <i class="bi bi-stopwatch me-1"></i>ETA ~{{ item.eta_minutos }} min
+                                </span>
                             </div>
                         </div>
 
@@ -701,10 +706,10 @@ export default {
                     prompt:         newItem.value.prompt || null,
                 };
                 const { data } = await axios.post('/api/roadmap/items', payload);
-                items.value.push(data);
+                items.value.push(data.item);
                 newItem.value = { title: '', priority: 'media', target_version: '', prompt: '' };
                 showAddModal.value = false;
-                showToast('Item agregado.', 'success', 'bi bi-plus-circle-fill');
+                showToast(data.aviso || 'Item agregado.', 'success', 'bi bi-plus-circle-fill');
             } catch {
                 showToast('Error al agregar el item.', 'error', 'bi bi-exclamation-circle-fill');
             }
@@ -820,7 +825,7 @@ export default {
             darkMode, items, loading, expandedId, editPrompt, editSubtasks, newLogText,
             activeFilter, filters, counts, groups, visibleGroups,
             showAddModal, newItem, toast,
-            subtasksDone, subtasksPct, lastAdvance, relativeTime,
+            subtasksDone, subtasksPct, lastAdvance, relativeTime, fullDateTime,
             canLaunch, launchTitle, statusLabel, statusIcon,
             cycleStatus, launchItem, toggleExpand, savePrompt, launchFromDetail,
             toggleSubtaskLocal, saveSubtasks, moveSubtask, removeSubtask, addSubtask,
@@ -966,6 +971,12 @@ export default {
     font-size: 11px; letter-spacing: 0; text-transform: none; padding: 0;
 }
 .rdm-dark .rdm-tag-age { color: rgba(255,255,255,.3); }
+/* ETA de Thomas (#480) — discreto como .rdm-tag-age, con acento propio */
+.rdm-tag-eta {
+    background: transparent; color: #0284c7; font-weight: 600;
+    font-size: 11px; letter-spacing: 0; text-transform: none; padding: 0;
+}
+.rdm-dark .rdm-tag-eta { color: #38bdf8; }
 
 /* Botón lanzar */
 .rdm-launch-btn {
