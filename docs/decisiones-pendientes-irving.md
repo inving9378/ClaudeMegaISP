@@ -1,6 +1,6 @@
 # Decisiones pendientes — una sola pasada
 
-> Generado por Thomas el 2026-08-08 16:50. Son las decisiones que **no**
+> Generado por Thomas el 2026-08-09 09:39. Son las decisiones que **no**
 > puede tomar solo: estratégicas o irreversibles. Todo lo demás ya lo resolvió y está corriendo.
 >
 > **Si no contestas en 48 h**, Thomas procede con la recomendación en los puntos marcados
