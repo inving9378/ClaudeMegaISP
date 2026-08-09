@@ -150,6 +150,12 @@ class SchedulerCommand extends Command
                     continue;
                 }
 
+                // #546 — arranca el reloj de ETA en el MISMO instante que el lease (mismo UPDATE atómico).
+                $eta = $svc->estimarEtaTrabajo(
+                    $item['modulo'] ?? null,
+                    DB::table('roadmap_items')->where('id', $id)->value('nivel_riesgo')
+                );
+
                 // RECLAMO atómico: solo si sigue aprobado_* o A-pendiente (evita doble-toma).
                 // Sella la firma del worker (#334 A): quién lo tomó = el slot wt-{slot}.
                 $claimed = DB::table('roadmap_items')
@@ -160,7 +166,9 @@ class SchedulerCommand extends Command
                     })
                     // #507 sub-paso 3 — `claimed_at` sella el lease del slot (lo renueva el latido).
                     ->update(['estado_aprobacion' => 'en_progreso', 'worker_sid' => "wt-{$slot}",
-                        'claimed_at' => now(), 'updated_at' => now()]);
+                        'claimed_at' => now(), 'updated_at' => now(),
+                        'trabajo_iniciado_at' => now(), 'eta_segundos' => $eta['eta_segundos'],
+                        'eta_metodo' => $eta['eta_metodo']]);
                 if ($claimed !== 1) {
                     continue; // ya lo tomó otro
                 }
