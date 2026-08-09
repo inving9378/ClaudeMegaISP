@@ -51,6 +51,8 @@ class RoadmapItem extends Model
         'eta_minutos', 'eta_asignada_at',
         // #561 — contador de reclamos fallidos (reap) antes de escalar a Irving
         'reap_count',
+        // #546 — reloj en regresión por terminal: ETA de DURACIÓN del trabajo (no del reparto)
+        'trabajo_iniciado_at', 'eta_segundos', 'eta_metodo',
         // #559 — huella del Motor de Auditoría Continua (dedup contra abiertos Y cerrados)
         'auditor_fingerprint',
     ];
@@ -91,6 +93,9 @@ class RoadmapItem extends Model
         'consulta_opciones'           => 'array',
         'eta_asignada_at'             => 'datetime',
         'reap_count'                  => 'integer',
+        // #546
+        'trabajo_iniciado_at'         => 'datetime',
+        'eta_segundos'                => 'integer',
     ];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
