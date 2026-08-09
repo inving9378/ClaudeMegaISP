@@ -838,11 +838,16 @@ class RoadmapCircuitoService
         }
         $titulos = $this->titulosDe($ids);
 
+        // #546 — reloj en regresión: eta_segundos/trabajo_iniciado_at/eta_metodo del item EN CURSO
+        // de cada sesión (sellados al reclamar, ver claimNextParalelo/circuito:scheduler).
+        $currentIds = array_map(fn ($d) => $d['current_item'] ?? null, $sessions);
+        $etas = $this->etasDe($currentIds);
+
         $sesiones = [];
         $resumen  = null;
         $resumenAt = -1;
         foreach ($sessions as $sid => $d) {
-            $sesiones[] = $this->buildSesion($sid, $d, $now, $titulos);
+            $sesiones[] = $this->buildSesion($sid, $d, $now, $titulos, $etas);
 
             // El resumen mostrado = el CIRCUITO_META más reciente entre las sesiones.
             $meta = is_array($d['meta'] ?? null) ? $d['meta'] : null;
@@ -923,11 +928,16 @@ class RoadmapCircuitoService
             'heartbeat_at'          => null,
             'segundos_desde_latido' => null,
             'segundos_corriendo'    => null,
+            // #546 — slot ocioso: sin item, sin reloj.
+            'eta_segundos'          => null,
+            'eta_metodo'            => null,
+            'trabajo_iniciado_at'   => null,
+            'restante_segundos'     => null,
         ];
     }
 
     /** Construye el objeto-sesión (una terminal del visor #349/#350) a partir del blob live. */
-    private function buildSesion(string $sid, array $d, int $now, array $titulos): array
+    private function buildSesion(string $sid, array $d, int $now, array $titulos, array $etas = []): array
     {
         $finished  = (bool) ($d['finished'] ?? false);
         $hb        = (int) ($d['heartbeat_at'] ?? 0);
@@ -948,6 +958,15 @@ class RoadmapCircuitoService
             ];
         }, $fases);
 
+        // #546 — reloj en regresión: restante_segundos se computa SERVER-SIDE en este load; el
+        // cliente lo va bajando con su propio tick y se re-sincroniza en cada poll (evita deriva).
+        $eta               = $itemId ? ($etas[$itemId] ?? null) : null;
+        $etaSegundos       = $eta['eta_segundos'] ?? null;
+        $trabajoIniciadoAt = $eta['trabajo_iniciado_at'] ?? null;   // Carbon|null
+        $restante          = ($etaSegundos !== null && $trabajoIniciadoAt)
+            ? $etaSegundos - $trabajoIniciadoAt->diffInSeconds(now())
+            : null;
+
         return [
             'sid'                   => $sid,
             'item'                  => $itemId ? ['id' => (int) $itemId, 'title' => $titulos[$itemId] ?? null] : null,
@@ -963,6 +982,11 @@ class RoadmapCircuitoService
             'heartbeat_at'          => $hb ? Carbon::createFromTimestamp($hb)->toIso8601String() : null,
             'segundos_desde_latido' => $sinceBeat,
             'segundos_corriendo'    => $running ? max(0, $now - (int) $d['started_at']) : null,
+            // #546 — reloj en regresión del item en curso (null si aún no tiene ETA sellado).
+            'eta_segundos'          => $etaSegundos,
+            'eta_metodo'            => $eta['eta_metodo'] ?? null,
+            'trabajo_iniciado_at'   => $trabajoIniciadoAt?->toIso8601String(),
+            'restante_segundos'     => $restante,
         ];
     }
 
@@ -975,6 +999,27 @@ class RoadmapCircuitoService
         }
 
         return RoadmapItem::whereIn('id', $ids)->pluck('title', 'id')->toArray();
+    }
+
+    /**
+     * #546 — Mapa `id => {eta_segundos, trabajo_iniciado_at, eta_metodo}` para un set de items
+     * EN CURSO (el reloj en regresión de cada terminal). PURO-LECTURA.
+     */
+    private function etasDe(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', array_filter($ids))));
+        if (! $ids) {
+            return [];
+        }
+
+        return RoadmapItem::whereIn('id', $ids)
+            ->get(['id', 'eta_segundos', 'trabajo_iniciado_at', 'eta_metodo'])
+            ->keyBy('id')
+            ->map(fn (RoadmapItem $i) => [
+                'eta_segundos'        => $i->eta_segundos,
+                'trabajo_iniciado_at' => $i->trabajo_iniciado_at,   // Carbon|null (cast)
+                'eta_metodo'          => $i->eta_metodo,
+            ])->all();
     }
 
     /** #507 sub-paso 3 — ¿el circuito corre en modo CONTINUO (sin rondas)? Flag reversible. */
@@ -1399,7 +1444,19 @@ class RoadmapCircuitoService
         $id = (int) $items[0]['id'];
         // #507 sub-paso 3 — sella el LEASE al reclamar: a partir de aquí el worker debe renovarlo
         // con su latido (liveBeat) o el reaper libera el item.
-        $update = ['estado_aprobacion' => 'en_progreso', 'claimed_at' => now(), 'updated_at' => now()];
+        // #546 — arranca el reloj de ETA en el MISMO instante que el lease (mismo UPDATE atómico).
+        $eta = $this->estimarEtaTrabajo(
+            $items[0]['modulo'] ?? null,
+            RoadmapItem::where('id', $id)->value('nivel_riesgo')
+        );
+        $update = [
+            'estado_aprobacion'   => 'en_progreso',
+            'claimed_at'          => now(),
+            'updated_at'          => now(),
+            'trabajo_iniciado_at' => now(),
+            'eta_segundos'        => $eta['eta_segundos'],
+            'eta_metodo'          => $eta['eta_metodo'],
+        ];
         if ($sid = $this->normalizaSid($workerSid)) {
             $update['worker_sid'] = $sid;   // firma del worker (#334 A)
         }
@@ -1420,6 +1477,12 @@ class RoadmapCircuitoService
             ->update($update);
 
         return $claimed === 1 ? $id : null;
+    }
+
+    /** #546 — Estima cuánto tardará un item (mediana histórica módulo+nivel, fallback a bucket). */
+    public function estimarEtaTrabajo(?string $modulo, ?string $nivelRiesgo): array
+    {
+        return app(EstimadorTiempo::class)->estimar($modulo, $nivelRiesgo);
     }
 
     /** Normaliza un id de worker a la forma `wt-K` (o null si no viene / inválido). #334 A */
