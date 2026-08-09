@@ -158,6 +158,13 @@ return [
             'level'  => 'debug',
             'days'   => 30,
         ],
+
+        'migration_guard' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/migration-guard.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
     ],
 
 ];
