@@ -105,6 +105,13 @@
           </span>
         </div>
 
+        <!-- #546: reloj en regresión del ETA del item en curso (no desaparece al llegar a 0). -->
+        <div v-if="etaVisible(s)" class="tt-eta-row" :class="etaClass(s)" :title="etaTooltip(s)">
+          <i class="bi" :class="etaIcon(s)"></i>
+          <span class="tt-eta-label">{{ etaLabel(s) }}</span>
+          <span class="tt-eta-bar"><span class="tt-eta-fill" :style="{ width: etaPct(s) + '%' }"></span></span>
+        </div>
+
         <!-- Terminal cruda -->
         <pre :ref="el => setPre(s.sid, el)" class="tt-pre">{{ s.log_tail || (s.idle ? 'esperando trabajo… el supervisor le asignará el próximo item de la cola.' : 'Sin salida todavía…') }}</pre>
       </div>
@@ -128,6 +135,11 @@
           <span v-for="f in FASES" :key="f.key" class="tt-step" :class="stepClass(fsSesion, f.key)">
             {{ stepReached(fsSesion, f.key) ? '●' : '○' }}<span class="tt-step-lbl">{{ f.label }}</span>
           </span>
+        </div>
+        <div v-if="etaVisible(fsSesion)" class="tt-eta-row" :class="etaClass(fsSesion)" :title="etaTooltip(fsSesion)">
+          <i class="bi" :class="etaIcon(fsSesion)"></i>
+          <span class="tt-eta-label">{{ etaLabel(fsSesion) }}</span>
+          <span class="tt-eta-bar"><span class="tt-eta-fill" :style="{ width: etaPct(fsSesion) + '%' }"></span></span>
         </div>
         <pre ref="fsPre" class="tt-pre tt-pre-fs">{{ fsSesion.log_tail || 'Sin salida todavía…' }}</pre>
       </div>
@@ -176,6 +188,42 @@ export default {
             const m = Math.floor(secs / 60), s = secs % 60;
             if (m < 60) return `${m}m ${String(s).padStart(2, "0")}s`;
             return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+        };
+
+        // #546: reloj en regresión del ETA — reusa el mismo tickTimer/nowMs global (sin timers nuevos).
+        // restante_segundos llega del server en cada poll (re-sincroniza sin deriva); entre polls se
+        // baja localmente restando lo transcurrido desde trabajo_iniciado_at.
+        const etaVisible = (s) => !!(s && !s.idle && s.item && s.eta_segundos != null && s.trabajo_iniciado_at);
+        const etaRestante = (s) => {
+            if (!etaVisible(s)) return null;
+            return s.eta_segundos - secsSince(s.trabajo_iniciado_at);
+        };
+        const etaClass = (s) => {
+            const r = etaRestante(s);
+            if (r == null) return "";
+            if (r < 0) return "tt-eta-over";
+            return r / s.eta_segundos < 0.2 ? "tt-eta-warn" : "tt-eta-ok";
+        };
+        const etaIcon = (s) => {
+            const r = etaRestante(s);
+            if (r == null) return "bi-hourglass";
+            return r < 0 ? "bi-exclamation-triangle-fill" : "bi-hourglass-split";
+        };
+        const etaLabel = (s) => {
+            const r = etaRestante(s);
+            if (r == null) return "";
+            return r < 0 ? `excedido +${fmtClock(-r)}` : `quedan ${fmtClock(r)}`;
+        };
+        const etaPct = (s) => {
+            if (!etaVisible(s) || s.eta_segundos <= 0) return 100;
+            const transcurrido = secsSince(s.trabajo_iniciado_at);
+            return Math.max(0, Math.min(100, (transcurrido / s.eta_segundos) * 100));
+        };
+        const etaTooltip = (s) => {
+            const metodo = s.eta_metodo === "historico"
+                ? "estimado por histórico de tareas similares"
+                : "estimado por tabla de tiempos por nivel de riesgo (sin histórico suficiente)";
+            return `ETA: ${fmtClock(s.eta_segundos)} · ${metodo}`;
         };
 
         const reachedSet = (s) => new Set((s.pasos || []).map((p) => p.fase));
@@ -263,6 +311,7 @@ export default {
             secsSince, fmtClock, stepReached, stepClass, setPre,
             avatarUrl, onAvatarError, avatarClass, gestureIcon, gestureClass, supervisorUrl, linkClass,
             openFs, closeFs,
+            etaVisible, etaClass, etaIcon, etaLabel, etaPct, etaTooltip,
         };
     },
 };
@@ -271,13 +320,13 @@ export default {
 <style scoped>
 .tt-wrap{
   --tt-bg:#f8fafc; --tt-surface:#fff; --tt-ink:#0f172a; --tt-muted:#64748b; --tt-line:#e5e7eb;
-  --tt-accent:#0d9488; --tt-live:#10b981; --tt-warn:#d97706;
+  --tt-accent:#0d9488; --tt-live:#10b981; --tt-warn:#d97706; --tt-danger:#dc2626;
   --tt-termbg:#0a1120; --tt-termink:#b8c4d8; --tt-termgreen:#4ade80;
   color:var(--tt-ink);
 }
 .tt-wrap.tt-dark{
   --tt-bg:#0b1220; --tt-surface:#0f172a; --tt-ink:#e2e8f0; --tt-muted:#94a3b8; --tt-line:#1e293b;
-  --tt-accent:#2dd4bf; --tt-live:#34d399; --tt-warn:#fbbf24;
+  --tt-accent:#2dd4bf; --tt-live:#34d399; --tt-warn:#fbbf24; --tt-danger:#f87171;
 }
 
 .tt-bar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
@@ -422,6 +471,19 @@ export default {
 .tt-step-done{ color:var(--tt-accent); }
 .tt-step-cur{ color:var(--tt-live); font-weight:800; }
 .tt-step-pend{ opacity:.55; }
+
+/* #546 — reloj en regresión del ETA del item en curso */
+.tt-eta-row{ display:flex; align-items:center; gap:7px; padding:6px 12px; border-bottom:1px solid var(--tt-line); font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; }
+.tt-eta-label{ white-space:nowrap; }
+.tt-eta-bar{ flex:1 1 auto; height:5px; border-radius:999px; background:var(--tt-line); overflow:hidden; }
+.tt-eta-fill{ display:block; height:100%; border-radius:999px; background:currentColor; transition:width 1s linear; }
+.tt-eta-ok{ color:var(--tt-live); }
+.tt-eta-warn{ color:var(--tt-warn); }
+.tt-eta-over{ color:var(--tt-danger); }
+.tt-eta-over .tt-eta-fill{ background:var(--tt-danger); }
+@media (prefers-reduced-motion: reduce){
+  .tt-eta-fill{ transition:none !important; }
+}
 
 .tt-pre{
   margin:0; padding:11px 13px; background:var(--tt-termbg); color:var(--tt-termink);
