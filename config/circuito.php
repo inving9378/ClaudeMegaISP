@@ -347,6 +347,30 @@ return [
 
         /*
         |----------------------------------------------------------------------
+        | DESTRABE AUTOMÁTICO EN EL SCHEDULER (#547)
+        |----------------------------------------------------------------------
+        |
+        | `circuito:destrabar-bandeja --apply` (auto-merge/auto-decisión/consolidado de arriba,
+        | #566 E1/E2/E4) existía SOLO como comando manual — nada lo disparaba. Un item terminado +
+        | decidido + verde se quedaba parqueado en `esperando_merge_irving` sin que nada avanzara:
+        | el síntoma de #547 ("ya está terminado, solo espera el merge... y ahí se estanca"). La
+        | elegibilidad ya era correcta (frontera dura / nivel C / migración destructiva la
+        | retienen); solo faltaba encender el motor.
+        |
+        | Enganchado en el SCHEDULER (`SchedulerCommand::tickDestrabe()`), igual que Thomas::tick()
+        | y el Auditor arriba — NO en su propia línea de crontab: el scheduler ya es "el único
+        | despachador" (#432 B1) y una línea aparte abriría una segunda carrera sobre los mismos
+        | items. Throttle propio para no re-escanear la bandeja cada minuto sin necesidad (el cap
+        | de auto-merges por CICLO de arriba ya acota el daño; esto solo acota la frecuencia).
+        */
+        'destrabe_bandeja' => [
+            'enabled'           => (bool) env('CIRCUITO_THOMAS_DESTRABE_SCHEDULER', true),
+            'intervalo_minutos' => (int) env('CIRCUITO_THOMAS_DESTRABE_INTERVALO', 5),
+            'limit'             => (int) env('CIRCUITO_THOMAS_DESTRABE_LIMIT', 120),
+        ],
+
+        /*
+        |----------------------------------------------------------------------
         | CONSOLIDADO ESTRATÉGICO (#566 E4)
         |----------------------------------------------------------------------
         |

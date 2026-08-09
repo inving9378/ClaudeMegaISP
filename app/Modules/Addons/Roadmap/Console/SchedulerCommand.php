@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Roadmap\Console;
 use App\Modules\Addons\Roadmap\Services\MergeRunner;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
@@ -28,6 +29,7 @@ class SchedulerCommand extends Command
 
     private const RUNTIME = '/home/meganet/circuito';
     private const SCHED_LOCK = self::RUNTIME . '/scheduler.lock';
+    private const SETTING_DESTRABE_BEAT = 'circuito_destrabe_bandeja_beat';
 
     public function handle(RoadmapCircuitoService $svc): int
     {
@@ -85,6 +87,9 @@ class SchedulerCommand extends Command
                 } catch (\Throwable $e) {
                     Log::channel('roadmap_externo')->warning('thomas-tick-fallo', ['error' => $e->getMessage()]);
                 }
+
+                // #547 — DESTRABE automático: ver docblock de tickDestrabe() abajo.
+                $this->tickDestrabe();
 
                 // #559 — MOTOR DE AUDITORÍA CONTINUA. El generador de trabajo va enganchado aquí,
                 // igual que Thomas, y por el mismo motivo: el scheduler es el único despachador y
@@ -171,6 +176,44 @@ class SchedulerCommand extends Command
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
+        }
+    }
+
+    /**
+     * #547 — DESTRABE automático de la bandeja: corre `circuito:destrabar-bandeja --apply`, que
+     * auto-mergea lo verificado y reversible, auto-decide lo ya contestado/mecánico y consolida
+     * lo estratégico (#566 E1/E2/E4). Antes de esto el comando existía pero nada lo llamaba —
+     * items terminados + decididos se quedaban parqueados en `esperando_merge_irving` para
+     * siempre. Va aquí, no en su propia línea de crontab, por la misma razón que Thomas y el
+     * Auditor arriba: el scheduler ya es el único despachador (#432 B1); una línea aparte abriría
+     * una segunda carrera sobre los mismos items. Throttle propio (config
+     * `circuito.thomas.destrabe_bandeja`) para no re-escanear cada minuto sin necesidad — el cap
+     * de auto-merges por CICLO ya acota el daño de cada corrida, esto solo acota la frecuencia.
+     * Best-effort: un fallo aquí nunca debe frenar el reparto.
+     */
+    private function tickDestrabe(): void
+    {
+        if (! (bool) config('circuito.thomas.destrabe_bandeja.enabled', true)) {
+            return;
+        }
+
+        $intervalo = max(1, (int) config('circuito.thomas.destrabe_bandeja.intervalo_minutos', 5));
+        $ultima    = DB::table('settings')->where('key', self::SETTING_DESTRABE_BEAT)->value('value');
+        if ($ultima !== null && (time() - (int) $ultima) < $intervalo * 60) {
+            return;
+        }
+
+        try {
+            Artisan::call('circuito:destrabar-bandeja', [
+                '--apply' => true,
+                '--limit' => (int) config('circuito.thomas.destrabe_bandeja.limit', 120),
+            ]);
+            DB::table('settings')->updateOrInsert(
+                ['key' => self::SETTING_DESTRABE_BEAT],
+                ['value' => (string) time(), 'updated_at' => now()]
+            );
+        } catch (\Throwable $e) {
+            Log::channel('roadmap_externo')->warning('destrabe-bandeja-fallo', ['error' => $e->getMessage()]);
         }
     }
 
