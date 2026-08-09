@@ -123,7 +123,11 @@ class MigrationGuardService
         }
 
         if (preg_match('#^circuito/item-(\d+)-#', $branch, $m)) {
-            return RoadmapItem::where('id', (int) $m[1])->where('branch', $branch)->exists();
+            $item = RoadmapItem::find((int) $m[1]);
+
+            // 'estacion' (accessor derivado) === 'done' cubre completado/cancelado/rechazado/
+            // archivado — un item ya cerrado no es una ruta viva a main, aunque su branch exista.
+            return $item !== null && $item->branch === $branch && $item->estacion !== 'done';
         }
 
         return false;
