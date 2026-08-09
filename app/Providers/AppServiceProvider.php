@@ -26,6 +26,13 @@ class AppServiceProvider extends ServiceProvider
             return new MikrotikService();
         });
 
+        // Item #534 — el binding 'migrator' vive por string key (no por FQCN),
+        // así que el auto-wiring por reflexión no lo resuelve; se inyecta explícito.
+        $this->app->singleton(
+            \App\Services\MigrationGuardService::class,
+            fn ($app) => new \App\Services\MigrationGuardService($app['migrator'])
+        );
+
         // Timbrado CFDI 4.0 — stub hasta que se integre un PAC real
         $this->app->singleton(
             \App\Services\Finance\Timbrado\TimbradoServiceInterface::class,
@@ -138,6 +145,18 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\View::composer(
             'meganet.module.client.index',
             \App\Modules\Addons\Payments\View\Composers\ReconciliationBannerComposer::class
+        );
+
+        // Item #534 — guardrail de migraciones: `php artisan migrate` (cualquier
+        // flujo, manual o circuito) pasa por GuardedMigrateCommand antes de correr.
+        // Solo enforcea en dev (MigrationGuardService::shouldEnforce), fail-open
+        // si git no está disponible. Ver app/Services/MigrationGuardService.php.
+        $this->app->extend(
+            \Illuminate\Database\Console\Migrations\MigrateCommand::class,
+            fn ($command, $app) => new \App\Console\Commands\GuardedMigrateCommand(
+                $app['migrator'],
+                $app[\Illuminate\Contracts\Events\Dispatcher::class]
+            )
         );
     }
 
