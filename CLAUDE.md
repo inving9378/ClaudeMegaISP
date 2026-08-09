@@ -435,6 +435,19 @@ php artisan schedule:run   # cron lo llama cada minuto en prod
 
 **Caveat tests:** `TestCase.php` corre `migrate:fresh --seed` en cada test — usar DB separada (`APP_ENV=test`), nunca dev/prod.
 
+### ⚠️ Guardrail de migraciones en dev (item #534, raíz de las migraciones fantasma)
+`php artisan migrate` (cualquier flujo: manual, worker del circuito, `migrate:fresh`/`refresh`) exige en
+dev que cada migración **pendiente** esté **commiteada** y en una rama con **ruta registrada a main**
+(main mismo, o una rama `circuito/item-N-...` ligada a un item vivo del roadmap). Si no, aborta con
+mensaje claro — así una migración escrita en un worktree ya no puede aplicarse contra la BD compartida
+sin quedar rastreable a main, que era el mecanismo del incidente original (fantasmas: `add_reporte_dual`,
+`add_decision_metadata`). Escape hatch para casos legítimos (rollback de emergencia/debug):
+`php artisan migrate --force-uncommitted` (queda auditado en `storage/logs/migration-guard.log`).
+Solo enforcea con `APP_ENV=local` fuera de tests (`MigrationGuardService::shouldEnforce`); no toca
+`migrate:fresh --seed` de los tests ni el deploy de prod. Implementación:
+`app/Services/MigrationGuardService.php` + `app/Console/Commands/GuardedMigrateCommand.php`, inyectado
+sobre el `MigrateCommand` nativo en `AppServiceProvider::boot()`.
+
 ---
 
 ## INTEGRACIONES EXTERNAS
