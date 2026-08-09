@@ -2,9 +2,9 @@
 
 namespace App\Modules\Addons\Roadmap\Services\Advisors;
 
-use App\Models\Invoice;
 use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Services\Cobranza\InvoiceAgingService;
 
 /**
  * Piloto mínimo del "consejo asesor" (item #344): UN solo rol (Cobranza), corrida MANUAL
@@ -19,39 +19,14 @@ class CobranzaAdvisorService
     public const MODULO = 'Cobranza / Consejo asesor';
     public const MAX_PROPUESTAS = 3;
 
-    /** Agregados read-only de facturación. Sin PII: nada de nombres/ids de cliente. */
+    /**
+     * Agregados read-only de facturación. Sin PII: nada de nombres/ids de cliente.
+     * Delegado a InvoiceAgingService (item #484, Fase 1) — punto único de verdad
+     * de aging/buckets, compartido con el futuro armado de campañas.
+     */
     public function metricas(): array
     {
-        $pendientes = Invoice::query()->where('status', '!=', 'paid');
-
-        $totalPendientes = (clone $pendientes)->count();
-        $vencidas = (clone $pendientes)->where('due_date', '<', now());
-        $totalVencidas = (clone $vencidas)->count();
-        $montoVencido = (float) (clone $vencidas)->sum('pending_balance');
-        $clientesConSaldoVencido = (clone $vencidas)->distinct('client_id')->count('client_id');
-
-        $buckets = [];
-        $rangos = [[0, 30], [31, 60], [61, 90], [91, null]];
-        foreach ($rangos as [$desde, $hasta]) {
-            $q = (clone $pendientes)->where('due_date', '<', now()->subDays($desde));
-            if ($hasta !== null) {
-                $q->where('due_date', '>=', now()->subDays($hasta));
-            }
-            $etiqueta = $hasta !== null ? "{$desde}-{$hasta} días" : "{$desde}+ días";
-            $buckets[$etiqueta] = [
-                'facturas' => (clone $q)->count(),
-                'monto'    => (float) (clone $q)->sum('pending_balance'),
-            ];
-        }
-
-        return [
-            'total_facturas_pendientes'     => $totalPendientes,
-            'total_facturas_vencidas'       => $totalVencidas,
-            'monto_total_vencido'           => round($montoVencido, 2),
-            'clientes_con_saldo_vencido'    => $clientesConSaldoVencido,
-            'buckets_antiguedad'            => $buckets,
-            'generado_at'                   => now()->toDateTimeString(),
-        ];
+        return (new InvoiceAgingService())->metricas();
     }
 
     /**
