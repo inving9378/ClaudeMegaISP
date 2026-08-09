@@ -977,3 +977,42 @@ cerrar para que un eventual reabrir no quede excluido en silencio.
   detalle preexistente de que sin canales marcados no hay alerta).
 
 **Pendiente en ambos:** validación visual de Irving. Nada desplegado a prod.
+
+---
+
+## 2026-08-09 09:40 — Item #593 "Jalar items": Thomas drena el backlog actual, sea cual sea su nivel
+
+**Pedido de Irving (vía Torre, directo a cola):** "Deja que todos los ítems que se encuentran ahora
+creados, los resuelva con las decisiones de Thomas el supervisor de las terminales, sea cual sea su
+nivel, evaluaremos las decisiones del supervisor" — es decir, drenar el backlog actual con Thomas,
+sin filtrar por `nivel_riesgo`, y revisar sus decisiones después (no antes).
+
+**Interpretación (registrada como decisión en el item):** `circuito:destrabar-bandeja` ya existe y
+hace exactamente esto (auto-merge de ramas verificadas + auto-decisión "ya decidido"/"mecánico" +
+consolidado de lo estratégico), pero **no estaba corriendo** (ni en cron ni ejecutado manualmente
+sobre el backlog vivo). No se tocó el tope C del carril mecánico (`circuito.thomas.mecanico.max_nivel`)
+porque es una invariante de diseño explícita en el código ("un C es, por definición, una decisión de
+diseño de Irving") — ensancharla es justo el punto que ya discute el item #566 (quedó consolidado).
+
+**Ejecutado:** `php artisan circuito:destrabar-bandeja --apply` sobre los 84 items vivos en bandeja
+(requiere_irving / pendiente_revision / aprobado_irving / esperando_merge_irving / bloqueado_por_bucle),
+sin filtro de nivel en la consulta — cada item se enrutó según lo que le faltaba de verdad:
+
+- **2 auto-merge:** #344 → mergeado limpio (`merge_commit` sellado, item `completado`). #528 → el
+  merge-runner detectó un conflicto real en `ModuleServiceProvider.php`, abortó solo (**main quedó
+  intacto**) y el item volvió a `requiere_irving` — el candado de seguridad funcionó como debía.
+- **4 auto-decididos** (`thomas-ya-decidido`, brief ya contestado, no había nada pendiente de
+  decidir): #480, #484, #492, #534 → pasaron a `aprobado_revisor`/cola ejecutable; 3 de ellos
+  (#484, #492, #534) ya fueron tomados por otras terminales del pool en vivo, confirmando que el
+  drenado alimentó reparto real, no solo cambió un estado.
+- **4 consolidados** en `docs/decisiones-pendientes-irving.md` (estratégicos, con la recomendación
+  de Thomas al lado, para que Irving conteste de una pasada): #530, #547, #565, #566.
+- **74 retenidos correctamente** (la frontera dura funcionó): 23 rotulados [BLOCKED-]/[PARKED-], 21
+  frontera dura (prod/dinero/borrar-datos/credenciales), 17 nivel C sin decisión de Irving, 5
+  dependientes de otro item, 3 con migración destructiva, 2 de negocio/producto, 2 sin señal
+  mecánica reconocible, 1 sin triar.
+
+**Verificación:** estado post-corrida de #344/#528 y de los 4 auto-decididos confirmado por tinker
+(arriba). Nada tocó producción, no se sobrescribió ningún item en `en_progreso` de otra terminal (la
+query de `destrabar-bandeja` nunca los incluye). Cambio de código de este item: ninguno (es un item
+operativo del propio circuito) — solo se regeneró el consolidado y se dejó esta bitácora.
