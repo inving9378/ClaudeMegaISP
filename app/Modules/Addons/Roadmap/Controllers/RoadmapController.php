@@ -1432,6 +1432,21 @@ class RoadmapController extends Controller
 
         $item = RoadmapItem::create($data);
 
+        /*
+         * #480 — TOQUE AL SUPERVISOR + ETA EN EL ALTA.
+         *
+         * El item pedía que el botón "Agregar" avisara al supervisor y éste devolviera un tiempo
+         * estimado para que quien lo agregó lo ponga en su temporizador. El "supervisor" del
+         * circuito hoy es Thomas (no un rol Spatie humano ni WhatsApp — eso es de antes de #566):
+         * ya calcula un ETA determinista por nivel_riesgo/tamaño del spec (`sellarEsfuerzo`) y lo
+         * sella en `eta_minutos`/`eta_asignada_at`, pero solo lo hacía en su barrido periódico
+         * (`tick()`), así que el alta no lo veía hasta el siguiente minuto. Aquí se sella
+         * SÍNCRONO — el "toque" ocurre en el mismo request, sin esperar al barrido.
+         */
+        if ($frontera === null) {
+            $thomas->sellarEsfuerzo($item);
+        }
+
         $item->log = [[
             'ts'      => now()->toIso8601String(),
             'por'     => $this->actorLabel(),
@@ -1439,13 +1454,14 @@ class RoadmapController extends Controller
             'via'     => 'torre',
             'directo_a_cola' => $frontera === null,
             'frontera'       => $frontera,
+            'eta_minutos'    => $item->eta_minutos,
         ]];
         $item->save();
 
         return response()->json([
             'item'  => $item,
             'aviso' => $frontera === null
-                ? 'Creado y aprobado: entra directo a la cola. Una terminal libre lo toma en segundos.'
+                ? "Creado y aprobado: entra directo a la cola. Thomas lo tocó y lo estimó en ~{$item->eta_minutos} min — una terminal libre lo toma en segundos."
                 : "Creado, pero NO entra solo a la cola: declara «{$frontera}» (frontera dura). "
                     . 'Apruébalo desde la bandeja si es lo que quieres.',
         ], 201);
