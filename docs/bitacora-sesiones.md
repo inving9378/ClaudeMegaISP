@@ -1016,3 +1016,65 @@ sin filtro de nivel en la consulta — cada item se enrutó según lo que le fal
 (arriba). Nada tocó producción, no se sobrescribió ningún item en `en_progreso` de otra terminal (la
 query de `destrabar-bandeja` nunca los incluye). Cambio de código de este item: ninguno (es un item
 operativo del propio circuito) — solo se regeneró el consolidado y se dejó esta bitácora.
+
+## 2026-08-10 09:10 — Deploy: el circuito ensuciaba git y el propio deploy regeneraba el config cache (#520)
+
+**Disparador:** el deploy #66 (release `V1.31-10.08.2026`) abortó en el paso
+`git_staging_gate`. No fue un bug: el guardrail de allowlist hizo exactamente su trabajo.
+
+### Hallazgo 1 — el sistema autónomo ensuciaba archivos versionados
+`docs/decisiones-pendientes-irving.md` y `docs/pendientes-perfil-irving.md` estaban
+**trackeados** y los escribe el circuito **en runtime**: `PerfilAprendizajeService::capturar()`
+(append bajo ancla, en cada decisión de Irving) y `ThomasService::escribirConsolidado()`
+(reescribe el archivo entero). El allowlist del release solo admite `public/chart.js` y
+`public/images/vendor` → cada vuelta del circuito dejaba dos archivos fuera del allowlist y
+**cada deploy iba a abortar**, no solo éste.
+
+**Fix de raíz:** separar *estado que el circuito escribe* de *código versionado*. Los dos
+`.md` salieron de git a `storage/app/circuito/` (gitignored por `storage/app/.gitignore`);
+rutas por config (`thomas.consolidado.doc_path` + nueva `revisor.pendientes_perfil_path`).
+- `PerfilAprendizajeService` **auto-siembra** el archivo con su ancla si falta: antes hacía
+  `return` mudo, y fuera de git un checkout nuevo nunca lo tendría → el loop de aprendizaje
+  moriría en silencio.
+- `ThomasService` crea el directorio al vuelo.
+- Las rutas viejas quedan en `.gitignore` como red: los worktrees corren código **commiteado**,
+  así que un worker con código previo todavía escribe en `docs/` y volvería a ensuciar el árbol.
+- Permisos: `storage/app/circuito` a `2775` (mismo gotcha que `storage/app/private/payments` —
+  la carpeta la crea `meganet` pero escribe `www-data`).
+
+### Hallazgo 2 — EL DEPLOY era la mina del #520
+El paso 1 del pipeline (`DeploymentService::refreshDeploymentConfig`) corría
+`Artisan::call('config:cache')`. Este box lee `env()` en **runtime** (IA/WhatsApp): con
+`bootstrap/cache/config.php` presente Laravel se salta `LoadEnvironmentVariables` al bootear y
+`env()` devuelve NULL. **No era una vuelta del circuito: era el deploy**, en cada release.
+
+Corregidos los cuatro puntos que cacheaban config:
+| Punto | Antes | Ahora |
+|---|---|---|
+| `DeploymentService::refreshDeploymentConfig` (dev) | `config:cache` + releer el cache | `config:clear` + recargar `.env` en proceso + releer `config/deployment.php` del fuente |
+| `RemoteDeployCommand` paso `optimize` (**prod**) | `php artisan optimize` (incluye `config:cache`) | `config:clear && route:clear && view:clear && view:cache` |
+| `RemoteDeployCommand` warm-up del rollback | `optimize` | mismos clears |
+| `deploy/provision/install.sh` + `install_megaisp.sh` | `config:cache` | `config:clear` (+ `queue:restart`) |
+
+El de provisión re-cacheaba *"para que Laravel tome la `WHATSAPP_API_KEY` nueva"* — que es
+literalmente lo que la mataba.
+
+**Se conserva la garantía original** del método (que la corrida ACTUAL no use valores stale que
+el worker traía en memoria — el bug de V1.7 con el allowlist viejo), y además **auto-sana**: la
+primera corrida con este fix borra el cache que dejaron los deploys anteriores.
+
+### Verificación (dev)
+- Bug reproducido: booteo **con** cache → `env('CLAUDE_API_KEY')` = NULL. Tras
+  `refreshDeploymentConfig`: cache **ausente**, `env()` recuperado, `deployment` correcto
+  (`publisher=true`, 2 artifacts, 9 pasos).
+- Captura de perfil y consolidado de Thomas escriben en `storage/app/circuito/` y **no** recrean
+  `docs/`; auto-sembrado en ruta limpia OK.
+- `php -l` y `bash -n` limpios. Árbol de git **limpio** → el `git_staging_gate` ya pasa.
+- `queue:restart` enviado (el worker de deploy tenía el `DeploymentService` viejo en memoria).
+
+**Commit:** `05e0ecb1` (dev/main, **sin push**). Ítem #520 actualizado apuntando al script de deploy.
+
+### ⚠️ Pendiente operativo en PROD
+Como todo cambio a `remote:deploy`, surte efecto en el deploy **siguiente**: el deploy que
+*entregue* este fix a prod todavía correrá el `optimize` viejo. Después de ese deploy hay que
+correr **una vez** `php artisan config:clear` en `.198`.
