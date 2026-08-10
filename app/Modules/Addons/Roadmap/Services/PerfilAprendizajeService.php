@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Log;
  *
  * Captura cada aprobación/rechazo de Irving sobre un item de su bandeja, y cada "⚠ Reportar
  * problema" sobre un item ya validado, como candidato CRUDO trazable en
- * `docs/pendientes-perfil-irving.md`. NO inlinea nada automáticamente en
+ * `storage/app/circuito/pendientes-perfil-irving.md` (fuera de git: es estado que el circuito
+ * reescribe en cada vuelta, no fuente versionada). NO inlinea nada automáticamente en
  * `docs/perfil-decisiones-irving.md` — ese archivo lo edita SOLO Irving, en lote, cuando decide
  * que un patrón (≥3 decisiones consistentes) merece volverse preferencia. Frontera dura
  * (dinero/seguridad/prod/negocio) NUNCA se infiere aquí, solo se registra el crudo.
@@ -65,7 +66,13 @@ class PerfilAprendizajeService
         try {
             $path = $this->path();
             if (! is_file($path)) {
-                return; // sin archivo destino, no crea nada nuevo por su cuenta (aditivo, no autoritativo)
+                // El archivo salió de git (es estado de runtime, no fuente) → en un checkout
+                // nuevo no existe. Antes esto era `return` y el loop moría en silencio; ahora
+                // se siembra el esqueleto con su ancla. Sigue sin ser autoritativo: solo
+                // acumula candidatos crudos, el perfil real lo promueve Irving a mano.
+                if (! $this->sembrar($path)) {
+                    return;
+                }
             }
 
             $contenido = (string) file_get_contents($path);
@@ -108,8 +115,28 @@ class PerfilAprendizajeService
         return implode("\n", $lineas);
     }
 
+    /** Crea el esqueleto (directorio + encabezado + ancla). Devuelve false si no se pudo. */
+    private function sembrar(string $path): bool
+    {
+        $dir = dirname($path);
+        if (! is_dir($dir) && ! @mkdir($dir, 0775, true) && ! is_dir($dir)) {
+            return false;
+        }
+
+        $cabecera = "# Pendientes del perfil de Irving — candidatos crudos\n\n"
+            . "> Lo escribe el circuito solo (`PerfilAprendizajeService`). NO es fuente versionada:\n"
+            . "> vive en `storage/app/circuito/` justamente para no ensuciar el árbol de git en cada\n"
+            . "> vuelta. Irving promueve a mano lo que sea patrón real a `docs/perfil-decisiones-irving.md`.\n\n"
+            . self::ANCLA . "\n";
+
+        return @file_put_contents($path, $cabecera) !== false;
+    }
+
     private function path(): string
     {
-        return (string) config('circuito.revisor.pendientes_perfil_path', base_path('docs/pendientes-perfil-irving.md'));
+        return (string) config(
+            'circuito.revisor.pendientes_perfil_path',
+            storage_path('app/circuito/pendientes-perfil-irving.md')
+        );
     }
 }

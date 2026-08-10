@@ -14,11 +14,12 @@ class DeploymentService
     {
         $commitMessage = trim("release: {$version}" . ($title ? " — {$title}" : ''));
 
-        // Paso 0 — refrescar el cache de config ANTES de leer los pasos del pipeline.
+        // Paso 0 — refrescar la config del pipeline ANTES de leer sus pasos.
         // Una edición de config/deployment.php quedaba enmascarada por un
         // bootstrap/cache/config.php stale (causó que git_add intentara agregar
         // public/mix-manifest.json, ya gitignored, y el deploy fallara). DEBE correr
         // antes de config('deployment.steps') para proteger también la corrida ACTUAL.
+        // ⚠️ NO cachea config (item #520): borra el cache y relee del fuente. Ver el método.
         $configRefresh = $this->refreshDeploymentConfig();
 
         $configSteps = collect(config('deployment.steps'))
@@ -166,15 +167,22 @@ class DeploymentService
     }
 
     /**
-     * Refresca el cache de configuración ANTES de que el pipeline lea sus pasos.
+     * Refresca la configuración del pipeline ANTES de que lea sus pasos — SIN cachear config.
      *
-     * Por qué un subproceso + recarga en memoria (y no un simple paso shell):
-     *  - `config:cache` reconstruye bootstrap/cache/config.php en una app fresca con
-     *    .env cargado → los valores env() (remote_url, github.token…) quedan correctos
-     *    aunque el worker de cola haya booteado con un cache viejo.
-     *  - Luego recargamos SOLO la sección 'deployment' en el proceso actual desde ese
-     *    cache recién escrito, para que los command-strings y release_artifacts de ESTA
-     *    corrida no usen los valores stale que el worker tenía en memoria.
+     * ⚠️ Item #520 — por qué NO se usa `config:cache` aquí (era la mina, este paso la ponía):
+     * este box lee `env()` en RUNTIME (IA/WhatsApp). Con `bootstrap/cache/config.php` presente,
+     * Laravel se salta `LoadEnvironmentVariables` al bootear → `env()` devuelve NULL y la IA y
+     * WhatsApp quedan muertas. Este paso era el primero del deploy y dejaba ese cache escrito en
+     * disco, así que cada release rompía `env()` hasta el siguiente `config:clear` manual. En prod
+     * habría hecho lo mismo. Mientras haya `env()` en runtime, el deploy NO debe cachear config.
+     *
+     * Qué hace en su lugar, conservando la garantía original (que ESTA corrida no use valores
+     * stale que el worker traía en memoria — el bug de V1.7, `git_add` con el allowlist viejo):
+     *  1. `config:clear` — borra cualquier cache envenenado que ya estuviera en disco (el deploy
+     *     se auto-sana: la primera corrida con este fix limpia lo que dejaron las anteriores).
+     *  2. Recarga el .env en este proceso. Si el worker booteó CON cache, nunca leyó el .env y
+     *     `env()` está en NULL aquí; sin este paso la relectura daría los defaults vacíos.
+     *  3. Relee `config/deployment.php` del FUENTE y reemplaza solo esa sección en memoria.
      *
      * No es crítico: si algo falla, se sigue con la config en memoria y solo se avisa.
      */
@@ -182,8 +190,8 @@ class DeploymentService
     {
         $startedAt = microtime(true);
         $record = [
-            'key'         => 'config_cache',
-            'name'        => 'Refrescar configuración (config:cache)',
+            'key'         => 'config_refresh',
+            'name'        => 'Refrescar configuración (config:clear — NO cachea, item #520)',
             'status'      => 'success',
             'output'      => '',
             'exit_code'   => 0,
@@ -192,19 +200,25 @@ class DeploymentService
         ];
 
         try {
-            Artisan::call('config:cache');
+            Artisan::call('config:clear');
 
-            $cacheFile = base_path('bootstrap/cache/config.php');
-            if (is_file($cacheFile)) {
-                $fresh = require $cacheFile;
-                if (is_array($fresh) && isset($fresh['deployment'])) {
-                    config(['deployment' => $fresh['deployment']]);
+            // El .env solo se carga al bootear si NO había config cacheada. Con el cache ya
+            // borrado, este bootstrap es idempotente y seguro: el repositorio de Env es inmutable,
+            // así que si las variables ya estaban cargadas conserva las que hay.
+            (new \Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables)->bootstrap(app());
+
+            $sourceFile = base_path('config/deployment.php');
+            if (is_file($sourceFile)) {
+                $fresh = require $sourceFile;
+                if (is_array($fresh)) {
+                    config(['deployment' => $fresh]);
                 }
             }
 
-            $record['output'] = 'Configuración recacheada; sección «deployment» recargada en memoria.';
+            $record['output'] = 'Cache de configuración BORRADO (env() sigue vivo en runtime, item #520); '
+                . 'sección «deployment» releída del fuente y recargada en memoria.';
         } catch (\Throwable $e) {
-            $record['output'] = 'Aviso: no se pudo recachear la config (' . $e->getMessage() . '). Se usa la config en memoria.';
+            $record['output'] = 'Aviso: no se pudo refrescar la config (' . $e->getMessage() . '). Se usa la config en memoria.';
             Log::channel('single')->warning('Deploy — refreshDeploymentConfig falló: ' . $e->getMessage());
         }
 

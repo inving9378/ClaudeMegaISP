@@ -419,7 +419,9 @@ chown -R "${WEB_USER}:${WEB_USER}" "$APP_DIR"
 chmod -R 775 "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 
 # Caché
-php artisan config:cache
+# ⚠️ Item #520 — NUNCA `config:cache`: MegaISP lee env() en runtime (IA/WhatsApp) y un
+# bootstrap/cache/config.php presente hace que Laravel se salte la carga del .env → env() NULL.
+php artisan config:clear
 php artisan route:cache
 php artisan view:cache
 

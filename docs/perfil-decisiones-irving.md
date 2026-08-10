@@ -85,6 +85,12 @@ el revisor predice mejor su respuesta y escala menos lo que él ya aprobaría.
 
 **Loop de captura (item #351, activo):** cada decisión de Irving sobre un item de su bandeja
 (`POST /api/roadmap/circuito/decidir`) se registra automáticamente como candidato crudo en
-[`docs/pendientes-perfil-irving.md`](pendientes-perfil-irving.md). Ese archivo NO se auto-inlinea
+`storage/app/circuito/pendientes-perfil-irving.md`. Ese archivo NO se auto-inlinea
 aquí — Irving lo revisa en lote y decide a mano qué mover a este perfil. La frontera dura nunca se
 infiere automáticamente por este loop.
+
+> **Por qué fuera de `docs/`:** el circuito lo reescribe en cada vuelta. Mientras estuvo trackeado
+> en git, cada vuelta dejaba el árbol sucio y el guardrail de allowlist del deploy
+> (`git_staging_gate`) abortaba el release. Estado que el circuito escribe ≠ código versionado:
+> vive en `storage/` (gitignored). Lo mismo aplica a
+> `storage/app/circuito/decisiones-pendientes-irving.md` (consolidado de Thomas).

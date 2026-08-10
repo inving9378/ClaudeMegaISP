@@ -87,9 +87,13 @@ preflight() {
 finalize() {
     log_step "Cierre — refrescar config de MegaISP y verificación"
 
-    # Que Laravel tome la WHATSAPP_API_KEY nueva: limpiar y re-cachear config.
-    log_info "php artisan config:clear && config:cache (usuario ${MEGAISP_USER})"
-    run_as "$MEGAISP_USER" bash -c "cd '${MEGAISP_ROOT}' && php artisan config:clear && php artisan config:cache"
+    # Que Laravel tome la WHATSAPP_API_KEY nueva: limpiar config.
+    # ⚠️ Item #520 — NADA de `config:cache`: MegaISP lee env() en runtime (IA/WhatsApp). Con
+    # bootstrap/cache/config.php presente, Laravel se salta LoadEnvironmentVariables al bootear
+    # y env() devuelve NULL — es decir, re-cachear aquí mataba justo la WHATSAPP_API_KEY que
+    # este paso pretende activar. Warm-up correcto = config:clear + queue:restart.
+    log_info "php artisan config:clear (usuario ${MEGAISP_USER})"
+    run_as "$MEGAISP_USER" bash -c "cd '${MEGAISP_ROOT}' && php artisan config:clear && php artisan queue:restart"
     log_ok "Config de MegaISP refrescada"
 
     # Warm-up / health check de Evolution (no fatal): ¿responde en local?

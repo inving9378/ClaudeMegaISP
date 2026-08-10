@@ -545,7 +545,7 @@ class RoadmapController extends Controller
         $item->save();
 
         // Loop de aprendizaje del perfil (#351): captura la decisión como candidato crudo en
-        // docs/pendientes-perfil-irving.md para revisión batch. No crítico: nunca debe tumbar la
+        // storage/app/circuito/pendientes-perfil-irving.md para revisión batch. No crítico: nunca debe tumbar la
         // decisión real de Irving si falla.
         app(\App\Modules\Addons\Roadmap\Services\PerfilAprendizajeService::class)->capturar($item, $entrada);
 

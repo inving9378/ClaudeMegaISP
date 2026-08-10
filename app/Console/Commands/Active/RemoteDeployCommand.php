@@ -128,8 +128,13 @@ class RemoteDeployCommand extends Command
             //    con la verificación M1 (migrate:status): tras el timeout se comprueba el estado real y,
             //    si no quedan migraciones pendientes, el fallo por exit se trata como éxito y el deploy sigue.
             ['key' => 'migrate',       'name' => 'Aplicando cambios en la base de datos — puede tardar varios minutos, no cierres la ventana', 'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => config('deployment.migrate_timeout', 2400), 'critical' => false, 'fail_deploy_no_rollback' => true],
-            // 5. Warm-up de cachés
-            ['key' => 'optimize',      'name' => 'Optimizar cachés',                'type' => 'artisan', 'cmd' => 'optimize',             'timeout' => 30,  'critical' => false],
+            // 5. Warm-up de cachés — ⚠️ item #520: NUNCA `optimize` (incluye `config:cache`).
+            //    Este sistema lee `env()` en runtime (IA/WhatsApp): con bootstrap/cache/config.php
+            //    presente, Laravel se salta LoadEnvironmentVariables al bootear y `env()` devuelve
+            //    NULL. `optimize` en este paso dejaba ese cache escrito en CADA deploy de prod →
+            //    IA y WhatsApp muertas hasta un `config:clear` manual. Se cambia por el warm-up
+            //    seguro (mismo que usa MergeRunner): limpiar todo y cachear solo vistas.
+            ['key' => 'optimize',      'name' => 'Refrescar cachés (sin config:cache — item #520)', 'type' => 'shell', 'cmd' => 'php artisan config:clear && php artisan route:clear && php artisan view:clear && php artisan view:cache', 'timeout' => 60, 'critical' => false],
             // 6. Reiniciar workers de cola
             ['key' => 'queue_restart', 'name' => 'Reiniciar workers',               'type' => 'artisan', 'cmd' => 'queue:restart',        'timeout' => 10,  'critical' => false],
             // 7. Registrar el release en la DB local
@@ -277,8 +282,9 @@ class RemoteDeployCommand extends Command
             [$rbCode, $rbOutput] = $this->runShell("git reset --hard {$previousCommit}", 60);
 
             if ($rbCode === 0) {
-                // Warm-up mínimo tras revertir el código
-                $this->runArtisan('optimize');
+                // Warm-up mínimo tras revertir el código. Sin `optimize` (item #520): cachear
+                // config aquí dejaría `env()` en NULL justo después de un rollback.
+                $this->runShell('php artisan config:clear && php artisan route:clear && php artisan view:clear', 60);
                 $errorMsg .= "Código revertido a {$previousCommit}. ";
             } else {
                 $errorMsg .= "ROLLBACK DE CÓDIGO FALLÓ: {$rbOutput}. ";

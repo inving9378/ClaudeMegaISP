@@ -69,3 +69,11 @@ config/asterisk/sip.conf
 
 # Auditorías — material de trabajo crudo (dumps/logs), no versionar
 docs/auditorias/_sets_*/
+
+# Estado que el CIRCUITO escribe en runtime — NO es fuente versionada.
+# Su hogar real es storage/app/circuito/ (ya gitignored por storage/app/.gitignore).
+# Estas dos líneas son la red: un worker corriendo código viejo (los worktrees ejecutan
+# commits previos) todavía escribe en docs/ y ensuciaría el árbol → el guardrail de
+# allowlist del deploy (git_staging_gate) abortaría el release, que es justo el bug.
+docs/pendientes-perfil-irving.md
+docs/decisiones-pendientes-irving.md

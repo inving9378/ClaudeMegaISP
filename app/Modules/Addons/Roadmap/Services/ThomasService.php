@@ -782,7 +782,7 @@ class ThomasService
     /** Escribe el consolidado como un solo documento legible para Irving. */
     public function escribirConsolidado(array $puntos): string
     {
-        $path  = (string) config('circuito.thomas.consolidado.doc_path', base_path('docs/decisiones-pendientes-irving.md'));
+        $path  = (string) config('circuito.thomas.consolidado.doc_path', storage_path('app/circuito/decisiones-pendientes-irving.md'));
         $horas = (int) config('circuito.thomas.consolidado.horas_default', 48);
 
         $md  = "# Decisiones pendientes — una sola pasada\n\n";
@@ -806,6 +806,13 @@ class ThomasService
                 $md .= "- **Recomendación de Thomas:** — (no hay opción estructurada que recomendar)\n";
             }
             $md .= "\n";
+        }
+
+        // El doc vive fuera de git (estado de runtime) → el directorio puede no existir en un
+        // checkout nuevo. Se crea al vuelo; la escritura sigue siendo best-effort (@).
+        $dir = dirname($path);
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0775, true);
         }
 
         @file_put_contents($path, $md);

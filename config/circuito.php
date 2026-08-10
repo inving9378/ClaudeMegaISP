@@ -68,7 +68,12 @@ return [
         'brief_tokens'  => (int) env('CIRCUITO_REVISOR_BRIEF_TOKENS', 1100),
         // Perfil vivo de decisiones/preferencias de Irving, inlineado al prompt (menos falsos
         // positivos → menos ruido en su bandeja). Editable por Irving; sin secretos.
+        // SÍ es fuente versionada: lo edita Irving a mano, el circuito NUNCA le escribe.
         'perfil_path'   => base_path('docs/perfil-decisiones-irving.md'),
+        // Candidatos CRUDOS que el circuito captura solo (PerfilAprendizajeService). ESTADO de
+        // runtime, no fuente: vive en storage/ (gitignored) por la misma razón que
+        // `thomas.consolidado.doc_path` — ensuciaba docs/ en cada vuelta y abortaba el deploy.
+        'pendientes_perfil_path' => storage_path('app/circuito/pendientes-perfil-irving.md'),
         'alcance'    => [
             // FRONTERA DURA (si el título/módulo/plan menciona esto → escala SIN gastar IA).
             // Afinada (#338): se quitaron términos demasiado amplios que escalaban FALSOS POSITIVOS
@@ -384,7 +389,11 @@ return [
         'consolidado' => [
             'enabled'       => (bool) env('CIRCUITO_THOMAS_CONSOLIDADO', true),
             'horas_default' => (int) env('CIRCUITO_THOMAS_CONSOLIDADO_HORAS', 48),
-            'doc_path'      => base_path('docs/decisiones-pendientes-irving.md'),
+            // ESTADO que el circuito reescribe en runtime, NO fuente versionada: vive en
+            // storage/ (gitignored). Estaba en docs/ y cada vuelta del circuito ensuciaba un
+            // archivo trackeado → el guardrail de allowlist del deploy (git_staging_gate)
+            // abortaba el release por "archivos fuera del allowlist de artefactos".
+            'doc_path'      => storage_path('app/circuito/decisiones-pendientes-irving.md'),
         ],
 
         /*
