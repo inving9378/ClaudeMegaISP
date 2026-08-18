@@ -94,7 +94,7 @@ class MikrotikController extends Controller
 
     public function testConnection(Request $request, MikrotikService $svc): JsonResponse
     {
-        if (env('CONECTION_MIKROTIK', true) === false || env('CONECTION_MIKROTIK') === 'false') {
+        if (config('megafamilia.conexion_mikrotik') === false || config('megafamilia.conexion_mikrotik') === 'false') {
             return response()->json([
                 'success'   => true,
                 'reachable' => false,
@@ -163,7 +163,7 @@ class MikrotikController extends Controller
         $entries = [];
         $note    = null;
 
-        if (!$routerId || env('CONECTION_MIKROTIK') === 'false' || env('CONECTION_MIKROTIK', true) === false) {
+        if (!$routerId || config('megafamilia.conexion_mikrotik') === 'false' || config('megafamilia.conexion_mikrotik') === false) {
             $note = 'No hay router configurado o CONECTION_MIKROTIK=false. Mostrando entradas registradas en parental_events.';
         } else {
             try {
