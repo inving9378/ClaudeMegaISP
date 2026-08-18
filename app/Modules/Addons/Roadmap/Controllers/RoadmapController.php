@@ -483,12 +483,25 @@ class RoadmapController extends Controller
         // bloqueado por él respondía 200 sin moverlo. La detección ahora es una POST-CONDICIÓN
         // contra la condición real de despacho (al final del método): cubre cualquier freno,
         // presente o futuro, sin que nadie tenga que acordarse de actualizar una lista.
+        $frenoQuitado = null;
         if ($data['accion'] === 'aprobar' && ($data['forzar'] ?? false)) {
+            $frenoQuitado = [
+                'origen_bloqueo' => $item->origen_bloqueo,
+                'motivo'         => $item->motivo_bloqueo,
+                'titulo_previo'  => $item->title,
+            ];
+
             $item->esperando_merge_irving   = false;
             $item->bloqueado_por_bucle      = false;
             $item->excluir_pool_automatico  = false;
             $item->escalaciones_fingerprint = null;
+            // FASE 2A.3 — el destrabe levanta también el freno HUMANO en columna...
+            $item->origen_bloqueo           = null;
             $item->motivo_bloqueo           = 'destrabe-forzado-irving';
+            // ...y el rótulo del título, que es el fallback legacy. Sin esto, «Quitar el freno y
+            // aprobar» dejaría el item igual de frenado y el 422 volvería en el siguiente intento:
+            // el guard mira AMBAS fuentes.
+            $item->title = trim(preg_replace('/\[(BLOCKED|PARKED)-[^\]]*\]\s*/i', '', (string) $item->title));
         }
 
         // #507 — el cierre/cancelación MANUAL de Irving se respeta tal cual (el guard del modelo no
@@ -529,6 +542,10 @@ class RoadmapController extends Controller
             'opcion_elegida' => $item->opcion_elegida,
             'respuestas'     => $data['respuestas'] ?? null,
             'comentario'     => $data['comentario'] ?? null,
+            // FASE 2A.3 — qué freno se levantó y qué decía el título antes. El hook de 2A.4 traza
+            // las banderas, pero no el título: sin esto, «Quitar el freno y aprobar» borraría el
+            // rótulo sin dejar constancia de que existió.
+            'freno_quitado'  => $frenoQuitado,
         ];
         $log[] = $entrada;
         $item->log = $log;
@@ -569,6 +586,10 @@ class RoadmapController extends Controller
                     'code'           => $bloqueo['code'],
                     'error'          => $bloqueo['error'],
                     'accion_sugerida' => $bloqueo['accion'],
+                    // FASE 2A.3 §3 — le dice a la Torre que este freno lo puso una persona y que
+                    // quien ya tiene `circuito.decidir` puede levantarlo aquí mismo (reenviando con
+                    // `forzar`), en vez de mandarlo a editar el título a mano.
+                    'desbloqueable'   => (bool) ($bloqueo['desbloqueable'] ?? false),
                     'decision_registrada' => true,
                     'motivo_bloqueo' => $item->motivo_bloqueo,
                     'item'           => [

@@ -890,8 +890,40 @@ export default {
             } catch (e) {
                 // #431: NUNCA fallar en silencio. Muestra el motivo (422 del guard, 403, etc.) y
                 //        CONSERVA la selección/comentario para reintentar.
-                const msg = (e && e.response && e.response.data && e.response.data.error)
+                const d = (e && e.response && e.response.data) || {};
+                const msg = d.error
                     || 'No se pudo guardar la decisión. Revisa tu conexión e intenta de nuevo.';
+
+                // 2A.3 §3 — FRENO HUMANO: aprobar y desbloquear son dos intenciones distintas y el
+                // sistema hace bien en distinguirlas. Pero cuando el freno lo puso una persona y
+                // quien aprueba puede levantarlo, mandarlo a editar el título a mano es un callejón
+                // (son 33 items). Se ofrece la salida aquí mismo; el backend registra en el log qué
+                // freno se quitó y cómo decía el título antes.
+                if (d.desbloqueable && accion === 'aprobar') {
+                    if (window.confirm(msg + '\n\n¿Quitar el freno y aprobar de todos modos?')) {
+                        try {
+                            await axios.post('/api/roadmap/circuito/decidir', {
+                                id: it.id,
+                                accion: 'aprobar',
+                                respuestas: sel[it.id] || {},
+                                comentario: coment[it.id] || null,
+                                forzar: true,
+                            });
+                            delete sel[it.id];
+                            delete coment[it.id];
+                            setAviso(it.id, 'ok', 'Freno quitado. El item vuelve a la cola.');
+                            await load();
+                        } catch (e2) {
+                            const m2 = (e2 && e2.response && e2.response.data && e2.response.data.error)
+                                || 'No se pudo quitar el freno.';
+                            setAviso(it.id, 'err', m2);
+                        }
+                    } else {
+                        setAviso(it.id, 'warn', 'Se deja frenado. La decisión quedó registrada.');
+                    }
+                    return;
+                }
+
                 setAviso(it.id, 'err', msg);
             } finally {
                 deciding.value = null;
