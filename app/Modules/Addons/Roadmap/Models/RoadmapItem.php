@@ -232,6 +232,12 @@ class RoadmapItem extends Model
         // ⚠️ Cubre a todo el que escriba por el MODELO (controlador, Thomas, integrar, hooks). Las
         // escrituras crudas por `DB::table()` —claim atómico, lease, migraciones de reconciliación—
         // no pasan por aquí y siguen anotando su propio rastro a mano.
+        //
+        // AUDITADO (item #780, 2A.4b, 2026-08-18): ninguna escritura cruda VIVA toca estas 4
+        // banderas. La única excepción es la migración `2026_08_18_120000_limpia_flags_huerfanos_
+        // excluir_pool`, que ya anota su propio rastro a mano en el mismo UPDATE. Candado estático
+        // que evita que el hueco se reabra en silencio:
+        // `tests/Unit/Modules/Addons/Roadmap/RawWritesDontTouchBloqueoFlagsTest.php`.
         static::saving(function (self $item) {
             if (! $item->exists) {
                 return;   // en la creación no hay "cambio de bandera" que narrar
