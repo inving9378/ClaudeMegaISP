@@ -217,6 +217,68 @@ class RoadmapItem extends Model
                 $item->modulo = 'Sin clasificar';
             }
         });
+
+        // FASE 2A.4 — TRAZABILIDAD DE LOS FRENOS DE DESPACHO.
+        //
+        // El `log` del item solo registraba DECISIONES, nunca cambios de bandera. Por eso los flags
+        // huérfanos de `excluir_pool_automatico` resultaron inatribuibles: estaban encendidos y no
+        // había forma de saber quién ni por qué. Un bloqueo cuya razón nunca se registró tampoco se
+        // puede reevaluar — `circuito:re-triage` (2A.4) no tendría contra qué comparar.
+        //
+        // Va REGISTRADO AL FINAL a propósito: los `saving` corren en orden de registro, así que este
+        // se ejecuta después del parqueo de C-con-rama y de `contarEscalacion()` y alcanza a ver
+        // los cambios que ELLOS hacen. Si se mueve arriba, deja de registrarlos.
+        //
+        // ⚠️ Cubre a todo el que escriba por el MODELO (controlador, Thomas, integrar, hooks). Las
+        // escrituras crudas por `DB::table()` —claim atómico, lease, migraciones de reconciliación—
+        // no pasan por aquí y siguen anotando su propio rastro a mano.
+        static::saving(function (self $item) {
+            if (! $item->exists) {
+                return;   // en la creación no hay "cambio de bandera" que narrar
+            }
+
+            $cambios = [];
+            foreach (['excluir_pool_automatico', 'esperando_merge_irving', 'bloqueado_por_bucle', 'motivo_bloqueo'] as $col) {
+                if ($item->isDirty($col)) {
+                    $cambios[$col] = ['antes' => $item->getOriginal($col), 'despues' => $item->{$col}];
+                }
+            }
+            if (empty($cambios)) {
+                return;
+            }
+
+            $log   = $item->log ?: [];
+            $log[] = [
+                'ts'         => now()->toIso8601String(),
+                'por'        => static::actorActual(),
+                'estado'     => $item->estado_aprobacion,
+                'decision'   => 'flags',
+                'comentario' => $item->motivo_bloqueo ?: null,
+                'flags'      => $cambios,
+            ];
+            $item->log = $log;
+        });
+    }
+
+    /**
+     * Quién está escribiendo: el usuario autenticado si lo hay, o el comando de consola en curso.
+     * Se usa para atribuir los cambios de bandera (2A.4) — sin esto el rastro dice "cambió" pero no
+     * "quién", que es justo lo que hizo inatribuibles a los huérfanos.
+     */
+    protected static function actorActual(): string
+    {
+        $u = auth()->hasUser() ? auth()->user() : null;
+        if ($u) {
+            return 'irving:' . ($u->login_user ?? $u->email ?? $u->id);
+        }
+
+        if (app()->runningInConsole()) {
+            $cmd = $_SERVER['argv'][1] ?? null;
+
+            return 'consola:' . ($cmd ?: 'artisan');
+        }
+
+        return 'sistema';
     }
 
     /** Resumen ~40 palabras para "Escuchar" (#427). Idéntico criterio que RoadmapController::resumenItem. */
