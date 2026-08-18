@@ -143,6 +143,17 @@ class RoadmapItem extends Model
      * status=done + completed_at. Evita que un cierre (tinker, endpoint, merge) deje status=pending
      * colgado, que es justo lo que inflaba el contador "Pendientes" de la Torre (cuenta por status).
      */
+    /**
+     * FASE 2A.5 — estados desde los que el Kanban legado PUEDE arrastrar `estado_aprobacion`
+     * (guard #456). Los estados de decisión ya gobernados por el circuito —`aprobado_claude`,
+     * `aprobado_revisor`, `requiere_irving`, `completado`, `cancelado`, `rechazado`— NO están aquí
+     * a propósito: mover una tarjeta en un tablero no puede deshacer un veredicto del revisor.
+     *
+     * `aprobado_irving` se agregó en 2A.5: es donde se queda la mayoría de lo ya autorizado y era
+     * el hueco por el que "moví la tarjeta a Hecho y no pasó nada".
+     */
+    public const ESTADOS_SINCRONIZABLES_DESDE_KANBAN = ['pendiente_revision', 'en_progreso', 'aprobado_irving'];
+
     protected static function booted(): void
     {
         // #456: guardia simétrica al #420 — causa raíz de la bandeja pendiente_revision llenándose de
@@ -155,8 +166,35 @@ class RoadmapItem extends Model
         // bandeja en vez de quedar "hecho" pero eternamente pendiente de revisión. Estados de decisión
         // ya gobernados por el circuito (aprobado_*, requiere_irving, completado, cancelado, rechazado)
         // NUNCA se tocan aquí — solo el tramo puramente Kanban.
+        //
+        // FASE 2A.5 — SE AMPLÍA a `aprobado_irving` (en vez de agregar un guard nuevo: dos guards
+        // sobre el mismo par de campos es exactamente cómo se llega a la deriva). `aprobado_irving`
+        // es donde vive la mayoría de los items ya autorizados, y era el hueco que quedaba: mover su
+        // tarjeta a "Hecho" en el Kanban no cerraba nada.
+        //
+        // ⚠️ PRECEDENCIA — ESCRITA, NO IMPLÍCITA EN EL ORDEN DE LOS HOOKS.
+        //
+        // Con la ampliación, las DOS direcciones quedan activas a la vez:
+        //   (A) status → estado_aprobacion   ← este hook (el Kanban legado sólo muta `status`)
+        //   (B) estado_aprobacion → status   ← el hook de `completado` de más abajo, y el parqueo
+        //                                      de C-con-rama, que además fuerza `status = pending`
+        //
+        // REGLA: **gana `estado_aprobacion`.** Es la máquina de estados real del circuito (Thomas,
+        // autopilot, MergeRunner); `status` es el espejo Kanban. Por eso (A) sólo actúa cuando el
+        // llamador NO tocó `estado_aprobacion` en el mismo save — que es el caso para el que existe
+        // el #456: `RoadmapController::start/complete/cancel` mutan `status` a secas.
+        //
+        // Sin ese `! isDirty('estado_aprobacion')`, un save que cambia los dos campos (los hay:
+        // `decidir()`, `integracionRechazo()`, `MergeRunner::markMerged()`) dejaría que este hook
+        // pisara en silencio la decisión explícita del llamador. No es un bucle —cada hook corre una
+        // vez por save, en orden de registro— pero sí el pisotón que 2A.5 viene a cerrar.
         static::saving(function (self $item) {
-            if (in_array($item->estado_aprobacion, ['pendiente_revision', 'en_progreso'], true) && $item->isDirty('status')) {
+            if ($item->isDirty('estado_aprobacion')) {
+                return;   // PRECEDENCIA: el llamador decidió explícitamente; `status` es el que sigue.
+            }
+
+            if (in_array($item->estado_aprobacion, self::ESTADOS_SINCRONIZABLES_DESDE_KANBAN, true)
+                && $item->isDirty('status')) {
                 if ($item->status === 'done') {
                     $item->estado_aprobacion = 'completado';
                 } elseif ($item->status === 'in_progress') {
