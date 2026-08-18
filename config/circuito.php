@@ -654,4 +654,36 @@ return [
     */
     'multi_pregunta'   => (bool) env('CIRCUITO_MULTI_PREGUNTA', true),
 
+    /*
+    |---------------------------------------------------------------------------------------------
+    | FASE 2A.4 — RE-TRIAGE DE FRENOS. La regla es ASIMÉTRICA, y esa asimetría es todo el punto.
+    |---------------------------------------------------------------------------------------------
+    |
+    |  · FRENO DEL CLASIFICADOR (`origen_bloqueo = 'clasificador'`) → CADUCA SOLO. Es un consejo
+    |    automático: si en `clasificador_caduca_dias` nadie lo confirmó (nadie lo convirtió en freno
+    |    humano), vence y se va. Un consejo que nadie ratificó no debe seguir opinando para siempre.
+    |
+    |  · FRENO HUMANO (`origen_bloqueo = 'humano'`) → **NUNCA CADUCA.** Es una decisión de Irving y
+    |    el sistema NO la revoca por antigüedad. Por eso aquí NO hay ninguna clave
+    |    `humano_caduca_dias`: su ausencia es la decisión, no un olvido. `RetriageFrenosCommand`
+    |    falla-cerrado si algún día alguien la agrega.
+    |
+    | Los 33 frenos vivos no son items bloqueados por error: son decisiones de Irving que se le
+    | olvidó haber tomado. Caducarlos solos se las revocaría a la mala; lo que hacen falta son
+    | RECORDATORIOS. De ahí `resurface_dias`: cada N días el digest lista "frenos que pusiste tú y
+    | llevan X días en pie", con el item, la fecha y lo que decía el rótulo.
+    */
+    'retriage' => [
+
+        // Cada cuántos días vence un freno del CLASIFICADOR que nadie confirmó.
+        'clasificador_caduca_dias' => (int) env('CIRCUITO_RETRIAGE_CLASIFICADOR_DIAS', 14),
+
+        // Cada cuántos días el digest vuelve a poner los frenos humanos enfrente de Irving. Diario
+        // sería ruido: se vuelve invisible por repetición, que es justo el problema que resuelve.
+        'resurface_dias'           => (int) env('CIRCUITO_RETRIAGE_RESURFACE_DIAS', 7),
+
+        // Cuántos frenos lista el digest por pasada (los demás salen en el conteo).
+        'resurface_top'            => (int) env('CIRCUITO_RETRIAGE_RESURFACE_TOP', 12),
+    ],
+
 ];

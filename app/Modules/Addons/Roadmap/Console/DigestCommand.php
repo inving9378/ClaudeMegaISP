@@ -24,11 +24,16 @@ use Illuminate\Support\Facades\DB;
  */
 class DigestCommand extends Command
 {
-    protected $signature = 'circuito:digest {--dias=7 : ventana para el contador de decisiones mudas}';
+    protected $signature = 'circuito:digest
+                            {--dias=7 : ventana para el contador de decisiones mudas}
+                            {--frenos : fuerza el recordatorio de frenos humanos aunque no toque hoy}';
 
     protected $description = 'Digest diario: despachos que tocan producción, decisiones mudas y dependencia del fallback (2A.3).';
 
     public const SETTING = 'circuito_digest_snapshot';
+
+    /** Última vez que se resurfacearon los frenos humanos (2A.4): evita repetirlos a diario. */
+    public const SETTING_FRENOS = 'circuito_digest_frenos_at';
 
     /** Referencia del "antes" (barrido 2026-08-18) — la Torre la pinta junto al número en vivo (#791). */
     public const BASELINE_MUDAS_HISTORICO = 941;
@@ -55,31 +60,21 @@ class DigestCommand extends Command
                 continue;
             }
 
-            $prev = null;
+            // 1) alerta de producción (últimas 24 h)
             foreach ($log as $e) {
-                if (! is_array($e)) {
-                    continue;
-                }
-
-                // 1) alerta de producción (últimas 24 h)
-                if (($e['decision'] ?? null) === 'alerta_prod'
+                if (is_array($e) && ($e['decision'] ?? null) === 'alerta_prod'
                     && isset($e['ts']) && Carbon::parse($e['ts'])->gte($desde24h)) {
                     $prod[] = ['id' => $r->id, 'senal' => $e['senal_prod'] ?? '?',
                         'ts' => $e['ts'], 'title' => mb_substr((string) $r->title, 0, 50)];
                 }
+            }
 
-                // 2) decisión muda: misma decisión, mismo actor, MISMO estado resultante.
-                if (! isset($e['decision']) || ($e['decision'] === 'flags' || $e['decision'] === 'alerta_prod')) {
-                    $prev = null;   // las entradas de traza no cuentan como decisión
-                    continue;
-                }
-                $k = ($e['por'] ?? '?') . '|' . $e['decision'] . '|' . ($e['estado'] ?? '?');
-                if ($prev !== null && $k === $prev
-                    && isset($e['ts']) && Carbon::parse($e['ts'])->gte($desde)) {
-                    $mudas++;
-                    $mudasItems[$r->id] = ($mudasItems[$r->id] ?? 0) + 1;
-                }
-                $prev = $k;
+            // 2) decisiones mudas de la ventana. La REGLA vive en `RoadmapItem::contarMudasEnLog`
+            //    (2A.4): el digest y el re-triage cuentan lo mismo o el número deja de significar
+            //    nada — es la misma lección de la deriva del predicado de despacho.
+            if ($n = RoadmapItem::contarMudasEnLog($log, $desde)) {
+                $mudas += $n;
+                $mudasItems[$r->id] = $n;
             }
         }
 
@@ -118,6 +113,8 @@ class DigestCommand extends Command
             ? '   <fg=green>Cero. Una semana así y el LIKE sobre title puede retirarse.</>'
             : '   Todavía hay rótulos que la columna no cubre; NO retirar el LIKE.');
 
+        $frenos = $this->resurfacearFrenos();
+
         DB::table('settings')->updateOrInsert([
             'key' => self::SETTING,
         ], [
@@ -129,11 +126,79 @@ class DigestCommand extends Command
                 'mudas'           => $mudas,
                 'mudas_items'     => count($mudasItems),
                 'fallback_rotulo' => $fallback,
+                'frenos_humanos'  => count(\App\Modules\Addons\Roadmap\Console\RetriageFrenosCommand::frenosHumanos()),
+                'frenos_top'      => array_slice(array_map(
+                    fn ($f) => ['id' => $f['id'], 'dias' => $f['dias'], 'mudas' => $f['mudas'], 'rotulo' => $f['rotulo']],
+                    $frenos), 0, 5),
             ], JSON_UNESCAPED_UNICODE),
         ]);
 
         $this->newLine();
 
         return self::SUCCESS;
+    }
+
+    /**
+     * FASE 2A.4 §4 — «FRENOS QUE PUSISTE TÚ».
+     *
+     * El freno humano NO caduca: es una decisión de Irving y el sistema no la revoca por
+     * antigüedad. Lo que sí hace es devolvérsela cada `retriage.resurface_dias` para que decida de
+     * nuevo con la cabeza fresca. Los 33 no son items bloqueados por error — son decisiones que se
+     * le olvidó haber tomado; un caducado automático se las quitaría a la mala.
+     *
+     * Orden: primero los que acumulan más APROBACIONES MUDAS. Un freno tuyo sobre un item que tú
+     * sigues aprobando es la señal más limpia de un desacuerdo entre lo que decidiste y lo que
+     * quieres — #65 lleva 48 aprobaciones contra su propio `[BLOCKED-NEGOCIO]`.
+     *
+     * No se repite a diario a propósito: repetido cada día se vuelve invisible, que es justo el
+     * problema que viene a resolver.
+     *
+     * @return array<int,array> los frenos ya ordenados (para la foto en `settings`)
+     */
+    private function resurfacearFrenos(): array
+    {
+        $frenos = \App\Modules\Addons\Roadmap\Console\RetriageFrenosCommand::frenosHumanos();
+        if (! $frenos) {
+            return [];
+        }
+
+        $cada    = max(1, (int) config('circuito.retriage.resurface_dias', 7));
+        $ultimo  = DB::table('settings')->where('key', self::SETTING_FRENOS)->value('value');
+        $toca    = $this->option('frenos') || ! $ultimo || Carbon::parse($ultimo)->addDays($cada)->isPast();
+
+        $this->newLine();
+        $this->line('<options=bold>4. Frenos que pusiste TÚ y siguen en pie: ' . count($frenos) . '</>');
+
+        if (! $toca) {
+            $proxima = Carbon::parse($ultimo)->addDays($cada);
+            $this->line('   (recordatorio cada ' . $cada . ' días — el próximo toca el '
+                . $proxima->toDateString() . '; `--frenos` lo fuerza)');
+
+            return $frenos;
+        }
+
+        $this->line('   <fg=yellow>Ninguno caduca solo: son decisiones tuyas. Esto es un recordatorio, no una revocación.</>');
+        $this->table(
+            ['item', 'desde', 'días', 'aprob. mudas', 'decía', 'título'],
+            array_map(fn ($f) => [
+                '#' . $f['id'],
+                $f['desde'] ?? '?',
+                $f['dias'] . ($f['exacto'] ? '' : '+'),
+                $f['mudas'] ?: '—',
+                $f['rotulo'],
+                mb_strimwidth($f['title'], 0, 40, '…'),
+            ], array_slice($frenos, 0, (int) config('circuito.retriage.resurface_top', 12)))
+        );
+        if (count($frenos) > (int) config('circuito.retriage.resurface_top', 12)) {
+            $this->line('   … y ' . (count($frenos) - (int) config('circuito.retriage.resurface_top', 12))
+                . ' más (lista completa: `php artisan circuito:re-triage`).');
+        }
+        $this->comment('   Arriba van los que acumulan más aprobaciones mudas: ahí decidiste una cosa y quieres otra.');
+        $this->comment('   Para quitar uno: la Torre → «Quitar el freno y aprobar». El sistema no lo hará por ti.');
+
+        DB::table('settings')->updateOrInsert(['key' => self::SETTING_FRENOS],
+            ['value' => now()->toDateTimeString()]);
+
+        return $frenos;
     }
 }

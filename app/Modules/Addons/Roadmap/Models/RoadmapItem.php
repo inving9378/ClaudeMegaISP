@@ -359,6 +359,9 @@ class RoadmapItem extends Model
         return (bool) preg_match('/\[(BLOCKED|PARKED)-/i', (string) $this->title);
     }
 
+    /** Rótulo COMPLETO (`[BLOCKED-NEGOCIO]`, `[PARKED-PROD]`…), para poder mostrarlo (2A.4). */
+    public const RE_ROTULO = '/\[(BLOCKED|PARKED)-[^\]]+\]/i';
+
     /**
      * FASE 2A.3 — ¿hay un freno VIGENTE que deba detener el despacho?
      *
@@ -426,6 +429,110 @@ class RoadmapItem extends Model
         $q->where(fn ($x) => $x->whereNull('origen_bloqueo')->orWhere('origen_bloqueo', '!=', 'humano'))
           ->where('title', 'not like', '%[BLOCKED-%')
           ->where('title', 'not like', '%[PARKED-%');
+    }
+
+    // ── FASE 2A.4 — LOS FRENOS HUMANOS NO CADUCAN, SE RESURFACEAN ───────────────────────────────
+
+    /**
+     * ¿Cuántas DECISIONES MUDAS acumula este item? Una decisión muda es la misma decisión, del
+     * mismo actor, con el MISMO estado resultante que la anterior: Irving dijo que sí otra vez y el
+     * item no se movió ni un milímetro.
+     *
+     * Es la señal más limpia de "aquí hay un desacuerdo entre lo que decidiste y lo que quieres":
+     * un freno que tú pusiste, sobre un item que tú sigues aprobando. #65 lleva 26 aprobaciones
+     * contra su propio `[BLOCKED-NEGOCIO]`.
+     *
+     * DEFINICIÓN ÚNICA: la usan el digest (ventana de N días) y el re-triage (histórico completo).
+     * Las entradas de traza (`flags`, `alerta_prod`) no son decisiones y además CORTAN la racha —
+     * si no cortaran, una traza en medio uniría dos decisiones distintas.
+     */
+    public static function contarMudasEnLog(?array $log, ?\Illuminate\Support\Carbon $desde = null): int
+    {
+        $mudas = 0;
+        $prev  = null;
+
+        foreach ((array) $log as $e) {
+            if (! is_array($e)) {
+                continue;
+            }
+            if (! isset($e['decision']) || in_array($e['decision'], ['flags', 'alerta_prod'], true)) {
+                $prev = null;
+                continue;
+            }
+            $k = ($e['por'] ?? '?') . '|' . $e['decision'] . '|' . ($e['estado'] ?? '?');
+            if ($prev !== null && $k === $prev
+                && ($desde === null || (isset($e['ts']) && \Illuminate\Support\Carbon::parse($e['ts'])->gte($desde)))) {
+                $mudas++;
+            }
+            $prev = $k;
+        }
+
+        return $mudas;
+    }
+
+    /** Atajo de instancia: decisiones mudas de TODA la vida del item. */
+    public function aprobacionesMudas(): int
+    {
+        return static::contarMudasEnLog($this->log);
+    }
+
+    /**
+     * ¿Desde cuándo está en pie este freno? Devuelve `[Carbon, bool $exacto]`.
+     *
+     * EXACTO sólo cuando existe el rastro de 2A.4: una entrada de `flags` donde **una persona**
+     * puso `origen_bloqueo = humano`. Para los 33 frenos legacy —que venían como rótulo dentro del
+     * título y sólo se sellaron en columna el 2026-08-18— ese rastro no existe, y usar la fecha del
+     * backfill diría "0 días" para todos, que es exactamente la mentira que este reporte tiene que
+     * evitar. En ese caso se cae a la PRIMERA entrada del log (la actividad más antigua registrada)
+     * y se marca como APROXIMADO: es una cota inferior honesta, no una fecha inventada.
+     *
+     * @return array{0:?\Illuminate\Support\Carbon,1:bool}
+     */
+    public function frenoDesde(): array
+    {
+        foreach ((array) $this->log as $e) {
+            if (! is_array($e) || ($e['decision'] ?? null) !== 'flags') {
+                continue;
+            }
+            $cambio = $e['flags']['origen_bloqueo'] ?? null;
+            if (is_array($cambio) && ($cambio['despues'] ?? null) === 'humano'
+                && str_starts_with((string) ($e['por'] ?? ''), 'irving:')
+                && isset($e['ts'])) {
+                return [\Illuminate\Support\Carbon::parse($e['ts']), true];
+            }
+        }
+
+        foreach ((array) $this->log as $e) {
+            if (is_array($e) && isset($e['ts'])) {
+                return [\Illuminate\Support\Carbon::parse($e['ts']), false];
+            }
+        }
+
+        return [$this->created_at, false];
+    }
+
+    /** Lo que DECÍA el rótulo, para poder recordarlo sin abrir el item. */
+    public function textoDelFreno(): string
+    {
+        if (preg_match(self::RE_ROTULO, (string) $this->title, $m)) {
+            return $m[0];
+        }
+
+        // La migración 2A.3 sacó el rótulo del título pero guardó el título previo en el log: ésa
+        // es la fuente fiel de "lo que decía el rótulo". `motivo_bloqueo` NO sirve como primera
+        // opción — lo comparte con el anti-bucle, así que en #99/#26 contaría la historia del bucle
+        // en vez del freno.
+        foreach (array_reverse((array) $this->log) as $e) {
+            if (is_array($e) && ($e['decision'] ?? null) === 'rotulo_a_columna'
+                && preg_match(self::RE_ROTULO, (string) ($e['titulo_previo'] ?? ''), $m)) {
+                return $m[0];
+            }
+        }
+
+        if (trim((string) $this->motivo_bloqueo) !== '') {
+            return mb_strimwidth(trim((string) $this->motivo_bloqueo), 0, 70, '…');
+        }
+        return '(sin rótulo — freno sellado en columna)';
     }
 
     /**
