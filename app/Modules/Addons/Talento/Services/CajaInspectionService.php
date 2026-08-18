@@ -54,7 +54,7 @@ Si la imagen no permite evaluar algún aspecto, indícalo como "no_visible" en s
 TXT;
 
             $response = $this->claude->messages([
-                'model'      => env('CLAUDE_MODEL', 'claude-sonnet-4-6'),
+                'model'      => config('services.anthropic.model', 'claude-sonnet-4-6'),
                 'max_tokens' => 512,
                 'messages'   => [[
                     'role'    => 'user',

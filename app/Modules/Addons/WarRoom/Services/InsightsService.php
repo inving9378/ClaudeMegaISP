@@ -95,8 +95,8 @@ class InsightsService
 
     private function generateWithAi(string $prompt): array
     {
-        $apiKey = config('services.anthropic.key', env('CLAUDE_API_KEY'));
-        $model  = config('services.anthropic.model', env('CLAUDE_MODEL', 'claude-sonnet-4-6'));
+        $apiKey = config('services.anthropic.key');
+        $model  = config('services.anthropic.model', 'claude-sonnet-4-6');
 
         if (! $apiKey) {
             throw new \RuntimeException('Sin CLAUDE_API_KEY');

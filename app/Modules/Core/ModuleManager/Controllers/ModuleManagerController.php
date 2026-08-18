@@ -55,7 +55,7 @@ class ModuleManagerController extends Controller
             ], 422);
         }
 
-        $apiKey = env('CLAUDE_API_KEY', '');
+        $apiKey = config('services.anthropic.key', '');
         if (empty($apiKey)) {
             return response()->json(['success' => false, 'error' => 'CLAUDE_API_KEY no configurada en .env'], 500);
         }
@@ -81,7 +81,7 @@ class ModuleManagerController extends Controller
                 'anthropic-version' => '2023-06-01',
                 'content-type' => 'application/json',
             ])->timeout(60)->post('https://api.anthropic.com/v1/messages', [
-                'model' => env('CLAUDE_MODEL', self::CLAUDE_MODEL_DEFAULT),
+                'model' => config('services.anthropic.model', self::CLAUDE_MODEL_DEFAULT),
                 'max_tokens' => self::CLAUDE_MAX_TOKENS,
                 'system' => $systemPrompt,
                 'messages' => [[

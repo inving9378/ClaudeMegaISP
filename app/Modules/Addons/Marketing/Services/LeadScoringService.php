@@ -14,8 +14,8 @@ class LeadScoringService
 
     public function scoreLead(Lead $lead): object
     {
-        $apiKey = env('CLAUDE_API_KEY', Setting::get('claude_api_key') ?? '');
-        $model  = Setting::get('claude_model') ?? env('CLAUDE_MODEL', 'claude-opus-4-7');
+        $apiKey = config('services.anthropic.key') ?: (Setting::get('claude_api_key') ?? '');
+        $model  = Setting::get('claude_model') ?? config('services.anthropic.model', 'claude-opus-4-7');
 
         $prompt = $this->buildPrompt($lead);
 

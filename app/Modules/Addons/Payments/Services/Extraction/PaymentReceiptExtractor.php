@@ -71,7 +71,7 @@ class PaymentReceiptExtractor
 
         try {
             $response = $this->claude->messages([
-                'model'      => env('CLAUDE_MODEL', 'claude-sonnet-4-6'),
+                'model'      => config('services.anthropic.model', 'claude-sonnet-4-6'),
                 'max_tokens' => 1024,
                 'messages'   => [[
                     'role'    => 'user',
