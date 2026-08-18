@@ -44,6 +44,8 @@ class RoadmapItem extends Model
         // #507 anti-bucle — parqueo de items que YA no son ejecutables por un worker
         'excluir_pool_automatico', 'decision_resuelta', 'requiere_sesion_supervisada',
         'bloqueado_por_bucle', 'motivo_bloqueo', 'escalaciones_fingerprint', 'esperando_merge_irving',
+        // FASE 2A.3 — quién puso el freno (humano FRENA / clasificador INFORMA) y hasta cuándo
+        'origen_bloqueo', 'bloqueo_expira_en', 'bloqueo_renovaciones',
         // TORRE V2 — canal de consulta terminal → Thomas (autoridad intermedia antes de Irving)
         'consulta_supervisor', 'consulta_supervisor_sid', 'consulta_supervisor_at', 'consulta_opciones',
         'consulta_respuesta', 'consulta_resuelta_at', 'consulta_resuelta_por',
@@ -87,6 +89,9 @@ class RoadmapItem extends Model
         'bloqueado_por_bucle'         => 'boolean',
         'esperando_merge_irving'      => 'boolean',
         'escalaciones_fingerprint'    => 'array',
+        // FASE 2A.3
+        'bloqueo_expira_en'           => 'datetime',
+        'bloqueo_renovaciones'        => 'integer',
         // TORRE V2 — consulta a Thomas
         'consulta_supervisor_at'      => 'datetime',
         'consulta_resuelta_at'        => 'datetime',
@@ -244,7 +249,8 @@ class RoadmapItem extends Model
             }
 
             $cambios = [];
-            foreach (['excluir_pool_automatico', 'esperando_merge_irving', 'bloqueado_por_bucle', 'motivo_bloqueo'] as $col) {
+            foreach (['excluir_pool_automatico', 'esperando_merge_irving', 'bloqueado_por_bucle', 'motivo_bloqueo',
+                      'origen_bloqueo', 'bloqueo_expira_en'] as $col) {
                 if ($item->isDirty($col)) {
                     $cambios[$col] = ['antes' => $item->getOriginal($col), 'despues' => $item->{$col}];
                 }
