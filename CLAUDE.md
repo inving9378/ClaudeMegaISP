@@ -448,6 +448,28 @@ Solo enforcea con `APP_ENV=local` fuera de tests (`MigrationGuardService::should
 `app/Services/MigrationGuardService.php` + `app/Console/Commands/GuardedMigrateCommand.php`, inyectado
 sobre el `MigrateCommand` nativo en `AppServiceProvider::boot()`.
 
+### ⛔ NUNCA `php artisan config:cache` en dev/prod — causa raíz documentada (item #790)
+Esto **NO es folclore**: `config:cache` rompe el sistema porque, al cachear, Laravel deja de leer
+`.env` en runtime — **toda** llamada a `env()` fuera de `config/*.php` devuelve `null` desde ese
+momento. Medido 2026-08-18: **~90 llamadas a `env()` en runtime fuera de `config/`**, repartidas en
+~40 archivos de `app/`, `routes/` y `bootstrap/` — incluyendo credenciales activas en cada
+request/worker: `CLAUDE_MODEL`/`CLAUDE_API_KEY` (WarRoom, Marketing, Payments, Talento,
+ModuleManager — 12 archivos que llaman a la IA **directo**, sin pasar por el adaptador único de
+`app/Services/Core/` — ver "SERVICIOS COMPARTIDOS ÚNICOS" abajo), `WHATSAPP_API_BASE`/
+`WHATSAPP_INSTANCE` (driver de publicación de Marketing, `WhatsAppStatusDriver.php` — **distinto**
+del `config/whatsapp.php` del gateway principal), `AMI_SECRET`/`AMI_HOST` (CobranzaBlaster, credencial
+del manager de Asterisk), `CONECTION_MIKROTIK` (MegaFamilia), y varias más en `app/Services/Deploy`,
+`app/Services/BackupDb`, Console Commands y controllers de Core.
+- **Warm-up correcto en este repo, siempre:** `php artisan config:clear && php artisan route:clear
+  && php artisan queue:restart`. **NUNCA `config:cache`** hasta que la migración de abajo esté
+  completa y verificada.
+- `env()` **SÍ es correcto** dentro de `config/*.php` (ahí es el patrón estándar de Laravel) y en
+  migraciones/seeders que corren a mano (no viven en el ciclo de request/worker cacheado).
+- **Migración pendiente por fases** (mover cada `env()` de runtime a una clave `config/` +
+  refactorizar el llamador a `config('...')`, módulo por módulo, verificando en dev antes de
+  avanzar): ver items de la Hoja de Ruta hijos de #790 con el inventario ya categorizado por
+  módulo/criticidad — evita repetir la auditoría.
+
 ---
 
 ## INTEGRACIONES EXTERNAS
