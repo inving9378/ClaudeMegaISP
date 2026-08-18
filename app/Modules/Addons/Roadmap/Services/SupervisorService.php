@@ -82,11 +82,13 @@ class SupervisorService
      */
     public function listosParaTerminal(int $limite = 6): array
     {
+        // FASE 2A.5 — se quitaron dos `not like` del rótulo que estaban copiados aquí a mano:
+        // `autoEjecutable()` ya pasa por `elegibleParaPool()` → `RoadmapItem::sqlElegibleParaPool()`,
+        // que además honra `origen_bloqueo='humano'` (la copia de aquí NO lo hacía) y se retira sola
+        // el día que el fallback legacy del rótulo se elimine. Candado: PoolGuardCoherenceTest.
         return RoadmapItem::autoEjecutable()
             ->whereNull('archivado_at')
             ->whereNull('branch')
-            ->where('title', 'not like', '%[BLOCKED-%')
-            ->where('title', 'not like', '%[PARKED-%')
             ->ordered()
             ->limit($limite)
             ->get(['id', 'title', 'nivel_riesgo'])

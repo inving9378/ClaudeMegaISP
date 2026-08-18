@@ -490,14 +490,36 @@ class RoadmapItem extends Model
      */
     public function scopeElegibleParaPool($query)
     {
-        return $query
-            ->where(fn ($q) => $q->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
-            ->where(fn ($q) => $q->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
-            // FASE 2A.3 — sólo frena el freno HUMANO. `origen_bloqueo='clasificador'` NO frena: el
-            // triaje automático de riesgo aconseja, no detiene (decisión de Irving 2026-08-18).
-            // Incluye el fallback legacy del rótulo en el título, que se retira cuando
-            // `contarFallbackRotulo()` marque 0 durante una semana.
-            ->where(fn ($q) => static::sqlSinFrenoHumano($q));
+        return $query->where(fn ($q) => static::sqlElegibleParaPool($q));
+    }
+
+    /**
+     * FASE 2A.5 — DEFINICIÓN ÚNICA del predicado de elegibilidad para el pool, en SQL.
+     *
+     * Existe para que el scope de Eloquent y el CANDADO ATÓMICO del reclamo
+     * (`RoadmapCircuitoService::claimNextParalelo`) no puedan volver a separarse: los dos aplican
+     * ESTE método, no una copia. Es la cuarta vez que el mismo predicado se bifurca —scope,
+     * SQL crudo del reclamo, `preg_match` en PHP y la Vue— y la del reclamo es la cara:
+     * decide QUÉ TOCA UN WORKER, así que una deriva ahí es una terminal trabajando sobre algo
+     * que no debía.
+     *
+     * Candado que impide la re-separación:
+     * `tests/Unit/Modules/Addons/Roadmap/PoolGuardCoherenceTest.php` (compara el SQL compilado de
+     * los dos caminos y falla si el reclamo vuelve a enumerar las banderas a mano) +
+     * `php artisan circuito:coherencia-pool` (compara los dos CONJUNTOS sobre los items vivos).
+     *
+     * Se aplica sobre un grupo `where(function ($q) { ... })`. Sirve igual a un
+     * `Illuminate\Database\Query\Builder` (reclamo por `DB::table`) que a uno de Eloquent.
+     */
+    public static function sqlElegibleParaPool($q): void
+    {
+        $q->where(fn ($x) => $x->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
+          ->where(fn ($x) => $x->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
+          // FASE 2A.3 — sólo frena el freno HUMANO. `origen_bloqueo='clasificador'` NO frena: el
+          // triaje automático de riesgo aconseja, no detiene (decisión de Irving 2026-08-18).
+          // Incluye el fallback legacy del rótulo en el título, que se retira cuando
+          // `contarFallbackRotulo()` marque 0 durante una semana.
+          ->where(fn ($x) => static::sqlSinFrenoHumano($x));
     }
 
     /**

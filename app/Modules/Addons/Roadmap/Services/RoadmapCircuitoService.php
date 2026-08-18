@@ -1459,6 +1459,23 @@ class RoadmapCircuitoService
      * (estado → en_progreso) o null si no hay trabajo / pausado. El llamador debe SERIALIZAR
      * (flock) para que dos workers no tomen items del mismo módulo a la vez.
      */
+    /**
+     * FASE 2A.5 — SEAM del candado atómico: las condiciones de elegibilidad que el UPDATE de
+     * `claimNextParalelo()` re-verifica entre el SELECT y la escritura.
+     *
+     * Es un método aparte (y público) a propósito: así el test de coherencia puede compilar ESTE
+     * camino y el del scope por separado y comparar el SQL resultante. Si los dos delegaran a la
+     * misma línea inline, el test no tendría nada que comparar el día que alguien toque uno solo.
+     *
+     * Debe quedarse siendo una delegación a `RoadmapItem::sqlElegibleParaPool()`. Si algún día hace
+     * falta que el reclamo sea MÁS estricto que el scope, el guard extra va DESPUÉS de la
+     * delegación y el test lo dirá.
+     */
+    public static function guardReclamoAtomico($q): void
+    {
+        RoadmapItem::sqlElegibleParaPool($q);
+    }
+
     public function claimNextParalelo(?string $workerSid = null): ?int
     {
         if ($this->isPaused()) {
@@ -1493,12 +1510,12 @@ class RoadmapCircuitoService
             // por `elegibleParaPool`, pero el UPDATE lo re-garantiza: entre el SELECT y el UPDATE el
             // item pudo quedar parqueado (otro worker lo cerró a esperando-merge, o el anti-bucle lo
             // sacó). Sin esto, la carrera devuelve un item que nadie debía tocar.
-            ->where(fn ($q) => $q->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
-            ->where(fn ($q) => $q->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
-            // FASE 2A.3 — el candado atómico usa el MISMO fragmento que el scope. Antes repetía a
-            // mano los dos `not like` del rótulo y ya se había quedado atrás del guard: sin esto, un
-            // item sellado como freno humano entre el SELECT y el UPDATE se reclamaba igual.
-            ->where(fn ($q) => RoadmapItem::sqlSinFrenoHumano($q))
+            //
+            // FASE 2A.5 — aplica el MISMO predicado que `scopeElegibleParaPool`, vía la definición
+            // única `RoadmapItem::sqlElegibleParaPool()`. NO enumerar banderas a mano aquí: es
+            // exactamente cómo este candado se quedó atrás del guard las veces anteriores.
+            // Ver `guardReclamoAtomico()` justo abajo (seam del candado de coherencia).
+            ->where(fn ($q) => static::guardReclamoAtomico($q))
             ->where(function ($q) {
                 $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
                     ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
