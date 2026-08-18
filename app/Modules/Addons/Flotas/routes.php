@@ -167,14 +167,3 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
                 // confirmPayment → NO routeado hasta Fase 6.2 (integración con módulo Pagos)
             });
     });
-
-// ── API móvil: self-report GPS del conductor (item #103) ───────────────────────
-// Sanctum, sin sesión web (misma familia de token que /talento/api/*, App\Models\User
-// vía Sanctum::PersonalAccessToken es global — no exclusivo de Talento). Fuera del
-// grupo 'web'/check_route_permission a propósito: stateless, self-scoped por
-// fleet_assignments dentro del controller, no requiere permiso de admin.
-Route::middleware(['auth:sanctum'])
-    ->prefix('flotas/api')
-    ->group(function () {
-        Route::post('/conductor/posicion', [FleetGpsController::class, 'conductorPosicion']);
-    });
