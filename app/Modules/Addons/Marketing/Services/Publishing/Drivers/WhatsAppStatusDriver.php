@@ -20,14 +20,14 @@ class WhatsAppStatusDriver extends AbstractPublishDriver
         // Fallback to Hub evolution integration
         $evolutionUrl = $config['evolution_url']
             ?? $this->resolveApiKey('evolution', 'WHATSAPP_API_BASE')
-            ?? env('WHATSAPP_API_BASE');
+            ?? config('marketing.whatsapp_status_api_base');
 
         $apiKey = $config['evolution_api_key']
             ?? $this->resolveApiKey('evolution', 'WHATSAPP_API_KEY')
-            ?? env('WHATSAPP_API_KEY');
+            ?? config('marketing.whatsapp_status_api_key');
 
         $instance = $config['evolution_instance']
-            ?? env('WHATSAPP_INSTANCE', 'meganet-ventas');
+            ?? config('marketing.whatsapp_status_instance');
 
         if (!$evolutionUrl || !$apiKey || !$instance) {
             return ['valid' => false, 'message' => 'Faltan credenciales Evolution API'];
@@ -56,11 +56,11 @@ class WhatsAppStatusDriver extends AbstractPublishDriver
         $videoPath = $this->videoPath($content);
 
         $evolutionUrl = rtrim(
-            $config['evolution_url'] ?? env('WHATSAPP_API_BASE', ''),
+            $config['evolution_url'] ?? config('marketing.whatsapp_status_api_base') ?? '',
             '/'
         );
-        $apiKey   = $config['evolution_api_key'] ?? env('WHATSAPP_API_KEY', '');
-        $instance = $config['evolution_instance'] ?? env('WHATSAPP_INSTANCE', 'meganet-ventas');
+        $apiKey   = $config['evolution_api_key'] ?? config('marketing.whatsapp_status_api_key') ?? '';
+        $instance = $config['evolution_instance'] ?? config('marketing.whatsapp_status_instance');
 
         if (!file_exists($videoPath)) {
             return ['success' => false, 'error' => "Video no encontrado: {$videoPath}"];
