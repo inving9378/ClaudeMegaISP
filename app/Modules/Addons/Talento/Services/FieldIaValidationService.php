@@ -146,7 +146,7 @@ class FieldIaValidationService
             $mimeType = Storage::disk('local')->mimeType($path) ?: 'image/jpeg';
 
             $response = $this->claude->messages([
-                'model'      => env('CLAUDE_MODEL', 'claude-sonnet-4-6'),
+                'model'      => config('services.anthropic.model', 'claude-sonnet-4-6'),
                 'max_tokens' => 256,
                 'messages'   => [[
                     'role'    => 'user',
