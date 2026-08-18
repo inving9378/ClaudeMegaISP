@@ -187,6 +187,9 @@ class RoadmapController extends Controller
             'auto_ejecutables'     => RoadmapItem::autoEjecutable()->count(),
             // #507 sub-paso 4 — banner del autopilot: política vigente + qué decidió hoy.
             'autopilot'            => $this->autopilot->resumen(),
+            // #791 — foto del último `circuito:digest` (mudas 7d / prod 24h / fallback), con la
+            // referencia del "antes" para leer la tendencia sin repetir el barrido a mano.
+            'digest'               => $this->svc->digestSnapshot(),
             // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),

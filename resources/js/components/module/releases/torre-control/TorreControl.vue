@@ -86,6 +86,12 @@
         <span class="tc-ap-kpi"><b>{{ autopilot.auto_hoy }}</b> auto-ejecutados hoy</span>
         <span class="tc-ap-kpi"><b>{{ autoEjecutables }}</b> en cola</span>
         <span class="tc-ap-kpi tc-ap-kpi-dec"><b>{{ cola.length }}</b> te esperan</span>
+        <!-- #791 — decisiones MUDAS de los últimos 7 días (foto de `circuito:digest`), con la
+             referencia del "antes" para leer la tendencia sin repetir el barrido a mano. -->
+        <span v-if="digest" class="tc-ap-kpi tc-ap-kpi-digest" :class="{ 'tc-ap-kpi-ok': digest.mudas === 0 }" :title="digestTitle">
+          <b>{{ digest.mudas }}</b> mudas 7d <span class="tc-ap-kpi-sub">(antes {{ digest.mudas_baseline_vivos }})</span>
+        </span>
+        <span v-else class="tc-ap-kpi tc-ap-kpi-sub" title="El digest diario aún no corrió">— mudas 7d</span>
       </div>
     </div>
 
@@ -500,6 +506,16 @@ export default {
             enabled: true, pausado: false, continuo: true, max_nivel: 'B',
             umbral_confianza: 'alta', requiere_reversible: true, ventana_gracia: 0, auto_hoy: 0,
         });
+        // #791 — foto del último `circuito:digest` (mudas 7d + referencia del "antes"). Null hasta
+        // que el digest corra una vez (el cron lo llama; no bloquea el resto de la Torre).
+        const digest = ref(null);
+        const digestTitle = computed(() => {
+            if (!digest.value) return 'El digest diario aún no corrió — sin foto que mostrar.';
+            const d = digest.value;
+            return `Decisiones mudas de los últimos ${d.mudas_dias} días: ${d.mudas} (en ${d.mudas_items} item(s)).`
+                + ` Antes del arreglo: ${d.mudas_baseline_historico} históricas · ${d.mudas_baseline_vivos} en items aún vivos.`
+                + ` Foto tomada: ${d.at}.`;
+        });
         // Contadores por módulo del sidebar interno (endpoint propio, caché de 45 s en el server).
         const contadores = ref({ total: 0, urgentes: 0, por_modulo: [], mapa: {}, sin_clasificar: 0 });
         const SIN_MODULO = '__sin_clasificar__';
@@ -801,6 +817,7 @@ export default {
                 auditItem.value = data.auditoria_item_id || null;
                 ejecuciones.value = data.ejecuciones || [];
                 if (data.autopilot) autopilot.value = data.autopilot;   // #507 banner del autopilot
+                digest.value = data.digest || null;   // #791 foto del último `circuito:digest`
                 applyEstado(data);
                 cargarContadores();   // #507 bombitas por módulo (endpoint propio, no bloquea)
                 maybeDeepLink();   // #torre: deep-link /releases?item=NNN tras poblar la bandeja
@@ -1068,6 +1085,8 @@ export default {
             canDisparar, disparando, urgiendo, disparoMsg, disparar, marcarUrgente, prioLabel,
             // #507 sub-paso 4 — autopilot, terminales en vivo, bombitas por módulo y paginación
             autopilot, terminalesActivas, terminalesLibres,
+            // #791 — KPI de decisiones mudas (foto del digest diario) junto al banner del autopilot
+            digest, digestTitle,
             contadores, moduloFiltro, moduloFiltroLabel, filtrarModulo, colaFiltrada, SIN_MODULO, bandejaTruncada,
             itemEnRevision, pregIdx, pregActual, pregPrev, pregNext, irAPregunta,
             preguntaRespondida, faltanPreguntas,
@@ -1263,6 +1282,10 @@ export default {
 .tc-ap-kpi{font-size:12px;color:var(--tc-muted);}
 .tc-ap-kpi b{color:var(--tc-ink);font-size:13.5px;}
 .tc-ap-kpi-dec b{color:var(--tc-warn);}
+/* #791 — KPI de decisiones mudas (7d) junto al banner del autopilot */
+.tc-ap-kpi-digest b{color:var(--tc-bad);}
+.tc-ap-kpi-digest.tc-ap-kpi-ok b{color:var(--tc-ok);}
+.tc-ap-kpi-sub{font-size:10.5px;color:var(--tc-muted);}
 
 /* Layout de dos columnas: sidebar interno + contenido */
 .tc-layout{display:flex;align-items:flex-start;gap:16px;margin-top:14px;}

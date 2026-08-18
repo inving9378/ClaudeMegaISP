@@ -30,6 +30,11 @@ class DigestCommand extends Command
 
     public const SETTING = 'circuito_digest_snapshot';
 
+    /** Referencia del "antes" (barrido 2026-08-18) — la Torre la pinta junto al número en vivo (#791). */
+    public const BASELINE_MUDAS_HISTORICO = 941;
+
+    public const BASELINE_MUDAS_VIVOS = 339;
+
     public function handle(): int
     {
         $dias  = max(1, (int) $this->option('dias'));
@@ -95,7 +100,8 @@ class DigestCommand extends Command
 
         $this->newLine();
         $this->line("<options=bold>2. Decisiones MUDAS últimos {$dias} días: {$mudas}</> (en " . count($mudasItems) . ' item(s))');
-        $this->line('   Referencia del "antes" (barrido 2026-08-18): 941 históricas · 339 en items aún vivos.');
+        $this->line('   Referencia del "antes" (barrido 2026-08-18): ' . self::BASELINE_MUDAS_HISTORICO
+            . ' históricas · ' . self::BASELINE_MUDAS_VIVOS . ' en items aún vivos.');
         if ($mudas === 0) {
             $this->line('   <fg=green>Cero. Ninguna decisión devolvió OK sin mover nada.</>');
         } else {
