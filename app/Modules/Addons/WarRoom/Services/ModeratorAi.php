@@ -43,8 +43,8 @@ class ModeratorAi
         }
 
         try {
-            $apiKey = config('services.claude.api_key', env('CLAUDE_API_KEY'));
-            $model  = config('services.claude.model',   env('CLAUDE_MODEL', 'claude-sonnet-4-6'));
+            $apiKey = config('services.anthropic.key');
+            $model  = config('services.anthropic.model', 'claude-sonnet-4-6');
 
             if (! $apiKey) {
                 throw new \RuntimeException('Sin CLAUDE_API_KEY');
