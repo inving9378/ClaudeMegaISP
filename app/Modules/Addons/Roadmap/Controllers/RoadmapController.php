@@ -476,29 +476,19 @@ class RoadmapController extends Controller
             }
         }
 
-        // #507 — GUARD ANTI-RE-APROBACIÓN. Un item PARQUEADO (trabajo terminado esperando merge, o
-        // sacado del pool por el anti-bucle) ya no se destraba aprobándolo: aprobarlo otra vez es
-        // justo lo que alimentaba el ciclo (#117: 13 aprobaciones idénticas, ninguna cambió nada).
-        // Se responde qué acción SÍ lo mueve. `forzar=true` limpia el parqueo a propósito.
-        $parqueado = (bool) $item->esperando_merge_irving || (bool) $item->bloqueado_por_bucle;
-        if ($data['accion'] === 'aprobar' && $parqueado) {
-            if (! ($data['forzar'] ?? false)) {
-                return response()->json([
-                    'ok'    => false,
-                    'code'  => $item->esperando_merge_irving ? 'esperando_merge' : 'bloqueado_por_bucle',
-                    'error' => $item->esperando_merge_irving
-                        ? 'Este item YA está terminado y solo espera tu merge — aprobarlo otra vez no lo mueve. Usa "Mergear" (o circuito:integrar --force).'
-                        : ('Item fuera del pool por anti-bucle: ' . ($item->motivo_bloqueo ?: 'se re-escaló por la misma causa varias veces')
-                            . ' Aprobarlo igual reabre el ciclo; cambia algo material (decisión, alcance, rama) o vuelve a enviarlo con forzar=true.'),
-                    'motivo_bloqueo' => $item->motivo_bloqueo,
-                ], 422);
-            }
-            // Destrabe explícito de Irving: limpia el parqueo y lo devuelve al pool.
+        // #507 / FASE 2A.3 — DESTRABE EXPLÍCITO. `forzar=true` limpia TODO el parqueo y devuelve el
+        // item al pool. Antes, junto a esto vivía un guard que ENUMERABA los frenos
+        // (`esperando_merge_irving || bloqueado_por_bucle`) para decidir si responder 422; esa lista
+        // se quedó corta —no incluía el master switch `excluir_pool_automatico`— y aprobar un item
+        // bloqueado por él respondía 200 sin moverlo. La detección ahora es una POST-CONDICIÓN
+        // contra la condición real de despacho (al final del método): cubre cualquier freno,
+        // presente o futuro, sin que nadie tenga que acordarse de actualizar una lista.
+        if ($data['accion'] === 'aprobar' && ($data['forzar'] ?? false)) {
             $item->esperando_merge_irving   = false;
             $item->bloqueado_por_bucle      = false;
             $item->excluir_pool_automatico  = false;
             $item->escalaciones_fingerprint = null;
-            $item->motivo_bloqueo           = null;
+            $item->motivo_bloqueo           = 'destrabe-forzado-irving';
         }
 
         // #507 — el cierre/cancelación MANUAL de Irving se respeta tal cual (el guard del modelo no
@@ -556,18 +546,42 @@ class RoadmapController extends Controller
             'estado' => $nuevoEstado,
         ]);
 
-        // #507 — aprobar un item ROTULADO no lo despacha (frontera dura: el pool excluye
-        // [BLOCKED-…]/[PARKED-…]). Se aprueba igual —la decisión queda registrada— pero se avisa cuál
-        // es la acción que de verdad lo destraba: QUITAR el rótulo del título.
-        $aviso = null;
-        if ($data['accion'] === 'aprobar' && $item->tieneRotuloBloqueo()) {
-            $aviso = 'Aprobado, pero el título lleva rótulo [BLOCKED-…]/[PARKED-…]: el circuito NO lo va a tomar. '
-                . 'Para desbloquearlo, quítale el rótulo al título.';
+        // FASE 2A.3 — POST-CONDICIÓN: aprobar es una petición de DESPACHO, así que se verifica el
+        // resultado, no la intención. La pregunta no es "¿tenía alguna de estas banderas?" sino
+        // "¿quedó reclamable?", contra la MISMA condición que usa el scheduler
+        // (`RoadmapItem::scopeDespachable`). Así cualquier freno futuro queda cubierto sin tocar
+        // este código: la lista enumerada es precisamente lo que dejó pasar 941 decisiones mudas
+        // (#186 acumuló 32 aprobaciones que devolvieron 200 y no movieron nada).
+        //
+        // La decisión SÍ queda escrita (ya se guardó arriba): el 422 no la revierte, informa que no
+        // alcanza y cuál es la acción que de verdad mueve el item. El front ya pinta `data.error`
+        // en el catch y conserva la selección para reintentar — el `aviso` del 200 que había antes
+        // ni siquiera se leía en la UI.
+        if ($data['accion'] === 'aprobar') {
+            $bloqueo = $item->motivoNoDespachable();
+            if ($bloqueo !== null) {
+                Log::channel('roadmap_externo')->info('decision-sin-efecto', [
+                    'item' => $item->id, 'por' => $autor, 'code' => $bloqueo['code'],
+                ]);
+
+                return response()->json([
+                    'ok'             => false,
+                    'code'           => $bloqueo['code'],
+                    'error'          => $bloqueo['error'],
+                    'accion_sugerida' => $bloqueo['accion'],
+                    'decision_registrada' => true,
+                    'motivo_bloqueo' => $item->motivo_bloqueo,
+                    'item'           => [
+                        'id'                => $item->id,
+                        'estado_aprobacion' => $item->estado_aprobacion,
+                    ],
+                ], 422);
+            }
         }
 
         return response()->json([
             'ok'    => true,
-            'aviso' => $aviso,
+            'aviso' => null,
             'item'  => [
                 'id'                => $item->id,
                 'estado_aprobacion' => $item->estado_aprobacion,

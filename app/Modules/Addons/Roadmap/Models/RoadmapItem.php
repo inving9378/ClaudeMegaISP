@@ -328,6 +328,115 @@ class RoadmapItem extends Model
     }
 
     /**
+     * FASE 2A.3 — CONDICIÓN ÚNICA DE DESPACHO. Es la definición de "el circuito puede tomar este
+     * item AHORA", y `RoadmapCircuitoService::ejecutablesParalelo()` la consume tal cual (el
+     * pre-filtro de footprint sigue siendo suyo: es una regla de la RONDA, no del item).
+     *
+     * Existe para que nadie vuelva a enumerar frenos a mano. El guard anti-re-aprobación de
+     * `decidir()` listaba dos banderas (`esperando_merge_irving`, `bloqueado_por_bucle`) y no veía
+     * el master switch `excluir_pool_automatico`: aprobar un item con el master huérfano respondía
+     * 200 y no lo movía. #32 acumuló 8 aprobaciones mudas de Irving, #186 treinta y dos. Cada
+     * bandera nueva reintroducía el bug. Preguntar por el RESULTADO no caduca.
+     */
+    public function scopeDespachable($query)
+    {
+        $revisor = app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)->revisorEnabled();
+
+        // Tope de nivel del autopilot: gobierna lo que la máquina aprueba sola, no lo que Irving
+        // autoriza explícitamente (`aprobado_irving` siempre pasa).
+        $tope    = strtoupper((string) config('circuito.autopilot.max_nivel', 'B'));
+        $idxTope = array_search($tope, ['A', 'B', 'C'], true);
+        $niveles = array_slice(['A', 'B', 'C'], 0, $idxTope === false ? 2 : $idxTope + 1);
+
+        return $query
+            ->tomablePorCircuito()
+            ->elegibleParaPool()
+            ->whereNotIn('status', ['done'])
+            ->where(function ($w) use ($revisor) {
+                $w->where(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'aprobado_claude'));
+                $w->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
+                $w->orWhere('estado_aprobacion', 'aprobado_irving');
+                if ($revisor) {
+                    $w->orWhere('estado_aprobacion', 'aprobado_revisor');
+                }
+            })
+            ->where(function ($w) use ($niveles) {
+                $w->whereIn('nivel_riesgo', $niveles)
+                  ->orWhereNull('nivel_riesgo')
+                  ->orWhere('estado_aprobacion', 'aprobado_irving');
+            });
+    }
+
+    /**
+     * FASE 2A.3 — ¿por qué este item NO despacharía? `null` = sí despacha.
+     *
+     * La VERDAD la da `scopeDespachable` (una sola consulta). Lo de abajo sólo TRADUCE ese "no" a
+     * un motivo accionable, en orden de lo que Irving puede resolver primero. Si algún día se
+     * agrega un freno y nadie actualiza esta traducción, el veredicto sigue siendo correcto: se
+     * cae al motivo genérico, nunca a un falso "sí".
+     */
+    public function motivoNoDespachable(): ?array
+    {
+        if (static::query()->whereKey($this->getKey())->despachable()->exists()) {
+            return null;
+        }
+
+        if ($this->status === 'done' || $this->estado_aprobacion === 'completado') {
+            return ['code' => 'ya_cerrado', 'accion' => 'ninguna',
+                'error' => 'Este item ya está cerrado. Aprobarlo no lo reabre: si hay trabajo nuevo, crea un item de seguimiento.'];
+        }
+
+        if (in_array($this->estado_aprobacion, ['cancelado', 'rechazado'], true)) {
+            return ['code' => 'descartado', 'accion' => 'reabrir',
+                'error' => 'Este item está ' . $this->estado_aprobacion . '. Aprobarlo no lo devuelve a la cola; hay que reabrirlo explícitamente.'];
+        }
+
+        if ($this->tieneRotuloBloqueo()) {
+            return ['code' => 'rotulo_bloqueo', 'accion' => 'quitar_rotulo',
+                'error' => 'El título lleva rótulo [BLOCKED-…]/[PARKED-…] y el pool lo excluye por diseño: '
+                    . 'aprobarlo NO lo despacha. Para desbloquearlo hay que QUITARLE el rótulo al título.'];
+        }
+
+        if ($this->esperando_merge_irving) {
+            return ['code' => 'esperando_merge', 'accion' => 'mergear',
+                'error' => 'Este item YA está terminado y sólo espera tu merge — aprobarlo otra vez no lo mueve. '
+                    . 'Usa «Mergear» (o circuito:integrar --force).'];
+        }
+
+        if ($this->bloqueado_por_bucle) {
+            return ['code' => 'bloqueado_por_bucle', 'accion' => 'cambio_material',
+                'error' => 'Item fuera del pool por anti-bucle: ' . ($this->motivo_bloqueo ?: 'se re-escaló por la misma causa varias veces')
+                    . ' Aprobarlo igual reabre el ciclo; cambia algo material (decisión, alcance, rama) o reenvía con forzar=true.'];
+        }
+
+        if ($this->requiere_sesion_supervisada) {
+            return ['code' => 'sesion_supervisada', 'accion' => 'sesion_con_irving',
+                'error' => 'Este item pide sesión supervisada: no lo toma una terminal sola. '
+                    . 'Hay que trabajarlo contigo presente, o quitarle esa marca si ya no aplica.'];
+        }
+
+        if ($this->excluir_pool_automatico) {
+            return ['code' => 'fuera_del_pool', 'accion' => 'destrabar',
+                'error' => 'Item excluido del pool automático' . ($this->motivo_bloqueo ? ' (' . $this->motivo_bloqueo . ')' : ' sin motivo registrado')
+                    . '. Aprobarlo no lo devuelve a la cola: hay que destrabarlo (forzar=true) o corregir la causa.'];
+        }
+
+        if ($this->en_desarrollo_humano) {
+            return ['code' => 'desarrollo_humano', 'accion' => 'liberar',
+                'error' => 'Este item está marcado como trabajo humano en curso: el circuito no lo toca hasta que se libere.'];
+        }
+
+        if ($this->estado_aprobacion === 'en_progreso') {
+            return ['code' => 'en_progreso', 'accion' => 'esperar',
+                'error' => 'Una terminal ya lo tiene en progreso' . ($this->worker_sid ? ' (' . $this->worker_sid . ')' : '') . '.'];
+        }
+
+        return ['code' => 'no_despachable', 'accion' => 'revisar',
+            'error' => 'La decisión quedó registrada, pero el item sigue sin ser reclamable por el circuito '
+                . '(estado ' . ($this->estado_aprobacion ?: '—') . ', nivel ' . ($this->nivel_riesgo ?: '—') . '). Revísalo en su detalle.'];
+    }
+
+    /**
      * #431 Fase 1 — CLAVE ESTABLE de una opción (no su prosa). Deriva de un hash del texto
      * normalizado → sobrevive al reordenamiento de las opciones (NO es índice posicional) y cabe
      * de sobra en la columna (16 chars), matando el bug de `max:255` con opciones largas (la prosa

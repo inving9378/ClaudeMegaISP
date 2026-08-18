@@ -1547,52 +1547,23 @@ class RoadmapCircuitoService
         if ($limit <= 0) {
             return [];
         }
-        $revisor          = $this->revisorEnabled();
-        $unknownEnVuelo   = $this->desconocidoEnVuelo();
-        // Tope de nivel vigente del autopilot (A < B < C) → niveles admisibles para lo aprobado
-        // automáticamente. Con tope 'C' (política actual) esto es un no-op; si Irving lo baja a 'B',
-        // el pool deja de despachar C auto-aprobados sin tocar nada más.
-        $tope             = strtoupper((string) config('circuito.autopilot.max_nivel', 'B'));
-        $idxTope          = array_search($tope, ['A', 'B', 'C'], true);
-        $nivelesTope      = array_slice(['A', 'B', 'C'], 0, $idxTope === false ? 2 : $idxTope + 1); // valor raro → default 'B'
+        $unknownEnVuelo = $this->desconocidoEnVuelo();
 
         $rows = RoadmapItem::query()
-            ->tomablePorCircuito()
-            // #507 — FUGA DEL POOL DE RECLAMO: antes solo se excluía [PARKED-PROD], así que un
-            // [BLOCKED-NEGOCIO] aprobado, un item parqueado esperando el merge de Irving o uno ya
-            // marcado por el anti-bucle SEGUÍAN siendo reclamables: el worker lo tomaba, leía el
-            // rótulo, lo re-escalaba sin ejecutar y volvía a la bandeja → se aprobaba otra vez y a
-            // empezar (#117 dio 13 vueltas, #99 dieciséis). Cada vuelta quema un slot y tokens para
-            // no hacer nada. Desbloquear = QUITAR el rótulo / mergear / destrabar, nunca re-aprobar.
-            ->elegibleParaPool()
-            ->where(function ($w) use ($revisor) {
-                // A auto-aprobado por el circuito
-                $w->where(function ($x) {
-                    $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'aprobado_claude');
-                });
-                // A sin triaje (pendiente_revision): A = seguro/aditivo por definición → auto-ejecutable.
-                // El ejecutor por-item es la RED: si al leerlo resulta sensible, lo ESCALA (no lo ejecuta).
-                // Sin esto, en el modelo pool-continuo los A pendientes nunca corrían (no había triaje).
-                $w->orWhere(function ($x) {
-                    $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision');
-                });
-                // Irving aprobó explícitamente (cualquier nivel) → ejecutable
-                $w->orWhere('estado_aprobacion', 'aprobado_irving');
-                // B autorizado por el revisor (solo si el flag está ON)
-                if ($revisor) {
-                    $w->orWhere('estado_aprobacion', 'aprobado_revisor');
-                }
-            })
-            // #507 — TOPE DE NIVEL: un item que solo trae aprobación AUTOMÁTICA (autopilot/revisor)
-            // no puede estar por encima del tope vigente del autopilot. La aprobación EXPLÍCITA de
-            // Irving (`aprobado_irving`) siempre pasa: el tope gobierna lo que la máquina decide
-            // sola, no lo que él autoriza a mano.
-            ->where(function ($w) use ($nivelesTope) {
-                $w->whereIn('nivel_riesgo', $nivelesTope)
-                    ->orWhereNull('nivel_riesgo')
-                    ->orWhere('estado_aprobacion', 'aprobado_irving');
-            })
-            ->whereNotIn('status', ['done'])
+            // FASE 2A.3 — CONDICIÓN ÚNICA DE DESPACHO (`RoadmapItem::scopeDespachable`). Antes vivía
+            // aquí en línea: quién puede reclamar (A auto, A sin triar, aprobado_irving, B del
+            // revisor), el tope de nivel del autopilot, el corte de `status=done` y los frenos de
+            // `elegibleParaPool` (#507: rótulos [BLOCKED-]/[PARKED-], espera de merge, anti-bucle).
+            //
+            // Se movió al modelo porque había un SEGUNDO lector de esa condición que la enumeraba a
+            // mano y se quedó corto: el guard anti-re-aprobación de `decidir()` miraba dos banderas
+            // y no el master switch, así que aprobar un item bloqueado respondía 200 sin moverlo
+            // (#32: 8 aprobaciones mudas; #186: 32). Con una sola definición, cualquier freno nuevo
+            // queda cubierto en los dos lados sin tocar ninguno.
+            //
+            // El pre-filtro de FOOTPRINT no entra aquí a propósito: es una regla de la RONDA
+            // (quién colisiona con qué está en vuelo), no una propiedad del item.
+            ->despachable()
             // #507 sub-paso 3 — orden de la COLA (urgente → por concluirse/reanudables → antigüedad),
             // no el de la bandeja: una terminal libre debe cerrar lo empezado antes de abrir nuevos.
             ->ordenCola()
