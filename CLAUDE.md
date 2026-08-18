@@ -448,27 +448,73 @@ Solo enforcea con `APP_ENV=local` fuera de tests (`MigrationGuardService::should
 `app/Services/MigrationGuardService.php` + `app/Console/Commands/GuardedMigrateCommand.php`, inyectado
 sobre el `MigrateCommand` nativo en `AppServiceProvider::boot()`.
 
-### ⛔ NUNCA `php artisan config:cache` en dev/prod — causa raíz documentada (item #790)
-Esto **NO es folclore**: `config:cache` rompe el sistema porque, al cachear, Laravel deja de leer
-`.env` en runtime — **toda** llamada a `env()` fuera de `config/*.php` devuelve `null` desde ese
-momento. Medido 2026-08-18: **~90 llamadas a `env()` en runtime fuera de `config/`**, repartidas en
-~40 archivos de `app/`, `routes/` y `bootstrap/` — incluyendo credenciales activas en cada
-request/worker: `CLAUDE_MODEL`/`CLAUDE_API_KEY` (WarRoom, Marketing, Payments, Talento,
-ModuleManager — 12 archivos que llaman a la IA **directo**, sin pasar por el adaptador único de
-`app/Services/Core/` — ver "SERVICIOS COMPARTIDOS ÚNICOS" abajo), `WHATSAPP_API_BASE`/
-`WHATSAPP_INSTANCE` (driver de publicación de Marketing, `WhatsAppStatusDriver.php` — **distinto**
-del `config/whatsapp.php` del gateway principal), `AMI_SECRET`/`AMI_HOST` (CobranzaBlaster, credencial
-del manager de Asterisk), `CONECTION_MIKROTIK` (MegaFamilia), y varias más en `app/Services/Deploy`,
-`app/Services/BackupDb`, Console Commands y controllers de Core.
-- **Warm-up correcto en este repo, siempre:** `php artisan config:clear && php artisan route:clear
-  && php artisan queue:restart`. **NUNCA `config:cache`** hasta que la migración de abajo esté
-  completa y verificada.
+### ⚠️ `php artisan config:cache` — SÓLO detrás de `config:auditar-env` (item #790)
+Esto **NO es folclore, y ya no es una regla de memoria**: `config:cache` rompe el sistema porque, al
+cachear, Laravel **se salta `LoadEnvironmentVariables` al bootear** (`if ($app->configurationIsCached())
+return;`) → el `.env` no se lee y **toda** llamada a `env()` fuera de `config/*.php` cae a su default
+(o `null`) desde ese momento.
+
+La auditoría de 2026-08-18 encontró credenciales vivas justo ahí — `CLAUDE_MODEL`/`CLAUDE_API_KEY` en
+12 archivos que llamaban a la IA **directo**, sin pasar por el adaptador único de `app/Services/Core/`
+(ver "SERVICIOS COMPARTIDOS ÚNICOS" abajo), `WHATSAPP_API_BASE`/`WHATSAPP_INSTANCE` del driver de
+publicación de Marketing (**distinto** del `config/whatsapp.php` del gateway principal),
+`AMI_SECRET`/`AMI_HOST` de CobranzaBlaster y `CONECTION_MIKROTIK` de MegaFamilia. **Esas ya están
+migradas** (#792/#793). Lo que quede se pregunta, no se recuerda:
+
+#### El warm-up de cierre (ya NO es una regla de memoria — la verifica un comando)
+
+```bash
+php artisan config:clear && php artisan route:clear && php artisan queue:restart
+php artisan config:auditar-env && php artisan config:cache      # ← el && es el candado
+```
+
+`config:auditar-env` (item #790, `app/Console/Commands/Active/AuditarEnvRuntimeCommand.php`) lista
+las llamadas **reales** a `env()` en runtime fuera de `config/` y devuelve **exit 1** si queda
+alguna, así que **`config:cache` sólo corre cuando ya es seguro**. Encuentra las llamadas con el
+tokenizador de PHP, no con grep: no cuenta comentarios, ni `getenv()`, ni el método privado
+`$this->env()` de `MysqldumpEngine`, ni el literal de regex `'/\.env(\b|\.)/'`, ni el
+`env(safe-area-inset-bottom)` que es **CSS** dentro de un blade — y sí mira dentro de `{{ }}`.
+
+**Esto es lo que hace que la convención y el código dejen de contradecirse.** Antes la regla escrita
+mandaba cachear y el código mandaba no cachear, justo en el punto del que depende que el circuito
+pueda llamar a Claude; ahora el checklist se verifica solo y "hacer lo correcto" ya no puede tumbar
+nada. **No escribas `config:cache` suelto**: siempre detrás del `&&`.
+
 - `env()` **SÍ es correcto** dentro de `config/*.php` (ahí es el patrón estándar de Laravel) y en
-  migraciones/seeders que corren a mano (no viven en el ciclo de request/worker cacheado).
-- **Migración pendiente por fases** (mover cada `env()` de runtime a una clave `config/` +
-  refactorizar el llamador a `config('...')`, módulo por módulo, verificando en dev antes de
-  avanzar): ver items de la Hoja de Ruta hijos de #790 con el inventario ya categorizado por
-  módulo/criticidad — evita repetir la auditoría.
+  migraciones/seeders que corren a mano (no viven en el ciclo de request/worker cacheado). Por eso
+  el auditor no escanea ni `config/` ni `database/`.
+- **Migración por fases** (mover cada `env()` de runtime a una clave `config/` + refactorizar el
+  llamador a `config('...')`): #792 **hecho** (12 archivos de IA: `CLAUDE_MODEL`/`CLAUDE_API_KEY` →
+  `config('services.anthropic.*')`), #793 **hecho** (`WhatsAppStatusDriver` → `config/marketing.php`,
+  AMI de CobranzaBlaster → `config/voip.php`, voz TTS → `config/cobranza.php`, `CONECTION_MIKROTIK`
+  → `config/megafamilia.php`), **#794 pendiente** = lo que hoy siga listando el auditor. La lista no
+  se re-audita a mano: se corre el comando.
+- ⚠️ El caso que **no** es mecánico: `app/Services/Core/UsesApiIntegration.php` llama `env($envFallback)`
+  con clave **dinámica**. Mover eso necesita un mapa proveedor→clave de config, no un reemplazo.
+  Es el respaldo #2 de las API keys (el #1 es el Hub `api_integrations` en BD) — ver abajo.
+
+#### Con `config:cache` puesto, ¿el circuito falla ruidoso o callado? — **callado** (medido 2026-08-18)
+
+Y esa es la parte importante, porque es la misma forma de las aprobaciones mudas: el sistema no se
+cae, se **degrada a algo que parece una decisión legítima**.
+
+- **Hoy el circuito NO se queda sin llave** con `config:cache`: `ClaudeApiClient` resuelve la key por
+  `UsesApiIntegration::resolveApiKey()`, cuyo orden es **Hub (`api_integrations`, BD) → `env()` →
+  `marketing_settings`**. En dev el Hub tiene la fila `anthropic-default` activa y validada, así que
+  responde antes de llegar al `env()`. El ejecutor on-box tampoco: `vuelta.sh` autentica el CLI
+  `claude` por OAuth y de hecho **hace `unset CLAUDE_API_KEY`** a propósito. Y todo `config/circuito.php`
+  usa `env()` **dentro de config/**, que es el patrón correcto y sobrevive al cache.
+- **Pero si esa fila del Hub se desactiva o se rota**, la cadena se cae entera y **sin ruido**:
+  `RevisorService::callModel()` atrapa el `Throwable` y devuelve `veredicto: escala, confianza: baja`
+  (falla-segura por diseño) → **todo escala a `requiere_irving`** y el circuito se ve *prudente*, no
+  roto. `proponerPreguntas()`/`proponerOpciones()` devuelven arrays vacíos → los briefs se quedan sin
+  `confianza`/`reversible` → **el autopilot no califica nada**, que es indistinguible de "briefs
+  viejos sin datos". `briefarC()` escribe "(No se pudo generar el brief automáticamente: …)" dentro
+  de `comentarios_claude`. No hay banner, ni contador, ni alerta: la razón queda enterrada en el
+  texto del item.
+- **Conclusión operativa:** el `&&` de arriba quita el escenario del gatillo, pero la fragilidad de
+  fondo —una credencial que falta se ve igual que un circuito prudente— sigue viva. Es la misma
+  familia que las aprobaciones mudas y merece su propia señal en la Torre.
 
 ---
 

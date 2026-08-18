@@ -41,8 +41,12 @@
   `syncPermissions` para AGREGAR (footgun: borra roles existentes). Nuevos permisos
   → `super-administrator` + `DESARROLLADOR` (todos), demás roles solo `.view`.
   Correr `php artisan permissions:sync-roles` tras registrar permisos nuevos.
-- Caché: tras cambios en Blade/config → `view:clear && config:clear && route:clear`,
-  y SIEMPRE cerrar con warm-up `view:cache && config:cache`.
+- Caché: tras cambios en Blade/config → `view:clear && config:clear && route:clear`, y cerrar con
+  `queue:restart`. **`config:cache` SÓLO detrás de su candado**: `php artisan config:auditar-env &&
+  php artisan config:cache` — el comando devuelve exit 1 si queda una llamada a `env()` en runtime
+  fuera de `config/` (con la config cacheada, Laravel no lee el `.env` y esas llamadas dan null).
+  Esta línea decía "SIEMPRE cerrar con `config:cache`" y contradecía al código en el punto exacto
+  del que depende que el circuito llame a Claude — ver CLAUDE.md, item #790.
 - **Paso 0 read-only** antes de escribir. Diff → OK de Irving por sub-paso.
 - Toda deuda/bug/decisión diferida → registrar en Hoja de Ruta INMEDIATAMENTE.
 - Fechas legacy (`payment_date`, `document_date`) son VARCHAR `DD/MM/YYYY` →
