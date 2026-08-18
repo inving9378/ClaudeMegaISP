@@ -44,6 +44,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\BackfillReporteColoquialCommand::class,
                 // FASE 2A.3 — separa el freno humano del consejo del clasificador
                 \App\Modules\Addons\Roadmap\Console\BackfillBloqueosCommand::class,
+                // FASE 2A.3 — digest diario: prod tocada, decisiones mudas, dependencia del fallback
+                \App\Modules\Addons\Roadmap\Console\DigestCommand::class,
                 // Consejo asesor — piloto mínimo, 1 rol, manual (#344)
                 \App\Modules\Addons\Roadmap\Console\AdvisorCobranzaCommand::class,
                 // Autopilot: decide solo lo respaldado, deja a Irving lo indispensable (#507)

@@ -381,7 +381,39 @@ class RoadmapItem extends Model
      * `where(function ($q) { ... })`. Existe para que la regla viva en UN lugar también del lado de
      * la consulta: son tres scopes los que la necesitan y tenerla copiada es cómo empezó todo esto.
      */
-    protected static function sqlConFrenoHumano($q): void
+    /**
+     * FASE 2A.3 §5 — literales que delatan que un item toca PRODUCCIÓN.
+     *
+     * No es una lista de bloqueo: por decisión de Irving (2026-08-18) esto **no frena nada**. Es la
+     * señal para avisar. Con carril autónomo hasta nivel B y 6 terminales, prod es la única
+     * combinación del sistema que no se deshace con un `git checkout`; el objetivo no es impedirlo,
+     * es que sea imposible enterarse tarde.
+     */
+    public const SENALES_PRODUCCION = [
+        '192.168.105.108',
+        '38.123.192.198',
+        'v1megaisp.com.mx',
+        'meganet_prod',
+        '/var/www/ClaudeMegaISP',
+        '/var/www/MEGANET',
+    ];
+
+    /** El literal de producción que aparece en el item, o null. Devuelve CUÁL para poder mostrarlo. */
+    public function tocaProduccion(): ?string
+    {
+        $blob = ($this->title ?? '') . ' ' . ($this->description ?? '') . ' ' . ($this->prompt ?? '')
+            . ' ' . ($this->comentarios_claude ?? '') . ' ' . ($this->branch ?? '');
+
+        foreach (self::SENALES_PRODUCCION as $senal) {
+            if (stripos($blob, $senal) !== false) {
+                return $senal;
+            }
+        }
+
+        return null;
+    }
+
+    public static function sqlConFrenoHumano($q): void
     {
         $q->where('origen_bloqueo', 'humano')
           ->orWhere('title', 'like', '%[BLOCKED-%')     // fallback legacy
@@ -389,7 +421,7 @@ class RoadmapItem extends Model
     }
 
     /** Negación de `sqlConFrenoHumano` (De Morgan: sin columna humana Y sin rótulo en el título). */
-    protected static function sqlSinFrenoHumano($q): void
+    public static function sqlSinFrenoHumano($q): void
     {
         $q->where(fn ($x) => $x->whereNull('origen_bloqueo')->orWhere('origen_bloqueo', '!=', 'humano'))
           ->where('title', 'not like', '%[BLOCKED-%')

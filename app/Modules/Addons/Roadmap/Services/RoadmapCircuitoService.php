@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Lógica de negocio ÚNICA de la Hoja de Ruta para el Circuito de Mejora Continua.
@@ -1468,15 +1469,66 @@ class RoadmapCircuitoService
             // sacó). Sin esto, la carrera devuelve un item que nadie debía tocar.
             ->where(fn ($q) => $q->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
             ->where(fn ($q) => $q->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
-            ->where('title', 'not like', '%[BLOCKED-%')
-            ->where('title', 'not like', '%[PARKED-%')
+            // FASE 2A.3 — el candado atómico usa el MISMO fragmento que el scope. Antes repetía a
+            // mano los dos `not like` del rótulo y ya se había quedado atrás del guard: sin esto, un
+            // item sellado como freno humano entre el SELECT y el UPDATE se reclamaba igual.
+            ->where(fn ($q) => RoadmapItem::sqlSinFrenoHumano($q))
             ->where(function ($q) {
                 $q->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving'])
                     ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
             })
             ->update($update);
 
-        return $claimed === 1 ? $id : null;
+        if ($claimed !== 1) {
+            return null;
+        }
+
+        $this->avisarSiTocaProduccion($id, $sid ?? null);
+
+        return $id;
+    }
+
+    /**
+     * FASE 2A.3 §5 — AVISO (no bloqueo) cuando el pool autónomo se lleva un item que referencia
+     * producción.
+     *
+     * Decisión de Irving (2026-08-18): el clasificador nunca frena. Pero con carril autónomo hasta
+     * nivel B y seis terminales, prod es lo único que no se deshace con un `git checkout`. Esto no
+     * lo impide: lo hace imposible de descubrir tarde. Deja rastro en tres sitios — canal de
+     * auditoría, `log` del item (de donde lo leen la Torre y el digest) — y sigue de largo.
+     *
+     * Falla-segura: cualquier excepción aquí se traga. Un aviso roto no puede tumbar un reclamo.
+     */
+    private function avisarSiTocaProduccion(int $id, ?string $sid): void
+    {
+        try {
+            $item = RoadmapItem::find($id);
+            if (! $item || ! ($senal = $item->tocaProduccion())) {
+                return;
+            }
+
+            Log::channel('roadmap_externo')->warning('despacho-toca-produccion', [
+                'item'   => $id,
+                'worker' => $sid,
+                'senal'  => $senal,
+                'titulo' => mb_substr((string) $item->title, 0, 120),
+            ]);
+
+            $log   = $item->log ?: [];
+            $log[] = [
+                'ts'         => now()->toIso8601String(),
+                'por'        => 'circuito:despacho',
+                'estado'     => 'en_progreso',
+                'decision'   => 'alerta_prod',
+                'comentario' => "Este item referencia producción («{$senal}») y lo tomó el pool autónomo"
+                    . ($sid ? " en {$sid}" : '') . '. No se bloqueó: queda avisado para revisión.',
+                'senal_prod' => $senal,
+            ];
+            $item->log = $log;
+            $item->save();
+        } catch (\Throwable $e) {
+            Log::channel('roadmap_externo')->warning('aviso-produccion-fallo', ['item' => $id, 'error' => $e->getMessage()]);
+        }
     }
 
     /** #546 — Estima cuánto tardará un item (mediana histórica módulo+nivel, fallback a bucket). */
