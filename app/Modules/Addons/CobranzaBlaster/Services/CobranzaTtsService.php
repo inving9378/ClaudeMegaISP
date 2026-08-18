@@ -22,7 +22,7 @@ class CobranzaTtsService
 
     public function __construct()
     {
-        $this->voice = env('BLASTER_TTS_VOICE', 'nova');
+        $this->voice = config('cobranza.blaster_tts_voice');
     }
 
     public function generateAudio(

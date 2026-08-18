@@ -28,10 +28,10 @@ class AmiConnectionService
 
     public function __construct()
     {
-        $this->host     = env('AMI_HOST', '127.0.0.1');
-        $this->port     = (int) env('AMI_PORT', 5038);
-        $this->username = env('AMI_USERNAME', 'megaisp');
-        $this->secret   = (string) env('AMI_SECRET', '');
+        $this->host     = config('voip.ami_host');
+        $this->port     = (int) config('voip.ami_port');
+        $this->username = config('voip.ami_user');
+        $this->secret   = (string) config('voip.ami_pass');
 
         // Item #280: un default vacío permitía intentar el login AMI sin secret.
         // Fallar ruidoso aquí en vez de dejar que connect() intente con Secret vacío.
@@ -119,7 +119,7 @@ class AmiConnectionService
             'Action: Originate',
             'Channel: ' . $channel,
             'ChannelId: ' . $channelId,
-            'Context: ' . env('AMI_CONTEXT', 'cobranza-blaster'),
+            'Context: ' . config('voip.ami_context'),
             'Exten: s',
             'Priority: 1',
             'Timeout: 30000',
