@@ -10,4 +10,8 @@ return [
     'ami_port' => env('AMI_PORT', 5038),
     'ami_user' => env('AMI_USERNAME', 'megaisp'),
     'ami_pass' => env('AMI_SECRET', ''),
+
+    // Contexto del dialplan de Asterisk usado por AmiConnectionService::originate()
+    // (CobranzaBlaster). Item roadmap #793.
+    'ami_context' => env('AMI_CONTEXT', 'cobranza-blaster'),
 ];
