@@ -1597,29 +1597,46 @@ class RoadmapCircuitoService
             // no el de la bandeja: una terminal libre debe cerrar lo empezado antes de abrir nuevos.
             ->ordenCola()
             ->limit(200)
-            ->get(['id', 'modulo']);
+            // `urgente` viaja para que la ronda dedicada del footprint desconocido respete la
+            // prioridad que `ordenCola()` ya le dio (ver el cierre del barrido).
+            ->get(['id', 'modulo', 'urgente']);
 
-        $taken        = array_map('strval', $excludeModulos);
-        $out          = [];
-        $unknownTaken = false;
+        $taken     = array_map('strval', $excludeModulos);
+        $out       = [];
+        $diferido  = (bool) config('circuito.desconocido_diferido', true);
+        $candidato = null;   // primer item sin footprint que aparece en la cola
+
         foreach ($rows as $r) {
             // #432 B2 — 'Sin clasificar'/null/'' = footprint DESCONOCIDO → se normaliza a '' (corre solo).
             $mod = $this->esFootprintDesconocido($r->modulo) ? '' : trim((string) $r->modulo);
 
             if ($mod === '') {
-                // Footprint desconocido → SOLO: nada en vuelo (excludeModulos → $taken), nada elegido
-                // esta ronda, y ningún otro desconocido en vuelo/elegido. Si algo hay, espera su turno.
-                if ($unknownEnVuelo || $unknownTaken || ! empty($taken) || ! empty($out)) {
-                    continue;
+                // Footprint desconocido → corre SOLO (radio de impacto desconocido). NO se despacha
+                // aquí: se recuerda y se resuelve al cerrar el barrido (ver abajo). Antes se tomaba en
+                // cuanto ordenaba primero con la flota quieta y se cortaba la ronda con `break`, así que
+                // UN item sin clasificar se llevaba las 6 terminales aunque detrás de él hubiera trabajo
+                // módulo-disjunto listo para correr en paralelo.
+                if ($candidato === null) {
+                    $candidato = $r;
                 }
-                $out[]        = ['id' => (int) $r->id, 'modulo' => ''];
-                $unknownTaken = true;
-                break; // corre solo: no se despacha nada más esta ronda
+
+                if (! $diferido) {
+                    // Escape hatch sin redeploy (`circuito.desconocido_diferido=false`): comportamiento
+                    // anterior, el desconocido se lleva la ronda en cuanto puede.
+                    if ($unknownEnVuelo || ! empty($taken) || ! empty($out)) {
+                        continue;
+                    }
+
+                    return [['id' => (int) $r->id, 'modulo' => '']];
+                }
+
+                continue;
             }
 
             // Módulo conocido: serializa contra mismo módulo (en vuelo/elegido) y contra un desconocido
-            // en vuelo/elegido (podría pisar cualquier archivo).
-            if (in_array($mod, $taken, true) || $unknownEnVuelo || $unknownTaken) {
+            // EN VUELO (podría pisar cualquier archivo). Ya no existe el caso "desconocido elegido esta
+            // ronda": el desconocido nunca se mezcla con trabajo conocido — o va solo, o espera.
+            if (in_array($mod, $taken, true) || $unknownEnVuelo) {
                 continue;
             }
             $out[]   = ['id' => (int) $r->id, 'modulo' => $mod];
@@ -1627,6 +1644,16 @@ class RoadmapCircuitoService
             if (count($out) >= $limit) {
                 break;
             }
+        }
+
+        // RONDA DEDICADA del footprint desconocido. Las condiciones de seguridad son las MISMAS que
+        // antes (nada en vuelo, nada elegido esta ronda) — lo único que cambia es CUÁNDO se evalúan:
+        // después de intentar llenar la flota con trabajo módulo-disjunto, no antes. Así el
+        // desconocido deja de ganarle el turno al trabajo que sí puede correr en paralelo.
+        // Un `urgente` conserva la prioridad que le da `ordenCola()` y sí desplaza a lo elegido.
+        if ($candidato !== null && $diferido && ! $unknownEnVuelo && empty($excludeModulos)
+            && (empty($out) || ! empty($candidato->urgente))) {
+            return [['id' => (int) $candidato->id, 'modulo' => '']];
         }
 
         return $out;

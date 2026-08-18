@@ -45,6 +45,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Footprint DESCONOCIDO — ronda dedicada DIFERIDA (Fase 2A.1)
+    |--------------------------------------------------------------------------
+    |
+    | Un item con `modulo` vacío/'Sin clasificar' tiene footprint desconocido: podría tocar cualquier
+    | archivo, así que por diseño (#432 B2) corre SOLO. Eso no se toca — lo que cambia es CUÁNDO se
+    | despacha.
+    |
+    | Antes se tomaba en cuanto ordenaba primero con la flota quieta y se cortaba la ronda ahí mismo,
+    | así que un solo item sin clasificar se llevaba las 6 terminales aunque detrás de él hubiera
+    | trabajo módulo-disjunto listo. Con esto en `true`, el desconocido se DIFIERE al cierre del
+    | barrido: sólo se despacha si la flota sigue quieta y no hubo nada más que despachar (o si es
+    | `urgente`, que conserva su prioridad de `ordenCola()`).
+    |
+    | ⚠️ CONTRAPARTIDA: con cola sostenida de trabajo módulo-disjunto, el desconocido puede esperar
+    | varias rondas. El desatasco real es CLASIFICARLO (`circuito:clasificar-modulo`); el detector
+    | `sin_clasificar` del auditor ya emite el item que lo pide. Ponerlo en `false` restaura el
+    | comportamiento anterior sin redeploy.
+    |
+    */
+    'desconocido_diferido' => (bool) env('CIRCUITO_DESCONOCIDO_DIFERIDO', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Agente REVISOR (#338)
     |--------------------------------------------------------------------------
     |
