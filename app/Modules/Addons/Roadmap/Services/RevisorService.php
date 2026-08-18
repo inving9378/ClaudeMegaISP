@@ -262,9 +262,10 @@ class RevisorService
     public function triarNivelNull(RoadmapItem $item): array
     {
         // Marcador de bloqueo en el TÍTULO → C directo.
-        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
-            return ['nivel' => 'C', 'estado' => 'requiere_irving', 'match' => '[BLOCKED-/PARKED-]',
-                'motivo' => 'Título con marcador [BLOCKED-*]/[PARKED-*] → decisión de Irving.'];
+        // FASE 2A.3 — punto único: freno HUMANO frena, el del clasificador sólo informa.
+        if ($item->tieneFrenoHumano()) {
+            return ['nivel' => 'C', 'estado' => 'requiere_irving', 'match' => 'freno_humano',
+                'motivo' => 'Item con freno humano vigente → decisión de Irving.'];
         }
 
         // #432 ADENDA C — clasificar por el TRABAJO, no por el guardrail: se quita el boilerplate de

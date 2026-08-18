@@ -94,8 +94,9 @@ class AutopilotService
 
         // FRONTERA DURA: negocio y producción jamás los toca el autopilot, aunque el brief venga
         // impecable. Es la misma frontera que ya respeta el Revisor.
-        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
-            return $no('frontera_dura', 'Item rotulado [BLOCKED-]/[PARKED-]: es decisión de Irving por definición.');
+        // FASE 2A.3 — punto único: freno HUMANO frena, el del clasificador sólo informa.
+        if ($item->tieneFrenoHumano()) {
+            return $no('frontera_dura', 'Item con freno humano vigente: es decisión de Irving por definición.');
         }
 
         $nivel = (string) $item->nivel_riesgo;

@@ -340,10 +340,66 @@ class RoadmapItem extends Model
 
     // ── #507 anti-bucle — un item YA decidido nunca vuelve al pool de reclamo ────────────────────
 
-    /** ¿El título lleva rótulo de frontera dura ([BLOCKED-…] / [PARKED-…])? */
+    /**
+     * ¿El título lleva rótulo de frontera dura ([BLOCKED-…] / [PARKED-…])?
+     *
+     * OJO — esto es el chequeo CRUDO del string, que sobrevive sólo como FALLBACK legacy mientras
+     * quedan títulos rotulados. Para decidir si algo frena, usar `tieneFrenoHumano()`.
+     */
     public function tieneRotuloBloqueo(): bool
     {
         return (bool) preg_match('/\[(BLOCKED|PARKED)-/i', (string) $this->title);
+    }
+
+    /**
+     * FASE 2A.3 — ¿hay un freno VIGENTE que deba detener el despacho?
+     *
+     * Punto ÚNICO de la regla de Irving (2026-08-18): **el bloqueo humano frena; el del
+     * clasificador sólo informa.** Antes esa distinción no existía —los cinco guards hacían el
+     * mismo `preg_match` sobre el título— así que "que el clasificador sólo aconseje" se habría
+     * implementado dejando de honrar el rótulo, y eso habría tirado también los 33 frenos humanos.
+     *
+     * `origen_bloqueo='clasificador'` NO entra aquí a propósito: el triaje automático de riesgo
+     * opina y deja su brief, pero no detiene nada. Su señal se ve en la Torre y en el digest.
+     */
+    public function tieneFrenoHumano(): bool
+    {
+        // Columna primero (fuente nueva); el rótulo en el título es el fallback legacy.
+        return $this->origen_bloqueo === 'humano' || $this->tieneRotuloBloqueo();
+    }
+
+    /**
+     * FASE 2A.3 — versión SQL de `tieneFrenoHumano()`, para los scopes. Se aplica sobre un grupo
+     * `where(function ($q) { ... })`. Existe para que la regla viva en UN lugar también del lado de
+     * la consulta: son tres scopes los que la necesitan y tenerla copiada es cómo empezó todo esto.
+     */
+    protected static function sqlConFrenoHumano($q): void
+    {
+        $q->where('origen_bloqueo', 'humano')
+          ->orWhere('title', 'like', '%[BLOCKED-%')     // fallback legacy
+          ->orWhere('title', 'like', '%[PARKED-%');
+    }
+
+    /** Negación de `sqlConFrenoHumano` (De Morgan: sin columna humana Y sin rótulo en el título). */
+    protected static function sqlSinFrenoHumano($q): void
+    {
+        $q->where(fn ($x) => $x->whereNull('origen_bloqueo')->orWhere('origen_bloqueo', '!=', 'humano'))
+          ->where('title', 'not like', '%[BLOCKED-%')
+          ->where('title', 'not like', '%[PARKED-%');
+    }
+
+    /**
+     * FASE 2A.3 — cuántos items dependen HOY del fallback legacy: llevan rótulo en el título pero
+     * NO están sellados como freno humano en columna. Cuando esto marque 0 durante una semana, el
+     * `LIKE` sobre `title` de `scopeElegibleParaPool` puede retirarse sin perder ningún freno.
+     */
+    public static function contarFallbackRotulo(): int
+    {
+        return static::query()
+            ->whereNull('archivado_at')
+            ->where(fn ($q) => $q->where('title', 'like', '%[BLOCKED-%')->orWhere('title', 'like', '%[PARKED-%'))
+            ->where(fn ($q) => $q->whereNull('origen_bloqueo')->orWhere('origen_bloqueo', '!=', 'humano'))
+            ->count();
     }
 
     /**
@@ -397,8 +453,11 @@ class RoadmapItem extends Model
         return $query
             ->where(fn ($q) => $q->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
             ->where(fn ($q) => $q->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
-            ->where('title', 'not like', '%[BLOCKED-%')
-            ->where('title', 'not like', '%[PARKED-%');
+            // FASE 2A.3 — sólo frena el freno HUMANO. `origen_bloqueo='clasificador'` NO frena: el
+            // triaje automático de riesgo aconseja, no detiene (decisión de Irving 2026-08-18).
+            // Incluye el fallback legacy del rótulo en el título, que se retira cuando
+            // `contarFallbackRotulo()` marque 0 durante una semana.
+            ->where(fn ($q) => static::sqlSinFrenoHumano($q));
     }
 
     /**
@@ -465,10 +524,16 @@ class RoadmapItem extends Model
                 'error' => 'Este item está ' . $this->estado_aprobacion . '. Aprobarlo no lo devuelve a la cola; hay que reabrirlo explícitamente.'];
         }
 
-        if ($this->tieneRotuloBloqueo()) {
-            return ['code' => 'rotulo_bloqueo', 'accion' => 'quitar_rotulo',
-                'error' => 'El título lleva rótulo [BLOCKED-…]/[PARKED-…] y el pool lo excluye por diseño: '
-                    . 'aprobarlo NO lo despacha. Para desbloquearlo hay que QUITARLE el rótulo al título.'];
+        if ($this->tieneFrenoHumano()) {
+            // `desbloqueable` le dice a la Torre que puede ofrecer «Quitar el freno y aprobar» en el
+            // mismo lugar (2A.3 §3). Es un freno que puso una persona: la salida es una decisión,
+            // no un trámite de ir a editar el título a mano.
+            return ['code' => 'freno_humano', 'accion' => 'quitar_freno', 'desbloqueable' => true,
+                'motivo_texto' => $this->motivo_bloqueo ?: null,
+                'error' => 'Este item tiene un freno que pusiste tú'
+                    . ($this->motivo_bloqueo ? ' (' . $this->motivo_bloqueo . ')' : '')
+                    . ': el circuito no lo va a tomar mientras siga puesto. Aprobar y desbloquear son '
+                    . 'dos cosas distintas — si ya quieres que corra, quita el freno.'];
         }
 
         if ($this->esperando_merge_irving) {
@@ -896,7 +961,9 @@ class RoadmapItem extends Model
         }
         // Bandeja (decisión) ANTES que integración: un item con rama vieja que rebotó a Irving
         // (requiere_irving / conflicto) SIGUE siendo una decisión, no integración.
-        $bloqueado  = (bool) preg_match('/\[(BLOCKED|PARKED)-/i', (string) $this->title);
+        // FASE 2A.3 — punto único. Un item marcado sólo por el CLASIFICADOR ya no cae a la bandeja
+        // por eso: su marca es un consejo, no una decisión pendiente de Irving.
+        $bloqueado  = $this->tieneFrenoHumano();
         $noAprobado = $this->estado_aprobacion !== 'aprobado_irving';
         if ($this->estado_aprobacion === 'requiere_irving'
             || ($this->nivel_riesgo === 'C' && $this->opcion_elegida === null && $noAprobado)
@@ -990,7 +1057,7 @@ class RoadmapItem extends Model
                      ->where(function ($q) {
                          $q->where('estado_aprobacion', 'requiere_irving')
                            ->orWhere(fn ($c) => $c->where('nivel_riesgo', 'C')->whereNull('opcion_elegida')->where('estado_aprobacion', '!=', 'aprobado_irving'))
-                           ->orWhere(fn ($b) => $b->where(fn ($w) => $w->where('title', 'like', '%[BLOCKED-%')->orWhere('title', 'like', '%[PARKED-%'))
+                           ->orWhere(fn ($b) => $b->where(fn ($w) => static::sqlConFrenoHumano($w))
                                                   ->where('estado_aprobacion', '!=', 'aprobado_irving'));
                      });
     }
@@ -1014,8 +1081,7 @@ class RoadmapItem extends Model
                      ->whereNotIn('status', ['done', 'cancelled', 'in_progress'])
                      ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado', 'en_progreso', 'aprobado_irving', 'requiere_irving'])
                      ->where(fn ($q) => $q->whereNull('en_desarrollo_humano')->orWhere('en_desarrollo_humano', false))
-                     ->where('title', 'not like', '%[BLOCKED-%')
-                     ->where('title', 'not like', '%[PARKED-%')
+                     ->where(fn ($q) => static::sqlSinFrenoHumano($q))
                      ->when(! empty($enCurso), fn ($q) => $q->whereNotIn('id', $enCurso));
     }
 

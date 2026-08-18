@@ -253,8 +253,9 @@ class ThomasService
         }
 
         // Rótulo de frontera dura: es de Irving por definición, sin importar el contenido.
-        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
-            return $no('Item rotulado [BLOCKED-]/[PARKED-]: decisión de Irving por definición.');
+        // FASE 2A.3 — punto único: freno HUMANO frena, el del clasificador sólo informa.
+        if ($item->tieneFrenoHumano()) {
+            return $no('Item con freno humano vigente: decisión de Irving por definición.');
         }
 
         // Un C es una decisión de diseño; un item sin nivel no está triado.
@@ -415,8 +416,9 @@ class ThomasService
         if (! config('circuito.thomas.enabled', true) || $this->circuito->isPaused()) {
             return $no('Circuito en pausa o Thomas apagado.');
         }
-        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
-            return $no('Item rotulado [BLOCKED-]/[PARKED-]: decisión de Irving por definición.');
+        // FASE 2A.3 — punto único: freno HUMANO frena, el del clasificador sólo informa.
+        if ($item->tieneFrenoHumano()) {
+            return $no('Item con freno humano vigente: decisión de Irving por definición.');
         }
         // MISMO texto que el carril mecánico (título + descripción + prompt): antes este carril
         // miraba sólo título+descripción y un término de frontera que viviera en el `prompt` se le
@@ -638,8 +640,9 @@ class ThomasService
         if ($this->circuito->isPaused()) {
             return $no('Circuito en pausa (kill switch): no se auto-mergea nada.');
         }
-        if (preg_match('/\[(BLOCKED|PARKED)-/i', (string) $item->title)) {
-            return $no('Item rotulado [BLOCKED-]/[PARKED-]: frontera dura.');
+        // FASE 2A.3 — punto único: freno HUMANO frena, el del clasificador sólo informa.
+        if ($item->tieneFrenoHumano()) {
+            return $no('Item con freno humano vigente: frontera dura.');
         }
         if (empty($item->branch)) {
             return $no('No tiene rama que integrar.');
