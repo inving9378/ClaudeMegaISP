@@ -223,6 +223,14 @@ class RoadmapItem extends Model
             }
         });
 
+        // FASE 2A.3 — clasificar al INSERTAR, en vez de barrer con Opus cada 3 minutos.
+        // `afterCommit` es obligatorio: buena parte de las altas ocurren dentro de transacciones
+        // (backfills, sub-items de las terminales) y sin esto el worker buscaría una fila que
+        // todavía no existe. Falla-segura: el clasificador es advisory, si no corre no frena nada.
+        static::created(function (self $item) {
+            \App\Modules\Addons\Roadmap\Jobs\ClasificarRiesgoJob::dispatch($item->id)->afterCommit();
+        });
+
         // FASE 2A.4 — TRAZABILIDAD DE LOS FRENOS DE DESPACHO.
         //
         // El `log` del item solo registraba DECISIONES, nunca cambios de bandera. Por eso los flags

@@ -18,7 +18,10 @@ use Illuminate\Console\Command;
  */
 class PriorizarSeguridadCommand extends Command
 {
-    protected $signature = 'circuito:priorizar-seguridad {--limit=8 : máximo de candidatos a triar por pasada} {--dry : solo reporta, no aplica}';
+    protected $signature = 'circuito:priorizar-seguridad
+        {--limit=8 : máximo de candidatos a triar por pasada}
+        {--dry : solo reporta, no aplica}
+        {--item= : clasifica SOLO este item (lo usa ClasificarRiesgoJob al crearse uno nuevo)}';
 
     protected $description = 'Sube seguridad/dinero a ALTA + fix/brief de Opus + escala; separa negocio/prod (#334).';
 
@@ -62,8 +65,14 @@ class PriorizarSeguridadCommand extends Command
         $re = '~(' . implode('|', self::SENALES) . ')~i';
         $norm = fn (string $s) => strtr(mb_strtolower($s), ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ñ'=>'n','ü'=>'u']);
 
+        // FASE 2A.3 — con `--item` la pasada se acota a uno solo: es el camino de
+        // "clasificar al insertar" (ClasificarRiesgoJob), que sustituye al barrido cada 3 minutos.
+        // Conserva TODOS los filtros de abajo, incluida la marca de idempotencia.
+        $soloItem = $this->option('item') !== null ? (int) $this->option('item') : null;
+
         // Candidatos: pendientes, aún SIN procesar por esta pasada, que disparan alguna señal.
-        $pend = RoadmapItem::whereNotIn('status', ['done', 'cancelado'])
+        $pend = RoadmapItem::when($soloItem, fn ($q) => $q->whereKey($soloItem))
+            ->whereNotIn('status', ['done', 'cancelado'])
             ->where('en_desarrollo_humano', false)
             // Fase 0 (anti-rebote): NUNCA re-triar un item con decisión de Irving ya vigente. Una
             // re-lectura estática de señales no es un hallazgo material → no pisa su decisión.
@@ -131,6 +140,22 @@ class PriorizarSeguridadCommand extends Command
             }
         }
         // negocio/prod: NO se cambia prioridad ni estado (solo se etiqueta y separa).
+
+        // FASE 2A.3 — el veredicto va también a COLUMNA, no sólo al texto del brief.
+        //
+        // Durante semanas este comando escribió su rótulo únicamente dentro de `comentarios_claude`,
+        // y los 8 guards leen `title`: 70 items marcados, 39 invisibles para todo guard. El
+        // clasificador creía estar frenando y no frenaba nada. Ahora deja constancia donde el
+        // sistema sí mira — sellado como `clasificador`, que por decisión de Irving (2026-08-18)
+        // INFORMA pero NO frena el despacho. El brief completo sigue en `comentarios_claude` como
+        // bitácora legible.
+        if (in_array($cat, ['negocio', 'prod'], true)) {
+            $item->origen_bloqueo = 'clasificador';
+            // No pisa un motivo ya escrito por una causa VIVA (espera de merge, anti-bucle, worker).
+            if (trim((string) $item->motivo_bloqueo) === '') {
+                $item->motivo_bloqueo = 'Clasificador de riesgo (Opus) marcó ' . $tag . '. Es un CONSEJO: no frena el despacho.';
+            }
+        }
 
         $sello = "\n\n--- FIX + BRIEF DE RIESGO (Opus) " . now()->toDateTimeString() . " " . self::MARCA . " ---\n"
             . ($tag ? $tag . "\n" : '')
