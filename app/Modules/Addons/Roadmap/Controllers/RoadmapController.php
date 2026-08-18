@@ -60,6 +60,13 @@ class RoadmapController extends Controller
                 'description'      => $i->description,
                 'alcance_autorizado' => $i->alcance_autorizado,
                 'fuera_de_alcance'   => $i->fuera_de_alcance,
+                // FASE 2A.3 — el freno deja de vivir en el título, así que la Torre necesita
+                // pintarlo. Sin esto, limpiar los rótulos volvería el freno INVISIBLE: el badge
+                // tiene que existir ANTES de quitar el texto del título.
+                'origen_bloqueo'   => $i->origen_bloqueo,   // humano (FRENA) | clasificador (informa)
+                'motivo_bloqueo'   => $i->motivo_bloqueo,
+                // §5 — señal de producción. No bloquea; se ve.
+                'toca_produccion'  => $i->tocaProduccion(),
             ]));
 
         // #348: cola EJECUTABLE — SOLO lo que el circuito AUTO-CORRE (A/B o ya aprobado por Irving),

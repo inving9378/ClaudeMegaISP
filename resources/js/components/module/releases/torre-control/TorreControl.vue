@@ -177,6 +177,15 @@
                 <span class="tc-badge tc-badge-dec">{{ estadoLabelItem(it) }}</span>
                 <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
                 <span v-if="it.modulo" class="tc-modulo-chip">{{ it.modulo }}</span>
+                <!-- 2A.3 — el freno ya no vive en el título: se pinta. El humano FRENA (rojo); el
+                     del clasificador sólo INFORMA (ámbar) y el circuito lo despacha igual. -->
+                <span v-if="it.origen_bloqueo === 'humano'" class="tc-frn tc-frn-hum"
+                      :title="it.motivo_bloqueo || 'Freno puesto por ti: el circuito no lo toma.'">⛔ frenado por ti</span>
+                <span v-else-if="it.origen_bloqueo === 'clasificador'" class="tc-frn tc-frn-cls"
+                      :title="it.motivo_bloqueo || 'Aviso del clasificador de riesgo. No frena el despacho.'">⚠ aviso del clasificador</span>
+                <!-- §5 — toca producción: no bloquea, pero no se puede descubrir tarde. -->
+                <span v-if="it.toca_produccion" class="tc-frn tc-frn-prod"
+                      :title="'Este item referencia producción (' + it.toca_produccion + '). No se bloquea; queda avisado.'">🏭 toca prod</span>
               </div>
               <div class="tc-titulo-c">{{ it.title }}</div>
 
@@ -1140,6 +1149,15 @@ export default {
 .tc-t-compact{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;}
 .tc-titulo-c{font-size:14px;font-weight:700;line-height:1.35;margin-top:4px;}
 .tc-modulo-chip{font-size:11px;font-weight:600;color:var(--tc-muted);background:var(--tc-line);border-radius:6px;padding:1px 8px;}
+/* 2A.3 — badges de freno/aviso. El rojo FRENA, el ámbar sólo informa: la diferencia tiene que
+   leerse de un vistazo, porque es exactamente la distinción que el sistema no tenía. */
+.tc-frn{font-size:11px;font-weight:700;border-radius:6px;padding:1px 8px;white-space:nowrap;}
+.tc-frn-hum{background:#fef2f2;color:#b91c1c;}
+.tc-frn-cls{background:#fffbeb;color:#b45309;}
+.tc-frn-prod{background:#eef2ff;color:#4338ca;}
+.tc-dark .tc-frn-hum{background:rgba(248,113,113,.15);color:#f87171;}
+.tc-dark .tc-frn-cls{background:rgba(251,191,36,.15);color:#fbbf24;}
+.tc-dark .tc-frn-prod{background:rgba(129,140,248,.18);color:#a5b4fc;}
 .tc-dec-label{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--tc-muted);margin-bottom:2px;}
 .tc-desc-wrap{margin-top:10px;}
 .tc-desc-toggle{font-size:12px;font-weight:600;color:var(--tc-accent);background:none;border:none;padding:0;cursor:pointer;}
