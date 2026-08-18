@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Services;
 
+use App\Modules\Addons\Roadmap\Console\DigestCommand;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -313,6 +314,31 @@ class RoadmapCircuitoService
     public function setRateTts(float $rate): void
     {
         $this->putSetting(self::RATE_KEY, (string) $this->clampRate($rate));
+    }
+
+    /**
+     * Foto del último `circuito:digest` (#791): decisiones mudas de los últimos 7 días, despachos
+     * que tocan producción (24h) y dependencia del fallback legacy — guardada por el propio comando
+     * en settings para que la Torre la pinte sin recalcular ni leer el log del cron. Incluye la
+     * referencia del "antes" para que el número en vivo se lea como tendencia. Null si el digest
+     * nunca corrió.
+     */
+    public function digestSnapshot(): ?array
+    {
+        $raw = DB::table('settings')->where('key', DigestCommand::SETTING)->value('value');
+        if (! $raw) {
+            return null;
+        }
+
+        $data = json_decode($raw, true);
+        if (! is_array($data)) {
+            return null;
+        }
+
+        $data['mudas_baseline_historico'] = DigestCommand::BASELINE_MUDAS_HISTORICO;
+        $data['mudas_baseline_vivos']     = DigestCommand::BASELINE_MUDAS_VIVOS;
+
+        return $data;
     }
 
     private function clampRate(float $rate): float
