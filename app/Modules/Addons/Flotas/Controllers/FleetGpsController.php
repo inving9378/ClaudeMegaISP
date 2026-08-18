@@ -2,9 +2,11 @@
 
 namespace App\Modules\Addons\Flotas\Controllers;
 
+use App\Modules\Addons\Flotas\Models\FleetAssignment;
 use App\Modules\Addons\Flotas\Models\FleetDevice;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
 use App\Modules\Addons\Flotas\Services\FleetPositionService;
+use App\Modules\Addons\Flotas\Services\Gps\Position;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -117,6 +119,60 @@ class FleetGpsController extends FleetBaseController
         ];
 
         return response()->json(['ok' => true, 'device' => $device, 'listener' => $listener], 201);
+    }
+
+    // POST /flotas/api/conductor/posicion — self-report GPS desde el celular del conductor
+    // (Sanctum, sin sesión web). Item #103: el celular sustituye al hardware GPS cuando el
+    // vehículo no lo tiene. Self-scoped: solo escribe posiciones del vehículo que el propio
+    // usuario autenticado tiene asignado (fleet_assignments), nunca uno arbitrario.
+    public function conductorPosicion(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'lat'         => 'required|numeric|between:-90,90',
+            'lng'         => 'required|numeric|between:-180,180',
+            'speed'       => 'nullable|numeric|min:0',
+            'heading'     => 'nullable|numeric|between:0,360',
+            'battery'     => 'nullable|numeric|between:0,100',
+            'recorded_at' => 'nullable|date',
+        ]);
+
+        $user = $request->user();
+
+        $assignment = FleetAssignment::whereNull('until')
+            ->where('user_id', $user->id)
+            ->latest('since')
+            ->first();
+
+        if (! $assignment) {
+            return response()->json(['message' => 'No tienes un vehículo asignado.'], 404);
+        }
+
+        $device = FleetDevice::firstOrCreate(
+            ['imei' => 'PHONE-' . $user->id],
+            ['brand' => 'phone', 'model' => 'Celular del conductor', 'status' => 'active']
+        );
+
+        if ($device->vehicle_id !== $assignment->vehicle_id) {
+            $device->update(['vehicle_id' => $assignment->vehicle_id]);
+        }
+
+        $position = new Position(
+            imei: $device->imei,
+            lat: (float) $data['lat'],
+            lng: (float) $data['lng'],
+            speed: (float) ($data['speed'] ?? 0),
+            heading: (float) ($data['heading'] ?? 0),
+            battery: isset($data['battery']) ? (float) $data['battery'] : null,
+            recorded_at: isset($data['recorded_at']) ? Carbon::parse($data['recorded_at']) : Carbon::now(),
+        );
+
+        $this->positions->saveBatch([$position], $assignment->vehicle_id, $device->id);
+
+        if (! $assignment->vehicle->has_gps) {
+            $assignment->vehicle->update(['has_gps' => true, 'gps_brand' => 'phone']);
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     // GET /flotas/api/vehiculos/{id}/geofence-events?limit=20 — últimos eventos de geocercas
