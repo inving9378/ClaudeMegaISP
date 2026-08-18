@@ -109,7 +109,7 @@ class GatewayConciliationIntakeJob implements ShouldQueue
                 'fields'                 => $result['fields'] ?? [],
                 'unreadable'             => $result['unreadable'] ?? [],
                 'error'                  => $result['error'] ?? null,
-                'model'                  => env('CLAUDE_MODEL', 'claude-sonnet-4-6'),
+                'model'                  => config('services.anthropic.model', 'claude-sonnet-4-6'),
                 'raw'                    => $result['raw'] ?? null,
                 'extracted_at'           => now(),
             ]);
