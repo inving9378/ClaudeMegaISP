@@ -1,6 +1,6 @@
 <template>
   <!-- Rejilla de terminales en vivo (#350): una tarjeta-terminal por sesión de CC.
-       Read-only, polling ligero propio. Array-ready-for-N (hoy 1; con #334 se llena sola). -->
+       Read-only, polling ligero propio. Renderiza N terminales en vivo (wt-1..wt-6, #334 ya activo). -->
   <div class="tt-wrap" :class="{ 'tt-dark': dark }">
 
     <div class="tt-bar">
@@ -11,14 +11,13 @@
       </span>
     </div>
 
-    <!-- Empty state honesto (dependencia dura de #334) -->
+    <!-- Empty state honesto: el paralelo (#334) YA existe; 0 sesiones = ninguna vuelta corriendo. -->
     <div v-if="!sesiones.length" class="tt-empty">
       <i class="bi bi-terminal-x tt-empty-ico"></i>
-      <p class="tt-empty-h">Ninguna sesión activa ahora mismo</p>
+      <p class="tt-empty-h">Sin vueltas corriendo ahora mismo</p>
       <p class="tt-empty-p">
-        El circuito corre por vueltas; cuando una arranque verás su terminal aquí.
-        La vista de <b>varias terminales a la vez</b> se enciende con la ejecución en
-        paralelo (<b>#334</b>): un cuadro por cada CC en su worktree.
+        El circuito corre por vueltas en paralelo; aquí verás <b>wt-1…wt-6</b> cuando
+        corran — un cuadro por cada CC en su worktree, en vivo.
       </p>
     </div>
 
