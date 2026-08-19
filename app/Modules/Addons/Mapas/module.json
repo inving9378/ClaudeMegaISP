@@ -107,8 +107,33 @@
         }
     ],
     "api_endpoints": [
-        { "method": "GET", "path": "/mapas",      "description": "Vista principal del mapa", "scope": "maps_view_maps", "permission": "maps_view_maps" },
-        { "method": "GET", "path": "/maps/zones", "description": "Zonas de cobertura",       "scope": "maps_view_maps", "permission": "maps_view_maps" }
+        { "method": "GET",    "path": "/mapas",                                "description": "Vista principal del mapa",                                       "scope": "maps_view_maps",         "permission": "maps_view_maps" },
+        { "method": "GET",    "path": "/maps/zones",                           "description": "Zonas de cobertura",                                             "scope": "maps_view_maps",         "permission": "maps_view_maps" },
+        { "method": "GET",    "path": "/maps/layers",                         "description": "Listar elementos (capas) del mapa: postes, rutas, NAPs, sitios, notas", "scope": "maps_view_maps",  "permission": "maps_view_maps" },
+        { "method": "GET",    "path": "/maps/layers/{id}",                    "description": "Ver detalle de un elemento del mapa",                            "scope": "maps_view_maps",         "permission": "maps_view_maps" },
+        { "method": "POST",   "path": "/maps/layers",                         "description": "Crear elemento en el mapa (poste, ruta de fibra, NAP, sitio, nota, etc. según tipo)", "scope": "maps_route_add", "permission": "maps_route_add" },
+        { "method": "PUT",    "path": "/maps/layers/{id}",                    "description": "Editar elemento del mapa",                                       "scope": "maps_route_edit",        "permission": "maps_route_edit" },
+        { "method": "DELETE", "path": "/maps/layers/{id}",                    "description": "Eliminar elemento del mapa",                                     "scope": "maps_route_remove",      "permission": "maps_route_remove" },
+        { "method": "POST",   "path": "/maps/layers/coords/{id}",             "description": "Actualizar coordenadas de un elemento del mapa",                "scope": "maps_route_edit",        "permission": "maps_route_edit" },
+        { "method": "POST",   "path": "/maps/kmz",                            "description": "Cargar archivo KMZ/KML al mapa",                                 "scope": "maps_kmz_load",          "permission": "maps_kmz_load" },
+        { "method": "POST",   "path": "/maps/kmz/{id}",                       "description": "Cargar KMZ/KML dentro de un proyecto del mapa",                  "scope": "maps_kmz_load",          "permission": "maps_kmz_load" },
+        { "method": "POST",   "path": "/maps/change-classification",          "description": "Cambiar clasificación de elementos del mapa",                   "scope": "maps_change_classification", "permission": "maps_change_classification" },
+        { "method": "GET",    "path": "/maps/projects",                       "description": "Listar proyectos (carpetas) del mapa",                           "scope": "maps_view_maps",         "permission": "maps_view_maps" },
+        { "method": "POST",   "path": "/maps/projects",                       "description": "Crear proyecto (carpeta) en el mapa",                            "scope": "maps_folder_add",        "permission": "maps_folder_add" },
+        { "method": "PUT",    "path": "/maps/projects/{id}",                  "description": "Editar proyecto (carpeta) del mapa",                             "scope": "maps_folder_edit",       "permission": "maps_folder_edit" },
+        { "method": "DELETE", "path": "/maps/projects/{id}",                  "description": "Eliminar proyecto (carpeta) del mapa",                           "scope": "maps_folder_remove",     "permission": "maps_folder_remove" },
+        { "method": "POST",   "path": "/maps/get-clients",                    "description": "Listar clientes ubicados en el mapa",                            "scope": "maps_view_maps",         "permission": "maps_view_maps" },
+        { "method": "POST",   "path": "/maps/clients-without-project",        "description": "Listar clientes sin proyecto asignado en el mapa",              "scope": "maps_view_maps",         "permission": "maps_view_maps" },
+        { "method": "GET",    "path": "/maps/devices",                        "description": "Listar dispositivos de red registrados en el mapa",             "scope": "maps_service_box_edit",  "permission": "maps_service_box_edit" },
+        { "method": "POST",   "path": "/maps/devices",                        "description": "Registrar dispositivo de red en el mapa",                        "scope": "maps_service_box_edit",  "permission": "maps_service_box_edit" },
+        { "method": "GET",    "path": "/maps/devices/{id}",                   "description": "Ver detalle de un dispositivo de red",                           "scope": "maps_view_maps",         "permission": "maps_view_maps" },
+        { "method": "PUT",    "path": "/maps/devices/{id}",                   "description": "Editar dispositivo de red",                                      "scope": "maps_service_box_edit",  "permission": "maps_service_box_edit" },
+        { "method": "DELETE", "path": "/maps/devices/{id}",                   "description": "Eliminar dispositivo de red",                                    "scope": "maps_service_box_remove","permission": "maps_service_box_remove" },
+        { "method": "GET",    "path": "/maps/connections",                    "description": "Listar conexiones de fibra entre elementos del mapa",           "scope": "maps_service_box_edit",  "permission": "maps_service_box_edit" },
+        { "method": "POST",   "path": "/maps/connections",                    "description": "Registrar conexión de fibra entre elementos del mapa",          "scope": "maps_service_box_edit",  "permission": "maps_service_box_edit" },
+        { "method": "PUT",    "path": "/maps/connections/{id}",               "description": "Editar conexión de fibra",                                       "scope": "maps_service_box_edit",  "permission": "maps_service_box_edit" },
+        { "method": "DELETE", "path": "/maps/connections/{id}",               "description": "Eliminar conexión de fibra",                                     "scope": "maps_service_box_remove","permission": "maps_service_box_remove" },
+        { "method": "POST",   "path": "/maps/service-box/add-clients/{id}",   "description": "Asociar clientes a una caja de servicio",                        "scope": "maps_service_box_edit",  "permission": "maps_service_box_edit" }
     ],
 
     "ai": {
