@@ -105,10 +105,15 @@
     ],
 
     "api_endpoints": [
-        { "method": "GET", "path": "/finanzas/facturas",           "description": "Lista facturas",        "scope": "finance_view_invoices",          "permission": "finance_view_invoices" },
-        { "method": "GET", "path": "/finanzas/pagos",              "description": "Lista pagos",           "scope": "finance_view_payments",          "permission": "finance_view_payments" },
-        { "method": "GET", "path": "/finanzas/transacciones",      "description": "Lista transacciones",   "scope": "finance_view_transactions",      "permission": "finance_view_transactions" },
-        { "method": "GET", "path": "/finanzas/general-accounting", "description": "Contabilidad general",  "scope": "finance_view_general_accounting", "permission": "finance_view_general_accounting" }
+        { "method": "GET",  "path": "/finanzas/facturas",                          "description": "Lista facturas",                              "scope": "finance_view_invoices",   "permission": "finance_view_invoices" },
+        { "method": "GET",  "path": "/finanzas/pagos",                             "description": "Lista pagos",                                 "scope": "finance_view_payments",   "permission": "finance_view_payments" },
+        { "method": "GET",  "path": "/finanzas/transacciones",                     "description": "Lista transacciones",                         "scope": "finance_view_transactions", "permission": "finance_view_transactions" },
+        { "method": "GET",  "path": "/finanzas/general-accounting",                "description": "Contabilidad general",                        "scope": "finance_view_general_accounting", "permission": "finance_view_general_accounting" },
+        { "method": "POST", "path": "/finanzas/invoices/create-for-client/{id}",   "description": "Crea una factura para un cliente",            "scope": "invoice_add_invoice",     "permission": "invoice_add_invoice" },
+        { "method": "POST", "path": "/finanzas/invoices/send/{id}",                "description": "Envía la factura al cliente",                 "scope": "invoice_send_invoice",    "permission": "invoice_send_invoice" },
+        { "method": "POST", "path": "/finanzas/invoices/mark-as-paid/{id}",        "description": "Marca una factura como pagada",               "scope": "invoice_mark_as_paid_invoice", "permission": "invoice_mark_as_paid_invoice" },
+        { "method": "GET",  "path": "/finanzas/invoices/print/{id}",               "description": "Genera el PDF de una factura",                "scope": "invoice_print_invoice",   "permission": "invoice_print_invoice" },
+        { "method": "POST", "path": "/finanzas/invoices/get-pending-by-client/{id}", "description": "Lista las facturas pendientes de un cliente", "scope": "finance_view_invoices",   "permission": "finance_view_invoices" }
     ],
 
     "ai": {
