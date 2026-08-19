@@ -260,6 +260,97 @@ class RevisorService
     public const TRIAJE_C_WORD = ['iva', 'rol', 'roles', 'auth', 'sat', 'prod'];
 
     /**
+     * #844 (Falla 2 de #841) — Negaciones INEQUÍVOCAS que, si aparecen INMEDIATAMENTE antes de la
+     * keyword (misma oración, ventana corta), la eximen del match. Caso real: "módulo documental,
+     * no toca cobros, saldos, pagos ni facturación" no debe disparar C por "cobro"/"pago"/"factura".
+     * Sesgo conservador: la lista es corta y literal; cualquier keyword con AL MENOS una aparición
+     * sin negación cerca sigue disparando C (ver todasLasAparicionesNegadas()).
+     */
+    private const TRIAJE_NEGACIONES = [
+        'no toca', 'no tocamos', 'no se toca', 'no se tocan', 'sin tocar',
+        'no incluye', 'no incluyen', 'no se incluye', 'sin incluir',
+        'no modifica', 'no modifican', 'no se modifica', 'sin modificar',
+        'no afecta', 'no afectan', 'no se afecta', 'sin afectar',
+        'no altera', 'no alteran', 'sin alterar',
+        'no cambia', 'no cambian', 'sin cambiar',
+        'no involucra', 'no requiere', 'no usa', 'no utiliza',
+    ];
+
+    /**
+     * #844 — Ventana de negación en BYTES (no mb_*) a propósito: preg_match_all con offsets
+     * (usado por TRIAJE_C_WORD) devuelve offsets en bytes aun con el modificador /u; mezclar con
+     * funciones mb_* produciría cortes desalineados. strpos/substr trabajan bien sobre UTF-8 para
+     * este uso (búsqueda de subcadenas ASCII, sin necesidad de contar caracteres exactos).
+     */
+    private const TRIAJE_VENTANA_NEGACION_BYTES = 90;
+
+    /**
+     * #844 — true si la negación más cercana ANTES de $posKeyword (dentro de la ventana y sin
+     * cruzar un límite de oración: '.', '!', '?' o línea en blanco) es una de TRIAJE_NEGACIONES.
+     */
+    private function negacionInmediatamenteAntes(string $heno, int $posKeyword): bool
+    {
+        $inicioVentana = max(0, $posKeyword - self::TRIAJE_VENTANA_NEGACION_BYTES);
+        $contexto = substr($heno, $inicioVentana, $posKeyword - $inicioVentana);
+
+        // No cruzar el límite de oración: solo mirar lo que sigue al último terminador dentro del contexto.
+        $ultimoCorte = 0;
+        foreach (['.', '!', '?', "\n\n"] as $sep) {
+            $p = strrpos($contexto, $sep);
+            if ($p !== false) {
+                $ultimoCorte = max($ultimoCorte, $p + strlen($sep));
+            }
+        }
+        $contextoOracion = substr($contexto, $ultimoCorte);
+
+        foreach (self::TRIAJE_NEGACIONES as $neg) {
+            if (strrpos($contextoOracion, $neg) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * #844 — true SOLO si TODAS las apariciones de $kw en $heno están negadas cerca (ver
+     * negacionInmediatamenteAntes). Si hay al menos una aparición sin negación cerca, devuelve
+     * false → sigue siendo match real (sesgo conservador: una mención ambigua no exime nada).
+     */
+    private function todasLasAparicionesNegadas(string $heno, string $kw): bool
+    {
+        $offset = 0;
+        $huboAlMenosUna = false;
+        while (($pos = strpos($heno, $kw, $offset)) !== false) {
+            $huboAlMenosUna = true;
+            if (! $this->negacionInmediatamenteAntes($heno, $pos)) {
+                return false;
+            }
+            $offset = $pos + strlen($kw);
+        }
+
+        return $huboAlMenosUna;
+    }
+
+    /**
+     * #844 — Igual que todasLasAparicionesNegadas() pero para offsets ya resueltos por
+     * preg_match_all (TRIAJE_C_WORD, que necesita límite de palabra \b).
+     */
+    private function todasLasCoincidenciasNegadas(string $heno, string $kw): bool
+    {
+        if (! preg_match_all('/\b' . preg_quote($kw, '/') . '\b/u', $heno, $m, PREG_OFFSET_CAPTURE)) {
+            return false;
+        }
+        foreach ($m[0] as [, $pos]) {
+            if (! $this->negacionInmediatamenteAntes($heno, $pos)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * #419 — Triaje DETERMINISTA de NIVEL para un item con nivel_riesgo NULL (punto ciego: ni el
      * ejecutor —pide A— ni el revisor —pide B— lo toman). SIN IA y SIN autorizar nada. Devuelve la
      * propuesta, NO escribe. NUNCA asigna A (A solo por decisión humana explícita).
@@ -317,12 +408,23 @@ class RevisorService
 
         foreach (self::TRIAJE_C_PLAIN as $kw) {
             if ($kw !== '' && str_contains($heno, $kw)) {
+                // #844 — negación inequívoca cerca (misma oración, ~10 palabras) exime ESTA keyword;
+                // si alguna otra aparición de la misma keyword no está negada, sigue disparando C.
+                if ($this->todasLasAparicionesNegadas($heno, $kw)) {
+                    continue;
+                }
+
                 return ['nivel' => 'C', 'estado' => 'requiere_irving', 'match' => $kw,
                     'motivo' => "Frontera dura: menciona \"{$kw}\" → nivel C, requiere_irving."];
             }
         }
         foreach (self::TRIAJE_C_WORD as $kw) {
             if (preg_match('/\b' . preg_quote($kw, '/') . '\b/u', $heno)) {
+                // #844 — mismo criterio de negación que TRIAJE_C_PLAIN, con límite de palabra.
+                if ($this->todasLasCoincidenciasNegadas($heno, $kw)) {
+                    continue;
+                }
+
                 return ['nivel' => 'C', 'estado' => 'requiere_irving', 'match' => $kw,
                     'motivo' => "Frontera dura: menciona \"{$kw}\" → nivel C, requiere_irving."];
             }
