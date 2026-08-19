@@ -427,7 +427,7 @@ class RoadmapCircuitoService
      * distinto de "corrió hace mucho" y suele ser el caso interesante: la regla existe pero no está
      * agendada.
      *
-     * @return array<int,array{comando:string,at:?string,horas:?float,vencido:bool,nunca:bool,si_no_corre:string,max_horas:int}>
+     * @return array<int,array{comando:string,at:?string,horas:?float,vencido:bool,nunca:bool,si_no_corre:string,max_horas:int,linea_cron:string}>
      */
     public function latidos(): array
     {
@@ -455,6 +455,11 @@ class RoadmapCircuitoService
                 'max_horas'   => $maxH,
                 'agendado'    => $this->agendado($comando),
                 'si_no_corre' => (string) ($cfg['si_no_corre'] ?? ''),
+                // #808 — línea exacta a pegar en `crontab -e` cuando `agendado === false`. Ningún
+                // ejecutor on-box puede escribir el crontab del SO (bloqueado por el sandbox); esto
+                // es lo más cerca que el circuito llega: dejar la línea correcta a un copy-paste,
+                // en el mismo sitio donde el digest ya delata que falta.
+                'linea_cron'  => (string) ($cfg['linea_cron'] ?? ''),
             ];
         }
 
