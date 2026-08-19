@@ -102,10 +102,13 @@ class InventarioSpecCommand extends Command
             . (count($vacios) > 8 ? '…' : '') . ')');
 
         $this->newLine();
-        $this->line('<options=bold>2. Superficie cubierta</>');
-        $this->line("   endpoints declarados: {$tot['endp']}   ·   rutas registradas en el sistema: {$rutasTotal}");
-        $this->line('   → el spec describe ~' . ($rutasTotal ? round(100 * $tot['endp'] / $rutasTotal, 1) : 0)
-            . ' % de la superficie real. Medir contra esto mide un RECORTE, no el sistema.');
+        $sup = app(\App\Modules\Addons\Roadmap\Services\AuditorService::class)->superficieDeclarada();
+        $this->line('<options=bold>2. Superficie declarada (métrica de convergencia de 2B)</>');
+        $this->line("   <options=bold>{$sup['pct']} %</>  =  {$sup['declarados']} endpoints declarados / "
+            . "{$sup['rutas_modulo']} rutas atribuibles a un módulo");
+        $this->line("   {$sup['rutas_sin_modulo']} rutas viven en controllers legacy fuera de app/Modules: no pertenecen");
+        $this->line('   a ningún manifiesto y quedan FUERA del denominador (es el techo honesto de esta vía).');
+        $this->comment('   Mientras este número suba, el generador tiene trabajo.');
 
         $this->newLine();
         $this->line('<options=bold>3. ¿Lo declarado es cierto?</>');

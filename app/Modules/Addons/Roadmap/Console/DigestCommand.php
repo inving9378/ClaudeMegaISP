@@ -121,7 +121,8 @@ class DigestCommand extends Command
         $this->line("<options=bold>3. Items que dependen del fallback legacy del título: {$fallback}</>");
         $this->rachaDelFallback($fallback);
 
-        $frenos = $this->resurfacearFrenos();
+        $frenos     = $this->resurfacearFrenos();
+        $superficie = $this->superficieDeclarada();
 
         DB::table('settings')->updateOrInsert([
             'key' => self::SETTING,
@@ -138,6 +139,8 @@ class DigestCommand extends Command
                 'sin_modelo_dias' => $dias,
                 'procesos_mudos'  => array_values(array_map(fn ($p) => $p['comando'],
                     array_filter($liveness, fn ($p) => $p['vencido']))),
+                'superficie_pct'  => $superficie['pct'],
+                'superficie'      => $superficie,
                 'frenos_humanos'  => count(\App\Modules\Addons\Roadmap\Console\RetriageFrenosCommand::frenosHumanos()),
                 'frenos_top'      => array_slice(array_map(
                     fn ($f) => ['id' => $f['id'], 'dias' => $f['dias'], 'mudas' => $f['mudas'], 'rotulo' => $f['rotulo']],
@@ -148,6 +151,37 @@ class DigestCommand extends Command
         $this->newLine();
 
         return self::SUCCESS;
+    }
+
+    /**
+     * FASE 2B — SUPERFICIE DECLARADA: la métrica de convergencia del generador.
+     *
+     * Cuánto del sistema tiene contra qué medirse. **Mientras suba, el generador tiene trabajo.**
+     * Cuando se acerque a su techo, el detector semántico sobre `screens[].steps/actions` ya tendrá
+     * material y ahí sí valdrá la pena el juicio del modelo.
+     *
+     * Va al digest porque es el único número que dice si el ciclo está convergiendo o girando en
+     * vacío — y porque una métrica que sólo se mira cuando alguien se acuerda no es una métrica.
+     */
+    private function superficieDeclarada(): array
+    {
+        $s = app(\App\Modules\Addons\Roadmap\Services\AuditorService::class)->superficieDeclarada();
+
+        $prev = DB::table('settings')->where('key', self::SETTING)->value('value');
+        $prev = $prev ? (json_decode($prev, true)['superficie_pct'] ?? null) : null;
+        $delta = ($prev !== null && $prev != $s['pct'])
+            ? sprintf(' (%+.1f pp desde el digest anterior)', $s['pct'] - $prev)
+            : '';
+
+        $this->newLine();
+        $this->line("<options=bold>5. Superficie declarada: {$s['pct']} %</>{$delta}");
+        $this->line("   {$s['declarados']} endpoints declarados de {$s['rutas_modulo']} rutas atribuibles a un módulo");
+        $this->line("   {$s['modulos_con_spec']}/{$s['modulos']} módulos declaran algo en su `module.json`");
+        $this->line("   ({$s['rutas_sin_modulo']} rutas de controllers legacy fuera de app/Modules NO cuentan:");
+        $this->line('    no pertenecen a ningún manifiesto y no pueden declararse por esta vía — es el techo)');
+        $this->comment('   Mientras este número suba, el generador tiene trabajo. Detalle: circuito:inventario-spec');
+
+        return $s;
     }
 
     /**

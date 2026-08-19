@@ -179,18 +179,387 @@ class AuditorService
     // ═══════════════════════════════════════════════════════════════════════════════════════════
 
     /**
-     * FASE 2 (enganche listo, aún sin specs) — medir realidad contra el spec del módulo.
+     * FASE 2B — MEDIR LA REALIDAD CONTRA EL SPEC DEL MÓDULO (`module.json`).
      *
-     * Cuando existan los "spec items por módulo con su DoD", este método los lee y devuelve los
-     * gaps de lo declarado-y-no-construido. Hoy devuelve [] a propósito: no bloquea la Fase 1, y
-     * el día que haya specs se llena aquí sin tocar nada más del motor (`detectarGaps` ya lo llama).
+     * ── LAS DOS CAPAS DEL SPEC (no confundirlas: ambas sirven, y son distintas) ──────────────────
      *
-     * Contrato esperado del spec item: un RoadmapItem con `modulo` = $modulo y un marcador en el
-     * título (p. ej. "[SPEC]") cuyo `description` lista los criterios de DoD verificables.
+     *   1. **`module.json` → ESTRUCTURA.** Endpoints, permisos, pantallas. Vive con el código y se
+     *      versiona con él. Es lo que este método mide HOY, entero por LOOKUP: cada hallazgo traza
+     *      a un conteo, no a un juicio.
+     *
+     *   2. **Item `[SPEC]` → INTENCIÓN.** Criterios de DoD en prosa que Irving escribe desde la
+     *      Torre sin desplegar código. **PENDIENTE, no descartado:** hoy hay 0 items `[SPEC]`, así
+     *      que no habría nada que leer, pero el hueco es legítimo. La versión anterior de este
+     *      docblock lo daba como el ÚNICO contrato; era el contrato equivocado para la estructura,
+     *      no una mala idea para la intención.
+     *
+     * ── POR QUÉ EL PRIMER PRODUCTO SON HUECOS DE DECLARACIÓN ────────────────────────────────────
+     *
+     * El Paso 0 midió que el spec describe ~3.7 % de la superficie real (117 endpoints declarados
+     * sobre 3,193 pares método+ruta). Un detector semántico perfecto sobre ese 3.7 % daría dos
+     * docenas de items y volvería a secarse — el problema que veníamos a resolver, retrasado.
+     *
+     * Así que el generador arranca produciendo **su propio sustrato**: los huecos de DECLARACIÓN son
+     * el gap mejor documentado del sistema y nadie los había contado como tal (16 módulos con rutas
+     * y cero `api_endpoints`; 21 por debajo del umbral). Y cada módulo que completa su `module.json`
+     * amplía la superficie que el detector puede medir en la vuelta siguiente: el generador se
+     * alimenta a sí mismo, no por un truco de re-siembra sino porque su primer trabajo es construir
+     * el instrumento con el que va a medir después.
+     *
+     * ── LA REGLA QUE NO SE NEGOCIA ──────────────────────────────────────────────────────────────
+     *
+     * **Detectar la discrepancia con certeza NO es saber qué falta.** El lookup da lo primero con
+     * confianza 1.0 y lo segundo no lo da nunca. Por eso ningún hallazgo de aquí dice "falta
+     * construir X": un detector que lo diga cuando X existe con otro nombre no produce ruido,
+     * produce TRABAJO FABRICADO. Ver `detSpecDesalineada()`.
      */
     public function medirContraSpec(string $modulo): array
     {
-        return [];
+        $cfg = (array) config('circuito.auditor.spec', []);
+        if (! ($cfg['enabled'] ?? true)) {
+            return [];
+        }
+
+        $spec = $this->leerManifiesto($modulo);
+        if ($spec === null) {
+            return [];   // sin `module.json` no hay spec contra el cual medir (no es un gap: es otro problema)
+        }
+
+        $rutas = $this->rutasDelModulo($modulo);
+        $det   = (array) ($cfg['detectores'] ?? []);
+        $gaps  = [];
+
+        if ($det['modulo_sin_declarar'] ?? true) {
+            $gaps = array_merge($gaps, $this->detSpecSinDeclarar($modulo, $spec, $rutas, $cfg));
+        }
+        if ($det['declaracion_incompleta'] ?? true) {
+            $gaps = array_merge($gaps, $this->detSpecIncompleta($modulo, $spec, $rutas, $cfg));
+        }
+        if ($det['desalineada'] ?? true) {
+            $gaps = array_merge($gaps, $this->detSpecDesalineada($modulo, $spec, $cfg));
+        }
+        if ($det['permiso_inexistente'] ?? true) {
+            $gaps = array_merge($gaps, $this->detSpecPermisos($modulo, $spec));
+        }
+
+        return $gaps;
+    }
+
+    // ── 2B/1: módulo con rutas registradas y CERO api_endpoints ────────────────────────────────
+
+    private function detSpecSinDeclarar(string $modulo, array $spec, array $rutas, array $cfg): array
+    {
+        $n = count($rutas);
+        if ($n < (int) ($cfg['min_rutas'] ?? 3) || count($spec['api_endpoints'] ?? []) > 0) {
+            return [];
+        }
+
+        $cap   = (int) ($cfg['cap_por_item'] ?? 25);
+        $pedir = min($n, $cap);
+
+        return [[
+            'modulo'  => $modulo,
+            'tipo'    => 'spec_modulo_sin_declarar',
+            'clase'   => 'mecanico',
+            // El TRAMO va en la clave para que la huella cambie cuando haya progreso: así la vuelta
+            // siguiente puede pedir la tanda siguiente en vez de que el dedup la bloquee para
+            // siempre. Sin progreso, la huella no cambia y no se re-crea (falla hacia el lado bueno).
+            'clave'   => 'api_endpoints#t0',
+            'titulo'  => "{$modulo}: declara sus endpoints en module.json ({$n} rutas registradas, 0 declaradas)",
+            'detalle' => "El módulo tiene **{$n} rutas registradas** y su `module.json` no declara NINGÚN "
+                . "`api_endpoints`. Sin declaración no hay contra qué medirlo: hoy es invisible para el motor "
+                . "de auditoría, para el manual y para cualquier revisión de contrato.\n\n"
+                . "**Qué hacer:** agregar hasta **{$pedir}** entradas a `api_endpoints` en "
+                . "`app/Modules/*/{$modulo}/module.json`, empezando por las rutas de contrato público "
+                . "(no hace falta declarar cada feed interno de datatable). Cada entrada:\n"
+                . "`{\"method\": \"GET\", \"path\": \"/ruta/real\", \"description\": \"…\", \"permission\": \"permiso_real\"}`\n\n"
+                . "**Verificable:** `php artisan circuito:inventario-spec --detalle` debe mostrar el módulo con "
+                . "más endpoints y sin desajustes. El `path` tiene que coincidir con la ruta REAL "
+                . "(`php artisan route:list`), y el `permission` tiene que existir en la tabla `permissions`.\n\n"
+                . "Si el módulo sigue por debajo del umbral de cobertura, la siguiente vuelta del motor "
+                . "generará la tanda siguiente. No hace falta declararlo todo de una.",
+        ]];
+    }
+
+    // ── 2B/2: declara, pero por debajo del umbral de cobertura ─────────────────────────────────
+
+    private function detSpecIncompleta(string $modulo, array $spec, array $rutas, array $cfg): array
+    {
+        $n = count($rutas);
+        $d = count($spec['api_endpoints'] ?? []);
+        if ($d === 0 || $n < (int) ($cfg['min_rutas'] ?? 3)) {
+            return [];
+        }
+
+        $umbral = (int) ($cfg['umbral_cobertura'] ?? 30);
+        $pct    = (int) round(100 * $d / max(1, $n));
+        if ($pct >= $umbral) {
+            return [];
+        }
+
+        $cap    = (int) ($cfg['cap_por_item'] ?? 25);
+        $meta   = (int) ceil($n * $umbral / 100);
+        $faltan = min($meta - $d, $cap);
+        $tramo  = intdiv($d, max(1, $cap));   // ver nota sobre la huella en detSpecSinDeclarar()
+
+        return [[
+            'modulo'  => $modulo,
+            'tipo'    => 'spec_declaracion_incompleta',
+            'clase'   => 'mecanico',
+            'clave'   => "api_endpoints#t{$tramo}",
+            'titulo'  => "{$modulo}: amplía api_endpoints en module.json ({$d}/{$n} = {$pct}%, umbral {$umbral}%)",
+            'detalle' => "El `module.json` declara **{$d}** endpoints de **{$n}** rutas registradas (**{$pct}%**), "
+                . "por debajo del umbral de cobertura ({$umbral}%). Lo no declarado es superficie que el motor "
+                . "de auditoría NO puede medir.\n\n"
+                . "**Qué hacer:** agregar **{$faltan}** entradas más a `api_endpoints` (llegar al umbral pide "
+                . "~{$meta} en total). Prioriza el contrato público: lo que otro módulo, la app móvil o un "
+                . "integrador llamaría. No hace falta declarar cada feed interno.\n\n"
+                . "**Verificable:** `php artisan circuito:inventario-spec --detalle`. El `path` debe coincidir "
+                . "con `route:list` y el `permission` debe existir en `permissions`.\n\n"
+                . "Es deliberadamente una TANDA, no el módulo entero: si sigue por debajo del umbral, la "
+                . "vuelta siguiente genera la siguiente. Un item de «declara 200 endpoints» no es una tarea.",
+        ]];
+    }
+
+    // ── 2B/3: declarado ≠ registrado. DIRECCIÓN DESCONOCIDA ────────────────────────────────────
+
+    /**
+     * ⚠️ EL DETECTOR MÁS DELICADO DE LOS CUATRO, y no por lo que detecta sino por cómo lo NOMBRA.
+     *
+     * Un endpoint declarado que no resuelve a ninguna ruta significa una de dos cosas, y el lookup
+     * **no las distingue**: (a) se declaró y no se construyó, o (b) se construyó distinto y la
+     * declaración envejeció. Medido el 2026-08-18, los dos casos grandes son del tipo (b): Flotas
+     * declara `/api/flotas/*` cuando existen 65 rutas bajo `flotas/api/*` (prefijo invertido), y
+     * Planes declara un esquema de URLs que nunca se construyó así.
+     *
+     * Por eso el item pregunta CUÁL DE LOS DOS LADOS se corrige, y jamás afirma que falte construir.
+     */
+    private function detSpecDesalineada(string $modulo, array $spec, array $cfg): array
+    {
+        $idx   = $this->indiceMetodoUri();
+        $malos = [];
+
+        foreach ($spec['api_endpoints'] ?? [] as $e) {
+            if (! isset($idx[$this->claveRuta($e['method'] ?? 'GET', $e['path'] ?? '')])) {
+                $malos[] = strtoupper($e['method'] ?? 'GET') . ' ' . ($e['path'] ?? '?');
+            }
+        }
+        if (! $malos) {
+            return [];
+        }
+
+        sort($malos);
+        $muestra = array_slice($malos, 0, (int) ($cfg['muestra_desalineada'] ?? 12));
+        $n       = count($malos);
+
+        return [[
+            'modulo'  => $modulo,
+            'tipo'    => 'spec_desalineada',
+            'clase'   => 'mecanico',
+            // La huella deriva de la LISTA: si se arregla parte, cambia y puede volver a salir; si
+            // nadie tocó nada, no se re-crea.
+            'clave'   => 'desalineada#' . substr(sha1(implode('|', $malos)), 0, 12),
+            'titulo'  => "{$modulo}: declaración y realidad no coinciden en {$n} endpoint(s) de module.json",
+            'detalle' => "Estos endpoints están declarados en `module.json` y **no resuelven a ninguna ruta "
+                . "registrada**:\n\n  · " . implode("\n  · ", $muestra)
+                . ($n > count($muestra) ? "\n  · … y " . ($n - count($muestra)) . ' más' : '') . "\n\n"
+                . "⚠️ **ESTO NO DICE QUE FALTE CONSTRUIRLOS.** La discrepancia es certera; su causa no. "
+                . "Puede ser (a) declarado y nunca construido, o (b) construido con otra ruta y la declaración "
+                . "envejeció. Casos reales medidos del tipo (b): Flotas declaraba `/api/flotas/*` teniendo 65 "
+                . "rutas bajo `flotas/api/*`, y Planes declaraba URLs que nunca existieron así.\n\n"
+                . "**Primera pregunta del trabajo: ¿cuál de los dos lados se corrige?** Compara contra "
+                . "`php artisan route:list` filtrando por el módulo:\n"
+                . "  · si la ruta existe con otro path/método → corrige el `module.json` (lo normal);\n"
+                . "  · si de verdad no existe nada equivalente → el endpoint nunca se construyó: registra la "
+                . "decisión de construirlo o de borrar la declaración.\n\n"
+                . "Ambas salidas son válidas; elige la que deje declaración y código diciendo lo mismo.",
+        ]];
+    }
+
+    // ── 2B/4: permiso declarado que no existe (guardia, no generador) ──────────────────────────
+
+    /**
+     * Hoy rinde CERO: los 111 permisos declarados existen los 111. **Eso es lo esperado, no un
+     * detector roto.** Su valor es de GUARDIA CONTRA REGRESIONES — el día que alguien declare un
+     * permiso que no sembró, o renombre uno en BD sin tocar los manifiestos, esto lo dice.
+     */
+    private function detSpecPermisos(string $modulo, array $spec): array
+    {
+        $declarados = [];
+        foreach ($spec['api_endpoints'] ?? [] as $e) {
+            if (! empty($e['permission'])) {
+                $declarados[$e['permission']] = true;
+            }
+        }
+        foreach ($spec['permissions'] ?? [] as $p) {
+            $nombre = is_array($p) ? ($p['name'] ?? null) : $p;
+            if ($nombre) {
+                $declarados[$nombre] = true;
+            }
+        }
+        if (! $declarados) {
+            return [];
+        }
+
+        $existen = DB::table('permissions')->whereIn('name', array_keys($declarados))->pluck('name')->flip();
+        $faltan  = array_values(array_filter(array_keys($declarados), fn ($n) => ! isset($existen[$n])));
+        if (! $faltan) {
+            return [];
+        }
+        sort($faltan);
+
+        return [[
+            'modulo'  => $modulo,
+            'tipo'    => 'spec_permiso_inexistente',
+            'clase'   => 'mecanico',
+            'clave'   => 'permisos#' . substr(sha1(implode('|', $faltan)), 0, 12),
+            'titulo'  => "{$modulo}: module.json declara " . count($faltan) . ' permiso(s) que no existen en la tabla',
+            'detalle' => "Declarados en `module.json` y ausentes de la tabla `permissions`:\n\n  · "
+                . implode("\n  · ", array_slice($faltan, 0, 20)) . "\n\n"
+                . "Un permiso declarado que no existe no protege nada: `CheckRoutePermission` no lo encuentra y "
+                . "el gate queda sin efecto o niega a todos.\n\n"
+                . "**Qué hacer:** o se siembra el permiso por migración ADITIVA (`givePermissionTo`, NUNCA "
+                . "`syncPermissions`) y se asigna a `super-administrator` + `DESARROLLADOR`, o se corrige el "
+                . "nombre en el `module.json` si en BD se llama distinto. Cerrar con "
+                . "`php artisan permissions:sync-roles`.",
+        ]];
+    }
+
+    // ── Soporte de los detectores 2B ───────────────────────────────────────────────────────────
+
+    /**
+     * FASE 2B — LA MÉTRICA DE CONVERGENCIA: **superficie declarada**.
+     *
+     * Cuánto del sistema tiene contra qué medirse. Mientras suba, el generador tiene trabajo; cuando
+     * se acerque a su techo, el detector semántico sobre `screens[].steps/actions` ya tendrá contra
+     * qué medir y ahí sí valdrá la pena el juicio del modelo.
+     *
+     * **El denominador son sólo las rutas ATRIBUIBLES A UN MÓDULO.** Las de controllers legacy fuera
+     * de `app/Modules` no pertenecen a ningún manifiesto y jamás podrán declararse por esta vía:
+     * meterlas en el denominador haría que la métrica no pudiera llegar nunca a 100 %, y una métrica
+     * con techo inalcanzable se deja de mirar. Se reportan aparte, que es el techo honesto.
+     *
+     * @return array{declarados:int,rutas_modulo:int,rutas_sin_modulo:int,pct:float,modulos:int,modulos_con_spec:int}
+     */
+    public function superficieDeclarada(): array
+    {
+        $porModulo = [];
+        $sinModulo = 0;
+
+        foreach (RouteFacade::getRoutes() as $r) {
+            $nombre = $this->moduloDeLaAccion($r->getActionName());
+            $verbos = count(array_diff($r->methods(), ['HEAD']));
+            if ($nombre === null) {
+                $sinModulo += $verbos;
+                continue;
+            }
+            $porModulo[$this->normalizar($nombre)] = ($porModulo[$this->normalizar($nombre)] ?? 0) + $verbos;
+        }
+
+        $declarados = $conSpec = $modulos = 0;
+        foreach (glob(base_path('app/Modules/*/*/module.json')) ?: [] as $f) {
+            $modulos++;
+            $d = json_decode((string) file_get_contents($f), true);
+            $n = is_array($d) ? count($d['api_endpoints'] ?? []) : 0;
+            $declarados += $n;
+            if ($n > 0) {
+                $conSpec++;
+            }
+        }
+
+        $rutasModulo = array_sum($porModulo);
+
+        return [
+            'declarados'       => $declarados,
+            'rutas_modulo'     => $rutasModulo,
+            'rutas_sin_modulo' => $sinModulo,
+            'pct'              => $rutasModulo ? round(100 * $declarados / $rutasModulo, 1) : 0.0,
+            'modulos'          => $modulos,
+            'modulos_con_spec' => $conSpec,
+        ];
+    }
+
+    /** El `module.json` del módulo, o null si no hay o no parsea. */
+    private function leerManifiesto(string $modulo): ?array
+    {
+        $dir = $this->rutaModulo($modulo);
+        if ($dir === null || ! is_file($dir . '/module.json')) {
+            return null;
+        }
+        $d = json_decode((string) file_get_contents($dir . '/module.json'), true);
+
+        return is_array($d) ? $d : null;
+    }
+
+    /**
+     * Rutas atribuidas al módulo por el NAMESPACE de su controlador. Es la atribución exacta y
+     * mecánica: `App\Modules\{Core|Addons}\{Modulo}\…`. Las rutas de controllers legacy fuera de
+     * `app/Modules` (128 al medir) no pertenecen a ningún módulo y quedan fuera del denominador —
+     * el techo honesto de lo que este mecanismo puede cubrir.
+     *
+     * @return string[] claves `MÉTODO /uri`
+     */
+    public function rutasDelModulo(string $modulo): array
+    {
+        $out = [];
+        foreach (RouteFacade::getRoutes() as $r) {
+            $nombre = $this->moduloDeLaAccion($r->getActionName());
+            if ($nombre === null || $this->normalizar($nombre) !== $this->normalizar($modulo)) {
+                continue;
+            }
+            foreach (array_diff($r->methods(), ['HEAD']) as $verbo) {
+                $out[$this->claveRuta($verbo, $r->uri())] = true;
+            }
+        }
+
+        return array_keys($out);
+    }
+
+    /**
+     * Nombre del módulo dueño de una acción, o null si la ruta no vive en `app/Modules`.
+     *
+     * Sin regex a propósito: el patrón equivalente pide cuatro niveles de escape de `\` entre PHP y
+     * PCRE y ya se rompió una vez al escribirlo (`[^\\]` se comía el cierre de la clase). Partir por
+     * el separador de namespace dice lo mismo y no se puede escribir mal.
+     */
+    private function moduloDeLaAccion(mixed $accion): ?string
+    {
+        if (! is_string($accion)) {
+            return null;
+        }
+        $p = explode('\\', $accion);
+
+        // App \ Modules \ {Core|Addons} \ {Modulo} \ …
+        if (count($p) < 4 || $p[0] !== 'App' || $p[1] !== 'Modules' || ! in_array($p[2], ['Core', 'Addons'], true)) {
+            return null;
+        }
+
+        return $p[3];
+    }
+
+    /** Índice global `MÉTODO /uri` (con `{param}` colapsado) de TODAS las rutas registradas. */
+    private function indiceMetodoUri(): array
+    {
+        static $idx = null;
+        if ($idx !== null) {
+            return $idx;
+        }
+        $idx = [];
+        foreach (RouteFacade::getRoutes() as $r) {
+            foreach (array_diff($r->methods(), ['HEAD']) as $verbo) {
+                $idx[$this->claveRuta($verbo, $r->uri())] = true;
+            }
+        }
+
+        return $idx;
+    }
+
+    /** Normaliza `MÉTODO /uri` colapsando `{param}` para que `/x/{id}` y `/x/{cliente}` sean lo mismo. */
+    private function claveRuta(string $metodo, string $path): string
+    {
+        $p = '/' . ltrim($path, '/');
+
+        return strtoupper($metodo) . ' ' . rtrim(preg_replace('/\{[^}]+\}/', '{}', $p), '/');
     }
 
     /** Todos los gaps de un módulo, ya clasificados en mecanico|producto. */

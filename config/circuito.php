@@ -644,6 +644,87 @@ return [
         |  - Security / Voice: son librerías internas sin module.json ni provider, no módulos.
         */
         'excluir_modulos' => ['Demo', 'Security', 'Voice'],
+
+        /*
+        |-----------------------------------------------------------------------------------------
+        | FASE 2B — MEDIR CONTRA EL SPEC (`module.json`). El generador construye su propio sustrato.
+        |-----------------------------------------------------------------------------------------
+        |
+        | El Paso 0 (2026-08-18, `php artisan circuito:inventario-spec`) midió que el spec describe
+        | ~3.7 % de la superficie real: 117 endpoints declarados sobre 3,193 pares método+ruta. Un
+        | detector semántico perfecto sobre ese 3.7 % daría dos docenas de items y volvería a secarse.
+        |
+        | Por eso el PRIMER producto del generador no son huecos de código: son **huecos de
+        | DECLARACIÓN**. Y tienen la propiedad que buscábamos — cada módulo que completa su
+        | `module.json` amplía la superficie que el detector puede medir en la vuelta siguiente. El
+        | generador se alimenta a sí mismo porque su primer trabajo es construir el instrumento.
+        |
+        | Todo aquí es LOOKUP: cada hallazgo traza a un conteo, no a un juicio. Confianza 1.0 en la
+        | discrepancia. ⚠️ Y CERO en el diagnóstico: ver `desalineada`.
+        */
+        'spec' => [
+
+            'enabled' => (bool) env('CIRCUITO_AUDITOR_SPEC', true),
+
+            /*
+            | % de las rutas del módulo que deben estar declaradas en `api_endpoints` para
+            | considerarlo cubierto. NO es 100 % a propósito: `api_endpoints` describe el contrato
+            | público, no cada ruta interna de datatable. Medido al calibrar: el mejor hoy es
+            | Mensajes con 29 %, y hay 21 módulos por debajo de este umbral.
+            */
+            'umbral_cobertura' => (int) env('CIRCUITO_AUDITOR_SPEC_UMBRAL', 30),
+
+            /* Módulos con menos rutas que esto no se molestan: no hay contrato que declarar. */
+            'min_rutas' => (int) env('CIRCUITO_AUDITOR_SPEC_MIN_RUTAS', 3),
+
+            /*
+            | Tope de endpoints que pide UN item. Es lo que hace converger el ciclo en vez de
+            | producir un item imposible: Mapas declara 2 de 200: pedirle "declara 200" no es una
+            | tarea, es un proyecto. Cada tanda sube la cobertura, y la vuelta siguiente genera la
+            | tanda siguiente (la huella de dedup incluye el tramo, ver `AuditorService::huella`).
+            */
+            'cap_por_item' => (int) env('CIRCUITO_AUDITOR_SPEC_CAP', 25),
+
+            /* Cuántos endpoints desalineados se listan dentro del item (el resto va en el conteo). */
+            'muestra_desalineada' => 12,
+
+            'detectores' => [
+                // Módulo con rutas registradas y CERO api_endpoints. Ahí está el volumen: 16 módulos.
+                'modulo_sin_declarar'    => true,
+
+                // Declara, pero por debajo del umbral. 21 módulos.
+                'declaracion_incompleta' => true,
+
+                /*
+                | ⚠️ Declarado ≠ registrado, DIRECCIÓN DESCONOCIDA.
+                |
+                | El lookup detecta la discrepancia con certeza y NO dice nunca cuál de los dos lados
+                | está mal. Medido: Flotas declara `/api/flotas/*` cuando existen 65 rutas bajo
+                | `flotas/api/*`, y Planes declara un esquema de URLs que nunca se construyó así —
+                | los dos son la DECLARACIÓN envejecida, no código faltante.
+                |
+                | Por eso el hallazgo se llama «declaración y realidad no coinciden» y NUNCA "falta
+                | construir X". Un detector que emite "falta construir X" cuando X existe con otro
+                | nombre no produce ruido: produce TRABAJO FABRICADO, que es peor.
+                */
+                'desalineada'            => true,
+
+                /*
+                | Permiso declarado que no existe en la tabla `permissions`. Hoy rinde CERO
+                | (111/111 correctos) y eso es exactamente lo que se espera: su valor es de GUARDIA
+                | CONTRA REGRESIONES, no de generación. Un detector que no encuentra nada aquí está
+                | sano, no roto.
+                */
+                'permiso_inexistente'    => true,
+
+                /*
+                | NO TODAVÍA. Sólo 9 de 43 módulos declaran `screens`: no hay contra qué medir. Es
+                | precisamente el trabajo que producen los items de arriba; se enciende cuando la
+                | superficie declarada haya subido.
+                */
+                'sin_screens'            => false,
+            ],
+        ],
     ],
 
     /*
