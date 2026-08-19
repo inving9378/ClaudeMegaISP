@@ -6,5 +6,32 @@
     "type": "addon",
     "dependencies": [],
     "active": true,
-    "permissions": []
+    "permissions": [],
+    "api_endpoints": [
+        { "method": "POST", "path": "/portal/login",                              "description": "Login del cliente (guard cliente, contra client_main_information.password)", "scope": "auth",        "permission": null },
+        { "method": "POST", "path": "/portal/registro",                           "description": "Autoregistro de cuenta verificando teléfono en la ficha",                       "scope": "auth",        "permission": null },
+        { "method": "POST", "path": "/portal/recuperar",                          "description": "Recuperar contraseña verificando teléfono en la ficha",                        "scope": "auth",        "permission": null },
+        { "method": "POST", "path": "/portal/logout",                             "description": "Cierra la sesión del cliente",                                                  "scope": "auth",        "permission": null },
+        { "method": "GET",  "path": "/portal",                                    "description": "Dashboard principal del cliente",                                               "scope": "dashboard",   "permission": null },
+        { "method": "GET",  "path": "/portal/mi-plan",                            "description": "Detalle del plan/servicio de internet contratado",                              "scope": "plan",        "permission": null },
+        { "method": "GET",  "path": "/portal/facturas",                           "description": "Lista de facturas del cliente",                                                 "scope": "facturas",    "permission": null },
+        { "method": "GET",  "path": "/portal/facturas/{id}",                      "description": "Detalle de una factura propia (anti-IDOR 404)",                                 "scope": "facturas",    "permission": null },
+        { "method": "POST", "path": "/portal/facturas/{id}/pagar",                "description": "Cobra una factura vía OpenPay (tokenización en navegador)",                     "scope": "facturas",    "permission": null },
+        { "method": "GET",  "path": "/portal/pagos",                              "description": "Historial de pagos y referencia CLABE del cliente",                            "scope": "pagos",       "permission": null },
+        { "method": "GET",  "path": "/portal/consumo",                            "description": "Consumo de internet del cliente",                                               "scope": "consumo",     "permission": null },
+        { "method": "GET",  "path": "/portal/tickets",                            "description": "Lista de tickets de soporte del cliente",                                       "scope": "tickets",     "permission": null },
+        { "method": "GET",  "path": "/portal/tickets/{id}",                       "description": "Detalle de un ticket propio",                                                   "scope": "tickets",     "permission": null },
+        { "method": "POST", "path": "/portal/tickets",                            "description": "Crea un ticket de soporte",                                                     "scope": "tickets",     "permission": null },
+        { "method": "POST", "path": "/portal/tickets/{id}/reply",                 "description": "Responde un ticket propio",                                                     "scope": "tickets",     "permission": null },
+        { "method": "GET",  "path": "/portal/perfil",                            "description": "Perfil de contacto del cliente",                                                "scope": "perfil",      "permission": null },
+        { "method": "POST", "path": "/portal/perfil/cambiar-password",           "description": "Cambia la Contraseña WEB del cliente (misma columna que la ficha admin)",         "scope": "perfil",      "permission": null },
+        { "method": "GET",  "path": "/portal/servicios",                          "description": "Marketplace de servicios adicionales activables",                              "scope": "marketplace", "permission": null },
+        { "method": "POST", "path": "/portal/servicios/megafamilia/activar",      "description": "Activa MegaFamilia (crea perfil demo gratuito)",                                "scope": "marketplace", "permission": null },
+        { "method": "POST", "path": "/portal/servicios/megafamilia/desactivar",   "description": "Desactiva MegaFamilia",                                                          "scope": "marketplace", "permission": null },
+        { "method": "POST", "path": "/portal/servicios/interes",                  "description": "Registra interés del cliente en un servicio del marketplace",                   "scope": "marketplace", "permission": null },
+        { "method": "GET",  "path": "/portal/embajadores",                        "description": "Panel de referidos y comisiones del cliente (solo lectura)",                    "scope": "embajadores", "permission": null },
+        { "method": "GET",  "path": "/portal/flotas",                            "description": "Panel de flota vehicular del cliente (solo lectura, gateado)",                    "scope": "flotas",      "permission": null },
+        { "method": "GET",  "path": "/portal/megafamilia",                        "description": "Panel MegaFamilia: perfiles de hijos y resumen",                                "scope": "megafamilia", "permission": null },
+        { "method": "GET",  "path": "/portal/megafamilia/solicitudes",           "description": "Solicitudes de permiso pendientes de aprobar/rechazar",                         "scope": "megafamilia", "permission": null }
+    ]
 }
