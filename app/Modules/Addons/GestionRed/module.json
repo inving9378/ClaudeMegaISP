@@ -220,6 +220,181 @@
             "description": "Dashboard OLT",
             "scope": "olt_view",
             "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/red/ipv4/add",
+            "description": "Crea una subred IPv4",
+            "scope": "ipv4_add_ipv4",
+            "permission": "ipv4_add_ipv4"
+        },
+        {
+            "method": "POST",
+            "path": "/red/ipv4/update/{id}",
+            "description": "Actualiza una subred IPv4",
+            "scope": "ipv4_edit_ipv4",
+            "permission": "ipv4_edit_ipv4"
+        },
+        {
+            "method": "POST",
+            "path": "/red/ipv4/destroy/{id}",
+            "description": "Elimina una subred IPv4",
+            "scope": "ipv4_delete_ipv4",
+            "permission": "ipv4_delete_ipv4"
+        },
+        {
+            "method": "POST",
+            "path": "/red/ipv4/calculator",
+            "description": "Calcula rangos de una subred IPv4",
+            "scope": "ipv4_view_ipv4",
+            "permission": "ipv4_view_ipv4"
+        },
+        {
+            "method": "GET",
+            "path": "/red/ipv4/ver/{id}",
+            "description": "Detalle de una IP dentro de una subred",
+            "scope": "ipv4_edit_ipv4",
+            "permission": "ipv4_edit_ipv4"
+        },
+        {
+            "method": "POST",
+            "path": "/red/router/add",
+            "description": "Crea un router MikroTik",
+            "scope": "router_add_router",
+            "permission": "router_add_router"
+        },
+        {
+            "method": "POST",
+            "path": "/red/router/update/{id}",
+            "description": "Actualiza un router MikroTik",
+            "scope": "router_edit_router",
+            "permission": "router_edit_router"
+        },
+        {
+            "method": "POST",
+            "path": "/red/router/destroy/{id}",
+            "description": "Elimina un router MikroTik",
+            "scope": "router_delete_router",
+            "permission": "router_delete_router"
+        },
+        {
+            "method": "POST",
+            "path": "/red/router/mikrotik/add",
+            "description": "Crea la configuración MikroTik de un router",
+            "scope": "router_add_router",
+            "permission": "router_add_router"
+        },
+        {
+            "method": "POST",
+            "path": "/red/router/mikrotik/update/{id}",
+            "description": "Actualiza la configuración MikroTik de un router",
+            "scope": "router_edit_router",
+            "permission": "router_edit_router"
+        },
+        {
+            "method": "POST",
+            "path": "/status-by-router/{id}",
+            "description": "Consulta el estado en vivo de un router MikroTik",
+            "scope": "router_edit_router",
+            "permission": "router_edit_router"
+        },
+        {
+            "method": "POST",
+            "path": "/remove-rules-by-router/{id}",
+            "description": "Quita las reglas de colas de un router MikroTik",
+            "scope": "router_edit_router",
+            "permission": "router_edit_router"
+        },
+        {
+            "method": "POST",
+            "path": "/create-rules-by-router/{id}",
+            "description": "Crea las reglas de colas de un router MikroTik",
+            "scope": "router_edit_router",
+            "permission": "router_edit_router"
+        },
+        {
+            "method": "POST",
+            "path": "/request-clone-client-to-mikrotik/{id}",
+            "description": "Clona un cliente hacia el router MikroTik",
+            "scope": "router_edit_router",
+            "permission": "router_edit_router"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/list",
+            "description": "Lista OLTs registradas",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/zones",
+            "description": "Lista zonas de OLT",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/create",
+            "description": "Crea una ONU",
+            "scope": "onu_add",
+            "permission": "onu_add"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/sync/{id}",
+            "description": "Sincroniza una ONU con SmartOLT",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/reboot/{id}",
+            "description": "Reinicia una ONU remotamente",
+            "scope": "onu_reboot",
+            "permission": "onu_reboot"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/resync/{id}",
+            "description": "Resincroniza la configuración de una ONU",
+            "scope": "onu_resync",
+            "permission": "onu_resync"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/enable-disable/{id}",
+            "description": "Habilita o deshabilita una ONU",
+            "scope": "onu_enable_disable",
+            "permission": "onu_enable_disable"
+        },
+        {
+            "method": "DELETE",
+            "path": "/olts/onus/remove/{id}",
+            "description": "Elimina una ONU",
+            "scope": "onu_remove",
+            "permission": "onu_remove"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/get-signal-and-status/{id}",
+            "description": "Consulta señal y estado de una ONU",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/get-by-client/{id}",
+            "description": "Obtiene la ONU asociada a un cliente",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/provision/preview",
+            "description": "Vista previa del aprovisionamiento de una ONU",
+            "scope": "gestion-red.provision.preview",
+            "permission": "gestion-red.provision.preview"
         }
     ],
     "ai": {
