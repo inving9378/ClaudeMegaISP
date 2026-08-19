@@ -72,7 +72,12 @@
         { "method": "GET",  "path": "/embajadores/dashboard/summary",    "description": "KPIs del programa",             "scope": "embajadores.view",               "permission": "embajadores.view" },
         { "method": "GET",  "path": "/embajadores/clientes/data",        "description": "Lista embajadores (JSON)",       "scope": "embajadores.view",               "permission": "embajadores.view" },
         { "method": "GET",  "path": "/embajadores/clientes/{id}/tree",   "description": "Árbol de referidos de cliente",  "scope": "embajadores.view",               "permission": "embajadores.view" },
-        { "method": "GET",  "path": "/embajadores/metrics/data",         "description": "Métricas del programa",          "scope": "embajadores.view",               "permission": "embajadores.view" }
+        { "method": "GET",  "path": "/embajadores/metrics/data",         "description": "Métricas del programa",          "scope": "embajadores.view",               "permission": "embajadores.view" },
+        { "method": "GET",  "path": "/api/megafamilia/embajadores/terms",    "description": "Términos del programa (app móvil, sin auth)",       "scope": "public",         "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/embajadores/status",   "description": "Estado de embajador del cliente autenticado (app móvil)", "scope": "sanctum_mobile", "permission": null },
+        { "method": "POST", "path": "/api/megafamilia/embajadores/activate", "description": "Activa el programa de embajador (app móvil)",       "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/embajadores/link",     "description": "Link/código de referido del cliente (app móvil)",   "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/embajadores/dashboard","description": "Dashboard del embajador (app móvil)",                "scope": "sanctum_mobile", "permission": null }
     ],
 
     "ai": {
