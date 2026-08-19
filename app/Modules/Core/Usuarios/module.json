@@ -24,7 +24,37 @@
         }
     ],
     "config_sections": [],
-    "api_endpoints": [],
+    "api_endpoints": [
+        { "method": "GET",    "path": "/administracion",                                          "description": "Dashboard de Administración (entry point)",                                 "scope": "admin",   "permission": "admin_view_module" },
+
+        { "method": "GET",    "path": "/administracion/user",                                     "description": "Lista de usuarios del sistema",                                              "scope": "usuarios", "permission": "user_view_user" },
+        { "method": "GET",    "path": "/administracion/user/get-all-users",                       "description": "Lista completa de usuarios (feed para selects)",                             "scope": "usuarios", "permission": "user_view_user" },
+        { "method": "GET",    "path": "/administracion/user/crear",                                "description": "Formulario de alta de usuario",                                              "scope": "usuarios", "permission": "user_add_user" },
+        { "method": "POST",   "path": "/administracion/user/create",                               "description": "Crea un usuario",                                                            "scope": "usuarios", "permission": "user_add_user" },
+        { "method": "GET",    "path": "/administracion/user/{id}/editar",                          "description": "Formulario de edición de usuario",                                           "scope": "usuarios", "permission": "user_edit_user" },
+        { "method": "POST",   "path": "/administracion/user/get-data-user/{id}",                   "description": "Datos de un usuario para precargar su formulario de edición",                "scope": "usuarios", "permission": "user_edit_user" },
+        { "method": "POST",   "path": "/administracion/user/{id}/update",                          "description": "Actualiza un usuario",                                                       "scope": "usuarios", "permission": "user_edit_user" },
+        { "method": "DELETE", "path": "/administracion/user/{id}/destroy",                         "description": "Elimina un usuario",                                                         "scope": "usuarios", "permission": "user_delete_user" },
+        { "method": "POST",   "path": "/administracion/user/{id}/inactive-or-active",              "description": "Activa/inactiva un usuario",                                                 "scope": "usuarios", "permission": "user_edit_user" },
+        { "method": "PATCH",  "path": "/administracion/user/{id}/bloquear",                        "description": "Bloquea/desbloquea el acceso de un usuario",                                 "scope": "usuarios", "permission": "user_edit_user" },
+        { "method": "GET",    "path": "/administracion/user/avaiables-promotions/{code}",          "description": "Promociones disponibles por código (feed usado desde la ficha de cliente)",  "scope": "usuarios", "permission": "client_edit_client" },
+
+        { "method": "GET",    "path": "/administracion/rol",                                       "description": "Lista de roles del sistema",                                                 "scope": "roles",   "permission": "role_view_role" },
+        { "method": "GET",    "path": "/administracion/rol/get-all",                                "description": "Lista completa de roles (feed para selects)",                                "scope": "roles",   "permission": "role_view_role" },
+        { "method": "POST",   "path": "/administracion/rol/add",                                    "description": "Crea un rol",                                                                "scope": "roles",   "permission": "role_add_role" },
+        { "method": "GET",    "path": "/administracion/rol/editar-role/{id}",                       "description": "Datos de un rol para su formulario de edición",                              "scope": "roles",   "permission": "role_edit_role" },
+        { "method": "POST",   "path": "/administracion/rol/update-role/{id}",                       "description": "Actualiza un rol",                                                           "scope": "roles",   "permission": "role_edit_role" },
+        { "method": "DELETE", "path": "/administracion/rol/destroy/{id}",                           "description": "Elimina un rol",                                                             "scope": "roles",   "permission": "role_delete_role" },
+
+        { "method": "GET",    "path": "/administracion/permisos/catalog",                           "description": "Catálogo de permisos disponibles para asignar a roles",                      "scope": "permisos", "permission": "role_permission_role" },
+        { "method": "GET",    "path": "/administracion/permisos/get-permission-for-role/{id}",      "description": "Permisos asignados a un rol",                                                "scope": "permisos", "permission": "role_permission_role" },
+        { "method": "POST",   "path": "/administracion/permisos/update-permission-for-role/{id}",   "description": "Actualiza los permisos de un rol",                                           "scope": "permisos", "permission": "role_permission_role" },
+        { "method": "POST",   "path": "/administracion/permisos/sync-roles",                        "description": "Sincroniza permisos rol→directo (uso restringido a super-administrator)",    "scope": "permisos", "permission": "role_permission_role" },
+
+        { "method": "GET",    "path": "/permissions-auth",                                          "description": "Permisos del usuario autenticado (boot del frontend, sin gate propio)",      "scope": "auth",    "permission": null },
+        { "method": "POST",   "path": "/has-permission-to-view/{view}",                             "description": "Verifica si el usuario autenticado puede ver una vista (sin gate propio)",   "scope": "auth",    "permission": null },
+        { "method": "POST",   "path": "/all-view-has-permission",                                   "description": "Verifica permisos sobre varias vistas a la vez (sin gate propio)",           "scope": "auth",    "permission": null }
+    ],
     "ai": [],
     "client_tab": null,
     "service_type": null
