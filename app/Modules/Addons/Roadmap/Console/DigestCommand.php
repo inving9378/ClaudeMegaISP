@@ -35,6 +35,12 @@ class DigestCommand extends Command
     /** Última vez que se resurfacearon los frenos humanos (2A.4): evita repetirlos a diario. */
     public const SETTING_FRENOS = 'circuito_digest_frenos_at';
 
+    /** Desde cuándo el fallback legacy del rótulo lleva 0 dependientes (2A.6). */
+    public const SETTING_FALLBACK_CERO = 'circuito_fallback_rotulo_cero_desde';
+
+    /** Días en 0 tras los cuales retirar el `LIKE` sobre `title` es seguro. */
+    public const FALLBACK_DIAS_PARA_RETIRAR = 7;
+
     /** Referencia del "antes" (barrido 2026-08-18) — la Torre la pinta junto al número en vivo (#791). */
     public const BASELINE_MUDAS_HISTORICO = 941;
 
@@ -113,9 +119,7 @@ class DigestCommand extends Command
 
         $this->newLine();
         $this->line("<options=bold>3. Items que dependen del fallback legacy del título: {$fallback}</>");
-        $this->line($fallback === 0
-            ? '   <fg=green>Cero. Una semana así y el LIKE sobre title puede retirarse.</>'
-            : '   Todavía hay rótulos que la columna no cubre; NO retirar el LIKE.');
+        $this->rachaDelFallback($fallback);
 
         $frenos = $this->resurfacearFrenos();
 
@@ -144,6 +148,44 @@ class DigestCommand extends Command
         $this->newLine();
 
         return self::SUCCESS;
+    }
+
+    /**
+     * FASE 2A.6 — LA RACHA SE MIDE, NO SE RECUERDA.
+     *
+     * El plan era "anota la fecha; si a los 7 días sigue en 0, retira el `LIKE` sobre `title`". Una
+     * fecha anotada en un reporte es exactamente la clase de cosa que nadie vuelve a mirar — y un
+     * fallback que ya no usa nadie es sólo una SEGUNDA DEFINICIÓN esperando a derivar, que es la
+     * enfermedad que toda la fase 2A vino a cerrar. Así que el digest lleva la cuenta él: sella el
+     * día que llegó a 0, la reinicia si vuelve a subir, y avisa solo cuando ya es seguro retirarlo.
+     */
+    private function rachaDelFallback(int $fallback): void
+    {
+        if ($fallback > 0) {
+            DB::table('settings')->where('key', self::SETTING_FALLBACK_CERO)->delete();
+            $this->line('   Todavía hay rótulos que la columna no cubre; NO retirar el LIKE.');
+            $this->line('   (la racha de días en 0 se reinicia)');
+
+            return;
+        }
+
+        $desde = DB::table('settings')->where('key', self::SETTING_FALLBACK_CERO)->value('value');
+        if (! $desde) {
+            $desde = now()->toDateTimeString();
+            DB::table('settings')->updateOrInsert(['key' => self::SETTING_FALLBACK_CERO], ['value' => $desde]);
+        }
+
+        $dias = (int) Carbon::parse($desde)->diffInDays(now());
+        $this->line("   <fg=green>Cero desde el " . substr($desde, 0, 10) . " ({$dias} día(s) seguidos).</>");
+
+        if ($dias >= self::FALLBACK_DIAS_PARA_RETIRAR) {
+            $this->line('   <fg=green;options=bold>YA ES SEGURO retirar el `LIKE` sobre `title` de '
+                . 'RoadmapItem::sqlSinFrenoHumano()/sqlConFrenoHumano().</>');
+            $this->line('   Un fallback que nadie usa es una segunda definición esperando a derivar.');
+        } else {
+            $this->line('   Faltan ' . (self::FALLBACK_DIAS_PARA_RETIRAR - $dias)
+                . ' día(s) en 0 para poder retirar el `LIKE` sobre `title`.');
+        }
     }
 
     /**
