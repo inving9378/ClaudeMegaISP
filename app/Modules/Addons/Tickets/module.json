@@ -77,9 +77,15 @@
     ],
 
     "api_endpoints": [
-        { "method": "GET",  "path": "/tickets",           "description": "Dashboard de tickets",   "scope": "ticket_view_dashboard", "permission": "ticket_view_dashboard" },
-        { "method": "GET",  "path": "/tickets/abiertos",  "description": "Lista tickets abiertos", "scope": "ticket_view_open",      "permission": "ticket_view_open" },
-        { "method": "GET",  "path": "/tickets/cerrados",  "description": "Lista tickets cerrados", "scope": "ticket_view_close",     "permission": "ticket_view_close" }
+        { "method": "GET",  "path": "/tickets",                    "description": "Dashboard de tickets",              "scope": "ticket_view_dashboard",  "permission": "ticket_view_dashboard" },
+        { "method": "GET",  "path": "/tickets/abiertos",           "description": "Lista tickets abiertos",            "scope": "ticket_view_open",       "permission": "ticket_view_open" },
+        { "method": "GET",  "path": "/tickets/cerrados",           "description": "Lista tickets cerrados",            "scope": "ticket_view_close",      "permission": "ticket_view_close" },
+        { "method": "GET",  "path": "/tickets/reciclados",         "description": "Lista tickets en papelera",         "scope": "ticket_view_recycling",  "permission": "ticket_view_recycling" },
+        { "method": "GET",  "path": "/tickets/ver/{id}",           "description": "Detalle de un ticket",              "scope": "ticket_view_dashboard",  "permission": "ticket_view_dashboard" },
+        { "method": "POST", "path": "/tickets/add",                "description": "Crear ticket",                      "scope": "ticket_add_open",        "permission": "ticket_add_open" },
+        { "method": "POST", "path": "/tickets/update/{id}",        "description": "Actualizar ticket",                 "scope": "ticket_edit_open",       "permission": "ticket_edit_open" },
+        { "method": "POST", "path": "/tickets/destroy/{id}",       "description": "Eliminar ticket",                   "scope": "ticket_delete_open",     "permission": "ticket_delete_open" },
+        { "method": "POST", "path": "/tickets/mensaje/add/{id}",   "description": "Agregar respuesta a un ticket",     "scope": "ticket_add_open",        "permission": "ticket_add_open" }
     ],
 
     "ai": {
