@@ -1709,6 +1709,11 @@ return [
         '/api/manual/generate',
     ],
 
+    // Manual General de la Empresa (addon-empresa)
+    'empresa_manual_view' => [
+        '/empresa/manual',
+    ],
+
     // Pagos SPEI / OpenPay
     'payments_manage_providers' => [
         '/finanzas/metodos-pago',
