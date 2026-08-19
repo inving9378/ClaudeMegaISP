@@ -103,7 +103,7 @@ class RebriefBandejaCommand extends Command
                 $r     = $revisor->proponerPreguntas($item);
                 $pregs = $r['preguntas'] ?? [];
                 if (empty($pregs)) {
-                    $this->warn("  ✗  {$etq} — sin brief utilizable" . (isset($r['error']) ? " ({$r['error']})" : ''));
+                    $this->warn("  ✗  {$etq} — " . \App\Modules\Addons\Roadmap\Services\RevisorService::motivoTexto($r));
                     $fallo++;
                 } else {
                     // Mismo camino que el resto del circuito (dispara el autopilot, que en pausa no hace nada).

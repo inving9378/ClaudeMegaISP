@@ -13,6 +13,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
     {
         parent::boot();
 
+        $this->vigilarProcesosProgramados();
+
         if ($this->app->runningInConsole()) {
             $this->commands([
                 \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
@@ -71,5 +73,33 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\AuditorCommand::class,
             ]);
         }
+    }
+
+    /**
+     * FASE 2A.7 (#808) — cada proceso programado sella su último latido AL TERMINAR BIEN.
+     *
+     * Un SOLO listener para todos, en vez de instrumentar comando por comando: así un proceso nuevo
+     * sólo necesita su fila en `config('circuito.procesos_programados')` y no existe el escenario de
+     * "se agregó el cron y se olvidó el latido". La lista de qué se vigila vive en la config, que es
+     * también donde se declara QUÉ SE PIERDE si deja de correr.
+     *
+     * Sólo cuenta la salida 0: un comando que aborta no es un proceso que corrió.
+     */
+    private function vigilarProcesosProgramados(): void
+    {
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Console\Events\CommandFinished::class,
+            function (\Illuminate\Console\Events\CommandFinished $e) {
+                if ($e->exitCode !== 0 || ! $e->command) {
+                    return;
+                }
+                try {
+                    app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)
+                        ->sellarLatido($e->command, $e->input);
+                } catch (\Throwable) {
+                    // Un latido roto jamás puede tumbar el comando que acaba de correr bien.
+                }
+            }
+        );
     }
 }

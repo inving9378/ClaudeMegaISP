@@ -341,6 +341,126 @@ class RoadmapCircuitoService
         return $data;
     }
 
+    // ── FASE 2A.7 (#808) — LIVENESS DE LOS PROCESOS PROGRAMADOS ─────────────────────────────────
+
+    /** Prefijo del setting de latido cuando el proceso no declara `beat_key` propia. */
+    public const BEAT_PREFIJO = 'circuito_beat_';
+
+    /** Nombre del setting donde late un proceso programado. */
+    public static function beatKey(string $comando, array $cfg = []): string
+    {
+        return $cfg['beat_key'] ?? self::BEAT_PREFIJO . str_replace(':', '_', $comando);
+    }
+
+    /**
+     * Sella el latido de un proceso programado. Lo llama UN listener de `CommandFinished` (ver
+     * `ModuleServiceProvider`), no cada comando: así un proceso nuevo sólo necesita su fila en
+     * `config('circuito.procesos_programados')` y nadie puede olvidarse de instrumentarlo.
+     */
+    public function sellarLatido(string $comando, ?\Symfony\Component\Console\Input\InputInterface $input = null): void
+    {
+        $cfg = config('circuito.procesos_programados.' . $comando);
+        if (! is_array($cfg)) {
+            return;   // no es un proceso vigilado
+        }
+        if (($cfg['formato'] ?? 'datetime') === 'unix') {
+            return;   // ese proceso sella su propio latido (no duplicar el reloj)
+        }
+
+        // Sólo cuenta la corrida que HIZO EL TRABAJO. Un dry-run, o la variante por-item de un
+        // barrido, sellarían un latido falso y enmascararían que el cron no existe — justo la
+        // mentira que este vigilante viene a evitar.
+        if ($input) {
+            foreach ((array) ($cfg['exige_opciones'] ?? []) as $op) {
+                if (! $input->hasParameterOption('--' . $op)) {
+                    return;
+                }
+            }
+            foreach ((array) ($cfg['excluye_opciones'] ?? []) as $op) {
+                if ($input->hasParameterOption('--' . $op)) {
+                    return;
+                }
+            }
+        }
+
+        $this->putSetting(self::beatKey($comando, $cfg), now()->toDateTimeString());
+    }
+
+    /**
+     * FASE 2A.7 (#808) — ¿este comando está AGENDADO en el crontab?
+     *
+     * "No ha latido" tiene dos causas muy distintas: no está agendado (la regla es un no-op
+     * invisible) o está agendado y falla. Sin separarlas, el aviso no dice qué hacer. Esto lo mira
+     * de verdad en vez de suponerlo.
+     *
+     * Devuelve null si no se pudo verificar (sin crontab legible) — nunca miente por omisión.
+     */
+    public function agendado(string $comando): ?bool
+    {
+        try {
+            $p = \Symfony\Component\Process\Process::fromShellCommandline('crontab -l 2>/dev/null');
+            $p->setTimeout(5);
+            $p->run();
+            $salida = $p->getOutput();
+            if (trim($salida) === '') {
+                return null;
+            }
+
+            foreach (preg_split('/\R/', $salida) as $linea) {
+                $linea = trim($linea);
+                if ($linea === '' || str_starts_with($linea, '#')) {
+                    continue;
+                }
+                if (str_contains($linea, $comando)) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Estado de TODOS los procesos vigilados. `at = null` significa **nunca ha corrido**, que es
+     * distinto de "corrió hace mucho" y suele ser el caso interesante: la regla existe pero no está
+     * agendada.
+     *
+     * @return array<int,array{comando:string,at:?string,horas:?float,vencido:bool,nunca:bool,si_no_corre:string,max_horas:int}>
+     */
+    public function latidos(): array
+    {
+        $out = [];
+
+        foreach ((array) config('circuito.procesos_programados', []) as $comando => $cfg) {
+            $raw = DB::table('settings')->where('key', self::beatKey($comando, $cfg))->value('value');
+
+            $at = null;
+            if ($raw !== null && $raw !== '') {
+                $at = ($cfg['formato'] ?? 'datetime') === 'unix'
+                    ? \Illuminate\Support\Carbon::createFromTimestamp((int) $raw)
+                    : \Illuminate\Support\Carbon::parse($raw);
+            }
+
+            $maxH  = (int) ($cfg['max_horas'] ?? 48);
+            $horas = $at ? round($at->diffInMinutes(now()) / 60, 1) : null;
+
+            $out[] = [
+                'comando'     => $comando,
+                'at'          => $at?->toDateTimeString(),
+                'horas'       => $horas,
+                'nunca'       => $at === null,
+                'vencido'     => $at === null || $horas > $maxH,
+                'max_horas'   => $maxH,
+                'agendado'    => $this->agendado($comando),
+                'si_no_corre' => (string) ($cfg['si_no_corre'] ?? ''),
+            ];
+        }
+
+        return $out;
+    }
+
     private function clampRate(float $rate): float
     {
         return max(0.5, min(2.0, $rate));

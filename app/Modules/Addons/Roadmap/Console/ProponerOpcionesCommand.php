@@ -83,7 +83,7 @@ class ProponerOpcionesCommand extends Command
                 $r     = $revisor->proponerPreguntas($item);
                 $pregs = $r['preguntas'] ?? [];
                 if (empty($pregs)) {
-                    $this->warn('  · sin brief utilizable' . (isset($r['error']) ? ' (' . $r['error'] . ')' : '') . ' — se omite.');
+                    $this->warn('  · ' . \App\Modules\Addons\Roadmap\Services\RevisorService::motivoTexto($r) . ' — se omite.');
                     continue;
                 }
                 foreach ($pregs as $pg) {
@@ -116,7 +116,7 @@ class ProponerOpcionesCommand extends Command
                 $r   = $revisor->proponerOpciones($item);
                 $ops = $r['opciones'] ?? [];
                 if (empty($ops)) {
-                    $this->warn('  · sin propuesta utilizable' . (isset($r['error']) ? ' (' . $r['error'] . ')' : '') . ' — se omite.');
+                    $this->warn('  · ' . \App\Modules\Addons\Roadmap\Services\RevisorService::motivoTexto($r) . ' — se omite.');
                     continue;
                 }
                 foreach ($ops as $op) {

@@ -84,6 +84,8 @@ class DigestCommand extends Command
         $this->info('DIGEST DEL CIRCUITO — ' . now()->toDateTimeString());
         $this->newLine();
 
+        $liveness = $this->procesosProgramados();
+
         $this->line("<options=bold>1. Despachos que tocan PRODUCCIÓN (últimas 24 h): " . count($prod) . '</>');
         if ($prod) {
             $this->table(['item', 'señal', 'cuándo', 'título'],
@@ -107,6 +109,8 @@ class DigestCommand extends Command
             $this->comment('   Si esto no baja, algo quedó mudo: revisa qué freno no está reportándose.');
         }
 
+        $escalaciones = $this->escalacionesPorMotivo($dias);
+
         $this->newLine();
         $this->line("<options=bold>3. Items que dependen del fallback legacy del título: {$fallback}</>");
         $this->line($fallback === 0
@@ -126,6 +130,10 @@ class DigestCommand extends Command
                 'mudas'           => $mudas,
                 'mudas_items'     => count($mudasItems),
                 'fallback_rotulo' => $fallback,
+                'sin_modelo'      => $escalaciones['sin_juicio'],
+                'sin_modelo_dias' => $dias,
+                'procesos_mudos'  => array_values(array_map(fn ($p) => $p['comando'],
+                    array_filter($liveness, fn ($p) => $p['vencido']))),
                 'frenos_humanos'  => count(\App\Modules\Addons\Roadmap\Console\RetriageFrenosCommand::frenosHumanos()),
                 'frenos_top'      => array_slice(array_map(
                     fn ($f) => ['id' => $f['id'], 'dias' => $f['dias'], 'mudas' => $f['mudas'], 'rotulo' => $f['rotulo']],
@@ -136,6 +144,104 @@ class DigestCommand extends Command
         $this->newLine();
 
         return self::SUCCESS;
+    }
+
+    /**
+     * FASE 2A.7 (#808) — LO PRIMERO QUE SE LEE: qué proceso programado no está corriendo.
+     *
+     * Una regla implementada y no agendada es un no-op invisible. 2A.4 dejó el caducado del
+     * clasificador escrito, probado y fail-closed, y sin su línea de cron no caduca nada — sin este
+     * bloque eso se descubre en dos meses. Distingue las dos causas, porque piden cosas distintas:
+     * **no agendado** (falta la línea de cron) vs **agendado pero sin latir** (corre y falla).
+     *
+     * @return array<int,array> el estado crudo, para la foto en `settings`
+     */
+    private function procesosProgramados(): array
+    {
+        $procesos = app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)->latidos();
+        $malos    = array_values(array_filter($procesos, fn ($p) => $p['vencido']));
+
+        if (! $malos) {
+            $this->line('<options=bold>0. Procesos programados: ' . count($procesos) . '/' . count($procesos)
+                . ' latiendo</> <fg=green>✔</>');
+            $this->newLine();
+
+            return $procesos;
+        }
+
+        $this->line('<options=bold;fg=red>0. ⚠ ' . count($malos) . ' proceso(s) programado(s) NO están corriendo</>');
+        foreach ($malos as $p) {
+            $causa = $p['agendado'] === false
+                ? '<fg=red>NO ESTÁ AGENDADO en el crontab</>'
+                : ($p['nunca']
+                    ? 'agendado, pero NUNCA ha latido (¿falla al arrancar, o no ha tocado su horario desde que se instrumentó?)'
+                    : "agendado, pero su último latido fue hace {$p['horas']} h (tope {$p['max_horas']} h)");
+            $this->line("   <fg=yellow>{$p['comando']}</> — {$causa}");
+            if ($p['si_no_corre'] !== '') {
+                $this->line("      Se pierde: {$p['si_no_corre']}");
+            }
+        }
+        $this->newLine();
+
+        return $procesos;
+    }
+
+    /**
+     * FASE 2A.7 (#807) — POR QUÉ escaló el revisor: juicio, o ausencia de modelo.
+     *
+     * Es el hallazgo más incómodo de la fase: con la IA caída el circuito NO se cae — escala todo,
+     * el autopilot deja de calificar, y el tablero cuenta una historia coherente ("está siendo
+     * prudente") que nada contradice. `escala:sin_modelo > 0` es lo único que no se puede confundir
+     * con prudencia. No se cambió la falla-segura: sólo dejó de ser anónima.
+     *
+     * @return array{autoriza:int,juicio:int,sin_juicio:int,por_categoria:array<string,int>}
+     */
+    private function escalacionesPorMotivo(int $dias): array
+    {
+        $desde = Carbon::now()->subDays($dias);
+        $sinJuicio = \App\Modules\Addons\Roadmap\Services\RevisorService::CATEGORIAS_SIN_JUICIO;
+
+        $filas = DB::table('circuito_revisiones')
+            ->where('created_at', '>=', $desde)
+            ->selectRaw('veredicto, categoria_escalada, COUNT(*) as n')
+            ->groupBy('veredicto', 'categoria_escalada')
+            ->get();
+
+        $r = ['autoriza' => 0, 'juicio' => 0, 'sin_juicio' => 0, 'por_categoria' => []];
+        foreach ($filas as $f) {
+            $n = (int) $f->n;
+            if ($f->veredicto === 'autoriza') {
+                $r['autoriza'] += $n;
+                continue;
+            }
+            $cat = (string) ($f->categoria_escalada ?? 'sin_categoria');
+            $r['por_categoria'][$cat] = ($r['por_categoria'][$cat] ?? 0) + $n;
+            if (in_array($cat, $sinJuicio, true)) {
+                $r['sin_juicio'] += $n;
+            } else {
+                $r['juicio'] += $n;
+            }
+        }
+
+        $this->newLine();
+        $this->line("<options=bold>2-bis. Veredictos del revisor (últimos {$dias} días)</>");
+        $this->line("   autoriza: {$r['autoriza']}   ·   escala POR JUICIO: {$r['juicio']}   ·   "
+            . ($r['sin_juicio'] > 0
+                ? "<fg=red;options=bold>escala SIN MODELO: {$r['sin_juicio']}</>"
+                : "<fg=green>escala sin modelo: 0</>"));
+
+        if ($r['sin_juicio'] > 0) {
+            $this->line('   <fg=red>⚠ Eso NO es prudencia: el revisor no pudo emitir veredicto.</> Revisa la key de');
+            $this->line('   Anthropic (Hub `api_integrations` → `env` → `marketing_settings`) y la red ANTES de leer');
+            $this->line('   la bandeja llena como cautela del circuito.');
+            foreach ($r['por_categoria'] as $cat => $n) {
+                if (in_array($cat, $sinJuicio, true)) {
+                    $this->line("      · {$cat}: {$n}");
+                }
+            }
+        }
+
+        return $r;
     }
 
     /**

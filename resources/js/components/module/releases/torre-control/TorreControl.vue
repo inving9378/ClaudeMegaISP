@@ -98,6 +98,16 @@
         <span v-if="digest && digest.frenos_humanos" class="tc-ap-kpi tc-ap-kpi-freno" :title="frenosTitle">
           <b>{{ digest.frenos_humanos }}</b> frenos tuyos
         </span>
+        <!-- #807 — la unica senal que NO se puede confundir con prudencia. Solo aparece cuando hay
+             algo que decir: con la IA sana no ocupa espacio; con la IA caida es lo primero que se ve.
+             Un proceso programado que dejo de latir se pinta igual (#808). -->
+        <span v-if="digest && digest.sin_modelo" class="tc-ap-kpi tc-ap-kpi-roto" :title="sinModeloTitle">
+          <b>{{ digest.sin_modelo }}</b> escalaron SIN MODELO
+        </span>
+        <span v-if="digest && digest.procesos_mudos && digest.procesos_mudos.length"
+              class="tc-ap-kpi tc-ap-kpi-roto" :title="procesosMudosTitle">
+          <b>{{ digest.procesos_mudos.length }}</b> proceso(s) sin latir
+        </span>
       </div>
     </div>
 
@@ -527,6 +537,24 @@ export default {
             return `${d.frenos_humanos} frenos que pusiste tú y siguen en pie.\n`
                 + 'NINGUNO caduca solo: son decisiones tuyas, no consejos del clasificador.\n\n'
                 + (top ? `Los que más aprobaciones mudas acumulan:\n${top}` : '');
+        });
+
+        // #807 — escalaciones por AUSENCIA DE MODELO (no por juicio). Si esto no es 0, la bandeja
+        // llena no es cautela del circuito: es que el revisor no pudo emitir veredicto.
+        const sinModeloTitle = computed(() => {
+            const d = digest.value;
+            if (!d || !d.sin_modelo) return '';
+            return `${d.sin_modelo} escalacion(es) de los ultimos ${d.sin_modelo_dias} dias NO fueron un juicio del `
+                + 'revisor: no se pudo llamar al modelo.\n\nRevisa la key de Anthropic (Hub api_integrations -> env '
+                + '-> marketing_settings) y la red ANTES de leer la bandeja llena como prudencia.';
+        });
+
+        // #808 — una regla implementada y no agendada es un no-op invisible.
+        const procesosMudosTitle = computed(() => {
+            const d = digest.value;
+            if (!d || !d.procesos_mudos || !d.procesos_mudos.length) return '';
+            return 'Procesos programados que no estan corriendo:\n' + d.procesos_mudos.join('\n')
+                + '\n\nDetalle y causa (no agendado vs agendado-pero-sin-latir): php artisan circuito:digest';
         });
 
         const digestTitle = computed(() => {
@@ -1106,7 +1134,7 @@ export default {
             // #507 sub-paso 4 — autopilot, terminales en vivo, bombitas por módulo y paginación
             autopilot, terminalesActivas, terminalesLibres,
             // #791 — KPI de decisiones mudas (foto del digest diario) junto al banner del autopilot
-            digest, digestTitle, frenosTitle,
+            digest, digestTitle, frenosTitle, sinModeloTitle, procesosMudosTitle,
             contadores, moduloFiltro, moduloFiltroLabel, filtrarModulo, colaFiltrada, SIN_MODULO, bandejaTruncada,
             itemEnRevision, pregIdx, pregActual, pregPrev, pregNext, irAPregunta,
             preguntaRespondida, faltanPreguntas,
@@ -1309,6 +1337,10 @@ export default {
    de decisiones propias. Usa el token de aviso para respetar claro/oscuro. */
 .tc-ap-kpi-freno{cursor:help;}
 .tc-ap-kpi-freno b{color:var(--tc-warn, #d98324);}
+/* #807/#808 — rojo y con peso: son las dos senales que significan "esto esta roto", no "esto
+   requiere tu atencion". Solo se renderizan cuando el numero es > 0. */
+.tc-ap-kpi-roto{cursor:help;font-weight:600;}
+.tc-ap-kpi-roto b{color:var(--tc-bad);}
 .tc-ap-kpi-sub{font-size:10.5px;color:var(--tc-muted);}
 
 /* Layout de dos columnas: sidebar interno + contenido */

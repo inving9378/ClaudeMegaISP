@@ -41,8 +41,10 @@ class ProponerOpcionesJob implements ShouldQueue
         $r     = $revisor->proponerPreguntas($item);
         $pregs = $r['preguntas'] ?? [];
         if (empty($pregs)) {
-            Log::channel('roadmap_externo')->warning('proponer-opciones-async: sin brief utilizable', [
-                'item' => $this->itemId, 'error' => $r['error'] ?? null,
+            // #807 — `motivo` separa "no hubo modelo" de "no salió nada": el segundo es benigno,
+            // el primero significa que el autopilot dejó de calificar por una credencial caída.
+            Log::channel('roadmap_externo')->warning('proponer-opciones-async: ' . \App\Modules\Addons\Roadmap\Services\RevisorService::motivoTexto($r), [
+                'item' => $this->itemId, 'motivo' => $r['motivo'] ?? null, 'error' => $r['error'] ?? null,
             ]);
 
             return;

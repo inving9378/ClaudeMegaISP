@@ -25,6 +25,26 @@ use Illuminate\Support\Str;
  */
 class RevisorService
 {
+    /**
+     * FASE 2A.7 (#807) — POR QUÉ escaló: juicio, o ausencia de modelo.
+     *
+     * La falla-segura del revisor está bien y no se toca: si la IA no puede contestar, el item va a
+     * Irving. El problema era otro — **escalar por juicio y escalar por no haber modelo producían el
+     * MISMO registro**. Con la API caída, el circuito manda todo a la bandeja, el autopilot deja de
+     * calificar, y el tablero cuenta una historia perfectamente coherente: "el circuito está siendo
+     * prudente". No hay nada que contradiga esa historia, porque el lector equivocado es un humano.
+     *
+     * Con estas dos categorías la degradación se vuelve visible SIN cambiar una línea de lo que el
+     * sistema hace. Y cada llamada real es su propia sonda: no hay un canario aparte que mantener
+     * —que sería, otra vez, una segunda definición esperando a quedarse obsoleta—.
+     */
+    public const CAT_SIN_MODELO = 'sin_modelo';          // la llamada falló: el modelo NUNCA contestó
+
+    public const CAT_ILEGIBLE = 'respuesta_ilegible';    // contestó, pero no salió un veredicto usable
+
+    /** Ninguna de estas es un juicio del revisor. `> 0` es imposible de confundir con prudencia. */
+    public const CATEGORIAS_SIN_JUICIO = [self::CAT_SIN_MODELO, self::CAT_ILEGIBLE];
+
     public function __construct(private RoadmapCircuitoService $circuito)
     {
     }
@@ -136,13 +156,17 @@ class RevisorService
 
             return ['v' => $this->parse($text), 'usage' => $resp['usage'] ?? []];
         } catch (\Throwable $e) {
-            // Falla-segura: IA caída o respuesta ilegible → ESCALA con confianza baja.
+            // Falla-segura: la IA no contestó → ESCALA. El COMPORTAMIENTO no cambia; lo que cambia
+            // es que queda registrado POR QUÉ (#807). Antes esto se guardaba como `duda`, idéntico a
+            // una escalación por juicio, y con la API caída el circuito se veía prudente en vez de
+            // roto. `sin_modelo` es la única categoría que no puede confundirse con prudencia.
             return ['v' => [
                 'veredicto'          => 'escala',
-                'categoria_escalada' => 'duda',
+                'categoria_escalada' => self::CAT_SIN_MODELO,
                 'confianza'          => 'baja',
-                'razon'              => 'El revisor no pudo emitir veredicto (' . mb_strimwidth($e->getMessage(), 0, 160, '…') . '). Falla-segura → escala.',
-                'riesgos'            => ['revisor no concluyente'],
+                'razon'              => 'El revisor NO PUDO LLAMAR AL MODELO (' . mb_strimwidth($e->getMessage(), 0, 160, '…')
+                    . '). Falla-segura → escala. Esto NO es un juicio del revisor: revisa la key/red antes de leerlo como cautela.',
+                'riesgos'            => ['revisor sin modelo'],
                 '_ok'                => false,
             ], 'usage' => []];
         }
@@ -314,6 +338,49 @@ class RevisorService
         return $item->fresh();
     }
 
+    /**
+     * FASE 2A.7 (#807) — cómo se NARRA un brief vacío. Punto único para que los cuatro consumidores
+     * (comando, backfill, job async, brief-C) no vuelvan a decir todos "sin brief utilizable", que
+     * es justo la frase que hacía indistinguible el fallo de la ausencia.
+     */
+    public static function motivoTexto(array $r): string
+    {
+        return match ($r['motivo'] ?? null) {
+            self::CAT_SIN_MODELO => 'NO SE PUDO LLAMAR AL MODELO'
+                . (isset($r['error']) ? " ({$r['error']})" : '') . ' — no es que no hubiera nada que proponer',
+            'vacio'              => 'el modelo contestó pero no salió nada utilizable',
+            default              => 'sin brief utilizable' . (isset($r['error']) ? " ({$r['error']})" : ''),
+        };
+    }
+
+    /**
+     * FASE 2A.7 (#807) — deja RASTRO DURABLE de que un generador de brief no pudo llamar al modelo.
+     *
+     * Los tres generadores (`briefarC`, `proponerOpciones`, `proponerPreguntas`) son falla-segura:
+     * devuelven vacío y el item se queda esperando. Pero **array vacío por fallo y array vacío por
+     * no haber nada se veían igual**, y "sin brief" es una condición benigna conocida (los items
+     * viejos no tienen). Indistinguible-de-benigno es la firma de esta clase entera de bugs.
+     *
+     * Se reusa `circuito_revisiones` en vez de inventar tabla: es donde el digest ya cuenta, y una
+     * segunda bitácora sería una segunda definición del mismo hecho.
+     */
+    private function auditarSinModelo(RoadmapItem $item, string $fase, \Throwable $e): void
+    {
+        try {
+            $this->auditar($item, [
+                'veredicto'          => 'escala',
+                'en_alcance'         => true,
+                'categoria_escalada' => self::CAT_SIN_MODELO,
+                'confianza'          => 'baja',
+                'razon'              => "[{$fase}] NO se pudo llamar al modelo: "
+                    . mb_strimwidth($e->getMessage(), 0, 200, '…'),
+                'riesgos'            => ['generador de brief sin modelo'],
+            ], null, null);
+        } catch (\Throwable) {
+            // Un rastro roto jamás puede tumbar al generador. Falla-segura de la falla-segura.
+        }
+    }
+
     private function auditar(RoadmapItem $item, array $v, ?array $meta, ?string $ctx): int
     {
         return (int) DB::table('circuito_revisiones')->insertGetId([
@@ -342,12 +409,15 @@ class RevisorService
             $json = json_decode($m[0], true);
         }
         if (! is_array($json)) {
-            // JSON ilegible → falla-segura (escala).
+            // El modelo SÍ contestó, pero no salió un veredicto usable → falla-segura (escala).
+            // Categoría propia (#807): la causa raíz es distinta a `sin_modelo` (aquí hubo llamada y
+            // hubo respuesta) y distinta a un juicio. Guardarla como `duda` la volvía invisible.
             return [
                 'veredicto'          => 'escala',
-                'categoria_escalada' => 'duda',
+                'categoria_escalada' => self::CAT_ILEGIBLE,
                 'confianza'          => 'baja',
-                'razon'              => 'Respuesta del revisor no fue JSON legible → escala por seguridad.',
+                'razon'              => 'Respuesta del revisor no fue JSON legible → escala por seguridad. '
+                    . 'NO es un juicio: el modelo contestó algo que no se pudo parsear.',
                 'riesgos'            => ['parseo fallido'],
             ];
         }
@@ -446,7 +516,11 @@ TXT;
                 }
             }
         } catch (\Throwable $e) {
-            $texto = '(No se pudo generar el brief automáticamente: ' . mb_strimwidth($e->getMessage(), 0, 160, '…') . ')';
+            // #807 — el texto que ve Irving dice qué pasó, y además queda contado en la auditoría:
+            // un brief ausente por fallo no puede verse igual que un brief que no hacía falta.
+            $texto = '(NO se pudo llamar al modelo para generar el brief: '
+                . mb_strimwidth($e->getMessage(), 0, 160, '…') . ' — no es que no hubiera nada que decir.)';
+            $this->auditarSinModelo($item, 'brief-C', $e);
         }
 
         $sello = "\n\n--- BRIEF DE DECISIÓN (C, Opus) " . now()->toDateTimeString() . " ---\n" . trim($texto) . "\n";
@@ -492,9 +566,15 @@ TXT;
             }
             $ops = $this->parseOpciones($texto);
 
-            return ['ok' => ! empty($ops), 'opciones' => $ops, 'modelo' => $hard, 'raw' => trim($texto)];
+            // #807 — `motivo` discrimina las dos formas de devolver vacío: 'vacio' = el modelo
+            // contestó y no salió nada usable; 'sin_modelo' (abajo) = nunca contestó.
+            return ['ok' => ! empty($ops), 'motivo' => empty($ops) ? 'vacio' : null,
+                'opciones' => $ops, 'modelo' => $hard, 'raw' => trim($texto)];
         } catch (\Throwable $e) {
-            return ['ok' => false, 'opciones' => [], 'modelo' => $hard, 'error' => mb_strimwidth($e->getMessage(), 0, 160, '…')];
+            $this->auditarSinModelo($item, 'proponer-opciones', $e);
+
+            return ['ok' => false, 'motivo' => self::CAT_SIN_MODELO, 'opciones' => [], 'modelo' => $hard,
+                'error' => mb_strimwidth($e->getMessage(), 0, 160, '…')];
         }
     }
 
@@ -537,9 +617,16 @@ TXT;
             }
             $pregs = $this->parsePreguntas($texto);
 
-            return ['ok' => ! empty($pregs), 'preguntas' => $pregs, 'modelo' => $hard, 'raw' => trim($texto)];
+            // #807 — ver `proponerOpciones`: vacío-por-fallo y vacío-por-nada tienen que distinguirse.
+            // Éste es el caso caro: sin `preguntas` el autopilot no califica NADA, y eso es idéntico
+            // a "briefs viejos sin confianza/reversible", que es benigno y esperado.
+            return ['ok' => ! empty($pregs), 'motivo' => empty($pregs) ? 'vacio' : null,
+                'preguntas' => $pregs, 'modelo' => $hard, 'raw' => trim($texto)];
         } catch (\Throwable $e) {
-            return ['ok' => false, 'preguntas' => [], 'modelo' => $hard, 'error' => mb_strimwidth($e->getMessage(), 0, 160, '…')];
+            $this->auditarSinModelo($item, 'proponer-preguntas', $e);
+
+            return ['ok' => false, 'motivo' => self::CAT_SIN_MODELO, 'preguntas' => [], 'modelo' => $hard,
+                'error' => mb_strimwidth($e->getMessage(), 0, 160, '…')];
         }
     }
 

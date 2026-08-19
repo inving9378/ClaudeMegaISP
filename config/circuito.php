@@ -673,6 +673,56 @@ return [
     | RECORDATORIOS. De ahí `resurface_dias`: cada N días el digest lista "frenos que pusiste tú y
     | llevan X días en pie", con el item, la fecha y lo que decía el rótulo.
     */
+    /*
+    |---------------------------------------------------------------------------------------------
+    | FASE 2A.7 (#808) — LIVENESS DE LOS PROCESOS PROGRAMADOS.
+    |---------------------------------------------------------------------------------------------
+    |
+    | Una regla implementada y NO agendada es un no-op invisible: 2A.4 dejó el caducado del
+    | clasificador escrito, probado y fail-closed… y sin su línea de cron no corre. Sin nada que lo
+    | delate, eso se descubre en dos meses preguntándose por qué nada caducó nunca.
+    |
+    | Cada proceso de aquí sella su último latido AL TERMINAR (listener único de `CommandFinished`
+    | en el ModuleServiceProvider — NO hay que tocar cada comando, y uno nuevo sólo necesita una
+    | fila aquí). El digest delata en su PRIMERA línea a cualquiera que lleve más de `max_horas`
+    | sin latir, o que no haya latido nunca.
+    |
+    | `si_no_corre` es lo que se pierde, en una frase: un "no ha corrido" sin consecuencia se ignora.
+    */
+    'procesos_programados' => [
+
+        'circuito:scheduler' => [
+            'max_horas'   => 1,
+            // Reusa el latido que el scheduler YA sella (unix timestamp), en vez de sellar un
+            // segundo: dos relojes del mismo hecho es cómo empieza siempre la deriva.
+            'beat_key'    => 'circuito_scheduler_beat',
+            'formato'     => 'unix',
+            'si_no_corre' => 'NADIE reparte trabajo: las 6 terminales quedan paradas',
+        ],
+
+        'circuito:re-triage' => [
+            'max_horas'   => 48,
+            // Un DRY-RUN no caducó nada, así que no cuenta como "el proceso corrió". Sin esto, un
+            // `circuito:re-triage` a mano desde una sesión enmascararía que el cron no existe —
+            // que es exactamente la mentira que este vigilante viene a evitar.
+            'exige_opciones' => ['apply'],
+            'si_no_corre' => 'el freno del CLASIFICADOR nunca caduca (2A.4 queda de adorno)',
+        ],
+
+        'circuito:digest' => [
+            'max_horas'   => 48,
+            'si_no_corre' => 'no hay métricas ni recordatorio de los frenos que puso Irving',
+        ],
+
+        'circuito:priorizar-seguridad' => [
+            'max_horas'   => 48,
+            // `--dry` no escribe; `--item=` es la clasificación de UN item (la dispara
+            // `ClasificarRiesgoJob` al crear), no el BARRIDO diario. Ninguna de las dos cuenta.
+            'excluye_opciones' => ['dry', 'item'],
+            'si_no_corre' => 'el barrido diario del clasificador no clasifica nada nuevo',
+        ],
+    ],
+
     'retriage' => [
 
         // Cada cuántos días vence un freno del CLASIFICADOR que nadie confirmó.
