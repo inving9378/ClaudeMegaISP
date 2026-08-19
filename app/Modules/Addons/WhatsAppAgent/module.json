@@ -77,9 +77,13 @@
 
     "api_endpoints": [
         { "method": "GET",  "path": "/whatsapp/api/conversations",              "description": "Lista conversaciones activas",  "scope": "whatsapp_view_conversations", "permission": "whatsapp_view_conversations" },
+        { "method": "GET",  "path": "/whatsapp/api/conversations/{id}/messages","description": "Historial de mensajes de una conversación", "scope": "whatsapp_view_conversations", "permission": "whatsapp_view_conversations" },
         { "method": "POST", "path": "/whatsapp/api/conversations/{id}/send",    "description": "Enviar mensaje a conversación",  "scope": "whatsapp_send_messages",       "permission": "whatsapp_send_messages" },
+        { "method": "POST", "path": "/whatsapp/api/conversations/{id}/schedule-installation", "description": "Agendar instalación desde el chat", "scope": "whatsapp_send_messages", "permission": "whatsapp_send_messages" },
         { "method": "POST", "path": "/whatsapp/api/conversations/{id}/ia-assist","description": "Sugerir respuesta con IA",       "scope": "whatsapp_use_ia",              "permission": "whatsapp_use_ia" },
         { "method": "GET",  "path": "/whatsapp/api/instances",                  "description": "Lista instancias registradas",   "scope": "whatsapp_manage_instances",    "permission": "whatsapp_manage_instances" },
+        { "method": "GET",  "path": "/whatsapp/api/functions",                  "description": "Catálogo de funciones asignables por línea", "scope": "whatsapp_manage_functions", "permission": "whatsapp_manage_functions" },
+        { "method": "POST", "path": "/whatsapp/api/send",                       "description": "Envío programático de mensaje (integración externa)", "scope": "whatsapp_send_messages", "permission": "whatsapp_send_messages" },
         { "method": "POST", "path": "/whatsapp/webhook/{slug}",                 "description": "Webhook Evolution (público)",    "scope": "public",                       "permission": null }
     ],
 
