@@ -94,9 +94,15 @@
     ],
 
     "api_endpoints": [
-        { "method": "GET",  "path": "/scheduling/project",        "description": "Lista proyectos",    "scope": "scheduling_project_view_project", "permission": "scheduling_project_view_project" },
-        { "method": "GET",  "path": "/scheduling/task",           "description": "Lista tareas",       "scope": "scheduling_task_view_task",       "permission": "scheduling_task_view_task" },
-        { "method": "GET",  "path": "/scheduling/task/calendar",  "description": "Vista calendario",  "scope": "scheduling_view_calendar",        "permission": "scheduling_view_calendar" }
+        { "method": "GET",  "path": "/scheduling/project",              "description": "Lista proyectos",         "scope": "scheduling_project_view_project", "permission": "scheduling_project_view_project" },
+        { "method": "GET",  "path": "/scheduling/task",                 "description": "Lista tareas",            "scope": "scheduling_task_view_task",       "permission": "scheduling_task_view_task" },
+        { "method": "GET",  "path": "/scheduling/task/calendar",        "description": "Vista calendario",        "scope": "scheduling_view_calendar",        "permission": "scheduling_view_calendar" },
+        { "method": "POST", "path": "/scheduling/project/add",          "description": "Crea un proyecto",        "scope": "scheduling_project_create",       "permission": "scheduling_project_create" },
+        { "method": "POST", "path": "/scheduling/project/update/{id}",  "description": "Actualiza un proyecto",   "scope": "scheduling_project_update",       "permission": "scheduling_project_update" },
+        { "method": "POST", "path": "/scheduling/project/destroy/{id}", "description": "Elimina un proyecto",     "scope": "scheduling_project_delete",       "permission": "scheduling_project_delete" },
+        { "method": "POST", "path": "/scheduling/task/add",             "description": "Crea una tarea",          "scope": "scheduling_task_create",          "permission": "scheduling_task_create" },
+        { "method": "POST", "path": "/scheduling/task/update/{id}",     "description": "Actualiza una tarea",     "scope": "scheduling_task_update",          "permission": "scheduling_task_update" },
+        { "method": "POST", "path": "/scheduling/task/archive/{id}",    "description": "Archiva una tarea",       "scope": "task_archive_task",               "permission": "task_archive_task" }
     ],
 
     "ai": {
