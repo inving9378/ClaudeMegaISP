@@ -66,8 +66,9 @@
     ],
 
     "api_endpoints": [
-        { "method": "GET",  "path": "/message/inbox",    "description": "Bandeja de entrada",  "scope": "inbox_view_inbox",   "permission": "inbox_view_inbox" },
-        { "method": "POST", "path": "/message/inbox",    "description": "Enviar mensaje",       "scope": "inbox_send_message", "permission": "inbox_send_message" }
+        { "method": "GET",  "path": "/message/inbox",                   "description": "Bandeja de entrada",                  "scope": "inbox_view_inbox",   "permission": "inbox_view_inbox" },
+        { "method": "POST", "path": "/message/inbox/get-data-tabs",     "description": "Datos de las pestañas del inbox",     "scope": "inbox_view_inbox",   "permission": "inbox_view_inbox" },
+        { "method": "POST", "path": "/message/reminder/send_message",   "description": "Enviar recordatorio de cobro",        "scope": "inbox_send_message", "permission": "inbox_send_message" }
     ],
 
     "ai": {
