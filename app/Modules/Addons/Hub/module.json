@@ -50,6 +50,7 @@
     "api_endpoints": [
         { "method": "GET", "path": "/api/hub/providers",           "description": "Lista proveedores disponibles",      "scope": "manage-integrations", "permission": "manage-integrations" },
         { "method": "GET", "path": "/api/hub/integrations",        "description": "Integraciones configuradas",         "scope": "manage-integrations", "permission": "manage-integrations" },
+        { "method": "GET", "path": "/api/hub/integrations/{id}",   "description": "Detalle de una integración (clave enmascarada)", "scope": "manage-integrations", "permission": "manage-integrations" },
         { "method": "GET", "path": "/api/hub/integrations/{id}/logs","description": "Log de llamadas de una integración","scope": "manage-integrations", "permission": "manage-integrations" }
     ],
 
