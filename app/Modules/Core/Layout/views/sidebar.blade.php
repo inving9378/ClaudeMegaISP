@@ -134,6 +134,11 @@
                     @include('module-sidebar.voip', ['item' => $sidebarItems['voip']->first()])
                 @endif
 
+                {{-- Centro de Proyecto — item #810, F1 (scaffolding) --}}
+                @if(isset($sidebarItems['centro-proyecto']))
+                    @include('module-sidebar.centro-proyecto', ['item' => $sidebarItems['centro-proyecto']->first()])
+                @endif
+
                 {{-- 12.9 Portal de Pago — entrada estática (pagos.view). NO @can(): usar auth()->user()->can() --}}
                 @if(auth()->user() && auth()->user()->can('pagos.view'))
                     <li>
