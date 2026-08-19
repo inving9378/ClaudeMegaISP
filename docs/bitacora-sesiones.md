@@ -1205,3 +1205,36 @@ estructura, implementada; item `[SPEC]` = intención, **pendiente y no descartad
 no recorre, y **dos entradas de esa config no resuelven a ningún directorio** (`Roadmap / Circuito CC`
 es el footprint, no el nombre; `Reportes` no existe) — el motor las audita en vacío **sin avisar**.
 Consecuencia: el módulo del propio circuito nunca se ha auditado.
+
+## 2026-08-19 16:02 — Item #840: análisis módulo "Plantillas" (worktree wt-4)
+
+**Entregable:** `docs/analisis-modulo-plantillas-item-840.md` (solo análisis, sin código —
+así lo pedía el item, detectado en el Paso 0 del #795).
+
+**Inventario:** lo que parecían "tres piezas" de documentos/plantillas son en realidad dos
+sistemas. (1) `core-documentos` (`app/Modules/Core/Documentos/`, CRUD de
+`DocumentTemplate`/`DocumentTypeTemplate`) y el catálogo DB-driven `modules`/`fields`
+(fila `DocumentTemplateClient`, id=62) que alimenta el selector "Generar Contrato" en
+CRM/Clientes **son la misma pieza** — el segundo solo consume las tablas del primero.
+(2) `DocumentosOficiales` (item #795, Parte A) **no tiene código todavía** — solo el plan
+aprobado; su propio Paso 0 ya había decidido no colgarse de core-documentos.
+
+**Dato inesperado:** SÍ existió un módulo de catálogo llamado literalmente "Plantillas"
+(tabla `contract_templates`, modelo `ContractTemplate`) en julio 2024 — se creó el 21 y se
+borró deliberadamente el 23, reemplazado por `core-documentos`. El modelo `ContractTemplate`
+sigue huérfano en `app/Models/` (sin tabla, sin consumidores) — nota menor, sin acción esta
+vuelta.
+
+**Conclusión:** NO conviene unificar. `core-documentos` (motor de generación de contratos
+desde plantilla+variables) y `DocumentosOficiales` (repositorio versionado de archivos ya
+hechos) resuelven problemas de negocio distintos — la separación actual es preferible.
+
+**Deuda real encontrada (no es el módulo, son los permisos):** las rutas de administración
+de `core-documentos` cuelgan del permiso monolítico legado `config_view_system`
+(`config/route_permission.php:1402-1443`), compartido sin relación con otras 3 features, a
+diferencia del *uso* de esas plantillas (generar contrato) que sí tiene permisos granulares
+propios. Registrado como sub-item **#850** con plan sugerido (permisos por acción, nivel B
+por tocar acceso de roles reales).
+
+Commit `5a48ee40` en rama `circuito/item-840-evaluar-unificacion-bajo-un-modulo-plant`,
+integración encolada vía `circuito:integrar`.
