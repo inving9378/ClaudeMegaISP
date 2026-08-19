@@ -18,6 +18,37 @@
         { "name": "voip.troncales.test",     "description": "Probar conexión ARI y verificar estado de troncal" }
     ],
 
+    "api_endpoints": [
+        { "method": "GET",    "path": "/voip/troncales",                          "description": "Lista troncales SIP/PJSIP",                       "scope": "voip.troncales.view",     "permission": "voip.troncales.view" },
+        { "method": "POST",   "path": "/voip/troncales",                          "description": "Crea troncal",                                     "scope": "voip.troncales.create",   "permission": "voip.troncales.create" },
+        { "method": "PUT",    "path": "/voip/troncales/{troncal}",                "description": "Actualiza troncal",                                "scope": "voip.troncales.edit",     "permission": "voip.troncales.edit" },
+        { "method": "DELETE", "path": "/voip/troncales/{troncal}",                "description": "Elimina troncal",                                  "scope": "voip.troncales.delete",   "permission": "voip.troncales.delete" },
+        { "method": "POST",   "path": "/voip/troncales/{troncal}/provisionar",    "description": "Provisiona la troncal en Asterisk Realtime",       "scope": "voip.troncales.provision","permission": "voip.troncales.provision" },
+        { "method": "POST",   "path": "/voip/troncales/{troncal}/desprovisionar", "description": "Desprovisiona la troncal de Asterisk",              "scope": "voip.troncales.provision","permission": "voip.troncales.provision" },
+        { "method": "GET",    "path": "/voip/probar-conexion",                    "description": "Prueba la conexión ARI a Asterisk",                "scope": "voip.troncales.test",     "permission": "voip.troncales.test" },
+        { "method": "GET",    "path": "/voip/troncales/{troncal}/verificar",      "description": "Verifica el estado de la troncal en Asterisk",     "scope": "voip.troncales.test",     "permission": "voip.troncales.test" },
+        { "method": "PATCH",  "path": "/voip/troncales/{troncal}/toggle",         "description": "Activa/desactiva troncal",                         "scope": "voip.troncales.edit",     "permission": "voip.troncales.edit" },
+
+        { "method": "GET",    "path": "/voip/extensiones",                          "description": "Lista extensiones SIP",                          "scope": "voip.extensiones.view",     "permission": "voip.extensiones.view" },
+        { "method": "POST",   "path": "/voip/extensiones",                          "description": "Crea extensión",                                 "scope": "voip.extensiones.create",   "permission": "voip.extensiones.create" },
+        { "method": "PUT",    "path": "/voip/extensiones/{extension}",              "description": "Actualiza extensión",                            "scope": "voip.extensiones.edit",     "permission": "voip.extensiones.edit" },
+        { "method": "DELETE", "path": "/voip/extensiones/{extension}",              "description": "Elimina extensión",                              "scope": "voip.extensiones.delete",   "permission": "voip.extensiones.delete" },
+        { "method": "POST",   "path": "/voip/extensiones/{extension}/provisionar",  "description": "Provisiona la extensión en Asterisk",            "scope": "voip.extensiones.provision","permission": "voip.extensiones.provision" },
+        { "method": "POST",   "path": "/voip/extensiones/{extension}/desprovisionar","description": "Desprovisiona la extensión de Asterisk",         "scope": "voip.extensiones.provision","permission": "voip.extensiones.provision" },
+        { "method": "PATCH",  "path": "/voip/extensiones/{extension}/toggle",       "description": "Activa/desactiva extensión",                     "scope": "voip.extensiones.edit",     "permission": "voip.extensiones.edit" },
+        { "method": "GET",    "path": "/voip/extensiones/{extension}/verificar",    "description": "Verifica el registro de la extensión en Asterisk", "scope": "voip.extensiones.test",   "permission": "voip.extensiones.test" },
+
+        { "method": "GET",    "path": "/voip/grupos-timbrado",                    "description": "Lista grupos de timbrado",                         "scope": "voip.grupos.view",   "permission": "voip.grupos.view" },
+        { "method": "POST",   "path": "/voip/grupos-timbrado",                    "description": "Crea grupo de timbrado",                           "scope": "voip.grupos.create", "permission": "voip.grupos.create" },
+        { "method": "PUT",    "path": "/voip/grupos-timbrado/{grupoTimbrado}",    "description": "Actualiza grupo de timbrado",                      "scope": "voip.grupos.edit",   "permission": "voip.grupos.edit" },
+        { "method": "DELETE", "path": "/voip/grupos-timbrado/{grupoTimbrado}",    "description": "Elimina grupo de timbrado",                        "scope": "voip.grupos.delete", "permission": "voip.grupos.delete" },
+
+        { "method": "GET",    "path": "/voip/ia-bot/config",       "description": "Obtiene la configuración del bot IA",     "scope": "voip.ia-bot.config", "permission": "voip.ia-bot.config" },
+        { "method": "PUT",    "path": "/voip/ia-bot/config",       "description": "Guarda la configuración del bot IA",      "scope": "voip.ia-bot.config", "permission": "voip.ia-bot.config" },
+        { "method": "GET",    "path": "/voip/ia-bot/leads",        "description": "Lista leads capturados por el bot IA",    "scope": "voip.ia-bot.leads",  "permission": "voip.ia-bot.leads" },
+        { "method": "GET",    "path": "/voip/ia-bot/kb",           "description": "Lista la base de conocimiento del bot IA","scope": "voip.ia-bot.kb",     "permission": "voip.ia-bot.kb" }
+    ],
+
     "menu": [
         {
             "label": "VoIP",
