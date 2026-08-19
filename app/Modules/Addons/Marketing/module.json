@@ -232,23 +232,177 @@
             "permission": "create-marketing-campaigns"
         },
         {
+            "method": "GET",
+            "path": "/api/marketing/leads/{id}",
+            "description": "Detalle de un lead",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
             "method": "POST",
-            "path": "/api/marketing/campaigns",
+            "path": "/api/marketing/leads/{id}/assign",
+            "description": "Asignar lead a un vendedor",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/leads/{id}/score",
+            "description": "Disparar scoring IA de un lead",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/lead-forms",
+            "description": "Lista formularios de captación",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/lead-forms",
+            "description": "Crear formulario de captación embebible",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/conversations",
+            "description": "Lista conversaciones del agente WhatsApp",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/conversations/{id}/send-message",
+            "description": "Enviar mensaje manual en una conversación",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
+            "method": "POST",
+            "path": "/marketing/campaigns/store",
             "description": "Crear campaña",
             "scope": "create-marketing-campaigns",
             "permission": "create-marketing-campaigns"
         },
         {
             "method": "POST",
-            "path": "/api/marketing/content/generate",
-            "description": "Generar video/contenido IA",
+            "path": "/marketing/content/generate-copy",
+            "description": "Generar copy de contenido con IA",
+            "scope": "generate-video-content",
+            "permission": "generate-video-content"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/brand-kit",
+            "description": "Obtener Brand Kit (logo, colores, tipografías)",
+            "scope": "manage-brand-assets",
+            "permission": "manage-brand-assets"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/marketing/brand-kit",
+            "description": "Actualizar Brand Kit",
+            "scope": "manage-brand-assets",
+            "permission": "manage-brand-assets"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/brand-kit/logo",
+            "description": "Subir logo del Brand Kit",
+            "scope": "manage-brand-assets",
+            "permission": "manage-brand-assets"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/video-templates",
+            "description": "Lista plantillas del motor de video MVM",
+            "scope": "generate-video-content",
+            "permission": "generate-video-content"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/generated-content",
+            "description": "Lista videos generados",
             "scope": "generate-video-content",
             "permission": "generate-video-content"
         },
         {
             "method": "POST",
-            "path": "/api/marketing/publish",
-            "description": "Publicar en redes sociales",
+            "path": "/api/marketing/generated-content/render",
+            "description": "Renderizar un nuevo video con el motor MVM",
+            "scope": "generate-video-content",
+            "permission": "generate-video-content"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/generated-content/{id}/download",
+            "description": "Descargar video generado",
+            "scope": "download-video",
+            "permission": "download-video"
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/marketing/generated-content/{id}",
+            "description": "Eliminar video generado",
+            "scope": "delete-video-content",
+            "permission": "delete-video-content"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/multivariant-campaigns",
+            "description": "Lista campañas multivariante por nicho",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/multivariant-campaigns",
+            "description": "Crear campaña multivariante por nicho",
+            "scope": "create-marketing-campaigns",
+            "permission": "create-marketing-campaigns"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/niches",
+            "description": "Lista nichos del Director Creativo IA",
+            "scope": "manage-marketing-niches",
+            "permission": "manage-marketing-niches"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/voice-comparator/voices",
+            "description": "Lista voces TTS disponibles para comparar",
+            "scope": "manage-video-settings",
+            "permission": "manage-video-settings"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/publishing/channels",
+            "description": "Lista canales de publicación configurados",
+            "scope": "manage-publishing-channels",
+            "permission": "manage-publishing-channels"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/publishing/publications",
+            "description": "Lista publicaciones en la cola",
+            "scope": "manage-publication-queue",
+            "permission": "manage-publication-queue"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/publishing/publications/{id}/retry",
+            "description": "Reintentar una publicación fallida",
+            "scope": "manage-publication-queue",
+            "permission": "manage-publication-queue"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/publishing/campaigns/{id}/publish",
+            "description": "Publicar campaña en redes sociales",
             "scope": "publish-content",
             "permission": "publish-content"
         },
