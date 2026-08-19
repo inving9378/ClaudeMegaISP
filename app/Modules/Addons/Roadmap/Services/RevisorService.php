@@ -197,6 +197,22 @@ class RevisorService
         $item->comentarios_claude = (string) $item->comentarios_claude . $sello;
         $item->revisado_at        = now();
         $item->aprobado_por       = $actor;
+
+        // #841 — sin esta entrada, `estadoAprobadoPrevio()` (reap de huérfanos / reanudación de
+        // colisiones) no encuentra rastro de esta aprobación en el log y cae a su default seguro
+        // `requiere_irving` para un item B/C, deshaciendo la autorización del revisor sin que nadie
+        // la haya revocado. Mismo patrón que ya usa `AutopilotService::aplicar`.
+        if ($autoriza) {
+            $log = $item->log ?: [];
+            $log[] = [
+                'ts'       => now()->toIso8601String(),
+                'por'      => $actor,
+                'decision' => 'autoriza',
+                'estado'   => $nuevo,
+            ];
+            $item->log = $log;
+        }
+
         $item->save();
 
         if ($nuevo === 'requiere_irving') {
@@ -862,6 +878,21 @@ TXT;
             $item->comentarios_claude = (string) $item->comentarios_claude
                 . "\n\n--- DES-TRABE (Opus) " . now()->toDateTimeString() . " → RE-APROBADO (tecnico_seguro) ---\nRazón: " . trim($v['razon']) . "\n";
             $item->aprobado_por = 'destrabe(opus)';
+
+            // #841 — mismo fix que en aplicarVeredicto(): sin esta entrada en el log, un reap
+            // posterior (worker que reclama el item y muere/timeoutea) no encuentra el rastro de
+            // este re-triaje y `estadoAprobadoPrevio()` regresa el item a `requiere_irving` por
+            // default, borrando el efecto del des-trabe y volviendo a escalarle a Irving lo que ya
+            // había quedado resuelto como técnico/seguro. Caso real documentado: #795 → #820.
+            $log = $item->log ?: [];
+            $log[] = [
+                'ts'        => now()->toIso8601String(),
+                'por'       => 'destrabe(opus)',
+                'decision'  => 'destrabe_reaprobado',
+                'estado'    => $item->estado_aprobacion,
+                'categoria' => $v['categoria'],
+            ];
+            $item->log = $log;
         } else {
             // Genuinamente de Irving → queda con TAG de categoría + brief para despacho en lote.
             $item->estado_aprobacion = 'requiere_irving';
