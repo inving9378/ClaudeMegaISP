@@ -180,6 +180,11 @@ class DigestCommand extends Command
             if ($p['si_no_corre'] !== '') {
                 $this->line("      Se pierde: {$p['si_no_corre']}");
             }
+            // #808 — si no está agendado y hay línea sugerida, se imprime lista para copiar/pegar
+            // (`crontab -e` del usuario meganet): ningún ejecutor on-box puede escribirla por sí solo.
+            if ($p['agendado'] === false && ($p['linea_cron'] ?? '') !== '') {
+                $this->line("      Pegar en `crontab -e`: <fg=cyan>{$p['linea_cron']}</>");
+            }
         }
         $this->newLine();
 

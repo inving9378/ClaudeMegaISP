@@ -707,6 +707,11 @@ return [
             // que es exactamente la mentira que este vigilante viene a evitar.
             'exige_opciones' => ['apply'],
             'si_no_corre' => 'el freno del CLASIFICADOR nunca caduca (2A.4 queda de adorno)',
+            // #808 — ningún ejecutor on-box puede escribir el crontab del SO (sandbox lo bloquea,
+            // verificado). Línea exacta para `crontab -e` del usuario meganet, JUSTO ANTES de la
+            // línea del digest (40 6) para que a las 06:40 ya refleje lo vencido. El digest la
+            // imprime tal cual cuando `agendado === false` (ver DigestCommand::procesosProgramados).
+            'linea_cron' => "30 6 * * * /var/www/megaisp/deploy/circuito/cron-wrap.sh circuito:re-triage --apply >> /var/log/circuito-digest.log 2>&1",
         ],
 
         'circuito:digest' => [
