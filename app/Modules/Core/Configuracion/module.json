@@ -869,7 +869,183 @@
             }
         }
     ],
-    "api_endpoints": [],
+    "api_endpoints": [
+        {
+            "method": "GET",
+            "path": "/configuracion",
+            "description": "Panel principal de Configuración",
+            "scope": "config_view_module",
+            "permission": "config_view_module"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/additional-fields",
+            "description": "Lista campos adicionales del sistema",
+            "scope": "config_view_system",
+            "permission": "config_view_system"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/additional-fields/add",
+            "description": "Crea campo adicional",
+            "scope": "config_view_system",
+            "permission": "config_view_system"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/company-information",
+            "description": "Lista datos de la empresa",
+            "scope": "company_information_view_company_information",
+            "permission": "company_information_view_company_information"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/company-information/add",
+            "description": "Crea información de empresa",
+            "scope": "company_information_add_company_information",
+            "permission": "company_information_add_company_information"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/company-information/update/{id}",
+            "description": "Actualiza información de empresa",
+            "scope": "company_information_edit_company_information",
+            "permission": "company_information_edit_company_information"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/company-information/destroy/{id}",
+            "description": "Elimina información de empresa",
+            "scope": "company_information_delete_company_information",
+            "permission": "company_information_delete_company_information"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/metodos-de-pago",
+            "description": "Lista métodos de pago",
+            "scope": "config_view_finance",
+            "permission": "config_view_finance"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/metodos-de-pago/create",
+            "description": "Crea método de pago",
+            "scope": "config_view_finance",
+            "permission": "config_view_finance"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/metodos-de-pago/{id}/update",
+            "description": "Actualiza método de pago",
+            "scope": "config_view_finance",
+            "permission": "config_view_finance"
+        },
+        {
+            "method": "DELETE",
+            "path": "/configuracion/metodos-de-pago/{id}/destroy",
+            "description": "Elimina método de pago",
+            "scope": "config_view_finance",
+            "permission": "config_view_finance"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/nomenclature",
+            "description": "Lista nomenclaturas de red",
+            "scope": "nomenclature_view_nomenclature",
+            "permission": "nomenclature_view_nomenclature"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/nomenclature/add",
+            "description": "Crea nomenclatura de red",
+            "scope": "nomenclature_add_nomenclature",
+            "permission": "nomenclature_add_nomenclature"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/nomenclature/update/{id}",
+            "description": "Actualiza nomenclatura de red",
+            "scope": "nomenclature_edit_nomenclature",
+            "permission": "nomenclature_edit_nomenclature"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/nomenclature/destroy/{id}",
+            "description": "Elimina nomenclatura de red",
+            "scope": "nomenclature_delete_nomenclature",
+            "permission": "nomenclature_delete_nomenclature"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/work-flow",
+            "description": "Lista flujos de trabajo de actividades programadas",
+            "scope": "config_view_scheduling",
+            "permission": "config_view_scheduling"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/work-flow/add",
+            "description": "Crea flujo de trabajo",
+            "scope": "config_view_scheduling",
+            "permission": "config_view_scheduling"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/tools-import",
+            "description": "Lista herramientas de importación",
+            "scope": "config_view_tools",
+            "permission": "config_view_tools"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/tools-import/create",
+            "description": "Crea herramienta de importación",
+            "scope": "config_view_tools",
+            "permission": "config_view_tools"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/credenciales-google-maps",
+            "description": "Lista credenciales de Google Maps",
+            "scope": "config_view_google_maps",
+            "permission": "config_view_google_maps"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/credenciales-google-maps/create",
+            "description": "Crea credencial de Google Maps",
+            "scope": "config_view_google_maps",
+            "permission": "config_view_google_maps"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/service_in_address_list",
+            "description": "Lista servicios por dirección de red",
+            "scope": "service_in_address_list_view_service_in_address_list",
+            "permission": "service_in_address_list_view_service_in_address_list"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/finance-notification",
+            "description": "Lista notificaciones financieras",
+            "scope": "config_view_finance_notification",
+            "permission": "config_view_finance_notification"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/estados-vendedores",
+            "description": "Lista estados de vendedores",
+            "scope": "config_view_sales",
+            "permission": "config_view_sales"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/estados-vendedores/create",
+            "description": "Crea estado de vendedor",
+            "scope": "config_view_sales",
+            "permission": "config_view_sales"
+        }
+    ],
     "ai": {
         "knowledge": "El módulo Configuración centraliza los ajustes globales del sistema: empresa, pagos, notificaciones, API móvil y catálogos operativos.",
         "example_intents": [
