@@ -612,6 +612,64 @@ config cacheada el circuito NO se queda sin llave (el Hub `api_integrations` res
 
 ---
 
+### 8.7 FASE 2B — el generador construye su propio sustrato (2026-08-18)
+
+> `AuditorService::medirContraSpec()` dejó de devolver `[]`. Manual: `docs/circuito/directiva-2b.md`;
+> la medición que lo fundamenta: `docs/fase2b-paso0-inventario-modulejson.md`.
+
+**Por qué no se escribió el detector semántico.** El Paso 0 midió que los `module.json` describen
+**5.5 %** de la superficie (117 endpoints declarados / 2,117 rutas atribuibles a un módulo). Un
+detector semántico perfecto sobre ese 5.5 % habría dado dos docenas de items y se habría vuelto a
+secar. La pregunta no era cómo escribirlo, era **por qué el sistema no tiene con qué medirse**.
+
+**El primer producto son huecos de DECLARACIÓN**, y tienen la propiedad que se buscaba desde el
+principio: **cada `module.json` que se completa amplía la superficie que el detector puede medir en
+la vuelta siguiente.** El generador se alimenta a sí mismo porque su primer trabajo es construir el
+instrumento con el que va a medir después.
+
+Cuatro detectores, todos por LOOKUP (cada hallazgo traza a un conteo, no a un juicio):
+
+| tipo | regla | gaps (2026-08-18) |
+|---|---|---:|
+| `spec_declaracion_incompleta` | declara < `umbral_cobertura` (30 %) de sus rutas | 21 |
+| `spec_modulo_sin_declarar` | rutas registradas y 0 `api_endpoints` | 15 |
+| `spec_desalineada` | declarado ≠ registrado, **dirección desconocida** | 5 |
+| `spec_permiso_inexistente` | permiso declarado ausente de `permissions` | **0** |
+
+- ⚠️ **`spec_desalineada` NUNCA dice "falta construir X".** Detectar la discrepancia con certeza no es
+  saber qué falta: confianza 1.0 en la discrepancia, **0 en el diagnóstico**. Medido: Flotas declaraba
+  `/api/flotas/*` teniendo 65 rutas bajo `flotas/api/*`, y Planes URLs que nunca existieron — los dos
+  son la DECLARACIÓN envejecida. Un detector que dijera "falta construir" fabricaría trabajo para
+  reconstruir lo que ya existe con otro nombre, que es peor que ruido.
+- `spec_permiso_inexistente` en **0 es lo sano, no un detector roto**: su valor es de guardia contra
+  regresiones (111/111 permisos declarados existen).
+- **Items acotados por tanda** (`cap_por_item` = 25) y la **huella de dedup incluye el tramo**
+  (`api_endpoints#tN`) → la vuelta siguiente pide la tanda siguiente. Sin progreso la huella no
+  cambia y no se re-crea (falla hacia el lado bueno). Pedirle a Mapas «declara 200 endpoints» no es
+  una tarea, es un proyecto.
+- **`screens` NO se detecta todavía** (`detectores.sin_screens = false`): sólo 9/43 módulos las
+  declaran. Enriquecerlas es el trabajo que producen los items de arriba.
+
+**Métrica de convergencia — `circuito:digest` §5: SUPERFICIE DECLARADA.** Hoy 5.5 %. Mientras suba,
+el generador tiene trabajo. El denominador son **sólo las rutas atribuibles a un módulo**: las 133 de
+controllers legacy fuera de `app/Modules` no pertenecen a ningún manifiesto y no pueden declararse
+por esta vía — meterlas haría la métrica inalcanzable, y una métrica con techo imposible se deja de
+mirar.
+
+**Las DOS capas del spec** (no confundirlas, ambas sirven):
+- `module.json` → **estructura** (endpoints, permisos, pantallas). Vive con el código. Es lo que se
+  mide hoy.
+- Item `[SPEC]` → **intención** (criterios de DoD en prosa que Irving escribe desde la Torre sin
+  desplegar). **Pendiente, no descartado**; hoy hay 0 items `[SPEC]`.
+
+⚠️ **Hueco de cobertura (item #809):** `circuito.auditor.carriles` lista 26 módulos, así que **14 de
+los 41 gaps son invisibles para el motor**. Y dos entradas **no resuelven a ningún directorio** —
+`Roadmap / Circuito CC` es el *footprint*, no el nombre del módulo (`app/Modules/Addons/Roadmap`), y
+`Reportes` no existe: `rutaModulo()` devuelve null y `detectarGaps` sale por lo bajo **sin avisar**.
+Consecuencia: **el módulo del propio circuito nunca se ha auditado.**
+
+---
+
 ## 9. ACTUALIZACIONES DE INSTANCIA (modelo PULL) — #529
 
 > Investigado y arreglado el 2026-08-06. Antes de tocar nada aquí, leer esta sección: el

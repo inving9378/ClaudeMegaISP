@@ -1171,3 +1171,37 @@ detector debe emitir *«declaración y realidad no coinciden»*, nunca *«falta 
 Reproducible: `php artisan circuito:inventario-spec --detalle`.
 ⚠️ `circuito-fase2a.md` **no está en el repo**; `medirContraSpec()` sigue devolviendo `[]` y su
 docblock describe un contrato distinto (RoadmapItem `[SPEC]`, no `module.json`).
+
+## 2026-08-18 19:05 — Fase 2B: `medirContraSpec()` implementado, el generador construye su sustrato
+
+**El nombre corregido.** `spec_endpoint_no_implementado` presuponía la dirección del error;
+renombrado a **`spec_desalineada`** — «declaración y realidad no coinciden». Detectar la discrepancia
+con certeza no es saber qué falta: confianza 1.0 en la discrepancia, **0 en el diagnóstico**.
+
+**Cuatro detectores por lookup** (`c1aa78fd`), DRY-RUN **41 gaps**: `spec_declaracion_incompleta` 21 ·
+`spec_modulo_sin_declarar` 15 · `spec_desalineada` 5 · `spec_permiso_inexistente` **0** (lo esperado:
+111/111 permisos existen; es guardia contra regresiones, no generador — escrito en el código para que
+nadie lo lea como "detector roto"). `screens` apagado a propósito (9/43 no da para medir).
+
+**Decisiones de implementación que no estaban en la directiva:**
+- **Items acotados por tanda** (`cap_por_item` = 25) y la huella de dedup incluye el tramo
+  (`api_endpoints#tN`) → la vuelta siguiente pide la siguiente tanda; sin progreso no se re-crea.
+  Pedirle a Mapas «declara 200 endpoints» no es una tarea.
+- **Umbral 30 %, no 100 %**: `api_endpoints` es el contrato público, no cada feed de datatable.
+- `rutasDelModulo` usa `explode('\')`, no regex: el patrón equivalente pide cuatro niveles de escape
+  entre PHP y PCRE y se rompió al escribirlo (`[^\\]` se comía el cierre de la clase).
+
+**Métrica de convergencia al digest §5: superficie declarada = 5.5 %** (117 de 2,117 rutas
+atribuibles a un módulo). Cifra afinada: el denominador excluye HEAD y las **133 rutas legacy fuera
+de `app/Modules`**, que no pueden declararse por esta vía. Es el techo honesto; meterlas haría la
+métrica inalcanzable.
+
+**Higiene:** directivas versionadas en **`docs/circuito/`** (`f0f61236`) — 2A.4, cierre de 2A y 2B,
+más un README que inventaría las **siete** instancias de la misma enfermedad y el criterio de cierre
+que comparten. Docblock de `medirContraSpec()` reescrito con las **dos capas** (`module.json` =
+estructura, implementada; item `[SPEC]` = intención, **pendiente y no descartada**).
+
+**Hallazgo lateral → item #809:** 14 de los 41 gaps caen en módulos que `circuito.auditor.carriles`
+no recorre, y **dos entradas de esa config no resuelven a ningún directorio** (`Roadmap / Circuito CC`
+es el footprint, no el nombre; `Reportes` no existe) — el motor las audita en vacío **sin avisar**.
+Consecuencia: el módulo del propio circuito nunca se ha auditado.
