@@ -138,55 +138,26 @@
         }
     ],
     "api_endpoints": [
-        {
-            "method": "GET",
-            "path": "/api/flotas/vehiculos",
-            "description": "Listar vehículos (con filtros)",
-            "scope": "fleet.view",
-            "permission": "fleet.view"
-        },
-        {
-            "method": "POST",
-            "path": "/api/flotas/vehiculos",
-            "description": "Crear vehículo",
-            "scope": "fleet.manage",
-            "permission": "fleet.manage"
-        },
-        {
-            "method": "GET",
-            "path": "/api/flotas/vehiculos/{id}",
-            "description": "Detalle de vehículo",
-            "scope": "fleet.view",
-            "permission": "fleet.view"
-        },
-        {
-            "method": "PATCH",
-            "path": "/api/flotas/vehiculos/{id}",
-            "description": "Actualizar vehículo",
-            "scope": "fleet.manage",
-            "permission": "fleet.manage"
-        },
-        {
-            "method": "DELETE",
-            "path": "/api/flotas/vehiculos/{id}",
-            "description": "Eliminar vehículo (soft)",
-            "scope": "fleet.manage",
-            "permission": "fleet.manage"
-        },
-        {
-            "method": "POST",
-            "path": "/api/flotas/mantenimientos",
-            "description": "Crear mantenimiento",
-            "scope": "fleet.maintenance.manage",
-            "permission": "fleet.maintenance.manage"
-        },
-        {
-            "method": "GET",
-            "path": "/api/flotas/documentos/alertas",
-            "description": "Documentos por vencer",
-            "scope": "fleet.documents.manage",
-            "permission": "fleet.documents.manage"
-        }
+        { "method": "GET",    "path": "/flotas/api/vehiculos",                          "description": "Listar vehículos (con filtros)",                        "scope": "fleet.view",               "permission": "fleet.view" },
+        { "method": "POST",   "path": "/flotas/api/vehiculos",                          "description": "Crear vehículo",                                        "scope": "fleet.manage",             "permission": "fleet.manage" },
+        { "method": "GET",    "path": "/flotas/api/vehiculos/{id}",                     "description": "Detalle de vehículo",                                   "scope": "fleet.view",               "permission": "fleet.view" },
+        { "method": "PATCH",  "path": "/flotas/api/vehiculos/{id}",                     "description": "Actualizar vehículo",                                   "scope": "fleet.manage",             "permission": "fleet.manage" },
+        { "method": "DELETE", "path": "/flotas/api/vehiculos/{id}",                     "description": "Eliminar vehículo (soft)",                              "scope": "fleet.manage",             "permission": "fleet.manage" },
+        { "method": "POST",   "path": "/flotas/api/mantenimientos",                     "description": "Crear mantenimiento",                                   "scope": "fleet.maintenance.manage", "permission": "fleet.maintenance.manage" },
+        { "method": "GET",    "path": "/flotas/api/documentos/alertas/proximos",        "description": "Documentos por vencer",                                 "scope": "fleet.documents.view",     "permission": "fleet.documents.view" },
+        { "method": "GET",    "path": "/flotas/api/vehiculos/data/dashboard",           "description": "Métricas y resumen del dashboard de flota",             "scope": "fleet.view",               "permission": "fleet.view" },
+        { "method": "GET",    "path": "/flotas/api/vehiculos/data/alertas",             "description": "Vehículos con alertas (documentos/mantenimiento)",      "scope": "fleet.view",               "permission": "fleet.view" },
+        { "method": "GET",    "path": "/flotas/api/vehiculos/{id}/asignaciones",        "description": "Historial de asignaciones de operador del vehículo",    "scope": "fleet.view",               "permission": "fleet.view" },
+        { "method": "POST",   "path": "/flotas/api/vehiculos/{id}/asignaciones",        "description": "Asignar operador al vehículo",                          "scope": "fleet.assign",             "permission": "fleet.assign" },
+        { "method": "GET",    "path": "/flotas/api/vehiculos/{id}/gps",                 "description": "Estado y última posición GPS del vehículo",             "scope": "fleet.gps.view",           "permission": "fleet.gps.view" },
+        { "method": "GET",    "path": "/flotas/api/vehiculos/{id}/gps/history",         "description": "Historial de posiciones GPS del vehículo",              "scope": "fleet.gps.view",           "permission": "fleet.gps.view" },
+        { "method": "POST",   "path": "/flotas/api/vehiculos/{id}/gps/device",          "description": "Activar/configurar dispositivo GPS del vehículo",       "scope": "fleet.gps.manage",         "permission": "fleet.gps.manage" },
+        { "method": "GET",    "path": "/flotas/api/gps/flota",                          "description": "Posiciones actuales de toda la flota (mapa)",           "scope": "fleet.gps.view",           "permission": "fleet.gps.view" },
+        { "method": "GET",    "path": "/flotas/api/geocercas",                          "description": "Listar geocercas",                                      "scope": "fleet.geofences.view",     "permission": "fleet.geofences.view" },
+        { "method": "POST",   "path": "/flotas/api/geocercas",                          "description": "Crear geocerca",                                        "scope": "fleet.geofences.manage",   "permission": "fleet.geofences.manage" },
+        { "method": "GET",    "path": "/flotas/api/vehiculos/{id}/geofence-events",     "description": "Eventos de entrada/salida de geocerca del vehículo",    "scope": "fleet.gps.view",           "permission": "fleet.gps.view" },
+        { "method": "GET",    "path": "/flotas/api/reglas",                             "description": "Listar reglas de alertas de geocerca",                  "scope": "fleet.rules.view",         "permission": "fleet.rules.view" },
+        { "method": "GET",    "path": "/flotas/api/suscripciones/client/{clientId}",    "description": "Suscripción Flotas SaaS de un cliente",                 "scope": "fleet.subscriptions.manage","permission": "fleet.subscriptions.manage" }
     ],
     "client_tab": {
         "label": "Plan Flotas",
