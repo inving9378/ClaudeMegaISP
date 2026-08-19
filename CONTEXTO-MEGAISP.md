@@ -523,6 +523,59 @@ degrada el pre-filtro de no-colisión, que serializa por ese mismo campo.
 
 ---
 
+### 8.6 FASE 2A — las tres reglas que dejaron de vivir en la memoria (2026-08-18)
+
+> Las tres nacieron del mismo diagnóstico: **una regla que vive en un solo lugar (o en ninguno) se
+> cae sin que nadie se entere.** Por eso cada una tiene su candado, y el candado es un test o un
+> exit code, no un párrafo.
+
+**(1) El predicado de despacho tiene UNA definición.** `RoadmapItem::sqlElegibleParaPool()`. La
+aplican el scope (`scopeElegibleParaPool`, que filtra el SELECT del scheduler) y el candado atómico
+del reclamo (`RoadmapCircuitoService::claimNextParalelo` → `guardReclamoAtomico`). Llegó a vivir en
+**cinco** dialectos —scope, SQL crudo del reclamo, `preg_match` del título, copia a mano de
+`SupervisorService` y la Vue— y cada vez que uno cambió, los otros se quedaron atrás. La del reclamo
+es la CARA: decide qué toca un worker, así que una deriva ahí es una terminal trabajando sobre algo
+que no debía.
+- Candado sin BD: `tests/Unit/Modules/Addons/Roadmap/PoolGuardCoherenceTest.php` (compara el SQL y
+  los bindings de los dos caminos + falla si el reclamo vuelve a enumerar banderas a mano).
+- Candado sobre datos reales: `php artisan circuito:coherencia-pool` (READ-ONLY, exit 1 si divergen;
+  al 2026-08-18: 283 items, 211 = 211). De paso reporta cuántos dependen del fallback del rótulo:
+  **0** — cuando lleve una semana así, el `LIKE` sobre `title` se puede retirar.
+
+**(2) Los frenos son ASIMÉTRICOS** (decisión de Irving, 2026-08-18):
+- `origen_bloqueo = 'clasificador'` → **caduca solo** a los `circuito.retriage.clasificador_caduca_dias`
+  (14) si nadie lo confirmó. Es un consejo automático; ya no frenaba nada desde 2A.3, así que vencerlo
+  sólo lo calla.
+- `origen_bloqueo = 'humano'` → **NUNCA caduca.** Es una decisión de Irving y el sistema no la revoca
+  por antigüedad. Se **RESURFACEA**: `circuito:digest` §4 la lista cada `resurface_dias` (7) con item,
+  fecha, días en pie, **aprobaciones mudas acumuladas** y lo que decía el rótulo. Los que más mudas
+  acumulan van arriba: ahí Irving decidió una cosa y quiere otra. Los 33 vivos no son items
+  bloqueados por error — son decisiones que olvidó haber tomado; caducarlas se las quitaría a la mala.
+- La regla vive en **tres** sitios: la AUSENCIA de la clave en `config/circuito.retriage`, el
+  fail-closed de `RetriageFrenosCommand::handle()` y `RetriageNoRevocaFrenoHumanoTest`.
+- ⚠️ `frenoDesde()` marca los días como **aproximados** (`38+`) cuando el freno es anterior al rastro
+  más viejo del item: los 33 legacy sólo se sellaron en columna el 2026-08-18, y usar esa fecha diría
+  "0 días" para todos. Es una cota inferior honesta, no una fecha inventada.
+
+**(3) El guard #456 tiene PRECEDENCIA escrita.** Ampliado a `aprobado_irving`
+(`RoadmapItem::ESTADOS_SINCRONIZABLES_DESDE_KANBAN`), las dos direcciones quedan activas a la vez:
+`status → estado_aprobacion` (Kanban legado) y `estado_aprobacion → status` (hook de `completado` +
+parqueo de C-con-rama). **Gana `estado_aprobacion`** — es la máquina de estados real; `status` es el
+espejo Kanban. El guard corta con `if ($item->isDirty('estado_aprobacion')) return;`. Sin ese corte,
+los tres callers que escriben AMBOS campos (`decidir`, `integracionRechazo`,
+`MergeRunner::markMerged`) quedaban a merced del **orden de registro de los hooks**, que es frágil e
+invisible en el diff. Candado: `GuardKanbanPrecedenciaTest`.
+- Los veredictos (`aprobado_claude`/`aprobado_revisor`, `requiere_irving`, `completado`, `cancelado`,
+  `rechazado`) quedan FUERA del set: mover una tarjeta en un tablero no deshace un veredicto.
+
+**(4) `config:cache` volvió al checklist, detrás de un exit code.** `php artisan config:auditar-env
+&& php artisan config:cache`. Ver CLAUDE.md (#790). **Hallazgo que conviene no olvidar:** con la
+config cacheada el circuito NO se queda sin llave (el Hub `api_integrations` responde antes que el
+`env()`), pero si esa fila se cae, la degradación es **silenciosa** — el revisor escala todo con
+"confianza baja" y se ve *prudente*, no roto. Item **#807**.
+
+---
+
 ## 9. ACTUALIZACIONES DE INSTANCIA (modelo PULL) — #529
 
 > Investigado y arreglado el 2026-08-06. Antes de tocar nada aquí, leer esta sección: el

@@ -1078,3 +1078,57 @@ primera corrida con este fix borra el cache que dejaron los deploys anteriores.
 Como todo cambio a `remote:deploy`, surte efecto en el deploy **siguiente**: el deploy que
 *entregue* este fix a prod todavía correrá el `optimize` viejo. Después de ese deploy hay que
 correr **una vez** `php artisan config:clear` en `.198`.
+
+## 2026-08-18 18:15 — Directiva 2A.4: env()→config, candado de coherencia, frenos asimétricos, precedencia #456
+
+**Contexto de arranque.** El circuito estaba corriendo y trabajando el §1 por su cuenta: al abrir la
+sesión ya había mergeado **#792** (12 archivos de IA, `CLAUDE_MODEL`/`CLAUDE_API_KEY` →
+`config('services.anthropic.*')`) y tenía **#793** terminado en `wt-2` esperando merge. No se tocó
+ninguno de esos archivos desde aquí para no colisionar.
+
+**§1 — `env()` críticos + `config:cache` al checklist.**
+- Mergeado #793 (`d546b5ff`): `WhatsAppStatusDriver` → `config/marketing.php`, AMI de CobranzaBlaster
+  → `config/voip.php`, voz TTS → `config/cobranza.php`, `CONECTION_MIKROTIK` → `config/megafamilia.php`.
+  Las ~23 críticas quedaron migradas. **#794** (resto no crítico) sigue en la cola del circuito.
+- Nuevo `php artisan config:auditar-env` (`9b4c677f`): encuentra las llamadas REALES con el
+  tokenizador de PHP (descarta comentarios, `getenv()`, el método privado `$this->env()` de
+  `MysqldumpEngine`, el literal de regex `'/\.env(\b|\.)/'` y el `env(safe-area-inset)` que es CSS en
+  un blade; sí mira dentro de `{{ }}`). Contrato = exit code. Al cerrar: **29 llamadas en 18 archivos**.
+- Checklist restaurado en CLAUDE.md y CONTEXTO §1 (`2c4aedeb`), seguro por construcción:
+  `php artisan config:auditar-env && php artisan config:cache`.
+
+**Respuesta a «¿ruidoso o callado?» — CALLADO.** Hoy el circuito no se queda sin llave: la resuelve
+el Hub (`api_integrations`, fila `anthropic-default` activa) ANTES de llegar al `env()`, y `vuelta.sh`
+autentica el CLI por OAuth (de hecho hace `unset CLAUDE_API_KEY`). Pero si esa fila se cae,
+`RevisorService::callModel()` atrapa el `Throwable` y devuelve *escala / confianza baja*: todo va a la
+bandeja y el circuito **se ve prudente, no roto**; `proponerPreguntas()` devuelve vacío y el autopilot
+deja de calificar, indistinguible de "briefs viejos sin datos". Sin banner ni contador. **Es la quinta
+instancia** → item **#807**.
+
+**§2 — candado de coherencia scope ↔ reclamo atómico (`4fd7ec84`).** `RoadmapItem::sqlElegibleParaPool()`
+como definición única; `guardReclamoAtomico()` como seam; se eliminó la 5.ª copia en
+`SupervisorService`. `PoolGuardCoherenceTest` (sin BD) + `circuito:coherencia-pool` (READ-ONLY sobre
+los 283 items vivos: 211 = 211). Verificado con mutante.
+
+**§3 — 2A.4, frenos asimétricos (`c1e3dbca`).** `circuito:re-triage` vence el consejo del clasificador
+(14 días) y **jamás** toca el humano. `circuito:digest` §4 «Frenos que pusiste TÚ» cada 7 días,
+ordenado por aprobaciones mudas: encabeza **#65 con 48** contra su propio `[BLOCKED-NEGOCIO]`.
+`RoadmapItem::contarMudasEnLog()` = definición única. Regla en 3 sitios (config por ausencia,
+fail-closed, test).
+
+**§4 — 2A.5, precedencia del #456 (`8b1bf65e`).** Ampliado a `aprobado_irving`; **gana
+`estado_aprobacion`** vía `if (isDirty('estado_aprobacion')) return;`. Verificado en dev en
+transacción con rollback (5 casos).
+
+**§6 — #791.** El contador de mudas ya estaba en el Panorama (lo hizo el circuito). Se le sumó el chip
+**«frenos tuyos»** con tooltip (`2bc4ff0d`), `npm run dev` OK.
+
+**§5 — stash `{1}`: REPORTE, sin tocar.** `edicion-suelta-TorreTerminales-2220`, 11-jul-2026 22:20,
+5+/6− en `TorreTerminales.vue`: sólo copy del empty state ("#334 aún no existe" → "#334 ya corre,
+verás wt-1…wt-6"). El archivo se **movió** a `releases/torre-control/` (f7990340) y **el texto viejo
+sigue en main**, así que el cambio sigue siendo relevante y hoy es el que dice la verdad. No aplica
+por la ruta vieja; **sí aplica limpio re-apuntado** a la ruta nueva (verificado con `git apply --check`,
+no aplicado). Pendiente de decisión de Irving.
+
+**Pendientes registrados:** #807 (señal de IA que no contesta) · #808 (línea de cron del re-triage,
+bloqueada desde esta sesión).
