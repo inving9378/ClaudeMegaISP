@@ -14,6 +14,30 @@
         { "name": "pagos.cuentas.manage",  "description": "Crear, editar y activar/desactivar cuentas de cobro (CLABEs Meganet)" },
         { "name": "pagos.links.manage",    "description": "Generar, reenviar y expirar ligas de pago de facturas" }
     ],
+    "api_endpoints": [
+        { "method": "GET",  "path": "/f/{token}",                                 "description": "Página pública de pago por token (factura + CLABE)",       "scope": "publico",     "permission": null },
+        { "method": "GET",  "path": "/f/{token}/estado",                          "description": "Consulta el estado de un reporte de pago por token",        "scope": "publico",     "permission": null },
+        { "method": "POST", "path": "/f/{token}/reportar",                        "description": "Reporta la clave de rastreo del pago (cliente)",            "scope": "publico",     "permission": null },
+
+        { "method": "GET",  "path": "/pagos",                                     "description": "Dashboard del Portal de Pago (KPIs)",                       "scope": "dashboard",   "permission": "pagos.view" },
+        { "method": "GET",  "path": "/pagos/conciliacion",                        "description": "Pantalla de bandeja de conciliación",                       "scope": "conciliacion","permission": "pagos.conciliar" },
+        { "method": "GET",  "path": "/pagos/cuentas",                             "description": "Pantalla de cuentas de cobro (CLABEs)",                     "scope": "cuentas",     "permission": "pagos.cuentas.manage" },
+        { "method": "GET",  "path": "/pagos/links",                               "description": "Pantalla de ligas de pago",                                 "scope": "links",       "permission": "pagos.links.manage" },
+        { "method": "GET",  "path": "/pagos/comprobante/{report}",                "description": "Descarga protegida del comprobante de pago",                "scope": "conciliacion","permission": "pagos.conciliar" },
+
+        { "method": "GET",  "path": "/api/pagos/kpis",                           "description": "KPIs del dashboard del Portal de Pago",                     "scope": "dashboard",   "permission": "pagos.view" },
+        { "method": "GET",  "path": "/api/pagos/conciliacion",                    "description": "Lista de reportes de pago pendientes de conciliar",         "scope": "conciliacion","permission": "pagos.conciliar" },
+        { "method": "POST", "path": "/api/pagos/conciliacion/{report}/aprobar",   "description": "Aprueba una conciliación manual",                           "scope": "conciliacion","permission": "pagos.conciliar" },
+        { "method": "POST", "path": "/api/pagos/conciliacion/{report}/rechazar",  "description": "Rechaza una conciliación manual",                           "scope": "conciliacion","permission": "pagos.conciliar" },
+        { "method": "GET",  "path": "/api/pagos/cuentas",                        "description": "Lista cuentas de cobro (CLABEs)",                           "scope": "cuentas",     "permission": "pagos.cuentas.manage" },
+        { "method": "POST", "path": "/api/pagos/cuentas",                        "description": "Crea una cuenta de cobro",                                  "scope": "cuentas",     "permission": "pagos.cuentas.manage" },
+        { "method": "PUT",  "path": "/api/pagos/cuentas/{account}",              "description": "Actualiza una cuenta de cobro",                             "scope": "cuentas",     "permission": "pagos.cuentas.manage" },
+        { "method": "POST", "path": "/api/pagos/cuentas/{account}/toggle",       "description": "Activa/desactiva una cuenta de cobro",                      "scope": "cuentas",     "permission": "pagos.cuentas.manage" },
+        { "method": "GET",  "path": "/api/pagos/links",                         "description": "Lista las ligas de pago generadas",                        "scope": "links",       "permission": "pagos.links.manage" },
+        { "method": "GET",  "path": "/api/pagos/clientes/buscar",               "description": "Busca clientes para generar una liga de pago",             "scope": "links",       "permission": "pagos.links.manage" },
+        { "method": "GET",  "path": "/api/pagos/clientes/{clientId}/facturas",  "description": "Lista las facturas pendientes de un cliente",              "scope": "links",       "permission": "pagos.links.manage" },
+        { "method": "POST", "path": "/api/pagos/links",                        "description": "Genera una nueva liga de pago",                            "scope": "links",       "permission": "pagos.links.manage" }
+    ],
     "menu": [
         {
             "label": "Portal de Pago",
