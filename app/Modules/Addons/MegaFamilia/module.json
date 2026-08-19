@@ -64,7 +64,32 @@
     ],
     "api_endpoints": [
         { "method": "GET", "path": "/megafamilia",          "description": "Dashboard MegaFamilia",  "scope": "megafamilia_view",    "permission": "megafamilia_view" },
-        { "method": "GET", "path": "/megafamilia/clientes", "description": "Lista clientes activos", "scope": "megafamilia_support", "permission": "megafamilia_support" }
+        { "method": "GET", "path": "/megafamilia/clientes", "description": "Lista clientes activos", "scope": "megafamilia_support", "permission": "megafamilia_support" },
+        { "method": "POST", "path": "/api/megafamilia/auth/login",              "description": "Login de la app móvil (retorna token sanctum)",      "scope": "public",         "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/app-version",             "description": "Consulta de versión OTA de la app móvil",             "scope": "public",         "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/mobile/check-update",     "description": "Chequeo de actualización disponible del APK",         "scope": "public",         "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/mobile/download/{id}",    "description": "Descarga del APK de una versión",                     "scope": "public",         "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/account",                 "description": "Cuenta del cliente autenticado (app móvil)",          "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/servicio",                "description": "Datos del servicio de internet contratado",           "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/tickets",                 "description": "Lista de tickets del cliente",                        "scope": "sanctum_mobile", "permission": null },
+        { "method": "POST", "path": "/api/megafamilia/tickets",                 "description": "Crea un ticket de soporte desde la app",              "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/profile",                 "description": "Perfil del cliente autenticado",                      "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/facturas",                "description": "Lista de facturas del cliente",                       "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/pagos",                   "description": "Historial de pagos del cliente",                      "scope": "sanctum_mobile", "permission": null },
+        { "method": "POST", "path": "/api/megafamilia/pagos",                   "description": "Registra un pago desde la app",                       "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/profiles",                "description": "Lista de perfiles de hijos",                          "scope": "sanctum_mobile", "permission": null },
+        { "method": "POST", "path": "/api/megafamilia/profiles",                "description": "Crea un perfil de hijo",                              "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/profiles/{id}",           "description": "Detalle de un perfil de hijo",                        "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/profiles/{id}/devices",   "description": "Dispositivos vinculados a un perfil",                 "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/profiles/{id}/tasks",     "description": "Tareas asignadas a un perfil",                        "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/profiles/{id}/location",  "description": "Última ubicación conocida de un perfil",              "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/devices/{id}/rules",      "description": "Reglas de acceso de un dispositivo",                  "scope": "sanctum_mobile", "permission": null },
+        { "method": "PUT",  "path": "/api/megafamilia/devices/{id}/rules",      "description": "Actualiza reglas de acceso de un dispositivo",        "scope": "sanctum_mobile", "permission": null },
+        { "method": "POST", "path": "/api/megafamilia/tasks/{id}/complete",     "description": "Marca una tarea como completada",                     "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/hijo/tareas",             "description": "Tareas del hijo autenticado (app hijo)",              "scope": "sanctum_mobile", "permission": null },
+        { "method": "POST", "path": "/api/megafamilia/requests",                "description": "Crea una solicitud (ej. tiempo extra)",               "scope": "sanctum_mobile", "permission": null },
+        { "method": "GET",  "path": "/api/megafamilia/requests/pending",        "description": "Solicitudes pendientes de respuesta",                 "scope": "sanctum_mobile", "permission": null },
+        { "method": "POST", "path": "/api/megafamilia/locations",               "description": "Reporta la ubicación GPS del dispositivo",            "scope": "sanctum_mobile", "permission": null }
     ],
 
     "ai": {
