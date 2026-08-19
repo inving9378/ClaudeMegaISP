@@ -1132,3 +1132,42 @@ no aplicado). Pendiente de decisión de Irving.
 
 **Pendientes registrados:** #807 (señal de IA que no contesta) · #808 (línea de cron del re-triage,
 bloqueada desde esta sesión).
+
+## 2026-08-18 18:35 — Cierre de 2A: #807 (escala sin modelo), #808 (liveness), stashes, Paso 0 de 2B
+
+**#807 — la señal, sin tocar la falla-segura.** `RevisorService::CAT_SIN_MODELO` / `CAT_ILEGIBLE`;
+`proponerOpciones`/`proponerPreguntas` devuelven `motivo` (`sin_modelo` vs `vacio`);
+`auditarSinModelo()` deja rastro durable en `circuito_revisiones`; `motivoTexto()` unifica la
+narración en los 4 consumidores (los cuatro decían "sin brief utilizable"); digest §2-bis separa
+autoriza / juicio / SIN MODELO; chip rojo en la Torre. **Verificado end-to-end contra la API** con un
+modelo inexistente (404): `categoria=sin_modelo`, `veredicto=escala` (comportamiento intacto), fila
+auditada, digest lo delata. Fila de prueba borrada. Commit `86548414`, item cerrado.
+
+**#808 — liveness.** `config('circuito.procesos_programados')` + **un solo listener** de
+`CommandFinished` + `agendado()` que mira el crontab. Digest §0 dice hoy: *«circuito:re-triage — NO
+ESTÁ AGENDADO en el crontab. Se pierde: el freno del CLASIFICADOR nunca caduca»*. El circuito tomó
+#808 y concluyó por su cuenta que no puede escribir el crontab del SO; deja la línea documentada.
+`--dry` no sella latido, para que correrlo a mano no enmascare que el cron falta.
+
+**2A.6 — la racha del fallback se mide sola** (`bd22a8b8`): sellada en 0 desde 2026-08-18; a los 7
+días seguidos el digest avisa que ya es seguro retirar el `LIKE` sobre `title`.
+
+**Stashes — los dos soltados.**
+- `stash{1}` aplicado re-apuntado a `releases/torre-control/` y commiteado (`74688e3c`): el empty
+  state dejó de anunciar el paralelo como futuro con seis terminales corriendo.
+- `stash{0}` **verificado obsoleto con control**: 0 líneas de diff contra la rama
+  `circuito/item-473-…` y 186 contra main → su wip ya estaba commiteado. Soltado.
+- SHAs por si hicieran falta: `{0}`=`36ee7654`, `{1}`=`809df42e` (reflog).
+
+**Paso 0 de Fase 2B — inventario de los 43 `module.json`** (`51f2af43` + comando `46898daa`).
+No están vacíos pero cubren un tercio: **117 endpoints declarados sobre 3,193 pares método+ruta =
+~3.7 % de la superficie**. 26/43 declaran `api_endpoints`, **sólo 9/43 declaran `screens`**, 11 casi
+vacíos (casi todos Core). Y parte de lo declarado ya no es cierto: **86 %** de endpoints resuelven,
+**79 %** de screens, **100 % de permisos** (111/111 — el único detector con confianza 1.0 hoy).
+Desajustes reales verificados a mano: Flotas declara `/api/flotas/*` y existen 65 rutas bajo
+`flotas/api/*`; Planes declara un esquema de URLs que nunca se construyó así.
+**Hallazgo de diseño:** el lookup NO distingue "no se construyó" de "la declaración envejeció" → el
+detector debe emitir *«declaración y realidad no coinciden»*, nunca *«falta construir X»*.
+Reproducible: `php artisan circuito:inventario-spec --detalle`.
+⚠️ `circuito-fase2a.md` **no está en el repo**; `medirContraSpec()` sigue devolviendo `[]` y su
+docblock describe un contrato distinto (RoadmapItem `[SPEC]`, no `module.json`).

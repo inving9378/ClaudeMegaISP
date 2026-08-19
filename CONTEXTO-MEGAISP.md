@@ -568,6 +568,42 @@ invisible en el diff. Candado: `GuardKanbanPrecedenciaTest`.
 - Los veredictos (`aprobado_claude`/`aprobado_revisor`, `requiere_irving`, `completado`, `cancelado`,
   `rechazado`) quedan FUERA del set: mover una tarjeta en un tablero no deshace un veredicto.
 
+**(5) Escalar por JUICIO y escalar por NO HABER MODELO ya no se ven igual (#807).** Es el hallazgo
+más incómodo de la fase y de una familia peor que las otras cuatro: aquí **no hay un lector
+equivocado que corregir** — el lector es un humano viendo una historia coherente. Con la IA caída el
+circuito no se cae: escala todo, el autopilot deja de calificar, y el tablero cuenta que está siendo
+prudente. Nada contradice esa historia.
+- `RevisorService::CAT_SIN_MODELO` (la llamada falló, el modelo nunca contestó) y `CAT_ILEGIBLE`
+  (contestó, pero no salió veredicto usable). Antes las dos se guardaban como `duda`, idéntico a un
+  juicio real. **La falla-segura NO cambió** — sólo dejó de ser anónima.
+- `proponerOpciones`/`proponerPreguntas` devuelven `motivo`: `'sin_modelo'` vs `'vacio'`. Ése es el
+  caso caro: sin `preguntas` el autopilot no califica NADA, y eso es indistinguible de "briefs viejos
+  sin confianza/reversible", que es benigno y esperado. `auditarSinModelo()` deja rastro en
+  `circuito_revisiones` (misma tabla que ya cuenta el digest; no se inventó una segunda bitácora).
+- `circuito:digest` §2-bis separa `autoriza` / `escala por juicio` / `escala SIN MODELO`.
+  **`escala:sin_modelo > 0` es lo único que no se puede confundir con prudencia.**
+- Cada llamada real es su propia sonda: no hay canario aparte que mantener (que sería, otra vez, una
+  segunda definición esperando a quedarse obsoleta).
+
+**(6) Todo proceso programado late, y el digest delata al que no (#808).** Una regla implementada y
+NO agendada es un **no-op invisible**: 2A.4 dejó el caducado del clasificador escrito, probado y
+fail-closed… y sin su línea de cron no caduca nada.
+- `config('circuito.procesos_programados')`: scheduler · re-triage · digest · priorizar-seguridad,
+  cada uno con `max_horas` y **qué se pierde** si deja de correr (un "no ha corrido" sin consecuencia
+  se ignora).
+- **UN solo listener** de `CommandFinished` sella el latido: nadie instrumenta comando por comando, y
+  un proceso nuevo sólo necesita su fila en la config.
+- `exige_opciones`/`excluye_opciones`: un `--dry` no sella latido. Sin eso, correr el comando a mano
+  desde una sesión enmascararía que el cron no existe — justo la mentira que el vigilante evita.
+- `agendado()` mira el crontab de verdad y separa **NO AGENDADO** (falta la línea) de *agendado pero
+  sin latir* (corre y falla). Piden cosas distintas.
+- Es la **§0 del digest**, lo primero que se lee.
+
+**(7) La racha del fallback se mide, no se recuerda (2A.6).** El digest sella el día que
+`contarFallbackRotulo()` llegó a 0 (**2026-08-18**), reinicia si vuelve a subir, y sólo a los 7 días
+seguidos avisa que ya es seguro retirar el `LIKE` sobre `title`. Una fecha anotada en un reporte es
+justo lo que nadie vuelve a mirar.
+
 **(4) `config:cache` volvió al checklist, detrás de un exit code.** `php artisan config:auditar-env
 && php artisan config:cache`. Ver CLAUDE.md (#790). **Hallazgo que conviene no olvidar:** con la
 config cacheada el circuito NO se queda sin llave (el Hub `api_integrations` responde antes que el
