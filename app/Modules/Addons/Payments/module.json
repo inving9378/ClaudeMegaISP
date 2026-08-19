@@ -76,9 +76,19 @@
     ],
 
     "api_endpoints": [
-        { "method": "GET", "path": "/finanzas/payment-providers",  "description": "Lista proveedores de pago", "scope": "payments_view_providers",   "permission": "payments_view_providers" },
-        { "method": "GET", "path": "/finanzas/clients/{id}/clabe", "description": "CLABE asignada al cliente", "scope": "payments_assign_clabe",     "permission": "payments_assign_clabe" },
-        { "method": "GET", "path": "/finanzas/payments/{id}/receipt","description": "Recibo de pago",           "scope": "payments_view_receipts",    "permission": "payments_view_receipts" }
+        { "method": "GET",    "path": "/finanzas/payment-providers",  "description": "Lista proveedores de pago", "scope": "payments_view_providers",   "permission": "payments_view_providers" },
+        { "method": "GET",    "path": "/finanzas/clients/{id}/clabe", "description": "CLABE asignada al cliente", "scope": "payments_assign_clabe",     "permission": "payments_assign_clabe" },
+        { "method": "GET",    "path": "/finanzas/payments/{id}/receipt","description": "Recibo de pago",           "scope": "payments_view_receipts",    "permission": "payments_view_receipts" },
+        { "method": "GET",    "path": "/finanzas/payments/{payment}/receipt/{receipt}/download", "description": "Descarga un comprobante de pago",   "scope": "payments_view_receipts",   "permission": "payments_view_receipts" },
+        { "method": "POST",   "path": "/finanzas/clients/{id}/assign-clabe", "description": "Asigna CLABE virtual al cliente", "scope": "payments_assign_clabe",   "permission": "payments_assign_clabe" },
+        { "method": "POST",   "path": "/finanzas/payment-providers",  "description": "Crea proveedor de pago",    "scope": "payments_manage_providers", "permission": "payments_manage_providers" },
+        { "method": "PUT",    "path": "/finanzas/payment-providers/{id}", "description": "Actualiza proveedor de pago", "scope": "payments_manage_providers", "permission": "payments_manage_providers" },
+        { "method": "DELETE", "path": "/finanzas/payment-providers/{id}", "description": "Elimina proveedor de pago", "scope": "payments_manage_providers", "permission": "payments_manage_providers" },
+        { "method": "GET",    "path": "/finanzas/captura-pago",       "description": "Pantalla de captura de pago reportado (mostrador)", "scope": "payments_capture_manage", "permission": "payments_capture_manage" },
+        { "method": "POST",   "path": "/finanzas/captura-pago",       "description": "Aplica y registra un pago reportado por mostrador", "scope": "payments_capture_manage", "permission": "payments_capture_manage" },
+        { "method": "POST",   "path": "/payments/spei/webhook",       "description": "Webhook SPEI/OpenPay (notificación de transferencia entrante)", "scope": "public",  "permission": null },
+        { "method": "GET",    "path": "/api/megafamilia/payments/clabe", "description": "CLABE virtual del cliente (app móvil MegaFamilia)", "scope": "sanctum", "permission": null },
+        { "method": "POST",   "path": "/api/megafamilia/payments/notify-transfer", "description": "Notifica transferencia realizada (app móvil MegaFamilia)", "scope": "sanctum", "permission": null }
     ],
 
     "ai": {
