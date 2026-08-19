@@ -48,6 +48,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\BackfillBloqueosCommand::class,
                 \App\Modules\Addons\Roadmap\Console\CoherenciaPoolCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RetriageFrenosCommand::class,
+                \App\Modules\Addons\Roadmap\Console\InventarioSpecCommand::class,
                 // FASE 2A.3 — digest diario: prod tocada, decisiones mudas, dependencia del fallback
                 \App\Modules\Addons\Roadmap\Console\DigestCommand::class,
                 // Consejo asesor — piloto mínimo, 1 rol, manual (#344)

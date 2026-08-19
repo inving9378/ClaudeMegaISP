@@ -1,7 +1,9 @@
 # Fase 2B · Paso 0 — ¿contra qué mediría `medirContraSpec()`?
 
 > **Medido el 2026-08-18** sobre los 43 `module.json` de `app/Modules/`.
-> Reproducible: `php artisan circuito:inventario-spec` (ver abajo).
+> Reproducible en cualquier momento: **`php artisan circuito:inventario-spec --detalle`**
+> (READ-ONLY). Las cifras de abajo son de esa corrida; si envejecen, vuelve a correrlo — por eso es
+> un comando y no sólo una tabla pegada aquí.
 >
 > **Pregunta de Irving:** *"si la mayoría declara poco, el primer trabajo real es enriquecer las
 > declaraciones, no escribir el detector."* Ésta es la respuesta con números.
@@ -12,8 +14,8 @@
 Escribir el detector AHORA es correcto para un subconjunto acotado; lanzarlo sobre los 43 módulos
 generaría más ruido que trabajo.
 
-- Hay **117 endpoints declarados** contra **2,235 rutas registradas** → el spec describe **~5 %** de
-  la superficie real. Un detector "declarado vs real" mide un recorte, no el sistema.
+- Hay **117 endpoints declarados** contra **3,193 pares método+ruta registrados** → el spec describe
+  **~3.7 %** de la superficie real. Un detector "declarado vs real" mide un recorte, no el sistema.
 - **26/43 módulos declaran `api_endpoints`**; 17 lo traen vacío o ausente.
 - **Sólo 9/43 declaran `screens`** (28 pantallas en total) — y ésas sí traen `steps`, `actions` y
   `terms` de calidad. Es el campo más rico y el menos poblado.
