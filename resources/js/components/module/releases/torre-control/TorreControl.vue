@@ -92,6 +92,12 @@
           <b>{{ digest.mudas }}</b> mudas 7d <span class="tc-ap-kpi-sub">(antes {{ digest.mudas_baseline_vivos }})</span>
         </span>
         <span v-else class="tc-ap-kpi tc-ap-kpi-sub" title="El digest diario aún no corrió">— mudas 7d</span>
+        <!-- 2A.4 — FRENOS QUE PUSO IRVING. No caducan solos (son decisiones suyas, no consejos del
+             clasificador): esto es el recordatorio. El tooltip trae los que acumulan más
+             aprobaciones mudas, que es donde decidió una cosa y quiere otra. -->
+        <span v-if="digest && digest.frenos_humanos" class="tc-ap-kpi tc-ap-kpi-freno" :title="frenosTitle">
+          <b>{{ digest.frenos_humanos }}</b> frenos tuyos
+        </span>
       </div>
     </div>
 
@@ -509,6 +515,20 @@ export default {
         // #791 — foto del último `circuito:digest` (mudas 7d + referencia del "antes"). Null hasta
         // que el digest corra una vez (el cron lo llama; no bloquea el resto de la Torre).
         const digest = ref(null);
+        // 2A.4 — los frenos humanos NO caducan; el sistema no revoca una decisión de Irving por
+        // antigüedad. Este tooltip es el recordatorio: cuáles, desde hace cuánto y cuántas veces
+        // los aprobó en el vacío. Quitarlos sigue siendo suyo («Quitar el freno y aprobar»).
+        const frenosTitle = computed(() => {
+            const d = digest.value;
+            if (!d || !d.frenos_humanos) return '';
+            const top = (d.frenos_top || [])
+                .map(f => `#${f.id} · ${f.dias}d · ${f.mudas} aprob. mudas · ${f.rotulo}`)
+                .join('\n');
+            return `${d.frenos_humanos} frenos que pusiste tú y siguen en pie.\n`
+                + 'NINGUNO caduca solo: son decisiones tuyas, no consejos del clasificador.\n\n'
+                + (top ? `Los que más aprobaciones mudas acumulan:\n${top}` : '');
+        });
+
         const digestTitle = computed(() => {
             if (!digest.value) return 'El digest diario aún no corrió — sin foto que mostrar.';
             const d = digest.value;
@@ -1086,7 +1106,7 @@ export default {
             // #507 sub-paso 4 — autopilot, terminales en vivo, bombitas por módulo y paginación
             autopilot, terminalesActivas, terminalesLibres,
             // #791 — KPI de decisiones mudas (foto del digest diario) junto al banner del autopilot
-            digest, digestTitle,
+            digest, digestTitle, frenosTitle,
             contadores, moduloFiltro, moduloFiltroLabel, filtrarModulo, colaFiltrada, SIN_MODULO, bandejaTruncada,
             itemEnRevision, pregIdx, pregActual, pregPrev, pregNext, irAPregunta,
             preguntaRespondida, faltanPreguntas,
@@ -1285,6 +1305,10 @@ export default {
 /* #791 — KPI de decisiones mudas (7d) junto al banner del autopilot */
 .tc-ap-kpi-digest b{color:var(--tc-bad);}
 .tc-ap-kpi-digest.tc-ap-kpi-ok b{color:var(--tc-ok);}
+/* 2A.4 — frenos humanos en pie. Ámbar, no rojo: no es un error ni una alerta, es un recordatorio
+   de decisiones propias. Usa el token de aviso para respetar claro/oscuro. */
+.tc-ap-kpi-freno{cursor:help;}
+.tc-ap-kpi-freno b{color:var(--tc-warn, #d98324);}
 .tc-ap-kpi-sub{font-size:10.5px;color:var(--tc-muted);}
 
 /* Layout de dos columnas: sidebar interno + contenido */
