@@ -14,8 +14,11 @@
 Escribir el detector AHORA es correcto para un subconjunto acotado; lanzarlo sobre los 43 módulos
 generaría más ruido que trabajo.
 
-- Hay **117 endpoints declarados** contra **3,193 pares método+ruta registrados** → el spec describe
-  **~3.7 %** de la superficie real. Un detector "declarado vs real" mide un recorte, no el sistema.
+- Hay **117 endpoints declarados** contra **2,117 rutas atribuibles a un módulo** → el spec describe
+  **5.5 %** de la superficie. Un detector "declarado vs real" mide un recorte, no el sistema.
+  *(Cifra afinada después de la primera medición: el denominador correcto excluye HEAD y las 133
+  rutas de controllers legacy fuera de `app/Modules`, que no pertenecen a ningún manifiesto y no
+  pueden declararse por esta vía. Es el techo honesto de este mecanismo.)*
 - **26/43 módulos declaran `api_endpoints`**; 17 lo traen vacío o ausente.
 - **Sólo 9/43 declaran `screens`** (28 pantallas en total) — y ésas sí traen `steps`, `actions` y
   `terms` de calidad. Es el campo más rico y el menos poblado.
@@ -55,6 +58,27 @@ para reconstruir cosas que ya existen con otro nombre.
 
 Es el mismo principio de toda la fase 2A: una señal que no distingue sus dos causas se lee mal, y se
 lee mal en la dirección cómoda.
+
+## Qué se implementó a partir de esto (2026-08-18)
+
+La conclusión de Irving sobre estos números: *"la pregunta ya no es cómo escribo el detector
+semántico, es **por qué el sistema no tiene con qué medirse**"*. El primer producto del generador no
+son huecos de código sino **huecos de declaración** — ver [`circuito/directiva-2b.md`](circuito/directiva-2b.md).
+
+`AuditorService::medirContraSpec()` implementado (`c1aa78fd`) con cuatro detectores por lookup.
+**DRY-RUN: 41 gaps.**
+
+| detector | gaps |
+|---|---:|
+| `spec_declaracion_incompleta` | 21 |
+| `spec_modulo_sin_declarar` | 15 |
+| `spec_desalineada` | 5 |
+| `spec_permiso_inexistente` | **0** — lo esperado: es guardia contra regresiones, no generador |
+
+⚠️ **14 de los 41 caen en módulos que `circuito.auditor.carriles` no recorre**, y dos entradas de esa
+config no resuelven a ningún directorio (`Roadmap / Circuito CC` es un *footprint*, no un nombre de
+módulo; `Reportes` no existe) — el motor las audita en vacío sin avisar, así que **el módulo del
+propio circuito nunca se ha auditado**. Registrado como item **#809**.
 
 ## Recomendación de arranque
 
