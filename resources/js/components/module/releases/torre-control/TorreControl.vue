@@ -370,6 +370,30 @@
           </div>
         </div>
 
+        <!-- #880 — Épica #874 Fase 2: POR QUÉ NO AVANZA. Convierte "no se mueve y no sé por qué"
+             en una frase (columnas reales: bloqueado_por_bucle, consulta_supervisor, colision_pausada_por,
+             esperando_merge_irving, reap_count). Solo LECTURA por ahora: ninguna de estas señales
+             tiene todavía una acción reversible propia expuesta por API — cuando exista, aquí va su botón. -->
+        <div class="tc-card">
+          <h2 class="tc-h2">🚧 Por qué no avanza ({{ noAvanza.length }})</h2>
+          <div class="tc-meta" style="margin:-6px 0 10px">
+            Items con una señal real de estancamiento, no solo "lleva rato ahí".
+          </div>
+          <div v-if="!noAvanza.length" class="tc-meta">Nada estancado detectado ahora. ✓</div>
+          <div v-for="it in noAvanza" :key="it.id" class="tc-ev">
+            <div>
+              <span class="tc-idnum">#{{ it.id }}</span> <b>{{ it.title }}</b>
+            </div>
+            <div class="tc-meta" style="margin-top:3px">{{ it.porque_no_avanza }}</div>
+            <div class="tc-meta" style="margin-top:2px">
+              <span v-if="it.modulo">{{ it.modulo }} · </span>{{ it.estado_aprobacion }}<span v-if="it.updated_at"> · {{ hace(it.updated_at) }}</span>
+            </div>
+            <div class="tc-actions" style="margin-top:6px">
+              <button class="tc-btn tc-btn-ver" @click="verMas(it)">🔎 Ver</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Actividad reciente -->
         <div class="tc-card">
           <h2 class="tc-h2">Actividad reciente del circuito</h2>
@@ -555,6 +579,10 @@ export default {
         const decisionesAuto = ref([]);
         const deshaciendo    = ref(null);
         const deshacerMsg    = reactive({});
+
+        // #880 — Épica #874 Fase 2: "por qué no avanza este item" (lectura). Viene ya resuelto
+        // por el servidor (`RoadmapItem::porQueNoAvanza()`), una frase por item.
+        const noAvanza = ref([]);
 
         async function cargarDecisionesAuto() {
             try {
@@ -991,6 +1019,7 @@ export default {
                 riesgos.value = data.riesgos_auditoria || [];
                 auditItem.value = data.auditoria_item_id || null;
                 ejecuciones.value = data.ejecuciones || [];
+                noAvanza.value = data.no_avanza || [];   // #880 — "por qué no avanza este item"
                 if (data.autopilot) autopilot.value = data.autopilot;   // #507 banner del autopilot
                 digest.value = data.digest || null;   // #791 foto del último `circuito:digest`
                 applyEstado(data);
@@ -1265,6 +1294,8 @@ export default {
             errorCarga, bloquesFallidos, datosIncompletos, bloquesFallidosLista, falloBloque, kpi,
             // #878 — constancia visible + deshacer de lo que la máquina decidió sola.
             decisionesAuto, deshaciendo, deshacerMsg, deshacerAuto, verItemAuto, cargarDecisionesAuto, hace,
+            // #880 — Épica #874 Fase 2: "por qué no avanza este item" (lectura)
+            noAvanza,
             // Visor "Trabajando ahora" (#349)
             sesiones, resumenUltima, nowMs,
             logOpen, logTail, logPre, toggleLog,

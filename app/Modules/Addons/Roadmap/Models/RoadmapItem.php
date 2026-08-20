@@ -1224,6 +1224,30 @@ class RoadmapItem extends Model
                      ->where('updated_at', '<', now()->subDays($dias));
     }
 
+    /**
+     * #880 — Épica #874 Fase 2: candidatos a "por qué no avanza". Une los items con al menos UNA
+     * señal REAL de estancamiento (columnas que ya existen, no una fecha vieja por sí sola): el
+     * anti-bucle, una consulta a Thomas sin resolver, una colisión de archivos pausada, reclamos
+     * huérfanos repetidos, o el estancamiento por tiempo que ya detectaba `posibleEstancado` (#346).
+     * Cualquier estación puede traer una señal, por eso solo excluye lo ya cerrado/archivado.
+     */
+    public function scopeNoAvanza($query, int $dias = 10)
+    {
+        return $query->whereNull('archivado_at')
+                     ->whereNotIn('status', ['done', 'cancelled'])
+                     ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
+                     ->where(function ($q) use ($dias) {
+                         $q->where('bloqueado_por_bucle', true)
+                           ->orWhere('esperando_merge_irving', true)
+                           ->orWhereNotNull('colision_pausada_por')
+                           ->orWhere('reap_count', '>=', 2)
+                           ->orWhere(function ($q2) {
+                               $q2->whereNotNull('consulta_supervisor_at')->whereNull('consulta_resuelta_at');
+                           })
+                           ->orWhere(fn ($q3) => $q3->posibleEstancado($dias));
+                     });
+    }
+
     /** #334: fuera del radar activo (archivado). Su complemento = lo pendiente/visible. */
     public function scopeArchivado($query)
     {
@@ -1341,6 +1365,48 @@ class RoadmapItem extends Model
     public function tieneConsultaViva(): bool
     {
         return $this->consulta_supervisor_at !== null && $this->consulta_resuelta_at === null;
+    }
+
+    /**
+     * #880 — Épica #874 Fase 2: frase legible de por qué ESTE item no avanza, a partir de columnas
+     * reales que ya existen (nunca inventa un mecanismo de destrabe nuevo). Null si no hay ninguna
+     * señal conocida — la ausencia de frase NO se pinta como estancamiento.
+     *
+     * Prioridad: la señal MÁS específica primero (bucle → consulta → colisión → merge → reap huérfano),
+     * el estancamiento por tiempo al final por ser el más genérico de todos.
+     */
+    public function porQueNoAvanza(): ?string
+    {
+        if ($this->bloqueado_por_bucle) {
+            $extra = $this->motivo_bloqueo ? " ({$this->motivo_bloqueo})" : '';
+            return "El anti-bucle lo sacó de la cola automática: escaló varias veces con el mismo resultado, sin una decisión nueva de por medio{$extra}.";
+        }
+
+        if ($this->tieneConsultaViva()) {
+            $desde = $this->consulta_supervisor_at ? $this->consulta_supervisor_at->diffForHumans() : 'hace un momento';
+            $pregunta = mb_strimwidth((string) $this->consulta_supervisor, 0, 140, '…');
+            return "Espera que Thomas resuelva una consulta abierta {$desde}: «{$pregunta}»";
+        }
+
+        if ($this->colision_pausada_por) {
+            return "Pausado por colisión de archivos con el item #{$this->colision_pausada_por}: se reanuda solo en cuanto ese item termine.";
+        }
+
+        if ($this->esperando_merge_irving) {
+            return 'El trabajo ya está listo; solo falta que Irving lo integre (merge) a main.';
+        }
+
+        if ((int) $this->reap_count >= 2) {
+            return "Se reclamó y se soltó {$this->reap_count} veces sin que ninguna terminal lo terminara (reclamo huérfano).";
+        }
+
+        $enProgreso = $this->estado_aprobacion === 'en_progreso' || $this->status === 'in_progress' || (bool) $this->en_desarrollo_humano;
+        if ($enProgreso && $this->updated_at && $this->updated_at->lt(now()->subDays(10))) {
+            $dias = (int) floor($this->updated_at->diffInDays(now()));
+            return "Figura en progreso, pero no tiene actividad hace {$dias} días.";
+        }
+
+        return null;
     }
 
     /** Items con una consulta esperando resolución de Thomas. */
