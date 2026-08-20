@@ -23,8 +23,14 @@ use Throwable;
  */
 class EnvironmentHealthService
 {
-    public function __construct(private Migrator $migrator)
+    private Migrator $migrator;
+
+    /** Migrator NO se puede autowirear por el nombre de la clase: Laravel solo lo registra bajo
+     *  el alias 'migrator' (MigrationServiceProvider), no como binding de Illuminate\Database\
+     *  Migrations\Migrator. Se resuelve explícito para evitar el BindingResolutionException. */
+    public function __construct()
     {
+        $this->migrator = app('migrator');
     }
 
     private function seguro(string $nombre, callable $fn): array
