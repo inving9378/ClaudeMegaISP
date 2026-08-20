@@ -100,17 +100,26 @@ FLUJO (haz EXACTAMENTE esto para el item #__ITEM_ID__)
    Revisa title/description/prompt/nivel_riesgo/estado_aprobacion/comentarios_claude.
    Ya fue triado y aprobado antes de llegarte: tu trabajo es EJECUTARLO, no re-juzgar si merecía
    hacerse. Solo te detienes por una de las cuatro fronteras duras (consulta a Thomas).
-2. Crea su rama:  php artisan circuito:rama __ITEM_ID__ --sid=__SID__
-3. Implementa el cambio (Edit/Write en tu worktree). Add SELECTIVO + commit por sub-paso, en español.
+2. ¿CABE EN UNA VUELTA? Antes de tocar código:
+   php artisan circuito:cabida __ITEM_ID__ --sid=__SID__
+   - exit 0 (CABE) → sigue al paso 3 normal.
+   - exit 1 (NO CABE) → NO empieces a picar código. Descompón directo (sin crear rama):
+       php artisan circuito:sub-item __ITEM_ID__ --sid=__SID__ \
+         --titulo="<fase 1>" --spec="<detalle>"
+     (repite por cada fase que identifiques) y termina la vuelta con el META
+     (`ejecuto=false`, resumen tipo "no cabía en una vuelta, descompuesto en N sub-items").
+     El item queda como PARAGUAS (no se completa) — eso ya es automático, no lo toques tú.
+3. Crea su rama:  php artisan circuito:rama __ITEM_ID__ --sid=__SID__
+4. Implementa el cambio (Edit/Write en tu worktree). Add SELECTIVO + commit por sub-paso, en español.
    Registra con `circuito:reportar --tipo=decision` cada decisión de criterio que hayas tomado sola.
-4. VERIFICA regresión (según lo que tocaste):
+5. VERIFICA regresión (según lo que tocaste):
    - Frontend (.vue/.js/.css): compila con el SEMÁFORO, NO con npm directo:
        bash deploy/circuito/npm-build.sh
    - Backend PHP: `php -l` de lo que tocaste + `php artisan --version` (que bootee) + tinker puntual.
    Si la verificación FALLA: arréglala. Es tu trabajo, no una razón para escalar. Solo si tras
    intentarlo el arreglo cae en una frontera dura, consulta a Thomas. Nunca dejes algo roto: si te
    rindes, revierte tus commits de la rama primero.
-5. Integra (encola el auto-merge; el runner on-box lo mergea a main serializado y con su verificación):
+6. Integra (encola el auto-merge; el runner on-box lo mergea a main serializado y con su verificación):
    php artisan circuito:integrar __ITEM_ID__
    Marca el cierre + POBLA el reporte coloquial y el enlace de revisión (Thomas los EXIGE para dar
    el item por cerrado — sin ellos Irving no puede revisarlo):
@@ -121,7 +130,7 @@ FLUJO (haz EXACTAMENTE esto para el item #__ITEM_ID__)
        pestaña Hoja de ruta → botón Agregar item). NUNCA "/roadmap/item/N". ("Ver" lo usa.)
    php artisan tinker --execute='$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find(__ITEM_ID__); $i->estado_aprobacion="completado"; $i->reporte_coloquial="<qué cambió y dónde, en llano>"; $i->enlace_revision="<ruta REAL de la UI>"; $i->save();'
    php artisan circuito:reportar __ITEM_ID__ --sid=__SID__ --tipo=cierre --resumen="<qué hiciste + cómo lo verificaste>"
-6. Termina con el META (abajo).
+7. Termina con el META (abajo).
 
 MIGAS DE FASE (para el visor "Trabajando ahora"/rejilla de Terminales) — OBLIGATORIO, una por línea,
 al ENTRAR a cada fase, ANTES de hacer el trabajo:
