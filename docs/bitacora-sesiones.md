@@ -1238,3 +1238,38 @@ por tocar acceso de roles reales).
 
 Commit `5a48ee40` en rama `circuito/item-840-evaluar-unificacion-bajo-un-modulo-plant`,
 integración encolada vía `circuito:integrar`.
+
+## 2026-08-20 16:39 — Item #903: tanda 1 de carriles ampliados del auditor (Auth/Planes/Documentos)
+
+Ejecutor on-box (wt-6). Item #903 seguía a #809: decidir, por tandas, si se amplían los
+carriles del auditor (`config/circuito.php` → `circuito.auditor.carriles`) a los 11 módulos
+que hoy quedan fuera (Auth, Dashboard, Documentacion, Documentos, Layout, Localizacion,
+Release, IA, Planes, SmartImportExport, WarRoom).
+
+Irving ya había respondido las 3 preguntas del brief (aprobado): tandas de 2-3 módulos,
+priorizando criticidad de negocio (facturación/permisos/clientes primero), evaluando
+resultados entre tandas. Mi trabajo fue EJECUTAR esa decisión: elegir la tanda 1 concreta
+y aplicarla.
+
+**Tanda 1 elegida:** `Auth`, `Planes`, `Documentos` — las 3 más cercanas al criterio de
+Irving entre las 11 candidatas (ninguna es literalmente Clientes/Configuracion/CRM, que ya
+están en `serializado`). Auth = permisos/seguridad; Planes = catálogo ligado a facturación
+(Internet/VoIP/Custom/Bundle); Documentos = plantillas de contratos/facturas. Verificado
+`is_dir` + controllers reales + `module.json` `active:true` en los 3 antes de sumarlos
+(evita repetir el caso `Reportes` de #809). Van a `paralelo`: coupling de namespace cruzado
+medido por grep (Auth=1, Planes=4, Documentos=0 referencias externas), muy por debajo del
+umbral de `serializado` (Clientes in=8, Configuracion in=9, CRM in=8, ModuleManager in=7).
+
+Nota de criterio: #809 sugería empezar por los de 0% declarado (Auth/Dashboard/Release/
+Localizacion/Documentos/Documentacion). Prioricé el criterio explícito de Irving (negocio)
+sobre esa señal técnica cuando divergían — por eso entra Planes (no está en 0%) y no, por
+ejemplo, Dashboard o Localizacion.
+
+Commit `c243bc3f` en rama `circuito/item-903-decidir-por-tandas-si-se-amplian-los-c`,
+integración encolada vía `circuito:integrar`. Verificado: `php -l` limpio, `config:clear` +
+tinker confirmó los 3 módulos en el carril y `AuditorService::rutaModulo()` resuelve a
+directorio real para los 3.
+
+Los 8 módulos restantes quedan registrados como sub-item **#918** ("Tanda 2 de carriles
+ampliados"), para decidirse tras evaluar qué genera esta tanda 1 en la Hoja de Ruta —
+siguiendo el ritmo iterativo que pidió Irving (evaluar entre tandas, no aplicar las 11 de golpe).
