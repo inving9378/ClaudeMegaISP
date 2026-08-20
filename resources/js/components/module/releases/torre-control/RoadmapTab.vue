@@ -208,8 +208,8 @@
                 </div>
                 <div class="rdm-modal-footer">
                     <button class="btn btn-secondary me-2" @click="showAddModal = false">Cancelar</button>
-                    <button class="btn btn-primary" @click="addItem" :disabled="!newItem.title.trim()">
-                        Agregar
+                    <button class="btn btn-primary" @click="addItem" :disabled="!newItem.title.trim() || addingItem">
+                        {{ addingItem ? 'Agregando…' : 'Agregar' }}
                     </button>
                 </div>
             </div>
@@ -263,6 +263,7 @@ export default {
         const editPrompt   = ref('');
         const activeFilter = ref('all');
         const showAddModal = ref(false);
+        const addingItem   = ref(false); // #858: deshabilita el botón mientras se envía (anti doble-clic)
         const newItem      = ref({ title: '', priority: 'media', target_version: '', prompt: '' });
         const toast        = ref({ visible: false, message: '', type: 'success', icon: '', timer: null });
 
@@ -453,22 +454,33 @@ export default {
 
         // ── Agregar item ──────────────────────────────────────────────────────
 
+        // #858: clave de idempotencia por intento — un doble clic (mismo intento) reenvía la
+        // misma clave y el backend devuelve el item ya creado en vez de duplicarlo.
+        function idemKey() {
+            if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+            return 'idem-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        }
+
         async function addItem() {
-            if (!newItem.value.title.trim()) return;
+            if (!newItem.value.title.trim() || addingItem.value) return;
+            addingItem.value = true;
             try {
                 const payload = {
-                    title:          newItem.value.title.trim(),
-                    priority:       newItem.value.priority || null,
-                    target_version: newItem.value.target_version || null,
-                    prompt:         newItem.value.prompt || null,
+                    title:            newItem.value.title.trim(),
+                    priority:         newItem.value.priority || null,
+                    target_version:   newItem.value.target_version || null,
+                    prompt:           newItem.value.prompt || null,
+                    idempotency_key:  idemKey(),
                 };
                 const { data } = await axios.post('/api/roadmap/items', payload);
-                items.value.push(data.item);
+                if (!data.idempotente) items.value.push(data.item);
                 newItem.value = { title: '', priority: 'media', target_version: '', prompt: '' };
                 showAddModal.value = false;
                 showToast(data.aviso || 'Item agregado.', 'success', 'bi bi-plus-circle-fill');
             } catch {
                 showToast('Error al agregar el item.', 'error', 'bi bi-exclamation-circle-fill');
+            } finally {
+                addingItem.value = false;
             }
         }
 
@@ -504,7 +516,7 @@ export default {
         return {
             darkMode, items, loading, expandedId, editPrompt,
             activeFilter, filters, counts, groups, visibleGroups, hasVisibleItems,
-            showAddModal, newItem, toast,
+            showAddModal, addingItem, newItem, toast,
             subtasksDone, subtasksPct, lastAdvance, relativeTime, fullDateTime,
             canLaunch, launchTitle, statusLabel, statusIcon,
             cycleStatus, launchItem, toggleExpand, savePrompt, launchFromDetail,
