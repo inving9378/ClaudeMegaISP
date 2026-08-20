@@ -295,6 +295,15 @@ return [
         */
         'mecanico' => [
             'enabled'   => (bool) env('CIRCUITO_THOMAS_MECANICO', true),
+
+            /*
+            | SUB-TECHO del carril mecánico. Es más conservador que el del autopilot A PROPÓSITO: el
+            | carril mecánico no tiene un brief humano detrás. Esa asimetría es información, no una
+            | inconsistencia — el panel la muestra.
+            |
+            | ⚠️ El nivel EFECTIVO es `min(techo_global, este)`. Subirlo por encima del techo global
+            | no tiene efecto y `TorreTechosCoherentesTest` lo impide. Bajarlo siempre se puede.
+            */
             'max_nivel' => env('CIRCUITO_THOMAS_MECANICO_MAX_NIVEL', 'B'),
 
             // Tope de auto-aprobaciones mecánicas por día. Freno de mano: si la política se
@@ -345,6 +354,21 @@ return [
         | archivo por archivo, no sólo el título.
         |
         */
+        /*
+        | SUB-TECHO del carril «YA DECIDIDO» (`evaluarYaDecidido`).
+        |
+        | ⚠️ NACE EN `C` PORQUE ES LO QUE ESE CARRIL HACE HOY: hasta esta entrega no miraba ningún
+        | tope de nivel, así que un item C con el brief completamente respondido quedaba
+        | `aprobado_revisor` y se despachaba. Inicializarlo en `B` "por prudencia" habría apagado un
+        | comportamiento existente como efecto colateral de construir el panel — y después nadie
+        | sabría si lo que cambió fue el tablero o la política.
+        |
+        | Bajarlo es un clic de Irving en el panel, no una decisión de quien escribe esta línea.
+        */
+        'ya_decidido' => [
+            'max_nivel' => env('CIRCUITO_THOMAS_YA_DECIDIDO_MAX_NIVEL', 'C'),
+        ],
+
         'automerge' => [
             'enabled' => (bool) env('CIRCUITO_THOMAS_AUTOMERGE', true),
 
