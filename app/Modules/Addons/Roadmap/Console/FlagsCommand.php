@@ -11,6 +11,7 @@ use Illuminate\Console\Command;
  *   modo=<aviso_previo|autonomo>
  *   revisor=<0|1>
  *   modelo=<alias CLI, ej. sonnet|opus> (#336)
+ *   max_builds=<N> (#873, semáforo de npm-build.sh)
  */
 class FlagsCommand extends Command
 {
@@ -24,6 +25,7 @@ class FlagsCommand extends Command
         $this->line('modo=' . $svc->getModo());
         $this->line('revisor=' . ($svc->revisorEnabled() ? '1' : '0'));   // #338
         $this->line('modelo=' . $svc->resolveModeloCli());                // #336
+        $this->line('max_builds=' . $svc->maxBuilds());                   // #873
 
         return self::SUCCESS;
     }
