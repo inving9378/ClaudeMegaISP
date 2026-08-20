@@ -113,6 +113,9 @@ Route::middleware(['web', 'auth'])
         // #878 — CONSTANCIA + DESHACER de lo que la máquina decidió sola. Es la contraparte de la
         // auto-decisión: no una espera previa, sino la reversibilidad posterior.
         Route::get('/torre/decisiones-automaticas', [RoadmapController::class, 'decisionesAutomaticas']);
+        // #885 — Fase 8 de la Épica #874: historial de acciones ejecutadas desde los botones de la
+        // Torre (quién, qué botón, cuándo, resultado). Solo lectura, agrega `roadmap_items.log`.
+        Route::get('/torre/historial-acciones', [RoadmapController::class, 'historialAcciones']);
         Route::post('/items/{id}/deshacer-decision', [RoadmapController::class, 'deshacerDecision'])->whereNumber('id');
         // Árbol de sesiones `claude` vivas en el box + banner de colisión (#345). Solo backend
         // por ahora (endpoint de lectura); panel Vue de la Torre queda para una siguiente entrega.

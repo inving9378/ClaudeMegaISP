@@ -223,6 +223,83 @@ class RoadmapController extends Controller
         ['icono' => '🔒', 'texto' => 'Vía externa (Cowork/MCP): solo nivel A puede quedar aprobado_claude', 'donde' => 'guard() — sin endpoint'],
     ];
 
+    /**
+     * GET /api/roadmap/torre/historial-acciones — FASE 8 (#885, Épica #874): "quién hizo qué botón,
+     * cuándo y con qué resultado" en la Torre. Depende de la Fase 3 (#881, catálogo de acciones), que
+     * al día de hoy sigue sin validar — pero el patrón de auditoría que #881 iba a formalizar YA
+     * existe de facto: ~15 endpoints de este controller (decidir/deshacer-decision/override/urgente/
+     * cancelar-disparo/archivar/…) escriben cada acción en `roadmap_items.log` (json append-only,
+     * {ts, por, decision|evento, estado, comentario|motivo}). Esta pantalla SOLO LEE ese log ya
+     * existente — no crea tabla ni permiso nuevos: reusa `roadmap_view`, el mismo gate de `torre()`,
+     * porque es una vista de solo lectura equivalente (ver la bandeja ya expone quién decidió qué).
+     *
+     * Scan acotado (no hay índice sobre el json): trae como mucho 300 items más recientes tocados
+     * (o el item pedido si viene `item_id`), aplana sus entradas de log y ordena por fecha. A escala
+     * dev (torre() completo ya mide 121ms con 100 items) esto es holgado; si el volumen crece habrá
+     * que mover el log a una tabla propia — no es este paso.
+     *
+     * Query en DOS pasos a propósito: `ORDER BY updated_at` filesort combinado con la columna `log`
+     * (json, hay filas con historiales grandes) revienta el sort buffer de MySQL («Out of sort
+     * memory») — medido en dev, y pasa igual con un simple `WHERE log IS NOT NULL` en la MISMA query
+     * que el ORDER BY, aunque `log` ni se seleccione (el optimizer igual la toca para evaluar el
+     * WHERE). Paso 1 ordena por `updated_at` SIN tocar `log` en absoluto (sin WHERE sobre esa
+     * columna); paso 2 trae `log` para esos IDs sin ORDER BY (sin filesort). Los items sin log o con
+     * log vacío simplemente no aportan filas al aplanar — no hace falta filtrarlos en SQL.
+     */
+    public function historialAcciones(Request $request): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = $request->validate([
+            'item_id' => ['sometimes', 'integer', 'min:1'],
+            'por'     => ['sometimes', 'nullable', 'string', 'max:64'],
+            'limit'   => ['sometimes', 'integer', 'min:1', 'max:300'],
+        ]);
+
+        $limit = $data['limit'] ?? 100;
+
+        if (! empty($data['item_id'])) {
+            $items = RoadmapItem::query()->where('id', $data['item_id'])->get(['id', 'title', 'log']);
+        } else {
+            $ids   = RoadmapItem::query()->orderByDesc('updated_at')->limit(300)->pluck('id');
+            $items = RoadmapItem::query()->whereIn('id', $ids)->get(['id', 'title', 'log']);
+        }
+
+        $acciones = [];
+        foreach ($items as $item) {
+            foreach ((array) $item->log as $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+                $ts = $entry['ts'] ?? $entry['created_at'] ?? null;
+                if (! $ts) {
+                    continue;
+                }
+                $por = $entry['por'] ?? $entry['autor'] ?? null;
+                if (! empty($data['por']) && stripos((string) $por, $data['por']) === false) {
+                    continue;
+                }
+                $acciones[] = [
+                    'item_id'    => $item->id,
+                    'item_title' => $item->title,
+                    'ts'         => $ts,
+                    'por'        => $por,
+                    'accion'     => $entry['decision'] ?? $entry['evento'] ?? 'evento',
+                    'estado'     => $entry['estado'] ?? null,
+                    'detalle'    => $entry['comentario'] ?? $entry['motivo'] ?? $entry['nota'] ?? null,
+                ];
+            }
+        }
+
+        usort($acciones, fn ($a, $b) => strcmp((string) $b['ts'], (string) $a['ts']));
+
+        return response()->json([
+            'ok'                     => true,
+            'acciones'               => array_slice($acciones, 0, $limit),
+            'total_items_escaneados' => $items->count(),
+        ]);
+    }
+
     public function torre(): JsonResponse
     {
         $this->authorize('roadmap_view');
