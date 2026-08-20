@@ -46,6 +46,7 @@ class AuditorService
     public function __construct(
         private RoadmapCircuitoService $circuito,
         private RoadmapIntakeService $intake,
+        private TorreConfigService $torreConfig,
     ) {
     }
 
@@ -53,10 +54,16 @@ class AuditorService
     // GATING — cuándo corre
     // ═══════════════════════════════════════════════════════════════════════════════════════════
 
-    /** KILL-SWITCH propio del motor (config/env). Independiente del kill switch global. */
+    /**
+     * KILL-SWITCH propio del motor. Independiente del kill switch global.
+     *
+     * Fuente única = `torre_config.auditor_activo` (panel de la Torre → Configuración), no
+     * `config('circuito.auditor.enabled')` — un panel que muestra un valor que no gobierna nada
+     * es el "panel que miente" que `TorreAutomationPolicy` existe para evitar (item #852).
+     */
     public function habilitado(): bool
     {
-        return (bool) config('circuito.auditor.enabled', false);
+        return (bool) $this->torreConfig->get()->auditor_activo;
     }
 
     /**
@@ -117,7 +124,7 @@ class AuditorService
         $base = ['cola' => $cola, 'slots_libres' => $slots, 'umbral' => $umbral];
 
         if (! $this->habilitado()) {
-            return $base + ['corre' => false, 'motivo' => 'Motor APAGADO (circuito.auditor.enabled = false).'];
+            return $base + ['corre' => false, 'motivo' => 'Motor APAGADO (auditor_activo = false en Torre → Configuración).'];
         }
         if ($this->circuito->isPaused()) {
             return $base + ['corre' => false, 'motivo' => 'Circuito en PAUSA (kill switch global): el motor no crea nada.'];
@@ -126,7 +133,7 @@ class AuditorService
             return $base + ['corre' => true, 'motivo' => 'Forzado (--forzar): se ignoran umbral e intervalo.'];
         }
 
-        $intervalo = (int) config('circuito.auditor.min_intervalo_minutos', 15);
+        $intervalo = $this->torreConfig->get()->auditor_cooldown_min;
         $ultima    = $this->ultimaCorrida();
         if ($ultima !== null && (time() - $ultima) < $intervalo * 60) {
             $faltan = (int) ceil(($intervalo * 60 - (time() - $ultima)) / 60);
@@ -1174,7 +1181,7 @@ class AuditorService
      */
     public function ciclo(bool $apply, ?int $cap = null, ?string $soloModulo = null): array
     {
-        $cap        = $cap ?? (int) config('circuito.auditor.cap_por_ciclo', 10);
+        $cap        = $cap ?? $this->torreConfig->get()->auditor_max_por_corrida;
         $porModulo  = max(1, (int) config('circuito.auditor.items_por_modulo_por_ciclo', 2));
         $modulos    = $soloModulo ? [$soloModulo] : $this->modulosAAuditar();
 
