@@ -1462,6 +1462,24 @@ class RoadmapCircuitoService
         DB::table('settings')->where('key', self::DISPARO_KEY)->delete();
     }
 
+    /**
+     * Ventana de deshacer 15s (#863): si el flag de disparo pendiente apunta exactamente a este
+     * item (y el picker aún no lo consumió), lo limpia para que no se adelante una vuelta. No
+     * toca el flag si es de otro item o de un disparo general (`item_id` null) — un "Jalar
+     * trabajo ahora" de otro origen no debe cancelarse por deshacer un item ajeno.
+     */
+    public function cancelDisparoPendiente(int $itemId): bool
+    {
+        $flag = $this->pendingDisparo();
+        if ($flag && (int) ($flag['item_id'] ?? 0) === $itemId) {
+            $this->clearDisparo();
+
+            return true;
+        }
+
+        return false;
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // COLA DE MERGE (#334 F0-fix) — la Torre (www-data) encola; el runner on-box
     // (meganet, en el checkout PRINCIPAL) ejecuta el merge real. Ver MergeRunner.

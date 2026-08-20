@@ -531,6 +531,67 @@ class RoadmapController extends Controller
         ]);
     }
 
+    /**
+     * POST /api/roadmap/items/{id}/cancelar-disparo (#863) — ventana de deshacer de 15s en el
+     * toast del aviso cuando un item nace `aprobado_irving` (entró directo a la cola, ver #566).
+     * Gate `circuito.disparar` — mismo permiso que disparar/urgente (ya es "acción que decide si
+     * el circuito ejecuta"), evita inventar un permiso nuevo para una acción hermana.
+     *
+     * ALCANCE (decisión registrada — ver `comentarios_claude` del item, preguntas q1-q3): solo
+     * revierte mientras el scheduler NO haya reclamado el item (`worker_sid` sigue null). Si ya
+     * quedó `en_progreso` con una terminal asignada, deshacerlo pelearía con el reclamo atómico
+     * anti-colisión (#341) y el flock de `SchedulerCommand` — más riesgoso que el problema que
+     * resuelve, así que NO se implementa: se informa que ya no se puede deshacer.
+     */
+    public function cancelarDisparo(int $id): JsonResponse
+    {
+        $this->authorize('circuito.disparar');
+
+        $item = RoadmapItem::find($id);
+        if (! $item) {
+            return response()->json(['error' => 'Item no encontrado.'], 404);
+        }
+
+        $segundos = $item->created_at ? now()->diffInSeconds($item->created_at) : 999;
+        if ($segundos > 15) {
+            return response()->json(['error' => 'La ventana de deshacer (15s) ya expiró.'], 422);
+        }
+
+        if (! empty($item->worker_sid)) {
+            return response()->json(['error' => 'Ya se lanzó a una terminal; no se puede deshacer.'], 409);
+        }
+
+        if ($item->estado_aprobacion !== 'aprobado_irving') {
+            return response()->json(['error' => 'Este item ya no está en la cola de despacho.'], 422);
+        }
+
+        // Vuelve exactamente al estado de "recién creado, sin triar" (#456): estado_aprobacion Y
+        // nivel_riesgo en null juntos, para que quede fuera de TODAS las vías de auto-reclamo del
+        // scheduler (incluida la de nivel_riesgo='A'+pendiente_revision) y pase por triaje normal.
+        $item->estado_aprobacion = 'pendiente_revision';
+        $item->nivel_riesgo      = null;
+        $item->aprobado_por      = null;
+        $item->revisado_at       = null;
+        $item->log = array_merge($item->log ?? [], [[
+            'ts'     => now()->toIso8601String(),
+            'por'    => $this->actorLabel(),
+            'evento' => 'disparo_cancelado_undo',
+            'via'    => 'torre',
+        ]]);
+        $item->save();
+
+        try {
+            $this->svc->cancelDisparoPendiente($item->id);
+        } catch (\Throwable $e) {
+            Log::warning('circuito.undo_disparo.limpieza_fallo', ['item_id' => $item->id, 'error' => $e->getMessage()]);
+        }
+
+        return response()->json([
+            'item'    => $item,
+            'mensaje' => 'Deshecho: el item volvió a la bandeja de revisión, sin ejecutar.',
+        ]);
+    }
+
     /** Etiqueta del actor humano para auditoría (login/email/id). */
     private function actorLabel(): string
     {
