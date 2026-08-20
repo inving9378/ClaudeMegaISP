@@ -67,10 +67,21 @@ class TorreAutomationPolicy
     // ── TECHOS ──────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * El techo GLOBAL de `nivel_riesgo` que la máquina puede aprobar sola. `null` = ninguno (modo
-     * manual: todo va a Irving). ESTA es la lectura única; nadie más consulta la config para esto.
+     * La POLÍTICA BASE: hasta qué `nivel_riesgo` aprueba la máquina por defecto.
+     * `null` = ninguno (modo `manual`). ESTA es la lectura única; nadie más consulta la config.
+     *
+     * ⚠️ SE LLAMA «BASE» Y NO «TECHO» A PROPÓSITO. En `estandar`/`asistido`/`autonomo` un
+     * `automatizacion_override = auto` sobre un item concreto SÍ puede excederla — así que no es un
+     * techo, es un valor por defecto, y llamarlo techo sería estrenar el panel con un nombre que
+     * miente. Es exactamente la enfermedad que esta fase viene curando (`autopilot.max_nivel`
+     * gobernando a todos, `destrabe_bandeja.enabled` diciendo que sí con el comando muerto).
+     *
+     * La ÚNICA excepción es `manual`, que sí es absoluto: ver `estadoInicial()`.
+     *
+     * Los SUB-TECHOS por actor sí son techos de verdad: nunca exceden la base
+     * (`TorreTechosCoherentesTest` lo fija como desigualdad).
      */
-    public function techoGlobal(): ?string
+    public function politicaBase(): ?string
     {
         return $this->config->get()->techoGlobal();
     }
@@ -87,7 +98,7 @@ class TorreAutomationPolicy
      */
     public function nivelEfectivo(string $actor): ?string
     {
-        $global = $this->techoGlobal();
+        $global = $this->politicaBase();
         if ($global === null) {
             return null;   // modo manual: no hay actor que apruebe nada
         }
@@ -133,23 +144,94 @@ class TorreAutomationPolicy
      */
     public function estadoInicial(RoadmapItem $item, string $actor): string
     {
+        // (1-4) FRONTERA DURA. Gana siempre, por delante de todo. No se levanta desde ninguna
+        // configuración: ni con `autonomo`, ni con `override = auto`.
         if ($this->tocaFronteraDura($item) !== null) {
+            return 'requiere_irving';
+        }
+
+        // (5) `manual` ES ABSOLUTO. Ningún override lo sobrepasa.
+        //
+        // Es un PARO DE EMERGENCIA, y un paro con excepciones no es un paro. El modo de fallo que
+        // esto cierra: el override es PEGAJOSO —se pone una vez y ahí se queda—, así que bajar la
+        // política a `manual` por un incidente dejaría volando los items con un `auto` puesto hace
+        // tres semanas. `manual` tiene que significar manual.
+        if ($this->politicaBase() === null) {
             return 'requiere_irving';
         }
 
         $override = (string) ($item->automatizacion_override ?? 'hereda');
 
+        // (6) Bajar la automatización de un item se permite siempre, sin fricción.
         if ($override === 'manual') {
             return 'requiere_irving';
         }
 
+        // (7) Subir SÍ puede exceder la política base — pero sólo en `estandar`/`asistido`/
+        // `autonomo`, que son gradaciones de «cuánta autonomía por defecto». Una excepción
+        // deliberada sobre un item concreto es una autorización explícita de Irving, y es el caso
+        // que le da valor al override: política en `estandar` y aun así quiero que ESTE B corra solo.
         if ($override === 'auto') {
             return $this->estadoAprobado($item);
         }
 
+        // (8) Matriz: nivel del item contra el nivel efectivo del actor.
         return $this->permite($actor, $item->nivel_riesgo)
             ? $this->estadoAprobado($item)
             : 'requiere_irving';
+    }
+
+    /**
+     * EL OVERRIDE ES DE UN SOLO USO: se consume en la primera resolución de estado y el item vuelve
+     * a `hereda`.
+     *
+     * La autorización que da Irving es **para este item, ahora** — no un permiso permanente que
+     * sobreviva a cambios de política que haga meses después. Esto elimina el problema de la
+     * caducidad sin inventar una fecha de caducidad, que sería otro número que nadie recuerda.
+     *
+     * SOLO MUTA el atributo (se persiste en el `save()` en curso del actor), igual que
+     * `RoadmapItem::contarEscalacion()`. Nunca guarda por su cuenta: si guardara, un actor que
+     * decide y luego falla habría quemado la autorización sin haberla usado.
+     *
+     * @return bool si había un override que consumir (para que el actor lo anote en su rastro)
+     */
+    public function consumirOverride(RoadmapItem $item): bool
+    {
+        $previo = (string) ($item->automatizacion_override ?? 'hereda');
+        if ($previo === 'hereda') {
+            return false;
+        }
+
+        $item->automatizacion_override = 'hereda';
+
+        return true;
+    }
+
+    /**
+     * Items con un override VIGENTE que excede la política base. Es el contador de la portada: una
+     * excepción que nadie ve es un agujero; una que se cuenta en la portada es una decisión.
+     *
+     * @return array{total:int,ids:array<int,int>}
+     */
+    public function overridesPorEncimaDeLaBase(): array
+    {
+        $base = $this->politicaBase();
+
+        $q = RoadmapItem::query()
+            ->whereNull('archivado_at')
+            ->where('automatizacion_override', 'auto')
+            ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado']);
+
+        // Con la base en `manual` NINGÚN override corre, así que todos los `auto` vigentes exceden
+        // la base por definición. Con base A/B/C, sólo los de nivel por encima.
+        if ($base !== null) {
+            $permitidos = array_slice(['A', 'B', 'C'], 0, self::ORDEN[$base]);
+            $q->where(fn ($w) => $w->whereNotIn('nivel_riesgo', $permitidos)->orWhereNull('nivel_riesgo'));
+        }
+
+        $ids = $q->orderBy('id')->limit(200)->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        return ['total' => count($ids), 'ids' => $ids];
     }
 
     /**
@@ -183,7 +265,7 @@ class TorreAutomationPolicy
     public function panorama(): array
     {
         $cfg    = $this->config->get();
-        $global = $this->techoGlobal();
+        $global = $this->politicaBase();
 
         $actores = [];
         foreach (array_keys(self::SUBTECHOS) as $actor) {
@@ -212,7 +294,9 @@ class TorreAutomationPolicy
         return [
             'nivel_automatizacion' => $cfg->nivel_automatizacion,
             'niveles'              => TorreConfig::NIVELES,
-            'techo_global'         => $global,
+            'politica_base'        => $global,
+            'manual_es_absoluto'   => $global === null,
+            'overrides_excedentes' => $this->overridesPorEncimaDeLaBase(),
             'actores'              => $actores,
             'matriz'               => $matriz,
             'topes_duros'          => array_keys((array) config('circuito.thomas.escalamiento', [])),

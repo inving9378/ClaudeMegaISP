@@ -44,9 +44,20 @@ class TorreConfig extends Model
         'auditor_cooldown_min'    => 'integer',
     ];
 
-    /** El techo de nivel_riesgo (A|B|C|null) que implica el nivel de automatización vigente. */
+    /**
+     * El techo de `nivel_riesgo` (A|B|C|null) que implica el nivel de automatización vigente.
+     *
+     * ⚠️ `array_key_exists` y NO `??`: el `null` de `manual` es un valor LEGÍTIMO del mapa («la
+     * máquina no aprueba nada»), y `??` no lo distingue de «la clave no existe» — con `??` el modo
+     * `manual` caía al fallback `'A'` y seguía aprobando items nivel A. Encontrado al verificar la
+     * semántica del override el 2026-08-19, antes de cablearlo.
+     *
+     * Un valor desconocido en la columna cae a `'A'`, el más restrictivo que sigue siendo útil.
+     */
     public function techoGlobal(): ?string
     {
-        return self::TECHO_POR_NIVEL[$this->nivel_automatizacion] ?? 'A';
+        return array_key_exists($this->nivel_automatizacion, self::TECHO_POR_NIVEL)
+            ? self::TECHO_POR_NIVEL[$this->nivel_automatizacion]
+            : 'A';
     }
 }
