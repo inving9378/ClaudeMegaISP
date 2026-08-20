@@ -76,6 +76,83 @@
             "description": "Eliminar item",
             "scope": "roadmap_manage",
             "permission": "roadmap_manage"
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap-externo/{token}",
+            "description": "Circuito CC (Claude Cowork): lista items con filtros de estado/nivel, sin login, protegido por token en el path",
+            "scope": "roadmap_externo_read",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap-externo/{token}/item/{id}",
+            "description": "Circuito CC: detalle de un item por id",
+            "scope": "roadmap_externo_read",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap-externo/{token}/q/{estado}/{nivel}/{page}/{perpage}",
+            "description": "Circuito CC: lista filtrada por PATH (el fetcher de Cowork descarta el query string); \"-\" = comodín",
+            "scope": "roadmap_externo_read",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap-externo/{token}/item/{id}/historial",
+            "description": "Circuito CC: historial append-only de reportes del item",
+            "scope": "roadmap_externo_read",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/roadmap-externo/{token}/item/{id}",
+            "description": "Circuito CC: actualiza estado_aprobacion/nivel_riesgo/comentarios_claude (allowlist de 3 campos)",
+            "scope": "roadmap_externo_write",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap-externo/{token}/item/{id}/set",
+            "description": "Circuito CC: variante de escritura por GET (query params) del mismo contrato que el POST de arriba",
+            "scope": "roadmap_externo_write",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap-externo/{token}/item/{id}/set/{estado}/{nivel}/{comentario}",
+            "description": "Circuito CC: escritura por PATH (\"-\" = no cambiar ese campo)",
+            "scope": "roadmap_externo_write",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap-externo/{token}/item/{id}/setb64/{estado}/{nivel}/{comentarioB64}",
+            "description": "Circuito CC: como la escritura por PATH, con el comentario en BASE64URL (evita el 403 de nginx cuando trae '/')",
+            "scope": "roadmap_externo_write",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/roadmap-externo/{token}/item",
+            "description": "Circuito CC: crea un item nuevo (nace siempre en pendiente_revision); usa create_token, cae al write_token si no está definido",
+            "scope": "roadmap_externo_write",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap-externo/{token}/crear/{modulo}/{tituloB64}/{specB64}",
+            "description": "Circuito CC: alta de item por PATH + BASE64URL para el fetcher de Cowork (solo GET); \"-\" = sin módulo",
+            "scope": "roadmap_externo_write",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/roadmap-externo/{token}/item/{id}/reporte",
+            "description": "Circuito CC: agrega un reporte nuevo al historial del item (se acumula, no pisa el anterior)",
+            "scope": "roadmap_externo_write",
+            "permission": null
         }
     ],
     "ai": {
