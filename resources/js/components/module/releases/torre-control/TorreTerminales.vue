@@ -29,8 +29,13 @@
       <div class="tt-sup-desk">
         <div class="tt-sup-node">
           <span class="tt-avatar tt-av-sup">
-            <img class="tt-avatar-img" :src="supervisorUrl" :alt="(supervisor && supervisor.nombre) || 'Supervisor'" loading="lazy" @error="onAvatarError" />
+            <img v-if="supervisor && supervisor.avatar_url" class="tt-avatar-img" :src="supervisor.avatar_url" :alt="(supervisor && supervisor.nombre) || 'Supervisor'" loading="lazy" />
+            <span v-else class="tt-avatar-img tt-avatar-initials" :style="initialsStyle((supervisor && supervisor.nombre) || 'Supervisor')">{{ initials((supervisor && supervisor.nombre) || 'Supervisor') }}</span>
             <span class="tt-desk-ico" aria-hidden="true"><i class="bi bi-clipboard-check"></i></span>
+            <label v-if="puedeEditarAvatar" class="tt-avatar-cam" :class="{ 'tt-avatar-cam-busy': uploadingAvatar === 'supervisor' }" title="Cambiar foto" @click.stop>
+              <i class="bi" :class="uploadingAvatar === 'supervisor' ? 'bi-arrow-repeat tt-spin' : 'bi-camera-fill'"></i>
+              <input type="file" accept="image/jpeg,image/png,image/webp" class="tt-avatar-input" @click.stop @change="onAvatarFile($event, 'supervisor')" />
+            </label>
           </span>
           <div class="tt-idblock">
             <span class="tt-name">{{ (supervisor && supervisor.nombre) || 'Supervisor' }}</span>
@@ -81,12 +86,17 @@
         <div class="tt-term-head">
           <!-- Avatar de la persona (por slot wt-K) + animación enganchada al estado live -->
           <span class="tt-avatar" :class="avatarClass(s)">
-            <img class="tt-avatar-img" :src="avatarUrl(s.sid)" :alt="s.nombre || s.sid" loading="lazy" @error="onAvatarError" />
+            <img v-if="s.avatar_url" class="tt-avatar-img" :src="s.avatar_url" :alt="s.nombre || s.sid" loading="lazy" />
+            <span v-else class="tt-avatar-img tt-avatar-initials" :style="initialsStyle(s.nombre || s.sid)">{{ initials(s.nombre || s.sid) }}</span>
             <span class="tt-avatar-ring" aria-hidden="true"></span>
             <span class="tt-avatar-dot" aria-hidden="true"></span>
             <span v-if="gestureIcon(s)" class="tt-avatar-gesture" :class="gestureClass(s)" aria-hidden="true">
               <i :class="gestureIcon(s)"></i>
             </span>
+            <label v-if="puedeEditarAvatar" class="tt-avatar-cam" :class="{ 'tt-avatar-cam-busy': uploadingAvatar === s.sid }" title="Cambiar foto" @click.stop>
+              <i class="bi" :class="uploadingAvatar === s.sid ? 'bi-arrow-repeat tt-spin' : 'bi-camera-fill'"></i>
+              <input type="file" accept="image/jpeg,image/png,image/webp" class="tt-avatar-input" @click.stop @change="onAvatarFile($event, s.sid)" />
+            </label>
           </span>
           <span class="tt-idblock">
             <span class="tt-name">{{ s.nombre || s.sid }}</span>
@@ -150,6 +160,11 @@
         <pre ref="fsPre" class="tt-pre tt-pre-fs">{{ fsSesion.log_tail || 'Sin salida todavía…' }}</pre>
       </div>
     </div>
+
+    <!-- #854: error de subida de avatar (validación server-side: tipo/tamaño real) -->
+    <transition name="tt-toast-fade">
+      <div v-if="avatarError.visible" class="tt-avatar-toast"><i class="bi bi-exclamation-triangle-fill me-1"></i>{{ avatarError.message }}</div>
+    </transition>
   </div>
 </template>
 
@@ -246,15 +261,6 @@ export default {
             return stepReached(s, key) ? "tt-step-done" : "tt-step-pend";
         };
 
-        // Avatar por SLOT (wt-K); si falta el png real cae al placeholder neutro (no truena).
-        const AVATAR_BASE = "/images/circuito/";
-        const AVATAR_PLACEHOLDER = AVATAR_BASE + "avatar-placeholder.svg";
-        const avatarUrl = (sid) => `${AVATAR_BASE}${sid}.png`;
-        const onAvatarError = (e) => {
-            if (e.target && e.target.src.indexOf("avatar-placeholder") === -1) {
-                e.target.src = AVATAR_PLACEHOLDER;   // swap único → sin bucle
-            }
-        };
         // Estado visual del avatar (engancha la animación a los flags live existentes, sin tocar lógica).
         const avatarClass = (s) => {
             if (isStretching(s.sid)) return "tt-av-stretch";   // #475: gesto de cansancio al terminar
@@ -262,7 +268,52 @@ export default {
             if (!s.running) return "tt-av-off";
             return s.stale ? "tt-av-stale" : "tt-av-run";
         };
-        const supervisorUrl = AVATAR_BASE + "supervisor.png";
+
+        // #854: sin foto (avatar_url null) → iniciales sobre color derivado del nombre. Nunca imagen
+        // rota ni hueco vacío. Ejemplo del item: "Maya" → "M".
+        const initials = (name) => (String(name || "?").trim().charAt(0) || "?").toUpperCase();
+        const initialsStyle = (name) => {
+            let h = 0;
+            const str = String(name || "?");
+            for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+            return { background: `hsl(${h % 360}, 55%, 40%)`, color: "#fff" };
+        };
+
+        // #854: subida de avatar — el nombre de archivo lo genera el servidor (uuid), así que cada
+        // reemplazo produce una URL nueva y el cambio se ve sin recargar duro (sin necesitar ?v=).
+        const puedeEditarAvatar = ref(false);
+        const uploadingAvatar = ref(null);
+        const avatarError = ref({ visible: false, message: "" });
+        let avatarErrorTimer = null;
+        const showAvatarError = (message) => {
+            avatarError.value = { visible: true, message };
+            if (avatarErrorTimer) clearTimeout(avatarErrorTimer);
+            avatarErrorTimer = setTimeout(() => { avatarError.value.visible = false; }, 4500);
+        };
+        async function onAvatarFile(e, sid) {
+            const file = e.target.files && e.target.files[0];
+            e.target.value = "";   // permite volver a elegir el mismo archivo si se rechaza
+            if (!file) return;
+            const fd = new FormData();
+            fd.append("sid", sid);
+            fd.append("avatar", file);
+            uploadingAvatar.value = sid;
+            try {
+                const { data } = await axios.post("/api/roadmap/circuito/worker-avatar", fd);
+                if (sid === "supervisor") {
+                    if (supervisor.value) supervisor.value = { ...supervisor.value, avatar_url: data.avatar_url };
+                } else {
+                    const s = sesiones.value.find((x) => x.sid === sid);
+                    if (s) s.avatar_url = data.avatar_url;
+                }
+            } catch (err) {
+                const resp = err.response && err.response.data;
+                showAvatarError((resp && (resp.error || resp.message)) || "No se pudo subir la imagen.");
+            } finally {
+                uploadingAvatar.value = null;
+            }
+        }
+
         // Línea supervisor→terminal: flujo animado SOLO hacia las que trabajan (running y no frías).
         const linkClass = (s) => (s.running && !s.stale ? "tt-link-active" : (s.stale ? "tt-link-stale" : "tt-link-idle"));
         const anyActive = computed(() => sesiones.value.some((s) => s.running && !s.stale));
@@ -298,6 +349,7 @@ export default {
                 supervisor.value = data.supervisor || null;
                 recienResueltos.value = (data.supervisor && data.supervisor.recien_resueltos) || [];
                 listosParaTerminal.value = (data.supervisor && data.supervisor.listos_para_terminal) || [];
+                puedeEditarAvatar.value = !!data.puede_editar_avatar;   // #854: mismo payload del poll
                 nextTick(scrollAll);
             } catch (e) { /* silencioso: no romper la vista por un poll */ }
         }
@@ -323,7 +375,8 @@ export default {
             sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive, fsSesion, fsPre,
             itemEnCurso, itemEnCursoEstado,
             secsSince, fmtClock, stepReached, stepClass, setPre,
-            avatarUrl, onAvatarError, avatarClass, gestureIcon, gestureClass, supervisorUrl, linkClass,
+            avatarClass, gestureIcon, gestureClass, linkClass,
+            initials, initialsStyle, puedeEditarAvatar, uploadingAvatar, avatarError, onAvatarFile,
             openFs, closeFs,
             etaVisible, etaClass, etaIcon, etaLabel, etaPct, etaTooltip,
         };
@@ -429,6 +482,32 @@ export default {
 .tt-avatar-img{ width:44px; height:44px; border-radius:11px; object-fit:cover; background:#e2e8f0; display:block; border:1px solid var(--tt-line); transition:filter .3s ease; }
 .tt-avatar-ring{ position:absolute; inset:-3px; border-radius:14px; pointer-events:none; }
 .tt-avatar-dot{ position:absolute; right:-2px; bottom:-2px; width:11px; height:11px; border-radius:50%; background:var(--tt-muted); border:2px solid var(--tt-surface); }
+/* #854 — fallback sin foto: iniciales sobre color derivado del nombre (nunca imagen rota/hueco) */
+.tt-avatar-initials{ display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; user-select:none; }
+.tt-av-sup .tt-avatar-initials{ font-size:18px; }
+/* #854 — control discreto para cambiar la foto: cámara visible solo al pasar el cursor */
+.tt-avatar-cam{
+  position:absolute; inset:0; border-radius:11px; z-index:3; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff;
+  background:rgba(15,23,42,.55); opacity:0; transition:opacity .15s ease;
+}
+.tt-av-sup .tt-avatar-cam{ border-radius:12px; }
+.tt-avatar:hover .tt-avatar-cam,.tt-avatar:focus-within .tt-avatar-cam{ opacity:1; }
+.tt-avatar-cam-busy{ pointer-events:none; }
+.tt-avatar-input{ position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.tt-spin{ animation:tt-spin-anim .8s linear infinite; display:inline-block; }
+@keyframes tt-spin-anim{ to{ transform:rotate(360deg); } }
+/* #854 — aviso de subida rechazada (tipo/tamaño no válido) */
+.tt-avatar-toast{
+  position:fixed; top:16px; right:16px; z-index:10600; max-width:360px;
+  background:var(--tt-danger); color:#fff; padding:10px 14px; border-radius:10px;
+  font-size:13px; font-weight:600; box-shadow:0 8px 20px rgba(0,0,0,.25);
+}
+.tt-toast-fade-enter-active,.tt-toast-fade-leave-active{ transition:all .2s ease; }
+.tt-toast-fade-enter-from,.tt-toast-fade-leave-to{ opacity:0; transform:translateY(-8px); }
+@media (prefers-reduced-motion: reduce){
+  .tt-spin{ animation:none !important; }
+}
 /* ACTIVO (corriendo): respira + halo verde + indicador parpadeante */
 .tt-av-run .tt-avatar-img{ animation:tt-breathe 3.2s ease-in-out infinite; }
 .tt-av-run .tt-avatar-ring{ box-shadow:0 0 0 0 rgba(16,185,129,.55); animation:tt-halo 2s ease-out infinite; }
