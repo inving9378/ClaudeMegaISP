@@ -158,7 +158,8 @@ class DocumentTemplateController extends Controller
     public function destroy($id)
     {
         $template = $this->data['model']::find($id);
-        $filePath = 'document_template/document/' . $template->name . '.pdf'; //TODO Preguntar si eliminamos el archivo ya que se usa soft deletes
+        // No se borra el archivo físico: el registro usa soft deletes (recuperable),
+        // y borrar el PDF rompería esa recuperación.
         $template->delete();
         return response()->json([
             'status' => 'ok',
