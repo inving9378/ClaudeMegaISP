@@ -45,7 +45,7 @@ class AutopilotCommand extends Command
 
         $items = $this->option('id')
             ? RoadmapItem::where('id', (int) $this->option('id'))->get()
-            : RoadmapItem::bandeja()->ordered()->limit((int) $this->option('limit'))->get();
+            : RoadmapItem::hidratarEnOrden(RoadmapItem::bandeja()->ordered(), (int) $this->option('limit'));
 
         if ($items->isEmpty()) {
             $this->info('Sin items que evaluar.');

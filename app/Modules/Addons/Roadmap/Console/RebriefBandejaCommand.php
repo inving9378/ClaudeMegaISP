@@ -61,7 +61,7 @@ class RebriefBandejaCommand extends Command
             return self::FAILURE;
         }
 
-        $items = RoadmapItem::bandeja()->ordered()->limit((int) $this->option('limit'))->get();
+        $items = RoadmapItem::hidratarEnOrden(RoadmapItem::bandeja()->ordered(), (int) $this->option('limit'));
         if ($items->isEmpty()) {
             $this->info('La bandeja está vacía: nada que rebriefear.');
 
@@ -150,7 +150,7 @@ class RebriefBandejaCommand extends Command
      */
     private function resumen(AutopilotService $autopilot): void
     {
-        $items = RoadmapItem::bandeja()->ordered()->get();
+        $items = RoadmapItem::hidratarEnOrden(RoadmapItem::bandeja()->ordered());
 
         $califican = ['A' => 0, 'B' => 0, 'C' => 0, '—' => 0];
         $quedan    = ['A' => 0, 'B' => 0, 'C' => 0, '—' => 0];

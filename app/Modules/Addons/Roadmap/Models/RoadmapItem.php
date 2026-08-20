@@ -8,6 +8,22 @@ class RoadmapItem extends Model
 {
     protected $table = 'roadmap_items';
 
+    /**
+     * #878 — proyección LIGERA suficiente para `RoadmapCircuitoService::compact()` y para los dos
+     * accessors que consulta (`estacion`, `estado_cola`) más `tieneConsultaViva()`.
+     *
+     * Existe como constante y no como lista suelta en el servicio porque el accessor `estacion` lee
+     * nueve columnas para decidir: si alguien agrega una condición ahí y la proyección no la trae,
+     * el item se clasifica en la estación equivocada SIN error visible. Con la lista aquí, al lado
+     * del accessor, el que la toque ve las dos cosas juntas.
+     */
+    public const COLUMNAS_COMPACT = [
+        'id', 'title', 'modulo', 'status', 'priority', 'urgente', 'nivel_riesgo', 'estado_aprobacion',
+        'worker_sid', 'origen_item_id', 'branch', 'archivado_at', 'en_desarrollo_humano',
+        'esperando_merge_irving', 'origen_bloqueo', 'opcion_elegida',
+        'consulta_supervisor_at', 'consulta_resuelta_at',
+    ];
+
     protected $fillable = [
         'title', 'description', 'status', 'priority',
         'target_version', 'prompt', 'position',
@@ -1338,6 +1354,39 @@ class RoadmapItem extends Model
                      ->orderByRaw("FIELD(priority,'baja','media','alta') DESC")
                      ->orderBy('position')
                      ->orderBy('id');
+    }
+
+    /**
+     * #878 — HIDRATACIÓN EN DOS PASOS para consultas que necesitan la fila COMPLETA en un orden
+     * concreto.
+     *
+     * `ORDER BY` + `SELECT *` sobre esta tabla revienta MySQL con "Out of sort memory" (1038):
+     * son 96 columnas, 22 de ellas TEXT/JSON, y el filesort dimensiona su registro por el ancho
+     * DECLARADO de las columnas, no por el contenido — así que falla incluso con `LIMIT 1` y con
+     * pocas filas. Es el mismo defecto que dejó la bandeja de Irving invisible 20 días.
+     *
+     * Cuando el llamador SÓLO necesita algunos campos, la solución es `get([columnas])`. Cuando
+     * necesita el modelo entero (autopilot, revisor, briefs), sirve esto: se ordena sobre una
+     * proyección de `id` —filesort estrecho, no revienta— y se traen las filas anchas SIN
+     * `ORDER BY`, restaurando el orden en PHP.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query  ya filtrado y ORDENADO
+     */
+    public static function hidratarEnOrden($query, ?int $limite = null): \Illuminate\Database\Eloquent\Collection
+    {
+        if ($limite !== null) {
+            $query->limit($limite);
+        }
+
+        $ids = $query->pluck('id')->all();   // paso 1: sólo `id` → el sort no toca las columnas anchas
+        if ($ids === []) {
+            return static::query()->whereRaw('1 = 0')->get();
+        }
+
+        // paso 2: filas completas SIN `ORDER BY` (un `SELECT *` sin filesort nunca da 1038).
+        return static::whereIn('id', $ids)->get()
+            ->sortBy(fn (self $i) => array_search($i->id, $ids, true))
+            ->values();
     }
 
     public function scopeOrdered($query)

@@ -552,7 +552,11 @@ class RoadmapCircuitoService
         if ($modulo !== null && $modulo !== '') $q->where('modulo', 'like', '%' . $modulo . '%');
 
         $total = (clone $q)->count();
-        $items = $q->ordered()->forPage($page, $perPage)->get()->map(fn ($i) => $this->compact($i));
+        // #878 — `compact()` sólo usa campos ligeros; pedir las 96 columnas para ordenarlas
+        // reventaba MySQL con 1038 (Out of sort memory) y tumbaba este endpoint entero.
+        $items = $q->ordered()->forPage($page, $perPage)
+            ->get(RoadmapItem::COLUMNAS_COMPACT)
+            ->map(fn ($i) => $this->compact($i));
 
         $filtros = array_filter(
             ['estado' => $estado, 'nivel' => $nivel, 'modulo' => $modulo],
