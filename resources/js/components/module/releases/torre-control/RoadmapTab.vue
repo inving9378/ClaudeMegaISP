@@ -106,6 +106,20 @@
                                       :title="`Thomas lo estimó ${fullDateTime(item.eta_asignada_at)} · ponlo en tu temporizador`">
                                     <i class="bi bi-stopwatch me-1"></i>ETA ~{{ item.eta_minutos }} min
                                 </span>
+                                <!-- ENTREGA 1 — override de automatización POR ITEM. Solo se pinta
+                                     cuando NO es 'hereda': una etiqueta en cada fila diciendo "sigue
+                                     la política" seria ruido en 300 items. El control para cambiarlo
+                                     vive en el desplegable de abajo. -->
+                                <span v-if="item.automatizacion_override === 'auto'"
+                                      class="rdm-tag rdm-tag-ovauto"
+                                      title="Excepción explícita: corre solo aunque la política base no lo permita. Se consume la primera vez que una terminal lo toma.">
+                                    <i class="bi bi-lightning-charge-fill me-1"></i>automático
+                                </span>
+                                <span v-else-if="item.automatizacion_override === 'manual'"
+                                      class="rdm-tag rdm-tag-ovman"
+                                      title="Este item solo avanza contigo, aunque la política base lo permitiera.">
+                                    <i class="bi bi-hand-index-fill me-1"></i>solo contigo
+                                </span>
                             </div>
                         </div>
 
@@ -135,6 +149,22 @@
 
                     <!-- Detalle expandible -->
                     <div v-if="expandedId === item.id" class="rdm-detail">
+
+                        <!-- ── ENTREGA 1: automatización de ESTE item ── -->
+                        <div class="rdm-section-label">Automatización</div>
+                        <div class="rdm-ov">
+                            <select class="rdm-ov-sel" :value="item.automatizacion_override || 'hereda'"
+                                    @change="cambiarOverride(item, $event.target.value)">
+                                <option value="hereda">hereda ({{ politicaLabel }})</option>
+                                <option value="manual">solo con Irving — fuerza requiere_irving</option>
+                                <option value="auto">automático — salvo los cuatro topes</option>
+                            </select>
+                            <span class="rdm-ov-note">
+                                Bajarla no pide nada; subirla pide confirmación y queda registrada.
+                                El override es de <b>un solo uso</b>: se consume cuando una terminal toma el item.
+                            </span>
+                        </div>
+                        <div v-if="ovMsg[item.id]" class="rdm-ov-msg">{{ ovMsg[item.id] }}</div>
 
                         <!-- ── Prompt ── -->
                         <div class="rdm-section-label">Prompt para Claude Code</div>
@@ -219,7 +249,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 import { darkMode } from '../../../../hook/appConfig.js';
 
@@ -260,6 +290,50 @@ export default {
         const items        = ref([]);
         const loading      = ref(true);
         const expandedId   = ref(null);
+
+        // ENTREGA 1 — override de automatización por item.
+        const ovMsg = reactive({});
+        const politicaLabel = ref('política vigente');
+
+        // La etiqueta del «hereda (…)» sale del servidor: el desplegable debe decir QUÉ está
+        // heredando, no un genérico. Si la política no se puede leer, se queda con el genérico
+        // en vez de inventar un valor.
+        async function cargarPolitica() {
+            try {
+                const { data } = await axios.get('/api/roadmap/torre/config');
+                const n = data?.politica?.nivel_automatizacion;
+                const ET = { manual: 'Manual', estandar: 'Estándar', asistido: 'Asistido', autonomo: 'Autónomo' };
+                if (n) politicaLabel.value = ET[n] || n;
+            } catch (e) { /* sin permiso torre.config.view: se queda el genérico */ }
+        }
+
+        async function cambiarOverride(item, valor) {
+            ovMsg[item.id] = '';
+            const enviar = async (confirmado) => axios.post(`/api/roadmap/item/${item.id}/override`,
+                { override: valor, confirmado });
+            try {
+                const { data } = await enviar(false);
+                item.automatizacion_override = data.override;
+                ovMsg[item.id] = `Automatización: ${data.override}.`;
+            } catch (e) {
+                // 409 = subida: el servidor pide confirmación explícita. La UI NO decide: sólo
+                // pregunta y reenvía. Si la decisión viviera aquí, bastaría DevTools para saltarla.
+                if (e?.response?.status === 409 && e.response.data?.requiere_confirmacion) {
+                    if (!window.confirm(e.response.data.mensaje + '\n\n¿Confirmas subir la automatización de este item?')) {
+                        return;
+                    }
+                    try {
+                        const { data } = await enviar(true);
+                        item.automatizacion_override = data.override;
+                        ovMsg[item.id] = `Automatización SUBIDA a ${data.override}. Queda registrado.`;
+                    } catch (e2) {
+                        ovMsg[item.id] = e2?.response?.data?.message || 'No se pudo cambiar la automatización.';
+                    }
+                    return;
+                }
+                ovMsg[item.id] = e?.response?.data?.message || 'No se pudo cambiar la automatización.';
+            }
+        }
         const editPrompt   = ref('');
         const activeFilter = ref('all');
         const showAddModal = ref(false);
@@ -545,7 +619,10 @@ export default {
 
         onMounted(load);
 
+        cargarPolitica();
+
         return {
+            cambiarOverride, ovMsg, politicaLabel,
             darkMode, items, loading, expandedId, editPrompt,
             activeFilter, filters, counts, groups, visibleGroups, hasVisibleItems,
             showAddModal, addingItem, newItem, toast,
@@ -907,4 +984,12 @@ export default {
         max-width: 100%;
     }
 }
+
+/* ENTREGA 1 — override de automatización por item */
+.rdm-tag-ovauto{background:rgba(220,38,38,.12);color:#b91c1c;font-weight:700;}
+.rdm-tag-ovman{background:rgba(100,116,139,.15);color:#475569;font-weight:700;}
+.rdm-ov{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;}
+.rdm-ov-sel{padding:5px 10px;border-radius:8px;border:1px solid rgba(148,163,184,.5);background:transparent;color:inherit;font-size:12.5px;}
+.rdm-ov-note{font-size:11.5px;opacity:.72;line-height:1.5;flex:1 1 260px;}
+.rdm-ov-msg{font-size:12px;margin-bottom:10px;opacity:.85;}
 </style>
