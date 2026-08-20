@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Http\Controllers\FileController;
 use App\Http\Traits\Models\Ticket\TicketTrait;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -44,6 +45,28 @@ class Ticket extends BaseModel
     public function files()
     {
         return $this->morphOne(File::class, 'fileable');
+    }
+
+    /**
+     * Adjunta/reemplaza el archivo del ticket (mismo patrón que
+     * TicketThread::uploadFile — morphOne, un archivo por ticket).
+     */
+    public function uploadFile($file)
+    {
+        if ($file) {
+            $existing = $this->files()->first();
+            if ($existing) {
+                $existing->delete();
+            }
+
+            $file_process = new FileController;
+            $properties = $file_process->processSingleFileAndReturnProperties($file, 'ticket', $this->id);
+
+            $this->files()->create($properties);
+            $file->storeAs('/public/ticket/' . $this->id, $properties['name']);
+        }
+
+        return $this;
     }
 
     public function ticket_thread()

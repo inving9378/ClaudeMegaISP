@@ -258,6 +258,9 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::get('/servicio', [ApiController::class, 'servicio']);
         Route::get('/tickets', [ApiController::class, 'tickets']);
         Route::post('/tickets', [ApiController::class, 'storeTicket']);
+        Route::get('/tickets/{id}', [ApiController::class, 'ticketDetail'])->whereNumber('id');
+        Route::post('/tickets/{id}/attachment', [ApiController::class, 'attachTicketPhoto'])->whereNumber('id');
+        Route::post('/tickets/{id}/rate', [ApiController::class, 'rateTicket'])->whereNumber('id');
         Route::get('/profile', [ApiController::class, 'profile']);
         Route::get('/facturas', [ApiController::class, 'facturas']);
         Route::get('/pagos', [ApiController::class, 'pagos']);
