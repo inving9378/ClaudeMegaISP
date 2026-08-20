@@ -17,6 +17,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Intervention\Image\Facades\Image;
 use Symfony\Component\Process\Process;
 
 class RoadmapController extends Controller
@@ -525,6 +528,8 @@ class RoadmapController extends Controller
             'watchdog'          => $this->watchdog->estado(),
             'supervisor'        => $this->supervisor->estado(),   // Thomas T + su feed (#334)
             'can_disparar'      => (bool) auth()->user()?->can('circuito.disparar'),
+            // #854: gate del ícono de cámara (subir avatar) — mismo payload del poll, sin llamada nueva.
+            'puede_editar_avatar' => (bool) auth()->user()?->can('torre.terminales.editar_avatar'),
         ]);
     }
 
@@ -1541,6 +1546,49 @@ class RoadmapController extends Controller
         $this->svc->setNombreWorker($data['sid'], (string) ($data['nombre'] ?? ''));
         Log::channel('roadmap_externo')->info('worker-nombre', ['sid' => $data['sid'], 'nombre' => $data['nombre'] ?? '', 'por' => $this->actor()]);
         return response()->json(['ok' => true, 'nombres' => $this->svc->nombresWorkers()]);
+    }
+
+    /**
+     * POST /api/roadmap/circuito/worker-avatar — sube/reemplaza el avatar de una terminal o del
+     * supervisor (#854). Superficie de ataque (subida de archivos) tratada como tal:
+     *  - Whitelist real por contenido (`getimagesize`, no extensión/Content-Type del navegador);
+     *    un SVG o un archivo renombrado a `.jpg` que no es imagen fallan aquí (`getimagesize` los
+     *    rechaza, no hace falta un caso especial para SVG).
+     *  - Tamaño máximo de ENTRADA 512 KB (`max:512` en KB, regla de Laravel).
+     *  - Re-encode SIEMPRE a webp vía Intervention/GD (elimina EXIF/metadatos/payload incrustado)
+     *    + resize a 128×128 — nunca se persiste el archivo tal cual lo mandó el cliente.
+     *  - Nombre de archivo generado por el servidor (UUID) — nunca el nombre del cliente.
+     *  - Al reemplazar, borra el archivo anterior del disco.
+     */
+    public function workerAvatar(Request $request): JsonResponse
+    {
+        $this->authorize('torre.terminales.editar_avatar');
+        $data = $request->validate([
+            'sid'    => ['required', 'string', 'regex:/^(wt-\d+|supervisor)$/'],
+            'avatar' => ['required', 'file', 'max:512', 'mimes:jpeg,png,webp'],
+        ]);
+
+        $file = $request->file('avatar');
+        $info = @getimagesize($file->getRealPath());
+        $mimesValidos = ['image/jpeg', 'image/png', 'image/webp'];
+        if (! $info || ! in_array($info['mime'] ?? null, $mimesValidos, true)) {
+            return response()->json(['error' => 'Archivo no válido: debe ser una imagen JPEG, PNG o WEBP real.'], 422);
+        }
+
+        $anterior = $this->svc->avatarWorker($data['sid']);
+
+        $nombreArchivo = 'terminales/' . (string) Str::uuid() . '.webp';
+        Storage::disk('public')->put($nombreArchivo, (string) Image::make($file->getRealPath())->fit(128, 128)->encode('webp', 82));
+
+        $this->svc->setAvatarWorker($data['sid'], $nombreArchivo);
+
+        if ($anterior && $anterior !== $nombreArchivo && Storage::disk('public')->exists($anterior)) {
+            Storage::disk('public')->delete($anterior);
+        }
+
+        Log::channel('roadmap_externo')->info('worker-avatar', ['sid' => $data['sid'], 'por' => $this->actor()]);
+
+        return response()->json(['ok' => true, 'sid' => $data['sid'], 'avatar_url' => $this->svc->avatarUrlWorker($data['sid'])]);
     }
 
     /** Sella el archivo de una rama (idempotente): marca archivado_at/por + deja rastro en el log. */

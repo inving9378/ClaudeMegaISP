@@ -7,6 +7,7 @@ use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Lógica de negocio ÚNICA de la Hoja de Ruta para el Circuito de Mejora Continua.
@@ -1116,6 +1117,7 @@ class RoadmapCircuitoService
     {
         return [
             'sid'                   => $sid,
+            'avatar_url'            => $this->avatarUrlWorker($sid),   // #854
             'item'                  => null,
             'fase_actual'           => null,
             'pasos'                 => [],
@@ -1170,6 +1172,7 @@ class RoadmapCircuitoService
 
         return [
             'sid'                   => $sid,
+            'avatar_url'            => $this->avatarUrlWorker($sid),   // #854
             'item'                  => $itemId ? ['id' => (int) $itemId, 'title' => $titulos[$itemId] ?? null] : null,
             'fase_actual'           => $fases ? ($fases[count($fases) - 1]['fase'] ?? null) : null,
             'pasos'                 => $pasos,
@@ -1690,6 +1693,14 @@ class RoadmapCircuitoService
             $map[$sid] = $path;
         }
         $this->putSetting(self::WORKER_AVATARS_KEY, json_encode($map, JSON_UNESCAPED_UNICODE));
+    }
+
+    /** URL pública del avatar de un slot (o null si no tiene) — para el payload del poll de 3s. */
+    public function avatarUrlWorker(?string $sid): ?string
+    {
+        $path = $this->avatarWorker($sid);
+
+        return $path ? Storage::disk('public')->url($path) : null;
     }
 
     /** Segundos desde el último latido del scheduler (cron), o null si nunca latió. */

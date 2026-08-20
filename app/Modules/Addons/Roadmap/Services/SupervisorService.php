@@ -55,6 +55,7 @@ class SupervisorService
 
         return [
             'nombre'      => self::NOMBRE,
+            'avatar_url'  => $this->circuito->avatarUrlWorker('supervisor'),   // #854
             'activo'      => $vivo,
             'pausado'    => $pausado,
             'latido_secs' => $latidoSecs,
