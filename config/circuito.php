@@ -633,15 +633,32 @@ return [
         |
         | El orden de la lista ES el orden de trabajo. Un módulo sin gaps se salta solo (está en su
         | DoD de Fase 1), así que la lista no hay que mantenerla a mano cuando algo se termina.
+        |
+        | #809 — `Reportes` SE QUITÓ de aquí: `app/Modules/Addons/Reportes` ya no existe en disco (la
+        | semilla de `InventarioSemilla` que lo describía —module vacío, duplicaba /releases— trae su
+        | propio `vigente` que ya lo daba por cerrado al confirmar que el directorio desapareció). Sin
+        | directorio, el carril auditaba en vacío: cero huecos/enlaces/TODOs/andamiaje/spec, siempre.
         */
         'carriles' => [
             'paralelo' => [
                 'GestionRed', 'Inventario', 'Mapas', 'Tickets', 'Scheduling', 'Hub',
                 'Finanzas', 'Mensajes', 'Vendedores', 'Talento', 'Flotas', 'Marketing',
                 'Payments', 'MegaFamilia', 'VoIP', 'WhatsAppAgent', 'PortalCliente', 'PortalPago',
-                'Embajadores', 'Reportes', 'Usuarios', 'Roadmap / Circuito CC',
+                'Embajadores', 'Usuarios', 'Roadmap / Circuito CC',
             ],
             'serializado' => ['Clientes', 'Configuracion', 'CRM', 'ModuleManager'],
+        ],
+
+        /*
+        | #809 — ALIAS carril → nombre real del directorio del módulo. Un carril es el FOOTPRINT con
+        | el que se etiqueta la columna `modulo` de los items generados (y con el que el scheduler
+        | serializa, #432 B2); no siempre coincide con el nombre del directorio en
+        | `app/Modules/{Core|Addons}/`. Sólo entra aquí un carril cuyo directorio DIFIERE del
+        | footprint — la mayoría no lo necesita. Sin alias, `AuditorService::rutaModulo()` audita ese
+        | carril en vacío (era el caso de `Roadmap / Circuito CC`, cuyo directorio real es `Roadmap`).
+        */
+        'alias_directorio' => [
+            'Roadmap / Circuito CC' => 'Roadmap',
         ],
 
         /*

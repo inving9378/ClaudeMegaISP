@@ -163,10 +163,27 @@ class AuditorService
         $excluir  = array_map('mb_strtolower', (array) config('circuito.auditor.excluir_modulos', []));
         $ordenado = array_merge((array) ($c['paralelo'] ?? []), (array) ($c['serializado'] ?? []));
 
-        return array_values(array_filter(
+        $modulos = array_values(array_filter(
             array_unique($ordenado),
             fn ($m) => ! in_array(mb_strtolower($m), $excluir, true)
         ));
+
+        // #809 — un carril que no resuelve a ningún directorio audita EN VACÍO (0 huecos/enlaces/
+        // TODOs/andamiaje/spec, siempre) sin que nada lo diga: el bug real que dejó 14/41 gaps
+        // invisibles. Avisar en el log en vez de callarse; no se excluye de la lista (podría ser
+        // temporal — un módulo recién movido — y sacarlo solo escondería la señal).
+        foreach ($modulos as $m) {
+            if ($this->rutaModulo($m) === null) {
+                Log::channel('roadmap_externo')->warning('auditor-carril-no-resuelve', [
+                    'modulo'  => $m,
+                    'detalle' => "El carril «{$m}» no resuelve a ningún directorio de módulo "
+                        . "(app/Modules/Core|Addons/{$m}, ni por alias en circuito.auditor.alias_directorio) "
+                        . '→ se audita en vacío.',
+                ]);
+            }
+        }
+
+        return $modulos;
     }
 
     /** ¿El módulo está en su DoD de Fase 1? = sin gaps MECÁNICOS detectables. */
@@ -508,10 +525,11 @@ class AuditorService
      */
     public function rutasDelModulo(string $modulo): array
     {
-        $out = [];
+        $real = $this->nombreDirectorio($modulo);
+        $out  = [];
         foreach (RouteFacade::getRoutes() as $r) {
             $nombre = $this->moduloDeLaAccion($r->getActionName());
-            if ($nombre === null || $this->normalizar($nombre) !== $this->normalizar($modulo)) {
+            if ($nombre === null || $this->normalizar($nombre) !== $this->normalizar($real)) {
                 continue;
             }
             foreach (array_diff($r->methods(), ['HEAD']) as $verbo) {
@@ -1291,9 +1309,11 @@ class AuditorService
     // Utilidades de lectura de código
     // ═══════════════════════════════════════════════════════════════════════════════════════════
 
-    /** Ruta en disco del módulo, o null si el nombre no corresponde a un directorio de módulo. */
+    /** Ruta en disco del módulo, o null si el nombre (ya resuelto por alias) no es un directorio real. */
     public function rutaModulo(string $modulo): ?string
     {
+        $modulo = $this->nombreDirectorio($modulo);
+
         foreach (['Core', 'Addons'] as $tipo) {
             $p = base_path("app/Modules/{$tipo}/{$modulo}");
             if (is_dir($p)) {
@@ -1302,6 +1322,18 @@ class AuditorService
         }
 
         return null;
+    }
+
+    /**
+     * #809 — el carril (footprint que se estampa en `modulo` de los items generados) no siempre
+     * coincide con el nombre real del directorio del módulo en disco. Traduce vía
+     * `circuito.auditor.alias_directorio`; sin alias declarado, el nombre no cambia.
+     */
+    private function nombreDirectorio(string $modulo): string
+    {
+        $alias = (array) config('circuito.auditor.alias_directorio', []);
+
+        return $alias[$modulo] ?? $modulo;
     }
 
     private function relativo(string $abs): string
