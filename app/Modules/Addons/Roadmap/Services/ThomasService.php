@@ -408,7 +408,23 @@ class ThomasService
         return $v;
     }
 
-    /** Evaluación PURA del carril "ya decidido" (no escribe): para auditar en seco. */
+    /**
+     * Evaluación PURA del carril "ya decidido" (no escribe): para auditar en seco.
+     *
+     * ⚠️ DE QUÉ DEPENDE LA SEGURIDAD DE ESTE CARRIL — leer antes de tocarlo.
+     *
+     * «Brief 100 % contestado» **NO implica que lo contestara un humano**: `AutopilotService::
+     * aplicar()` escribe `opcion_elegida` con sus propias respuestas. Lo que impide que un item
+     * auto-contestado reentre por aquí y se re-apruebe **no está en este método**: está en el
+     * FILTRO del único llamador, `DestrabarCommand`, que sólo alimenta items en
+     * `requiere_irving | pendiente_revision | aprobado_irving` (+ parqueados y anti-bucle) — y el
+     * autopilot los deja en `aprobado_claude`/`aprobado_revisor`, fuera de ese conjunto.
+     *
+     * Es decir: la seguridad de este carril vive en OTRO archivo, y quien lea sólo este método no
+     * se entera. El día que alguien amplíe ese filtro por una razón razonable, el agujero se abre
+     * sin que nada avise. Candado que lo impide:
+     * `tests/Unit/Modules/Addons/Roadmap/DestrabeNoRecibeAutoAprobadosTest.php`.
+     */
     public function evaluarYaDecidido(RoadmapItem $item): array
     {
         $no = fn (string $m) => ['aprobado' => false, 'estado' => null, 'motivo' => $m];
@@ -443,7 +459,18 @@ class ThomasService
         }
 
         foreach ($preguntas as $p) {
-            $sinResponder = ($p['opcion_elegida'] ?? null) === null && ! empty($p['opciones']);
+            // LECTOR DEFENSIVO (2026-08-19). Una pregunta SIN opciones no puede contar como
+            // «contestada»: `$sinResponder` daría false y la pregunta pasaría de largo, aprobando
+            // el item sin que nadie decidiera nada. Hoy es inalcanzable —`RevisorService::
+            // parsePreguntas` descarta la pregunta entera si se queda sin opciones válidas— pero el
+            // escritor es defensivo y el lector no lo era, y esa asimetría es una bomba barata de
+            // desactivar. Si una pregunta así entra por otra vía (edición desde la Torre, escritura
+            // externa, fila legacy), aquí se para.
+            if (empty($p['opciones'])) {
+                return $no('Tiene una pregunta sin opciones: no hay decisión que dar por tomada.');
+            }
+
+            $sinResponder = ($p['opcion_elegida'] ?? null) === null;
             if (! $sinResponder) {
                 continue;
             }
