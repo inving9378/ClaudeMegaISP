@@ -46,16 +46,19 @@
 
         <!-- Grupos de items -->
         <template v-else>
+            <div v-if="!hasVisibleItems" class="rdm-empty rdm-empty-global">
+                No hay items que coincidan con este filtro.
+            </div>
+
+            <template v-for="group in visibleGroups" :key="group.key">
             <div
-                v-for="group in visibleGroups"
-                :key="group.key"
+                v-if="group.items.length > 0"
                 class="rdm-group"
                 :class="`rdm-group-${group.key}`"
             >
                 <div class="rdm-group-header">
                     <span class="rdm-group-dot" :class="`dot-${group.key}`"></span>
                     {{ group.label }}
-                    <span class="rdm-group-count">{{ group.items.length }}</span>
                 </div>
 
                 <div
@@ -240,11 +243,8 @@
 
                     </div>
                 </div>
-
-                <div v-if="group.items.length === 0" class="rdm-empty">
-                    Sin items en este estado.
-                </div>
             </div>
+            </template>
         </template>
 
         <!-- Toast -->
@@ -475,6 +475,10 @@ export default {
             if (activeFilter.value === 'all') return groups.value;
             return groups.value.filter(g => g.key === activeFilter.value);
         });
+
+        const hasVisibleItems = computed(() =>
+            visibleGroups.value.some(g => g.items.length > 0)
+        );
 
         // ── Sub-tareas helpers ────────────────────────────────────────────────
 
@@ -823,7 +827,7 @@ export default {
 
         return {
             darkMode, items, loading, expandedId, editPrompt, editSubtasks, newLogText,
-            activeFilter, filters, counts, groups, visibleGroups,
+            activeFilter, filters, counts, groups, visibleGroups, hasVisibleItems,
             showAddModal, newItem, toast,
             subtasksDone, subtasksPct, lastAdvance, relativeTime, fullDateTime,
             canLaunch, launchTitle, statusLabel, statusIcon,
@@ -894,12 +898,7 @@ export default {
     font-size: 12px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.7px; color: #6b7280; margin-bottom: 8px;
 }
-.rdm-group-count {
-    background: #e5e7eb; color: #374151; border-radius: 10px;
-    padding: 1px 7px; font-size: 11px;
-}
 .rdm-dark .rdm-group-header { color: rgba(255,255,255,.45); }
-.rdm-dark .rdm-group-count  { background: rgba(255,255,255,.1); color: rgba(255,255,255,.5); }
 
 .rdm-group-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .dot-in_progress { background: #ea580c; }
@@ -1086,6 +1085,7 @@ export default {
 
 /* Empty state */
 .rdm-empty  { font-size: 13px; color: #9ca3af; padding: 8px 4px; }
+.rdm-empty-global { text-align: center; padding: 32px 4px; }
 .rdm-loading { padding: 24px; color: #6b7280; font-size: 13px; }
 
 /* Toast */
