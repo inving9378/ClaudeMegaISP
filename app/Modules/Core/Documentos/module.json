@@ -67,7 +67,24 @@
             }
         }
     ],
-    "api_endpoints": [],
+    "api_endpoints": [
+        {"method": "GET", "path": "/administracion/document_template", "description": "Listado de plantillas de documentos", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_template/table", "description": "Feed datatable de plantillas", "permission": "config_view_system"},
+        {"method": "GET", "path": "/administracion/document_template/load_content_template", "description": "Carga el HTML de una plantilla existente o del request", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_template/show_content_template", "description": "Renderiza la vista previa del contenido con variables reemplazadas", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_template/show_content_template/{id}", "description": "Renderiza la vista previa del contenido de una plantilla por id", "permission": "config_view_system"},
+        {"method": "GET", "path": "/administracion/document_template/get_variables", "description": "Lista las variables disponibles para un módulo (cliente, CRM)", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_template/add", "description": "Crea una plantilla de documento", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_template/update/{id}", "description": "Actualiza una plantilla de documento", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_template/destroy/{id}", "description": "Elimina (soft delete) una plantilla de documento", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_template/get_data_template/{id}", "description": "Obtiene HTML y nombre de una plantilla", "permission": "config_view_system"},
+        {"method": "GET", "path": "/administracion/document_type_template", "description": "Listado de tipos de plantilla de documento", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_type_template/add", "description": "Crea un tipo de plantilla de documento", "permission": "config_view_system"},
+        {"method": "GET", "path": "/administracion/document_type_template/editar/{id}", "description": "Formulario de edición de un tipo de plantilla", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_type_template/update/{id}", "description": "Actualiza un tipo de plantilla de documento", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_type_template/destroy/{id}", "description": "Elimina un tipo de plantilla de documento", "permission": "config_view_system"},
+        {"method": "POST", "path": "/administracion/document_type_template/table", "description": "Feed datatable de tipos de plantilla", "permission": "config_view_system"}
+    ],
     "ai": [],
     "client_tab": null,
     "service_type": null
