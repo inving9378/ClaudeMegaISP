@@ -33,7 +33,7 @@ class RoadmapController extends Controller
         'archivado_at', 'origen_bloqueo', 'motivo_bloqueo', 'branch', 'worker_sid', 'origen_item_id',
         'consulta_supervisor_at', 'consulta_resuelta_at', 'comentarios_claude', 'opciones',
         'preguntas', 'reporte_coloquial', 'enlace_revision', 'alcance_autorizado', 'fuera_de_alcance',
-        'prompt',
+        'prompt', 'reanudaciones_timeout',
     ];
 
     private const COLUMNAS_ACTIVIDAD = [
@@ -335,6 +335,16 @@ class RoadmapController extends Controller
                 'motivo_bloqueo'   => $i->motivo_bloqueo,
                 // §5 — señal de producción. No bloquea; se ve.
                 'toca_produccion'  => $i->tocaProduccion(),
+                // Un item en su 2ª reanudación no es sólo un freno: es INFORMACIÓN — significa que
+                // es más grande que una vuelta. Por eso se ve, en vez de vivir sólo en el log.
+                'reanudaciones'    => (int) $i->reanudaciones_timeout,
+                // DISCREPANCIA nivel declarado vs calculado. Se computa del texto (que ya viene en
+                // COLUMNAS_BANDEJA) y no del `log`: meter esa columna JSON en una consulta ORDENADA
+                // es exactamente lo que reventaba con 1038. Un item que se declara A y salió C es la
+                // señal de que el clasificador pudo equivocarse — se muestra, no se obedece.
+                'nivel_declarado'  => ($d = app(\App\Modules\Addons\Roadmap\Services\RevisorService::class)
+                    ->nivelDeclarado((string) $i->title . "\n" . (string) $i->description . "\n" . (string) $i->prompt)),
+                'discrepancia_nivel' => $d !== null && $d !== $i->nivel_riesgo,
             ])), collect());
 
         // #348: cola EJECUTABLE — SOLO lo que el circuito AUTO-CORRE (A/B o ya aprobado por Irving),

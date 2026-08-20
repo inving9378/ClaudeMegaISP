@@ -207,6 +207,18 @@
                 <span class="tc-badge tc-badge-dec">{{ estadoLabelItem(it) }}</span>
                 <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
                 <span v-if="it.modulo" class="tc-modulo-chip">{{ it.modulo }}</span>
+                <!-- Reanudaciones por timeout: a la 2ª el item dejó de reanudarse solo. Verlo es
+                     la señal de "esto es más grande que una vuelta, hay que dividirlo". -->
+                <!-- El item se declara un nivel y el clasificador calculó otro. No lo obedece: lo
+                     muestra, porque es la señal de que el clasificador pudo equivocarse. -->
+                <span v-if="it.discrepancia_nivel" class="tc-modulo-chip" style="border-color:var(--tc-info);color:var(--tc-info)"
+                      :title="'El item se declara nivel ' + it.nivel_declarado + ' y el clasificador calculó ' + it.nivel_riesgo + '. Se respeta el calculado; revisa si el clasificador se equivocó.'">
+                  ⚠ dice {{ it.nivel_declarado }}
+                </span>
+                <span v-if="it.reanudaciones > 0" class="tc-modulo-chip" style="border-color:var(--tc-warn);color:var(--tc-warn)"
+                      :title="'Se reanudó ' + it.reanudaciones + ' vez(ces) tras cortarse por timeout. A las 2 deja de reanudarse solo: el item es más grande que una vuelta.'">
+                  ↻ {{ it.reanudaciones }}
+                </span>
                 <!-- 2A.3 — el freno ya no vive en el título: se pinta. El humano FRENA (rojo); el
                      del clasificador sólo INFORMA (ámbar) y el circuito lo despacha igual. -->
                 <span v-if="it.origen_bloqueo === 'humano'" class="tc-frn tc-frn-hum"

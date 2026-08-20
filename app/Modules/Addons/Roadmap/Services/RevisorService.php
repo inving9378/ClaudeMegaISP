@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Jobs\ProponerOpcionesJob;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
 use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -58,11 +59,17 @@ class RevisorService
     public function enAlcance(RoadmapItem $item): array
     {
         $deny = (array) config('circuito.revisor.alcance.denylist', []);
-        $heno = mb_strtolower(trim(($item->title ?? '') . "\n" . ($item->modulo ?? '') . "\n" . ($item->prompt ?? '')));
+        // 2026-08-20 — este pre-filtro usaba substring CRUDO sobre el texto completo, así que
+        // escalaba items por su propio bloque de guardrails igual que el triaje. Ahora comparte la
+        // definición única (`DetectorTerminos`): se quita el proceso, se ancla a palabra y se
+        // respetan las negaciones. Es el mismo criterio que decide el nivel — tenerlos distintos
+        // era cómo un item podía estar "en alcance" para uno y "frontera dura" para el otro.
+        $heno = mb_strtolower(trim(($item->title ?? '') . "\n" . ($item->modulo ?? '')
+            . "\n" . DetectorTerminos::limpiar((string) $item->prompt)));
 
         foreach ($deny as $kw) {
             $kw = mb_strtolower(trim((string) $kw));
-            if ($kw !== '' && Str::contains($heno, $kw)) {
+            if (DetectorTerminos::dispara($heno, $kw)) {
                 return [
                     'en_alcance' => false,
                     'motivo'     => "Fuera del alcance conservador: menciona \"{$kw}\" (frontera dura dinero/seguridad/prod/negocio).",
@@ -276,134 +283,51 @@ class RevisorService
     public const TRIAJE_C_WORD = ['iva', 'rol', 'roles', 'auth', 'sat', 'prod'];
 
     /**
-     * #844 (Falla 2 de #841) — Negaciones INEQUÍVOCAS que, si aparecen INMEDIATAMENTE antes de la
-     * keyword (misma oración, ventana corta), la eximen del match. Caso real: "módulo documental,
-     * no toca cobros, saldos, pagos ni facturación" no debe disparar C por "cobro"/"pago"/"factura".
-     * Sesgo conservador: la lista es corta y literal; cualquier keyword con AL MENOS una aparición
-     * sin negación cerca sigue disparando C (ver todasLasAparicionesNegadas()).
+     * #844 — Las NEGACIONES y la ventana viven en `DetectorTerminos`, no aquí.
+     *
+     * Estaban duplicadas: esta copia y la del chequeo de nacimiento de Thomas. Una lista de
+     * términos que decide qué se escala tiene que tener UN dueño — que se bifurcara es exactamente
+     * cómo un item podía pasar un filtro y no el otro.
+     *
+     * @see DetectorTerminos::NEGACIONES
      */
-    private const TRIAJE_NEGACIONES = [
-        'no toca', 'no tocamos', 'no se toca', 'no se tocan', 'sin tocar',
-        'no incluye', 'no incluyen', 'no se incluye', 'sin incluir',
-        'no modifica', 'no modifican', 'no se modifica', 'sin modificar',
-        'no afecta', 'no afectan', 'no se afecta', 'sin afectar',
-        'no altera', 'no alteran', 'sin alterar',
-        'no cambia', 'no cambian', 'sin cambiar',
-        'no involucra', 'no requiere', 'no usa', 'no utiliza',
-    ];
-
-    /**
-     * #844 — Ventana de negación en BYTES (no mb_*) a propósito: preg_match_all con offsets
-     * (usado por TRIAJE_C_WORD) devuelve offsets en bytes aun con el modificador /u; mezclar con
-     * funciones mb_* produciría cortes desalineados. strpos/substr trabajan bien sobre UTF-8 para
-     * este uso (búsqueda de subcadenas ASCII, sin necesidad de contar caracteres exactos).
-     */
-    private const TRIAJE_VENTANA_NEGACION_BYTES = 90;
-
-    /**
-     * #844 — true si la negación más cercana ANTES de $posKeyword (dentro de la ventana y sin
-     * cruzar un límite de oración: '.', '!', '?' o línea en blanco) es una de TRIAJE_NEGACIONES.
-     */
-    private function negacionInmediatamenteAntes(string $heno, int $posKeyword): bool
+    private function aparicionesTermino(string $heno, string $kw, bool $palabraCompleta): array
     {
-        $inicioVentana = max(0, $posKeyword - self::TRIAJE_VENTANA_NEGACION_BYTES);
-        $contexto = substr($heno, $inicioVentana, $posKeyword - $inicioVentana);
-
-        // No cruzar el límite de oración: solo mirar lo que sigue al último terminador dentro del contexto.
-        $ultimoCorte = 0;
-        foreach (['.', '!', '?', "\n\n"] as $sep) {
-            $p = strrpos($contexto, $sep);
-            if ($p !== false) {
-                $ultimoCorte = max($ultimoCorte, $p + strlen($sep));
-            }
-        }
-        $contextoOracion = substr($contexto, $ultimoCorte);
-
-        foreach (self::TRIAJE_NEGACIONES as $neg) {
-            if (strrpos($contextoOracion, $neg) !== false) {
-                return true;
-            }
-        }
-
-        return false;
+        return DetectorTerminos::apariciones($heno, $kw, $palabraCompleta);
     }
 
     /**
-     * #844 — true SOLO si TODAS las apariciones de $kw en $heno están negadas cerca (ver
-     * negacionInmediatamenteAntes). Si hay al menos una aparición sin negación cerca, devuelve
-     * false → sigue siendo match real (sesgo conservador: una mención ambigua no exime nada).
-     */
-    private function todasLasAparicionesNegadas(string $heno, string $kw): bool
-    {
-        $offset = 0;
-        $huboAlMenosUna = false;
-        while (($pos = strpos($heno, $kw, $offset)) !== false) {
-            $huboAlMenosUna = true;
-            if (! $this->negacionInmediatamenteAntes($heno, $pos)) {
-                return false;
-            }
-            $offset = $pos + strlen($kw);
-        }
-
-        return $huboAlMenosUna;
-    }
-
-    /**
-     * #844 — Igual que todasLasAparicionesNegadas() pero para offsets ya resueltos por
-     * preg_match_all (TRIAJE_C_WORD, que necesita límite de palabra \b).
-     */
-    private function todasLasCoincidenciasNegadas(string $heno, string $kw): bool
-    {
-        if (! preg_match_all('/\b' . preg_quote($kw, '/') . '\b/u', $heno, $m, PREG_OFFSET_CAPTURE)) {
-            return false;
-        }
-        foreach ($m[0] as [, $pos]) {
-            if (! $this->negacionInmediatamenteAntes($heno, $pos)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * #419 — Triaje DETERMINISTA de NIVEL para un item con nivel_riesgo NULL (punto ciego: ni el
-     * ejecutor —pide A— ni el revisor —pide B— lo toman). SIN IA y SIN autorizar nada. Devuelve la
-     * propuesta, NO escribe. NUNCA asigna A (A solo por decisión humana explícita).
-     *  - C (→ requiere_irving): frontera dura (dinero/fiscal/prod/permisos/auth/migración destructiva)
-     *    o marcador [BLOCKED-*]/[PARKED-*] en el título.
-     *  - B (→ sigue pendiente_revision): default seguro; la SIGUIENTE pasada del revisor lo evalúa como B.
-     */
-    /**
-     * #432 ADENDA C — quita LÍNEAS de guardrail/boilerplate de proceso (no describen el trabajo) para
-     * que el triaje no marque C por el substring estándar del guardrail ("prod"/"dinero"/…). Conservador:
-     * solo borra líneas con marcadores inequívocos de proceso; deja intacto lo que describe la tarea.
+     * #432 ADENDA C — clasificar por el TRABAJO, no por el guardrail: quita del texto las líneas
+     * que son proceso antes de buscar términos. La lista de marcadores vive en `DetectorTerminos`
+     * (definición única, compartida con la puerta de nacimiento de Thomas).
      */
     private function stripBoilerplate(string $texto): string
     {
-        $markers = [
-            'guardrail', 'solo en dev', 'sólo en dev', 'solo dev', 'nunca prod', 'no tocar prod',
-            'sin tocar prod', 'no toca prod', 'nunca tocar prod', 'jamás prod', 'jamas prod',
-            'circuito pausad', 'worktree aislad', 'rama propia', 'revisar-y-mergear', 'revisar y mergear',
-            'sin auto-merge', 'sin push', 'no mergear', 'checkpoint', 'reanudar el circuito', 'reanuda',
-            'trabajar solo en', 'dev.meganett', 'v1megaisp', '192.168.105', 'ejecución:', 'ejecucion:',
-        ];
-        $out = [];
-        foreach (preg_split('/\r?\n/', $texto) as $linea) {
-            $low  = mb_strtolower($linea);
-            $skip = false;
-            foreach ($markers as $m) {
-                if (str_contains($low, $m)) {
-                    $skip = true;
-                    break;
-                }
-            }
-            if (! $skip) {
-                $out[] = $linea;
-            }
+        return DetectorTerminos::limpiar($texto);
+    }
+
+    /**
+     * NIVEL QUE EL ITEM SE DECLARA A SÍ MISMO (p. ej. «`nivel_riesgo: A`» en su ficha), o null.
+     *
+     * OJO — esto NO decide nada, y es a propósito (decisión de Irving, 2026-08-20): si el texto de
+     * un item pudiera fijar su propio nivel, cualquier cosa que se escriba podría auto-declararse
+     * inofensiva y el clasificador dejaría de ser un control para volverse una sugerencia.
+     *
+     * Sirve para lo contrario: cuando lo declarado y lo calculado DISCREPAN, esa discrepancia es
+     * señal de que el clasificador puede estar equivocándose (el #876 se declaraba A y salió C por
+     * la palabra «permisos», y tenía razón). Vale mucho más como alerta visible que como override.
+     */
+    public function nivelDeclarado(?string $texto): ?string
+    {
+        if ($texto === null || $texto === '') {
+            return null;
         }
 
-        return implode("\n", $out);
+        if (preg_match('/nivel_riesgo\s*[:=]\s*`?\s*([ABC])\b/ui', $texto, $m)) {
+            return mb_strtoupper($m[1]);
+        }
+
+        return null;
     }
 
     public function triarNivelNull(RoadmapItem $item): array
@@ -422,22 +346,11 @@ class RevisorService
             . "\n" . $this->stripBoilerplate((string) $item->description)
             . "\n" . $this->stripBoilerplate((string) $item->prompt)));
 
-        foreach (self::TRIAJE_C_PLAIN as $kw) {
-            if ($kw !== '' && str_contains($heno, $kw)) {
-                // #844 — negación inequívoca cerca (misma oración, ~10 palabras) exime ESTA keyword;
-                // si alguna otra aparición de la misma keyword no está negada, sigue disparando C.
-                if ($this->todasLasAparicionesNegadas($heno, $kw)) {
-                    continue;
-                }
-
-                return ['nivel' => 'C', 'estado' => 'requiere_irving', 'match' => $kw,
-                    'motivo' => "Frontera dura: menciona \"{$kw}\" → nivel C, requiere_irving."];
-            }
-        }
-        foreach (self::TRIAJE_C_WORD as $kw) {
-            if (preg_match('/\b' . preg_quote($kw, '/') . '\b/u', $heno)) {
-                // #844 — mismo criterio de negación que TRIAJE_C_PLAIN, con límite de palabra.
-                if ($this->todasLasCoincidenciasNegadas($heno, $kw)) {
+        // Las dos listas entran por el MISMO matcher; lo único que cambia es si el término exige
+        // palabra completa (los cortos/ambiguos) o admite flexión (los largos).
+        foreach ([[self::TRIAJE_C_PLAIN, false], [self::TRIAJE_C_WORD, true]] as [$lista, $palabraCompleta]) {
+            foreach ($lista as $kw) {
+                if (! DetectorTerminos::dispara($heno, $kw, $palabraCompleta)) {
                     continue;
                 }
 
@@ -448,6 +361,7 @@ class RevisorService
 
         return ['nivel' => 'B', 'estado' => 'pendiente_revision', 'match' => null,
             'motivo' => 'Sin frontera dura → nivel B (default seguro); lo evaluará la próxima pasada B.'];
+
     }
 
     /**
@@ -460,6 +374,34 @@ class RevisorService
         $sello = "\n\n--- TRIAJE NIVEL NULL (#419) " . now()->toDateTimeString() . " ---\n"
             . "Asignado nivel_riesgo={$t['nivel']} (origen interno). Estado → {$t['estado']}.\n"
             . 'Motivo: ' . ($t['motivo'] ?? '') . "\n";
+
+        // DISCREPANCIA declarado vs calculado (2026-08-20). El item NO puede fijar su propio nivel
+        // —eso volvería el clasificador una sugerencia— pero cuando lo que dice de sí mismo no
+        // coincide con lo calculado, esa diferencia es justo la señal de que el clasificador puede
+        // estar equivocándose. Se REGISTRA y se MUESTRA; no cambia el veredicto.
+        $declarado = $this->nivelDeclarado((string) $item->title . "\n" . (string) $item->description
+            . "\n" . (string) $item->prompt);
+
+        $log = $item->log ?: [];
+
+        if ($declarado !== null && $declarado !== $t['nivel']) {
+            $aviso = "⚠ DISCREPANCIA: el item se declara nivel {$declarado} y el clasificador "
+                . "calculó {$t['nivel']}" . (! empty($t['match']) ? " (por «{$t['match']}»)" : '')
+                . ". Se respeta el calculado; la discrepancia queda registrada para revisarla.\n";
+            $sello .= $aviso;
+
+            $log[] = [
+                'ts'         => now()->toIso8601String(),
+                'por'        => $actor,
+                'evento'     => 'discrepancia_nivel',
+                'declarado'  => $declarado,
+                'calculado'  => $t['nivel'],
+                'match'      => $t['match'] ?? null,
+                'motivo'     => 'El texto del item declara un nivel distinto al calculado. No lo '
+                              . 'sobreescribe: se registra como señal de posible falso positivo.',
+            ];
+            $item->log = $log;
+        }
 
         $item->nivel_riesgo        = $t['nivel'];
         $item->nivel_riesgo_origen = 'interno';

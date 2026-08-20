@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
 use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\Log;
 
@@ -340,11 +341,21 @@ class ThomasService
      */
     public function categoriaFronteraDura(string $texto): ?string
     {
-        $heno = mb_strtolower(preg_replace('/\s+/', ' ', $texto));
+        // 2026-08-20 — ESTA es la puerta de NACIMIENTO: `RoadmapController::store` la consulta para
+        // decidir si un item que Irving escribe nace `aprobado_irving` («crear = ejecutar», #566) o
+        // se queda esperando. Usaba substring CRUDO sobre el texto completo, y por eso los items
+        // #874-#877 NO nacieron autorizados: su propio bloque de guardrails —que promete no tocar
+        // producción— contenía la palabra «producción».
+        //
+        // El texto que existe para PROTEGER no puede ser el que niega la autorización. Se comparte
+        // ahora la definición única de `DetectorTerminos`: se quitan las líneas de proceso, se ancla
+        // a palabra y se respetan las negaciones. El colapso de espacios se hace DESPUÉS de limpiar,
+        // porque limpiar trabaja por líneas y necesita los saltos.
+        $heno = mb_strtolower(preg_replace('/[ \t]+/', ' ', DetectorTerminos::limpiar($texto)));
 
         foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
             foreach ((array) $terminos as $t) {
-                if ($t !== '' && str_contains($heno, mb_strtolower($t))) {
+                if (DetectorTerminos::dispara($heno, mb_strtolower((string) $t))) {
                     return $categoria;
                 }
             }
