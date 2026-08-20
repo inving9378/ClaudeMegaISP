@@ -102,7 +102,15 @@ consider increasing server sort buffer size
 - **Es la octava instancia del mismo patrón**: un motor que se ve configurado y encendido, falla,
   y nada en el tablero lo dice. Exactamente #807 en otra capa.
 
-> **No se arregló aquí**: este trabajo es de solo lectura y el arreglo toca el despacho. Item **#860**.
+> **No se arregló aquí**: este trabajo es de solo lectura y el arreglo toca el despacho. Item **#864**.
+
+**⚠️ CORRECCIÓN (2026-08-19, misma tarde): el fallo es INTERMITENTE, no continuo.** Al volver a
+medirlo, el destrabe había logrado **una** corrida buena a las 19:21 y volvió a fallar a las 19:27.
+El `Out of sort memory` depende del ancho de las filas que matchean en ese instante, así que el
+motor acierta cuando el conjunto encoge. Importa por dos motivos: **(1)** arreglarlo acotando el
+`SELECT` es aún más claramente la opción correcta —reduce el ancho de fila, que es la variable—, y
+**(2)** un indicador basado sólo en «última ejecución exitosa» lo daba por sano. De ahí el registro
+de *último fallo* del panel.
 
 ---
 

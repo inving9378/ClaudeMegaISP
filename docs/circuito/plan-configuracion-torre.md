@@ -66,13 +66,38 @@ protecciones. Esos se pintan con candado y sin endpoint detrás.
 
 ## 3. Cómo se ve «activo / inactivo»
 
-Cada motor con **cuatro datos**, no con un checkbox:
+> **CORRECCIÓN DE IRVING (2026-08-19), aplicada.** El panel **no muestra el flag `enabled`** como
+> indicador principal. Un flag de habilitación es una **intención**; la última ejecución es un
+> **hecho**. Regla, en una frase: **un motor está vivo si corrió bien hace poco, no si alguien dejó
+> un booleano en `true`.**
+>
+> Y una segunda lección, medida el mismo día: **el latido tampoco basta solo.**
+> `circuito:destrabar-bandeja` llevaba ocho días fallando cada minuto **pero acertó una corrida 13
+> minutos antes** de que lo miráramos — un indicador de «última ejecución exitosa» decía «hace 13
+> min, todo bien». Un fallo intermitente se esconde detrás de su propio éxito ocasional. Por eso un
+> motor se pinta roto si **el latido está viejo O hay un fallo reciente**, y el fallo se guarda con
+> su **mensaje**: «falló» sin decir qué no sirve para decidir nada.
+
+Cada motor con **cinco datos**, no con un checkbox:
+
+| Dato | Por qué |
+|---|---|
+| **Última ejecución exitosa** | el único dato que no puede mentir sobre si corrió |
+| **Último fallo, con su mensaje** | lo que caza al intermitente, que el latido esconde |
+| Cadencia / tope de horas | para saber si «hace 3 min» es normal o tarde |
+| ¿Agendado en el crontab? | separa «no está agendado» de «corre y falla» |
+| `enabled` | dato secundario, **nunca** el indicador principal |
 
 ```
-Des-trabador de bandeja        [ON]   cada 5 min
-  último latido: hace 8 días 🔴      ← ESTO es lo que faltaba
-  «auto-mergea lo verificado y decide lo ya contestado»
+circuito:destrabar-bandeja     hace 0.2 h    tope 2 h    agendado: (en el scheduler)
+  🔴 último fallo 2026-08-19 19:36 — SQLSTATE[HY001] Out of sort memory
+  se pierde: la bandeja no se destraba; nada se auto-mergea ni se auto-decide
 ```
+
+**La prueba del indicador, hecha el 2026-08-19:** el destrabe **no salía en rojo — salía ausente.**
+`circuito:destrabar-bandeja` ni siquiera estaba en `procesos_programados`, que cubría **4 de 13**
+motores reales. El mecanismo estaba bien; el registro estaba incompleto, que es la misma forma de
+fallar: algo que se ve sano porque nadie lo está mirando. Registrados los 7 que faltaban.
 
 La infraestructura ya existe: `RoadmapCircuitoService::latidos()` + `config('circuito.procesos_programados')`
 (#808) dan latido, cadencia, si está agendado y qué se pierde si no corre. **El panel las reusa; no
