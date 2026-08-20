@@ -65,8 +65,20 @@ class DestrabarCommand extends Command
 
         // Todo lo que está esperando algo de Irving, incluidos los parqueados y los del anti-bucle:
         // el punto del destrabe es justamente mirar esas bolsas.
-        $items = RoadmapItem::select(self::COLUMNAS_NECESARIAS)
-            ->whereNull('archivado_at')
+        // #864 — EL ORDER BY VA SOBRE `id` A SECAS, y las columnas se traen DESPUÉS.
+        //
+        // Acotar el `select` (primer intento) fue la dirección correcta pero no bastó:
+        // `COLUMNAS_NECESARIAS` conserva las cinco gordas —`prompt`, `comentarios_claude`,
+        // `preguntas`, `opciones`, `log` (TEXT/JSON)— y son justo las que MySQL tiene que meter en
+        // el sort buffer (262 KB aquí) para resolver `ORDER BY id LIMIT N`. Seguía reventando con
+        //     SQLSTATE[HY001] 1038 Out of sort memory
+        //
+        // Ordenando sólo ids, cada fila del sort son 8 bytes y el problema desaparece POR
+        // CONSTRUCCIÓN, no por caber. Eso importa porque el fallo era INTERMITENTE: acertaba cuando
+        // el conjunto encogía y volvía a caer al crecer, así que un arreglo que sólo lo hiciera
+        // "caber hoy" se rompería otra vez sin avisar. Ocho días y ~11,600 fallos fue lo que costó
+        // que nadie lo viera.
+        $ids = RoadmapItem::whereNull('archivado_at')
             ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
             ->where(fn ($q) => $q
                 ->whereIn('estado_aprobacion', ['requiere_irving', 'pendiente_revision', 'aprobado_irving'])
@@ -75,7 +87,13 @@ class DestrabarCommand extends Command
             ->where('status', '!=', 'done')
             ->orderBy('id')
             ->limit((int) $this->option('limit'))
-            ->get();
+            ->pluck('id')
+            ->all();
+
+        // Ya sin ORDER BY sobre filas anchas: `whereIn` por PK y el orden lo da el propio array.
+        $items = $ids
+            ? RoadmapItem::select(self::COLUMNAS_NECESARIAS)->whereIn('id', $ids)->get()->sortBy('id')->values()
+            : collect();
 
         $mergeados = [];
         $decididos = [];
