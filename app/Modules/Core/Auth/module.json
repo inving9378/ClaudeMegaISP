@@ -9,7 +9,57 @@
     "menu": [],
     "admin_cards": [],
     "config_sections": [],
-    "api_endpoints": [],
+    "api_endpoints": [
+        {
+            "method": "GET",
+            "path": "/login",
+            "description": "Formulario de login del panel admin (guard web)",
+            "scope": "auth",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/login",
+            "description": "Valida credenciales y autentica; exige rol de staff (clientes espejo quedan bloqueados)",
+            "scope": "auth",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/logout",
+            "description": "Cierra la sesión del usuario autenticado",
+            "scope": "auth",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/password/reset",
+            "description": "Formulario para solicitar el enlace de restablecimiento de contraseña",
+            "scope": "auth",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/password/email",
+            "description": "Envía el correo con el enlace de restablecimiento",
+            "scope": "auth",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/password/reset/{token}",
+            "description": "Formulario para capturar la nueva contraseña con el token del correo",
+            "scope": "auth",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/password/reset",
+            "description": "Aplica la nueva contraseña usando el token de restablecimiento",
+            "scope": "auth",
+            "permission": null
+        }
+    ],
     "ai": [],
     "client_tab": null,
     "service_type": null
