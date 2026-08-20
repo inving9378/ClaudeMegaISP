@@ -262,7 +262,10 @@ class RoadmapController extends Controller
 
         $data = Cache::remember('roadmap:torre:salud-entorno', 30, fn () => $salud->resumen());
 
-        return response()->json(['ok' => true] + $data);
+        // `puede_gestionar` NO se cachea con el resto (el resumen es compartido entre usuarios
+        // por 30s; el permiso del usuario actual no lo es) — mismo patrón que `can_disparar` en
+        // el endpoint de estado del circuito.
+        return response()->json(['ok' => true, 'puede_gestionar' => (bool) auth()->user()?->can('torre.salud.manage')] + $data);
     }
 
     /**
