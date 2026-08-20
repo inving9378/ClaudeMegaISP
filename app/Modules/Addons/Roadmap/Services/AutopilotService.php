@@ -212,9 +212,17 @@ class AutopilotService
             $item->responderPregunta((string) $pid, (string) $clave);
         }
 
-        // Reusa los estados que el pool YA reconoce: A auto-ejecutable, B autorizado por el revisor
-        // interno. No se inventa un estado nuevo ni se toca `ejecutablesParalelo`.
-        $estado = $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor';
+        // ENTREGA 1 — el estado lo resuelve la POLÍTICA DE LA TORRE (4 topes duros → `manual`
+        // absoluto → override → matriz con `min(politicaBase, autopilot.max_nivel)`). El gate de
+        // nivel de `evaluar()` sigue arriba y es el mismo número; esto lo hace explícito y de paso
+        // aplica los topes duros y el override, que `evaluar()` no miraba.
+        $estado = app(\App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy::class)
+            ->estadoInicial($item, 'autopilot');
+
+        if ($estado === 'requiere_irving') {
+            return $v + ['aplicado' => false, 'estado' => null,
+                'motivo_politica' => 'La política de la Torre no autoriza este item al autopilot.'];
+        }
 
         $item->estado_aprobacion = $estado;
         $item->aprobado_por      = 'autopilot';

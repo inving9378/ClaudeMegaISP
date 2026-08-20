@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -480,9 +481,18 @@ class ThomasService
                 : $no('Todavía tiene preguntas sin responder: las decide el autopilot con su brief.');
         }
 
+        // ENTREGA 1 — el estado lo resuelve la POLÍTICA, no una condición local. Hasta aquí este
+        // carril no miraba NINGÚN tope de nivel: un item C con el brief contestado quedaba
+        // `aprobado_revisor` y se despachaba. Ahora pasa por `min(politicaBase, ya_decidido)`, cuyo
+        // sub-techo nace en `C` justamente para no apagar ese comportamiento al construir el panel.
+        $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'thomas.ya_decidido');
+        if ($estado === 'requiere_irving') {
+            return $no('La política de la Torre no autoriza este nivel por el carril «ya decidido».');
+        }
+
         return [
             'aprobado' => true,
-            'estado'   => $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor',
+            'estado'   => $estado,
             'motivo'   => 'Brief ya respondido: no falta ninguna decisión.',
         ];
     }
@@ -519,7 +529,14 @@ class ThomasService
                 'motivo' => "Tope diario del carril mecánico alcanzado ({$tope}). Se reanuda mañana."];
         }
 
-        $estado = $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor';
+        // ENTREGA 1 — la política decide el estado (y aplica los 4 topes duros + el override).
+        // El sub-techo `thomas.mecanico.max_nivel` (B) sigue siendo más conservador que el del
+        // autopilot a propósito: este carril no tiene un brief humano detrás.
+        $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'thomas.mecanico');
+        if ($estado === 'requiere_irving') {
+            return ['aprobado' => false, 'estado' => null,
+                'motivo' => 'La política de la Torre no autoriza este nivel por el carril mecánico.'];
+        }
 
         $log = $item->log ?: [];
         $log[] = [

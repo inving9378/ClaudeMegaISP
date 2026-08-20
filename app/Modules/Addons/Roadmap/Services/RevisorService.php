@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Jobs\ProponerOpcionesJob;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -181,6 +182,21 @@ class RevisorService
     {
         $enPausa   = $this->circuito->isPaused();
         $autoriza  = (($v['veredicto'] ?? 'escala') === 'autoriza') && ! $enPausa;
+
+        // ENTREGA 1 — GATE DE ESCRITURA de la política de la Torre. Hasta aquí este método NO
+        // miraba `nivel_riesgo` en absoluto: el revisor marcaba `aprobado_revisor` a un item C y el
+        // tope llegaba después, al despachar. Eso dejaba la bandeja diciendo «autorizado» de algo
+        // que la política no permitía correr — el panel habría mentido en pantalla.
+        // No cambia qué se ejecuta (ese gate ya existía aguas abajo): cambia qué se VE.
+        if ($autoriza) {
+            $porPolitica = app(TorreAutomationPolicy::class)->estadoInicial($item, 'revisor');
+            if ($porPolitica === 'requiere_irving') {
+                $autoriza = false;
+                $v['razon'] = trim((string) ($v['razon'] ?? ''))
+                    . ' — El revisor autorizaba, pero la política de la Torre no permite este nivel: queda para Irving.';
+            }
+        }
+
         $nuevo     = $autoriza ? 'aprobado_revisor' : 'requiere_irving';
         $categoria = $v['categoria_escalada'] ?? null;
         if (! $autoriza && $enPausa && ($v['veredicto'] ?? '') === 'autoriza') {
@@ -974,9 +990,20 @@ TXT;
             $v['razon']        = "ANTI-LOOP: el ejecutor ya corrió este item {$rebotes}× y NO lo ejecutó (lo re-escaló). No se re-aprueba, para no quemar Max en el ping-pong; necesita tu decisión o re-especificarlo para hacerlo accionable. " . trim($v['razon']);
         }
 
+        // ENTREGA 1 — el des-trabador tampoco miraba tope de nivel, y corre cada 4 minutos: era el
+        // actor con más superficie y menos control de todos. Ahora pasa por la política.
         if ($v['reejecutable']) {
-            // Técnico/seguro (o falso positivo) → vuelve al POOL. A→aprobado_claude, B→aprobado_revisor.
-            $item->estado_aprobacion = $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor';
+            $porPolitica = app(TorreAutomationPolicy::class)->estadoInicial($item, 'destrabe');
+            if ($porPolitica === 'requiere_irving') {
+                $v['reejecutable'] = false;
+                $v['categoria']    = $v['categoria'] ?? 'politica';
+                $v['razon']        = 'La política de la Torre no autoriza este nivel al des-trabador. ' . trim((string) $v['razon']);
+            }
+        }
+
+        if ($v['reejecutable']) {
+            // Técnico/seguro (o falso positivo) → vuelve al POOL. Estado según la política.
+            $item->estado_aprobacion = $porPolitica;
             $item->comentarios_claude = (string) $item->comentarios_claude
                 . "\n\n--- DES-TRABE (Opus) " . now()->toDateTimeString() . " → RE-APROBADO (tecnico_seguro) ---\nRazón: " . trim($v['razon']) . "\n";
             $item->aprobado_por = 'destrabe(opus)';
