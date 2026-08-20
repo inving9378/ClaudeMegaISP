@@ -41,6 +41,25 @@ class FleetDocument extends BaseModel
         'ocr_reviewed_at'  => 'datetime',
     ];
 
+    /**
+     * #177 — defensa en profundidad: con vehicle_id ya nullable, un documento sin vehículo NI
+     * conductor quedaría huérfano de todo scope (invisible incluso al admin). La validación real
+     * vive en el controller; esto es el candado a nivel modelo por si algún consumidor futuro
+     * (seeder, comando, otro controller) hace ->create()/->save() sin pasar por ahí.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::saving(function (self $doc) {
+            if ($doc->vehicle_id === null && $doc->driver_id === null) {
+                throw new \InvalidArgumentException(
+                    'Un documento de flota requiere vehicle_id o driver_id (al menos uno).'
+                );
+            }
+        });
+    }
+
     public function ocrRuns()
     {
         return $this->hasMany(FleetDocumentOcrRun::class, 'document_id');
@@ -58,11 +77,24 @@ class FleetDocument extends BaseModel
         return $this->belongsTo(User::class, 'driver_id');
     }
 
+    /**
+     * #177 — vehicle_id ahora es nullable (documento solo-de-conductor). El "conductor"
+     * (driver_id) es un `users` interno SIN client_id (ver add_driver_id_to_fleet_documents),
+     * así que un documento sin vehículo NUNCA puede pertenecer a un client externo: solo es
+     * visible bajo el scope interno Meganet ($clientId === null). Cero cambio de comportamiento
+     * para documentos que sí tienen vehículo (misma condición whereHas('vehicle') de siempre).
+     */
     public function scopeForClient(Builder $q, ?int $clientId): Builder
     {
-        return $q->whereHas('vehicle', fn($v) => $clientId
-            ? $v->where('client_id', $clientId)
-            : $v->whereNull('client_id'));
+        return $q->where(function (Builder $q) use ($clientId) {
+            $q->whereHas('vehicle', fn($v) => $clientId
+                ? $v->where('client_id', $clientId)
+                : $v->whereNull('client_id'));
+
+            if ($clientId === null) {
+                $q->orWhereNull('vehicle_id');
+            }
+        });
     }
 
     // vigente / por_vencer (≤30 días) / vencido
