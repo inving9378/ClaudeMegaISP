@@ -33,6 +33,26 @@ class DestrabarCommand extends Command
 
     protected $description = 'Thomas destraba: auto-mergea lo verificado, decide lo reversible y consolida lo estratégico (#566).';
 
+    /**
+     * #864 — columnas MÍNIMAS que este comando (y `ThomasService::pendienteReal/elegibleAutoMerge/
+     * autoMergear/evaluarYaDecidido/aprobarYaDecidido/clasificarMecanico/aprobarMecanico/consolidar`,
+     * más los hooks `saving` del modelo que corren en cada `save()`) realmente leen o escriben sobre
+     * los items que salen de esta consulta. `roadmap_items` tiene 96 columnas, varias TEXT/JSON
+     * grandes (log, comentarios_claude, opciones, preguntas, reporte_tecnico, validacion_brief…) que
+     * un `select *` con este WHERE + `ORDER BY id LIMIT 120` arrastraba al filesort — con
+     * sort_buffer_size=256KB eso tronaba "Out of sort memory" cada minuto desde el 2026-08-11
+     * (item #864). Si Thomas empieza a leer/escribir otra columna sobre un item salido de ESTA
+     * consulta, hay que sumarla aquí.
+     */
+    private const COLUMNAS_NECESARIAS = [
+        'id', 'title', 'description', 'prompt', 'comentarios_claude', 'modulo',
+        'nivel_riesgo', 'estado_aprobacion', 'status', 'archivado_at',
+        'branch', 'merge_commit', 'esperando_merge_irving',
+        'branch_has_content', 'branch_ahead_count', 'origen_bloqueo',
+        'preguntas', 'opciones', 'opcion_elegida', 'log',
+        'aprobado_por', 'revisado_at', 'excluir_pool_automatico', 'bloqueado_por_bucle',
+    ];
+
     public function handle(ThomasService $thomas): int
     {
         $aplicar = (bool) $this->option('apply');
@@ -45,7 +65,8 @@ class DestrabarCommand extends Command
 
         // Todo lo que está esperando algo de Irving, incluidos los parqueados y los del anti-bucle:
         // el punto del destrabe es justamente mirar esas bolsas.
-        $items = RoadmapItem::whereNull('archivado_at')
+        $items = RoadmapItem::select(self::COLUMNAS_NECESARIAS)
+            ->whereNull('archivado_at')
             ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
             ->where(fn ($q) => $q
                 ->whereIn('estado_aprobacion', ['requiere_irving', 'pendiente_revision', 'aprobado_irving'])
