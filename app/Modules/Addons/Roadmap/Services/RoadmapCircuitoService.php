@@ -1578,6 +1578,18 @@ class RoadmapCircuitoService
         $this->putSetting(self::PARALELISMO_KEY, (string) max(1, min(12, $n)));
     }
 
+    /**
+     * Máx. builds npm simultáneos (semáforo de `deploy/circuito/npm-build.sh`, #334 Fase 1).
+     * #873: única fuente de verdad — antes el script leía la env `CIRCUITO_MAX_BUILDS` directo
+     * y `config('circuito.max_builds')` no lo leía nadie (control fantasma). Config-only (a
+     * diferencia de `paralelismo`, sin override en `settings`; mismo patrón si algún día hace
+     * falta). Clamp 1..12 igual que paralelismo.
+     */
+    public function maxBuilds(): int
+    {
+        return max(1, min(12, (int) config('circuito.max_builds', 3)));
+    }
+
     /** Nombres de los workers (override runtime). Persisten y son renombrables por Irving. */
     public const WORKER_NOMBRES_KEY = 'circuito_worker_nombres';
 
