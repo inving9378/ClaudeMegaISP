@@ -291,6 +291,22 @@ return [
         ],
 
         /*
+        | #895 — ¿CABE EN UNA VUELTA? Antes de picar código, la terminal corre
+        | `circuito:cabida` para decidir si conviene descomponer en sub-items en vez de arrancar.
+        | Deliberadamente CONSERVADOR: solo dispara con evidencia dura (nunca con el bucket
+        | heurístico de `EstimadorTiempo`, que es un techo por nivel de riesgo sin muestras reales
+        | y dispararía casi siempre). Dos señales, cualquiera basta:
+        |   1. `reanudaciones_timeout >= 1` — el item YA timeouteó antes (dato empírico, no estimado).
+        |   2. mediana histórica (`eta_metodo = 'historico'`, ≥3 muestras módulo+nivel) por encima
+        |      del umbral de segundos.
+        | `umbral_segundos` queda por debajo del timeout real de `vuelta.sh` (600s) a propósito:
+        | conviene decomponer ANTES de rozar la pared, no justo al borde.
+        */
+        'cabida' => [
+            'umbral_segundos' => (int) env('CIRCUITO_CABIDA_UMBRAL_SEGUNDOS', 480),
+        ],
+
+        /*
         |----------------------------------------------------------------------
         | CARRIL MECÁNICO (#566) — auto-aprobar lo que no tiene nada que decidir
         |----------------------------------------------------------------------
