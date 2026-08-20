@@ -30,6 +30,11 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'acciones' }" href="#" @click.prevent="tab = 'acciones'">
+                    <i class="bi bi-list-check me-1"></i> Historial de acciones
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'historial' }" href="#" @click.prevent="tab = 'historial'">
                     <i class="bi bi-clock-history me-1"></i> Historial de versiones
                 </a>
@@ -58,6 +63,9 @@
 
         <!-- ── Sub-sección: Integración / Ramas ── -->
         <integracion-ramas v-if="tab === 'integracion'" />
+
+        <!-- ── Sub-sección: Historial de acciones (Fase 8, Épica #874, #885) ── -->
+        <torre-historial-acciones v-if="tab === 'acciones'" />
 
         <!-- ── Armar versión (#312) — RETIRADA DE LA NAVEGACIÓN el 2026-08-19 (Irving no la requiere).
              El componente, la ruta `/api/roadmap/armar-version` y `RoadmapController::armarVersion`
@@ -199,6 +207,7 @@ import AuditReport from "./torre-control/AuditReport.vue";
 import RoadmapTab from "./torre-control/RoadmapTab.vue";
 import TorreControl from "./torre-control/TorreControl.vue";
 import TorreTerminales from "./torre-control/TorreTerminales.vue";
+import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
 import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
 import ArmarVersion from "./torre-control/ArmarVersion.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
@@ -208,7 +217,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, IntegracionRamas, ArmarVersion, DeployProgressModal },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, IntegracionRamas, ArmarVersion, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
