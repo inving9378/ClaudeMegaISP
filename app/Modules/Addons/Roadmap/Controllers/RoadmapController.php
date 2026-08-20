@@ -424,6 +424,201 @@ class RoadmapController extends Controller
     }
 
     /**
+     * #878 — ACTORES AUTOMÁTICOS. Quién puede decidir sin Irving delante.
+     *
+     * `aprobado_por` es el único campo que ya distingue quién firmó la decisión, y lo escriben los
+     * tres: el autopilot (`autopilot`), el revisor (`revisor:*`) y el des-trabador (`destrabe*`).
+     * Se mira por prefijo y no por lista cerrada de literales para que un actor nuevo aparezca en
+     * la lista de Irving por defecto — el modo de fallo correcto es "se ve de más", nunca
+     * "decidió y no se enteró".
+     */
+    private const ACTORES_AUTOMATICOS = ['autopilot', 'revisor:', 'destrabe', 'clasificador'];
+
+    /**
+     * GET /api/roadmap/torre/decisiones-automaticas — LO QUE LA MÁQUINA DECIDIÓ POR TI.
+     *
+     * La contraparte de dejar que el circuito decida solo: no una espera previa, sino la
+     * reversibilidad posterior. Una lista corta y legible en diez segundos —qué se decidió, sobre
+     * qué item, por qué y hace cuánto— con el estado actual del item para saber si el deshacer
+     * todavía es barato (aún no lo toma una terminal) o ya tiene trabajo encima.
+     */
+    public function decisionesAutomaticas(Request $request): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $limite = min(50, max(1, (int) $request->query('limit', 20)));
+
+        $q = RoadmapItem::query()
+            ->whereNotNull('aprobado_por')
+            ->whereNull('archivado_at')
+            ->where(function ($w) {
+                foreach (self::ACTORES_AUTOMATICOS as $a) {
+                    $w->orWhere('aprobado_por', 'like', $a . '%');
+                }
+            })
+            ->orderByRaw('COALESCE(revisado_at, updated_at) DESC');
+
+        // #878 — `log` es JSON: ordenar con `SELECT *` sobre esta tabla revienta MySQL (1038).
+        // hidratarEnOrden() ordena sobre `id` y trae las filas anchas sin ORDER BY.
+        $items = RoadmapItem::hidratarEnOrden($q, $limite);
+
+        return response()->json([
+            'generated_at' => now()->toIso8601String(),
+            'decisiones'   => $items->map(function (RoadmapItem $i) {
+                $entrada = $this->ultimaEntradaAutomatica($i);
+                $enCurso = ! empty($i->worker_sid) || ! empty($i->branch)
+                    || $i->estado_aprobacion === 'en_progreso' || $i->status === 'in_progress';
+
+                return [
+                    'item_id'           => $i->id,
+                    'title'             => $i->title,
+                    'modulo'            => $i->modulo,
+                    'nivel_riesgo'      => $i->nivel_riesgo,
+                    'decidio'           => $i->aprobado_por,
+                    'estado_aprobacion' => $i->estado_aprobacion,
+                    'estacion'          => $i->estacion,
+                    // Frase lista para leer: "decidí X sobre el #N porque Y".
+                    'que_decidio'       => $entrada['decision'] ?? 'aprobar',
+                    // Cada actor firma distinto: el autopilot escribe `motivo`, el revisor `razon`
+                    // y el des-trabador sólo una `categoria`. Se toma el primero que exista en vez
+                    // de exigirles un formato común — unificarlo es otro item, y mientras tanto la
+                    // lista tiene que ser legible con lo que hay.
+                    'porque'            => $entrada['motivo']
+                        ?? $entrada['razon']
+                        ?? (isset($entrada['categoria'])
+                            ? 'Clasificado como «' . str_replace('_', ' ', (string) $entrada['categoria']) . '».'
+                            : ($i->comentarios_claude
+                                ? mb_strimwidth((string) $i->comentarios_claude, 0, 160, '…')
+                                : 'Sin motivo registrado.')),
+                    'confianza'         => $entrada['confianza'] ?? null,
+                    'reversible'        => $entrada['reversible'] ?? null,
+                    'cuando'            => optional($i->revisado_at ?? $i->updated_at)->toIso8601String(),
+                    // ¿El deshacer todavía es barato?
+                    'trabajo_en_curso'  => $enCurso,
+                    'terminal'          => $i->worker_sid,
+                    'rama'              => $i->branch,
+                    // Ya deshecha antes: no ofrecer el botón otra vez.
+                    'ya_deshecha'       => $this->tieneEventoLog($i, 'decision_automatica_deshecha'),
+                    'puede_deshacer'    => ! $this->tieneEventoLog($i, 'decision_automatica_deshecha')
+                        && $i->estado_aprobacion !== 'requiere_irving',
+                ];
+            })->values(),
+        ]);
+    }
+
+    /** Última entrada del `log` firmada por un actor automático (o [] si no hay). */
+    private function ultimaEntradaAutomatica(RoadmapItem $i): array
+    {
+        $encontrada = [];
+        foreach ((array) ($i->log ?? []) as $e) {
+            if (! is_array($e)) {
+                continue;
+            }
+            $por = (string) ($e['decidido_por'] ?? $e['por'] ?? '');
+            foreach (self::ACTORES_AUTOMATICOS as $a) {
+                if ($por !== '' && str_starts_with($por, $a)) {
+                    $encontrada = $e;   // sin break: nos quedamos con la MÁS RECIENTE
+                }
+            }
+        }
+
+        return $encontrada;
+    }
+
+    private function tieneEventoLog(RoadmapItem $i, string $evento): bool
+    {
+        foreach ((array) ($i->log ?? []) as $e) {
+            if (is_array($e) && ($e['evento'] ?? null) === $evento) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * POST /api/roadmap/items/{id}/deshacer-decision — DESHACER lo que la máquina decidió.
+     *
+     * Devuelve el item a la bandeja de Irving y borra las respuestas que el actor automático
+     * eligió por él. Sale del pool (`excluir_pool_automatico`) a propósito: sin eso, el mismo
+     * autopilot que acaba de decidir volvería a decidir lo mismo en la siguiente vuelta y el
+     * deshacer se desharía solo.
+     *
+     * Si una terminal YA está trabajando el item, el deshacer deja de ser gratis (hay rama o
+     * trabajo en curso): se exige `confirmado` explícito en vez de resolverlo por su cuenta.
+     */
+    public function deshacerDecision(Request $request, int $id): JsonResponse
+    {
+        $this->authorize('roadmap_manage');
+
+        $item = RoadmapItem::findOrFail($id);
+
+        $esAutomatica = false;
+        foreach (self::ACTORES_AUTOMATICOS as $a) {
+            if (str_starts_with((string) $item->aprobado_por, $a)) {
+                $esAutomatica = true;
+                break;
+            }
+        }
+        if (! $esAutomatica) {
+            return response()->json([
+                'message' => 'Este item no lo decidió un actor automático (lo firmó "'
+                    . ($item->aprobado_por ?: 'nadie') . '"): no hay decisión automática que deshacer.',
+            ], 422);
+        }
+
+        $enCurso = ! empty($item->worker_sid) || ! empty($item->branch)
+            || $item->estado_aprobacion === 'en_progreso' || $item->status === 'in_progress';
+
+        if ($enCurso && ! $request->boolean('confirmado')) {
+            return response()->json([
+                'requiere_confirmacion' => true,
+                'mensaje' => 'Una terminal ya está trabajando este item'
+                    . ($item->worker_sid ? " ({$item->worker_sid})" : '')
+                    . ($item->branch ? " en la rama {$item->branch}" : '')
+                    . '. Deshacer la decisión lo devuelve a tu bandeja, pero NO borra el trabajo ya '
+                    . 'hecho ni la rama: eso lo decides tú aparte.',
+            ], 409);
+        }
+
+        $estadoPrevio = $item->estado_aprobacion;
+
+        // Borra las respuestas que eligió el actor automático (responderPregunta con null limpia).
+        foreach ($item->preguntasNormalizadas() as $p) {
+            $item->responderPregunta((string) $p['id'], null);
+        }
+        $item->opcion_elegida = null;
+
+        $item->estado_aprobacion       = 'requiere_irving';
+        $item->aprobado_por            = $this->actorLabel();
+        $item->revisado_at             = now();
+        $item->decision_resuelta       = false;
+        $item->excluir_pool_automatico = true;
+
+        $log = $item->log ?: [];
+        $log[] = [
+            'ts'             => now()->toIso8601String(),
+            'por'            => $this->actorLabel(),
+            'evento'         => 'decision_automatica_deshecha',
+            'decidio_antes'  => $estadoPrevio,
+            'estado'         => 'requiere_irving',
+            'trabajo_en_curso' => $enCurso,
+            'motivo'         => 'Irving deshizo la decisión automática desde la Torre.',
+        ];
+        $item->log = $log;
+        $item->save();
+
+        return response()->json([
+            'ok'      => true,
+            'item_id' => $item->id,
+            'mensaje' => "Decisión deshecha: el #{$item->id} vuelve a tu bandeja y sale del pool "
+                . 'automático hasta que lo decidas.'
+                . ($enCurso ? ' Ojo: el trabajo que la terminal ya hizo sigue ahí.' : ''),
+            'estado_aprobacion' => $item->estado_aprobacion,
+        ]);
+    }
+
+    /**
      * GET /api/roadmap/torre/decisiones/contadores — cuántas decisiones te esperan, POR MÓDULO.
      * (#507 sub-paso 5) Alimenta las "bombitas" del sidebar interno de la Torre.
      *

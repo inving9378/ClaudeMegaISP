@@ -110,6 +110,10 @@ Route::middleware(['web', 'auth'])
         Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);
         // Contadores de decisiones por módulo — "bombitas" del sidebar interno de la Torre (#507).
         Route::get('/torre/decisiones/contadores', [RoadmapController::class, 'decisionesContadores']);
+        // #878 — CONSTANCIA + DESHACER de lo que la máquina decidió sola. Es la contraparte de la
+        // auto-decisión: no una espera previa, sino la reversibilidad posterior.
+        Route::get('/torre/decisiones-automaticas', [RoadmapController::class, 'decisionesAutomaticas']);
+        Route::post('/items/{id}/deshacer-decision', [RoadmapController::class, 'deshacerDecision'])->whereNumber('id');
         // Árbol de sesiones `claude` vivas en el box + banner de colisión (#345). Solo backend
         // por ahora (endpoint de lectura); panel Vue de la Torre queda para una siguiente entrega.
         Route::get('/circuito/sesiones',   [RoadmapController::class, 'sesiones']);

@@ -338,6 +338,38 @@
           </div>
         </div>
 
+        <!-- #878 — DECIDIDO SIN TI. La contraparte de la auto-decisión: no una espera previa,
+             sino la reversibilidad posterior. Lista corta, legible en diez segundos. -->
+        <div class="tc-card">
+          <h2 class="tc-h2">🤖 Decidido sin ti ({{ decisionesAuto.length }})</h2>
+          <div class="tc-meta" style="margin:-6px 0 10px">
+            Lo que la máquina resolvió sola. Si alguna estuvo mal, deshazla aquí.
+          </div>
+          <div v-if="!decisionesAuto.length" class="tc-meta">Nada se decidió solo todavía. ✓</div>
+          <div v-for="d in decisionesAuto" :key="d.item_id" class="tc-ev">
+            <div>
+              <b>{{ d.decidio }}</b> decidió <b>{{ d.que_decidio }}</b> sobre el
+              <b>#{{ d.item_id }}</b> — {{ d.porque }}
+            </div>
+            <div class="tc-meta" style="margin-top:3px">
+              {{ d.title }}
+              <span v-if="d.nivel_riesgo"> · nivel {{ d.nivel_riesgo }}</span>
+              <span v-if="d.cuando"> · {{ hace(d.cuando) }}</span>
+              <span v-if="d.trabajo_en_curso"> · ⚙ {{ d.terminal || 'una terminal' }} ya lo trabaja</span>
+              <span v-if="d.ya_deshecha"> · ↩ ya la deshiciste</span>
+            </div>
+            <div class="tc-actions" style="margin-top:6px">
+              <button class="tc-btn tc-btn-ver" @click="verItemAuto(d)">🔎 Ver</button>
+              <button v-if="d.puede_deshacer" class="tc-btn tc-btn-warn"
+                      :disabled="deshaciendo === d.item_id"
+                      @click="deshacerAuto(d)">
+                {{ deshaciendo === d.item_id ? 'Deshaciendo…' : '↩ Deshacer' }}
+              </button>
+            </div>
+            <div v-if="deshacerMsg[d.item_id]" class="tc-meta" style="margin-top:4px">{{ deshacerMsg[d.item_id] }}</div>
+          </div>
+        </div>
+
         <!-- Actividad reciente -->
         <div class="tc-card">
           <h2 class="tc-h2">Actividad reciente del circuito</h2>
@@ -505,6 +537,68 @@ export default {
         // En ambos casos el número se pinta como «—», que no es un dato: es la ausencia de uno.
         const errorCarga = ref(null);
         const bloquesFallidos = ref({});
+
+        // #878 — "Decidido sin ti": constancia visible + deshacer de la auto-decisión.
+        /** "hace 2 h" — Irving pidió que la lista se lea en diez segundos, no que traiga timestamps. */
+        function hace(iso) {
+            if (!iso) return '';
+            const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+            if (s < 60) return 'hace un momento';
+            const m = Math.floor(s / 60);
+            if (m < 60) return `hace ${m} min`;
+            const h = Math.floor(m / 60);
+            if (h < 24) return `hace ${h} h`;
+            const d = Math.floor(h / 24);
+            return `hace ${d} día${d > 1 ? 's' : ''}`;
+        }
+
+        const decisionesAuto = ref([]);
+        const deshaciendo    = ref(null);
+        const deshacerMsg    = reactive({});
+
+        async function cargarDecisionesAuto() {
+            try {
+                const { data } = await axios.get('/api/roadmap/torre/decisiones-automaticas?limit=20');
+                decisionesAuto.value = data.decisiones || [];
+            } catch (e) {
+                // Lista accesoria: si falla, no tumba la Torre. El banner de bloques ya avisa.
+                decisionesAuto.value = [];
+            }
+        }
+
+        function verItemAuto(d) {
+            window.open('/releases?item=' + d.item_id, '_blank');
+        }
+
+        async function deshacerAuto(d) {
+            if (deshaciendo.value) return;
+            deshaciendo.value = d.item_id;
+            deshacerMsg[d.item_id] = '';
+            const enviar = (confirmado) =>
+                axios.post(`/api/roadmap/items/${d.item_id}/deshacer-decision`, { confirmado });
+            try {
+                const { data } = await enviar(false);
+                deshacerMsg[d.item_id] = data.mensaje;
+                await Promise.all([load(), cargarDecisionesAuto()]);
+            } catch (e) {
+                // 409 = una terminal ya lo trabaja. La UI NO decide: pregunta y reenvía.
+                if (e?.response?.status === 409 && e.response.data?.requiere_confirmacion) {
+                    if (window.confirm(e.response.data.mensaje + '\n\n¿Deshacer la decisión de todas formas?')) {
+                        try {
+                            const { data } = await enviar(true);
+                            deshacerMsg[d.item_id] = data.mensaje;
+                            await Promise.all([load(), cargarDecisionesAuto()]);
+                        } catch (e2) {
+                            deshacerMsg[d.item_id] = e2?.response?.data?.message || 'No se pudo deshacer.';
+                        }
+                    }
+                } else {
+                    deshacerMsg[d.item_id] = e?.response?.data?.message || 'No se pudo deshacer.';
+                }
+            } finally {
+                deshaciendo.value = null;
+            }
+        }
 
         const falloBloque = (n) => !!bloquesFallidos.value[n];
         const datosIncompletos = computed(() => !!errorCarga.value || Object.keys(bloquesFallidos.value).length > 0);
@@ -901,6 +995,7 @@ export default {
                 digest.value = data.digest || null;   // #791 foto del último `circuito:digest`
                 applyEstado(data);
                 cargarContadores();   // #507 bombitas por módulo (endpoint propio, no bloquea)
+                cargarDecisionesAuto();   // #878 "Decidido sin ti" (endpoint propio, no bloquea)
                 maybeDeepLink();   // #torre: deep-link /releases?item=NNN tras poblar la bandeja
             } catch (e) {
                 // #878 — ANTES no había catch: la excepción se tragaba y los refs se quedaban en su
@@ -1168,6 +1263,8 @@ export default {
             ultimaHace, proximaEn, cronCaido, intervaloMin, schedulerBeatSecs, autoEjecutables,
             // #878 — ceros mudos: el front DEBE poder distinguir 0 de «no pude preguntar».
             errorCarga, bloquesFallidos, datosIncompletos, bloquesFallidosLista, falloBloque, kpi,
+            // #878 — constancia visible + deshacer de lo que la máquina decidió sola.
+            decisionesAuto, deshaciendo, deshacerMsg, deshacerAuto, verItemAuto, cargarDecisionesAuto, hace,
             // Visor "Trabajando ahora" (#349)
             sesiones, resumenUltima, nowMs,
             logOpen, logTail, logPre, toggleLog,
