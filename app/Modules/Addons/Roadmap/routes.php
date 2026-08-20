@@ -142,6 +142,7 @@ Route::middleware(['web', 'auth'])
         Route::post('/validacion/reportar',  [RoadmapController::class, 'validacionReportar']);
 
         Route::get('/items',               [RoadmapController::class, 'index']);
+        Route::get('/items/{id}',          [RoadmapController::class, 'show'])->whereNumber('id');
         Route::post('/items',              [RoadmapController::class, 'store']);
         Route::patch('/items/{id}',        [RoadmapController::class, 'update']);
         Route::post('/items/{id}/start',              [RoadmapController::class, 'start']);

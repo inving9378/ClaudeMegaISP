@@ -1419,6 +1419,16 @@ class RoadmapController extends Controller
         return response()->json($q->get());
     }
 
+    // GET /api/roadmap/items/{id} — lectura puntual (#861: sondeo del desenlace de despacho
+    // tras crear un item; `vista=backlog` lo saca de la lista en cuanto una terminal lo toma,
+    // así que el sondeo necesita un fetch directo por id que no dependa de esa vista).
+    public function show(int $id): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        return response()->json(RoadmapItem::findOrFail($id));
+    }
+
     // POST /api/roadmap/items
     public function store(Request $request): JsonResponse
     {
