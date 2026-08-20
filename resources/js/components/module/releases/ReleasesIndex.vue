@@ -4,7 +4,7 @@
         <!-- ── Encabezado: la Torre de control es el contenedor/hub ── -->
         <div class="d-flex align-items-center gap-2 mb-3">
             <i class="bi bi-broadcast-pin fs-4"></i>
-            <h1 class="h4 fw-bold mb-0">Torre de control</h1>
+            <h1 class="h4 fw-bold mb-0">Torre de control V2</h1>
         </div>
 
         <!-- ── Sub-secciones de la Torre ── -->
@@ -27,11 +27,6 @@
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'integracion' }" href="#" @click.prevent="tab = 'integracion'">
                     <i class="bi bi-diagram-3 me-1"></i> Integración
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" :class="{ active: tab === 'armar-version' }" href="#" @click.prevent="tab = 'armar-version'">
-                    <i class="bi bi-boxes me-1"></i> Armar versión
                 </a>
             </li>
             <li class="nav-item">
@@ -61,7 +56,12 @@
         <!-- ── Sub-sección: Integración / Ramas ── -->
         <integracion-ramas v-if="tab === 'integracion'" />
 
-        <!-- ── Sub-sección: Armar versión (#312, Sub-item A — solo lectura) ── -->
+        <!-- ── Armar versión (#312) — RETIRADA DE LA NAVEGACIÓN el 2026-08-19 (Irving no la requiere).
+             El componente, la ruta `/api/roadmap/armar-version` y `RoadmapController::armarVersion`
+             siguen en el repo A PROPÓSITO: borrar código en el mismo paso que se oculta una pantalla
+             convierte un cambio reversible en arqueología si resulta que sí hacía falta.
+             `tab` ya no puede valer 'armar-version', así que este render es inalcanzable.
+             Limpieza definitiva agendada: ver el item de la Hoja de Ruta (30 días). -->
         <armar-version v-if="tab === 'armar-version'" />
 
         <!-- ── Tab: Historial ── -->

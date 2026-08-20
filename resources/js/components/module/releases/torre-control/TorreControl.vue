@@ -15,7 +15,8 @@
           <h1 class="tc-h1">
             <template v-if="running">{{ terminalesActivas }} {{ terminalesActivas === 1 ? 'terminal trabajando' : 'terminales trabajando' }}<span v-if="live.current_item" class="tc-hnorm"> · tocando <span class="tc-idnum">#{{ live.current_item }}</span></span></template>
             <template v-else>Circuito CC · Torre de control</template>
-            <span class="tc-v2-badge" title="Circuito CC v2 aplicada — ver nota abajo">v2</span>
+            <!-- El (v2) salió de aquí el 2026-08-19: la versión ya está en el título de la Torre
+                 («Torre de control V2») y repetirla en la misma pantalla no informa de nada. -->
           </h1>
           <div class="tc-meta">
             <template v-if="running">
@@ -43,14 +44,9 @@
       </div>
     </div>
 
-    <!-- #560: marcador visual de confirmación — Circuito CC v2 aplicada (Torre v2) -->
-    <div class="tc-v2-note">
-      <span class="tc-v2-note-badge">v2</span>
-      <div class="tc-v2-note-body">
-        <b>Circuito CC v2 aplicada.</b> Torre v2: (1) API de alta de items + historial <code>roadmap_item_reports</code> + estado_cola/terminal asignada · (2) Thomas (autoridad determinista, 5 categorías de escalamiento) · (3) harness no-interactivo con regla de oro · (4) <code>docs/politica-thomas.md</code>.
-        <div class="tc-v2-note-links">Prueba real: <b>#555</b>, <b>#556</b> · commits <code>ea744de0</code>, <code>502a4866</code>.</div>
-      </div>
-    </div>
+    <!-- El banner «Circuito CC v2 aplicada» (#560) se retiró el 2026-08-19: la v2 ya está aplicada y
+         verificada, y un anuncio permanente deja de leerse. El detalle de qué trajo NO se perdió —
+         vive en `docs/circuito/torre-v2-que-trajo.md`; la versión se muestra en el título. -->
 
     <!-- Feedback del disparo manual (#337) -->
     <div v-if="disparoMsg" class="tc-disparo-msg">{{ disparoMsg }}</div>
@@ -1157,11 +1153,6 @@ export default {
 .tc-pause{background:#fef2f2;color:#b91c1c;}
 .tc-dotlive{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 3px #10b98133;}
 .tc-h1{font-size:16px;margin:0;font-weight:700;}
-.tc-v2-badge{display:inline-flex;align-items:center;margin-left:8px;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:2px 8px;border-radius:999px;background:var(--tc-accent);color:#fff;vertical-align:middle;}
-.tc-v2-note{margin-top:12px;display:flex;gap:12px;align-items:flex-start;padding:11px 14px;border-radius:10px;font-size:12.6px;line-height:1.5;background:#f0fdfa;color:#0f766e;border:1px solid #99f6e4;}
-.tc-v2-note-badge{flex:0 0 auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--tc-accent);color:#fff;margin-top:1px;}
-.tc-v2-note-body code{background:rgba(15,118,110,.12);border-radius:4px;padding:0 4px;font-size:11.5px;}
-.tc-v2-note-links{margin-top:4px;color:#0f766e;opacity:.85;}
 .tc-meta{font-size:12.5px;color:var(--tc-muted);}
 .tc-loading{padding:24px 4px;}
 .tc-killbtn{font-size:12.5px;font-weight:600;color:#b91c1c;background:#fff;border:1px solid #fecaca;padding:7px 13px;border-radius:9px;cursor:pointer;}
@@ -1427,9 +1418,6 @@ export default {
 .tc-dark .tc-btn-urg{background:rgba(251,146,60,.14);color:#fdba74;border-color:#7c3a1d;}
 .tc-dark .tc-btn-urg-on{background:#c2410c;color:#fff;border-color:#ea580c;}
 .tc-dark .tc-disparo-msg{background:rgba(45,212,191,.12);color:#5eead4;border-color:#155e52;}
-.tc-dark .tc-v2-note{background:rgba(45,212,191,.10);color:#5eead4;border-color:#155e52;}
-.tc-dark .tc-v2-note-links{color:#5eead4;}
-.tc-dark .tc-v2-note-body code{background:rgba(94,234,212,.14);}
 .tc-dark .tc-alert{background:rgba(248,113,113,.12);color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-alert-soft{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4a20;}
 .tc-dark .tc-lvA{background:rgba(74,222,128,.15);color:#4ade80;}
