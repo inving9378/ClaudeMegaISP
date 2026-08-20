@@ -116,6 +116,12 @@ Route::middleware(['web', 'auth'])
         // #885 — Fase 8 de la Épica #874: historial de acciones ejecutadas desde los botones de la
         // Torre (quién, qué botón, cuándo, resultado). Solo lectura, agrega `roadmap_items.log`.
         Route::get('/torre/historial-acciones', [RoadmapController::class, 'historialAcciones']);
+        // #891 — Fase 7 de la Épica #874: salud del entorno (cert TLS, disco, migraciones, jobs
+        // fallidos, respaldo, errores 24h). GET solo lectura; los 2 POST son los únicos botones
+        // que declara el item (gate torre.salud.manage).
+        Route::get('/torre/salud-entorno', [RoadmapController::class, 'saludEntorno']);
+        Route::post('/torre/salud/reintentar-fallidos', [RoadmapController::class, 'saludReintentarFallidos']);
+        Route::post('/torre/salud/recalentar-caches', [RoadmapController::class, 'saludRecalentarCaches']);
         Route::post('/items/{id}/deshacer-decision', [RoadmapController::class, 'deshacerDecision'])->whereNumber('id');
         // Árbol de sesiones `claude` vivas en el box + banner de colisión (#345). Solo backend
         // por ahora (endpoint de lectura); panel Vue de la Torre queda para una siguiente entrega.
