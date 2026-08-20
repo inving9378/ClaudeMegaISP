@@ -9,7 +9,6 @@ use App\Modules\Core\CRM\Repositories\CrmRepository;
 use App\Http\Repository\DocumentTemplateRepository;
 use App\Http\Requests\module\administration\document_template\DocumentTemplateCreateRequest;
 use App\Http\Requests\module\administration\document_template\DocumentTemplateUpdateRequest;
-use App\Models\DocumentTemplate;
 use App\Services\ClientService\ContractClientService;
 use App\Modules\Core\CRM\Services\ContractCrmService;
 use App\Services\DocumentTemplateService;
@@ -92,11 +91,6 @@ class DocumentTemplateController extends Controller
             'status' => 'ok',
             'file_path' => '/storage/' . $filePath
         ]);
-    }
-
-    public function show(DocumentTemplate $log)
-    {
-        //
     }
 
     /**
