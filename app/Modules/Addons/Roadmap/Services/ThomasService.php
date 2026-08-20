@@ -472,6 +472,13 @@ class ThomasService
         if ($item->tieneFrenoHumano()) {
             return $no('Item con freno humano vigente: decisión de Irving por definición.');
         }
+        // #893 — `requiere_sesion_supervisada` es un flag que Irving fija EXPLÍCITAMENTE para decir
+        // «esto no se auto-despacha, necesito estar presente». No vive dentro de `tieneFrenoHumano()`
+        // (es una columna aparte, ver Models/RoadmapItem.php), así que este carril lo ignoraba por
+        // completo y aprobaba items que Irving había marcado para verse en persona. Guard propio.
+        if ($item->requiere_sesion_supervisada) {
+            return $no('Item marcado `requiere_sesion_supervisada`: Irving pidió estar presente, no se auto-despacha.');
+        }
         // MISMO texto que el carril mecánico (título + descripción + prompt): antes este carril
         // miraba sólo título+descripción y un término de frontera que viviera en el `prompt` se le
         // escapaba, así que dos carriles con la misma regla daban veredictos distintos.
@@ -508,6 +515,17 @@ class ThomasService
 
             $sinResponder = ($p['opcion_elegida'] ?? null) === null;
             if (! $sinResponder) {
+                // #893 — «contestada» no es lo mismo que «decidida a favor del pool»: la opción
+                // elegida puede ser LITERALMENTE la que dice «escalar a Irving» (la recomendada del
+                // Revisor cuando no puede resolver algo solo). Tratar eso como brief-completo y
+                // aprobar es lo que causó las 12 escalaciones idénticas de #186. Si el texto de la
+                // opción elegida lo dice, no hay decisión tomada para el pool: se para aquí igual
+                // que con una pregunta sin responder.
+                foreach ($p['opciones'] as $o) {
+                    if ($o['clave'] === $p['opcion_elegida'] && stripos($o['texto'], 'escalar a irving') !== false) {
+                        return $no('La opción elegida es "escalar a Irving": no es una decisión tomada para el pool.');
+                    }
+                }
                 continue;
             }
             // Queda algo sin contestar: si es de Irving, es suyo; si no, que lo tome el autopilot.
