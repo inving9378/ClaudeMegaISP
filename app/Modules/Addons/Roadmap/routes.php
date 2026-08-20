@@ -116,6 +116,8 @@ Route::middleware(['web', 'auth'])
         // Disparo manual de una vuelta + marcar item urgente (#337).
         Route::post('/circuito/disparar',  [RoadmapController::class, 'disparar']);
         Route::post('/items/{id}/urgente', [RoadmapController::class, 'urgente'])->whereNumber('id');
+        // Ventana de deshacer 15s tras crear un item que entró directo a la cola (#863).
+        Route::post('/items/{id}/cancelar-disparo', [RoadmapController::class, 'cancelarDisparo'])->whereNumber('id');
         Route::post('/circuito/toggle',    [RoadmapController::class, 'toggleCircuito']);
         Route::post('/circuito/decidir',   [RoadmapController::class, 'decidir']);
         Route::post('/circuito/elegir-opcion', [RoadmapController::class, 'elegirOpcion']);
