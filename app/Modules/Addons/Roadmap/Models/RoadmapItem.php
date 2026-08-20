@@ -175,6 +175,13 @@ class RoadmapItem extends Model
     public bool $cierreManualIrving = false;
 
     /**
+     * Bandera TRANSITORIA (no persistida): la enciende el cierre en cascada del paraguas, cuando el
+     * último sub-item cerró y el padre ya puede completarse de verdad. Sin ella, el guard de abajo
+     * lo retendría para siempre — el padre nunca podría cerrar.
+     */
+    public bool $cierreParaguas = false;
+
+    /**
      * #420: guard de cierre — cualquier save() que deje estado_aprobacion=completado sincroniza
      * status=done + completed_at. Evita que un cierre (tinker, endpoint, merge) deje status=pending
      * colgado, que es justo lo que inflaba el contador "Pendientes" de la Torre (cuenta por status).
@@ -276,6 +283,33 @@ class RoadmapItem extends Model
                 $item->contarEscalacion();
             }
 
+            // (2b) PARAGUAS — un item que se descompuso NO se completa mientras le queden sub-items
+            // abiertos. Se retiene como paraguas: sigue autorizado (no es una decisión pendiente) y
+            // fuera del pool (ningún worker lo re-toma). Lo cierra solo el último hijo que cierre.
+            if ($item->exists
+                && $item->isDirty('estado_aprobacion')
+                && $item->estado_aprobacion === 'completado'
+                && ! $item->cierreParaguas
+                && $item->tieneSubItemsAbiertos()) {
+                $abiertos = $item->subItemsAbiertos()->count();
+
+                $item->estado_aprobacion       = 'aprobado_irving';
+                $item->status                  = 'pending';
+                $item->excluir_pool_automatico = true;
+
+                $log = $item->log ?: [];
+                $log[] = [
+                    'ts'              => now()->toIso8601String(),
+                    'por'             => 'paraguas',
+                    'evento'          => 'paraguas_abierto',
+                    'subitems_abiertos' => $abiertos,
+                    'motivo'          => "Este item se descompuso y le quedan {$abiertos} sub-item(s) "
+                                       . 'abierto(s): no se completa. Queda como paraguas y cierra solo '
+                                       . 'cuando el último de ellos cierre.',
+                ];
+                $item->log = $log;
+            }
+
             // (3) #878 — NINGÚN ACTOR AUTOMÁTICO REVOCA UNA AUTORIZACIÓN HUMANA EXPLÍCITA.
             //
             // Regla de Irving (2026-08-20): el triaje PUEDE endurecer el nivel de riesgo —A→B→C es
@@ -336,6 +370,40 @@ class RoadmapItem extends Model
             if (trim((string) $item->modulo) === '') {
                 $item->modulo = 'Sin clasificar';
             }
+        });
+
+        // PARAGUAS — cuando un SUB-ITEM cierra, se revisa si era el último: si sí, el padre cierra
+        // solo. Va en `saved` (no en `saving`) para que la fila del hijo ya esté escrita cuando se
+        // cuenten los hermanos abiertos; si no, el propio hijo se contaría a sí mismo.
+        static::saved(function (self $item) {
+            if (empty($item->origen_item_id)) {
+                return;
+            }
+            $cerrado = in_array($item->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true)
+                || in_array($item->status, ['done', 'cancelled'], true);
+            if (! $cerrado) {
+                return;
+            }
+
+            $padre = static::find($item->origen_item_id);
+            // Sólo cierra al padre que está RETENIDO como paraguas: si sigue en la bandeja o lo está
+            // trabajando alguien, no es asunto de este hook.
+            if (! $padre || $padre->estado_aprobacion !== 'aprobado_irving' || $padre->tieneSubItemsAbiertos()) {
+                return;
+            }
+
+            $log = $padre->log ?: [];
+            $log[] = [
+                'ts'     => now()->toIso8601String(),
+                'por'    => 'paraguas',
+                'evento' => 'paraguas_cerrado',
+                'ultimo_subitem' => $item->id,
+                'motivo' => "Cerró el último sub-item (#{$item->id}): el paraguas ya puede completarse.",
+            ];
+            $padre->log = $log;
+            $padre->cierreParaguas   = true;   // habilita el guard de arriba para ESTE save
+            $padre->estado_aprobacion = 'completado';
+            $padre->save();
         });
 
         // FASE 2A.3 — clasificar al INSERTAR, en vez de barrer con Opus cada 3 minutos.
@@ -1353,6 +1421,32 @@ class RoadmapItem extends Model
         }
 
         return $estacion === 'listo' ? 'en_cola' : 'sin_triar';
+    }
+
+    /**
+     * PARAGUAS — sub-items de este item que todavía NO están cerrados.
+     *
+     * Regla de Irving (2026-08-20): **un item que se descompone no se completa.** Queda abierto como
+     * paraguas y se cierra solo cuando todos sus sub-items estén cerrados.
+     *
+     * El porqué: si descomponer contara como completar, `completado` significaría dos cosas
+     * distintas —«esto ya está hecho» y «esto lo partí en siete»— y la Torre reportaría trabajo
+     * terminado donde no se hizo nada. Pasó de verdad con la épica #874: se cerró al descomponerse
+     * y figuraba como hecha con cinco de sus siete fases sin empezar.
+     *
+     * Gratis, además: con el paraguas abierto la barra de avance de la épica es real.
+     */
+    public function subItemsAbiertos()
+    {
+        return static::where('origen_item_id', $this->id)
+            ->whereNull('archivado_at')
+            ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
+            ->whereNotIn('status', ['done', 'cancelled']);
+    }
+
+    public function tieneSubItemsAbiertos(): bool
+    {
+        return $this->exists && $this->subItemsAbiertos()->exists();
     }
 
     /** Historial append-only de reportes de este item (Torre v2). */
