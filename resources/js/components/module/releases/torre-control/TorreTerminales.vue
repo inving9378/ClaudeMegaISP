@@ -103,7 +103,7 @@
             <span class="tt-worker-sm" title="Worker del equipo (firma auditable)">{{ s.sid }}</span>
           </span>
           <span class="tt-state" :class="s.idle ? 'tt-s-idle' : (s.running ? (s.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off')">
-            <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ s.idle ? 'esperando trabajo' : (s.running ? (s.stale ? 'latido frío' : 'corriendo') : 'terminada') }}
+            <span v-if="s.running && !s.stale" class="tt-dot"></span>{{ workerStateText(s) }}
           </span>
           <span class="tt-term-item">
             <template v-if="s.item"><b class="tt-idnum">#{{ s.item.id }}</b> {{ s.item.title || '(sin título)' }}</template>
@@ -138,7 +138,7 @@
       <div class="tt-fs-card">
         <div class="tt-fs-head">
           <span class="tt-state" :class="fsSesion.running ? (fsSesion.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off'">
-            <span v-if="fsSesion.running && !fsSesion.stale" class="tt-dot"></span>{{ fsSesion.running ? (fsSesion.stale ? 'latido frío' : 'corriendo') : 'terminada' }}
+            <span v-if="fsSesion.running && !fsSesion.stale" class="tt-dot"></span>{{ workerStateText(fsSesion) }}
           </span>
           <span class="tt-term-item">
             <template v-if="fsSesion.item"><b class="tt-idnum">#{{ fsSesion.item.id }}</b> {{ fsSesion.item.title || '(sin título)' }}</template>
@@ -261,6 +261,15 @@ export default {
             return stepReached(s, key) ? "tt-step-done" : "tt-step-pend";
         };
 
+        // #854: texto de estado de una terminal trabajadora — misma lógica que el "revisando item
+        // #N" del supervisor, para que las dos tarjetas no digan lo mismo de dos maneras distintas.
+        const workerStateText = (s) => {
+            if (s.idle) return "esperando trabajo";
+            if (!s.running) return "terminada";
+            if (s.stale) return "latido frío";
+            return s.item ? `trabajando item #${s.item.id}` : "corriendo";
+        };
+
         // Estado visual del avatar (engancha la animación a los flags live existentes, sin tocar lógica).
         const avatarClass = (s) => {
             if (isStretching(s.sid)) return "tt-av-stretch";   // #475: gesto de cansancio al terminar
@@ -376,7 +385,7 @@ export default {
             FASES, POLL_MS, dark: darkMode,
             sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive, fsSesion, fsPre,
             itemEnCurso, itemEnCursoEstado,
-            secsSince, fmtClock, stepReached, stepClass, setPre,
+            secsSince, fmtClock, stepReached, stepClass, setPre, workerStateText,
             avatarClass, gestureIcon, gestureClass, linkClass,
             initials, initialsStyle, puedeEditarAvatar, uploadingAvatar, avatarError, onAvatarFile,
             openFs, closeFs,
