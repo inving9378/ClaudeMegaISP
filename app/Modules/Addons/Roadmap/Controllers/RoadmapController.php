@@ -2108,8 +2108,14 @@ class RoadmapController extends Controller
             }
         }
 
-        // ⚠️ Esta asignación SOBREESCRIBE el log (no lo anexa): cualquier entrada del alta tiene que
-        // construirse AQUÍ. Escribirla antes y guardar no sirve — se pierde en esta línea.
+        // ⚠️ Esta asignación era una SOBREESCRITURA (`$item->log = [[...]]`) y se comía en silencio
+        // cualquier entrada escrita entre el `create()` de arriba y esta línea. Hoy nadie más escribe
+        // en esa ventana —se auditó: `sellarEsfuerzo` sólo toca eta, `requestDisparo` no toca el log,
+        // y los hooks del modelo no producen entradas en un alta— pero el modo de fallo era del tipo
+        // que no avisa: el dato no se pierde con un error, se pierde y ya. Ahora ANEXA, así que la
+        // clase entera de bug deja de ser posible aunque mañana alguien enganche algo ahí.
+        // (`RoadmapIntakeService` hace lo mismo pero ANTES del save, sobre un modelo que aún no
+        // existe: ahí no hay nada que pisar y el patrón es correcto.)
         $entradas = [[
             'ts'      => now()->toIso8601String(),
             'por'     => $this->actorLabel(),
@@ -2142,7 +2148,7 @@ class RoadmapController extends Controller
             ];
         }
 
-        $item->log = $entradas;
+        $item->log = array_merge($item->log ?? [], $entradas);
         $item->save();
 
         if ($frontera !== null) {
