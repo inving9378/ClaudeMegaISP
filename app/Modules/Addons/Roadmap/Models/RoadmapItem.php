@@ -1453,6 +1453,17 @@ class RoadmapItem extends Model
         return $this->exists && $this->subItemsAbiertos()->exists();
     }
 
+    /**
+     * #895 — CANDADO DE IDEMPOTENCIA para la descomposición: ¿este item YA generó al menos un
+     * sub-item (abierto o cerrado)? A diferencia de `subItemsAbiertos()`, cuenta TODOS — si la
+     * vuelta se cortó a mitad y una terminal reanuda el mismo item, no debe volver a descomponerlo
+     * (duplicaría sub-items). `origen_item_id` es la trazabilidad; este método es el candado.
+     */
+    public function yaFueDescompuesto(): bool
+    {
+        return $this->exists && static::where('origen_item_id', $this->id)->exists();
+    }
+
     /** Historial append-only de reportes de este item (Torre v2). */
     public function reports()
     {
