@@ -135,14 +135,18 @@ ejecutar_una() {
   META="$(grep -a 'CIRCUITO_META:' "$LOG" | tail -1 | sed 's/^.*CIRCUITO_META: *//')"
   [ -z "$META" ] && META='{}'
 
-  # PARQUEO EN TIMEOUT (#burn-fix): un item que timeouteó (RC=124) NO se re-encola — si no,
-  # re-timeoutea y vuelve a quemar 600s de Max. Se escala a requiere_irving. Bonus: su META quedó
-  # en blanco (no emitió CIRCUITO_META), así que el grep de arriba arrastraría el META del item
-  # ANTERIOR del pool-continuo (mal-atribución real: #224→#203); en timeout forzamos la atribución
-  # al item verdadero ($ITEM).
+  # PARQUEO EN TIMEOUT (#burn-fix, revisado 2026-08-20): un item que timeouteó (RC=124) no se
+  # re-encola A CIEGAS — si no, re-timeoutea y vuelve a quemar 600s de Max. Pero "no a ciegas" no es
+  # "nunca": el item que AVANZÓ (commits en su rama) es barato de reanudar y `scopeOrdenCola` ya lo
+  # prioriza como reanudable, mientras que el que giró en vacío es el que hay que atrapar.
+  # La regla vive en `circuito:parquear-timeout` (PHP, testeable) y no aquí: decide si el circuito
+  # re-gasta 600s de límite, y eso no debe vivir en un string de bash.
+  # Bonus que se conserva: su META quedó en blanco (no emitió CIRCUITO_META), así que el grep de
+  # arriba arrastraría el META del item ANTERIOR del pool-continuo (mal-atribución real:
+  # #224→#203); en timeout forzamos la atribución al item verdadero ($ITEM).
   if [ "$RC" -eq 124 ] && [ -n "${ITEM:-}" ]; then
-    META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"Timeout ${TIMEOUT}s sin resultado — parqueado a requiere_irving (item demasiado grande o atascado; no re-encolar).\"}"
-    php artisan tinker --execute="\$i=\App\Modules\Addons\Roadmap\Models\RoadmapItem::find($ITEM); if(\$i && !in_array(\$i->estado_aprobacion,['completado','cancelado','requiere_irving'],true)){ \$i->estado_aprobacion='requiere_irving'; \$i->aprobado_por='timeout'; \$i->save(); }" >>"$LOG" 2>&1 || log "aviso: no pude parquear #$ITEM tras timeout."
+    META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"Timeout ${TIMEOUT}s — ver circuito:parquear-timeout (reanudado si la rama tiene commits; a la bandeja si no).\"}"
+    php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" >>"$LOG" 2>&1 || log "aviso: no pude parquear #$ITEM tras timeout."
   fi
 
   registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META" "$MODEL"

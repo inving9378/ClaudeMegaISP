@@ -1709,6 +1709,13 @@ class RoadmapCircuitoService
         $overridePrevio = (string) (RoadmapItem::where('id', $id)->value('automatizacion_override') ?? 'hereda');
 
         $update = [
+            // ⚠️ ORDEN CRÍTICO: `estado_previo_claim` va ANTES de `estado_aprobacion`.
+            // MySQL evalúa las asignaciones de un UPDATE de IZQUIERDA A DERECHA, así que si esta
+            // línea fuera después, `estado_aprobacion` ya valdría 'en_progreso' y guardaríamos
+            // ese valor en vez del que traía el item. Sale en el MISMO UPDATE atómico a propósito:
+            // en dos escrituras, una caída entre ambas dejaría un item reclamado sin saber de dónde
+            // vino, que es exactamente el agujero que esta columna existe para tapar.
+            'estado_previo_claim' => DB::raw('estado_aprobacion'),
             'estado_aprobacion'   => 'en_progreso',
             'claimed_at'          => now(),
             'updated_at'          => now(),
@@ -2122,8 +2129,17 @@ class RoadmapCircuitoService
      * si fue Irving quien lo aprobó); si no hay rastro, A auto-ejecutable → `aprobado_claude`; si
      * no, a la bandeja de Irving (fail-safe, nunca asumir que un B/C sin rastro es auto-ejecutable).
      */
-    private function estadoAprobadoPrevio(RoadmapItem $item): string
+    public function estadoAprobadoPrevio(RoadmapItem $item): string
     {
+        // FUENTE 1 — lo que el item traía cuando lo reclamaron, sellado en el mismo UPDATE atómico
+        // del reclamo (2026-08-20). Restaurar > adivinar: las dos fuentes de abajo son heurísticas
+        // que pueden ASCENDER un item (un `aprobado_revisor` vuelve como `aprobado_irving` si esa
+        // firma quedó antes en su log), y un ascenso silencioso es autorización que nadie dio.
+        // Las heurísticas se quedan como respaldo para las filas anteriores a la columna.
+        if (in_array($item->estado_previo_claim, ['aprobado_irving', 'aprobado_revisor', 'aprobado_claude'], true)) {
+            return $item->estado_previo_claim;
+        }
+
         $log = is_array($item->log) ? $item->log : [];
         foreach (array_reverse($log) as $entry) {
             $estado = $entry['estado'] ?? null;
@@ -2211,6 +2227,34 @@ class RoadmapCircuitoService
         }
 
         return array_values(array_filter(explode("\0", $p->getOutput()), fn ($r) => $r !== ''));
+    }
+
+    /**
+     * COMMITS que la rama tiene por encima de `main`. `null` si no se pudo preguntar.
+     *
+     * Es el criterio de AVANCE para la reanudación por timeout, y es commits y no archivos a
+     * propósito (decisión de Irving, 2026-08-20): un `git diff` puede devolver archivos por ruido
+     * del árbol, mientras que un commit es trabajo que alguien decidió guardar. Un item que abrió
+     * rama y no commiteó nada NO avanzó, y el anti-quemado debe seguir atrapándolo.
+     *
+     * Se le pregunta a git y no a `branch_ahead_count`: esa bandera la sella un chequeo periódico y
+     * se queda fría — es exactamente cómo el #19 se leyó como "sin trabajo" teniéndolo.
+     */
+    public function commitsDeRama(string $branch): ?int
+    {
+        if (! preg_match('#^[\w./-]+$#', $branch)) {
+            return null;   // nunca construir un comando con una ref arbitraria
+        }
+
+        $p = $this->git(['rev-list', '--count', 'main..' . $branch]);
+
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+
+        $n = trim($p->getOutput());
+
+        return ctype_digit($n) ? (int) $n : null;
     }
 
     /**
