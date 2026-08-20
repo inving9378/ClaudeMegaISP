@@ -50,10 +50,11 @@ class ValvulaContextoService
      *         `ok=false` significa "no se pudo preguntar" — el llamador DEBE conservar el veredicto
      *         del keyword. NUNCA devuelve `afloja=true` sin una respuesta afirmativa del modelo.
      */
-    public function evaluar(RoadmapItem $item, string $termino): array
+    public function evaluar(RoadmapItem $item, string $termino, bool $estricto = false): array
     {
         $noSePudo = fn (string $razon) => [
             'afloja' => false, 'ok' => false, 'veredicto' => null, 'razon' => $razon, 'modelo' => null,
+            'seguro' => false,
         ];
 
         if (! config('circuito.valvula_contexto.enabled', true)) {
@@ -74,7 +75,7 @@ class ValvulaContextoService
                 'model'      => $modelo,
                 // Clasificación binaria con una frase de razón: no necesita más.
                 'max_tokens' => (int) config('circuito.valvula_contexto.max_tokens', 300),
-                'system'     => $this->systemPrompt(),
+                'system'     => $this->systemPrompt($estricto),
                 'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, $termino)]],
             ]);
 
@@ -101,6 +102,7 @@ class ValvulaContextoService
                 'veredicto' => $v['veredicto'],
                 'razon'     => $v['razon'],
                 'modelo'    => $modelo,
+                'seguro'    => $v['seguro'],
             ];
         } catch (\Throwable $e) {
             // Falla-segura EXPLÍCITA: sin modelo, sin red, timeout o error de la API → el keyword
@@ -117,8 +119,72 @@ class ValvulaContextoService
         }
     }
 
-    private function systemPrompt(): string
+    /**
+     * VÁLVULA DE NACIMIENTO — la misma pregunta, con el listón MÁS ALTO.
+     *
+     * Condición 1 de Irving (2026-08-20): «más conservadora aquí que en el triaje de nivel. Ante
+     * duda, no afloja. En el triaje una equivocación cuesta un nivel; aquí cuesta saltarse mi
+     * autorización.» Por eso este camino:
+     *
+     *   · usa un prompt propio que exige que la mención sea INEQUÍVOCA (no "probablemente");
+     *   · exige que el modelo declare `seguro: true` — un "mencion" con dudas NO afloja;
+     *   · registra su propio evento (`valvula_nacimiento`), separado de `valvula_contexto`, para
+     *     poder auditar por separado cuántas veces aflojó aquí. Esa medición es la que dirá dentro
+     *     de un mes si esto fue buena idea.
+     *
+     * Y lo que NUNCA hace, por la cuarta regla fija de Irving: **aflojar aquí no vuelve al item
+     * auto-ejecutable.** Sólo lo acerca al camino normal (triaje → revisor → autopilot). El último
+     * control sigue puesto.
+     *
+     * @return array{afloja:bool, ok:bool, veredicto:?string, razon:string, modelo:?string}
+     */
+    public function evaluarNacimiento(RoadmapItem $item, string $termino): array
     {
+        $r = $this->evaluar($item, $termino, true);
+
+        // Doble candado del lado de acá: aunque el parser dejara pasar algo raro, sólo un `mencion`
+        // con `seguro=true` afloja. La duda se resuelve SIEMPRE contra el item, nunca a su favor.
+        if ($r['afloja'] && ! ($r['seguro'] ?? false)) {
+            return [
+                'afloja' => false, 'ok' => true, 'veredicto' => self::ACCION,
+                'razon'  => 'La válvula lo leyó como mención pero sin seguridad suficiente; en la puerta '
+                          . 'de nacimiento la duda no afloja. ' . $r['razon'],
+                'modelo' => $r['modelo'],
+            ];
+        }
+
+        return $r;
+    }
+
+    private function systemPrompt(bool $estricto = false): string
+    {
+        if ($estricto) {
+            return <<<'TXT'
+Eres un clasificador binario dentro del circuito de desarrollo de MegaISP. Decides si un término de
+frontera dura aparece en el texto de un item de trabajo porque el trabajo TOCA ese tema, o porque el
+texto solo HABLA de ese tema.
+
+Responde SIEMPRE con este JSON y nada más:
+{"veredicto": "accion" | "mencion", "seguro": true | false, "razon": "una frase corta en español"}
+
+"accion" — el trabajo descrito realmente toca el tema: modifica permisos, corre una migración
+destructiva, despliega a producción, mueve dinero o toca credenciales.
+
+"mencion" — el término aparece describiendo, citando, prohibiendo o nombrando algo, sin que el
+trabajo lo toque: una etiqueta de UI dentro de una tabla, una línea de guardrail que PROHÍBE la
+acción, el nombre de un directorio dentro de una ruta de archivo, una frase que explica por qué
+OTRO item quedará en cierto estado.
+
+"seguro" — pon `true` SOLO si la lectura es INEQUÍVOCA: el texto no deja lugar a que el trabajo
+toque el tema. Si tienes que suponer, interpretar o el texto es ambiguo, pon `false`.
+
+ESTE ES EL CONTROL MÁS ALTO DEL SISTEMA: aquí un error no cuesta un nivel de riesgo, cuesta
+saltarse la autorización de un humano. Ante CUALQUIER duda responde {"veredicto":"accion"} o al
+menos {"seguro": false}. Un falso "accion" solo hace que un humano mire el item; un falso "mencion"
+seguro deja avanzar trabajo sensible. El costo no es simétrico, ni de cerca.
+TXT;
+        }
+
         return <<<'TXT'
 Eres un clasificador binario dentro del circuito de desarrollo de MegaISP. Tu ÚNICA tarea es
 decidir si un término de frontera dura aparece en el texto de un item de trabajo porque el trabajo
@@ -154,7 +220,7 @@ TXT;
             . "\n\n¿El item TOCA «{$termino}» (accion) o solo lo MENCIONA (mencion)?";
     }
 
-    /** @return array{veredicto:string, razon:string}|null */
+    /** @return array{veredicto:string, razon:string, seguro:bool}|null */
     private function parse(string $texto): ?array
     {
         $t = trim($texto);
@@ -180,6 +246,8 @@ TXT;
         return [
             'veredicto' => $v,
             'razon'     => trim((string) ($d['razon'] ?? '')) ?: 'Sin razón declarada.',
+            // Sólo el prompt estricto lo pide; en el modo normal la ausencia no significa duda.
+            'seguro'    => array_key_exists('seguro', $d) ? (bool) $d['seguro'] : true,
         ];
     }
 }

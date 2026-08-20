@@ -211,6 +211,16 @@
                      la señal de "esto es más grande que una vuelta, hay que dividirlo". -->
                 <!-- El item se declara un nivel y el clasificador calculó otro. No lo obedece: lo
                      muestra, porque es la señal de que el clasificador pudo equivocarse. -->
+                <!-- Camino que tomó en la puerta de nacimiento. Se nota a propósito: aflojar ahí
+                     acerca el item al camino normal, y hay que poder auditar si algo se coló. -->
+                <span v-if="it.frontera_valvula === 'mencion'" class="tc-modulo-chip" style="border-color:var(--tc-ok);color:var(--tc-ok)"
+                      title="La válvula de nacimiento leyó el término de frontera como MENCIÓN, no como acción: el item entró al camino normal (triaje → revisor → autopilot). NO nació auto-ejecutable.">
+                  ⇢ mención
+                </span>
+                <span v-else-if="it.frontera_valvula === 'accion'" class="tc-modulo-chip" style="border-color:var(--tc-bad);color:var(--tc-bad)"
+                      title="La válvula de nacimiento confirmó que el item TOCA la frontera dura: se retuvo, como siempre.">
+                  ⛔ toca frontera
+                </span>
                 <span v-if="it.discrepancia_nivel" class="tc-modulo-chip" style="border-color:var(--tc-info);color:var(--tc-info)"
                       :title="'El item se declara nivel ' + it.nivel_declarado + ' y el clasificador calculó ' + it.nivel_riesgo + '. Se respeta el calculado; revisa si el clasificador se equivocó.'">
                   ⚠ dice {{ it.nivel_declarado }}

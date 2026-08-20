@@ -53,6 +53,9 @@ class RoadmapItem extends Model
         'modulo', 'nivel_riesgo', 'estado_aprobacion',
         // Quién fijó el nivel_riesgo vigente: interno|externo (circuito #260)
         'nivel_riesgo_origen',
+        // Veredicto persistido de la VÁLVULA DE NACIMIENTO (mencion|accion|null) — lo consumen los
+        // guards que corren DESPUÉS del alta, sin el texto delante.
+        'frontera_valvula', 'frontera_valvula_at',
         'comentarios_claude', 'revisado_at', 'aprobado_por',
         // Reportes + deep-link de revisión (#427 / #432 ADENDA B)
         'reporte_tecnico', 'reporte_coloquial', 'enlace_revision',
@@ -124,6 +127,7 @@ class RoadmapItem extends Model
         'requiere_sesion_supervisada' => 'boolean',
         'bloqueado_por_bucle'         => 'boolean',
         'esperando_merge_irving'      => 'boolean',
+        'frontera_valvula_at'         => 'datetime',
         'escalaciones_fingerprint'    => 'array',
         // FASE 2A.3
         'bloqueo_expira_en'           => 'datetime',

@@ -33,7 +33,7 @@ class RoadmapController extends Controller
         'archivado_at', 'origen_bloqueo', 'motivo_bloqueo', 'branch', 'worker_sid', 'origen_item_id',
         'consulta_supervisor_at', 'consulta_resuelta_at', 'comentarios_claude', 'opciones',
         'preguntas', 'reporte_coloquial', 'enlace_revision', 'alcance_autorizado', 'fuera_de_alcance',
-        'prompt', 'reanudaciones_timeout',
+        'prompt', 'reanudaciones_timeout', 'frontera_valvula',
     ];
 
     private const COLUMNAS_ACTIVIDAD = [
@@ -338,6 +338,9 @@ class RoadmapController extends Controller
                 // Un item en su 2ª reanudación no es sólo un freno: es INFORMACIÓN — significa que
                 // es más grande que una vuelta. Por eso se ve, en vez de vivir sólo en el log.
                 'reanudaciones'    => (int) $i->reanudaciones_timeout,
+                // Qué camino tomó en la puerta de nacimiento: `mencion` = la válvula lo despejó
+                // (nació pendiente_revision, NUNCA aprobado_irving); `accion` = confirmó que toca.
+                'frontera_valvula' => $i->frontera_valvula,
                 // DISCREPANCIA nivel declarado vs calculado. Se computa del texto (que ya viene en
                 // COLUMNAS_BANDEJA) y no del `log`: meter esa columna JSON en una consulta ORDENADA
                 // es exactamente lo que reventaba con 1038. Un item que se declara A y salió C es la
@@ -2029,6 +2032,29 @@ class RoadmapController extends Controller
             $data['estado_aprobacion'] = 'aprobado_irving';
             $data['aprobado_por']      = $this->actorLabel();
             $data['revisado_at']       = now();
+        } else {
+            // VÁLVULA DE NACIMIENTO (2026-08-20). El keyword pegó, pero pegar no es tocar: los items
+            // #874-#877 quedaron retenidos aquí por citar una ruta de archivo y por su propio bloque
+            // de guardrails. Se le pregunta al modelo si el término se USA o sólo se NOMBRA.
+            //
+            // ⚠️ AFLOJAR AQUÍ NO DA `aprobado_irving` — regla fija de Irving: ninguna válvula de
+            // contexto puede hacer que un item NAZCA auto-ejecutable. Lo que cambia es que el
+            // veredicto queda GUARDADO, y con eso el item deja de estar vetado por la frontera dura
+            // en `TorreAutomationPolicy::estadoInicial()` —que lo forzaría a `requiere_irving` para
+            // siempre, por delante de cualquier configuración— y entra al camino normal:
+            // triaje → revisor → autopilot. El último control sigue puesto.
+            $itemTmp = new RoadmapItem([
+                'title'       => $data['title'] ?? '',
+                'description' => $data['description'] ?? null,
+                'prompt'      => $data['prompt'] ?? null,
+                'modulo'      => $data['modulo'] ?? null,
+            ]);
+            $v = app(\App\Modules\Addons\Roadmap\Services\ValvulaContextoService::class)
+                ->evaluarNacimiento($itemTmp, $frontera);
+
+            $data['frontera_valvula']    = $v['ok'] ? ($v['afloja'] ? 'mencion' : 'accion') : null;
+            $data['frontera_valvula_at'] = $v['ok'] ? now() : null;
+            $valvulaNacimiento           = $v;
         }
 
         // Footprint: un item sin `modulo` corre SOLO y bloquea a las 6 terminales (#432 B2), así
@@ -2082,7 +2108,9 @@ class RoadmapController extends Controller
             }
         }
 
-        $item->log = [[
+        // ⚠️ Esta asignación SOBREESCRIBE el log (no lo anexa): cualquier entrada del alta tiene que
+        // construirse AQUÍ. Escribirla antes y guardar no sirve — se pierde en esta línea.
+        $entradas = [[
             'ts'      => now()->toIso8601String(),
             'por'     => $this->actorLabel(),
             'evento'  => 'item_creado_ui',
@@ -2092,6 +2120,29 @@ class RoadmapController extends Controller
             'eta_minutos'    => $item->eta_minutos,
             'disparo'        => $disparo,
         ]];
+
+        // Evento PROPIO (`valvula_nacimiento`), separado de `valvula_contexto`: Irving pidió poder
+        // auditar por separado cuántas veces aflojó la puerta de nacimiento y si algo se coló, sin
+        // mezclarlo con el corpus del triaje de nivel. Esa medición es la que dirá en un mes si
+        // esto fue buena idea.
+        if (isset($valvulaNacimiento)) {
+            $entradas[] = [
+                'ts'        => now()->toIso8601String(),
+                'por'       => 'valvula:nacimiento',
+                'evento'    => 'valvula_nacimiento',
+                'termino'   => $frontera,
+                'veredicto' => $valvulaNacimiento['veredicto'],
+                'aflojo'    => (bool) $valvulaNacimiento['afloja'],
+                'ok'        => (bool) $valvulaNacimiento['ok'],
+                'modelo'    => $valvulaNacimiento['modelo'],
+                'motivo'    => $valvulaNacimiento['razon'],
+                // Explícito para que nadie lo lea mal dentro de un año.
+                'nota'      => 'Aflojar aquí NO da aprobado_irving: acerca el item al camino normal '
+                             . '(triaje → revisor → autopilot), nunca salta el último control.',
+            ];
+        }
+
+        $item->log = $entradas;
         $item->save();
 
         if ($frontera !== null) {

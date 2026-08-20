@@ -250,9 +250,12 @@ class TorreAutomationPolicy
      */
     public function tocaFronteraDura(RoadmapItem $item): ?string
     {
-        return $this->thomas->categoriaFronteraDura(
-            (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt
-        );
+        // Delega en `fronteraDuraDeItem`, que además honra el veredicto de la VÁLVULA DE NACIMIENTO.
+        // Éste es el guard que de verdad retenía los items de Irving: fuerza `requiere_irving` «por
+        // delante de todo», así que un item que sólo MENCIONABA «producción» quedaba en su bandeja
+        // para siempre aunque el triaje ya lo hubiera leído como B. Un item que TOCA la frontera lo
+        // sigue frenando igual — la válvula sólo despeja las menciones, y sólo cuando está segura.
+        return $this->thomas->fronteraDuraDeItem($item);
     }
 
     /**

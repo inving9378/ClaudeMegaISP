@@ -365,6 +365,30 @@ class ThomasService
     }
 
     /**
+     * FRONTERA DURA DE UN ITEM — igual que `categoriaFronteraDura()` sobre su texto, pero honrando
+     * el veredicto que la VÁLVULA DE NACIMIENTO ya dejó guardado.
+     *
+     * Existe porque el keyword decide en un momento (el alta) y los guards que lo consumen corren
+     * después, en otro proceso y sin el texto delante. Si cada uno re-evaluara el texto crudo, un
+     * item ya despejado volvería a quedar vetado en el siguiente guard — que es exactamente lo que
+     * pasaba: `TorreAutomationPolicy::estadoInicial()` lo forzaba a `requiere_irving` «por delante
+     * de todo» aunque el triaje ya lo hubiera leído como B.
+     *
+     * `mencion` (la válvula lo despejó) → null: no hay frontera que aplicar.
+     * `accion` o NULL (no evaluada / no se pudo preguntar) → manda el keyword, como siempre.
+     */
+    public function fronteraDuraDeItem(RoadmapItem $item): ?string
+    {
+        if ($item->frontera_valvula === 'mencion') {
+            return null;
+        }
+
+        return $this->categoriaFronteraDura(
+            (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt
+        );
+    }
+
+    /**
      * #566 E2 — LA DECISIÓN YA ESTÁ TOMADA, el item sólo no avanzó.
      *
      * El autopilot audita 25 items de la bandeja y 11 salen con «no quedan preguntas sin responder
@@ -451,9 +475,9 @@ class ThomasService
         // MISMO texto que el carril mecánico (título + descripción + prompt): antes este carril
         // miraba sólo título+descripción y un término de frontera que viviera en el `prompt` se le
         // escapaba, así que dos carriles con la misma regla daban veredictos distintos.
-        $texto = (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt;
-
-        if ($cat = $this->categoriaFronteraDura($texto)) {
+        // Honra el veredicto de la válvula de nacimiento (2026-08-20): un término que sólo se
+        // MENCIONA no veta el carril mecánico. Uno que se toca de verdad sigue frenando aquí.
+        if ($cat = $this->fronteraDuraDeItem($item)) {
             return $no("Declara «{$cat}» (frontera dura): decide Irving.");
         }
 
