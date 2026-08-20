@@ -319,7 +319,11 @@ class RoadmapExternalController extends Controller
      * POST /api/roadmap-externo/{token}/item   — CREA un item en la Hoja de Ruta.
      *
      * Cuerpo: title (req), description, prompt, modulo, nivel_riesgo, priority, origen_item_id,
-     * target_version. El item NACE `pendiente_revision` siempre (crear ≠ aprobar).
+     * target_version, es_resolucion. El item NACE `pendiente_revision` siempre (crear ≠ aprobar).
+     *
+     * `es_resolucion=true` + `origen_item_id` = "esto ES la resolución de esa decisión de Irving",
+     * NO trabajo nuevo. Si el padre sigue `requiere_irving` sin resolver, NO se crea un item nuevo
+     * (evita el re-triaje descrito en #845/Falla 1 de #841): se fusiona en el padre.
      */
     public function createItem(Request $request, string $token): JsonResponse
     {
@@ -376,7 +380,21 @@ class RoadmapExternalController extends Controller
             'priority'       => ['sometimes', 'nullable', 'string', 'in:alta,media,baja'],
             'origen_item_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'target_version' => ['sometimes', 'nullable', 'string', 'max:20'],
+            // #845 (Falla 1 de #841) — declara EXPLÍCITAMENTE que esta alta es la RESOLUCIÓN de
+            // `origen_item_id` (una decisión de Irving que se está registrando), no trabajo nuevo.
+            'es_resolucion'  => ['sometimes', 'nullable', 'boolean'],
         ]);
+
+        // #845 — si el padre sigue esperando la decisión de Irving (requiere_irving, sin resolver),
+        // esto ES esa decisión: fusiona en el padre en vez de crear un item independiente que
+        // volvería a pasar por triaje-C y re-escalaría la MISMA decisión ya tomada (Falla 1 de #841).
+        // Si el padre ya no aplica (resuelto / otro estado), el flag es un no-op y sigue el alta normal.
+        if (! empty($data['es_resolucion']) && ! empty($data['origen_item_id'])) {
+            $padre = RoadmapItem::find((int) $data['origen_item_id']);
+            if ($padre && $padre->estado_aprobacion === 'requiere_irving' && ! $padre->decision_resuelta) {
+                return $this->fusionarResolucionEnPadre($request, $verb, $padre, $data);
+            }
+        }
 
         // Freno de mano: un lazo descontrolado del otro lado no puede inundar la Hoja de Ruta.
         $tope = (int) config('roadmap_externo.max_items_dia', 60);
@@ -407,6 +425,47 @@ class RoadmapExternalController extends Controller
                 . 'y el circuito lo ejecuta cuando quede en la cola.',
             'item'  => $this->svc->serialize($item),
         ], 201);
+    }
+
+    /**
+     * #845 — una alta con `es_resolucion=true` cuyo `origen_item_id` sigue en requiere_irving sin
+     * resolver NO crea un item nuevo: se registra como reporte (tipo `decision`) sobre el padre y
+     * lo marca `decision_resuelta`. Así la decisión de Irving queda escrita en el item ORIGINAL —
+     * el mismo canal que ya usa `RoadmapController::decidir()` — en vez de nacer como un item
+     * independiente que vuelve a pasar por triaje-C (la Falla 1 de #841: re-escalar a Irving la
+     * misma decisión que él ya tomó). No cierra el padre por sí sola (eso sigue siendo un acto
+     * humano vía el canal habitual); solo evita el re-triaje.
+     */
+    private function fusionarResolucionEnPadre(Request $request, string $verb, RoadmapItem $padre, array $data): JsonResponse
+    {
+        $resumen = mb_substr(trim((string) $data['title']), 0, 500);
+        $cuerpo  = trim((string) ($data['description'] ?? $data['prompt'] ?? ''));
+
+        $reporte = $this->reportes->append(
+            $padre,
+            'claude-cowork',
+            'decision',
+            $resumen,
+            $cuerpo !== '' ? $cuerpo : null,
+            ['via' => 'externo', 'fusionado_de' => 'es_resolucion']
+        );
+
+        $padre->decision_resuelta = true;
+        $padre->decision_resumen  = $resumen;
+        $padre->decision_fuente   = 'irving';
+        $padre->decision_fecha    = now();
+        $padre->save();
+
+        $this->audit($request, $verb, 'fusionado_en_padre', ['padre' => $padre->id, 'reporte' => $reporte->id]);
+
+        return response()->json([
+            'ok'    => true,
+            'aviso' => "No se creó un item nuevo: #{$padre->id} seguía requiere_irving sin resolver, así "
+                . 'que esto se registró como su RESOLUCIÓN (reporte tipo decision + decision_resuelta) en '
+                . 'vez de entrar a triaje como trabajo nuevo. El padre sigue requiere_irving hasta que se '
+                . 'cierre por el canal habitual (estado_aprobacion vía /item/{id}).',
+            'item'  => $this->svc->serialize($padre->fresh()),
+        ], 200);
     }
 
     /**
