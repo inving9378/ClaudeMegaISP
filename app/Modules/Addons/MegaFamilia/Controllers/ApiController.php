@@ -390,6 +390,115 @@ class ApiController extends Controller
         ];
     }
 
+    /**
+     * Detalle de un ticket + hilo de respuestas (item #494 — "ver respuestas
+     * del técnico" que la auditoría marcó como faltante: la API no
+     * retornaba threads).
+     */
+    public function ticketDetail(int $id): JsonResponse
+    {
+        $ticket = $this->findOwnedTicket($id);
+        if (! $ticket) {
+            return response()->json(['message' => 'Ticket no encontrado.'], 404);
+        }
+
+        $userId = Auth::id();
+
+        $threads = TicketThread::where('ticket_id', $ticket->id)
+            ->where('hidden', false)
+            ->orderBy('created_at')
+            ->get()
+            ->map(function ($th) use ($userId) {
+                $file = $th->file()->first();
+
+                return [
+                    'id' => $th->id,
+                    'message' => $th->message,
+                    // "mío" = lo escribió el propio padre (mismo user autenticado);
+                    // si no, es soporte Meganet (o el editor no se pudo resolver).
+                    'is_mine' => $th->edited_by !== null && (int) $th->edited_by === (int) $userId,
+                    'author' => $th->edited_by ? (optional(User::find($th->edited_by))->name ?? 'Soporte Meganet') : 'Soporte Meganet',
+                    'photo_path' => $file->path ?? null,
+                    'date' => $th->created_at,
+                ];
+            });
+
+        $file = $ticket->files()->first();
+
+        return response()->json(array_merge($this->ticketToJson($ticket), [
+            'rating' => $ticket->rating,
+            'rating_comment' => $ticket->rating_comment,
+            'rated_at' => $ticket->rated_at,
+            'photo_path' => $file->path ?? null,
+            'threads' => $threads,
+        ]));
+    }
+
+    /**
+     * Adjunta/reemplaza la foto del ticket (item #494). Reusa
+     * Ticket::uploadFile() (morphOne sobre `files`, mismo patrón que
+     * TicketThread::uploadFile).
+     */
+    public function attachTicketPhoto(Request $request, int $id): JsonResponse
+    {
+        $ticket = $this->findOwnedTicket($id);
+        if (! $ticket) {
+            return response()->json(['message' => 'Ticket no encontrado.'], 404);
+        }
+
+        $request->validate([
+            'photo' => 'required|file|image|max:10240',
+        ]);
+
+        $ticket->uploadFile($request->file('photo'));
+        $file = $ticket->files()->first();
+
+        return response()->json([
+            'photo_path' => $file->path ?? null,
+        ]);
+    }
+
+    /**
+     * Califica un ticket ya cerrado/resuelto (item #494). Las columnas
+     * rating/rating_comment/rated_at ya existían en `tickets` sin usarse
+     * en ningún canal — no requiere migración.
+     */
+    public function rateTicket(Request $request, int $id): JsonResponse
+    {
+        $ticket = $this->findOwnedTicket($id);
+        if (! $ticket) {
+            return response()->json(['message' => 'Ticket no encontrado.'], 404);
+        }
+
+        if (! in_array($ticket->estado, ['Cerrado', 'Resuelto'], true)) {
+            return response()->json(['message' => 'Solo puedes calificar un ticket cerrado o resuelto.'], 422);
+        }
+
+        $data = $request->validate([
+            'rating' => 'required|integer|between:1,5',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        $ticket->rating = $data['rating'];
+        $ticket->rating_comment = $data['comment'] ?? null;
+        $ticket->rated_at = now();
+        $ticket->save();
+
+        return response()->json([
+            'rating' => $ticket->rating,
+            'rating_comment' => $ticket->rating_comment,
+            'rated_at' => $ticket->rated_at,
+        ]);
+    }
+
+    private function findOwnedTicket(int $id): ?Ticket
+    {
+        return Ticket::where('id', $id)
+            ->where('reporter_id', Auth::id())
+            ->where('reporter_type', User::class)
+            ->first();
+    }
+
     // ---- FACTURAS --------------------------------------------------------
 
     /**
