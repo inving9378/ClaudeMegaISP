@@ -299,7 +299,9 @@ export default {
             fd.append("avatar", file);
             uploadingAvatar.value = sid;
             try {
-                const { data } = await axios.post("/api/roadmap/circuito/worker-avatar", fd);
+                const { data } = await axios.post("/api/roadmap/circuito/worker-avatar", fd, {
+                    headers: { "Content-Type": "multipart/form-data" },
+                });
                 if (sid === "supervisor") {
                     if (supervisor.value) supervisor.value = { ...supervisor.value, avatar_url: data.avatar_url };
                 } else {
