@@ -1425,14 +1425,35 @@ class RoadmapController extends Controller
         $this->authorize('roadmap_manage');
 
         $data = $request->validate([
-            'title'          => 'required|string|max:255',
-            'description'    => 'nullable|string',
-            'priority'       => 'nullable|in:alta,media,baja',
-            'target_version' => 'nullable|string|max:20',
-            'prompt'         => 'nullable|string',
-            'modulo'         => 'nullable|string|max:100',
-            'nivel_riesgo'   => 'nullable|in:A,B,C',
+            'title'           => 'required|string|max:255',
+            'description'     => 'nullable|string',
+            'priority'        => 'nullable|in:alta,media,baja',
+            'target_version'  => 'nullable|string|max:20',
+            'prompt'          => 'nullable|string',
+            'modulo'          => 'nullable|string|max:100',
+            'nivel_riesgo'    => 'nullable|in:A,B,C',
+            'idempotency_key' => 'nullable|string|max:100',
         ]);
+
+        /*
+         * #858 — doble clic (o un reintento de red) no debe crear dos items ni disparar dos
+         * reclamos. Clave de idempotencia OPCIONAL generada por el cliente: si ya se usó en los
+         * últimos 30s por este mismo actor, se devuelve el item ya creado en vez de duplicarlo.
+         * Sin clave (llamadas viejas / API directa) el comportamiento es exactamente el de antes.
+         */
+        $idemKey = $data['idempotency_key'] ?? null;
+        unset($data['idempotency_key']);
+        $idemCacheKey = $idemKey ? 'roadmap:add-item:idem:' . $this->actorLabel() . ':' . $idemKey : null;
+        if ($idemCacheKey && ($existingId = Cache::get($idemCacheKey))) {
+            $existing = RoadmapItem::find($existingId);
+            if ($existing) {
+                return response()->json([
+                    'item'        => $existing,
+                    'aviso'       => 'Ya se había agregado (doble clic detectado) — no se creó otro.',
+                    'idempotente' => true,
+                ], 200);
+            }
+        }
 
         $data['status']   = 'pending';
         $data['position'] = RoadmapItem::where('status', 'pending')->max('position') + 1;
@@ -1477,6 +1498,10 @@ class RoadmapController extends Controller
 
         $item = RoadmapItem::create($data);
 
+        if ($idemCacheKey) {
+            Cache::put($idemCacheKey, $item->id, 30);
+        }
+
         /*
          * #480 — TOQUE AL SUPERVISOR + ETA EN EL ALTA.
          *
@@ -1492,6 +1517,30 @@ class RoadmapController extends Controller
             $thomas->sellarEsfuerzo($item);
         }
 
+        /*
+         * #858 — LANZAR DE INMEDIATO, no esperar el ciclo de sondeo.
+         *
+         * Antes de este cambio el item quedaba `aprobado_irving` (ejecutable) pero quieto hasta
+         * que `circuito:scheduler` corriera en su minuto de cron — hasta 60s perdidos con una
+         * terminal libre y el trabajo listo. Aquí se llama exactamente al mismo método que usa el
+         * botón "Jalar trabajo ahora" (`RoadmapCircuitoService::requestDisparo`, ver
+         * RoadmapController::disparar) — NO es una segunda ruta de despacho: solo pone la MISMA
+         * bandera que el picker on-box (`circuito:disparo-check`, cron cada minuto, sondea cada
+         * 3s) consume para adelantar una corrida de `circuito:scheduler`, el único despachador
+         * real. Si no hay terminal libre, el scheduler simplemente no hace nada este ciclo — el
+         * item queda en cola exactamente igual que hoy, solo que revisado en segundos, no en
+         * hasta un minuto. Un fallo de requestDisparo() (p.ej. circuito en pausa) NUNCA revierte
+         * la creación: el item ya quedó guardado arriba.
+         */
+        $disparo = null;
+        if ($frontera === null) {
+            try {
+                $disparo = $this->svc->requestDisparo($this->actorLabel(), 'boton', $item->id);
+            } catch (\Throwable $e) {
+                Log::warning('circuito.agregar_item.disparo_fallo', ['item_id' => $item->id, 'error' => $e->getMessage()]);
+            }
+        }
+
         $item->log = [[
             'ts'      => now()->toIso8601String(),
             'por'     => $this->actorLabel(),
@@ -1500,15 +1549,23 @@ class RoadmapController extends Controller
             'directo_a_cola' => $frontera === null,
             'frontera'       => $frontera,
             'eta_minutos'    => $item->eta_minutos,
+            'disparo'        => $disparo,
         ]];
         $item->save();
 
+        if ($frontera !== null) {
+            $aviso = "Creado, pero NO entra solo a la cola: declara «{$frontera}» (frontera dura). "
+                . 'Apruébalo desde la bandeja si es lo que quieres.';
+        } elseif ($disparo['ok'] ?? false) {
+            $aviso = "Creado y aprobado: entra directo a la cola y ya se disparó — una terminal libre lo toma en segundos (Thomas lo estimó en ~{$item->eta_minutos} min).";
+        } else {
+            $aviso = "Creado y aprobado: entra directo a la cola. Thomas lo estimó en ~{$item->eta_minutos} min — una terminal libre lo toma en el próximo ciclo (no se pudo adelantar el disparo: " . ($disparo['mensaje'] ?? 'circuito en pausa') . ').';
+        }
+
         return response()->json([
-            'item'  => $item,
-            'aviso' => $frontera === null
-                ? "Creado y aprobado: entra directo a la cola. Thomas lo tocó y lo estimó en ~{$item->eta_minutos} min — una terminal libre lo toma en segundos."
-                : "Creado, pero NO entra solo a la cola: declara «{$frontera}» (frontera dura). "
-                    . 'Apruébalo desde la bandeja si es lo que quieres.',
+            'item'    => $item,
+            'disparo' => $disparo,
+            'aviso'   => $aviso,
         ], 201);
     }
 
