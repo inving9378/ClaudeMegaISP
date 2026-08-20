@@ -100,6 +100,12 @@ Route::middleware(['web', 'auth'])
     ->group(function () {
         // Torre de control del Circuito (dashboard en vivo) + kill switch.
         Route::get('/torre',               [RoadmapController::class, 'torre']);
+        // ENTREGA 1 — configuración de la Torre. Va bajo `api/roadmap` y no bajo `/releases/config`
+        // (como decía el prompt) porque la política es del módulo Roadmap, no del Core/Release:
+        // ponerla allá cruzaría la frontera de módulos por una ruta cosmética.
+        Route::get('/torre/config',        [RoadmapController::class, 'torreConfig']);
+        Route::post('/torre/config',       [RoadmapController::class, 'torreConfigGuardar']);
+        Route::post('/item/{id}/override', [RoadmapController::class, 'itemOverride'])->whereNumber('id');
         // Estado en vivo ligero para el polling de la Torre (#335).
         Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);
         // Contadores de decisiones por módulo — "bombitas" del sidebar interno de la Torre (#507).

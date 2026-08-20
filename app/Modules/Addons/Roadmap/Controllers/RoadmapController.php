@@ -12,6 +12,7 @@ use App\Modules\Addons\Roadmap\Services\SupervisorService;
 use App\Modules\Addons\Roadmap\Services\ThomasService;
 use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -34,6 +35,123 @@ class RoadmapController extends Controller
      * Conteos (estado/nivel + kill switch), cola requiere_irving, actividad reciente
      * (items con comentarios_claude) y riesgos de la última auditoría (log fase1_auditoria).
      */
+    /**
+     * ENTREGA 1 — GET la configuración vigente de la Torre + la matriz ya resuelta.
+     *
+     * ⚠️ **La UI nunca decide autorización.** Esto sólo MUESTRA lo que el servidor ya resolvió. Si
+     * la decisión viviera en Vue, bastaría abrir DevTools para autoaprobarse un item nivel C.
+     */
+    public function torreConfig(): JsonResponse
+    {
+        $this->authorize('torre.config.view');
+
+        $policy = app(\App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy::class);
+
+        return response()->json([
+            'ok'          => true,
+            'politica'    => $policy->panorama(),
+            'motores'     => app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)->latidos(),
+            'puede_editar' => auth()->user()?->can('torre.config.edit') ?? false,
+            'guardrails'  => self::GUARDRAILS,
+        ]);
+    }
+
+    /**
+     * ENTREGA 1 — POST guarda la configuración. Exige `torre.config.edit`.
+     *
+     * Los rangos se validan AQUÍ, en el servidor. Los guardrails no tienen endpoint: no aparecen en
+     * las reglas porque no hay forma de mandarlos.
+     */
+    public function torreConfigGuardar(Request $request): JsonResponse
+    {
+        $this->authorize('torre.config.edit');
+
+        $data = $request->validate([
+            'nivel_automatizacion'    => ['sometimes', 'string', Rule::in(\App\Modules\Addons\Roadmap\Models\TorreConfig::NIVELES)],
+            'auditor_activo'          => ['sometimes', 'boolean'],
+            'auditor_max_por_corrida' => ['sometimes', 'integer', 'min:1', 'max:20'],
+            'auditor_cooldown_min'    => ['sometimes', 'integer', 'min:5', 'max:1440'],
+        ]);
+
+        $diff = app(\App\Modules\Addons\Roadmap\Services\TorreConfigService::class)
+            ->update($data, auth()->user());
+
+        return response()->json([
+            'ok'       => true,
+            'cambios'  => $diff,
+            'politica' => app(\App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy::class)->panorama(),
+        ]);
+    }
+
+    /**
+     * ENTREGA 1 — override de automatización de UN item.
+     *
+     * Bajar (`manual`) no pide nada. **Subir (`auto`) exige confirmación explícita** —el front manda
+     * `confirmado=true`— y queda registrado con usuario y fecha. El override es de un solo uso: se
+     * consume al despachar.
+     */
+    public function itemOverride(Request $request, int $id): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+
+        $data = $request->validate([
+            'override'   => ['required', 'string', Rule::in(['hereda', 'manual', 'auto'])],
+            'confirmado' => ['sometimes', 'boolean'],
+        ]);
+
+        $item = RoadmapItem::findOrFail($id);
+        $previo = (string) ($item->automatizacion_override ?? 'hereda');
+
+        $orden = ['manual' => 0, 'hereda' => 1, 'auto' => 2];
+        $sube  = ($orden[$data['override']] ?? 1) > ($orden[$previo] ?? 1);
+
+        if ($sube && ! ($data['confirmado'] ?? false)) {
+            return response()->json([
+                'ok'                     => false,
+                'requiere_confirmacion'  => true,
+                'mensaje'                => 'Subir la automatización de un item lo saca de la política base. '
+                    . 'Los cuatro topes duros (producción · borrar datos · dinero · credenciales) siguen '
+                    . 'vigentes y no se levantan con esto. El override se consume la primera vez que una '
+                    . 'terminal toma el item.',
+            ], 409);
+        }
+
+        $item->automatizacion_override = $data['override'];
+
+        $log   = $item->log ?: [];
+        $log[] = [
+            'ts'         => now()->toIso8601String(),
+            'por'        => 'irving:' . (auth()->user()->login_user ?? auth()->id()),
+            'estado'     => $item->estado_aprobacion,
+            'decision'   => 'override_automatizacion',
+            'comentario' => "Automatización del item: {$previo} → {$data['override']}"
+                . ($sube ? ' (SUBIDA, confirmada explícitamente)' : ''),
+        ];
+        $item->log = $log;
+        $item->save();
+
+        Log::channel('torre_config')->{$sube ? 'warning' : 'info'}('override-item', [
+            'item' => $item->id, 'de' => $previo, 'a' => $data['override'],
+            'por'  => auth()->user()->login_user ?? auth()->id(),
+        ]);
+
+        return response()->json(['ok' => true, 'override' => $item->automatizacion_override, 'subida' => $sube]);
+    }
+
+    /**
+     * Los guardrails que el panel pinta con candado. **No existe endpoint que los modifique**: viven
+     * aquí como texto porque un panel web capaz de apagar la separación dev/prod sería un control
+     * remoto para apagarla.
+     */
+    private const GUARDRAILS = [
+        ['icono' => '🔒', 'texto' => 'Solo ejecuta en dev · 192.168.105.11',                'donde' => 'fijo en código'],
+        ['icono' => '🔒', 'texto' => 'Prod bloqueado · 192.168.105.108 · v1megaisp.com.mx', 'donde' => 'fijo en código'],
+        ['icono' => '🔒', 'texto' => 'migrate:fresh prohibido',                             'donde' => 'fijo en código'],
+        ['icono' => '🔒', 'texto' => 'git add -A prohibido',                                'donde' => 'fijo en código'],
+        ['icono' => '🔒', 'texto' => 'Topes duros: producción · borrar datos · dinero · credenciales', 'donde' => 'ThomasService, no configurable'],
+        ['icono' => '🔒', 'texto' => 'Vía externa (Cowork/MCP): solo nivel A puede quedar aprobado_claude', 'donde' => 'guard() — sin endpoint'],
+    ];
+
     public function torre(): JsonResponse
     {
         $this->authorize('roadmap_view');
