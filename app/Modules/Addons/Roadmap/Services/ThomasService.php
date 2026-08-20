@@ -488,6 +488,14 @@ class ThomasService
             return $no("Declara «{$cat}» (frontera dura): decide Irving.");
         }
 
+        // #893 — REGRESIÓN detectada al verificar este fix (`$texto` quedó indefinida en 96cf38f2:
+        // ese commit reemplazó `categoriaFronteraDura($texto)` por `fronteraDuraDeItem($item)` pero
+        // olvidó que el guard de NEGOCIO de abajo también consumía `$texto`). Sin esto el guard corría
+        // contra `null`, jamás matcheaba, y "Thomas nunca inventa dirección de negocio/producto" —la
+        // regla que el comentario de abajo dice que NO CAMBIA— quedaba rota en silencio. Se repone
+        // aquí porque es la misma función que este item ya toca.
+        $texto = (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt;
+
         // REGLA DURA QUE NO CAMBIA: Thomas nunca inventa dirección de negocio/producto. Que el
         // brief esté contestado no convierte una decisión de producto en trabajo mecánico.
         foreach ((array) config('circuito.thomas.mecanico.negocio', []) as $t) {
@@ -501,7 +509,7 @@ class ThomasService
             return $no('No tiene brief: no hay una decisión previa que respetar.');
         }
 
-        foreach ($preguntas as $p) {
+        foreach ($preguntas as $idx => $p) {
             // LECTOR DEFENSIVO (2026-08-19). Una pregunta SIN opciones no puede contar como
             // «contestada»: `$sinResponder` daría false y la pregunta pasaría de largo, aprobando
             // el item sin que nadie decidiera nada. Hoy es inalcanzable —`RevisorService::
@@ -516,14 +524,20 @@ class ThomasService
             $sinResponder = ($p['opcion_elegida'] ?? null) === null;
             if (! $sinResponder) {
                 // #893 — «contestada» no es lo mismo que «decidida a favor del pool»: la opción
-                // elegida puede ser LITERALMENTE la que dice «escalar a Irving» (la recomendada del
-                // Revisor cuando no puede resolver algo solo). Tratar eso como brief-completo y
-                // aprobar es lo que causó las 12 escalaciones idénticas de #186. Si el texto de la
-                // opción elegida lo dice, no hay decisión tomada para el pool: se para aquí igual
-                // que con una pregunta sin responder.
-                foreach ($p['opciones'] as $o) {
-                    if ($o['clave'] === $p['opcion_elegida'] && stripos($o['texto'], 'escalar a irving') !== false) {
-                        return $no('La opción elegida es "escalar a Irving": no es una decisión tomada para el pool.');
+                // elegida de la pregunta MAESTRA (la primera del brief — no existe un flag propio
+                // que la marque, así que se usa su posición, igual que asume el resto del brief)
+                // puede ser LITERALMENTE la que dice «escalar a Irving» (la recomendada del Revisor
+                // cuando no puede resolver algo solo). Tratar eso como brief-completo y aprobar es
+                // lo que causó las 12 escalaciones idénticas de #186. Se para aquí igual que con una
+                // pregunta sin responder. Acotado a la pregunta 0: preguntas secundarias pueden
+                // mencionar «escalar a Irving» como parte de un plan de contingencia (ej. «rollback +
+                // escalar a Irving» si algo falla) sin que ESA sea la decisión tomada — falso
+                // positivo real visto en #463 q4, que no es la pregunta maestra.
+                if ($idx === 0) {
+                    foreach ($p['opciones'] as $o) {
+                        if ($o['clave'] === $p['opcion_elegida'] && stripos($o['texto'], 'escalar a irving') !== false) {
+                            return $no('La opción elegida de la pregunta maestra es "escalar a Irving": no es una decisión tomada para el pool.');
+                        }
                     }
                 }
                 continue;
