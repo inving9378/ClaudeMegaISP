@@ -80,6 +80,26 @@ return [
     | destructivo/negocio). Arranque estrecho: ante la duda, agrega términos, no los quites.
     |
     */
+    /*
+    |--------------------------------------------------------------------------
+    | VÁLVULA DE CONTEXTO — afloja el veredicto del keyword, nunca lo amplía
+    |--------------------------------------------------------------------------
+    | El matcher de términos no distingue mencionar un tema de tocarlo. Cuando pega, en vez de
+    | sentenciar C directo se pregunta al modelo si el término se USA o solo se NOMBRA, y SOLO
+    | puede aflojar. Si falla, se cae o tarda, queda el veredicto del keyword → el peor caso de
+    | esta ruta es exactamente el comportamiento anterior a ella.
+    |
+    | Volumen medido antes de encenderla: 85 de 164 items triados en 30 días → ~2.8 llamadas/día.
+    | `enabled = false` la apaga y el clasificador vuelve a ser 100% determinista.
+    */
+    'valvula_contexto' => [
+        'enabled'    => (bool) env('CIRCUITO_VALVULA_CONTEXTO', true),
+        // Hereda el modelo de rutina del revisor si no se fija uno: no se inventa un ID nuevo.
+        'model'      => env('CIRCUITO_VALVULA_MODEL', env('CIRCUITO_REVISOR_MODEL', 'claude-sonnet-4-6')),
+        // Clasificación binaria + una frase: no necesita más techo.
+        'max_tokens' => (int) env('CIRCUITO_VALVULA_MAX_TOKENS', 300),
+    ],
+
     'revisor' => [
         // MODELO ESCALONADO (#338): B rutinario → Sonnet; B difícil/borderline/baja-confianza → Opus
         // (2ª opinión); C → Opus arma un BRIEF de decisión para Irving. Opus SOLO en lo difícil/C

@@ -6,6 +6,7 @@ use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Jobs\ProponerOpcionesJob;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
+use App\Modules\Addons\Roadmap\Services\ValvulaContextoService;
 use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -369,8 +370,57 @@ class RevisorService
      * no re-entra). Escribe nivel_riesgo + nivel_riesgo_origen='interno' + (si C) estado→requiere_irving.
      * NUNCA lo hace ejecutable: B queda pendiente_revision (el ejecutor solo toma A+pendiente_revision).
      */
+    /**
+     * Aplica la VÁLVULA DE CONTEXTO al veredicto del keyword. SOLO puede aflojar.
+     *
+     * Condición de Irving (2026-08-20): el keyword sigue siendo el control determinista y gratuito;
+     * esto es una válvula de escape. Si la válvula no contesta, se cae o tarda, el veredicto del
+     * keyword queda intacto — el peor caso de esta ruta es el comportamiento anterior a ella.
+     *
+     * Solo se invoca cuando el keyword dijo C: un veredicto B no tiene nada que aflojar.
+     */
+    private function afinarConValvula(RoadmapItem $item, array $t): array
+    {
+        if (($t['nivel'] ?? null) !== 'C' || empty($t['match'])) {
+            return $t;
+        }
+
+        $v = app(ValvulaContextoService::class)->evaluar($item, (string) $t['match']);
+
+        // Se anota SIEMPRE —afloje o no— para que la decisión sea auditable y para poder medir
+        // cuánto está aflojando la válvula sin tener que reconstruirlo del log de la API.
+        $t['valvula'] = [
+            'consultada' => true,
+            'ok'         => $v['ok'],
+            'veredicto'  => $v['veredicto'],
+            'razon'      => $v['razon'],
+            'modelo'     => $v['modelo'],
+        ];
+
+        if (! $v['afloja']) {
+            return $t;   // incluye el caso "no se pudo preguntar": manda el keyword
+        }
+
+        // AFLOJA: el término se menciona, no se toca. Baja al mismo destino que un item sin
+        // frontera dura — B / pendiente_revision, donde el revisor lo mira con el texto completo.
+        // NO lo aprueba ni lo vuelve auto-ejecutable: aflojar es abrir una puerta, no cruzarla.
+        $t['nivel']  = 'B';
+        $t['estado'] = 'pendiente_revision';
+        $t['motivo'] = "El keyword marcó C por «{$t['match']}», pero la válvula de contexto lo leyó "
+                     . 'como MENCIÓN, no como acción: ' . $v['razon']
+                     . ' → nivel B (lo evaluará el revisor con el texto completo).';
+
+        return $t;
+    }
+
     public function aplicarTriajeNull(RoadmapItem $item, array $t, string $actor = 'revisor:triaje-null'): RoadmapItem
     {
+        // VÁLVULA DE CONTEXTO (2026-08-20) — va AQUÍ, en el camino de ESCRITURA, y no dentro de
+        // `triarNivelNull()`: ese método está documentado como determinista y SIN IA, y lo usan los
+        // previews, el dry-run y las mediciones. Si llamara al modelo, medir el clasificador
+        // costaría dinero y dejaría de ser reproducible.
+        $t = $this->afinarConValvula($item, $t);
+
         $sello = "\n\n--- TRIAJE NIVEL NULL (#419) " . now()->toDateTimeString() . " ---\n"
             . "Asignado nivel_riesgo={$t['nivel']} (origen interno). Estado → {$t['estado']}.\n"
             . 'Motivo: ' . ($t['motivo'] ?? '') . "\n";
@@ -383,6 +433,21 @@ class RevisorService
             . "\n" . (string) $item->prompt);
 
         $log = $item->log ?: [];
+
+        if (! empty($t['valvula']['consultada'])) {
+            $log[] = [
+                'ts'        => now()->toIso8601String(),
+                'por'       => 'valvula:contexto',
+                'evento'    => 'valvula_contexto',
+                'termino'   => $t['match'] ?? null,
+                'veredicto' => $t['valvula']['veredicto'],
+                'aflojo'    => ($t['valvula']['veredicto'] ?? null) === 'mencion',
+                'ok'        => $t['valvula']['ok'],
+                'modelo'    => $t['valvula']['modelo'],
+                'motivo'    => $t['valvula']['razon'],
+            ];
+            $item->log = $log;
+        }
 
         if ($declarado !== null && $declarado !== $t['nivel']) {
             $aviso = "⚠ DISCREPANCIA: el item se declara nivel {$declarado} y el clasificador "
