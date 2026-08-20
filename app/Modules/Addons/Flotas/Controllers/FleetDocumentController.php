@@ -42,7 +42,10 @@ class FleetDocumentController extends FleetBaseController
         $this->preprocessMultipart($request);
 
         $data = $request->validate([
-            'vehicle_id'       => 'required|integer',
+            // #177 — vehicle_id ya no es obligatorio: un documento de conductor (licencia) puede
+            // no tener vehículo. required_without garantiza que al menos uno de los dos venga.
+            'vehicle_id'       => 'nullable|required_without:driver_id|integer',
+            'driver_id'        => 'nullable|required_without:vehicle_id|integer|exists:users,id',
             'document_type'    => 'required|in:circulation_card,insurance_policy,tenencia,verification,operator_license,special_permit,other',
             'folio_number'     => 'nullable|string|max:100',
             'issued_by'        => 'nullable|string|max:200',
@@ -61,12 +64,19 @@ class FleetDocumentController extends FleetBaseController
             'ocr_run_id'       => 'nullable|integer',
         ]);
 
-        $this->vehicleForClient($data['vehicle_id']);
+        if (!empty($data['vehicle_id'])) {
+            $this->vehicleForClient($data['vehicle_id']);
+        } elseif ($this->clientId() !== null) {
+            // #177 — un documento solo-de-conductor (sin vehículo) nunca pertenece a un tenant
+            // externo: el "conductor" es un `users` interno sin client_id (ver scopeForClient).
+            // Crearlo desde un scope de cliente lo dejaría huérfano de todo scope visible.
+            abort(422, 'Un documento sin vehículo solo puede registrarse desde el panel interno.');
+        }
 
         if ($request->hasFile('file')) {
             $data['file_path'] = $this->storeFile(
                 $request->file('file'),
-                $data['vehicle_id'],
+                $data['vehicle_id'] ?? null,
                 $data['document_type']
             );
         }
@@ -371,10 +381,11 @@ class FleetDocumentController extends FleetBaseController
         }
     }
 
-    private function storeFile($file, int $vehicleId, string $docType): string
+    private function storeFile($file, ?int $vehicleId, string $docType): string
     {
         $ext      = $file->getClientOriginalExtension();
-        $filename = $vehicleId . '_' . $docType . '_' . time() . '_' . Str::random(6) . '.' . $ext;
+        $prefix   = $vehicleId ?? 'conductor';
+        $filename = $prefix . '_' . $docType . '_' . time() . '_' . Str::random(6) . '.' . $ext;
         Storage::disk(self::DISK)->putFileAs('', $file, $filename);
         return $filename;
     }
