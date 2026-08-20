@@ -221,7 +221,15 @@ class SchedulerCommand extends Command
                 ['value' => (string) time(), 'updated_at' => now()]
             );
         } catch (\Throwable $e) {
+            // Tragarse la excepción para no frenar el reparto ES CORRECTO y no cambia. Lo que
+            // faltaba era que el fallo tuviera DÓNDE VERSE: `roadmap_externo` es una manguera y
+            // aquí se perdieron 11,600 fallos en ocho días. `sellarFallo` lo pone en el panel.
             Log::channel('roadmap_externo')->warning('destrabe-bandeja-fallo', ['error' => $e->getMessage()]);
+            try {
+                app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)
+                    ->sellarFallo('circuito:destrabar-bandeja', $e->getMessage());
+            } catch (\Throwable) {
+            }
         }
     }
 

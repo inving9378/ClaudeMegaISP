@@ -112,19 +112,33 @@
           <table class="tcfg-motores">
             <thead><tr><th>Motor</th><th>Última ejecución</th><th>Tope</th><th>Agendado</th></tr></thead>
             <tbody>
-              <tr v-for="m in motores" :key="m.comando" :class="{ 'tcfg-rojo': m.vencido }">
-                <td><code>{{ m.comando }}</code></td>
-                <td>
-                  <b v-if="m.at">hace {{ humano(m.horas) }}</b>
-                  <b v-else class="tcfg-nunca">NUNCA</b>
-                </td>
-                <td>{{ m.max_horas }} h</td>
-                <td>
-                  <span v-if="m.agendado === false" class="tcfg-nunca">NO está en el crontab</span>
-                  <span v-else-if="m.agendado">sí</span>
-                  <span v-else>—</span>
-                </td>
-              </tr>
+              <template v-for="m in motores" :key="m.comando">
+                <tr :class="{ 'tcfg-rojo': m.vencido }">
+                  <td><code>{{ m.comando }}</code></td>
+                  <td>
+                    <b v-if="m.at">hace {{ humano(m.horas) }}</b>
+                    <b v-else class="tcfg-nunca">NUNCA</b>
+                  </td>
+                  <td>{{ m.max_horas }} h</td>
+                  <td>
+                    <span v-if="m.agendado === false" class="tcfg-nunca">NO está en el crontab</span>
+                    <span v-else-if="m.agendado">sí</span>
+                    <span v-else>—</span>
+                  </td>
+                </tr>
+                <!-- ÚLTIMO FALLO con su mensaje. Es la fila que caza al motor intermitente: el que
+                     tiene el latido fresco porque acertó una vez y se cae en todos los demás
+                     intentos. Sin esto, ese motor se ve sano. -->
+                <tr v-if="m.ultimo_fallo" class="tcfg-fallo">
+                  <td colspan="4">
+                    <b>último fallo</b> {{ m.ultimo_fallo.ts }} —
+                    <code>{{ m.ultimo_fallo.error }}</code>
+                  </td>
+                </tr>
+                <tr v-if="m.agendado === false && m.linea_cron" class="tcfg-cron">
+                  <td colspan="4">falta en el crontab · <code>{{ m.linea_cron }}</code></td>
+                </tr>
+              </template>
             </tbody>
           </table>
           <p v-for="m in motoresRotos" :key="'w'+m.comando" class="tcfg-pierde">
@@ -215,7 +229,11 @@ export default {
 
     const ETIQUETAS = { manual: 'Manual', estandar: 'Estándar', asistido: 'Asistido', autonomo: 'Autónomo' };
     const DESCS = {
-      manual:   'Nada avanza sin ti.',
+      // Corregida el 2026-08-19: decía «Nada avanza sin ti. Ni siquiera nivel A», y era ambiguo.
+      // `manual` detiene a la MÁQUINA, no cancela lo que Irving ya autorizó — si también parara sus
+      // aprobaciones explícitas sería el kill switch con otro nombre, y tendríamos dos controles
+      // haciendo lo mismo.
+      manual:   'La máquina no aprueba nada. Solo avanza lo que tú autorices explícitamente.',
       estandar: 'A corre solo. B y C esperan.',
       asistido: 'A y B corren solos. C no.',
       autonomo: 'A, B y C corren salvo los topes.',
@@ -312,6 +330,9 @@ export default {
 .tcfg-campo em{opacity:.6;font-style:normal;font-size:11px;}
 .tcfg-campo input[type=number]{width:96px;padding:4px 8px;border:1px solid var(--tc-border,#d7dee7);border-radius:7px;background:transparent;color:inherit;}
 .tcfg-rojo td{background:rgba(220,38,38,.08);}
+.tcfg-fallo td{background:rgba(220,38,38,.05);font-size:11px;color:#b91c1c;}
+.tcfg-fallo code{font-size:10.5px;}
+.tcfg-cron td{background:rgba(217,119,6,.07);font-size:11px;}
 .tcfg-nunca{color:#b91c1c;font-weight:700;}
 .tcfg-pierde{font-size:11.5px;color:#b91c1c;margin:6px 0 0;}
 .tcfg-guard{font-size:12px;padding:4px 0;opacity:.85;}

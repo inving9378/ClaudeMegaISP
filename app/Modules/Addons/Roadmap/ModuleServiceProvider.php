@@ -91,14 +91,22 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         \Illuminate\Support\Facades\Event::listen(
             \Illuminate\Console\Events\CommandFinished::class,
             function (\Illuminate\Console\Events\CommandFinished $e) {
-                if ($e->exitCode !== 0 || ! $e->command) {
+                if (! $e->command) {
                     return;
                 }
                 try {
-                    app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)
-                        ->sellarLatido($e->command, $e->input);
+                    $svc = app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class);
+
+                    if ($e->exitCode === 0) {
+                        $svc->sellarLatido($e->command, $e->input);
+                    } else {
+                        // Salida != 0 es un FALLO, y se registra con su código. Sin esto, un motor
+                        // que se cae en cada intento pero logró una corrida buena hace rato se ve
+                        // sano: el latido está fresco y nada más lo contradice.
+                        $svc->sellarFallo($e->command, "exit code {$e->exitCode}");
+                    }
                 } catch (\Throwable) {
-                    // Un latido roto jamás puede tumbar el comando que acaba de correr bien.
+                    // El registro jamás puede tumbar al comando que acaba de correr.
                 }
             }
         );

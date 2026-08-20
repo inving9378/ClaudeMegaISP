@@ -824,6 +824,71 @@ return [
             'si_no_corre' => 'no hay métricas ni recordatorio de los frenos que puso Irving',
         ],
 
+        /*
+        | AUDITADO EL 2026-08-19: este registro cubría 4 de 13 motores reales. El destrabe de la
+        | bandeja llevaba OCHO DÍAS fallando cada minuto y el panel no lo habría pintado en rojo —
+        | ni siquiera lo habría pintado. **Ausente es peor que rojo.** El mecanismo estaba bien; el
+        | registro estaba incompleto, que es la misma forma de fallar: algo que se ve sano porque
+        | nadie lo está mirando.
+        */
+
+        // Enganchado DENTRO del scheduler (throttle 5 min). Sella su propio latido SOLO al terminar
+        // bien, así que su beat ya es «última ejecución EXITOSA», que es justo lo que hay que mirar.
+        'circuito:destrabar-bandeja' => [
+            'max_horas'   => 2,
+            'beat_key'    => 'circuito_destrabe_bandeja_beat',
+            'formato'     => 'unix',
+            'si_no_corre' => 'la bandeja no se destraba: nada se auto-mergea ni se auto-decide, y los '
+                . 'items terminados se acumulan en esperando_merge_irving',
+        ],
+
+        // También dentro del scheduler; su gating (cola < umbral) puede impedirle correr
+        // legítimamente, por eso el tope es de un día y no de horas.
+        'circuito:auditor' => [
+            'max_horas'   => 24,
+            'beat_key'    => 'circuito_auditor_ultima_corrida',
+            'formato'     => 'unix',
+            'si_no_corre' => 'con la cola vacía nadie genera trabajo: las 6 terminales se quedan ociosas',
+        ],
+
+        'circuito:watchdog' => [
+            'max_horas'   => 1,
+            'beat_key'    => 'circuito_watchdog_beat',
+            'formato'     => 'unix',
+            'si_no_corre' => 'nadie vigila a los workers ni auto-recupera anomalías del scheduler',
+        ],
+
+        'circuito:revisar-backlog' => [
+            'max_horas'   => 1,
+            'excluye_opciones' => ['dry'],
+            'si_no_corre' => 'los B se quedan sin veredicto del revisor y no llegan a la cola',
+        ],
+
+        'circuito:destrabe' => [
+            'max_horas'   => 2,
+            'si_no_corre' => 'la bandeja no recibe el re-triaje de Opus: lo técnico/seguro se queda con Irving',
+        ],
+
+        'circuito:reap-stuck' => [
+            'max_horas'   => 1,
+            'si_no_corre' => 'los reclamos huérfanos no se liberan y su footprint bloquea a la flota',
+        ],
+
+        'circuito:brief-c' => [
+            'max_horas'   => 2,
+            'si_no_corre' => 'los C se quedan sin brief y el autopilot no puede calificar nada',
+        ],
+
+        /*
+        | NO se vigilan a propósito, y conviene que quede escrito para que nadie los añada por
+        | simetría:
+        |  · `circuito:disparo-check` — sólo ADELANTA una corrida del scheduler, que ya está
+        |    vigilado. Su fallo no pierde nada que el scheduler no recupere al minuto siguiente.
+        |  · `MergeRunner::drain()` y `ThomasService::tick()` — corren en CADA vuelta del scheduler,
+        |    sin throttle. «Cuándo corrieron por última vez» siempre diría «hace un minuto» y no
+        |    informaría de nada: su señal útil no es liveness, es si su último intento falló.
+        */
+
         'circuito:priorizar-seguridad' => [
             'max_horas'   => 48,
             // `--dry` no escribe; `--item=` es la clasificación de UN item (la dispara

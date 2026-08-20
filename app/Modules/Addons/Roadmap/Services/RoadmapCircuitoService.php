@@ -384,6 +384,40 @@ class RoadmapCircuitoService
         }
 
         $this->putSetting(self::beatKey($comando, $cfg), now()->toDateTimeString());
+        $this->limpiarFallo($comando);
+    }
+
+    /** Prefijo del setting donde se guarda el ÚLTIMO FALLO de un proceso vigilado. */
+    public const FALLO_PREFIJO = 'circuito_fallo_';
+
+    /**
+     * ENTREGA 1 — registra el ÚLTIMO FALLO de un proceso vigilado, con su mensaje.
+     *
+     * POR QUÉ NO BASTA EL LATIDO. Medido el 2026-08-19: `circuito:destrabar-bandeja` llevaba ocho
+     * días fallando cada minuto, **pero había logrado UNA corrida buena 13 minutos antes**. Un
+     * indicador que sólo mira «última ejecución exitosa» decía «hace 13 min, todo bien» mientras el
+     * comando se caía en cada intento. Un fallo intermitente se esconde detrás de su éxito ocasional.
+     *
+     * Por eso un motor se pinta roto si **el latido está viejo O hay un fallo reciente**. Y se
+     * guarda el MENSAJE: «falló» sin decir qué no sirve para decidir nada.
+     */
+    public function sellarFallo(string $comando, string $error): void
+    {
+        if (! is_array(config('circuito.procesos_programados.' . $comando))) {
+            return;   // no es un proceso vigilado
+        }
+
+        $this->putSetting(
+            self::FALLO_PREFIJO . str_replace(':', '_', $comando),
+            json_encode(['ts' => now()->toDateTimeString(), 'error' => mb_strimwidth($error, 0, 400, '…')],
+                JSON_UNESCAPED_UNICODE)
+        );
+    }
+
+    /** Limpia el fallo registrado: lo llama la propia corrida exitosa del proceso. */
+    public function limpiarFallo(string $comando): void
+    {
+        DB::table('settings')->where('key', self::FALLO_PREFIJO . str_replace(':', '_', $comando))->delete();
     }
 
     /**
@@ -446,12 +480,23 @@ class RoadmapCircuitoService
             $maxH  = (int) ($cfg['max_horas'] ?? 48);
             $horas = $at ? round($at->diffInMinutes(now()) / 60, 1) : null;
 
+            // ÚLTIMO FALLO — un motor con latido fresco pero fallando ahora mismo NO está sano.
+            $fallo = DB::table('settings')
+                ->where('key', self::FALLO_PREFIJO . str_replace(':', '_', $comando))->value('value');
+            $fallo = $fallo ? json_decode($fallo, true) : null;
+            $falloReciente = is_array($fallo) && isset($fallo['ts'])
+                && \Illuminate\Support\Carbon::parse($fallo['ts'])->gt(now()->subHours(max(1, $maxH)));
+
             $out[] = [
                 'comando'     => $comando,
                 'at'          => $at?->toDateTimeString(),
                 'horas'       => $horas,
                 'nunca'       => $at === null,
-                'vencido'     => $at === null || $horas > $maxH,
+                // Roto = latido viejo O fallo reciente. La segunda mitad caza los intermitentes,
+                // que son los que más tiempo pasan sin que nadie los vea.
+                'vencido'        => $at === null || $horas > $maxH || $falloReciente,
+                'fallo_reciente' => $falloReciente,
+                'ultimo_fallo'   => is_array($fallo) ? $fallo : null,
                 'max_horas'   => $maxH,
                 'agendado'    => $this->agendado($comando),
                 'si_no_corre' => (string) ($cfg['si_no_corre'] ?? ''),
