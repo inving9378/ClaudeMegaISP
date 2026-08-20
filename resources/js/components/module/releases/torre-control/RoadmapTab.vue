@@ -477,11 +477,43 @@ export default {
                 newItem.value = { title: '', priority: 'media', target_version: '', prompt: '' };
                 showAddModal.value = false;
                 showToast(data.aviso || 'Item agregado.', 'success', 'bi bi-plus-circle-fill');
+
+                // #861: si entró directo a la cola (aprobado_irving), el despacho a una
+                // terminal es ASÍNCRONO (scheduler/picker, no el mismo request) — sondea un
+                // ratito el desenlace real y actualiza el toast en vez de dejar el aviso
+                // aspiracional como única palabra final.
+                if (data.item.estado_aprobacion === 'aprobado_irving') {
+                    pollDispatch(data.item.id);
+                }
             } catch {
                 showToast('Error al agregar el item.', 'error', 'bi bi-exclamation-circle-fill');
             } finally {
                 addingItem.value = false;
             }
+        }
+
+        // ── Sondeo del desenlace de despacho (#861) ─────────────────────────────
+        // Poll corto (cada 2s, ~14s en total) de GET /api/roadmap/items/{id}: si aparece
+        // worker_sid, una terminal ya lo tomó -> toast "lanzado a wt-N"; si el tiempo se
+        // agota sin worker_sid, sigue en cola por falta de terminal libre. Solo lectura del
+        // estado existente, no dispara ningún despacho nuevo.
+        async function pollDispatch(itemId) {
+            const maxAttempts = 7;
+            const intervalMs  = 2000;
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, intervalMs));
+                try {
+                    const { data } = await axios.get(`/api/roadmap/items/${itemId}`);
+                    replaceItem(data);
+                    if (data.worker_sid) {
+                        showToast(`Item #${itemId} lanzado a ${data.worker_sid}.`, 'success', 'bi bi-rocket-takeoff-fill');
+                        return;
+                    }
+                } catch {
+                    return; // item borrado/archivado entre sondeos; no insistir
+                }
+            }
+            showToast(`Item #${itemId}: en cola, sin terminal libre por ahora.`, 'success', 'bi bi-hourglass-split');
         }
 
         // ── Utilidades ────────────────────────────────────────────────────────
