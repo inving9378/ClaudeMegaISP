@@ -1618,6 +1618,17 @@ class RoadmapCircuitoService
             $items[0]['modulo'] ?? null,
             RoadmapItem::where('id', $id)->value('nivel_riesgo')
         );
+        // ENTREGA 1 (opción B) — el OVERRIDE POR ITEM se consume AQUÍ, al reclamar, no al aprobar.
+        //
+        // La autorización que da Irving es «para este item, ahora». Consumirla al aprobar la
+        // quemaría aunque el item nunca llegara a correr (el actor aprueba y algo falla después), y
+        // además dejaría el item aprobado-y-nunca-despachable: el gate de nivel de
+        // `scopeDespachable` ya no vería el `auto` que lo hacía elegible.
+        //
+        // `CASE` y no un valor fijo: un override `manual` NO se toca (esos items ni siquiera llegan
+        // aquí, pero escribir 'hereda' a ciegas los desarmaría si algún día llegaran).
+        $overridePrevio = (string) (RoadmapItem::where('id', $id)->value('automatizacion_override') ?? 'hereda');
+
         $update = [
             'estado_aprobacion'   => 'en_progreso',
             'claimed_at'          => now(),
@@ -1625,6 +1636,9 @@ class RoadmapCircuitoService
             'trabajo_iniciado_at' => now(),
             'eta_segundos'        => $eta['eta_segundos'],
             'eta_metodo'          => $eta['eta_metodo'],
+            'automatizacion_override' => DB::raw(
+                "CASE WHEN automatizacion_override = 'auto' THEN 'hereda' ELSE automatizacion_override END"
+            ),
         ];
         if ($sid = $this->normalizaSid($workerSid)) {
             $update['worker_sid'] = $sid;   // firma del worker (#334 A)
@@ -1651,9 +1665,48 @@ class RoadmapCircuitoService
             return null;
         }
 
+        if ($overridePrevio === 'auto') {
+            $this->anotarOverrideConsumido($id, $sid ?? null);
+        }
+
         $this->avisarSiTocaProduccion($id, $sid ?? null);
 
         return $id;
+    }
+
+    /**
+     * ENTREGA 1 — deja rastro de que se GASTÓ un override por item.
+     *
+     * El override es de un solo uso y se consume en el UPDATE atómico del reclamo. Sin esta entrada,
+     * la excepción desaparecería sin dejar huella: el item pasaría de «autorizado por excepción» a
+     * `hereda` y nadie sabría que hubo una. Una excepción que no se ve es un agujero.
+     *
+     * Falla-segura: cualquier excepción aquí se traga. Un rastro roto no puede tumbar un reclamo.
+     */
+    private function anotarOverrideConsumido(int $id, ?string $sid): void
+    {
+        try {
+            $item = RoadmapItem::find($id);
+            if (! $item) {
+                return;
+            }
+
+            $log   = $item->log ?: [];
+            $log[] = [
+                'ts'         => now()->toIso8601String(),
+                'por'        => 'circuito:despacho',
+                'estado'     => 'en_progreso',
+                'decision'   => 'override_consumido',
+                'comentario' => 'Este item se despachó por un `automatizacion_override = auto` (excepción '
+                    . 'explícita de Irving sobre la política base). El override queda CONSUMIDO: vuelve a '
+                    . '`hereda` y la próxima vez seguirá la política vigente.'
+                    . ($sid ? " Lo tomó {$sid}." : ''),
+            ];
+            $item->log = $log;
+            $item->save();
+        } catch (\Throwable $e) {
+            Log::channel('roadmap_externo')->warning('override-consumido-sin-rastro', ['item' => $id, 'error' => $e->getMessage()]);
+        }
     }
 
     /**

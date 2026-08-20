@@ -189,11 +189,19 @@ class TorreAutomationPolicy
      * sobreviva a cambios de política que haga meses después. Esto elimina el problema de la
      * caducidad sin inventar una fecha de caducidad, que sería otro número que nadie recuerda.
      *
-     * SOLO MUTA el atributo (se persiste en el `save()` en curso del actor), igual que
-     * `RoadmapItem::contarEscalacion()`. Nunca guarda por su cuenta: si guardara, un actor que
-     * decide y luego falla habría quemado la autorización sin haberla usado.
+     * ⚠️ **SE CONSUME AL DESPACHAR, NO AL APROBAR** (opción B, decisión de Irving 2026-08-19). El
+     * consumo real vive en el UPDATE atómico de `RoadmapCircuitoService::claimNextParalelo()`.
      *
-     * @return bool si había un override que consumir (para que el actor lo anote en su rastro)
+     * Consumirlo al aprobar tenía dos fallos: (1) quemaba la autorización aunque el item nunca
+     * llegara a correr —el actor aprueba y algo falla después—, y (2) dejaba el item
+     * aprobado-y-nunca-despachable, porque el gate de nivel de `scopeDespachable` ya no vería el
+     * `auto` que lo hacía elegible. La autorización es «para este item, ahora», y «ahora» es cuando
+     * corre.
+     *
+     * Este método queda como la operación EN MEMORIA (mutación sin guardar), para quien necesite
+     * simularlo o para un consumo manual desde la UI. El camino vivo es el del reclamo.
+     *
+     * @return bool si había un override que consumir
      */
     public function consumirOverride(RoadmapItem $item): bool
     {

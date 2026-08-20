@@ -152,6 +152,9 @@ class RoadmapItem extends Model
      * `aprobado_irving` se agregó en 2A.5: es donde se queda la mayoría de lo ya autorizado y era
      * el hueco por el que "moví la tarjeta a Hecho y no pasó nada".
      */
+    /** Orden de `nivel_riesgo`, para recortar el juego de niveles despachables. */
+    public const ORDEN_NIVEL = ['A' => 1, 'B' => 2, 'C' => 3];
+
     public const ESTADOS_SINCRONIZABLES_DESDE_KANBAN = ['pendiente_revision', 'en_progreso', 'aprobado_irving'];
 
     protected static function booted(): void
@@ -682,11 +685,16 @@ class RoadmapItem extends Model
     {
         $revisor = app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)->revisorEnabled();
 
-        // Tope de nivel del autopilot: gobierna lo que la máquina aprueba sola, no lo que Irving
-        // autoriza explícitamente (`aprobado_irving` siempre pasa).
-        $tope    = strtoupper((string) config('circuito.autopilot.max_nivel', 'B'));
-        $idxTope = array_search($tope, ['A', 'B', 'C'], true);
-        $niveles = array_slice(['A', 'B', 'C'], 0, $idxTope === false ? 2 : $idxTope + 1);
+        // ENTREGA 1 — el tope de nivel del despacho sale de la POLÍTICA BASE de la Torre, no de
+        // `circuito.autopilot.max_nivel`. Esa clave decía «autopilot» y gobernaba a TODOS los
+        // actores desde aquí; ahora es sólo el sub-techo del autopilot, con su significado literal.
+        //
+        // Gobierna lo que la máquina aprueba sola: `aprobado_irving` (autorización explícita de
+        // Irving) siempre pasa, y un `automatizacion_override = auto` vigente también — ver abajo.
+        $base    = app(\App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy::class)->politicaBase();
+        $niveles = $base === null
+            ? []                                                    // `manual`: nada automático despacha
+            : array_slice(['A', 'B', 'C'], 0, self::ORDEN_NIVEL[$base] ?? 1);
 
         return $query
             ->tomablePorCircuito()
@@ -700,10 +708,28 @@ class RoadmapItem extends Model
                     $w->orWhere('estado_aprobacion', 'aprobado_revisor');
                 }
             })
-            ->where(function ($w) use ($niveles) {
+            ->where(function ($w) use ($niveles, $base) {
                 $w->whereIn('nivel_riesgo', $niveles)
-                  ->orWhereNull('nivel_riesgo')
                   ->orWhere('estado_aprobacion', 'aprobado_irving');
+
+                // Un item sin nivel no está triado: sólo pasa si hay política (en `manual` no).
+                if ($base !== null) {
+                    $w->orWhereNull('nivel_riesgo');
+
+                    // OVERRIDE POR ITEM (opción B, 2026-08-19). La excepción de Irving sobre un item
+                    // concreto tiene que llegar hasta el despacho: si el gate de nivel la cancelara
+                    // aquí, el item quedaría aprobado-y-nunca-despachable, con la autorización
+                    // gastada y sin haber corrido jamás.
+                    //
+                    // Va DENTRO del `if ($base !== null)` a propósito: con la política en `manual`
+                    // esta cláusula no existe, así que **`manual` sigue parando a todos, incluidos
+                    // los overrides y lo ya aprobado que aún no se despachó**. Ésa es justo la
+                    // retroactividad que hace que un paro de emergencia sea un paro.
+                    //
+                    // El override se CONSUME al reclamar (`claimNextParalelo`), no al aprobar: si el
+                    // actor aprueba y algo falla antes de correr, la autorización no se quemó.
+                    $w->orWhere('automatizacion_override', 'auto');
+                }
             });
     }
 
