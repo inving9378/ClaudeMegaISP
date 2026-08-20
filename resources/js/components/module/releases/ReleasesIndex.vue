@@ -39,6 +39,9 @@
                     <i class="bi bi-clipboard-data me-1"></i> Reporte
                 </a>
             </li>
+            <!-- Engrane de configuración de la Torre. Va al final, empujado con margin-left:auto
+                 (dentro del propio componente) para que no dependa del ancho de las pestañas. -->
+            <torre-config-panel />
         </ul>
 
         <!-- ── Tab: Reporte ── -->
