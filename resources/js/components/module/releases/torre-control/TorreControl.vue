@@ -1,6 +1,18 @@
 <template>
   <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
 
+    <!-- #878 — AVISO DE DATOS INCOMPLETOS. Va ARRIBA DE TODO a propósito: el defecto que ocultó
+         durante 20 días fue precisamente que la pantalla se veía normal mientras mentía. -->
+    <div v-if="datosIncompletos" class="tc-alert">
+      <b>⚠ No pude leer todo.</b>
+      <template v-if="errorCarga"> {{ errorCarga }}</template>
+      <template v-else>
+        El servidor respondió, pero no pudo calcular: <b>{{ bloquesFallidosLista }}</b>.
+        Donde veas «—» es un hueco, no un cero: ahí hay datos que no se pudieron leer.
+      </template>
+      <button class="tc-btn" style="margin-left:8px" @click="load">Reintentar</button>
+    </div>
+
     <!-- Estado EN VIVO del circuito (#335) + kill switch -->
     <div class="tc-statusbar">
       <div class="tc-left">
@@ -20,13 +32,13 @@
           </h1>
           <div class="tc-meta">
             <template v-if="running">
-              Modo continuo · {{ terminalesLibres }} {{ terminalesLibres === 1 ? 'terminal libre' : 'terminales libres' }} · <b class="tc-strong">{{ autoEjecutables }}</b> en cola<span class="tc-beat"> · ♥ vivo hace {{ sinceBeat }}s</span>
+              Modo continuo · {{ terminalesLibres }} {{ terminalesLibres === 1 ? 'terminal libre' : 'terminales libres' }} · <b class="tc-strong">{{ kpi(autoEjecutables, 'auto_ejecutables') }}</b> en cola<span class="tc-beat"> · ♥ vivo hace {{ sinceBeat }}s</span>
             </template>
             <template v-else-if="pausado">
-              Circuito detenido · no ejecuta hasta reanudar · {{ total }} items
+              Circuito detenido · no ejecuta hasta reanudar · {{ kpi(total, 'resumen') }} items
             </template>
             <template v-else>
-              Modo continuo · las terminales libres jalan trabajo solas · <b class="tc-strong">{{ autoEjecutables }}</b> en cola · {{ total }} items<span v-if="ultimaHace"> · último cierre <b class="tc-strong">{{ ultimaHace }}</b></span>
+              Modo continuo · las terminales libres jalan trabajo solas · <b class="tc-strong">{{ kpi(autoEjecutables, 'auto_ejecutables') }}</b> en cola · {{ kpi(total, 'resumen') }} items<span v-if="ultimaHace"> · último cierre <b class="tc-strong">{{ ultimaHace }}</b></span>
             </template>
           </div>
         </div>
@@ -65,7 +77,7 @@
       ⚠ <b>Posible cron detenido</b> — el scheduler on-box no late hace {{ schedulerBeatSecs != null ? Math.round(schedulerBeatSecs/60) + ' min' : 'un rato' }}. Verifica el cron del ejecutor (meganet).
     </div>
     <div v-else-if="!pausado && !running && autoEjecutables > 0" class="tc-alert tc-alert-soft">
-      ⏸ <b>Ocioso</b> — {{ autoEjecutables }} auto-ejecutable(s) en cola; el pool los tomará en segundos (o esperan que el revisor apruebe los B).
+      ⏸ <b>Ocioso</b> — {{ kpi(autoEjecutables, 'auto_ejecutables') }} auto-ejecutable(s) en cola; el pool los tomará en segundos (o esperan que el revisor apruebe los B).
     </div>
 
     <!-- #507 sub-paso 4 — AUTOPILOT: qué decide solo, qué te consulta y qué lleva hecho hoy.
@@ -80,7 +92,7 @@
       </div>
       <div class="tc-ap-r">
         <span class="tc-ap-kpi"><b>{{ autopilot.auto_hoy }}</b> auto-ejecutados hoy</span>
-        <span class="tc-ap-kpi"><b>{{ autoEjecutables }}</b> en cola</span>
+        <span class="tc-ap-kpi"><b>{{ kpi(autoEjecutables, 'auto_ejecutables') }}</b> en cola</span>
         <span class="tc-ap-kpi tc-ap-kpi-dec"><b>{{ cola.length }}</b> te esperan</span>
         <!-- #791 — decisiones MUDAS de los últimos 7 días (foto de `circuito:digest`), con la
              referencia del "antes" para leer la tendencia sin repetir el barrido a mano. -->
@@ -161,11 +173,11 @@
       <div class="tc-main">
       <!-- KPIs por estado -->
       <div class="tc-kpis">
-        <div class="tc-kpi"><div class="tc-n">{{ total }}</div><div class="tc-l">Items totales</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-slate)">{{ est('pendiente_revision') }}</div><div class="tc-l">Pendiente revisión</div><div class="tc-bar" style="background:var(--tc-slate)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-warn)">{{ est('requiere_irving') }}</div><div class="tc-l">Requiere Irving</div><div class="tc-bar" style="background:var(--tc-warn)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-info)">{{ est('en_progreso') }}</div><div class="tc-l">En progreso</div><div class="tc-bar" style="background:var(--tc-info)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-ok)">{{ est('completado') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
+        <div class="tc-kpi"><div class="tc-n">{{ kpi(total, 'resumen') }}</div><div class="tc-l">Items totales</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
+        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-slate)">{{ kpi(est('pendiente_revision'), 'resumen') }}</div><div class="tc-l">Pendiente revisión</div><div class="tc-bar" style="background:var(--tc-slate)"></div></div>
+        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-warn)">{{ kpi(est('requiere_irving'), 'resumen') }}</div><div class="tc-l">Requiere Irving</div><div class="tc-bar" style="background:var(--tc-warn)"></div></div>
+        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-info)">{{ kpi(est('en_progreso'), 'resumen') }}</div><div class="tc-l">En progreso</div><div class="tc-bar" style="background:var(--tc-info)"></div></div>
+        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-ok)">{{ kpi(est('completado'), 'resumen') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
       </div>
 
       <div class="tc-grid">
@@ -391,7 +403,7 @@
               <div class="tc-coll">{{ col.label }}</div>
             </div>
           </div>
-          <div class="tc-meta" style="margin-top:10px">{{ nivel('sin_clasificar') }} sin clasificar → el circuito los triará (dudosos → requiere_irving).</div>
+          <div class="tc-meta" style="margin-top:10px">{{ kpi(nivel('sin_clasificar'), 'resumen') }} sin clasificar → el circuito los triará (dudosos → requiere_irving).</div>
         </div>
 
         <!-- Riesgos de la auditoría -->
@@ -481,7 +493,29 @@ export default {
         // el render de la Torre (pantalla negra). Declaradas aquí. cronVivo default true = "no alarmar".
         const cronVivo = ref(true);
         const schedulerBeatSecs = ref(null);
-        const autoEjecutables = ref(0);
+        const autoEjecutables = ref(null);
+
+        // #878 — CEROS MUDOS, NUNCA MÁS.
+        // `torre()` devolvió 500 durante 20 días y esta pantalla mostró la bandeja vacía y los
+        // contadores en cero, sin decir una palabra: "0 items" y "no pude preguntar" se veían
+        // idénticos, y por eso el defecto sobrevivió 162 excepciones. Ahora se distinguen:
+        //   · errorCarga      → la petición ENTERA falló.
+        //   · bloquesFallidos → el servidor respondió, pero ESTOS bloques no se pudieron calcular
+        //                       (contrato `bloques_fallidos` del endpoint).
+        // En ambos casos el número se pinta como «—», que no es un dato: es la ausencia de uno.
+        const errorCarga = ref(null);
+        const bloquesFallidos = ref({});
+
+        const falloBloque = (n) => !!bloquesFallidos.value[n];
+        const datosIncompletos = computed(() => !!errorCarga.value || Object.keys(bloquesFallidos.value).length > 0);
+        const bloquesFallidosLista = computed(() => Object.keys(bloquesFallidos.value).join(', '));
+
+        /** Pinta un KPI, o «—» si su bloque no se pudo calcular. */
+        function kpi(valor, bloque) {
+            if (errorCarga.value) return '—';
+            if (bloque && falloBloque(bloque)) return '—';
+            return valor === null || valor === undefined ? '—' : valor;
+        }
         const logPre = ref(null);
         const nowMs = ref(Date.now());   // ticker local para animar cronómetro/heartbeat entre polls
         let estadoTimer = null;          // polling de /circuito/estado
@@ -656,10 +690,10 @@ export default {
         const nivel = (k) => (resumen.value.por_nivel && resumen.value.por_nivel[k]) || 0;
 
         const niveles = computed(() => [
-            { key: 'sin_clasificar', label: 'Sin clasificar', n: nivel('sin_clasificar'), color: 'var(--tc-slate)' },
-            { key: 'A', label: 'A · seguro',    n: nivel('A'), color: 'var(--tc-ok)' },
-            { key: 'B', label: 'B · confirmar', n: nivel('B'), color: 'var(--tc-warn)' },
-            { key: 'C', label: 'C · diseño',    n: nivel('C'), color: 'var(--tc-bad)' },
+            { key: 'sin_clasificar', label: 'Sin clasificar', n: kpi(nivel('sin_clasificar'), 'resumen'), color: 'var(--tc-slate)' },
+            { key: 'A', label: 'A · seguro',    n: kpi(nivel('A'), 'resumen'), color: 'var(--tc-ok)' },
+            { key: 'B', label: 'B · confirmar', n: kpi(nivel('B'), 'resumen'), color: 'var(--tc-warn)' },
+            { key: 'C', label: 'C · diseño',    n: kpi(nivel('C'), 'resumen'), color: 'var(--tc-bad)' },
         ]);
         const barMax = computed(() => Math.max(1, ...niveles.value.map((c) => c.n)));
         const barH = (n) => Math.max(6, Math.round((n / barMax.value) * 120));
@@ -760,7 +794,7 @@ export default {
             // Pool continuo (#334): latido del scheduler + auto-ejecutables en cola.
             cronVivo.value = data.cron_vivo !== false;
             schedulerBeatSecs.value = data.scheduler_beat_secs ?? null;
-            autoEjecutables.value = data.auto_ejecutables ?? 0;
+            autoEjecutables.value = data.auto_ejecutables ?? null;   // #878: null = no se pudo calcular, NO cero
         }
 
         function flashDisparo(msg) {
@@ -839,6 +873,9 @@ export default {
             loading.value = true;
             try {
                 const { data } = await axios.get('/api/roadmap/torre');
+                // #878 — la foto llegó: limpia el error anterior y adopta el parte de daños.
+                errorCarga.value = null;
+                bloquesFallidos.value = data.bloques_fallidos || {};
                 generatedAt.value = data.generated_at;
                 resumen.value = data.resumen || { total: 0, por_estado: {}, por_nivel: {} };
                 cola.value = data.cola_requiere_irving || [];
@@ -865,6 +902,13 @@ export default {
                 applyEstado(data);
                 cargarContadores();   // #507 bombitas por módulo (endpoint propio, no bloquea)
                 maybeDeepLink();   // #torre: deep-link /releases?item=NNN tras poblar la bandeja
+            } catch (e) {
+                // #878 — ANTES no había catch: la excepción se tragaba y los refs se quedaban en su
+                // valor inicial (ceros). La pantalla mentía en silencio. Ahora lo dice.
+                const st = e?.response?.status;
+                errorCarga.value = st
+                    ? `La Torre respondió ${st}. Los números de abajo NO son datos: no se pudieron leer.`
+                    : 'No se pudo contactar a la Torre. Los números de abajo NO son datos: no se pudieron leer.';
             } finally {
                 loading.value = false;
             }
@@ -1122,6 +1166,8 @@ export default {
             // Estado en vivo (#335)
             live, running, estadoClass, estadoLabel, elapsedRunning, sinceBeat, fmtClock,
             ultimaHace, proximaEn, cronCaido, intervaloMin, schedulerBeatSecs, autoEjecutables,
+            // #878 — ceros mudos: el front DEBE poder distinguir 0 de «no pude preguntar».
+            errorCarga, bloquesFallidos, datosIncompletos, bloquesFallidosLista, falloBloque, kpi,
             // Visor "Trabajando ahora" (#349)
             sesiones, resumenUltima, nowMs,
             logOpen, logTail, logPre, toggleLog,

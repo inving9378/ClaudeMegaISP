@@ -50,6 +50,38 @@ class RoadmapController extends Controller
         'created_at', 'updated_at',
     ];
 
+    /**
+     * #878 — BLOQUES QUE FALLARON en la respuesta que se está armando. Se vacía por petición.
+     * @var array<string,string>
+     */
+    private array $bloquesFallidos = [];
+
+    /**
+     * #878 — UN BLOQUE DE LA TORRE, aislado.
+     *
+     * `torre()` arma ~20 bloques independientes en una sola respuesta. Sin aislar, la excepción de
+     * UNO tumbaba los veinte: eso fue exactamente lo que pasó — la consulta de la bandeja reventó
+     * con 1038 durante 20 días y la pantalla entera se quedó muda, mostrando ceros que se leían
+     * como "no hay trabajo" en vez de "no pude preguntar".
+     *
+     * El fallback NO es un cero disfrazado: el nombre del bloque viaja en `bloques_fallidos`, y el
+     * front está obligado a distinguir "0" de "falló" (si no lo hace, vuelve el silencio).
+     */
+    private function bloque(string $nombre, callable $fn, mixed $fallback = null): mixed
+    {
+        try {
+            return $fn();
+        } catch (\Throwable $e) {
+            $this->bloquesFallidos[$nombre] = $e->getMessage();
+            Log::error("torre(): el bloque «{$nombre}» falló y se devolvió vacío.", [
+                'bloque'    => $nombre,
+                'excepcion' => $e->getMessage(),
+            ]);
+
+            return $fallback;
+        }
+    }
+
     public function __construct(
         private RoadmapCircuitoService $svc,
         private WatchdogService $watchdog,
@@ -185,6 +217,8 @@ class RoadmapController extends Controller
     {
         $this->authorize('roadmap_view');
 
+        $this->bloquesFallidos = [];
+
         // #432 — la bandeja es TODA la estación de decisión (requiere_irving + C sin decidir +
         // [BLOCKED-/PARKED-]), no solo requiere_irving: el supervisor las enruta aquí y ninguna
         // decisión se queda perdida en la Hoja de ruta.
@@ -193,7 +227,7 @@ class RoadmapController extends Controller
         // recortada devolvía menos items de los que anuncia su bombita. Medido en dev: traer los 71
         // cuesta 16 ms y `torre()` completo 121 ms. Si algún día la bandeja pasa de 100, la UI avisa
         // que está mostrando N de M en vez de mentir.
-        $cola = RoadmapItem::bandeja()
+        $cola = $this->bloque('bandeja', fn () => RoadmapItem::bandeja()
             ->ordered()->limit(100)->get(self::COLUMNAS_BANDEJA)
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
@@ -214,28 +248,32 @@ class RoadmapController extends Controller
                 'motivo_bloqueo'   => $i->motivo_bloqueo,
                 // §5 — señal de producción. No bloquea; se ve.
                 'toca_produccion'  => $i->tocaProduccion(),
-            ]));
+            ])), collect());
 
         // #348: cola EJECUTABLE — SOLO lo que el circuito AUTO-CORRE (A/B o ya aprobado por Irving),
         // NO los C/requiere_irving/negocio (esos esperan tu decisión y jamás los corre solo).
         // Ya ordenada 🔥→prioridad→antigüedad; aquí el 🔥 salta la fila y dispara vuelta.
-        $colaEjecutable = RoadmapItem::autoEjecutable()
-            ->ordered()->limit(25)->get()
-            ->map(fn (RoadmapItem $i) => $this->svc->compact($i));
+        // #878 — `compact()` sólo lee campos ligeros: proyección explícita, nunca `SELECT *`
+        // sobre una consulta ordenada (ver COLUMNAS_BANDEJA arriba).
+        $colaEjecutable = $this->bloque('cola_ejecutable', fn () => RoadmapItem::autoEjecutable()
+            ->ordered()->limit(25)->get(RoadmapItem::COLUMNAS_COMPACT)
+            ->map(fn (RoadmapItem $i) => $this->svc->compact($i)), collect());
 
         // #348: resumen de la cola — cuántos auto-corre el circuito vs cuántos esperan tu decisión
         // (+ los sin clasificar que el circuito aún triará). Cuentan sobre TODA la cola, no el limit.
-        $resumenCola = [
+        // #878 — el fallback es `null` por contador, NO `0`: un cero aquí se lee como "no hay
+        // trabajo" y es justo la mentira que ocultó el 1038 durante 20 días.
+        $resumenCola = $this->bloque('resumen_cola', fn () => [
             'auto_ejecutables' => RoadmapItem::autoEjecutable()->count(),
             'espera_decision'  => RoadmapItem::bandeja()->count(),      // #432: toda la estación bandeja
             'sin_clasificar'   => RoadmapItem::backlog()->count(),       // #432: intake = lo que vive en la Hoja de ruta
             'intake'           => RoadmapItem::backlog()->count(),
-        ];
+        ], ['auto_ejecutables' => null, 'espera_decision' => null, 'sin_clasificar' => null, 'intake' => null]);
 
         // [BUG][UI/UX][TORRE] Cada evento de Actividad reciente se enriquece con la UBICACIÓN ACTUAL
         // REAL del item (no la del evento): status + estacion calculada (accessor) + etiqueta legible +
         // pestaña destino + siguiente acción. Así la tarjeta puede navegar a donde el item está AHORA.
-        $actividad = RoadmapItem::whereNotNull('comentarios_claude')
+        $actividad = $this->bloque('actividad_reciente', fn () => RoadmapItem::whereNotNull('comentarios_claude')
             ->orderByRaw('COALESCE(revisado_at, updated_at) DESC')
             ->limit(8)->get(self::COLUMNAS_ACTIVIDAD)
             ->map(function (RoadmapItem $i) {
@@ -255,7 +293,7 @@ class RoadmapController extends Controller
                     'comentario'        => mb_strimwidth((string) $i->comentarios_claude, 0, 220, '…'),
                     'cuando'            => optional($i->revisado_at ?? $i->updated_at)->toIso8601String(),
                 ];
-            });
+            }), collect());
 
         // Riesgos de la última auditoría registrada en el log (fase1_auditoria).
         $riesgos = [];
@@ -269,7 +307,7 @@ class RoadmapController extends Controller
             }
         }
 
-        $ejecuciones = CircuitoEjecucion::orderByDesc('id')->limit(12)->get()
+        $ejecuciones = $this->bloque('ejecuciones', fn () => CircuitoEjecucion::orderByDesc('id')->limit(12)->get()
             ->map(fn (CircuitoEjecucion $e) => [
                 'id'            => $e->id,
                 'started_at'    => optional($e->started_at)->toIso8601String(),
@@ -283,12 +321,12 @@ class RoadmapController extends Controller
                 'n_decisiones'  => $e->n_decisiones,
                 'ejecuto'       => $e->ejecuto,
                 'resumen'       => $e->resumen,
-            ]);
+            ]), collect());
 
         // #346 (punto 2): items "en progreso" sin actividad hace >10 días — aviso PASIVO en la
         // Torre (no auto-cancela). Umbral fijo por ahora (política de N días queda para cuando
         // Irving decida la regla dura/consejo; esto es solo detección, no la resuelve).
-        $estancados = RoadmapItem::posibleEstancado(10)
+        $estancados = $this->bloque('estancados', fn () => RoadmapItem::posibleEstancado(10)
             ->orderBy('updated_at')->limit(20)->get()
             ->map(fn (RoadmapItem $i) => [
                 'id'                => $i->id,
@@ -298,7 +336,7 @@ class RoadmapController extends Controller
                 'en_desarrollo_humano' => (bool) $i->en_desarrollo_humano,
                 'updated_at'        => optional($i->updated_at)->toIso8601String(),
                 'dias_sin_actividad' => (int) floor($i->updated_at->diffInDays(now())),
-            ]);
+            ]), collect());
 
         $ultima = CircuitoEjecucion::orderByDesc('id')->first();
 
@@ -308,22 +346,22 @@ class RoadmapController extends Controller
             // #343: salvaguarda de "pausa olvidada" — null si no está pausado.
             'circuito_pausado_info' => $this->svc->pausedInfo(),
             'circuito_modo'        => $this->svc->getModo(),
-            'resumen'              => $this->svc->resumen(),
+            'resumen'              => $this->bloque('resumen', fn () => $this->svc->resumen(), null),
             'cola_requiere_irving' => $cola,
             'cola_ejecutable'      => $colaEjecutable,   // #348: SOLO auto-ejecutables (A/B o aprobados) con 🔥
             'resumen_cola'         => $resumenCola,      // #348: N auto-ejecutables · M esperan tu decisión
             'actividad_reciente'   => $actividad,
             // FASE 1 — "Cambios para que Irving pruebe": cambios seguros integrados esperando validación funcional.
-            'cambios_validacion'   => RoadmapItem::pendienteValidacion()->limit(30)->get()
-                ->map(fn (RoadmapItem $i) => $this->validacionPayload($i)),
+            'cambios_validacion'   => $this->bloque('cambios_validacion', fn () => RoadmapItem::pendienteValidacion()->limit(30)->get()
+                ->map(fn (RoadmapItem $i) => $this->validacionPayload($i)), collect()),
             'riesgos_auditoria'    => $riesgos,
             'auditoria_item_id'    => $audit?->id,
             'ejecuciones'          => $ejecuciones,
             // Estado EN VIVO de la vuelta (#335): corriendo/inactivo + heartbeat + próxima.
-            'live'                 => $this->svc->liveState(),
+            'live'                 => $this->bloque('live', fn () => $this->svc->liveState(), null),
             // Visor "Trabajando ahora" (#349): sesiones (array listo-para-N, 1 hoy) con fases
             // y stepper + resumen de la última vuelta (CIRCUITO_META).
-            'trabajando'           => $this->svc->trabajandoAhora(),
+            'trabajando'           => $this->bloque('trabajando', fn () => $this->svc->trabajandoAhora(), collect()),
             'proxima_vuelta_at'    => $this->svc->proximaVueltaAt(),
             'ultima_vuelta_at'     => optional($ultima?->started_at)->toIso8601String(),
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
@@ -331,12 +369,12 @@ class RoadmapController extends Controller
             // trabajo seguro (evita el falso "cron detenido"). + cuántos auto-ejecutables hay en cola.
             'scheduler_beat_secs'  => $this->svc->schedulerBeatSecs(),
             'cron_vivo'            => ($s = $this->svc->schedulerBeatSecs()) !== null && $s < 180,
-            'auto_ejecutables'     => RoadmapItem::autoEjecutable()->count(),
+            'auto_ejecutables'     => $this->bloque('auto_ejecutables', fn () => RoadmapItem::autoEjecutable()->count(), null),
             // #507 sub-paso 4 — banner del autopilot: política vigente + qué decidió hoy.
-            'autopilot'            => $this->autopilot->resumen(),
+            'autopilot'            => $this->bloque('autopilot', fn () => $this->autopilot->resumen(), null),
             // #791 — foto del último `circuito:digest` (mudas 7d / prod 24h / fallback), con la
             // referencia del "antes" para leer la tendencia sin repetir el barrido a mano.
-            'digest'               => $this->svc->digestSnapshot(),
+            'digest'               => $this->bloque('digest', fn () => $this->svc->digestSnapshot(), null),
             // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),
@@ -347,6 +385,10 @@ class RoadmapController extends Controller
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
             'voz_tts'              => $this->svc->getVozTts(),   // #424: voz guardada para 🔊 Escuchar (bandeja + Integración usan la misma)
             'rate_tts'             => $this->svc->getRateTts(),  // #424: velocidad guardada
+            // #878 — CONTRATO CON EL FRONT: qué bloques no se pudieron calcular en ESTA respuesta.
+            // Vacío = la foto está completa. Con entradas = esos números NO son datos, son huecos,
+            // y la UI debe decir «no pude preguntar» en vez de pintar un cero.
+            'bloques_fallidos'     => $this->bloquesFallidos,
         ]);
     }
 
