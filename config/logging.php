@@ -55,6 +55,19 @@ return [
         ],
 
         // Auditoría del acceso externo a la Hoja de Ruta (Circuito de Mejora Continua)
+        /*
+        | Auditoría de la CONFIGURACIÓN de la Torre (Entrega 1 del panel). Canal propio y no el de
+        | `roadmap_externo` a propósito: aquí van cambios de POLÍTICA (quién puede aprobar qué), no
+        | actividad del circuito. Mezclarlos haría que subir el techo de automatización se perdiera
+        | entre miles de líneas de despacho. Subir el techo se registra como `warning`.
+        */
+        'torre_config' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/torre-config.log'),
+            'level'  => 'debug',
+            'days'   => 120,
+        ],
+
         'roadmap_externo' => [
             'driver' => 'daily',
             'path' => storage_path('logs/roadmap-externo.log'),
