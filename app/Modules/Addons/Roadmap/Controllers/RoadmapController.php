@@ -21,6 +21,35 @@ use Symfony\Component\Process\Process;
 
 class RoadmapController extends Controller
 {
+    // #878 — `roadmap_items` tiene 96 columnas (22 TEXT/JSON, algunas de varios KB por fila:
+    // `comentarios_claude`/`log`/`prompt`/`preguntas` suman >4 MB entre las 594 filas de dev).
+    // `ORDER BY ... LIMIT N` con `SELECT *` sobre esa fila ancha revienta MySQL con
+    // "Out of sort memory" (1038, `sort_buffer_size` de dev). Fix quirúrgico (opción 1
+    // pre-aprobada): listas de columnas EXPLÍCITAS — solo lo que cada respuesta realmente usa —
+    // en vez de `SELECT *`, para las 3 consultas ordenadas de la Torre/Hoja de ruta.
+    private const COLUMNAS_BANDEJA = [
+        'id', 'title', 'modulo', 'description', 'status', 'priority', 'urgente', 'nivel_riesgo',
+        'estado_aprobacion', 'opcion_elegida', 'en_desarrollo_humano', 'esperando_merge_irving',
+        'archivado_at', 'origen_bloqueo', 'motivo_bloqueo', 'branch', 'worker_sid', 'origen_item_id',
+        'consulta_supervisor_at', 'consulta_resuelta_at', 'comentarios_claude', 'opciones',
+        'preguntas', 'reporte_coloquial', 'enlace_revision', 'alcance_autorizado', 'fuera_de_alcance',
+        'prompt',
+    ];
+
+    private const COLUMNAS_ACTIVIDAD = [
+        'id', 'title', 'nivel_riesgo', 'estado_aprobacion', 'status', 'archivado_at',
+        'en_desarrollo_humano', 'esperando_merge_irving', 'origen_bloqueo', 'opcion_elegida',
+        'branch', 'siguiente_accion', 'bloqueado_por_bucle', 'requiere_sesion_supervisada',
+        'aprobado_por', 'comentarios_claude', 'revisado_at', 'updated_at',
+    ];
+
+    private const COLUMNAS_LISTADO = [
+        'id', 'title', 'modulo', 'status', 'priority', 'urgente', 'nivel_riesgo',
+        'estado_aprobacion', 'target_version', 'eta_minutos', 'eta_asignada_at',
+        'automatizacion_override', 'subtasks', 'prompt', 'position', 'worker_sid', 'branch',
+        'created_at', 'updated_at',
+    ];
+
     public function __construct(
         private RoadmapCircuitoService $svc,
         private WatchdogService $watchdog,
@@ -165,7 +194,7 @@ class RoadmapController extends Controller
         // cuesta 16 ms y `torre()` completo 121 ms. Si algún día la bandeja pasa de 100, la UI avisa
         // que está mostrando N de M en vez de mentir.
         $cola = RoadmapItem::bandeja()
-            ->ordered()->limit(100)->get()
+            ->ordered()->limit(100)->get(self::COLUMNAS_BANDEJA)
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
                 'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — legacy/fallback (#431)
@@ -208,7 +237,7 @@ class RoadmapController extends Controller
         // pestaña destino + siguiente acción. Así la tarjeta puede navegar a donde el item está AHORA.
         $actividad = RoadmapItem::whereNotNull('comentarios_claude')
             ->orderByRaw('COALESCE(revisado_at, updated_at) DESC')
-            ->limit(8)->get()
+            ->limit(8)->get(self::COLUMNAS_ACTIVIDAD)
             ->map(function (RoadmapItem $i) {
                 $ub = $this->ubicacionActual($i);
                 return [
@@ -1595,7 +1624,9 @@ class RoadmapController extends Controller
             $q->where('target_version', $request->version);
         }
 
-        return response()->json($q->get());
+        // #878 — ver COLUMNAS_LISTADO arriba. El detalle completo (prompt largo, comentarios_claude,
+        // log, etc.) sigue disponible sin restricción vía GET /api/roadmap/items/{id} (show()).
+        return response()->json($q->get(self::COLUMNAS_LISTADO));
     }
 
     // GET /api/roadmap/items/{id} — lectura puntual (#861: sondeo del desenlace de despacho
