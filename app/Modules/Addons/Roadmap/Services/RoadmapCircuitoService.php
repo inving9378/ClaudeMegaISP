@@ -1649,6 +1649,49 @@ class RoadmapCircuitoService
         $this->putSetting(self::WORKER_NOMBRES_KEY, json_encode($map, JSON_UNESCAPED_UNICODE));
     }
 
+    /**
+     * #854 — Avatares por terminal (supervisor incluido). Mismo patrón que WORKER_NOMBRES_KEY:
+     * mapa `{sid: ruta_relativa}` en `settings`, NO una columna en una "tabla de terminales" —
+     * esa tabla no existe (los slots wt-K son virtuales, derivados de `getParalelismo()`, no filas
+     * de BD). Decisión registrada en `circuito:reportar --tipo=decision` del item #854.
+     * `sid` acepta `wt-K` o el literal `supervisor`. La ruta es relativa a `storage/app/public/`
+     * (ej. `terminales/{uuid}.webp`); quien la sirve antepone el prefijo `/storage/`.
+     */
+    public const WORKER_AVATARS_KEY = 'circuito_worker_avatars';
+
+    public function avatarsWorkers(): array
+    {
+        $raw = DB::table('settings')->where('key', self::WORKER_AVATARS_KEY)->value('value');
+
+        return ($raw !== null && is_array($d = json_decode((string) $raw, true))) ? $d : [];
+    }
+
+    /** Ruta relativa del avatar de un slot (o null si no tiene). */
+    public function avatarWorker(?string $sid): ?string
+    {
+        $sid = trim((string) $sid);
+        if ($sid === '') {
+            return null;
+        }
+
+        return $this->avatarsWorkers()[$sid] ?? null;
+    }
+
+    /** Fija (o limpia con null) la ruta del avatar de un slot. sid debe ser wt-K o "supervisor". */
+    public function setAvatarWorker(string $sid, ?string $path): void
+    {
+        if (! preg_match('/^(wt-\d+|supervisor)$/', $sid)) {
+            return;
+        }
+        $map = $this->avatarsWorkers();
+        if ($path === null || $path === '') {
+            unset($map[$sid]);
+        } else {
+            $map[$sid] = $path;
+        }
+        $this->putSetting(self::WORKER_AVATARS_KEY, json_encode($map, JSON_UNESCAPED_UNICODE));
+    }
+
     /** Segundos desde el último latido del scheduler (cron), o null si nunca latió. */
     public function schedulerBeatSecs(): ?int
     {
