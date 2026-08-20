@@ -934,6 +934,44 @@ class ThomasService
         return $eta;
     }
 
+    /**
+     * #895 — ¿Este item cabe en una vuelta, o hay que descomponerlo en sub-items ANTES de picar
+     * código? La terminal corre esto como primer paso (via `circuito:cabida`).
+     *
+     * CONSERVADOR A PROPÓSITO: solo dice que NO cabe con evidencia dura — nunca con el bucket
+     * heurístico de `EstimadorTiempo` (techo fijo por nivel de riesgo sin muestras reales, que
+     * dispararía para casi cualquier item B/C sin decir nada útil). Dos señales, cualquiera basta:
+     *   1. Empírica: `reanudaciones_timeout >= 1` — el item YA timeouteó antes.
+     *   2. Histórica: mediana real (`eta_metodo = 'historico'`, ≥3 muestras módulo+nivel) por
+     *      encima del umbral configurado.
+     * Sin ninguna señal → cabe (el estimado es orientativo, no un oráculo: por defecto no bloquea).
+     *
+     * Idempotente: si el item YA se descompuso (tiene sub-items, abiertos o cerrados), no vuelve a
+     * evaluar — decir "cabe" aquí solo significa "no re-descompongas", el guard de paraguas del
+     * modelo ya se encarga de que no se complete mientras le queden sub-items abiertos.
+     *
+     * @return array{cabe:bool, motivo:string, eta_segundos:?int}
+     */
+    public function caberEnVuelta(RoadmapItem $item): array
+    {
+        if ($item->yaFueDescompuesto()) {
+            return ['cabe' => true, 'motivo' => 'ya_descompuesto', 'eta_segundos' => null];
+        }
+
+        if ((int) $item->reanudaciones_timeout >= 1) {
+            return ['cabe' => false, 'motivo' => 'ya_timeouteo_antes', 'eta_segundos' => null];
+        }
+
+        $eta    = $this->circuito->estimarEtaTrabajo($item->modulo, $item->nivel_riesgo);
+        $umbral = (int) config('circuito.thomas.cabida.umbral_segundos', 480);
+
+        if ($eta['eta_metodo'] === 'historico' && $eta['eta_segundos'] > $umbral) {
+            return ['cabe' => false, 'motivo' => 'historico_excede_umbral', 'eta_segundos' => $eta['eta_segundos']];
+        }
+
+        return ['cabe' => true, 'motivo' => 'sin_senal_de_riesgo', 'eta_segundos' => $eta['eta_segundos']];
+    }
+
     // =================================================================
     // 3. VERIFICACIÓN DE CIERRE
     // =================================================================
