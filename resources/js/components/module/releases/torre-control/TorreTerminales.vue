@@ -34,7 +34,12 @@
           </span>
           <div class="tt-idblock">
             <span class="tt-name">{{ (supervisor && supervisor.nombre) || 'Supervisor' }}</span>
-            <span class="tt-worker-sm">{{ anyActive ? 'reparte el trabajo' : 'revisando la cola' }}</span>
+            <span class="tt-worker-sm">
+              <a v-if="itemEnCurso" :href="'/roadmap/item/' + itemEnCurso.id" class="tt-sup-cur-link" target="_blank" rel="noopener">revisando item #{{ itemEnCurso.id }}</a>
+              <template v-else-if="itemEnCursoEstado === 'cola_vacia'">cola vacía</template>
+              <template v-else>sin item en curso</template>
+            </span>
+            <span v-if="itemEnCurso" class="tt-sup-cur-title" :title="itemEnCurso.title">{{ itemEnCurso.title }}</span>
           </div>
         </div>
 
@@ -43,7 +48,8 @@
             <span class="tt-sup-list-h"><i class="bi bi-check2-circle"></i> Recién resueltos</span>
             <ul v-if="recienResueltos.length" class="tt-sup-list-ul">
               <li v-for="r in recienResueltos" :key="'rr' + r.id" :title="r.title">
-                <b>#{{ r.id }}</b> {{ r.title }}
+                <b class="tt-sup-list-num">#{{ r.id }}</b>
+                <span class="tt-sup-list-txt">{{ r.title }}</span>
               </li>
             </ul>
             <p v-else class="tt-sup-list-empty">Nada resuelto todavía</p>
@@ -52,7 +58,8 @@
             <span class="tt-sup-list-h"><i class="bi bi-inbox"></i> Listos para terminal</span>
             <ul v-if="listosParaTerminal.length" class="tt-sup-list-ul">
               <li v-for="r in listosParaTerminal" :key="'lp' + r.id" :title="r.title">
-                <b>#{{ r.id }}</b> {{ r.title }}
+                <b class="tt-sup-list-num">#{{ r.id }}</b>
+                <span class="tt-sup-list-txt">{{ r.title }}</span>
               </li>
             </ul>
             <p v-else class="tt-sup-list-empty">Cola vacía</p>
@@ -179,6 +186,13 @@ export default {
 
         const anyRunning = computed(() => sesiones.value.some((s) => s.running));
         const fsSesion = computed(() => sesiones.value.find((s) => s.sid === fsSid.value) || null);
+
+        // #854: item que el supervisor analiza AHORA (mismo payload del poll de 3s, sin llamada nueva).
+        const itemEnCursoEstado = computed(() => (supervisor.value && supervisor.value.item_en_curso && supervisor.value.item_en_curso.estado) || 'cola_vacia');
+        const itemEnCurso = computed(() => {
+            const d = supervisor.value && supervisor.value.item_en_curso;
+            return d && d.estado === 'revisando' && d.id ? d : null;
+        });
 
         const secsSince = (iso) => (iso ? Math.max(0, Math.round((nowMs.value - new Date(iso).getTime()) / 1000)) : 0);
         const fmtClock = (secs) => {
@@ -307,6 +321,7 @@ export default {
         return {
             FASES, POLL_MS, dark: darkMode,
             sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive, fsSesion, fsPre,
+            itemEnCurso, itemEnCursoEstado,
             secsSince, fmtClock, stepReached, stepClass, setPre,
             avatarUrl, onAvatarError, avatarClass, gestureIcon, gestureClass, supervisorUrl, linkClass,
             openFs, closeFs,
@@ -353,13 +368,25 @@ export default {
   display:flex; align-items:center; justify-content:center; font-size:10.5px;
 }
 
-/* ── Listas del escritorio: recién resueltos / listos para terminal (#475) ── */
+/* ── Listas del escritorio: recién resueltos / listos para terminal (#475) ──
+   #854 — diagnóstico: no había recorte de glifos (no hay line-height chico ni height fijo con
+   overflow:hidden). La causa real era truncamiento agresivo a UNA sola línea (white-space:nowrap +
+   ellipsis) sin separación vertical entre renglones (gap:3px) — con textos largos se leía "pisado".
+   Fix: clamp de 2 líneas (en vez de 1), más aire por renglón y columna de número de ancho fijo. */
 .tt-sup-lists{ display:flex; gap:10px; flex:1 1 420px; min-width:260px; }
-.tt-sup-list{ flex:1 1 0; min-width:0; border:1px solid var(--tt-line); border-radius:12px; background:var(--tt-surface); padding:8px 10px; }
+.tt-sup-list{ flex:1 1 0; min-width:0; border:1px solid var(--tt-line); border-radius:12px; background:var(--tt-surface); padding:12px 10px; }
 .tt-sup-list-h{ display:block; font-size:11px; font-weight:800; color:var(--tt-muted); margin-bottom:5px; }
-.tt-sup-list-ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:3px; max-height:88px; overflow:auto; }
-.tt-sup-list-ul li{ font-size:11.5px; color:var(--tt-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.tt-sup-list-ul li b{ color:var(--tt-accent); font-weight:800; }
+.tt-sup-list-ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; max-height:150px; overflow:auto; }
+.tt-sup-list-ul li{
+  display:flex; align-items:baseline; gap:6px;
+  font-size:11.5px; line-height:1.5; color:var(--tt-ink);
+  letter-spacing:.01em; word-break:normal; overflow-wrap:anywhere;
+}
+.tt-sup-list-num{ flex:0 0 auto; min-width:34px; color:var(--tt-accent); font-weight:800; }
+.tt-sup-list-txt{
+  flex:1 1 auto; min-width:0; display:-webkit-box; -webkit-box-orient:vertical;
+  -webkit-line-clamp:2; overflow:hidden;
+}
 .tt-sup-list-empty{ margin:0; font-size:11.5px; color:var(--tt-muted); font-style:italic; }
 
 .tt-sup-links{ display:flex; gap:10px; padding:0 6px; }
@@ -453,6 +480,13 @@ export default {
 .tt-idblock{ display:flex; flex-direction:column; line-height:1.15; min-width:0; }
 .tt-name{ font-weight:800; font-size:14px; color:var(--tt-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tt-worker-sm{ font-size:10px; font-weight:700; letter-spacing:.02em; color:var(--tt-accent); font-variant-numeric:tabular-nums; }
+/* #854 — item en curso del supervisor: número enlazado + título atenuado debajo, en una línea */
+.tt-sup-cur-link{ color:var(--tt-accent); text-decoration:none; }
+.tt-sup-cur-link:hover{ text-decoration:underline; }
+.tt-sup-cur-title{
+  display:block; margin-top:2px; font-size:10.5px; font-weight:500; color:var(--tt-muted);
+  max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
 /* Firma del worker (wt-K) — chip auditable, prueba de "son 6 reales" (#334 A) */
 .tt-worker{ font-size:11px; font-weight:800; letter-spacing:.02em; padding:2px 8px; border-radius:7px; background:rgba(13,148,136,.14); color:var(--tt-accent); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .tt-term.tt-idle{ opacity:.62; border-style:dashed; }
