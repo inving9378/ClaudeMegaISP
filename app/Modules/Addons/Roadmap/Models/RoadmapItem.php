@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Models;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\Model;
 
 class RoadmapItem extends Model
@@ -17,6 +18,25 @@ class RoadmapItem extends Model
      * el item se clasifica en la estación equivocada SIN error visible. Con la lista aquí, al lado
      * del accessor, el que la toque ve las dos cosas juntas.
      */
+    /**
+     * #878 — ACTORES AUTOMÁTICOS: quién decide sin Irving delante. Se comparan por PREFIJO de
+     * `aprobado_por`, no por lista cerrada de literales, para que un actor nuevo quede cubierto por
+     * defecto. El modo de fallo correcto aquí es "se frena de más", nunca "revocó y nadie se enteró".
+     */
+    public const ACTORES_AUTOMATICOS = ['autopilot', 'revisor:', 'destrabe', 'clasificador'];
+
+    /** ¿Esta firma de `aprobado_por` es de un actor automático? */
+    public static function firmaAutomatica(?string $aprobadoPor): bool
+    {
+        foreach (self::ACTORES_AUTOMATICOS as $a) {
+            if ($aprobadoPor !== null && str_starts_with($aprobadoPor, $a)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public const COLUMNAS_COMPACT = [
         'id', 'title', 'modulo', 'status', 'priority', 'urgente', 'nivel_riesgo', 'estado_aprobacion',
         'worker_sid', 'origen_item_id', 'branch', 'archivado_at', 'en_desarrollo_humano',
@@ -254,6 +274,44 @@ class RoadmapItem extends Model
                 && $item->estado_aprobacion === 'requiere_irving'
                 && $item->getOriginal('estado_aprobacion') !== 'requiere_irving') {
                 $item->contarEscalacion();
+            }
+
+            // (3) #878 — NINGÚN ACTOR AUTOMÁTICO REVOCA UNA AUTORIZACIÓN HUMANA EXPLÍCITA.
+            //
+            // Regla de Irving (2026-08-20): el triaje PUEDE endurecer el nivel de riesgo —A→B→C es
+            // información nueva y es legítima— pero NO puede devolverle una decisión que él ya tomó.
+            // Un item que él aprobó al crearlo y que un actor automático manda de vuelta a
+            // `requiere_irving` es el sistema discutiendo con él, y es lo que lo frena: pide el
+            // trabajo, lo autoriza, y la máquina se lo regresa a la bandeja a preguntarle lo mismo.
+            //
+            // Sólo se veta ESTA transición (aprobado_irving → requiere_irving por firma automática).
+            // El nivel de riesgo del mismo save pasa intacto: endurecer sigue permitido.
+            // Un humano sí puede (su `aprobado_por` no es una firma automática), y el des-parqueo
+            // de #507 tampoco se toca porque va hacia `aprobado_irving`, no desde él.
+            if ($item->exists
+                && $item->isDirty('estado_aprobacion')
+                && $item->getOriginal('estado_aprobacion') === 'aprobado_irving'
+                && $item->estado_aprobacion === 'requiere_irving'
+                && static::firmaAutomatica((string) $item->aprobado_por)) {
+                $firma = (string) $item->aprobado_por;
+
+                $item->estado_aprobacion = 'aprobado_irving';        // la autorización se conserva
+                $item->aprobado_por      = $item->getOriginal('aprobado_por');
+
+                $log = $item->log ?: [];
+                $log[] = [
+                    'ts'     => now()->toIso8601String(),
+                    'por'    => $firma,
+                    'evento' => 'revocacion_automatica_rechazada',
+                    'motivo' => "«{$firma}» intentó devolver este item a requiere_irving, pero ya "
+                              . 'estaba autorizado por un humano. El nivel de riesgo sí puede subir; '
+                              . 'la autorización no se revoca automáticamente.',
+                ];
+                $item->log = $log;
+
+                Log::warning('roadmap: revocación automática rechazada', [
+                    'item' => $item->id, 'actor' => $firma, 'nivel' => $item->nivel_riesgo,
+                ]);
             }
         });
 

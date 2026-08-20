@@ -424,17 +424,6 @@ class RoadmapController extends Controller
     }
 
     /**
-     * #878 — ACTORES AUTOMÁTICOS. Quién puede decidir sin Irving delante.
-     *
-     * `aprobado_por` es el único campo que ya distingue quién firmó la decisión, y lo escriben los
-     * tres: el autopilot (`autopilot`), el revisor (`revisor:*`) y el des-trabador (`destrabe*`).
-     * Se mira por prefijo y no por lista cerrada de literales para que un actor nuevo aparezca en
-     * la lista de Irving por defecto — el modo de fallo correcto es "se ve de más", nunca
-     * "decidió y no se enteró".
-     */
-    private const ACTORES_AUTOMATICOS = ['autopilot', 'revisor:', 'destrabe', 'clasificador'];
-
-    /**
      * GET /api/roadmap/torre/decisiones-automaticas — LO QUE LA MÁQUINA DECIDIÓ POR TI.
      *
      * La contraparte de dejar que el circuito decida solo: no una espera previa, sino la
@@ -452,7 +441,9 @@ class RoadmapController extends Controller
             ->whereNotNull('aprobado_por')
             ->whereNull('archivado_at')
             ->where(function ($w) {
-                foreach (self::ACTORES_AUTOMATICOS as $a) {
+                // Definición ÚNICA en el modelo, junto al candado que la aplica (#878): si la
+                // lista se bifurcara, esta pantalla y el guard dejarían de hablar del mismo grupo.
+                foreach (RoadmapItem::ACTORES_AUTOMATICOS as $a) {
                     $w->orWhere('aprobado_por', 'like', $a . '%');
                 }
             })
@@ -515,10 +506,8 @@ class RoadmapController extends Controller
                 continue;
             }
             $por = (string) ($e['decidido_por'] ?? $e['por'] ?? '');
-            foreach (self::ACTORES_AUTOMATICOS as $a) {
-                if ($por !== '' && str_starts_with($por, $a)) {
-                    $encontrada = $e;   // sin break: nos quedamos con la MÁS RECIENTE
-                }
+            if ($por !== '' && RoadmapItem::firmaAutomatica($por)) {
+                $encontrada = $e;   // sin break: nos quedamos con la MÁS RECIENTE
             }
         }
 
@@ -553,14 +542,7 @@ class RoadmapController extends Controller
 
         $item = RoadmapItem::findOrFail($id);
 
-        $esAutomatica = false;
-        foreach (self::ACTORES_AUTOMATICOS as $a) {
-            if (str_starts_with((string) $item->aprobado_por, $a)) {
-                $esAutomatica = true;
-                break;
-            }
-        }
-        if (! $esAutomatica) {
+        if (! RoadmapItem::firmaAutomatica((string) $item->aprobado_por)) {
             return response()->json([
                 'message' => 'Este item no lo decidió un actor automático (lo firmó "'
                     . ($item->aprobado_por ?: 'nadie') . '"): no hay decisión automática que deshacer.',
