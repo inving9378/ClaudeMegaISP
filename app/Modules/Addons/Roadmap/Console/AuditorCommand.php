@@ -24,7 +24,7 @@ class AuditorCommand extends Command
 {
     protected $signature = 'circuito:auditor
         {--apply : Crea los items. Sin esto = DRY-RUN (no escribe nada)}
-        {--cap= : Máximo de items nuevos en este ciclo (default: circuito.auditor.cap_por_ciclo)}
+        {--cap= : Máximo de items nuevos en este ciclo (default: auditor_max_por_corrida, Torre → Configuración)}
         {--modulo= : Audita SÓLO este módulo (nombre del directorio, ej. Tickets)}
         {--forzar : Ignora el umbral de cola y el intervalo mínimo}
         {--dod : Sólo reporta qué módulos están en su DoD de Fase 1, sin crear nada}
