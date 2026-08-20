@@ -50,6 +50,16 @@ class RoadmapController extends Controller
         'created_at', 'updated_at',
     ];
 
+    // #880 — Épica #874 Fase 2 ("por qué no avanza"): solo lo que `porQueNoAvanza()` y el mapeo de
+    // abajo leen. Mismo motivo que las listas de arriba (#878/#864): `ORDER BY ... LIMIT` con
+    // `SELECT *` sobre la fila ancha revienta "Out of sort memory".
+    private const COLUMNAS_NO_AVANZA = [
+        'id', 'title', 'modulo', 'nivel_riesgo', 'estado_aprobacion', 'status',
+        'bloqueado_por_bucle', 'motivo_bloqueo', 'consulta_supervisor', 'consulta_supervisor_at',
+        'consulta_resuelta_at', 'colision_pausada_por', 'esperando_merge_irving', 'reap_count',
+        'en_desarrollo_humano', 'worker_sid', 'updated_at',
+    ];
+
     /**
      * #878 — BLOQUES QUE FALLARON en la respuesta que se está armando. Se vacía por petición.
      * @var array<string,string>
@@ -323,19 +333,22 @@ class RoadmapController extends Controller
                 'resumen'       => $e->resumen,
             ]), collect());
 
-        // #346 (punto 2): items "en progreso" sin actividad hace >10 días — aviso PASIVO en la
-        // Torre (no auto-cancela). Umbral fijo por ahora (política de N días queda para cuando
-        // Irving decida la regla dura/consejo; esto es solo detección, no la resuelve).
-        $estancados = $this->bloque('estancados', fn () => RoadmapItem::posibleEstancado(10)
-            ->orderBy('updated_at')->limit(20)->get()
+        // #880 — Épica #874 Fase 2: "por qué no avanza este item" — union de TODAS las señales
+        // reales de estancamiento (bucle, consulta viva, colisión, merge pendiente, reap huérfano,
+        // o el estancamiento por tiempo que antes vivía solo/mudo en 'estancados', #346). Umbral
+        // fijo por ahora (política de N días queda para cuando Irving decida la regla dura/consejo;
+        // esto es solo diagnóstico de LECTURA — Fase 2 no inventa mecanismos de destrabe nuevos).
+        $noAvanza = $this->bloque('no_avanza', fn () => RoadmapItem::noAvanza(10)
+            ->orderBy('updated_at')->limit(20)->get(self::COLUMNAS_NO_AVANZA)
             ->map(fn (RoadmapItem $i) => [
                 'id'                => $i->id,
                 'title'             => $i->title,
+                'modulo'            => $i->modulo,
+                'nivel_riesgo'      => $i->nivel_riesgo,
                 'estado_aprobacion' => $i->estado_aprobacion,
                 'worker_sid'        => $i->worker_sid,
-                'en_desarrollo_humano' => (bool) $i->en_desarrollo_humano,
                 'updated_at'        => optional($i->updated_at)->toIso8601String(),
-                'dias_sin_actividad' => (int) floor($i->updated_at->diffInDays(now())),
+                'porque_no_avanza'  => $i->porQueNoAvanza(),
             ]), collect());
 
         $ultima = CircuitoEjecucion::orderByDesc('id')->first();
@@ -378,8 +391,10 @@ class RoadmapController extends Controller
             // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),
-            'estancados'           => $estancados,   // #346: items en_progreso sin actividad >10 días (aviso pasivo)
-            'estancados_count'     => RoadmapItem::posibleEstancado(10)->count(),
+            // #880: reemplaza el antiguo 'estancados' (solo tiempo, nunca consumido por el front) —
+            // ahora trae TODAS las señales de estancamiento + la frase legible de cada una.
+            'no_avanza'            => $noAvanza,
+            'no_avanza_count'      => RoadmapItem::noAvanza(10)->count(),
             'worker_nombres'       => $this->svc->nombresWorkers(),   // roster editable (#334)
             'supervisor'           => $this->supervisor->estado(),    // Thomas T: jefe + su feed (#334)
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
