@@ -638,6 +638,19 @@ return [
         | semilla de `InventarioSemilla` que lo describía —module vacío, duplicaba /releases— trae su
         | propio `vigente` que ya lo daba por cerrado al confirmar que el directorio desapareció). Sin
         | directorio, el carril auditaba en vacío: cero huecos/enlaces/TODOs/andamiaje/spec, siempre.
+        |
+        | #903 — Tanda 1 de la ampliación a los 11 módulos que quedaban fuera (decisión de Irving:
+        | tandas de 2-3, priorizando criticidad de negocio). Entran `Auth`, `Planes`, `Documentos`:
+        | Auth = permisos/seguridad (login, roles), Planes = catálogo de planes ligado a facturación
+        | (Internet/VoIP/Custom/Bundle), Documentos = plantillas de contratos/facturas — las 3 más
+        | cercanas a "facturación/permisos/clientes" entre las 11 candidatas (ninguna es literalmente
+        | Clientes/Configuracion/CRM, que ya están en `serializado`). Van a `paralelo`: coupling medido
+        | por referencias cruzadas a su namespace (`App\Modules\{Core|Addons}\{Modulo}` fuera del
+        | propio módulo) es Auth=1, Planes=4, Documentos=0 — muy por debajo del umbral de `serializado`
+        | (Clientes in=8, Configuracion in=9, CRM in=8, ModuleManager in=7). Verificado que los 3
+        | directorios existen con controllers reales y `module.json` `active:true` antes de sumarlos
+        | (regla del item, evita repetir el caso `Reportes`). Quedan 8 módulos para tandas futuras:
+        | Dashboard, Documentacion, Layout, Localizacion, Release, IA, SmartImportExport, WarRoom.
         */
         'carriles' => [
             'paralelo' => [
@@ -645,6 +658,7 @@ return [
                 'Finanzas', 'Mensajes', 'Vendedores', 'Talento', 'Flotas', 'Marketing',
                 'Payments', 'MegaFamilia', 'VoIP', 'WhatsAppAgent', 'PortalCliente', 'PortalPago',
                 'Embajadores', 'Usuarios', 'Roadmap / Circuito CC',
+                'Auth', 'Planes', 'Documentos',
             ],
             'serializado' => ['Clientes', 'Configuracion', 'CRM', 'ModuleManager'],
         ],
