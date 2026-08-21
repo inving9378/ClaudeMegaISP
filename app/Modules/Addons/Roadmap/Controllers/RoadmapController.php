@@ -1672,11 +1672,54 @@ class RoadmapController extends Controller
             'log'                => $i->log,
             'worker_sid'         => $i->worker_sid,
             'worker_nombre'      => $i->worker_sid ? $this->svc->nombreWorker($i->worker_sid) : null,
+            'diagnostico'        => $this->diagnosticoDe($i), // #982 — ver diagnosticoDe()
             'created_at'         => optional($i->created_at)->toIso8601String(),
             'updated_at'         => optional($i->updated_at)->toIso8601String(),
             'started_at'         => optional($i->started_at)->toIso8601String(),
             'completed_at'       => optional($i->completed_at)->toIso8601String(),
         ];
+    }
+
+    /**
+     * #982 — `diagnostico` = {causa, explicacion, accion, procedencia} de
+     * `DiagnosticoItemService::para($item)` (#935), para la FICHA (un solo item).
+     *
+     * El servicio aún no existe (#980/#981 siguen sin implementar): mientras no exista, este
+     * método devuelve `null` sin romper nada — mismo guard `class_exists`+`method_exists` que ya
+     * usa `atorados()` (#937), para que ficha y tablero compartan un único criterio de "¿existe el
+     * servicio?" y se activen solos el día que #980/#981 aterricen. El front (`RoadmapItemDetalle
+     * .vue`, #936) ya sabe pintar `item.diagnostico` cuando no es null.
+     */
+    private function diagnosticoDe(RoadmapItem $i): ?array
+    {
+        $servicio = \App\Modules\Addons\Roadmap\Services\DiagnosticoItemService::class;
+        if (! class_exists($servicio) || ! method_exists($servicio, 'para')) {
+            return null;
+        }
+
+        $diag = $servicio::para($i);
+
+        return is_array($diag) ? $diag : (is_object($diag) ? (array) $diag : null);
+    }
+
+    /**
+     * #982 — mapa `id => diagnostico` para TODOS los items de `$items` en UNA sola pasada BATCH
+     * (`DiagnosticoItemService::paraLote()`), para la LISTA — evita disparar N consultas al armar
+     * el tablero (mismo espíritu que `motivoNoDespachable($esDespachable)` ya preparado en #935:
+     * quien puede calcular en lote lo hace una vez y reparte el resultado por item).
+     *
+     * Mismo guard que `diagnosticoDe()`: sin el servicio, devuelve `[]` (cada item cae a `null`).
+     */
+    private function diagnosticosLote(\Illuminate\Support\Collection $items): array
+    {
+        $servicio = \App\Modules\Addons\Roadmap\Services\DiagnosticoItemService::class;
+        if ($items->isEmpty() || ! class_exists($servicio) || ! method_exists($servicio, 'paraLote')) {
+            return [];
+        }
+
+        $lote = $servicio::paraLote($items);
+
+        return is_array($lote) ? $lote : (is_iterable($lote) ? collect($lote)->all() : []);
     }
 
     /** Payload común de una rama para el radar y el historial. */
@@ -2273,7 +2316,16 @@ class RoadmapController extends Controller
 
         // #878 — ver COLUMNAS_LISTADO arriba. El detalle completo (prompt largo, comentarios_claude,
         // log, etc.) sigue disponible sin restricción vía GET /api/roadmap/items/{id} (show()).
-        return response()->json($q->get(self::COLUMNAS_LISTADO));
+        $items = $q->get(self::COLUMNAS_LISTADO);
+
+        // #982 — 'diagnostico' batch-computado (diagnosticosLote(), una sola pasada para los N
+        // items visibles) adjuntado como atributo ad-hoc; no está en COLUMNAS_LISTADO porque no es
+        // una columna de tabla. `setAttribute` en vez de mapear a array plano para no alterar el
+        // formato de serialización del resto de columnas (fechas, casts, etc.).
+        $diagnosticos = $this->diagnosticosLote($items);
+        $items->each(fn (RoadmapItem $i) => $i->setAttribute('diagnostico', $diagnosticos[$i->id] ?? null));
+
+        return response()->json($items);
     }
 
     // GET /api/roadmap/items/{id} — lectura puntual (#861: sondeo del desenlace de despacho
