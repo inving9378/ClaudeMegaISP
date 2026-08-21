@@ -124,7 +124,7 @@ return [
             // términos específicos (permiso/permisos/spatie, credencial/bcrypt, producción/deploy…).
             'denylist' => [
                 // dinero / cobros
-                'dinero', 'pago', 'cobro', 'factura', 'facturación', 'saldo', 'precio', 'tarifa',
+                'dinero', 'pago', 'cobro', 'factura', 'facturación', 'saldo', 'tarifa',
                 'openpay', 'spei', 'clabe', 'cargo', 'nómina', 'comisión',
                 // seguridad / permisos / auth (específicos, no substrings que peguen de más)
                 // NOTA: 'login' y 'token' REMOVIDOS — falsos positivos mecánicos por substring
@@ -132,14 +132,29 @@ return [
                 // rutinarios). La frontera real de auth la cubren permiso/permisos/spatie/password/
                 // credencial/seguridad/idor/bcrypt + el prompt del revisor (que distingue registrar
                 // un permiso nuevo —rutina— de cambiar permisos/roles existentes —Irving—).
+                // NOTA: 'secret' y 'precio' MOVIDOS a `denylist_word` (#904) — ver ahí el porqué.
                 'permiso', 'permisos', 'spatie', 'password',
-                'contraseña', 'credencial', 'secret', 'seguridad', 'idor', 'bcrypt',
+                'contraseña', 'credencial', 'seguridad', 'idor', 'bcrypt',
                 // producción / despliegue
                 'producción', 'deploy', 'despliegue', 'remote:deploy', '.env',
                 // datos destructivos
                 'migrate:fresh', 'drop ', 'truncate', 'delete from', 'borrado masivo', 'destructiv',
                 // negocio / estrategia / arquitectura
                 'negocio', 'estrategia', 'arquitectura', 'multi-tenant', 'tenant',
+            ],
+            // #904 — Cortos/ambiguos: en modo flex (arriba) disparan como PREFIJO de una palabra real
+            // NO relacionada (mismo defecto que motivó #865, sobreviviendo dentro de su propio fix).
+            // Verificado contra diccionario es_ES (aspell): 'secret'->secretaria/secretario/
+            // secretaría/secretariado/secretismo/secretor… (133 palabras reales); 'precio'->
+            // precioso/preciosa/preciosidad/preciosismo (11 palabras reales). Van con `\b…\b` (match
+            // exacto) y las flexiones legítimas se enumeran a mano — así no se pierde cobertura real
+            // (secreto/secreta/precios) como sí pasaría con un simple `\bsecret\b`/`\bprecio\b` que
+            // dejaría de cazar sus flexiones. Otros candidatos vistos ('cargo', 'saldo', 'pago') se
+            // verificaron con casos reales y NO tienen colisión práctica (ver
+            // DetectorTerminosPalabraCompletaTest) — se quedan en modo flex, sin mover de más.
+            'denylist_word' => [
+                'secret', 'secreto', 'secretos', 'secreta', 'secretas',
+                'precio', 'precios',
             ],
         ],
     ],

@@ -59,7 +59,13 @@ class RevisorService
      */
     public function enAlcance(RoadmapItem $item): array
     {
-        $deny = (array) config('circuito.revisor.alcance.denylist', []);
+        $deny     = (array) config('circuito.revisor.alcance.denylist', []);
+        // #904 — los ~35 términos de `denylist` corrían TODOS en modo flex (`$palabraCompleta=false`,
+        // pensado para largos e inequívocos tipo factura->facturas). Los cortos/ambiguos heredaban
+        // ese mismo modo y disparaban como PREFIJO de una palabra real no relacionada ('secret' →
+        // 'secretaria'). `denylist_word` los separa con match de palabra completa, igual que
+        // `TRIAJE_C_PLAIN`/`TRIAJE_C_WORD` ya hacía para el triaje de nivel null.
+        $denyWord = (array) config('circuito.revisor.alcance.denylist_word', []);
         // 2026-08-20 — este pre-filtro usaba substring CRUDO sobre el texto completo, así que
         // escalaba items por su propio bloque de guardrails igual que el triaje. Ahora comparte la
         // definición única (`DetectorTerminos`): se quita el proceso, se ancla a palabra y se
@@ -68,14 +74,16 @@ class RevisorService
         $heno = mb_strtolower(trim(($item->title ?? '') . "\n" . ($item->modulo ?? '')
             . "\n" . DetectorTerminos::limpiar((string) $item->prompt)));
 
-        foreach ($deny as $kw) {
-            $kw = mb_strtolower(trim((string) $kw));
-            if (DetectorTerminos::dispara($heno, $kw)) {
-                return [
-                    'en_alcance' => false,
-                    'motivo'     => "Fuera del alcance conservador: menciona \"{$kw}\" (frontera dura dinero/seguridad/prod/negocio).",
-                    'kw'         => $kw,
-                ];
+        foreach ([[$deny, false], [$denyWord, true]] as [$lista, $palabraCompleta]) {
+            foreach ($lista as $kw) {
+                $kw = mb_strtolower(trim((string) $kw));
+                if (DetectorTerminos::dispara($heno, $kw, $palabraCompleta)) {
+                    return [
+                        'en_alcance' => false,
+                        'motivo'     => "Fuera del alcance conservador: menciona \"{$kw}\" (frontera dura dinero/seguridad/prod/negocio).",
+                        'kw'         => $kw,
+                    ];
+                }
             }
         }
 
