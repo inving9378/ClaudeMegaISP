@@ -1314,7 +1314,82 @@ class RoadmapCircuitoService
             return '';
         }
 
-        return implode("\n", array_slice($f, -$lines));
+        return $this->maskSecrets(implode("\n", array_slice($f, -$lines)));
+    }
+
+    /**
+     * #934 — enmascara valores sensibles ANTES de que el tail del log salga por HTTP hacia el
+     * navegador (nunca en el cliente: lo que sale del servidor ya debe ir limpio). Dos capas:
+     *   1) Valores REALES de las env sensibles cargadas ahora mismo (KEY/SECRET/TOKEN/PASSWORD/PWD),
+     *      buscados literalmente en el texto — cubre credenciales del propio .env que se filtren
+     *      a la salida de una vuelta (prompt, error, eco de config).
+     *   2) Patrones genéricos `ALGO_KEY=valor` / `Authorization: Bearer xxx` / bloques de llave
+     *      privada — cubre secretos de terceros que no viven en nuestro .env.
+     * Best-effort (defensa en profundidad), no un parser — nunca debe tronar el tail completo.
+     */
+    private function maskSecrets(string $text): string
+    {
+        if ($text === '') {
+            return $text;
+        }
+
+        foreach ($this->secretEnvValues() as $valor) {
+            $text = str_replace($valor, '•••REDACTADO•••', $text);
+        }
+
+        $patronesClave = '/\b((?:[A-Z0-9_]*(?:API[_-]?KEY|SECRET|TOKEN|PASSWORD|PWD)[A-Z0-9_]*)\s*[=:]\s*)(["\']?)([^\s"\'\n]{4,})(\2)/i';
+        $text = preg_replace($patronesClave, '$1$2•••REDACTADO•••$4', $text) ?? $text;
+
+        $text = preg_replace('/\b(Bearer|Basic)\s+[A-Za-z0-9\-_.~+\/=]{8,}/', '$1 •••REDACTADO•••', $text) ?? $text;
+
+        $text = preg_replace('/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/', '•••CLAVE PRIVADA REDACTADA•••', $text) ?? $text;
+
+        return $text;
+    }
+
+    /**
+     * Valores actuales de env sensibles (nombre de variable con pinta de secreto), tal como están
+     * cargados en este proceso — no lee `.env` de disco, así que no pelea con `config:cache`.
+     */
+    private function secretEnvValues(): array
+    {
+        // getenv() sin argumento lee el entorno real (poblado por putenv() de Dotenv) sin depender
+        // de `variables_order`; $_ENV suele venir vacío en FPM aunque el valor sí exista.
+        $entorno = array_merge((array) getenv(), $_SERVER, $_ENV);
+
+        $valores = [];
+        foreach ($entorno as $clave => $valor) {
+            if (! is_string($valor) || ! preg_match('/(KEY|SECRET|TOKEN|PASSWORD|PWD)/i', (string) $clave)) {
+                continue;
+            }
+            // Solo enmascara valores con pinta REAL de secreto: un placeholder débil de dev
+            // (ej. `DB_RADIUS_PASSWORD=password`) es una palabra común y NO se enmascara — si no,
+            // cualquier mención normal de "password" en el log saldría redactada por error.
+            if ($this->pareceSecretoReal($valor)) {
+                $valores[] = $valor;
+            }
+        }
+
+        // Ordena por longitud descendente: si un secreto corto es substring de uno largo, se
+        // enmascara primero el largo para no dejar residuos parciales sin redactar.
+        usort($valores, fn ($a, $b) => mb_strlen($b) <=> mb_strlen($a));
+
+        return array_values(array_unique($valores));
+    }
+
+    /** Placeholders débiles conocidos que NO se enmascaran por ser palabras comunes, no secretos. */
+    private const PLACEHOLDERS_DEBILES = ['password', 'secret', 'admin', 'changeme', 'test', 'null', 'none', 'default', 'root', ''];
+
+    /** ¿Este valor tiene pinta de secreto real (alta entropía) y no de placeholder débil? */
+    private function pareceSecretoReal(string $valor): bool
+    {
+        if (in_array(mb_strtolower($valor), self::PLACEHOLDERS_DEBILES, true)) {
+            return false;
+        }
+
+        return mb_strlen($valor) >= 12
+            || (mb_strlen($valor) >= 8 && preg_match('/[0-9]/', $valor) && preg_match('/[a-zA-Z]/', $valor))
+            || (bool) preg_match('/^[A-Za-z0-9+\/_=-]{10,}$/', $valor);
     }
 
     /** Extrae el #item más reciente mencionado en el tail (best-effort, para "tocando #NNN"). */
