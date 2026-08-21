@@ -43,10 +43,11 @@ return new class extends Migration
     {
         $syncService = app(PermissionSyncService::class);
 
-        $legacyRoles = Role::whereHas('permissions', function ($q) {
+        $legacyRoleIds = Role::whereHas('permissions', function ($q) {
             $q->where('name', 'config_view_system')->where('guard_name', 'web');
-        })->get();
+        })->pluck('id');
 
+        $pivotRows = [];
         foreach (self::PERMISSIONS as $name => $description) {
             $permission = Permission::firstOrCreate(
                 ['name' => $name, 'guard_name' => 'web'],
@@ -57,12 +58,17 @@ return new class extends Migration
             $syncService->syncPermissionToBaseRoles($name);
 
             // Preservar acceso 1:1: quien hoy ve la sección vía el permiso legado
-            // también recibe el granular nuevo.
-            foreach ($legacyRoles as $role) {
-                if (! $role->hasPermissionTo($permission)) {
-                    $role->givePermissionTo($permission);
-                }
+            // también recibe el granular nuevo. insertOrIgnore evita duplicados sin
+            // depender de la caché de relaciones de Eloquent/Spatie entre iteraciones
+            // (un Role reusado entre permisos puede quedar con una copia stale de
+            // `permissions` y disparar un insert duplicado vía givePermissionTo).
+            foreach ($legacyRoleIds as $roleId) {
+                $pivotRows[] = ['role_id' => $roleId, 'permission_id' => $permission->id];
             }
+        }
+
+        if (! empty($pivotRows)) {
+            DB::table('role_has_permissions')->insertOrIgnore($pivotRows);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
