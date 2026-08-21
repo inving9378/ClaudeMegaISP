@@ -9,7 +9,155 @@
     "menu": [],
     "admin_cards": [],
     "config_sections": [],
-    "api_endpoints": [],
+    "api_endpoints": [
+        {
+            "method": "GET",
+            "path": "/",
+            "description": "Dashboard principal (vista general)",
+            "scope": "dashboard_view_dashboard",
+            "permission": "dashboard_view_dashboard"
+        },
+        {
+            "method": "GET",
+            "path": "/index",
+            "description": "Alias de la vista principal del dashboard",
+            "scope": "dashboard_view_dashboard",
+            "permission": "dashboard_view_dashboard"
+        },
+        {
+            "method": "GET",
+            "path": "/home",
+            "description": "Alias autenticado de la vista principal del dashboard",
+            "scope": "dashboard_view_dashboard",
+            "permission": "dashboard_view_dashboard"
+        },
+        {
+            "method": "POST",
+            "path": "/get-home-statistics-for-tarjets-by-status-c",
+            "description": "Tarjetas KPI (clientes online/nuevos, tickets abiertos, dispositivos sin respuesta)",
+            "scope": "dashboard_view_dashboard",
+            "permission": "dashboard_view_dashboard"
+        },
+        {
+            "method": "POST",
+            "path": "/get-home-statistics-for-text-card-in-dashboard-c",
+            "description": "Tarjeta de texto: facturas y transacciones del día",
+            "scope": "dashboard_view_info_invoice_transaction",
+            "permission": "dashboard_view_info_invoice_transaction"
+        },
+        {
+            "method": "POST",
+            "path": "/get-stats-client-card-in-dashboard-c",
+            "description": "Bloque de estadísticas de clientes",
+            "scope": "dashboard_view_block_client",
+            "permission": "dashboard_view_block_client"
+        },
+        {
+            "method": "POST",
+            "path": "/get-stats-ticket-card-in-dashboard-c",
+            "description": "Bloque de estadísticas de tickets",
+            "scope": "dashboard_view_block_ticket",
+            "permission": "dashboard_view_block_ticket"
+        },
+        {
+            "method": "POST",
+            "path": "/get-stats-finance-card-in-dashboard-c",
+            "description": "Bloque de estadísticas financieras",
+            "scope": "dashboard_view_block_finance",
+            "permission": "dashboard_view_block_finance"
+        },
+        {
+            "method": "POST",
+            "path": "/get-stats-server-card-in-dashboard-c",
+            "description": "Bloque de estado del servidor",
+            "scope": "dashboard_view_block_server_status",
+            "permission": "dashboard_view_block_server_status"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/sales-and-prospects",
+            "description": "Estadística de ventas y prospectos (vendedor autenticado)",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/sales-and-prospects/{id}",
+            "description": "Estadística de ventas y prospectos de un vendedor",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/sales-by-medium",
+            "description": "Ventas por medio (vendedor autenticado)",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/sales-by-medium/{id}",
+            "description": "Ventas por medio de un vendedor",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/compare-sales",
+            "description": "Comparativa de ventas (vendedor autenticado)",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/compare-sales/{id}",
+            "description": "Comparativa de ventas de un vendedor",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/prospects-by-status",
+            "description": "Prospectos por estatus (vendedor autenticado)",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/prospects-by-status/{id}",
+            "description": "Prospectos por estatus de un vendedor",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/ranking-sales",
+            "description": "Ranking de ventas por vendedor",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/total-prospects",
+            "description": "Total de prospectos",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/total-sales",
+            "description": "Total de ventas",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        },
+        {
+            "method": "POST",
+            "path": "/statics/total-lost-sales",
+            "description": "Total de ventas perdidas",
+            "scope": "seller_view_statics",
+            "permission": "seller_view_statics"
+        }
+    ],
     "ai": [],
     "client_tab": null,
     "service_type": null
