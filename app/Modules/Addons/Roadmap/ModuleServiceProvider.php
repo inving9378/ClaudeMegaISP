@@ -93,9 +93,28 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
      * también donde se declara QUÉ SE PIERDE si deja de correr.
      *
      * Sólo cuenta la salida 0: un comando que aborta no es un proceso que corrió.
+     *
+     * Item #875 — `CommandStarting` sella el inicio (para `duracion_ms` del pulso); el pulso en sí
+     * (una fila en `circuito_motor_pulsos` por corrida, ok o fallo) lo escribe
+     * `RoadmapCircuitoService::sellarLatido()/sellarFallo()`, llamadas por este mismo listener.
      */
     private function vigilarProcesosProgramados(): void
     {
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Console\Events\CommandStarting::class,
+            function (\Illuminate\Console\Events\CommandStarting $e) {
+                if (! $e->command) {
+                    return;
+                }
+                try {
+                    app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)
+                        ->marcarInicioMotor($e->command);
+                } catch (\Throwable) {
+                    // El registro jamás puede tumbar al comando que va a correr.
+                }
+            }
+        );
+
         \Illuminate\Support\Facades\Event::listen(
             \Illuminate\Console\Events\CommandFinished::class,
             function (\Illuminate\Console\Events\CommandFinished $e) {
