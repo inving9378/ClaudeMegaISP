@@ -1273,3 +1273,49 @@ directorio real para los 3.
 Los 8 módulos restantes quedan registrados como sub-item **#918** ("Tanda 2 de carriles
 ampliados"), para decidirse tras evaluar qué genera esta tanda 1 en la Hoja de Ruta —
 siguiendo el ritmo iterativo que pidió Irving (evaluar entre tandas, no aplicar las 11 de golpe).
+
+## 2026-08-20 18:31 — wt-3: Item #893 — fix evaluarYaDecidido() (root cause de las 12 escalaciones idénticas de #186)
+
+**Qué se hizo:** `ThomasService::evaluarYaDecidido()` (carril "ya decidido" de Thomas, el que
+auto-aprueba items cuyo brief ya quedó 100% contestado) aprobaba items sin mirar dos cosas: (a)
+el flag `requiere_sesion_supervisada` que Irving fija explícitamente para decir "necesito estar
+presente"; (b) si la opción elegida en la pregunta MAESTRA del brief era literalmente "Escalar a
+Irving" (la recomendada del Revisor cuando no puede resolver algo solo). Con (b) no cubierto, el
+carril veía "brief contestado" = "decisión a favor del pool" y despachaba el item, que volvía a
+escalar por la misma razón — eso fue lo que le pasó a #186 doce veces seguidas entre 2026-07-15 y
+2026-08-20.
+
+**Fix (nivel B, aprobado por Irving, opción 1 de q1 — "fix mínimo"):**
+- Guard nuevo: si `$item->requiere_sesion_supervisada` es true, el carril no aprueba (mismo lugar
+  que el guard de `tieneFrenoHumano()`).
+- Al leer la pregunta con índice 0 (la maestra) del brief: si su `opcion_elegida` resuelve a un
+  texto que contiene "escalar a irving" (case-insensitive), se trata como "sin decisión tomada
+  para el pool" en vez de aprobar. Acotado a la pregunta 0 a propósito — preguntas secundarias
+  pueden mencionar "escalar a Irving" como parte de un plan de contingencia (falso positivo real
+  visto en #463 q4: "Rollback + escalar a Irving si algo falla") sin que ESA sea la decisión
+  tomada.
+- La detección se extrajo a `ThomasService::opcionElegidaEsEscalar()` — método estático PURO
+  (solo arrays, sin BD ni contenedor) — específicamente para poder testearlo sin bootear Laravel
+  ni correr `migrate:fresh` contra la BD compartida de dev (que es lo que hace `tests/TestCase.php`
+  en cada test normal).
+
+**Test de regresión (q3, opción 1 aprobada):** `tests/Unit/Modules/Addons/Roadmap/
+EvaluarYaDecididoEscalarTest.php` — PHPUnit puro (mismo patrón que el precedente
+`DestrabeNoRecibeAutoAprobadosTest`), 6 tests: los 4 casos pedidos (autorizar/escalar × pregunta
+elegida/no elegida) + falso-positivo de pregunta secundaria + clave corrupta, más un guard de
+fuente para `requiere_sesion_supervisada`. `vendor/bin/phpunit --no-configuration` → 9/9 OK (junto
+con el precedente), sin tocar la BD.
+
+**Backfill (q2, opción 1 aprobada — "auditar y reencolar"):** corrida la auditoría en vivo (solo
+lectura) contra la BD de dev antes de escribir nada: 0 de 7 items actualmente en estado
+auto-ejecutable/en-progreso calzan con "requiere_sesion_supervisada=true" o "pregunta maestra
+resuelta a escalar". #186 mismo ya está en `aprobado_irving` + `excluir_pool_automatico=1` (fuera
+del pool, en la bandeja de Irving). **Nada que reencolar hoy** — no se dejó comando/script
+permanente de backfill porque no había backfill real que hacer.
+
+**Verificado:** `php -l` limpio, `php artisan --version` bootea, datos reales via tinker
+(`ThomasService::opcionElegidaEsEscalar()` sobre la pregunta real de #186 → `true`; sobre la de
+#893 mismo → `false`, no bloquea su propio fix aprobado).
+
+**Estado:** completado, rama `circuito/item-893-...` integrada vía `circuito:integrar` (cola del
+runner on-box a `main`).
