@@ -1016,4 +1016,42 @@ return [
         'resurface_top'            => (int) env('CIRCUITO_RETRIAGE_RESURFACE_TOP', 12),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | ANTI-BUCLE — umbral de escalación repetida (item #941)
+    |--------------------------------------------------------------------------
+    |
+    | Huérfano de alta prioridad migrado a config SIN cambiar el valor (era
+    | `RoadmapItem::ESCALACION_BUCLE_UMBRAL`, constante en duro). Lo lee
+    | `contarEscalacion()`: si la MISMA causa de escalación se repite esta
+    | cantidad de veces sin cambio material, el item sale del pool automático
+    | (`bloqueado_por_bucle`). NO se expone todavía en el panel de la Torre
+    | (eso es el sub-item de reorganización por actor).
+    */
+    'escalacion_bucle_umbral' => (int) env('CIRCUITO_ESCALACION_BUCLE_UMBRAL', 3),
+
+    /*
+    |--------------------------------------------------------------------------
+    | WATCHDOG — umbrales de salud del equipo de workers (item #941)
+    |--------------------------------------------------------------------------
+    |
+    | Huérfanos de alta prioridad migrados a config SIN cambiar los valores
+    | (eran constantes en duro de `WatchdogService.php`). NO se exponen
+    | todavía en el panel de la Torre (eso es el sub-item de reorganización
+    | por actor).
+    */
+    'watchdog' => [
+        // Seg tras los que el scheduler se considera CAÍDO (alineado con la Torre).
+        'scheduler_stale_seg' => (int) env('CIRCUITO_WATCHDOG_SCHEDULER_STALE_SEG', 180),
+
+        // Seg de latido frío tras los que un worker "corriendo" se considera COLGADO → reap.
+        'worker_hung_seg' => (int) env('CIRCUITO_WATCHDOG_WORKER_HUNG_SEG', 600),
+
+        // Máx intentos consecutivos de auto-recuperación por causa antes de ESCALAR a Irving.
+        'max_intentos' => (int) env('CIRCUITO_WATCHDOG_MAX_INTENTOS', 3),
+
+        // Cuántos eventos de bitácora se conservan.
+        'log_cap' => (int) env('CIRCUITO_WATCHDOG_LOG_CAP', 60),
+    ],
+
 ];
