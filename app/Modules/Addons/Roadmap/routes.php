@@ -136,13 +136,6 @@ Route::middleware(['web', 'auth'])
         Route::post('/integracion/revert',    [RoadmapController::class, 'integracionRevert']);
         Route::post('/integracion/modo',          [RoadmapController::class, 'integracionModo']);
         Route::post('/integracion/marcar-version', [RoadmapController::class, 'integracionMarcarVersion']);
-        // Armador de versiones — Sub-item A (#312): previsualización de solo lectura.
-        // 2026-08-19: la pestaña salió de la navegación (Irving no la requiere). La ruta se
-        // CONSERVA pero deja de ser alcanzable a mano: sin `circuito.decidir` responde 403, para
-        // que no quede una pantalla huérfana accesible por URL directa. El código no se borra
-        // todavía — la limpieza definitiva está agendada en la Hoja de Ruta (30 días).
-        Route::get('/armar-version',               [RoadmapController::class, 'armarVersion'])
-            ->middleware('can:circuito.decidir');
         // Voz (es-*) para 🔊 Escuchar en la Torre (#424).
         Route::post('/integracion/voz',            [RoadmapController::class, 'integracionVoz']);
         // Ciclo de vida / archivo (#334): historial + archivar (individual/masivo) + desarchivar ("quiero verlo")
