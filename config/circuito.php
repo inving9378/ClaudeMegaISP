@@ -992,6 +992,15 @@ return [
             'excluye_opciones' => ['dry', 'item'],
             'si_no_corre' => 'el barrido diario del clasificador no clasifica nada nuevo',
         ],
+
+        // #921 Fase 2 / #957 — cron diario (Kernel.php, hard-coded como activitylog:archive).
+        // 30h de margen sobre el diario (no 24h clavado) para no pintar rojo por jitter normal
+        // del scheduler del SO antes de que de verdad se le haya pasado un día completo.
+        'circuito:reactivar-agendados' => [
+            'max_horas'   => 30,
+            'si_no_corre' => 'los items agendados a futuro NUNCA vuelven solos al pool aunque su '
+                . 'fecha ya haya pasado — se quedan fuera hasta que alguien los toque a mano',
+        ],
     ],
 
     'retriage' => [
