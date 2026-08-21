@@ -1457,3 +1457,31 @@ por todo el circuito.
 
 **Estado:** #949 → `aprobado_irving` (paraguas retenido, fuera del pool). #984/#985/#986 siguen
 pendientes de ejecución normal.
+
+## 2026-08-21 14:37 — Item #942: Torre config muestra la cadencia del crontab (solo lectura)
+
+**Contexto:** #942 pedía agregar, al panel de configuración de la Torre (`TorreConfigPanel.vue`,
+engrane al final de las pestañas de `/releases`), la cadencia real de cada motor programado del
+circuito (cada minuto, 06:20 diario, etc.), reusando la infraestructura de latidos de
+`RoadmapCircuitoService::latidos()` (#808) en vez de inventar un segundo medidor.
+
+**Hallazgo al arrancar:** una sesión anterior en este mismo worktree (wt-2) ya había implementado
+y commiteado el cambio completo (commit `d7b4c003`: agrega `cadencia` a cada entrada de
+`config('circuito.procesos_programados')`, la propaga por `latidos()` y la pinta como columna
+nueva en la tabla de motores con nota de solo-lectura), pero murió por timeout justo después de
+commitear — el reaper la re-encoló como huérfana. En paralelo, mientras yo investigaba, el
+MergeRunner on-box detectó la rama con contenido verificado y la fusionó a `main` por su cuenta
+(merge `0ec7dd50`), dejando el item en `completado` — una carrera legítima entre mi arranque y el
+ciclo normal del circuito, no un error.
+
+**Lo que aporté esta vuelta:** verifiqué que el trabajo ya fusionado es correcto y completo —
+rebase limpio de la rama sobre `main` actual (sin conflictos, diff vacío contra `main` tras
+rebasar = confirma que ya estaba integrado), `php -l` en los 2 archivos PHP tocados,
+`php artisan --version` bootea, `tinker` confirma que `latidos()` devuelve `cadencia` para los 12
+motores reales, y `bash deploy/circuito/npm-build.sh` compiló `TorreConfigPanel.vue` sin errores.
+Completé el cierre administrativo que había quedado a medias por la carrera reap/merge:
+`reporte_coloquial` en lenguaje llano (no repite el título) y `enlace_revision` real
+(`/releases` → engrane → tabla de motores, columna Cadencia), ambos vacíos hasta ahora.
+
+**Estado:** #942 → `completado` (ya lo estaba; solo se completó el reporte para revisión de
+Irving). Sin código nuevo — el cambio funcional es 100% de la sesión anterior.
