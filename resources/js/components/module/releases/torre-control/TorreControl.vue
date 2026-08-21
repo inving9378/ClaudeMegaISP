@@ -453,8 +453,28 @@
           <span class="tc-execsum-sep">·</span>
           <span class="tc-execsum-dec">{{ resumenCola.espera_decision }} esperan tu decisión</span>
           <template v-if="resumenCola.sin_clasificar"><span class="tc-execsum-sep">·</span><span class="tc-execsum-sin">{{ resumenCola.sin_clasificar }} sin clasificar</span></template>
+          <!-- #958 (Fase 3 de #921) — contador clickeable: expande la lista título+fecha en vez de
+               ser una gaveta ciega (los agendados están excluidos de "auto-ejecutables" arriba). -->
+          <template v-if="agendados.count">
+            <span class="tc-execsum-sep">·</span>
+            <button type="button" class="tc-execsum-btn" :class="{ 'tc-execsum-btn-on': agendadosOpen }"
+                    @click="agendadosOpen = !agendadosOpen"
+                    :title="agendadosOpen ? 'Ocultar la lista de agendados' : 'Ver la lista de agendados'">
+              📅 {{ agendados.count }} agendado{{ agendados.count === 1 ? '' : 's' }}{{ agendadosOpen ? ' ▲' : ' ▼' }}
+            </button>
+          </template>
         </div>
         <div class="tc-meta" style="margin:2px 0 10px">Solo A/B o ya aprobados por ti (los C/negocio están en tu bandeja). Ordenados por 🔥 urgente → prioridad (alta→media→baja) → antigüedad; el 🔥 salta la fila y dispara una vuelta ya.</div>
+        <div v-if="agendadosOpen && agendados.items.length" class="tc-agendados-list">
+          <div class="tc-meta" style="margin-bottom:6px">Fuera del pool hasta su fecha — <code>circuito:reactivar-agendados</code> los devuelve solo.</div>
+          <div v-for="it in agendados.items" :key="it.id" class="tc-ev">
+            <div><span class="tc-idnum">#{{ it.id }}</span> <b>{{ it.title }}</b></div>
+            <div class="tc-meta" style="margin-top:2px">Agendado para {{ fechaCorta(it.agendado_para) }}</div>
+            <div class="tc-actions" style="margin-top:4px">
+              <button class="tc-btn tc-btn-ver" @click="verMas(it)">🔎 Ver</button>
+            </div>
+          </div>
+        </div>
         <div v-if="!colaEjecutable.length" class="tc-meta">Nada en cola de ejecución ahora. ✓</div>
         <div v-for="it in colaEjecutable" :key="it.id" class="tc-exec-item">
           <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
@@ -548,6 +568,8 @@ export default {
         const cola = ref([]);
         const colaEjecutable = ref([]);   // #348: SOLO auto-ejecutables (A/B o aprobados por Irving)
         const resumenCola = ref({ auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 });
+        const agendados = ref({ count: 0, items: [] });   // #958: N items agendados + lista (título/fecha)
+        const agendadosOpen = ref(false);
         const actividad = ref([]);
         // FASE 1 — Cambios para que Irving pruebe (validación funcional)
         const cambiosValidacion = ref([]);
@@ -596,6 +618,16 @@ export default {
             if (h < 24) return `hace ${h} h`;
             const d = Math.floor(h / 24);
             return `hace ${d} día${d > 1 ? 's' : ''}`;
+        }
+
+        // #958 — fecha absoluta corta para `agendado_para` (es fecha FUTURA; "hace X" no aplica).
+        function fechaCorta(iso) {
+            if (!iso) return '';
+            try {
+                return new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+            } catch (e) {
+                return '';
+            }
         }
 
         const decisionesAuto = ref([]);
@@ -1036,6 +1068,7 @@ export default {
                 if (data.rate_tts) rateTts.value = Number(data.rate_tts);   // #424: misma velocidad
                 colaEjecutable.value = data.cola_ejecutable || [];
                 resumenCola.value = data.resumen_cola || { auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 };
+                agendados.value = data.agendados || { count: 0, items: [] };   // #958
                 actividad.value = data.actividad_reciente || [];
                 cambiosValidacion.value = data.cambios_validacion || [];   // FASE 1
                 riesgos.value = data.riesgos_auditoria || [];
@@ -1296,7 +1329,7 @@ export default {
 
         return {
             loading, toggling, pausado, pausadoInfo, pausaOlvidada, pausaHorasTxt, generatedAt, total, est, nivel, niveles, barH,
-            cola, colaEjecutable, resumenCola, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
+            cola, colaEjecutable, resumenCola, agendados, agendadosOpen, fechaCorta, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             evIcon, evColor, rel, toggle,
             // #torre: Actividad reciente navegable (abrir item / deep-link / recorrido)
             openItem, verRecorrido, estadoAprobLabel, highlightId,
@@ -1648,6 +1681,12 @@ export default {
 .tc-execsum-auto{color:#047857;} .tc-execsum-dec{color:#b45309;} .tc-execsum-sin{color:var(--tc-muted);font-weight:600;}
 .tc-execsum-sep{color:var(--tc-muted);font-weight:400;}
 .tc-dark .tc-execsum-auto{color:#4ade80;} .tc-dark .tc-execsum-dec{color:#fbbf24;}
+/* #958 — contador clickeable "N agendados" (expande la lista título+fecha, no gaveta ciega) */
+.tc-execsum-btn{background:none;border:none;padding:0;font:inherit;font-weight:700;color:#4338ca;cursor:pointer;}
+.tc-execsum-btn:hover,.tc-execsum-btn-on{text-decoration:underline;}
+.tc-dark .tc-execsum-btn{color:#a5b4fc;}
+.tc-agendados-list{margin:2px 0 12px;padding:8px 10px;border:1px solid var(--tc-line);border-radius:8px;background:var(--tc-bg2,rgba(0,0,0,.02));}
+.tc-dark .tc-agendados-list{background:rgba(255,255,255,.03);}
 .tc-exec-item{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--tc-line);}
 .tc-exec-item:first-of-type{border-top:none;}
 .tc-exec-body{flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.3;}
