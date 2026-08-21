@@ -682,6 +682,19 @@ return [
         | directorios existen con controllers reales y `module.json` `active:true` antes de sumarlos
         | (regla del item, evita repetir el caso `Reportes`). Quedan 8 módulos para tandas futuras:
         | Dashboard, Documentacion, Layout, Localizacion, Release, IA, SmartImportExport, WarRoom.
+        |
+        | #918 — Tanda 2 (2 módulos, decisión de Irving en #918: alto tráfico operativo, arranque
+        | conservador). Entran `Dashboard` y `Localizacion`: Dashboard = pantalla de mayor visibilidad
+        | de uso diario del sistema, Localizacion = alimenta CRM/mapeo de red/domicilios de clientes
+        | (estado/municipio/colonia/sucursal) — las 2 más cercanas a "tráfico operativo alto" entre
+        | las 8 candidatas restantes (ninguna toca facturación/permisos/pagos). Antes de sumarlas se
+        | revisó el resultado de la tanda 1 (14 items generados sobre Auth/Planes/Documentos, 11
+        | completados, 1 escalado, 2 aprobados — ritmo sano, no hubo motivo para frenar). Coupling
+        | medido igual que en tanda 1 (referencias cruzadas a `App\Modules\{Core|Addons}\{Modulo}`
+        | fuera del propio módulo): Dashboard=0, Localizacion=0 — muy por debajo del umbral de
+        | `serializado`. Verificados ambos directorios con controllers reales y `module.json`
+        | `active:true`. Quedan 6 módulos para tandas futuras: Documentacion, Layout, Release, IA,
+        | SmartImportExport, WarRoom.
         */
         'carriles' => [
             'paralelo' => [
@@ -690,6 +703,7 @@ return [
                 'Payments', 'MegaFamilia', 'VoIP', 'WhatsAppAgent', 'PortalCliente', 'PortalPago',
                 'Embajadores', 'Usuarios', 'Roadmap / Circuito CC',
                 'Auth', 'Planes', 'Documentos',
+                'Dashboard', 'Localizacion',
             ],
             'serializado' => ['Clientes', 'Configuracion', 'CRM', 'ModuleManager'],
         ],
