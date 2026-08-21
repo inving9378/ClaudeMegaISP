@@ -82,7 +82,7 @@
 
     <!-- Rejilla responsiva: 1 = ancho completo · 2-4 = grid · N = scroll -->
     <div v-if="sesiones.length" class="tt-grid" :class="{ 'tt-grid-solo': sesiones.length === 1 }">
-      <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle }">
+      <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle, 'tt-orphan': s.reclamo_huerfano }">
         <div class="tt-term-head">
           <!-- Avatar de la persona (por slot wt-K) + animación enganchada al estado live -->
           <span class="tt-avatar" :class="avatarClass(s)">
@@ -112,6 +112,19 @@
           </span>
           <span v-if="!s.idle" class="tt-term-clock">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
           <button v-if="!s.idle" class="tt-fs-btn" title="Pantalla completa" @click="openFs(s.sid)">⤢</button>
+        </div>
+
+        <!-- #889: reclamo huérfano — item ya `status=done` que sigue reteniendo esta terminal
+             sin más trabajo pendiente (esperando la resolución de Irving). Solo libera el
+             `worker_sid`; el estado_aprobacion del item queda intacto. -->
+        <div v-if="s.reclamo_huerfano" class="tt-orphan-row">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span class="tt-orphan-label">terminó el #{{ s.reclamo_huerfano.item_id }} · esperando tu resolución</span>
+          <button
+            class="tt-orphan-btn"
+            :disabled="liberando === s.reclamo_huerfano.item_id"
+            @click="liberarReclamo(s.reclamo_huerfano.item_id)"
+          >{{ liberando === s.reclamo_huerfano.item_id ? "Liberando…" : "Liberar reclamo" }}</button>
         </div>
 
         <!-- Stepper compacto de fases (de #349) -->
@@ -164,6 +177,14 @@
     <!-- #854: error de subida de avatar (validación server-side: tipo/tamaño real) -->
     <transition name="tt-toast-fade">
       <div v-if="avatarError.visible" class="tt-avatar-toast"><i class="bi bi-exclamation-triangle-fill me-1"></i>{{ avatarError.message }}</div>
+    </transition>
+
+    <!-- #889: aviso del resultado de "Liberar reclamo" (éxito o error) -->
+    <transition name="tt-toast-fade">
+      <div v-if="accionAviso.visible" class="tt-op-toast" :class="{ 'tt-op-toast-ok': accionAviso.ok }">
+        <i class="bi" :class="accionAviso.ok ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'"></i>
+        {{ accionAviso.message }}
+      </div>
     </transition>
   </div>
 </template>
@@ -325,6 +346,30 @@ export default {
             }
         }
 
+        // #889: liberar un reclamo huérfano — solo suelta el `worker_sid` de la terminal; el
+        // estado_aprobacion del item queda intacto (lo confirma el mensaje que regresa el server).
+        const liberando = ref(null);
+        const accionAviso = ref({ visible: false, message: "", ok: true });
+        let accionAvisoTimer = null;
+        const showAccionAviso = (message, ok) => {
+            accionAviso.value = { visible: true, message, ok };
+            if (accionAvisoTimer) clearTimeout(accionAvisoTimer);
+            accionAvisoTimer = setTimeout(() => { accionAviso.value.visible = false; }, 5000);
+        };
+        async function liberarReclamo(itemId) {
+            liberando.value = itemId;
+            try {
+                const { data } = await axios.post(`/api/roadmap/items/${itemId}/liberar-reclamo`);
+                showAccionAviso(data.mensaje || "Reclamo liberado.", true);
+                await poll();   // refleja la terminal libre de inmediato, sin esperar el próximo tick
+            } catch (err) {
+                const resp = err.response && err.response.data;
+                showAccionAviso((resp && (resp.message || resp.mensaje)) || "No se pudo liberar el reclamo.", false);
+            } finally {
+                liberando.value = null;
+            }
+        }
+
         // Línea supervisor→terminal: flujo animado SOLO hacia las que trabajan (running y no frías).
         const linkClass = (s) => (s.running && !s.stale ? "tt-link-active" : (s.stale ? "tt-link-stale" : "tt-link-idle"));
         const anyActive = computed(() => sesiones.value.some((s) => s.running && !s.stale));
@@ -390,6 +435,7 @@ export default {
             initials, initialsStyle, puedeEditarAvatar, uploadingAvatar, avatarError, onAvatarFile,
             openFs, closeFs,
             etaVisible, etaClass, etaIcon, etaLabel, etaPct, etaTooltip,
+            liberando, accionAviso, liberarReclamo,
         };
     },
 };
@@ -481,6 +527,22 @@ export default {
 .tt-term{ background:var(--tt-surface); border:1px solid var(--tt-line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; }
 .tt-term.tt-stale{ border-color:var(--tt-warn); }
 .tt-term.tt-off{ opacity:.85; }
+.tt-term.tt-orphan{ border-color:var(--tt-warn); }
+
+/* #889 — reclamo huérfano: item ya terminado que sigue reservando la terminal */
+.tt-orphan-row{
+  display:flex; align-items:center; gap:8px; padding:7px 12px;
+  border-bottom:1px solid var(--tt-line); background:rgba(217,119,6,.12); color:var(--tt-warn);
+  font-size:12px; font-weight:700; flex-wrap:wrap;
+}
+.tt-orphan-label{ flex:1 1 auto; min-width:0; }
+.tt-orphan-btn{
+  border:1px solid var(--tt-warn); background:transparent; color:var(--tt-warn);
+  border-radius:7px; padding:3px 10px; font-size:11.5px; font-weight:700; cursor:pointer;
+  white-space:nowrap;
+}
+.tt-orphan-btn:hover:not(:disabled){ background:var(--tt-warn); color:#fff; }
+.tt-orphan-btn:disabled{ opacity:.6; cursor:default; }
 
 .tt-term-head{ display:flex; align-items:center; gap:9px; padding:9px 12px; border-bottom:1px solid var(--tt-line); flex-wrap:wrap; }
 .tt-state{ font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
@@ -516,6 +578,14 @@ export default {
 }
 .tt-toast-fade-enter-active,.tt-toast-fade-leave-active{ transition:all .2s ease; }
 .tt-toast-fade-enter-from,.tt-toast-fade-leave-to{ opacity:0; transform:translateY(-8px); }
+/* #889 — aviso de resultado de "Liberar reclamo" (abajo-derecha, no compite con el de avatar) */
+.tt-op-toast{
+  position:fixed; bottom:16px; right:16px; z-index:10600; max-width:360px;
+  background:var(--tt-danger); color:#fff; padding:10px 14px; border-radius:10px;
+  font-size:13px; font-weight:600; box-shadow:0 8px 20px rgba(0,0,0,.25);
+  display:flex; align-items:center; gap:8px;
+}
+.tt-op-toast.tt-op-toast-ok{ background:var(--tt-live); }
 @media (prefers-reduced-motion: reduce){
   .tt-spin{ animation:none !important; }
 }

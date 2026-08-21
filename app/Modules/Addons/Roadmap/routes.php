@@ -126,6 +126,10 @@ Route::middleware(['web', 'auth'])
         Route::post('/torre/salud/reintentar-fallidos', [RoadmapController::class, 'saludReintentarFallidos']);
         Route::post('/torre/salud/recalentar-caches', [RoadmapController::class, 'saludRecalentarCaches']);
         Route::post('/items/{id}/deshacer-decision', [RoadmapController::class, 'deshacerDecision'])->whereNumber('id');
+        // #889 (Torre fase 5 — Terminales): suelta el `worker_sid` de un item sin tocar su
+        // `estado_aprobacion` — libera la terminal que quedó reservada por un reclamo huérfano
+        // (item ya `status=done` esperando la resolución de Irving).
+        Route::post('/items/{id}/liberar-reclamo', [RoadmapController::class, 'liberarReclamo'])->whereNumber('id');
         // Árbol de sesiones `claude` vivas en el box + banner de colisión (#345). Solo backend
         // por ahora (endpoint de lectura); panel Vue de la Torre queda para una siguiente entrega.
         Route::get('/circuito/sesiones',   [RoadmapController::class, 'sesiones']);

@@ -864,6 +864,51 @@ class RoadmapController extends Controller
     }
 
     /**
+     * POST /api/roadmap/items/{id}/liberar-reclamo — suelta el `worker_sid` de un item SIN tocar
+     * su `estado_aprobacion` (#889, Torre fase 5 — Terminales).
+     *
+     * Caso real: un item termina (`status=done`) pero queda en `requiere_irving` (o cualquier
+     * estado no terminal) esperando la decisión de Irving — el `worker_sid` que lo reclamó nunca
+     * se limpia porque no hay más trabajo que hacer, y esa terminal queda "ocupada" por un item
+     * que ya no se está ejecutando. Este botón SOLO libera la reserva de la terminal; el
+     * `estado_aprobacion` del item queda exactamente igual (ni aprueba, ni rechaza, ni ejecuta).
+     */
+    public function liberarReclamo(int $id): JsonResponse
+    {
+        $this->authorize('roadmap_manage');
+
+        $item = RoadmapItem::findOrFail($id);
+
+        if (empty($item->worker_sid)) {
+            return response()->json([
+                'message' => 'Este item no tiene ninguna terminal reclamándolo.',
+            ], 422);
+        }
+
+        $sidLiberado = $item->worker_sid;
+        $item->worker_sid = null;
+        $item->claimed_at = null;   // el lease muere junto con el reclamo que lo sostenía
+
+        $log = $item->log ?: [];
+        $log[] = [
+            'ts'       => now()->toIso8601String(),
+            'por'      => $this->actorLabel(),
+            'evento'   => 'reclamo_liberado',
+            'terminal_liberada' => $sidLiberado,
+            'estado_aprobacion' => $item->estado_aprobacion,   // sin cambio — solo deja rastro
+            'motivo'   => 'Liberado desde la Torre (pestaña Terminales) — reclamo huérfano.',
+        ];
+        $item->log = $log;
+        $item->save();
+
+        return response()->json([
+            'ok'      => true,
+            'item_id' => $item->id,
+            'mensaje' => "Reclamo liberado: la terminal {$sidLiberado} queda libre. El estado del item ({$item->estado_aprobacion}) no cambió.",
+        ]);
+    }
+
+    /**
      * GET /api/roadmap/torre/decisiones/contadores — cuántas decisiones te esperan, POR MÓDULO.
      * (#507 sub-paso 5) Alimenta las "bombitas" del sidebar interno de la Torre.
      *
