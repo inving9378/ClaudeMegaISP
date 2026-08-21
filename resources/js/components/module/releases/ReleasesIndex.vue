@@ -53,6 +53,11 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'cola' }" href="#" @click.prevent="tab = 'cola'">
+                    <i class="bi bi-list-ol me-1"></i> Cola
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'historial' }" href="#" @click.prevent="tab = 'historial'">
                     <i class="bi bi-clock-history me-1"></i> Historial de versiones
                 </a>
@@ -87,6 +92,9 @@
 
         <!-- ── Sub-sección: Salud del entorno (Fase 7, Épica #874, #891) ── -->
         <torre-salud-entorno v-if="tab === 'salud'" />
+
+        <!-- ── Sub-sección: Cola ejecutable, solo lectura (Fase 6, Épica #874, #890/#940) ── -->
+        <torre-cola-ejecutable v-if="tab === 'cola'" />
 
         <!-- ── Tab: Historial ── -->
         <template v-if="tab === 'historial'">
@@ -222,6 +230,7 @@ import TorreControl from "./torre-control/TorreControl.vue";
 import TorreTerminales from "./torre-control/TorreTerminales.vue";
 import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
 import TorreSaludEntorno from "./torre-control/TorreSaludEntorno.vue";
+import TorreColaEjecutable from "./torre-control/TorreColaEjecutable.vue";
 import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
@@ -230,7 +239,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreSaludEntorno, IntegracionRamas, DeployProgressModal },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreSaludEntorno, TorreColaEjecutable, IntegracionRamas, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
