@@ -38,20 +38,34 @@ class WatchdogService
     /** Prefijo de contadores de intentos consecutivos por causa (`...:scheduler`, `...:wt-3`). */
     public const INTENTOS_PREFIX = 'circuito_watchdog_intentos:';
 
-    /** El scheduler se considera CAÍDO si su último latido supera esto (seg) — alineado con la Torre. */
-    public const SCHEDULER_STALE_SEG = 180;
-
-    /** Un worker "corriendo" con latido más frío que esto (seg) se considera COLGADO → reap. */
-    public const WORKER_HUNG_SEG = 600;
-
-    /** Máx intentos consecutivos de auto-recuperación por causa antes de ESCALAR a Irving. */
-    public const MAX_INTENTOS = 3;
-
-    /** Cuántos eventos de bitácora se conservan. */
-    private const LOG_CAP = 60;
+    // #941 — SCHEDULER_STALE_SEG / WORKER_HUNG_SEG / MAX_INTENTOS / LOG_CAP migrados a
+    // config('circuito.watchdog.*') (mismos valores: 180/600/3/60), editables por .env sin
+    // redeploy. Ver config/circuito.php.
 
     public function __construct(private RoadmapCircuitoService $svc)
     {
+    }
+
+    // ── Umbrales (config/circuito.php → 'watchdog', #941) ──────────────────────────────────────
+
+    private function schedulerStaleSeg(): int
+    {
+        return (int) config('circuito.watchdog.scheduler_stale_seg', 180);
+    }
+
+    private function workerHungSeg(): int
+    {
+        return (int) config('circuito.watchdog.worker_hung_seg', 600);
+    }
+
+    private function maxIntentos(): int
+    {
+        return (int) config('circuito.watchdog.max_intentos', 3);
+    }
+
+    private function logCap(): int
+    {
+        return (int) config('circuito.watchdog.log_cap', 60);
     }
 
     /**
@@ -80,7 +94,7 @@ class WatchdogService
         return [
             'slots'          => $this->saludSlots(),
             'alertas'        => $this->alertas(),
-            'watchdog_vivo'  => $beat !== null && (time() - $beat) < self::SCHEDULER_STALE_SEG,
+            'watchdog_vivo'  => $beat !== null && (time() - $beat) < $this->schedulerStaleSeg(),
             'watchdog_secs'  => $beat !== null ? time() - $beat : null,
             'scheduler_vivo' => $this->schedulerVivo(),
             'hay_trabajo'    => $this->hayTrabajo(),
@@ -112,10 +126,10 @@ class WatchdogService
         // ── (1) SCHEDULER CAÍDO (cron muerto) — el caso que acaba de pasar ──────────────────────
         if (! $schedVivo) {
             $n = $this->bump('scheduler');
-            if ($n <= self::MAX_INTENTOS) {
+            if ($n <= $this->maxIntentos()) {
                 $this->dispararScheduler();     // relanza: reclama + lanza en slots libres
                 $acciones[] = $this->audita('scheduler_relanzado',
-                    "Scheduler sin latir ({$this->schedulerSecsTxt()}) → relanzado (intento {$n}/" . self::MAX_INTENTOS . ').');
+                    "Scheduler sin latir ({$this->schedulerSecsTxt()}) → relanzado (intento {$n}/" . $this->maxIntentos() . ').');
             } else {
                 $alertas[] = [
                     'tipo'     => 'scheduler_caido',
@@ -144,13 +158,13 @@ class WatchdogService
             // Worker COLGADO: dice "corriendo" pero su latido lleva frío mucho tiempo (proceso muerto
             // sin cerrar la vuelta, o item que no avanza). Libera su item (reap) para desbloquear el
             // módulo; el scheduler relanza el slot si el proceso ya no lo tiene tomado.
-            if ($running && $sinceBeat > self::WORKER_HUNG_SEG) {
+            if ($running && $sinceBeat > $this->workerHungSeg()) {
                 $n = $this->bump($clave);
-                if ($n <= self::MAX_INTENTOS) {
+                if ($n <= $this->maxIntentos()) {
                     $lib = $this->reapItemDeSlot($clave);
                     $acciones[] = $this->audita('worker_colgado_reap',
                         "{$clave} colgado (latido frío {$sinceBeat}s)" . ($lib ? " → item #{$lib} liberado (re-encolado)" : ' → sin item que liberar')
-                        . "; el scheduler relanzará el slot (intento {$n}/" . self::MAX_INTENTOS . ').');
+                        . "; el scheduler relanzará el slot (intento {$n}/" . $this->maxIntentos() . ').');
                     $this->dispararScheduler();
                 } else {
                     $alertas[] = [
@@ -162,7 +176,7 @@ class WatchdogService
                         'desde'    => now()->toIso8601String(),
                     ];
                 }
-            } elseif ($running && $sinceBeat <= self::WORKER_HUNG_SEG) {
+            } elseif ($running && $sinceBeat <= $this->workerHungSeg()) {
                 $this->reset($clave);   // late bien → sano
             }
             // idle: no se actúa por-slot (lo cubre el nivel scheduler).
@@ -172,10 +186,10 @@ class WatchdogService
         $algunoCorriendo = collect($sesiones)->contains(fn ($s) => ! empty($s['running']));
         if ($hayTrabajo && ! $algunoCorriendo && $schedVivo) {
             $n = $this->bump('sin_despacho');
-            if ($n <= self::MAX_INTENTOS) {
+            if ($n <= $this->maxIntentos()) {
                 $this->dispararScheduler();
                 $acciones[] = $this->audita('sin_despacho_relanzado',
-                    "Hay trabajo en cola y 0 workers corriendo aunque el scheduler late → relanzado (intento {$n}/" . self::MAX_INTENTOS . ').');
+                    "Hay trabajo en cola y 0 workers corriendo aunque el scheduler late → relanzado (intento {$n}/" . $this->maxIntentos() . ').');
             } else {
                 $alertas[] = [
                     'tipo'     => 'sin_despacho',
@@ -217,8 +231,8 @@ class WatchdogService
             $estado  = 'trabajando';
             $detalle = 'Trabajando' . (! empty($s['item']['id']) ? " en #{$s['item']['id']}" : '') . '.';
         } elseif ($running && $stale) {
-            $estado  = $sinceBeat > self::WORKER_HUNG_SEG ? 'caido' : 'esperando';
-            $detalle = $sinceBeat > self::WORKER_HUNG_SEG
+            $estado  = $sinceBeat > $this->workerHungSeg() ? 'caido' : 'esperando';
+            $detalle = $sinceBeat > $this->workerHungSeg()
                 ? "Colgado: latido frío {$sinceBeat}s con la vuelta abierta."
                 : "Latido frío ({$sinceBeat}s), vigilando.";
         } elseif ($idle) {
@@ -244,7 +258,7 @@ class WatchdogService
     {
         $s = $this->svc->schedulerBeatSecs();
 
-        return $s !== null && $s < self::SCHEDULER_STALE_SEG;
+        return $s !== null && $s < $this->schedulerStaleSeg();
     }
 
     private function schedulerSecsTxt(): string
@@ -315,7 +329,7 @@ class WatchdogService
     {
         $log = $this->getJson(self::LOG_KEY, []);
         array_unshift($log, ['at' => now()->toIso8601String(), 'tipo' => $tipo, 'detalle' => $detalle]);
-        $this->putJson(self::LOG_KEY, array_slice($log, 0, self::LOG_CAP));
+        $this->putJson(self::LOG_KEY, array_slice($log, 0, $this->logCap()));
 
         return $detalle;
     }
