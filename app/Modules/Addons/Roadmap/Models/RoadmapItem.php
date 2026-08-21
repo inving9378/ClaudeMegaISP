@@ -161,13 +161,6 @@ class RoadmapItem extends Model
         'cancelado',
     ];
 
-    /**
-     * #507 anti-bucle — si la MISMA causa de escalación se repite esta cantidad de veces sin que
-     * cambie nada material (rama, opción elegida, nivel, preguntas), el item sale del pool
-     * automático (`bloqueado_por_bucle`) y deja de quemar workers. Sigue visible para Irving.
-     */
-    public const ESCALACION_BUCLE_UMBRAL = 3;
-
     protected $attributes = [
         'subtasks' => '[]',
         'log'      => '[]',
@@ -768,7 +761,7 @@ class RoadmapItem extends Model
 
         $this->escalaciones_fingerprint = ['fingerprint' => $fp, 'count' => $n, 'ultima' => now()->toIso8601String()];
 
-        if ($n >= self::ESCALACION_BUCLE_UMBRAL) {
+        if ($n >= (int) config('circuito.escalacion_bucle_umbral', 3)) {
             $this->bloqueado_por_bucle     = true;
             $this->excluir_pool_automatico = true;
             if (trim((string) $this->motivo_bloqueo) === '') {
