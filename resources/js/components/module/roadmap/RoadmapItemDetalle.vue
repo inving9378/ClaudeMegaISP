@@ -6,6 +6,26 @@
       <h1 class="rid-title"><span class="rid-idnum">#{{ item.id }}</span> {{ item.title }}</h1>
     </div>
 
+    <!-- #936 — depende de #935 (DiagnosticoItemService): item.diagnostico = {causa, explicacion, accion, procedencia}.
+         Ausente/null mientras #935 no exista → el bloque simplemente no se renderiza (no-op). -->
+    <div v-if="item.diagnostico" class="rid-diag" :class="diagCls(item.diagnostico.causa)">
+      <span class="rid-diag-icon">{{ diagIcon(item.diagnostico.causa) }}</span>
+      <span class="rid-diag-txt">{{ item.diagnostico.explicacion }}</span>
+      <q-icon v-if="item.diagnostico.procedencia" name="info" size="16px" class="rid-diag-info">
+        <q-tooltip>{{ item.diagnostico.procedencia }}</q-tooltip>
+      </q-icon>
+      <span v-if="diagAcciones(item.diagnostico.accion).length" class="rid-diag-acciones">
+        <q-btn
+          v-for="(ac, ai) in diagAcciones(item.diagnostico.accion)"
+          :key="ai"
+          size="sm" dense no-caps flat
+          color="primary"
+          :disable="!ac.disponible"
+          :label="ac.disponible ? ac.texto : `${ac.texto} — disponible en la fase ${ac.fase}`"
+        />
+      </span>
+    </div>
+
     <div class="rid-meta">
       <span v-if="item.modulo">📦 {{ item.modulo }}</span>
       <span v-if="item.branch"><code>{{ item.branch }}</code></span>
@@ -115,6 +135,42 @@ export default {
             return 'rid-badge-idle';
         };
 
+        // #936 — depende de #935 (DiagnosticoItemService::para()): causas del plan (item #877 sección 1).
+        const DIAG_ICONS = {
+            espera_resolucion: '⏳',
+            aprobado_no_despachable: '🚦',
+            reclamo_huerfano: '👻',
+            tope_duro: '🛑',
+            sin_terminal: '🖥️',
+            override_consumido: '🔁',
+            motor_caido: '⚠️',
+            sin_causa: '❓',
+            no_determinado: '❓',
+        };
+        const diagIcon = (causa) => DIAG_ICONS[causa] || 'ℹ️';
+
+        const DIAG_CLS = {
+            tope_duro: 'rid-diag-c-err',
+            motor_caido: 'rid-diag-c-err',
+            aprobado_no_despachable: 'rid-diag-c-warn',
+            reclamo_huerfano: 'rid-diag-c-warn',
+            override_consumido: 'rid-diag-c-warn',
+            espera_resolucion: 'rid-diag-c-info',
+            sin_terminal: 'rid-diag-c-info',
+        };
+        const diagCls = (causa) => DIAG_CLS[causa] || 'rid-diag-c-idle';
+
+        // Normaliza item.diagnostico.accion (string | objeto {texto,disponible,fase} | array) a botones.
+        const diagAcciones = (accion) => {
+            if (!accion) return [];
+            const lista = Array.isArray(accion) ? accion : [accion];
+            return lista
+                .map((a) => (typeof a === 'string'
+                    ? { texto: a, disponible: true, fase: null }
+                    : { texto: a?.texto || a?.label || '', disponible: a?.disponible !== false, fase: a?.fase ?? null }))
+                .filter((a) => a.texto);
+        };
+
         const textoOpcion = (op) => (typeof op === 'string' ? op : (op?.titulo || op?.title || op?.texto || JSON.stringify(op)));
         const esElegida = (op) => {
             if (!item.opcion_elegida) return false;
@@ -139,7 +195,7 @@ export default {
             }
         }
 
-        return { item, darkMode, lvClass, estadoTxt, estadoCls, textoOpcion, esElegida, textoLog, fecha };
+        return { item, darkMode, lvClass, estadoTxt, estadoCls, textoOpcion, esElegida, textoLog, fecha, diagIcon, diagCls, diagAcciones };
     },
 };
 </script>
@@ -164,6 +220,21 @@ export default {
 .rid-badge-wait{background:#fef9c3;color:#854d0e;}
 .rid-badge-run{background:#dbeafe;color:#1e40af;}
 .rid-badge-idle{background:#e5e7eb;color:#374151;}
+
+.rid-diag{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.9rem;padding:8px 12px;border-radius:6px;margin-bottom:14px;background:#f9fafb;border-left:3px solid #9ca3af;}
+.rid-dark .rid-diag{background:#1f2937;}
+.rid-diag-icon{font-size:1rem;line-height:1;}
+.rid-diag-txt{flex:1 1 auto;}
+.rid-diag-info{cursor:help;color:#6b7280;}
+.rid-dark .rid-diag-info{color:#9ca3af;}
+.rid-diag-acciones{display:flex;gap:6px;flex-wrap:wrap;}
+.rid-diag-c-err{border-left-color:#dc2626;background:#fef2f2;}
+.rid-dark .rid-diag-c-err{background:#3f1d1d;}
+.rid-diag-c-warn{border-left-color:#d97706;background:#fffbeb;}
+.rid-dark .rid-diag-c-warn{background:#3f2d0f;}
+.rid-diag-c-info{border-left-color:#2563eb;background:#eff6ff;}
+.rid-dark .rid-diag-c-info{background:#1e293b;}
+.rid-diag-c-idle{border-left-color:#9ca3af;}
 
 .rid-meta{display:flex;flex-wrap:wrap;gap:14px;font-size:.85rem;color:#4b5563;margin-bottom:16px;}
 .rid-dark .rid-meta{color:#9ca3af;}
