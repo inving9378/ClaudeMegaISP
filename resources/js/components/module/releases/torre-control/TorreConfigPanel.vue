@@ -31,75 +31,119 @@
           poder cambiarlo.
         </div>
 
-        <!-- ── POLÍTICA BASE ────────────────────────────────────────────── -->
-        <section class="tcfg-sec">
-          <h3 class="tcfg-h3">Política base <span class="tcfg-tag">no es un techo</span></h3>
-          <p class="tcfg-note">
-            Es el valor <b>por defecto</b>: un override sobre un item concreto puede excederla — salvo
-            en <b>Manual</b>, que es absoluto y no admite excepciones.
-          </p>
-
-          <div class="tcfg-niveles">
-            <label v-for="n in niveles" :key="n" class="tcfg-nivel"
-                   :class="{ 'tcfg-on': form.nivel_automatizacion === n, 'tcfg-dis': !puedeEditar }">
-              <input type="radio" :value="n" v-model="form.nivel_automatizacion" :disabled="!puedeEditar">
-              <b>{{ etiquetaNivel(n) }}</b>
-              <span>{{ descNivel(n) }}</span>
-            </label>
+        <!-- ── PANEL POR ACTOR (item #943) — 9 grupos, 3 cubetas por control ──── -->
+        <section class="tcfg-sec tcfg-actor-wrap">
+          <h3 class="tcfg-h3">Panel por actor <span class="tcfg-tag">~70 controles del inventario</span></h3>
+          <div class="tcfg-tabbar">
+            <button v-for="g in gruposActor" :key="g.clave" type="button"
+                    class="tcfg-tab" :class="{ 'tcfg-tab-on': tabActiva === g.clave }"
+                    @click="tabActiva = g.clave">
+              {{ g.titulo }}
+              <span v-if="g.controles && g.controles.length" class="tcfg-tab-n">{{ g.controles.length }}</span>
+            </button>
           </div>
 
-          <table class="tcfg-matriz">
-            <thead><tr><th>Nivel del item</th><th v-for="n in niveles" :key="n">{{ etiquetaNivel(n) }}</th></tr></thead>
-            <tbody>
-              <tr v-for="lv in ['A','B','C']" :key="lv">
-                <td><b>{{ lv }}</b></td>
-                <td v-for="n in niveles" :key="n"
-                    :class="celda(lv, n) === 'auto' ? 'tcfg-auto' : 'tcfg-irving'">
-                  {{ celda(lv, n) === 'auto' ? 'auto' : 'Irving' }}
-                </td>
-              </tr>
-              <tr class="tcfg-bloq">
-                <td>Toca prod · borrar datos<br>dinero · credenciales</td>
-                <td v-for="n in niveles" :key="n">BLOQUEADO</td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-for="g in gruposActor" v-show="tabActiva === g.clave" :key="'panel-' + g.clave" class="tcfg-tab-body">
+            <p class="tcfg-note">{{ g.resumen }}</p>
 
-          <h4 class="tcfg-h4">Nivel efectivo por actor</h4>
-          <p class="tcfg-note">
-            Cada actor tiene su propio sub-techo. El efectivo es <code>min(base, sub-techo)</code>.
-            Que uno sea más conservador que la base <b>es información, no una inconsistencia</b>.
-          </p>
-          <table class="tcfg-actores">
-            <tr v-for="(d, a) in politica.actores" :key="a">
-              <td>{{ a }}</td>
-              <td>{{ d.sub_techo || '—' }}</td>
-              <td><b>{{ d.efectivo || 'ninguno' }}</b></td>
-              <td class="tcfg-note">{{ d.sub_techo === null ? 'sólo la base lo gobierna' : (d.efectivo !== d.sub_techo ? 'topado por la base' : '') }}</td>
-            </tr>
-          </table>
+            <!-- Automatización: la política base (única con UI editable propia) vive en su tab -->
+            <template v-if="g.clave === 'automatizacion'">
+              <p class="tcfg-note"><b>Política base</b> — valor por defecto: un override sobre un item concreto
+                puede excederla, salvo en <b>Manual</b>, que es absoluto y no admite excepciones.</p>
+              <div class="tcfg-niveles">
+                <label v-for="n in niveles" :key="n" class="tcfg-nivel"
+                       :class="{ 'tcfg-on': form.nivel_automatizacion === n, 'tcfg-dis': !puedeEditar }">
+                  <input type="radio" :value="n" v-model="form.nivel_automatizacion" :disabled="!puedeEditar">
+                  <b>{{ etiquetaNivel(n) }}</b>
+                  <span>{{ descNivel(n) }}</span>
+                </label>
+              </div>
 
-          <div v-if="politica.overrides_excedentes.total > 0" class="tcfg-over">
-            <b>{{ politica.overrides_excedentes.total }}</b> item(s) con override por encima de la política base:
-            <span v-for="id in politica.overrides_excedentes.ids.slice(0, 12)" :key="id" class="tcfg-id">#{{ id }}</span>
+              <table class="tcfg-matriz">
+                <thead><tr><th>Nivel del item</th><th v-for="n in niveles" :key="n">{{ etiquetaNivel(n) }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="lv in ['A','B','C']" :key="lv">
+                    <td><b>{{ lv }}</b></td>
+                    <td v-for="n in niveles" :key="n"
+                        :class="celda(lv, n) === 'auto' ? 'tcfg-auto' : 'tcfg-irving'">
+                      {{ celda(lv, n) === 'auto' ? 'auto' : 'Irving' }}
+                    </td>
+                  </tr>
+                  <tr class="tcfg-bloq">
+                    <td>Toca prod · borrar datos<br>dinero · credenciales</td>
+                    <td v-for="n in niveles" :key="n">BLOQUEADO</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h4 class="tcfg-h4">Nivel efectivo por actor</h4>
+              <p class="tcfg-note">
+                Cada actor tiene su propio sub-techo. El efectivo es <code>min(base, sub-techo)</code>.
+                Que uno sea más conservador que la base <b>es información, no una inconsistencia</b>.
+              </p>
+              <table class="tcfg-actores">
+                <tr v-for="(d, a) in politica.actores" :key="a">
+                  <td>{{ a }}</td>
+                  <td>{{ d.sub_techo || '—' }}</td>
+                  <td><b>{{ d.efectivo || 'ninguno' }}</b></td>
+                  <td class="tcfg-note">{{ d.sub_techo === null ? 'sólo la base lo gobierna' : (d.efectivo !== d.sub_techo ? 'topado por la base' : '') }}</td>
+                </tr>
+              </table>
+
+              <div v-if="politica.overrides_excedentes.total > 0" class="tcfg-over">
+                <b>{{ politica.overrides_excedentes.total }}</b> item(s) con override por encima de la política base:
+                <span v-for="id in politica.overrides_excedentes.ids.slice(0, 12)" :key="id" class="tcfg-id">#{{ id }}</span>
+              </div>
+            </template>
+
+            <!-- Auditor: los 3 campos ya cableados desde la Entrega 1 viven en su tab -->
+            <template v-if="g.clave === 'auditor'">
+              <label class="tcfg-campo">
+                <span>Activo</span>
+                <input type="checkbox" v-model="form.auditor_activo" :disabled="!puedeEditar">
+              </label>
+              <label class="tcfg-campo">
+                <span>Máximo de items por corrida <em>(1–20)</em></span>
+                <input type="number" min="1" max="20" v-model.number="form.auditor_max_por_corrida" :disabled="!puedeEditar">
+              </label>
+              <label class="tcfg-campo">
+                <span>Cooldown entre auditorías, minutos <em>(5–1440)</em></span>
+                <input type="number" min="5" max="1440" v-model.number="form.auditor_cooldown_min" :disabled="!puedeEditar">
+              </label>
+            </template>
+
+            <!-- Guardrails: una sola fuente (prop `guardrails`, ya consumida por el endpoint) -->
+            <template v-if="g.clave === 'guardrails'">
+              <p class="tcfg-note">
+                No tienen endpoint. Un panel web capaz de apagar la separación dev/prod
+                <b>es un control remoto para apagarla</b>.
+              </p>
+              <div v-for="(gr, i) in guardrails" :key="i" class="tcfg-guard">
+                <span>{{ gr.icono }}</span> {{ gr.texto }} <em>· {{ gr.donde }}</em>
+              </div>
+            </template>
+
+            <!-- Resto de controles del grupo: genéricos, clic para ver procedencia + consecuencia -->
+            <div v-for="c in controlesGenericos(g)" :key="c.clave" class="tcfg-ctrl"
+                 :class="'tcfg-ctrl-' + c.bucket" @click="toggleControl(c.clave)">
+              <div class="tcfg-ctrl-head">
+                <span class="tcfg-dot" :class="'tcfg-dot-' + c.bucket"
+                      :title="c.bucket === 'verde' ? 'editable' : (c.bucket === 'azul' ? 'solo lectura' : 'nunca expuesto')"></span>
+                <code>{{ c.clave }}</code>
+                <b class="tcfg-ctrl-val">{{ c.valor }}</b>
+                <i class="bi" :class="expandido[c.clave] ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+              </div>
+              <div v-if="expandido[c.clave]" class="tcfg-ctrl-det">
+                <p><b>Dónde:</b> {{ c.donde }}</p>
+                <p><b>Quién lee:</b> {{ c.quien_lee }}</p>
+                <p><b>Qué gobierna:</b> {{ c.que_gobierna }}</p>
+                <p><b>Consecuencia:</b> {{ c.consecuencia }}</p>
+                <p v-if="c.nota" class="tcfg-ctrl-pend"><i class="bi bi-lock"></i> {{ c.nota }}</p>
+              </div>
+            </div>
+
+            <p v-if="g.no_existe" class="tcfg-note">Este motor todavía no existe — no hay controles que pintar.</p>
           </div>
-        </section>
-
-        <!-- ── AUDITOR ──────────────────────────────────────────────────── -->
-        <section class="tcfg-sec">
-          <h3 class="tcfg-h3">Auditor <span class="tcfg-tag">el generador de trabajo</span></h3>
-          <label class="tcfg-campo">
-            <span>Activo</span>
-            <input type="checkbox" v-model="form.auditor_activo" :disabled="!puedeEditar">
-          </label>
-          <label class="tcfg-campo">
-            <span>Máximo de items por corrida <em>(1–20)</em></span>
-            <input type="number" min="1" max="20" v-model.number="form.auditor_max_por_corrida" :disabled="!puedeEditar">
-          </label>
-          <label class="tcfg-campo">
-            <span>Cooldown entre auditorías, minutos <em>(5–1440)</em></span>
-            <input type="number" min="5" max="1440" v-model.number="form.auditor_cooldown_min" :disabled="!puedeEditar">
-          </label>
         </section>
 
         <!-- ── MOTORES: por última ejecución, NUNCA por el flag ─────────── -->
@@ -152,17 +196,6 @@
           </p>
         </section>
 
-        <!-- ── GUARDRAILS ───────────────────────────────────────────────── -->
-        <section class="tcfg-sec">
-          <h3 class="tcfg-h3">Guardrails <span class="tcfg-tag">no editables desde aquí</span></h3>
-          <p class="tcfg-note">
-            No tienen endpoint. Un panel web capaz de apagar la separación dev/prod
-            <b>es un control remoto para apagarla</b>.
-          </p>
-          <div v-for="(g, i) in guardrails" :key="i" class="tcfg-guard">
-            <span>{{ g.icono }}</span> {{ g.texto }} <em>· {{ g.donde }}</em>
-          </div>
-        </section>
       </div>
 
       <footer class="tcfg-foot">
@@ -219,6 +252,21 @@ export default {
     const politica  = ref(null);
     const motores   = ref([]);
     const guardrails = ref([]);
+    const gruposActor = ref([]);
+    const tabActiva = ref('automatizacion');
+    const expandido = reactive({});
+
+    // Claves con UI propia dentro de su tab (política base / campos del Auditor ya cableados
+    // desde la Entrega 1) — no se repiten en la lista genérica de controles del grupo.
+    const CLAVES_CON_UI_PROPIA = {
+      automatizacion: ['torre_config.nivel_automatizacion'],
+      auditor: ['auditor.enabled', 'auditor.cap_por_ciclo', 'auditor.min_intervalo_minutos'],
+    };
+    function controlesGenericos(g) {
+      const excluidas = CLAVES_CON_UI_PROPIA[g.clave] || [];
+      return (g.controles || []).filter((c) => !excluidas.includes(c.clave));
+    }
+    function toggleControl(clave) { expandido[clave] = !expandido[clave]; }
 
     // Props numéricas TIPADAS: ref(0), nunca ref(null) — un null en un <input type=number>
     // se convierte en string vacío y vuelve como null al servidor.
@@ -263,6 +311,9 @@ export default {
         politica.value    = data.politica;
         motores.value     = data.motores || [];
         guardrails.value  = data.guardrails || [];
+        gruposActor.value = data.grupos_actor || [];
+        tabActiva.value   = 'automatizacion';
+        Object.keys(expandido).forEach((k) => delete expandido[k]);
         puedeEditar.value = !!data.puede_editar;
         form.nivel_automatizacion    = data.politica.nivel_automatizacion;
         form.auditor_activo          = !!data.politica.auditor.activo;
@@ -297,6 +348,7 @@ export default {
     }
 
     return { open, cargando, guardando, confirmar, error, puedeEditar, politica, motores, guardrails,
+             gruposActor, tabActiva, expandido, controlesGenericos, toggleControl,
              form, niveles, etiquetaNivel, descNivel, celda, haCambiado, motoresRotos, humano,
              abrir, cerrar, intentarGuardar, guardar, dark: darkMode };
   },
@@ -343,6 +395,25 @@ export default {
 .tcfg-pierde{font-size:11.5px;color:#b91c1c;margin:6px 0 0;}
 .tcfg-guard{font-size:12px;padding:4px 0;opacity:.85;}
 .tcfg-guard em{opacity:.6;font-style:normal;}
+/* Panel por actor (#943) */
+.tcfg-tabbar{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px;}
+.tcfg-tab{font-size:11.5px;padding:5px 10px;border-radius:999px;border:1px solid var(--tc-border,#d7dee7);background:transparent;color:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
+.tcfg-tab-on{background:var(--tc-accent,#0d9488);color:#fff;border-color:transparent;font-weight:700;}
+.tcfg-tab-n{font-size:10px;opacity:.75;background:rgba(127,127,127,.18);border-radius:999px;padding:1px 6px;}
+.tcfg-tab-on .tcfg-tab-n{background:rgba(255,255,255,.25);opacity:1;}
+.tcfg-tab-body{padding-top:8px;}
+.tcfg-ctrl{border:1px solid var(--tc-border,#eef2f7);border-radius:8px;padding:7px 10px;margin-top:6px;cursor:pointer;font-size:12px;}
+.tcfg-ctrl-head{display:flex;align-items:center;gap:8px;}
+.tcfg-ctrl-head code{font-size:11px;flex:1;}
+.tcfg-ctrl-val{font-size:11.5px;opacity:.85;}
+.tcfg-ctrl-head i{opacity:.5;font-size:11px;}
+.tcfg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.tcfg-dot-verde{background:#16a34a;}
+.tcfg-dot-azul{background:#2563eb;}
+.tcfg-dot-roja{background:#dc2626;}
+.tcfg-ctrl-det{margin-top:7px;padding-top:7px;border-top:1px dashed var(--tc-border,#e2e8f0);font-size:11.5px;line-height:1.6;}
+.tcfg-ctrl-det p{margin:2px 0;}
+.tcfg-ctrl-pend{color:#b45309;}
 .tcfg-over{margin-top:10px;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.35);border-radius:8px;padding:8px 11px;font-size:12px;}
 .tcfg-id{display:inline-block;margin-left:5px;font-weight:700;}
 .tcfg-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 22px;border-top:1px solid var(--tc-border,#e2e8f0);}
