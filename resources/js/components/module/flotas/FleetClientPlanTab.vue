@@ -24,7 +24,10 @@
                 <div class="text-h6">{{ plan.name }}</div>
                 <div class="text-caption text-grey q-mb-sm">{{ plan.tagline }}</div>
                 <div class="text-h5 text-primary text-weight-bold">
-                  ${{ plan.price_per_vehicle }}<span class="text-caption text-grey">/veh/mes</span>
+                  ${{ plan.base_price }}<span class="text-caption text-grey">/mes</span>
+                </div>
+                <div class="text-caption text-grey q-mb-sm">
+                  Hasta {{ plan.included_units }} vehículos · excedente ${{ plan.overage_unit_price }}/veh
                 </div>
                 <div class="text-caption text-grey q-mb-md">Prueba gratis {{ plan.trial_days }} días</div>
                 <q-list dense>
@@ -96,8 +99,8 @@
           <div class="col-6 col-md-3">
             <q-card flat bordered>
               <q-card-section class="text-center">
-                <div class="text-caption text-grey">Precio/veh</div>
-                <div class="text-h6 text-weight-bold">${{ subscription.price_per_vehicle }}</div>
+                <div class="text-caption text-grey">Tope incluido</div>
+                <div class="text-h6 text-weight-bold">{{ subscription.included_units }} veh</div>
               </q-card-section>
             </q-card>
           </div>
@@ -106,6 +109,9 @@
               <q-card-section class="text-center">
                 <div class="text-caption text-grey">Monto mensual est.</div>
                 <div class="text-h6 text-weight-bold text-primary">${{ subscription.monthly_price }}</div>
+                <div v-if="subscription.overage_units > 0" class="text-caption text-grey">
+                  +{{ subscription.overage_units }} excedente (${{ subscription.overage_unit_price }}/veh)
+                </div>
               </q-card-section>
             </q-card>
           </div>
@@ -124,7 +130,7 @@
                   >
                     <q-item-section>
                       <q-item-label>{{ p.name }}</q-item-label>
-                      <q-item-label caption>${{ p.price_per_vehicle }}/veh/mes</q-item-label>
+                      <q-item-label caption>${{ p.base_price }}/mes · hasta {{ p.included_units }} veh</q-item-label>
                     </q-item-section>
                   </q-item>
                 </q-list>
