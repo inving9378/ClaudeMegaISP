@@ -368,6 +368,10 @@ class RoadmapController extends Controller
         ['icono' => '🔒', 'texto' => 'git add -A prohibido',                                'donde' => 'fijo en código'],
         ['icono' => '🔒', 'texto' => 'Topes duros: producción · borrar datos · dinero · credenciales', 'donde' => 'ThomasService, no configurable'],
         ['icono' => '🔒', 'texto' => 'Vía externa (Cowork/MCP): solo nivel A puede quedar aprobado_claude', 'donde' => 'guard() — sin endpoint'],
+        // #943 — completa la cubeta roja de `plan-configuracion-torre.md` §1 (antes faltaban
+        // estos 2 de los 6 ahí listados).
+        ['icono' => '🔒', 'texto' => 'thomas.automerge.rutas_sensibles / patrones_destructivos: lo que NUNCA se auto-mergea', 'donde' => 'config/circuito.php'],
+        ['icono' => '🔒', 'texto' => 'Tokens y llaves (ROADMAP_*_TOKEN, CLAUDE_API_KEY, AMI_SECRET…) — se listan por nombre, nunca su valor', 'donde' => '.env'],
     ];
 
     /**

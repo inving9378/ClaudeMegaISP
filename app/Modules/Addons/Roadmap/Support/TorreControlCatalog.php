@@ -86,7 +86,10 @@ class TorreControlCatalog
                 'clave'   => 'guardrails',
                 'titulo'  => 'Guardrails',
                 'resumen' => 'Nunca expuestos: apagar cualquiera de estos es apagar la protección misma.',
-                'controles' => self::gruposGuardrails(),
+                'controles' => [],
+                // La lista real vive en `RoadmapController::GUARDRAILS` (una sola fuente, ya
+                // consumida por la respuesta como `guardrails`) — no se duplica aquí.
+                'fuente_externa' => 'guardrails',
             ],
         ];
     }
@@ -692,30 +695,6 @@ class TorreControlCatalog
         ];
     }
 
-    // ── GUARDRAILS (🔴 nunca expuestos, con su razón) ───────────────────────────────────────────
-    private static function gruposGuardrails(): array
-    {
-        return [
-            self::guardrail('🔒', 'Solo ejecuta en dev · 192.168.105.11', 'fijo en código',
-                'Un panel web que puede apagar la separación de entornos es un control remoto para apagarla.'),
-            self::guardrail('🔒', 'Prod bloqueado · 192.168.105.108 · v1megaisp.com.mx', 'fijo en código',
-                'Ídem — no existe endpoint que la toque.'),
-            self::guardrail('🔒', 'migrate:fresh prohibido', 'fijo en código',
-                'Es la protección contra destruir la base, no una preferencia.'),
-            self::guardrail('🔒', 'git add -A prohibido', 'fijo en código',
-                'Evita que un secreto o export sin commitear se empuje a origin/main de un barrido amplio.'),
-            self::guardrail('🔒', 'Los cuatro topes duros: producción · borrar datos · dinero · credenciales',
-                'ThomasService::categoriaFronteraDura, thomas.escalamiento',
-                'No se levantan desde ninguna configuración, ni con nivel Autónomo, ni con override.'),
-            self::guardrail('🔒', 'Vía externa (Cowork/MCP): solo nivel A puede quedar aprobado_claude', 'guard() — sin endpoint',
-                'Relajarlo desde la web le abriría a un token externo la aprobación de B/C.'),
-            self::guardrail('🔒', 'thomas.automerge.rutas_sensibles / patrones_destructivos', 'config/circuito.php',
-                'Es la lista de lo que NUNCA se auto-mergea. Editable = desactivable.'),
-            self::guardrail('🔒', 'Tokens y llaves (ROADMAP_*_TOKEN, CLAUDE_API_KEY, AMI_SECRET…)', '.env',
-                'Se listan por nombre con valor [secreto]. Nunca se muestran ni se editan.'),
-        ];
-    }
-
     // ── HELPERS DE CONSTRUCCIÓN ──────────────────────────────────────────────────────────────
     private static function control(
         string $clave,
@@ -749,23 +728,6 @@ class TorreControlCatalog
             'nota'           => $pendiente881
                 ? 'editable pendiente del catálogo de acciones (#881)'
                 : null,
-        ];
-    }
-
-    private static function guardrail(string $icono, string $texto, string $donde, string $razon): array
-    {
-        return [
-            'clave'         => $texto,
-            'donde'         => $donde,
-            'valor'         => null,
-            'quien_lee'     => '—',
-            'que_gobierna'  => $texto,
-            'consecuencia'  => $razon,
-            'bucket'        => 'roja',
-            'editable'      => false,
-            'pendiente_881' => false,
-            'nota'          => null,
-            'icono'         => $icono,
         ];
     }
 
