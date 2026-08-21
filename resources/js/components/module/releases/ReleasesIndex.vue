@@ -67,14 +67,6 @@
         <!-- ── Sub-sección: Historial de acciones (Fase 8, Épica #874, #885) ── -->
         <torre-historial-acciones v-if="tab === 'acciones'" />
 
-        <!-- ── Armar versión (#312) — RETIRADA DE LA NAVEGACIÓN el 2026-08-19 (Irving no la requiere).
-             El componente, la ruta `/api/roadmap/armar-version` y `RoadmapController::armarVersion`
-             siguen en el repo A PROPÓSITO: borrar código en el mismo paso que se oculta una pantalla
-             convierte un cambio reversible en arqueología si resulta que sí hacía falta.
-             `tab` ya no puede valer 'armar-version', así que este render es inalcanzable.
-             Limpieza definitiva agendada: ver el item de la Hoja de Ruta (30 días). -->
-        <armar-version v-if="tab === 'armar-version'" />
-
         <!-- ── Tab: Historial ── -->
         <template v-if="tab === 'historial'">
         <div class="d-flex justify-content-between align-items-center mb-5">
@@ -209,7 +201,6 @@ import TorreControl from "./torre-control/TorreControl.vue";
 import TorreTerminales from "./torre-control/TorreTerminales.vue";
 import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
 import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
-import ArmarVersion from "./torre-control/ArmarVersion.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
@@ -217,7 +208,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, IntegracionRamas, ArmarVersion, DeployProgressModal },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, IntegracionRamas, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
