@@ -2,13 +2,17 @@
     "slug": "addon-empresa",
     "name": "Manual General de la Empresa",
     "version": "1.0.0",
-    "description": "Manual general de la empresa: identidad, misión, visión, valores, políticas y reglamentos internos. Contenido de muestra hasta que Dirección General cargue la redacción oficial.",
+    "description": "Manual general de la empresa: identidad, misión, visión, valores, políticas y reglamentos internos, editable desde el panel con contenido en base de datos (capítulos, secciones y versiones).",
     "type": "addon",
     "dependencies": [],
     "active": true,
 
     "permissions": [
-        { "name": "empresa_manual_view", "description": "Ver el Manual General de la Empresa" }
+        { "name": "empresa_manual_view", "description": "Ver el Manual General de la Empresa" },
+        { "name": "empresa_manual_create", "description": "Crear capítulos y secciones del Manual General" },
+        { "name": "empresa_manual_edit", "description": "Editar capítulos y contenido de secciones del Manual General" },
+        { "name": "empresa_manual_delete", "description": "Eliminar capítulos y secciones del Manual General" },
+        { "name": "empresa_manual_publish", "description": "Publicar los cambios (borrador → versión vigente) del Manual General" }
     ],
 
     "menu": null,
