@@ -1770,6 +1770,9 @@ class RoadmapCircuitoService
      * mapa `{sid: ruta_relativa}` en `settings`, NO una columna en una "tabla de terminales" —
      * esa tabla no existe (los slots wt-K son virtuales, derivados de `getParalelismo()`, no filas
      * de BD). Decisión registrada en `circuito:reportar --tipo=decision` del item #854.
+     * **Ratificado por Irving (item #931, 2026-08-20):** Opción 1 — mapa JSON en `settings` queda
+     * como solución permanente (no se crea `roadmap_terminales`). Revisar de nuevo solo si aparece
+     * un 2º/3er campo de personalización por slot (regla "tres golpes").
      * `sid` acepta `wt-K` o el literal `supervisor`. La ruta es relativa a `storage/app/public/`
      * (ej. `terminales/{uuid}.webp`); quien la sirve antepone el prefijo `/storage/`.
      */
