@@ -76,8 +76,12 @@ return [
     | `settings` (circuito_revisor, default OFF); aquí va el ALCANCE conservador y el modelo.
     |
     | `alcance.denylist`: si el título/módulo/plan del item menciona alguno de estos términos,
-    | queda FUERA de alcance y se ESCALA sin gastar IA (frontera dura: dinero/seguridad/prod/
-    | destructivo/negocio). Arranque estrecho: ante la duda, agrega términos, no los quites.
+    | queda FUERA de alcance y se ESCALA sin gastar IA (temas sensibles: dinero/seguridad/prod/
+    | destructivo/negocio). ⚠️ Es el PREFILTRO PROPIO del Revisor, no "la" frontera dura del
+    | circuito — esa es `thomas.escalamiento` (`ThomasService::categoriaFronteraDura`), una lista
+    | aparte con su propio criterio. Item #944 (2026-08-21): antes este bloque se llamaba a sí
+    | mismo "frontera dura" a secas y confundía las dos listas. Arranque estrecho: ante la duda,
+    | agrega términos, no los quites.
     |
     */
     /*
@@ -118,7 +122,8 @@ return [
         // `thomas.consolidado.doc_path` — ensuciaba docs/ en cada vuelta y abortaba el deploy.
         'pendientes_perfil_path' => storage_path('app/circuito/pendientes-perfil-irving.md'),
         'alcance'    => [
-            // FRONTERA DURA (si el título/módulo/plan menciona esto → escala SIN gastar IA).
+            // PREFILTRO PROPIO DEL REVISOR (si el título/módulo/plan menciona esto → escala SIN
+            // gastar IA). NO es la frontera dura de Thomas — ver nota arriba.
             // Afinada (#338): se quitaron términos demasiado amplios que escalaban FALSOS POSITIVOS
             // ('rol ', 'roles', 'auth', 'banco', 'prod' bare) — la sensibilidad real la cubren
             // términos específicos (permiso/permisos/spatie, credencial/bcrypt, producción/deploy…).

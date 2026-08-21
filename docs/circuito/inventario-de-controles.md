@@ -16,7 +16,7 @@ lee (o lo lee un camino apagado) · **huérfano** = en duro, debería ser config
 | Control | Dónde vive | Valor hoy | Quién lo lee | Qué gobierna | ¿Vivo? | Quién lo cambia | ¿Exponible? |
 |---|---|---|---|---|---|---|---|
 | `torre_config.nivel_automatizacion` | tabla `torre_config` | `autonomo` | `TorreAutomationPolicy` | **Techo global**: hasta qué `nivel_riesgo` aprueba la máquina | vivo | UI (Entrega 1) | **sí** |
-| `autopilot.max_nivel` | `config/circuito.php:177` | `C` | `AutopilotService:107,54,238` · `AutopilotCommand:40` · **`RoadmapItem::scopeDespachable:687`** | Nominalmente el autopilot; **de hecho el tope de despacho de TODO lo aprobado por máquina** | vivo | `.env` | **sí** (como sub-techo, tras el rename) |
+| `autopilot.max_nivel` | `config/circuito.php:177` | `C` | `AutopilotService:107,54,238` · `AutopilotCommand:40` | ✅ **item #944 (2026-08-21): ya NO gobierna el despacho.** `scopeDespachable` fue migrado en la Entrega 1 (`TorreAutomationPolicy::politicaBase()`, tabla `torre_config`) y ya no lee esta clave. Ahora es literal: solo el sub-techo del autopilot | vivo | `.env` | sí (sub-techo) |
 | `autopilot.enabled` | `:168` | `true` | `AutopilotService` | Apaga el autopilot | vivo | `.env` | sí |
 | `autopilot.umbral_confianza` | `:185` | `alta` | `AutopilotService:124` | Confianza mínima de la opción recomendada | vivo | `.env` | sí |
 | `autopilot.requiere_reversible` | `:181` | `true` | `AutopilotService:126` | Exige `reversible:true` en B/C | vivo | `.env` | sí |
@@ -41,7 +41,7 @@ lee (o lo lee un camino apagado) · **huérfano** = en duro, debería ser config
 | `revisor.model` | `:87` | `claude-sonnet-4-6` | fallback de `model_routine` | Compat | vivo (fallback) | `.env` | solo lectura |
 | `revisor.max_tokens` | `:90` | `700` | `RevisorService:120` | Tokens del veredicto | vivo | `.env` | sí |
 | `revisor.brief_tokens` | `:91` | `1100` | `RevisorService` (×3 en briefs) | Tokens del brief | vivo | `.env` | sí |
-| `revisor.alcance.denylist` | `:~100` | **40 términos** | `RevisorService::enAlcance:59` | Pre-filtro: qué NO evalúa la IA | vivo | `.env`/código | **solo lectura** — ver §«mienten» |
+| `revisor.alcance.denylist` | `:~100` | **40 términos** | `RevisorService::enAlcance:68` | Pre-filtro propio del Revisor: qué NO evalúa la IA (matching por `DetectorTerminos::dispara`, palabra completa — el bug de substring de #338 fue corregido por #865) | vivo | `.env`/código | **solo lectura** — ver §«mienten» |
 | `revisor.perfil_path` | `:~93` | `docs/perfil-decisiones-irving.md` | `RevisorService::perfilIrving` | Perfil inyectado al prompt | vivo | código | solo lectura |
 | `RevisorService::TRIAJE_C_PLAIN` | `RevisorService.php:251` | lista en duro | `triajeC` | Términos que fuerzan nivel C | **huérfano** | editar código | sí, tras migrar |
 | `RevisorService::TRIAJE_C_WORD` | `:260` | 6 términos | `triajeC` | Ídem, con palabra completa | **huérfano** | editar código | sí, tras migrar |
@@ -90,9 +90,9 @@ lee (o lo lee un camino apagado) · **huérfano** = en duro, debería ser config
 | `thomas.automerge.cap_por_ciclo` | `:353` | `5` | `DestrabarCommand:44` | Merges por ciclo | vivo | sí |
 | `thomas.automerge.rutas_sensibles` | `:~356` | 7 patrones | `elegibleAutoMerge` | Qué rutas NUNCA auto-mergean | vivo | **solo lectura** (es un guardrail) |
 | `thomas.automerge.patrones_destructivos` | `:~360` | 6 patrones | `elegibleAutoMerge` | Qué diffs bloquean el auto-merge | vivo | **solo lectura** (guardrail) |
-| `thomas.destrabe_bandeja.enabled` | `:395` | `true` | `SchedulerCommand::tickDestrabe` | El destrabe automático | vivo (**pero el comando falla**) | sí |
+| `thomas.destrabe_bandeja.enabled` | `:395` | `true` | `SchedulerCommand::tickDestrabe` | El destrabe automático | vivo. ✅ item #944 (2026-08-21): verificado en vivo (dry-run + `settings.circuito_beat_circuito_destrabe`), el comando **ya no falla** — #864 lo arregló (`select` acotado por id, sin `ORDER BY` sobre columnas anchas) | sí |
 | `thomas.destrabe_bandeja.intervalo_minutos` | `:396` | `5` | `tickDestrabe` | Throttle | vivo | sí |
-| `thomas.destrabe_bandeja.limit` | `:397` | `120` | `tickDestrabe` | Tamaño del lote | vivo — **y es la causa del fallo** | sí |
+| `thomas.destrabe_bandeja.limit` | `:397` | `120` | `tickDestrabe` | Tamaño del lote | vivo — antes causaba el fallo, corregido por #864 | sí |
 | `thomas.consolidado.*` (3) | `:413-` | 48 h | `ThomasService` | Consolidado de lo estratégico | vivo | sí |
 | `thomas.cierre.exige_reporte_coloquial` | `:428` | `true` | `ThomasService:871` | Exige reporte para cerrar | vivo | sí |
 | `thomas.cierre.exige_enlace_revision` | `:429` | `true` | `ThomasService:871` | Exige deep-link para cerrar | vivo | sí |
@@ -155,9 +155,14 @@ sólo en `.env`. **Nunca exponibles.**
 
 ## 🟡 3. Controles que MIENTEN — el nombre no corresponde
 
+> **Actualizado por el item #944 (2026-08-21).** De los tres controles que esta sección
+> denunciaba, dos ya habían sido corregidos por trabajo previo (verificado antes de tocar nada,
+> no re-arreglado aquí) y al tercero se le corrigió el texto que mentía. Detalle completo:
+> `docs/bitacora-sesiones.md` (entrada del item).
+
 | Control | Dice | Hace |
 |---|---|---|
-| **`autopilot.max_nivel`** | «tope del autopilot» | Gobierna **a todos los actores**: `scopeDespachable:687` lo usa como tope de despacho de todo lo aprobado por máquina. Ya en curso de rename en la Entrega 1 |
-| **`revisor.alcance.denylist`** | «frontera dura» | Es una **segunda** frontera, distinta de `thomas.escalamiento`, con **40 términos y `Str::contains` (substring)** — el bug que `CONTEXTO §8.4-quinquies` documenta desde `#338` y que nunca se corrigió. «Los topes duros» significan dos cosas distintas según a quién le preguntes |
-| **`thomas.destrabe_bandeja.enabled = true`** | «el destrabe está encendido» | Está encendido y **el comando falla cada minuto desde hace 8 días**. Encendido ≠ funcionando |
-| **`interval_min`** | «cada cuánto corre una vuelta» | No hay vueltas. El scheduler corre cada minuto y jala continuo |
+| ~~`autopilot.max_nivel`~~ | «tope del autopilot» | ✅ **Resuelto (Entrega 1, antes de #944).** `scopeDespachable` ya no lee esta clave — lee `TorreAutomationPolicy::politicaBase()` (tabla `torre_config`). Ahora `autopilot.max_nivel` es literal: solo el sub-techo del autopilot |
+| **`revisor.alcance.denylist`** | «frontera dura» (en el motivo que ve Irving) | ⚠️ Sigue siendo una **segunda** lista, distinta de `thomas.escalamiento` — eso es intencional y NO se migra aquí (decisión de diseño aparte, ver `plan-configuracion-torre.md` fase 6). El bug de `Str::contains` (substring) **ya se corrigió** (#865, delega en `DetectorTerminos::dispara`, palabra completa). Lo que sí corrigió #944: el motivo/comentarios ya NO dicen «frontera dura» a secas — dicen «denylist propia del Revisor, distinta de la frontera dura de Thomas» |
+| ~~`thomas.destrabe_bandeja.enabled = true`~~ | «el destrabe está encendido» | ✅ **Resuelto (#864, antes de #944).** Verificado en vivo: el comando ya no falla (era el `select`/`ORDER BY` sobre columnas anchas agotando el sort buffer). Encendido = funcionando, de nuevo |
+| **`interval_min`** | «cada cuánto corre una vuelta» | Sigue mintiendo — no hay vueltas, el scheduler corre cada minuto y jala continuo. **Fuera de alcance de #944** (no estaba en su lista de 3) |
