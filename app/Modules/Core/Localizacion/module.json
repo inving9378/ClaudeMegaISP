@@ -76,7 +76,183 @@
             }
         }
     ],
-    "api_endpoints": [],
+    "api_endpoints": [
+        {
+            "method": "GET",
+            "path": "/administracion/colonia",
+            "description": "Lista de colonias",
+            "scope": "colony_view_colony",
+            "permission": "colony_view_colony"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/colonia/add",
+            "description": "Crea una colonia",
+            "scope": "colony_add_colony",
+            "permission": "colony_add_colony"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/colonia/editar/{id}",
+            "description": "Formulario de edición de una colonia",
+            "scope": "colony_edit_colony",
+            "permission": "colony_edit_colony"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/colonia/update/{id}",
+            "description": "Actualiza una colonia",
+            "scope": "colony_edit_colony",
+            "permission": "colony_edit_colony"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/colonia/destroy/{id}",
+            "description": "Elimina una colonia",
+            "scope": "colony_delete_colony",
+            "permission": "colony_delete_colony"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/estado",
+            "description": "Lista de estados",
+            "scope": "state_view_state",
+            "permission": "state_view_state"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/estado/add",
+            "description": "Crea un estado",
+            "scope": "state_add_state",
+            "permission": "state_add_state"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/estado/editar/{id}",
+            "description": "Formulario de edición de un estado",
+            "scope": "state_edit_state",
+            "permission": "state_edit_state"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/estado/update/{id}",
+            "description": "Actualiza un estado",
+            "scope": "state_edit_state",
+            "permission": "state_edit_state"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/estado/destroy/{id}",
+            "description": "Elimina un estado",
+            "scope": "state_delete_state",
+            "permission": "state_delete_state"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/municipio",
+            "description": "Lista de municipios",
+            "scope": "municipality_view_municipality",
+            "permission": "municipality_view_municipality"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/municipio/add",
+            "description": "Crea un municipio",
+            "scope": "municipality_add_municipality",
+            "permission": "municipality_add_municipality"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/municipio/editar/{id}",
+            "description": "Formulario de edición de un municipio",
+            "scope": "municipality_edit_municipality",
+            "permission": "municipality_edit_municipality"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/municipio/update/{id}",
+            "description": "Actualiza un municipio",
+            "scope": "municipality_edit_municipality",
+            "permission": "municipality_edit_municipality"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/municipio/destroy/{id}",
+            "description": "Elimina un municipio",
+            "scope": "municipality_delete_municipality",
+            "permission": "municipality_delete_municipality"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/sucursal",
+            "description": "Lista de sucursales",
+            "scope": "view_sucursal",
+            "permission": "view_sucursal"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/sucursal/add",
+            "description": "Crea una sucursal",
+            "scope": "add_sucursal",
+            "permission": "add_sucursal"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/sucursal/editar/{id}",
+            "description": "Formulario de edición de una sucursal",
+            "scope": "edit_sucursal",
+            "permission": "edit_sucursal"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/sucursal/update/{id}",
+            "description": "Actualiza una sucursal",
+            "scope": "edit_sucursal",
+            "permission": "edit_sucursal"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/sucursal/destroy/{id}",
+            "description": "Elimina una sucursal",
+            "scope": "delete_sucursal",
+            "permission": "delete_sucursal"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/ubicacion",
+            "description": "Lista de ubicaciones",
+            "scope": "admin_view_meganet",
+            "permission": "admin_view_meganet"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/ubicacion/add",
+            "description": "Crea una ubicación",
+            "scope": "admin_view_meganet",
+            "permission": "admin_view_meganet"
+        },
+        {
+            "method": "GET",
+            "path": "/administracion/ubicacion/editar/{id}",
+            "description": "Formulario de edición de una ubicación",
+            "scope": "admin_view_meganet",
+            "permission": "admin_view_meganet"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/ubicacion/update/{id}",
+            "description": "Actualiza una ubicación",
+            "scope": "admin_view_meganet",
+            "permission": "admin_view_meganet"
+        },
+        {
+            "method": "POST",
+            "path": "/administracion/ubicacion/destroy/{id}",
+            "description": "Elimina una ubicación",
+            "scope": "admin_view_meganet",
+            "permission": "admin_view_meganet"
+        }
+    ],
     "ai": [],
     "client_tab": null,
     "service_type": null
