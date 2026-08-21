@@ -83,10 +83,22 @@
     ],
 
     "api_endpoints": [
-        { "method": "GET", "path": "/internet",  "description": "Lista planes Internet", "scope": "plan_view_internet", "permission": "plan_view_internet" },
-        { "method": "GET", "path": "/voz",       "description": "Lista planes VoIP",     "scope": "plan_view_voz",      "permission": "plan_view_voz" },
-        { "method": "GET", "path": "/custom",    "description": "Lista planes Custom",   "scope": "plan_view_custom",   "permission": "plan_view_custom" },
-        { "method": "GET", "path": "/paquetes",  "description": "Lista bundles",         "scope": "plan_view_package",  "permission": "plan_view_package" }
+        { "method": "GET",  "path": "/internet",  "description": "Lista planes Internet", "scope": "plan_view_internet", "permission": "plan_view_internet" },
+        { "method": "GET",  "path": "/voz",       "description": "Lista planes VoIP",     "scope": "plan_view_voz",      "permission": "plan_view_voz" },
+        { "method": "GET",  "path": "/custom",    "description": "Lista planes Custom",   "scope": "plan_view_custom",   "permission": "plan_view_custom" },
+        { "method": "GET",  "path": "/paquetes",  "description": "Lista bundles",         "scope": "plan_view_package",  "permission": "plan_view_package" },
+
+        { "method": "GET",  "path": "/planes/contratables",           "description": "Catálogo de servicios contratables (planes + paquetes)", "scope": "contratables.manage", "permission": "contratables.manage" },
+        { "method": "GET",  "path": "/planes/contratables/data",      "description": "Feed de datos del catálogo de contratables",              "scope": "contratables.manage", "permission": "contratables.manage" },
+        { "method": "GET",  "path": "/planes/contratables/modulos",   "description": "Módulos de negocio disponibles para el catálogo",         "scope": "contratables.manage", "permission": "contratables.manage" },
+        { "method": "GET",  "path": "/planes/contratables/show/{id}", "description": "Detalle de un servicio contratable",                      "scope": "contratables.manage", "permission": "contratables.manage" },
+        { "method": "POST", "path": "/planes/contratables/add",       "description": "Crea un servicio contratable en el catálogo",             "scope": "contratables.manage", "permission": "contratables.manage" },
+        { "method": "POST", "path": "/planes/contratables/update/{id}", "description": "Actualiza un servicio contratable del catálogo",        "scope": "contratables.manage", "permission": "contratables.manage" },
+
+        { "method": "GET",  "path": "/cliente/contratables/{clientId}/data",       "description": "Servicios contratables activos/histórico de un cliente (consumido por la ficha del cliente)", "scope": "contratables.manage", "permission": "contratables.manage" },
+        { "method": "POST", "path": "/cliente/contratables/{clientId}/activar",    "description": "Activa un servicio contratable para el cliente",    "scope": "contratables.manage", "permission": "contratables.manage" },
+        { "method": "POST", "path": "/cliente/contratables/{clientId}/suspender",  "description": "Suspende un servicio contratable del cliente",      "scope": "contratables.manage", "permission": "contratables.manage" },
+        { "method": "POST", "path": "/cliente/contratables/{clientId}/reactivar",  "description": "Reactiva un servicio contratable suspendido del cliente", "scope": "contratables.manage", "permission": "contratables.manage" }
     ],
 
     "ai": {
