@@ -7,6 +7,7 @@ use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Lógica de negocio ÚNICA de la Hoja de Ruta para el Circuito de Mejora Continua.
@@ -1116,6 +1117,7 @@ class RoadmapCircuitoService
     {
         return [
             'sid'                   => $sid,
+            'avatar_url'            => $this->avatarUrlWorker($sid),   // #854
             'item'                  => null,
             'fase_actual'           => null,
             'pasos'                 => [],
@@ -1170,6 +1172,7 @@ class RoadmapCircuitoService
 
         return [
             'sid'                   => $sid,
+            'avatar_url'            => $this->avatarUrlWorker($sid),   // #854
             'item'                  => $itemId ? ['id' => (int) $itemId, 'title' => $titulos[$itemId] ?? null] : null,
             'fase_actual'           => $fases ? ($fases[count($fases) - 1]['fase'] ?? null) : null,
             'pasos'                 => $pasos,
@@ -1647,6 +1650,57 @@ class RoadmapCircuitoService
             $map[$sid] = $nombre;
         }
         $this->putSetting(self::WORKER_NOMBRES_KEY, json_encode($map, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * #854 — Avatares por terminal (supervisor incluido). Mismo patrón que WORKER_NOMBRES_KEY:
+     * mapa `{sid: ruta_relativa}` en `settings`, NO una columna en una "tabla de terminales" —
+     * esa tabla no existe (los slots wt-K son virtuales, derivados de `getParalelismo()`, no filas
+     * de BD). Decisión registrada en `circuito:reportar --tipo=decision` del item #854.
+     * `sid` acepta `wt-K` o el literal `supervisor`. La ruta es relativa a `storage/app/public/`
+     * (ej. `terminales/{uuid}.webp`); quien la sirve antepone el prefijo `/storage/`.
+     */
+    public const WORKER_AVATARS_KEY = 'circuito_worker_avatars';
+
+    public function avatarsWorkers(): array
+    {
+        $raw = DB::table('settings')->where('key', self::WORKER_AVATARS_KEY)->value('value');
+
+        return ($raw !== null && is_array($d = json_decode((string) $raw, true))) ? $d : [];
+    }
+
+    /** Ruta relativa del avatar de un slot (o null si no tiene). */
+    public function avatarWorker(?string $sid): ?string
+    {
+        $sid = trim((string) $sid);
+        if ($sid === '') {
+            return null;
+        }
+
+        return $this->avatarsWorkers()[$sid] ?? null;
+    }
+
+    /** Fija (o limpia con null) la ruta del avatar de un slot. sid debe ser wt-K o "supervisor". */
+    public function setAvatarWorker(string $sid, ?string $path): void
+    {
+        if (! preg_match('/^(wt-\d+|supervisor)$/', $sid)) {
+            return;
+        }
+        $map = $this->avatarsWorkers();
+        if ($path === null || $path === '') {
+            unset($map[$sid]);
+        } else {
+            $map[$sid] = $path;
+        }
+        $this->putSetting(self::WORKER_AVATARS_KEY, json_encode($map, JSON_UNESCAPED_UNICODE));
+    }
+
+    /** URL pública del avatar de un slot (o null si no tiene) — para el payload del poll de 3s. */
+    public function avatarUrlWorker(?string $sid): ?string
+    {
+        $path = $this->avatarWorker($sid);
+
+        return $path ? Storage::disk('public')->url($path) : null;
     }
 
     /** Segundos desde el último latido del scheduler (cron), o null si nunca latió. */

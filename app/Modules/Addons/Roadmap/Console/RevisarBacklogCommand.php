@@ -5,7 +5,9 @@ namespace App\Modules\Addons\Roadmap\Console;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RevisorService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
+use App\Modules\Addons\Roadmap\Services\SupervisorService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * #338 — Pasada del REVISOR sobre el backlog de B atascados (nivel B, pendiente_revision).
@@ -52,6 +54,7 @@ class RevisarBacklogCommand extends Command
             $nAuto = 0;
             $nEsc = 0;
             foreach ($items as $item) {
+                $this->marcarEnCurso($item);
                 $v = $revisor->revisar($item, $item->comentarios_claude);
                 $aplicado = 'no';
                 if ($apply) {
@@ -81,9 +84,24 @@ class RevisarBacklogCommand extends Command
         // rama B esté vacía, que es justo el caso que destapa la fuga).
         $this->triarNulls($revisor, $apply, $limit);
 
+        // #854: limpia el "item en curso" del supervisor al cerrar la pasada — el TTL corto de
+        // marcarEnCurso() ya lo autolimpia si el comando muriera a mitad de un item, esto solo
+        // evita el hueco de hasta 90s esperando esa expiración en el caso normal (sin crash).
+        Cache::forget(SupervisorService::ITEM_EN_CURSO_CACHE_KEY);
+
         $this->line('Auditoría de la rama B en la tabla `circuito_revisiones`.');
 
         return self::SUCCESS;
+    }
+
+    /** #854 — deja constancia (cache, TTL corto) de qué item está analizando el revisor AHORA. */
+    private function marcarEnCurso(RoadmapItem $item): void
+    {
+        Cache::put(
+            SupervisorService::ITEM_EN_CURSO_CACHE_KEY,
+            ['id' => $item->id, 'title' => $item->title],
+            SupervisorService::ITEM_EN_CURSO_TTL_SEG
+        );
     }
 
     /**
@@ -114,6 +132,7 @@ class RevisarBacklogCommand extends Command
         $nB = 0;
         $nC = 0;
         foreach ($items as $item) {
+            $this->marcarEnCurso($item);
             $t = $revisor->triarNivelNull($item);
             if ($apply) {
                 $revisor->aplicarTriajeNull($item, $t);

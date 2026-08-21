@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -18,6 +19,15 @@ use Illuminate\Support\Facades\DB;
 class SupervisorService
 {
     public const NOMBRE = 'Thomas T';
+
+    /**
+     * #854 — clave de cache que `RevisarBacklogCommand` escribe mientras el revisor analiza UN
+     * item (con TTL corto: si el comando muere a mitad de un item, el dato se auto-limpia solo,
+     * sin depender de un `finally`). Vive aquí (no en el comando) porque este servicio es el
+     * único lector/consumidor del dato — el comando solo lo produce.
+     */
+    public const ITEM_EN_CURSO_CACHE_KEY = 'supervisor:item_en_curso';
+    public const ITEM_EN_CURSO_TTL_SEG = 90;
 
     public function __construct(
         private RoadmapCircuitoService $circuito,
@@ -45,6 +55,7 @@ class SupervisorService
 
         return [
             'nombre'      => self::NOMBRE,
+            'avatar_url'  => $this->circuito->avatarUrlWorker('supervisor'),   // #854
             'activo'      => $vivo,
             'pausado'    => $pausado,
             'latido_secs' => $latidoSecs,
@@ -58,7 +69,39 @@ class SupervisorService
             // #475: "escritorio" del supervisor — lo recién resuelto + la cola lista para el próximo terminal.
             'recien_resueltos'     => $this->recienResueltos(),
             'listos_para_terminal' => $this->listosParaTerminal(),
+            // #854: qué item está analizando AHORA (o por qué no hay ninguno en curso).
+            'item_en_curso'        => $this->itemEnCurso(),
         ];
+    }
+
+    /**
+     * #854 — item que el revisor está analizando en este instante. Fuente: la cache que escribe
+     * `RevisarBacklogCommand` en cada iteración de su bucle (sin tabla ni columna nueva: el "item
+     * en curso" es un estado de segundos, no un dato que valga la pena persistir).
+     *
+     *   estado='revisando'  → hay un item bajo análisis ahora mismo (id + title).
+     *   estado='sin_item'   → nadie lo está analizando, pero hay cola pendiente (entre pasadas del cron).
+     *   estado='cola_vacia' → no hay nada pendiente de revisar.
+     */
+    public function itemEnCurso(): array
+    {
+        $actual = Cache::get(self::ITEM_EN_CURSO_CACHE_KEY);
+        if (is_array($actual) && ! empty($actual['id'])) {
+            return ['estado' => 'revisando', 'id' => (int) $actual['id'], 'title' => $actual['title'] ?? null];
+        }
+
+        // Misma forma de la cola que revisa `RevisarBacklogCommand` (rama B + rama de triaje NULL),
+        // solo para saber si "no hay nada en curso" es porque no hay cola o porque está entre pasadas.
+        $hayCola = RoadmapItem::whereNull('archivado_at')
+            ->where('status', 'pending')
+            ->where('estado_aprobacion', 'pendiente_revision')
+            ->where(function ($w) {
+                $w->where('nivel_riesgo', 'B')->orWhereNull('nivel_riesgo');
+            })
+            ->tomablePorCircuito()
+            ->exists();
+
+        return ['estado' => $hayCola ? 'sin_item' : 'cola_vacia', 'id' => null, 'title' => null];
     }
 
     /** #475: últimos items COMPLETADOS — alimenta la lista "Recién resueltos" del escritorio. */
