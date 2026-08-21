@@ -110,7 +110,7 @@
             <template v-else-if="s.idle"><i class="tt-muted">slot libre</i></template>
             <template v-else><i class="tt-muted">triaje / sin item fijo</i></template>
           </span>
-          <span v-if="!s.idle" class="tt-term-clock">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
+          <span v-if="!s.idle" class="tt-term-clock" :class="roundClockClass(s)" :title="roundClockTooltip(s)">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span class="tt-clock-limit" v-if="s.running"> / {{ fmtClock(vueltaLimiteSeg) }}</span><span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
           <button v-if="!s.idle" class="tt-fs-btn" title="Pantalla completa" @click="openFs(s.sid)">⤢</button>
         </div>
 
@@ -142,12 +142,14 @@
           >{{ liberando === s.reclamo_huerfano.item_id ? "Liberando…" : "Liberar reclamo" }}</button>
         </div>
 
-        <!-- Stepper compacto de fases (de #349) -->
-        <div class="tt-steps">
+        <!-- Stepper compacto de fases (de #349). #938 criterio 6: sin dato de fase real, NO se
+             pinta nada de progreso — ni siquiera los puntos huecos (eso ya sería "inventar"). -->
+        <div v-if="hasFaseData(s)" class="tt-steps">
           <span v-for="f in FASES" :key="f.key" class="tt-step" :class="stepClass(s, f.key)" :title="f.label">
             {{ stepReached(s, f.key) ? '●' : '○' }}<span class="tt-step-lbl">{{ f.label }}</span>
           </span>
         </div>
+        <div v-else-if="!s.idle" class="tt-steps tt-steps-empty">sin dato de fase todavía — solo el reloj</div>
 
         <!-- #546: reloj en regresión del ETA del item en curso (no desaparece al llegar a 0). -->
         <div v-if="etaVisible(s)" class="tt-eta-row" :class="etaClass(s)" :title="etaTooltip(s)">
@@ -156,8 +158,17 @@
           <span class="tt-eta-bar"><span class="tt-eta-fill" :style="{ width: etaPct(s) + '%' }"></span></span>
         </div>
 
-        <!-- Terminal cruda -->
-        <pre :ref="el => setPre(s.sid, el)" class="tt-pre">{{ s.log_tail || (s.idle ? 'esperando trabajo… el supervisor le asignará el próximo item de la cola.' : 'Sin salida todavía…') }}</pre>
+        <!-- Terminal cruda. #938 criterio 3: el poll ya NO fuerza el scroll al final si el usuario
+             se desplazó hacia arriba a leer historial; #938 criterio 4: el indicador de flujo dice
+             la verdad (en vivo mientras llegan renglones reales, sin señal en cuanto se cortan). -->
+        <div class="tt-console-wrap">
+          <span v-if="consoleLive(s)" class="tt-live-pill" :class="consoleLive(s).ok ? 'tt-live-ok' : 'tt-live-bad'">
+            <span v-if="consoleLive(s).ok" class="tt-live-dot"></span>{{ consoleLive(s).ok ? '●' : '⚠' }}
+            {{ consoleLive(s).ok ? `en vivo · hace ${consoleLive(s).secs} s` : `sin señal desde hace ${fmtClock(consoleLive(s).secs)}` }}
+          </span>
+          <pre :ref="el => setPre(s.sid, el)" class="tt-pre" @scroll="onConsoleScroll(s.sid)">{{ s.log_tail || (s.idle ? 'esperando trabajo… el supervisor le asignará el próximo item de la cola.' : 'Sin salida todavía…') }}</pre>
+          <button v-if="scrolledUp[s.sid]" class="tt-tofinal" @click="goToBottom(s.sid)">▼ ir al final</button>
+        </div>
       </div>
     </div>
 
@@ -172,14 +183,15 @@
             <template v-if="fsSesion.item"><b class="tt-idnum">#{{ fsSesion.item.id }}</b> {{ fsSesion.item.title || '(sin título)' }}</template>
             <template v-else><i class="tt-muted">triaje / sin item fijo</i></template>
           </span>
-          <span class="tt-term-clock">⏱ {{ fmtClock(secsSince(fsSesion.started_at)) }}<span v-if="fsSesion.running" class="tt-beat"> · ♥ {{ secsSince(fsSesion.heartbeat_at) }}s</span></span>
+          <span class="tt-term-clock" :class="roundClockClass(fsSesion)" :title="roundClockTooltip(fsSesion)">⏱ {{ fmtClock(secsSince(fsSesion.started_at)) }}<span class="tt-clock-limit" v-if="fsSesion.running"> / {{ fmtClock(vueltaLimiteSeg) }}</span><span v-if="fsSesion.running" class="tt-beat"> · ♥ {{ secsSince(fsSesion.heartbeat_at) }}s</span></span>
           <button class="tt-fs-btn" title="Cerrar (Esc)" @click="closeFs">✕</button>
         </div>
-        <div class="tt-steps">
+        <div v-if="hasFaseData(fsSesion)" class="tt-steps">
           <span v-for="f in FASES" :key="f.key" class="tt-step" :class="stepClass(fsSesion, f.key)">
             {{ stepReached(fsSesion, f.key) ? '●' : '○' }}<span class="tt-step-lbl">{{ f.label }}</span>
           </span>
         </div>
+        <div v-else-if="!fsSesion.idle" class="tt-steps tt-steps-empty">sin dato de fase todavía — solo el reloj</div>
         <div v-if="etaVisible(fsSesion)" class="tt-eta-row" :class="etaClass(fsSesion)" :title="etaTooltip(fsSesion)">
           <i class="bi" :class="etaIcon(fsSesion)"></i>
           <span class="tt-eta-label">{{ etaLabel(fsSesion) }}</span>
@@ -235,6 +247,21 @@ export default {
         const stretchUntil = {};  // #475: sid -> ms hasta el que se muestra el gesto de estirarse
         let pollTimer = null, tickTimer = null;
 
+        // #938: límite real de una vuelta (config circuito.vuelta_timeout_seg, mismo payload del
+        // poll) — el reloj de cada terminal se pinta CONTRA este número real, nunca inventado.
+        const vueltaLimiteSeg = ref(600);
+
+        // #938 criterio 3: el poll ya no debe saltar al final si el usuario se desplazó a leer
+        // historial. sid -> true mientras el usuario está lejos del final de esa consola.
+        const scrolledUp = ref({});
+        const SCROLL_BOTTOM_PX = 24;
+
+        // #938 criterio 4 / regla 2: el indicador de flujo se basa en si LLEGARON renglones nuevos
+        // de verdad (no solo el heartbeat de la sesión). sid -> último log_tail visto / cuándo cambió.
+        const lastLogTail = {};
+        const lastLogChangeAt = {};
+        const LIVE_SIN_SENAL_SEG = 20;   // sin renglones nuevos por más de esto → "sin señal"
+
         const anyRunning = computed(() => sesiones.value.some((s) => s.running));
         const fsSesion = computed(() => sesiones.value.find((s) => s.sid === fsSid.value) || null);
 
@@ -253,6 +280,20 @@ export default {
             if (m < 60) return `${m}m ${String(s).padStart(2, "0")}s`;
             return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
         };
+
+        // #938 criterio 5: reloj de la RONDA (transcurrido desde started_at) contra el límite real
+        // de la vuelta — ámbar al 80%, rojo al 95%. Distinto del ETA del item (arriba): ese es el
+        // presupuesto estimado de la tarea; este es el timeout duro de `vuelta.sh`.
+        const roundClockRatio = (s) => (s && s.running && vueltaLimiteSeg.value > 0) ? (secsSince(s.started_at) / vueltaLimiteSeg.value) : 0;
+        const roundClockClass = (s) => {
+            const r = roundClockRatio(s);
+            if (r >= 0.95) return "tt-clock-red";
+            if (r >= 0.80) return "tt-clock-amber";
+            return "";
+        };
+        const roundClockTooltip = (s) => (s && s.running)
+            ? `${fmtClock(secsSince(s.started_at))} de ${fmtClock(vueltaLimiteSeg.value)} · límite real de la vuelta`
+            : "";
 
         // #546: reloj en regresión del ETA — reusa el mismo tickTimer/nowMs global (sin timers nuevos).
         // restante_segundos llega del server en cada poll (re-sincroniza sin deriva); entre polls se
@@ -296,6 +337,8 @@ export default {
             if (s.fase_actual === key) return "tt-step-cur";
             return stepReached(s, key) ? "tt-step-done" : "tt-step-pend";
         };
+        // #938 criterio 6: la barra de fases NO se pinta sin dato real — ni siquiera vacía/hueca.
+        const hasFaseData = (s) => !!(s && s.pasos && s.pasos.length);
 
         // #854: texto de estado de una terminal trabajadora — misma lógica que el "revisando item
         // #N" del supervisor, para que las dos tarjetas no digan lo mismo de dos maneras distintas.
@@ -425,21 +468,57 @@ export default {
         const gestureClass = (s) => (isStretching(s.sid) ? "tt-gesture-stretch" : "tt-gesture-work");
 
         const setPre = (sid, el) => { if (el) pres[sid] = el; };
+        // #938 criterio 3: solo sigue el final la consola que YA estaba en el final — si el usuario
+        // se desplazó hacia arriba (scrolledUp[sid]), el poll deja de moverle la vista.
         const scrollAll = () => {
-            Object.values(pres).forEach((el) => { if (el) el.scrollTop = el.scrollHeight; });
+            Object.entries(pres).forEach(([sid, el]) => {
+                if (el && !scrolledUp.value[sid]) el.scrollTop = el.scrollHeight;
+            });
             if (fsPre.value) fsPre.value.scrollTop = fsPre.value.scrollHeight;
+        };
+        const onConsoleScroll = (sid) => {
+            const el = pres[sid];
+            if (!el) return;
+            scrolledUp.value = { ...scrolledUp.value, [sid]: (el.scrollHeight - el.scrollTop - el.clientHeight) >= SCROLL_BOTTOM_PX };
+        };
+        const goToBottom = (sid) => {
+            const el = pres[sid];
+            if (!el) return;
+            el.scrollTop = el.scrollHeight;
+            scrolledUp.value = { ...scrolledUp.value, [sid]: false };
+        };
+
+        // #938 criterio 4 / regla 2: "en vivo" mientras LLEGAN renglones reales; "sin señal" en
+        // cuanto se cortan. null = no aplica (idle / sesión terminada, sin pill que mostrar).
+        const consoleLive = (s) => {
+            if (!s || s.idle || !s.running) return null;
+            const changedAt = lastLogChangeAt[s.sid];
+            if (!changedAt) return { ok: true, secs: 0 };
+            const secs = Math.max(0, Math.round((nowMs.value - changedAt) / 1000));
+            return { ok: secs <= LIVE_SIN_SENAL_SEG, secs };
         };
 
         async function poll() {
             try {
                 const { data } = await axios.get("/api/roadmap/circuito/estado");
                 const nuevas = (data.trabajando && data.trabajando.sesiones) || [];
+                vueltaLimiteSeg.value = Number(data.vuelta_limite_segundos) || 600;   // #938 criterio 5
                 // #475: detecta running→terminado por sesión para disparar el gesto de "estirarse".
+                // #938 criterio 4: detecta si REALMENTE llegó contenido nuevo de consola (no solo late).
                 nuevas.forEach((s) => {
                     if (prevRunning[s.sid] === true && !s.running) {
                         stretchUntil[s.sid] = Date.now() + STRETCH_MS;
                     }
                     prevRunning[s.sid] = !!s.running;
+                    if (!s.running) {
+                        delete lastLogChangeAt[s.sid];
+                        delete lastLogTail[s.sid];
+                        return;
+                    }
+                    if (lastLogTail[s.sid] === undefined || lastLogTail[s.sid] !== s.log_tail) {
+                        lastLogChangeAt[s.sid] = Date.now();
+                    }
+                    lastLogTail[s.sid] = s.log_tail;
                 });
                 sesiones.value = nuevas;
                 supervisor.value = data.supervisor || null;
@@ -470,13 +549,15 @@ export default {
             FASES, POLL_MS, dark: darkMode,
             sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive, fsSesion, fsPre,
             itemEnCurso, itemEnCursoEstado,
-            secsSince, fmtClock, stepReached, stepClass, setPre, workerStateText,
+            secsSince, fmtClock, stepReached, stepClass, hasFaseData, setPre, workerStateText,
             avatarClass, gestureIcon, gestureClass, linkClass,
             initials, initialsStyle, puedeEditarAvatar, uploadingAvatar, avatarError, onAvatarFile,
             openFs, closeFs,
             etaVisible, etaClass, etaIcon, etaLabel, etaPct, etaTooltip,
             liberando, accionAviso, liberarReclamo,
             reasignando, reasignarDestino, terminalesLibres, reasignarReclamo,
+            vueltaLimiteSeg, roundClockClass, roundClockTooltip,
+            scrolledUp, onConsoleScroll, goToBottom, consoleLive,
         };
     },
 };
@@ -699,6 +780,10 @@ export default {
 .tt-idnum{ color:var(--tt-accent); }
 .tt-muted{ color:var(--tt-muted); font-weight:400; }
 .tt-term-clock{ font-size:11.5px; color:var(--tt-muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
+/* #938 criterio 5 — reloj de la ronda contra el límite real: ámbar al 80%, rojo al 95% */
+.tt-term-clock.tt-clock-amber{ color:var(--tt-warn); font-weight:800; }
+.tt-term-clock.tt-clock-red{ color:var(--tt-danger); font-weight:800; }
+.tt-clock-limit{ color:var(--tt-muted); font-weight:400; }
 .tt-beat{ color:var(--tt-live); } .tt-beat-cold{ color:var(--tt-warn); }
 .tt-fs-btn{ border:1px solid var(--tt-line); background:transparent; color:var(--tt-muted); border-radius:7px; width:26px; height:26px; cursor:pointer; line-height:1; font-size:14px; }
 .tt-fs-btn:hover{ color:var(--tt-ink); border-color:var(--tt-accent); }
@@ -709,6 +794,8 @@ export default {
 .tt-step-done{ color:var(--tt-accent); }
 .tt-step-cur{ color:var(--tt-live); font-weight:800; }
 .tt-step-pend{ opacity:.55; }
+/* #938 criterio 6 — sin dato de fase real: solo un texto discreto, nunca una barra inventada */
+.tt-steps-empty{ font-size:10.5px; color:var(--tt-muted); font-style:italic; padding:7px 12px; border-bottom:1px solid var(--tt-line); }
 
 /* #546 — reloj en regresión del ETA del item en curso */
 .tt-eta-row{ display:flex; align-items:center; gap:7px; padding:6px 12px; border-bottom:1px solid var(--tt-line); font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; }
@@ -727,6 +814,26 @@ export default {
   margin:0; padding:11px 13px; background:var(--tt-termbg); color:var(--tt-termink);
   font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-size:11.5px; line-height:1.5;
   height:260px; overflow:auto; white-space:pre-wrap; word-break:break-word; flex:1 1 auto;
+}
+
+/* #938 criterios 3 y 4 — envoltura de la consola: pill de flujo (en vivo/sin señal) + botón
+   flotante "ir al final" cuando el usuario se desplazó a leer historial. */
+.tt-console-wrap{ position:relative; display:flex; flex:1 1 auto; min-height:0; }
+.tt-live-pill{
+  position:absolute; top:8px; right:10px; z-index:2; padding:2px 8px; border-radius:999px;
+  font-size:10px; font-weight:800; background:rgba(0,0,0,.35); color:var(--tt-termgreen);
+  display:inline-flex; align-items:center; gap:4px; pointer-events:none;
+}
+.tt-live-pill.tt-live-bad{ color:#fca5a5; }
+.tt-live-dot{ width:6px; height:6px; border-radius:50%; background:var(--tt-termgreen); display:inline-block; animation:tt-pulse 1.3s infinite; }
+.tt-tofinal{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%); z-index:2;
+  background:var(--tt-accent); color:#fff; border:none; border-radius:999px;
+  padding:4px 12px; font-size:11px; font-weight:800; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.25);
+}
+.tt-tofinal:hover{ filter:brightness(.95); }
+@media (prefers-reduced-motion: reduce){
+  .tt-live-dot{ animation:none !important; }
 }
 
 /* Overlay pantalla completa */
