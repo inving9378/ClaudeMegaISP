@@ -465,6 +465,19 @@ class RoadmapController extends Controller
         return response()->json(['ok' => true, 'generado_at' => now()->toIso8601String(), 'motores' => $data]);
     }
 
+    /**
+     * #947 (Fase 1c) — "Ver último error" de un motor: mensaje completo + cuántas veces se repitió
+     * seguido. Sin cache propio (se consulta al toque, on-demand, no en cada poll del semáforo).
+     */
+    public function torreSemaforoFallo(Request $request): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = $request->validate(['comando' => ['required', 'string', 'max:80']]);
+
+        return response()->json($this->svc->detalleFallo($data['comando']));
+    }
+
     public function historialAcciones(Request $request): JsonResponse
     {
         $this->authorize('roadmap_view');
