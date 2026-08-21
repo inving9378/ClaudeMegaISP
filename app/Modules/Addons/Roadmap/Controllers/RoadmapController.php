@@ -10,6 +10,7 @@ use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
 use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Support\TorreControlCatalog;
 use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
@@ -141,6 +142,11 @@ class RoadmapController extends Controller
             'motores'     => app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)->latidos(),
             'puede_editar' => auth()->user()?->can('torre.config.edit') ?? false,
             'guardrails'  => self::GUARDRAILS,
+            // #943 — catálogo completo por actor (~70 controles del inventario), en sus 3
+            // cubetas. Mientras #881 (catálogo de acciones) no aterrice, ningún control nuevo se
+            // pinta editable aunque el plan lo clasifique como candidato verde — ver
+            // `TorreControlCatalog::YA_EDITABLES`.
+            'grupos_actor' => TorreControlCatalog::grupos(),
         ]);
     }
 
