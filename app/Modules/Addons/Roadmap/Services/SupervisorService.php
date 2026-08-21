@@ -45,8 +45,8 @@ class SupervisorService
         // "Activo" si su maquinaria late (scheduler o watchdog) y el circuito no está pausado.
         $pausado = $this->circuito->isPaused();
         $vivo = ! $pausado && (
-            ($sched !== null && $sched < WatchdogService::SCHEDULER_STALE_SEG)
-            || ($wdSecs !== null && $wdSecs < WatchdogService::SCHEDULER_STALE_SEG)
+            ($sched !== null && $sched < config('circuito.watchdog.scheduler_stale_seg', 180))
+            || ($wdSecs !== null && $wdSecs < config('circuito.watchdog.scheduler_stale_seg', 180))
         );
 
         $latidoSecs = collect([$sched, $wdSecs])->filter(fn ($v) => $v !== null)->min();
@@ -59,7 +59,7 @@ class SupervisorService
             'activo'      => $vivo,
             'pausado'    => $pausado,
             'latido_secs' => $latidoSecs,
-            'scheduler_vivo' => $sched !== null && $sched < WatchdogService::SCHEDULER_STALE_SEG,
+            'scheduler_vivo' => $sched !== null && $sched < config('circuito.watchdog.scheduler_stale_seg', 180),
             'watchdog_vivo'  => (bool) ($wd['watchdog_vivo'] ?? false),
             'asignados'   => $this->asignadosAhora(),
             'protocolo'   => $this->protocolo(),        // reglas que arbitra (identidad del jefe)
