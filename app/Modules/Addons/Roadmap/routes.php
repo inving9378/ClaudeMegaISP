@@ -131,6 +131,9 @@ Route::middleware(['web', 'auth'])
         // #946 (Fase 1b, hija de #875) — Semáforo de motores: una fila por motor con su icono
         // 🟢/🟡/🔴/⚫. Solo lectura (`roadmap_view`).
         Route::get('/torre/semaforo', [RoadmapController::class, 'torreSemaforo']);
+        // #947 (Fase 1c) — "Ver último error" por motor: mensaje completo + racha de fallos
+        // consecutivos, leído de `circuito_motor_pulsos` (#875). Solo lectura (`roadmap_view`).
+        Route::get('/torre/semaforo/fallo', [RoadmapController::class, 'torreSemaforoFallo']);
         Route::post('/items/{id}/deshacer-decision', [RoadmapController::class, 'deshacerDecision'])->whereNumber('id');
         // #889 (Torre fase 5 — Terminales): suelta el `worker_sid` de un item sin tocar su
         // `estado_aprobacion` — libera la terminal que quedó reservada por un reclamo huérfano

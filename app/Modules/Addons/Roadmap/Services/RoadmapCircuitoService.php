@@ -634,6 +634,14 @@ class RoadmapCircuitoService
                 'cadencia'         => $p['cadencia'] !== '' ? $p['cadencia'] : '—',
                 'agendado'         => $p['agendado'],
                 'si_no_corre'      => $p['si_no_corre'],
+                // #947 — Procedencia (Regla 3 de la épica #874): de dónde sale cada dato de la fila,
+                // para que "confía en el semáforo" no dependa de leer el código.
+                'procedencia'      => [
+                    'ultima_ok_fuente'  => 'settings."' . self::beatKey($p['comando'], $cfg)
+                        . '" (latido) · tabla circuito_motor_pulsos (historial por corrida, #875)',
+                    'cadencia_clave'    => "config/circuito.php → procesos_programados.\"{$p['comando']}\".cadencia_horas",
+                    'comando_correr'    => "php artisan {$p['comando']}",
+                ],
             ];
         }
 
@@ -648,6 +656,8 @@ class RoadmapCircuitoService
             cadencia: 'cada vuelta del scheduler (sin cron propio)',
             siNoCorre: 'nadie arbitra colisiones entre terminales ni decide items con brief ya '
                 . 'respondido: la bandeja se detiene aunque el scheduler siga vivo',
+            procedenciaFuente: 'SupervisorService::estado() — deriva su latido de la MISMA maquinaria '
+                . 'del scheduler/watchdog, no tiene cron ni comando propio.',
         );
 
         // Terminales — salud real de los slots de trabajo (WatchdogService), no solo "el scheduler
@@ -664,6 +674,8 @@ class RoadmapCircuitoService
             siNoCorre: $caidos > 0
                 ? "{$caidos} de " . count($slots) . ' terminal(es) caída(s): esos cupos no jalan trabajo de la cola'
                 : 'nadie ejecuta items de la Hoja de Ruta: el trabajo se acumula sin avanzar',
+            procedenciaFuente: 'WatchdogService::estado() — salud de los slots de trabajo (worker_sid), '
+                . 'no tiene cron ni comando propio.',
         );
 
         // #946 — un motor roto sube al principio: visible desde la portada sin desplegar nada.
@@ -671,6 +683,62 @@ class RoadmapCircuitoService
         usort($filas, fn ($a, $b) => ($rango[$a['icono']] ?? 9) <=> ($rango[$b['icono']] ?? 9));
 
         return array_values($filas);
+    }
+
+    /**
+     * #947 (Fase 1c, hija de #875/#946) — "Ver último error" de un motor: mensaje completo (hasta
+     * 2000 chars, ya truncado al guardarlo en #875), cuándo, y cuántas veces se repitió SEGUIDO
+     * (la racha de fallos consecutivos contando desde la corrida más reciente hacia atrás, hasta el
+     * primer éxito). Lee `circuito_motor_pulsos` (#875) — el historial por corrida, no el latido.
+     * Solo lectura; no cambia el comportamiento de ningún motor.
+     */
+    public function detalleFallo(string $comando): array
+    {
+        if (! is_array(config('circuito.procesos_programados.' . $comando))) {
+            return ['ok' => false, 'motivo' => 'comando_no_vigilado'];
+        }
+
+        $pulsos = \App\Modules\Addons\Roadmap\Models\CircuitoMotorPulso::where('motor', $comando)
+            ->orderByDesc('inicio_at')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get(['inicio_at', 'ok', 'mensaje', 'duracion_ms']);
+
+        if ($pulsos->isEmpty()) {
+            return ['ok' => true, 'sin_historial' => true, 'ultimo_fallo' => null, 'repeticiones' => 0];
+        }
+
+        $ultimoFallo = $pulsos->firstWhere('ok', false);
+        if (! $ultimoFallo) {
+            return ['ok' => true, 'sin_fallo_reciente' => true, 'ultimo_fallo' => null, 'repeticiones' => 0];
+        }
+
+        // Racha: fallos consecutivos desde el más reciente hacia atrás, hasta el primer éxito (o el
+        // límite de la muestra). Si la corrida más reciente ya fue exitosa, la racha ACTUAL es 0
+        // aunque exista un fallo más viejo en la muestra (por eso se sigue mostrando ese fallo: es
+        // el último que hubo, no que el motor esté fallando ahora).
+        $repeticiones = 0;
+        $desde = null;
+        foreach ($pulsos as $p) {
+            if (! $p->ok) {
+                $repeticiones++;
+                $desde = $p->inicio_at;
+            } else {
+                break;
+            }
+        }
+
+        return [
+            'ok'              => true,
+            'ultimo_fallo'    => [
+                'ts'          => $ultimoFallo->inicio_at?->toDateTimeString(),
+                'mensaje'     => $ultimoFallo->mensaje,
+                'duracion_ms' => $ultimoFallo->duracion_ms,
+            ],
+            'repeticiones'    => $repeticiones,
+            'racha_desde'     => $desde?->toDateTimeString(),
+            'muestra_limitada' => $pulsos->count() >= 50,
+        ];
     }
 
     /** #946 — ¿el Auditor está encendido? Único motor con flag propio de encendido (torre_config). */
@@ -726,8 +794,15 @@ class RoadmapCircuitoService
 
     /** #946 — fila del semáforo para un motor DERIVADO (Thomas/Terminales): sin cron propio, su
      *  señal es booleana (vivo/no vivo), no un ratio de cadencia. */
-    private function filaSemaforoDerivada(string $motor, bool $vivo, ?int $latidoSecs, bool $pausado, string $cadencia, string $siNoCorre): array
-    {
+    private function filaSemaforoDerivada(
+        string $motor,
+        bool $vivo,
+        ?int $latidoSecs,
+        bool $pausado,
+        string $cadencia,
+        string $siNoCorre,
+        string $procedenciaFuente = '',
+    ): array {
         $icono = $pausado ? '⚫' : ($vivo ? '🟢' : '🔴');
 
         return [
@@ -741,6 +816,13 @@ class RoadmapCircuitoService
             'cadencia'         => $cadencia,
             'agendado'         => null,
             'si_no_corre'      => $siNoCorre,
+            // #947 — Procedencia: no tiene comando propio (motor derivado de otro servicio), así que
+            // no hay "Correr ahora" que ofrecer aquí.
+            'procedencia'      => [
+                'ultima_ok_fuente' => $procedenciaFuente,
+                'cadencia_clave'   => null,
+                'comando_correr'   => null,
+            ],
         ];
     }
 
