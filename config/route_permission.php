@@ -1709,9 +1709,28 @@ return [
         '/api/manual/generate',
     ],
 
-    // Manual General de la Empresa (addon-empresa)
+    // Manual General de la Empresa (addon-empresa) — #838 lo vuelve editable
     'empresa_manual_view' => [
         '/empresa/manual',
+        '/empresa/manual/pdf',
+        '/empresa/manual/api/data',
+    ],
+    'empresa_manual_create' => [
+        '/empresa/manual/api/chapters',
+        '/empresa/manual/api/sections',
+    ],
+    'empresa_manual_edit' => [
+        '/empresa/manual/api/chapters/{id}',
+        '/empresa/manual/api/chapters/reorder',
+        '/empresa/manual/api/sections/{id}',
+        '/empresa/manual/api/sections/reorder',
+    ],
+    'empresa_manual_delete' => [
+        '/empresa/manual/api/chapters/{id}/eliminar',
+        '/empresa/manual/api/sections/{id}/eliminar',
+    ],
+    'empresa_manual_publish' => [
+        '/empresa/manual/api/sections/{id}/publicar',
     ],
 
     // Pagos SPEI / OpenPay
