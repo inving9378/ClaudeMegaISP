@@ -108,6 +108,9 @@ Route::middleware(['web', 'auth'])
         // #890 (Torre fase 6) — cola ejecutable REAL: orden exacto de despacho + excluidos con
         // causa. Solo lectura (`torre.cola.ver`, self-authorized dentro del controller).
         Route::get('/torre/cola',          [RoadmapController::class, 'torreCola']);
+        // #937 — tablero "Items atorados" agrupado por causa (Panorama). Depende de #935
+        // (DiagnosticoItemService); mientras no exista responde disponible=false (guard interno).
+        Route::get('/atorados',            [RoadmapController::class, 'atorados']);
         Route::post('/item/{id}/override', [RoadmapController::class, 'itemOverride'])->whereNumber('id');
         // Estado en vivo ligero para el polling de la Torre (#335).
         Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);

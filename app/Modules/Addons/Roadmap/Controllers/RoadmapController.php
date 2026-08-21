@@ -242,6 +242,60 @@ class RoadmapController extends Controller
     }
 
     /**
+     * #937 — Tablero "Items atorados" agrupado por CAUSA en Panorama. Depende de #935
+     * (DiagnosticoItemService::para()), que aún no existe: mientras no exista, responde
+     * `disponible=false` en vez de inventar una causa con lógica propia — la causa de un item
+     * SOLO puede venir de ese mismo servicio (mismo criterio que la ficha, #936), para que ficha
+     * y tablero nunca diverjan. El día que #935 se implemente, esta agrupación se activa sola.
+     *
+     * Cache corto (20s) + polling del front cada 30s (decisión registrada del item, opción B).
+     */
+    public function atorados(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $servicio = \App\Modules\Addons\Roadmap\Services\DiagnosticoItemService::class;
+        if (! class_exists($servicio)) {
+            return response()->json([
+                'ok'         => true,
+                'disponible' => false,
+                'motivo'     => 'Depende de #935 (DiagnosticoItemService), aún no implementado.',
+                'grupos'     => [],
+            ]);
+        }
+
+        $grupos = Cache::remember('roadmap_atorados_v1', 20, function () use ($servicio) {
+            $items = RoadmapItem::query()
+                ->whereIn('estado_aprobacion', ['aprobado_irving', 'requiere_irving'])
+                ->get();
+
+            $porCausa = $items->map(function (RoadmapItem $i) use ($servicio) {
+                $diag = $servicio::para($i);
+                $causa = is_array($diag) ? ($diag['causa'] ?? 'sin_causa') : ($diag->causa ?? 'sin_causa');
+                return ['item' => $i, 'causa' => $causa ?: 'sin_causa'];
+            })->groupBy('causa');
+
+            return $porCausa->map(function ($fila, $causa) {
+                $itemsGrupo = $fila->pluck('item');
+                $masViejo = $itemsGrupo->sortBy(fn (RoadmapItem $i) => $i->claimed_at ?? $i->created_at)->first();
+                return [
+                    'causa'           => $causa,
+                    'conteo'          => $itemsGrupo->count(),
+                    'mas_viejo_id'    => $masViejo?->id,
+                    'mas_viejo_desde' => $masViejo?->claimed_at ?? $masViejo?->created_at,
+                    'items_ids'       => $itemsGrupo->pluck('id')->values(),
+                ];
+            })->values();
+        });
+
+        return response()->json([
+            'ok'         => true,
+            'disponible' => true,
+            'grupos'     => $grupos,
+        ]);
+    }
+
+    /**
      * ENTREGA 1 — override de automatización de UN item.
      *
      * Bajar (`manual`) no pide nada. **Subir (`auto`) exige confirmación explícita** —el front manda
