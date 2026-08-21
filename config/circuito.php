@@ -170,6 +170,11 @@ return [
     'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
     'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
 
+    // #938 — límite real de una vuelta (lo aplica `timeout` en deploy/circuito/vuelta.sh vía
+    // CIRCUITO_TIMEOUT). Expuesto aquí SOLO para que la Torre (pestaña Terminales) pinte el
+    // reloj de cada terminal contra el mismo número real, sin duplicar el 600 a mano.
+    'vuelta_timeout_seg' => (int) env('CIRCUITO_TIMEOUT', 600),
+
     /*
     | Nombres por default de los workers del equipo (wt-1..wt-N). Persisten y son
     | RENOMBRABLES por Irving (override en `settings` → circuito_worker_nombres). Dan un
