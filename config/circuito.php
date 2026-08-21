@@ -899,6 +899,9 @@ return [
             'beat_key'    => 'circuito_scheduler_beat',
             'formato'     => 'unix',
             'si_no_corre' => 'NADIE reparte trabajo: las 6 terminales quedan paradas',
+            // #942 — texto tal cual aparece en el crontab real de `meganet` (verificado con
+            // `crontab -l` el 2026-08-21). Solo lectura: se edita en el crontab, no aquí.
+            'cadencia'    => 'cada minuto',
         ],
 
         'circuito:re-triage' => [
@@ -913,11 +916,14 @@ return [
             // línea del digest (40 6) para que a las 06:40 ya refleje lo vencido. El digest la
             // imprime tal cual cuando `agendado === false` (ver DigestCommand::procesosProgramados).
             'linea_cron' => "30 6 * * * /var/www/megaisp/deploy/circuito/cron-wrap.sh circuito:re-triage --apply >> /var/log/circuito-digest.log 2>&1",
+            // #942 — todavía NO está en el crontab (ver `linea_cron` arriba); no tiene cadencia real.
+            'cadencia'    => 'sin agendar (#808)',
         ],
 
         'circuito:digest' => [
             'max_horas'   => 48,
             'si_no_corre' => 'no hay métricas ni recordatorio de los frenos que puso Irving',
+            'cadencia'    => '06:40 diario',
         ],
 
         /*
@@ -936,6 +942,7 @@ return [
             'formato'     => 'unix',
             'si_no_corre' => 'la bandeja no se destraba: nada se auto-mergea ni se auto-decide, y los '
                 . 'items terminados se acumulan en esperando_merge_irving',
+            'cadencia'    => 'dentro del scheduler · throttle 5 min',
         ],
 
         // También dentro del scheduler; su gating (cola < umbral) puede impedirle correr
@@ -945,6 +952,7 @@ return [
             'beat_key'    => 'circuito_auditor_ultima_corrida',
             'formato'     => 'unix',
             'si_no_corre' => 'con la cola vacía nadie genera trabajo: las 6 terminales se quedan ociosas',
+            'cadencia'    => 'dentro del scheduler · cola < 3 y ≥ 15 min desde la última',
         ],
 
         'circuito:watchdog' => [
@@ -952,27 +960,32 @@ return [
             'beat_key'    => 'circuito_watchdog_beat',
             'formato'     => 'unix',
             'si_no_corre' => 'nadie vigila a los workers ni auto-recupera anomalías del scheduler',
+            'cadencia'    => 'cada 2 min',
         ],
 
         'circuito:revisar-backlog' => [
             'max_horas'   => 1,
             'excluye_opciones' => ['dry'],
             'si_no_corre' => 'los B se quedan sin veredicto del revisor y no llegan a la cola',
+            'cadencia'    => 'cada 2 min',
         ],
 
         'circuito:destrabe' => [
             'max_horas'   => 2,
             'si_no_corre' => 'la bandeja no recibe el re-triaje de Opus: lo técnico/seguro se queda con Irving',
+            'cadencia'    => 'cada 4 min',
         ],
 
         'circuito:reap-stuck' => [
             'max_horas'   => 1,
             'si_no_corre' => 'los reclamos huérfanos no se liberan y su footprint bloquea a la flota',
+            'cadencia'    => 'cada 2 min',
         ],
 
         'circuito:brief-c' => [
             'max_horas'   => 2,
             'si_no_corre' => 'los C se quedan sin brief y el autopilot no puede calificar nada',
+            'cadencia'    => 'cada 10 min',
         ],
 
         /*
@@ -991,6 +1004,7 @@ return [
             // `ClasificarRiesgoJob` al crear), no el BARRIDO diario. Ninguna de las dos cuenta.
             'excluye_opciones' => ['dry', 'item'],
             'si_no_corre' => 'el barrido diario del clasificador no clasifica nada nuevo',
+            'cadencia'    => '06:20 diario',
         ],
 
         // #921 Fase 2 / #957 — cron diario (Kernel.php, hard-coded como activitylog:archive).
@@ -1000,6 +1014,9 @@ return [
             'max_horas'   => 30,
             'si_no_corre' => 'los items agendados a futuro NUNCA vuelven solos al pool aunque su '
                 . 'fecha ya haya pasado — se quedan fuera hasta que alguien los toque a mano',
+            // #942 — este NO vive en el crontab del SO: está agendado en `app/Console/Kernel.php`
+            // (Laravel Schedule), disparado por el `schedule:run` estándar.
+            'cadencia'    => '00:05 diario (Kernel.php)',
         ],
     ],
 
