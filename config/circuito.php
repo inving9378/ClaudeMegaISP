@@ -512,6 +512,22 @@ return [
             // El item debe traer con qué revisarlo: en llano y con el lugar de la UI donde verlo.
             'exige_reporte_coloquial' => (bool) env('CIRCUITO_THOMAS_EXIGE_REPORTE', true),
             'exige_enlace_revision'   => (bool) env('CIRCUITO_THOMAS_EXIGE_ENLACE', true),
+
+            // #1005 (#1003 §2) — si hay `enlace_revision`, exigir que el path resuelva contra el
+            // registro de rutas (Route match) antes de aceptar el cierre.
+            'valida_enlace_resuelve'  => (bool) env('CIRCUITO_THOMAS_VALIDA_ENLACE', true),
+
+            /*
+            | #1005 — ROLLOUT EN DOS FASES a propósito (el propio spec del item pide "considerar un
+            | periodo de solo-warning antes de bloquear duro": el gate corre en el `saving` del
+            | modelo, así que afecta el cierre de CUALQUIER item de CUALQUIER terminal en paralelo).
+            | `false` (default) = MODO ADVERTENCIA: un cierre incompleto queda registrado en el
+            | `log` del item (antes ni eso — `verificarCierre()` no tenía consumidores) pero SÍ se
+            | completa. `true` = FAIL-CLOSED real: un cierre incompleto se parquea en
+            | `aprobado_irving` (mismo patrón que el parqueo C-sin-merge) en vez de completarse.
+            | Subir a `true` cuando el modo advertencia lleve un tiempo sin sorpresas.
+            */
+            'bloquea'                 => (bool) env('CIRCUITO_THOMAS_CIERRE_BLOQUEA', false),
         ],
     ],
 

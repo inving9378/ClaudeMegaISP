@@ -1069,6 +1069,12 @@ class ThomasService
      * Criterios de aceptación COMUNES que Thomas exige antes de dar por bueno un cierre. Los
      * específicos de cada item viven en su propio spec y los verifica la terminal.
      *
+     * #1005 (#1003 §1/§2): `sin_ui` es el escape valve para items sin pantalla (migraciones,
+     * refactors, tests) — exentos de `enlace_revision` SIEMPRE que traigan `sin_ui_motivo` (cómo se
+     * comprobó en su lugar: el comando, el test, la consulta). Si SÍ hay `enlace_revision`, se
+     * valida que el path resuelva contra el registro de rutas — un link con typo ya no pasa en
+     * silencio.
+     *
      * Devuelve ['ok' => bool, 'faltantes' => string[]]. No muta nada: decidir qué hacer con un
      * cierre incompleto es del llamador.
      */
@@ -1085,8 +1091,14 @@ class ThomasService
             $faltantes[] = 'falta reporte_coloquial (qué cambió y dónde, en llano) — sin esto Irving no puede revisarlo';
         }
 
-        if (($cfg['exige_enlace_revision'] ?? true) && trim((string) $item->enlace_revision) === '') {
-            $faltantes[] = 'falta enlace_revision (la ruta REAL de la UI donde se ve el cambio)';
+        if ($item->sin_ui) {
+            if (trim((string) $item->sin_ui_motivo) === '') {
+                $faltantes[] = 'marcado sin_ui pero sin sin_ui_motivo (cómo se comprobó, ya que no hay pantalla que enlazar)';
+            }
+        } elseif (($cfg['exige_enlace_revision'] ?? true) && trim((string) $item->enlace_revision) === '') {
+            $faltantes[] = 'falta enlace_revision (la ruta REAL de la UI donde se ve el cambio) — o marcar sin_ui con su motivo si de verdad no hay pantalla';
+        } elseif (($cfg['valida_enlace_resuelve'] ?? true) && ! $this->enlaceRevisionResuelve($item->enlace_revision)) {
+            $faltantes[] = 'enlace_revision no resuelve contra el registro de rutas (¿typo en el path?)';
         }
 
         if ($item->tieneConsultaViva()) {
@@ -1094,6 +1106,32 @@ class ThomasService
         }
 
         return ['ok' => $faltantes === [], 'faltantes' => $faltantes];
+    }
+
+    /**
+     * #1005 (#1003 §2) — ¿el path que abre `enlace_revision` resuelve contra el registro de rutas?
+     * El campo es texto libre coloquial ("/releases → pestaña X → botón Y"), no una URL pura, así
+     * que solo se evalúa el PRIMER token si empieza con "/" (ruta web real). Si apunta a un archivo
+     * o doc (`docs/...`, `file://...`) no hay ruta que resolver contra el router y se deja pasar —
+     * esa validación de existencia de archivo queda fuera de alcance de este gate.
+     */
+    public function enlaceRevisionResuelve(?string $enlace): bool
+    {
+        $texto = trim((string) $enlace);
+        if ($texto === '' || $texto[0] !== '/') {
+            return true;
+        }
+
+        $primerToken = preg_split('/\s+/', $texto, 2)[0];
+        $path        = '/' . ltrim(parse_url($primerToken, PHP_URL_PATH) ?: $primerToken, '/');
+
+        try {
+            app('router')->getRoutes()->match(\Illuminate\Http\Request::create($path, 'GET'));
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     // =================================================================
