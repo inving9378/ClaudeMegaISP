@@ -373,29 +373,52 @@ class RoadmapItem extends Model
             }
 
             $verificacion = app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)->verificarCierre($item);
-            if ($verificacion['ok']) {
-                return;
+            if (! $verificacion['ok']) {
+                $log = $item->log ?: [];
+                $log[] = [
+                    'ts'        => now()->toIso8601String(),
+                    'por'       => 'thomas:verificarCierre',
+                    'evento'    => 'cierre_incompleto',
+                    'faltantes' => $verificacion['faltantes'],
+                    'bloqueado' => (bool) config('circuito.thomas.cierre.bloquea', false),
+                ];
+                $item->log = $log;
+
+                if (config('circuito.thomas.cierre.bloquea', false)) {
+                    $item->estado_aprobacion       = 'aprobado_irving';
+                    $item->status                  = 'pending';
+                    $item->excluir_pool_automatico  = true;
+                    $item->decision_resuelta        = true;
+                } else {
+                    Log::warning('roadmap: cierre incompleto (modo advertencia, no bloquea todavía)', [
+                        'item' => $item->id, 'faltantes' => $verificacion['faltantes'],
+                    ]);
+                }
             }
 
-            $log = $item->log ?: [];
-            $log[] = [
-                'ts'        => now()->toIso8601String(),
-                'por'       => 'thomas:verificarCierre',
-                'evento'    => 'cierre_incompleto',
-                'faltantes' => $verificacion['faltantes'],
-                'bloqueado' => (bool) config('circuito.thomas.cierre.bloquea', false),
-            ];
-            $item->log = $log;
+            // #1008 (#1003 §6) — MISMO punto de enganche que el gate de arriba (no se registra un
+            // `static::saving()` aparte para la misma transición a `completado`). Si el bloqueo de
+            // arriba parqueó el cierre a `aprobado_irving`, `estado_aprobacion` ya no es
+            // 'completado' aquí y este bloque no dispara — correcto: el item ni siquiera terminó de
+            // cerrarse todavía.
+            if ($item->estado_aprobacion === 'completado') {
+                $sinResolver = app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)
+                    ->preguntasSinResolver($item);
 
-            if (config('circuito.thomas.cierre.bloquea', false)) {
-                $item->estado_aprobacion       = 'aprobado_irving';
-                $item->status                  = 'pending';
-                $item->excluir_pool_automatico  = true;
-                $item->decision_resuelta        = true;
-            } else {
-                Log::warning('roadmap: cierre incompleto (modo advertencia, no bloquea todavía)', [
-                    'item' => $item->id, 'faltantes' => $verificacion['faltantes'],
-                ]);
+                if ($sinResolver !== []) {
+                    $hijo = app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)
+                        ->generarSeguimientoPreguntas($item, $sinResolver);
+
+                    $log   = $item->log ?: [];
+                    $log[] = [
+                        'ts'        => now()->toIso8601String(),
+                        'por'       => 'thomas:generarSeguimientoPreguntas',
+                        'evento'    => 'seguimiento_generado',
+                        'hijo'      => $hijo->id,
+                        'preguntas' => count($sinResolver),
+                    ];
+                    $item->log = $log;
+                }
             }
         });
 
