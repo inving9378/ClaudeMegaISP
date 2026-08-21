@@ -249,6 +249,57 @@ class RoadmapController extends Controller
      * columna); paso 2 trae `log` para esos IDs sin ORDER BY (sin filesort). Los items sin log o con
      * log vacío simplemente no aportan filas al aplanar — no hace falta filtrarlos en SQL.
      */
+    /**
+     * GET /api/roadmap/torre/salud-entorno (#891) — Fase 7 de la Épica #874: los seis indicadores
+     * que hoy solo se ven entrando por SSH (certificado TLS, disco, migraciones pendientes, jobs
+     * fallidos, último respaldo, errores 24h agrupados por firma). Solo lectura — cacheado 30s
+     * (mismo patrón que `decisionesContadores`) para no repetir la lectura de logs/disco en cada
+     * poll de la Torre.
+     */
+    public function saludEntorno(\App\Modules\Addons\Roadmap\Services\EnvironmentHealthService $salud): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = Cache::remember('roadmap:torre:salud-entorno', 30, fn () => $salud->resumen());
+
+        // `puede_gestionar` NO se cachea con el resto (el resumen es compartido entre usuarios
+        // por 30s; el permiso del usuario actual no lo es) — mismo patrón que `can_disparar` en
+        // el endpoint de estado del circuito.
+        return response()->json(['ok' => true, 'puede_gestionar' => (bool) auth()->user()?->can('torre.salud.manage')] + $data);
+    }
+
+    /**
+     * POST /api/roadmap/torre/salud/reintentar-fallidos (#891) — botón declarado en el item:
+     * reintenta TODOS los jobs de `failed_jobs` (`queue:retry all`). Gate `torre.salud.manage`
+     * (solo super-administrator + DESARROLLADOR — ejecuta un comando real, no es lectura).
+     */
+    public function saludReintentarFallidos(\App\Modules\Addons\Roadmap\Services\EnvironmentHealthService $salud): JsonResponse
+    {
+        $this->authorize('torre.salud.manage');
+
+        $r = $salud->reintentarTrabajosFallidos();
+        Cache::forget('roadmap:torre:salud-entorno');
+
+        return response()->json($r);
+    }
+
+    /**
+     * POST /api/roadmap/torre/salud/recalentar-caches (#891) — botón declarado en el item:
+     * view:clear + config:clear + route:clear + view:cache siempre; config:cache SOLO si
+     * `incluir_config=true` Y `config:auditar-env` pasa limpio (#790/#794) — nunca por default.
+     */
+    public function saludRecalentarCaches(Request $request, \App\Modules\Addons\Roadmap\Services\EnvironmentHealthService $salud): JsonResponse
+    {
+        $this->authorize('torre.salud.manage');
+
+        $data = $request->validate(['incluir_config' => ['sometimes', 'boolean']]);
+
+        $r = $salud->recalentarCaches((bool) ($data['incluir_config'] ?? false));
+        Cache::forget('roadmap:torre:salud-entorno');
+
+        return response()->json($r);
+    }
+
     public function historialAcciones(Request $request): JsonResponse
     {
         $this->authorize('roadmap_view');

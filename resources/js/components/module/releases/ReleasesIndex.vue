@@ -7,6 +7,19 @@
             <h1 class="h4 fw-bold mb-0">Torre de control V2</h1>
         </div>
 
+        <!-- Item #891 §3 — alerta anticipada del certificado TLS en la CABECERA, no solo en el
+             panel de Salud del entorno: es el único fallo de la lista que se lleva la Torre entera
+             consigo, así que hay que verlo aunque no estés en esa pestaña. Solo se pinta a <30 días
+             (mismo umbral 'amarillo'/'rojo' que calcula el backend); si el aviso no carga, no se
+             muestra nada (no es crítico para el resto de la Torre). -->
+        <div v-if="certAviso && certAviso.estado !== 'verde'"
+             class="alert mb-3 py-2 px-3"
+             :class="certAviso.estado === 'rojo' ? 'alert-danger' : 'alert-warning'">
+            <i class="bi bi-shield-exclamation me-1"></i>
+            <b>Certificado TLS de {{ certAviso.host }}</b> expira en <b>{{ certAviso.dias_restantes }} días</b>.
+            Renuévalo antes de que expire — si expira, se pierde la Torre completa (incluido este aviso).
+        </div>
+
         <!-- ── Sub-secciones de la Torre ── -->
         <ul class="nav nav-tabs mb-4">
             <li class="nav-item">
@@ -32,6 +45,11 @@
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'acciones' }" href="#" @click.prevent="tab = 'acciones'">
                     <i class="bi bi-list-check me-1"></i> Historial de acciones
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'salud' }" href="#" @click.prevent="tab = 'salud'">
+                    <i class="bi bi-heart-pulse me-1"></i> Salud del entorno
                 </a>
             </li>
             <li class="nav-item">
@@ -66,6 +84,9 @@
 
         <!-- ── Sub-sección: Historial de acciones (Fase 8, Épica #874, #885) ── -->
         <torre-historial-acciones v-if="tab === 'acciones'" />
+
+        <!-- ── Sub-sección: Salud del entorno (Fase 7, Épica #874, #891) ── -->
+        <torre-salud-entorno v-if="tab === 'salud'" />
 
         <!-- ── Tab: Historial ── -->
         <template v-if="tab === 'historial'">
@@ -200,6 +221,7 @@ import RoadmapTab from "./torre-control/RoadmapTab.vue";
 import TorreControl from "./torre-control/TorreControl.vue";
 import TorreTerminales from "./torre-control/TorreTerminales.vue";
 import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
+import TorreSaludEntorno from "./torre-control/TorreSaludEntorno.vue";
 import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
@@ -208,7 +230,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, IntegracionRamas, DeployProgressModal },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreSaludEntorno, IntegracionRamas, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
@@ -229,6 +251,16 @@ export default {
         const hasPermission = reactive({
             data: new Permission({}),
         });
+        // Item #891 §3 — aviso de certificado en la cabecera, independiente de la pestaña activa.
+        const certAviso = ref(null);
+        async function cargarCertAviso() {
+            try {
+                const { data } = await axios.get("/api/roadmap/torre/salud-entorno");
+                certAviso.value = data.certificado || null;
+            } catch (e) {
+                certAviso.value = null; // best-effort: si falla, no hay banner, no se rompe la Torre
+            }
+        }
 
         const handleScroll = async () => {
             const scrollBottom =
@@ -336,6 +368,7 @@ export default {
         onMounted(async () => {
             window.addEventListener("scroll", handleScroll);
             hasPermission.data = new Permission(await allViewHasPermission());
+            cargarCertAviso();
         });
 
         onBeforeUnmount(() =>
@@ -389,6 +422,7 @@ export default {
             copyToClipboard,
             copiedVersion,
             hasPermission,
+            certAviso,
         };
     },
 };
