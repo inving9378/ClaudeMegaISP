@@ -1319,3 +1319,40 @@ permanente de backfill porque no había backfill real que hacer.
 
 **Estado:** completado, rama `circuito/item-893-...` integrada vía `circuito:integrar` (cola del
 runner on-box a `main`).
+
+## 2026-08-21 01:11 — Item #982: campo 'diagnostico' expuesto (guardado) en lista y ficha del Roadmap
+
+**Item:** #982, sub-item de seguimiento de #935 (`DiagnosticoItemService`). Worktree `wt-1`.
+
+**Qué se hizo:** en `app/Modules/Addons/Roadmap/Controllers/RoadmapController.php` se agregó el
+campo `diagnostico` a los dos endpoints que pedía el item:
+- `itemDetallePayload()` (la FICHA — `GET /roadmap/item/{id}`, sirve `item.blade.php`, consumido
+  por `RoadmapItemDetalle.vue` de #936, que ya esperaba `item.diagnostico.{causa,explicacion,
+  accion,procedencia}`).
+- `index()` (la LISTA — `GET /api/roadmap/items`, consumido por `RoadmapTab.vue`), usando la
+  variante **BATCH** (`diagnosticosLote()`, una sola pasada para los N items visibles vía
+  `DiagnosticoItemService::paraLote()`) para no disparar N consultas.
+
+Dos helpers privados nuevos: `diagnosticoDe($item)` (ficha, llama `DiagnosticoItemService::para()`)
+y `diagnosticosLote($items)` (lista, llama `::paraLote()`), ambos con guard
+`class_exists`+`method_exists` — mismo patrón que ya usa `atorados()` (#937). `DiagnosticoItemService`
+**todavía no existe** (#980/#981 siguen `requiere_irving`), así que hoy `diagnostico` sale `null` en
+ambos endpoints sin romper nada; se activa solo el día que el servicio aterrice.
+
+**Decisión registrada (fija el contrato para #980/#981):** `DiagnosticoItemService::para(RoadmapItem
+$i): ?array` para la ficha, `::paraLote(Collection $items): array<id,diag>` (mapa id→diagnostico)
+para la lista. Quien implemente #980/#981 debe respetar esas firmas para que este wiring se active
+sin tocar el controller de nuevo.
+
+**Verificación:** en tinker, vía reflection sobre el controller real, contra los **159 items reales**
+en `aprobado_irving` (113) + `requiere_irving` (46) de dev (el item mencionaba 72+53, cifras ya
+desactualizadas por el paso del tiempo): `diagnosticoDe()`/`diagnosticosLote()` no truenan con datos
+reales, devuelven `null`/`[]` de forma controlada; `itemDetallePayload()` incluye la clave
+`diagnostico`; la serialización JSON de la lista (`setAttribute` + `json_encode`) es válida y no
+altera el resto de columnas. `php -l` limpio, `php artisan --version` bootea, rutas intactas
+(`route:list --path=roadmap`).
+
+**Estado:** completado, commit `a31e7494`, rama `circuito/item-982-...` integrada (encolada al
+runner on-box → `main`). `enlace_revision` = `/roadmap/item/982` (hoy sin cambio visual: el front
+ya sabe pintar `item.diagnostico` pero no hay nada que mostrar hasta que #980/#981 existan). #935
+sigue abierto como paraguas hasta que esos dos sub-items aterricen — no se fuerza su cierre.
