@@ -18,13 +18,18 @@ use Illuminate\Support\Str;
  * seguro para que el circuito lo ejecute solo, sin Irving.
  *
  * Sesgo por defecto = ESCALAR. Solo autoriza (aprobado_revisor) B claramente técnico, aditivo,
- * acotado y verificable; cualquier duda o frontera dura (dinero / seguridad-permisos / prod /
+ * acotado y verificable; cualquier duda o tema sensible (dinero / seguridad-permisos / prod /
  * negocio) → requiere_irving. Todo veredicto queda AUDITADO en `circuito_revisiones` y es
  * REVERSIBLE por Irving.
  *
  * Arranque CONSERVADOR: pre-filtro de alcance (config circuito.revisor.alcance) descarta lo
  * sensible ANTES de gastar IA, y el flag `circuito_revisor` (OFF por default) gatea que el
  * ejecutor ejecute los aprobado_revisor.
+ *
+ * ⚠️ `enAlcance()` es un PREFILTRO PROPIO del Revisor, distinto de LA frontera dura del circuito
+ * (`thomas.escalamiento` / `ThomasService::categoriaFronteraDura()`). Son dos listas separadas a
+ * propósito (item #944): antes ambas se llamaban "frontera dura" y un item podía estar "en
+ * alcance" para una y "frontera dura" para la otra sin que el nombre lo delatara.
  */
 class RevisorService
 {
@@ -53,9 +58,12 @@ class RevisorService
     }
 
     /**
-     * Pre-filtro barato de ALCANCE conservador: si el item menciona términos de la frontera
-     * dura (dinero/seguridad/permisos/prod/destructivo), queda FUERA de alcance y ni llega a
+     * Pre-filtro barato de ALCANCE conservador: si el item menciona términos sensibles
+     * (dinero/seguridad/permisos/prod/destructivo), queda FUERA de alcance y ni llega a
      * Sonnet (se escala directo). Denylist configurable en config('circuito.revisor.alcance').
+     *
+     * ⚠️ Esta denylist es el criterio PROPIO del Revisor, NO la frontera dura de Thomas
+     * (`thomas.escalamiento`) — son dos listas distintas con dos propósitos distintos (item #944).
      */
     public function enAlcance(RoadmapItem $item): array
     {
@@ -80,14 +88,16 @@ class RevisorService
                 if (DetectorTerminos::dispara($heno, $kw, $palabraCompleta)) {
                     return [
                         'en_alcance' => false,
-                        'motivo'     => "Fuera del alcance conservador: menciona \"{$kw}\" (frontera dura dinero/seguridad/prod/negocio).",
+                        // Item #944: ya NO dice "frontera dura" — esa es la de Thomas
+                        // (`thomas.escalamiento`), distinta de esta denylist propia del Revisor.
+                        'motivo'     => "Fuera del alcance conservador del Revisor: menciona \"{$kw}\" (denylist propia — dinero/seguridad/prod/negocio, distinta de la frontera dura de Thomas).",
                         'kw'         => $kw,
                     ];
                 }
             }
         }
 
-        return ['en_alcance' => true, 'motivo' => 'Dentro del alcance conservador (sin términos de frontera dura).'];
+        return ['en_alcance' => true, 'motivo' => 'Dentro del alcance conservador del Revisor (sin términos de su denylist propia).'];
     }
 
     /**
