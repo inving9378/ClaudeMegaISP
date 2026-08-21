@@ -871,6 +871,37 @@ return [
                 'sin_screens'            => false,
             ],
         ],
+
+        /*
+        |-----------------------------------------------------------------------------------------
+        | #1015 — FRENO POR SEQUÍA de la fuente `código` (item #1004 §3, propiedad 2/3; la 1
+        | —"uno solo vivo a la vez"— ya existía en `debeCorrer()`).
+        |-----------------------------------------------------------------------------------------
+        |
+        | `min_intervalo_minutos` de arriba es FIJO. Esto lo alarga dinámicamente cuando el
+        | escaneo de código lleva varias corridas EN VIVO seguidas sin encontrar nada nuevo (medido
+        | 2026-08-21: nuevos=0 en casi todos los módulos) — seguir escaneando cada 15 min con la
+        | fuente agotada es trabajo desperdiciado.
+        |
+        | El contador (`AuditorService::rachaSeca()`) es SOLO de esta fuente (los detectores de
+        | este archivo: huecos/enlaces/TODOs/andamiaje/spec/semilla). Una futura minería de
+        | bitácora (#1004 §4) es OTRO mecanismo con su propio ritmo — no debe frenarse por esto,
+        | así que este backoff nunca debe tocar nada fuera de `AuditorService::ciclo()`.
+        */
+        'sequia' => [
+            // Corridas EN VIVO seguidas con 0 nuevos (de TODO el ciclo, no por módulo) antes de
+            // empezar a alargar el intervalo. Por debajo de esto, el intervalo es el normal.
+            'racha_umbral' => (int) env('CIRCUITO_AUDITOR_SEQUIA_UMBRAL', 3),
+
+            // Minutos que se suman al intervalo base por cada corrida seca adicional una vez
+            // cruzado el umbral (backoff lineal, no exponencial — más fácil de razonar).
+            'incremento_minutos' => (int) env('CIRCUITO_AUDITOR_SEQUIA_INCREMENTO', 15),
+
+            // Techo del intervalo alargado: nunca deja de escanear del todo (el motor sigue vivo,
+            // sólo más espaciado), y un cambio real de código lo revive de inmediato (cualquier
+            // corrida con nuevos > 0 resetea la racha a 0).
+            'intervalo_max_minutos' => (int) env('CIRCUITO_AUDITOR_SEQUIA_MAX', 120),
+        ],
     ],
 
     /*
