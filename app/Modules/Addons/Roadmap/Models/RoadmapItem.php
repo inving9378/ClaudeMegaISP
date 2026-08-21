@@ -1582,11 +1582,83 @@ class RoadmapItem extends Model
      */
     public function scopeOrdenCola($query)
     {
-        return $query->orderByDesc('urgente')
-                     ->orderByRaw('CASE WHEN branch IS NOT NULL OR colision_pausada_por IS NOT NULL THEN 0 ELSE 1 END')
-                     ->orderByRaw("FIELD(priority,'baja','media','alta') DESC")
-                     ->orderBy('position')
-                     ->orderBy('id');
+        foreach (self::criteriosOrdenCola() as $criterio) {
+            ($criterio['orderBy'])($query);
+        }
+
+        return $query;
+    }
+
+    /**
+     * #890 (Torre fase 6) — ÚNICA fuente del criterio de orden de la cola ejecutable: cada entrada
+     * trae su SQL (consumido por `scopeOrdenCola`, arriba) Y su lectura humana (consumida por
+     * `explicarOrdenCola`, abajo). Antes la Torre mostraba una frase escrita a mano
+     * ("urgente → prioridad → antigüedad") que podía desincronizarse del `ORDER BY` real si éste
+     * cambiaba; con esto sólo hay un lugar que editar y las dos salidas se mueven juntas.
+     */
+    public static function criteriosOrdenCola(): array
+    {
+        return [
+            [
+                'label'    => 'urgente',
+                'orderBy'  => fn ($q) => $q->orderByDesc('urgente'),
+                'valor'    => fn (self $i) => $i->urgente ? 1 : 0,
+                'describe' => fn ($v) => $v ? 'está marcado urgente' : 'no está marcado urgente',
+            ],
+            [
+                'label'    => 'por concluirse',
+                'orderBy'  => fn ($q) => $q->orderByRaw(
+                    'CASE WHEN branch IS NOT NULL OR colision_pausada_por IS NOT NULL THEN 0 ELSE 1 END'
+                ),
+                'valor'    => fn (self $i) => ($i->branch || $i->colision_pausada_por) ? 1 : 0,
+                'describe' => fn ($v) => $v
+                    ? 'ya tiene trabajo en curso por concluir (rama abierta o reanudable)'
+                    : 'no tiene trabajo en curso por concluir',
+            ],
+            [
+                'label'    => 'prioridad',
+                'orderBy'  => fn ($q) => $q->orderByRaw("FIELD(priority,'baja','media','alta') DESC"),
+                'valor'    => fn (self $i) => $i->priority ?: 'sin prioridad',
+                'describe' => fn ($v) => 'su prioridad es ' . $v,
+            ],
+            [
+                'label'    => 'antigüedad',
+                'orderBy'  => fn ($q) => $q->orderBy('position')->orderBy('id'),
+                'valor'    => fn (self $i) => $i->position,
+                'describe' => fn ($v) => 'es el que lleva más tiempo esperando su turno',
+            ],
+        ];
+    }
+
+    /**
+     * #890 — Frase que explica por qué el PRIMER item de `$items` (ya ordenados con `ordenCola()`)
+     * va primero. Recorre `criteriosOrdenCola()` EN ORDEN y usa el primer criterio en el que el
+     * primero difiere del resto — es justo el que decidió su lugar. Si el criterio de arriba
+     * cambia (se agrega, se quita o se reordena una entrada), esta frase cambia sola: no hay
+     * texto aparte que actualizar.
+     */
+    public static function explicarOrdenCola(iterable $items): string
+    {
+        $criterios = self::criteriosOrdenCola();
+        $orden     = implode(' → ', array_column($criterios, 'label'));
+        $items     = collect($items)->values();
+
+        if ($items->count() < 2) {
+            return "Orden: {$orden}.";
+        }
+
+        $primero = $items->first();
+        $resto   = $items->slice(1);
+
+        foreach ($criterios as $c) {
+            $valorPrimero = ($c['valor'])($primero);
+            if ($resto->contains(fn (self $i) => ($c['valor'])($i) !== $valorPrimero)) {
+                return "Orden: {$orden}. El #{$primero->id} va primero porque "
+                    . ($c['describe'])($valorPrimero) . ' y los demás no.';
+            }
+        }
+
+        return "Orden: {$orden}. El #{$primero->id} va primero (empata en todos los criterios con los demás).";
     }
 
     /**

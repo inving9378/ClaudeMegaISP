@@ -53,6 +53,20 @@ class RoadmapController extends Controller
         'created_at', 'updated_at',
     ];
 
+    // #890 (Torre fase 6) — MISMA lista que `RoadmapItem::COLUMNAS_COMPACT` (la usa `$this->svc->
+    // compact()` + sus accesors `estacion`/`estado_cola`/`tieneConsultaViva()`: si a una fila le
+    // faltara una de esas columnas, el accessor la leería como `null` y calcularía mal, en
+    // silencio) + `colision_pausada_por`/`position` (los lee `RoadmapItem::criteriosOrdenCola()`
+    // para `explicarOrdenCola()`) + `eta_minutos` (lo pinta la tarjeta). Mismo motivo que las listas
+    // de arriba: proyección explícita, nunca `SELECT *` en una consulta ORDENADA.
+    private const COLUMNAS_COLA = [
+        'id', 'title', 'modulo', 'status', 'priority', 'urgente', 'nivel_riesgo', 'estado_aprobacion',
+        'worker_sid', 'origen_item_id', 'branch', 'archivado_at', 'en_desarrollo_humano',
+        'esperando_merge_irving', 'origen_bloqueo', 'opcion_elegida',
+        'consulta_supervisor_at', 'consulta_resuelta_at',
+        'colision_pausada_por', 'position', 'eta_minutos',
+    ];
+
     // #880 — Épica #874 Fase 2 ("por qué no avanza"): solo lo que `porQueNoAvanza()` y el mapeo de
     // abajo leen. Mismo motivo que las listas de arriba (#878/#864): `ORDER BY ... LIMIT` con
     // `SELECT *` sobre la fila ancha revienta "Out of sort memory".
@@ -154,6 +168,76 @@ class RoadmapController extends Controller
             'ok'       => true,
             'cambios'  => $diff,
             'politica' => app(\App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy::class)->panorama(),
+        ]);
+    }
+
+    /**
+     * #890 (Torre fase 6) — GET la cola ejecutable REAL (solo lectura): el orden exacto en que
+     * `RoadmapCircuitoService::ejecutablesParalelo()` va a tomar el trabajo (`RoadmapItem::
+     * despachable()->ordenCola()`, la MISMA consulta que usa el reclamo — no una copia), la frase
+     * que lo explica (`explicarOrdenCola()`, generada del criterio real) y los aprobados que NO se
+     * despachan, cada uno con su causa (`motivoNoDespachable()`).
+     *
+     * No toca el despacho ni el reparto: sólo los LEE. `torre.cola.ver` — informacion interna del
+     * circuito, no de negocio, restringida a super-administrator + DESARROLLADOR (ver la migración).
+     */
+    public function torreCola(): JsonResponse
+    {
+        $this->authorize('torre.cola.ver');
+
+        $this->bloquesFallidos = [];
+
+        $cola = $this->bloque('cola_real', fn () => RoadmapItem::query()
+            ->despachable()->ordenCola()->limit(50)->get(self::COLUMNAS_COLA), collect());
+
+        $frase = $this->bloque('cola_real_frase', fn () => RoadmapItem::explicarOrdenCola($cola), '');
+
+        // Excluidos = items que YA pasaron por una aprobación (irving/claude/revisor, o A en revisión)
+        // pero que hoy NO califican en `despachable()` — el "¿por qué no está el mío?" real. La causa
+        // sale de `motivoNoDespachable()`, la MISMA traducción que usa el guard de re-aprobación: no
+        // hay una segunda lista de frenos que mantener sincronizada con ésta.
+        $excluidos = $this->bloque('cola_excluidos', function () {
+            $despachablesIds = RoadmapItem::query()->despachable()->pluck('id');
+
+            $candidatosIds = RoadmapItem::query()
+                ->whereNull('archivado_at')
+                ->whereNotIn('status', ['done'])
+                ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
+                ->where(function ($w) {
+                    $w->whereIn('estado_aprobacion', ['aprobado_irving', 'aprobado_claude', 'aprobado_revisor'])
+                      ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
+                })
+                ->whereNotIn('id', $despachablesIds)
+                ->orderBy('id')
+                ->limit(50)
+                ->pluck('id');
+
+            // #878 — misma cautela que `hidratarEnOrden`: ids primero (proyección angosta), fila
+            // completa DESPUÉS sin `ORDER BY` (aquí `motivoNoDespachable()` necesita el modelo entero).
+            return RoadmapItem::query()->whereIn('id', $candidatosIds)->get()
+                ->sortBy('id')->values()
+                ->map(function (RoadmapItem $i) {
+                    $motivo = $i->motivoNoDespachable();
+
+                    return [
+                        'id'                => $i->id,
+                        'title'             => $i->title,
+                        'modulo'            => $i->modulo,
+                        'nivel_riesgo'      => $i->nivel_riesgo,
+                        'estado_aprobacion' => $i->estado_aprobacion,
+                        'causa'             => $motivo['error'] ?? 'No calificó para el despacho automático.',
+                        'accion'            => $motivo['accion'] ?? null,
+                    ];
+                });
+        }, collect());
+
+        return response()->json([
+            'ok'             => true,
+            'reparto_activo' => ! $this->svc->isPaused(),
+            'cola'           => $cola->map(fn (RoadmapItem $i) => $this->svc->compact($i))->values(),
+            'orden_frase'    => $frase,
+            'excluidos'      => $excluidos->values(),
+            'bloques_fallidos' => $this->bloquesFallidos,
         ]);
     }
 

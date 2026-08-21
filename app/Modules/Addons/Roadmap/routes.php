@@ -105,6 +105,9 @@ Route::middleware(['web', 'auth'])
         // ponerla allá cruzaría la frontera de módulos por una ruta cosmética.
         Route::get('/torre/config',        [RoadmapController::class, 'torreConfig']);
         Route::post('/torre/config',       [RoadmapController::class, 'torreConfigGuardar']);
+        // #890 (Torre fase 6) — cola ejecutable REAL: orden exacto de despacho + excluidos con
+        // causa. Solo lectura (`torre.cola.ver`, self-authorized dentro del controller).
+        Route::get('/torre/cola',          [RoadmapController::class, 'torreCola']);
         Route::post('/item/{id}/override', [RoadmapController::class, 'itemOverride'])->whereNumber('id');
         // Estado en vivo ligero para el polling de la Torre (#335).
         Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);
