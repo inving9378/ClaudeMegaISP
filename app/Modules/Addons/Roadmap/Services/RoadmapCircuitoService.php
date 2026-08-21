@@ -364,6 +364,12 @@ class RoadmapCircuitoService
         if (! is_array($cfg)) {
             return;   // no es un proceso vigilado
         }
+
+        // Item #875 — el latido POR CORRIDA (historial), independiente de si esta corrida en
+        // particular cuenta como la "beat" oficial (dry-run/opciones excluidas más abajo SÍ
+        // corrieron y terminaron bien; el pulso lo refleja, aunque no mueva la beat).
+        $this->registrarPulso($comando, true, null);
+
         if (($cfg['formato'] ?? 'datetime') === 'unix') {
             return;   // ese proceso sella su propio latido (no duplicar el reloj)
         }
@@ -408,6 +414,10 @@ class RoadmapCircuitoService
             return;   // no es un proceso vigilado
         }
 
+        // Item #875 — el latido POR CORRIDA (historial). Mismo bloque que ya traga la excepción
+        // del motor (eso no cambia); esto sólo deja constancia del fallo.
+        $this->registrarPulso($comando, false, $error);
+
         $this->putSetting(
             self::FALLO_PREFIJO . str_replace(':', '_', $comando),
             json_encode(['ts' => now()->toDateTimeString(), 'error' => mb_strimwidth($error, 0, 400, '…')],
@@ -419,6 +429,56 @@ class RoadmapCircuitoService
     public function limpiarFallo(string $comando): void
     {
         DB::table('settings')->where('key', self::FALLO_PREFIJO . str_replace(':', '_', $comando))->delete();
+    }
+
+    /** Pila de inicios (microtime) por comando — vive solo mientras dura el proceso PHP; sirve
+     *  para calcular `duracion_ms` del pulso aunque el comando corra anidado (`Artisan::call()`). */
+    private static array $motorInicios = [];
+
+    /**
+     * Item #875 — sella el INICIO de un motor vigilado. Lo llama UN listener de `CommandStarting`
+     * (ver `ModuleServiceProvider`), simétrico al de `CommandFinished` que ya sella el latido.
+     */
+    public function marcarInicioMotor(string $comando): void
+    {
+        if (! is_array(config('circuito.procesos_programados.' . $comando))) {
+            return;   // no es un proceso vigilado
+        }
+        self::$motorInicios[$comando][] = microtime(true);
+    }
+
+    /**
+     * Item #875 — el latido POR CORRIDA: una fila en `circuito_motor_pulsos` por cada intento de
+     * un motor vigilado (ok o fallo). Complementa al latido de #808 (que sólo guarda el ÚLTIMO
+     * estado): esto es el HISTORIAL, para que el semáforo de la Torre pueda mostrar "última
+     * ejecución exitosa" como un hecho con evidencia, no un flag `enabled`.
+     *
+     * Se llama desde `sellarLatido`/`sellarFallo` — el MISMO bloque que hoy traga la excepción del
+     * motor (eso sigue siendo correcto y no cambia); esto sólo deja constancia. Nunca lanza.
+     */
+    private function registrarPulso(string $comando, bool $ok, ?string $mensaje): void
+    {
+        try {
+            $inicio = ! empty(self::$motorInicios[$comando]) ? array_pop(self::$motorInicios[$comando]) : null;
+            $fin = microtime(true);
+
+            \App\Modules\Addons\Roadmap\Models\CircuitoMotorPulso::create([
+                'motor'       => $comando,
+                'inicio_at'   => $inicio ? \Illuminate\Support\Carbon::createFromTimestamp($inicio) : now(),
+                'fin_at'      => \Illuminate\Support\Carbon::createFromTimestamp($fin),
+                'ok'          => $ok,
+                'mensaje'     => $mensaje !== null ? mb_strimwidth($mensaje, 0, 2000, '…') : null,
+                'duracion_ms' => $inicio ? (int) round(($fin - $inicio) * 1000) : null,
+            ]);
+
+            // Retención (30 días): purga OPORTUNISTA en vez de un cron propio — ningún ejecutor
+            // on-box puede escribir el crontab del SO (#808), así que no depende de una línea nueva.
+            if (random_int(1, 200) === 1) {
+                \App\Modules\Addons\Roadmap\Models\CircuitoMotorPulso::where('inicio_at', '<', now()->subDays(30))->delete();
+            }
+        } catch (\Throwable) {
+            // El registro jamás puede tumbar al comando que acaba de correr.
+        }
     }
 
     /**
