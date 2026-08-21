@@ -40,6 +40,12 @@ class AuditorService
     private const SETTING_ULTIMA_CORRIDA = 'circuito_auditor_ultima_corrida';
     private const SETTING_ULTIMO_REPORTE = 'circuito_auditor_ultimo_reporte';
 
+    /** #1015 — memoria de cobertura por módulo (JSON: {modulo: {ultima_auditoria_at, nuevos}}). */
+    private const SETTING_COBERTURA = 'circuito_auditor_cobertura_modulos';
+
+    /** #1015 — corridas EN VIVO seguidas con 0 nuevos en TODO el ciclo (fuente "código"). */
+    private const SETTING_RACHA_SECA = 'circuito_auditor_racha_seca';
+
     /** Cache por-request del índice de rutas registradas. */
     private ?array $indiceRutas = null;
 
@@ -120,8 +126,9 @@ class AuditorService
         $cola   = $this->profundidadCola();
         $slots  = $this->slotsLibres();
         $umbral = (int) config('circuito.auditor.umbral_cola', 3);
+        $racha  = $this->rachaSeca();
 
-        $base = ['cola' => $cola, 'slots_libres' => $slots, 'umbral' => $umbral];
+        $base = ['cola' => $cola, 'slots_libres' => $slots, 'umbral' => $umbral, 'racha_seca' => $racha];
 
         if (! $this->habilitado()) {
             return $base + ['corre' => false, 'motivo' => 'Motor APAGADO (auditor_activo = false en Torre → Configuración).'];
@@ -133,12 +140,16 @@ class AuditorService
             return $base + ['corre' => true, 'motivo' => 'Forzado (--forzar): se ignoran umbral e intervalo.'];
         }
 
-        $intervalo = $this->torreConfig->get()->auditor_cooldown_min;
+        $base_min  = (int) $this->torreConfig->get()->auditor_cooldown_min;
+        $intervalo = $this->intervaloEfectivo($base_min, $racha);
         $ultima    = $this->ultimaCorrida();
         if ($ultima !== null && (time() - $ultima) < $intervalo * 60) {
-            $faltan = (int) ceil(($intervalo * 60 - (time() - $ultima)) / 60);
+            $faltan  = (int) ceil(($intervalo * 60 - (time() - $ultima)) / 60);
+            $sequia  = $intervalo > $base_min
+                ? " (alargado por sequía: {$racha} corrida(s) seguidas sin hallazgos nuevos, base {$base_min} min)"
+                : '';
 
-            return $base + ['corre' => false, 'motivo' => "Escaneado hace poco: faltan ~{$faltan} min para el próximo (intervalo {$intervalo} min)."];
+            return $base + ['corre' => false, 'motivo' => "Escaneado hace poco: faltan ~{$faltan} min para el próximo (intervalo {$intervalo} min{$sequia})."];
         }
 
         if ($cola >= $umbral) {
@@ -146,6 +157,33 @@ class AuditorService
         }
 
         return $base + ['corre' => true, 'motivo' => "Cola en {$cola} (< umbral {$umbral}) con {$slots} terminal(es) libre(s)."];
+    }
+
+    /**
+     * #1015 — corridas EN VIVO (ciclo completo, no `--modulo`) seguidas con 0 nuevos en TODO el
+     * ciclo. Se resetea a 0 en cuanto una corrida encuentra algo — el backoff es sólo mientras la
+     * fuente de código está de verdad agotada.
+     */
+    public function rachaSeca(): int
+    {
+        $v = DB::table('settings')->where('key', self::SETTING_RACHA_SECA)->value('value');
+
+        return $v === null ? 0 : (int) $v;
+    }
+
+    /** Intervalo real a usar, alargado (backoff lineal, con techo) si la sequía cruzó el umbral. */
+    private function intervaloEfectivo(int $base, int $racha): int
+    {
+        $umbral = (int) config('circuito.auditor.sequia.racha_umbral', 3);
+        if ($racha < $umbral) {
+            return $base;
+        }
+
+        $incremento = (int) config('circuito.auditor.sequia.incremento_minutos', 15);
+        $max        = (int) config('circuito.auditor.sequia.intervalo_max_minutos', 120);
+        $exceso     = $racha - $umbral + 1;
+
+        return min($max, $base + $exceso * $incremento);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -159,9 +197,10 @@ class AuditorService
      */
     public function modulosAAuditar(): array
     {
-        $c        = (array) config('circuito.auditor.carriles', []);
-        $excluir  = array_map('mb_strtolower', (array) config('circuito.auditor.excluir_modulos', []));
-        $ordenado = array_merge((array) ($c['paralelo'] ?? []), (array) ($c['serializado'] ?? []));
+        $c          = (array) config('circuito.auditor.carriles', []);
+        $excluir    = array_map('mb_strtolower', (array) config('circuito.auditor.excluir_modulos', []));
+        $serializado = (array) ($c['serializado'] ?? []);
+        $ordenado   = array_merge((array) ($c['paralelo'] ?? []), $serializado);
 
         $modulos = array_values(array_filter(
             array_unique($ordenado),
@@ -183,7 +222,50 @@ class AuditorService
             }
         }
 
+        // #1015 — MEMORIA DE COBERTURA: dentro de cada carril (el carril sigue mandando — la base
+        // acoplada sigue yendo siempre después de la paralela, esa propiedad no se toca), prioriza
+        // los módulos NUNCA auditados y luego los de auditoría más VIEJA, en vez de recorrer
+        // siempre la lista en el mismo orden fijo. `usort` es estable desde PHP 8.0: sin cobertura
+        // registrada (recién desplegado), el orden de config se conserva tal cual.
+        $cobertura = $this->cobertura();
+        $esSerial  = array_flip(array_map('mb_strtolower', $serializado));
+        $carrilDe  = fn (string $m) => isset($esSerial[mb_strtolower($m)]) ? 1 : 0;
+        $ultimaDe  = fn (string $m) => $cobertura[$m]['ultima_auditoria_at'] ?? null;
+
+        usort($modulos, function (string $a, string $b) use ($carrilDe, $ultimaDe) {
+            $ca = $carrilDe($a);
+            $cb = $carrilDe($b);
+            if ($ca !== $cb) {
+                return $ca <=> $cb;
+            }
+            $ua = $ultimaDe($a);
+            $ub = $ultimaDe($b);
+            if ($ua === $ub) {
+                return 0;
+            }
+            if ($ua === null) {
+                return -1;   // nunca auditado → primero
+            }
+            if ($ub === null) {
+                return 1;
+            }
+
+            return $ua <=> $ub;   // ISO8601: orden lexicográfico = orden temporal
+        });
+
         return $modulos;
+    }
+
+    /** #1015 — mapa `modulo => {ultima_auditoria_at, nuevos}` persistido en `settings`. */
+    public function cobertura(): array
+    {
+        $raw = DB::table('settings')->where('key', self::SETTING_COBERTURA)->value('value');
+        if (! $raw) {
+            return [];
+        }
+        $d = json_decode((string) $raw, true);
+
+        return is_array($d) ? $d : [];
     }
 
     /** ¿El módulo está en su DoD de Fase 1? = sin gaps MECÁNICOS detectables. */
@@ -1281,6 +1363,28 @@ class AuditorService
                 ['key' => self::SETTING_ULTIMA_CORRIDA],
                 ['value' => (string) time(), 'updated_at' => now()]
             );
+
+            // #1015 — memoria de cobertura: cada módulo que de verdad se escaneó esta corrida
+            // queda con su timestamp actualizado (así deja de ser "el más viejo" la próxima vez).
+            $cobertura = $this->cobertura();
+            foreach ($resumen as $m => $s) {
+                $cobertura[$m] = ['ultima_auditoria_at' => now()->toIso8601String(), 'nuevos' => $s['nuevos']];
+            }
+            DB::table('settings')->updateOrInsert(
+                ['key' => self::SETTING_COBERTURA],
+                ['value' => json_encode($cobertura, JSON_UNESCAPED_UNICODE), 'updated_at' => now()]
+            );
+
+            // #1015 — freno por sequía: SOLO sobre el ciclo COMPLETO (sin `--modulo`), porque un
+            // escaneo parcial de un único módulo no dice nada sobre si la fuente de código en
+            // general está agotada.
+            if ($soloModulo === null) {
+                $totalNuevos = array_sum(array_column($resumen, 'nuevos'));
+                DB::table('settings')->updateOrInsert(
+                    ['key' => self::SETTING_RACHA_SECA],
+                    ['value' => (string) ($totalNuevos > 0 ? 0 : $this->rachaSeca() + 1), 'updated_at' => now()]
+                );
+            }
         }
 
         $reporte = [
@@ -1290,6 +1394,7 @@ class AuditorService
             'candidatos' => count($elegidos),
             'creados'   => $creados,
             'por_modulo' => $resumen,
+            'racha_seca' => $this->rachaSeca(),   // #1015 — visible sin tocar UI, ver comentario abajo
         ];
 
         // Reporte VISIBLE sin tocar UI: queda en `settings` (la Torre ya lee de ahí) y en el log
