@@ -825,7 +825,10 @@ class RoadmapItem extends Model
           // #921 — un item AGENDADO a futuro no es trabajo pendiente: fuera del pool hasta su fecha,
           // SIN usar `excluir_pool_automatico` (ese es el master switch de otros 6 mecanismos).
           // `circuito:reactivar-agendados` (diario) limpia el campo cuando la fecha ya pasó.
-          ->where(fn ($x) => $x->whereNull('agendado_para')->orWhere('agendado_para', '<=', now()))
+          // `NOW()` en SQL crudo (no un binding de `now()` en PHP): el scope y el candado atómico
+          // se compilan en dos llamadas independientes a este método (ver PoolGuardCoherenceTest),
+          // y dos `now()` de PHP a milisegundos de distancia ya NO son el mismo binding.
+          ->where(fn ($x) => $x->whereNull('agendado_para')->orWhereRaw('agendado_para <= NOW()'))
           // FASE 2A.3 — sólo frena el freno HUMANO. `origen_bloqueo='clasificador'` NO frena: el
           // triaje automático de riesgo aconseja, no detiene (decisión de Irving 2026-08-18).
           // Incluye el fallback legacy del rótulo en el título, que se retira cuando
