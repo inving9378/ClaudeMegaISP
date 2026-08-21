@@ -1444,6 +1444,34 @@ return [
         //
     ],
 
+    // core-documentos (item #839) — granulares nuevos, en paralelo al legado
+    // config_view_system de arriba (fallback OR: cualquiera de los dos abre la
+    // ruta). Mismos paths de document_template/document_type_template, partidos
+    // por acción CRUD. NO quitar config_view_system de esos paths todavía.
+    'documentos.view' => [
+        '/administracion/document_template',
+        '/administracion/document_template/table',
+        '/administracion/document_template/load_content_template',
+        '/administracion/document_template/show_content_template',
+        '/administracion/document_template/get_variables',
+        '/administracion/document_template/get_data_template/{id}',
+        '/administracion/document_type_template',
+        '/administracion/document_type_template/table',
+    ],
+    'documentos.create' => [
+        '/administracion/document_template/add',
+        '/administracion/document_type_template/add',
+    ],
+    'documentos.edit' => [
+        '/administracion/document_template/update/{id}',
+        '/administracion/document_type_template/editar/{id}',
+        '/administracion/document_type_template/update/{id}',
+    ],
+    'documentos.delete' => [
+        '/administracion/document_template/destroy/{id}',
+        '/administracion/document_type_template/destroy/{id}',
+    ],
+
     //Principal
     'config_view_main' => [],
     //Finanzas
