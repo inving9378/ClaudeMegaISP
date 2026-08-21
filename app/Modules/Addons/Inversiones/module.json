@@ -1,0 +1,56 @@
+{
+    "id": 240,
+    "slug": "addon-inversiones",
+    "name": "Inversiones",
+    "version": "0.1.0",
+    "description": "Plataforma personal de inversión automatizada en paper trading: ingesta de datos, motor de estrategias, backtesting honesto y motor de riesgo parametrizable. Fase 1 — uso interno, sin dinero real.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "permissions": [
+        {
+            "name": "inversiones.view",
+            "description": "Ver dashboard, portafolios, posiciones, órdenes y bitácoras de Inversiones"
+        },
+        {
+            "name": "inversiones.manage",
+            "description": "Gestionar portafolios (kill-switch, estado) de Inversiones"
+        },
+        {
+            "name": "inversiones.riesgo.edit",
+            "description": "Editar el perfil de riesgo de un portafolio de Inversiones"
+        },
+        {
+            "name": "inversiones.backtest",
+            "description": "Lanzar y consultar backtests de estrategias"
+        },
+        {
+            "name": "inversiones.operar",
+            "description": "Operar en paper trading (Fase 1: nunca dinero real)"
+        },
+        {
+            "name": "inversiones.thomas.view",
+            "description": "Ver la bitácora de decisiones de Thomas (rearmes/escalados)"
+        }
+    ],
+    "menu": [
+        {
+            "label": "Inversiones",
+            "icon": "trending-up",
+            "permission": "inversiones.view",
+            "url": "/inversiones"
+        }
+    ],
+    "admin_cards": [
+        {
+            "title": "Inversiones",
+            "description": "Plataforma personal de inversión automatizada en paper trading (Fase 1).",
+            "icon": "trending-up",
+            "url": "/inversiones",
+            "permission": "inversiones.view"
+        }
+    ],
+    "sidebar": {
+        "location": "main"
+    }
+}

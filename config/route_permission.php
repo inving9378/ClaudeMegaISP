@@ -2370,4 +2370,12 @@ return [
         '/api/megafamilia/**',
     ],
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Inversiones (addon-inversiones) — Fase 1, item roadmap #596
+    // ══════════════════════════════════════════════════════════════════════════
+    'inversiones.view' => [
+        '/inversiones',
+        '/inversiones/**',
+    ],
+
 ];
