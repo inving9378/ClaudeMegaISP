@@ -83,6 +83,8 @@ class RoadmapItem extends Model
         // #507 anti-bucle — parqueo de items que YA no son ejecutables por un worker
         'excluir_pool_automatico', 'decision_resuelta', 'requiere_sesion_supervisada',
         'bloqueado_por_bucle', 'motivo_bloqueo', 'escalaciones_fingerprint', 'esperando_merge_irving',
+        // #921 — fecha futura de reactivación (independiente de excluir_pool_automatico)
+        'agendado_para',
         // FASE 2A.3 — quién puso el freno (humano FRENA / clasificador INFORMA) y hasta cuándo
         'origen_bloqueo', 'bloqueo_expira_en', 'bloqueo_renovaciones',
         // TORRE V2 — canal de consulta terminal → Thomas (autoridad intermedia antes de Irving)
@@ -127,6 +129,7 @@ class RoadmapItem extends Model
         'requiere_sesion_supervisada' => 'boolean',
         'bloqueado_por_bucle'         => 'boolean',
         'esperando_merge_irving'      => 'boolean',
+        'agendado_para'               => 'datetime',
         'frontera_valvula_at'         => 'datetime',
         'escalaciones_fingerprint'    => 'array',
         // FASE 2A.3
@@ -788,6 +791,16 @@ class RoadmapItem extends Model
     }
 
     /**
+     * #921 — items con fecha futura de reactivación. Para el contador "N items agendados" de la
+     * Torre; los que ya pasaron su fecha los limpia `circuito:reactivar-agendados` (el campo vuelve
+     * a null), así que "agendado" aquí siempre significa "todavía espera su fecha".
+     */
+    public function scopeAgendados($query)
+    {
+        return $query->whereNotNull('agendado_para');
+    }
+
+    /**
      * FASE 2A.5 — DEFINICIÓN ÚNICA del predicado de elegibilidad para el pool, en SQL.
      *
      * Existe para que el scope de Eloquent y el CANDADO ATÓMICO del reclamo
@@ -809,6 +822,13 @@ class RoadmapItem extends Model
     {
         $q->where(fn ($x) => $x->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
           ->where(fn ($x) => $x->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
+          // #921 — un item AGENDADO a futuro no es trabajo pendiente: fuera del pool hasta su fecha,
+          // SIN usar `excluir_pool_automatico` (ese es el master switch de otros 6 mecanismos).
+          // `circuito:reactivar-agendados` (diario) limpia el campo cuando la fecha ya pasó.
+          // `NOW()` en SQL crudo (no un binding de `now()` en PHP): el scope y el candado atómico
+          // se compilan en dos llamadas independientes a este método (ver PoolGuardCoherenceTest),
+          // y dos `now()` de PHP a milisegundos de distancia ya NO son el mismo binding.
+          ->where(fn ($x) => $x->whereNull('agendado_para')->orWhereRaw('agendado_para <= NOW()'))
           // FASE 2A.3 — sólo frena el freno HUMANO. `origen_bloqueo='clasificador'` NO frena: el
           // triaje automático de riesgo aconseja, no detiene (decisión de Irving 2026-08-18).
           // Incluye el fallback legacy del rótulo en el título, que se retira cuando
@@ -919,6 +939,12 @@ class RoadmapItem extends Model
             return ['code' => 'esperando_merge', 'accion' => 'mergear',
                 'error' => 'Este item YA está terminado y sólo espera tu merge — aprobarlo otra vez no lo mueve. '
                     . 'Usa «Mergear» (o circuito:integrar --force).'];
+        }
+
+        if ($this->agendado_para && $this->agendado_para->isFuture()) {
+            return ['code' => 'agendado', 'accion' => 'esperar_fecha',
+                'error' => 'Item agendado para el ' . $this->agendado_para->toDateTimeString()
+                    . ': no es trabajo pendiente todavía. `circuito:reactivar-agendados` lo devuelve al pool solo, en su fecha.'];
         }
 
         if ($this->bloqueado_por_bucle) {
