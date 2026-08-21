@@ -1356,3 +1356,36 @@ altera el resto de columnas. `php -l` limpio, `php artisan --version` bootea, ru
 runner on-box → `main`). `enlace_revision` = `/roadmap/item/982` (hoy sin cambio visual: el front
 ya sabe pintar `item.diagnostico` pero no hay nada que mostrar hasta que #980/#981 existan). #935
 sigue abierto como paraguas hasta que esos dos sub-items aterricen — no se fuerza su cierre.
+
+## 2026-08-21 13:44 — Item #948 cerrado sin código: duplicaba el fix ya hecho por #967
+
+**Item #948** ("Bucle #463: evaluarYaDecidido() re-encola items bloqueados por dependencia externa
+no resuelta — ThomasService.php:464") fue creado 2026-08-20 18:54 como sub-item de seguimiento de
+#463, describiendo la causa raíz del bucle de 22+ ejecuciones idénticas de #463 (Thomas re-aprobaba
+el item aunque la acción física que implicaba su decisión —mergear #308— nunca había ocurrido).
+
+**Hallazgo al ejecutar:** ese MISMO bug ya había sido diagnosticado y arreglado por otro item paralelo,
+**#967** ("Anti-bucle de Thomas: 'brief contestado' no distingue decisión tomada de decisión EJECUTADA
+— caso #463↔#308"), mergeado a main **2026-08-20 20:00:24** (commit `db50e173`) — ANTES de que Irving
+aprobara #948 (2026-08-21 13:41:39). El fix real vive en `ThomasService.php` líneas 512-533
+(`referenciasItemEnTexto()` + guard: si la pregunta maestra ya contestada menciona "#N" y N es nivel C
+con rama lista pero sin `merge_commit`, no aprueba) con tests `EvaluarYaDecididoEscalarTest` y
+`ReferenciasItemEnTextoTest` en verde.
+
+**Verificación (read-only, sin tocar código):**
+- `git log -S "referenciasItemEnTexto"` → commit `db50e173` (#967) ya en el árbol de `main`.
+- Item #967 en BD: `estado_aprobacion=completado`, `merge_commit=837cb756...`.
+- Historial de #463: última entrada de log **2026-08-20 19:56:04**, ~24h sin recurrencia desde el
+  merge de #967 (antes se repetía cada 5-10 min) → el fix real ya cortó el bucle.
+- `php artisan test --filter=ReferenciasItemEnTextoTest` → 5/5 en verde.
+
+**Decisión (consultada a Thomas, `circuito:consultar`, exit 0 PROCEDE):** no implementar el guard
+adicional "esperando_dependencia" (estado nuevo) que Irving había elegido en el brief de #948 —
+sería sobre-ingeniería para un caso que el fix de #967 ya resuelve y tiene verificado sin regresión.
+Cerrado #948 como `completado` sin cambios de código, con `reporte_coloquial`/`enlace_revision`
+apuntando al mismo lugar que #967 (`/releases` → Hoja de Ruta → item #463, y item #967 como el fix
+real). `#463` sigue como el item de seguimiento original; no requiere acción adicional.
+
+**Para el próximo:** si aparece un caso de este bucle que el guard de #967 NO cubra (dependencia
+fraseada distinto a "#N", o dependencia que no sea "nivel C sin merge_commit"), ahí sí evaluar el
+estado nuevo "esperando_dependencia" más general — pero no antes de tener ese caso real.
