@@ -350,10 +350,14 @@
               <div v-if="c.resultado_esperado"><span class="tc-val-k">Resultado esperado</span>{{ c.resultado_esperado }}</div>
               <div v-if="c.que_no_se_toco"><span class="tc-val-k">Qué no se tocó</span>{{ c.que_no_se_toco }}</div>
               <div><span class="tc-val-k">Riesgo</span>{{ c.riesgo }}</div>
-              <div><span class="tc-val-k">Integrado</span>{{ rel(c.integrado_at) }}<span v-if="c.merge_commit"> · {{ c.merge_commit.slice(0,10) }}</span></div>
+              <!-- #1003 §6 — "Integrado" solo si de verdad pasó por un merge de rama (hay commit); si
+                   se cerró por commit directo (sin rama), decirlo como "Cerrado" evita que se lea como
+                   contradicción con el badge "sin mergear" de Integración de ramas. -->
+              <div><span class="tc-val-k">{{ c.merge_commit ? 'Integrado' : 'Cerrado' }}</span>{{ rel(c.integrado_at) }}<span v-if="c.merge_commit"> · {{ c.merge_commit.slice(0,10) }}</span></div>
             </div>
             <div class="tc-val-actions">
-              <button class="tc-btn tc-btn-ver" @click="abrirYProbar(c)">🔎 Abrir y probar</button>
+              <button v-if="c.enlace_probar" class="tc-btn tc-btn-ver" @click="abrirYProbar(c)">🔎 Abrir y probar</button>
+              <span v-else class="tc-meta" title="No se identificó una pantalla real para este cambio (sin enlace_revision ni módulo con URL registrada)">🚫 Sin pantalla identificada</span>
               <button class="tc-btn tc-btn-ok" :disabled="valBusy === c.id" @click="validarFunciona(c)">✓ Funciona correctamente</button>
               <button class="tc-btn tc-btn-warn" :disabled="valBusy === c.id" @click="reportarProblema(c)">⚠ Reportar problema</button>
             </div>
@@ -1284,7 +1288,11 @@ export default {
 
         // FASE 1 — Validación funcional por Irving.
         function abrirYProbar(c) {
-            window.open(c.enlace_probar || ('/roadmap/item/' + c.id), '_blank', 'noopener');
+            // #1003 — ya NO cae al ticket (/roadmap/item/N): si no hay pantalla identificada
+            // (c.enlace_probar vacío) el botón ni se muestra (ver template), así que aquí siempre
+            // debe venir poblado; el guard queda solo por si acaso.
+            if (!c.enlace_probar) return;
+            window.open(c.enlace_probar, '_blank', 'noopener');
         }
         async function validarFunciona(c) {
             if (valBusy.value) return;

@@ -2149,6 +2149,14 @@ class RoadmapController extends Controller
     {
         $b = is_array($i->validacion_brief) ? $i->validacion_brief : [];
 
+        // #1003 — "Abrir y probar" debe abrir la pantalla REAL, no el ticket. Orden de fiabilidad:
+        // 1) lo declaró el ejecutor al cerrar (enlace_revision, #432); 2) respaldo por módulo
+        // (module_sidebar_config, ya alimentado desde module.json). Si ninguno resuelve, no hay
+        // pantalla identificable: sin_ui=true, y el front debe dejar de ofrecer un botón que miente.
+        $moduloUrl    = $this->moduloUrl($i->modulo);
+        $declarado    = trim((string) $i->enlace_revision);
+        $enlaceProbar = $declarado !== '' ? $declarado : $moduloUrl;
+
         return [
             'id'                 => $i->id,
             'title'              => $i->title,
@@ -2162,8 +2170,9 @@ class RoadmapController extends Controller
             'riesgo'             => $b['riesgo']             ?? ('nivel ' . ($i->nivel_riesgo ?: '—')),
             'integrado_at'       => $b['integrado_at']       ?? optional($i->updated_at)->toIso8601String(),
             'merge_commit'       => $i->merge_commit,
-            'enlace_probar'      => '/roadmap/item/' . $i->id,   // "Abrir y probar" → detalle real read-only
-            'modulo_url'         => $this->moduloUrl($i->modulo),
+            'enlace_probar'      => $enlaceProbar,   // null → sin pantalla identificable (ver sin_ui)
+            'sin_ui'             => $enlaceProbar === null,
+            'modulo_url'         => $moduloUrl,
         ];
     }
 
