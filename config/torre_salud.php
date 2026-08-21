@@ -1,10 +1,10 @@
 <?php
 
 /**
- * Item #891 — "Consola fase 7: Salud del entorno". Umbrales y rutas para el panel
- * de salud que reemplaza el SSH manual (certificado, disco, migraciones, jobs
- * fallidos, respaldos, errores agrupados). `env()` aquí es correcto: este archivo
- * vive en config/ y se evalúa al construir la caché (ver config:auditar-env, #790).
+ * Item #891 (+ #884, mismo panel) — "Salud del entorno". Umbrales y rutas para el panel
+ * que reemplaza el SSH manual (certificado, disco, migraciones, jobs fallidos, respaldos,
+ * errores agrupados, cron schedule:run, queue workers). `env()` aquí es correcto: este
+ * archivo vive en config/ y se evalúa al construir la caché (ver config:auditar-env, #790).
  */
 return [
 
@@ -22,5 +22,7 @@ return [
         'jobs_fallidos' => ['rojo_cantidad' => 10, 'rojo_horas' => 24],
         'respaldo'     => ['amarillo_horas' => 36, 'rojo_horas' => 72],
         'errores_24h'  => ['amarillo' => 50, 'rojo' => 500],
+        // #884 — mínimo de procesos `artisan queue:work` esperados corriendo (ver deploy/megaisp-queue.conf: 2 workers).
+        'queue_workers' => ['minimo_esperado' => (int) env('TORRE_SALUD_QUEUE_WORKERS_MIN', 1)],
     ],
 ];

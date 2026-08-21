@@ -55,6 +55,8 @@ class EnvironmentHealthService
             'errores_24h'      => $this->seguro('errores_24h', fn () => $this->errores24h()),
             'caches'           => $this->seguro('caches', fn () => $this->estadoCaches()),
             'reactivacion_agendados' => $this->seguro('reactivacion_agendados', fn () => $this->reactivacionAgendados()),
+            'cron_schedule_run' => $this->seguro('cron_schedule_run', fn () => $this->cronScheduleRun()),
+            'queue_workers'    => $this->seguro('queue_workers', fn () => $this->queueWorkers()),
             'generado_at'      => now()->toIso8601String(),
         ];
     }
@@ -327,6 +329,73 @@ class EnvironmentHealthService
             'hace_horas'    => $proceso['horas'],
             'nunca'         => $proceso['nunca'],
             'ultimo_fallo'  => $proceso['ultimo_fallo'],
+        ];
+    }
+
+    /**
+     * #884 — cron `schedule:run`, hoy solo visible entrando por SSH (`crontab -l`). En DEV está
+     * ausente por diseño (ver CLAUDE.md: "en desarrollo NO hay cron activo"); en PROD debe existir
+     * (`* * * * * cd /var/www/megaisp && php artisan schedule:run`). El endpoint corre bajo el
+     * usuario del pool PHP-FPM (www-data), que es justo el crontab que importa verificar.
+     */
+    private function cronScheduleRun(): array
+    {
+        $proceso = new \Symfony\Component\Process\Process(['crontab', '-l']);
+        $proceso->setTimeout(5);
+        $proceso->run();
+
+        if (! $proceso->isSuccessful()) {
+            $salida = strtolower(trim($proceso->getOutput() . $proceso->getErrorOutput()));
+
+            // "no crontab for <user>" es una respuesta VÁLIDA (sin archivo), no una falla de lectura.
+            if (Str::contains($salida, 'no crontab')) {
+                return [
+                    'estado' => 'amarillo',
+                    'activo' => false,
+                    'nota'   => 'Sin crontab configurado para este usuario (normal en DEV; requerido en PROD, ver CLAUDE.md).',
+                ];
+            }
+
+            return ['estado' => 'desconocido', 'error' => $salida ?: 'No se pudo leer crontab -l.'];
+        }
+
+        $activo = (bool) preg_match('/schedule:run/', $proceso->getOutput());
+
+        return [
+            'estado' => $activo ? 'verde' : 'amarillo',
+            'activo' => $activo,
+            'nota'   => $activo ? null : 'Sin entrada schedule:run en crontab -l (normal en DEV; requerido en PROD, ver CLAUDE.md).',
+        ];
+    }
+
+    /**
+     * #884 — queue workers de supervisor (`deploy/megaisp-queue.conf`) corriendo. `supervisorctl
+     * status` no es legible sin sudo en este box (verificado: PermissionError sobre el socket XML-RPC
+     * de supervisord, que corre como root) → se cuenta por `ps` los procesos reales `artisan
+     * queue:work`, mismo enfoque que el resto del panel (comandos de SO de solo lectura).
+     */
+    private function queueWorkers(): array
+    {
+        $minimo = (int) config('torre_salud.umbrales.queue_workers.minimo_esperado');
+
+        $proceso = new \Symfony\Component\Process\Process(['ps', '-eo', 'pid,cmd']);
+        $proceso->setTimeout(5);
+        $proceso->run();
+
+        if (! $proceso->isSuccessful()) {
+            return ['estado' => 'desconocido', 'error' => 'No se pudo leer la lista de procesos.'];
+        }
+
+        $lineas = array_filter(
+            explode("\n", $proceso->getOutput()),
+            fn ($linea) => Str::contains($linea, 'artisan queue:work')
+        );
+        $cantidad = count($lineas);
+
+        return [
+            'estado'   => $cantidad >= $minimo ? 'verde' : 'rojo',
+            'cantidad' => $cantidad,
+            'esperado' => $minimo,
         ];
     }
 
