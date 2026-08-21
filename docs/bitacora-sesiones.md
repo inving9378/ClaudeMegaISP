@@ -1421,3 +1421,39 @@ eso quedó como sub-item aparte para su propio triaje con el mismo cuidado (pilo
 
 **Estado:** #979 → `completado` (runbook + tooling listos, ejecución en routers reales queda para
 Irving/NOC). #983 → `pendiente_revision`, esperando triaje del revisor.
+
+## 2026-08-21 14:16 — #949 (wt-1): item paraguas IPv6 atascado en bucle de reap — cerrado correctamente
+
+**Contexto:** el item #949 (IPv6 Fase 1.1-1.3) ya había sido correctamente descompuesto por un
+agente anterior (wt-4) en 3 sub-items con todo el detalle heredado — #984 (registro de módulo
+`Addons/Ipv6` + 8 permisos Spatie), #985 (migraciones incrementales de las 7 tablas) y #986
+(modelos Eloquent con relaciones/casts/scopes). wt-4 reportó el cierre vía `circuito:reportar
+--tipo=cierre`, pero **nunca transicionó `estado_aprobacion`** — el item quedó colgado en
+`en_progreso`. El reaper rápido (`circuito:reap-stuck`) lo detectó como huérfano (slot wt-4 libre)
+y lo re-encoló a `aprobado_revisor`, de donde volvió a ser reclamado (esta vez para mí, wt-1).
+
+**Causa raíz:** `circuito:sub-item` (comando que crea los hijos) no toca el item padre en
+absoluto — solo escribe `origen_item_id` en el hijo. El mecanismo real de "cierre paraguas" vive
+en `RoadmapItem::booted()` (guard `saving()`, ~línea 286-311): SOLO se activa cuando algo intenta
+poner `estado_aprobacion=completado` en un item con `tieneSubItemsAbiertos()=true` — en ese caso
+lo reroutea a `aprobado_irving` + `excluir_pool_automatico=true` (fuera del pool de despacho) y
+deja loggeado `paraguas_abierto`; cuando cierre el último hijo, el hook `saved()` del hijo detecta
+que el padre está retenido como paraguas y sin sub-items abiertos, y lo cierra solo
+(`paraguas_cerrado`). Como wt-4 nunca intentó el `completado`, el guard nunca disparó y el item
+quedó despachable indefinidamente — bucle de re-encolado.
+
+**Fix aplicado (sin tocar #984/#985/#986, sin duplicar la descomposición):** confirmé que la
+descomposición previa es correcta y completa, y apliqué `estado_aprobacion='completado'` sobre
+#949 vía tinker. El guard nativo interceptó la transición como se esperaba → quedó en
+`aprobado_irving` + `excluir_pool_automatico=true` + log `paraguas_abierto` (3 sub-items
+abiertos). Cerrará solo cuando #984/#985/#986 completen.
+
+**Nota para el circuito (posible mejora futura, NO aplicada aquí — fuera de mi item):**
+`circuito:sub-item` podría, tras crear el primer hijo, intentar automáticamente
+`estado_aprobacion=completado` en el padre para activar el guard paraguas en el mismo comando —
+así ninguna terminal futura tendría que recordar hacerlo a mano y no volvería a pasar este bucle.
+No lo implementé porque cae fuera del alcance de mi item (#949) y tocaría un comando compartido
+por todo el circuito.
+
+**Estado:** #949 → `aprobado_irving` (paraguas retenido, fuera del pool). #984/#985/#986 siguen
+pendientes de ejecución normal.
