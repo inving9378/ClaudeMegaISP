@@ -1,7 +1,8 @@
 <template>
-  <!-- Item #891 — Fase 7 de la Épica #874: los seis indicadores que hoy solo se ven entrando por
-       SSH (certificado TLS, disco, migraciones pendientes, jobs fallidos, último respaldo, errores
-       24h agrupados por firma). Solo lectura, salvo los 2 botones declarados por el item. -->
+  <!-- Item #891 (+ #884, mismo panel) — Fase 7 de la Épica #874: los indicadores que hoy solo se ven
+       entrando por SSH (certificado TLS, disco, migraciones pendientes, jobs fallidos, último
+       respaldo, errores 24h agrupados por firma, cron schedule:run, queue workers de supervisor).
+       Solo lectura, salvo los 2 botones declarados por #891. -->
   <div class="se-wrap" :class="{ 'se-dark': dark }">
 
     <div class="se-bar">
@@ -78,6 +79,30 @@
             <div class="se-card-n">{{ d.reactivacion_agendados?.nunca ? 'nunca ha corrido' : haceHoras(d.reactivacion_agendados?.hace_horas) }}</div>
             <div class="se-card-s">circuito:reactivar-agendados · diario 00:05</div>
             <div v-if="d.reactivacion_agendados?.ultimo_fallo" class="se-card-s">último fallo: {{ d.reactivacion_agendados.ultimo_fallo.error }}</div>
+          </template>
+        </div>
+
+        <!-- #884 — cron schedule:run -->
+        <div class="se-card" :class="claseEstado(d.cron_schedule_run?.estado)">
+          <div class="se-card-h"><span class="se-dot"></span> Cron schedule:run</div>
+          <template v-if="d.cron_schedule_run?.error">
+            <div class="se-desconocido">{{ d.cron_schedule_run.error }}</div>
+          </template>
+          <template v-else>
+            <div class="se-card-n">{{ d.cron_schedule_run?.activo ? 'activo' : 'sin configurar' }}</div>
+            <div v-if="d.cron_schedule_run?.nota" class="se-card-s">{{ d.cron_schedule_run.nota }}</div>
+          </template>
+        </div>
+
+        <!-- #884 — queue workers de supervisor -->
+        <div class="se-card" :class="claseEstado(d.queue_workers?.estado)">
+          <div class="se-card-h"><span class="se-dot"></span> Queue workers</div>
+          <template v-if="d.queue_workers?.error">
+            <div class="se-desconocido">{{ d.queue_workers.error }}</div>
+          </template>
+          <template v-else>
+            <div class="se-card-n">{{ d.queue_workers?.cantidad }} corriendo</div>
+            <div class="se-card-s">mínimo esperado: {{ d.queue_workers?.esperado }}</div>
           </template>
         </div>
 
