@@ -28,16 +28,22 @@ use PHPUnit\Framework\TestCase; // TestCase PURO de PHPUnit: NO bootea Laravel, 
  *   · `deploy/circuito/npm-build.sh` — el falso positivo medido en el propio commit del fix
  *     (50 de 163 items en 30 días), resuelto por `limpiar()` y no por el matcher de palabra.
  *
- * ⚠️ HALLAZGO al escribir este candado: `enAlcance()` llama `DetectorTerminos::dispara($heno, $kw)`
- * SIN el 3er argumento para las 40 palabras del denylist → todas corren con `$palabraCompleta =
- * false` (el modo flex para términos "largos e inequívocos"). Términos cortos/ambiguos como
- * `secret` heredan ese mismo modo y sí disparan como prefijo de una palabra real no relacionada
- * (`secret` → `secretaria`/`secretario`, verificado). Es la MISMA clase de bug que este archivo
- * documenta para 'cola', sobreviviendo dentro del propio fix porque `enAlcance()` no distingue
- * cortos/ambiguos de largos (a diferencia de `RevisorService::TRIAJE_C_PLAIN`/`TRIAJE_C_WORD`, que
- * si separan esas dos listas). Registrado como sub-item de #865 en vez de tocarlo aquí: es un
- * segundo cambio de comportamiento sobre la frontera dura del revisor, y el propio #865 pide
- * presentarlo como diff antes de aplicar.
+ * ⚠️ HALLAZGO al escribir este candado (registrado como #904, resuelto aquí abajo): `enAlcance()`
+ * llamaba `DetectorTerminos::dispara($heno, $kw)` SIN el 3er argumento para las 40 palabras del
+ * denylist → todas corrían con `$palabraCompleta = false` (el modo flex para términos "largos e
+ * inequívocos"). Términos cortos/ambiguos como `secret` heredaban ese mismo modo y sí disparaban
+ * como prefijo de una palabra real no relacionada (`secret` → `secretaria`/`secretario`,
+ * verificado). Es la MISMA clase de bug que este archivo documenta para 'cola'.
+ *
+ * #904 — Fix: `config('circuito.revisor.alcance.denylist_word')` (nueva lista, junto a la
+ * `denylist` flex existente) separa los cortos/ambiguos con match de palabra completa, igual que
+ * `RevisorService::TRIAJE_C_PLAIN`/`TRIAJE_C_WORD` ya hacía para el triaje de nivel null.
+ * Auditados los ~35 términos contra el diccionario es_ES (aspell): `secret` colisionaba con 133
+ * palabras reales (secretaria/secretario/secretaría/secretariado/secretismo/secretor…) y `precio`
+ * con 11 (precioso/preciosa/preciosidad/preciosismo…) — ambos movidos a `denylist_word`, con sus
+ * flexiones legítimas (secreto/secreta/secretos/secretas, precios) enumeradas a mano para no
+ * perder cobertura real. Candidatos vistos ('cargo', 'saldo', 'pago') se verificaron con casos
+ * reales y NO tienen colisión práctica → se quedaron en modo flex, sin mover de más.
  */
 class DetectorTerminosPalabraCompletaTest extends TestCase
 {
@@ -105,5 +111,51 @@ class DetectorTerminosPalabraCompletaTest extends TestCase
 
         $this->assertTrue(DetectorTerminos::dispara($heno, 'dinero'),
             "'dinero' no disparó sin negación cerca: la ventana de negación se volvió demasiado ancha.");
+    }
+
+    /**
+     * #904 — caso reportado: 'secret' (denylist de seguridad) como prefijo de 'secretaria', un
+     * puesto de oficina sin relación con credenciales/secretos técnicos.
+     */
+    public function test_secret_no_dispara_por_ser_prefijo_de_secretaria(): void
+    {
+        $heno = mb_strtolower('Corregir el formulario de datos de la secretaria de recepción');
+
+        $this->assertFalse(DetectorTerminos::dispara($heno, 'secret', true),
+            "'secret' disparó dentro de 'secretaria': el mismo bug de #338/#865 con este término.");
+    }
+
+    /**
+     * #904 — la flexión legítima ('secreto'/'secreta') se enumera a mano en
+     * `denylist_word` (en vez de dejar que el modo flex la adivine) para no perder cobertura real
+     * al mover 'secret' a match de palabra completa.
+     */
+    public function test_secreto_si_dispara_como_palabra_independiente(): void
+    {
+        $heno = mb_strtolower('Hay que guardar la clave secreta del cliente cifrada');
+
+        $this->assertTrue(DetectorTerminos::dispara($heno, 'secreta', true),
+            "'secreta' no disparó en un uso real de seguridad: se perdió cobertura al mover el término.");
+    }
+
+    /**
+     * #904 — segundo caso encontrado en la auditoría contra diccionario es_ES: 'precio' (denylist
+     * de dinero) como prefijo de 'precioso', un adjetivo común sin relación con tarifas/precios.
+     */
+    public function test_precio_no_dispara_por_ser_prefijo_de_precioso(): void
+    {
+        $heno = mb_strtolower('El diseño del nuevo dashboard quedó precioso');
+
+        $this->assertFalse(DetectorTerminos::dispara($heno, 'precio', true),
+            "'precio' disparó dentro de 'precioso': el mismo bug de #338/#865 con este término.");
+    }
+
+    /** #904 — 'precios' (plural) sigue disparando en un uso real de tarifas. */
+    public function test_precios_si_dispara_en_uso_real(): void
+    {
+        $heno = mb_strtolower('Hay que actualizar los precios de los planes de Internet');
+
+        $this->assertTrue(DetectorTerminos::dispara($heno, 'precios', true),
+            "'precios' no disparó en un uso real de tarifas: se perdió cobertura al mover el término.");
     }
 }
