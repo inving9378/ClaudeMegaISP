@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <title>Manual General de la Empresa — Meganet</title>
 <style>
 @verbatim
@@ -36,6 +37,10 @@ a{color:var(--brand)}
   border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block}
 .btn:hover{background:var(--brand-soft);border-color:var(--brand)}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.danger{border-color:#e14b4b;color:#e14b4b}
+.btn.danger:hover{background:#fdeaea}
+.btn.small{padding:4px 9px;font-size:12px;border-radius:6px}
+.btn[disabled]{opacity:.45;cursor:default;pointer-events:none}
 .mock-note{background:var(--warn-bg);color:var(--warn-ink);border-bottom:1px solid var(--warn-line);
   padding:8px 20px;font-size:13px}
 
@@ -56,7 +61,6 @@ a{color:var(--brand)}
 .toc a.active{background:var(--brand-soft);border-left-color:var(--brand);
   color:var(--brand);font-weight:600}
 .toc .sub{padding-left:14px;font-size:13.5px;color:var(--muted)}
-.toc .num{color:var(--muted);margin-right:7px;font-variant-numeric:tabular-nums}
 .hidden{display:none !important}
 
 .doc{background:var(--panel);border:1px solid var(--line);border-radius:12px;
@@ -66,19 +70,21 @@ a{color:var(--brand)}
 .cover .meta{color:var(--muted);font-size:13px;display:flex;gap:14px;flex-wrap:wrap}
 .chip{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:999px;
   background:var(--brand-soft);color:var(--brand);font-weight:600}
-h2{font-size:20px;margin:34px 0 10px;scroll-margin-top:80px;padding-top:6px}
-h3{font-size:16px;margin:22px 0 6px;color:var(--ink);scroll-margin-top:80px}
+.chip.warn{background:var(--warn-bg);color:var(--warn-ink)}
+h2{font-size:20px;margin:34px 0 10px;scroll-margin-top:80px;padding-top:6px;display:flex;align-items:center;gap:10px}
+h3{font-size:16px;margin:22px 0 6px;color:var(--ink);scroll-margin-top:80px;display:flex;align-items:center;gap:8px}
 p{margin:0 0 12px}
 .pend{background:var(--warn-bg);border:1px dashed var(--warn-line);color:var(--warn-ink);
   border-radius:9px;padding:10px 13px;font-size:13.5px}
-.docref{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;
-  border:1px solid var(--line);border-radius:9px;padding:7px 11px;color:var(--muted);text-decoration:none}
-.docref:hover{border-color:var(--brand);color:var(--brand)}
-.docref b{color:var(--ink)}
 .sect{border-top:1px solid transparent}
+.sect-body{outline:none}
+.sect-body.editing{border:1px dashed var(--brand);border-radius:8px;padding:10px 12px;background:var(--brand-soft)}
+.sect-tools{display:flex;gap:8px;align-items:center;margin:8px 0 4px;flex-wrap:wrap}
+.chapter-tools{display:flex;gap:8px;align-items:center;margin:6px 0 16px}
 mark{background:#ffe58a;color:#3a2c00;border-radius:3px}
 html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
 .foot{color:var(--muted);font-size:12.5px;text-align:center;margin:24px 0 40px}
+.empty{color:var(--muted);font-size:14px;padding:30px 0;text-align:center}
 
 @media (max-width:900px){
   .wrap{grid-template-columns:1fr}
@@ -86,7 +92,7 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
   .doc{padding:24px 20px}
 }
 @media print{
-  .topbar,.side,.mock-note,.foot{display:none !important}
+  .topbar,.side,.mock-note,.foot,.sect-tools,.chapter-tools{display:none !important}
   .wrap{display:block;max-width:none;margin:0;padding:0}
   .doc{border:0;box-shadow:none;padding:0}
   h2{page-break-after:avoid}
@@ -98,7 +104,8 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
 
 <div class="mock-note">
   Documento vivo — el contenido marcado como <em>pendiente</em> es de muestra hasta que
-  Dirección General cargue la redacción oficial.
+  Dirección General cargue la redacción oficial. Los cambios guardados quedan como
+  borrador hasta que se publican.
 </div>
 
 <div class="topbar">
@@ -106,10 +113,13 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
   <span class="crumb">Empresa › Manual General</span>
   <span class="spacer"></span>
   <button class="btn" onclick="expandAll()">Expandir todo</button>
-  <button class="btn" onclick="window.print()">Imprimir / PDF</button>
+  <a class="btn" href="{{ url('/empresa/manual/pdf') }}" target="_blank">Exportar PDF</a>
+  <button class="btn" onclick="window.print()">Imprimir</button>
   <button class="btn" onclick="toggleTheme()" id="themeBtn">Modo oscuro</button>
   <a class="btn" href="{{ url('/dashboard') }}">Volver al sistema</a>
-  <button class="btn primary">Editar</button>
+  @if($canEdit || $canCreate || $canDelete || $canPublish)
+    <button class="btn primary" id="btnEditToggle" onclick="toggleEditMode()">Editar</button>
+  @endif
 </div>
 
 <div class="wrap">
@@ -124,119 +134,18 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
       <h1>Manual General de la Empresa</h1>
       <div class="meta">
         <span>Meganet Telecomunicaciones</span>
-        <span>Versión 1.0</span>
-        <span>Actualizado {{ now()->format('d/m/Y') }}</span>
-        <span>Autoriza: Dirección General</span>
+        <span>Editable desde este panel</span>
+        <span id="lastLoad"></span>
       </div>
     </div>
 
-    <section class="sect">
-      <h2 id="identidad">1. Identidad</h2>
-      <h3 id="quienes-somos">1.1 Quiénes somos</h3>
-      <p>Meganet Telecomunicaciones es un proveedor de servicios de Internet que
-      opera red propia de fibra y enlaces inalámbricos, con atención directa a
-      clientes residenciales y empresariales en su zona de cobertura.</p>
-      <h3 id="historia">1.2 Historia</h3>
-      <div class="pend">Pendiente de redacción — dirección aportará el texto.</div>
-      <h3 id="datos-empresa">1.3 Datos de la empresa</h3>
-      <div class="pend">Pendiente de redacción — razón social, RFC, domicilio fiscal y datos de contacto oficiales.</div>
-    </section>
+    <div id="chapters"></div>
 
-    <section class="sect">
-      <h2 id="mision">2. Misión</h2>
-      <p>Conectar a nuestra comunidad con un servicio de Internet estable, honesto
-      y bien atendido, sostenido por una red propia y un equipo que responde.</p>
-      <div class="pend">Texto de muestra — sustituir por la misión oficial aprobada.</div>
-    </section>
-
-    <section class="sect">
-      <h2 id="vision">3. Visión</h2>
-      <p>Ser el operador de referencia en nuestra región por calidad de red y por
-      trato al cliente, con cobertura ampliada y operación medible.</p>
-      <div class="pend">Texto de muestra — sustituir por la visión oficial aprobada.</div>
-    </section>
-
-    <section class="sect">
-      <h2 id="valores">4. Valores</h2>
-      <p>Cumplimiento de lo prometido · Trato directo y claro · Cuidado de la red ·
-      Responsabilidad sobre el trabajo propio · Mejora continua.</p>
-    </section>
-
-    <section class="sect">
-      <h2 id="objetivos">5. Objetivos estratégicos</h2>
-      <h3 id="objetivos-generales">5.1 Objetivos generales</h3>
-      <div class="pend">Pendiente de redacción.</div>
-      <h3 id="metas-ejercicio">5.2 Metas del ejercicio</h3>
-      <div class="pend">Pendiente de redacción.</div>
-    </section>
-
-    <section class="sect">
-      <h2 id="organizacion">6. Estructura organizacional</h2>
-      <h3 id="organigrama">6.1 Organigrama</h3>
-      <p>Dirección General · Operaciones y Red · Soporte Técnico · Instalaciones ·
-      Administración y Cobranza · Comercial.</p>
-      <h3 id="areas">6.2 Áreas y responsabilidades</h3>
-      <div class="pend">Pendiente de redacción.</div>
-      <a class="docref" href="#"><b>MN-GOB-002</b> · Organigrama oficial (PDF)</a>
-    </section>
-
-    <section class="sect">
-      <h2 id="politicas">7. Políticas</h2>
-      <h3 id="politica-calidad">7.1 Calidad de servicio</h3>
-      <p>Parámetros de disponibilidad, tiempos de restablecimiento y criterios de
-      escalamiento aplicables a toda la operación.</p>
-      <h3 id="politica-seguridad">7.2 Seguridad de la información</h3>
-      <p>Manejo de credenciales, accesos a equipos de red, respaldos y
-      confidencialidad de datos de clientes.</p>
-      <a class="docref" href="#"><b>MN-POL-002</b> · Política de seguridad de la información</a>
-      <h3 id="politica-privacidad">7.3 Privacidad y datos personales</h3>
-      <p>Aviso de privacidad, finalidades del tratamiento y ejercicio de derechos ARCO.</p>
-      <h3 id="politica-recursos">7.4 Uso de recursos y equipo</h3>
-      <div class="pend">Pendiente de redacción.</div>
-      <h3 id="politica-atencion">7.5 Atención al cliente</h3>
-      <div class="pend">Pendiente de redacción.</div>
-    </section>
-
-    <section class="sect">
-      <h2 id="reglamentos">8. Reglamentos</h2>
-      <h3 id="reglamento-interior">8.1 Reglamento interior de trabajo</h3>
-      <p>Jornada, asistencia, permisos, obligaciones y sanciones.</p>
-      <a class="docref" href="#"><b>MN-POL-001</b> · Reglamento interior de trabajo (PDF firmado)</a>
-      <h3 id="codigo-conducta">8.2 Código de conducta</h3>
-      <div class="pend">Pendiente de redacción.</div>
-      <h3 id="seguridad-higiene">8.3 Seguridad e higiene</h3>
-      <p>Uso de equipo de protección en trabajos en altura, manejo de escaleras y
-      herramienta, y protocolo ante incidentes.</p>
-    </section>
-
-    <section class="sect">
-      <h2 id="procedimientos">9. Procedimientos clave</h2>
-      <h3 id="proc-instalacion">9.1 Instalación</h3>
-      <p>Resumen del flujo: orden de trabajo → verificación de factibilidad →
-      tendido y configuración → acta de instalación firmada.</p>
-      <a class="docref" href="#"><b>MN-OPE-001</b> · Manual de instalación</a>
-      <h3 id="proc-soporte">9.2 Soporte y fallas</h3>
-      <p>Recepción del reporte, diagnóstico remoto, visita en sitio y cierre con
-      confirmación del cliente.</p>
-      <h3 id="proc-cobranza">9.3 Cobranza</h3>
-      <div class="pend">Pendiente de redacción.</div>
-      <h3 id="proc-almacen">9.4 Almacén</h3>
-      <div class="pend">Pendiente de redacción.</div>
-    </section>
-
-    <section class="sect">
-      <h2 id="compromiso">10. Compromiso con el cliente</h2>
-      <h3 id="sla">10.1 Niveles de servicio</h3>
-      <p>Tiempos objetivo de respuesta y restablecimiento por tipo de incidencia.</p>
-      <h3 id="canales">10.2 Canales de atención</h3>
-      <p>Teléfono, WhatsApp, portal de cliente y atención en oficina.</p>
-    </section>
-
-    <section class="sect">
-      <h2 id="directorio">11. Directorio</h2>
-      <p>Contactos internos por área, extensiones y responsables de guardia.</p>
-      <div class="pend">Pendiente de redacción.</div>
-    </section>
+    @if($canCreate)
+      <div class="chapter-tools">
+        <button class="btn small primary" onclick="crearCapitulo()">+ Nuevo capítulo</button>
+      </div>
+    @endif
 
     <div class="foot">Meganet Telecomunicaciones · Manual General · documento interno</div>
   </main>
@@ -244,58 +153,309 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
 
 <script>
 @verbatim
-/* índice generado a partir de los encabezados del documento */
-const toc = document.getElementById('toc');
-document.querySelectorAll('#doc h2, #doc h3').forEach(h=>{
-  const li=document.createElement('li');
-  const a=document.createElement('a');
-  a.href='#'+h.id;
-  a.textContent=h.textContent;
-  if(h.tagName==='H3') a.className='sub';
-  a.dataset.target=h.id;
-  li.appendChild(a); toc.appendChild(li);
-});
+const CSRF = document.querySelector('meta[name=csrf-token]').content;
+const API = '/empresa/manual/api';
+const PERMS = {
+  edit: @endverbatim{{ $canEdit ? 'true' : 'false' }}@verbatim,
+  create: @endverbatim{{ $canCreate ? 'true' : 'false' }}@verbatim,
+  del: @endverbatim{{ $canDelete ? 'true' : 'false' }}@verbatim,
+  publish: @endverbatim{{ $canPublish ? 'true' : 'false' }}@verbatim
+};
+
+let DATA = null;
+let editMode = false;
+
+async function api(method, path, body) {
+  const res = await fetch(API + path, {
+    method,
+    headers: {
+      'X-CSRF-TOKEN': CSRF,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || ('Error ' + res.status));
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function load() {
+  DATA = await api('GET', '/data');
+  render();
+  document.getElementById('lastLoad').textContent = 'Cargado ' + new Date().toLocaleString('es-MX');
+}
+
+function chapterEl(chapter) {
+  const wrap = document.createElement('section');
+  wrap.className = 'sect';
+
+  const h2 = document.createElement('h2');
+  h2.id = chapter.slug || ('cap-' + chapter.id);
+  const titleSpan = document.createElement('span');
+  titleSpan.textContent = chapter.title;
+  h2.appendChild(titleSpan);
+  if (editMode && PERMS.edit) {
+    h2.appendChild(iconBtn('✎', 'Renombrar capítulo', () => renombrarCapitulo(chapter)));
+  }
+  if (editMode && PERMS.del) {
+    h2.appendChild(iconBtn('🗑', 'Eliminar capítulo', () => eliminarCapitulo(chapter)));
+  }
+  wrap.appendChild(h2);
+
+  (chapter.sections || []).forEach(section => wrap.appendChild(sectionEl(chapter, section)));
+
+  if (editMode && PERMS.create) {
+    const tools = document.createElement('div');
+    tools.className = 'chapter-tools';
+    const btn = document.createElement('button');
+    btn.className = 'btn small';
+    btn.textContent = '+ Nueva sección en "' + chapter.title + '"';
+    btn.onclick = () => crearSeccion(chapter);
+    tools.appendChild(btn);
+    wrap.appendChild(tools);
+  }
+
+  return wrap;
+}
+
+function sectionEl(chapter, section) {
+  const box = document.createElement('div');
+  box.dataset.sectionId = section.id;
+
+  const h3 = document.createElement('h3');
+  h3.id = section.id + '-' + (section.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const titleSpan = document.createElement('span');
+  titleSpan.textContent = section.title;
+  h3.appendChild(titleSpan);
+  if (section.has_unpublished_changes) {
+    const badge = document.createElement('span');
+    badge.className = 'chip warn';
+    badge.textContent = 'sin publicar';
+    h3.appendChild(badge);
+  }
+  if (editMode && PERMS.edit) {
+    h3.appendChild(iconBtn('✎', 'Renombrar sección', () => renombrarSeccion(section)));
+  }
+  if (editMode && PERMS.del) {
+    h3.appendChild(iconBtn('🗑', 'Eliminar sección', () => eliminarSeccion(chapter, section)));
+  }
+  box.appendChild(h3);
+
+  const body = document.createElement('div');
+  body.className = 'sect-body';
+  const shown = (section.published_content ?? section.content) || '<p class="pend">Sin contenido todavía.</p>';
+  body.innerHTML = shown;
+
+  if (editMode && PERMS.edit) {
+    body.classList.add('editing');
+    body.contentEditable = 'true';
+    body.innerHTML = section.content || '';
+  }
+  box.appendChild(body);
+
+  if (editMode && (PERMS.edit || PERMS.publish)) {
+    const tools = document.createElement('div');
+    tools.className = 'sect-tools';
+    if (PERMS.edit) {
+      const save = document.createElement('button');
+      save.className = 'btn small';
+      save.textContent = 'Guardar borrador';
+      save.onclick = () => guardarSeccion(section, body);
+      tools.appendChild(save);
+    }
+    if (PERMS.publish) {
+      const pub = document.createElement('button');
+      pub.className = 'btn small primary';
+      pub.textContent = 'Publicar';
+      if (!section.has_unpublished_changes) pub.setAttribute('disabled', 'disabled');
+      pub.onclick = () => publicarSeccion(section);
+      tools.appendChild(pub);
+    }
+    box.appendChild(tools);
+  }
+
+  return box;
+}
+
+function iconBtn(symbol, title, onClick) {
+  const b = document.createElement('button');
+  b.className = 'btn small';
+  b.style.padding = '2px 7px';
+  b.title = title;
+  b.textContent = symbol;
+  b.onclick = onClick;
+  return b;
+}
+
+function render() {
+  const container = document.getElementById('chapters');
+  container.innerHTML = '';
+  if (!DATA.chapters.length) {
+    container.innerHTML = '<div class="empty">Todavía no hay capítulos. ' +
+      (PERMS.create ? 'Usa "+ Nuevo capítulo" para empezar.' : '') + '</div>';
+  } else {
+    DATA.chapters.forEach(ch => container.appendChild(chapterEl(ch)));
+  }
+  buildToc();
+}
+
+function buildToc() {
+  const toc = document.getElementById('toc');
+  toc.innerHTML = '';
+  document.querySelectorAll('#doc h2, #doc h3').forEach(h => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#' + h.id;
+    a.textContent = h.querySelector('span') ? h.querySelector('span').textContent : h.textContent;
+    if (h.tagName === 'H3') a.className = 'sub';
+    a.dataset.target = h.id;
+    li.appendChild(a);
+    toc.appendChild(li);
+  });
+  spy();
+}
+
+async function guardarSeccion(section, bodyEl) {
+  try {
+    const { section: updated } = await api('PUT', '/sections/' + section.id, { content: bodyEl.innerHTML });
+    Object.assign(section, updated);
+    section.has_unpublished_changes = true;
+    render();
+  } catch (e) {
+    alert('No se pudo guardar: ' + e.message);
+  }
+}
+
+async function publicarSeccion(section) {
+  try {
+    await api('POST', '/sections/' + section.id + '/publicar');
+    await load();
+  } catch (e) {
+    alert('No se pudo publicar: ' + e.message);
+  }
+}
+
+async function crearCapitulo() {
+  const title = prompt('Título del nuevo capítulo:');
+  if (!title || !title.trim()) return;
+  try {
+    await api('POST', '/chapters', { title: title.trim() });
+    await load();
+  } catch (e) {
+    alert('No se pudo crear el capítulo: ' + e.message);
+  }
+}
+
+async function renombrarCapitulo(chapter) {
+  const title = prompt('Nuevo título del capítulo:', chapter.title);
+  if (!title || !title.trim() || title.trim() === chapter.title) return;
+  try {
+    await api('PUT', '/chapters/' + chapter.id, { title: title.trim() });
+    await load();
+  } catch (e) {
+    alert('No se pudo renombrar: ' + e.message);
+  }
+}
+
+async function eliminarCapitulo(chapter) {
+  if (!confirm('¿Eliminar el capítulo "' + chapter.title + '" y todas sus secciones?')) return;
+  try {
+    await api('POST', '/chapters/' + chapter.id + '/eliminar');
+    await load();
+  } catch (e) {
+    alert('No se pudo eliminar: ' + e.message);
+  }
+}
+
+async function crearSeccion(chapter) {
+  const title = prompt('Título de la nueva sección:');
+  if (!title || !title.trim()) return;
+  try {
+    await api('POST', '/sections', { chapter_id: chapter.id, title: title.trim() });
+    await load();
+  } catch (e) {
+    alert('No se pudo crear la sección: ' + e.message);
+  }
+}
+
+async function renombrarSeccion(section) {
+  const title = prompt('Nuevo título de la sección:', section.title);
+  if (!title || !title.trim() || title.trim() === section.title) return;
+  try {
+    await api('PUT', '/sections/' + section.id, { title: title.trim() });
+    await load();
+  } catch (e) {
+    alert('No se pudo renombrar: ' + e.message);
+  }
+}
+
+async function eliminarSeccion(chapter, section) {
+  if (!confirm('¿Eliminar la sección "' + section.title + '"?')) return;
+  try {
+    await api('POST', '/sections/' + section.id + '/eliminar');
+    await load();
+  } catch (e) {
+    alert('No se pudo eliminar: ' + e.message);
+  }
+}
+
+function toggleEditMode() {
+  editMode = !editMode;
+  document.getElementById('btnEditToggle').textContent = editMode ? 'Salir de edición' : 'Editar';
+  document.getElementById('btnEditToggle').classList.toggle('primary', !editMode);
+  render();
+}
 
 /* scroll-spy */
-const links=[...toc.querySelectorAll('a')];
-const heads=[...document.querySelectorAll('#doc h2, #doc h3')];
-function spy(){
-  let cur=heads[0];
-  for(const h of heads){ if(h.getBoundingClientRect().top<=110) cur=h; }
-  links.forEach(a=>a.classList.toggle('active', a.dataset.target===cur.id));
+function spy() {
+  const links = [...document.querySelectorAll('#toc a')];
+  const heads = [...document.querySelectorAll('#doc h2, #doc h3')];
+  if (!heads.length) return;
+  let cur = heads[0];
+  for (const h of heads) { if (h.getBoundingClientRect().top <= 110) cur = h; }
+  links.forEach(a => a.classList.toggle('active', a.dataset.target === cur.id));
 }
-document.addEventListener('scroll',spy,{passive:true}); spy();
+document.addEventListener('scroll', spy, { passive: true });
 
 /* buscador: filtra el índice y resalta en el texto */
-function limpiar(){
-  document.querySelectorAll('#doc mark').forEach(m=>{
+function limpiar() {
+  document.querySelectorAll('#doc mark').forEach(m => {
     m.replaceWith(document.createTextNode(m.textContent));
   });
   document.getElementById('doc').normalize();
 }
-function filtrar(q){
-  q=q.trim().toLowerCase(); limpiar();
-  links.forEach(a=>a.parentElement.classList.toggle('hidden', q && !a.textContent.toLowerCase().includes(q)));
-  if(q.length<3) return;
-  const walker=document.createTreeWalker(document.getElementById('doc'),NodeFilter.SHOW_TEXT);
-  const hits=[]; let n;
-  while(n=walker.nextNode()){ if(n.nodeValue.toLowerCase().includes(q)) hits.push(n); }
-  hits.forEach(node=>{
-    const i=node.nodeValue.toLowerCase().indexOf(q);
-    const after=node.splitText(i); after.splitText(q.length);
-    const m=document.createElement('mark'); m.textContent=after.nodeValue;
+function filtrar(q) {
+  q = q.trim().toLowerCase(); limpiar();
+  document.querySelectorAll('#toc a').forEach(a => a.parentElement.classList.toggle('hidden', q && !a.textContent.toLowerCase().includes(q)));
+  if (q.length < 3) return;
+  const walker = document.createTreeWalker(document.getElementById('doc'), NodeFilter.SHOW_TEXT);
+  const hits = []; let n;
+  while (n = walker.nextNode()) { if (n.nodeValue.toLowerCase().includes(q)) hits.push(n); }
+  hits.forEach(node => {
+    const i = node.nodeValue.toLowerCase().indexOf(q);
+    const after = node.splitText(i); after.splitText(q.length);
+    const m = document.createElement('mark'); m.textContent = after.nodeValue;
     after.replaceWith(m);
   });
 }
 
-function expandAll(){ links.forEach(a=>a.parentElement.classList.remove('hidden')); document.getElementById('q').value=''; limpiar(); }
-
-function toggleTheme(){
-  const r=document.documentElement;
-  const dark=r.getAttribute('data-theme')==='dark';
-  r.setAttribute('data-theme', dark?'light':'dark');
-  document.getElementById('themeBtn').textContent = dark?'Modo oscuro':'Modo claro';
+function expandAll() {
+  document.querySelectorAll('#toc a').forEach(a => a.parentElement.classList.remove('hidden'));
+  document.getElementById('q').value = '';
+  limpiar();
 }
+
+function toggleTheme() {
+  const r = document.documentElement;
+  const dark = r.getAttribute('data-theme') === 'dark';
+  r.setAttribute('data-theme', dark ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = dark ? 'Modo oscuro' : 'Modo claro';
+}
+
+load();
 @endverbatim
 </script>
 </body>
