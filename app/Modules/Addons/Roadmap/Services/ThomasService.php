@@ -472,6 +472,13 @@ class ThomasService
         if ($item->tieneFrenoHumano()) {
             return $no('Item con freno humano vigente: decisión de Irving por definición.');
         }
+        // #893 — `requiere_sesion_supervisada` es un flag que Irving fija EXPLÍCITAMENTE para decir
+        // «esto no se auto-despacha, necesito estar presente». No vive dentro de `tieneFrenoHumano()`
+        // (es una columna aparte, ver Models/RoadmapItem.php), así que este carril lo ignoraba por
+        // completo y aprobaba items que Irving había marcado para verse en persona. Guard propio.
+        if ($item->requiere_sesion_supervisada) {
+            return $no('Item marcado `requiere_sesion_supervisada`: Irving pidió estar presente, no se auto-despacha.');
+        }
         // MISMO texto que el carril mecánico (título + descripción + prompt): antes este carril
         // miraba sólo título+descripción y un término de frontera que viviera en el `prompt` se le
         // escapaba, así que dos carriles con la misma regla daban veredictos distintos.
@@ -480,6 +487,14 @@ class ThomasService
         if ($cat = $this->fronteraDuraDeItem($item)) {
             return $no("Declara «{$cat}» (frontera dura): decide Irving.");
         }
+
+        // #893 — REGRESIÓN detectada al verificar este fix (`$texto` quedó indefinida en 96cf38f2:
+        // ese commit reemplazó `categoriaFronteraDura($texto)` por `fronteraDuraDeItem($item)` pero
+        // olvidó que el guard de NEGOCIO de abajo también consumía `$texto`). Sin esto el guard corría
+        // contra `null`, jamás matcheaba, y "Thomas nunca inventa dirección de negocio/producto" —la
+        // regla que el comentario de abajo dice que NO CAMBIA— quedaba rota en silencio. Se repone
+        // aquí porque es la misma función que este item ya toca.
+        $texto = (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt;
 
         // REGLA DURA QUE NO CAMBIA: Thomas nunca inventa dirección de negocio/producto. Que el
         // brief esté contestado no convierte una decisión de producto en trabajo mecánico.
@@ -494,7 +509,7 @@ class ThomasService
             return $no('No tiene brief: no hay una decisión previa que respetar.');
         }
 
-        foreach ($preguntas as $p) {
+        foreach ($preguntas as $idx => $p) {
             // LECTOR DEFENSIVO (2026-08-19). Una pregunta SIN opciones no puede contar como
             // «contestada»: `$sinResponder` daría false y la pregunta pasaría de largo, aprobando
             // el item sin que nadie decidiera nada. Hoy es inalcanzable —`RevisorService::
@@ -508,6 +523,19 @@ class ThomasService
 
             $sinResponder = ($p['opcion_elegida'] ?? null) === null;
             if (! $sinResponder) {
+                // #893 — «contestada» no es lo mismo que «decidida a favor del pool»: la opción
+                // elegida de la pregunta MAESTRA (la primera del brief — no existe un flag propio
+                // que la marque, así que se usa su posición, igual que asume el resto del brief)
+                // puede ser LITERALMENTE la que dice «escalar a Irving» (la recomendada del Revisor
+                // cuando no puede resolver algo solo). Tratar eso como brief-completo y aprobar es
+                // lo que causó las 12 escalaciones idénticas de #186. Se para aquí igual que con una
+                // pregunta sin responder. Acotado a la pregunta 0: preguntas secundarias pueden
+                // mencionar «escalar a Irving» como parte de un plan de contingencia (ej. «rollback +
+                // escalar a Irving» si algo falla) sin que ESA sea la decisión tomada — falso
+                // positivo real visto en #463 q4, que no es la pregunta maestra.
+                if ($idx === 0 && self::opcionElegidaEsEscalar($p)) {
+                    return $no('La opción elegida de la pregunta maestra es "escalar a Irving": no es una decisión tomada para el pool.');
+                }
                 continue;
             }
             // Queda algo sin contestar: si es de Irving, es suyo; si no, que lo tome el autopilot.
@@ -530,6 +558,28 @@ class ThomasService
             'estado'   => $estado,
             'motivo'   => 'Brief ya respondido: no falta ninguna decisión.',
         ];
+    }
+
+    /**
+     * #893 — ¿el texto de la opción ELEGIDA de esta pregunta es literalmente "escalar a Irving"?
+     * PURA (solo arrays, sin BD ni contenedor) a propósito: es el núcleo del fix de las 12
+     * escalaciones idénticas de #186, y necesita un test de regresión que no dependa de bootear
+     * Laravel ni tocar la BD compartida de dev (`tests/TestCase.php` corre `migrate:fresh` contra
+     * ella — ver `EvaluarYaDecididoEscalarTest`).
+     */
+    public static function opcionElegidaEsEscalar(array $pregunta): bool
+    {
+        $clave = $pregunta['opcion_elegida'] ?? null;
+        if ($clave === null) {
+            return false;
+        }
+        foreach ((array) ($pregunta['opciones'] ?? []) as $o) {
+            if (($o['clave'] ?? null) === $clave) {
+                return stripos((string) ($o['texto'] ?? ''), 'escalar a irving') !== false;
+            }
+        }
+
+        return false;
     }
 
     public const APROBADOR_YA_DECIDIDO = 'thomas-ya-decidido';
