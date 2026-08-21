@@ -128,6 +128,9 @@ Route::middleware(['web', 'auth'])
         Route::get('/torre/salud-entorno', [RoadmapController::class, 'saludEntorno']);
         Route::post('/torre/salud/reintentar-fallidos', [RoadmapController::class, 'saludReintentarFallidos']);
         Route::post('/torre/salud/recalentar-caches', [RoadmapController::class, 'saludRecalentarCaches']);
+        // #946 (Fase 1b, hija de #875) — Semáforo de motores: una fila por motor con su icono
+        // 🟢/🟡/🔴/⚫. Solo lectura (`roadmap_view`).
+        Route::get('/torre/semaforo', [RoadmapController::class, 'torreSemaforo']);
         Route::post('/items/{id}/deshacer-decision', [RoadmapController::class, 'deshacerDecision'])->whereNumber('id');
         // #889 (Torre fase 5 — Terminales): suelta el `worker_sid` de un item sin tocar su
         // `estado_aprobacion` — libera la terminal que quedó reservada por un reclamo huérfano
