@@ -575,6 +575,175 @@ class RoadmapCircuitoService
         return $out;
     }
 
+    /**
+     * #946 (Fase 1b, hijo de #875) — SEMÁFORO de motores para la pestaña "Semáforo" de la Torre.
+     * SOLO LECTURA: interpreta `latidos()` (#808, ya sella "última ejecución EXITOSA"), no cambia
+     * el comportamiento de ningún motor.
+     *
+     * Icono: 🟢 vivo · 🟡 tarde (pasó 2× su cadencia esperada sin un éxito) · 🔴 vencido (pasó 3×,
+     * o nunca corrió, o tiene un fallo reciente aunque su latido siga fresco — ver `latidos()`) ·
+     * ⚫ apagado a propósito (kill switch en pausa, o el motor trae su propio flag `activo=false`,
+     * hoy solo el Auditor vía `torre_config.auditor_activo`). Un motor sin cadencia numérica fija
+     * (gated/sin agendar: `cadencia_horas === null` en config) usa `max_horas` como su umbral
+     * configurable en vez de un múltiplo de cadencia — ver `iconoSemaforo()`.
+     *
+     * Suma 2 filas DERIVADAS que no tienen cron propio (documentado en config/circuito.php: corren
+     * dentro de CADA vuelta del scheduler, sin throttle) — Thomas (reusa el latido de su propia
+     * maquinaria, ya calculado por `SupervisorService::estado()`) y Terminales (reusa la salud de
+     * slots de `WatchdogService`) — en vez de fabricar un reloj nuevo para cada una.
+     *
+     * Un motor 🔴 sube al principio de la lista: visible desde la portada sin desplegar nada.
+     *
+     * @return array<int,array{motor:string,comando:?string,icono:string,estado:string,
+     *   ultima_ok_humano:string,ultima_ok_at:?string,ultimo_fallo:?string,cadencia:string,
+     *   agendado:?bool,si_no_corre:string}>
+     */
+    public function semaforoMotores(): array
+    {
+        $pausado = $this->isPaused();
+        $filas = [];
+
+        foreach ($this->latidos() as $p) {
+            $cfg = (array) config('circuito.procesos_programados.' . $p['comando'], []);
+            $motor = (string) ($cfg['motor'] ?? $p['comando']);
+            $cadenciaHoras = $cfg['cadencia_horas'] ?? null;
+
+            // Hoy el ÚNICO motor con flag propio de encendido es el Auditor (`torre_config`).
+            $apagadoAProposito = $pausado || ($p['comando'] === 'circuito:auditor' && ! $this->auditorActivo());
+
+            if ($apagadoAProposito) {
+                $icono = '⚫';
+                $estado = $pausado ? 'circuito_en_pausa' : 'apagado_a_proposito';
+            } else {
+                $icono = $this->iconoSemaforo($p['nunca'], $p['horas'], $cadenciaHoras, (float) $p['max_horas'], $p['fallo_reciente']);
+                $estado = match ($icono) {
+                    '🔴' => 'vencido',
+                    '🟡' => 'tarde',
+                    default => 'vivo',
+                };
+            }
+
+            $filas[] = [
+                'motor'            => $motor,
+                'comando'          => $p['comando'],
+                'icono'            => $icono,
+                'estado'           => $estado,
+                'ultima_ok_humano' => $p['nunca'] ? 'nunca ha corrido' : Carbon::parse($p['at'])->diffForHumans(),
+                'ultima_ok_at'     => $p['at'],
+                'ultimo_fallo'     => $p['ultimo_fallo']['error'] ?? null,
+                'cadencia'         => $p['cadencia'] !== '' ? $p['cadencia'] : '—',
+                'agendado'         => $p['agendado'],
+                'si_no_corre'      => $p['si_no_corre'],
+            ];
+        }
+
+        // Thomas — sin cron propio (ver bloque de comentario en config/circuito.php). Su salud real
+        // ya la deriva SupervisorService de la MISMA maquinaria (scheduler + watchdog).
+        $sup = app(SupervisorService::class)->estado(0);
+        $filas[] = $this->filaSemaforoDerivada(
+            motor: 'Thomas',
+            vivo: (bool) $sup['activo'],
+            latidoSecs: $sup['latido_secs'],
+            pausado: $pausado,
+            cadencia: 'cada vuelta del scheduler (sin cron propio)',
+            siNoCorre: 'nadie arbitra colisiones entre terminales ni decide items con brief ya '
+                . 'respondido: la bandeja se detiene aunque el scheduler siga vivo',
+        );
+
+        // Terminales — salud real de los slots de trabajo (WatchdogService), no solo "el scheduler
+        // late": un scheduler vivo con slots colgados igual deja de mover trabajo.
+        $wd = app(WatchdogService::class)->estado();
+        $slots = $wd['slots'] ?? [];
+        $caidos = collect($slots)->filter(fn ($s) => ($s['estado'] ?? null) === 'caido')->count();
+        $filas[] = $this->filaSemaforoDerivada(
+            motor: 'Terminales',
+            vivo: ($wd['scheduler_vivo'] ?? false) && $caidos === 0,
+            latidoSecs: $this->schedulerBeatSecs(),
+            pausado: $pausado,
+            cadencia: 'cada minuto (late junto con el scheduler)',
+            siNoCorre: $caidos > 0
+                ? "{$caidos} de " . count($slots) . ' terminal(es) caída(s): esos cupos no jalan trabajo de la cola'
+                : 'nadie ejecuta items de la Hoja de Ruta: el trabajo se acumula sin avanzar',
+        );
+
+        // #946 — un motor roto sube al principio: visible desde la portada sin desplegar nada.
+        $rango = ['🔴' => 0, '🟡' => 1, '🟢' => 2, '⚫' => 3];
+        usort($filas, fn ($a, $b) => ($rango[$a['icono']] ?? 9) <=> ($rango[$b['icono']] ?? 9));
+
+        return array_values($filas);
+    }
+
+    /** #946 — ¿el Auditor está encendido? Único motor con flag propio de encendido (torre_config). */
+    private function auditorActivo(): bool
+    {
+        try {
+            return (bool) app(\App\Modules\Addons\Roadmap\Services\TorreConfigService::class)->get()->auditor_activo;
+        } catch (\Throwable) {
+            return true;   // sin dato, no lo pintamos apagado por un fallo de lectura ajeno
+        }
+    }
+
+    /**
+     * #946 — icono por RATIO contra la cadencia esperada (🟡 a 2×, 🔴 a 3×). Si el motor no tiene
+     * cadencia numérica fija (`cadenciaHoras === null`, gated/sin agendar), usa `maxHoras` —el
+     * mismo umbral que ya define su "vencido" en `latidos()`— como el umbral configurable: 🔴 a
+     * partir de `maxHoras`, 🟡 desde 2/3 de `maxHoras`.
+     */
+    private function iconoSemaforo(bool $nunca, ?float $horas, ?float $cadenciaHoras, float $maxHoras, bool $falloReciente): string
+    {
+        if ($nunca) {
+            return '🔴';
+        }
+        if ($falloReciente) {
+            return '🔴';
+        }
+
+        $horas = (float) $horas;
+
+        if ($cadenciaHoras !== null && $cadenciaHoras > 0) {
+            if ($horas > 3 * $cadenciaHoras) {
+                return '🔴';
+            }
+            if ($horas > 2 * $cadenciaHoras) {
+                return '🟡';
+            }
+
+            return '🟢';
+        }
+
+        if ($maxHoras <= 0) {
+            return '🟢';
+        }
+        if ($horas > $maxHoras) {
+            return '🔴';
+        }
+        if ($horas > $maxHoras * (2 / 3)) {
+            return '🟡';
+        }
+
+        return '🟢';
+    }
+
+    /** #946 — fila del semáforo para un motor DERIVADO (Thomas/Terminales): sin cron propio, su
+     *  señal es booleana (vivo/no vivo), no un ratio de cadencia. */
+    private function filaSemaforoDerivada(string $motor, bool $vivo, ?int $latidoSecs, bool $pausado, string $cadencia, string $siNoCorre): array
+    {
+        $icono = $pausado ? '⚫' : ($vivo ? '🟢' : '🔴');
+
+        return [
+            'motor'            => $motor,
+            'comando'          => null,
+            'icono'            => $icono,
+            'estado'           => $pausado ? 'circuito_en_pausa' : ($vivo ? 'vivo' : 'vencido'),
+            'ultima_ok_humano' => $latidoSecs === null ? 'nunca ha corrido' : now()->subSeconds($latidoSecs)->diffForHumans(),
+            'ultima_ok_at'     => $latidoSecs === null ? null : now()->subSeconds($latidoSecs)->toDateTimeString(),
+            'ultimo_fallo'     => null,
+            'cadencia'         => $cadencia,
+            'agendado'         => null,
+            'si_no_corre'      => $siNoCorre,
+        ];
+    }
+
     private function clampRate(float $rate): float
     {
         return max(0.5, min(2.0, $rate));

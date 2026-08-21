@@ -448,6 +448,23 @@ class RoadmapController extends Controller
         return response()->json($r);
     }
 
+    /**
+     * GET /api/roadmap/torre/semaforo (#946, Fase 1b hija de #875) — pestaña "Semáforo" de la
+     * Torre: una fila por motor con icono 🟢/🟡/🔴/⚫, última corrida EXITOSA en lenguaje humano y
+     * la frase de qué se pierde si está caído. Solo lectura, mismo permiso que Panorama
+     * (`roadmap_view`, decisión de Irving en el brief del item — reutiliza el permiso existente en
+     * vez de crear uno nuevo). Cacheado 5s (no 30s como salud-entorno): la pestaña hace polling
+     * cada 5-10s (decisión del item) y aquí el costo real es leer `settings`, barato de repetir.
+     */
+    public function torreSemaforo(): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = Cache::remember('roadmap:torre:semaforo', 5, fn () => $this->svc->semaforoMotores());
+
+        return response()->json(['ok' => true, 'generado_at' => now()->toIso8601String(), 'motores' => $data]);
+    }
+
     public function historialAcciones(Request $request): JsonResponse
     {
         $this->authorize('roadmap_view');

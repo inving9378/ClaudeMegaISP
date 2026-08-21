@@ -903,6 +903,10 @@ return [
     'procesos_programados' => [
 
         'circuito:scheduler' => [
+            // #946 — nombre humano + cadencia en HORAS (numérica, no texto) para el Semáforo de la
+            // Torre: 🟡 a 2× esta cadencia sin éxito, 🔴 a 3×. Aditivo: nadie más lee estas 2 llaves.
+            'motor'         => 'Scheduler',
+            'cadencia_horas' => 1 / 60,
             'max_horas'   => 1,
             // Reusa el latido que el scheduler YA sella (unix timestamp), en vez de sellar un
             // segundo: dos relojes del mismo hecho es cómo empieza siempre la deriva.
@@ -915,6 +919,10 @@ return [
         ],
 
         'circuito:re-triage' => [
+            // #946 — sin cadencia fija real (todavía no agendado, ver `linea_cron` abajo): el
+            // Semáforo cae a su umbral configurable (derivado de `max_horas`, ver `semaforoMotores`).
+            'motor'         => 'Re-triage',
+            'cadencia_horas' => null,
             'max_horas'   => 48,
             // Un DRY-RUN no caducó nada, así que no cuenta como "el proceso corrió". Sin esto, un
             // `circuito:re-triage` a mano desde una sesión enmascararía que el cron no existe —
@@ -931,6 +939,8 @@ return [
         ],
 
         'circuito:digest' => [
+            'motor'         => 'Digest',
+            'cadencia_horas' => 24,
             'max_horas'   => 48,
             'si_no_corre' => 'no hay métricas ni recordatorio de los frenos que puso Irving',
             'cadencia'    => '06:40 diario',
@@ -947,6 +957,8 @@ return [
         // Enganchado DENTRO del scheduler (throttle 5 min). Sella su propio latido SOLO al terminar
         // bien, así que su beat ya es «última ejecución EXITOSA», que es justo lo que hay que mirar.
         'circuito:destrabar-bandeja' => [
+            'motor'         => 'Des-trabador',
+            'cadencia_horas' => 5 / 60,
             'max_horas'   => 2,
             'beat_key'    => 'circuito_destrabe_bandeja_beat',
             'formato'     => 'unix',
@@ -958,6 +970,10 @@ return [
         // También dentro del scheduler; su gating (cola < umbral) puede impedirle correr
         // legítimamente, por eso el tope es de un día y no de horas.
         'circuito:auditor' => [
+            // #946 — gating por cola (no un reloj fijo): sin cadencia numérica, umbral configurable
+            // vía `max_horas` (igual que re-triage arriba).
+            'motor'         => 'Auditor',
+            'cadencia_horas' => null,
             'max_horas'   => 24,
             'beat_key'    => 'circuito_auditor_ultima_corrida',
             'formato'     => 'unix',
@@ -966,6 +982,8 @@ return [
         ],
 
         'circuito:watchdog' => [
+            'motor'         => 'Watchdog',
+            'cadencia_horas' => 2 / 60,
             'max_horas'   => 1,
             'beat_key'    => 'circuito_watchdog_beat',
             'formato'     => 'unix',
@@ -974,6 +992,8 @@ return [
         ],
 
         'circuito:revisar-backlog' => [
+            'motor'         => 'Revisor',
+            'cadencia_horas' => 2 / 60,
             'max_horas'   => 1,
             'excluye_opciones' => ['dry'],
             'si_no_corre' => 'los B se quedan sin veredicto del revisor y no llegan a la cola',
@@ -981,18 +1001,24 @@ return [
         ],
 
         'circuito:destrabe' => [
+            'motor'         => 'Des-trabe (Opus)',
+            'cadencia_horas' => 4 / 60,
             'max_horas'   => 2,
             'si_no_corre' => 'la bandeja no recibe el re-triaje de Opus: lo técnico/seguro se queda con Irving',
             'cadencia'    => 'cada 4 min',
         ],
 
         'circuito:reap-stuck' => [
+            'motor'         => 'Reap-stuck',
+            'cadencia_horas' => 2 / 60,
             'max_horas'   => 1,
             'si_no_corre' => 'los reclamos huérfanos no se liberan y su footprint bloquea a la flota',
             'cadencia'    => 'cada 2 min',
         ],
 
         'circuito:brief-c' => [
+            'motor'         => 'Autopilot (brief)',
+            'cadencia_horas' => 10 / 60,
             'max_horas'   => 2,
             'si_no_corre' => 'los C se quedan sin brief y el autopilot no puede calificar nada',
             'cadencia'    => 'cada 10 min',
@@ -1009,6 +1035,8 @@ return [
         */
 
         'circuito:priorizar-seguridad' => [
+            'motor'         => 'Priorizar-seguridad',
+            'cadencia_horas' => 24,
             'max_horas'   => 48,
             // `--dry` no escribe; `--item=` es la clasificación de UN item (la dispara
             // `ClasificarRiesgoJob` al crear), no el BARRIDO diario. Ninguna de las dos cuenta.
@@ -1021,6 +1049,8 @@ return [
         // 30h de margen sobre el diario (no 24h clavado) para no pintar rojo por jitter normal
         // del scheduler del SO antes de que de verdad se le haya pasado un día completo.
         'circuito:reactivar-agendados' => [
+            'motor'         => 'Reactivar-agendados',
+            'cadencia_horas' => 24,
             'max_horas'   => 30,
             'si_no_corre' => 'los items agendados a futuro NUNCA vuelven solos al pool aunque su '
                 . 'fecha ya haya pasado — se quedan fuera hasta que alguien los toque a mano',
