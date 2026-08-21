@@ -109,12 +109,18 @@
             Un motor está vivo si <b>corrió bien hace poco</b>, no si alguien dejó un booleano en
             <code>true</code>. Un flag de habilitación es una intención; la última ejecución es un hecho.
           </p>
+          <p class="tcfg-note">
+            <i class="bi bi-eye"></i> La columna <b>Cadencia</b> es solo lectura: se edita en el
+            <code>crontab</code> del servidor (o en <code>Kernel.php</code> cuando lo dice), nunca desde
+            este panel.
+          </p>
           <table class="tcfg-motores">
-            <thead><tr><th>Motor</th><th>Última ejecución</th><th>Tope</th><th>Agendado</th></tr></thead>
+            <thead><tr><th>Motor</th><th>Cadencia</th><th>Última ejecución</th><th>Tope</th><th>Agendado</th></tr></thead>
             <tbody>
               <template v-for="m in motores" :key="m.comando">
                 <tr :class="{ 'tcfg-rojo': m.vencido }">
                   <td><code>{{ m.comando }}</code></td>
+                  <td>{{ m.cadencia || '—' }}</td>
                   <td>
                     <b v-if="m.at">hace {{ humano(m.horas) }}</b>
                     <b v-else class="tcfg-nunca">NUNCA</b>
@@ -130,13 +136,13 @@
                      tiene el latido fresco porque acertó una vez y se cae en todos los demás
                      intentos. Sin esto, ese motor se ve sano. -->
                 <tr v-if="m.ultimo_fallo" class="tcfg-fallo">
-                  <td colspan="4">
+                  <td colspan="5">
                     <b>último fallo</b> {{ m.ultimo_fallo.ts }} —
                     <code>{{ m.ultimo_fallo.error }}</code>
                   </td>
                 </tr>
                 <tr v-if="m.agendado === false && m.linea_cron" class="tcfg-cron">
-                  <td colspan="4">falta en el crontab · <code>{{ m.linea_cron }}</code></td>
+                  <td colspan="5">falta en el crontab · <code>{{ m.linea_cron }}</code></td>
                 </tr>
               </template>
             </tbody>
