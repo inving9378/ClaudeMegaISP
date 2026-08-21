@@ -133,6 +133,9 @@ Route::middleware(['web', 'auth'])
         // `estado_aprobacion` — libera la terminal que quedó reservada por un reclamo huérfano
         // (item ya `status=done` esperando la resolución de Irving).
         Route::post('/items/{id}/liberar-reclamo', [RoadmapController::class, 'liberarReclamo'])->whereNumber('id');
+        // #972 (hermano de #889 fase 5): mueve el `worker_sid` de un reclamo huérfano a OTRA
+        // terminal libre — misma frontera que "Liberar reclamo" (no toca `estado_aprobacion`).
+        Route::post('/items/{id}/reasignar-reclamo', [RoadmapController::class, 'reasignarReclamo'])->whereNumber('id');
         // Árbol de sesiones `claude` vivas en el box + banner de colisión (#345). Solo backend
         // por ahora (endpoint de lectura); panel Vue de la Torre queda para una siguiente entrega.
         Route::get('/circuito/sesiones',   [RoadmapController::class, 'sesiones']);

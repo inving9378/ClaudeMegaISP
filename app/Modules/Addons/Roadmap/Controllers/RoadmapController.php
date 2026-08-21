@@ -963,6 +963,70 @@ class RoadmapController extends Controller
     }
 
     /**
+     * POST /api/roadmap/items/{id}/reasignar-reclamo — mueve el `worker_sid` de un item de UNA
+     * terminal a OTRA (#972, hermano directo de `liberarReclamo` — Torre fase 5, Terminales).
+     *
+     * Mismo caso de `liberarReclamo` (reclamo huérfano: item ya `status=done` esperando la
+     * decisión de Irving, reteniendo una terminal) pero en vez de soltar la reserva, la MUEVE a
+     * otra terminal que esté libre ahora mismo. Misma frontera: SOLO toca `worker_sid`/`claimed_at`
+     * — nunca `estado_aprobacion` (no aprueba, rechaza ni ejecuta nada).
+     */
+    public function reasignarReclamo(Request $request, int $id): JsonResponse
+    {
+        $this->authorize('roadmap_manage');
+
+        $item = RoadmapItem::findOrFail($id);
+
+        if (empty($item->worker_sid)) {
+            return response()->json([
+                'message' => 'Este item no tiene ninguna terminal reclamándolo.',
+            ], 422);
+        }
+
+        $sidDestino = trim((string) $request->input('sid_destino'));
+        if ($sidDestino === '') {
+            return response()->json(['message' => 'Falta indicar la terminal destino.'], 422);
+        }
+        if ($sidDestino === $item->worker_sid) {
+            return response()->json(['message' => 'Ya es esa misma terminal.'], 422);
+        }
+
+        // La terminal destino debe estar libre: que ningún OTRO item la tenga reclamada ahora.
+        $ocupada = RoadmapItem::query()
+            ->where('worker_sid', $sidDestino)
+            ->where('id', '!=', $item->id)
+            ->exists();
+        if ($ocupada) {
+            return response()->json([
+                'message' => "La terminal {$sidDestino} ya está reclamada por otro item.",
+            ], 422);
+        }
+
+        $sidAnterior = $item->worker_sid;
+        $item->worker_sid = $sidDestino;
+        // claimed_at se conserva: sigue siendo el mismo reclamo, solo cambia de terminal física.
+
+        $log = $item->log ?: [];
+        $log[] = [
+            'ts'                => now()->toIso8601String(),
+            'por'               => $this->actorLabel(),
+            'evento'            => 'reclamo_reasignado',
+            'terminal_anterior' => $sidAnterior,
+            'terminal_nueva'    => $sidDestino,
+            'estado_aprobacion' => $item->estado_aprobacion,   // sin cambio — solo deja rastro
+            'motivo'            => 'Reasignado desde la Torre (pestaña Terminales) — reclamo huérfano.',
+        ];
+        $item->log = $log;
+        $item->save();
+
+        return response()->json([
+            'ok'      => true,
+            'item_id' => $item->id,
+            'mensaje' => "Reclamo movido: de {$sidAnterior} a {$sidDestino}. El estado del item ({$item->estado_aprobacion}) no cambió.",
+        ]);
+    }
+
+    /**
      * GET /api/roadmap/torre/decisiones/contadores — cuántas decisiones te esperan, POR MÓDULO.
      * (#507 sub-paso 5) Alimenta las "bombitas" del sidebar interno de la Torre.
      *
