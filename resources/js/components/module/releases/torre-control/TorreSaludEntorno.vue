@@ -68,6 +68,19 @@
           </template>
         </div>
 
+        <!-- #957 — pulso de circuito:reactivar-agendados (Fase 2 de #921) -->
+        <div class="se-card" :class="claseEstado(d.reactivacion_agendados?.estado)">
+          <div class="se-card-h"><span class="se-dot"></span> Reactivación de agendados</div>
+          <template v-if="d.reactivacion_agendados?.error">
+            <div class="se-desconocido">{{ d.reactivacion_agendados.error }}</div>
+          </template>
+          <template v-else>
+            <div class="se-card-n">{{ d.reactivacion_agendados?.nunca ? 'nunca ha corrido' : haceHoras(d.reactivacion_agendados?.hace_horas) }}</div>
+            <div class="se-card-s">circuito:reactivar-agendados · diario 00:05</div>
+            <div v-if="d.reactivacion_agendados?.ultimo_fallo" class="se-card-s">último fallo: {{ d.reactivacion_agendados.ultimo_fallo.error }}</div>
+          </template>
+        </div>
+
         <!-- Errores 24h, agrupados por firma -->
         <div class="se-card" :class="claseEstado(d.errores_24h?.estado)">
           <div class="se-card-h"><span class="se-dot"></span> Errores 24 h</div>

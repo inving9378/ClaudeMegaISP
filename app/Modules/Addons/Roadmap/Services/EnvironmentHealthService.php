@@ -54,6 +54,7 @@ class EnvironmentHealthService
             'ultimo_respaldo'  => $this->seguro('ultimo_respaldo', fn () => $this->ultimoRespaldo()),
             'errores_24h'      => $this->seguro('errores_24h', fn () => $this->errores24h()),
             'caches'           => $this->seguro('caches', fn () => $this->estadoCaches()),
+            'reactivacion_agendados' => $this->seguro('reactivacion_agendados', fn () => $this->reactivacionAgendados()),
             'generado_at'      => now()->toIso8601String(),
         ];
     }
@@ -304,6 +305,29 @@ class EnvironmentHealthService
         }
 
         return ['estado' => $estado, 'total' => $total, 'grupos' => array_values($grupos)];
+    }
+
+    /**
+     * #957 — ¿corrió `circuito:reactivar-agendados` (Fase 2 de #921) en las últimas N horas? Reusa
+     * el pulso genérico de #808 (`RoadmapCircuitoService::latidos()`, ya sellado por el listener de
+     * `CommandFinished` — nada que instrumentar aparte) en vez de duplicar el mecanismo de heartbeat.
+     */
+    private function reactivacionAgendados(): array
+    {
+        $proceso = collect(app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)->latidos())
+            ->firstWhere('comando', 'circuito:reactivar-agendados');
+
+        if (! $proceso) {
+            return ['estado' => 'desconocido', 'error' => 'Proceso no registrado en config(circuito.procesos_programados).'];
+        }
+
+        return [
+            'estado'        => $proceso['vencido'] ? 'rojo' : 'verde',
+            'ultimo_at'     => $proceso['at'],
+            'hace_horas'    => $proceso['horas'],
+            'nunca'         => $proceso['nunca'],
+            'ultimo_fallo'  => $proceso['ultimo_fallo'],
+        ];
     }
 
     /** #790/#794 — si config:auditar-env no está limpio, config:cache no es seguro. Solo lectura. */
