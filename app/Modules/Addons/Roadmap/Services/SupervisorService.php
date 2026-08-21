@@ -67,8 +67,11 @@ class SupervisorService
             'pingpong'    => $colis['pingpong'],         // uno arregla / otro revierte (rule 7 → a Irving)
             'actividad'   => $this->actividad($limite, $colis),
             // #475: "escritorio" del supervisor — lo recién resuelto + la cola lista para el próximo terminal.
-            'recien_resueltos'     => $this->recienResueltos(),
-            'listos_para_terminal' => $this->listosParaTerminal(),
+            // #934: hasta 10 (antes 6) + total real, para el pie "+N más" (nunca truncar en silencio).
+            'recien_resueltos'           => $this->recienResueltos(),
+            'recien_resueltos_total'     => $this->recienResueltosTotal(),
+            'listos_para_terminal'       => $this->listosParaTerminal(),
+            'listos_para_terminal_total' => $this->listosParaTerminalTotal(),
             // #854: qué item está analizando AHORA (o por qué no hay ninguno en curso).
             'item_en_curso'        => $this->itemEnCurso(),
         ];
@@ -105,7 +108,7 @@ class SupervisorService
     }
 
     /** #475: últimos items COMPLETADOS — alimenta la lista "Recién resueltos" del escritorio. */
-    public function recienResueltos(int $limite = 6): array
+    public function recienResueltos(int $limite = 10): array
     {
         return RoadmapItem::where('estado_aprobacion', 'completado')
             ->whereNull('archivado_at')
@@ -119,11 +122,19 @@ class SupervisorService
             ])->values()->all();
     }
 
+    /** #934: total real detrás de {@see recienResueltos()}, para el pie "+N más" (nunca cortar en silencio). */
+    public function recienResueltosTotal(): int
+    {
+        return RoadmapItem::where('estado_aprobacion', 'completado')
+            ->whereNull('archivado_at')
+            ->count();
+    }
+
     /**
      * #475: items ya triados/ejecutables (estación "listo" — ver RoadmapItem::getEstacionAttribute)
      * esperando que un worker los reclame. Alimenta "Listos para terminal" del escritorio.
      */
-    public function listosParaTerminal(int $limite = 6): array
+    public function listosParaTerminal(int $limite = 10): array
     {
         // FASE 2A.5 — se quitaron dos `not like` del rótulo que estaban copiados aquí a mano:
         // `autoEjecutable()` ya pasa por `elegibleParaPool()` → `RoadmapItem::sqlElegibleParaPool()`,
@@ -140,6 +151,15 @@ class SupervisorService
                 'title' => $r->title,
                 'nivel' => $r->nivel_riesgo,
             ])->values()->all();
+    }
+
+    /** #934: total real detrás de {@see listosParaTerminal()}, para el pie "+N más" (nunca cortar en silencio). */
+    public function listosParaTerminalTotal(): int
+    {
+        return RoadmapItem::autoEjecutable()
+            ->whereNull('archivado_at')
+            ->whereNull('branch')
+            ->count();
     }
 
     /** El PROTOCOLO DE COORDINACIÓN que Thomas T arbitra (para la identidad/UI del supervisor). */
