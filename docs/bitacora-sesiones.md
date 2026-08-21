@@ -1389,3 +1389,35 @@ real). `#463` sigue como el item de seguimiento original; no requiere acción ad
 **Para el próximo:** si aparece un caso de este bucle que el guard de #967 NO cubra (dependencia
 fraseada distinto a "#N", o dependencia que no sea "nivel C sin merge_commit"), ahí sí evaluar el
 estado nuevo "esperando_dependencia" más general — pero no antes de tener ese caso real.
+
+## 2026-08-21 14:03 — Item #979: runbook de restricción /ip service api (MikroTik, puerto 8730)
+
+**Contexto:** #979 es un item de seguimiento (hijo de #951/#811) sobre el servicio `/ip service
+api` de MikroTik expuesto sin restricción de `address` de origen. Irving ya había resuelto las
+3 preguntas del brief: restringir por address (no rotar credenciales, no forzar api-ssl), aplicar
+primero a un router piloto, y que **el cambio en los routers lo aplique Irving/NOC manualmente**
+— el circuito NO debe automatizarlo ni tocar routers reales.
+
+**Entregado:**
+- `docs/runbook-mikrotik-restriccion-api-address.md` — guía paso a paso para NOC: inventario
+  (`/ip service print`), definición de whitelist, aplicación en un router piloto con verificación
+  y rollback, luego rollout gradual.
+- `php artisan mikrotik:audit-api-exposure` (nuevo, `app/Console/Commands/Active/`) — comando de
+  **solo lectura** (nunca llama `/set` ni `/remove`) que recorre los routers MikroTik `active` en
+  la tabla `mikrotiks` y reporta si `api`/`api-ssl`/`winbox`/`ssh`/`www` tienen `address` vacío.
+  No agendado en el schedule (se corre a mano cuando NOC lo necesite).
+- No se conectó a ningún router real durante esta sesión (verificación solo con `php -l` +
+  `artisan list mikrotik` + `artisan --version`).
+
+**Hallazgo relacionado (NO corregido aquí, quedó como sub-item #983):** `MikrotikRulesJob`
+(dispatch al guardar/activar la config de un Mikrotik) arma una regla de firewall
+`MgNet_INPUT_MEGANET_TO_API_ACCEPT` (accept solo desde la IP de MegaISP hacia el puerto de la
+API), pero **nunca invoca** `RouterConnection::addRulesInputDorpRest()` (el drop final del resto
+del chain `input`, que sí está definido en el código). Sin ese drop, la política implícita de
+RouterOS en `input` es accept, así que la regla de accept-solo-MegaISP no restringe nada en la
+práctica hoy — es efectivamente dead-code de seguridad. Corregirlo tocaría el firewall de routers
+en producción (podría cortar Winbox/SSH si no se agregan sus accepts antes del drop-resto), por
+eso quedó como sub-item aparte para su propio triaje con el mismo cuidado (piloto + rollback).
+
+**Estado:** #979 → `completado` (runbook + tooling listos, ejecución en routers reales queda para
+Irving/NOC). #983 → `pendiente_revision`, esperando triaje del revisor.
