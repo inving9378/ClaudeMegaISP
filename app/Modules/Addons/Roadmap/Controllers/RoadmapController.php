@@ -508,6 +508,23 @@ class RoadmapController extends Controller
             'intake'           => RoadmapItem::backlog()->count(),
         ], ['auto_ejecutables' => null, 'espera_decision' => null, 'sin_clasificar' => null, 'intake' => null]);
 
+        // #958 (Fase 3 de #921) — "N items agendados" con su LISTA (título + fecha), para que dejen
+        // de vivir invisibles en la BD. Usa `scopeAgendados()` (el mismo predicado que ya excluye
+        // estos items del pool automático, ver comentario en `sqlElegibleParaPool` arriba) — un solo
+        // punto de verdad de qué cuenta como "agendado". Fallback `count: null` (no `0`, por la misma
+        // razón que `resumen_cola`: un cero aquí se leería como "nada agendado" cuando en realidad
+        // no se pudo calcular).
+        $agendados = $this->bloque('agendados', fn () => [
+            'count' => RoadmapItem::agendados()->count(),
+            'items' => RoadmapItem::agendados()->orderBy('agendado_para')->limit(50)
+                ->get(['id', 'title', 'agendado_para'])
+                ->map(fn (RoadmapItem $i) => [
+                    'id'            => $i->id,
+                    'title'         => $i->title,
+                    'agendado_para' => optional($i->agendado_para)->toIso8601String(),
+                ]),
+        ], ['count' => null, 'items' => collect()]);
+
         // [BUG][UI/UX][TORRE] Cada evento de Actividad reciente se enriquece con la UBICACIÓN ACTUAL
         // REAL del item (no la del evento): status + estacion calculada (accessor) + etiqueta legible +
         // pestaña destino + siguiente acción. Así la tarjeta puede navegar a donde el item está AHORA.
@@ -591,6 +608,7 @@ class RoadmapController extends Controller
             'cola_requiere_irving' => $cola,
             'cola_ejecutable'      => $colaEjecutable,   // #348: SOLO auto-ejecutables (A/B o aprobados) con 🔥
             'resumen_cola'         => $resumenCola,      // #348: N auto-ejecutables · M esperan tu decisión
+            'agendados'            => $agendados,        // #958: N items agendados + su lista (título/fecha)
             'actividad_reciente'   => $actividad,
             // FASE 1 — "Cambios para que Irving pruebe": cambios seguros integrados esperando validación funcional.
             'cambios_validacion'   => $this->bloque('cambios_validacion', fn () => RoadmapItem::pendienteValidacion()->limit(30)->get()
