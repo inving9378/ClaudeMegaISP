@@ -906,10 +906,16 @@ class RoadmapItem extends Model
      * un motivo accionable, en orden de lo que Irving puede resolver primero. Si algún día se
      * agrega un freno y nadie actualiza esta traducción, el veredicto sigue siendo correcto: se
      * cae al motivo genérico, nunca a un falso "sí".
+     *
+     * #935 — `$esDespachable` opcional: quien ya calculó el conjunto despachable en LOTE (una sola
+     * consulta para N items, p.ej. `DiagnosticoItemService`) lo pasa aquí y evita que este método
+     * dispare su propia consulta por cada item (el N+1 que el diagnóstico batch necesita no tener).
+     * Sin el argumento, el comportamiento es IDÉNTICO al de siempre (consulta puntual).
      */
-    public function motivoNoDespachable(): ?array
+    public function motivoNoDespachable(?bool $esDespachable = null): ?array
     {
-        if (static::query()->whereKey($this->getKey())->despachable()->exists()) {
+        $esDespachable ??= static::query()->whereKey($this->getKey())->despachable()->exists();
+        if ($esDespachable) {
             return null;
         }
 
