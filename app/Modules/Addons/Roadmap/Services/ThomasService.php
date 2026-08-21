@@ -509,6 +509,29 @@ class ThomasService
             return $no('No tiene brief: no hay una decisión previa que respetar.');
         }
 
+        // #967 — anti-bucle: «pregunta maestra contestada» NO implica que la ACCIÓN FÍSICA que esa
+        // respuesta implica ya ocurrió. Caso real #463↔#308: Irving eligió 9+ veces "mergear #308 a
+        // main", pero mergear es un botón manual de Irving en la Torre, no algo que este carril pueda
+        // dar por hecho — y cada re-aprobación reabría el pool para descubrir el mismo bloqueo otra
+        // vez. Alcance MÍNIMO VIABLE (no es un sistema de dependencias): si la pregunta maestra ya
+        // contestada menciona "#N" y N es un item nivel C con rama lista pero sin mergear (mismo
+        // criterio que el guard de `saving()` en RoadmapItem, línea ~273), la dependencia sigue sin
+        // resolver → no aprobar, aunque el brief esté 100% contestado.
+        $master = $preguntas[0];
+        if (($master['opcion_elegida'] ?? null) !== null) {
+            foreach (self::referenciasItemEnTexto((string) ($master['pregunta'] ?? '')) as $n) {
+                if ($n === $item->id) {
+                    continue;
+                }
+                $dep = RoadmapItem::find($n);
+                if ($dep && $dep->nivel_riesgo === 'C' && ! empty($dep->branch) && empty($dep->merge_commit)) {
+                    return $no("La pregunta maestra depende de #{$n}, que sigue sin mergearse a main "
+                        . '(nivel C, rama lista, espera el botón de merge de Irving en la Torre): la '
+                        . 'decisión ya fue tomada, pero la acción física que implica todavía no ocurrió.');
+                }
+            }
+        }
+
         foreach ($preguntas as $idx => $p) {
             // LECTOR DEFENSIVO (2026-08-19). Una pregunta SIN opciones no puede contar como
             // «contestada»: `$sinResponder` daría false y la pregunta pasaría de largo, aprobando
@@ -580,6 +603,22 @@ class ThomasService
         }
 
         return false;
+    }
+
+    /**
+     * #967 — ids de RoadmapItem referenciados como "#N" en un texto (ej. "mergear #308 a main").
+     * PURA (solo regex, sin BD) a propósito: misma razón que `opcionElegidaEsEscalar()`, necesita
+     * un test de regresión que no dependa de bootear Laravel ni tocar la BD compartida de dev. La
+     * resolución de si esa dependencia sigue sin resolver (nivel/branch/merge_commit) vive en
+     * `evaluarYaDecidido()`, que sí tiene BD.
+     */
+    public static function referenciasItemEnTexto(string $texto): array
+    {
+        if ($texto === '' || ! preg_match_all('/#(\d+)/', $texto, $m)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_map('intval', $m[1])));
     }
 
     public const APROBADOR_YA_DECIDIDO = 'thomas-ya-decidido';
