@@ -78,6 +78,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\AuditorCommand::class,
                 // #921 Fase 2 / #957 — reactiva diario los items agendados cuya fecha ya pasó.
                 \App\Modules\Addons\Roadmap\Console\ReactivarAgendadosCommand::class,
+                // #902 — mide disparos/aflojos por término de la válvula de contexto; read-only.
+                \App\Modules\Addons\Roadmap\Console\MedirValvulaContextoCommand::class,
             ]);
         }
     }
