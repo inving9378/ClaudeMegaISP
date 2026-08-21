@@ -731,6 +731,9 @@ class RoadmapController extends Controller
             'proxima_vuelta_at' => $this->svc->proximaVueltaAt(),
             'ultima_vuelta_at'  => optional($ultima?->started_at)->toIso8601String(),
             'circuito_intervalo_min' => (int) config('circuito.interval_min', 30),
+            // #938: límite real de una vuelta — la Torre lo usa para el reloj de cada terminal
+            // contra el límite (no un número inventado en el frontend).
+            'vuelta_limite_segundos' => (int) config('circuito.vuelta_timeout_seg', 600),
             // Watchdog del equipo (#334): salud por slot + alertas para el polling en vivo.
             'watchdog'          => $this->watchdog->estado(),
             'supervisor'        => $this->supervisor->estado(),   // Thomas T + su feed (#334)
