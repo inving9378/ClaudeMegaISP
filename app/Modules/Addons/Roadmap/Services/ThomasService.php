@@ -1134,6 +1134,79 @@ class ThomasService
         }
     }
 
+    /**
+     * #1008 (#1003 §6) — ¿el item que se está cerrando arrastra preguntas que SÍ necesitaban
+     * decisión de Irving (`preguntas[].requiere_irving=true`) y se quedaron sin `opcion_elegida`?
+     * Patrón confirmado en auditoría (26 casos, wt-3 2026-08-21): quedaban enterradas en el log
+     * del item cerrado en vez de generar su propio seguimiento.
+     *
+     * PURA (no escribe), igual que `verificarCierre()`, para poder auditarla en seco.
+     */
+    public function preguntasSinResolver(RoadmapItem $item): array
+    {
+        $preguntas = is_array($item->preguntas) ? $item->preguntas : [];
+
+        return array_values(array_filter($preguntas, function ($p) {
+            if (! is_array($p)) {
+                return false;
+            }
+
+            $requiere = RoadmapItem::boolEstricto($p, 'requiere_irving') === true;
+            $elegida  = trim((string) ($p['opcion_elegida'] ?? '')) !== '';
+
+            return $requiere && ! $elegida;
+        }));
+    }
+
+    /**
+     * #1008 — crea el sub-item de seguimiento (mismo mecanismo que `circuito:sub-item` /
+     * `RoadmapIntakeService::crear`, sin pasar por ahí porque ya estamos dentro del `saving()` del
+     * padre) para que la(s) pregunta(s) sin resolver no queden enterradas. Nace DIRECTO en la
+     * bandeja de Irving (`requiere_irving`, no `pendiente_revision`): no es trabajo nuevo que el
+     * revisor tenga que triajear desde cero, es la MISMA decisión que ya estaba pendiente cuando el
+     * padre se cerró — heredando su módulo y nivel_riesgo.
+     */
+    public function generarSeguimientoPreguntas(RoadmapItem $item, array $sinResolver): RoadmapItem
+    {
+        $lista = collect($sinResolver)
+            ->map(fn ($p) => '- ' . trim((string) ($p['pregunta'] ?? '(sin texto)')))
+            ->implode("\n");
+
+        $hijo                      = new RoadmapItem();
+        $hijo->title               = mb_substr("Seguimiento: pregunta sin resolver de #{$item->id}", 0, 255);
+        $hijo->description         = "El item #{$item->id} («{$item->title}») se cerró con "
+            . count($sinResolver) . ' pregunta(s) que requerían decisión de Irving y quedaron sin '
+            . "opción elegida:\n\n{$lista}\n\nVer el item padre para el detalle completo (opciones, "
+            . 'confianza, reversibilidad) de cada pregunta.';
+        $hijo->modulo              = $item->modulo;
+        $hijo->origen_item_id      = $item->id;
+        $hijo->nivel_riesgo        = $item->nivel_riesgo;
+        $hijo->nivel_riesgo_origen = $item->nivel_riesgo_origen;
+        $hijo->preguntas           = array_values($sinResolver);
+        $hijo->estado_aprobacion   = 'requiere_irving';
+        $hijo->status              = 'pending';
+        $hijo->log                 = [[
+            'ts'     => now()->toIso8601String(),
+            'por'    => self::NOMBRE,
+            'evento' => 'item_creado',
+            'via'    => 'interno',
+            'padre'  => $item->id,
+            'motivo' => 'Auto-generado al cerrar el padre con preguntas sin resolver (#1008).',
+        ]];
+        $hijo->save();
+
+        $this->reportes->append(
+            $hijo,
+            self::NOMBRE,
+            'nota',
+            "Seguimiento de #{$item->id}: " . count($sinResolver) . ' pregunta(s) sin resolver al cerrar el padre.',
+            null,
+            ['padre' => $item->id]
+        );
+
+        return $hijo;
+    }
+
     // =================================================================
     // 4. DIAGNÓSTICO DEL REPARTO (invariantes que Thomas vigila)
     // =================================================================
