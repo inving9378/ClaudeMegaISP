@@ -23,7 +23,8 @@ class FleetSubscription extends BaseModel
         'client_id', 'plan', 'status',
         'trial_starts_at', 'trial_ends_at', 'trial_notified_days',
         'started_at', 'cancelled_at', 'cancel_reason',
-        'vehicles_count', 'price_per_vehicle', 'monthly_price',
+        'vehicles_count', 'base_price', 'included_units',
+        'overage_units', 'overage_unit_price', 'overage_amount', 'monthly_price',
         'next_billing_date', 'last_billed_at', 'auto_renew',
         'data_retention_until', 'notes',
     ];
@@ -39,7 +40,11 @@ class FleetSubscription extends BaseModel
         'auto_renew'           => 'boolean',
         'vehicles_count'       => 'integer',
         'trial_notified_days'  => 'integer',
-        'price_per_vehicle'    => 'decimal:2',
+        'included_units'       => 'integer',
+        'overage_units'        => 'integer',
+        'base_price'           => 'decimal:2',
+        'overage_unit_price'   => 'decimal:2',
+        'overage_amount'       => 'decimal:2',
         'monthly_price'        => 'decimal:2',
     ];
 
