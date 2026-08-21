@@ -1485,3 +1485,46 @@ Completé el cierre administrativo que había quedado a medias por la carrera re
 
 **Estado:** #942 → `completado` (ya lo estaba; solo se completó el reporte para revisión de
 Irving). Sin código nuevo — el cambio funcional es 100% de la sesión anterior.
+
+## 2026-08-21 17:36 — Item #1030: seguimiento de #1008 resuelto por precedente (implementación ya la contestaba)
+
+**Contexto:** #1030 es el primer ejemplar del mecanismo que #1008 acababa de construir
+(`ThomasService::preguntasSinResolver()` + `generarSeguimientoPreguntas()`, commit `9a07c1e0`):
+al cerrarse #1008 con 2 preguntas `requiere_irving=true` sin `opcion_elegida`, el propio gate de
+cierre auto-generó #1030 como hijo de seguimiento, colgando ahí las 2 preguntas textuales para
+que no quedaran enterradas en el log. Las preguntas eran, literalmente, "¿cómo debería funcionar
+este mecanismo de auto-seguimiento?" y "¿qué nivel/estado debe llevar el item auto-generado?" —
+la misma pregunta que el mecanismo ya tuvo que responder para poder construirse.
+
+**Hallazgo:** el commit `9a07c1e0` (que implementó #1008) ya construyó exactamente la Opción 1
+(recomendada) de ambas preguntas, no una alternativa:
+- **q1** ("¿cómo auto-generar?"): `preguntasSinResolver()` detecta el patrón reusando los campos
+  existentes (`requiere_irving` + `opcion_elegida` vacía, sin campo nuevo de schema) y
+  `generarSeguimientoPreguntas()` crea el hijo colgando de `origen_item_id`, heredando `modulo` y
+  `nivel_riesgo` del padre — exactamente el texto de la Opción 1 de q1.
+- **q2** ("¿qué nivel/estado inicial?"): el hijo nace con `estado_aprobacion='requiere_irving'`
+  (directo en la bandeja de decisión de Irving) heredando el `nivel_riesgo` del padre —
+  exactamente el texto de la Opción 1 de q2 ("hereda nivel del padre, estado pendiente en bandeja
+  de decisión de Irving").
+
+**Por qué no escalé esto a Irving como una decisión nueva:** no había una decisión de diseño
+pendiente que tomar — ya estaba tomada y en producción (dev) desde que #1008 se implementó; #1030
+era el eco automático de esa decisión, no una pregunta abierta esperando input nuevo. Además,
+Opus ya había re-triajeado el item vía `circuito:destrabe` (log `destrabe_reaprobado`, categoría
+`tecnico_seguro`) autorizando explícitamente al circuito a procesarlo "revisando las preguntas
+pendientes del #1008" — la revisión mostró que ya estaban contestadas por el código, así que
+registré esa correspondencia (`responderPregunta` en ambas, apuntando a la Opción 1 real) en vez
+de inventar una decisión nueva o dejarlo indefinidamente en la bandeja.
+
+**Cuidado con el efecto colateral:** si hubiera cerrado #1030 a `completado` dejando sus 2
+preguntas sin `opcion_elegida`, el MISMO gate de #1008 (que vive en `RoadmapItem::booted()`, no
+distingue si el padre que se cierra es él mismo un item de seguimiento) habría disparado de
+nuevo y creado un NIETO "Seguimiento: pregunta sin resolver de #1030" — bucle de auto-seguimiento
+recursivo. Resolver ambas preguntas con `responderPregunta()` antes de completar es lo que corta
+esa recursión.
+
+**Estado:** #1030 → `completado`, ambas preguntas con `opcion_elegida` apuntando a su Opción 1
+real + `decision_resuelta=true`/`decision_fuente='circuito'` (no `'irving'`: la fuente real es la
+correspondencia con el código ya implementado, no una decisión nueva de Irving — si él no está de
+acuerdo con el patrón ya construido, sigue pudiendo reabrirlo). Sin cambios de código de producto;
+el único artefacto es esta bitácora + los campos de decisión del item.
