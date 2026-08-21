@@ -533,12 +533,8 @@ class ThomasService
                 // mencionar «escalar a Irving» como parte de un plan de contingencia (ej. «rollback +
                 // escalar a Irving» si algo falla) sin que ESA sea la decisión tomada — falso
                 // positivo real visto en #463 q4, que no es la pregunta maestra.
-                if ($idx === 0) {
-                    foreach ($p['opciones'] as $o) {
-                        if ($o['clave'] === $p['opcion_elegida'] && stripos($o['texto'], 'escalar a irving') !== false) {
-                            return $no('La opción elegida de la pregunta maestra es "escalar a Irving": no es una decisión tomada para el pool.');
-                        }
-                    }
+                if ($idx === 0 && self::opcionElegidaEsEscalar($p)) {
+                    return $no('La opción elegida de la pregunta maestra es "escalar a Irving": no es una decisión tomada para el pool.');
                 }
                 continue;
             }
@@ -562,6 +558,28 @@ class ThomasService
             'estado'   => $estado,
             'motivo'   => 'Brief ya respondido: no falta ninguna decisión.',
         ];
+    }
+
+    /**
+     * #893 — ¿el texto de la opción ELEGIDA de esta pregunta es literalmente "escalar a Irving"?
+     * PURA (solo arrays, sin BD ni contenedor) a propósito: es el núcleo del fix de las 12
+     * escalaciones idénticas de #186, y necesita un test de regresión que no dependa de bootear
+     * Laravel ni tocar la BD compartida de dev (`tests/TestCase.php` corre `migrate:fresh` contra
+     * ella — ver `EvaluarYaDecididoEscalarTest`).
+     */
+    public static function opcionElegidaEsEscalar(array $pregunta): bool
+    {
+        $clave = $pregunta['opcion_elegida'] ?? null;
+        if ($clave === null) {
+            return false;
+        }
+        foreach ((array) ($pregunta['opciones'] ?? []) as $o) {
+            if (($o['clave'] ?? null) === $clave) {
+                return stripos((string) ($o['texto'] ?? ''), 'escalar a irving') !== false;
+            }
+        }
+
+        return false;
     }
 
     public const APROBADOR_YA_DECIDIDO = 'thomas-ya-decidido';
