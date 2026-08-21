@@ -82,7 +82,7 @@
 
     <!-- Rejilla responsiva: 1 = ancho completo · 2-4 = grid · N = scroll -->
     <div v-if="sesiones.length" class="tt-grid" :class="{ 'tt-grid-solo': sesiones.length === 1 }">
-      <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle, 'tt-orphan': s.reclamo_huerfano }">
+      <div v-for="s in sesiones" :key="s.sid" class="tt-term" :class="{ 'tt-stale': s.stale, 'tt-off': !s.running, 'tt-idle': s.idle, 'tt-orphan': s.reclamo_huerfano, 'tt-term-expanded': expandedSid === s.sid }">
         <div class="tt-term-head">
           <!-- Avatar de la persona (por slot wt-K) + animación enganchada al estado live -->
           <span class="tt-avatar" :class="avatarClass(s)">
@@ -111,7 +111,7 @@
             <template v-else><i class="tt-muted">triaje / sin item fijo</i></template>
           </span>
           <span v-if="!s.idle" class="tt-term-clock" :class="roundClockClass(s)" :title="roundClockTooltip(s)">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span class="tt-clock-limit" v-if="s.running"> / {{ fmtClock(vueltaLimiteSeg) }}</span><span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
-          <button v-if="!s.idle" class="tt-fs-btn" title="Pantalla completa" @click="openFs(s.sid)">⤢</button>
+          <button v-if="!s.idle" class="tt-fs-btn" :title="expandedSid === s.sid ? 'Contraer' : 'Expandir a ancho completo'" @click="toggleExpand(s.sid)">{{ expandedSid === s.sid ? '⤡' : '⤢' }}</button>
         </div>
 
         <!-- #889: reclamo huérfano — item ya `status=done` que sigue reteniendo esta terminal
@@ -172,35 +172,6 @@
       </div>
     </div>
 
-    <!-- Overlay pantalla completa -->
-    <div v-if="fsSesion" class="tt-fs" @click.self="closeFs">
-      <div class="tt-fs-card">
-        <div class="tt-fs-head">
-          <span class="tt-state" :class="fsSesion.running ? (fsSesion.stale ? 'tt-s-stale' : 'tt-s-run') : 'tt-s-off'">
-            <span v-if="fsSesion.running && !fsSesion.stale" class="tt-dot"></span>{{ workerStateText(fsSesion) }}
-          </span>
-          <span class="tt-term-item">
-            <template v-if="fsSesion.item"><b class="tt-idnum">#{{ fsSesion.item.id }}</b> {{ fsSesion.item.title || '(sin título)' }}</template>
-            <template v-else><i class="tt-muted">triaje / sin item fijo</i></template>
-          </span>
-          <span class="tt-term-clock" :class="roundClockClass(fsSesion)" :title="roundClockTooltip(fsSesion)">⏱ {{ fmtClock(secsSince(fsSesion.started_at)) }}<span class="tt-clock-limit" v-if="fsSesion.running"> / {{ fmtClock(vueltaLimiteSeg) }}</span><span v-if="fsSesion.running" class="tt-beat"> · ♥ {{ secsSince(fsSesion.heartbeat_at) }}s</span></span>
-          <button class="tt-fs-btn" title="Cerrar (Esc)" @click="closeFs">✕</button>
-        </div>
-        <div v-if="hasFaseData(fsSesion)" class="tt-steps">
-          <span v-for="f in FASES" :key="f.key" class="tt-step" :class="stepClass(fsSesion, f.key)">
-            {{ stepReached(fsSesion, f.key) ? '●' : '○' }}<span class="tt-step-lbl">{{ f.label }}</span>
-          </span>
-        </div>
-        <div v-else-if="!fsSesion.idle" class="tt-steps tt-steps-empty">sin dato de fase todavía — solo el reloj</div>
-        <div v-if="etaVisible(fsSesion)" class="tt-eta-row" :class="etaClass(fsSesion)" :title="etaTooltip(fsSesion)">
-          <i class="bi" :class="etaIcon(fsSesion)"></i>
-          <span class="tt-eta-label">{{ etaLabel(fsSesion) }}</span>
-          <span class="tt-eta-bar"><span class="tt-eta-fill" :style="{ width: etaPct(fsSesion) + '%' }"></span></span>
-        </div>
-        <pre ref="fsPre" class="tt-pre tt-pre-fs">{{ fsSesion.log_tail || 'Sin salida todavía…' }}</pre>
-      </div>
-    </div>
-
     <!-- #854: error de subida de avatar (validación server-side: tipo/tamaño real) -->
     <transition name="tt-toast-fade">
       <div v-if="avatarError.visible" class="tt-avatar-toast"><i class="bi bi-exclamation-triangle-fill me-1"></i>{{ avatarError.message }}</div>
@@ -217,7 +188,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import axios from "axios";
 import { darkMode } from "../../../../hook/appConfig.js";
 
@@ -240,9 +211,7 @@ export default {
         const recienResueltos = ref([]);      // #475: escritorio del supervisor — lista 1
         const listosParaTerminal = ref([]);    // #475: escritorio del supervisor — lista 2
         const nowMs = ref(Date.now());
-        const fsSid = ref(null);
         const pres = {};        // sid -> <pre> (rejilla)
-        const fsPre = ref(null);
         const prevRunning = {};   // #475: sid -> running anterior, para detectar "terminó ahora"
         const stretchUntil = {};  // #475: sid -> ms hasta el que se muestra el gesto de estirarse
         let pollTimer = null, tickTimer = null;
@@ -250,6 +219,17 @@ export default {
         // #938: límite real de una vuelta (config circuito.vuelta_timeout_seg, mismo payload del
         // poll) — el reloj de cada terminal se pinta CONTRA este número real, nunca inventado.
         const vueltaLimiteSeg = ref(600);
+
+        // #938 criterio 8: expansión EN LÍNEA (grid-column:1/-1, como el mockup) en vez de overlay
+        // modal — una sola tarjeta a la vez, y el estado sobrevive al refresco de la página (persiste
+        // en localStorage; si esa terminal ya no existe en el próximo poll, simplemente no aplica).
+        const TT_EXPANDED_KEY = "tt_terminales_expanded_sid";
+        const expandedSid = ref(localStorage.getItem(TT_EXPANDED_KEY) || null);
+        const toggleExpand = (sid) => { expandedSid.value = expandedSid.value === sid ? null : sid; };
+        watch(expandedSid, (v) => {
+            if (v) localStorage.setItem(TT_EXPANDED_KEY, v);
+            else localStorage.removeItem(TT_EXPANDED_KEY);
+        });
 
         // #938 criterio 3: el poll ya no debe saltar al final si el usuario se desplazó a leer
         // historial. sid -> true mientras el usuario está lejos del final de esa consola.
@@ -263,7 +243,6 @@ export default {
         const LIVE_SIN_SENAL_SEG = 20;   // sin renglones nuevos por más de esto → "sin señal"
 
         const anyRunning = computed(() => sesiones.value.some((s) => s.running));
-        const fsSesion = computed(() => sesiones.value.find((s) => s.sid === fsSid.value) || null);
 
         // #854: item que el supervisor analiza AHORA (mismo payload del poll de 3s, sin llamada nueva).
         const itemEnCursoEstado = computed(() => (supervisor.value && supervisor.value.item_en_curso && supervisor.value.item_en_curso.estado) || 'cola_vacia');
@@ -474,7 +453,6 @@ export default {
             Object.entries(pres).forEach(([sid, el]) => {
                 if (el && !scrolledUp.value[sid]) el.scrollTop = el.scrollHeight;
             });
-            if (fsPre.value) fsPre.value.scrollTop = fsPre.value.scrollHeight;
         };
         const onConsoleScroll = (sid) => {
             const el = pres[sid];
@@ -529,9 +507,7 @@ export default {
             } catch (e) { /* silencioso: no romper la vista por un poll */ }
         }
 
-        const openFs = (sid) => { fsSid.value = sid; nextTick(scrollAll); };
-        const closeFs = () => { fsSid.value = null; };
-        const onKey = (e) => { if (e.key === "Escape") closeFs(); };
+        const onKey = (e) => { if (e.key === "Escape" && expandedSid.value) toggleExpand(expandedSid.value); };
 
         onMounted(() => {
             poll();
@@ -547,12 +523,12 @@ export default {
 
         return {
             FASES, POLL_MS, dark: darkMode,
-            sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive, fsSesion, fsPre,
+            sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive,
             itemEnCurso, itemEnCursoEstado,
             secsSince, fmtClock, stepReached, stepClass, hasFaseData, setPre, workerStateText,
             avatarClass, gestureIcon, gestureClass, linkClass,
             initials, initialsStyle, puedeEditarAvatar, uploadingAvatar, avatarError, onAvatarFile,
-            openFs, closeFs,
+            expandedSid, toggleExpand,
             etaVisible, etaClass, etaIcon, etaLabel, etaPct, etaTooltip,
             liberando, accionAviso, liberarReclamo,
             reasignando, reasignarDestino, terminalesLibres, reasignarReclamo,
@@ -836,9 +812,9 @@ export default {
   .tt-live-dot{ animation:none !important; }
 }
 
-/* Overlay pantalla completa */
-.tt-fs{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:10500; display:flex; align-items:center; justify-content:center; padding:24px; }
-.tt-fs-card{ background:var(--tt-surface); border:1px solid var(--tt-line); border-radius:14px; width:min(1200px,96vw); height:min(88vh,900px); display:flex; flex-direction:column; overflow:hidden; }
-.tt-fs-head{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--tt-line); flex-wrap:wrap; }
-.tt-pre-fs{ height:auto; flex:1 1 auto; font-size:12.5px; }
+/* #938 criterio 8 — expansión EN LÍNEA (como el mockup: grid-column:1/-1), no overlay modal.
+   Solo una tarjeta a la vez (expandedSid es un único ref); las demás siguen visibles debajo,
+   la rejilla las reacomoda sola. Consola más alta para leer más historial de un vistazo. */
+.tt-term-expanded{ grid-column:1 / -1; }
+.tt-term-expanded .tt-pre{ height:480px; }
 </style>
