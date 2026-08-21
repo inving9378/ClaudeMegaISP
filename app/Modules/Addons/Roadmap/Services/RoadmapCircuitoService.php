@@ -1103,7 +1103,45 @@ class RoadmapCircuitoService
         }
         unset($s);
 
+        // #889 (Torre fase 5 — Terminales): reclamos huérfanos — items ya `status=done` que siguen
+        // reteniendo un `worker_sid` sin más trabajo pendiente (esperan la decisión de Irving). Ese
+        // `worker_sid` es lo que hoy deja la terminal "ocupada" sin forma de soltarla desde el
+        // front. Se adjunta por sid; el frontend lo pinta en ámbar con el botón "Liberar reclamo".
+        $huerfanos = $this->reclamosHuerfanosPorSid();
+        foreach ($sesiones as &$s) {
+            $s['reclamo_huerfano'] = $huerfanos[$s['sid']] ?? null;
+        }
+        unset($s);
+
         return ['sesiones' => $sesiones, 'resumen_ultima_vuelta' => $resumen];
+    }
+
+    /**
+     * #889 — mapa `worker_sid => {item_id, title, estado_aprobacion}` de items YA terminados
+     * (`status=done`) que siguen reteniendo un `worker_sid` con `estado_aprobacion` NO terminal
+     * (no `completado`/`cancelado`/`rechazado`). Cada uno de esos `worker_sid` es una terminal
+     * reservada sin trabajo real detrás. PURO-LECTURA. Si dos items compartieran el mismo
+     * `worker_sid` huérfano (no debería pasar), gana el más reciente (`updated_at`).
+     */
+    private function reclamosHuerfanosPorSid(): array
+    {
+        $rows = RoadmapItem::query()
+            ->where('status', 'done')
+            ->whereNotNull('worker_sid')
+            ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
+            ->orderBy('updated_at')
+            ->get(['id', 'title', 'worker_sid', 'estado_aprobacion']);
+
+        $mapa = [];
+        foreach ($rows as $r) {
+            $mapa[$r->worker_sid] = [
+                'item_id'           => (int) $r->id,
+                'title'             => $r->title,
+                'estado_aprobacion' => $r->estado_aprobacion,
+            ];
+        }
+
+        return $mapa;
     }
 
     /** Nº de slot de un sid `wt-K` para ordenar (los no-wt-K se mandan al final). #334 B */
