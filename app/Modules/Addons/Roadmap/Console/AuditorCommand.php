@@ -45,7 +45,7 @@ class AuditorCommand extends Command
         $g = $auditor->debeCorrer((bool) $this->option('forzar'));
         $this->line('');
         $this->line('<options=bold>MOTOR DE AUDITORÍA CONTINUA (#559)</>');
-        $this->line(sprintf('  cola reclamable=%d  ·  umbral=%d  ·  terminales libres=%d', $g['cola'], $g['umbral'], $g['slots_libres']));
+        $this->line(sprintf('  cola reclamable=%d  ·  umbral=%d  ·  terminales libres=%d  ·  racha seca=%d', $g['cola'], $g['umbral'], $g['slots_libres'], $g['racha_seca']));
         $this->line('  ' . $g['motivo']);
 
         if (! $g['corre']) {
@@ -147,14 +147,27 @@ class AuditorCommand extends Command
     {
         $this->line('');
         $this->line('<options=bold>DoD de Fase 1 por módulo</> (sin gaps mecánicos detectables)');
+        $cobertura = $auditor->cobertura();   // #1015 — memoria de cobertura, ver AuditorService::modulosAAuditar
         $filas = [];
         foreach ($auditor->modulosAAuditar() as $m) {
             $gaps = $auditor->detectarGaps($m);
             $mec  = count(array_filter($gaps, fn ($g) => $g['clase'] === 'mecanico'));
             $prod = count($gaps) - $mec;
-            $filas[] = [$m, $auditor->rutaModulo($m) ? 'sí' : 'no', $mec, $prod, $mec === 0 ? '✔ DoD F1' : '—'];
+            $ultima = $cobertura[$m]['ultima_auditoria_at'] ?? null;
+            $filas[] = [
+                $m,
+                $auditor->rutaModulo($m) ? 'sí' : 'no',
+                $mec,
+                $prod,
+                $mec === 0 ? '✔ DoD F1' : '—',
+                $ultima ? \Illuminate\Support\Carbon::parse($ultima)->diffForHumans() : 'nunca',
+            ];
         }
-        $this->table(['Módulo', 'En disco', 'Gaps mecánicos', 'Gaps de producto', 'Estado'], $filas);
+        $this->table(['Módulo', 'En disco', 'Gaps mecánicos', 'Gaps de producto', 'Estado', 'Última auditoría'], $filas);
+        $racha = $auditor->rachaSeca();
+        if ($racha > 0) {
+            $this->line(sprintf('  Racha seca del ciclo (fuente código): %d corrida(s) en vivo seguidas sin hallazgos nuevos.', $racha));
+        }
         $this->line('');
 
         return self::SUCCESS;
