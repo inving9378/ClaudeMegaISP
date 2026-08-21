@@ -120,6 +120,21 @@
         <div v-if="s.reclamo_huerfano" class="tt-orphan-row">
           <i class="bi bi-exclamation-triangle-fill"></i>
           <span class="tt-orphan-label">terminó el #{{ s.reclamo_huerfano.item_id }} · esperando tu resolución</span>
+          <select
+            v-if="terminalesLibres.length"
+            v-model="reasignarDestino[s.reclamo_huerfano.item_id]"
+            class="tt-orphan-select"
+            :disabled="reasignando === s.reclamo_huerfano.item_id"
+          >
+            <option value="">Reasignar a…</option>
+            <option v-for="t in terminalesLibres" :key="t.sid" :value="t.sid">{{ t.nombre }}</option>
+          </select>
+          <button
+            v-if="terminalesLibres.length"
+            class="tt-orphan-btn"
+            :disabled="!reasignarDestino[s.reclamo_huerfano.item_id] || reasignando === s.reclamo_huerfano.item_id"
+            @click="reasignarReclamo(s.reclamo_huerfano.item_id)"
+          >{{ reasignando === s.reclamo_huerfano.item_id ? "Moviendo…" : "Reasignar" }}</button>
           <button
             class="tt-orphan-btn"
             :disabled="liberando === s.reclamo_huerfano.item_id"
@@ -370,6 +385,31 @@ export default {
             }
         }
 
+        // #972: reasignar un reclamo huérfano a OTRA terminal libre (idle=true) — hermano de
+        // "Liberar reclamo". `terminalesLibres` sale del mismo poll de 3s, sin llamada aparte.
+        const reasignando = ref(null);
+        const reasignarDestino = ref({});
+        const terminalesLibres = computed(() =>
+            sesiones.value.filter((s) => s.idle).map((s) => ({ sid: s.sid, nombre: s.nombre || s.sid }))
+        );
+        async function reasignarReclamo(itemId) {
+            const destino = reasignarDestino.value[itemId];
+            if (!destino) return;
+            if (!window.confirm(`¿Mover el reclamo del #${itemId} a la terminal ${destino}?`)) return;
+            reasignando.value = itemId;
+            try {
+                const { data } = await axios.post(`/api/roadmap/items/${itemId}/reasignar-reclamo`, { sid_destino: destino });
+                showAccionAviso(data.mensaje || "Reclamo reasignado.", true);
+                reasignarDestino.value[itemId] = "";
+                await poll();
+            } catch (err) {
+                const resp = err.response && err.response.data;
+                showAccionAviso((resp && (resp.message || resp.mensaje)) || "No se pudo reasignar el reclamo.", false);
+            } finally {
+                reasignando.value = null;
+            }
+        }
+
         // Línea supervisor→terminal: flujo animado SOLO hacia las que trabajan (running y no frías).
         const linkClass = (s) => (s.running && !s.stale ? "tt-link-active" : (s.stale ? "tt-link-stale" : "tt-link-idle"));
         const anyActive = computed(() => sesiones.value.some((s) => s.running && !s.stale));
@@ -436,6 +476,7 @@ export default {
             openFs, closeFs,
             etaVisible, etaClass, etaIcon, etaLabel, etaPct, etaTooltip,
             liberando, accionAviso, liberarReclamo,
+            reasignando, reasignarDestino, terminalesLibres, reasignarReclamo,
         };
     },
 };
@@ -536,6 +577,10 @@ export default {
   font-size:12px; font-weight:700; flex-wrap:wrap;
 }
 .tt-orphan-label{ flex:1 1 auto; min-width:0; }
+.tt-orphan-select{
+  border:1px solid var(--tt-warn); background:var(--tt-surface); color:var(--tt-warn);
+  border-radius:7px; padding:3px 6px; font-size:11.5px; font-weight:700; max-width:150px;
+}
 .tt-orphan-btn{
   border:1px solid var(--tt-warn); background:transparent; color:var(--tt-warn);
   border-radius:7px; padding:3px 10px; font-size:11.5px; font-weight:700; cursor:pointer;
