@@ -59,6 +59,8 @@ class RoadmapItem extends Model
         'comentarios_claude', 'revisado_at', 'aprobado_por',
         // Reportes + deep-link de revisión (#427 / #432 ADENDA B)
         'reporte_tecnico', 'reporte_coloquial', 'enlace_revision',
+        // #1005 — escape valve del gate de cierre para items sin pantalla (migraciones/refactors/tests)
+        'sin_ui', 'sin_ui_motivo',
         // Bandeja de decisiones interactiva (#313) + brief multi-pregunta (#432 Fase 3)
         'opciones', 'opcion_elegida', 'preguntas',
         // Aislamiento por rama (#311)
@@ -116,6 +118,8 @@ class RoadmapItem extends Model
         'revision_ui'  => 'boolean',
         'archivado_at' => 'datetime',
         'colision_pausada_at' => 'datetime',
+        // #1005 — escape valve del gate de cierre
+        'sin_ui'       => 'boolean',
         // FASE 1 — Validación funcional por Irving
         'validacion_funcional_requerida' => 'boolean',
         'pendiente_validacion_irving'    => 'boolean',
@@ -345,6 +349,52 @@ class RoadmapItem extends Model
 
                 Log::warning('roadmap: revocación automática rechazada', [
                     'item' => $item->id, 'actor' => $firma, 'nivel' => $item->nivel_riesgo,
+                ]);
+            }
+        });
+
+        // (4) #1005 — GATE DE CIERRE. `ThomasService::verificarCierre()` existía desde #427/#432 pero
+        // nadie lo llamaba (cero consumidores, greppeado): el fail-closed que promete el spec (#1003
+        // §1) no se aplicaba en ningún punto real. Se conecta aquí, DESPUÉS de los reroutes (1)/(2b)
+        // de arriba: un C-sin-merge o un paraguas con hijos abiertos ya no tienen
+        // estado_aprobacion==='completado' cuando llegan a esta línea, así que este gate solo evalúa
+        // cierres que de verdad van a completarse.
+        //
+        // ROLLOUT EN DOS FASES — decisión explícita del propio spec de #1005 ("considerar un periodo
+        // de solo-warning antes de bloquear duro": esto afecta el cierre de CUALQUIER item de
+        // CUALQUIER terminal en paralelo). `circuito.thomas.cierre.bloquea` (default false) por ahora
+        // SOLO deja el hueco escrito en el log del item (visible/auditable, no bloqueante — hoy ni
+        // eso pasaba). Flip a `true` cuando quede validado en vivo, y este mismo bloque empieza a
+        // parquear el cierre incompleto a `aprobado_irving` (mismo patrón que (1)/(2b) de arriba) en
+        // vez de dejarlo completar con huecos.
+        static::saving(function (self $item) {
+            if (! $item->isDirty('estado_aprobacion') || $item->estado_aprobacion !== 'completado') {
+                return;
+            }
+
+            $verificacion = app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)->verificarCierre($item);
+            if ($verificacion['ok']) {
+                return;
+            }
+
+            $log = $item->log ?: [];
+            $log[] = [
+                'ts'        => now()->toIso8601String(),
+                'por'       => 'thomas:verificarCierre',
+                'evento'    => 'cierre_incompleto',
+                'faltantes' => $verificacion['faltantes'],
+                'bloqueado' => (bool) config('circuito.thomas.cierre.bloquea', false),
+            ];
+            $item->log = $log;
+
+            if (config('circuito.thomas.cierre.bloquea', false)) {
+                $item->estado_aprobacion       = 'aprobado_irving';
+                $item->status                  = 'pending';
+                $item->excluir_pool_automatico  = true;
+                $item->decision_resuelta        = true;
+            } else {
+                Log::warning('roadmap: cierre incompleto (modo advertencia, no bloquea todavía)', [
+                    'item' => $item->id, 'faltantes' => $verificacion['faltantes'],
                 ]);
             }
         });
