@@ -76,6 +76,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #559 — MOTOR DE AUDITORÍA CONTINUA: el generador de trabajo. Cierra el hueco que
                 // quedaba (repartir y juzgar ya existían; generar, no), para que la cola no se vacíe.
                 \App\Modules\Addons\Roadmap\Console\AuditorCommand::class,
+                // #921 Fase 2 / #957 — reactiva diario los items agendados cuya fecha ya pasó.
+                \App\Modules\Addons\Roadmap\Console\ReactivarAgendadosCommand::class,
             ]);
         }
     }

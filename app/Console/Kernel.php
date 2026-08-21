@@ -57,6 +57,9 @@ class Kernel extends ConsoleKernel
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
 
+        // #921 Fase 2 / #957 — reactiva items del Roadmap con agendado_para ya vencido (vuelven al pool).
+        $schedule->command('circuito:reactivar-agendados')->dailyAt('00:05')->withoutOverlapping();
+
         // Regeneración semanal del manual de usuario vía Claude API
         $schedule->command('manual:regenerate')->weekly()->sundays()->at('03:00')->withoutOverlapping();
 
