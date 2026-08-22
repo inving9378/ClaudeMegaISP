@@ -1528,3 +1528,33 @@ real + `decision_resuelta=true`/`decision_fuente='circuito'` (no `'irving'`: la 
 correspondencia con el código ya implementado, no una decisión nueva de Irving — si él no está de
 acuerdo con el patrón ya construido, sigue pudiendo reabrirlo). Sin cambios de código de producto;
 el único artefacto es esta bitácora + los campos de decisión del item.
+
+## 2026-08-21 18:20 — #1004: verificación §1 del disparo por hambre + cierre de la directiva
+
+Item #1004 ("Directiva — el disparo por hambre, y la veta que no hemos tocado") pedía, antes
+de construir nada, verificar si el auditor dispara por ociosidad/hambre o solo por tiempo, y
+qué produjo en su última corrida. Verificación (read-only, sin tocar código de producto):
+
+- **Sí existe disparo por hambre**, ya construido antes de este item: `AuditorService::debeCorrer()`
+  sólo genera trabajo si `profundidadCola() < umbral` (3), chequeado cada minuto desde
+  `circuito:scheduler` (sin cron aparte). Nació como **#559** (2026-08-08) y se endureció con
+  **#1015** (memoria de cobertura por módulo + freno por sequía por dry-runs seguidos), ambos ya
+  `completado`/integrados a `main`.
+- **Última corrida real:** `2026-08-21T17:34:51-06:00`, dry-run, **0 candidatos/0 creados** en
+  ~20 módulos — coincide con el propio diagnóstico del prompt de #1004 ("detectores mecánicos:
+  agotados"). `rachaSeca=3` → el freno por sequía ya está alargando el intervalo.
+- **La regla de proceso del §2** ("directiva → items antes de ejecutar") y **el minero de
+  bitácora del §4** SÍ se convirtieron en trabajo real (no quedaron "dichos y nunca hechos"): una
+  vuelta anterior de este mismo item ya dio de alta **#1015** (integrado), **#1016** (señales de
+  minería restantes, pendiente, dueño de otra vuelta), y corrió el minero v1 en real produciendo
+  **#1013** (13 casos `requiere_irving` sin resolver, bandeja de Irving) y **#1014** (6
+  referencias `#NNN` rotas — investigado y cerrado, ver
+  `docs/roadmap-referencias-rotas-item-1014.md`).
+- **§5** (enriquecimiento de `module.json`) queda explícitamente fuera de alcance (el propio
+  prompt: lo empuja el shell móvil por su lado).
+
+**Conclusión:** todo lo construible bajo #1004 ya estaba hecho (parte de antes vía #559, parte
+por una vuelta previa de esta misma directiva). Lo único pendiente de entregar era la
+verificación del §1 — documentada en `docs/roadmap-verificacion-disparo-hambre-item-1004.md`.
+Se cierra #1004 como `completado` sin cambios de código de producto; el trabajo vivo restante
+sigue rastreado en #1013 (bandeja de Irving) y #1016 (dueño de otra vuelta del circuito).
