@@ -1558,3 +1558,36 @@ por una vuelta previa de esta misma directiva). Lo único pendiente de entregar 
 verificación del §1 — documentada en `docs/roadmap-verificacion-disparo-hambre-item-1004.md`.
 Se cierra #1004 como `completado` sin cambios de código de producto; el trabajo vivo restante
 sigue rastreado en #1013 (bandeja de Irving) y #1016 (dueño de otra vuelta del circuito).
+
+## 2026-08-21 19:16 — Item #965: AuditReport.vue queda fuera del catálogo de acciones (decisión documentada, sin código)
+
+**Item:** #965 (sub-item de #909/#960), worker wt-1. Caso especial: decidir tratamiento de los
+botones "Alternar item del plan" / "Nota" de `AuditReport.vue` (`AuditController::planToggle`/
+`planNote`), que hoy no tienen `authorize()` inline ni entrada en `config/route_permission.php`.
+
+**Historial previo:** el item ya había sido escalado dos veces (wt-3 y una corrida anterior de
+wt-1) a Thomas por la pregunta de si un permiso nuevo debía asignarse también a `DESARROLLADOR`
+además de `super-administrator`; Thomas escaló ambas veces a la bandeja de Irving sin que quedara
+registrada una respuesta explícita a esa pregunta puntual (Irving sí respondió q1/q2 del brief
+original — "crear permiso" + "solo superadmin" — pero esas opciones nunca mencionaban a
+`DESARROLLADOR`, así que la pregunta de fondo seguía abierta).
+
+**Lo que se hizo esta vuelta:** en vez de re-escalar la misma pregunta sin novedad, se investigó
+a fondo el middleware `CheckRoutePermission` y se confirmó un hallazgo que cambia el diagnóstico:
+la ruta `/releases/audit/plan*` **ya es admin-only hoy** (bypass de `isAdmin()/isDevelopment()/
+isSuperAdmin()` en el middleware, antes de siquiera mirar `route_permission.php`) — no está abierta
+a cualquier autenticado como sugería la nota "sin permiso". Crear un permiso nuevo limitado a
+`super-administrator`+`DESARROLLADOR` (lo único que `PermissionSyncService` garantiza automático)
+sería potencialmente **más angosto** que hoy si algún usuario real tiene rol `Super Administrador`/
+`Administrador` puro — un cambio de comportamiento real, no mecánico.
+
+**Decisión (registrada como `--tipo=decision`, opción (a) del propio item):** dejar los dos botones
+FUERA del catálogo de acciones por ahora. Cero código tocado (ni permiso nuevo, ni `authorize()`
+inline, ni catálogo — que además sigue sin mergear, #876 `esperando_merge_irving=true`). Se amplió
+la sección 4 de `docs/circuito/inventario-botones-torre.md` con el hallazgo y el razonamiento
+completo, para que quien retome esto (incluido Irving, cuando responda la pregunta de roles) no
+repita la investigación.
+
+**Verificación:** `php -l` sobre el doc + `php artisan --version` (bootea normal) — no había código
+que tocar. Commit `0a723d9f` en la rama `circuito/item-965-...`, encolada a auto-merge vía
+`circuito:integrar`. Item #965 cerrado `completado`.
