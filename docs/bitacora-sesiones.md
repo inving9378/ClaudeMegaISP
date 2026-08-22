@@ -1759,3 +1759,27 @@ construyó nada de Geofeed), `reporte_coloquial` en llano, y `estado_aprobacion=
 Creé la rama `circuito/item-1053-...` solo para satisfacer el gate de Thomas
 (`ThomasService::verificarCierre` exige `branch` no vacío incluso con `sin_ui`) y aprovecharla
 para este mismo commit de bitácora — no hay diff de código de producto en esta rama.
+
+## 2026-08-22 10:15 — Item #1059 (wt-2): frontend IPv6 1.7a ya entregado, sin código nuevo
+
+Item #1059 (sub-item de #999) pedía un blade standalone + componente Vue Bootstrap
+(`Ipv6ConfigPanel.vue`) que consumiera los 4 endpoints de `Ipv6ConfigController`
+(`routers`/`detectar-version`/`mapear-zonas`/`vista-previa`). Al investigar encontré que ese
+frontend **ya existía en main**: `resources/views/network/ipv6-config.blade.php` +
+`resources/js/components/module/network/Ipv6Config.vue` (registrado como `ipv6-config` en
+`app.js`), mergeados originalmente dentro de la rama de #999 (commits `ffc2381a`/`903d011f`,
+merge `00b50811`) y luego ampliados por #1000/#1001 a un wizard Quasar de 3 pasos (Alta del
+bloque → Mapeo de zonas → Vista previa/exportar .rsc) — superset de lo que pedía #1059, no un
+panel Bootstrap simple como asumía el spec original (que tampoco acertó el namespace del
+blade: es `network.ipv6-config`, no `addon-gestion-red::ipv6-config`).
+
+Verifiqué el contrato completo (los 4 endpoints, fallback manual de versión, banner de "solo
+vista previa", manejo de errores axios) contra el componente real y confirmé que el permiso
+`ipv6.manage` que usa el `@can` del blade está asignado a `super-administrator` y
+`DESARROLLADOR` (los mismos roles del middleware de la ruta). Documenté el hallazgo en
+`docs/ipv6-1059-frontend-ya-entregado.md` (mismo patrón que el precedente `#414` de OLT:
+"premisa incorrecta, sin cambio de código") y cerré el item como completado sin construir un
+segundo panel paralelo que duplicaría la UI de la misma ruta.
+
+Commit único en la rama `circuito/item-1059-...`: `7f414ef0` (solo el doc de verificación).
+Encolado a main vía `circuito:integrar`. `enlace_revision=/red/ipv6-config`.
