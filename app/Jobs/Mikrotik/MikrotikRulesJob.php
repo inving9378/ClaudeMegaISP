@@ -26,6 +26,8 @@ class MikrotikRulesJob implements ShouldQueue
     protected $mikrotik;
     protected $router;
     protected $meganet_config_ip_address;
+    protected $meganet_config_ip_address_enable;
+    protected $enforce_input_drop_rest;
     protected $mikrotik_config_server_pppoe_name;
     protected $mikrotik_config_server_pppoe_interface;
     protected $mikrotik_config_server_pppoe_mtu;
@@ -46,6 +48,8 @@ class MikrotikRulesJob implements ShouldQueue
         $this->mikrotik = $mikrotik;
         $this->router = Router::find($mikrotik->router_id);
         $this->meganet_config_ip_address = $this->router->mikrotikconfig->meganet_config_ip_address;
+        $this->meganet_config_ip_address_enable = $this->router->mikrotikconfig->meganet_config_ip_address_enable;
+        $this->enforce_input_drop_rest = $this->router->mikrotikconfig->enforce_input_drop_rest;
         $this->mikrotik_config_server_pppoe_name = $this->router->mikrotikconfig->mikrotik_config_server_pppoe_name;
         $this->mikrotik_config_server_pppoe_interface = $this->router->mikrotikconfig->mikrotik_config_server_pppoe_interface;
         $this->mikrotik_config_server_pppoe_mtu = $this->router->mikrotikconfig->mikrotik_config_server_pppoe_mtu;
@@ -150,6 +154,19 @@ class MikrotikRulesJob implements ShouldQueue
                             $command
                         );
                         $this->addRulesInputDropInvalid($connected, $command);
+
+                        if ($this->shouldEnforceInputDropRest()) {
+                            $this->addRulesInputDorpRest($connected, $command);
+                        } elseif (config('mikrotik.enforce_input_drop_rest')) {
+                            // Mecanismo global activo pero este router no calificó (flag por-router
+                            // apagado o precheck de IPs críticas fallido): limpia la regla por si
+                            // había quedado de una activación anterior.
+                            $this->removeById(
+                                $connected,
+                                $command,
+                                $this->getIdByComment($connected, $command, 'MgNet_INPUT_DROPEA_EL_RESTO')
+                            );
+                        }
                     } else {
                         $this->removeById(
                             $connected,
@@ -185,6 +202,15 @@ class MikrotikRulesJob implements ShouldQueue
                                 $connected,
                                 $command,
                                 'MgNet_INPUT_MEGANET_TO_API_ACCEPT'
+                            )
+                        );
+                        $this->removeById(
+                            $connected,
+                            $command,
+                            $this->getIdByComment(
+                                $connected,
+                                $command,
+                                'MgNet_INPUT_DROPEA_EL_RESTO'
                             )
                         );
                     }
@@ -364,6 +390,36 @@ class MikrotikRulesJob implements ShouldQueue
                 'comment' => $comment,
             ]);
         }
+    }
+
+    /**
+     * Item roadmap #983 — decide si corresponde instalar MgNet_INPUT_DROPEA_EL_RESTO
+     * para ESTE router. Tres candados independientes (todos deben pasar):
+     *  1. Kill-switch global config('mikrotik.enforce_input_drop_rest') — default false.
+     *  2. Flag por-router mikrotik_configs.enforce_input_drop_rest — rollout gradual.
+     *  3. Precheck: la IP de MegaISP (meganet_config_ip_address) debe estar habilitada
+     *     y no vacía — es la única IP que la regla accept deja pasar hacia la API; sin
+     *     ella, instalar el drop dejaría a MegaISP sin acceso de gestión al router.
+     */
+    protected function shouldEnforceInputDropRest()
+    {
+        if (!config('mikrotik.enforce_input_drop_rest')) {
+            return false;
+        }
+
+        if (!$this->enforce_input_drop_rest) {
+            return false;
+        }
+
+        if (!$this->meganet_config_ip_address_enable || empty($this->meganet_config_ip_address)) {
+            Log::warning('MikrotikRulesJob: precheck de IP crítica fallido, se omite MgNet_INPUT_DROPEA_EL_RESTO', [
+                'router_id' => $this->router->id ?? null,
+                'motivo' => 'meganet_config_ip_address vacío o deshabilitado en mikrotik_configs',
+            ]);
+            return false;
+        }
+
+        return true;
     }
 
     public function addRulesInputDorpRest($connected, $command)
