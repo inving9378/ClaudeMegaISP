@@ -123,6 +123,32 @@
               </div>
             </template>
 
+            <!-- Controles con UI propia (política base / campos del Auditor): son verde/editables
+                 pero viven fuera de controlesGenericos() porque su edición ocurre arriba en el tab.
+                 Sin este bloque nunca mostraban procedencia/consecuencia al clic — #989. Mismo
+                 control-por-fila y clic-para-expandir que el resto (#988), aplica a cualquier
+                 grupo con entradas en CLAVES_CON_UI_PROPIA sin duplicar el bloque por grupo. -->
+            <template v-if="controlesConUiPropia(g).length">
+              <h4 class="tcfg-h4">🟢 Procedencia de lo editable arriba</h4>
+              <div v-for="c in controlesConUiPropia(g)" :key="c.clave" class="tcfg-ctrl"
+                   :class="'tcfg-ctrl-' + c.bucket" @click="toggleControl(c.clave)">
+                <div class="tcfg-ctrl-head">
+                  <span class="tcfg-dot" :class="'tcfg-dot-' + c.bucket"
+                        :title="c.bucket === 'verde' ? 'editable' : (c.bucket === 'azul' ? 'solo lectura' : 'nunca expuesto')"></span>
+                  <code>{{ c.clave }}</code>
+                  <b class="tcfg-ctrl-val">{{ c.valor }}</b>
+                  <i class="bi" :class="expandido[c.clave] ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                </div>
+                <div v-if="expandido[c.clave]" class="tcfg-ctrl-det">
+                  <p><b>Dónde:</b> {{ c.donde }}</p>
+                  <p><b>Quién lee:</b> {{ c.quien_lee }}</p>
+                  <p><b>Qué gobierna:</b> {{ c.que_gobierna }}</p>
+                  <p><b>Consecuencia:</b> {{ c.consecuencia }}</p>
+                  <p v-if="c.nota" class="tcfg-ctrl-pend"><i class="bi bi-lock"></i> {{ c.nota }}</p>
+                </div>
+              </div>
+            </template>
+
             <!-- Resto de controles del grupo: las 3 cubetas como secciones apiladas (#988).
                  Mismo control-por-fila y clic-para-expandir de siempre; solo cambia el agrupado.
                  Guardrails no trae controles genéricos (su lista vive aparte, arriba) → sin secciones vacías. -->
@@ -274,6 +300,17 @@ export default {
       const excluidas = CLAVES_CON_UI_PROPIA[g.clave] || [];
       return (g.controles || []).filter((c) => !excluidas.includes(c.clave));
     }
+    // Los controles con UI propia (radios de Política base, campos del Auditor) están excluidos
+    // de controlesGenericos() porque ya se editan en su propio bloque del tab — pero eso los deja
+    // SIN el acordeón de procedencia/consecuencia. #989: son EXACTAMENTE los únicos controles
+    // verde/editables hoy, así que son los que más lo necesitan. Se buscan por clave en g.controles
+    // (no se filtran ahí, se toman aparte) para pintarles el mismo acordeón clic-para-expandir.
+    function controlesConUiPropia(g) {
+      const incluidas = CLAVES_CON_UI_PROPIA[g.clave] || [];
+      return incluidas
+        .map((clave) => (g.controles || []).find((c) => c.clave === clave))
+        .filter(Boolean);
+    }
     function toggleControl(clave) { expandido[clave] = !expandido[clave]; }
 
     // Solo los grupos que SÍ se pintan (#988) — "Canal de respuesta" no existe todavía (fase 5
@@ -371,8 +408,8 @@ export default {
     }
 
     return { open, cargando, guardando, confirmar, error, puedeEditar, politica, motores, guardrails,
-             gruposActor, gruposPintables, tabActiva, expandido, controlesGenericos, toggleControl,
-             CUBETAS, controlesDeBucket,
+             gruposActor, gruposPintables, tabActiva, expandido, controlesGenericos, controlesConUiPropia,
+             toggleControl, CUBETAS, controlesDeBucket,
              form, niveles, etiquetaNivel, descNivel, celda, haCambiado, motoresRotos, humano,
              abrir, cerrar, intentarGuardar, guardar, dark: darkMode };
   },
