@@ -1656,3 +1656,47 @@ circuito); si se repite una tercera vez convendría promoverlo a su propio item.
 
 **Estado:** #1032 → `aprobado_irving` (paraguas retenido, fuera del pool). #1066/#1067/#1068
 siguen pendientes de ejecución normal (uno de ellos, #1067, ya está `aprobado_revisor`).
+
+## 2026-08-22 00:58 — #1033 (wt-1): IPv6 Fase 5.3 (simulador de renumeración) — descompuesto, no cabía en una vuelta
+
+**Item:** #1033 — "IPv6 Fase 5.3: Simulador de renumeracion (UI + comandos generados, SIN ejecucion
+real)". `circuito:cabida` devolvió `NO CABE [historico_excede_umbral]` (~517s). Antes de
+descomponer investigué el item padre real (#956) y el estado de la Fase 5.2 (#1032), que este
+item da por sentado como dependencia ("Pantalla/endpoint de simulacion **sobre el motor de 5.2**").
+
+**Hallazgo clave:** el "motor de 5.2" (`Ipv6RenumberingStateMachine`) **todavía no existe en
+código**. #1032 fue descompuesto en #1066 (esquema)/#1067 (servicio)/#1068 (timers) en una vuelta
+anterior y los 3 siguen `pending` sin ejecutar (uno, #1067, ya `aprobado_revisor` pero no
+implementado). Diseñar el simulador de 5.3 como dependiente directo de esa máquina de estados
+habría sido bloqueante sin fecha. Decisión (registrada también con `circuito:reportar
+--tipo=decision`): el simulador queda **autocontenido** — reusa únicamente
+`Ipv6AddressPlanCalculator`/`Ipv6CommandGenerator` de las fases 1.4-1.7 (ya en producción, sin
+relación con la máquina de estados de 5.2), y la fase C (vigilancia) usa datos mock/de prueba tal
+como el propio texto del item ya lo pedía explícitamente. Esto evita depender de un motor que no
+existe sin desviarse del alcance aprobado por el revisor.
+
+**Precedente encontrado y documentado en los specs:** `Ipv6ConfigController` +
+`resources/js/components/module/network/Ipv6Config.vue` + el bloque de rutas
+`red/ipv6-config/*` gateado por `role:super-administrator|DESARROLLADOR` (item #999) es EXACTAMENTE
+el patrón a replicar: endpoint de cálculo puro (`vistaPrevia()`) que reusa
+`Ipv6AddressPlanCalculator`+`Ipv6CommandGenerator` sin tocar el router, más una vista Vue de solo
+lectura con botón copiar. El simulador de 5.3 es la misma forma, con 4 fases en vez de 1.
+
+**Descompuesto en:**
+- **#1069** — Fase 5.3a: servicio `Ipv6RenumberingSimulator` (o similar) + endpoint
+  `POST red/ipv6-config/simular-renumeracion` (mismo bloque de rutas de #999). Genera comandos para
+  A (convivencia, reusa lo existente), B (deprecación: `preferred-lifetime=0` + lifetimes PPPoE —
+  puede requerir extender `Ipv6CommandGenerator` con un método nuevo sin tocar los existentes), C
+  (mock explícito, sin comandos reales), D (comandos de baja + marcador de seguridad). Nunca
+  instancia `MikrotikIpv6Client`.
+- **#1070** — Fase 5.3b: UI (depende de #1069) — 4 fases con comandos en bloques de solo lectura +
+  copiar, tablero mock rotulado en fase C, badge de seguridad en fase D, banner permanente
+  "SIMULACIÓN — NO EJECUTA CONTRA EL ROUTER". Sigue el layout de `Ipv6Config.vue`.
+
+**Fix del bug de paraguas (mismo de #949/#1032):** `circuito:sub-item` no transiciona el padre —
+apliqué manualmente `estado_aprobacion='completado'` sobre #1033 vía tinker; el guard nativo lo
+reroteó a `aprobado_irving` + `excluir_pool_automatico=true` + log `paraguas_abierto` (2 sub-items
+abiertos). Cerrará solo cuando #1069 y #1070 cierren.
+
+**Estado:** #1033 → `aprobado_irving` (paraguas retenido, fuera del pool). #1069/#1070 pendientes
+de triaje/ejecución normal. Sin cambios de código en este item (era descomposición pura).
