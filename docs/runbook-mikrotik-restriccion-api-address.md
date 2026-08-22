@@ -101,3 +101,41 @@ que este item.
 Tras aplicar en producción, documentar en este mismo archivo (o en la bitácora de sesiones) qué
 routers quedaron restringidos, con qué whitelist y fecha — para que quede trazable sin depender de
 memoria.
+
+## 7. Inventario de servicios de gestión para `enforce_input_drop_rest` (item roadmap #1037)
+
+Prerequisito para activar el mecanismo de la sección 5 (`MgNet_INPUT_DROPEA_EL_RESTO`,
+`config('mikrotik.enforce_input_drop_rest')`) en un router real sin cortar acceso administrativo.
+**Sigue INACTIVO** (kill-switch global en `false`, ninguna variable `MIKROTIK_MANAGEMENT_ALLOWLIST_*`
+poblada) — esta sección solo documenta qué falta y cómo se conecta cuando Irving entregue la lista.
+
+**Qué necesita entregar Irving (frontera dura — nadie más la puede completar, no es derivable del
+código):**
+- IP(s) desde donde se administra Winbox (puerto 8291) de cada router.
+- IP(s) desde donde se administra SSH (puerto 22).
+- Rango(s) de monitoreo/NOC (Zabbix/LibreNMS/pings de salud, etc.) si necesitan alcanzar el router
+  por `input` fuera del servicio de la API ya cubierto por `meganet_config_ip_address`.
+- Cualquier otro servicio de gestión que hoy dependa de la política implícita `accept` del chain
+  `input` (ej. `www` del router, si se administra por navegador).
+
+**Dónde se captura una vez que Irving la dé** — `config/mikrotik.php` →
+`management_services.{winbox,ssh,monitoreo}.allowed_addresses`, poblado vía `.env`:
+```
+MIKROTIK_MANAGEMENT_ALLOWLIST_WINBOX=<IP_o_CIDR>,<IP_o_CIDR>
+MIKROTIK_MANAGEMENT_ALLOWLIST_SSH=<IP_o_CIDR>,<IP_o_CIDR>
+MIKROTIK_MANAGEMENT_ALLOWLIST_MONITOREO=<IP_o_CIDR>,<IP_o_CIDR>
+```
+
+**Qué hace el código con esa lista (ya implementado, código muerto mientras la lista esté vacía):**
+- `RouterConnection::addRulesInputManagementAccept()` agrega un `accept` en el chain `input` por
+  cada IP/rango configurado, ANTES de que `MikrotikRulesJob` evalúe instalar el drop-resto. Solo
+  corre si el kill-switch global está en `true`.
+- `MikrotikRulesJob::shouldEnforceInputDropRest()` ahora exige, además de los 3 candados de la
+  sección 5, que **cada servicio marcado `critical` (`winbox`, `ssh`)** tenga al menos una IP en
+  `allowed_addresses`; si falta alguno, registra un `Log::warning` con el motivo y **no** instala
+  `MgNet_INPUT_DROPEA_EL_RESTO` en ese router (falla-segura, igual patrón que el candado de
+  `meganet_config_ip_address`).
+
+**Aún pendiente tras recibir la lista de Irving (fuera de alcance de este item, frontera dura):**
+piloto en un solo router no crítico + verificación de acceso de gestión antes de tocar el resto,
+mismo criterio que la sección 4.

@@ -155,6 +155,12 @@ class MikrotikRulesJob implements ShouldQueue
                         );
                         $this->addRulesInputDropInvalid($connected, $command);
 
+                        if (config('mikrotik.enforce_input_drop_rest')) {
+                            // Item #1037 — reglas accept de servicios de gestión (Winbox/SSH/
+                            // monitoreo), inofensivas mientras el inventario esté vacío.
+                            $this->addRulesInputManagementAccept($connected, $command);
+                        }
+
                         if ($this->shouldEnforceInputDropRest()) {
                             $this->addRulesInputDorpRest($connected, $command);
                         } elseif (config('mikrotik.enforce_input_drop_rest')) {
@@ -393,13 +399,19 @@ class MikrotikRulesJob implements ShouldQueue
     }
 
     /**
-     * Item roadmap #983 — decide si corresponde instalar MgNet_INPUT_DROPEA_EL_RESTO
-     * para ESTE router. Tres candados independientes (todos deben pasar):
+     * Item roadmap #983 (candados 1-3) + #1037 (candado 4) — decide si corresponde
+     * instalar MgNet_INPUT_DROPEA_EL_RESTO para ESTE router. Cuatro candados
+     * independientes (todos deben pasar):
      *  1. Kill-switch global config('mikrotik.enforce_input_drop_rest') — default false.
      *  2. Flag por-router mikrotik_configs.enforce_input_drop_rest — rollout gradual.
      *  3. Precheck: la IP de MegaISP (meganet_config_ip_address) debe estar habilitada
      *     y no vacía — es la única IP que la regla accept deja pasar hacia la API; sin
      *     ella, instalar el drop dejaría a MegaISP sin acceso de gestión al router.
+     *  4. Precheck: el inventario config('mikrotik.management_services') debe traer al
+     *     menos una IP/rango en 'allowed_addresses' para CADA servicio marcado
+     *     'critical' (hoy: winbox, ssh) — sin esto, instalar el drop podría cortar
+     *     la gestión remota de esos servicios. Ver docs/runbook-mikrotik-
+     *     restriccion-api-address.md sección 7.
      */
     protected function shouldEnforceInputDropRest()
     {
@@ -417,6 +429,20 @@ class MikrotikRulesJob implements ShouldQueue
                 'motivo' => 'meganet_config_ip_address vacío o deshabilitado en mikrotik_configs',
             ]);
             return false;
+        }
+
+        foreach (config('mikrotik.management_services', []) as $service => $definition) {
+            if (empty($definition['critical'])) {
+                continue;
+            }
+
+            if (empty($definition['allowed_addresses'])) {
+                Log::warning('MikrotikRulesJob: precheck de inventario de gestión fallido, se omite MgNet_INPUT_DROPEA_EL_RESTO', [
+                    'router_id' => $this->router->id ?? null,
+                    'motivo' => "servicio crítico '{$service}' sin IPs en config('mikrotik.management_services')",
+                ]);
+                return false;
+            }
         }
 
         return true;
