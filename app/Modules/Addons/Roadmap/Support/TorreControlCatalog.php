@@ -415,6 +415,7 @@ class TorreControlCatalog
                 'Términos que fuerzan nivel C en el triaje de nivel null.',
                 'Huérfano: cambiarlo hoy exige editar código, no config. Migrar es fase 6 del plan.',
                 'verde',
+                estado: 'huerfano',
             ),
             self::control(
                 'RevisorService::TRIAJE_C_WORD',
@@ -424,6 +425,7 @@ class TorreControlCatalog
                 'Ídem TRIAJE_C_PLAIN, con match de palabra completa (términos cortos/ambiguos).',
                 'Huérfano — mismo caso que TRIAJE_C_PLAIN.',
                 'verde',
+                estado: 'huerfano',
             ),
             self::control(
                 'RevisorService::TRIAJE_NEGACIONES + VENTANA_BYTES',
@@ -433,6 +435,7 @@ class TorreControlCatalog
                 'Detecta negación cercana a un término de TRIAJE_C (ej. "no toca prod") y afloja.',
                 'Huérfano — la ventana de bytes decide qué tan "cerca" cuenta como negación.',
                 'verde',
+                estado: 'huerfano',
             ),
         ];
     }
@@ -592,6 +595,7 @@ class TorreControlCatalog
                 'Builds npm simultáneos máximo.',
                 '⚠️ Editar config/circuito.php aquí NO hace nada: el semáforo real lee el env CIRCUITO_MAX_BUILDS directo.',
                 'azul',
+                estado: 'fantasma',
             ),
             self::control(
                 'reaper.max_reintentos',
@@ -664,6 +668,7 @@ class TorreControlCatalog
                 'Tamaño máximo del espejo legible de comentarios_claude.',
                 'Parámetro de forma — migrarlo añadiría superficie sin añadir control real.',
                 'azul',
+                estado: 'huerfano',
             ),
             self::control(
                 'worker_nombres',
@@ -705,6 +710,7 @@ class TorreControlCatalog
         string $consecuencia,
         string $bucketDoc,
         bool $editableAyer = false,
+        string $estado = 'vivo',
     ): array {
         $yaEditable = $editableAyer || in_array($clave, self::YA_EDITABLES, true);
         $bucketEfectivo = $bucketDoc;
@@ -721,6 +727,12 @@ class TorreControlCatalog
             'valor'          => $valorResuelto['valor'],
             'quien_lee'      => $quienLee,
             'que_gobierna'   => $queGobierna,
+            // #987 — 'vivo' (alguien lo lee y gobierna algo) · 'huerfano' (en duro, debería ser
+            // config) · 'fantasma' (existe y nadie lo lee, o lo lee un camino apagado). Mismas 3
+            // categorías de `docs/circuito/inventario-de-controles.md`, reflejando el estado REAL
+            // hoy (algunos huérfanos del doc ya fueron migrados a config por #941 y aquí ya
+            // cuentan como vivos — ver comentarios "(migrado #941)" en `donde`).
+            'estado'         => $estado,
             'consecuencia'   => $consecuencia,
             'bucket'         => $bucketEfectivo,
             'editable'       => $bucketEfectivo === 'verde',
