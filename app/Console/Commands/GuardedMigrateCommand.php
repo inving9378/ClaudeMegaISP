@@ -10,8 +10,14 @@ use Illuminate\Database\Console\Migrations\MigrateCommand;
  * AppServiceProvider::boot(), $this->app->extend(MigrateCommand::class, ...))
  * para que NINGUNA migración corra en dev sin una ruta segura a main.
  *
- * Escape hatch para casos legítimos (rollback de emergencia, debugging):
- * --force-uncommitted. Queda auditado en storage/logs/migration-guard.log.
+ * Item #1018 — el mismo gate además rechaza migraciones pendientes con
+ * operaciones destructivas (dropColumn/dropTable/renameColumn/truncate/
+ * change() reductor), salvo excepción `contraccion_de: V{n}` madura (ver
+ * MigrationGuardService::checkDestructive()).
+ *
+ * Escape hatch para casos legítimos (rollback de emergencia, debugging, o
+ * un change() que solo amplía): --force-uncommitted. Queda auditado en
+ * storage/logs/migration-guard.log.
  */
 class GuardedMigrateCommand extends MigrateCommand
 {
@@ -49,6 +55,27 @@ class GuardedMigrateCommand extends MigrateCommand
 
                 $guard->logOverride($violations);
                 $this->components->warn('Guardrail omitido con --force-uncommitted (queda auditado en storage/logs/migration-guard.log).');
+            }
+
+            $destructivas = $guard->checkDestructive();
+
+            if ($destructivas !== []) {
+                if (! $this->option('force-uncommitted')) {
+                    $this->components->error('Guardrail de migraciones (item #1018): hay operaciones destructivas sin excepción de contracción madura.');
+
+                    foreach ($destructivas as $violation) {
+                        $this->components->warn($violation);
+                    }
+
+                    $this->components->info('Patrón en dos tiempos: agrega/deja de usar en esta versión; retira en una versión de contracción posterior.');
+                    $this->components->info('Excepción: declara `contraccion_de: V{n}` en el item cuando esa versión ya lleve el mínimo de días aplicada en producción.');
+                    $this->components->info('Escape hatch (uso manual, queda auditado): --force-uncommitted.');
+
+                    return 1;
+                }
+
+                $guard->logOverride($destructivas);
+                $this->components->warn('Guardrail destructivo omitido con --force-uncommitted (queda auditado en storage/logs/migration-guard.log).');
             }
         }
 
