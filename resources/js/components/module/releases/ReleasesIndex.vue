@@ -157,6 +157,22 @@
                         <p class="text-muted mb-3">{{ release.summary }}</p>
                     </div>
                     <div
+                        class="d-flex justify-content-between align-items-center mb-2"
+                    >
+                        <span
+                            v-if="release.reversibilidad"
+                            class="badge"
+                            :class="reversibilidadClase(release.reversibilidad.estado)"
+                            :title="reversibilidadTooltip(release.reversibilidad)"
+                        >
+                            <i class="bi me-1" :class="reversibilidadIcono(release.reversibilidad.estado)"></i>
+                            {{ reversibilidadTexto(release.reversibilidad.estado) }}
+                            <template v-if="release.reversibilidad.estado === 'con_perdida' && release.reversibilidad.peor">
+                                ({{ release.reversibilidad.peor.filas_nuevas }} filas)
+                            </template>
+                        </span>
+                    </div>
+                    <div
                         class="d-flex justify-content-between align-items-center"
                     >
                         <small class="fw-semibold text-secondary">
@@ -411,6 +427,36 @@ export default {
             }
         };
 
+        // Item #1020: ventana de reversibilidad medida en filas nuevas — badge visible en la
+        // tarjeta sin tener que abrirla. `release.reversibilidad` viene calculado del backend
+        // (ReleaseReversibilityService::estadoPara).
+        const REVERSIBILIDAD_UI = {
+            limpio: { clase: "bg-success", icono: "bi-check-circle", texto: "Regreso limpio" },
+            con_perdida: { clase: "bg-warning text-dark", icono: "bi-exclamation-triangle", texto: "Regreso con pérdida" },
+            no_reversible: { clase: "bg-danger", icono: "bi-x-circle", texto: "No reversible" },
+            sin_datos: { clase: "bg-secondary", icono: "bi-question-circle", texto: "Sin datos de reversibilidad" },
+        };
+
+        const reversibilidadClase = (estado) =>
+            (REVERSIBILIDAD_UI[estado] || REVERSIBILIDAD_UI.sin_datos).clase;
+        const reversibilidadIcono = (estado) =>
+            (REVERSIBILIDAD_UI[estado] || REVERSIBILIDAD_UI.sin_datos).icono;
+        const reversibilidadTexto = (estado) =>
+            (REVERSIBILIDAD_UI[estado] || REVERSIBILIDAD_UI.sin_datos).texto;
+        const reversibilidadTooltip = (rev) => {
+            if (!rev) return "";
+            if (rev.estado === "no_reversible") {
+                return rev.motivo || "Esta versión no se puede regresar.";
+            }
+            if (rev.estado === "con_perdida" && rev.peor) {
+                return `Tabla "${rev.peor.tabla}" (${rev.peor.criticidad}) tiene ${rev.peor.filas_nuevas} filas nuevas, por encima del umbral (${rev.peor.umbral}). Regresar esta versión perdería esas filas.`;
+            }
+            if (rev.estado === "limpio") {
+                return "Ninguna tabla afectada por esta versión superó su umbral de filas nuevas: se puede regresar sin perder datos.";
+            }
+            return "Esta versión no tiene snapshot de filas para medir su ventana de reversibilidad (previa al mecanismo, o aún sin desplegar).";
+        };
+
         return {
             tab,
             releases,
@@ -432,6 +478,10 @@ export default {
             copiedVersion,
             hasPermission,
             certAviso,
+            reversibilidadClase,
+            reversibilidadIcono,
+            reversibilidadTexto,
+            reversibilidadTooltip,
         };
     },
 };

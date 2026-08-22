@@ -109,4 +109,46 @@ class MigrationGuardDestructivePatternTest extends BaseTestCase
 
         $this->assertCount(1, $matches);
     }
+
+    /**
+     * Item #1020 — regresión encontrada al implementar #1020: toda migración `create_table`
+     * estándar de Laravel trae `Schema::dropIfExists()` en down() (reversa lo que up() creó,
+     * no pierde datos de nadie) y el guard la marcaba como destructiva, bloqueando el `migrate`
+     * de cualquier migración nueva que creara una tabla. El guard es sobre up() ("disciplina
+     * expansiva"); down() queda fuera del escaneo.
+     */
+    public function test_drop_if_exists_en_down_no_dispara_nada(): void
+    {
+        $body = "public function up(): void\n{\n"
+            . "    Schema::create('tabla_nueva', function (Blueprint \$t) {\n"
+            . "        \$t->id();\n"
+            . "    });\n"
+            . "}\n\n"
+            . "public function down(): void\n{\n"
+            . "    Schema::dropIfExists('tabla_nueva');\n"
+            . "}\n";
+
+        $matches = $this->matchesFor($body);
+
+        $this->assertSame([], $matches);
+    }
+
+    public function test_operacion_destructiva_en_up_si_se_detecta_aunque_haya_down(): void
+    {
+        $body = "public function up(): void\n{\n"
+            . "    Schema::table('clients', function (Blueprint \$t) {\n"
+            . "        \$t->dropColumn('legacy_field');\n"
+            . "    });\n"
+            . "}\n\n"
+            . "public function down(): void\n{\n"
+            . "    Schema::table('clients', function (Blueprint \$t) {\n"
+            . "        \$t->string('legacy_field')->nullable();\n"
+            . "    });\n"
+            . "}\n";
+
+        $matches = $this->matchesFor($body);
+
+        $this->assertCount(1, $matches);
+        $this->assertSame(4, $matches[0]['linea']);
+    }
 }

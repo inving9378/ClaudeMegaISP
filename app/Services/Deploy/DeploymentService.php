@@ -293,6 +293,12 @@ class DeploymentService
             }
 
             $release->save();
+
+            // Item #1020: con migracion_desde/hasta ya fijos, snapshot MAX(id) de las tablas
+            // que esta versión tocó — línea base para medir "filas nuevas" después.
+            if ($stepKey === 'git_tag') {
+                app(\App\Services\ReleaseReversibilityService::class)->registrarSnapshot($release);
+            }
         } catch (\Throwable $e) {
             Log::channel('single')->warning("Deploy — vínculo técnico ({$stepKey}) falló: " . $e->getMessage());
         }

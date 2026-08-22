@@ -67,4 +67,35 @@ class ReleaseTechnicalLinkService
 
         return [$migraciones->first(), $migraciones->last()];
     }
+
+    /**
+     * Lista completa (no solo primera/última) de migraciones entre $desde y $hasta, ambos
+     * inclusive, en el mismo orden en que se aplicaron (tabla `migrations`, columna `id`).
+     * La usa el item #1020 para inspeccionar qué migraciones tocó una versión y de ahí inferir
+     * qué tablas afectó (ver ReleaseReversibilityService). Best-effort: colección vacía si algún
+     * nombre no se encuentra.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    public function migracionesEnRango(?string $desde, ?string $hasta): \Illuminate\Support\Collection
+    {
+        if (!$desde || !$hasta) {
+            return collect();
+        }
+
+        try {
+            $desdeId = DB::table('migrations')->where('migration', $desde)->value('id');
+            $hastaId = DB::table('migrations')->where('migration', $hasta)->value('id');
+            if ($desdeId === null || $hastaId === null) {
+                return collect();
+            }
+
+            return DB::table('migrations')
+                ->whereBetween('id', [min($desdeId, $hastaId), max($desdeId, $hastaId)])
+                ->orderBy('id')
+                ->pluck('migration');
+        } catch (\Throwable) {
+            return collect();
+        }
+    }
 }

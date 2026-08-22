@@ -9,6 +9,7 @@ use App\Services\Deploy\ReleaseTechnicalLinkService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
 class RemoteDeployCommand extends Command
@@ -480,7 +481,7 @@ class RemoteDeployCommand extends Command
         ];
 
         if (!$existing) {
-            Release::create(array_merge([
+            $release = Release::create(array_merge([
                 'version'      => $version,
                 'title'        => $title,
                 'summary'      => $summary ?: null,
@@ -489,11 +490,27 @@ class RemoteDeployCommand extends Command
             ], $technicalData));
             // La versión instalada cambió → invalida el cache que lee el badge del topbar.
             Cache::forget('megaisp_installed_version');
+            $this->registrarSnapshotReversibilidad($release);
             return "Release {$version} creada en DB local (commit " . ($commitSha ?: '?') . ").";
         }
 
         $existing->fill($technicalData)->save();
+        $this->registrarSnapshotReversibilidad($existing);
         return "Release {$version} ya existía — vínculo técnico actualizado (commit " . ($commitSha ?: '?') . ").";
+    }
+
+    /**
+     * Item #1020: snapshot MAX(id) de las tablas que esta versión tocó, ya con
+     * migracion_desde/hasta fijos (ver saveRelease arriba). Best-effort — un fallo aquí no debe
+     * tumbar el deploy (misma filosofía que el resto del vínculo técnico del #1017).
+     */
+    private function registrarSnapshotReversibilidad(Release $release): void
+    {
+        try {
+            app(\App\Services\ReleaseReversibilityService::class)->registrarSnapshot($release);
+        } catch (\Throwable $e) {
+            Log::warning("remote:deploy — snapshot de reversibilidad ({$release->version}) falló: " . $e->getMessage());
+        }
     }
 
     /** Respaldo más reciente de /var/backups/mysql — el que acaba de generar el paso 'backup_db'. */

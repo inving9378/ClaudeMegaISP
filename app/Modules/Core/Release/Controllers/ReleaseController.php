@@ -41,8 +41,12 @@ class ReleaseController extends Controller
         // git_tag) → el front ofrece "Re-desplegar". Si no se pudo consultar git
         // (null) se asume publicado (true) para NO ofrecer un re-deploy sin verificar.
         $tags = $this->gitTags();
-        $releases->getCollection()->transform(function ($r) use ($tags) {
+        $reversibilidad = app(\App\Services\ReleaseReversibilityService::class);
+        $releases->getCollection()->transform(function ($r) use ($tags, $reversibilidad) {
             $r->tag_exists = $tags === null ? true : in_array($r->version, $tags, true);
+            // Item #1020: estado de reversibilidad (limpio/con_perdida/no_reversible/sin_datos)
+            // para pintarlo en la tarjeta sin tener que abrirla.
+            $r->reversibilidad = $reversibilidad->estadoPara($r);
             return $r;
         });
 
