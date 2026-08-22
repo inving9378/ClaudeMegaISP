@@ -249,6 +249,26 @@ class ReleaseController extends Controller
         ], 200);
     }
 
+    /**
+     * Item roadmap #1021 (sub-item 5/5 de #1012) — "Generar plan de regreso": documento
+     * markdown de SOLO LECTURA para producción (el circuito nunca ejecuta nada en prod).
+     */
+    public function planRegreso(int $id)
+    {
+        $release = Release::find($id);
+        if (!$release) {
+            return response()->json(['success' => false, 'message' => 'La versión no existe.'], 404);
+        }
+
+        $markdown = app(\App\Services\ReleaseRollbackPlanService::class)->generarMarkdown($release);
+
+        return response()->json([
+            'success'  => true,
+            'version'  => $release->version,
+            'markdown' => $markdown,
+        ]);
+    }
+
     public function generateChangelog(Request $request)
     {
         $version = trim($request->input('version', 'nueva'));
