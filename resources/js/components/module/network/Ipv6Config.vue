@@ -1,210 +1,308 @@
 <template>
     <div class="ipv6-config-container q-pa-md">
         <div class="row items-center q-mb-md">
-            <div class="text-h5">Configuración IPv6</div>
+            <div class="text-h5">Configuración IPv6 — Alta de bloque</div>
         </div>
         <div class="text-caption text-grey-7 q-mb-md">
             Solo lectura hacia el router: detección de versión y mapeo de zonas marcadas
-            (<code>MgNet-IPv6</code>). La vista previa del plan de direccionamiento es cálculo puro,
-            nunca escribe en el router.
+            (<code>MgNet-IPv6</code>). El cálculo del plan de direccionamiento es puro,
+            nunca escribe en el router. Nada de esto se guarda todavía (persistencia pendiente).
         </div>
 
-        <q-card flat bordered class="q-pa-md q-mb-md">
-            <div class="text-subtitle1 q-mb-sm">1. Router</div>
-            <q-select
-                v-model="routerId"
-                :options="routerOptions"
-                option-value="id"
-                option-label="label"
-                emit-value
-                map-options
-                label="Router registrado"
-                outlined
-                dense
-                :loading="loadingRouters"
-                style="max-width: 480px"
-            />
+        <q-stepper v-model="step" flat bordered animated color="primary">
+            <q-step :name="1" title="1. Alta del bloque" icon="dns" :done="step > 1">
+                <q-card flat bordered class="q-pa-md">
+                    <q-input
+                        v-model="prefijoProveedor"
+                        label="Prefijo del proveedor *"
+                        hint="Único dato que MegaISP no puede saber, ej. 2001:db8::/48"
+                        outlined
+                        dense
+                        style="max-width: 420px"
+                    />
 
-            <div class="row q-gutter-sm q-mt-md">
-                <q-btn
-                    color="primary"
-                    label="Detectar versión"
-                    :disable="!routerId"
-                    :loading="loadingVersion"
-                    @click="detectarVersion"
-                />
-                <q-btn
-                    color="secondary"
-                    label="Mapear zonas"
-                    :disable="!routerId"
-                    :loading="loadingZonas"
-                    @click="mapearZonas"
-                />
-            </div>
+                    <q-select
+                        v-model="routerId"
+                        :options="routerOptions"
+                        option-value="id"
+                        option-label="label"
+                        emit-value
+                        map-options
+                        label="Router destino *"
+                        outlined
+                        dense
+                        :loading="loadingRouters"
+                        class="q-mt-md"
+                        style="max-width: 480px"
+                        @update:model-value="onRouterChange"
+                    />
 
-            <q-banner v-if="versionError" class="bg-negative text-white q-mt-md" dense>
-                {{ versionError }}
-            </q-banner>
+                    <div class="q-mt-md">
+                        <div class="text-caption text-grey-7">Versión RouterOS</div>
+                        <div v-if="loadingVersion" class="row items-center q-gutter-sm q-mt-xs">
+                            <q-spinner color="primary" size="20px" />
+                            <span class="text-caption">Detectando versión…</span>
+                        </div>
+                        <div v-else-if="version && !forzarVersionManual" class="text-body2 q-mt-xs">
+                            <b>{{ version.version || '—' }}</b>
+                            <span class="text-grey-7">
+                                · {{ version.board_name || '—' }} ({{ version.architecture_name || '—' }})
+                            </span>
+                            <q-btn flat dense size="sm" color="primary" label="Forzar manual"
+                                   class="q-ml-sm" @click="forzarVersionManual = true" />
+                        </div>
 
-            <div v-if="version" class="q-mt-md">
-                <div class="text-body2">
-                    <b>Versión:</b> {{ version.version || '—' }} ·
-                    <b>Board:</b> {{ version.board_name || '—' }} ·
-                    <b>Arquitectura:</b> {{ version.architecture_name || '—' }} ·
-                    <b>Familia:</b> {{ version.family }} ({{ version.family_source }})
-                </div>
-            </div>
+                        <q-banner v-if="versionError" class="bg-negative text-white q-mt-sm" dense>
+                            {{ versionError }}
+                        </q-banner>
 
-            <q-select
-                v-if="versionError"
-                v-model="familyOverride"
-                :options="familyOptions"
-                emit-value
-                map-options
-                label="Familia (selector manual de respaldo)"
-                outlined
-                dense
-                clearable
-                style="max-width: 320px"
-                class="q-mt-sm"
-            />
-        </q-card>
+                        <q-select
+                            v-if="forzarVersionManual || (versionError && !loadingVersion)"
+                            v-model="versionManual"
+                            :options="versionManualOptions"
+                            emit-value
+                            map-options
+                            label="Versión RouterOS (selector manual de respaldo)"
+                            outlined
+                            dense
+                            style="max-width: 320px"
+                            class="q-mt-sm"
+                        />
+                    </div>
 
-        <q-card v-if="topology" flat bordered class="q-pa-md q-mb-md">
-            <div class="text-subtitle1 q-mb-sm">2. Zonas mapeadas</div>
+                    <q-expansion-item
+                        class="q-mt-lg ipv6-advanced"
+                        icon="tune"
+                        label="Opciones avanzadas"
+                        header-class="text-primary"
+                        dense-toggle
+                    >
+                        <div class="q-pa-md">
+                            <div class="row q-gutter-md items-start">
+                                <q-select
+                                    v-model.number="opciones.longitudDelegacion"
+                                    :options="longitudDelegacionOptions"
+                                    emit-value
+                                    map-options
+                                    label="Longitud de delegación"
+                                    hint="Recomendada por el calculador — rango /32 a /56"
+                                    outlined
+                                    dense
+                                    style="width: 220px"
+                                />
+                                <q-input
+                                    v-model.number="opciones.reservaInfraestructura"
+                                    type="number"
+                                    min="0"
+                                    label="Reserva de infraestructura"
+                                    hint="Bloques adicionales reservados, además del bloque base"
+                                    outlined
+                                    dense
+                                    style="width: 220px"
+                                />
+                            </div>
 
-            <div class="text-caption text-grey-7 q-mb-xs">
-                VLANs candidatas ({{ topology.vlans_candidatas.length }})
-            </div>
-            <q-list bordered dense class="q-mb-md" v-if="topology.vlans_candidatas.length">
-                <q-item v-for="(v, i) in topology.vlans_candidatas" :key="'vlan-' + i">
-                    <q-item-section>
-                        <q-item-label>{{ v.interface }} (VLAN {{ v.vlan_id }})</q-item-label>
-                        <q-item-label caption>
-                            {{ v.comment }} — {{ v.ya_asignado ? 'ya tiene IPv6 asignado' : 'sin IPv6 asignado' }}
-                        </q-item-label>
-                    </q-item-section>
-                </q-item>
-            </q-list>
-            <div v-else class="text-grey-6 q-mb-md">Sin VLANs marcadas.</div>
+                            <div class="row q-gutter-md items-start q-mt-sm">
+                                <q-input
+                                    v-model.number="opciones.clientesActuales"
+                                    type="number"
+                                    min="0"
+                                    label="Clientes actuales"
+                                    outlined
+                                    dense
+                                    style="width: 220px"
+                                />
+                                <q-input
+                                    v-model.number="opciones.margenCrecimiento"
+                                    type="number"
+                                    step="0.1"
+                                    min="0.1"
+                                    label="Margen de crecimiento"
+                                    outlined
+                                    dense
+                                    style="width: 220px"
+                                />
+                            </div>
+                            <div class="text-caption text-grey-7 q-mt-xs">
+                                {{ clientesActualesNota }}
+                            </div>
 
-            <div class="text-caption text-grey-7 q-mb-xs">
-                Perfiles PPP candidatos ({{ topology.ppp_profiles_candidatos.length }})
-            </div>
-            <q-list bordered dense class="q-mb-md" v-if="topology.ppp_profiles_candidatos.length">
-                <q-item v-for="(p, i) in topology.ppp_profiles_candidatos" :key="'ppp-' + i">
-                    <q-item-section>
-                        <q-item-label>{{ p.profile }}</q-item-label>
-                        <q-item-label caption>{{ p.comment }}</q-item-label>
-                    </q-item-section>
-                </q-item>
-            </q-list>
-            <div v-else class="text-grey-6 q-mb-md">Sin perfiles PPP marcados.</div>
+                            <div class="text-subtitle2 q-mt-md">Datos de contrato</div>
+                            <div class="row q-gutter-md items-start q-mt-xs">
+                                <q-input
+                                    v-model="opciones.contratoReferencia"
+                                    label="Referencia / número de contrato"
+                                    outlined
+                                    dense
+                                    style="width: 300px"
+                                />
+                            </div>
+                            <q-input
+                                v-model="opciones.contratoNotas"
+                                type="textarea"
+                                label="Notas de contrato"
+                                outlined
+                                dense
+                                class="q-mt-sm"
+                                style="max-width: 620px"
+                            />
+                        </div>
+                    </q-expansion-item>
+                </q-card>
 
-            <div class="text-caption text-grey-7 q-mb-xs">
-                Servidores PPPoE por distrito ({{ Object.keys(topology.pppoe_servers_por_distrito).length }})
-            </div>
-            <div v-for="(servers, distrito) in topology.pppoe_servers_por_distrito" :key="distrito" class="q-mb-sm">
-                <b>{{ distrito }}</b>: {{ servers.length }} servidor(es)
-            </div>
+                <q-stepper-navigation>
+                    <q-btn
+                        color="primary"
+                        label="Continuar a mapeo de zonas"
+                        :disable="!puedeContinuar"
+                        :loading="loadingZonas"
+                        @click="continuarAZonas"
+                    />
+                </q-stepper-navigation>
+            </q-step>
 
-            <div class="text-caption text-grey-7 q-mb-xs q-mt-md">
-                IPv6 ya asignados ({{ topology.ipv6_ya_asignados.length }})
-            </div>
-            <div class="text-caption text-grey-7 q-mb-xs q-mt-md">
-                Queues dedicadas candidatas ({{ topology.queues_dedicadas_candidatas.length }})
-            </div>
-        </q-card>
-        <q-banner v-if="zonasError" class="bg-negative text-white q-mb-md" dense>
-            {{ zonasError }}
-        </q-banner>
+            <q-step :name="2" title="2. Mapeo de zonas" icon="hub">
+                <q-banner class="bg-blue-1 text-blue-10 q-mb-md" dense>
+                    Filas descubiertas automáticamente en el router (marcador <code>MgNet-IPv6</code>).
+                    Solo confirma cuáles deben incluirse en el plan — no se editan ni se capturan
+                    zonas nuevas a mano aquí.
+                </q-banner>
 
-        <q-card flat bordered class="q-pa-md">
-            <div class="text-subtitle1 q-mb-sm">3. Vista previa del plan de direccionamiento</div>
-            <div class="text-caption text-grey-7 q-mb-md">
-                Cálculo puro — nunca escribe en el router.
-            </div>
+                <q-banner v-if="zonasError" class="bg-negative text-white q-mb-md" dense>
+                    {{ zonasError }}
+                </q-banner>
 
-            <div class="row q-gutter-md">
-                <q-input v-model="planForm.prefijo" label="Prefijo delegado *" outlined dense
-                         hint="ej. 2001:db8::/48" style="width: 260px" />
-                <q-input v-model.number="planForm.clientes_actuales" type="number" label="Clientes actuales *"
-                         outlined dense style="width: 180px" />
-                <q-input v-model.number="planForm.margen_crecimiento" type="number" step="0.1"
-                         label="Margen de crecimiento *" outlined dense style="width: 200px" />
-                <q-input v-model="planForm.version" label="Versión RouterOS *" outlined dense
-                         hint="ej. 7.14.2" style="width: 180px" />
-            </div>
+                <q-card flat bordered class="q-pa-md q-mb-md" v-if="topology">
+                    <div class="text-subtitle1 q-mb-sm">
+                        Candidatas a confirmar ({{ filasConfirmables.length }})
+                    </div>
 
-            <div class="q-mt-md">
-                <div class="text-caption text-grey-7 q-mb-xs">Zonas (distritos PPPoE)</div>
-                <div class="row q-gutter-sm items-center q-mb-xs" v-for="(z, i) in planForm.zonas" :key="i">
-                    <q-input v-model="planForm.zonas[i]" outlined dense style="width: 260px" :label="'Zona ' + (i + 1)" />
-                    <q-btn flat dense round icon="close" color="negative" @click="planForm.zonas.splice(i, 1)"
-                           v-if="planForm.zonas.length > 1" />
-                </div>
-                <q-btn flat dense icon="add" label="Agregar zona" @click="planForm.zonas.push('')" />
-            </div>
+                    <q-table
+                        v-if="filasConfirmables.length"
+                        :rows="filasConfirmables"
+                        :columns="columnasFilas"
+                        row-key="key"
+                        dense
+                        flat
+                        hide-pagination
+                        :rows-per-page-options="[0]"
+                    >
+                        <template #body-cell-confirmar="props">
+                            <q-td :props="props">
+                                <q-toggle v-model="confirmaciones[props.row.key]" color="primary" />
+                            </q-td>
+                        </template>
+                    </q-table>
+                    <div v-else class="text-grey-6">
+                        Sin candidatas marcadas con <code>MgNet-IPv6</code> en este router.
+                    </div>
 
-            <div class="q-mt-md">
-                <q-btn color="primary" label="Calcular vista previa" :loading="loadingPlan" @click="vistaPrevia" />
-            </div>
+                    <div class="text-caption text-grey-7 q-mt-sm">
+                        {{ totalConfirmadas }} de {{ filasConfirmables.length }} confirmadas.
+                    </div>
 
-            <q-banner v-if="planError" class="bg-negative text-white q-mt-md" dense>
-                {{ planError }}
-            </q-banner>
+                    <div class="text-subtitle2 q-mt-lg">
+                        Zonas / distritos PPPoE detectados ({{ distritosDetectados.length }})
+                    </div>
+                    <div v-if="distritosDetectados.length" class="q-mt-xs">
+                        <div v-for="d in distritosDetectados" :key="d.nombre" class="text-body2">
+                            <b>{{ d.nombre }}</b> — {{ d.count }} servidor(es)
+                        </div>
+                    </div>
+                    <div v-else class="text-grey-6 q-mt-xs">Sin distritos detectados.</div>
 
-            <div v-if="plan" class="q-mt-md">
-                <div class="text-subtitle2">Plan calculado</div>
-                <pre class="ipv6-plan-pre">{{ JSON.stringify(plan, null, 2) }}</pre>
+                    <div class="text-caption text-grey-7 q-mt-md">
+                        IPv6 ya asignados en el router: {{ topology.ipv6_ya_asignados.length }}
+                    </div>
+                </q-card>
 
-                <div class="text-subtitle2 q-mt-md">Comandos ({{ driver }})</div>
-                <pre class="ipv6-plan-pre">{{ comandos.join('\n') }}</pre>
+                <q-card flat bordered class="q-pa-md">
+                    <div class="text-subtitle1 q-mb-sm">Vista previa del plan de direccionamiento</div>
+                    <div class="text-caption text-grey-7 q-mb-md">
+                        Cálculo puro con las zonas detectadas y las opciones avanzadas de la pantalla
+                        anterior — nunca escribe en el router. Nada se persiste (pendiente #949).
+                    </div>
 
-                <div v-if="advertencias.length" class="text-subtitle2 q-mt-md text-warning">Advertencias</div>
-                <ul v-if="advertencias.length">
-                    <li v-for="(a, i) in advertencias" :key="i">{{ a }}</li>
-                </ul>
-            </div>
-        </q-card>
+                    <q-btn
+                        color="primary"
+                        label="Calcular vista previa"
+                        :disable="!distritosDetectados.length || !prefijoProveedor"
+                        :loading="loadingPlan"
+                        @click="vistaPrevia"
+                    />
+
+                    <q-banner v-if="planError" class="bg-negative text-white q-mt-md" dense>
+                        {{ planError }}
+                    </q-banner>
+
+                    <div v-if="plan" class="q-mt-md">
+                        <div class="text-subtitle2">Plan calculado</div>
+                        <pre class="ipv6-plan-pre">{{ JSON.stringify(plan, null, 2) }}</pre>
+
+                        <div class="text-subtitle2 q-mt-md">Comandos ({{ driver }})</div>
+                        <pre class="ipv6-plan-pre">{{ comandos.join('\n') }}</pre>
+
+                        <div v-if="advertencias.length" class="text-subtitle2 q-mt-md text-warning">Advertencias</div>
+                        <ul v-if="advertencias.length">
+                            <li v-for="(a, i) in advertencias" :key="i">{{ a }}</li>
+                        </ul>
+                    </div>
+                </q-card>
+
+                <q-stepper-navigation>
+                    <q-btn flat color="primary" label="Volver a alta del bloque" @click="step = 1" />
+                </q-stepper-navigation>
+            </q-step>
+        </q-stepper>
     </div>
 </template>
 
 <script>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import axios from 'axios';
 
 export default {
     name: 'Ipv6Config',
     setup() {
+        const step = ref(1);
+
         const routers = ref([]);
         const routerId = ref(null);
         const loadingRouters = ref(false);
 
+        const prefijoProveedor = ref('');
+
         const version = ref(null);
         const versionError = ref('');
         const loadingVersion = ref(false);
-        const familyOverride = ref(null);
-        const familyOptions = [
-            { label: 'x86 / CHR', value: 'x86' },
-            { label: 'ARM', value: 'arm' },
-            { label: 'ARM64', value: 'arm64' },
-            { label: 'MIPSBE', value: 'mipsbe' },
-            { label: 'TILE', value: 'tile' },
-            { label: 'PPC', value: 'ppc' },
+        const forzarVersionManual = ref(false);
+        const versionManual = ref('7.13');
+        const versionManualOptions = [
+            { label: '6.x', value: '6.0' },
+            { label: '7.0 – 7.12', value: '7.0' },
+            { label: '7.13+', value: '7.13' },
         ];
+
+        const longitudDelegacionOptions = [32, 36, 40, 44, 48, 52, 56].map((n) => ({
+            label: '/' + n,
+            value: n,
+        }));
+
+        const opciones = reactive({
+            longitudDelegacion: 48,
+            reservaInfraestructura: 1,
+            clientesActuales: 0,
+            margenCrecimiento: 1.5,
+            contratoReferencia: '',
+            contratoNotas: '',
+        });
+        const fuenteClientesReal = ref(false);
 
         const topology = ref(null);
         const zonasError = ref('');
         const loadingZonas = ref(false);
+        const confirmaciones = reactive({});
 
-        const planForm = reactive({
-            prefijo: '',
-            clientes_actuales: 0,
-            margen_crecimiento: 1.5,
-            zonas: [''],
-            version: '',
-        });
         const plan = ref(null);
         const driver = ref('');
         const comandos = ref([]);
@@ -220,6 +318,85 @@ export default {
             }))
         );
 
+        const clientesActualesNota = computed(() => {
+            if (fuenteClientesReal.value) {
+                return 'Precargado del conteo real de clientes de internet activos en este router.';
+            }
+            return 'Sin fuente de conteo real para este router — se dejó en 0, ajusta manualmente.';
+        });
+
+        const puedeContinuar = computed(() => {
+            const versionResuelta = (version.value && !forzarVersionManual.value) || !!versionManual.value;
+            return !!prefijoProveedor.value && !!routerId.value && versionResuelta;
+        });
+
+        const versionEfectiva = computed(() => {
+            if (forzarVersionManual.value || versionError.value) {
+                return versionManual.value;
+            }
+            return (version.value && version.value.version) || versionManual.value;
+        });
+
+        const columnasFilas = [
+            { name: 'tipo', label: 'Tipo', field: 'tipo', align: 'left' },
+            { name: 'nombre', label: 'Nombre', field: 'nombre', align: 'left' },
+            { name: 'detalle', label: 'Detalle', field: 'detalle', align: 'left' },
+            { name: 'confirmar', label: 'Confirmar', field: 'confirmar', align: 'center' },
+        ];
+
+        const filasConfirmables = computed(() => {
+            if (!topology.value) return [];
+            const filas = [];
+
+            (topology.value.vlans_candidatas || []).forEach((v, i) => {
+                filas.push({
+                    key: 'vlan-' + i,
+                    tipo: 'VLAN',
+                    nombre: v.interface + (v.vlan_id ? ' (VLAN ' + v.vlan_id + ')' : ''),
+                    detalle: (v.comment || '') + (v.ya_asignado ? ' — ya tiene IPv6 asignado' : ''),
+                });
+            });
+            (topology.value.ppp_profiles_candidatos || []).forEach((p, i) => {
+                filas.push({
+                    key: 'ppp-' + i,
+                    tipo: 'Perfil PPP',
+                    nombre: p.profile,
+                    detalle: p.comment || '',
+                });
+            });
+            (topology.value.queues_dedicadas_candidatas || []).forEach((q, i) => {
+                filas.push({
+                    key: 'queue-' + i,
+                    tipo: 'Queue',
+                    nombre: q.name,
+                    detalle: (q.target || '') + (q.comment ? ' — ' + q.comment : ''),
+                });
+            });
+
+            return filas;
+        });
+
+        watch(filasConfirmables, (filas) => {
+            filas.forEach((f) => {
+                if (!(f.key in confirmaciones)) {
+                    confirmaciones[f.key] = false;
+                }
+            });
+        });
+
+        const totalConfirmadas = computed(
+            () => Object.values(confirmaciones).filter(Boolean).length
+        );
+
+        const distritosDetectados = computed(() => {
+            if (!topology.value) return [];
+            const grupos = topology.value.pppoe_servers_por_distrito || {};
+            return Object.keys(grupos).map((nombre) => ({
+                nombre,
+                count: (grupos[nombre] || []).length,
+            }));
+        });
+
         async function loadRouters() {
             loadingRouters.value = true;
             try {
@@ -232,6 +409,39 @@ export default {
             }
         }
 
+        function onRouterChange() {
+            version.value = null;
+            versionError.value = '';
+            forzarVersionManual.value = false;
+            topology.value = null;
+
+            const router = routers.value.find((r) => r.id === routerId.value);
+            if (router && typeof router.clientes_activos === 'number') {
+                opciones.clientesActuales = router.clientes_activos;
+                fuenteClientesReal.value = true;
+            } else {
+                opciones.clientesActuales = 0;
+                fuenteClientesReal.value = false;
+            }
+
+            const parsed = parsePrefixLen(prefijoProveedor.value);
+            if (parsed) {
+                opciones.longitudDelegacion = parsed;
+            }
+
+            if (routerId.value) {
+                detectarVersion();
+            }
+        }
+
+        function parsePrefixLen(prefijo) {
+            const m = /\/(\d{1,3})\s*$/.exec((prefijo || '').trim());
+            if (!m) return null;
+            const n = parseInt(m[1], 10);
+            if (n < 32 || n > 56) return null;
+            return Math.ceil(n / 4) * 4;
+        }
+
         async function detectarVersion() {
             version.value = null;
             versionError.value = '';
@@ -239,13 +449,9 @@ export default {
             try {
                 const { data } = await axios.post('/red/ipv6-config/detectar-version', {
                     router_id: routerId.value,
-                    family_override: familyOverride.value,
                 });
                 if (data.ok) {
                     version.value = data.version;
-                    if (data.version.version) {
-                        planForm.version = data.version.version;
-                    }
                 } else {
                     versionError.value = data.error || 'No se pudo detectar la versión.';
                 }
@@ -257,13 +463,11 @@ export default {
         }
 
         async function mapearZonas() {
-            topology.value = null;
             zonasError.value = '';
             loadingZonas.value = true;
             try {
                 const { data } = await axios.post('/red/ipv6-config/mapear-zonas', {
                     router_id: routerId.value,
-                    family_override: familyOverride.value,
                 });
                 if (data.ok) {
                     topology.value = data.topology;
@@ -277,17 +481,24 @@ export default {
             }
         }
 
+        async function continuarAZonas() {
+            if (!topology.value) {
+                await mapearZonas();
+            }
+            step.value = 2;
+        }
+
         async function vistaPrevia() {
             plan.value = null;
             planError.value = '';
             loadingPlan.value = true;
             try {
                 const { data } = await axios.post('/red/ipv6-config/vista-previa', {
-                    prefijo: planForm.prefijo,
-                    clientes_actuales: planForm.clientes_actuales,
-                    margen_crecimiento: planForm.margen_crecimiento,
-                    zonas: planForm.zonas.filter((z) => z.trim() !== ''),
-                    version: planForm.version,
+                    prefijo: prefijoProveedor.value,
+                    clientes_actuales: opciones.clientesActuales,
+                    margen_crecimiento: opciones.margenCrecimiento,
+                    zonas: distritosDetectados.value.map((d) => d.nombre),
+                    version: versionEfectiva.value,
                 });
                 if (data.ok) {
                     plan.value = data.plan;
@@ -307,11 +518,15 @@ export default {
         loadRouters();
 
         return {
-            routerId, routerOptions, loadingRouters,
-            version, versionError, loadingVersion, familyOverride, familyOptions,
+            step,
+            routerId, routerOptions, loadingRouters, onRouterChange,
+            prefijoProveedor,
+            version, versionError, loadingVersion, forzarVersionManual, versionManual, versionManualOptions,
+            longitudDelegacionOptions, opciones, clientesActualesNota,
+            puedeContinuar, continuarAZonas,
             topology, zonasError, loadingZonas,
-            planForm, plan, driver, comandos, advertencias, planError, loadingPlan,
-            detectarVersion, mapearZonas, vistaPrevia,
+            filasConfirmables, columnasFilas, confirmaciones, totalConfirmadas, distritosDetectados,
+            plan, driver, comandos, advertencias, planError, loadingPlan, vistaPrevia,
         };
     },
 };
