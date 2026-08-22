@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Network;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClientInternetService;
 use App\Models\Router;
 use App\Services\Ipv6\Ipv6AddressPlanCalculator;
 use App\Services\Ipv6\Ipv6CommandGenerator;
@@ -32,15 +33,25 @@ class Ipv6ConfigController extends Controller
     /** GET routers registrados (sin exponer credenciales del Mikrotik). */
     public function routers(): JsonResponse
     {
+        $conteos = ClientInternetService::whereIn('estado', ['Activo', 'Activado'])
+            ->selectRaw('router_id, count(*) as total')
+            ->groupBy('router_id')
+            ->pluck('total', 'router_id');
+
         $routers = Router::with('mikrotik')
             ->get()
-            ->map(function (Router $router) {
+            ->map(function (Router $router) use ($conteos) {
                 return [
                     'id' => $router->id,
                     'title' => $router->title,
                     'ip_host' => $router->ip_host,
                     'type_of_nas' => $router->type_of_nas,
                     'conectable' => $this->esConectable($router),
+                    // Conteo real de clientes de internet activos sobre este router
+                    // (client_internet_services.estado in Activo/Activado). Fuente
+                    // obvia disponible; NO se inventa si el router simplemente no
+                    // tiene filas (queda en 0, valor real, no placeholder).
+                    'clientes_activos' => (int) ($conteos[$router->id] ?? 0),
                 ];
             })
             ->values();
