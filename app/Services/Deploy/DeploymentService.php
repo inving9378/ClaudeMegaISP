@@ -148,6 +148,10 @@ class DeploymentService
 
             Log::channel('single')->info("Deploy #{$log->id} — '{$step['key']}': " . ($success ? 'OK' : "FAILED (exit {$exitCode})"));
 
+            if ($success && in_array($step['key'], ['db_backup', 'git_tag'], true)) {
+                $this->syncReleaseTechnicalLink($log, $step['key'], $version);
+            }
+
             if (!$success && ($step['critical'] ?? true)) {
                 $log->update([
                     'status'           => 'failed',
@@ -254,6 +258,43 @@ class DeploymentService
         } catch (\Throwable $e) {
             $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
             return [1, 'Excepción durante el respaldo: ' . $e->getMessage(), $durationMs];
+        }
+    }
+
+    /**
+     * Vínculo técnico de la release (item #1017) en ESTA caja: snapshot al respaldar,
+     * commit + rango de migraciones al taggear. Best-effort — un fallo aquí no debe
+     * tumbar el pipeline (misma filosofía que el resto de pasos no críticos).
+     */
+    private function syncReleaseTechnicalLink(DeploymentLog $log, string $stepKey, string $version): void
+    {
+        try {
+            $release = $log->release ?? \App\Models\Release::where('version', $version)->first();
+            if (!$release) {
+                return;
+            }
+
+            if ($stepKey === 'db_backup') {
+                $zipFile = storage_path("backup_test/{$version}/{$version}.zip");
+                if (is_file($zipFile)) {
+                    $release->snapshot_bd = $zipFile;
+                }
+            }
+
+            if ($stepKey === 'git_tag') {
+                $svc = app(\App\Services\Deploy\ReleaseTechnicalLinkService::class);
+                $release->commit_sha = $svc->currentCommitSha();
+
+                $previous = \App\Models\Release::where('id', '<', $release->id)->orderByDesc('id')->first();
+                [$desde, $hasta] = $svc->rangoDesdeMigracion($previous?->migracion_hasta);
+                $release->migracion_desde = $desde;
+                $release->migracion_hasta = $hasta;
+                $release->aplicada_en_dev_at = now();
+            }
+
+            $release->save();
+        } catch (\Throwable $e) {
+            Log::channel('single')->warning("Deploy — vínculo técnico ({$stepKey}) falló: " . $e->getMessage());
         }
     }
 

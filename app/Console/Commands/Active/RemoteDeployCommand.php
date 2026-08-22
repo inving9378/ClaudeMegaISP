@@ -5,6 +5,7 @@ namespace App\Console\Commands\Active;
 use App\Models\DeploymentLog;
 use App\Models\Release;
 use App\Services\Deploy\DeploymentLock;
+use App\Services\Deploy\ReleaseTechnicalLinkService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -162,6 +163,11 @@ class RemoteDeployCommand extends Command
         $deployFailed   = false;
         $failureMessage = null;
 
+        // Ruta del respaldo tomado en el paso 'backup_db' (primer paso, ANTES de tocar nada) —
+        // item #1017: se reusa como snapshot_bd de la release, sin crear un esquema de backup
+        // paralelo (ver CLAUDE.md sección backup_db:process).
+        $backupPath = null;
+
         foreach ($stepDefs as $step) {
             $log->updateStep($step['key'], ['status' => 'running', 'ran_at' => now()->toIso8601String()]);
 
@@ -171,7 +177,7 @@ class RemoteDeployCommand extends Command
                 // excepción y matar el comando dejando el DeploymentLog colgado en
                 // «running» con todos los pasos reales ya completados (el caso del log #29).
                 try {
-                    $msg = $this->saveRelease($version, $title, $summary, $releaseDate);
+                    $msg = $this->saveRelease($version, $title, $summary, $releaseDate, $backupPath);
                     $log->updateStep($step['key'], ['status' => 'success', 'output' => $msg, 'exit_code' => 0, 'duration_ms' => 0]);
                     $this->line("  [save_release]: OK — {$msg}");
                 } catch (\Throwable $e) {
@@ -229,6 +235,10 @@ class RemoteDeployCommand extends Command
             ]);
 
             $this->line("  [{$step['key']}]: " . ($success ? 'OK' : "FAILED (exit {$exitCode}): " . substr($output, -200)));
+
+            if ($step['key'] === 'backup_db' && $success) {
+                $backupPath = $this->latestBackupFile();
+            }
 
             if (!$success && ($step['critical'] ?? false)) {
                 $this->performRollback($log, $step, $exitCode, $previousCommit);
@@ -440,23 +450,60 @@ class RemoteDeployCommand extends Command
         return $killed;
     }
 
-    private function saveRelease(string $version, string $title, string $summary, string $releaseDate): string
+    /**
+     * Registra (o completa) el vínculo técnico de la release en ESTA caja (item #1017):
+     * commit exacto, rango de migraciones que introdujo y ruta del respaldo previo. Se calcula
+     * aquí porque este comando es el que de verdad corre `migrate` — DeploymentService (pipeline
+     * local/publicador) hace lo mismo para su propia BD vía el mismo ReleaseTechnicalLinkService.
+     */
+    private function saveRelease(string $version, string $title, string $summary, string $releaseDate, ?string $backupPath): string
     {
         if (!$version) return 'Sin versión especificada — release omitida.';
 
+        $svc       = app(ReleaseTechnicalLinkService::class);
+        $commitSha = $svc->currentCommitSha();
+
         $existing = Release::where('version', $version)->first();
+        $previous = Release::where('version', '<>', $version)->orderByDesc('id')->first();
+        [$migracionDesde, $migracionHasta] = $svc->rangoDesdeMigracion($previous?->migracion_hasta);
+
+        // Esta caja es la que recibe el deploy remoto: en la topología actual eso es prod.
+        // Si algún día un ambiente no-producción corre este comando, queda igual de correcto.
+        $aplicadaField = app()->environment('production') ? 'aplicada_en_prod_at' : 'aplicada_en_dev_at';
+
+        $technicalData = [
+            'commit_sha'      => $commitSha,
+            'migracion_desde' => $migracionDesde,
+            'migracion_hasta' => $migracionHasta,
+            'snapshot_bd'     => $backupPath,
+            $aplicadaField    => now(),
+        ];
+
         if (!$existing) {
-            Release::create([
+            Release::create(array_merge([
                 'version'      => $version,
                 'title'        => $title,
                 'summary'      => $summary ?: null,
                 'release_date' => $releaseDate,
                 'created_by'   => 1,
-            ]);
+            ], $technicalData));
             // La versión instalada cambió → invalida el cache que lee el badge del topbar.
             Cache::forget('megaisp_installed_version');
-            return "Release {$version} creada en DB local.";
+            return "Release {$version} creada en DB local (commit " . ($commitSha ?: '?') . ").";
         }
-        return "Release {$version} ya existía — sin cambios.";
+
+        $existing->fill($technicalData)->save();
+        return "Release {$version} ya existía — vínculo técnico actualizado (commit " . ($commitSha ?: '?') . ").";
+    }
+
+    /** Respaldo más reciente de /var/backups/mysql — el que acaba de generar el paso 'backup_db'. */
+    private function latestBackupFile(): ?string
+    {
+        $files = glob('/var/backups/mysql/megaisp-*.sql.gz') ?: [];
+        if (!$files) {
+            return null;
+        }
+        usort($files, fn($a, $b) => filemtime($b) <=> filemtime($a));
+        return $files[0] ?? null;
     }
 }
