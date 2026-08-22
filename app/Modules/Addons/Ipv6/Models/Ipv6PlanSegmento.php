@@ -41,4 +41,9 @@ class Ipv6PlanSegmento extends Model
     {
         return $q->where('bloque_id', $bloqueId);
     }
+
+    public function clientePrefijos()
+    {
+        return $this->hasMany(ClienteIpv6Prefijo::class, 'segmento_id');
+    }
 }
