@@ -509,25 +509,33 @@ class ThomasService
             return $no('No tiene brief: no hay una decisión previa que respetar.');
         }
 
-        // #967 — anti-bucle: «pregunta maestra contestada» NO implica que la ACCIÓN FÍSICA que esa
-        // respuesta implica ya ocurrió. Caso real #463↔#308: Irving eligió 9+ veces "mergear #308 a
-        // main", pero mergear es un botón manual de Irving en la Torre, no algo que este carril pueda
-        // dar por hecho — y cada re-aprobación reabría el pool para descubrir el mismo bloqueo otra
-        // vez. Alcance MÍNIMO VIABLE (no es un sistema de dependencias): si la pregunta maestra ya
-        // contestada menciona "#N" y N es un item nivel C con rama lista pero sin mergear (mismo
-        // criterio que el guard de `saving()` en RoadmapItem, línea ~273), la dependencia sigue sin
-        // resolver → no aprobar, aunque el brief esté 100% contestado.
-        $master = $preguntas[0];
-        if (($master['opcion_elegida'] ?? null) !== null) {
-            foreach (self::referenciasItemEnTexto((string) ($master['pregunta'] ?? '')) as $n) {
+        // #967 (generalizado en #1035) — anti-bucle: «pregunta contestada» NO implica que la ACCIÓN
+        // FÍSICA que esa respuesta implica ya ocurrió — «decisión tomada» ≠ «decisión ejecutada»
+        // (ver `RoadmapItem::marcarPreguntasEjecutadas()`). Caso real #463↔#308: Irving eligió 9+
+        // veces "mergear #308 a main" en la pregunta maestra de #463, pero mergear es un botón
+        // manual de Irving en la Torre, no algo que este carril pueda dar por hecho — y cada
+        // re-aprobación reabría el pool para descubrir el mismo bloqueo otra vez. #967 lo acotó a
+        // solo la pregunta maestra (índice 0); #1035 lo generaliza a CUALQUIER pregunta del brief,
+        // no solo la maestra — el mismo patrón puede aparecer en una pregunta secundaria. Alcance
+        // MÍNIMO VIABLE (no es un sistema de dependencias): si una pregunta ya contestada menciona
+        // "#N" y N es un item nivel C con rama lista pero sin mergear (mismo criterio que el guard
+        // de `saving()` en RoadmapItem, línea ~273), la dependencia sigue sin resolver → no
+        // aprobar (= escalado implícito: el item se queda en la bandeja de Irving), aunque el
+        // brief esté 100% contestado.
+        foreach ($preguntas as $p) {
+            if (($p['opcion_elegida'] ?? null) === null) {
+                continue;
+            }
+            foreach (self::referenciasItemEnTexto((string) ($p['pregunta'] ?? '')) as $n) {
                 if ($n === $item->id) {
                     continue;
                 }
                 $dep = RoadmapItem::find($n);
                 if ($dep && $dep->nivel_riesgo === 'C' && ! empty($dep->branch) && empty($dep->merge_commit)) {
-                    return $no("La pregunta maestra depende de #{$n}, que sigue sin mergearse a main "
-                        . '(nivel C, rama lista, espera el botón de merge de Irving en la Torre): la '
-                        . 'decisión ya fue tomada, pero la acción física que implica todavía no ocurrió.');
+                    return $no("La pregunta «{$p['id']}» depende de #{$n}, que sigue sin mergearse a "
+                        . 'main (nivel C, rama lista, espera el botón de merge de Irving en la Torre): '
+                        . 'la decisión ya fue tomada, pero la acción física que implica todavía no '
+                        . 'ocurrió (decisión tomada ≠ decisión ejecutada, ver #1035).');
                 }
             }
         }

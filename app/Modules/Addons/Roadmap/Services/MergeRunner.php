@@ -294,6 +294,9 @@ class MergeRunner
     private function markMerged(RoadmapItem $item, string $sha, string $branch): void
     {
         $item->merge_commit = $sha;
+        // #1035 — el merge a main ES el momento en que «decisión tomada» pasa a «decisión
+        // ejecutada»: estampa el hash en cada pregunta del brief que ya tenía opción elegida.
+        $item->marcarPreguntasEjecutadas($sha, 'merge-runner');
         if ($item->status !== 'done') {
             $item->status = 'done';
         }

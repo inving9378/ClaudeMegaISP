@@ -1210,6 +1210,13 @@ class RoadmapItem extends Model
                     // #507 — el Revisor marca la pregunta que NO puede resolver con seguridad:
                     // aunque haya recomendada de alta confianza, esta pregunta es de Irving.
                     'requiere_irving' => static::boolEstricto($p, 'requiere_irving') === true,
+                    // #1035 — «decisión TOMADA» (opcion_elegida, arriba) ≠ «decisión EJECUTADA»
+                    // (reflejada en un commit real). Null = tomada pero aún no ejecutada; poblado
+                    // por `marcarPreguntasEjecutadas()` cuando la rama que la implementa se integra
+                    // a main. Ver ThomasService::evaluarYaDecidido() para el guard que usa esto.
+                    'ejecutada_commit' => $p['ejecutada_commit'] ?? null,
+                    'ejecutada_at'      => $p['ejecutada_at'] ?? null,
+                    'ejecutada_por'     => $p['ejecutada_por'] ?? null,
                 ];
             }
 
@@ -1303,6 +1310,64 @@ class RoadmapItem extends Model
         }
 
         return true;
+    }
+
+    /**
+     * #1035 — marca como EJECUTADA (no solo tomada) cada pregunta del brief que ya tiene
+     * `opcion_elegida` y todavía no tiene un commit de ejecución asociado. La llama
+     * `MergeRunner::markMerged()` en el momento en que la rama de este item se integra a main:
+     * es el punto donde «lo decidido» pasa a estar reflejado en el estado real del sistema (q2 de
+     * #1035, opción elegida por Irving: lo marca el ejecutor automáticamente al commitear,
+     * referenciando el hash — no el revisor, no Irving a mano).
+     *
+     * Modelo (q1 de #1035, opción elegida): dos campos separados en el brief — `opcion_elegida`
+     * (+ el `log`/`decision_fecha` de cuándo se tomó) = decisión TOMADA; `ejecutada_commit` /
+     * `ejecutada_at` / `ejecutada_por` = decisión EJECUTADA. Una pregunta cuya opción elegida es
+     * "escalar a Irving" (`ThomasService::opcionElegidaEsEscalar()`) nunca se marca ejecutada: ahí
+     * no hay ninguna decisión de trabajo que un commit pueda reflejar.
+     *
+     * Devuelve cuántas preguntas marcó (0 = nada que marcar: brief legacy, o todo ya estaba
+     * marcado, o todo lo contestado era "escalar").
+     */
+    public function marcarPreguntasEjecutadas(string $commitSha, string $actor = 'merge-runner'): int
+    {
+        if (! static::multiPreguntaEnabled() || empty($this->preguntas) || ! is_array($this->preguntas)) {
+            return 0;
+        }
+
+        $normalizadas = $this->preguntasNormalizadas();
+        $marcadas     = 0;
+        $preg         = $this->preguntas;
+
+        foreach ($preg as &$p) {
+            if (($p['opcion_elegida'] ?? null) === null || ! empty($p['ejecutada_commit'])) {
+                continue;
+            }
+
+            $id   = (string) ($p['id'] ?? '');
+            $norm = null;
+            foreach ($normalizadas as $n) {
+                if ($n['id'] === $id) {
+                    $norm = $n;
+                    break;
+                }
+            }
+            if ($norm && \App\Modules\Addons\Roadmap\Services\ThomasService::opcionElegidaEsEscalar($norm)) {
+                continue;
+            }
+
+            $p['ejecutada_commit'] = $commitSha;
+            $p['ejecutada_at']     = now()->toIso8601String();
+            $p['ejecutada_por']    = $actor;
+            $marcadas++;
+        }
+        unset($p);
+
+        if ($marcadas > 0) {
+            $this->preguntas = $preg;
+        }
+
+        return $marcadas;
     }
 
     /**
