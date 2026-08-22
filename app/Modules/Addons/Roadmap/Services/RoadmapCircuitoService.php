@@ -2594,6 +2594,20 @@ class RoadmapCircuitoService
             if (! $item) {
                 continue;
             }
+
+            // #990 — el item pausado ya llegó a un estado terminal por otra vía (p.ej. el
+            // MergeRunner lo fusionó en paralelo antes de que se limpiara el candado). No hay
+            // nada que reanudar: solo se libera el candado, sin resetear estado_aprobacion
+            // (evita reabrir espúreamente un item ya completado/cancelado/rechazado).
+            if (in_array($item->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true)) {
+                $item->colision_pausada_por = null;
+                $item->colision_pausada_at  = null;
+                $item->worker_sid           = null;
+                $item->save();
+                $this->appendLog((int) $item->id, 'colision-check', 'colision_candado_limpiado_terminal', ['estado' => $item->estado_aprobacion]);
+                continue;
+            }
+
             $estadoPrevio = $this->estadoAprobadoPrevio($item);
             $item->colision_pausada_por = null;
             $item->colision_pausada_at  = null;
