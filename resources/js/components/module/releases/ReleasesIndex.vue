@@ -202,6 +202,16 @@
                                 Editar
                             </button>
                             <button
+                                class="btn btn-sm btn-outline-dark me-2"
+                                @click="verPlanRegreso(release)"
+                                :disabled="planRegresoLoadingId === release.id"
+                                title="Genera un documento de regreso a esta versión (checkout, migraciones, verificación). No ejecuta nada — es para revisar y correr a mano en producción."
+                            >
+                                <span v-if="planRegresoLoadingId === release.id" class="spinner-border spinner-border-sm me-1"></span>
+                                <i v-else class="bi bi-file-earmark-text me-1"></i>
+                                Plan de regreso
+                            </button>
+                            <button
                                 class="btn btn-sm btn-outline-primary"
                                 @click="goToVersion(release)"
                             >
@@ -231,6 +241,34 @@
             :version="activeDeploymentVersion"
             @closed="onDeployClosed"
         />
+
+        <!-- Item #1021 (sub-item 5/5 de #1012) — Plan de regreso: documento de solo lectura,
+             no ejecuta nada. Irving lo revisa y lo corre a mano en producción. -->
+        <div class="modal fade" id="planRegresoModal" data-bs-backdrop="static" data-backdrop="static">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h6 class="m-0">Plan de regreso — {{ planRegresoVersion }}</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="planRegresoLoadingId" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+                        <pre v-else class="plan-regreso-pre">{{ planRegresoMarkdown }}</pre>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-secondary" @click="copiarPlanRegreso" :disabled="!planRegresoMarkdown">
+                            <i class="bi bi-clipboard me-1"></i> Copiar
+                        </button>
+                        <button class="btn btn-outline-primary" @click="descargarPlanRegreso" :disabled="!planRegresoMarkdown">
+                            <i class="bi bi-download me-1"></i> Descargar .md
+                        </button>
+                        <button class="btn btn-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         </template><!-- /tab historial -->
 
     </div>
@@ -273,6 +311,10 @@ export default {
         const activeDeploymentVersion = ref(null);
         const redeployingId = ref(null);
         const copiedVersion = ref(null);
+        // Item #1021 — Plan de regreso (documento de solo lectura, no ejecuta nada)
+        const planRegresoLoadingId = ref(null);
+        const planRegresoVersion = ref("");
+        const planRegresoMarkdown = ref("");
         const hasPermission = reactive({
             data: new Permission({}),
         });
@@ -390,6 +432,54 @@ export default {
             window.location.href = `/releases/${release.version}`;
         };
 
+        // Item #1021 — genera el plan de regreso (markdown) y lo muestra en un modal.
+        // Solo lectura: no hace checkout ni migrate:rollback, no toca nada.
+        const verPlanRegreso = async (release) => {
+            planRegresoVersion.value = release.version;
+            planRegresoMarkdown.value = "";
+            planRegresoLoadingId.value = release.id;
+            $("#planRegresoModal").modal("show");
+            try {
+                const { data } = await axios.get(`/releases/${release.id}/plan-regreso`);
+                if (data.success) {
+                    planRegresoMarkdown.value = data.markdown;
+                } else {
+                    planRegresoMarkdown.value = "No se pudo generar el plan.";
+                }
+            } catch (e) {
+                planRegresoMarkdown.value =
+                    e.response?.data?.message || "Error al generar el plan de regreso.";
+            } finally {
+                planRegresoLoadingId.value = null;
+            }
+        };
+
+        const copiarPlanRegreso = async () => {
+            try {
+                await navigator.clipboard.writeText(planRegresoMarkdown.value);
+                Swal.fire({
+                    toast: true,
+                    icon: "success",
+                    title: "Plan copiado al portapapeles",
+                    timer: 1500,
+                    position: "bottom-end",
+                    showConfirmButton: false,
+                });
+            } catch (e) {
+                Swal.fire("Error", "No se pudo copiar el plan", "error");
+            }
+        };
+
+        const descargarPlanRegreso = () => {
+            const blob = new Blob([planRegresoMarkdown.value], { type: "text/markdown" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `plan-de-regreso-${planRegresoVersion.value}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
         onMounted(async () => {
             window.addEventListener("scroll", handleScroll);
             hasPermission.data = new Permission(await allViewHasPermission());
@@ -482,9 +572,25 @@ export default {
             reversibilidadIcono,
             reversibilidadTexto,
             reversibilidadTooltip,
+            planRegresoLoadingId,
+            planRegresoVersion,
+            planRegresoMarkdown,
+            verPlanRegreso,
+            copiarPlanRegreso,
+            descargarPlanRegreso,
         };
     },
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+.plan-regreso-pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.85rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 1rem;
+    max-height: 60vh;
+}
+</style>
