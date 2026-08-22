@@ -30,4 +30,14 @@ class Ipv6Router extends Model
     {
         return $this->hasMany(Ipv6PlanSegmento::class, 'router_id');
     }
+
+    public function clientePrefijos()
+    {
+        return $this->hasMany(ClienteIpv6Prefijo::class, 'router_id');
+    }
+
+    public function despliegues()
+    {
+        return $this->hasMany(Ipv6Despliegue::class, 'router_id');
+    }
 }

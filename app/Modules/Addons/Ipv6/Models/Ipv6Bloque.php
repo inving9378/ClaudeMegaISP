@@ -31,4 +31,14 @@ class Ipv6Bloque extends Model
     {
         return $this->hasMany(Ipv6PlanSegmento::class, 'bloque_id');
     }
+
+    public function clientePrefijos()
+    {
+        return $this->hasMany(ClienteIpv6Prefijo::class, 'bloque_id');
+    }
+
+    public function despliegues()
+    {
+        return $this->hasMany(Ipv6Despliegue::class, 'bloque_id');
+    }
 }
