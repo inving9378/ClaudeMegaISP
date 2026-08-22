@@ -23,10 +23,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (Schema::hasColumn('mikrotik_configs', 'enforce_input_drop_rest')) {
-            Schema::table('mikrotik_configs', function (Blueprint $table) {
-                $table->dropColumn('enforce_input_drop_rest');
-            });
-        }
+        // Sin drop a propósito (guardrail #1018 — evita contracción destructiva
+        // sin ventana de madurez). Columna aditiva y de bajo riesgo (bool default
+        // false); si algún día hay que retirarla, hacerlo en una migración de
+        // contracción aparte una vez pasada la ventana en prod.
     }
 };
