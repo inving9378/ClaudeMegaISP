@@ -140,7 +140,26 @@ class MigrationGuardService
         $matches = [];
         $lines = file($path, FILE_IGNORE_NEW_LINES) ?: [];
 
+        // Item #1020: el guard es sobre up() ("disciplina expansiva" — ver cabecera de la
+        // clase); down() existe justo para reversar lo que up() creó/agregó, así que
+        // Schema::dropIfExists() de una tabla que el propio up() acaba de crear no pierde
+        // datos de nadie y no debe contar como destructivo. Que down() sea seguro/probado es
+        // el sub-item 3 de #1012 (#1019, up→down→up), un guard distinto a este. Se corta el
+        // escaneo en la línea donde arranca `function down`; si el archivo no lo declara, se
+        // escanea completo (mismo comportamiento que antes).
+        $finDeUp = null;
         foreach ($lines as $i => $line) {
+            if (preg_match('/function\s+down\s*\(/', $line)) {
+                $finDeUp = $i;
+                break;
+            }
+        }
+
+        foreach ($lines as $i => $line) {
+            if ($finDeUp !== null && $i >= $finDeUp) {
+                break;
+            }
+
             foreach (self::DESTRUCTIVE_PATTERNS as $pattern => $info) {
                 if (preg_match($pattern, $line)) {
                     $matches[] = ['linea' => $i + 1, 'motivo' => $info['motivo'], 'sugerencia' => $info['sugerencia']];
