@@ -1700,3 +1700,35 @@ abiertos). Cerrará solo cuando #1069 y #1070 cierren.
 
 **Estado:** #1033 → `aprobado_irving` (paraguas retenido, fuera del pool). #1069/#1070 pendientes
 de triaje/ejecución normal. Sin cambios de código en este item (era descomposición pura).
+
+## 2026-08-22 01:15 — #1036 (wt-1): wiring addRulesInputDorpRest() — ya resuelto por #983, sin código nuevo
+
+**Item:** #1036 — "Wiring addRulesInputDorpRest() con flag por-router + precheck IP crítica
+(MikrotikRulesJob)", creado a las 2026-08-21 18:42 como sub-item de seguimiento de #983 (en ese
+momento #983 todavía no traía la invocación real). Pedía exactamente: migración aditiva con
+columna `enforce_input_drop_rest`, invocar `addRulesInputDorpRest()` tras las reglas input
+existentes gateado por flag+precheck de IP crítica, loguear sin tumbar el job si el precheck
+falla, y remover la regla `MgNet_INPUT_DROPEA_EL_RESTO` simétricamente cuando el flag esté apagado
+(incluida la rama `mikrotik->active==false`).
+
+**Hallazgo:** el propio item #983 terminó ese trabajo esa misma noche, DESPUÉS de que #1036 fuera
+creado pero ANTES de que este worker lo reclamara: commits `4dc252f6` (invoca
+`addRulesInputDorpRest()` detrás de kill-switch + flag por-router + precheck) y `fda8860a`
+(`down()` sin drop destructivo, guardrail #1018), ambos a las 19:05, mergeados a main a las 19:18
+vía `circuito/item-983-mikrotikrulesjob-nunca-invoca-addrulesin`. Mi HEAD en este worktree ya
+arranca sobre ese main. Verificado línea por línea contra el spec de #1036 — cumple TODO, y de
+hecho excede el spec: agrega un tercer candado (`config('mikrotik.enforce_input_drop_rest')`,
+kill-switch global) que #1036 no pedía pero que Irving ya había decidido en #983 (preguntas
+q1/q2/q3 de ese item). La columna vive en `mikrotik_configs` (vía `$router->mikrotikconfig`, igual
+que `meganet_config_ip_address`) en vez de en `mikrotiks` como decía el texto de #1036 — más
+correcto que el spec literal, consistente con dónde ya vivía la IP crítica que usa el precheck.
+Migración ya corrida en dev (`Schema::hasColumn` confirma la columna), default `false` para todos
+los routers — cero cambio de comportamiento de red, igual que exigía #1036.
+
+**circuito:cabida marcó NO CABE** (estimado histórico ~517s) — decidí NO descomponer en sub-items
+porque el alcance real restante era cero código (ver decisión reportada en el item): descomponer
+habría inventado trabajo que no existe. `php -l` limpio sobre los 3 archivos del wiring +
+`php artisan --version` bootea sin problema.
+
+**Estado:** #1036 → `completado`, sin diff funcional (cierre documental + verificación). El
+wiring real vive en los commits de #983 ya en main.
