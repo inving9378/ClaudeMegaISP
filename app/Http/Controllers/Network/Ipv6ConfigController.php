@@ -30,6 +30,12 @@ class Ipv6ConfigController extends Controller
         return view('network.ipv6-config');
     }
 
+    /** IPv6 Fase 5.3b (item #1070) — pantalla del simulador de renumeración (4 fases RFC4192). */
+    public function simulador()
+    {
+        return view('network.ipv6-renumbering-simulador');
+    }
+
     /** GET routers registrados (sin exponer credenciales del Mikrotik). */
     public function routers(): JsonResponse
     {

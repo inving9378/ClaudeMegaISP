@@ -253,4 +253,9 @@ Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
         Route::post('/detectar-version', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'detectarVersion'])->name('detectar-version');
         Route::post('/mapear-zonas', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'mapearZonas'])->name('mapear-zonas');
         Route::post('/vista-previa', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'vistaPrevia'])->name('vista-previa');
+        // IPv6 Fase 5.3b (item #1070, épica #1033) — pantalla del simulador de
+        // renumeración (4 fases RFC4192), SOLO para revisión de Irving. Reusa
+        // vista-previa (arriba) para la fase A; las fases B/C/D se generan
+        // client-side, sin endpoint nuevo. NUNCA ejecuta nada contra el router.
+        Route::get('/simulador', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'simulador'])->name('simulador');
     });

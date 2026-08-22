@@ -1,7 +1,12 @@
 <template>
     <div class="ipv6-config-container q-pa-md">
-        <div class="row items-center q-mb-md">
+        <div class="row items-center justify-between q-mb-md">
             <div class="text-h5">Configuración IPv6 — Alta de bloque</div>
+            <q-btn
+                flat dense color="primary" icon="science"
+                label="Simulador de renumeración (4 fases)"
+                href="/red/ipv6-config/simulador"
+            />
         </div>
         <div class="text-caption text-grey-7 q-mb-md">
             Solo lectura hacia el router: detección de versión y mapeo de zonas marcadas
