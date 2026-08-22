@@ -17,15 +17,19 @@ class InventoryItemType extends BaseModel
      * herramienta    = durable, se USA y se DEVUELVE (casco, taladro, OTDR, uniforme…).
      * material       = consumible, se GASTA o queda instalado (cinta, fibra, tornillo, splitter…).
      * equipo_cliente = equipo que se PRESTA/INSTALA en el cliente (ONT, módem, teléfono de casa…).
+     * equipo_red     = activo de infraestructura de red, SERIALIZADO (router/switch/ONU/OLT/antena/
+     *                   radio) — no es del cliente, no se gasta y no es herramienta del técnico.
+     *                   Decisión de Irving, item #1007 (seguimiento de #572).
      * null           = SIN CLASIFICAR (default; NO se adivina).
      *
-     * ⚠️ La clave persistida es el slug (`equipo_cliente`), NO la etiqueta: `categoria` es
-     * varchar(20) y las otras dos claves ya son tokens en minúscula sin espacios.
+     * ⚠️ La clave persistida es el slug (`equipo_cliente`/`equipo_red`), NO la etiqueta: `categoria`
+     * es varchar(20) y las claves ya son tokens en minúscula sin espacios.
      */
     public const CATEGORIAS = [
         'herramienta'    => 'Herramienta',
         'material'       => 'Material',
         'equipo_cliente' => 'Equipo de cliente',
+        'equipo_red'     => 'Equipo de red',
     ];
 
     public static function boot()
