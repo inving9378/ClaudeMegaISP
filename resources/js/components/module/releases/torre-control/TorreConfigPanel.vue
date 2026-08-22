@@ -35,7 +35,7 @@
         <section class="tcfg-sec tcfg-actor-wrap">
           <h3 class="tcfg-h3">Panel por actor <span class="tcfg-tag">~70 controles del inventario</span></h3>
           <div class="tcfg-tabbar">
-            <button v-for="g in gruposActor" :key="g.clave" type="button"
+            <button v-for="g in gruposPintables" :key="g.clave" type="button"
                     class="tcfg-tab" :class="{ 'tcfg-tab-on': tabActiva === g.clave }"
                     @click="tabActiva = g.clave">
               {{ g.titulo }}
@@ -43,7 +43,7 @@
             </button>
           </div>
 
-          <div v-for="g in gruposActor" v-show="tabActiva === g.clave" :key="'panel-' + g.clave" class="tcfg-tab-body">
+          <div v-for="g in gruposPintables" v-show="tabActiva === g.clave" :key="'panel-' + g.clave" class="tcfg-tab-body">
             <p class="tcfg-note">{{ g.resumen }}</p>
 
             <!-- Automatización: la política base (única con UI editable propia) vive en su tab -->
@@ -123,26 +123,34 @@
               </div>
             </template>
 
-            <!-- Resto de controles del grupo: genéricos, clic para ver procedencia + consecuencia -->
-            <div v-for="c in controlesGenericos(g)" :key="c.clave" class="tcfg-ctrl"
-                 :class="'tcfg-ctrl-' + c.bucket" @click="toggleControl(c.clave)">
-              <div class="tcfg-ctrl-head">
-                <span class="tcfg-dot" :class="'tcfg-dot-' + c.bucket"
-                      :title="c.bucket === 'verde' ? 'editable' : (c.bucket === 'azul' ? 'solo lectura' : 'nunca expuesto')"></span>
-                <code>{{ c.clave }}</code>
-                <b class="tcfg-ctrl-val">{{ c.valor }}</b>
-                <i class="bi" :class="expandido[c.clave] ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+            <!-- Resto de controles del grupo: las 3 cubetas como secciones apiladas (#988).
+                 Mismo control-por-fila y clic-para-expandir de siempre; solo cambia el agrupado.
+                 Guardrails no trae controles genéricos (su lista vive aparte, arriba) → sin secciones vacías. -->
+            <template v-if="controlesGenericos(g).length">
+              <div v-for="b in CUBETAS" :key="b.clave" class="tcfg-bucket-sec">
+                <h4 class="tcfg-h4">{{ b.icono }} {{ b.titulo }}
+                  <span class="tcfg-tag">{{ controlesDeBucket(g, b.clave).length }}</span>
+                </h4>
+                <p v-if="!controlesDeBucket(g, b.clave).length" class="tcfg-note">Ninguno en este grupo.</p>
+                <div v-for="c in controlesDeBucket(g, b.clave)" :key="c.clave" class="tcfg-ctrl"
+                     :class="'tcfg-ctrl-' + c.bucket" @click="toggleControl(c.clave)">
+                  <div class="tcfg-ctrl-head">
+                    <span class="tcfg-dot" :class="'tcfg-dot-' + c.bucket"
+                          :title="c.bucket === 'verde' ? 'editable' : (c.bucket === 'azul' ? 'solo lectura' : 'nunca expuesto')"></span>
+                    <code>{{ c.clave }}</code>
+                    <b class="tcfg-ctrl-val">{{ c.valor }}</b>
+                    <i class="bi" :class="expandido[c.clave] ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                  </div>
+                  <div v-if="expandido[c.clave]" class="tcfg-ctrl-det">
+                    <p><b>Dónde:</b> {{ c.donde }}</p>
+                    <p><b>Quién lee:</b> {{ c.quien_lee }}</p>
+                    <p><b>Qué gobierna:</b> {{ c.que_gobierna }}</p>
+                    <p><b>Consecuencia:</b> {{ c.consecuencia }}</p>
+                    <p v-if="c.nota" class="tcfg-ctrl-pend"><i class="bi bi-lock"></i> {{ c.nota }}</p>
+                  </div>
+                </div>
               </div>
-              <div v-if="expandido[c.clave]" class="tcfg-ctrl-det">
-                <p><b>Dónde:</b> {{ c.donde }}</p>
-                <p><b>Quién lee:</b> {{ c.quien_lee }}</p>
-                <p><b>Qué gobierna:</b> {{ c.que_gobierna }}</p>
-                <p><b>Consecuencia:</b> {{ c.consecuencia }}</p>
-                <p v-if="c.nota" class="tcfg-ctrl-pend"><i class="bi bi-lock"></i> {{ c.nota }}</p>
-              </div>
-            </div>
-
-            <p v-if="g.no_existe" class="tcfg-note">Este motor todavía no existe — no hay controles que pintar.</p>
+            </template>
           </div>
         </section>
 
@@ -268,6 +276,21 @@ export default {
     }
     function toggleControl(clave) { expandido[clave] = !expandido[clave]; }
 
+    // Solo los grupos que SÍ se pintan (#988) — "Canal de respuesta" no existe todavía (fase 5
+    // del plan) y no lleva tab.
+    const gruposPintables = computed(() => (gruposActor.value || []).filter((g) => !g.no_existe));
+
+    // Las 3 cubetas del plan (§1 de plan-configuracion-torre.md), como secciones apiladas dentro
+    // de cada tab — mismo criterio de color que ya trae el catálogo, solo se reagrupa la pintura.
+    const CUBETAS = [
+      { clave: 'verde', icono: '🟢', titulo: 'Editable' },
+      { clave: 'azul', icono: '🔵', titulo: 'Solo lectura' },
+      { clave: 'roja', icono: '🔴', titulo: 'Nunca expuesto' },
+    ];
+    function controlesDeBucket(g, bucket) {
+      return controlesGenericos(g).filter((c) => c.bucket === bucket);
+    }
+
     // Props numéricas TIPADAS: ref(0), nunca ref(null) — un null en un <input type=number>
     // se convierte en string vacío y vuelve como null al servidor.
     const form = reactive({
@@ -348,7 +371,8 @@ export default {
     }
 
     return { open, cargando, guardando, confirmar, error, puedeEditar, politica, motores, guardrails,
-             gruposActor, tabActiva, expandido, controlesGenericos, toggleControl,
+             gruposActor, gruposPintables, tabActiva, expandido, controlesGenericos, toggleControl,
+             CUBETAS, controlesDeBucket,
              form, niveles, etiquetaNivel, descNivel, celda, haCambiado, motoresRotos, humano,
              abrir, cerrar, intentarGuardar, guardar, dark: darkMode };
   },
@@ -402,6 +426,8 @@ export default {
 .tcfg-tab-n{font-size:10px;opacity:.75;background:rgba(127,127,127,.18);border-radius:999px;padding:1px 6px;}
 .tcfg-tab-on .tcfg-tab-n{background:rgba(255,255,255,.25);opacity:1;}
 .tcfg-tab-body{padding-top:8px;}
+.tcfg-bucket-sec{margin-top:14px;}
+.tcfg-bucket-sec:first-child{margin-top:2px;}
 .tcfg-ctrl{border:1px solid var(--tc-border,#eef2f7);border-radius:8px;padding:7px 10px;margin-top:6px;cursor:pointer;font-size:12px;}
 .tcfg-ctrl-head{display:flex;align-items:center;gap:8px;}
 .tcfg-ctrl-head code{font-size:11px;flex:1;}
