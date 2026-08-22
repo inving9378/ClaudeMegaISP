@@ -357,6 +357,16 @@
                     <q-btn flat color="primary" label="Volver a mapeo de zonas" @click="step = 2" />
                 </q-stepper-navigation>
             </q-step>
+
+            <q-step :name="4" title="4. Historial de despliegues" icon="history">
+                <q-banner class="bg-blue-1 text-blue-10 q-mb-md" dense>
+                    Disponible cuando la Fase 1.1-1.3 (persistencia) esté completa.
+                </q-banner>
+
+                <q-stepper-navigation>
+                    <q-btn flat color="primary" label="Volver" @click="step = 3" />
+                </q-stepper-navigation>
+            </q-step>
         </q-stepper>
     </div>
 </template>
