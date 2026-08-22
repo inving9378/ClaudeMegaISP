@@ -17,9 +17,21 @@ class Release extends Model
         'release_date',
         'created_by',
         'updated_by',
+        // Vínculo técnico (item roadmap #1017)
+        'commit_sha',
+        'migracion_desde',
+        'migracion_hasta',
+        'snapshot_bd',
+        'aplicada_en_dev_at',
+        'aplicada_en_prod_at',
+        'reversible',
+        'reversible_motivo',
     ];
 
     protected $casts = [
-        'release_date' => 'date',
+        'release_date'        => 'date',
+        'aplicada_en_dev_at'  => 'datetime',
+        'aplicada_en_prod_at' => 'datetime',
+        'reversible'          => 'boolean',
     ];
 }
