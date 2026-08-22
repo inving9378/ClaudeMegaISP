@@ -121,6 +121,41 @@ este item.
 | Alternar item del plan de auditoría | `POST /releases/audit/plan/{id}/toggle` | `AuditController::planToggle` | ninguno (solo gate de ruta) | Candidato a su propio sub-item si se decide abordarlo |
 | Nota sobre item del plan de auditoría | `POST /releases/audit/plan/{id}/note` | `AuditController::planNote` | ninguno (solo gate de ruta) | Ídem |
 
+### Resolución del sub-item (#965, 2026-08-21) — DECISIÓN: opción (a), excepción documentada
+
+Se retomó el candidato de arriba como su propio sub-item (#965) para decidir tratamiento. Re-verificado
+en esta vuelta (grep fresco, nada cambió desde #960): sigue sin haber entrada en
+`config/route_permission.php` para `releases/audit/plan*`, y la rama del catálogo (#876) sigue
+`esperando_merge_irving=true`, sin mergear a main.
+
+**Hallazgo adicional que cambia el diagnóstico:** el "solo gate de ruta" de la tabla de arriba **no es
+un hueco abierto** — es más restrictivo de lo que parece. `CheckRoutePermission::handle()` (paso 3,
+`app/Modules/Core/Auth/Middleware/CheckRoutePermission.php:59`) deja pasar de largo a
+`isAdmin()||isDevelopment()||isSuperAdmin()` **antes** de mirar `config/route_permission`; para
+cualquier otro usuario, como la ruta no tiene entrada ahí, el paso 4 nunca encuentra permiso y cae al
+403/redirect del paso 5. Es decir: **hoy, `planToggle`/`planNote` ya son alcanzables SOLO por
+`super-administrator`, `DESARROLLADOR`, `Super Administrador` o `Administrador`** (los 4 roles que
+bypasean el middleware) — no por "cualquier autenticado", como podría leerse de "sin permiso".
+
+Esto reabre la pregunta de fondo que el propio #965 señalaba (y que sigue con una consulta a Irving
+sin respuesta explícita, ver `comentarios_claude` del item: si el permiso nuevo va también a
+`DESARROLLADOR`): declarar aquí un permiso Spatie nuevo y gatearlo solo a `super-administrator` +
+`DESARROLLADOR` (que es lo único que `PermissionSyncService::FULL_ACCESS_ROLES` garantiza
+automáticamente) sería **más angosto** que el acceso de hoy si algún usuario real tiene el rol
+`Super Administrador` o `Administrador` sin también tener los otros dos — un cambio de comportamiento
+real, no mecánico, y exactamente el tipo de decisión de roles que ya está en la bandeja de Irving sin
+cerrar.
+
+**Se elige la opción (a) del propio item**: dejar los dos botones **fuera** del catálogo por ahora,
+sin tocar `AuditController` ni crear ningún permiso — la excepción ya documentada arriba (tabla de la
+sección 4) queda como está, y esta nota deja registrado que se revisó y se decidió NO migrar todavía.
+Motivo: es más simple, no cambia nada, no depende del fundamento aún sin mergear (#876), y no compite
+con la decisión de roles que Irving tiene pendiente. Si Irving resuelve esa pregunta (¿DESARROLLADOR
+también?) y decide seguir adelante, el trabajo real queda acotado a: crear el permiso, agregar
+`$this->authorize()` inline en `planToggle`/`planNote` (mecánico una vez resuelto lo anterior), y
+opcionalmente sumarlo a `config/route_permission.php` para message de 403 consistente con el resto del
+sistema — abrir como su propio sub-item cuando eso pase.
+
 ---
 
 ## 5. Endpoints sin consumidor de UI hoy — verificar código muerto antes de decidir
