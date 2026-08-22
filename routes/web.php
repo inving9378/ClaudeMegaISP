@@ -236,3 +236,21 @@ Route::post('/ia/chat', [\App\Http\Controllers\IA\IAChatController::class, 'chat
 Route::get('/ia/suggestions', [\App\Http\Controllers\IA\IAChatController::class, 'suggestions'])
     ->middleware('auth')
     ->name('ia.suggestions');
+
+// ── IPv6 1.7a (item #999, épica #811 → #951/#950) — pantalla standalone de
+// configuración IPv6 (routers registrados, detección de versión, mapeo de
+// zonas, vista previa del plan de direccionamiento). SOLO LECTURA hacia el
+// router. NO depende de #949 (módulo/permisos/tabla ipv6_despliegues, aún sin
+// ejecutar). Precedente EXACTO: app/Modules/Addons/Payments/routes.php
+// (bloque extraccion-comprobante) — gateada por ROL, fuera de
+// check_route_permission.
+Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
+    ->prefix('red/ipv6-config')
+    ->name('red.ipv6-config.')
+    ->group(function () {
+        Route::get('/', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'index'])->name('index');
+        Route::get('/routers', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'routers'])->name('routers');
+        Route::post('/detectar-version', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'detectarVersion'])->name('detectar-version');
+        Route::post('/mapear-zonas', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'mapearZonas'])->name('mapear-zonas');
+        Route::post('/vista-previa', [\App\Http\Controllers\Network\Ipv6ConfigController::class, 'vistaPrevia'])->name('vista-previa');
+    });

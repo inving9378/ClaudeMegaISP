@@ -424,6 +424,7 @@ import WhatsAppFunctionManager from "./components/module/whatsapp/WhatsAppFuncti
 
 //Payments (SPEI / OpenPay) — 2026-05-23
 import PaymentMethods from "./components/module/finance/PaymentMethods.vue";
+import Ipv6Config from "./components/module/network/Ipv6Config.vue";
 import ReconciliationQueue from "./components/module/finance/ReconciliationQueue.vue";
 import ManualPaymentCapture from "./components/module/finance/ManualPaymentCapture.vue";
 import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
@@ -791,6 +792,9 @@ const app = createApp({
 
         // Payments (SPEI / OpenPay)
         'payment-methods': PaymentMethods,
+
+        // IPv6 1.7a (item #999) — pantalla standalone de configuración IPv6
+        'ipv6-config': Ipv6Config,
         'reconciliation-queue': ReconciliationQueue,
         'manual-payment-capture': ManualPaymentCapture,
         'client-clabe-card': ClientClabeCard,
