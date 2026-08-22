@@ -1732,3 +1732,30 @@ habría inventado trabajo que no existe. `php -l` limpio sobre los 3 archivos de
 
 **Estado:** #1036 → `completado`, sin diff funcional (cierre documental + verificación). El
 wiring real vive en los commits de #983 ya en main.
+
+## 2026-08-22 09:55 — #1053 (wt-1): IPv6 Fase 4.3 Geofeed RFC 8805 — re-verificado el diferimiento, sigue vigente
+
+**Item:** #1053, sub-item de seguimiento de #997. Es una nota de coordinación pura (sin código):
+declara que el Geofeed RFC 8805 (IPv6 Fase 4.3) debe esperar a que Fase 2 (asignación de
+prefijos a clientes) y Fase 3 (#954, operación) estén cerradas en `main`. El item ya traía las
+decisiones de Irving sobre el CÓMO (CSV vía comando artisan diario en `/geofeed.csv` público,
+granularidad país+estado sin ciudad/CP, remarks LACNIC, sin firma OpenPGP en esta fase)
+documentadas para el ejecutor futuro. El revisor ya lo había autorizado (`aprobado_revisor`,
+confianza alta: "no ejecuta código, no toca frontera dura, solo registra que debe esperar").
+
+**Por qué llegó a mi vuelta:** una vuelta previa dejó una nota ("re-verificado, premisa sigue
+vigente") pero no cerró el item — el reaper lo encontró huérfano (worker muerto/timeout) y lo
+re-encoló a `aprobado_revisor`. Mi trabajo fue terminar ese cierre.
+
+**Re-verificación (2026-08-22):** `Schema::hasTable('clientes_ipv6_prefijos')` → `false` (la
+tabla sigue sin existir, 0 migraciones con ese patrón en `database/migrations`). `RoadmapItem::find(954)->status`
+→ `pending` (Fase 3 sigue sin cerrar). `RoadmapItem::find(955)->status` → `pending` (Fase 4,
+el padre paraguas, también sigue sin cerrar). La premisa del diferimiento sigue exactamente
+igual que cuando se escribió: no hay nada real que generar sin datos de asignación.
+
+**Cierre:** sin rama de trabajo con diff de código (nada que implementar todavía) — se marcó
+`sin_ui=true` + `sin_ui_motivo` explicando la verificación (no hay pantalla porque no se
+construyó nada de Geofeed), `reporte_coloquial` en llano, y `estado_aprobacion=completado`.
+Creé la rama `circuito/item-1053-...` solo para satisfacer el gate de Thomas
+(`ThomasService::verificarCierre` exige `branch` no vacío incluso con `sin_ui`) y aprovecharla
+para este mismo commit de bitácora — no hay diff de código de producto en esta rama.
