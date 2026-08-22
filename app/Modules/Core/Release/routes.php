@@ -27,6 +27,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::post('/update/{id}', [ReleaseController::class, 'update']);
     // Re-desplegar una release "fantasma" (registrada en BD pero sin tag git)
     Route::post('/{id}/redeploy', [ReleaseController::class, 'redeploy'])->whereNumber('id');
+    // Plan de regreso a esta versión (#1021) — documento markdown de solo lectura, no ejecuta nada
+    Route::get('/{id}/plan-regreso', [ReleaseController::class, 'planRegreso'])->whereNumber('id');
 
     // Audit report
     Route::get('/audit/report',           [AuditController::class, 'generate']);
