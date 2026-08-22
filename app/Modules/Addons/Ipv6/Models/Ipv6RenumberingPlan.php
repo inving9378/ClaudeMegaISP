@@ -35,4 +35,9 @@ class Ipv6RenumberingPlan extends BaseModel
         'liberado_en' => 'datetime',
         'simple_queues_actualizado_at' => 'datetime',
     ];
+
+    public function transitions()
+    {
+        return $this->hasMany(Ipv6RenumberingTransition::class, 'plan_id');
+    }
 }
