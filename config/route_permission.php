@@ -1297,6 +1297,11 @@ return [
         '/administracion/activity_log/table'
     ],
 
+    // Señales minadas de la bitácora (item #1016).
+    'auditoria.senales.view' => [
+        '/administracion/auditoria-senales',
+    ],
+
     'admin_view_scripts' => [
         '/administracion/show_scripts'
     ],

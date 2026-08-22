@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Core\Auditoria\Controllers\ActivityLogController;
+use App\Modules\Core\Auditoria\Controllers\AuditoriaSenalController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -19,3 +20,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/', [ActivityLogController::class, 'index']);
         Route::post('/table', [ActivityLogController::class, 'table']);
     });
+
+// Listado read-only de señales minadas de la bitácora (item #1016).
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->get('administracion/auditoria-senales', [AuditoriaSenalController::class, 'index']);

@@ -14,6 +14,13 @@
             "icon": "history",
             "url": "/administracion/activity_log",
             "permission": "admin_view_information"
+        },
+        {
+            "title": "Señales de bitácora",
+            "description": "Señales minadas automáticamente (ej. intención abandonada) para revisión.",
+            "icon": "search",
+            "url": "/administracion/auditoria-senales",
+            "permission": "auditoria.senales.view"
         }
     ],
     "config_sections": [],
