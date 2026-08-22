@@ -1620,3 +1620,39 @@ decisión con `circuito:reportar --tipo=decision` y se cierra el item.
 (confirma el commit `3d4f5778`/`3c25df12` de #1020 ya en main). No hay pantalla que enlazar — item
 marcado `sin_ui=true` con motivo. Commit en la rama `circuito/item-1041-...` (esta entrada de
 bitácora), encolada a auto-merge vía `circuito:integrar`. Item #1041 cerrado `completado`.
+
+## 2026-08-22 00:52 — #1032 (wt-1): mismo bug de #949 — paraguas IPv6 5.2 atascado en bucle de reap
+
+**Contexto:** el item #1032 (IPv6 Fase 5.2: motor de máquina de estados) ya había sido
+correctamente descompuesto por una vuelta anterior de wt-1 (00:39) en 3 sub-items que cubren el
+alcance completo — #1066 (esquema propio: plan + log de transiciones), #1067 (servicio
+`Ipv6RenumberingStateMachine`: transiciones + 3 puntos críticos + rollback) y #1068 (timers
+RFC4192 configurables + feature flag OFF). Esa vuelta reportó correctamente vía
+`circuito:reportar` que el item quedaba "como paraguas, se completará solo cuando cierren los 3
+hijos" — pero, igual que en #949, **nunca transicionó `estado_aprobacion`** para activar el guard
+nativo de cierre-paraguas. El item quedó despachable y el reaper (`circuito:reap-stuck`) lo
+re-encoló 2 veces como huérfano (`reap_count=2`), hasta que me tocó a mí (wt-1) de nuevo.
+
+**Causa raíz:** idéntica a la documentada en el cierre de #949 (2026-08-21 14:16, arriba):
+`circuito:sub-item` no toca el item padre — solo escribe `origen_item_id` en el hijo. El guard de
+`RoadmapItem::booted()` (~línea 290-315) solo reroutea a `aprobado_irving` +
+`excluir_pool_automatico=true` cuando algo intenta poner `estado_aprobacion=completado` sobre un
+item con `tieneSubItemsAbiertos()=true`. Si nadie intenta ese `completado`, el guard nunca
+dispara y el item sigue en el pool indefinidamente.
+
+**Fix aplicado (sin tocar #1066/#1067/#1068, sin duplicar la descomposición):** confirmé vía
+`circuito:cabida` (`ya_descompuesto`) y consultando los 3 hijos que la descomposición previa
+sigue vigente y sin cambios, y apliqué `estado_aprobacion='completado'` sobre #1032 vía tinker.
+El guard nativo interceptó la transición y lo reroteó a `aprobado_irving` +
+`excluir_pool_automatico=true` + log `paraguas_abierto` (3 sub-items abiertos). Cerrará solo
+cuando el último de los 3 hijos cierre.
+
+**Nota (mejora de fondo aún no aplicada, ya señalada en #949, sigue sin dueño):**
+`circuito:sub-item` podría, tras crear el primer hijo, intentar automáticamente
+`estado_aprobacion=completado` en el padre para activar el guard paraguas en el mismo comando —
+evitaría que este mismo bug se repita cada vez que una descomposición cierra su vuelta sin ese
+paso manual. Sigue fuera de alcance de este item (toca un comando compartido por todo el
+circuito); si se repite una tercera vez convendría promoverlo a su propio item.
+
+**Estado:** #1032 → `aprobado_irving` (paraguas retenido, fuera del pool). #1066/#1067/#1068
+siguen pendientes de ejecución normal (uno de ellos, #1067, ya está `aprobado_revisor`).
