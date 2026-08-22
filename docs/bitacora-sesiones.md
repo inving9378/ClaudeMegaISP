@@ -1591,3 +1591,32 @@ repita la investigación.
 **Verificación:** `php -l` sobre el doc + `php artisan --version` (bootea normal) — no había código
 que tocar. Commit `0a723d9f` en la rama `circuito/item-965-...`, encolada a auto-merge vía
 `circuito:integrar`. Item #965 cerrado `completado`.
+
+## 2026-08-21 20:04 — Item #1041: cierre del [RESPUESTA] de #1020 (worktree ajeno wt-3 + dependencia #1019)
+
+**Item:** #1041 (`tipo=respuesta`, hijo de #1020), worker wt-2. No es un item de código: es el
+reporte que una vuelta anterior de #1020 dejó registrado al encontrar la rama
+`circuito/item-1020-ventana-de-reversibilidad-medida-en-fila` ya checkeada (con trabajo real sin
+commitear) en el worktree de otro agente (`wt-3`). Esa vuelta anterior, respetando el aislamiento
+(#334), leyó el diff de wt-3 en SOLO LECTURA, replicó el mismo cambio archivo por archivo en una
+rama propia nueva (`circuito/item-1020-reversibilidad-filas-nuevas`), lo verificó end-to-end y lo
+comiteó — ese trabajo ya vive mergeado en main (commit `3c25df12`, "Integra circuito #1020").
+
+El item dejaba dos decisiones pendientes, con recomendación explícita (opción 1, la reversible):
+1. Si era seguro descartar el working tree sucio de wt-3 — recomendación: NO intervenir, dejar que
+   su propio operador lo recicle por el mecanismo normal (cero riesgo, el trabajo ya no se pierde
+   porque vive commiteado en main).
+2. El sub-item de #1019 ("down() obligatorio y probado") sigue en `requiere_irving` — no bloqueaba
+   #1020 y ya estaba declarado explícito, sin acción nueva que tomar aquí.
+
+**Lo que se hizo esta vuelta:** se aplicó la opción recomendada (no intervenir en wt-3) y se
+verificó en modo SOLO LECTURA que el pronóstico se cumplió sin ayuda: `git worktree list` muestra
+`wt-3` de vuelta en HEAD desacoplada sobre `3c25df12` (el mismo commit de main), es decir, ya fue
+reciclado normalmente por su operador — la rama vieja con el diff duplicado ya no está ahí. Cero
+archivos de wt-3 tocados, ni siquiera para descartar cambios (no hacía falta). Se registra la
+decisión con `circuito:reportar --tipo=decision` y se cierra el item.
+
+**Verificación:** `git worktree list` (lectura, confirma wt-3 reciclado) + `git log --oneline main`
+(confirma el commit `3d4f5778`/`3c25df12` de #1020 ya en main). No hay pantalla que enlazar — item
+marcado `sin_ui=true` con motivo. Commit en la rama `circuito/item-1041-...` (esta entrada de
+bitácora), encolada a auto-merge vía `circuito:integrar`. Item #1041 cerrado `completado`.
