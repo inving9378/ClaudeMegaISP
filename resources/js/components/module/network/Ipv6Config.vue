@@ -545,11 +545,16 @@ export default {
             }
         }
 
+        function resetConfirmaciones() {
+            Object.keys(confirmaciones).forEach((k) => delete confirmaciones[k]);
+        }
+
         function onRouterChange() {
             version.value = null;
             versionError.value = '';
             forzarVersionManual.value = false;
             topology.value = null;
+            resetConfirmaciones();
 
             const router = routers.value.find((r) => r.id === routerId.value);
             if (router && typeof router.clientes_activos === 'number') {
@@ -606,6 +611,7 @@ export default {
                     router_id: routerId.value,
                 });
                 if (data.ok) {
+                    resetConfirmaciones();
                     topology.value = data.topology;
                 } else {
                     zonasError.value = data.error || 'No se pudieron mapear las zonas.';
