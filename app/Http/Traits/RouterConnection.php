@@ -1114,6 +1114,47 @@ trait RouterConnection
         }
     }
 
+    /**
+     * Item roadmap #1037 — agrega accept en el chain input para los servicios de
+     * gestión (Winbox/SSH/monitoreo) inventariados en
+     * config('mikrotik.management_services'), ANTES de que MikrotikRulesJob
+     * decida instalar el drop final MgNet_INPUT_DROPEA_EL_RESTO. Con el
+     * inventario vacío (default de fábrica) este método no agrega ninguna
+     * regla — las IPs reales las entrega Irving vía las variables .env
+     * MIKROTIK_MANAGEMENT_ALLOWLIST_* (ver config/mikrotik.php).
+     */
+    public function addRulesInputManagementAccept($connected, $command)
+    {
+        foreach (config('mikrotik.management_services', []) as $service => $definition) {
+            foreach (($definition['allowed_addresses'] ?? []) as $address) {
+                if ($address === '') {
+                    continue;
+                }
+
+                $comment = 'MgNet_INPUT_MGMT_' . strtoupper($service) . '_ACCEPT-' . $address;
+                if (!$this->getIdByComment($connected, $command, $comment)) {
+                    $this->addItem($connected, ComunConstantsController::IP_FIREWALL_FILTER_WITH_SPACE, [
+                        'chain' => 'input',
+                        'action' => 'accept',
+                        'src-address' => $address,
+                        'dst-address' => null,
+                        'dst-address-type' => null,
+                        'protocol' => $definition['protocol'] ?? null,
+                        'src-port' => null,
+                        'dst-port' => $definition['port'] ?? null,
+                        'port' => null,
+                        'in-interface' => null,
+                        'out-interface' => null,
+                        'src-address-list' => null,
+                        'dst-address-list' => null,
+                        'connection-state' => null,
+                        'comment' => $comment,
+                    ]);
+                }
+            }
+        }
+    }
+
     public function updateRulesInputApiAccept($connected, $routerPort_api, $mikrotikconfig)
     {
         $comment = 'MgNet_INPUT_MEGANET_TO_API_ACCEPT';
