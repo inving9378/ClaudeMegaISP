@@ -36,6 +36,7 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('invoice:create-proformas')->dailyAt('03:00')->withoutOverlapping();
         $schedule->command('billing:send-pending-notifications')->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->command('auditoria:minar-bitacora')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('app:mikrotik-sync-command')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-consumption')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-ping')->everyFiveMinutes()->withoutOverlapping();
