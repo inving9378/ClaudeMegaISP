@@ -56,6 +56,38 @@ class CompuertasService
             $this->cCascadaErrores($so),
         ];
 
+        // Punto 1 — por qué está gris cada control. Se resuelve en una sola pasada para
+        // que ninguna fila pueda escaparse sin motivo escrito.
+        //
+        // Las que sí necesitan el sistema operativo van a 'sin_privilegio' (y ya traen el
+        // comando exacto). Las que solo se MIDEN, pero para las que nunca se construyó un
+        // control, van a 'no_implementado': se dice, no se disfraza de deshabilitado.
+        $soloMedidas = ['items', 'estacion', 'cascada'];
+        foreach ($compuertas as $c) {
+            if ($c->acciones !== []) {
+                [$ctl, $mot, $falta]  = $this->resolverControl($c->acciones);
+                $c->control           = $ctl;
+                $c->controlMotivo     = $mot;
+                $c->permisoFaltante   = $falta;
+                continue;
+            }
+            // Una fila en verde no tiene control gris: no hay nada que soltar. Etiquetarla
+            // 'no implementado' sería ruido que compite con los grises que sí importan.
+            if ($c->semaforo === 'verde') {
+                $c->control = 'sin_necesidad';
+                continue;
+            }
+            if (in_array($c->clave, $soloMedidas, true)) {
+                $c->control       = 'no_implementado';
+                $c->controlMotivo = 'Esta compuerta se mide, pero todavía no tiene un control propio en el panel. '
+                    . 'El comando de al lado sirve para diagnosticarla a mano.';
+                continue;
+            }
+            if ($c->comando !== null) {
+                $c->control = 'sin_privilegio';
+            }
+        }
+
         $primerRojo = null;
         foreach ($compuertas as $c) {
             if ($c->bloquea()) {
@@ -114,7 +146,8 @@ class CompuertasService
                     porQue: 'Sin estas tablas el circuito no puede ni consultar su propio freno de mano, así que no puede detenerse solo.',
                     comando: 'php artisan migrate --force   # revisar antes: php artisan migrate:status',
                     quienPuede: 'Irving, desde consola en el servidor',
-                );
+                control: 'sin_privilegio',
+            );
             }
 
             return new Compuerta(
@@ -128,6 +161,7 @@ class CompuertasService
                 porQue: 'No responde: ' . mb_substr($e->getMessage(), 0, 120),
                 comando: 'systemctl status mysql',
                 quienPuede: 'Irving, con sudo en el servidor',
+                control: 'sin_privilegio',
             );
         }
     }
@@ -143,6 +177,7 @@ class CompuertasService
                 valor: 'no hay snapshot', origen: 'so',
                 porQue: 'El panel corre como www-data y no puede mirar procesos, locks ni crontab; sin la sonda no sabe nada del SO.',
                 comando: $cmd, quienPuede: 'Irving o el cron de meganet',
+                control: 'sin_privilegio',
             );
         }
 
@@ -153,6 +188,7 @@ class CompuertasService
                 valor: "última medición hace {$edad}s", origen: 'so',
                 porQue: 'El snapshot está viejo: lo que se muestre del SO puede no ser el presente. La sonda no está corriendo.',
                 comando: $cmd, quienPuede: 'Irving o el cron de meganet',
+                control: 'sin_privilegio',
             );
         }
 
@@ -180,6 +216,7 @@ class CompuertasService
                     : 'No hay ninguna línea del circuito en el crontab: el ejecutor no se dispara nunca.',
                 comando: "crontab -e   # descomentar las líneas 'PAUSADO-...' de deploy/circuito",
                 quienPuede: 'Irving, como usuario meganet (el panel corre como www-data y no puede tocar ese crontab)',
+                control: 'sin_privilegio',
             );
         }
 
@@ -200,35 +237,42 @@ class CompuertasService
                 porQue: 'La bandera vive en la tabla settings y no se pudo leer, así que el circuito tampoco puede consultarla.',
                 comando: 'php artisan tinker --execute=\'DB::table("settings")->where("key","circuito_pausado")->value("value");\'',
                 quienPuede: 'Irving, desde consola',
+                control: 'sin_privilegio',
             );
         }
 
         if ($pausado) {
-            return new Compuerta(
-                clave: 'pausa', nombre: 'Freno de mano del circuito', semaforo: 'rojo',
-                valor: 'PAUSADO', origen: 'bd',
-                porQue: 'El kill switch está puesto: el scheduler no lanza ninguna vuelta.',
-                acciones: [[
+            $acc = [[
                     'clave'       => 'reanudar',
                     'etiqueta'    => 'Quitar el freno',
                     'peligrosa'   => true,
                     'confirmar'   => 'El circuito volverá a lanzar vueltas automáticas en cuanto el cron esté activo. '
                         . 'Cada vuelta ejecuta un agente con permisos de escritura sobre el repositorio.',
-                    'permiso'     => 'circuito.pause',
-                ]],
+                'permiso'     => 'circuito.pause',
+            ]];
+            [$ctl, $mot, $falta] = $this->resolverControl($acc);
+
+            return new Compuerta(
+                clave: 'pausa', nombre: 'Freno de mano del circuito', semaforo: 'rojo',
+                valor: 'PAUSADO', origen: 'bd',
+                porQue: 'El kill switch está puesto: el scheduler no lanza ninguna vuelta.',
+                acciones: $acc, control: $ctl, controlMotivo: $mot, permisoFaltante: $falta,
             );
         }
+
+        $acc = [[
+            'clave'     => 'pausar',
+            'etiqueta'  => 'Poner el freno',
+            'peligrosa' => false,
+            'confirmar' => 'El circuito dejará de lanzar vueltas nuevas. Las vueltas en curso siguen hasta terminar.',
+            'permiso'   => 'circuito.pause',
+        ]];
+        [$ctl, $mot, $falta] = $this->resolverControl($acc);
 
         return new Compuerta(
             clave: 'pausa', nombre: 'Freno de mano del circuito', semaforo: 'verde',
             valor: 'suelto', origen: 'bd',
-            acciones: [[
-                'clave'     => 'pausar',
-                'etiqueta'  => 'Poner el freno',
-                'peligrosa' => false,
-                'confirmar' => 'El circuito dejará de lanzar vueltas nuevas. Las vueltas en curso siguen hasta terminar.',
-                'permiso'   => 'circuito.pause',
-            ]],
+            acciones: $acc, control: $ctl, controlMotivo: $mot, permisoFaltante: $falta,
         );
     }
 
@@ -257,6 +301,7 @@ class CompuertasService
                 porQue: 'Una vuelta reparentada a init ya no depende del cron: pausar el circuito NO la detiene, y sigue lanzando agentes.',
                 comando: "kill {$pids}   # verificar después: ps -eo pid,ppid,cmd | grep '[v]uelta.sh'",
                 quienPuede: 'Irving, como usuario meganet',
+                control: 'sin_privilegio',
             );
         }
 
@@ -267,6 +312,7 @@ class CompuertasService
                 porQue: 'Una vuelta lleva más del doble de su timeout: el timeout aplica al agente hijo, no al bucle padre.',
                 comando: "ps -eo pid,ppid,etimes,cmd | grep '[v]uelta.sh'",
                 quienPuede: 'Irving, como usuario meganet',
+                control: 'sin_privilegio',
             );
         }
 
@@ -294,6 +340,7 @@ class CompuertasService
                 porQue: 'Sin workers no se procesa ninguna cola: ni deploy, ni cobranza, ni los jobs del circuito.',
                 comando: 'sudo supervisorctl start megaisp-deploy-worker megaisp-queue-worker-1 megaisp-queue-worker-2',
                 quienPuede: 'Irving, con sudo (el panel corre como www-data y no puede hablar con supervisor)',
+                control: 'sin_privilegio',
             );
         }
 
@@ -303,6 +350,7 @@ class CompuertasService
                 valor: "{$vivos} de {$esper} procesos vivos", origen: 'so',
                 porQue: 'Faltan workers: algunas colas avanzan y otras no.',
                 comando: $cmd, quienPuede: 'Irving, con sudo',
+                control: 'sin_privilegio',
             );
         }
 
@@ -343,9 +391,20 @@ class CompuertasService
             );
         }
 
+        // Punto 4 — verde solo si el techo es A. La regla del circuito es que únicamente
+        // el nivel A puede aprobarse solo; con el techo en B o C el circuito despacha por
+        // su cuenta cosas que deberían pasar por una persona. Eso no es "todo bien": pasa,
+        // pero con advertencia. Pintarlo verde daba a entender lo contrario.
+        $soloA = $base === 'A';
+
         return new Compuerta(
-            clave: 'nivel', nombre: 'Nivel del autopilot', semaforo: 'verde',
-            valor: "{$nivel} — despacha hasta nivel {$base}", origen: 'bd', acciones: $acciones,
+            clave: 'nivel', nombre: 'Nivel del autopilot', semaforo: $soloA ? 'verde' : 'ambar',
+            valor: "{$nivel} — despacha hasta nivel {$base}", origen: 'bd',
+            porQue: $soloA
+                ? null
+                : "El techo está en {$base}, pero solo el nivel A puede aprobarse solo. "
+                    . "Con este techo el circuito toma por su cuenta items de nivel {$base} que deberían pasar por Irving.",
+            acciones: $acciones,
         );
     }
 
@@ -366,6 +425,7 @@ class CompuertasService
                 porQue: 'Todos los worktrees tienen su flock tomado: no hay dónde lanzar una vuelta nueva.',
                 comando: "ps -eo pid,etimes,cmd | grep '[v]uelta.sh'   # ver qué las ocupa antes de liberar",
                 quienPuede: 'Irving, como usuario meganet',
+                control: 'sin_privilegio',
             );
         }
 
@@ -376,6 +436,7 @@ class CompuertasService
                 porQue: 'El lock del scheduler está tomado: si no hay scheduler vivo, quedó huérfano y bloquea las corridas.',
                 comando: 'ls -l /home/meganet/circuito/scheduler.lock',
                 quienPuede: 'Irving, como usuario meganet',
+                control: 'sin_privilegio',
             );
         }
 
@@ -400,6 +461,7 @@ class CompuertasService
                 porQue: 'No hay trabajo elegible: o todo está aprobado y hecho, o los frenos por item lo retienen (ver las filas de estación y agendados).',
                 comando: 'php artisan circuito:flags',
                 quienPuede: 'Cualquiera con acceso a la Torre',
+                control: 'sin_privilegio',
             );
         }
 
@@ -433,7 +495,8 @@ class CompuertasService
                 : null,
             comando: $enIntegracion > 10 ? 'Revisar la pestaña Integración de la Torre' : null,
             quienPuede: $enIntegracion > 10 ? 'Irving, desde la Torre' : null,
-        );
+                control: 'sin_privilegio',
+            );
     }
 
     private function cAgendados(): Compuerta
@@ -537,6 +600,7 @@ class CompuertasService
                 valor: $reservados->count() . ' reservados (sin snapshot no se sabe si viven)', origen: 'bd',
                 porQue: 'Hay items marcados en progreso, pero sin lectura del SO no se puede saber si su terminal sigue viva.',
                 comando: 'php artisan circuito:compuertas-sonda', quienPuede: 'Irving o el cron de meganet',
+                control: 'sin_privilegio',
             );
         }
 
@@ -583,6 +647,7 @@ class CompuertasService
                 porQue: 'El sistema está fallando en bucle. A este ritmo el log crece sin control y el error real queda enterrado.',
                 comando: 'tail -50 storage/logs/laravel.log',
                 quienPuede: 'Irving, en el servidor',
+                control: 'sin_privilegio',
             );
         }
 
@@ -594,6 +659,7 @@ class CompuertasService
                 porQue: 'El log pasó de medio giga sin rotación: llegó a 1.7 GB durante el incidente del 22-ago.',
                 comando: ': > storage/logs/laravel.log   # preservar antes lo que sirva de evidencia',
                 quienPuede: 'Irving, en el servidor',
+                control: 'sin_privilegio',
             );
         }
 
@@ -601,6 +667,53 @@ class CompuertasService
             clave: 'cascada', nombre: 'Cascada de errores', semaforo: 'verde',
             valor: "{$errMin} errores/min · log {$mb} MB · disco " . ($l['disco_uso_pct'] ?? '?'), origen: 'so',
         );
+    }
+
+
+    /**
+     * Marca cada acción como usable o no, y devuelve el estado de control de la fila.
+     * Punto 1 del entregable: un control gris tiene que decir POR QUÉ está gris —
+     * si es falta de privilegio del proceso, falta de un permiso concreto, o que
+     * simplemente no está hecho.
+     *
+     * @param  array<int,array>  $acciones  se modifican en sitio
+     * @return array{0:string,1:?string,2:?string}  [control, motivo, permisoFaltante]
+     */
+    private function resolverControl(array &$acciones): array
+    {
+        $u = auth()->user();
+        $faltante = null;
+
+        foreach ($acciones as &$a) {
+            $permiso = $a['permiso'] ?? null;
+            $puede   = $permiso === null || ($u !== null && $u->can($permiso));
+            $a['disponible'] = $puede;
+            $a['motivo']     = $puede ? null : "Te falta el permiso `{$permiso}`.";
+            if (! $puede && $faltante === null) {
+                $faltante = $permiso;
+            }
+        }
+        unset($a);
+
+        if ($acciones === []) {
+            return ['no_implementado', null, null];
+        }
+
+        $hayUsable = false;
+        foreach ($acciones as $a) {
+            if ($a['disponible']) {
+                $hayUsable = true;
+                break;
+            }
+        }
+
+        return $hayUsable ? ['disponible', null, null] : ['sin_permiso', null, $faltante];
+    }
+
+    /** @return array{0:string,1:?string,2:?string} fila que solo se puede tocar fuera del panel. */
+    private function controlSinPrivilegio(): array
+    {
+        return ['sin_privilegio', null, null];
     }
 
     /** Fila para lo que no se pudo medir: ámbar, nunca verde, y siempre con salida. */
@@ -611,6 +724,7 @@ class CompuertasService
             valor: 'no medible desde el panel', origen: 'so',
             porQue: 'El panel corre como www-data y no tiene visibilidad sobre esto. Se muestra el comando para verificarlo a mano.',
             comando: $comando, quienPuede: $quien,
-        );
+                control: 'sin_privilegio',
+            );
     }
 }

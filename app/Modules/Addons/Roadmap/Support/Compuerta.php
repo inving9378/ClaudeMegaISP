@@ -23,6 +23,18 @@ class Compuerta
         public array $acciones = [],
         public ?string $comando = null,
         public ?string $quienPuede = null,
+        /**
+         * Por qué el control de esta fila no se puede usar. NUNCA se deja un control
+         * gris sin motivo: la interfaz escribe al lado cuál de los tres es.
+         *   'disponible'      — hay acción y el usuario puede dispararla.
+         *   'sin_privilegio'  — el panel corre como www-data y no alcanza; va con comando.
+         *   'sin_permiso'     — falta un permiso Spatie concreto, que se nombra.
+         *   'no_implementado' — todavía no existe. Se dice, no se disfraza de deshabilitado.
+         *   'sin_necesidad'   — la fila está en verde: no hay nada que soltar.
+         */
+        public string $control = 'no_implementado',
+        public ?string $controlMotivo = null,
+        public ?string $permisoFaltante = null,
     ) {
     }
 
@@ -41,6 +53,19 @@ class Compuerta
         return $this->acciones !== [] || ($this->comando !== null && $this->quienPuede !== null);
     }
 
+    /** Texto por defecto para cada estado de control, para que nunca quede vacío. */
+    private function motivoPorDefecto(): ?string
+    {
+        return match ($this->control) {
+            'disponible'      => null,
+            'sin_necesidad'   => null,
+            'sin_privilegio'  => 'El panel corre como www-data y no puede ejecutar esto. Usa el comando de al lado.',
+            'sin_permiso'     => 'Te falta el permiso ' . ($this->permisoFaltante ?? '(sin especificar)') . '.',
+            'no_implementado' => 'Todavía no implementado: esta compuerta se mide, pero aún no tiene control propio.',
+            default           => null,
+        };
+    }
+
     public function toArray(): array
     {
         return [
@@ -55,6 +80,9 @@ class Compuerta
             'quien_puede' => $this->quienPuede,
             'bloquea'     => $this->bloquea(),
             'sin_salida'  => $this->bloquea() && ! $this->tieneSalida(),
+            'control'          => $this->control,
+            'control_motivo'   => $this->controlMotivo ?? $this->motivoPorDefecto(),
+            'permiso_faltante' => $this->permisoFaltante,
         ];
     }
 }

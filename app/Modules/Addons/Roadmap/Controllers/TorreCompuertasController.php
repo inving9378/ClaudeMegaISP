@@ -7,6 +7,9 @@ use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Models\TorreCompuertaCambio;
 use App\Modules\Addons\Roadmap\Services\CompuertasService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
+use App\Modules\Addons\Roadmap\Support\CatalogoPermisosCircuito;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -105,6 +108,134 @@ class TorreCompuertasController extends Controller
             'soltar_items'          => $this->accionSoltarItems($datos['ids'] ?? []),
             default                 => response()->json(['ok' => false, 'mensaje' => 'Acción desconocida.'], 422),
         };
+    }
+
+
+    /**
+     * Pestaña de permisos: qué habilita cada permiso del circuito, qué se recomienda
+     * para cada rol, qué está concedido hoy de verdad (Spatie manda), y la última
+     * decisión registrada de Irving.
+     */
+    public function permisos(): JsonResponse
+    {
+        $this->autorizar();
+
+        $decisiones = DB::table('torre_permiso_decisiones')->get()->keyBy(fn ($d) => $d->permiso . '|' . $d->rol);
+        $filas = [];
+
+        foreach (CatalogoPermisosCircuito::PERMISOS as $nombre => $meta) {
+            $existe = Permission::where('name', $nombre)->where('guard_name', 'web')->exists();
+            $porRol = [];
+
+            foreach (CatalogoPermisosCircuito::ROLES as $rol) {
+                $rolModel = Role::where('name', $rol)->where('guard_name', 'web')->first();
+                $tiene    = $existe && $rolModel && $rolModel->hasPermissionTo($nombre);
+                $rec      = CatalogoPermisosCircuito::recomendacion($nombre, $rol);
+                $d        = $decisiones->get($nombre . '|' . $rol);
+
+                $porRol[$rol] = [
+                    'concedido'     => $tiene,
+                    'recomendacion' => $rec,
+                    // Se marca la discrepancia contra el estado REAL, no contra la decisión
+                    // guardada: lo que importa es si hoy el sistema contradice el consejo.
+                    'contradice'    => ($rec === 'conceder' && ! $tiene) || ($rec === 'negar' && $tiene),
+                    'decision'      => $d ? [
+                        'por'        => $d->decidido_por_login,
+                        'cuando'     => $d->decidido_en,
+                        'contradijo' => (bool) $d->contradice_recomendacion,
+                        'nota'       => $d->nota,
+                    ] : null,
+                ];
+            }
+
+            $filas[] = [
+                'permiso'      => $nombre,
+                'existe'       => $existe,
+                'habilita'     => $meta['habilita'],
+                'consecuencia' => $meta['consecuencia'],
+                'porque'       => $meta['porque'],
+                'roles'        => $porRol,
+            ];
+        }
+
+        return response()->json([
+            'permisos'   => $filas,
+            'roles'      => CatalogoPermisosCircuito::ROLES,
+            'puede_editar' => (bool) auth()->user()?->can('torre.config.edit'),
+        ]);
+    }
+
+    /**
+     * Interruptor. Concede o revoca de verdad en Spatie y registra la decisión con
+     * fecha y autor — se guarda aunque contradiga la recomendación, que es justamente
+     * el caso que hay que poder auditar después.
+     */
+    public function permisoToggle(Request $request): JsonResponse
+    {
+        $this->autorizar();
+
+        $datos = $request->validate([
+            'permiso'    => 'required|string|max:120',
+            'rol'        => 'required|string|max:60',
+            'conceder'   => 'required|boolean',
+            'confirmado' => 'required|boolean',
+            'nota'       => 'nullable|string|max:500',
+        ]);
+
+        if (! $datos['confirmado']) {
+            return response()->json(['ok' => false, 'mensaje' => 'Esta acción necesita confirmación explícita.'], 422);
+        }
+        if (! auth()->user()->can('torre.config.edit')) {
+            return $this->sinPermiso('torre.config.edit');
+        }
+        if (! array_key_exists($datos['permiso'], CatalogoPermisosCircuito::PERMISOS)
+            || ! in_array($datos['rol'], CatalogoPermisosCircuito::ROLES, true)) {
+            return response()->json(['ok' => false, 'mensaje' => 'Permiso o rol fuera del catálogo del circuito.'], 422);
+        }
+
+        $rol = Role::where('name', $datos['rol'])->where('guard_name', 'web')->first();
+        if (! $rol) {
+            return response()->json(['ok' => false, 'mensaje' => "El rol {$datos['rol']} no existe."], 422);
+        }
+
+        $permiso = Permission::firstOrCreate(['name' => $datos['permiso'], 'guard_name' => 'web']);
+        $antes   = $rol->hasPermissionTo($permiso) ? 'concedido' : 'revocado';
+
+        $datos['conceder'] ? $rol->givePermissionTo($permiso) : $rol->revokePermissionTo($permiso);
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $rec        = CatalogoPermisosCircuito::recomendacion($datos['permiso'], $datos['rol']);
+        $contradice = ($rec === 'conceder' && ! $datos['conceder']) || ($rec === 'negar' && $datos['conceder']);
+        $u          = auth()->user();
+
+        DB::table('torre_permiso_decisiones')->updateOrInsert(
+            ['permiso' => $datos['permiso'], 'rol' => $datos['rol']],
+            [
+                'concedido'                => $datos['conceder'],
+                'recomendacion'            => $rec,
+                'contradice_recomendacion' => $contradice,
+                'nota'                     => $datos['nota'] ?? null,
+                'decidido_por'             => $u->id,
+                'decidido_por_login'       => $u->login_user ?? $u->name,
+                'decidido_en'              => now(),
+                'updated_at'               => now(),
+                'created_at'               => now(),
+            ]
+        );
+
+        TorreCompuertaCambio::registrar(
+            'permisos',
+            $datos['conceder'] ? 'conceder' : 'revocar',
+            "{$datos['rol']}: {$antes}",
+            "{$datos['rol']}: " . ($datos['conceder'] ? 'concedido' : 'revocado'),
+            $datos['permiso'] . ($contradice ? ' (CONTRADICE la recomendación: ' . $rec . ')' : '')
+        );
+
+        return response()->json([
+            'ok'         => true,
+            'mensaje'    => "{$datos['permiso']} para {$datos['rol']}: {$antes} → " . ($datos['conceder'] ? 'concedido' : 'revocado') . '.',
+            'contradice' => $contradice,
+        ]);
     }
 
     // ---------------------------------------------------------------- acciones

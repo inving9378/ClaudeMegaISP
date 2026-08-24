@@ -108,6 +108,9 @@ Route::middleware(['web', 'auth'])
         Route::get('/torre/compuertas',          [TorreCompuertasController::class, 'estado']);
         Route::get('/torre/compuertas/bitacora', [TorreCompuertasController::class, 'bitacora']);
         Route::post('/torre/compuertas/accion',  [TorreCompuertasController::class, 'accion']);
+        // Pestaña de permisos del circuito: catálogo, recomendación e interruptor.
+        Route::get('/torre/compuertas/permisos',  [TorreCompuertasController::class, 'permisos']);
+        Route::post('/torre/compuertas/permisos', [TorreCompuertasController::class, 'permisoToggle']);
         // ENTREGA 1 — configuración de la Torre. Va bajo `api/roadmap` y no bajo `/releases/config`
         // (como decía el prompt) porque la política es del módulo Roadmap, no del Core/Release:
         // ponerla allá cruzaría la frontera de módulos por una ruta cosmética.

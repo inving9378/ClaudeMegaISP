@@ -67,26 +67,40 @@
                         <div><span class="tc-origen" :class="'org-' + c.origen">{{ etiquetaOrigen(c.origen) }}</span></div>
                         <div class="tc-porque">{{ c.por_que || '—' }}</div>
                         <div class="tc-accion">
-                            <!-- Acción ejecutable -->
+                            <!-- Acción ejecutable. Deshabilitada NUNCA va muda: lleva su motivo. -->
                             <div v-for="a in c.acciones" :key="a.clave" class="mb-1">
-                                <select v-if="a.opciones" v-model="valorSel[c.clave]" class="form-select form-select-sm mb-1">
+                                <select v-if="a.opciones && a.disponible" v-model="valorSel[c.clave]"
+                                        class="form-select form-select-sm mb-1">
                                     <option v-for="o in a.opciones" :key="o" :value="o">{{ o }}</option>
                                 </select>
                                 <button class="btn btn-sm"
                                         :class="a.peligrosa ? 'btn-outline-danger' : 'btn-outline-primary'"
-                                        @click="pedirConfirmacion(c, a)">
+                                        :disabled="!a.disponible"
+                                        @click="a.disponible && pedirConfirmacion(c, a)">
                                     {{ a.etiqueta }}
                                 </button>
+                                <div v-if="!a.disponible" class="tc-motivo tc-m-permiso">{{ a.motivo }}</div>
                             </div>
-                            <!-- Sin acción ejecutable: el comando exacto, igual (regla 2) -->
+
+                            <!-- Por qué está gris, cuando no hay ninguna acción usable (punto 1) -->
+                            <div v-if="c.control !== 'disponible' && c.control !== 'sin_necesidad'"
+                                 class="tc-motivo" :class="'tc-m-' + c.control">
+                                <span class="tc-etiqueta">{{ etiquetaControl(c.control) }}</span>
+                                {{ c.control_motivo }}
+                                <span v-if="c.permiso_faltante" class="tc-permiso">{{ c.permiso_faltante }}</span>
+                            </div>
+
+                            <!-- Regla 2: lo que necesita sudo se muestra igual, listo para copiar -->
                             <div v-if="c.comando" class="tc-cmd">
                                 <code @click="copiar(c.comando)" :title="'Clic para copiar'">{{ c.comando }}</code>
                                 <div v-if="c.quien_puede" class="tc-quien">Puede: {{ c.quien_puede }}</div>
                             </div>
+
                             <div v-if="c.sin_salida" class="text-danger small fw-bold">
                                 ⚠ Rojo sin salida — falta definir acción o comando
                             </div>
-                            <span v-if="!c.acciones.length && !c.comando" class="text-muted small">—</span>
+                            <span v-if="!c.acciones.length && !c.comando && c.control === 'sin_necesidad'"
+                                  class="text-muted small">—</span>
                         </div>
                     </div>
                 </div>
@@ -144,6 +158,13 @@ export default {
     },
     beforeUnmount() { this.detenerPolling(); },
     methods: {
+        etiquetaControl(c) {
+            return {
+                sin_privilegio: 'EL PANEL NO PUEDE',
+                sin_permiso: 'TE FALTA PERMISO',
+                no_implementado: 'NO IMPLEMENTADO',
+            }[c] || '';
+        },
         etiquetaOrigen(o) {
             return { bd: 'base de datos', config: 'archivo de config', env: '.env', so: 'sistema operativo', 'bd+so': 'BD + sistema' }[o] || o;
         },
@@ -249,6 +270,14 @@ export default {
 .tc-origen { font-size: .68rem; padding: .1rem .4rem; border-radius: .2rem;
     background: rgba(120,120,120,.16); white-space: nowrap; }
 .tc-porque { opacity: .85; }
+.tc-motivo { font-size: .72rem; margin: .25rem 0; padding: .3rem .45rem; border-radius: .25rem;
+    line-height: 1.35; }
+.tc-etiqueta { display: inline-block; font-weight: 700; font-size: .62rem; letter-spacing: .04em;
+    margin-right: .3rem; }
+.tc-m-sin_privilegio { background: rgba(13,110,253,.13); }
+.tc-m-sin_permiso, .tc-m-permiso { background: rgba(220,53,69,.13); }
+.tc-m-no_implementado { background: rgba(120,120,120,.15); font-style: italic; }
+.tc-permiso { font-family: monospace; background: rgba(0,0,0,.12); padding: 0 .25rem; border-radius: .2rem; }
 .tc-cmd code { display: block; font-size: .72rem; background: rgba(120,120,120,.14);
     padding: .3rem .4rem; border-radius: .25rem; cursor: pointer; word-break: break-all; }
 .tc-quien { font-size: .68rem; opacity: .7; margin-top: .2rem; }
