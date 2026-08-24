@@ -161,3 +161,35 @@ la fricción de abrir una terminal.
   pueda mostrarlo? (recomendación: `/var/log/`, y que el panel lo lea vía el verbo
   `estado`; `storage/logs` es escribible por `www-data` y un log de auditoría no debe
   serlo por quien audita).
+
+## 8. Precedente: `www-data` ya tiene sudo en este box
+
+Al preparar este diseño apareció algo que hay que revisar **antes** de añadir nada:
+
+```
+/etc/sudoers.d/
+  -r--r----- root root  191  may 29  asterisk-www-data
+  -r--r----- root root  185  may 18  claude-nginx
+  -r--r----- root root  324  jun 11  megaisp-asterisk
+```
+
+`asterisk-www-data` sugiere, por su nombre, que **`www-data` ya tiene algún privilegio
+concedido** en esta máquina. No se pudo leer el contenido (`0440 root:root`, y no hay sudo
+sin contraseña disponible en esta sesión), así que no se sabe si está acotado a un comando
+concreto o si es más ancho de lo que debería.
+
+Esto importa por dos razones. La primera es que la premisa "nunca sudo general para
+www-data" quizá ya esté rota, y añadir un puente bien hecho junto a una concesión ancha no
+mejora nada. La segunda es que el modelo de amenaza del §5 —"un atacante como `www-data`
+gana exactamente estos cinco verbos"— sólo es cierto si esos cinco verbos son *todo* lo que
+`www-data` puede hacer con sudo.
+
+**Antes de instalar el puente, revisar:**
+
+```bash
+sudo cat /etc/sudoers.d/asterisk-www-data /etc/sudoers.d/megaisp-asterisk /etc/sudoers.d/claude-nginx
+sudo -l -U www-data      # la lista efectiva, que es la que manda
+```
+
+Si `sudo -l -U www-data` devuelve algo con comodines o `ALL`, ese hallazgo es más urgente
+que este puente, y debería atenderse primero.
