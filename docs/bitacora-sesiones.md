@@ -1783,3 +1783,94 @@ segundo panel paralelo que duplicaría la UI de la misma ruta.
 
 Commit único en la rama `circuito/item-1059-...`: `7f414ef0` (solo el doc de verificación).
 Encolado a main vía `circuito:integrar`. `enlace_revision=/red/ipv6-config`.
+
+## 2026-08-24 10:20 — P0 incidente BD dev vacía: contención + ensayo de recuperación en `megaisp_dryrun`
+
+La base `megaisp` quedó en **0 tablas** el 2026-08-22 ~12:41. Detección: `migrate:status` fallaba
+con "Migration table not found" y `laravel.log` acumulaba errores `1146 Table 'megaisp.X' doesn't
+exist` — 268.896 en total, arrancando el 22-ago 12:48 (nada entre el 13-jun y esa fecha). Es la
+máquina DEV (192.168.105.11); PROD (.198) no está afectada. MySQL llevaba 63 días sin reiniciar,
+así que fue una operación a nivel SQL, no pérdida de datadir.
+
+**Contención.** Evidencia preservada en `/home/meganet/forense-20260822/` (19 MB) antes de tocar
+nada: `/proc/632692/environ` y `cwd`, la franja 11:00–13:10 de `laravel.log`, head+tail del log
+zombie, las vueltas vecinas, `.env` de los 5 worktrees con passwords enmascarados, crontab e
+historial. Cron del circuito pausado 9/9 (marca `PAUSADO-20260824-incidente`). Proceso zombie
+`vuelta.sh` PID 632692 eliminado: llevaba **1d21h huérfano (PPID=1)** y había lanzado **43.947
+invocaciones de `claude -p`**, una cada ~3.7 s. `laravel.log` 1.7 G → 0 y el log zombie 278 M → 0
+(disco 62% → 60%). Dumps de resguardo: `megaisp_restore-20260824.sql.gz` (125 MB, 347 tablas,
+verificado) y `megaisp_pilot-20260824.sql.gz`.
+
+**Causa del bucle infinito.** `RoadmapCircuitoService::isPaused()` (línea 133) lee la bandera de
+pausa desde la tabla `settings`. Con la BD vacía la comprobación lanza excepción, así que el
+circuito **no puede auto-pausarse**: el freno de mano depende justo de lo que se rompió. El
+`timeout 600` sí existía por hijo, pero el `vuelta.sh` padre reentraba en el lazo — el timeout
+mataba al agente, no al bucle.
+
+**`megaisp_dryrun` la creó este ensayo** (2026-08-24), como BD de staging para probar la
+recuperación sin tocar `megaisp`. Se usó ese nombre y no `megaisp_stage` porque `megaisp_user`
+solo tiene `USAGE ON *.*` y no puede crear bases arbitrarias, pero ya tenía
+`ALL PRIVILEGES ON megaisp_dryrun.*` concedidos de antes. Se restauró ahí el dump del 29-jun
+(`megaisp-202606291425.sql.gz`, 467 tablas, sin líneas `USE`/`CREATE DATABASE`, restauración
+limpia rc=0). `megaisp` se verificó en 0 tablas después de restaurar. Estado: **642 migraciones
+aplicadas, 138 pendientes** — el hueco de 8 semanas.
+
+**Resultado del ensayo: `migrate` se detuvo solo (rc=1).** No por un fallo, sino por el guardrail
+de migraciones del item #1018: "operaciones destructivas sin excepción de contracción madura",
+señalando `2026_06_30_120000_widen_releases_summary_to_text:17` y
+`2026_08_20_220000_make_vehicle_id_nullable_on_fleet_documents:27`, ambas por `->change()`. No se
+aplicó ninguna migración (siguen 642/138 y 467 tablas). El escape hatch `--force-uncommitted`
+existe y queda auditado, pero **no se usó**: es decisión de Irving. `megaisp` sigue intacta en 0
+tablas y no se promovió nada.
+
+## 2026-08-24 12:10 — Recuperación de dev: promoción de `megaisp_dryrun` a `megaisp`
+
+Continuación del P0 anterior. A las 11:24:23 alguien pulsó el botón **"Run migrations"** de la
+pantalla de Ignition (`POST /_ignition/execute-solution`, solución `RunMigrations`, 58.69 s) tras
+varios `GET /devtools` que devolvían el error `Table 'megaisp.X' doesn't exist`. Ese `migrate`
+falló a mitad y dejó `megaisp` con 235 tablas y 290 migraciones batch 1 de un set viejo (la más
+reciente, `2026_02_08_155609_create_radius_sessions_table`). No fue un comando de consola: un
+request web arranca con el `.env` de la app, que apunta a `megaisp`, así que no hay override
+posible por esa ruta. El botón quedó cerrado con `IGNITION_ENABLE_RUNNABLE_SOLUTIONS=false`
+(`.env:188`), verificado en runtime — se conserva la pantalla de diagnóstico, se pierde el botón.
+
+**`--force-uncommitted` sobre las 138 pendientes en `megaisp_dryrun`.** El guardrail del item
+#1018 abortaba el lote completo porque 2 de las 138 disparan el patrón `->change()`. Base de la
+autorización, verificada antes de forzar: el `--pretend` genera **681 sentencias, 33 `CREATE
+TABLE`, 157 `ALTER TABLE` y 0 destructivas**, y de los seis `DESTRUCTIVE_PATTERNS` solo dispara
+`change()`. Las dos señaladas son expansivas, no reductoras:
+
+- `2026_06_30_120000_widen_releases_summary_to_text:17` — `releases.summary` de `varchar(255)` a
+  `TEXT` (255 → 65.535 bytes), nullable sin cambio. Motivo original: las notas de release de IA
+  desbordaban y reventaban con `SQLSTATE[22001] 1406`.
+- `2026_08_20_220000_make_vehicle_id_nullable_on_fleet_documents:27` — `fleet_documents.vehicle_id`
+  de `NOT NULL` a `nullable`, mismo tipo y ancho, sobre 3 filas sin nulos. Relajar una restricción
+  no puede invalidar filas existentes.
+
+En Laravel 10.48.4 `change()` va por Doctrine DBAL, que conserva los atributos no reformulados
+(el riesgo de la 11+ no aplica); además ninguna de las dos columnas tenía default ni comment.
+Resultado: `rc=0`, 138 aplicadas, 0 pendientes, 467 → **500 tablas**.
+
+**Criterio de aceptación.** `roadmap_items` pasó de 14 a 87 columnas. De las 9 que el código de
+`main` necesita, 7 son columnas reales (`estado_aprobacion`, `nivel_riesgo`, `worker_sid`,
+`branch`, `merge_commit`, `enlace_revision`, `agendado_para`); `estacion` **no es columna** sino
+el accessor `getEstacionAttribute()` (`RoadmapItem.php:1508`) y `requiere_irving` **no es columna**
+sino un valor del enum `ESTADOS_APROBACION` / `estado_aprobacion`. Ambas ausencias fueron un error
+de inferencia previo por contar referencias en archivos sin distinguir columna de accessor o enum.
+
+**Promoción.** Dump `megaisp_dryrun-promocion-20260824.sql.gz` (142 MB) verificado antes de
+aplicar: **500 `DROP TABLE IF EXISTS` contra 500 tablas reales** y **0 líneas `USE`/`CREATE
+DATABASE`** (bloqueo duro). Restaurado sobre `megaisp` con rc=0. Verificación posterior: 500/500
+tablas, **sin huérfanas** (las 235 del migrate abortado eran subconjunto estricto), `users` 4.786,
+`permissions` 692, `module_registry` 46, `settings` 2, `roadmap_items` 168. Credenciales siempre
+por fichero temporal modo 600 borrado con `shred`, nunca en línea de comandos.
+
+**Warm-up: la config NO se cacheó.** `config:auditar-env` salió con **rc=1** — encontró **29
+llamadas a `env()` en runtime en 18 archivos** (entre ellas `WHATSAPP_API_KEY`, `FCM_SERVER_KEY`,
+`MAIL_FROM_ADDRESS`, `SSH_KEY_PASSPHRASE` y una clave dinámica en
+`UsesApiIntegration.php:30`). El `&&` de CLAUDE.md:451 es el candado y funcionó: se aplicó el
+warm-up alternativo que prescribe el propio comando (`config:clear && route:clear &&
+queue:restart`). `bootstrap/cache/config.php` no existe.
+
+Verificado por HTTP: `/` → 302 a login, `/login` → 200, `/devtools` → 302 a login. Cero marcas de
+Ignition. El cron del circuito **sigue pausado**.
