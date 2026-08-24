@@ -29,6 +29,10 @@
                         <button class="btn btn-sm btn-outline-secondary" @click="cargar" :disabled="cargando">
                             <i class="fas fa-sync" :class="{ 'fa-spin': cargando }"></i> Volver a medir
                         </button>
+                        <button class="btn btn-sm" :class="pestana === 'permisos' ? 'btn-secondary' : 'btn-outline-secondary'"
+                                @click="togglePermisos">
+                            <i class="fas fa-key"></i> Permisos
+                        </button>
                         <button class="btn btn-sm btn-outline-secondary" @click="verBitacora = !verBitacora">
                             <i class="fas fa-history"></i> Bitácora
                         </button>
@@ -53,8 +57,58 @@
                     </table>
                 </div>
 
+                <!-- Pestaña de permisos del circuito -->
+                <div v-if="pestana === 'permisos'" class="tc-tabla">
+                    <p class="small text-muted mb-2">
+                        La recomendación es una sugerencia. Tu decisión se guarda aunque la contradiga,
+                        con fecha y autor, y queda marcada como tal.
+                    </p>
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Permiso</th><th>Qué habilita</th>
+                                <th v-for="r in roles" :key="r">{{ r }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="p in permisos" :key="p.permiso">
+                                <td>
+                                    <code class="small">{{ p.permiso }}</code>
+                                    <div v-if="!p.existe" class="text-danger" style="font-size:.68rem">no existe en permissions</div>
+                                </td>
+                                <td style="max-width:340px">
+                                    <div class="small">{{ p.habilita }}</div>
+                                    <div class="text-muted" style="font-size:.7rem">{{ p.consecuencia }}</div>
+                                </td>
+                                <td v-for="r in roles" :key="r">
+                                    <div class="form-check form-switch mb-1">
+                                        <input class="form-check-input" type="checkbox"
+                                               :checked="p.roles[r].concedido"
+                                               :disabled="!puedeEditar"
+                                               @change.prevent="pedirTogglePermiso(p, r, $event)">
+                                    </div>
+                                    <span class="tc-rec" :class="'rec-' + p.roles[r].recomendacion">
+                                        {{ p.roles[r].recomendacion }}
+                                    </span>
+                                    <div v-if="p.roles[r].contradice" class="text-warning" style="font-size:.68rem">
+                                        ⚠ contradice la recomendación
+                                    </div>
+                                    <div v-if="p.roles[r].decision" class="text-muted" style="font-size:.66rem">
+                                        {{ p.roles[r].decision.por }} · {{ (p.roles[r].decision.cuando || '').substring(0,16) }}
+                                        <span v-if="p.roles[r].decision.contradijo">· contra la recomendación</span>
+                                    </div>
+                                    <div v-if="!puedeEditar" class="tc-motivo tc-m-sin_permiso">
+                                        <span class="tc-etiqueta">TE FALTA PERMISO</span>
+                                        <span class="tc-permiso">torre.config.edit</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
                 <!-- Filas: una por compuerta, seis columnas -->
-                <div class="tc-tabla">
+                <div v-if="pestana === 'compuertas'" class="tc-tabla">
                     <div class="tc-fila tc-cabecera">
                         <div></div><div>Compuerta</div><div>Valor real</div>
                         <div>Origen</div><div>Por qué</div><div>Acción</div>
@@ -140,6 +194,7 @@ export default {
             linea: '', corriendo: true, compuertas: [], snapshot: null, medidoEn: null,
             pendiente: null, mensaje: '', mensajeOk: true,
             verBitacora: false, cambios: [], valorSel: {},
+            pestana: 'compuertas', permisos: [], roles: [], puedeEditar: false,
             timer: null,
         };
     },
@@ -158,6 +213,38 @@ export default {
     },
     beforeUnmount() { this.detenerPolling(); },
     methods: {
+        async togglePermisos() {
+            this.pestana = this.pestana === 'permisos' ? 'compuertas' : 'permisos';
+            if (this.pestana === 'permisos') await this.cargarPermisos();
+        },
+        async cargarPermisos() {
+            try {
+                const { data } = await axios.get('/api/roadmap/torre/compuertas/permisos');
+                this.permisos = data.permisos;
+                this.roles = data.roles;
+                this.puedeEditar = data.puede_editar;
+            } catch (e) {
+                this.mostrar(e?.response?.data?.message || 'No se pudieron leer los permisos.', false);
+            }
+        },
+        pedirTogglePermiso(p, rol, ev) {
+            // El input no cambia solo: primero se confirma (regla 3), después se recarga
+            // desde el servidor. Así la pantalla nunca muestra un estado que no se guardó.
+            const conceder = ev.target.checked;
+            ev.target.checked = p.roles[rol].concedido;
+            const rec = p.roles[rol].recomendacion;
+            const contradice = (rec === 'conceder' && !conceder) || (rec === 'negar' && conceder);
+            this.pendiente = {
+                compuerta: { clave: 'permisos', nombre: `${p.permiso} · ${rol}` },
+                accion: {
+                    clave: 'permiso_toggle',
+                    etiqueta: conceder ? 'Conceder permiso' : 'Revocar permiso',
+                    confirmar: `${p.consecuencia} ${p.porque}` +
+                        (contradice ? ` ⚠ Esto CONTRADICE la recomendación (${rec}); se guardará marcado como tal.` : ''),
+                    permisoDatos: { permiso: p.permiso, rol, conceder },
+                },
+            };
+        },
         etiquetaControl(c) {
             return {
                 sin_privilegio: 'EL PANEL NO PUEDE',
@@ -214,6 +301,16 @@ export default {
             this.enviando = true;
             const { compuerta, accion } = this.pendiente;
             try {
+                if (accion.permisoDatos) {
+                    const { data } = await axios.post('/api/roadmap/torre/compuertas/permisos', {
+                        ...accion.permisoDatos, confirmado: true,
+                    });
+                    this.mostrar(data.mensaje, data.ok);
+                    this.pendiente = null;
+                    await this.cargarPermisos();
+                    if (this.verBitacora) await this.cargarBitacora();
+                    return;
+                }
                 const { data } = await axios.post('/api/roadmap/torre/compuertas/accion', {
                     accion: accion.clave,
                     confirmado: true,
@@ -278,6 +375,10 @@ export default {
 .tc-m-sin_permiso, .tc-m-permiso { background: rgba(220,53,69,.13); }
 .tc-m-no_implementado { background: rgba(120,120,120,.15); font-style: italic; }
 .tc-permiso { font-family: monospace; background: rgba(0,0,0,.12); padding: 0 .25rem; border-radius: .2rem; }
+.tc-rec { font-size: .66rem; padding: .08rem .35rem; border-radius: .2rem; text-transform: uppercase; }
+.rec-conceder { background: rgba(25,135,84,.18); }
+.rec-revisar { background: rgba(255,193,7,.22); }
+.rec-negar { background: rgba(220,53,69,.18); }
 .tc-cmd code { display: block; font-size: .72rem; background: rgba(120,120,120,.14);
     padding: .3rem .4rem; border-radius: .25rem; cursor: pointer; word-break: break-all; }
 .tc-quien { font-size: .68rem; opacity: .7; margin-top: .2rem; }
