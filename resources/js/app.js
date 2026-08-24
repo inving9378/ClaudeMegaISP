@@ -190,6 +190,7 @@ import VerTicket from "./components/module/tickets/VerTicket";
 //Topbar
 import NotificationTopbar from "./shared/NotificationTopbar";
 import ConciliacionBell from "./shared/ConciliacionBell";
+import TorreCompuertas from "./shared/TorreCompuertas";
 import ModeVisualBody from "./shared/ModeVisualBody";
 
 //Perfil
@@ -946,6 +947,7 @@ store
             topbarApp.directive('hasPermission', hasPermission);
             topbarApp.component('notification-topbar', NotificationTopbar);
             topbarApp.component('conciliacion-bell', ConciliacionBell);
+            topbarApp.component('torre-compuertas', TorreCompuertas);
             topbarApp.component('mode-visual-body', ModeVisualBody);
             topbarApp.component('documentation-tree-menu', DocumentationTreeMenu);
             topbarApp.mount('#topbar-vue-root');

@@ -69,6 +69,16 @@ class CompuertasSondaCommand extends Command
             if (! str_contains($l, 'deploy/circuito')) {
                 continue;
             }
+            // Solo cuentan las líneas que de verdad son entradas de cron. Un comentario
+            // en prosa que mencione la ruta (como el que documenta esta misma sonda) no
+            // es una compuerta pausada, y contarlo desplazaría el número que se muestra.
+            // Debe invocar de verdad el wrapper y traer una expresión de cron de 5 campos.
+            // Las líneas pausadas llevan un prefijo ('# PAUSADO-...: * * * * * ...'), así que
+            // la expresión se busca en cualquier posición, no anclada al inicio.
+            if (! str_contains($l, 'cron-wrap.sh')
+                || ! preg_match('/(^|:|\s)([\d*\/,-]+\s+){4}[\d*\/,-]+\s+\S/', $l)) {
+                continue;
+            }
             // Una línea comentada es una pausa deliberada; una sin comentar, cron vivo.
             ltrim($l)[0] === '#' ? $pausadas[] = trim($l) : $activas[] = trim($l);
         }

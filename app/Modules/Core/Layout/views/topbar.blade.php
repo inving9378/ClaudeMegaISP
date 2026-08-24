@@ -119,6 +119,15 @@
                 <i class="far fa-folder-open"></i>
             </button>
 
+            {{-- ENTREGABLE B — Tablero de compuertas de la Torre. Visible desde todas las
+                pestañas porque la cabecera se renderiza en todas. Se controla por ROL, no por
+                permiso: es una consola de estado del circuito, no un ajuste del sistema.
+                Se usa auth()->user()->hasRole(...) y no @@role/@@can, que en este layout no
+                evalúan (mismo motivo por el que aquí se escribe @@if(auth()->user()->can(...))). --}}
+            @if(auth()->user()->hasRole('super-administrator') || auth()->user()->hasRole('DESARROLLADOR'))
+                <torre-compuertas></torre-compuertas>
+            @endif
+
             {{-- Fase 6 — Campana de conciliación de pagos pendiente (solo con permiso). --}}
             @can('conciliacion.manage')
                 <conciliacion-bell
