@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
+use App\Modules\Addons\Roadmap\Controllers\TorreCompuertasController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapExternalController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMcpController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMemoryController;
@@ -100,6 +101,13 @@ Route::middleware(['web', 'auth'])
     ->group(function () {
         // Torre de control del Circuito (dashboard en vivo) + kill switch.
         Route::get('/torre',               [RoadmapController::class, 'torre']);
+        // ENTREGABLE B — Tablero de compuertas: estado y control de la cadena de
+        // activación. Separado de `/torre` a propósito: aquel muestra el trabajo,
+        // este muestra POR QUÉ el circuito corre o no. Autorización por rol dentro
+        // del controlador (super-administrator | DESARROLLADOR).
+        Route::get('/torre/compuertas',          [TorreCompuertasController::class, 'estado']);
+        Route::get('/torre/compuertas/bitacora', [TorreCompuertasController::class, 'bitacora']);
+        Route::post('/torre/compuertas/accion',  [TorreCompuertasController::class, 'accion']);
         // ENTREGA 1 — configuración de la Torre. Va bajo `api/roadmap` y no bajo `/releases/config`
         // (como decía el prompt) porque la política es del módulo Roadmap, no del Core/Release:
         // ponerla allá cruzaría la frontera de módulos por una ruta cosmética.
