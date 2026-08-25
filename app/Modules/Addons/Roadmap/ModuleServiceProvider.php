@@ -20,6 +20,10 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\FlagsCommand::class,
+                // #170 — el freno de mano fuera de la base. Van juntos y al lado de FlagsCommand
+                // porque son el mismo mecanismo visto desde consola: `flags` lo lee, éstos lo mueven.
+                \App\Modules\Addons\Roadmap\Console\PausarCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ReanudarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\CompuertasSondaCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RegistrarEjecucionCommand::class,
                 \App\Modules\Addons\Roadmap\Console\VivoCommand::class,

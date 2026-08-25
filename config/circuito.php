@@ -209,6 +209,25 @@ return [
     | Endurecer o relajar NO requiere redeploy: son flags.
     |
     */
+    /*
+    |--------------------------------------------------------------------------
+    | FRENO DE MANO — el centinela en archivo (#170)
+    |--------------------------------------------------------------------------
+    |
+    | Ruta ABSOLUTA y literal a propósito: `vuelta.sh` hace `cd` al worktree del slot y corre
+    | `php artisan` desde ahí, y cada worktree tiene su propio `storage/` REAL. Con una ruta
+    | relativa (o `storage_path()`) cada terminal tendría su freno privado — y un freno que sólo
+    | detiene a una de seis no es un freno.
+    |
+    | Vive en `storage/app/circuito` porque es el único sitio que leen los DOS usuarios del
+    | sistema: `meganet` (cron y ejecutor) y `www-data` (la Torre). El runtime del circuito
+    | (`/home/meganet/circuito`) NO sirve: ese home es 0700 y la Torre no podría leerlo.
+    |
+    */
+    'freno' => [
+        'centinela' => env('CIRCUITO_FRENO_CENTINELA', '/var/www/megaisp/storage/app/circuito/PAUSA'),
+    ],
+
     'autopilot' => [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
 

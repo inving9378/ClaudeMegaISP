@@ -25,6 +25,13 @@ ITEM="${CIRCUITO_ITEM:-}"
 WT="${CIRCUITO_WT:-$RUNTIME/wt-exec}"
 SID="${CIRCUITO_SID:-wt-exec}"           # id de sesión para el estado live por-sesión (#334)
 LOCK="$RUNTIME/${SID}.lock"              # lock POR worktree → N vueltas en paralelo (una por slot)
+# #170 — CENTINELA DEL FRENO DE MANO. Ruta ABSOLUTA: este script hace `cd` al worktree del slot,
+# y cada worktree tiene su propio storage/ real — una ruta relativa daría un freno por terminal.
+# Se consulta con `test -e`, SIN php y SIN base: es lo que lo hace fiable con MySQL caído (y lo que
+# lo hace instantáneo, que es lo que permite consultarlo en cada iteración sin costo).
+CENTINELA="${CIRCUITO_FRENO_CENTINELA:-/var/www/megaisp/storage/app/circuito/PAUSA}"
+frenado(){ [ -e "$CENTINELA" ]; }
+
 PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
 PROMPT_ITEM_FILE="$PROJ/deploy/circuito/prompt-item.txt"
 TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
@@ -60,6 +67,15 @@ registrar(){  # started finished modo pausado rc meta modelo
     --started="$1" --finished="$2" --modo="$3" --pausado="$4" --rc="$5" \
     --log="$LOG" --meta="$6" --modelo="${7:-}" >>"$LOG" 2>&1 || log "aviso: no se pudo registrar la ejecución."
 }
+
+# El centinela manda sobre el flag de base: existe para funcionar cuando la base NO contesta, así
+# que si `circuito:flags` falló (PAUSED vacío) esto sigue siendo verdad.
+if frenado; then
+  log "FRENO DE MANO PUESTO (centinela $CENTINELA). No ejecuto nada."
+  cat "$CENTINELA" 2>/dev/null | tee -a "$LOG"
+  php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
+  exit 0
+fi
 
 if [ "$PAUSED" = "1" ]; then
   NOW="$(date +%s)"
@@ -157,7 +173,27 @@ if [ -n "$ITEM" ]; then
   # al cron → mantiene el slot lleno mientras haya trabajo seguro (mata los valles). claim-next
   # respeta el kill switch (pausa → nada que reclamar) y serializa por flock (reclamo atómico #341).
   while true; do
+    # #170 — EL CHEQUEO QUE FALTABA. Antes el freno sólo se miraba al ARRANCAR la vuelta: una vez
+    # dentro de este lazo, el worker seguía pidiendo items hasta secar la cola pasara lo que pasara.
+    # Por eso pausar el cron no detuvo al huérfano de 1 d 21 h: el cron ya no lo relanzaba, pero el
+    # lazo tampoco volvía a preguntar. Va ANTES de `ejecutar_una` para que también corte la primera.
+    # `test -e` sobre un archivo: sin base, sin php, sin depender de que el padre siga vivo.
+    if frenado; then
+      log "FRENO DE MANO PUESTO a mitad del pool: $SID suelta el slot sin tomar otro item."
+      cat "$CENTINELA" 2>/dev/null | tee -a "$LOG"
+      php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
+      break
+    fi
+
     ejecutar_una
+
+    # Y otra vez DESPUÉS de trabajar: una vuelta dura hasta 10 min, tiempo de sobra para que alguien
+    # ponga el freno mientras corría. Sin esto, el worker reclamaría un item más antes de enterarse.
+    if frenado; then
+      log "FRENO DE MANO PUESTO durante la vuelta: $SID no reclama el siguiente."
+      break
+    fi
+
     NEXT="$(php artisan circuito:claim-next --sid="$SID" 2>/dev/null)"
     if [ -z "$NEXT" ]; then
       log "Sin más trabajo elegible (o pausa): worker $SID suelta el slot; el scheduler lo relanza al haber trabajo."
