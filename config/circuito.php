@@ -213,13 +213,15 @@ return [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
 
         // Nivel MÁXIMO que el autopilot puede decidir solo (A < B < C).
-        // DECISIÓN DE IRVING (2026-08-04, confirmada tras proponerle el tope en B): MÁXIMA
-        // AUTONOMÍA = 'C'. Un nivel C solo pasa si además trae `reversible: true` y confianza alta,
-        // así que lo irreversible y lo de negocio sigue siendo suyo. La regla de CLAUDE.md se
-        // actualizó en el mismo commit para no quedar contradiciendo a este flag.
+        // DECISIÓN DE IRVING (2026-08-25): baja de 'C' a 'A' al reencender el circuito. El motivo
+        // es de SECUENCIA, no de desconfianza en el autopilot: se va a soltar al revisor sobre un
+        // backlog de ~107 items sin triar, así que va a haber material aprobable de golpe, y
+        // ninguno de riesgo B o C debe auto-aprobarse mientras se mira la primera vuelta en vivo.
+        // Historial: 2026-08-04 se puso en 'C' (máxima autonomía) tras proponerle el tope en B.
+        // Para volver a subirlo NO hace falta redeploy: es un flag (o `CIRCUITO_AUTOPILOT_MAX_NIVEL`).
         // Lo que NUNCA toca el autopilot, sin importar este valor: [BLOCKED-]/[PARKED-] (frontera
         // dura) y cualquier pregunta que el Revisor marque `requiere_irving`.
-        'max_nivel'           => env('CIRCUITO_AUTOPILOT_MAX_NIVEL', 'C'),
+        'max_nivel'           => env('CIRCUITO_AUTOPILOT_MAX_NIVEL', 'A'),
 
         // Exigir que la opción recomendada esté marcada `reversible: true`. Aplica a B y C; el
         // nivel A ya es reversible por DEFINICIÓN (aditivo, no toca dinero/permisos/auth/prod).
