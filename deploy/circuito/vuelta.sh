@@ -61,6 +61,39 @@ MODELO_FLAG="$(printf '%s\n' "$FLAGS" | sed -n 's/^modelo=//p')"
 MODEL="${CIRCUITO_MODEL:-${MODELO_FLAG:-sonnet}}"   # #336: settings circuito_modelo_rutina/forzar; CIRCUITO_MODEL manda si viene.
 log "flags: pausado=${PAUSED:-?} modo=${MODO:-?} modelo=${MODEL:-?}"
 
+# ── REGISTRO DE PROCESOS DEL CIRCUITO (vigilancia de Thomas) ────────────────────────────────
+# Se escribe EN BASH, no en PHP, y a propósito: tiene que existir cuando la base no responde y
+# cuando la app está rota, que es justo cuando hace falta saber quién está corriendo. PHP sólo lee.
+#
+# POR QUÉ: el vigilante sólo puede tocar procesos que identifique como del circuito POR SU PROPIO
+# REGISTRO. Sin esto, la única forma de identificarlos es el nombre del binario — y `ps | grep
+# claude` incluye las sesiones interactivas de Irving. Un `pkill claude` es autoinmune.
+#
+# IDENTIDAD = PID + STARTTIME: los PID se reciclan. El campo 22 de /proc/<pid>/stat es inmutable
+# para ese proceso; si no coincide, la entrada está muerta aunque el número siga existiendo.
+# Se parsea DESPUÉS del último ')' porque el campo 2 es el nombre del ejecutable entre paréntesis.
+THOMAS_PIDS="${CIRCUITO_THOMAS_PIDS:-/var/www/megaisp/storage/app/circuito/thomas/pids}"
+PIDFILE="$THOMAS_PIDS/${SID}.json"
+
+registrar_pid(){  # $1 = item (puede venir vacío)
+  mkdir -p "$THOMAS_PIDS" 2>/dev/null || return 0
+  local st pgid tmp
+  st="$(sed -e 's/^.*) //' "/proc/$$/stat" 2>/dev/null | awk '{print $20}')"
+  pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+  tmp="$PIDFILE.tmp.$$"
+  # Escritura atómica (tmp+rename): el vigilante nunca lee un registro a medio escribir.
+  printf '{"sid":"%s","pid":%s,"pgid":"%s","starttime":"%s","item":"%s","wt":"%s","log":"%s","modelo":"%s","timeout":%s,"desde_ts":%s,"host":"%s"}\n' \
+    "$SID" "$$" "${pgid:-}" "${st:-}" "${1:-}" "$WT" "$LOG" "${MODEL:-}" "${TIMEOUT:-0}" "$(date +%s)" "$(hostname)" \
+    > "$tmp" 2>/dev/null && mv -f "$tmp" "$PIDFILE" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+}
+
+borrar_pid(){ rm -f "$PIDFILE" 2>/dev/null || true; }
+
+# El trap cubre timeout, kill y error: si la vuelta muere de cualquier forma, el registro no queda
+# mintiendo. Y si aun así quedara colgado, el propio vigilante lo detecta por `starttime` y lo
+# reporta como entrada colgada en vez de creerle.
+trap borrar_pid EXIT
+
 # Registra la fila de ejecución (#319). Nunca tumba la vuelta si falla.
 registrar(){  # started finished modo pausado rc meta modelo
   php artisan circuito:registrar-ejecucion \
@@ -124,6 +157,7 @@ ejecutar_una() {
   else
     PROMPT_TEXT="$(cat "$PROMPT_FILE")"
   fi
+  registrar_pid "${ITEM:-}"
   log "===== inicio de la vuelta (claude -p) ====="
 
   local START FIN RC HB_PID META

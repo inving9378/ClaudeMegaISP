@@ -279,6 +279,50 @@ return [
         'enabled' => (bool) env('CIRCUITO_THOMAS', true),
 
         /*
+        |----------------------------------------------------------------------
+        | VIGILIA (entrega A) — la mitad de Thomas que NO puede compartir destino
+        | con lo que vigila.
+        |----------------------------------------------------------------------
+        |
+        | `tick()` vive en base y cuelga del cron del scheduler. Eso basta para decidir, y no
+        | basta para vigilar: cuando la base se cayó el 22-ago, el único que podía contarlo se
+        | cayó con ella; y cuando el 24-ago se comentaron las 9 líneas del circuito, Thomas se
+        | quedó sin latido sin que ninguna pantalla lo dijera.
+        |
+        | La vigilia mide y avisa LEYENDO Y ESCRIBIENDO ARCHIVO, sin base, con su propio cron.
+        | En esta entrega SÓLO MIDE: no aísla, no libera, no mata. La autoridad llega después,
+        | y el registro de PIDs de aquí es su prerrequisito.
+        */
+        'vigilia' => [
+            'enabled' => (bool) env('CIRCUITO_THOMAS_VIGILIA', true),
+
+            // RUTA ABSOLUTA, jamás storage_path(): igual que el centinela del freno (#170), este
+            // comando puede correr desde un worktree, y cada worktree tiene su storage/ REAL.
+            // Con ruta relativa habría un Thomas por terminal, que es no tener ninguno.
+            // Vive bajo storage/app porque es el único sitio que leen los DOS usuarios
+            // (`meganet` que mide y `www-data` que pinta la Torre).
+            'dir' => env('CIRCUITO_THOMAS_DIR', '/var/www/megaisp/storage/app/circuito/thomas'),
+
+            // INTERRUPTOR DE HOMBRE MUERTO. Si el latido envejece más que esto, la Torre lo pinta
+            // en rojo. Un supervisor muerto en silencio convierte el silencio en falsa calma.
+            // 180 s = tres vueltas de su cron de un minuto: tolera un pico, no tolera una muerte.
+            'latido_umbral_seg' => (int) env('CIRCUITO_THOMAS_LATIDO_UMBRAL', 180),
+
+            // Raíz de los worktrees. De aquí sale el hallazgo que motivó la entrega: hay SIETE
+            // `laravel.log` creciendo (uno por worktree más el del checkout principal) y la sonda
+            // medía UNO. Se recorre con glob para que un worktree nuevo entre solo.
+            'raiz_worktrees' => env('CIRCUITO_RUNTIME', '/home/meganet/circuito'),
+
+            // Log del checkout principal — el único que se medía hasta hoy.
+            'log_principal' => env('CIRCUITO_LOG_PRINCIPAL', '/var/www/megaisp/storage/logs/laravel.log'),
+
+            // Un `claude` interactivo más viejo que esto es sospechoso de sesión abandonada.
+            // Se REPORTA, nunca se mata: hoy hay cuatro de 41 días y uno de ellos podría ser la
+            // sesión con la que Irving está trabajando. 24 h.
+            'claude_viejo_seg' => (int) env('CIRCUITO_THOMAS_CLAUDE_VIEJO', 86400),
+        ],
+
+        /*
         | CONJUNTO DE ESCALAMIENTO — las cuatro fronteras duras del encargo, más el caso de spec
         | contradictorio (que se detecta aparte, no por término). Se evalúa contra la PREGUNTA de
         | la terminal + el título/módulo del item.

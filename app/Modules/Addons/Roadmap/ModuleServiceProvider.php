@@ -25,6 +25,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\PausarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ReanudarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\CompuertasSondaCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ThomasVigilarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RegistrarEjecucionCommand::class,
                 \App\Modules\Addons\Roadmap\Console\VivoCommand::class,
                 \App\Modules\Addons\Roadmap\Console\DisparoCheckCommand::class,

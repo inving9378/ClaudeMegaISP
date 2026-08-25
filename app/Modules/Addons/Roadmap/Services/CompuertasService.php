@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 use App\Modules\Addons\Roadmap\Console\CompuertasSondaCommand;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\Compuerta;
+use App\Modules\Addons\Roadmap\Support\ThomasVigilia;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -42,6 +43,7 @@ class CompuertasService
         $compuertas = [
             $this->cBaseDeDatos(),
             $this->cSnapshot($so),
+            $this->cThomas(),
             $this->cCron($so),
             $this->cPausa(),
             $this->cEjecutorHuerfano($so),
@@ -625,6 +627,69 @@ class CompuertasService
         return new Compuerta(
             clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'verde',
             valor: $reservados->count() . ' en progreso, todos con terminal viva', origen: 'bd+so',
+        );
+    }
+
+    /**
+     * INTERRUPTOR DE HOMBRE MUERTO DEL VIGILANTE.
+     *
+     * Thomas no puede compartir destino con lo que vigila: si se muere, tiene que notarse aquí y
+     * no en la ausencia de avisos. El 24-ago su vuelta quedó colgada del cron del scheduler, que
+     * es una de las nueve líneas comentadas del crontab — estuvo un día entero sin latir sin que
+     * ninguna pantalla lo dijera. Un supervisor muerto en silencio convierte el silencio en falsa
+     * calma, y ése es el peor modo de fallo de todos.
+     *
+     * Se lee de ARCHIVO (`storage/app/circuito/thomas/latido.json`), no de la base: si la base es
+     * el problema, preguntarle a la base si el vigilante vive es la pregunta equivocada.
+     */
+    private function cThomas(): Compuerta
+    {
+        $cmd = 'php artisan circuito:thomas-vigilar --print   # y revisar su línea propia en el crontab de meganet';
+        $edad = ThomasVigilia::edadSeg();
+
+        if ($edad === null) {
+            return new Compuerta(
+                clave: 'thomas', nombre: 'Vigilancia de Thomas', semaforo: 'rojo',
+                valor: 'nunca ha medido', origen: 'so',
+                porQue: 'No existe latido de la vigilia: o nunca arrancó su cron, o no puede escribir su estado. '
+                    . 'Nadie está mirando disco, memoria, logs ni procesos.',
+                comando: $cmd, quienPuede: 'Irving o el cron de meganet',
+                control: 'sin_privilegio',
+            );
+        }
+
+        $umbral = ThomasVigilia::umbralLatidoSeg();
+        $estado = ThomasVigilia::estado();
+        $modo   = (string) ($estado['modo'] ?? 'desconocido');
+        $alertas = count($estado['alertas'] ?? []);
+
+        if ($edad > $umbral) {
+            return new Compuerta(
+                clave: 'thomas', nombre: 'Vigilancia de Thomas', semaforo: 'rojo',
+                valor: "midió hace {$edad}s (umbral {$umbral}s)", origen: 'so',
+                porQue: 'El latido del vigilante envejeció: lo que se muestre de disco, memoria y procesos '
+                    . 'puede no ser el presente. Se murió o no está corriendo su cron.',
+                comando: $cmd, quienPuede: 'Irving o el cron de meganet',
+                control: 'sin_privilegio',
+            );
+        }
+
+        // Modo mínimo NO es rojo: el vigilante está vivo y midiendo, sólo que sin base. Pintarlo
+        // rojo escondería la fila de la base, que es la que de verdad bloquea.
+        if ($modo === 'minimo') {
+            return new Compuerta(
+                clave: 'thomas', nombre: 'Vigilancia de Thomas', semaforo: 'ambar',
+                valor: "midió hace {$edad}s · MODO MÍNIMO (la base no responde)", origen: 'so',
+                porQue: 'Thomas está midiendo desde archivo porque MySQL no contesta. Lo que reporte del '
+                    . 'sistema es real; lo que sepa de items, no.',
+                comando: $cmd, quienPuede: 'Irving',
+                control: 'sin_privilegio',
+            );
+        }
+
+        return new Compuerta(
+            clave: 'thomas', nombre: 'Vigilancia de Thomas', semaforo: 'verde',
+            valor: "midió hace {$edad}s · {$alertas} alerta(s)", origen: 'so',
         );
     }
 
