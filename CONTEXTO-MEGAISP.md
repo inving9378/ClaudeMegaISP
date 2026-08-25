@@ -668,6 +668,36 @@ los 41 gaps son invisibles para el motor**. Y dos entradas **no resuelven a ning
 `Reportes` no existe: `rutaModulo()` devuelve null y `detectarGaps` sale por lo bajo **sin avisar**.
 Consecuencia: **el módulo del propio circuito nunca se ha auditado.**
 
+### 8.X LA VIGILIA DE THOMAS (2026-08-25) — la mitad que NO depende de la base
+
+`ThomasService::tick()` decide (consultas colgadas + sellado de esfuerzo) y **cuelga del cron del
+scheduler**: cuando el 24-ago se comentaron las nueve líneas del circuito, Thomas se quedó **un día
+sin latir sin que ninguna pantalla lo dijera**. Por eso se separó su mitad de OBSERVACIÓN:
+
+- **`circuito:thomas-vigilar`** — mide disco, RAM/swap, carga, **los nueve `laravel.log`**,
+  procesos, registro de PIDs, freno y edad del snapshot. La base va **al final y en `try/catch`**:
+  si no responde, `modo: minimo`, se dice con esas palabras y la vuelta se guarda igual.
+- **Cron PROPIO**: `deploy/circuito/vigilia-wrap.sh`, cada minuto. **NO cuelga de `cron-wrap.sh`**
+  a propósito: un barrido de `PAUSADO-` no puede dejar ciego al vigilante.
+- **Estado en ARCHIVO**, ruta absoluta (misma razón que el centinela del freno #170):
+  `storage/app/circuito/thomas/{latido,estado}.json`, escritura atómica. El latido se escribe
+  **después** del estado: si la medición falla, el latido envejece y el hombre muerto se dispara.
+- **Hombre muerto en la Torre**: compuerta `thomas` — rojo si nunca midió o si el latido pasa de
+  180 s; **ámbar** en modo mínimo (vivo pero sin base).
+- **REGISTRO DE PIDs** (`storage/app/circuito/thomas/pids/<sid>.json`, lo escribe `vuelta.sh` en
+  **bash** con `trap EXIT`): identidad = **PID + `starttime`** (campo 22 de `/proc/<pid>/stat`),
+  porque los PID se reciclan. Es el **prerrequisito de cualquier autoridad para matar**: lo que no
+  está en el registro NO es del circuito. `ps | grep claude` incluye las sesiones interactivas de
+  Irving — `pkill claude` es autoinmune. `RegistroPids` **no tiene método `matar()`**.
+- **UMBRALES DE DISCO: una sola política**, `config/umbrales_disco.php` (80 avisa · 85 comprime ·
+  90 trunca · 95 pausa). `config/torre_salud.php` **ya no los define**, los deriva. Antes decía
+  85/93 y pintaba verde al 82 %.
+- **Defecto de medición corregido**: había **nueve** `laravel.log` (uno por worktree, cada uno con
+  su `storage/` real) y la sonda medía uno. `wt-2` acumuló **1.86 GB** invisible.
+
+Doc: `docs/circuito/thomas-vigilia-entrega-a.md` · inventario previo:
+`docs/circuito/thomas-vigilante-paso0.md` · contrato del chat: `docs/circuito/thomas-chat-contrato.md`.
+
 ---
 
 ## 9. ACTUALIZACIONES DE INSTANCIA (modelo PULL) — #529
