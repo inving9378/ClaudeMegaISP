@@ -2172,3 +2172,42 @@ los 3 ids fuera, y **cero** `NotifyEmbajadorActivated` restantes. La corrida del
 
 ⚠️ Recordatorio operativo: con los workers caídos, usar el botón dejaría esos 43 jobs sumados a los
 188 que ya esperan en cola. Levantar los workers primero.
+
+## 2026-08-26 15:10 — Verificación del circuito en marcha + arreglado `reactivar-agendados`
+
+**Verificación pedida por Irving tras quitar el freno.** El circuito arrancó a las 15:04 y lanzó
+**6 vueltas en paralelo** (wt-1..wt-6), una por item. A los ~2 minutos ya había **3 items completados**
+(#180, #181, #184) y los slots libres habían tomado otros (#173, #46). Logs limpios (`modo POR-ITEM` →
+`inicio de la vuelta` → `live: start`), agentes vivos con su timeout nominal. **Los agentes funcionan.**
+
+**Dos cosas que NO están bien, y ninguna es de los agentes:**
+
+1. **La cola sigue sin worker.** `jobs` pasó de 188 a **190** (crece, no drena), **cero** filas con
+   `reserved_at` — o sea ningún worker ha tomado un solo job nunca. `ps` no encuentra ningún
+   `queue:work`, y el socket de Supervisor es `srwx------ root root`, así que desde aquí no se puede
+   ni consultar ni levantar. Lo que se haya arrancado, no quedó vivo. **Sigue siendo acción de Irving
+   con sudo.** Y con los agentes corriendo esto importa más que antes: cada item nuevo encola su
+   `ClasificarRiesgoJob`, que nadie procesa.
+2. **La Torre miente en su titular.** Dice `DETENIDO POR: Ejecutor huérfano o colgado` y
+   `corriendo=false` **mientras 6 agentes trabajan normal**. Causa: `CompuertasSondaCommand.php:110`
+   cuenta como huérfana **toda** vuelta con `ppid === 1`, sin umbral de edad — y una vuelta lanzada
+   por cron SIEMPRE queda reparentada a init. Resultado: 6 "huérfanas" de 40 segundos y un rojo que
+   se enciende justo cuando el circuito está sano. Un rojo que suena en operación normal enseña a
+   ignorar el tablero, que es lo contrario de para lo que se construyó. **No se tocó** (es cambiar la
+   semántica de una señal de seguridad): queda a decisión de Irving. El arreglo natural es exigir
+   `ppid==1` **Y** edad > `timeout_nominal` (ya está medido y disponible en el snapshot).
+
+**Arreglo de `circuito:reactivar-agendados`.** El comando estaba bien; nadie lo llamaba. Vivía sólo en
+`app/Console/Kernel.php` (diario 00:05) y **en este box no hay `schedule:run`** — las líneas del
+circuito se invocan una por una a propósito. Nunca corrió ni una vez, y un item agendado a futuro
+jamás volvía solo al pool. Fallo callado: la compuerta `agendados` se ve verde mientras no haya
+ninguno diferido.
+- **Línea propia de crontab** (respaldo previo en `/home/meganet/forense-20260825/crontab-respaldo-*`):
+  `*/10 * * * * .../cron-wrap.sh circuito:reactivar-agendados`. Cada 10 min y no diario para que
+  "agendado para las 16:00" vuelva al pool a las 16:0x y no la medianoche siguiente. La entrada de
+  `Kernel.php` se conserva para el entorno que sí tenga `schedule:run` (correr dos veces es inofensivo).
+- **Ficha del motor sincerada** (`config/circuito.php`): `cadencia_horas` 24→1, `max_horas` 30→3 y la
+  `cadencia` deja de declarar "00:05 diario (Kernel.php)", que era justo la cadencia que no ocurría.
+- **Verificado:** item con `agendado_para` vencido → `Reactivados 1 item(s)`, campo en NULL y entrada
+  `agendado_reactivado` en su log (transacción con rollback, 0 residuo). Corrida real **por el mismo
+  wrapper que usará cron** → el motor pasó de "nunca ha corrido" a **"hace 1 segundo"** en el panel.

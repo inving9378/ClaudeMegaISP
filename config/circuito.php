@@ -1172,13 +1172,20 @@ return [
         // del scheduler del SO antes de que de verdad se le haya pasado un día completo.
         'circuito:reactivar-agendados' => [
             'motor'         => 'Reactivar-agendados',
-            'cadencia_horas' => 24,
-            'max_horas'   => 30,
+            'cadencia_horas' => 1,
+            'max_horas'   => 3,
             'si_no_corre' => 'los items agendados a futuro NUNCA vuelven solos al pool aunque su '
                 . 'fecha ya haya pasado — se quedan fuera hasta que alguien los toque a mano',
-            // #942 — este NO vive en el crontab del SO: está agendado en `app/Console/Kernel.php`
-            // (Laravel Schedule), disparado por el `schedule:run` estándar.
-            'cadencia'    => '00:05 diario (Kernel.php)',
+            // #942 lo dejó SOLO en `app/Console/Kernel.php` (Laravel Schedule), asumiendo el
+            // `schedule:run` estándar. CORRECCIÓN 2026-08-26: en este box ESE CRON NO EXISTE — las
+            // líneas del circuito se invocan una por una a propósito — así que el comando no había
+            // corrido NUNCA y ningún item agendado volvía solo al pool. Y el fallo era callado: la
+            // compuerta `agendados` se ve verde mientras no haya ninguno diferido. Ahora tiene su
+            // propia línea de crontab (cron-wrap.sh, cada 10 min) como los demás motores; la de
+            // Kernel.php se conserva para el entorno que sí tenga `schedule:run` (correr dos veces
+            // es inofensivo: el segundo pase no encuentra nada). La ventana de alarma baja de 30 h
+            // a 3: con cadencia de 10 min, media hora sin latir ya es señal de que el cron murió.
+            'cadencia'    => 'cada 10 min (crontab del circuito) + 00:05 diario (Kernel.php, donde haya schedule:run)',
         ],
     ],
 
