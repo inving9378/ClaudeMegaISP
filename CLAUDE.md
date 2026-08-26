@@ -364,7 +364,6 @@ Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `46
 | Portal: subdominio + SSL | Configurar `portal.meganet.mx` con nginx + certbot. **Al publicar HTTPS, aplicar de una vez en el mismo corte**: `SESSION_SECURE_COOKIE=true` en el `.env` de PROD (.198) + warm-up (`config:clear && route:clear && queue:restart`, NUNCA `config:cache`) + probar login. Dejar `false`/vacío mientras siga por HTTP (si no, la cookie no viaja y rompe login). Acción manual de Irving en el box de prod — el circuito de dev no toca .198 (item roadmap #157). | ⏳ Pendiente | Alta |
 | Portal: CFDI timbrado | Generar PDF/XML de facturas fiscales desde el portal | ⏳ Pendiente | Media |
 | Portal: cobro/tarifas premium MegaFamilia | Planes de pago MegaFamilia vía OpenPay | ⏳ Pendiente | Media |
-| Portal: funciones cliente MegaFamilia | Perfiles, dispositivos, stats dentro del portal | ⏳ Pendiente | Media |
 | Portal: notificación pago por email | Enviar recibo al email del cliente tras pago OpenPay | ⏳ Pendiente | Media |
 | Portal: Flotas para cliente | Scope por `fleet_vehicles.client_id` y tracking | ⏳ Pendiente | Baja |
 | Admin: migración base64 → bcrypt | `users.password` de base64 a bcrypt (admin interno) | ⏳ Pendiente | Baja |
@@ -379,6 +378,7 @@ Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `46
 | ✅ Tickets (lectura + crear + responder) | fc13436 |
 | ✅ Consumo (fix dual-pattern Meganet{id}/Meganet__{id}) | fc13436 |
 | ✅ MegaFamilia activable (hardened para 878 CMI sin users) | 5f2cf26 |
+| ✅ MegaFamilia — funciones cliente: perfiles, dispositivos, bloqueos, horarios, geocercas, tareas/recompensas, solicitudes, estadísticas (`/portal/megafamilia`) | 78ae1e4e (merge circuito #150, 2026-07-12) |
 | ✅ Tests aislamiento (11 tests, DatabaseTransactions, sin migrate:fresh) | fc13436 |
 | ✅ Editar perfil de contacto con audit trail (portal_profile_change_log) | 0329a1d |
 | ✅ UX: estados vacíos en todas las vistas, responsive móvil, dark mode badges | c830944 |
