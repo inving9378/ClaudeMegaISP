@@ -88,11 +88,6 @@
                     "permission": "create-marketing-campaigns"
                 },
                 {
-                    "label": "Contenido",
-                    "url": "/marketing/contenido",
-                    "permission": "generate-video-content"
-                },
-                {
                     "label": "Video MVM",
                     "url": "/marketing/video",
                     "permission": "generate-video-content"
