@@ -2099,3 +2099,39 @@ sigue sin verificarse en vivo**. Se verifica solo al reanudar.
 Los 46 `failed_jobs` son viejos (28-may a 15-jun), ajenos a esto. Verde el resto: bd, snapshot,
 thomas, cron (9 líneas), ejecutor, terminales (6/6 libres), items (96 listos), estación, auditor,
 reservados, cascada (0 errores/min, log 45 MB, disco 66%).
+
+## 2026-08-26 15:10 — Torre: ejercitadas las acciones de escritura por la ruta HTTP real
+
+Se cerró el hueco declarado en la verificación de las 14:45 (hasta entonces solo se habían probado
+métodos read-only por tinker, saltándose controllers, middleware y permisos).
+
+**Método:** arnés que despacha cada acción por el **kernel HTTP real** (grupo `web` + `Authenticate`
++ el `authorize()` inline del controller), autenticado como Irving (resuelto por `login_user`, nunca
+por id), cada caso dentro de `DB::beginTransaction()` + `rollBack()`. Solo se neutralizó CSRF, que no
+es lo que se estaba probando. **Residuo verificado al terminar: 0 items de prueba, `failed_jobs`=46 y
+`jobs`=188 intactos** (los mismos de antes).
+
+**34 casos. Resultado:**
+- **19 funcionan** (200/201): crear · editar · borrar · log · completar · cancelar · arrancar ·
+  urgente · override · liberar reclamo · toggle subtarea · decidir/aprobar · elegir opción ·
+  seguimiento · nombre de worker · guardar config de la Torre · modo de integración · voz ·
+  recalentar cachés (con `incluir_config=false`, sin `config:cache`).
+- **7 rechazan correctamente** — las guardas están vivas: `disparar` → **423 pausado**; compuerta sin
+  `confirmado` → 422 pidiendo el segundo paso; cancelar disparo → "ya no está en la cola"; deshacer
+  decisión → "no la decidió un actor automático"; liberar/reasignar sin terminal → 422; reasignar sin
+  `sid_destino` → 422; archivar rama inexistente → 404.
+- **1 ROTO** → ver abajo.
+- **5 no ejecutados a propósito** (efectos fuera de la BD, que el rollback no cubre): `integracion/merge`
+  y `integracion/revert` (git real), acciones de compuerta con `confirmado=true` (matan/levantan
+  procesos), toggle del freno (centinela en archivo + el scheduler corre cada minuto), `memory/raw`
+  (escribe archivo) y avatar (subida). Más las 3 de `roadmap-externo` (token).
+
+**El defecto encontrado — botón "Reintentar fallidos" (Torre → Salud del entorno):** devuelve **404**
+`ModelNotFoundException: App\Models\Referrals\ClientReferralProfile` y escupe 8 avisos
+`unserialize()`. Causa: `EnvironmentHealthService.php:423` hace `Artisan::call('queue:retry',
+['id'=>['all']])` **sin try/catch**; entre los 46 fallidos viejos (28-may a 15-jun) hay payloads que
+apuntan a modelos ya borrados, y el primero envenenado **aborta el lote entero**. En uso real mueve
+algunos jobs, truena a media faena y deja un toast de "No query results" que no dice cuál falló ni
+cuántos alcanzó. Reproducido dos veces. **No se arregló** (pendiente de decisión de Irving): la forma
+sería reintentar **job por job**, contar los que sí y reportar los envenenados por id en vez de tumbar
+la corrida.
