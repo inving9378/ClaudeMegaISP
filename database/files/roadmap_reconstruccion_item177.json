@@ -1,0 +1,3262 @@
+[
+ {
+  "orig_id": 234,
+  "title": "Checkcoveragetool responde cobertura al",
+  "first_commit": "23d1b77bf7d8698c35f0fb7ddc52dcef5cdb6e17",
+  "first_date": "2026-07-12T01:34:09-06:00",
+  "last_commit": "23d1b77bf7d8698c35f0fb7ddc52dcef5cdb6e17",
+  "last_date": "2026-07-12T01:34:09-06:00",
+  "subject": "Integra circuito #234 (circuito/item-234-checkcoveragetool-responde-cobertura-al) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 235,
+  "title": "Defaults de modelo claude inconsistentes",
+  "first_commit": "4d705fea38f9e42f6624d6f67fe663cd6ac358a5",
+  "first_date": "2026-07-11T14:50:03-06:00",
+  "last_commit": "4d705fea38f9e42f6624d6f67fe663cd6ac358a5",
+  "last_date": "2026-07-11T14:50:03-06:00",
+  "subject": "Integra circuito #235 (circuito/item-235-defaults-de-modelo-claude-inconsistentes) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 236,
+  "title": "Codigo muerto de las dos arquitecturas",
+  "first_commit": "54c14e847589ef3f4a2496d0e6ebeb277d250174",
+  "first_date": "2026-07-11T17:18:26-06:00",
+  "last_commit": "54c14e847589ef3f4a2496d0e6ebeb277d250174",
+  "last_date": "2026-07-11T17:18:26-06:00",
+  "subject": "Integra circuito #236 (circuito/item-236-codigo-muerto-de-las-dos-arquitecturas) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 237,
+  "title": "Servelogo publico sin autorizacion",
+  "first_commit": "54a9f61621f0403669d70a7d62260beaf6de363f",
+  "first_date": "2026-07-12T00:49:20-06:00",
+  "last_commit": "54a9f61621f0403669d70a7d62260beaf6de363f",
+  "last_date": "2026-07-12T00:49:20-06:00",
+  "subject": "Integra circuito #237 (circuito/item-237-servelogo-publico-sin-autorizacion) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 239,
+  "title": "Idor control de acceso roto en endpoin",
+  "first_commit": "454d6ebe0f40a5780d296efe2aca63fb198a5164",
+  "first_date": "2026-07-12T00:41:41-06:00",
+  "last_commit": "454d6ebe0f40a5780d296efe2aca63fb198a5164",
+  "last_date": "2026-07-12T00:41:41-06:00",
+  "subject": "Integra circuito #239 (circuito/item-239-idor-control-de-acceso-roto-en-endpoin) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 240,
+  "title": "Dashboardservice usa relacion inexis",
+  "first_commit": "07a0c639b61dfed3d5e5ad49b279615be9ad5824",
+  "first_date": "2026-07-11T15:31:04-06:00",
+  "last_commit": "07a0c639b61dfed3d5e5ad49b279615be9ad5824",
+  "last_date": "2026-07-11T15:31:04-06:00",
+  "subject": "Integra circuito #240 (circuito/item-240-dashboardservice-usa-relacion-inexis) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 241,
+  "title": "Calculo de unidades duplicado en la app",
+  "first_commit": "6351db48a3d3283331bea56ead7f4da06f55dcb0",
+  "first_date": "2026-07-12T00:47:02-06:00",
+  "last_commit": "6351db48a3d3283331bea56ead7f4da06f55dcb0",
+  "last_date": "2026-07-12T00:47:02-06:00",
+  "subject": "Integra circuito #241 (circuito/item-241-calculo-de-unidades-duplicado-en-la-app) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 242,
+  "title": "Gating de permisos inconsistente en",
+  "first_commit": "e9d1f0e0046d123830246ad18ac230c5eca89c75",
+  "first_date": "2026-07-12T01:02:41-06:00",
+  "last_commit": "e9d1f0e0046d123830246ad18ac230c5eca89c75",
+  "last_date": "2026-07-12T01:02:41-06:00",
+  "subject": "Integra circuito #242 (circuito/item-242-gating-de-permisos-inconsistente-en) a main",
+  "modulo_inferido": "Permisos / Roles"
+ },
+ {
+  "orig_id": 245,
+  "title": "Guard de entorno de produccion comentado",
+  "first_commit": "3b70ef646ef7c1d36dc9e7b50fea34c996768ce3",
+  "first_date": "2026-07-12T01:34:19-06:00",
+  "last_commit": "3b70ef646ef7c1d36dc9e7b50fea34c996768ce3",
+  "last_date": "2026-07-12T01:34:19-06:00",
+  "subject": "Integra circuito #245 (circuito/item-245-guard-de-entorno-de-produccion-comentado) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 246,
+  "title": "Ruta get releasesdeployments muerta po",
+  "first_commit": "71348cac7cdaa1462094f2974c8155afdf8c0b02",
+  "first_date": "2026-07-10T16:32:18-06:00",
+  "last_commit": "71348cac7cdaa1462094f2974c8155afdf8c0b02",
+  "last_date": "2026-07-10T16:32:18-06:00",
+  "subject": "Integra circuito #246 (circuito/item-246-ruta-get-releasesdeployments-muerta-po) a main",
+  "modulo_inferido": "Deploy / Releases"
+ },
+ {
+  "orig_id": 247,
+  "title": "Sidebar con doble camino estaticodinami",
+  "first_commit": "bc63d87595a15d2233933f2dda78380872183e0c",
+  "first_date": "2026-07-12T01:34:44-06:00",
+  "last_commit": "bc63d87595a15d2233933f2dda78380872183e0c",
+  "last_date": "2026-07-12T01:34:44-06:00",
+  "subject": "Integra circuito #247 (circuito/item-247-sidebar-con-doble-camino-estaticodinami) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 248,
+  "title": "Credentialupdatecontrollerupload dir",
+  "first_commit": "e768035810fec457f2e69828a5ffde0c826007cc",
+  "first_date": "2026-07-11T14:32:44-06:00",
+  "last_commit": "e768035810fec457f2e69828a5ffde0c826007cc",
+  "last_date": "2026-07-11T14:32:44-06:00",
+  "subject": "Integra circuito #248 (circuito/item-248-credentialupdatecontrollerupload-dir) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 249,
+  "title": "Auditcontrollergenerate produce un rep",
+  "first_commit": "6993196d3fbffcb9ac841e2fc1525541f720bda9",
+  "first_date": "2026-07-11T14:32:45-06:00",
+  "last_commit": "6993196d3fbffcb9ac841e2fc1525541f720bda9",
+  "last_date": "2026-07-11T14:32:45-06:00",
+  "subject": "Integra circuito #249 (circuito/item-249-auditcontrollergenerate-produce-un-rep) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 252,
+  "title": "Endpoint movil de emparejamiento por qr",
+  "first_commit": "374493c12eac3e5bc08843d96c25fe9f75bcc741",
+  "first_date": "2026-07-12T00:42:47-06:00",
+  "last_commit": "374493c12eac3e5bc08843d96c25fe9f75bcc741",
+  "last_date": "2026-07-12T00:42:47-06:00",
+  "subject": "Integra circuito #252 (circuito/item-252-endpoint-movil-de-emparejamiento-por-qr) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 253,
+  "title": "Embajadores usa evolutionapiservice dire",
+  "first_commit": "890ba00083596a47953e844f158d56a5299ebe23",
+  "first_date": "2026-07-15T09:31:04-06:00",
+  "last_commit": "890ba00083596a47953e844f158d56a5299ebe23",
+  "last_date": "2026-07-15T09:31:04-06:00",
+  "subject": "Integra circuito #253 (circuito/item-253-embajadores-usa-evolutionapiservice-dire) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 255,
+  "title": "Api movil megafamilia devuelve datos fin",
+  "first_commit": "90b169ddf3e1fc4126657b39fbcfbae443afda12",
+  "first_date": "2026-07-12T01:54:47-06:00",
+  "last_commit": "90b169ddf3e1fc4126657b39fbcfbae443afda12",
+  "last_date": "2026-07-12T01:54:47-06:00",
+  "subject": "Integra circuito #255 (circuito/item-255-api-movil-megafamilia-devuelve-datos-fin) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 256,
+  "title": "Rate limit de login del portal solo por",
+  "first_commit": "2b4d7bf23a394c9b318c5a6cdd13a4abcd69880f",
+  "first_date": "2026-07-12T01:15:53-06:00",
+  "last_commit": "2b4d7bf23a394c9b318c5a6cdd13a4abcd69880f",
+  "last_date": "2026-07-12T01:15:53-06:00",
+  "subject": "Integra circuito #256 (circuito/item-256-rate-limit-de-login-del-portal-solo-por) a main",
+  "modulo_inferido": "Portal Cliente"
+ },
+ {
+  "orig_id": 257,
+  "title": "Manual genera ia con cliente http y key",
+  "first_commit": "6a45dcfd265ddcb73a9d86c97b8eebc0212191d8",
+  "first_date": "2026-07-11T22:56:03-06:00",
+  "last_commit": "6a45dcfd265ddcb73a9d86c97b8eebc0212191d8",
+  "last_date": "2026-07-11T22:56:03-06:00",
+  "subject": "Integra circuito #257 (circuito/item-257-manual-genera-ia-con-cliente-http-y-key) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 258,
+  "title": "Endpoint publico de evaluadorempresarial",
+  "first_commit": "f41e01ba9506df88b79ebd0b376155e033ae770a",
+  "first_date": "2026-07-13T22:47:03-06:00",
+  "last_commit": "f41e01ba9506df88b79ebd0b376155e033ae770a",
+  "last_date": "2026-07-13T22:47:03-06:00",
+  "subject": "Integra circuito #258 (circuito/item-258-endpoint-publico-de-evaluadorempresarial) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 259,
+  "title": "Devtools chat usa envclaude api key",
+  "first_commit": "16ef794bbd0adada5d87759ecd86389f05b56e21",
+  "first_date": "2026-07-11T15:33:53-06:00",
+  "last_commit": "16ef794bbd0adada5d87759ecd86389f05b56e21",
+  "last_date": "2026-07-11T15:33:53-06:00",
+  "subject": "Integra circuito #259 (circuito/item-259-devtools-chat-usa-envclaude-api-key) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 260,
+  "title": "El mismo actor token en url fija nivel r",
+  "first_commit": "62795f976ff187d04cc2e0594d7eac4a6698eb72",
+  "first_date": "2026-07-12T07:12:20-06:00",
+  "last_commit": "62795f976ff187d04cc2e0594d7eac4a6698eb72",
+  "last_date": "2026-07-12T07:12:20-06:00",
+  "subject": "Integra circuito #260 (circuito/item-260-el-mismo-actor-token-en-url-fija-nivel-r) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 261,
+  "title": "Smartimport importa permissionsroles pe",
+  "first_commit": "4e77b401ede9cbc3ffa4b14d6f4594b71f534cf2",
+  "first_date": "2026-07-12T01:08:03-06:00",
+  "last_commit": "4e77b401ede9cbc3ffa4b14d6f4594b71f534cf2",
+  "last_date": "2026-07-12T01:08:03-06:00",
+  "subject": "Integra circuito #261 (circuito/item-261-smartimport-importa-permissionsroles-pe) a main",
+  "modulo_inferido": "Permisos / Roles"
+ },
+ {
+  "orig_id": 262,
+  "title": "Demo addon de ejemplo activo en la db",
+  "first_commit": "a087fa9c17ac5872a05d8bff2930eaa0a86906c0",
+  "first_date": "2026-07-11T14:32:45-06:00",
+  "last_commit": "a087fa9c17ac5872a05d8bff2930eaa0a86906c0",
+  "last_date": "2026-07-11T14:32:45-06:00",
+  "subject": "Integra circuito #262 (circuito/item-262-demo-addon-de-ejemplo-activo-en-la-db) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 263,
+  "title": "Manual versionado de manual sections si",
+  "first_commit": "a04110ea55f2907c853e7ab400b5bc794f7a8a9c",
+  "first_date": "2026-07-11T22:46:57-06:00",
+  "last_commit": "a04110ea55f2907c853e7ab400b5bc794f7a8a9c",
+  "last_date": "2026-07-11T22:46:57-06:00",
+  "subject": "Integra circuito #263 (circuito/item-263-manual-versionado-de-manual-sections-si) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 264,
+  "title": "Rutas nuevas de la ficha de cliente sin",
+  "first_commit": "8a3c67a6bf50e4e5bc6940d68b85ba7395d8a527",
+  "first_date": "2026-07-12T00:50:56-06:00",
+  "last_commit": "8a3c67a6bf50e4e5bc6940d68b85ba7395d8a527",
+  "last_date": "2026-07-12T00:50:56-06:00",
+  "subject": "Integra circuito #264 (circuito/item-264-rutas-nuevas-de-la-ficha-de-cliente-sin) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 266,
+  "title": "Getval es codigo muerto con inyeccion",
+  "first_commit": "75f2972d7b10e275cee040e1a1e89ddb55379cba",
+  "first_date": "2026-07-10T17:05:39-06:00",
+  "last_commit": "75f2972d7b10e275cee040e1a1e89ddb55379cba",
+  "last_date": "2026-07-10T17:05:39-06:00",
+  "subject": "Integra circuito #266 (circuito/item-266-getval-es-codigo-muerto-con-inyeccion) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 267,
+  "title": "Converttoclient depende de modulefirst",
+  "first_commit": "f0d834ddec1fe99eb36ff5a758d902b7da89d123",
+  "first_date": "2026-07-11T22:40:03-06:00",
+  "last_commit": "f0d834ddec1fe99eb36ff5a758d902b7da89d123",
+  "last_date": "2026-07-11T22:40:03-06:00",
+  "subject": "Integra circuito #267 (circuito/item-267-converttoclient-depende-de-modulefirst) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 268,
+  "title": "La ficha crm incrementa score en cada ap",
+  "first_commit": "6309d125ba5a7de5b9a4f85f65e72344851ee424",
+  "first_date": "2026-07-10T19:02:51-06:00",
+  "last_commit": "6309d125ba5a7de5b9a4f85f65e72344851ee424",
+  "last_date": "2026-07-10T19:02:51-06:00",
+  "subject": "Integra circuito #268 (circuito/item-268-la-ficha-crm-incrementa-score-en-cada-ap) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 292,
+  "title": "Reportes modulo activo sin rutas admin",
+  "first_commit": "9baec459ade07be16877799df46e49b06e661908",
+  "first_date": "2026-07-11T14:31:48-06:00",
+  "last_commit": "9baec459ade07be16877799df46e49b06e661908",
+  "last_date": "2026-07-11T14:31:48-06:00",
+  "subject": "Integra circuito #292 (circuito/item-292-reportes-modulo-activo-sin-rutas-admin) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 293,
+  "title": "Inventario sin authorize en controlad",
+  "first_commit": "45c5a934d1a56a89c560cdd1c5b65e72f2825977",
+  "first_date": "2026-07-12T07:12:51-06:00",
+  "last_commit": "45c5a934d1a56a89c560cdd1c5b65e72f2825977",
+  "last_date": "2026-07-12T07:12:51-06:00",
+  "subject": "Integra circuito #293 (circuito/item-293-inventario-sin-authorize-en-controlad) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 294,
+  "title": "Inventario rutas editarid apuntan a",
+  "first_commit": "da80b27c91a3c5a294190d5be73795962a8e52f2",
+  "first_date": "2026-07-11T14:32:46-06:00",
+  "last_commit": "da80b27c91a3c5a294190d5be73795962a8e52f2",
+  "last_date": "2026-07-11T14:32:46-06:00",
+  "subject": "Integra circuito #294 (circuito/item-294-inventario-rutas-editarid-apuntan-a) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 295,
+  "title": "Deuda todos sin resolver en inventario",
+  "first_commit": "e7a16f667ff1a18d35c5a3209404be08f3d45d8a",
+  "first_date": "2026-07-12T01:55:16-06:00",
+  "last_commit": "e7a16f667ff1a18d35c5a3209404be08f3d45d8a",
+  "last_date": "2026-07-12T01:55:16-06:00",
+  "subject": "Integra circuito #295 (circuito/item-295-deuda-todos-sin-resolver-en-inventario) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 299,
+  "title": "Navegacion movil riel deslizable capa",
+  "first_commit": "503f67e0f8286092cfff8aeb7258cda6423344fc",
+  "first_date": "2026-07-11T22:47:58-06:00",
+  "last_commit": "503f67e0f8286092cfff8aeb7258cda6423344fc",
+  "last_date": "2026-07-11T22:47:58-06:00",
+  "subject": "Integra circuito #299 (circuito/item-299-navegacion-movil-riel-deslizable-capa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 307,
+  "title": "Auditoria de cobertura de permisos b",
+  "first_commit": "465e3d76046d5863be710af75660f6428a2ba04c",
+  "first_date": "2026-07-12T07:56:11-06:00",
+  "last_commit": "465e3d76046d5863be710af75660f6428a2ba04c",
+  "last_date": "2026-07-12T07:56:11-06:00",
+  "subject": "Integra circuito #307 (circuito/item-307-auditoria-de-cobertura-de-permisos-b) a main",
+  "modulo_inferido": "Permisos / Roles"
+ },
+ {
+  "orig_id": 309,
+  "title": "Desactivar auto grant de view a roles b",
+  "first_commit": "633829b68e858ace3faa5f916e00d1d3a3cb3881",
+  "first_date": "2026-07-10T19:32:19-06:00",
+  "last_commit": "633829b68e858ace3faa5f916e00d1d3a3cb3881",
+  "last_date": "2026-07-10T19:32:19-06:00",
+  "subject": "Integra circuito #309 (circuito/item-309-desactivar-auto-grant-de-view-a-roles-b) a main",
+  "modulo_inferido": "Permisos / Roles"
+ },
+ {
+  "orig_id": 311,
+  "title": "Aislamiento por rama",
+  "first_commit": "3ad26d496c02e4a787699ad4c95994e08f7340d4",
+  "first_date": "2026-07-10T12:49:56-06:00",
+  "last_commit": "3ad26d496c02e4a787699ad4c95994e08f7340d4",
+  "last_date": "2026-07-10T12:49:56-06:00",
+  "subject": "Integra circuito #311 (circuito/item-311-aislamiento-por-rama) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 312,
+  "title": "Versionado selectivo del circuito armad",
+  "first_commit": "477b0ad3c9cbd5bfaece5ff6f49b1f5fada27f85",
+  "first_date": "2026-08-08T16:54:44-06:00",
+  "last_commit": "477b0ad3c9cbd5bfaece5ff6f49b1f5fada27f85",
+  "last_date": "2026-08-08T16:54:44-06:00",
+  "subject": "Integra circuito #312 (circuito/item-312-versionado-selectivo-del-circuito-armad) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 315,
+  "title": "Vista de integracion ramas en la torre",
+  "first_commit": "d66f819fa828a58668ee045499c8e2cbdfcd1d92",
+  "first_date": "2026-07-10T13:17:46-06:00",
+  "last_commit": "d66f819fa828a58668ee045499c8e2cbdfcd1d92",
+  "last_date": "2026-07-10T13:17:46-06:00",
+  "subject": "Integra circuito #315 (circuito/item-315-vista-de-integracion-ramas-en-la-torre) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 317,
+  "title": "Api roadmap externo la escritura por pa",
+  "first_commit": "2c97750619e55d7999e47cc899ab7e5c35e668c4",
+  "first_date": "2026-07-11T14:47:02-06:00",
+  "last_commit": "2c97750619e55d7999e47cc899ab7e5c35e668c4",
+  "last_date": "2026-07-11T14:47:02-06:00",
+  "subject": "Integra circuito #317 (circuito/item-317-api-roadmap-externo-la-escritura-por-pa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 318,
+  "title": "Ejecutor on box del circuito cc wrapper",
+  "first_commit": "783a4b8912d0538516d30cc01358c1805b9fc472",
+  "first_date": "2026-07-10T14:40:00-06:00",
+  "last_commit": "783a4b8912d0538516d30cc01358c1805b9fc472",
+  "last_date": "2026-07-10T14:40:00-06:00",
+  "subject": "Integra circuito #318 (circuito/item-318-ejecutor-on-box-del-circuito-cc-wrapper) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 319,
+  "title": "Registro de ejecuciones del circuito p",
+  "first_commit": "14dcc3eabbf4d6612bdc8efb4195bdffb8bba0a6",
+  "first_date": "2026-07-10T14:46:36-06:00",
+  "last_commit": "14dcc3eabbf4d6612bdc8efb4195bdffb8bba0a6",
+  "last_date": "2026-07-10T14:46:36-06:00",
+  "subject": "Integra circuito #319 (circuito/item-319-registro-de-ejecuciones-del-circuito-p) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 320,
+  "title": "Acciones avanzadas en la bandeja de deci",
+  "first_commit": "1ed60976e47ff56cd4d47dec8725fdfd2e4ab3ec",
+  "first_date": "2026-07-10T15:32:15-06:00",
+  "last_commit": "1ed60976e47ff56cd4d47dec8725fdfd2e4ab3ec",
+  "last_date": "2026-07-10T15:32:15-06:00",
+  "subject": "Integra circuito #320 (circuito/item-320-acciones-avanzadas-en-la-bandeja-de-deci) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 325,
+  "title": "Vista de integracion robusta reporte",
+  "first_commit": "a9d5502ca9df684c8daac1e31c7323f5ce960d50",
+  "first_date": "2026-07-10T15:56:22-06:00",
+  "last_commit": "a9d5502ca9df684c8daac1e31c7323f5ce960d50",
+  "last_date": "2026-07-10T15:56:22-06:00",
+  "subject": "Integra circuito #325 (circuito/item-325-vista-de-integracion-robusta-reporte) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 329,
+  "title": "De rosa a azul",
+  "first_commit": "51031fd0479700851f195b1bb3b4e89aff4565be",
+  "first_date": "2026-07-10T16:51:47-06:00",
+  "last_commit": "51031fd0479700851f195b1bb3b4e89aff4565be",
+  "last_date": "2026-07-10T16:51:47-06:00",
+  "subject": "Integra circuito #329 (circuito/item-329-de-rosa-a-azul) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 333,
+  "title": "Epica roadmap sistema de theming unifi",
+  "first_commit": "a043e46fa704d01a9d8d88eb96311dc40aff924a",
+  "first_date": "2026-07-14T16:47:18-06:00",
+  "last_commit": "a043e46fa704d01a9d8d88eb96311dc40aff924a",
+  "last_date": "2026-07-14T16:47:18-06:00",
+  "subject": "Integra circuito #333 (circuito/item-333-epica-roadmap-sistema-de-theming-unifi) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 334,
+  "title": "Fase 0 (aislamiento por worktree + estado live por sesión)",
+  "first_commit": "c1e35487711661aee33e1284140ddf9d509c288f",
+  "first_date": "2026-07-11T13:46:29-06:00",
+  "last_commit": "1582f9233c2a43f30fd0a2bfc2951058e7012b12",
+  "last_date": "2026-07-11T14:30:45-06:00",
+  "subject": "Integra circuito #334 Fase 0 (aislamiento por worktree + estado live por sesión) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 336,
+  "title": "Optimizar modelo del circuito sonnet pa",
+  "first_commit": "287405725109125d27e77a05e6a98d3c97ec1772",
+  "first_date": "2026-07-13T23:52:02-06:00",
+  "last_commit": "287405725109125d27e77a05e6a98d3c97ec1772",
+  "last_date": "2026-07-13T23:52:02-06:00",
+  "subject": "Integra circuito #336 (circuito/item-336-optimizar-modelo-del-circuito-sonnet-pa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 341,
+  "title": "/#342 (candados de proceso) + #337 (disparo manual/urgente)",
+  "first_commit": "72c5f2a43d24ed4db695938e0634b6bf51a97544",
+  "first_date": "2026-07-11T10:48:46-06:00",
+  "last_commit": "72c5f2a43d24ed4db695938e0634b6bf51a97544",
+  "last_date": "2026-07-11T10:48:46-06:00",
+  "subject": "Integra circuito #341/#342 (candados de proceso) + #337 (disparo manual/urgente) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 343,
+  "title": "Item roadmap circuito 247 sin pausa",
+  "first_commit": "90990170ae69029f1bd273bb577728ea50fd44ae",
+  "first_date": "2026-07-14T16:43:28-06:00",
+  "last_commit": "90990170ae69029f1bd273bb577728ea50fd44ae",
+  "last_date": "2026-07-14T16:43:28-06:00",
+  "subject": "Integra circuito #343 (circuito/item-343-item-roadmap-circuito-247-sin-pausa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 344,
+  "title": "Item roadmap consejo asesor equipo",
+  "first_commit": "63910026f8f6b3416fae2e7546cb5f7c12091eef",
+  "first_date": "2026-08-09T09:40:03-06:00",
+  "last_commit": "63910026f8f6b3416fae2e7546cb5f7c12091eef",
+  "last_date": "2026-08-09T09:40:03-06:00",
+  "subject": "Integra circuito #344 (circuito/item-344-item-roadmap-consejo-asesor-equipo) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 345,
+  "title": "Item roadmap arbol de sesiones activ",
+  "first_commit": "b8dc6d3a0ac05cec51001b8b3363ac349a3a2b43",
+  "first_date": "2026-07-12T01:30:03-06:00",
+  "last_commit": "b8dc6d3a0ac05cec51001b8b3363ac349a3a2b43",
+  "last_date": "2026-07-12T01:30:03-06:00",
+  "subject": "Integra circuito #345 (circuito/item-345-item-roadmap-arbol-de-sesiones-activ) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 346,
+  "title": "Item roadmap ciclo de vida de items",
+  "first_commit": "8d6cd981ce61398fc2f9b0d439285a9a16227ad8",
+  "first_date": "2026-07-14T00:01:02-06:00",
+  "last_commit": "8d6cd981ce61398fc2f9b0d439285a9a16227ad8",
+  "last_date": "2026-07-14T00:01:02-06:00",
+  "subject": "Integra circuito #346 (circuito/item-346-item-roadmap-ciclo-de-vida-de-items) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 347,
+  "title": "Item roadmap mostrar numero de item",
+  "first_commit": "9713124fa5a2ec3f278355a614ac2bc3dcc5ad4d",
+  "first_date": "2026-07-11T14:32:47-06:00",
+  "last_commit": "9713124fa5a2ec3f278355a614ac2bc3dcc5ad4d",
+  "last_date": "2026-07-11T14:32:47-06:00",
+  "subject": "Integra circuito #347 (circuito/item-347-item-roadmap-mostrar-numero-de-item) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 351,
+  "title": "Perfil de decisiones de irving loop de",
+  "first_commit": "922de02daddfcbe060c6dfdc5ddcecaa19510727",
+  "first_date": "2026-07-14T16:43:27-06:00",
+  "last_commit": "922de02daddfcbe060c6dfdc5ddcecaa19510727",
+  "last_date": "2026-07-14T16:43:27-06:00",
+  "subject": "Integra circuito #351 (circuito/item-351-perfil-de-decisiones-de-irving-loop-de) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 358,
+  "title": "Item roadmap documentacion completa",
+  "first_commit": "4768202f5c513af97f47694327ff7a7bedcaa86f",
+  "first_date": "2026-07-14T16:39:36-06:00",
+  "last_commit": "4768202f5c513af97f47694327ff7a7bedcaa86f",
+  "last_date": "2026-07-14T16:39:36-06:00",
+  "subject": "Integra circuito #358 (circuito/item-358-item-roadmap-documentacion-completa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 359,
+  "title": "Doc sistema documentar modulo auditori",
+  "first_commit": "97d27a509934b34940413899a6b0c3c7e5280220",
+  "first_date": "2026-07-12T01:52:44-06:00",
+  "last_commit": "97d27a509934b34940413899a6b0c3c7e5280220",
+  "last_date": "2026-07-12T01:52:44-06:00",
+  "subject": "Integra circuito #359 (circuito/item-359-doc-sistema-documentar-modulo-auditori) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 360,
+  "title": "Doc sistema documentar modulo auth q",
+  "first_commit": "9c0e56786c378dee88da7a43e943197c36fa7211",
+  "first_date": "2026-07-12T01:56:57-06:00",
+  "last_commit": "9c0e56786c378dee88da7a43e943197c36fa7211",
+  "last_date": "2026-07-12T01:56:57-06:00",
+  "subject": "Integra circuito #360 (circuito/item-360-doc-sistema-documentar-modulo-auth-q) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 361,
+  "title": "Doc sistema documentar modulo crm qu",
+  "first_commit": "f1b16dcc1135f9775e555cb4972d18de36d9c7a3",
+  "first_date": "2026-07-12T01:56:58-06:00",
+  "last_commit": "f1b16dcc1135f9775e555cb4972d18de36d9c7a3",
+  "last_date": "2026-07-12T01:56:58-06:00",
+  "subject": "Integra circuito #361 (circuito/item-361-doc-sistema-documentar-modulo-crm-qu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 362,
+  "title": "Doc sistema documentar modulo clientes",
+  "first_commit": "1a934b51aa88f09f57ba02214b2fe0d52c6ab9b8",
+  "first_date": "2026-07-12T01:56:29-06:00",
+  "last_commit": "1a934b51aa88f09f57ba02214b2fe0d52c6ab9b8",
+  "last_date": "2026-07-12T01:56:29-06:00",
+  "subject": "Integra circuito #362 (circuito/item-362-doc-sistema-documentar-modulo-clientes) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 363,
+  "title": "Doc sistema documentar modulo cobranza",
+  "first_commit": "6dac431a7ba6f80c4cd0592e64b03e0dedd05730",
+  "first_date": "2026-07-12T01:59:01-06:00",
+  "last_commit": "6dac431a7ba6f80c4cd0592e64b03e0dedd05730",
+  "last_date": "2026-07-12T01:59:01-06:00",
+  "subject": "Integra circuito #363 (circuito/item-363-doc-sistema-documentar-modulo-cobranza) a main",
+  "modulo_inferido": "CobranzaBlaster"
+ },
+ {
+  "orig_id": 364,
+  "title": "Doc sistema documentar modulo configur",
+  "first_commit": "63fc7668ebcab7701a00285d803525008d07fc66",
+  "first_date": "2026-07-12T01:58:48-06:00",
+  "last_commit": "63fc7668ebcab7701a00285d803525008d07fc66",
+  "last_date": "2026-07-12T01:58:48-06:00",
+  "subject": "Integra circuito #364 (circuito/item-364-doc-sistema-documentar-modulo-configur) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 365,
+  "title": "Doc sistema documentar modulo dashboar",
+  "first_commit": "1aad9e78ab274b6d687ea83e92c9ce0c3c1037bc",
+  "first_date": "2026-07-12T01:59:01-06:00",
+  "last_commit": "1aad9e78ab274b6d687ea83e92c9ce0c3c1037bc",
+  "last_date": "2026-07-12T01:59:01-06:00",
+  "subject": "Integra circuito #365 (circuito/item-365-doc-sistema-documentar-modulo-dashboar) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 366,
+  "title": "Doc sistema documentar modulo dev",
+  "first_commit": "02cddd871203a4a689fb4fca3630b3d5ef156c1c",
+  "first_date": "2026-07-12T01:58:35-06:00",
+  "last_commit": "02cddd871203a4a689fb4fca3630b3d5ef156c1c",
+  "last_date": "2026-07-12T01:58:35-06:00",
+  "subject": "Integra circuito #366 (circuito/item-366-doc-sistema-documentar-modulo-dev) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 367,
+  "title": "Doc sistema documentar modulo document",
+  "first_commit": "5219cdc3b457bbe9553465f9ddee5034aae65180",
+  "first_date": "2026-07-12T02:00:02-06:00",
+  "last_commit": "5219cdc3b457bbe9553465f9ddee5034aae65180",
+  "last_date": "2026-07-12T02:00:02-06:00",
+  "subject": "Integra circuito #367 (circuito/item-367-doc-sistema-documentar-modulo-document) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 368,
+  "title": "Doc sistema documentar modulo document",
+  "first_commit": "459b3f4bca538cf36bde18a3b339f930ee3a18a6",
+  "first_date": "2026-07-12T01:59:23-06:00",
+  "last_commit": "459b3f4bca538cf36bde18a3b339f930ee3a18a6",
+  "last_date": "2026-07-12T01:59:23-06:00",
+  "subject": "Integra circuito #368 (circuito/item-368-doc-sistema-documentar-modulo-document) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 369,
+  "title": "Doc sistema documentar modulo domicili",
+  "first_commit": "60c95af28c85ba09b1f04db0f301e822df013adb",
+  "first_date": "2026-07-12T02:01:40-06:00",
+  "last_commit": "60c95af28c85ba09b1f04db0f301e822df013adb",
+  "last_date": "2026-07-12T02:01:40-06:00",
+  "subject": "Integra circuito #369 (circuito/item-369-doc-sistema-documentar-modulo-domicili) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 370,
+  "title": "Doc sistema documentar modulo embajado",
+  "first_commit": "c52fbb8e726a6d09f05b3b960377555626802227",
+  "first_date": "2026-07-12T02:02:27-06:00",
+  "last_commit": "c52fbb8e726a6d09f05b3b960377555626802227",
+  "last_date": "2026-07-12T02:02:27-06:00",
+  "subject": "Integra circuito #370 (circuito/item-370-doc-sistema-documentar-modulo-embajado) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 371,
+  "title": "Doc sistema documentar modulo evaluado",
+  "first_commit": "7d892086af565e253793d24a141a755605958a7e",
+  "first_date": "2026-07-12T02:01:34-06:00",
+  "last_commit": "7d892086af565e253793d24a141a755605958a7e",
+  "last_date": "2026-07-12T02:01:34-06:00",
+  "subject": "Integra circuito #371 (circuito/item-371-doc-sistema-documentar-modulo-evaluado) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 372,
+  "title": "Doc sistema documentar modulo finanzas",
+  "first_commit": "8e6b95b525959415a53e9ab9d15e8cde703517d1",
+  "first_date": "2026-07-12T02:02:02-06:00",
+  "last_commit": "8e6b95b525959415a53e9ab9d15e8cde703517d1",
+  "last_date": "2026-07-12T02:02:02-06:00",
+  "subject": "Integra circuito #372 (circuito/item-372-doc-sistema-documentar-modulo-finanzas) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 373,
+  "title": "Doc sistema documentar modulo flotas",
+  "first_commit": "ee09ce5772675d1105153e22849bffd3fe8bd8d6",
+  "first_date": "2026-07-12T02:03:40-06:00",
+  "last_commit": "ee09ce5772675d1105153e22849bffd3fe8bd8d6",
+  "last_date": "2026-07-12T02:03:40-06:00",
+  "subject": "Integra circuito #373 (circuito/item-373-doc-sistema-documentar-modulo-flotas) a main",
+  "modulo_inferido": "Flotas"
+ },
+ {
+  "orig_id": 374,
+  "title": "Doc sistema documentar modulo gestionr",
+  "first_commit": "069c54bc009b4e5502714097790f03977e12051f",
+  "first_date": "2026-07-12T02:04:06-06:00",
+  "last_commit": "069c54bc009b4e5502714097790f03977e12051f",
+  "last_date": "2026-07-12T02:04:06-06:00",
+  "subject": "Integra circuito #374 (circuito/item-374-doc-sistema-documentar-modulo-gestionr) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 375,
+  "title": "Doc sistema documentar modulo hub",
+  "first_commit": "c8f8b85dcae426a0936247dfcbb61d5e7dabc2e5",
+  "first_date": "2026-07-12T02:04:05-06:00",
+  "last_commit": "c8f8b85dcae426a0936247dfcbb61d5e7dabc2e5",
+  "last_date": "2026-07-12T02:04:05-06:00",
+  "subject": "Integra circuito #375 (circuito/item-375-doc-sistema-documentar-modulo-hub) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 376,
+  "title": "Doc sistema documentar modulo ia que",
+  "first_commit": "7fdf0f5217d5f9ba6d4bc58002bc5bc9e0f61a76",
+  "first_date": "2026-07-12T02:04:58-06:00",
+  "last_commit": "7fdf0f5217d5f9ba6d4bc58002bc5bc9e0f61a76",
+  "last_date": "2026-07-12T02:04:58-06:00",
+  "subject": "Integra circuito #376 (circuito/item-376-doc-sistema-documentar-modulo-ia-que) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 377,
+  "title": "Doc sistema documentar modulo inventar",
+  "first_commit": "10e0c898f3318f84186e11123f8f15f1dea5a802",
+  "first_date": "2026-07-12T02:05:25-06:00",
+  "last_commit": "10e0c898f3318f84186e11123f8f15f1dea5a802",
+  "last_date": "2026-07-12T02:05:25-06:00",
+  "subject": "Integra circuito #377 (circuito/item-377-doc-sistema-documentar-modulo-inventar) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 378,
+  "title": "Doc sistema documentar modulo layout",
+  "first_commit": "332b6da9067598e0c1bfaa40916ebfdf1cd3dc94",
+  "first_date": "2026-07-12T02:06:11-06:00",
+  "last_commit": "332b6da9067598e0c1bfaa40916ebfdf1cd3dc94",
+  "last_date": "2026-07-12T02:06:11-06:00",
+  "subject": "Integra circuito #378 (circuito/item-378-doc-sistema-documentar-modulo-layout) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 379,
+  "title": "Doc sistema documentar modulo localiza",
+  "first_commit": "f09911ada6c08488ba7dd887be64ee7f45a99a04",
+  "first_date": "2026-07-12T02:06:35-06:00",
+  "last_commit": "f09911ada6c08488ba7dd887be64ee7f45a99a04",
+  "last_date": "2026-07-12T02:06:35-06:00",
+  "subject": "Integra circuito #379 (circuito/item-379-doc-sistema-documentar-modulo-localiza) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 380,
+  "title": "Doc sistema documentar modulo manual",
+  "first_commit": "fa2f9e345ec70610e50e0f9e84e4b66c6698ad52",
+  "first_date": "2026-07-12T02:07:30-06:00",
+  "last_commit": "fa2f9e345ec70610e50e0f9e84e4b66c6698ad52",
+  "last_date": "2026-07-12T02:07:30-06:00",
+  "subject": "Integra circuito #380 (circuito/item-380-doc-sistema-documentar-modulo-manual) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 381,
+  "title": "Doc sistema documentar modulo mapas",
+  "first_commit": "40048c30b8c3d5acba40a6b8e7d4a8d0dd4727ca",
+  "first_date": "2026-07-12T02:07:39-06:00",
+  "last_commit": "40048c30b8c3d5acba40a6b8e7d4a8d0dd4727ca",
+  "last_date": "2026-07-12T02:07:39-06:00",
+  "subject": "Integra circuito #381 (circuito/item-381-doc-sistema-documentar-modulo-mapas) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 382,
+  "title": "Doc sistema documentar modulo marketi",
+  "first_commit": "bdd5f8423a3987cf1d23962d0370cfc6526c43e5",
+  "first_date": "2026-07-12T02:08:32-06:00",
+  "last_commit": "bdd5f8423a3987cf1d23962d0370cfc6526c43e5",
+  "last_date": "2026-07-12T02:08:32-06:00",
+  "subject": "Integra circuito #382 (circuito/item-382-doc-sistema-documentar-modulo-marketi) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 383,
+  "title": "Doc sistema documentar modulo megaf",
+  "first_commit": "bc1dc0609da626ce2e077a9018da8cef8d76fe00",
+  "first_date": "2026-07-12T02:11:49-06:00",
+  "last_commit": "bc1dc0609da626ce2e077a9018da8cef8d76fe00",
+  "last_date": "2026-07-12T02:11:49-06:00",
+  "subject": "Integra circuito #383 (circuito/item-383-doc-sistema-documentar-modulo-megaf) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 384,
+  "title": "Doc sistema documentar modulo mensajes",
+  "first_commit": "7c48716062393b51e7cbd132c7788642d7827d0e",
+  "first_date": "2026-07-12T02:12:39-06:00",
+  "last_commit": "7c48716062393b51e7cbd132c7788642d7827d0e",
+  "last_date": "2026-07-12T02:12:39-06:00",
+  "subject": "Integra circuito #384 (circuito/item-384-doc-sistema-documentar-modulo-mensajes) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 385,
+  "title": "Doc sistema documentar modulo modulema",
+  "first_commit": "8d1ee778403b730e2aa973cdc21f918bcc4f764c",
+  "first_date": "2026-07-12T02:10:48-06:00",
+  "last_commit": "8d1ee778403b730e2aa973cdc21f918bcc4f764c",
+  "last_date": "2026-07-12T02:10:48-06:00",
+  "subject": "Integra circuito #385 (circuito/item-385-doc-sistema-documentar-modulo-modulema) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 386,
+  "title": "Doc sistema documentar modulo payments",
+  "first_commit": "91f82ad58ee1052865f4300949d2f60aea3b612a",
+  "first_date": "2026-07-12T02:10:12-06:00",
+  "last_commit": "91f82ad58ee1052865f4300949d2f60aea3b612a",
+  "last_date": "2026-07-12T02:10:12-06:00",
+  "subject": "Integra circuito #386 (circuito/item-386-doc-sistema-documentar-modulo-payments) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 387,
+  "title": "Doc sistema documentar modulo planes",
+  "first_commit": "85a945ae6b7925deb6519699cbcc99541aa6feaa",
+  "first_date": "2026-07-12T02:12:05-06:00",
+  "last_commit": "85a945ae6b7925deb6519699cbcc99541aa6feaa",
+  "last_date": "2026-07-12T02:12:05-06:00",
+  "subject": "Integra circuito #387 (circuito/item-387-doc-sistema-documentar-modulo-planes) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 388,
+  "title": "Doc sistema documentar modulo portalcl",
+  "first_commit": "c36f1a3bd9a56f4ba1a6214d4cb9be85bcb96f85",
+  "first_date": "2026-07-12T02:13:28-06:00",
+  "last_commit": "c36f1a3bd9a56f4ba1a6214d4cb9be85bcb96f85",
+  "last_date": "2026-07-12T02:13:28-06:00",
+  "subject": "Integra circuito #388 (circuito/item-388-doc-sistema-documentar-modulo-portalcl) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 389,
+  "title": "Doc sistema documentar modulo portalpa",
+  "first_commit": "2ae90fe8f7cb8ae0be253ff30f7e606e69b29ae9",
+  "first_date": "2026-07-12T02:14:02-06:00",
+  "last_commit": "2ae90fe8f7cb8ae0be253ff30f7e606e69b29ae9",
+  "last_date": "2026-07-12T02:14:02-06:00",
+  "subject": "Integra circuito #389 (circuito/item-389-doc-sistema-documentar-modulo-portalpa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 390,
+  "title": "Doc sistema documentar modulo release",
+  "first_commit": "b9d6cc2170d4791914ad44e6d84dc0a740bd39cc",
+  "first_date": "2026-07-12T02:14:57-06:00",
+  "last_commit": "b9d6cc2170d4791914ad44e6d84dc0a740bd39cc",
+  "last_date": "2026-07-12T02:14:57-06:00",
+  "subject": "Integra circuito #390 (circuito/item-390-doc-sistema-documentar-modulo-release) a main",
+  "modulo_inferido": "Deploy / Releases"
+ },
+ {
+  "orig_id": 391,
+  "title": "Doc sistema documentar modulo reportes",
+  "first_commit": "096c0f0f4ac4567b709b38df0ad1ee6792be4c12",
+  "first_date": "2026-07-12T02:15:55-06:00",
+  "last_commit": "096c0f0f4ac4567b709b38df0ad1ee6792be4c12",
+  "last_date": "2026-07-12T02:15:55-06:00",
+  "subject": "Integra circuito #391 (circuito/item-391-doc-sistema-documentar-modulo-reportes) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 392,
+  "title": "Doc sistema documentar modulo roadmap",
+  "first_commit": "3749ff9a383ea7fc65afa6b7071d287d688bd5a0",
+  "first_date": "2026-07-12T02:16:20-06:00",
+  "last_commit": "3749ff9a383ea7fc65afa6b7071d287d688bd5a0",
+  "last_date": "2026-07-12T02:16:20-06:00",
+  "subject": "Integra circuito #392 (circuito/item-392-doc-sistema-documentar-modulo-roadmap) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 393,
+  "title": "Doc sistema documentar modulo scheduli",
+  "first_commit": "61b2f6cb5ceb4264d49fd656573d503e6d6eabac",
+  "first_date": "2026-07-12T02:17:56-06:00",
+  "last_commit": "61b2f6cb5ceb4264d49fd656573d503e6d6eabac",
+  "last_date": "2026-07-12T02:17:56-06:00",
+  "subject": "Integra circuito #393 (circuito/item-393-doc-sistema-documentar-modulo-scheduli) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 394,
+  "title": "Doc sistema documentar modulo security",
+  "first_commit": "0279a3bee25637fb5c7acb66a1309522a86b3888",
+  "first_date": "2026-07-12T02:16:29-06:00",
+  "last_commit": "0279a3bee25637fb5c7acb66a1309522a86b3888",
+  "last_date": "2026-07-12T02:16:29-06:00",
+  "subject": "Integra circuito #394 (circuito/item-394-doc-sistema-documentar-modulo-security) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 395,
+  "title": "Doc sistema documentar modulo smartimp",
+  "first_commit": "e900806720ab9a68a42c16ce4fb71115d93113c5",
+  "first_date": "2026-07-12T02:19:03-06:00",
+  "last_commit": "e900806720ab9a68a42c16ce4fb71115d93113c5",
+  "last_date": "2026-07-12T02:19:03-06:00",
+  "subject": "Integra circuito #395 (circuito/item-395-doc-sistema-documentar-modulo-smartimp) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 396,
+  "title": "Doc sistema documentar modulo talen",
+  "first_commit": "7f4263661dee8b1780a313c7148717bf8f6361fc",
+  "first_date": "2026-07-12T02:19:03-06:00",
+  "last_commit": "7f4263661dee8b1780a313c7148717bf8f6361fc",
+  "last_date": "2026-07-12T02:19:03-06:00",
+  "subject": "Integra circuito #396 (circuito/item-396-doc-sistema-documentar-modulo-talen) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 398,
+  "title": "Doc sistema documentar modulo usuarios",
+  "first_commit": "9db0dea5852ed9fa486c174f9b9b91371466f061",
+  "first_date": "2026-07-12T02:19:37-06:00",
+  "last_commit": "9db0dea5852ed9fa486c174f9b9b91371466f061",
+  "last_date": "2026-07-12T02:19:37-06:00",
+  "subject": "Integra circuito #398 (circuito/item-398-doc-sistema-documentar-modulo-usuarios) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 399,
+  "title": "Doc sistema documentar modulo vend",
+  "first_commit": "36ce51ea28bbeb7823d594d025d98ccbbc1dbdfa",
+  "first_date": "2026-07-12T02:19:02-06:00",
+  "last_commit": "36ce51ea28bbeb7823d594d025d98ccbbc1dbdfa",
+  "last_date": "2026-07-12T02:19:02-06:00",
+  "subject": "Integra circuito #399 (circuito/item-399-doc-sistema-documentar-modulo-vend) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 400,
+  "title": "Doc sistema documentar modulo voip q",
+  "first_commit": "a7390de4a09c2d618fce1fd36791b60030a77c57",
+  "first_date": "2026-07-12T02:19:50-06:00",
+  "last_commit": "a7390de4a09c2d618fce1fd36791b60030a77c57",
+  "last_date": "2026-07-12T02:19:50-06:00",
+  "subject": "Integra circuito #400 (circuito/item-400-doc-sistema-documentar-modulo-voip-q) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 401,
+  "title": "Doc sistema documentar modulo voice",
+  "first_commit": "aaf1b9485535c5e02de2dc07079bc2f4365f836b",
+  "first_date": "2026-07-12T02:22:02-06:00",
+  "last_commit": "aaf1b9485535c5e02de2dc07079bc2f4365f836b",
+  "last_date": "2026-07-12T02:22:02-06:00",
+  "subject": "Integra circuito #401 (circuito/item-401-doc-sistema-documentar-modulo-voice) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 402,
+  "title": "Doc sistema documentar modulo warroom",
+  "first_commit": "51c7b722e9da7432487ce11d900e752b4c678d74",
+  "first_date": "2026-07-12T02:22:03-06:00",
+  "last_commit": "51c7b722e9da7432487ce11d900e752b4c678d74",
+  "last_date": "2026-07-12T02:22:03-06:00",
+  "subject": "Integra circuito #402 (circuito/item-402-doc-sistema-documentar-modulo-warroom) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 403,
+  "title": "Doc sistema documentar modulo whatsapp",
+  "first_commit": "08d8c6fa31be87e7c0c8083f978c565e69ec8e35",
+  "first_date": "2026-07-12T02:22:18-06:00",
+  "last_commit": "08d8c6fa31be87e7c0c8083f978c565e69ec8e35",
+  "last_date": "2026-07-12T02:22:18-06:00",
+  "subject": "Integra circuito #403 (circuito/item-403-doc-sistema-documentar-modulo-whatsapp) a main",
+  "modulo_inferido": "Marketing"
+ },
+ {
+  "orig_id": 404,
+  "title": "Doc sistema boton escuchar doc",
+  "first_commit": "297138dd2471a5879a9215dc1dbb92ff72cc3811",
+  "first_date": "2026-07-14T16:36:02-06:00",
+  "last_commit": "297138dd2471a5879a9215dc1dbb92ff72cc3811",
+  "last_date": "2026-07-14T16:36:02-06:00",
+  "subject": "Integra circuito #404 (circuito/item-404-doc-sistema-boton-escuchar-doc) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 412,
+  "title": "Prompt para cc boton escuchar tts",
+  "first_commit": "a26c036c983c99c75ae6552e72cc0e35ddaf10bd",
+  "first_date": "2026-07-14T08:57:43-06:00",
+  "last_commit": "a26c036c983c99c75ae6552e72cc0e35ddaf10bd",
+  "last_date": "2026-07-14T08:57:43-06:00",
+  "subject": "Integra circuito #412 (circuito/item-412-prompt-para-cc-boton-escuchar-tts) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 414,
+  "title": "Olt alinear verificador de permisos propio",
+  "first_commit": "48c88d0b14d49efcd8b0f8730dfe69cf13856f15",
+  "first_date": "2026-07-12T13:12:03-06:00",
+  "last_commit": "48c88d0b14d49efcd8b0f8730dfe69cf13856f15",
+  "last_date": "2026-07-12T13:12:03-06:00",
+  "subject": "Integra circuito #414 (circuito/item-414-olt-alinear-verificador-de-permisos-propio) a main",
+  "modulo_inferido": "Permisos / Roles"
+ },
+ {
+  "orig_id": 415,
+  "title": "Olt decision retomar o congelar la pa",
+  "first_commit": "c3769dfa63f7c10ac8aa2afa415ae0ac8f765e83",
+  "first_date": "2026-07-14T16:33:02-06:00",
+  "last_commit": "c3769dfa63f7c10ac8aa2afa415ae0ac8f765e83",
+  "last_date": "2026-07-14T16:33:02-06:00",
+  "subject": "Integra circuito #415 (circuito/item-415-olt-decision-retomar-o-congelar-la-pa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 416,
+  "title": "Olt decision de arquitectura saas mult",
+  "first_commit": "48724c216caa5f44aabfe6d898038838ca415f3f",
+  "first_date": "2026-08-08T16:58:48-06:00",
+  "last_commit": "48724c216caa5f44aabfe6d898038838ca415f3f",
+  "last_date": "2026-08-08T16:58:48-06:00",
+  "subject": "Integra circuito #416 (circuito/item-416-olt-decision-de-arquitectura-saas-mult) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 417,
+  "title": "En la vista del roadmapreleases ruta q",
+  "first_commit": "393b002b34a7a3496dc26f098739fbe31d40ba35",
+  "first_date": "2026-07-13T12:17:42-06:00",
+  "last_commit": "393b002b34a7a3496dc26f098739fbe31d40ba35",
+  "last_date": "2026-07-13T12:17:42-06:00",
+  "subject": "Integra circuito #417 (circuito/item-417-en-la-vista-del-roadmapreleases-ruta-q) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 418,
+  "title": "Corregir merge",
+  "first_commit": "d2bcb99f96416dc1f46ce30693388d429ca51ca1",
+  "first_date": "2026-07-13T12:17:23-06:00",
+  "last_commit": "d2bcb99f96416dc1f46ce30693388d429ca51ca1",
+  "last_date": "2026-07-13T12:17:23-06:00",
+  "subject": "Integra circuito #418 (circuito/item-418-corregir-merge) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 420,
+  "title": "Deuda circuito 35 items completado c",
+  "first_commit": "eff40ff35836ae5c4b6b33c778a50267e3731799",
+  "first_date": "2026-07-13T09:10:03-06:00",
+  "last_commit": "eff40ff35836ae5c4b6b33c778a50267e3731799",
+  "last_date": "2026-07-13T09:10:03-06:00",
+  "subject": "Integra circuito #420 (circuito/item-420-deuda-circuito-35-items-completado-c) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 424,
+  "title": "Ui seleccion de voces es mx para esc",
+  "first_commit": "3e955c588188bfa1f09d3e220b422ec0b07c0f3f",
+  "first_date": "2026-07-13T10:56:02-06:00",
+  "last_commit": "3e955c588188bfa1f09d3e220b422ec0b07c0f3f",
+  "last_date": "2026-07-13T10:56:02-06:00",
+  "subject": "Integra circuito #424 (circuito/item-424-ui-seleccion-de-voces-es-mx-para-esc) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 426,
+  "title": "Detalle item roadmap",
+  "first_commit": "e58f80a8f78014c7290070aba7315cb2b8f82d75",
+  "first_date": "2026-07-13T12:16:15-06:00",
+  "last_commit": "e58f80a8f78014c7290070aba7315cb2b8f82d75",
+  "last_date": "2026-07-13T12:16:15-06:00",
+  "subject": "Integra circuito #426 (circuito/item-426-detalle-item-roadmap) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 427,
+  "title": "Circuito generar reporte coloquial par",
+  "first_commit": "ecb4a2d4d0c537c8d4af54c0ae2286e30705385d",
+  "first_date": "2026-07-13T11:35:33-06:00",
+  "last_commit": "ecb4a2d4d0c537c8d4af54c0ae2286e30705385d",
+  "last_date": "2026-07-13T11:35:33-06:00",
+  "subject": "Integra circuito #427 (circuito/item-427-circuito-generar-reporte-coloquial-par) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 429,
+  "title": "Auditoria bandeja pendiente revision 1",
+  "first_commit": "99fb829dd1dc218d510cc613f563c920c9091ff2",
+  "first_date": "2026-07-14T08:25:02-06:00",
+  "last_commit": "99fb829dd1dc218d510cc613f563c920c9091ff2",
+  "last_date": "2026-07-14T08:25:02-06:00",
+  "subject": "Integra circuito #429 (circuito/item-429-auditoria-bandeja-pendiente-revision-1) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 431,
+  "title": "Arquitectura consola del supervisor",
+  "first_commit": "4da1cf105f91d10e7cf5e85cb13cdf0cddb509d6",
+  "first_date": "2026-07-14T08:21:10-06:00",
+  "last_commit": "4da1cf105f91d10e7cf5e85cb13cdf0cddb509d6",
+  "last_date": "2026-07-14T08:21:10-06:00",
+  "subject": "Integra circuito #431 (circuito/item-431-arquitectura-consola-del-supervisor) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 434,
+  "title": "Circuito ccregla el versionado nunca",
+  "first_commit": "7b5f56c91e001746667b8ad321808fcfda11ec68",
+  "first_date": "2026-07-14T08:17:33-06:00",
+  "last_commit": "7b5f56c91e001746667b8ad321808fcfda11ec68",
+  "last_date": "2026-07-14T08:17:33-06:00",
+  "subject": "Integra circuito #434 (circuito/item-434-circuito-ccregla-el-versionado-nunca) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 435,
+  "title": "Circuito ccui mostrar el numero de i",
+  "first_commit": "dc90589a4f230c51c9dad96d73c6023d5d11c0b2",
+  "first_date": "2026-07-14T08:14:02-06:00",
+  "last_commit": "dc90589a4f230c51c9dad96d73c6023d5d11c0b2",
+  "last_date": "2026-07-14T08:14:02-06:00",
+  "subject": "Integra circuito #435 (circuito/item-435-circuito-ccui-mostrar-el-numero-de-i) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 436,
+  "title": "Circuito ccui agregar item priori",
+  "first_commit": "20921fe3546451728da4566cc7649211d1401dd1",
+  "first_date": "2026-07-13T20:58:47-06:00",
+  "last_commit": "20921fe3546451728da4566cc7649211d1401dd1",
+  "last_date": "2026-07-13T20:58:47-06:00",
+  "subject": "Integra circuito #436 (circuito/item-436-circuito-ccui-agregar-item-priori) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 437,
+  "title": "Epico a fase 3 redefinida",
+  "first_commit": "60841beb9990683625a9bcc26d6aa9aff73d4dc2",
+  "first_date": "2026-07-14T21:14:02-06:00",
+  "last_commit": "60841beb9990683625a9bcc26d6aa9aff73d4dc2",
+  "last_date": "2026-07-14T21:14:02-06:00",
+  "subject": "Integra circuito #437 (circuito/item-437-epico-a-fase-3-redefinida) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 438,
+  "title": "Circuito cc colision en vuelo pausar",
+  "first_commit": "b0bb0245530b120fd472a9880ca9e62637932b85",
+  "first_date": "2026-07-14T18:42:03-06:00",
+  "last_commit": "b0bb0245530b120fd472a9880ca9e62637932b85",
+  "last_date": "2026-07-14T18:42:03-06:00",
+  "subject": "Integra circuito #438 (circuito/item-438-circuito-cc-colision-en-vuelo-pausar) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 439,
+  "title": "Circuito cc clasificar todos los items",
+  "first_commit": "fcfee9bee1a804782923635b3c2ba884c2de233e",
+  "first_date": "2026-07-14T16:27:02-06:00",
+  "last_commit": "fcfee9bee1a804782923635b3c2ba884c2de233e",
+  "last_date": "2026-07-14T16:27:02-06:00",
+  "subject": "Integra circuito #439 (circuito/item-439-circuito-cc-clasificar-todos-los-items) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 440,
+  "title": "Circuito cc barrido de la bandeja re",
+  "first_commit": "3e837fee2fa6bb77b01e319651a7b978ae51b17b",
+  "first_date": "2026-07-14T08:13:02-06:00",
+  "last_commit": "3e837fee2fa6bb77b01e319651a7b978ae51b17b",
+  "last_date": "2026-07-14T08:13:02-06:00",
+  "subject": "Integra circuito #440 (circuito/item-440-circuito-cc-barrido-de-la-bandeja-re) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 456,
+  "title": "Investigar causa raiz por que la bandej",
+  "first_commit": "cca73f64aa050e01d3fecf267b2d618f596722d4",
+  "first_date": "2026-07-13T23:14:03-06:00",
+  "last_commit": "cca73f64aa050e01d3fecf267b2d618f596722d4",
+  "last_date": "2026-07-13T23:14:03-06:00",
+  "subject": "Integra circuito #456 (circuito/item-456-investigar-causa-raiz-por-que-la-bandej) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 462,
+  "title": "Reglas de estabilidad minimalismo al a",
+  "first_commit": "3f616bee3c55e7b5006dd69276a93419c3826515",
+  "first_date": "2026-07-14T01:12:03-06:00",
+  "last_commit": "3f616bee3c55e7b5006dd69276a93419c3826515",
+  "last_date": "2026-07-14T01:12:03-06:00",
+  "subject": "Integra circuito #462 (circuito/item-462-reglas-de-estabilidad-minimalismo-al-a) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 464,
+  "title": "Crear item completo insert y construir",
+  "first_commit": "3672ac88e54e324df9622d930f9087522ad6ab98",
+  "first_date": "2026-07-14T08:54:02-06:00",
+  "last_commit": "3672ac88e54e324df9622d930f9087522ad6ab98",
+  "last_date": "2026-07-14T08:54:02-06:00",
+  "subject": "Integra circuito #464 (circuito/item-464-crear-item-completo-insert-y-construir) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 474,
+  "title": "Arquitecturaclientesmulti terminal",
+  "first_commit": "677138445dfbe45f6469daa513735d836de57721",
+  "first_date": "2026-08-08T16:58:49-06:00",
+  "last_commit": "677138445dfbe45f6469daa513735d836de57721",
+  "last_date": "2026-08-08T16:58:49-06:00",
+  "subject": "Integra circuito #474 (circuito/item-474-arquitecturaclientesmulti-terminal) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 475,
+  "title": "Ajustar terminales",
+  "first_commit": "d3a5a29e90661916310bf312f78f4ef2c1d12bc4",
+  "first_date": "2026-07-14T21:39:02-06:00",
+  "last_commit": "d3a5a29e90661916310bf312f78f4ef2c1d12bc4",
+  "last_date": "2026-07-14T21:39:02-06:00",
+  "subject": "Integra circuito #475 (circuito/item-475-ajustar-terminales) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 476,
+  "title": "Quitar regla de solo una tarea a la vez",
+  "first_commit": "cf06fe51a9ed1c31549ba2700fffbca1322d0827",
+  "first_date": "2026-07-14T18:47:02-06:00",
+  "last_commit": "cf06fe51a9ed1c31549ba2700fffbca1322d0827",
+  "last_date": "2026-07-14T18:47:02-06:00",
+  "subject": "Integra circuito #476 (circuito/item-476-quitar-regla-de-solo-una-tarea-a-la-vez) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 477,
+  "title": "Tu bandeja requiere tu decision 20",
+  "first_commit": "3b9b190196b79763cd07e4a6fa012bb5b327e696",
+  "first_date": "2026-07-14T18:54:03-06:00",
+  "last_commit": "24b981dc8af694440511c047d32d2ae81be2fe19",
+  "last_date": "2026-07-14T19:46:03-06:00",
+  "subject": "Integra circuito #477 (circuito/item-477-tu-bandeja-requiere-tu-decision-20) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 480,
+  "title": "Boton agregar",
+  "first_commit": "af2b538e0070859a7cb0587d35955b11a6a6b0db",
+  "first_date": "2026-08-09T10:12:03-06:00",
+  "last_commit": "af2b538e0070859a7cb0587d35955b11a6a6b0db",
+  "last_date": "2026-08-09T10:12:03-06:00",
+  "subject": "Integra circuito #480 (circuito/item-480-boton-agregar) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 481,
+  "title": "Crear un acceso directo en sidebar",
+  "first_commit": "82a901c7974344cf0be9b143d43c58ba90f8662a",
+  "first_date": "2026-07-14T22:22:02-06:00",
+  "last_commit": "82a901c7974344cf0be9b143d43c58ba90f8662a",
+  "last_date": "2026-07-14T22:22:02-06:00",
+  "subject": "Integra circuito #481 (circuito/item-481-crear-un-acceso-directo-en-sidebar) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 482,
+  "title": "Cola ejecutable lo que el circuito aut",
+  "first_commit": "c1568d7763d15a082e8f8e84f196041f689af98d",
+  "first_date": "2026-07-15T10:45:02-06:00",
+  "last_commit": "c1568d7763d15a082e8f8e84f196041f689af98d",
+  "last_date": "2026-07-15T10:45:02-06:00",
+  "subject": "Integra circuito #482 (circuito/item-482-cola-ejecutable-lo-que-el-circuito-aut) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 483,
+  "title": "Portal colaborador",
+  "first_commit": "435cdc77e2449ce1a09c46ae409de6fb617ea3ec",
+  "first_date": "2026-08-08T16:58:49-06:00",
+  "last_commit": "435cdc77e2449ce1a09c46ae409de6fb617ea3ec",
+  "last_date": "2026-08-08T16:58:49-06:00",
+  "subject": "Integra circuito #483 (circuito/item-483-portal-colaborador) a main",
+  "modulo_inferido": "Talento"
+ },
+ {
+  "orig_id": 484,
+  "title": "Asesorcobranza implementar una secuen",
+  "first_commit": "f5818bf05d63997f17c31b0f9e5e3d4438a6f66f",
+  "first_date": "2026-08-09T11:50:04-06:00",
+  "last_commit": "f5818bf05d63997f17c31b0f9e5e3d4438a6f66f",
+  "last_date": "2026-08-09T11:50:04-06:00",
+  "subject": "Integra circuito #484 (circuito/item-484-asesorcobranza-implementar-una-secuen) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 488,
+  "title": "Buscar actualizaciones reporta estas",
+  "first_commit": "0ec953d641504f0201bb0ca329319fb5c9617afe",
+  "first_date": "2026-08-08T16:58:50-06:00",
+  "last_commit": "0ec953d641504f0201bb0ca329319fb5c9617afe",
+  "last_date": "2026-08-08T16:58:50-06:00",
+  "subject": "Integra circuito #488 (circuito/item-488-buscar-actualizaciones-reporta-estas) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 490,
+  "title": "Megafamilia app padre dashboard princi",
+  "first_commit": "5fa00529f7d022405ae72914b7cad3c6f1540a7c",
+  "first_date": "2026-08-04T23:12:02-06:00",
+  "last_commit": "5fa00529f7d022405ae72914b7cad3c6f1540a7c",
+  "last_date": "2026-08-04T23:12:02-06:00",
+  "subject": "Integra circuito #490 (circuito/item-490-megafamilia-app-padre-dashboard-princi) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 491,
+  "title": "Megafamilia app padre pagos pdf reco",
+  "first_commit": "3b64d45ff57ccbac08a925805424f6580613fd27",
+  "first_date": "2026-08-08T16:58:51-06:00",
+  "last_commit": "3b64d45ff57ccbac08a925805424f6580613fd27",
+  "last_date": "2026-08-08T16:58:51-06:00",
+  "subject": "Integra circuito #491 (circuito/item-491-megafamilia-app-padre-pagos-pdf-reco) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 493,
+  "title": "Megafamilia app padre consumos y veloc",
+  "first_commit": "a130a0065e1df2ef3975ae1798cc1ff832b5d7e2",
+  "first_date": "2026-08-08T17:36:03-06:00",
+  "last_commit": "a130a0065e1df2ef3975ae1798cc1ff832b5d7e2",
+  "last_date": "2026-08-08T17:36:03-06:00",
+  "subject": "Integra circuito #493 (circuito/item-493-megafamilia-app-padre-consumos-y-veloc) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 494,
+  "title": "Megafamilia app padre tickets de sopor",
+  "first_commit": "d82c119c234f0d327ec4cde3cae0ecd6a24ec8bc",
+  "first_date": "2026-08-20T16:25:03-06:00",
+  "last_commit": "d82c119c234f0d327ec4cde3cae0ecd6a24ec8bc",
+  "last_date": "2026-08-20T16:25:03-06:00",
+  "subject": "Integra circuito #494 (circuito/item-494-megafamilia-app-padre-tickets-de-sopor) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 498,
+  "title": "Megafamilia migraciones pin del hijo",
+  "first_commit": "b1dff88a5f07669cfedd42e41fe100aafd023980",
+  "first_date": "2026-08-04T22:48:03-06:00",
+  "last_commit": "b1dff88a5f07669cfedd42e41fe100aafd023980",
+  "last_date": "2026-08-04T22:48:03-06:00",
+  "subject": "Integra circuito #498 (circuito/item-498-megafamilia-migraciones-pin-del-hijo) a main",
+  "modulo_inferido": "Deploy / Releases"
+ },
+ {
+  "orig_id": 502,
+  "title": "Ddno conectado en routercontroller r",
+  "first_commit": "8fc0a29fdb7a6df67f827866a44937aa949a2b2e",
+  "first_date": "2026-08-04T17:15:03-06:00",
+  "last_commit": "8fc0a29fdb7a6df67f827866a44937aa949a2b2e",
+  "last_date": "2026-08-04T17:15:03-06:00",
+  "subject": "Integra circuito #502 (circuito/item-502-ddno-conectado-en-routercontroller-r) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 503,
+  "title": "Dde en catch de portcontrollerstore",
+  "first_commit": "d2ea57964bd3f8190e13b750707fef454a964601",
+  "first_date": "2026-08-04T17:14:02-06:00",
+  "last_commit": "d2ea57964bd3f8190e13b750707fef454a964601",
+  "last_date": "2026-08-04T17:14:02-06:00",
+  "subject": "Integra circuito #503 (circuito/item-503-dde-en-catch-de-portcontrollerstore) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 504,
+  "title": "Dd en updatestartandfinishdateservice",
+  "first_commit": "154e800c3f4b527ecc84a5a39a56dc54ee633ab6",
+  "first_date": "2026-08-04T17:15:03-06:00",
+  "last_commit": "154e800c3f4b527ecc84a5a39a56dc54ee633ab6",
+  "last_date": "2026-08-04T17:15:03-06:00",
+  "subject": "Integra circuito #504 (circuito/item-504-dd-en-updatestartandfinishdateservice) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 506,
+  "title": "Networkcontrollerstore usa dispatchaft",
+  "first_commit": "a20a07c9941a700c5f366e05a09fde255e6b0a01",
+  "first_date": "2026-08-04T17:18:02-06:00",
+  "last_commit": "a20a07c9941a700c5f366e05a09fde255e6b0a01",
+  "last_date": "2026-08-04T17:18:02-06:00",
+  "subject": "Integra circuito #506 (circuito/item-506-networkcontrollerstore-usa-dispatchaft) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 520,
+  "title": "Item erradicar el riesgo de configcac",
+  "first_commit": "bff38d65e0178c9d7e2ccde77b8d954b951a8af6",
+  "first_date": "2026-08-08T16:58:51-06:00",
+  "last_commit": "bff38d65e0178c9d7e2ccde77b8d954b951a8af6",
+  "last_date": "2026-08-08T16:58:51-06:00",
+  "subject": "Integra circuito #520 (circuito/item-520-item-erradicar-el-riesgo-de-configcac) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 532,
+  "title": "Mapas oscar no ve la capa satelital p",
+  "first_commit": "e626a51cc8c084f51cc2ad3f9a4811980a8b5564",
+  "first_date": "2026-08-08T11:06:00-06:00",
+  "last_commit": "e626a51cc8c084f51cc2ad3f9a4811980a8b5564",
+  "last_date": "2026-08-08T11:06:00-06:00",
+  "subject": "Integra circuito #532 (circuito/item-532-mapas-oscar-no-ve-la-capa-satelital-p) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 533,
+  "title": "Reconciliar las 48 migraciones fantasma",
+  "first_commit": "9e52956fdd532b9c7e749e3386a7d33333846291",
+  "first_date": "2026-08-08T11:09:54-06:00",
+  "last_commit": "9e52956fdd532b9c7e749e3386a7d33333846291",
+  "last_date": "2026-08-08T11:09:54-06:00",
+  "subject": "Integra circuito #533 (circuito/item-533-reconciliar-las-48-migraciones-fantasma) a main",
+  "modulo_inferido": "Deploy / Releases"
+ },
+ {
+  "orig_id": 534,
+  "title": "Guardrail ninguna migracion debe poder",
+  "first_commit": "e37e005b86c3b054dde3635f29feeafff8f9cbc8",
+  "first_date": "2026-08-09T12:48:03-06:00",
+  "last_commit": "e37e005b86c3b054dde3635f29feeafff8f9cbc8",
+  "last_date": "2026-08-09T12:48:03-06:00",
+  "subject": "Integra circuito #534 (circuito/item-534-guardrail-ninguna-migracion-debe-poder) a main",
+  "modulo_inferido": "Deploy / Releases"
+ },
+ {
+  "orig_id": 536,
+  "title": "Titulo regresion visual global sideba",
+  "first_commit": "76e9bdab1b8cd6cb1bb298eebd0550bff11841df",
+  "first_date": "2026-08-08T16:58:52-06:00",
+  "last_commit": "76e9bdab1b8cd6cb1bb298eebd0550bff11841df",
+  "last_date": "2026-08-08T16:58:52-06:00",
+  "subject": "Integra circuito #536 (circuito/item-536-titulo-regresion-visual-global-sideba) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 537,
+  "title": "Reemplazaexpande el item previo de aut",
+  "first_commit": "048319762d7635c920145b0f5085e8fbde247b48",
+  "first_date": "2026-08-08T17:03:01-06:00",
+  "last_commit": "048319762d7635c920145b0f5085e8fbde247b48",
+  "last_date": "2026-08-08T17:03:01-06:00",
+  "subject": "Integra circuito #537 (circuito/item-537-reemplazaexpande-el-item-previo-de-aut) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 538,
+  "title": "Item hoja de ruta nivel riesgo b es",
+  "first_commit": "a64c3f2cea0257fd80ebbd71d80e1f5f110cfca5",
+  "first_date": "2026-08-08T17:03:03-06:00",
+  "last_commit": "a64c3f2cea0257fd80ebbd71d80e1f5f110cfca5",
+  "last_date": "2026-08-08T17:03:03-06:00",
+  "subject": "Integra circuito #538 (circuito/item-538-item-hoja-de-ruta-nivel-riesgo-b-es) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 540,
+  "title": "Regla de solo 1 en progreso",
+  "first_commit": "a6eb7fb5ad60ed165be63ac61669e75d090703f3",
+  "first_date": "2026-08-08T11:09:55-06:00",
+  "last_commit": "a6eb7fb5ad60ed165be63ac61669e75d090703f3",
+  "last_date": "2026-08-08T11:09:55-06:00",
+  "subject": "Integra circuito #540 (circuito/item-540-regla-de-solo-1-en-progreso) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 545,
+  "title": "Memoria de preferencias de irving el ci",
+  "first_commit": "baf4e080b319f1916d811f24de7f3d3d35299f03",
+  "first_date": "2026-08-08T17:07:31-06:00",
+  "last_commit": "baf4e080b319f1916d811f24de7f3d3d35299f03",
+  "last_date": "2026-08-08T17:07:31-06:00",
+  "subject": "Integra circuito #545 (circuito/item-545-memoria-de-preferencias-de-irving-el-ci) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 546,
+  "title": "Reloj en regresion por terminal eta c",
+  "first_commit": "e84293109d35e9ad4a3621e92734919fe1bd463b",
+  "first_date": "2026-08-09T12:05:02-06:00",
+  "last_commit": "e84293109d35e9ad4a3621e92734919fe1bd463b",
+  "last_date": "2026-08-09T12:05:02-06:00",
+  "subject": "Integra circuito #546 (circuito/item-546-reloj-en-regresion-por-terminal-eta-c) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 547,
+  "title": "Fix items terminados esperan merge q",
+  "first_commit": "19d38b3f26e13e23d750cc050e924034785ec0ac",
+  "first_date": "2026-08-09T11:50:06-06:00",
+  "last_commit": "19d38b3f26e13e23d750cc050e924034785ec0ac",
+  "last_date": "2026-08-09T11:50:06-06:00",
+  "subject": "Integra circuito #547 (circuito/item-547-fix-items-terminados-esperan-merge-q) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 555,
+  "title": "Circuito bandera politica en circuito",
+  "first_commit": "ea744de0104ceda2fa6fb68ff9658adfa2285f5c",
+  "first_date": "2026-08-08T11:37:02-06:00",
+  "last_commit": "ea744de0104ceda2fa6fb68ff9658adfa2285f5c",
+  "last_date": "2026-08-08T11:37:02-06:00",
+  "subject": "Integra circuito #555 (circuito/item-555-circuito-bandera-politica-en-circuito) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 556,
+  "title": "Circuito nombre legible del worker en e",
+  "first_commit": "502a486693bfc6ade2d7d8fbf30ddb61b4f9dd85",
+  "first_date": "2026-08-08T11:38:03-06:00",
+  "last_commit": "502a486693bfc6ade2d7d8fbf30ddb61b4f9dd85",
+  "last_date": "2026-08-08T11:38:03-06:00",
+  "subject": "Integra circuito #556 (circuito/item-556-circuito-nombre-legible-del-worker-en-e) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 557,
+  "title": "Instruccion de uso cada bloque separado",
+  "first_commit": "a06357d246c89f1fd88b2ddb48bcc1bdc14ccda3",
+  "first_date": "2026-08-08T17:07:32-06:00",
+  "last_commit": "a06357d246c89f1fd88b2ddb48bcc1bdc14ccda3",
+  "last_date": "2026-08-08T17:07:32-06:00",
+  "subject": "Integra circuito #557 (circuito/item-557-instruccion-de-uso-cada-bloque-separado) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 560,
+  "title": "Marcador visual circuito cc v2 en rel",
+  "first_commit": "28b9530f862339039584e81ab9f4bf295108000a",
+  "first_date": "2026-08-08T12:21:02-06:00",
+  "last_commit": "28b9530f862339039584e81ab9f4bf295108000a",
+  "last_date": "2026-08-08T12:21:02-06:00",
+  "subject": "Integra circuito #560 (circuito/item-560-marcador-visual-circuito-cc-v2-en-rel) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 561,
+  "title": "El reaper debe re encolar items huerfano",
+  "first_commit": "e19926cab7522e03e51f3892842c9d1185134943",
+  "first_date": "2026-08-08T15:39:03-06:00",
+  "last_commit": "e19926cab7522e03e51f3892842c9d1185134943",
+  "last_date": "2026-08-08T15:39:03-06:00",
+  "subject": "Integra circuito #561 (circuito/item-561-el-reaper-debe-re-encolar-items-huerfano) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 564,
+  "title": "Eliminar el modulo reportes cascaron va",
+  "first_commit": "ddb10a869de3455a0df34da298b251bca0ddc0fd",
+  "first_date": "2026-08-08T17:07:33-06:00",
+  "last_commit": "ddb10a869de3455a0df34da298b251bca0ddc0fd",
+  "last_date": "2026-08-08T17:07:33-06:00",
+  "subject": "Integra circuito #564 (circuito/item-564-eliminar-el-modulo-reportes-cascaron-va) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 565,
+  "title": "Registrar addon talento en module regist",
+  "first_commit": "894fdb37f4cbbdecb93d2a3726a9b1903cc46bea",
+  "first_date": "2026-08-09T11:50:07-06:00",
+  "last_commit": "894fdb37f4cbbdecb93d2a3726a9b1903cc46bea",
+  "last_date": "2026-08-09T11:50:07-06:00",
+  "subject": "Integra circuito #565 (circuito/item-565-registrar-addon-talento-en-module-regist) a main",
+  "modulo_inferido": "Talento"
+ },
+ {
+  "orig_id": 567,
+  "title": "Cerrar el hueco ruteado boxinputcontroll",
+  "first_commit": "ae3e7a303fba69389e040c4ecfa11b26ac007186",
+  "first_date": "2026-08-08T16:23:02-06:00",
+  "last_commit": "ae3e7a303fba69389e040c4ecfa11b26ac007186",
+  "last_date": "2026-08-08T16:23:02-06:00",
+  "subject": "Integra circuito #567 (circuito/item-567-cerrar-el-hueco-ruteado-boxinputcontroll) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 570,
+  "title": "Gestionred eliminar 1 metodos de anda",
+  "first_commit": "09e5912af2ad95161895cac2cb9488ae914eaa32",
+  "first_date": "2026-08-08T16:38:03-06:00",
+  "last_commit": "09e5912af2ad95161895cac2cb9488ae914eaa32",
+  "last_date": "2026-08-08T16:38:03-06:00",
+  "subject": "Integra circuito #570 (circuito/item-570-gestionred-eliminar-1-metodos-de-anda) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 571,
+  "title": "Gestionred getoltdata se traga el 403 y",
+  "first_commit": "0cf4cee04185d776b8da76417d4839fb180cb32c",
+  "first_date": "2026-08-08T16:45:57-06:00",
+  "last_commit": "0cf4cee04185d776b8da76417d4839fb180cb32c",
+  "last_date": "2026-08-08T16:45:57-06:00",
+  "subject": "Integra circuito #571 (circuito/item-571-gestionred-getoltdata-se-traga-el-403-y) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 573,
+  "title": "Scheduling el enlace schedulingtask t",
+  "first_commit": "d8ca64825ef07baa631f8244d641afa69bb9c75a",
+  "first_date": "2026-08-08T16:45:55-06:00",
+  "last_commit": "d8ca64825ef07baa631f8244d641afa69bb9c75a",
+  "last_date": "2026-08-08T16:45:55-06:00",
+  "subject": "Integra circuito #573 (circuito/item-573-scheduling-el-enlace-schedulingtask-t) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 574,
+  "title": "Hub el validador de integraciones repor",
+  "first_commit": "9a41b032f75d5dbf2b20c92706137292d0681ea1",
+  "first_date": "2026-08-08T16:45:54-06:00",
+  "last_commit": "9a41b032f75d5dbf2b20c92706137292d0681ea1",
+  "last_date": "2026-08-08T16:45:54-06:00",
+  "subject": "Integra circuito #574 (circuito/item-574-hub-el-validador-de-integraciones-repor) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 575,
+  "title": "Finanzas el enlace del sidebar finanza",
+  "first_commit": "1d16d7fb8fd554995aad28a914164c51927a607d",
+  "first_date": "2026-08-08T16:41:02-06:00",
+  "last_commit": "1d16d7fb8fd554995aad28a914164c51927a607d",
+  "last_date": "2026-08-08T16:41:02-06:00",
+  "subject": "Integra circuito #575 (circuito/item-575-finanzas-el-enlace-del-sidebar-finanza) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 576,
+  "title": "Mapas eliminar 93 metodos de andamiaj",
+  "first_commit": "c26346102667c4792656709932d149f7e8e6ef73",
+  "first_date": "2026-08-08T17:28:04-06:00",
+  "last_commit": "c26346102667c4792656709932d149f7e8e6ef73",
+  "last_date": "2026-08-08T17:28:04-06:00",
+  "subject": "Integra circuito #576 (circuito/item-576-mapas-eliminar-93-metodos-de-andamiaj) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 577,
+  "title": "Tickets eliminar 7 metodos de andamia",
+  "first_commit": "b99076a0d6097eff62a7bf4cddc9b589b20869c8",
+  "first_date": "2026-08-08T16:45:55-06:00",
+  "last_commit": "b99076a0d6097eff62a7bf4cddc9b589b20869c8",
+  "last_date": "2026-08-08T16:45:55-06:00",
+  "subject": "Integra circuito #577 (circuito/item-577-tickets-eliminar-7-metodos-de-andamia) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 578,
+  "title": "Scheduling eliminar 2 metodos de anda",
+  "first_commit": "c41f9000960d4d139b49de1db35a092bdcf82150",
+  "first_date": "2026-08-08T16:45:56-06:00",
+  "last_commit": "c41f9000960d4d139b49de1db35a092bdcf82150",
+  "last_date": "2026-08-08T16:45:56-06:00",
+  "subject": "Integra circuito #578 (circuito/item-578-scheduling-eliminar-2-metodos-de-anda) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 579,
+  "title": "Mensajes el enlace messagereminder de",
+  "first_commit": "0e3e36e1f9faead9ee7cdb8e3b9611301b8e3e69",
+  "first_date": "2026-08-08T17:11:45-06:00",
+  "last_commit": "0e3e36e1f9faead9ee7cdb8e3b9611301b8e3e69",
+  "last_date": "2026-08-08T17:11:45-06:00",
+  "subject": "Integra circuito #579 (circuito/item-579-mensajes-el-enlace-messagereminder-de) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 581,
+  "title": "Marketing el enlace marketingcampanas",
+  "first_commit": "34b080fd41ccd0a664f0d287b756b7e49e3d75d9",
+  "first_date": "2026-08-08T16:54:40-06:00",
+  "last_commit": "34b080fd41ccd0a664f0d287b756b7e49e3d75d9",
+  "last_date": "2026-08-08T16:54:40-06:00",
+  "subject": "Integra circuito #581 (circuito/item-581-marketing-el-enlace-marketingcampanas) a main",
+  "modulo_inferido": "Marketing"
+ },
+ {
+  "orig_id": 582,
+  "title": "Payments cerrar 2 marcadores todofix",
+  "first_commit": "d723dc56773008488c652e283ee5ed0825968310",
+  "first_date": "2026-08-08T16:54:41-06:00",
+  "last_commit": "d723dc56773008488c652e283ee5ed0825968310",
+  "last_date": "2026-08-08T16:54:41-06:00",
+  "subject": "Integra circuito #582 (circuito/item-582-payments-cerrar-2-marcadores-todofix) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 583,
+  "title": "Marketing el nicho gamer cae a la voz",
+  "first_commit": "6e1eb563f2f2ddb1b8cf28a0caf53ea301ac4751",
+  "first_date": "2026-08-08T17:34:03-06:00",
+  "last_commit": "6e1eb563f2f2ddb1b8cf28a0caf53ea301ac4751",
+  "last_date": "2026-08-08T17:34:03-06:00",
+  "subject": "Integra circuito #583 (circuito/item-583-marketing-el-nicho-gamer-cae-a-la-voz) a main",
+  "modulo_inferido": "Marketing"
+ },
+ {
+  "orig_id": 584,
+  "title": "Marketing el tts lee los numeros de tel",
+  "first_commit": "3d38d8c06eaf1acf43318f9f367e92e68d8efa1e",
+  "first_date": "2026-08-08T17:40:07-06:00",
+  "last_commit": "3d38d8c06eaf1acf43318f9f367e92e68d8efa1e",
+  "last_date": "2026-08-08T17:40:07-06:00",
+  "subject": "Integra circuito #584 (circuito/item-584-marketing-el-tts-lee-los-numeros-de-tel) a main",
+  "modulo_inferido": "Marketing"
+ },
+ {
+  "orig_id": 586,
+  "title": "Usuarios eliminar 6 metodos de andami",
+  "first_commit": "0b04464cfa3adb5d8992d3d66e8e0a667a63537b",
+  "first_date": "2026-08-08T17:14:04-06:00",
+  "last_commit": "0b04464cfa3adb5d8992d3d66e8e0a667a63537b",
+  "last_date": "2026-08-08T17:14:04-06:00",
+  "subject": "Integra circuito #586 (circuito/item-586-usuarios-eliminar-6-metodos-de-andami) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 588,
+  "title": "Clientes cerrar 1 marcadores todofix",
+  "first_commit": "ba955f8e00ef685df258b85ca793ea4885f4b381",
+  "first_date": "2026-08-08T17:14:05-06:00",
+  "last_commit": "ba955f8e00ef685df258b85ca793ea4885f4b381",
+  "last_date": "2026-08-08T17:14:05-06:00",
+  "subject": "Integra circuito #588 (circuito/item-588-clientes-cerrar-1-marcadores-todofix) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 589,
+  "title": "Configuracion companyinformationcontrol",
+  "first_commit": "68174174cbbcb934ce908c57cb96cf7fe98bcf3f",
+  "first_date": "2026-08-08T17:16:03-06:00",
+  "last_commit": "68174174cbbcb934ce908c57cb96cf7fe98bcf3f",
+  "last_date": "2026-08-08T17:16:03-06:00",
+  "subject": "Integra circuito #589 (circuito/item-589-configuracion-companyinformationcontrol) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 590,
+  "title": "Configuracion cerrar 1 marcadores tod",
+  "first_commit": "b98234dc27f7e728b94b9aceb886d862da05da30",
+  "first_date": "2026-08-08T17:18:03-06:00",
+  "last_commit": "b98234dc27f7e728b94b9aceb886d862da05da30",
+  "last_date": "2026-08-08T17:18:03-06:00",
+  "subject": "Integra circuito #590 (circuito/item-590-configuracion-cerrar-1-marcadores-tod) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 591,
+  "title": "Crm eliminar 15 metodos de andamiaje",
+  "first_commit": "a68c650343e813320ce0500a3822ec6708a9b2b3",
+  "first_date": "2026-08-08T17:14:05-06:00",
+  "last_commit": "a68c650343e813320ce0500a3822ec6708a9b2b3",
+  "last_date": "2026-08-08T17:14:05-06:00",
+  "subject": "Integra circuito #591 (circuito/item-591-crm-eliminar-15-metodos-de-andamiaje) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 592,
+  "title": "Clientes eliminar 29 metodos de andam",
+  "first_commit": "65320f1588cb776583157cbd33c708ad5d5bb195",
+  "first_date": "2026-08-08T17:52:03-06:00",
+  "last_commit": "65320f1588cb776583157cbd33c708ad5d5bb195",
+  "last_date": "2026-08-08T17:52:03-06:00",
+  "subject": "Integra circuito #592 (circuito/item-592-clientes-eliminar-29-metodos-de-andam) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 593,
+  "title": "Jalar items",
+  "first_commit": "954f3fba5a8022e4a5716b0260378a5e30037623",
+  "first_date": "2026-08-09T09:44:02-06:00",
+  "last_commit": "954f3fba5a8022e4a5716b0260378a5e30037623",
+  "last_date": "2026-08-09T09:44:02-06:00",
+  "subject": "Integra circuito #593 (circuito/item-593-jalar-items) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 596,
+  "title": "Modulo inversiones fase 1 v2 aut",
+  "first_commit": "6168c03509272af46ae1530454571ec79d896e7f",
+  "first_date": "2026-08-20T18:33:02-06:00",
+  "last_commit": "6168c03509272af46ae1530454571ec79d896e7f",
+  "last_date": "2026-08-20T18:33:02-06:00",
+  "subject": "Integra circuito #596 (circuito/item-596-modulo-inversiones-fase-1-v2-aut) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 780,
+  "title": "Circuito las escrituras por dbtable",
+  "first_commit": "843c9c58f3484ff24b972f7e53e3e1e937364b27",
+  "first_date": "2026-08-18T13:38:03-06:00",
+  "last_commit": "843c9c58f3484ff24b972f7e53e3e1e937364b27",
+  "last_date": "2026-08-18T13:38:03-06:00",
+  "subject": "Integra circuito #780 (circuito/item-780-circuito-las-escrituras-por-dbtable) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 790,
+  "title": "Recuperar el warm up configcache 97 ll",
+  "first_commit": "260276e76acc175ed408659d0834b46f4cd39598",
+  "first_date": "2026-08-18T17:26:55-06:00",
+  "last_commit": "260276e76acc175ed408659d0834b46f4cd39598",
+  "last_date": "2026-08-18T17:26:55-06:00",
+  "subject": "Integra circuito #790 (circuito/item-790-recuperar-el-warm-up-configcache-97-ll) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 791,
+  "title": "Torre contador de decisiones mudas de l",
+  "first_commit": "b6d7e60f8652c764a0fb9077b50fceb1cffd6c12",
+  "first_date": "2026-08-18T17:23:02-06:00",
+  "last_commit": "b6d7e60f8652c764a0fb9077b50fceb1cffd6c12",
+  "last_date": "2026-08-18T17:23:02-06:00",
+  "subject": "Integra circuito #791 (circuito/item-791-torre-contador-de-decisiones-mudas-de-l) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 792,
+  "title": "Env a config 12 archivos que llaman",
+  "first_commit": "5422342916ddba64b9759e795e07a5b752ec4072",
+  "first_date": "2026-08-18T17:33:03-06:00",
+  "last_commit": "5422342916ddba64b9759e795e07a5b752ec4072",
+  "last_date": "2026-08-18T17:33:03-06:00",
+  "subject": "Integra circuito #792 (circuito/item-792-env-a-config-12-archivos-que-llaman) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 793,
+  "title": "Env a config whatsapp marketing dri",
+  "first_commit": "d546b5ffe607e9a2fc7945712a883e2375bafb4f",
+  "first_date": "2026-08-18T17:45:11-06:00",
+  "last_commit": "d546b5ffe607e9a2fc7945712a883e2375bafb4f",
+  "last_date": "2026-08-18T17:45:11-06:00",
+  "subject": "Integra circuito #793 (circuito/item-793-env-a-config-whatsapp-marketing-dri) a main",
+  "modulo_inferido": "Marketing"
+ },
+ {
+  "orig_id": 796,
+  "title": "Visualizacion",
+  "first_commit": "11ddaa56413725a16f26eb8e6329f7402b66bc89",
+  "first_date": "2026-08-18T18:45:03-06:00",
+  "last_commit": "11ddaa56413725a16f26eb8e6329f7402b66bc89",
+  "last_date": "2026-08-18T18:45:03-06:00",
+  "subject": "Integra circuito #796 (circuito/item-796-visualizacion) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 808,
+  "title": "Circuito programar circuitore triage",
+  "first_commit": "48618fa7c3d3f1e5816777a06ca0be2f76a86ed3",
+  "first_date": "2026-08-18T18:24:02-06:00",
+  "last_commit": "48618fa7c3d3f1e5816777a06ca0be2f76a86ed3",
+  "last_date": "2026-08-18T18:24:02-06:00",
+  "subject": "Integra circuito #808 (circuito/item-808-circuito-programar-circuitore-triage) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 809,
+  "title": "Motor de auditoria 14 de 41 gaps caen e",
+  "first_commit": "bd9b5f991ad35968cdf0d4ab25a1d1171d883af7",
+  "first_date": "2026-08-20T16:13:02-06:00",
+  "last_commit": "bd9b5f991ad35968cdf0d4ab25a1d1171d883af7",
+  "last_date": "2026-08-20T16:13:02-06:00",
+  "subject": "Integra circuito #809 (circuito/item-809-motor-de-auditoria-14-de-41-gaps-caen-e) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 810,
+  "title": "Item modulo centro de proyecto",
+  "first_commit": "7cb75cb235d05e90dfd58eb0c31210fc91f84793",
+  "first_date": "2026-08-19T19:09:03-06:00",
+  "last_commit": "7cb75cb235d05e90dfd58eb0c31210fc91f84793",
+  "last_date": "2026-08-19T19:09:03-06:00",
+  "subject": "Integra circuito #810 (circuito/item-810-item-modulo-centro-de-proyecto) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 812,
+  "title": "Gestionred amplia api endpoints en modu",
+  "first_commit": "cf0ddfa16342d20b5cbf5f459f73585324b336fd",
+  "first_date": "2026-08-18T19:00:03-06:00",
+  "last_commit": "cf0ddfa16342d20b5cbf5f459f73585324b336fd",
+  "last_date": "2026-08-18T19:00:03-06:00",
+  "subject": "Integra circuito #812 (circuito/item-812-gestionred-amplia-api-endpoints-en-modu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 813,
+  "title": "Mapas amplia api endpoints en modulejs",
+  "first_commit": "aeaf44a8378d951e917c315ba59f64f8d8df126a",
+  "first_date": "2026-08-18T19:03:02-06:00",
+  "last_commit": "aeaf44a8378d951e917c315ba59f64f8d8df126a",
+  "last_date": "2026-08-18T19:03:02-06:00",
+  "subject": "Integra circuito #813 (circuito/item-813-mapas-amplia-api-endpoints-en-modulejs) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 814,
+  "title": "Tickets amplia api endpoints en module",
+  "first_commit": "4e226950389debf2e8212ea7a19c0c770605f88f",
+  "first_date": "2026-08-18T18:58:04-06:00",
+  "last_commit": "4e226950389debf2e8212ea7a19c0c770605f88f",
+  "last_date": "2026-08-18T18:58:04-06:00",
+  "subject": "Integra circuito #814 (circuito/item-814-tickets-amplia-api-endpoints-en-module) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 815,
+  "title": "Scheduling amplia api endpoints en modu",
+  "first_commit": "274e313c60bb0a5516138a38d76253fb009222d1",
+  "first_date": "2026-08-18T18:58:03-06:00",
+  "last_commit": "274e313c60bb0a5516138a38d76253fb009222d1",
+  "last_date": "2026-08-18T18:58:03-06:00",
+  "subject": "Integra circuito #815 (circuito/item-815-scheduling-amplia-api-endpoints-en-modu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 816,
+  "title": "Hub amplia api endpoints en modulejson",
+  "first_commit": "ed337ec703650289ac3cd991400dbbb6e7d6dcc8",
+  "first_date": "2026-08-18T18:58:02-06:00",
+  "last_commit": "ed337ec703650289ac3cd991400dbbb6e7d6dcc8",
+  "last_date": "2026-08-18T18:58:02-06:00",
+  "subject": "Integra circuito #816 (circuito/item-816-hub-amplia-api-endpoints-en-modulejson) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 817,
+  "title": "Finanzas amplia api endpoints en module",
+  "first_commit": "2fcf881d55f877341cffceec56d23e6ae603eb60",
+  "first_date": "2026-08-18T19:00:03-06:00",
+  "last_commit": "2fcf881d55f877341cffceec56d23e6ae603eb60",
+  "last_date": "2026-08-18T19:00:03-06:00",
+  "subject": "Integra circuito #817 (circuito/item-817-finanzas-amplia-api-endpoints-en-module) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 818,
+  "title": "Mensajes amplia api endpoints en module",
+  "first_commit": "5c8ea4041168e1feb9af0da4d80bef008d7513a1",
+  "first_date": "2026-08-18T19:01:03-06:00",
+  "last_commit": "5c8ea4041168e1feb9af0da4d80bef008d7513a1",
+  "last_date": "2026-08-18T19:01:03-06:00",
+  "subject": "Integra circuito #818 (circuito/item-818-mensajes-amplia-api-endpoints-en-module) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 819,
+  "title": "Vendedores amplia api endpoints en modu",
+  "first_commit": "ee388e1dad0534700dd3da4f8b3718a8eeb7c0ee",
+  "first_date": "2026-08-18T19:02:03-06:00",
+  "last_commit": "ee388e1dad0534700dd3da4f8b3718a8eeb7c0ee",
+  "last_date": "2026-08-18T19:02:03-06:00",
+  "subject": "Integra circuito #819 (circuito/item-819-vendedores-amplia-api-endpoints-en-modu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 821,
+  "title": "Talento amplia api endpoints en module",
+  "first_commit": "13ab2def79b689f1d84aca465405fd8b5b2f2555",
+  "first_date": "2026-08-18T19:16:07-06:00",
+  "last_commit": "13ab2def79b689f1d84aca465405fd8b5b2f2555",
+  "last_date": "2026-08-18T19:16:07-06:00",
+  "subject": "Integra circuito #821 (circuito/item-821-talento-amplia-api-endpoints-en-module) a main",
+  "modulo_inferido": "Talento"
+ },
+ {
+  "orig_id": 822,
+  "title": "Flotas amplia api endpoints en modulej",
+  "first_commit": "b3a9fab912e6a0284d8ff3077a441fcb353d364e",
+  "first_date": "2026-08-18T19:16:04-06:00",
+  "last_commit": "b3a9fab912e6a0284d8ff3077a441fcb353d364e",
+  "last_date": "2026-08-18T19:16:04-06:00",
+  "subject": "Integra circuito #822 (circuito/item-822-flotas-amplia-api-endpoints-en-modulej) a main",
+  "modulo_inferido": "Flotas"
+ },
+ {
+  "orig_id": 823,
+  "title": "Marketing amplia api endpoints en modul",
+  "first_commit": "18d2880afc529754c7efc706d62055371185b1f3",
+  "first_date": "2026-08-18T19:16:05-06:00",
+  "last_commit": "18d2880afc529754c7efc706d62055371185b1f3",
+  "last_date": "2026-08-18T19:16:05-06:00",
+  "subject": "Integra circuito #823 (circuito/item-823-marketing-amplia-api-endpoints-en-modul) a main",
+  "modulo_inferido": "Marketing"
+ },
+ {
+  "orig_id": 824,
+  "title": "Payments amplia api endpoints en module",
+  "first_commit": "611d2ce74386c7e69ee8361076b925d57defa3b4",
+  "first_date": "2026-08-18T19:16:05-06:00",
+  "last_commit": "611d2ce74386c7e69ee8361076b925d57defa3b4",
+  "last_date": "2026-08-18T19:16:05-06:00",
+  "subject": "Integra circuito #824 (circuito/item-824-payments-amplia-api-endpoints-en-module) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 825,
+  "title": "Megafamilia amplia api endpoints en mod",
+  "first_commit": "38f23ce68ddf46beadaa8dd4b0b7e05e5866de97",
+  "first_date": "2026-08-18T19:16:06-06:00",
+  "last_commit": "38f23ce68ddf46beadaa8dd4b0b7e05e5866de97",
+  "last_date": "2026-08-18T19:16:06-06:00",
+  "subject": "Integra circuito #825 (circuito/item-825-megafamilia-amplia-api-endpoints-en-mod) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 826,
+  "title": "Voip declara sus endpoints en modulejs",
+  "first_commit": "43ee42917e0ba031e44948a7c679934ac872b679",
+  "first_date": "2026-08-18T19:19:03-06:00",
+  "last_commit": "43ee42917e0ba031e44948a7c679934ac872b679",
+  "last_date": "2026-08-18T19:19:03-06:00",
+  "subject": "Integra circuito #826 (circuito/item-826-voip-declara-sus-endpoints-en-modulejs) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 827,
+  "title": "Whatsappagent amplia api endpoints en m",
+  "first_commit": "1894b2cb539b53bd8b0ef9bc1af963243438585c",
+  "first_date": "2026-08-18T19:18:03-06:00",
+  "last_commit": "1894b2cb539b53bd8b0ef9bc1af963243438585c",
+  "last_date": "2026-08-18T19:18:03-06:00",
+  "subject": "Integra circuito #827 (circuito/item-827-whatsappagent-amplia-api-endpoints-en-m) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 828,
+  "title": "Portalcliente declara sus endpoints en",
+  "first_commit": "f691b116b84b2cc0ffd065a16457d6cc289a086e",
+  "first_date": "2026-08-18T19:19:02-06:00",
+  "last_commit": "f691b116b84b2cc0ffd065a16457d6cc289a086e",
+  "last_date": "2026-08-18T19:19:02-06:00",
+  "subject": "Integra circuito #828 (circuito/item-828-portalcliente-declara-sus-endpoints-en) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 829,
+  "title": "Portalpago declara sus endpoints en mod",
+  "first_commit": "eab8bf1dd0e636decd4db4ab97ed4b5ec075354e",
+  "first_date": "2026-08-18T19:31:02-06:00",
+  "last_commit": "eab8bf1dd0e636decd4db4ab97ed4b5ec075354e",
+  "last_date": "2026-08-18T19:31:02-06:00",
+  "subject": "Integra circuito #829 (circuito/item-829-portalpago-declara-sus-endpoints-en-mod) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 830,
+  "title": "Embajadores amplia api endpoints en mod",
+  "first_commit": "8df00badbf7318351115b447686f404203b4a2e0",
+  "first_date": "2026-08-18T19:30:03-06:00",
+  "last_commit": "8df00badbf7318351115b447686f404203b4a2e0",
+  "last_date": "2026-08-18T19:30:03-06:00",
+  "subject": "Integra circuito #830 (circuito/item-830-embajadores-amplia-api-endpoints-en-mod) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 831,
+  "title": "Usuarios declara sus endpoints en modul",
+  "first_commit": "726dc26b79f24597760318c6b8168b5e77d6b635",
+  "first_date": "2026-08-18T19:32:03-06:00",
+  "last_commit": "726dc26b79f24597760318c6b8168b5e77d6b635",
+  "last_date": "2026-08-18T19:32:03-06:00",
+  "subject": "Integra circuito #831 (circuito/item-831-usuarios-declara-sus-endpoints-en-modul) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 832,
+  "title": "Clientes declara sus endpoints en modul",
+  "first_commit": "c678f7e3c63ccc8a1b1fdfa91187dd8440068cdd",
+  "first_date": "2026-08-18T19:31:03-06:00",
+  "last_commit": "c678f7e3c63ccc8a1b1fdfa91187dd8440068cdd",
+  "last_date": "2026-08-18T19:31:03-06:00",
+  "subject": "Integra circuito #832 (circuito/item-832-clientes-declara-sus-endpoints-en-modul) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 833,
+  "title": "Configuracion declara sus endpoints en",
+  "first_commit": "8cc5081d2e3cee62414f8da51ce68179c60d6567",
+  "first_date": "2026-08-18T19:32:03-06:00",
+  "last_commit": "8cc5081d2e3cee62414f8da51ce68179c60d6567",
+  "last_date": "2026-08-18T19:32:03-06:00",
+  "subject": "Integra circuito #833 (circuito/item-833-configuracion-declara-sus-endpoints-en) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 834,
+  "title": "Crm declara sus endpoints en modulejso",
+  "first_commit": "c66d9e5df9ec00453a84f9c55d2e13702303e158",
+  "first_date": "2026-08-18T19:33:02-06:00",
+  "last_commit": "c66d9e5df9ec00453a84f9c55d2e13702303e158",
+  "last_date": "2026-08-18T19:33:02-06:00",
+  "subject": "Integra circuito #834 (circuito/item-834-crm-declara-sus-endpoints-en-modulejso) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 837,
+  "title": "Item definitivo auditor de sistema a",
+  "first_commit": "906e504f30f1f94387fe0bbdc21650d3ba5ad12f",
+  "first_date": "2026-08-20T20:23:02-06:00",
+  "last_commit": "906e504f30f1f94387fe0bbdc21650d3ba5ad12f",
+  "last_date": "2026-08-20T20:23:02-06:00",
+  "subject": "Integra circuito #837 (circuito/item-837-item-definitivo-auditor-de-sistema-a) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 838,
+  "title": "Manual general de la empresa editable",
+  "first_commit": "ba17208356d7d0e0ef20f5b50745efffe0b75636",
+  "first_date": "2026-08-20T21:46:03-06:00",
+  "last_commit": "ba17208356d7d0e0ef20f5b50745efffe0b75636",
+  "last_date": "2026-08-20T21:46:03-06:00",
+  "subject": "Integra circuito #838 (circuito/item-838-manual-general-de-la-empresa-editable) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 839,
+  "title": "Deuda tecnica scaffolding de permisos e",
+  "first_commit": "8ab8b8061b31b749241ff934a4ce712cd3c0242f",
+  "first_date": "2026-08-20T22:04:03-06:00",
+  "last_commit": "8ab8b8061b31b749241ff934a4ce712cd3c0242f",
+  "last_date": "2026-08-20T22:04:03-06:00",
+  "subject": "Integra circuito #839 (circuito/item-839-deuda-tecnica-scaffolding-de-permisos-e) a main",
+  "modulo_inferido": "Permisos / Roles"
+ },
+ {
+  "orig_id": 840,
+  "title": "Evaluar unificacion bajo un modulo plant",
+  "first_commit": "445305133c111b2c4808158e67e7a866c7ae2764",
+  "first_date": "2026-08-19T16:02:03-06:00",
+  "last_commit": "08762e0e8ac91c6d27519c590a019b50480d1d73",
+  "last_date": "2026-08-19T16:04:03-06:00",
+  "subject": "Integra circuito #840 (circuito/item-840-evaluar-unificacion-bajo-un-modulo-plant) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 841,
+  "title": "Circuito las decisiones de irving re en",
+  "first_commit": "17b979f8e640c33957773b40614f5fc48d1e94bb",
+  "first_date": "2026-08-19T15:53:02-06:00",
+  "last_commit": "17b979f8e640c33957773b40614f5fc48d1e94bb",
+  "last_date": "2026-08-19T15:53:02-06:00",
+  "subject": "Integra circuito #841 (circuito/item-841-circuito-las-decisiones-de-irving-re-en) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 844,
+  "title": "Triaje match por substring sin distingu",
+  "first_commit": "e655857f53e1c3b5d964c0a03e5e0f2dc703fdda",
+  "first_date": "2026-08-19T16:04:03-06:00",
+  "last_commit": "e655857f53e1c3b5d964c0a03e5e0f2dc703fdda",
+  "last_date": "2026-08-19T16:04:03-06:00",
+  "subject": "Integra circuito #844 (circuito/item-844-triaje-match-por-substring-sin-distingu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 845,
+  "title": "Una resolucion de irving no deberia re e",
+  "first_commit": "73936eea60a7634ffb9ba423307d519e0f74b19b",
+  "first_date": "2026-08-19T19:12:56-06:00",
+  "last_commit": "73936eea60a7634ffb9ba423307d519e0f74b19b",
+  "last_date": "2026-08-19T19:12:56-06:00",
+  "subject": "Integra circuito #845 (circuito/item-845-una-resolucion-de-irving-no-deberia-re-e) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 852,
+  "title": "Engrane de configuracion de la torre de",
+  "first_commit": "c46017322ad13e932445b7a0aac1016d09bb218a",
+  "first_date": "2026-08-20T16:11:02-06:00",
+  "last_commit": "c46017322ad13e932445b7a0aac1016d09bb218a",
+  "last_date": "2026-08-20T16:11:02-06:00",
+  "subject": "Integra circuito #852 (circuito/item-852-engrane-de-configuracion-de-la-torre-de) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 854,
+  "title": "Ficha del item campos de la hoja de r",
+  "first_commit": "502b7ba20632475f86c17fe133d069457175e9e9",
+  "first_date": "2026-08-20T18:36:59-06:00",
+  "last_commit": "502b7ba20632475f86c17fe133d069457175e9e9",
+  "last_date": "2026-08-20T18:36:59-06:00",
+  "subject": "Integra circuito #854 (circuito/item-854-ficha-del-item-campos-de-la-hoja-de-r) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 855,
+  "title": "Hoja de ruta eliminar la repeticion d",
+  "first_commit": "f8c498d89cb12b008701b2e4c516a63f8c1947ad",
+  "first_date": "2026-08-19T18:29:02-06:00",
+  "last_commit": "f8c498d89cb12b008701b2e4c516a63f8c1947ad",
+  "last_date": "2026-08-19T18:29:02-06:00",
+  "subject": "Integra circuito #855 (circuito/item-855-hoja-de-ruta-eliminar-la-repeticion-d) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 856,
+  "title": "Limpieza 2026 09 18 eliminar el codigo",
+  "first_commit": "1fc5fde2b10cdb9df460752d32a4afada898f4cb",
+  "first_date": "2026-08-20T18:28:03-06:00",
+  "last_commit": "1fc5fde2b10cdb9df460752d32a4afada898f4cb",
+  "last_date": "2026-08-20T18:28:03-06:00",
+  "subject": "Integra circuito #856 (circuito/item-856-limpieza-2026-09-18-eliminar-el-codigo) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 858,
+  "title": "Agregar item lanzar el item al circui",
+  "first_commit": "c6360aa4ae78c4c8a9ca53682f9c5202fd6d9fd8",
+  "first_date": "2026-08-19T19:12:57-06:00",
+  "last_commit": "c6360aa4ae78c4c8a9ca53682f9c5202fd6d9fd8",
+  "last_date": "2026-08-19T19:12:57-06:00",
+  "subject": "Integra circuito #858 (circuito/item-858-agregar-item-lanzar-el-item-al-circui) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 859,
+  "title": "Detalle de item quitar los bloques su",
+  "first_commit": "77e252b7844e9c2bc4a427573c5aea6eeb2132ce",
+  "first_date": "2026-08-19T18:44:03-06:00",
+  "last_commit": "77e252b7844e9c2bc4a427573c5aea6eeb2132ce",
+  "last_date": "2026-08-19T18:44:03-06:00",
+  "subject": "Integra circuito #859 (circuito/item-859-detalle-de-item-quitar-los-bloques-su) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 861,
+  "title": "Agregar item aviso dinamico con la term",
+  "first_commit": "376453f9eaae9edb40aaf0437371236efdac755c",
+  "first_date": "2026-08-19T19:17:16-06:00",
+  "last_commit": "376453f9eaae9edb40aaf0437371236efdac755c",
+  "last_date": "2026-08-19T19:17:16-06:00",
+  "subject": "Integra circuito #861 (circuito/item-861-agregar-item-aviso-dinamico-con-la-term) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 863,
+  "title": "Agregar item ventana de deshacer de 15s  wt2",
+  "first_commit": "2774cfa319794bd35118ee5745882f09d30797c6",
+  "first_date": "2026-08-19T19:46:03-06:00",
+  "last_commit": "2774cfa319794bd35118ee5745882f09d30797c6",
+  "last_date": "2026-08-19T19:46:03-06:00",
+  "subject": "Integra circuito #863 (circuito/item-863-agregar-item-ventana-de-deshacer-de-15s--wt2) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 864,
+  "title": "Urgente circuitodestrabar bandeja lle",
+  "first_commit": "f2797e502f1fe738d3927c881f8b582f18eb2c10",
+  "first_date": "2026-08-19T19:07:03-06:00",
+  "last_commit": "f2797e502f1fe738d3927c881f8b582f18eb2c10",
+  "last_date": "2026-08-19T19:07:03-06:00",
+  "subject": "Integra circuito #864 (circuito/item-864-urgente-circuitodestrabar-bandeja-lle) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 865,
+  "title": "Revisor el denylist de alcance sigue co",
+  "first_commit": "cdf2d40087fac9775c839383aa64a3e0ac74b0cc",
+  "first_date": "2026-08-20T16:21:02-06:00",
+  "last_commit": "cdf2d40087fac9775c839383aa64a3e0ac74b0cc",
+  "last_date": "2026-08-20T16:21:02-06:00",
+  "subject": "Integra circuito #865 (circuito/item-865-revisor-el-denylist-de-alcance-sigue-co) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 872,
+  "title": "Mapa de las seis listas de terminos del",
+  "first_commit": "8a5ae4ffb86e07838e99fe8e0ca7c03c8e56e8a2",
+  "first_date": "2026-08-19T19:49:02-06:00",
+  "last_commit": "8a5ae4ffb86e07838e99fe8e0ca7c03c8e56e8a2",
+  "last_date": "2026-08-19T19:49:02-06:00",
+  "subject": "Integra circuito #872 (circuito/item-872-mapa-de-las-seis-listas-de-terminos-del) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 873,
+  "title": "Circuitomax builds es un control fantas",
+  "first_commit": "61331c46da117b92c9b9c0d862b4ee9ec00b985a",
+  "first_date": "2026-08-19T19:52:03-06:00",
+  "last_commit": "61331c46da117b92c9b9c0d862b4ee9ec00b985a",
+  "last_date": "2026-08-19T19:52:03-06:00",
+  "subject": "Integra circuito #873 (circuito/item-873-circuitomax-builds-es-un-control-fantas) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 878,
+  "title": "Respuesta los 4 items de la consola no",
+  "first_commit": "380f14051ecf08cb57dddbdd99a909f91c544f0c",
+  "first_date": "2026-08-20T13:44:02-06:00",
+  "last_commit": "380f14051ecf08cb57dddbdd99a909f91c544f0c",
+  "last_date": "2026-08-20T13:44:02-06:00",
+  "subject": "Integra circuito #878 (circuito/item-878-respuesta-los-4-items-de-la-consola-no) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 880,
+  "title": "Torre de control fase 2 por que no av",
+  "first_commit": "dd595dd4b0b8ddeb03e6128f5dcf8c7a72bb183f",
+  "first_date": "2026-08-20T14:42:02-06:00",
+  "last_commit": "dd595dd4b0b8ddeb03e6128f5dcf8c7a72bb183f",
+  "last_date": "2026-08-20T14:42:02-06:00",
+  "subject": "Integra circuito #880 (circuito/item-880-torre-de-control-fase-2-por-que-no-av) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 884,
+  "title": "Torre de control fase 7 salud del ent",
+  "first_commit": "64294fd408a25a28d3bf79ff7627450cf66aee88",
+  "first_date": "2026-08-20T19:45:02-06:00",
+  "last_commit": "64294fd408a25a28d3bf79ff7627450cf66aee88",
+  "last_date": "2026-08-20T19:45:02-06:00",
+  "subject": "Integra circuito #884 (circuito/item-884-torre-de-control-fase-7-salud-del-ent) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 885,
+  "title": "Torre de control fase 8 historial de",
+  "first_commit": "ba3ad549d7863b044a1a7da6656fcb84e23ee1eb",
+  "first_date": "2026-08-20T14:52:03-06:00",
+  "last_commit": "ba3ad549d7863b044a1a7da6656fcb84e23ee1eb",
+  "last_date": "2026-08-20T14:52:03-06:00",
+  "subject": "Integra circuito #885 (circuito/item-885-torre-de-control-fase-8-historial-de) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 889,
+  "title": "Consola fase 5 terminales ver que h",
+  "first_commit": "2801bb158b6c74f6ea190c50d20253bc9c944d6a",
+  "first_date": "2026-08-20T20:06:03-06:00",
+  "last_commit": "2801bb158b6c74f6ea190c50d20253bc9c944d6a",
+  "last_date": "2026-08-20T20:06:03-06:00",
+  "subject": "Integra circuito #889 (circuito/item-889-consola-fase-5-terminales-ver-que-h) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 890,
+  "title": "Consola fase 6 la cola deja de ser ca",
+  "first_commit": "23647015576f4b386e3069f840308be6c6c9539e",
+  "first_date": "2026-08-20T18:53:03-06:00",
+  "last_commit": "23647015576f4b386e3069f840308be6c6c9539e",
+  "last_date": "2026-08-20T18:53:03-06:00",
+  "subject": "Integra circuito #890 (circuito/item-890-consola-fase-6-la-cola-deja-de-ser-ca) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 891,
+  "title": "Consola fase 7 salud del entorno sa",
+  "first_commit": "5124f7ed68d05a27f87262258b801d45013cd868",
+  "first_date": "2026-08-20T18:48:03-06:00",
+  "last_commit": "5124f7ed68d05a27f87262258b801d45013cd868",
+  "last_date": "2026-08-20T18:48:03-06:00",
+  "subject": "Integra circuito #891 (circuito/item-891-consola-fase-7-salud-del-entorno-sa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 893,
+  "title": "Circuito evaluaryadecidido ignora re",
+  "first_commit": "1ae1fb37eabbf1f0dc35852396def4b7df9566a5",
+  "first_date": "2026-08-20T18:32:10-06:00",
+  "last_commit": "1ae1fb37eabbf1f0dc35852396def4b7df9566a5",
+  "last_date": "2026-08-20T18:32:10-06:00",
+  "subject": "Integra circuito #893 (circuito/item-893-circuito-evaluaryadecidido-ignora-re) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 895,
+  "title": "La terminal estima si el trabajo cabe en",
+  "first_commit": "79964cc84fd55588b705f009275b62a921270d7e",
+  "first_date": "2026-08-20T17:51:03-06:00",
+  "last_commit": "79964cc84fd55588b705f009275b62a921270d7e",
+  "last_date": "2026-08-20T17:51:03-06:00",
+  "subject": "Integra circuito #895 (circuito/item-895-la-terminal-estima-si-el-trabajo-cabe-en) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 902,
+  "title": "Revisar la lista triaje c plain ahora qu",
+  "first_commit": "3f5b89e32e0f293e0aaf94451cc54a5a9e82a32b",
+  "first_date": "2026-08-20T20:29:02-06:00",
+  "last_commit": "3f5b89e32e0f293e0aaf94451cc54a5a9e82a32b",
+  "last_date": "2026-08-20T20:29:02-06:00",
+  "subject": "Integra circuito #902 (circuito/item-902-revisar-la-lista-triaje-c-plain-ahora-qu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 903,
+  "title": "Decidir por tandas si se amplian los c",
+  "first_commit": "61310d78f6f68f73ed859077c274078166b1a3eb",
+  "first_date": "2026-08-20T16:37:03-06:00",
+  "last_commit": "dc6d3690e4c726a65c8164f7220db1a310285f80",
+  "last_date": "2026-08-20T16:38:03-06:00",
+  "subject": "Integra circuito #903 (circuito/item-903-decidir-por-tandas-si-se-amplian-los-c) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 904,
+  "title": "Enalcance del revisor no distingue ter",
+  "first_commit": "acc4272ecc72a89bc576fd2184f6181f8f0ce3c9",
+  "first_date": "2026-08-20T18:41:19-06:00",
+  "last_commit": "acc4272ecc72a89bc576fd2184f6181f8f0ce3c9",
+  "last_date": "2026-08-20T18:41:19-06:00",
+  "subject": "Integra circuito #904 (circuito/item-904-enalcance-del-revisor-no-distingue-ter) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 918,
+  "title": "Tanda 2 de carriles ampliados siguiente",
+  "first_commit": "850e4fbbd6da381cc15687962b24d3b497a37f74",
+  "first_date": "2026-08-20T18:44:03-06:00",
+  "last_commit": "850e4fbbd6da381cc15687962b24d3b497a37f74",
+  "last_date": "2026-08-20T18:44:03-06:00",
+  "subject": "Integra circuito #918 (circuito/item-918-tanda-2-de-carriles-ampliados-siguiente) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 921,
+  "title": "Resolucion de irving items agendados",
+  "first_commit": "c20198c1f5e52a30027a58ad0a0be1aff2da49ca",
+  "first_date": "2026-08-20T19:11:03-06:00",
+  "last_commit": "c20198c1f5e52a30027a58ad0a0be1aff2da49ca",
+  "last_date": "2026-08-20T19:11:03-06:00",
+  "subject": "Integra circuito #921 (circuito/item-921-resolucion-de-irving-items-agendados) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 923,
+  "title": "Roadmap circuito cc amplia api endpoi",
+  "first_commit": "a5dfb7be445a48caf857713565521c57c515f7f4",
+  "first_date": "2026-08-20T17:57:03-06:00",
+  "last_commit": "a5dfb7be445a48caf857713565521c57c515f7f4",
+  "last_date": "2026-08-20T17:57:03-06:00",
+  "subject": "Integra circuito #923 (circuito/item-923-roadmap-circuito-cc-amplia-api-endpoi) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 924,
+  "title": "Auth declara sus endpoints en modulejs",
+  "first_commit": "2c5e7711f94c8ee79cc3aa689462c4bfe51b5e59",
+  "first_date": "2026-08-20T17:59:03-06:00",
+  "last_commit": "2c5e7711f94c8ee79cc3aa689462c4bfe51b5e59",
+  "last_date": "2026-08-20T17:59:03-06:00",
+  "subject": "Integra circuito #924 (circuito/item-924-auth-declara-sus-endpoints-en-modulejs) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 925,
+  "title": "Planes el enlace planesinternet del m",
+  "first_commit": "9755951cd5976ffb07a914c7273dd7072f39ad72",
+  "first_date": "2026-08-20T17:59:02-06:00",
+  "last_commit": "9755951cd5976ffb07a914c7273dd7072f39ad72",
+  "last_date": "2026-08-20T17:59:02-06:00",
+  "subject": "Integra circuito #925 (circuito/item-925-planes-el-enlace-planesinternet-del-m) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 926,
+  "title": "Documentos cerrar 1 marcadores todof",
+  "first_commit": "c9f7261e7bd86011ec27c514b7159845e26bc63b",
+  "first_date": "2026-08-20T18:41:18-06:00",
+  "last_commit": "c9f7261e7bd86011ec27c514b7159845e26bc63b",
+  "last_date": "2026-08-20T18:41:18-06:00",
+  "subject": "Integra circuito #926 (circuito/item-926-documentos-cerrar-1-marcadores-todof) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 927,
+  "title": "Documentos eliminar 1 metodos de anda",
+  "first_commit": "3b6bd1a1d3eab6710aed9db6fa0f0d1b1248bf90",
+  "first_date": "2026-08-20T17:57:03-06:00",
+  "last_commit": "3b6bd1a1d3eab6710aed9db6fa0f0d1b1248bf90",
+  "last_date": "2026-08-20T17:57:03-06:00",
+  "subject": "Integra circuito #927 (circuito/item-927-documentos-eliminar-1-metodos-de-anda) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 928,
+  "title": "Documentos declara sus endpoints en mod",
+  "first_commit": "1e65f5657ad5ee4d9f8a81e71e99c34b9c30735b",
+  "first_date": "2026-08-20T18:00:04-06:00",
+  "last_commit": "1e65f5657ad5ee4d9f8a81e71e99c34b9c30735b",
+  "last_date": "2026-08-20T18:00:04-06:00",
+  "subject": "Integra circuito #928 (circuito/item-928-documentos-declara-sus-endpoints-en-mod) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 929,
+  "title": "Planes eliminar 4 metodos de andamiaj",
+  "first_commit": "5fcc9bddac5c294f3033162f43bd5cc3ffe9a6a1",
+  "first_date": "2026-08-20T18:00:03-06:00",
+  "last_commit": "5fcc9bddac5c294f3033162f43bd5cc3ffe9a6a1",
+  "last_date": "2026-08-20T18:00:03-06:00",
+  "subject": "Integra circuito #929 (circuito/item-929-planes-eliminar-4-metodos-de-andamiaj) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 931,
+  "title": "Respuesta terminales item en curso y",
+  "first_commit": "0f2ef86f0164d83a9330ece82040c9aa7855a6a1",
+  "first_date": "2026-08-20T22:08:02-06:00",
+  "last_commit": "0f2ef86f0164d83a9330ece82040c9aa7855a6a1",
+  "last_date": "2026-08-20T22:08:02-06:00",
+  "subject": "Integra circuito #931 (circuito/item-931-respuesta-terminales-item-en-curso-y) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 933,
+  "title": "Planes amplia api endpoints en modulej",
+  "first_commit": "232cfa3e650485ea31419b65d97b4801c9d98f2b",
+  "first_date": "2026-08-20T18:13:41-06:00",
+  "last_commit": "232cfa3e650485ea31419b65d97b4801c9d98f2b",
+  "last_date": "2026-08-20T18:13:41-06:00",
+  "subject": "Integra circuito #933 (circuito/item-933-planes-amplia-api-endpoints-en-modulej) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 934,
+  "title": "Pestana terminales cabecera con supervi",
+  "first_commit": "3d5279e0fee94539eec6fb81cdb6d8b4e26e804a",
+  "first_date": "2026-08-20T20:23:02-06:00",
+  "last_commit": "3d5279e0fee94539eec6fb81cdb6d8b4e26e804a",
+  "last_date": "2026-08-20T20:23:02-06:00",
+  "subject": "Integra circuito #934 (circuito/item-934-pestana-terminales-cabecera-con-supervi) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 935,
+  "title": "Servicio de diagnostico diagnosticoitems",
+  "first_commit": "443605fc18470195babd2a47a43045ac0d97b8cf",
+  "first_date": "2026-08-21T00:25:02-06:00",
+  "last_commit": "443605fc18470195babd2a47a43045ac0d97b8cf",
+  "last_date": "2026-08-21T00:25:02-06:00",
+  "subject": "Integra circuito #935 (circuito/item-935-servicio-de-diagnostico-diagnosticoitems) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 936,
+  "title": "Diagnostico visible en la ficha del item",
+  "first_commit": "081d77fb181b930a156179ab8c06ca0296775b0c",
+  "first_date": "2026-08-20T19:34:02-06:00",
+  "last_commit": "081d77fb181b930a156179ab8c06ca0296775b0c",
+  "last_date": "2026-08-20T19:34:02-06:00",
+  "subject": "Integra circuito #936 (circuito/item-936-diagnostico-visible-en-la-ficha-del-item) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 937,
+  "title": "Tablero items atorados agrupado por ca",
+  "first_commit": "e1629ee1d42e37cf192c3327de68a0b8b7000eca",
+  "first_date": "2026-08-20T20:23:03-06:00",
+  "last_commit": "e1629ee1d42e37cf192c3327de68a0b8b7000eca",
+  "last_date": "2026-08-20T20:23:03-06:00",
+  "subject": "Integra circuito #937 (circuito/item-937-tablero-items-atorados-agrupado-por-ca) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 938,
+  "title": "Pestana terminales wt1",
+  "first_commit": "014ef802d3561545d142fabd1a328045ea2d1327",
+  "first_date": "2026-08-21T14:38:02-06:00",
+  "last_commit": "014ef802d3561545d142fabd1a328045ea2d1327",
+  "last_date": "2026-08-21T14:38:02-06:00",
+  "subject": "Integra circuito #938 (circuito/item-938-pestana-terminales-wt1) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 940,
+  "title": "Frontend 890 vista de solo lectura de",
+  "first_commit": "dec9e347b855b5cfabe24c06d378f3852a751750",
+  "first_date": "2026-08-20T20:38:18-06:00",
+  "last_commit": "dec9e347b855b5cfabe24c06d378f3852a751750",
+  "last_date": "2026-08-20T20:38:18-06:00",
+  "subject": "Integra circuito #940 (circuito/item-940-frontend-890-vista-de-solo-lectura-de) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 941,
+  "title": "Torre config migrar huerfanos de alta p",
+  "first_commit": "10f7ddf95759bb2b13fbfea53a38f52b26b19ae0",
+  "first_date": "2026-08-21T13:46:03-06:00",
+  "last_commit": "10f7ddf95759bb2b13fbfea53a38f52b26b19ae0",
+  "last_date": "2026-08-21T13:46:03-06:00",
+  "subject": "Integra circuito #941 (circuito/item-941-torre-config-migrar-huerfanos-de-alta-p) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 942,
+  "title": "Torre config mostrar cadencias del cron",
+  "first_commit": "0ec7dd508b4d16d4ae3af1f3878aba34dd5afb0d",
+  "first_date": "2026-08-21T14:33:02-06:00",
+  "last_commit": "0f87a73c529805763a689a2013341faada648f7a",
+  "last_date": "2026-08-21T14:41:53-06:00",
+  "subject": "Integra circuito #942 (circuito/item-942-torre-config-mostrar-cadencias-del-cron) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 943,
+  "title": "Torre config reorganizar el panel por a",
+  "first_commit": "a5890a9ebced07c0e5b3d0d309bcf79c07b7eba9",
+  "first_date": "2026-08-21T15:19:02-06:00",
+  "last_commit": "a5890a9ebced07c0e5b3d0d309bcf79c07b7eba9",
+  "last_date": "2026-08-21T15:19:02-06:00",
+  "subject": "Integra circuito #943 (circuito/item-943-torre-config-reorganizar-el-panel-por-a) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 944,
+  "title": "Torre config renombrar los controles qu",
+  "first_commit": "d59f8b7670a3e33cf34eb0bea039960789ca02f8",
+  "first_date": "2026-08-21T15:01:03-06:00",
+  "last_commit": "d59f8b7670a3e33cf34eb0bea039960789ca02f8",
+  "last_date": "2026-08-21T15:01:03-06:00",
+  "subject": "Integra circuito #944 (circuito/item-944-torre-config-renombrar-los-controles-qu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 945,
+  "title": "Fase 1a latido inventario de motores",
+  "first_commit": "ac7541b836d5a3856810095c706c36c34933c951",
+  "first_date": "2026-08-21T14:41:54-06:00",
+  "last_commit": "ac7541b836d5a3856810095c706c36c34933c951",
+  "last_date": "2026-08-21T14:41:54-06:00",
+  "subject": "Integra circuito #945 (circuito/item-945-fase-1a-latido-inventario-de-motores) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 946,
+  "title": "Fase 1b semaforo pantalla de lectura",
+  "first_commit": "53cc3f87636f91625d21668517fb85439b0d5b9e",
+  "first_date": "2026-08-21T15:48:03-06:00",
+  "last_commit": "53cc3f87636f91625d21668517fb85439b0d5b9e",
+  "last_date": "2026-08-21T15:48:03-06:00",
+  "subject": "Integra circuito #946 (circuito/item-946-fase-1b-semaforo-pantalla-de-lectura) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 947,
+  "title": "Fase 1c botones correr ahorasimulacio",
+  "first_commit": "1b2b2db8770e434e3963455e0276740f04f3d21f",
+  "first_date": "2026-08-21T17:29:02-06:00",
+  "last_commit": "1b2b2db8770e434e3963455e0276740f04f3d21f",
+  "last_date": "2026-08-21T17:29:02-06:00",
+  "subject": "Integra circuito #947 (circuito/item-947-fase-1c-botones-correr-ahorasimulacio) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 948,
+  "title": "Bucle 463 evaluaryadecidido re encol",
+  "first_commit": "80c46d93ca5dfd743a3421d3ad8c244c113d788f",
+  "first_date": "2026-08-21T13:47:03-06:00",
+  "last_commit": "80c46d93ca5dfd743a3421d3ad8c244c113d788f",
+  "last_date": "2026-08-21T13:47:03-06:00",
+  "subject": "Integra circuito #948 (circuito/item-948-bucle-463-evaluaryadecidido-re-encol) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 949,
+  "title": "Ipv6 fase 11 13 registro de modulo p",
+  "first_commit": "f499cca0f8fba8c4c8f174307ce0ec437fb4c3e6",
+  "first_date": "2026-08-21T14:21:02-06:00",
+  "last_commit": "f499cca0f8fba8c4c8f174307ce0ec437fb4c3e6",
+  "last_date": "2026-08-21T14:21:02-06:00",
+  "subject": "Integra circuito #949 (circuito/item-949-ipv6-fase-11-13-registro-de-modulo-p) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 950,
+  "title": "Ipv6 fase 14 15 calculadora de plan d",
+  "first_commit": "9c367bf609313a45a22388821f99fc9efe0d2b0f",
+  "first_date": "2026-08-21T14:55:03-06:00",
+  "last_commit": "9c367bf609313a45a22388821f99fc9efe0d2b0f",
+  "last_date": "2026-08-21T14:55:03-06:00",
+  "subject": "Integra circuito #950 (circuito/item-950-ipv6-fase-14-15-calculadora-de-plan-d) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 951,
+  "title": "Ipv6 fase 16 cliente de api mikrotik c",
+  "first_commit": "678c1bfe5148f4668af15c725040f4dfbd3f7dd0",
+  "first_date": "2026-08-20T22:22:03-06:00",
+  "last_commit": "678c1bfe5148f4668af15c725040f4dfbd3f7dd0",
+  "last_date": "2026-08-20T22:22:03-06:00",
+  "subject": "Integra circuito #951 (circuito/item-951-ipv6-fase-16-cliente-de-api-mikrotik-c) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 957,
+  "title": "Comando diario circuitoreactivar agenda",
+  "first_commit": "0d84d75c11043747513f2e90c79ed4043299c368",
+  "first_date": "2026-08-20T19:19:02-06:00",
+  "last_commit": "0d84d75c11043747513f2e90c79ed4043299c368",
+  "last_date": "2026-08-20T19:19:02-06:00",
+  "subject": "Integra circuito #957 (circuito/item-957-comando-diario-circuitoreactivar-agenda) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 958,
+  "title": "Contador n items agendados visible en",
+  "first_commit": "9301a929b78bc773a7b0dc86bed2f98e9d7b1d46",
+  "first_date": "2026-08-20T19:25:04-06:00",
+  "last_commit": "9301a929b78bc773a7b0dc86bed2f98e9d7b1d46",
+  "last_date": "2026-08-20T19:25:04-06:00",
+  "subject": "Integra circuito #958 (circuito/item-958-contador-n-items-agendados-visible-en) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 960,
+  "title": "Consola inventario documentado de boton",
+  "first_commit": "1b61a7c70cae9d76e036da11b8ad4cf325c89b93",
+  "first_date": "2026-08-21T15:22:55-06:00",
+  "last_commit": "1b61a7c70cae9d76e036da11b8ad4cf325c89b93",
+  "last_date": "2026-08-21T15:22:55-06:00",
+  "subject": "Integra circuito #960 (circuito/item-960-consola-inventario-documentado-de-boton) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 965,
+  "title": "Consola decidir tratamiento de los boto",
+  "first_commit": "79a57b799f3a3435f0de235c28728545fce767e7",
+  "first_date": "2026-08-21T19:17:02-06:00",
+  "last_commit": "110f82825a8327a31e3b58a386cddb7882241b75",
+  "last_date": "2026-08-21T19:18:02-06:00",
+  "subject": "Integra circuito #965 (circuito/item-965-consola-decidir-tratamiento-de-los-boto) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 967,
+  "title": "Anti bucle de thomas brief contestado",
+  "first_commit": "837cb756ba4c868e25a99d2137d60e89527da9cd",
+  "first_date": "2026-08-20T20:01:03-06:00",
+  "last_commit": "837cb756ba4c868e25a99d2137d60e89527da9cd",
+  "last_date": "2026-08-20T20:01:03-06:00",
+  "subject": "Integra circuito #967 (circuito/item-967-anti-bucle-de-thomas-brief-contestado) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 972,
+  "title": "Boton reasignar en la pestana terminales",
+  "first_commit": "d4d5711bf4564806a4f88b02d59a4f596307e629",
+  "first_date": "2026-08-20T20:34:02-06:00",
+  "last_commit": "d4d5711bf4564806a4f88b02d59a4f596307e629",
+  "last_date": "2026-08-20T20:34:02-06:00",
+  "subject": "Integra circuito #972 (circuito/item-972-boton-reasignar-en-la-pestana-terminales) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 974,
+  "title": "Dashboard declara sus endpoints en modu",
+  "first_commit": "bccf9e6089154586dc07ea9acb8b157719914f56",
+  "first_date": "2026-08-20T20:27:02-06:00",
+  "last_commit": "bccf9e6089154586dc07ea9acb8b157719914f56",
+  "last_date": "2026-08-20T20:27:02-06:00",
+  "subject": "Integra circuito #974 (circuito/item-974-dashboard-declara-sus-endpoints-en-modu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 975,
+  "title": "Localizacion declara sus endpoints en m",
+  "first_commit": "3cbea2ff03d8df358db222024f6ad92181b6cb4b",
+  "first_date": "2026-08-20T20:28:03-06:00",
+  "last_commit": "3cbea2ff03d8df358db222024f6ad92181b6cb4b",
+  "last_date": "2026-08-20T20:28:03-06:00",
+  "subject": "Integra circuito #975 (circuito/item-975-localizacion-declara-sus-endpoints-en-m) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 976,
+  "title": "Respuesta terminales 938 falta el mo",
+  "first_commit": "843ea2db0b21399092c91fbfb0b106fbfbd79e61",
+  "first_date": "2026-08-20T21:02:03-06:00",
+  "last_commit": "843ea2db0b21399092c91fbfb0b106fbfbd79e61",
+  "last_date": "2026-08-20T21:02:03-06:00",
+  "subject": "Integra circuito #976 (circuito/item-976-respuesta-terminales-938-falta-el-mo) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 979,
+  "title": "Seguridad ip service api puerto 8730",
+  "first_commit": "b6d6d47336b4c71b7db3c4deb91ba71231e58741",
+  "first_date": "2026-08-21T14:04:03-06:00",
+  "last_commit": "0a73fb9378ba21c859d858611a771c45d4057ecb",
+  "last_date": "2026-08-21T14:05:02-06:00",
+  "subject": "Integra circuito #979 (circuito/item-979-seguridad-ip-service-api-puerto-8730) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 980,
+  "title": "Diagnosticoitemservice servicio base c",
+  "first_commit": "b8a8761477362fd46ec5161dc90fa4be7ab5d23b",
+  "first_date": "2026-08-21T17:59:03-06:00",
+  "last_commit": "b8a8761477362fd46ec5161dc90fa4be7ab5d23b",
+  "last_date": "2026-08-21T17:59:03-06:00",
+  "subject": "Integra circuito #980 (circuito/item-980-diagnosticoitemservice-servicio-base-c) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 982,
+  "title": "Exponer diagnosticoitemservice batch com",
+  "first_commit": "6560bd29bc947e3ddc3a7e81b5e031ec51d37651",
+  "first_date": "2026-08-21T01:11:02-06:00",
+  "last_commit": "d84c6e35bb26745f5f0f76c08ebb366950347c11",
+  "last_date": "2026-08-21T01:13:02-06:00",
+  "subject": "Integra circuito #982 (circuito/item-982-exponer-diagnosticoitemservice-batch-com) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 983,
+  "title": "Mikrotikrulesjob nunca invoca addrulesin",
+  "first_commit": "eb7a8090b223f719c19eee4b2833ea1bb50cc9b4",
+  "first_date": "2026-08-21T19:22:03-06:00",
+  "last_commit": "eb7a8090b223f719c19eee4b2833ea1bb50cc9b4",
+  "last_date": "2026-08-21T19:22:03-06:00",
+  "subject": "Integra circuito #983 (circuito/item-983-mikrotikrulesjob-nunca-invoca-addrulesin) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 987,
+  "title": "Torre config panel fuente declarativa",
+  "first_commit": "93d062074d1f506293f3c2f9751e59ec485e0e6f",
+  "first_date": "2026-08-21T19:27:02-06:00",
+  "last_commit": "93d062074d1f506293f3c2f9751e59ec485e0e6f",
+  "last_date": "2026-08-21T19:27:02-06:00",
+  "subject": "Integra circuito #987 (circuito/item-987-torre-config-panel-fuente-declarativa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 988,
+  "title": "Torre config panel torreconfigpanelvu",
+  "first_commit": "951479eba808b1a2b9a1cc689d87440ba2ad549c",
+  "first_date": "2026-08-21T19:44:02-06:00",
+  "last_commit": "951479eba808b1a2b9a1cc689d87440ba2ad549c",
+  "last_date": "2026-08-21T19:44:02-06:00",
+  "subject": "Integra circuito #988 (circuito/item-988-torre-config-panel-torreconfigpanelvu) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 989,
+  "title": "Torre config panel procedencia y conse",
+  "first_commit": "ac316a7e79f4ba129774ac6c6a169b79e13615c3",
+  "first_date": "2026-08-21T20:21:02-06:00",
+  "last_commit": "ac316a7e79f4ba129774ac6c6a169b79e13615c3",
+  "last_date": "2026-08-21T20:21:02-06:00",
+  "subject": "Integra circuito #989 (circuito/item-989-torre-config-panel-procedencia-y-conse) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 990,
+  "title": "Bug reanudarcolisionesresueltas puede",
+  "first_commit": "af8bb51fc21dbfb6214bbc0c9a717d259f2d02a6",
+  "first_date": "2026-08-21T20:24:43-06:00",
+  "last_commit": "af8bb51fc21dbfb6214bbc0c9a717d259f2d02a6",
+  "last_date": "2026-08-21T20:24:43-06:00",
+  "subject": "Integra circuito #990 (circuito/item-990-bug-reanudarcolisionesresueltas-puede) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 992,
+  "title": "Ipv6 fase 32 politica de trafico entra",
+  "first_commit": "2ac8872e96fdee4231741f41f05158e7011d5d07",
+  "first_date": "2026-08-22T11:18:03-06:00",
+  "last_commit": "2ac8872e96fdee4231741f41f05158e7011d5d07",
+  "last_date": "2026-08-22T11:18:03-06:00",
+  "subject": "Integra circuito #992 (circuito/item-992-ipv6-fase-32-politica-de-trafico-entra) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 999,
+  "title": "Ipv6 17a ruta standalone controlador",
+  "first_commit": "00b50811f2a2899af669ae67289c6eb22711f7a4",
+  "first_date": "2026-08-21T22:40:03-06:00",
+  "last_commit": "00b50811f2a2899af669ae67289c6eb22711f7a4",
+  "last_date": "2026-08-21T22:40:03-06:00",
+  "subject": "Integra circuito #999 (circuito/item-999-ipv6-17a-ruta-standalone-controlador) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1000,
+  "title": "Ipv6 17b vuequasar pantalla 1 alta",
+  "first_commit": "47bc9f76bae8f459f6a0004bb7d650f55128e4e8",
+  "first_date": "2026-08-21T23:07:02-06:00",
+  "last_commit": "47bc9f76bae8f459f6a0004bb7d650f55128e4e8",
+  "last_date": "2026-08-21T23:07:02-06:00",
+  "subject": "Integra circuito #1000 (circuito/item-1000-ipv6-17b-vuequasar-pantalla-1-alta) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1001,
+  "title": "Ipv6 17c vuequasar pantalla 3 vista",
+  "first_commit": "f6ee29d9487d830d51df4691e12205b60e6a936e",
+  "first_date": "2026-08-21T23:20:03-06:00",
+  "last_commit": "f6ee29d9487d830d51df4691e12205b60e6a936e",
+  "last_date": "2026-08-21T23:20:03-06:00",
+  "subject": "Integra circuito #1001 (circuito/item-1001-ipv6-17c-vuequasar-pantalla-3-vista) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1003,
+  "title": "Directiva abrir y probar debe abri",
+  "first_commit": "6af1f58fecbf376f6e518f88d5f373d2df901a1f",
+  "first_date": "2026-08-21T16:54:02-06:00",
+  "last_commit": "6af1f58fecbf376f6e518f88d5f373d2df901a1f",
+  "last_date": "2026-08-21T16:54:02-06:00",
+  "subject": "Integra circuito #1003 (circuito/item-1003-directiva-abrir-y-probar-debe-abri) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1004,
+  "title": "Directiva el disparo por hambre y la",
+  "first_commit": "fa2007878fe08d9783b789e190f8236285c6d8b9",
+  "first_date": "2026-08-21T18:21:02-06:00",
+  "last_commit": "fa2007878fe08d9783b789e190f8236285c6d8b9",
+  "last_date": "2026-08-21T18:21:02-06:00",
+  "subject": "Integra circuito #1004 (circuito/item-1004-directiva-el-disparo-por-hambre-y-la) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1005,
+  "title": "Circuito wirear el gate fail closed de",
+  "first_commit": "b55b95a296ed227638ef8fe04dbbd978e2f9a468",
+  "first_date": "2026-08-21T17:12:03-06:00",
+  "last_commit": "b55b95a296ed227638ef8fe04dbbd978e2f9a468",
+  "last_date": "2026-08-21T17:12:03-06:00",
+  "subject": "Integra circuito #1005 (circuito/item-1005-circuito-wirear-el-gate-fail-closed-de) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1006,
+  "title": "Circuito backfill de enlace revision en",
+  "first_commit": "a3da2ac7aa32e29c91d7cea71c43464675191f59",
+  "first_date": "2026-08-21T17:17:02-06:00",
+  "last_commit": "a3da2ac7aa32e29c91d7cea71c43464675191f59",
+  "last_date": "2026-08-21T17:17:02-06:00",
+  "subject": "Integra circuito #1006 (circuito/item-1006-circuito-backfill-de-enlace-revision-en) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1007,
+  "title": "Inventario decidir cuarta categoria eq",
+  "first_commit": "1123ed599599eae7aa77197f1dfb4bc07b99a0c0",
+  "first_date": "2026-08-21T18:21:03-06:00",
+  "last_commit": "1123ed599599eae7aa77197f1dfb4bc07b99a0c0",
+  "last_date": "2026-08-21T18:21:03-06:00",
+  "subject": "Integra circuito #1007 (circuito/item-1007-inventario-decidir-cuarta-categoria-eq) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1008,
+  "title": "Circuito auto generar seguimiento al ce",
+  "first_commit": "c31aba7f15884e59b937d8edf7a6cbff484df50b",
+  "first_date": "2026-08-21T17:31:03-06:00",
+  "last_commit": "c31aba7f15884e59b937d8edf7a6cbff484df50b",
+  "last_date": "2026-08-21T17:31:03-06:00",
+  "subject": "Integra circuito #1008 (circuito/item-1008-circuito-auto-generar-seguimiento-al-ce) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1009,
+  "title": "Items con canal de respuesta correcc",
+  "first_commit": "032134a679ddbd8316d014ddcbbca76463d74c7f",
+  "first_date": "2026-08-21T17:08:03-06:00",
+  "last_commit": "032134a679ddbd8316d014ddcbbca76463d74c7f",
+  "last_date": "2026-08-21T17:08:03-06:00",
+  "subject": "Integra circuito #1009 (circuito/item-1009-items-con-canal-de-respuesta-correcc) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1014,
+  "title": "Circuito 6 items cerrados citan un n",
+  "first_commit": "894fd6e67b7ed7ee11cbbc1893fbff21f97534ce",
+  "first_date": "2026-08-21T17:23:02-06:00",
+  "last_commit": "894fd6e67b7ed7ee11cbbc1893fbff21f97534ce",
+  "last_date": "2026-08-21T17:23:02-06:00",
+  "subject": "Integra circuito #1014 (circuito/item-1014-circuito-6-items-cerrados-citan-un-n) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1015,
+  "title": "Auditor 559 memoria de cobertura por",
+  "first_commit": "ed2830effe70b01418e20339cfaeb55e6f94e2cb",
+  "first_date": "2026-08-21T17:43:03-06:00",
+  "last_commit": "ed2830effe70b01418e20339cfaeb55e6f94e2cb",
+  "last_date": "2026-08-21T17:43:03-06:00",
+  "subject": "Integra circuito #1015 (circuito/item-1015-auditor-559-memoria-de-cobertura-por) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1016,
+  "title": "Minero de bitacora 1004 4 senal in",
+  "first_commit": "e2442ae3cb901e2a6a6d20d132f68d63675c47b7",
+  "first_date": "2026-08-21T18:41:03-06:00",
+  "last_commit": "e2442ae3cb901e2a6a6d20d132f68d63675c47b7",
+  "last_date": "2026-08-21T18:41:03-06:00",
+  "subject": "Integra circuito #1016 (circuito/item-1016-minero-de-bitacora-1004-4-senal-in) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1017,
+  "title": "Version con vinculo tecnico commitmigr",
+  "first_commit": "c86c1dee913f769abcc464e213ba1721c60a3ba6",
+  "first_date": "2026-08-21T18:18:03-06:00",
+  "last_commit": "c86c1dee913f769abcc464e213ba1721c60a3ba6",
+  "last_date": "2026-08-21T18:18:03-06:00",
+  "subject": "Integra circuito #1017 (circuito/item-1017-version-con-vinculo-tecnico-commitmigr) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1018,
+  "title": "Disciplina expansiva validador anti mig",
+  "first_commit": "df64c78787c6816cae84d2700dc861f330454c57",
+  "first_date": "2026-08-21T18:44:49-06:00",
+  "last_commit": "df64c78787c6816cae84d2700dc861f330454c57",
+  "last_date": "2026-08-21T18:44:49-06:00",
+  "subject": "Integra circuito #1018 (circuito/item-1018-disciplina-expansiva-validador-anti-mig) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1020,
+  "title": "Reversibilidad filas nuevas",
+  "first_commit": "3c25df125bb554aa029efaf2bf5669f98d0edd6c",
+  "first_date": "2026-08-21T19:47:50-06:00",
+  "last_commit": "3c25df125bb554aa029efaf2bf5669f98d0edd6c",
+  "last_date": "2026-08-21T19:47:50-06:00",
+  "subject": "Integra circuito #1020 (circuito/item-1020-reversibilidad-filas-nuevas) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1021,
+  "title": "Ejecutar regreso en dev preparar plan p",
+  "first_commit": "17ea66159bee5cccb02ed95e55d73d85f6ffe516",
+  "first_date": "2026-08-22T11:09:02-06:00",
+  "last_commit": "17ea66159bee5cccb02ed95e55d73d85f6ffe516",
+  "last_date": "2026-08-22T11:09:02-06:00",
+  "subject": "Integra circuito #1021 (circuito/item-1021-ejecutar-regreso-en-dev-preparar-plan-p) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1030,
+  "title": "Seguimiento pregunta sin resolver de 1",
+  "first_commit": "4c516378807b0826b0a16de9ed754aae150c3404",
+  "first_date": "2026-08-21T17:39:02-06:00",
+  "last_commit": "4c516378807b0826b0a16de9ed754aae150c3404",
+  "last_date": "2026-08-21T17:39:02-06:00",
+  "subject": "Integra circuito #1030 (circuito/item-1030-seguimiento-pregunta-sin-resolver-de-1) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1032,
+  "title": "Ipv6 fase 52 motor de maquina de estad",
+  "first_commit": "92b8f1a507b6156909a78044e0d55c558823f653",
+  "first_date": "2026-08-22T00:54:02-06:00",
+  "last_commit": "92b8f1a507b6156909a78044e0d55c558823f653",
+  "last_date": "2026-08-22T00:54:02-06:00",
+  "subject": "Integra circuito #1032 (circuito/item-1032-ipv6-fase-52-motor-de-maquina-de-estad) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1033,
+  "title": "Ipv6 fase 53 simulador de renumeracion",
+  "first_commit": "26a372fd844228edf1a5ae98f528ece9e87df620",
+  "first_date": "2026-08-22T01:01:02-06:00",
+  "last_commit": "26a372fd844228edf1a5ae98f528ece9e87df620",
+  "last_date": "2026-08-22T01:01:02-06:00",
+  "subject": "Integra circuito #1033 (circuito/item-1033-ipv6-fase-53-simulador-de-renumeracion) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1035,
+  "title": "Thomas modelo de decision ejecutada v",
+  "first_commit": "f1f95c0c343bd1c8c4d10b7f2e212debfbb20cb4",
+  "first_date": "2026-08-22T11:12:45-06:00",
+  "last_commit": "f1f95c0c343bd1c8c4d10b7f2e212debfbb20cb4",
+  "last_date": "2026-08-22T11:12:45-06:00",
+  "subject": "Integra circuito #1035 (circuito/item-1035-thomas-modelo-de-decision-ejecutada-v) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1036,
+  "title": "Wiring addrulesinputdorprest con flag",
+  "first_commit": "604b22e898578371962eaf29095a973d68034267",
+  "first_date": "2026-08-22T01:11:02-06:00",
+  "last_commit": "604b22e898578371962eaf29095a973d68034267",
+  "last_date": "2026-08-22T01:11:02-06:00",
+  "subject": "Integra circuito #1036 (circuito/item-1036-wiring-addrulesinputdorprest-con-flag) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1037,
+  "title": "Inventariar ipsservicios de gestion wi",
+  "first_commit": "9cb5c86348e862cce0530119926b9f84794fe416",
+  "first_date": "2026-08-22T11:03:02-06:00",
+  "last_commit": "9cb5c86348e862cce0530119926b9f84794fe416",
+  "last_date": "2026-08-22T11:03:02-06:00",
+  "subject": "Integra circuito #1037 (circuito/item-1037-inventariar-ipsservicios-de-gestion-wi) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1038,
+  "title": "Runbook de piloto rollback para activa",
+  "first_commit": "3f730d1c46e0d6530a30b449c7674a2b6d459050",
+  "first_date": "2026-08-22T12:00:03-06:00",
+  "last_commit": "3f730d1c46e0d6530a30b449c7674a2b6d459050",
+  "last_date": "2026-08-22T12:00:03-06:00",
+  "subject": "Integra circuito #1038 (circuito/item-1038-runbook-de-piloto-rollback-para-activa) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1041,
+  "title": "Respuesta ventana de reversibilidad me",
+  "first_commit": "15915a6e5b6421b92f9f35dbb423af31a6084b4f",
+  "first_date": "2026-08-21T20:05:02-06:00",
+  "last_commit": "15915a6e5b6421b92f9f35dbb423af31a6084b4f",
+  "last_date": "2026-08-21T20:05:02-06:00",
+  "subject": "Integra circuito #1041 (circuito/item-1041-respuesta-ventana-de-reversibilidad-me) a main",
+  "modulo_inferido": "Roadmap / Circuito CC"
+ },
+ {
+  "orig_id": 1043,
+  "title": "Ipv6 12a migraciones ipv6 routers i",
+  "first_commit": "2d4cf6da9593aa63f29c69cbfa75933b191e6c08",
+  "first_date": "2026-08-22T12:12:03-06:00",
+  "last_commit": "2d4cf6da9593aa63f29c69cbfa75933b191e6c08",
+  "last_date": "2026-08-22T12:12:03-06:00",
+  "subject": "Integra circuito #1043 (circuito/item-1043-ipv6-12a-migraciones-ipv6-routers-i) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1045,
+  "title": "Ipv6 13a modelos eloquent infraestru",
+  "first_commit": "13d68fc44e86a8397113febf0371321e16d89917",
+  "first_date": "2026-08-22T03:44:03-06:00",
+  "last_commit": "13d68fc44e86a8397113febf0371321e16d89917",
+  "last_date": "2026-08-22T03:44:03-06:00",
+  "subject": "Integra circuito #1045 (circuito/item-1045-ipv6-13a-modelos-eloquent-infraestru) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1046,
+  "title": "Ipv6 13b modelos eloquent clientede",
+  "first_commit": "bec7b2454c737c2dec29e7af9198b46807c29617",
+  "first_date": "2026-08-22T12:20:03-06:00",
+  "last_commit": "bec7b2454c737c2dec29e7af9198b46807c29617",
+  "last_date": "2026-08-22T12:20:03-06:00",
+  "subject": "Integra circuito #1046 (circuito/item-1046-ipv6-13b-modelos-eloquent-clientede) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1047,
+  "title": "Ipv6 fase 31a servicio de orquestacion",
+  "first_commit": "55a89defe5280da901686c6db752a051f7ac5dbc",
+  "first_date": "2026-08-22T03:41:02-06:00",
+  "last_commit": "55a89defe5280da901686c6db752a051f7ac5dbc",
+  "last_date": "2026-08-22T03:41:02-06:00",
+  "subject": "Integra circuito #1047 (circuito/item-1047-ipv6-fase-31a-servicio-de-orquestacion) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1053,
+  "title": "Ipv6 fase 43 geofeed rfc 8805 diferi",
+  "first_commit": "c74d6b9396c481d06a83037d87df4b2555023f6d",
+  "first_date": "2026-08-22T03:56:02-06:00",
+  "last_commit": "c74d6b9396c481d06a83037d87df4b2555023f6d",
+  "last_date": "2026-08-22T03:56:02-06:00",
+  "subject": "Integra circuito #1053 (circuito/item-1053-ipv6-fase-43-geofeed-rfc-8805-diferi) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1059,
+  "title": "Ipv6 17a fase 22 frontend blade st",
+  "first_commit": "33dbceedf7705977ed3f261070f8e94fd05def12",
+  "first_date": "2026-08-22T03:58:02-06:00",
+  "last_commit": "70f317d211db5bad68c661389fd2699d3c7283ba",
+  "last_date": "2026-08-22T04:00:03-06:00",
+  "subject": "Integra circuito #1059 (circuito/item-1059-ipv6-17a-fase-22-frontend-blade-st) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1061,
+  "title": "Ipv6 17b fase 22 pantalla 2 mapeo d",
+  "first_commit": "4b4f53d536f1a9ce4fc9780fda656f7abbeff098",
+  "first_date": "2026-08-22T04:01:02-06:00",
+  "last_commit": "4b4f53d536f1a9ce4fc9780fda656f7abbeff098",
+  "last_date": "2026-08-22T04:01:02-06:00",
+  "subject": "Integra circuito #1061 (circuito/item-1061-ipv6-17b-fase-22-pantalla-2-mapeo-d) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1062,
+  "title": "Ipv6 17d mientras tab historial con",
+  "first_commit": "371aebc52199151f80a341edda7488ff0ee9365e",
+  "first_date": "2026-08-22T04:05:06-06:00",
+  "last_commit": "371aebc52199151f80a341edda7488ff0ee9365e",
+  "last_date": "2026-08-22T04:05:06-06:00",
+  "subject": "Integra circuito #1062 (circuito/item-1062-ipv6-17d-mientras-tab-historial-con) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1064,
+  "title": "Ipv6 fase 51a migracion modelo ipv6",
+  "first_commit": "067cf997c8239ead8e54d1f62cd1ba4c43db6da5",
+  "first_date": "2026-08-22T04:08:54-06:00",
+  "last_commit": "067cf997c8239ead8e54d1f62cd1ba4c43db6da5",
+  "last_date": "2026-08-22T04:08:54-06:00",
+  "subject": "Integra circuito #1064 (circuito/item-1064-ipv6-fase-51a-migracion-modelo-ipv6) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1065,
+  "title": "Ipv6 fase 51b migracion modelo ipv6",
+  "first_commit": "b1d41bd01293dca0b4fa4115a03f5963d80a10ce",
+  "first_date": "2026-08-22T04:10:03-06:00",
+  "last_commit": "b1d41bd01293dca0b4fa4115a03f5963d80a10ce",
+  "last_date": "2026-08-22T04:10:03-06:00",
+  "subject": "Integra circuito #1065 (circuito/item-1065-ipv6-fase-51b-migracion-modelo-ipv6) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1067,
+  "title": "Ipv6 fase 52b servicio ipv6renumbering",
+  "first_commit": "d7a3d35c1e4fdf246594578aa354b8f64e1b296f",
+  "first_date": "2026-08-22T04:18:02-06:00",
+  "last_commit": "d7a3d35c1e4fdf246594578aa354b8f64e1b296f",
+  "last_date": "2026-08-22T04:18:02-06:00",
+  "subject": "Integra circuito #1067 (circuito/item-1067-ipv6-fase-52b-servicio-ipv6renumbering) a main",
+  "modulo_inferido": "Red / IPv6"
+ },
+ {
+  "orig_id": 1070,
+  "title": "Ipv6 fase 53b pantalla del simulador d",
+  "first_commit": "f3ef29a98e0b3bcb0d375515928914b01a0a408d",
+  "first_date": "2026-08-22T04:24:03-06:00",
+  "last_commit": "f3ef29a98e0b3bcb0d375515928914b01a0a408d",
+  "last_date": "2026-08-22T04:24:03-06:00",
+  "subject": "Integra circuito #1070 (circuito/item-1070-ipv6-fase-53b-pantalla-del-simulador-d) a main",
+  "modulo_inferido": "Red / IPv6"
+ }
+]
