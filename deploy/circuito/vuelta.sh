@@ -32,6 +32,16 @@ LOCK="$RUNTIME/${SID}.lock"              # lock POR worktree → N vueltas en pa
 CENTINELA="${CIRCUITO_FRENO_CENTINELA:-/var/www/megaisp/storage/app/circuito/PAUSA}"
 frenado(){ [ -e "$CENTINELA" ]; }
 
+# CANDADO DE LA BASE DE PRUEBAS (incidente 2026-08-25 18:14). Ruta ABSOLUTA por $PROJ, misma
+# razón que el centinela de arriba: este script corre sobre worktrees que pueden estar en ramas
+# ANTERIORES al candado de PHP, y entonces esa capa no existe ahí. Ésta no se bifurca.
+if [ -r "$PROJ/deploy/circuito/guard-bd-pruebas.sh" ]; then
+  . "$PROJ/deploy/circuito/guard-bd-pruebas.sh"
+else
+  echo "FATAL: falta $PROJ/deploy/circuito/guard-bd-pruebas.sh — no arranco sin el candado." >&2
+  exit 1
+fi
+
 PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
 PROMPT_ITEM_FILE="$PROJ/deploy/circuito/prompt-item.txt"
 TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
@@ -150,6 +160,15 @@ ejecutar_una() {
   # --detach -f main` NO checa la rama main (vive en $PROJ) → git lo permite en el worktree.
   git -C "$WT" checkout --detach -f main >>"$LOG" 2>&1 || log "aviso: no pude sincronizar $WT a main."
   git -C "$WT" clean -fdq >>"$LOG" 2>&1 || true
+
+  # El worktree ya está en main; verifico ANTES de soltar al agente que este árbol no puede
+  # borrar la base de dev. Si el agente reanuda una rama vieja, el candado de PHP que viaja en
+  # main lo vuelve a atrapar dentro del proceso de phpunit. Aquí se corta el caso de raíz: un
+  # árbol no apto ni siquiera llega a tener un agente encima.
+  if ! guard_bd_pruebas "$WT" "$SID"; then
+    log "Vuelta ABORTADA: el worktree $WT no es apto para pruebas (ver storage/app/circuito/guard-bd-pruebas.log)."
+    return 1
+  fi
 
   if [ -n "$ITEM" ]; then
     PROMPT_TEXT="$(sed -e "s/__ITEM_ID__/$ITEM/g" -e "s/__SID__/$SID/g" "$PROMPT_ITEM_FILE")"
