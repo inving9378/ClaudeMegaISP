@@ -174,3 +174,43 @@ integración real (datos 100% hardcodeados en el cliente).
 *Generado por el Circuito CC (worker wt-1) el 2026-07-14, en lectura de `/var/www/megafamilia`
 (repo independiente, no gitignoreado dentro de `megaisp`, no protegido por la regla de
 aislamiento #334 que solo aplica a `/var/www/megaisp`). Sin cambios de código; solo lectura.*
+
+## 7. Actualización de vigencia (2026-08-26, item roadmap #23)
+
+Re-verificado contra el estado actual antes de cerrar el item. Conclusión: **la auditoría
+sigue vigente sin necesidad de rehacerla** — el código Flutter no se tocó desde el 14-jul
+(`find lib/ -newer <este doc>` → 0 archivos), sigue en `pubspec.yaml` v0.3.5+8, mismo build.
+Lo único que cambió es el **backend**, que avanzó sobre 2 de los 3 gaps ya documentados aquí
+(commits en `megaisp` desde el 14-jul, `git log --since=2026-07-14 -- app/Modules/Addons/MegaFamilia/`):
+
+- **`GET /servicio` (Mi servicio) — ya NO falta.** `ApiController::servicio()` ahora existe con
+  implementación real (plan/velocidad/estado/saldo, misma fuente única de saldo que
+  `PortalCliente\DashboardController`, commit `c97585fb`, item #490). Como la app ya llamaba
+  este endpoint con el patrón `_tryEndpoint` (antes caía a mock por falta de ruta), **la
+  pantalla "Mi servicio" pasa de Parcial a Funcional sin ningún cambio de código en la app** —
+  el gap era 100% del lado backend y ya se cerró.
+- **Tickets: detalle + adjuntar foto + calificar — backend listo, app sin consumir aún.**
+  `GET /tickets/{id}`, `POST /tickets/{id}/attachment`, `POST /tickets/{id}/rate` (commit
+  `8f964030`, item #494) ya existen en `routes.php`, pero el Flutter no cambió → la app
+  **sigue sin UI** para verlas (el hilo de respuestas, adjuntar foto o calificar un ticket
+  cerrado). Backend adelantado, pendiente de consumo — no es un problema del backend, es que
+  a nadie le tocó todavía actualizar la app (que además está en migración a RN, ver §1).
+- **Recibo de pago en PDF — backend nuevo, no en el inventario original ni en la app.**
+  `GET /pagos/{id}/pdf` (commit `189769c7`, item #491) es un endpoint nuevo que no formaba
+  parte del inventario de 45 llamadas de julio (la app no lo pedía) — reusa el PDF que ya
+  genera `BillingDocumentService`. Sigue sin consumidor en el Flutter auditado.
+- **`/payments/clabe` y `/payments/notify-transfer` siguen sin ruta backend** (verificado por
+  grep sobre `routes.php` actual) — el único de los 3 gaps originales que sigue abierto tal
+  cual estaba.
+
+**Resumen ejecutivo actualizado:** de los 3 endpoints sin backend detectados en julio, **1 se
+resolvió** (`/servicio`), **2 siguen pendientes** (CLABE/notify-transfer de pagos). El
+inventario de 26 pantallas/45 endpoints de las secciones 1-5 arriba sigue siendo el retrato
+correcto del código de la app tal como existe hoy; el único ajuste real es que "Mi servicio"
+ya cuenta como funcional en la práctica. No se encontraron pantallas, perfiles ni stack nuevos
+que auditar — el veredicto de fondo del §1 (invertir en `megafamilia-rn`, no en este Flutter)
+tampoco cambió.
+
+*Verificado por el Circuito CC (worker wt-6) el 2026-08-26 — item roadmap #23. Solo lectura
+en `/var/www/megafamilia` (sin cambios) y `git log`/`grep` de solo-lectura sobre el propio
+repo `megaisp`.*
