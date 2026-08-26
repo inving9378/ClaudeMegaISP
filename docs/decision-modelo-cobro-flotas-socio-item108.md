@@ -41,3 +41,11 @@ Cualquier ejecutor que tome #99 debe leer primero este documento.
 
 Item #108 se cierra `completado` — la decisión de negocio ya está tomada y documentada aquí.
 El trabajo técnico derivado (re-alcance de #99) es un item aparte y no se ejecuta desde #108.
+
+### Addendum — cierre formal en la Hoja de Ruta (2026-08-26)
+
+El item #108 quedó con este documento commiteado desde 2026-07-14, pero el registro en
+`roadmap_items` nunca se actualizó a `completado` (la actualización de estado se quedó a medias
+en aquella sesión). Reabierto por triaje automático el 2026-08-25 y reclamado de nuevo el
+2026-08-26, se verificó que la decisión sigue vigente sin cambios y no requiere nueva
+intervención de Irving/socio — solo se cierra el registro en la Hoja de Ruta apuntando aquí.
