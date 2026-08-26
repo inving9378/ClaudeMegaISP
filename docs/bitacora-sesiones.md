@@ -2469,3 +2469,18 @@ gestiona automático (`paraguas_abierto` en el log del item), no lo forcé.
 
 **Verificación de dónde se ve:** `/releases` → pestaña Hoja de ruta → filtrar por título
 `[Reconstruido #` → 326 filas históricas con su commit de integración y fecha real.
+
+## 2026-08-26 21:40 — Item #222 (worker wt-4): DashboardService::with('level') — premisa incorrecta
+
+Investigado el item #222 (auditor #559, módulo Talento): "DashboardService::tecnicoPreview y ::team
+truenan por with('level')". Hallazgo: **ya estaba arreglado** desde el 2026-07-11 (commit `c37feef2`,
+"fix(talento): relación level para DashboardService" — agregó `level()` + `level_id` en `$fillable`
+de `TalentoColaborador`), más de un mes antes de que el auditor recreara el item (2026-08-25). Verificado
+en tinker (solo lectura): `tecnicoPreview()` y `equipoPreview()` (el "::team" del item) ya no lanzan
+`RelationNotFoundException`.
+
+Causa raíz de la re-detección: la sección "MOTOR DE COMPENSACIÓN TALENTO" de `CLAUDE.md` traía una nota
+de deuda desactualizada describiendo el bug como pendiente. Se corrigió esa nota + se dejó
+`docs/talento-dashboardservice-level-item-222-verificacion.md` con el detalle (mismo patrón que la
+verificación del item #123). Sin cambio de código funcional. Commit `75a92867` en la rama
+`circuito/item-222-...`, integrado (auto-merge encolado). Item cerrado como `completado`.

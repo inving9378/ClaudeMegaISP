@@ -39,6 +39,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('message')-
     // });
 
     Route::prefix('invoice_email')->group(function () {
+        Route::get('/', [InvoiceEmailController::class, 'index']);
         Route::post('/table', [InvoiceEmailController::class, 'table']);
         // Route::post('/send_message', [PaymentEmailController::class, 'sendMessage']);
     });

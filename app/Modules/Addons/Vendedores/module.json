@@ -56,7 +56,6 @@
             "children": [
                 { "label": "Dashboard",    "url": "/vendedores",              "permission": "seller_view_dashboard" },
                 { "label": "Vendedores",   "url": "/sellers/seller",          "permission": "seller_view_seller" },
-                { "label": "Cortes",       "url": "/sellers/cuts",            "permission": "seller_cuts" },
                 { "label": "Prospectos",   "url": "/vendedores/prospectos",   "permission": "seller_view_prospects" },
                 { "label": "Estadísticas", "url": "/sellers/statistics",      "permission": "seller_view_statics" }
             ]
