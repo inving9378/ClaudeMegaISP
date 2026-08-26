@@ -1038,9 +1038,12 @@ class ThomasService
      *
      * CONSERVADOR A PROPÓSITO: solo dice que NO cabe con evidencia dura — nunca con el bucket
      * heurístico de `EstimadorTiempo` (techo fijo por nivel de riesgo sin muestras reales, que
-     * dispararía para casi cualquier item B/C sin decir nada útil). Dos señales, cualquiera basta:
+     * dispararía para casi cualquier item B/C sin decir nada útil). Tres señales, cualquiera basta:
      *   1. Empírica: `reanudaciones_timeout >= 1` — el item YA timeouteó antes.
-     *   2. Histórica: mediana real (`eta_metodo = 'historico'`, ≥3 muestras módulo+nivel) por
+     *   2. Declarada (#193): `fasesExplicitasDeclaradas()` — el propio spec se enumera a sí mismo
+     *      en >= `min_fases_explicitas` partes (`--- HIJO A ... ---`, `--- HIJO B ... ---`, …). No
+     *      es una inferencia: es lo que el autor del spec ya escribió.
+     *   3. Histórica: mediana real (`eta_metodo = 'historico'`, ≥3 muestras módulo+nivel) por
      *      encima del umbral configurado.
      * Sin ninguna señal → cabe (el estimado es orientativo, no un oráculo: por defecto no bloquea).
      *
@@ -1060,6 +1063,14 @@ class ThomasService
             return ['cabe' => false, 'motivo' => 'ya_timeouteo_antes', 'eta_segundos' => null];
         }
 
+        $minFases = (int) config('circuito.thomas.cabida.min_fases_explicitas', 3);
+        if ($minFases > 0) {
+            $fases = self::fasesExplicitasDeclaradas((string) $item->description . ' ' . (string) $item->prompt);
+            if ($fases >= $minFases) {
+                return ['cabe' => false, 'motivo' => 'spec_declara_fases_explicitas', 'eta_segundos' => null];
+            }
+        }
+
         $eta    = $this->circuito->estimarEtaTrabajo($item->modulo, $item->nivel_riesgo);
         $umbral = (int) config('circuito.thomas.cabida.umbral_segundos', 480);
 
@@ -1072,6 +1083,45 @@ class ThomasService
         }
 
         return ['cabe' => true, 'motivo' => 'sin_senal_de_riesgo', 'eta_segundos' => $crudo];
+    }
+
+    /**
+     * #193 — ¿el propio texto se enumera a sí mismo en varias partes con la MISMA etiqueta?
+     * Detecta encabezados del formato ya usado en specs reales de este repo:
+     * `--- HIJO A · título ---`, `--- HIJO B · título ---`, … (ver item #191, 5 hijos A-E).
+     *
+     * Devuelve el mayor número de enumeradores DISTINTOS vistos bajo una misma etiqueta (p.ej.
+     * "HIJO" → {A,B,C,D,E} = 5). Etiquetas de sección fijas sin enumerador ("--- FUERA DE ALCANCE
+     * ---", "--- CRITERIOS DE ACEPTACIÓN ---") no matchean: el segundo grupo exige un token de UNA
+     * sola letra o 1-2 dígitos pegado a un delimitador, así que una palabra normal de la frase
+     * ("DE", "ALCANCE"…) nunca cae ahí.
+     *
+     * PURA (solo regex, sin BD ni contenedor) para poder testear sin bootear Laravel — mismo
+     * patrón que `opcionElegidaEsEscalar()`/`referenciasItemEnTexto()`.
+     */
+    public static function fasesExplicitasDeclaradas(string $texto): int
+    {
+        if ($texto === '' || ! preg_match_all(
+            '/^-{2,}\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\- ]{1,25}?)\s+([A-Z]|\d{1,2})\s*(?:[:·]|-{2,}|$)/mu',
+            $texto,
+            $matches,
+            PREG_SET_ORDER
+        )) {
+            return 0;
+        }
+
+        $porEtiqueta = [];
+        foreach ($matches as $m) {
+            $etiqueta = mb_strtoupper(trim($m[1]));
+            $porEtiqueta[$etiqueta][$m[2]] = true;
+        }
+
+        $max = 0;
+        foreach ($porEtiqueta as $enumeradores) {
+            $max = max($max, count($enumeradores));
+        }
+
+        return $max;
     }
 
     // =================================================================

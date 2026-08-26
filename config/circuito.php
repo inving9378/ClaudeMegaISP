@@ -395,15 +395,22 @@ return [
         | `circuito:cabida` para decidir si conviene descomponer en sub-items en vez de arrancar.
         | Deliberadamente CONSERVADOR: solo dispara con evidencia dura (nunca con el bucket
         | heurístico de `EstimadorTiempo`, que es un techo por nivel de riesgo sin muestras reales
-        | y dispararía casi siempre). Dos señales, cualquiera basta:
+        | y dispararía casi siempre). Tres señales, cualquiera basta:
         |   1. `reanudaciones_timeout >= 1` — el item YA timeouteó antes (dato empírico, no estimado).
-        |   2. mediana histórica (`eta_metodo = 'historico'`, ≥3 muestras módulo+nivel) por encima
+        |   2. (#193) el propio spec se declara multi-fase: >= `min_fases_explicitas` encabezados
+        |      `--- ETIQUETA ENUM ... ---` con la MISMA etiqueta y enumeradores distintos (p.ej.
+        |      `HIJO A` … `HIJO E`). No es el modelo infiriendo fases: es quien escribió el spec
+        |      quien ya las enumeró — barato (regex, sin BD) y honesto (nada se adivina).
+        |   3. mediana histórica (`eta_metodo = 'historico'`, ≥3 muestras módulo+nivel) por encima
         |      del umbral de segundos.
         | `umbral_segundos` queda por debajo del timeout real de `vuelta.sh` (600s) a propósito:
         | conviene decomponer ANTES de rozar la pared, no justo al borde.
         */
         'cabida' => [
-            'umbral_segundos' => (int) env('CIRCUITO_CABIDA_UMBRAL_SEGUNDOS', 480),
+            'umbral_segundos'       => (int) env('CIRCUITO_CABIDA_UMBRAL_SEGUNDOS', 480),
+            // 0 = señal apagada. Mismo umbral "≥3 muestras" que ya usa el resto del circuito
+            // como evidencia suficiente (ver EstimadorTiempo::MIN_MUESTRAS).
+            'min_fases_explicitas' => (int) env('CIRCUITO_CABIDA_MIN_FASES_EXPLICITAS', 3),
         ],
 
         /*

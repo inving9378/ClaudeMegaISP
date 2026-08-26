@@ -12,7 +12,7 @@ use Illuminate\Console\Command;
  * Primer paso de la terminal (antes de `circuito:rama`): si esto dice que NO cabe, la terminal
  * NO empieza a implementar — usa `circuito:sub-item` para dejar fases registradas y termina su
  * vuelta. La decisión vive en `ThomasService::caberEnVuelta()` (aquí solo se imprime/traduce a
- * exit code); ver ahí el porqué de las dos señales que usa y por qué es deliberadamente
+ * exit code); ver ahí el porqué de las tres señales que usa y por qué es deliberadamente
  * conservador (nunca dispara con el bucket heurístico sin muestras reales).
  *
  * Exit 0 = cabe (procede). Exit 1 = NO cabe (descompón). Idempotente vía `yaFueDescompuesto()`.
