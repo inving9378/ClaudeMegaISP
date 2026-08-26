@@ -48,8 +48,7 @@
         { "name": "talento.dashboard.view",       "description": "Ver dashboards de producción, técnico y supervisor" },
         { "name": "talento.escalafon.view",       "description": "Ver tabla de posiciones/escalafón" },
         { "name": "talento.escalafon.manage",     "description": "Configurar pesos del puntaje compuesto" },
-        { "name": "talento.embajadores.view",     "description": "Ver cross-link colaborador↔embajador/vendedor (solo lectura)" },
-        { "name": "talento.portal_tecnico",        "description": "Acceder al Portal Técnico Web (PWA de campo para el colaborador)" }
+        { "name": "talento.embajadores.view",     "description": "Ver cross-link colaborador↔embajador/vendedor (solo lectura)" }
     ],
 
     "menu": [
@@ -129,7 +128,34 @@
         { "method": "GET",  "path": "/talento/api/settlements",                         "description": "Lista finiquitos",                                      "permission": "talento.liquidation.view" },
         { "method": "GET",  "path": "/talento/api/sitios",                              "description": "Lista sitios de trabajo",                               "permission": "talento.work_sites.view" },
         { "method": "GET",  "path": "/talento/api/proyectos",                           "description": "Lista proyectos de planta externa",                     "permission": "talento.projects.view" },
-        { "method": "GET",  "path": "/talento/api/rutas",                               "description": "Lista rutas de campo",                                  "permission": "talento.routes.view" }
+        { "method": "GET",  "path": "/talento/api/rutas",                               "description": "Lista rutas de campo",                                  "permission": "talento.routes.view" },
+
+        { "method": "GET",  "path": "/talento/portal/manifest.webmanifest",             "description": "Manifest PWA del Portal de Colaborador (público)",       "permission": null },
+        { "method": "GET",  "path": "/talento/portal/sw.js",                            "description": "Service worker del Portal de Colaborador (público)",     "permission": null },
+        { "method": "GET",  "path": "/talento/portal",                                  "description": "Shell del Portal de Colaborador (PWA web)",              "permission": "portal.colaborador" },
+        { "method": "POST", "path": "/talento/portal/preferencias/tema",                "description": "Guarda preferencia de tema del portal",                  "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/asistencia/hoy",                   "description": "Asistencia del día del colaborador (portal web)",        "permission": "portal.colaborador" },
+        { "method": "POST", "path": "/talento/portal/asistencia/checkin",               "description": "Check-in de asistencia (portal web)",                    "permission": "portal.colaborador" },
+        { "method": "POST", "path": "/talento/portal/asistencia/checkout",              "description": "Check-out de asistencia (portal web)",                   "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/ots/hoy",                          "description": "Órdenes de trabajo del día (portal web)",                "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/dinero/cuenta",                    "description": "Resumen de cuenta del colaborador (portal web, solo lectura)", "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/dinero/desglose",                  "description": "Desglose de compensación semanal (portal web, solo lectura)", "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/dinero/fondo",                     "description": "Fondo de ahorro forzoso del colaborador (portal web, solo lectura)", "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/dinero/prestamos",                 "description": "Préstamos del colaborador (portal web, solo lectura)",  "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/material",                        "description": "Material en custodia del colaborador (portal web, solo lectura)", "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/ot/{origen}/{id}",                 "description": "Detalle de una OT/tarea de campo (portal web)",          "permission": "portal.colaborador" },
+        { "method": "POST", "path": "/talento/portal/ot/{origen}/{id}/iniciar",         "description": "Inicia una OT/tarea de campo (portal web)",              "permission": "portal.colaborador" },
+        { "method": "POST", "path": "/talento/portal/ot/{origen}/{id}/completar",       "description": "Completa una OT/tarea de campo (portal web)",            "permission": "portal.colaborador" },
+        { "method": "POST", "path": "/talento/portal/ot/{origen}/{id}/evidencia",       "description": "Sube evidencia de una OT/tarea de campo (portal web)",   "permission": "portal.colaborador" },
+        { "method": "POST", "path": "/talento/portal/ot/{origen}/{id}/firma",           "description": "Guarda firma de una OT/tarea de campo (portal web)",     "permission": "portal.colaborador" },
+        { "method": "POST", "path": "/talento/portal/ot/{origen}/{id}/aceptar",         "description": "Acepta una OT/tarea y da handoff a activaciones (portal web)", "permission": "portal.colaborador" },
+
+        { "method": "GET",  "path": "/talento/api/colaboradores/{id}/embajador-data",   "description": "Cross-link colaborador→embajador (solo lectura)",        "permission": "talento.embajadores.view" },
+        { "method": "GET",  "path": "/talento/api/colaboradores/{id}/seller-data",      "description": "Cross-link colaborador→vendedor/comisiones (solo lectura)","permission": "talento.embajadores.view" },
+        { "method": "GET",  "path": "/talento/api/dashboard/info-cards",                "description": "Tarjetas de resumen del dashboard de producción",        "permission": "talento.dashboard.view" },
+        { "method": "GET",  "path": "/talento/api/escalafon",                           "description": "Tabla de posiciones/escalafón",                          "permission": "talento.escalafon.view" },
+        { "method": "GET",  "path": "/talento/api/colaboradores/{id}/level-eligibility","description": "Elegibilidad de nivel de un colaborador",                "permission": "talento.levels.view" },
+        { "method": "GET",  "path": "/talento/api/my-certifications",                   "description": "Certificaciones propias del colaborador autenticado",    "permission": "talento.academy.view" }
     ],
 
     "ai": {
