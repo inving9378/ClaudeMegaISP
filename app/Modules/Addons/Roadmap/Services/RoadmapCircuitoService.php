@@ -176,18 +176,31 @@ class RoadmapCircuitoService
                 . 'cambia un humano autenticado con permiso circuito.pause (el ejecutor no puede).'
             );
         }
+        $u     = auth()->user();
+        $quien = 'irving:' . ($u->login_user ?? $u->email ?? $u->id ?? '?');
+
+        // El freno vive en ARCHIVO desde #170 e `isPaused()` es `archivo || base`. Si la Torre
+        // sólo tocara la base, el botón no podría soltar un freno puesto desde la consola: el
+        // endpoint contestaría "reanudado", la UI diría "corriendo" y las seis terminales
+        // seguirían detenidas. Eso es exactamente el botón que miente que #170 vino a evitar.
+        // El centinela se mueve PRIMERO al frenar (fail-closed: si falla lo de abajo, ya frenó)
+        // y AL FINAL al soltar (fail-closed: nada se suelta hasta que el resto quedó consistente).
+        if ($paused) {
+            FrenoCircuito::poner('Freno puesto desde la Torre.', $quien);
+        }
+
         $this->putSetting(self::PAUSE_KEY, $paused ? '1' : '0');
 
         // #343: sella cuándo/quién pausó (auditoría + salvaguarda de "pausa olvidada"). Al
         // reanudar se limpia — la meta solo es relevante mientras sigue en pausa.
         if ($paused) {
-            $u = auth()->user();
             $this->putSetting(self::PAUSE_META_KEY, json_encode([
                 'at' => now()->timestamp,
-                'by' => 'irving:' . ($u->login_user ?? $u->email ?? $u->id ?? '?'),
+                'by' => $quien,
             ], JSON_UNESCAPED_UNICODE));
         } else {
             DB::table('settings')->where('key', self::PAUSE_META_KEY)->delete();
+            FrenoCircuito::quitar();
         }
     }
 
