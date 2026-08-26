@@ -753,14 +753,15 @@ class ThomasService
         // (1) MERGE — trabajo hecho esperando integración. Va PRIMERO: es la bolsa más grande y la
         // que más se confundía con "falta decidir".
         if (! empty($item->branch) && empty($item->merge_commit)) {
-            // Las banderas de BD (`branch_has_content`, `branch_ahead_count`) las sella un chequeo
-            // periódico y se quedan FRÍAS: #19 tenía trabajo real en su rama y las banderas en
-            // cero, así que se leía como "falta ejecutarlo" y volvía al pool eternamente. Cuando
-            // las banderas no son concluyentes se le pregunta a git, que es la única fuente que no
-            // se desactualiza.
-            $tieneTrabajo = (bool) $item->esperando_merge_irving
-                || (bool) $item->branch_has_content
-                || (int) $item->branch_ahead_count > 0;
+            // SE LE PREGUNTA A GIT, que es la única fuente que no se desactualiza. Aquí vivían dos
+            // atajos de BD (`branch_has_content`, `branch_ahead_count`) y se retiraron por dos
+            // razones que apuntan al mismo lado:
+            //   1. Se quedaban FRÍAS. #19 tenía trabajo real en su rama con las banderas en cero,
+            //      así que se leía como "falta ejecutarlo" y volvía al pool eternamente.
+            //   2. Sus columnas venían de una migración FANTASMA y desaparecieron con la
+            //      restauración por PITR del 2026-08-25 — nadie en el repo las escribía nunca.
+            // El parqueo explícito sí es dato propio y se conserva como atajo barato.
+            $tieneTrabajo = (bool) $item->esperando_merge_irving;
 
             if (! $tieneTrabajo) {
                 $tieneTrabajo = (bool) $this->circuito->archivosDeRama((string) $item->branch);
