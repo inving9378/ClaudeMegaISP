@@ -2293,3 +2293,33 @@ arranque + integración + limpieza, y muy por debajo de cualquier colgado real).
 
 Las 2 alertas que le quedan a Thomas son legítimas y ambas `me_pregunta`: **swap al 88 %** y 5 sesiones
 interactivas de claude viejas (que NO se tocan a propósito: pueden ser las de Irving).
+
+## 2026-08-26 15:19 — Item #174: vuelta.sh — timeout del padre, tope de iteraciones y detección de huérfano
+
+Origen: mismo incidente P0 del 22-ago (huérfano de 1d21h) que ya motivó el trabajo de la sonda/Thomas
+documentado arriba (el rediseño de la alarma `colgadas` vs `huerfanas`). Ese trabajo anterior arregló
+la SEÑAL (cómo Thomas detecta y avisa de una vuelta colgada desde fuera). Este item ataca la CAUSA
+en el propio proceso: `deploy/circuito/vuelta.sh` tenía `timeout $TIMEOUT` (600s) envolviendo SOLO al
+hijo (`claude -p`) dentro de `ejecutar_una`; el `while true` del pool continuo (padre) podía reentrar
+sin límite mientras `circuito:claim-next` siguiera dando trabajo, y si el proceso que lo lanzó
+(cron/scheduler) moría a medio camino, quedaba reparentado a init (PPID=1) corriendo indefinidamente
+— pausar el cron ya no lo alcanzaba, porque cron sólo evita relanzar, no mata lo que ya corre.
+
+**Cambio (commit `6a575ab1`, rama `circuito/item-174-vueltash-timeout-al-proceso-padre-top`):** tres
+candados nuevos dentro del lazo `while true`, revisados antes y después de cada `ejecutar_una`,
+cualquiera basta para soltar el slot (el scheduler relanza si sigue habiendo trabajo elegible):
+- `PARENT_TIMEOUT` (env `CIRCUITO_PARENT_TIMEOUT`, default 10800s/3h) — pared de tiempo sobre TODO
+  el proceso padre, independiente del timeout de 600s por hijo.
+- `MAXITER` (env `CIRCUITO_MAXITER`, default 20) — tope de items encadenados por invocación.
+- `huerfano()` — detecta PPID=1 vía `/proc/$$/stat` (mismo patrón ya usado en el archivo para el
+  `starttime` del registro de Thomas: parseo tras el último `)`, sin spawnear `ps`).
+
+Ambos knobs siguen el mismo patrón que `CIRCUITO_TIMEOUT`/`CIRCUITO_MAXTURNS` (override por env, sin
+tocar `config/circuito.php`; decisión registrada: no se expusieron en la Torre por ser un candado
+interno del script, no un parámetro operativo que Irving necesite ver/cambiar como el timeout).
+
+**Verificado:** `bash -n` limpio; `huerfano()` probado con `setsid` real (PPID=1 forzado → detecta
+correctamente; shell normal con padre real → NO da falso positivo); aritmética de `MAXITER`/
+`PARENT_TIMEOUT` probada en harness bash aislado (corta exactamente en la iteración/segundo esperado).
+Sin pantalla que enlazar (`sin_ui=true`) — es un script de infraestructura del ejecutor on-box, se
+revisa el diff directamente. Item cerrado `completado`, merge encolado vía `circuito:integrar`.
