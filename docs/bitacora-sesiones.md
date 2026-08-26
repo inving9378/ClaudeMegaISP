@@ -2323,3 +2323,68 @@ correctamente; shell normal con padre real → NO da falso positivo); aritmétic
 `PARENT_TIMEOUT` probada en harness bash aislado (corta exactamente en la iteración/segundo esperado).
 Sin pantalla que enlazar (`sin_ui=true`) — es un script de infraestructura del ejecutor on-box, se
 revisa el diff directamente. Item cerrado `completado`, merge encolado vía `circuito:integrar`.
+
+## 2026-08-26 15:22 — Item #178: el corte original del 22-ago NO salió del botón de Ignition
+
+**Pregunta del item:** confirmar si el corte de BD del 22-ago ~12:41 tuvo el mismo origen que la
+recreación fallida del 24-ago (el botón "Run Migrations" de Ignition). **Respuesta: NO.** Evidencia
+directa contra la premisa del propio item de que hubo un fallo a las 12:41:03 — no lo hay en ninguna
+de las dos fuentes disponibles (log de Laravel ni binlog ya copiado); el primer síntoma real es
+7 minutos más tarde, a las 12:48:52, y la causa es un mecanismo completamente distinto: una carrera
+de dos `migrate:fresh` concurrentes sobre la BD compartida de dev — el mismo mecanismo que después
+causó (y se corrigió) la SEGUNDA ocurrencia del 25-ago.
+
+**Método.** El binlog necesario para esta ventana YA estaba copiado de la contención del 24-ago
+(`/home/meganet/forense-20260822/binlog.000042`, 703 MB, abarca 22-ago 12:00:02–13:59:24) y ya
+existía su extracción con `mysqlbinlog` (`ventana-22ago.sql`, 26 MB) — no hizo falta tocar binlogs
+nuevos. Cruzado contra `laravel-22ago-11a13h.log` (mismo directorio, ventana 11:00–13:10) para
+correlacionar la vista de aplicación con la vista de replicación.
+
+**Lo que dice el binlog.** Dos sentencias `DROP TABLE t1,t2,...` (sin `IF EXISTS`, con
+`foreign_key_checks=0`) — la firma exacta de `Schema::dropAllTables()` de Laravel (`migrate:fresh`),
+la misma firma confirmada para el `DROP` del 25-ago:
+- `12:48:43` — `thread_id=950350` — dropea **~500 tablas** en una sola sentencia.
+- Entre ambos drops: **169+ `CREATE TABLE`** — el primer proceso ya estaba reconstruyendo el
+  esquema (recreando tablas del migrate) cuando llegó el segundo golpe.
+- `12:49:39` (56 s después) — `thread_id=950356` — dropea un **subconjunto más chico** (~235 tablas,
+  las que el primer proceso ya había recreado en ese instante) en otra sentencia idéntica en forma.
+
+Dos hilos distintos ejecutando el mismo patrón de drop-total con 56 segundos de diferencia, el
+segundo golpeando tablas que el primero apenas había reconstruido: es la firma de **dos `migrate:fresh`
+corriendo en paralelo** sobre la misma BD compartida, no de una sola operación.
+
+**Lo que dice el log de Laravel.** Última línea sana: `12:20:04` (warning de cierre de roadmap,
+normal). **Cero** ocurrencias de `execute-solution` (la ruta que dispara los botones de Ignition) en
+las 2h10 capturadas. Primer error `1146 Table 'megaisp.settings' doesn't exist`: **12:48:52** — 9
+segundos después del primer `DROP`, exactamente lo esperable como primer intento de lectura tras la
+sentencia. No hay ningún error ni traza de Ignition antes de esa hora — si el botón se hubiera usado
+el 22-ago, habría quedado un `POST /_ignition/execute-solution` en este mismo log, igual que quedó
+para el del 24-ago.
+
+**Sobre el dato de "12:41:03" del propio item:** no lo pude corroborar. Los 4 logs de vuelta
+preservados de esa ventana (`wt-1` 12:17, `wt-2` 12:20, `wt-1` 12:28, `wt-1` 12:35) terminan todos
+limpios, el último (`wt-1`) cerrando bien a las **12:41:08** ("ejecucion registrada", sin error). No
+hay ningún log de `wt-2` fallando a las 12:41:03 en lo preservado, y el log de Laravel no registra
+nada entre 12:20:04 y 12:48:52. Puede que ese dato viniera de una fuente que no sobrevivió al PITR
+del 25-ago (una fila de `circuito_ejecuciones` ya reescrita) o de un cálculo previo erróneo; lo dejo
+señalado en vez de repetirlo sin verificar. El hecho verificado y sólido es el `DROP` de **12:48:43**.
+
+**Copia de binlogs pendiente (039, 043–048) — NO completada, y no hacía falta para esta pregunta.**
+El item pedía completar la copia de los binlogs 000039–000049 desde `/var/log/mysql/`. No pude:
+el directorio es `mysql:adm 750` (grupo `meganet` pertenece a `mysql` pero no a `adm` → acceso
+denegado) y `megaisp_user` no tiene `REPLICATION CLIENT` para leerlos por SQL (`SHOW BINARY LOGS`
+da 1227). El único camino es `sudo`, y `meganet` sólo tiene sudo con contraseña interactiva (`sudo -n`
+falla) — inviable para un ejecutor desatendido. **Decisión (nivel A, no bloquea el cierre):** no
+perseguir esos binlogs ahora — la pregunta del item ya quedó contestada con lo ya copiado, y por
+numeración esos archivos casi seguro corresponden a la ventana del 24-ago (el bucle infinito de
+43.947 invocaciones que rotó el binlog muchas veces en pocas horas), no al 22-ago. Si en el futuro
+hace falta ese detalle del 24-ago, la tarea es la misma pero la haría alguien con acceso a `sudo`
+interactivo o con `GRANT REPLICATION CLIENT ON *.* TO 'megaisp_user'@'localhost'` (mismo prerequisito
+ya pedido para `deploy:dry-run-migrations` en la Hoja de Ruta).
+
+**Conclusión para el registro:** el 22-ago y el 24-ago **no comparten causa**. El 22-ago fue una
+carrera de `migrate:fresh` (dos procesos de test/circuito escribiendo sobre la misma BD dev
+compartida — el defecto de fondo que persistió sin cerrarse hasta el fix de `phpunit.xml` tras el
+25-ago). El botón de Ignition sólo entra en la historia el 24-ago, como intento fallido de
+*reparación* sobre una BD que ya llevaba dos días vacía — no como causa de ningún vaciado.
+Item cerrado `completado`, `sin_ui=true` (investigación forense, sin pantalla que enlazar).
