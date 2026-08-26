@@ -3971,3 +3971,26 @@ solo.
 Detalle en `docs/roadmap-bucle-reap-item-9990012-verificacion.md`. Sin cambio de código de
 negocio — el trabajo técnico real (reproducir la carrera y confirmar el mecanismo exacto) sigue en
 #9990063 (`pendiente_revision`, pendiente de que el revisor lo trie).
+
+## 2026-08-26 15:53 — Item #146: retención de respaldos de release (storage/backup_test)
+
+Worker on-box `wt-2`, rama `circuito/item-146-retencion-de-respaldos-por-version-stor`.
+
+**Hallazgo:** el comando `backups:purge-test` (keep-last-N, dry-run por defecto, solo toca
+`{version}/{version}.zip` con match exacto) ya existía desde el 30-jun (commit `701fd574`,
+también referenciando #146), pero nunca quedó agendado — había que correrlo a mano con `--force`
+y nadie lo hacía, así que `storage/backup_test/` seguía creciendo sin límite (~135 MB/versión).
+
+**Cambio:** se agregó a `app/Console/Kernel.php` el cron `backups:purge-test --force` diario a
+las 02:20 (keep=7 por defecto), análogo a la retención de 14 días de `backup_db:process` (que ya
+corre así, sin confirmación por corrida — mismo patrón que `activitylog:archive`). Se actualizó
+el checklist de `CLAUDE.md` (sección "Infraestructura de producción") a ✅ Resuelto.
+
+**Verificación:** `php -l` limpio en ambos archivos; `php artisan schedule:list` muestra la
+entrada nueva (02:20, next due ok); smoke test end-to-end con 3 zips ficticios en
+`storage/backup_test/` (dry-run listó correcto la versión más vieja a borrar; `--force` la
+eliminó y dejó las 2 más recientes, con `rmdir` del directorio vacío; fixture limpiado después).
+
+**Commits:** `6fe21599` (cron en Kernel.php) + `76db1865` (doc CLAUDE.md). Rama integrada vía
+`circuito:integrar` (auto-merge encolado al runner on-box). Item marcado `sin_ui=true` (es un
+cron interno, sin pantalla propia) con `sin_ui_motivo` describiendo la verificación.
