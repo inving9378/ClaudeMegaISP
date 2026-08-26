@@ -1063,11 +1063,15 @@ class ThomasService
         $eta    = $this->circuito->estimarEtaTrabajo($item->modulo, $item->nivel_riesgo);
         $umbral = (int) config('circuito.thomas.cabida.umbral_segundos', 480);
 
-        if ($eta['eta_metodo'] === 'historico' && $eta['eta_segundos'] > $umbral) {
-            return ['cabe' => false, 'motivo' => 'historico_excede_umbral', 'eta_segundos' => $eta['eta_segundos']];
+        // Se compara el estimado CRUDO, no el topado al techo de la vuelta (2026-08-26): topar aquí
+        // volvería "cabe" a todo por construcción, que es justo lo contrario de lo que decide esto.
+        $crudo = $eta['eta_crudo_segundos'] ?? $eta['eta_segundos'];
+
+        if ($eta['eta_metodo'] === 'historico' && $crudo > $umbral) {
+            return ['cabe' => false, 'motivo' => 'historico_excede_umbral', 'eta_segundos' => $crudo];
         }
 
-        return ['cabe' => true, 'motivo' => 'sin_senal_de_riesgo', 'eta_segundos' => $eta['eta_segundos']];
+        return ['cabe' => true, 'motivo' => 'sin_senal_de_riesgo', 'eta_segundos' => $crudo];
     }
 
     // =================================================================

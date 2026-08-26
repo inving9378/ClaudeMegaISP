@@ -30,18 +30,36 @@ class EstimadorTiempo
     private const BUCKET_DEFAULT = self::BUCKETS['B'];
 
     /**
-     * @return array{eta_segundos:int, eta_metodo:string} eta_metodo = 'historico'|'heuristico'
+     * TECHO REAL DE UNA VUELTA (2026-08-26). El reloj de la Torre prometía tiempos que el harness
+     * tiene prohibido cumplir: los buckets son 900/2700/5400 s y `vuelta.sh` mata al agente con
+     * `timeout 600`. Los seis slots mostraban 26-82 min mientras el trabajo real terminaba en 1-6,
+     * y el 26-ago el item #190 se cortó a los 600 s con cero commits — el panel le daba 45 minutos.
+     * Peor: llegó a la bandeja rotulado "no hubo avance", que se lee como item difícil cuando lo
+     * que se acabó fue el reloj.
+     *
+     * Por eso `eta_segundos` sale TOPADO al techo: es lo que se persiste y lo que pinta el reloj,
+     * y nunca puede prometer más de lo que la vuelta permite. El estimado CRUDO se conserva en
+     * `eta_crudo_segundos` porque sí significa algo donde es accionable: `ThomasService::
+     * caberEnVuelta()` lo compara contra su umbral para decidir si un item hay que descomponerlo
+     * ANTES de picar código. Topar ahí también habría vuelto "cabe" a todo por construcción.
+     *
+     * @return array{eta_segundos:int, eta_crudo_segundos:int, eta_metodo:string, techo_segundos:int, topada:bool}
+     *         eta_metodo = 'historico'|'heuristico' (el método REAL; el techo no lo cambia)
      */
     public function estimar(?string $modulo, ?string $nivelRiesgo): array
     {
         $segundos = $this->medianaHistorica($modulo, $nivelRiesgo);
-        if ($segundos !== null) {
-            return ['eta_segundos' => $segundos, 'eta_metodo' => 'historico'];
-        }
+        $metodo   = $segundos !== null ? 'historico' : 'heuristico';
+        $crudo    = $segundos ?? (self::BUCKETS[$nivelRiesgo] ?? self::BUCKET_DEFAULT);
+
+        $techo = (int) config('circuito.vuelta_timeout_seg', 600);
 
         return [
-            'eta_segundos' => self::BUCKETS[$nivelRiesgo] ?? self::BUCKET_DEFAULT,
-            'eta_metodo'   => 'heuristico',
+            'eta_segundos'       => min($crudo, $techo),
+            'eta_crudo_segundos' => $crudo,
+            'eta_metodo'         => $metodo,
+            'techo_segundos'     => $techo,
+            'topada'             => $crudo > $techo,
         ];
     }
 

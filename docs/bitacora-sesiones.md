@@ -2406,3 +2406,39 @@ Mismo root cause potencial — falta auditar archivo por archivo si de verdad qu
 tienen fallback por `data-bs-toggle` en el botón disparador.
 
 Item #111 cerrado `completado`, `sin_ui=true` (auditoría de código sin cambio de UI).
+
+## 2026-08-26 15:35 — El reloj de la Torre deja de prometer lo que el harness prohíbe
+
+**El defecto.** `EstimadorTiempo` devolvía buckets de 900 s (A), 2700 s (B) y 5400 s (C), y esos
+segundos se persistían en `roadmap_items.eta_segundos`, que es de donde `TorreTerminales.vue` pinta el
+reloj en regresión. Pero `vuelta.sh` mata al agente con **`timeout 600`**: los tres buckets están por
+encima del techo, así que **ningún ETA heurístico podía cumplirse jamás**. Las seis terminales
+mostraban 26-82 min mientras el trabajo real terminaba en 1-6.
+
+**Ya había cobrado una víctima.** El item **#190**, ese mismo día: el panel le daba ~45 min, el
+harness lo cortó a los 600 s con cero commits y llegó a la bandeja rotulado *"no hubo avance"* — que
+se lee como item difícil cuando lo que se acabó fue el reloj. Misma familia que todo lo del día: no
+falla ruidoso, se disfraza.
+
+**El arreglo, y por qué no se topa en todos lados.** `estimar()` ahora devuelve `eta_segundos`
+**topado** a `config('circuito.vuelta_timeout_seg')` — es lo que se persiste y lo que pinta el reloj —
+y conserva el estimado real en **`eta_crudo_segundos`**, porque ahí sí significa algo accionable:
+`ThomasService::caberEnVuelta()` lo compara contra su umbral para decidir si un item hay que
+descomponerlo ANTES de picar código. Topar también esa comparación habría sido el error opuesto: con
+un umbral configurado por encima del techo (hoy 480 s, pero es `config`), `crudo > umbral` nunca sería
+cierto y **la señal histórica moriría en silencio**. `eta_metodo` no cambia: sigue diciendo el método
+REAL (`historico`/`heuristico`), que es lo que consume la decisión. El payload de `trabajandoAhora`
+suma `techo_segundos` para que el reloj pueda rotularse como lo que es, sin recompilar frontend
+(ningún `.vue` cambió).
+
+**Verificado en las dos direcciones:**
+1. *El techo aplica*: A/B/C y nivel nulo → `eta=600s` con `crudo` intacto (900/2700/5400) y
+   `topada=true`.
+2. *La decisión sigue viendo el número real*: con 3 items completados sintéticos de 50 min de duración
+   (transacción con rollback, 0 residuo), el estimador devolvió `eta=600 crudo=3000 metodo=historico`
+   y `caberEnVuelta` respondió **`cabe:false, motivo:historico_excede_umbral, eta_segundos:3000`** —
+   sigue mandando a descomponer, y reportando la magnitud real.
+
+**Backfill:** 7 items en vuelo traían el ETA viejo (900 s y 2700 s) escrito antes del cambio; se
+bajaron al techo. Panel al cerrar: las 6 terminales en `eta=600s` con su `restante` real y
+`techo=600s`. Sin items en vuelo por encima del techo.

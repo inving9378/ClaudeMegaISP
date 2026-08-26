@@ -1610,6 +1610,10 @@ class RoadmapCircuitoService
             'eta_metodo'            => $eta['eta_metodo'] ?? null,
             'trabajo_iniciado_at'   => $trabajoIniciadoAt?->toIso8601String(),
             'restante_segundos'     => $restante,
+            // El techo real de la vuelta viaja con el reloj (2026-08-26): el ETA ya sale topado a
+            // este número, y tenerlo aquí permite rotular el reloj como lo que es —un límite— sin
+            // que nadie tenga que recordar cuánto vale.
+            'techo_segundos'        => (int) config('circuito.vuelta_timeout_seg', 600),
         ];
     }
 
