@@ -4,6 +4,7 @@ namespace App\Modules\Core\ModuleManager\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\ModuleSidebarConfig;
+use App\Modules\Core\Configuracion\Services\ModuleSidebarConfigService;
 use App\Modules\Core\ModuleManager\Services\ModuleRegistry;
 use Illuminate\Http\JsonResponse;
 
@@ -126,5 +127,69 @@ class AdminPanelController extends Controller
             'sections'      => $grouped,
             'sections_flat' => $flat,
         ]);
+    }
+
+    /**
+     * Tiles de /configuracion agrupados por `configuracion_subsection` (item #174,
+     * resto de #130). Consume ModuleSidebarConfigService::listInConfigSection()
+     * (config_moved=true OR show_in_sidebar=false) — mismo mecanismo de resolución
+     * URL/permiso que la parte B de cards(), para no divergir entre Administración
+     * y Configuración.
+     */
+    public function configMovedSections(ModuleSidebarConfigService $svc): JsonResponse
+    {
+        $registry = ModuleRegistry::instance();
+        $user     = auth()->user();
+
+        $can = fn (?string $permission): bool =>
+            empty($permission) || ($user && $user->can($permission));
+
+        $strip = fn (?string $slug): string => preg_replace('/^(core|addon)-/', '', $slug ?? '');
+
+        $menuByKey = [];
+        foreach ($registry->getMenu() as $item) {
+            $key = $strip($item['_module'] ?? '');
+            if ($key !== '' && ! isset($menuByKey[$key])) {
+                $menuByKey[$key] = $item;
+            }
+        }
+
+        $groups = [];
+
+        foreach ($svc->listInConfigSection() as $cfg) {
+            $menu = $menuByKey[$cfg->module_key] ?? null;
+            if (! $menu) {
+                continue; // módulo inactivo o sin menú → nada que enlazar.
+            }
+
+            $url = $menu['url'] ?? $cfg->sidebar_url ?? null;
+            if (empty($url)) {
+                continue; // sin URL navegable → no se sintetiza.
+            }
+
+            $permission = $menu['permission'] ?? null;
+            if (! $can($permission)) {
+                continue; // el usuario no tiene el .view del módulo.
+            }
+
+            $icon       = preg_replace('/^fa-/', '', $cfg->sidebar_icon ?: ($menu['icon'] ?? 'cube'));
+            $subsection = $cfg->configuracion_subsection ?: 'Otros';
+
+            $groups[$subsection][] = [
+                'title'       => $cfg->sidebar_label ?: ($menu['label'] ?? $cfg->module_key),
+                'description' => 'Configuración movida desde el menú lateral.',
+                'icon'        => $icon ?: 'cube',
+                'url'         => $url,
+                'permission'  => $permission,
+                '_module'     => $menu['_module'] ?? ('addon-' . $cfg->module_key),
+            ];
+        }
+
+        $result = [];
+        foreach ($groups as $subsection => $tiles) {
+            $result[] = ['subsection' => $subsection, 'tiles' => $tiles];
+        }
+
+        return response()->json(['groups' => $result]);
     }
 }

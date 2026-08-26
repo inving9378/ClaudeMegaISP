@@ -72,6 +72,50 @@
             </div>
         </template>
 
+        <!-- Bloques movidos desde el sidebar (item #174 — Fase 4b), agrupados por
+             configuracion_subsection. Fuente independiente de config-sections
+             (module.json); no se mezclan porque su forma de dato difiere. -->
+        <template v-if="!loading && movedGroups.length">
+            <div
+                v-for="group in movedGroups"
+                :key="'moved-' + group.subsection"
+                class="config-group mb-4"
+            >
+                <div class="config-group-header mb-3">
+                    <span class="cfg-group-badge" style="background:#74788d">
+                        <i class="fa fa-fw fa-cog"></i>
+                    </span>
+                    <span class="cfg-group-title">{{ group.subsection }}</span>
+                    <span class="cfg-group-count">{{ group.tiles.length }}</span>
+                    <span class="cfg-group-line"></span>
+                </div>
+
+                <div class="row g-3">
+                    <div
+                        v-for="tile in group.tiles"
+                        :key="tile._module + '_' + tile.title"
+                        class="col-xl-2 col-lg-3 col-md-4 col-6"
+                    >
+                        <a
+                            :href="tile.url || 'javascript:void(0);'"
+                            class="config-tile card text-decoration-none"
+                            :title="tile.description || ''"
+                        >
+                            <div class="card-body text-center px-2 py-3">
+                                <div class="cfg-icon-wrap mb-2" style="background:rgba(116,120,141,.13);color:#74788d">
+                                    <i :class="'fa fa-fw fa-' + (tile.icon || 'cog')"></i>
+                                </div>
+                                <p class="cfg-tile-label mb-0">{{ tile.title }}</p>
+                            </div>
+                            <span v-if="tile._module && tile._module !== 'core-configuracion'" class="cfg-module-badge">
+                                {{ moduleBadge(tile._module) }}
+                            </span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </template>
+
     </div>
 </template>
 
@@ -104,6 +148,7 @@ export default {
             loading: true,
             sectionsFlat: [],
             activeCategory: null,
+            movedGroups: [],
         };
     },
 
@@ -138,6 +183,7 @@ export default {
 
     mounted() {
         this.loadSections();
+        this.loadMovedSections();
     },
 
     methods: {
@@ -149,6 +195,18 @@ export default {
                 console.error('ModuleConfigPanel: error cargando secciones', e);
             } finally {
                 this.loading = false;
+            }
+        },
+
+        // Item #174 (Fase 4b) — bloques config_moved, agrupados por
+        // configuracion_subsection. Falla en silencio (log) para no tumbar el
+        // panel si el endpoint no responde; las secciones normales ya cargaron.
+        async loadMovedSections() {
+            try {
+                const { data } = await axios.get('/api/modules/config-moved-sections');
+                this.movedGroups = data.groups || [];
+            } catch (e) {
+                console.error('ModuleConfigPanel: error cargando secciones movidas', e);
             }
         },
 
