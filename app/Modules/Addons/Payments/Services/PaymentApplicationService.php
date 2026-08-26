@@ -196,9 +196,6 @@ class PaymentApplicationService
             $this->whatsapp = app(EvolutionApiService::class);
         }
 
-        // TODO: la BD megaisp guarda el teléfono del cliente en client_main_information
-        // (campo phone o similar). Por ahora usamos un placeholder y dejamos al operador
-        // confirmar el campo exacto. Cuando se confirme, reemplazar este lookup.
         $phone = $this->resolveClientPhone($client);
         if (!$phone) {
             Log::warning('SPEI: cliente sin teléfono — WhatsApp no enviado', ['client_id' => $client->id]);
