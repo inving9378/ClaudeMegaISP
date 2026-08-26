@@ -157,8 +157,9 @@ tabla y otro significado. Registrado como item **#232** (nivel C, con sus decisi
 | **230** | B | `pendiente_revision` | `megaisp_test` no se puede construir sólo con migraciones (236 de 502 tablas) |
 | **231** | B | `requiere_irving` | Podar los worktrees muertos (3 sin mergear, 5 con +700 commits de atraso) |
 | **232** | **C** | `requiere_irving` | Falta la migración del motor auditor: sin `tipo`, `hallazgo_firma` ni `auditoria_ciclo` |
+| **233** | B | `pendiente_revision` | Ningún archivo que el cron ejecute por ruta puede quedar sin `+x`: candado y fin del `>/dev/null` |
 
-Los ocho nacieron completos: `nivel_riesgo` nunca nulo, `modulo` de la lista existente (sin inventar
+Los nueve nacieron completos: `nivel_riesgo` nunca nulo, `modulo` de la lista existente (sin inventar
 valores nuevos, por el drift del #526), `reporte_coloquial` en lenguaje llano, bloque de **Canal de
 respuesta** anexado literal, y los que requieren decisión salieron del pool automático. El #232, por
 ser nivel C, lleva sus **tres decisiones ya resueltas** con recomendación, para que ratifiques o
@@ -166,6 +167,44 @@ corrijas en vez de arrancar de cero.
 
 **No registré como item** la falta de worker de cola: no es una tarea de código sino una acción de
 operación con `sudo` que sólo tú puedes hacer. Va en la lista de decisiones (§6).
+
+---
+
+## 5-bis. El hallazgo de la última revisión: el hombre muerto nunca latió
+
+Al hacer la verificación de cierre encontré que **la vigilia de Thomas no latía desde las 18:32**,
+con su línea de cron presente y el script funcionando a mano. Causa:
+
+`deploy/circuito/vigilia-wrap.sh` se commiteó ayer con modo **`100644`**. Cron lo invoca por ruta
+absoluta → *Permission denied* **cada minuto desde que existe**, y el `>/dev/null 2>&1` de su propia
+línea se tragaba el error. Los únicos latidos que tuvo el hombre muerto en sus 25 horas de vida
+fueron los que alguien corrió a mano.
+
+Es decir: **el vigilante nació mudo por exactamente la razón que fue construido para evitar.** La
+entrega A abre diciendo que un supervisor muerto en silencio convierte el silencio en falsa calma; y
+esa entrega se desplegó con el vigilante en silencio.
+
+**Por qué no se vio:** este repo tiene `core.fileMode=false` (herencia de los 7316 mods fantasma por
+chmod). Git ignora el modo en disco, así que un archivo nuevo se registra `644` aunque el autor lo
+tenga en `755` — el `chmod` local no viaja. Sólo `git update-index --chmod=+x` escribe el modo en el
+índice.
+
+**Arreglado y verificado** (`666f17fd`): con un ciclo real de cron, latido nuevo a los 20 s, `modo:
+completo`. Antes: 70 minutos observados sin un solo latido. La **clase** de defecto queda como item
+**#233** — el candado que compare crontab contra disco, y quitarle la ceguera del `>/dev/null` a las
+líneas del circuito.
+
+**Corrección a una alarma propia:** durante ese diagnóstico noté que el `laravel.log` de 1.86 GB de
+`wt-2` —la evidencia de la cascada del 22–24 ago— ya no estaba, y llegué a sospechar que lo habían
+borrado mis resincronizaciones de worktree. **No fue así: está comprimido**, `laravel.log.gz`, 58 MB,
+mtime de ayer 17:56, que es exactamente lo que recomendaba la entrega A (*gzip, no truncar*). De
+1.86 GB a 58 MB sin perder una línea. Thomas cuenta hoy 8 `laravel.log` en vez de 9 por eso, y está
+bien que los cuente así.
+
+Estado de la vigilia al cierre: `modo: completo`, disco **66 %** (48.8 GB libres, escalón `ok`),
+swap 85 %, 8 logs por 46.3 MB, freno detectado como puesto con su motivo. Dos avisos de nivel
+`me_pregunta`: el swap y las 5 sesiones interactivas de `claude` viejas (que **no se tocan**: pueden
+ser tuyas).
 
 ---
 
@@ -195,7 +234,11 @@ operación con `sudo` que sólo tú puedes hacer. Va en la lista de decisiones (
    instancia libre: la única registrada es la de ventas y está `disconnected`.
    *Recomendación:* número nuevo, como dice la spec. Mezclarlo con `meganet-ventas` ensuciaría la
    conciliación ya sellada.
-8. **Fase 1 del Supervisor:** no la empecé (§1). *Recomendación:* abrirla después del #225
+8. **La ceguera del `>/dev/null` en el crontab (#233).** Es lo que dejó mudo al vigilante 25 horas y
+   es la misma familia del fallo del 24-ago (nueve líneas comentadas sin que nada lo dijera).
+   *Recomendación:* mandar `stderr` de las líneas del circuito a un log y dejar `/dev/null` sólo
+   para `stdout`. Barato y quita una clase entera de fallo invisible.
+9. **Fase 1 del Supervisor:** no la empecé (§1). *Recomendación:* abrirla después del #225
    (inventario de recursos compartidos), que es el orden que la propia spec defiende en su riesgo #8:
    aislamiento y verificación antes que autonomía.
 
@@ -208,5 +251,8 @@ operación con `sudo` que sólo tú puedes hacer. Va en la lista de decisiones (
 | `bcf478c2` | El candado de la base de pruebas deja de depender de la rama (wrapper + `vuelta.sh` + `cron-wrap.sh`) |
 | `a2a598f7` | El guardrail de migraciones deja de depender de la base que protege (+ prueba con la conexión caída) |
 | `2e1448db` | Bitácora del P0: causa, PITR y por qué la primera ocurrencia no previno la segunda |
+| `0118d959` | Este reporte |
+| `b0e44150` | `docs(contexto)`: §10 con los dos candados y la ventana real de recuperación |
+| `666f17fd` | El hombre muerto de Thomas nunca latió desde cron: le faltaba el bit `+x` |
 
 (El candado de PHP, `04ec4395`, es de la sesión anterior.)
