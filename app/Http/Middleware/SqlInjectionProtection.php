@@ -65,17 +65,23 @@ class SqlInjectionProtection
         }
 
         if ($hit !== null) {
-            Log::channel(config('sql_guard.log_channel', 'stack'))->warning(
-                '[SQLGuard] Posible inyección SQL detectada',
-                [
-                    'route'  => $request->path(),
-                    'method' => $request->method(),
-                    'ip'     => $request->ip(),
-                    'user'   => optional($request->user())->id,
-                    'field'  => $hit['field'],
-                    'sample' => mb_substr($hit['value'], 0, 200),
-                ]
-            );
+            // El registro del intento es best-effort: si el canal de log falla
+            // (permisos, disco, config), el bloqueo debe ocurrir igual.
+            try {
+                Log::channel(config('sql_guard.log_channel', 'stack'))->warning(
+                    '[SQLGuard] Posible inyección SQL detectada',
+                    [
+                        'route'  => $request->path(),
+                        'method' => $request->method(),
+                        'ip'     => $request->ip(),
+                        'user'   => optional($request->user())->id,
+                        'field'  => $hit['field'],
+                        'sample' => mb_substr($hit['value'], 0, 200),
+                    ]
+                );
+            } catch (\Throwable $e) {
+                error_log('[SQLGuard] Fallo al registrar intento de inyección: ' . $e->getMessage());
+            }
 
             if (config('sql_guard.block', true)) {
                 abort(403, 'Solicitud bloqueada por seguridad.');
