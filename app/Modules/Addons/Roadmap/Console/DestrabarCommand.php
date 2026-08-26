@@ -43,12 +43,22 @@ class DestrabarCommand extends Command
      * sort_buffer_size=256KB eso tronaba "Out of sort memory" cada minuto desde el 2026-08-11
      * (item #864). Si Thomas empieza a leer/escribir otra columna sobre un item salido de ESTA
      * consulta, hay que sumarla aquí.
+     *
+     * ⚠️ UNA COLUMNA QUE NO EXISTE AQUÍ NO FALLA SILENCIOSA: revienta con `1054 Unknown column` y
+     * tumba la corrida entera, y `SchedulerCommand::tickDestrabe()` se traga la excepción para no
+     * frenar el reparto. Es exactamente cómo `branch_has_content` / `branch_ahead_count` dejaron
+     * este motor muerto: eran columnas de una migración FANTASMA (aplicada a la BD de dev desde un
+     * worktree, sin archivo en `main` — ver `docs/auditoria-migraciones-fantasma-item-533.md`), así
+     * que la restauración por PITR del 2026-08-25 se las llevó y no había migración que las
+     * repusiera. Se retiraron en vez de recrearlas porque **nadie en el repo las escribía**: el
+     * "chequeo periódico" que las sellaba ya no existe, y `pendienteReal()` tiene a git como fuente
+     * autoritativa (`archivosDeRama`). Reponerlas habría sido revivir un fantasma para leer siempre
+     * `false`.
      */
     private const COLUMNAS_NECESARIAS = [
         'id', 'title', 'description', 'prompt', 'comentarios_claude', 'modulo',
         'nivel_riesgo', 'estado_aprobacion', 'status', 'archivado_at',
-        'branch', 'merge_commit', 'esperando_merge_irving',
-        'branch_has_content', 'branch_ahead_count', 'origen_bloqueo',
+        'branch', 'merge_commit', 'esperando_merge_irving', 'origen_bloqueo',
         'preguntas', 'opciones', 'opcion_elegida', 'log',
         'aprobado_por', 'revisado_at', 'excluir_pool_automatico', 'bloqueado_por_bucle',
     ];

@@ -212,7 +212,7 @@ class SchedulerCommand extends Command
         }
 
         try {
-            Artisan::call('circuito:destrabar-bandeja', [
+            $rc = Artisan::call('circuito:destrabar-bandeja', [
                 '--apply' => true,
                 '--limit' => (int) config('circuito.thomas.destrabe_bandeja.limit', 120),
             ]);
@@ -220,6 +220,16 @@ class SchedulerCommand extends Command
                 ['key' => self::SETTING_DESTRABE_BEAT],
                 ['value' => (string) time(), 'updated_at' => now()]
             );
+
+            // Una corrida BUENA tiene que borrar la marca de fallo, o el panel sigue pintando en
+            // rojo un motor ya sano — la misma mentira que este registro vino a evitar, al revés.
+            // `sellarLatido()` haría esto solo, pero corta antes en los procesos con
+            // `formato => unix` (sellan su propio reloj, como éste), así que el punto es aquí.
+            // Va atado al exit code y a ESTA corrida, que es la real (`--apply`): un dry-run no
+            // puede borrar un fallo de verdad.
+            if ($rc === 0) {
+                app(RoadmapCircuitoService::class)->limpiarFallo('circuito:destrabar-bandeja');
+            }
         } catch (\Throwable $e) {
             // Tragarse la excepción para no frenar el reparto ES CORRECTO y no cambia. Lo que
             // faltaba era que el fallo tuviera DÓNDE VERSE: `roadmap_externo` es una manguera y
