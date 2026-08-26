@@ -195,7 +195,12 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 **Módulos activables:**
 - MegaFamilia: activable desde `/portal/servicios` (crea `parental_accounts` con plan Demo gratuito)
   - Llave tenant: `parental_accounts.user_id` via `users.login_user = CMI.user`
-- Flotas: GATEADO (módulo interno Meganet, `fleet_vehicles.client_id` nullable → no tiene scope por cliente)
+- Flotas: panel **"Mi Flota" de solo lectura** ya scopeado por `fleet_vehicles.client_id` (item roadmap #152,
+  commits `cd25a346`+`de850de2`+`0b557790`, ver detalle en `docs/portal-flotas-item-152-verificacion.md`).
+  `client_id` nullable = flota interna Meganet (excluida por diseño vía `BelongsToClientTenant`, `allowNullTenant`
+  desactivado para el cliente). Sigue **sin alta self-service** desde el marketplace (`MarketplaceController`
+  gatea "MegaFlotas" como "en preparación" — activar requiere que un admin dé de alta vehículos/suscripción
+  para ese cliente; abrir venta self-service es decisión de producto pendiente, fuera de alcance de #152).
 - VoIP: GATEADO (en preparación)
 
 **Cliente de prueba:**
@@ -365,7 +370,6 @@ Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `46
 | Portal: CFDI timbrado | Generar PDF/XML de facturas fiscales desde el portal | ⏳ Pendiente | Media |
 | Portal: cobro/tarifas premium MegaFamilia | Planes de pago MegaFamilia vía OpenPay | ⏳ Pendiente | Media |
 | Portal: notificación pago por email | Enviar recibo al email del cliente tras pago OpenPay | ⏳ Pendiente | Media |
-| Portal: Flotas para cliente | Scope por `fleet_vehicles.client_id` y tracking | ⏳ Pendiente | Baja |
 | Admin: migración base64 → bcrypt | `users.password` de base64 a bcrypt (admin interno) | ⏳ Pendiente | Baja |
 
 ### Portal Cliente — implementado y cerrado
@@ -389,6 +393,7 @@ Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `46
 | ✅ OpenPay: webhook de conciliación (listo, pendiente URL en dashboard) | e448008 |
 | ✅ OpenPay: botón Pagar activo en facturas pendientes (sandbox) | 7f44adf |
 | ✅ Tests OpenPay (6 tests: scope/idempotencia/completed/failed/pagada/auth) | 796513f |
+| ✅ Flotas (item #152) — panel "Mi Flota" solo lectura, scope `fleet_vehicles.client_id` + tracking (última posición/estado en vivo) | cd25a346+de850de2+0b557790 |
 
 ### IMPORTANTE — Para pasar a producción (solo configuración, sin código nuevo)
 
