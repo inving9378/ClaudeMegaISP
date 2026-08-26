@@ -91,14 +91,12 @@ class ImportController extends Controller
     {
         $data = $this->getDataToFileImport($input['file'], $input['module_id']);
         $errors = $this->validateData($data);
-        $rowsToDeleteData = [];
         $ipmortErrors = [];
         if (!empty($errors)) {
             $erroresAMostrar = [];
             foreach ($errors as $key => $value) {
                 if ($value['columna'] == 'email') {
                     $ipmortErrors[] = $value;
-                    $rowsToDeleteData[] = $value['fila'] - 2; //TODO Se usa -2 debido a que en el excel la fila 0 es la segunda
                 } else {
                     $erroresAMostrar[] = $value;
                 }
@@ -118,14 +116,12 @@ class ImportController extends Controller
     {
         $data = $this->getDataToFile($input['file'], $input['module_id']);
         $errors = $this->validateData($data);
-        $rowsToDeleteData = [];
         $ipmortErrors = [];
         if (!empty($errors)) {
             $erroresAMostrar = [];
             foreach ($errors as $key => $value) {
                 if ($value['columna'] == 'email') {
                     $ipmortErrors[] = $value;
-                    $rowsToDeleteData[] = $value['fila'] - 2; //TODO Se usa -2 debido a que en el excel la fila 0 es la segunda
                 } else {
                     $erroresAMostrar[] = $value;
                 }
