@@ -1044,6 +1044,181 @@
             "description": "Crea estado de vendedor",
             "scope": "config_view_sales",
             "permission": "config_view_sales"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api-movil",
+            "description": "Panel de configuración de API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api-movil/get",
+            "description": "Obtiene la configuración vigente de API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/api-movil/update",
+            "description": "Actualiza la configuración de API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api-movil/tokens",
+            "description": "Lista tokens Sanctum activos de API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api-movil/tokens/data",
+            "description": "Datos tabulares de tokens de API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/api-movil/tokens/{id}/revoke",
+            "description": "Revoca un token de API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/api-movil/tokens/revoke-all",
+            "description": "Revoca todos los tokens de API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api-movil/docs",
+            "description": "Documentación auto-generada de la API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api-movil/docs/endpoints",
+            "description": "Lista de endpoints documentados de la API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api-movil/logs",
+            "description": "Panel de logs de acceso a la API Móvil",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api/catalogo/keys",
+            "description": "Lista llaves del catálogo de API",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/api/catalogo/keys",
+            "description": "Crea llave del catálogo de API",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "DELETE",
+            "path": "/configuracion/api/catalogo/keys/{id}",
+            "description": "Elimina llave del catálogo de API",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/api/catalogo/catalog",
+            "description": "Lista endpoints publicados por módulos en el catálogo de API",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/team",
+            "description": "Lista integrantes del equipo",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/team/add",
+            "description": "Crea integrante del equipo",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/team/update/{id}",
+            "description": "Actualiza integrante del equipo",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/team/destroy/{id}",
+            "description": "Elimina integrante del equipo",
+            "scope": "admin_only",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/tipos-vendedores",
+            "description": "Lista tipos de vendedores",
+            "scope": "config_view_sales",
+            "permission": "config_view_sales"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/tipos-vendedores/create",
+            "description": "Crea tipo de vendedor",
+            "scope": "config_view_sales",
+            "permission": "config_view_sales"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/medios-de-venta",
+            "description": "Lista medios de venta",
+            "scope": "config_view_sales",
+            "permission": "config_view_sales"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/medios-de-venta/create",
+            "description": "Crea medio de venta",
+            "scope": "config_view_sales",
+            "permission": "config_view_sales"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/rules",
+            "description": "Lista reglas de comisión de vendedores",
+            "scope": "config_view_sales",
+            "permission": "config_view_sales"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/rules/store",
+            "description": "Crea regla de comisión de vendedores",
+            "scope": "config_view_sales",
+            "permission": "config_view_sales"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/data-plan-promotions",
+            "description": "Lista promociones de planes de datos",
+            "scope": "view_data_plan_promotion",
+            "permission": "view_data_plan_promotion"
         }
     ],
     "ai": {
