@@ -118,6 +118,22 @@ sincronizar, porque no son la misma data):
 3. Ninguno de los dos puntos anteriores se ejecuta en este item — quedan como
    hallazgos para un item futuro, si Irving decide que valen la pena.
 
+## Addendum (2026-08-26, cierre de #167)
+
+Re-verificado contra el estado actual de la BD (dev): `modules` 114 filas, `module_registry`
+44 activas (crecimiento normal desde julio, sin cambio de forma). El gap de Talento descrito
+arriba **ya se resolvió por otra vía**, sin relación con este item: `module_registry` tiene
+hoy la fila `addon-talento` (id=47, `active=1`, `installed_at=2026-08-24`), así que
+`ManualGeneratorService::loadActiveModules()` ya lo incluye (verificado en tinker: aparece en
+la lista fusionada, 158 módulos totales). El punto 2 del plan (acentos en `moduleSlug()`) sigue
+sin tocarse, igual que se dejó documentado arriba — no hay motivo nuevo para tocarlo.
+
+**Alcance de hoy:** el diagnóstico de julio ya cumple exactamente lo que Irving aprobó (Opción 1,
+solo diagnóstico, Fase 2 fuera de alcance) y sigue vigente. No hay cambio de código que hacer —
+volver a ejecutar una migración de datos o tocar `moduleSlug()` sería reabrir la Fase 2 que
+Irving dejó fuera a propósito. Se cierra el item #167 sin tocar código, dejando este addendum
+como la única actualización.
+
 ## Cómo se auditó (reproducible)
 
 ```bash
