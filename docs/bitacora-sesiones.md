@@ -2005,3 +2005,57 @@ respaldo del crontab, dump post-PITR de 142 MB verificado con `gunzip -t`).
   migrations* de Ignition) sigue siendo válido y cubre la mitad del spec que `main` no cubre.
 - **La contención fue manual y tardía**: 21 minutos. Registrado como item el chequeo `bd_integra`
   para la vigilia de Thomas, que pone el freno solo y luego avisa.
+
+## 2026-08-26 14:25 — La terminal web deja de perder el contexto de Claude (ttyd → tmux)
+
+**Síntoma reportado por Irving:** "se reinició la terminal", cinco veces en una tarde. Cada vez, la
+conversación de Claude Code se perdía entera y había que reconstruir el contexto desde cero.
+
+**Lo que NO era.** No hubo reinicio del box (65 días de uptime), ni OOM, ni recarga de nginx (arriba
+desde el 22-jun), ni caída de enlace, ni ningún timeout: `ttyd` pinguea cada 5 s por default y el
+`proxy_read_timeout` de nginx es de 86400 s. Tampoco era el usuario cerrando pestañas — lo dijo él y
+el journal lo confirma.
+
+**Causa raíz.** La terminal del panel es `ttyd ... bash` detrás del `location /ttyd/` de nginx.
+Cuando se cae el WebSocket, ttyd manda **SIGHUP** al bash hijo y se lleva la sesión de Claude con él;
+acto seguido el **cliente de ttyd reconecta solo** en 1-7 s y arranca un **bash nuevo**. Por eso se
+ve como si la pestaña se recargara sola: prompt limpio, contexto perdido, sin que nadie tocara nada.
+El corte nace en el camino navegador↔nginx (red/suspensión del equipo, pestaña congelada en segundo
+plano), no en el servidor.
+
+**Cómo se distingue en el journal** (`journalctl -u ttyd`, legible sin sudo — el access.log de nginx
+NO lo es, es `www-data:adm 640`):
+
+| Evento | Firma |
+|---|---|
+| Recarga/apertura de página | `HTTP /` → `/token` → `WS /ws` |
+| Caída del WS + reconexión automática | `WS closed` → `/token` → `WS /ws`, **sin** `HTTP /` |
+
+Cortes del día: 12:42, 12:43, 12:58, 13:14, 13:47 y 14:04 (sólo el de 13:09 fue apertura real).
+
+**Arreglo.** Bloque al final de `~/.bashrc` que envuelve en tmux el bash que lanza ttyd: reengancha
+la primera sesión `web-*` sin cliente y, si no hay, crea `web-N`. Se hizo ahí y no en el unit de
+systemd a propósito: no pide root ni reiniciar ttyd (un restart mata todas las terminales abiertas).
+La guarda "el padre es literalmente `ttyd`" deja fuera los shells que abre Claude Code y los del cron
+del circuito. Se le sumó un **reintento de ~2 s** para la carrera entre la reconexión (1-7 s) y el
+momento en que tmux da de baja al cliente muerto: sin él se abriría una `web-2` y el contexto quedaría
+escondido en `web-1`. Respaldos: `~/.bashrc.bak-*`.
+
+⚠️ **Lección que costó la tarde:** editar `.bashrc` **no reenvuelve un shell ya corriendo**. El
+arreglo se aplicó a las 13:25 y la sesión murió igual a las 13:47 porque ese shell había nacido a las
+13:18. Sólo protege terminales abiertas después.
+
+**Verificación — los dos caminos, con dinero real (la sesión viva):**
+1. **Corte real no provocado** a las 14:04:19 (`killing process, pid: 1669930`): antes ahí moría todo.
+   Irving volvió a las 14:14 y la conversación seguía.
+2. **Corte controlado** a las 14:18:29 (`kill -HUP` al grupo del shell de ttyd): journal reprodujo la
+   firma de reconexión automática (`WS closed` → `/token` → `WS`, sin `HTTP /`), arrancó bash nuevo
+   (1674016), reenganchó `web-1` y el proceso `claude` siguió siendo el **mismo PID 1670407** de las
+   13:51:08.
+
+**Registrado para no re-investigarlo:** `CONTEXTO-MEGAISP.md` §11 (mapa estructural + cómo
+diagnosticar) y memoria `ttyd-terminal-persistente`.
+
+**Deuda abierta:** `~/.bashrc` exporta `ANTHROPIC_API_KEY` en texto plano, heredada por todo proceso
+hijo. Pendiente decisión de Irving: moverla a un archivo `600` aparte o quitarla (el CLI autentica por
+OAuth; `vuelta.sh` hace `unset CLAUDE_API_KEY` a propósito).

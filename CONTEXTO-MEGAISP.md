@@ -821,6 +821,39 @@ que dejó el incidente— así que contenía la vida entera de la base. `binlog_
 
 ---
 
+## 11. TERMINAL WEB DEL PANEL (ttyd + tmux) — por qué se perdían las sesiones
+
+- La terminal del panel DevTools es `ttyd -p 7681 -W --interface 0.0.0.0 bash`
+  (`/etc/systemd/system/ttyd.service`, usuario `meganet`), servida same-origin por el
+  `location /ttyd/` de nginx (proxy de WebSocket, `proxy_read_timeout 86400s`).
+- **Modo de fallo (resuelto 2026-08-26):** si el WebSocket se cae, ttyd manda SIGHUP al bash
+  hijo y se lleva la sesión de Claude Code con él. **No es ningún timeout** (ttyd pinguea cada
+  5 s por default; nginx no se recarga desde el 22-jun) y **casi nunca lo provoca el usuario**:
+  el cliente de ttyd RECONECTA SOLO en 1-7 s y lanza un bash NUEVO, así que la terminal parece
+  "recargarse sola" con prompt limpio. El corte viene del camino navegador↔nginx (red o
+  suspensión del equipo, pestaña congelada en segundo plano); desde el servidor no se evita.
+- **Fix:** bloque al final de `~/.bashrc` (fuera de git — es del usuario) que envuelve en tmux
+  el bash que lanza ttyd: reengancha la primera sesión `web-*` sin cliente y, si no hay, crea
+  `web-N` (dos pestañas no se espejean). Guarda: sólo si el padre es literalmente `ttyd`, lo
+  que deja fuera los shells que abre Claude Code y los del cron. Sin `exec`: si tmux fallara,
+  cae al bash normal. Config en `~/.tmux.conf`. Lleva un reintento de ~2 s para la carrera
+  entre la reconexión y el reap del cliente muerto por tmux.
+- ⚠️ **Editar `.bashrc` NO reenvuelve un shell ya corriendo**: toda terminal abierta antes del
+  arreglo sigue desprotegida y muere igual en la siguiente desconexión.
+- **Diagnóstico sin sudo — `journalctl -u ttyd` distingue los dos casos:** recarga de página =
+  `HTTP /` + `/token` + `WS /ws`; caída del WS con reconexión automática = `WS closed` …
+  `/token` + `WS /ws` **sin** `HTTP /`. Verificar protección: `echo $TMUX`, o que la cadena del
+  proceso `claude` suba a `tmux: server` y no a `ttyd`.
+- `/var/log/nginx/*` es `www-data:adm 640` → **`meganet` NO puede leerlo** (no gastar intentos).
+  `journalctl -u ttyd` y `-u nginx` sí se leen sin sudo.
+- `.bashrc` arranca toda terminal web en `/var/www/megaisp`; para reanudar conversaciones viejas
+  del proyecto `-` (cwd `/`) hace falta `cd / && claude --resume <id>`.
+- 📌 **Deuda abierta:** `~/.bashrc` exporta `ANTHROPIC_API_KEY` en texto plano (heredada a todo
+  proceso hijo). Pendiente decisión de Irving: moverla a un archivo `600` aparte o quitarla (el
+  CLI ya autentica por OAuth; `vuelta.sh` hace `unset CLAUDE_API_KEY` a propósito).
+
+---
+
 ## PROTOCOLO DE ACTUALIZACIÓN (para no re-investigar nunca lo mismo)
 
 **Al CERRAR cada sesión, CC debe actualizar este archivo** con lo que cambió:
