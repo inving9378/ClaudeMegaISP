@@ -120,6 +120,31 @@ class ClientesController extends Controller
         return response()->json($buildNode($id, 0));
     }
 
+    /**
+     * Resumen del perfil de embajador para la pestaña de la ficha de cliente
+     * (id de cliente ISP, NO el PK del perfil que usa show()).
+     */
+    public function porClienteIsp(int $clientId): JsonResponse
+    {
+        $profile = ClientReferralProfile::with([
+                'commissions' => fn($q) => $q->orderByDesc('id')->limit(5),
+                'rewards' => fn($q) => $q->orderByDesc('id')->limit(5),
+            ])
+            ->where('client_id', $clientId)
+            ->first();
+
+        if (! $profile) {
+            return response()->json(['profile' => null]);
+        }
+
+        $redSize = Referral::where('chain_path', 'like', "%/{$clientId}/%")->count();
+
+        return response()->json([
+            'profile'  => $profile,
+            'red_size' => $redSize,
+        ]);
+    }
+
     public function show(int $id): JsonResponse
     {
         $profile = ClientReferralProfile::with([

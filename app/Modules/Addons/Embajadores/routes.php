@@ -25,6 +25,7 @@ Route::middleware(['web', 'auth'])->prefix('embajadores')->group(function () {
         Route::prefix('clientes')->group(function () {
             Route::get('/', [ClientesController::class, 'index']);
             Route::get('/data', [ClientesController::class, 'data']);
+            Route::get('/por-cliente-isp/{clientId}', [ClientesController::class, 'porClienteIsp'])->whereNumber('clientId');
             Route::get('/{id}/tree', [ClientesController::class, 'tree'])->whereNumber('id');
             Route::get('/{id}', [ClientesController::class, 'show'])->whereNumber('id');
         });
