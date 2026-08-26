@@ -2059,3 +2059,12 @@ diagnosticar) y memoria `ttyd-terminal-persistente`.
 **Deuda abierta:** `~/.bashrc` exporta `ANTHROPIC_API_KEY` en texto plano, heredada por todo proceso
 hijo. Pendiente decisión de Irving: moverla a un archivo `600` aparte o quitarla (el CLI autentica por
 OAuth; `vuelta.sh` hace `unset CLAUDE_API_KEY` a propósito).
+
+**Cierre de la deuda (mismo día, 14:27):** se retiró `ANTHROPIC_API_KEY` del `~/.bashrc` a pedido de
+Irving. Verificado antes de tocar nada: nunca llegó a git (`git log -S`), el CLI autentica por OAuth
+(`claudeAiOauth` en `~/.claude/.credentials.json`), `vuelta.sh` ya la hacía `unset`, y su huella
+sha256 **no coincide** con `CLAUDE_API_KEY` ni con `ANTHROPIC_API_KEY` del `.env` → no la comparte la
+app. Los 4 respaldos `.bashrc.bak-*` que la contenían quedaron **redactados y en `600`**. Queda
+pendiente de Irving **rotar la llave en la consola de Anthropic**: estuvo en un archivo `644` legible
+por cualquier usuario del box (incluido `www-data`) y sigue viva en el entorno de los procesos ya
+corriendo hasta que reinicien.

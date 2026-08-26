@@ -848,9 +848,14 @@ que dejó el incidente— así que contenía la vida entera de la base. `binlog_
   `journalctl -u ttyd` y `-u nginx` sí se leen sin sudo.
 - `.bashrc` arranca toda terminal web en `/var/www/megaisp`; para reanudar conversaciones viejas
   del proyecto `-` (cwd `/`) hace falta `cd / && claude --resume <id>`.
-- 📌 **Deuda abierta:** `~/.bashrc` exporta `ANTHROPIC_API_KEY` en texto plano (heredada a todo
-  proceso hijo). Pendiente decisión de Irving: moverla a un archivo `600` aparte o quitarla (el
-  CLI ya autentica por OAuth; `vuelta.sh` hace `unset CLAUDE_API_KEY` a propósito).
+- ✅ **`ANTHROPIC_API_KEY` retirada del `.bashrc`** (2026-08-26, decisión de Irving). El archivo es
+  `644` —lo lee cualquier usuario del box, `www-data` incluido— y la variable la heredaba todo
+  proceso hijo. Nada dependía de ella: el CLI autentica por **OAuth**
+  (`~/.claude/.credentials.json`), `deploy/circuito/vuelta.sh` la hace `unset` a propósito, y la
+  app usa las suyas del `.env`/Integration Hub (huellas distintas — no era la misma llave). Los
+  respaldos `~/.bashrc.bak-*` quedaron redactados y en `600`. **Nunca estuvo en git.**
+  ⚠️ Sigue viva en el entorno de los procesos ya corriendo hasta que reinicien, y quedó impresa en
+  transcripts de sesiones (`600`): **rotarla en la consola de Anthropic** es lo único que la anula.
 
 ---
 
