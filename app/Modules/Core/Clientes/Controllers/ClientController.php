@@ -108,7 +108,7 @@ class ClientController extends Controller
     public function store(ClientCreateRequest $request)
     {
         $this->validateFieldByRulesInTableFiledModules($this->data['module'], $request);
-        if ($request->import) { //TODO Quitar despues de la primera importacion
+        if ($request->import) {
             $this->importData($request);
         } else {
             $model = $this->data['model']::create(
@@ -511,7 +511,6 @@ class ClientController extends Controller
 
     public function editBalance(Request $request)
     {
-        // TODO pedido por irving quitar despues
         if ($this->userAutenticated()->can('client_edit_balance')) {
             $client = $this->data['model']::findOrFail($request->id_client);
             $newBalance = $client->balance()->first();
