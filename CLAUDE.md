@@ -1243,3 +1243,24 @@ La otra mitad del item — migrar el motor de comisiones de vendedores al motor 
 `CommissionRule`/`TransactionSeller`) — sigue **sin decidirse a propósito**: es una decisión de
 arquitectura que toca el cálculo/pago real de comisiones (**frontera dura de dinero**), fuera de
 alcance de un cambio mecánico. Queda pendiente de una decisión explícita de Irving si se retoma.
+
+---
+
+## Item #75 — google_maps_flutter omitido en MegaFamilia (RESUELTO — premisa no aplica)
+
+Investigado (item #75): el item pedía agregar `google_maps_flutter` + Maps API key de Android +
+vistas al Flutter de MegaFamilia (`/var/www/megafamilia`, repo independiente), "en la misma
+sesión que #72" (Firebase greenfield). **#72 sigue sin ejecutarse** (`requiere_irving`) → ejecutar
+#75 aislado contradice el propio plan del item. Además la premisa "afecta vista de mapas en APK"
+no es cierta: **no existe ninguna pantalla de mapa de MegaFamilia** en el Flutter actual (el único
+uso de mapa en todo el código es Flotas/conductor, con `flutter_map`+OSM, **sin API key**, patrón
+agregado después de que se escribiera el comentario de omisión en v0.1). El propio Flutter está
+además en migración a React Native (`megafamilia-rn`, ~95% portado — confirmado el mismo día en
+el item #23, ver `docs/megafamilia-apk-auditoria-2026-07-14.md` §7), que **ya trae
+`react-native-maps` con el mismo patrón OSM sin key**. Configurar una key de Maps SDK for Android
+nueva, sin ninguna pantalla que la necesite y en un codebase que se está reemplazando, es la
+frontera dura de credenciales que el revisor señaló — no se justifica hoy. Cerrado documentando
+la ruta correcta para cuando se retome (mapa del menor en `megafamilia-rn` con `react-native-maps`
++ OSM, no `google_maps_flutter`; si algún día se necesita Google Maps real, pasar por el módulo
+compartido `Mapas`, no una key aparte). Detalle completo en
+`docs/megafamilia-google-maps-item-75-verificacion.md`. **Sin cambio de código.**
