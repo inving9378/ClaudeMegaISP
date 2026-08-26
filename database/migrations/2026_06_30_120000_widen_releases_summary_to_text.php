@@ -18,10 +18,13 @@ return new class extends Migration
         });
     }
 
+    /**
+     * down() vacío a propósito: revertir a varchar(255) truncaría cualquier summary
+     * (notas de release generadas por IA) que ya haya crecido más allá de 255 chars —
+     * exactamente el caso que motivó este ensanche. Un rollback no debe perder datos.
+     */
     public function down(): void
     {
-        Schema::table('releases', function (Blueprint $table) {
-            $table->string('summary')->nullable()->change();
-        });
+        //
     }
 };
