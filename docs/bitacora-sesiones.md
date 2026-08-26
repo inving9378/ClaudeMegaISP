@@ -2443,6 +2443,33 @@ suma `techo_segundos` para que el reloj pueda rotularse como lo que es, sin reco
 bajaron al techo. Panel al cerrar: las 6 terminales en `eta=600s` con su `restante` real y
 `techo=600s`. Sin items en vuelo por encima del techo.
 
+## 2026-08-26 15:43 — Item #177: reconstrucción de la Hoja de Ruta (cierre de la vuelta de reanudación)
+
+Terminal `wt-6`. El item llegó a esta vuelta ya con el trabajo pesado hecho en una vuelta previa que
+había cortado por timeout (`reanudaciones_timeout:1`, rama con 2 commits): `429679f3` reconstruyó
+**326 items** perdidos en el incidente P0 del 22/24-ago (BD de dev destruida + `migrate` disparado por
+Ignition) parseando `git log --all --grep="Integra circuito #"` — cada item que llegó a mergearse a
+main dejó ese commit con id original + slug de rama, lo único 100% factual y sin juicio de negocio.
+`290a5ce3` corrigió que el gate de cierre de Thomas (#1005) los marcara `cierre_incompleto` (son
+históricos sin pantalla propia): se declaran `sin_ui=true` con motivo.
+
+**Esta vuelta fue de verificación + cierre**, no de código nuevo: confirmé que la migración
+`2026_08_26_220000_reconstruye_roadmap_items_perdidos_item177.php` ya corrió en dev (`migrate:status`
+= Ran, batch 545) y que las 326 filas persisten correctas (`title LIKE '[Reconstruido #%'` = 326,
+todas `done`/`completado`/`sin_ui`/`excluir_pool_automatico=true`). `php -l` limpio, `php artisan
+--version` bootea. Corrí `circuito:integrar 177` → el runner on-box mergeó la rama a main de
+inmediato (commit `07afbbd6`).
+
+**El item queda como PARAGUAS, no completado** — y es el comportamiento correcto, no un cierre a
+medias: la vuelta anterior ya había creado el sub-item **#624** ("Reconstruir items del incidente P0
+que NO llegaron a mergear — pendientes/rechazados/abandonados") para la mitad del alcance que SÍ
+requiere juicio (leer bitácoras sueltas en `/home/meganet/circuito/logs/` e inferir estado final, no
+un hecho verificable en git). Mientras #624 siga abierto, #177 no se completa solo — el sistema lo
+gestiona automático (`paraguas_abierto` en el log del item), no lo forcé.
+
+**Verificación de dónde se ve:** `/releases` → pestaña Hoja de ruta → filtrar por título
+`[Reconstruido #` → 326 filas históricas con su commit de integración y fecha real.
+
 ## 2026-08-26 21:40 — Item #222 (worker wt-4): DashboardService::with('level') — premisa incorrecta
 
 Investigado el item #222 (auditor #559, módulo Talento): "DashboardService::tecnicoPreview y ::team
