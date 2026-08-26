@@ -774,6 +774,15 @@ BLASTER_MINUTOS_ENTRE_INTENTOS=180
 5. **TTS fragmentos fijos cacheados** — pre-generar fragmentos estáticos + cachear slots variables por valor único
 6. **Dashboard embajador** — vista pública `/mi-red` para que el cliente vea sus referidos y comisiones
 
+### Item #37 — "Debug Issabel call blaster: CSV upload/download" (RESUELTO — premisa incorrecta)
+Investigado: **"Issabel" (PBX de terceros, fork de Elastix) no tiene ninguna referencia en el repo**
+(0 matches) y **`CobranzaBlaster` no usa CSV en absoluto** — `CobranzaCampanaService::activarCampana()`
+carga los morosos directo de la BD (`clients`/`invoices`), sin paso de subir/descargar archivo, así
+que el bug reportado ("download da No Data Found") no tiene superficie donde ocurrir aquí. La meta
+del item (blaster SIP + transferencia a agente + voz IA) ya está resuelta por `CobranzaBlaster` con
+un diseño distinto y sin ese punto de falla. El sistema Issabel original no tiene código en este
+repositorio — fuera de alcance. Detalle en `docs/cobranza-blaster-issabel-item-37-verificacion.md`.
+
 ### Flujo completo cuando esté 100% operativo
 ```
 Cron 5min → CobranzaCampanaService::cargarMorosos()
