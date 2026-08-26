@@ -2068,3 +2068,34 @@ app. Los 4 respaldos `.bashrc.bak-*` que la contenían quedaron **redactados y e
 pendiente de Irving **rotar la llave en la consola de Anthropic**: estuvo en un archivo `644` legible
 por cualquier usuario del box (incluido `www-data`) y sigue viva en el entorno de los procesos ya
 corriendo hasta que reinicien.
+
+## 2026-08-26 14:45 — Verificación: qué falta por arreglar en la Torre de Control
+
+Barrido pedido por Irving. **La familia "columna fantasma" quedó cerrada**: se escanearon las 91
+columnas de `roadmap_items` (y las 2.198 de la BD) contra todas las referencias del módulo Roadmap,
+por dos ejes —literales en consultas (`where`/`update`/`orderBy`…) y lecturas de propiedad
+`$item->col`— y **no queda ninguna**; los 9 candidatos que saltaron son llaves de arrays de retorno
+y un accessor real (`getEstadoColaAttribute`). Los 22 métodos read-only de los 5 servicios de la
+Torre responden sin excepción.
+
+**Lo que sí queda, medido contra el tablero de compuertas vivo (15 compuertas):**
+
+| # | Qué | Estado | De quién es |
+|---|---|---|---|
+| 1 | Workers de cola: **0 de 3 vivos**, 188 jobs pendientes | ROJO | Irving (necesita `sudo supervisorctl`) |
+| 2 | Freno de mano puesto desde el 25-ago 18:35 (20 h; el sistema lo marca `olvidada`) | ROJO | Decisión de Irving |
+| 3 | Techo del autopilot en nivel C | ÁMBAR | Decisión de Irving (`config/circuito.php` → `autopilot.max_nivel`) |
+| 4 | `circuito:reactivar-agendados` **nunca corre**: está en `Kernel.php` (diario 00:05) pero **no hay `schedule:run` en el cron del box** | Hallazgo nuevo | Código/infra |
+| 5 | `circuito:re-triage` es un motor **sin invocador** (ni cron, ni Kernel, ni programático): su luz dirá "nunca ha corrido" para siempre | Hallazgo nuevo | Decidir: cablearlo o sacarlo del semáforo |
+
+**#4 es de la misma familia que todo lo de hoy: falla callado.** La compuerta `agendados` está verde
+porque hoy no hay ningún item diferido — el agujero es invisible hasta que alguien difiera uno, y
+entonces no se reactiva nunca.
+
+**Nota sobre el des-trabador** (arreglo `44fc805b` de hoy): sí está cableado —`SchedulerCommand` lo
+llama por `Artisan::call`— pero con el freno puesto el scheduler no lanza nada, así que **el arreglo
+sigue sin verificarse en vivo**. Se verifica solo al reanudar.
+
+Los 46 `failed_jobs` son viejos (28-may a 15-jun), ajenos a esto. Verde el resto: bd, snapshot,
+thomas, cron (9 líneas), ejecutor, terminales (6/6 libres), items (96 listos), estación, auditor,
+reservados, cascada (0 errores/min, log 45 MB, disco 66%).
