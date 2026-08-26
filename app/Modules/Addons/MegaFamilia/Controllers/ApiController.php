@@ -20,6 +20,7 @@ use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
 use App\Modules\Addons\MegaFamilia\Models\ParentalLocation;
 use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRequest;
+use App\Modules\Addons\MegaFamilia\Models\ParentalReward;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRule;
 use App\Modules\Addons\MegaFamilia\Models\ParentalTask;
 use Illuminate\Http\JsonResponse;
@@ -988,6 +989,7 @@ class ApiController extends Controller
             'device'  => $device,
             'profile' => $device->profile()->select('id', 'name', 'profile_type')->first(),
             'token'   => $apiToken,
+            'role'    => 'hijo',
         ]);
     }
 
@@ -1352,6 +1354,73 @@ class ApiController extends Controller
                    'reward_detail', 'points', 'status']);
 
         return response()->json($tasks);
+    }
+
+    /**
+     * Logros (recompensas ya otorgadas) visibles para el hijo. Mismo patrón
+     * que hijoTareas(): sin cuenta → array vacío en vez de error.
+     */
+    public function hijoLogros(): JsonResponse
+    {
+        $account = ParentalAccount::where('user_id', Auth::id())->first();
+        if (! $account) {
+            return response()->json([]);
+        }
+
+        $profileIds = $account->profiles()->pluck('id');
+        $rewards = ParentalReward::whereIn('profile_id', $profileIds)
+            ->orderByDesc('granted_at')
+            ->get(['id', 'type', 'value', 'detail', 'granted_at']);
+
+        return response()->json($rewards->map(fn ($r) => [
+            'id' => $r->id,
+            'name' => $r->detail ?: $this->humanizeRewardType($r->type),
+            'description' => null,
+            'pointsGranted' => (int) $r->value,
+            'obtainedAt' => optional($r->granted_at)->toIso8601String(),
+        ]));
+    }
+
+    private function humanizeRewardType(string $type): string
+    {
+        return match ($type) {
+            'points' => 'Puntos ganados',
+            'time_extra' => 'Tiempo extra',
+            'badge' => 'Insignia',
+            default => 'Logro',
+        };
+    }
+
+    /**
+     * Crea una solicitud de permiso desde la vista hijo. A diferencia de
+     * storeRequest() (que exige profile_id porque la llama la app padre
+     * desde la ficha de un perfil concreto), la sesión hijo comparte el
+     * user_id del padre (ver linkDevice()) y hoy no conoce su profile_id
+     * en el cliente — se resuelve al primer perfil de la cuenta, igual
+     * criterio de "cuenta = un solo hijo" que ya usa hijoTareas().
+     */
+    public function hijoStoreRequest(Request $request): JsonResponse
+    {
+        $account = ParentalAccount::where('user_id', Auth::id())->first();
+        abort_if(! $account, 404, 'No hay cuenta MegaFamilia asociada al usuario');
+
+        $data = $request->validate([
+            'type' => 'required|in:time_extra,app_unlock,web_unlock',
+            'message' => 'nullable|string',
+        ]);
+
+        $profile = $account->profiles()->first();
+        abort_if(! $profile, 404, 'La cuenta no tiene perfiles configurados');
+
+        $req = ParentalRequest::create([
+            'profile_id' => $profile->id,
+            'type' => $data['type'],
+            'message' => $data['message'] ?? null,
+            'status' => 'pending',
+            'expires_at' => now()->addHours(2),
+        ]);
+
+        return response()->json($req, 201);
     }
 
     // ---- helpers ---------------------------------------------------------
