@@ -18,14 +18,15 @@ Violarlas ha causado incidentes reales (exposición de credenciales, pérdida de
 
 ## Caché y deploy
 - Tras cambios en Blade/config: `php artisan view:clear && php artisan config:clear && php artisan route:clear`.
-- Cerrar con warm-up: `php artisan config:clear && php artisan route:clear && php artisan queue:restart && php artisan view:cache`.
-- PROHIBIDO `php artisan config:cache` (y `php artisan optimize`, que lo incluye) mientras exista código que lea `env()` fuera de `config/*.php` — hoy IA y WhatsApp quedan en NULL con la config cacheada. `view:cache` sí está permitido. Ver roadmap ítem #520.
+- `php artisan config:cache` (y `php artisan optimize`, que lo incluye) SOLO detrás del candado `php artisan config:auditar-env && php artisan config:cache` — nunca suelto. El auditor (item #790) escanea llamadas reales a `env()` fuera de `config/*.php` y devuelve exit 1 si queda alguna; si falla, hay que migrar esa llamada a `config/*.php` antes de cachear, no forzar el cache. Warm-up de cierre completo: `php artisan config:clear && php artisan route:clear && php artisan queue:restart && php artisan config:auditar-env && php artisan config:cache`. `env()` sigue siendo correcto dentro de `config/*.php` y en migraciones/seeders manuales.
 - PROHIBIDO `php artisan migrate:fresh` (BD productiva). Solo `migrate` incremental. Migraciones aditivas únicamente.
+- En dev, `php artisan migrate` (item #534) exige que cada migración pendiente esté commiteada y en una rama con ruta a `main` — si no, aborta. Escape hatch solo para rollback/debug legítimo: `--force-uncommitted` (queda auditado en `storage/logs/migration-guard.log`).
+- Backups automáticos (`backup_db:process`, dailyAt 02:00 en `Kernel.php`) dependen de un cron real de `php artisan schedule:run`. En dev ESE cron NO existe (el único cron activo es `circuito:scheduler`, que no es lo mismo) — el backup diario no ocurre solo; hay que dispararlo a mano (`php artisan backup_db:process`) o con `schedule:run`. En prod, verificar que el cron de `schedule:run` esté instalado antes de asumir que corre.
 - No compilar APKs ni builds pesados en el servidor (disco cerca de capacidad).
 
 ## Autenticación y permisos
-- Passwords con `base64_encode`, NO bcrypt. Campo de login: `login_user`, NO `email`.
-- `@can()` en Blade NO funciona. Usar `@if(auth()->user()->can('permiso'))`.
+- Passwords en transición `base64_encode` → bcrypt vía `App\Services\Security\PasswordService` (híbrido): `check()` acepta ambos formatos, `make()` siempre escribe bcrypt. Usar SIEMPRE `PasswordService`, nunca comparar/escribir base64 a mano. Campo de login: `login_user`, NO `email`.
+- `@can()` en Blade SÍ funciona y se usa ampliamente (sidebar, tablas de acciones, ~40 usos). No asumir que está roto; si un caso puntual falla, verificar primero que el permiso exista/esté sincronizado antes de descartar la directiva.
 - Permisos nuevos pasan por `PermissionSyncService`. Regla: `super-administrator` y `DESARROLLADOR` reciben TODOS; los demás roles solo `.view` automáticamente. Sync: `php artisan permissions:sync-roles`.
 - `keep_data:true` en ciclo de vida de módulos NO debe eliminar permisos Spatie.
 
@@ -36,7 +37,7 @@ Violarlas ha causado incidentes reales (exposición de credenciales, pérdida de
 - Si la columna tenant no es `client_id`, declararla en el modelo: `protected string $tenantColumn = 'embajador_id';`. El resolver web admin replica exactamente la regla de roles internos (`super-administrator`/`DESARROLLADOR` → null); portal y API resuelven al MISMO `client_id`.
 
 ## Datos legacy
-- `payment_date` y `document_date` son VARCHAR DD/MM/YYYY. Toda query usa `COALESCE(STR_TO_DATE(col, '%d/%m/%Y'), ...)`. Nunca comparar como string.
+- `client_invoices.payment_date` y `client_invoices.document_date` son VARCHAR DD/MM/YYYY (igual `payments.date`). Toda query usa `COALESCE(STR_TO_DATE(col, '%d/%m/%Y'), ...)`. Nunca comparar como string.
 - Excluir tickets archivados en KPIs financieros.
 - Tareas unificadas viven en tabla `tasks`; no asumir que todo ID es de `talento_work_orders`.
-- Backups MySQL en `/var/backups/mysql/` (02:00 AM, retención 14 días). No crear esquemas de backup paralelos.
+- Backups MySQL en `/var/backups/mysql/` (retención 14 días, `backup_db:process`; ver caveat de cron en "Caché y deploy"). No crear esquemas de backup paralelos.

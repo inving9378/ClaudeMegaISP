@@ -15,7 +15,7 @@ description: Flujo de trabajo con Irving en MegaISP. Usar al iniciar cualquier s
 
 ## Cierre de tarea (checklist)
 1. `git add` selectivo + commit por sub-paso.
-2. Caches limpiados y warm-up ejecutado (`view:cache` + `config:cache`).
+2. Caches limpiados y warm-up ejecutado: `config:clear && route:clear && queue:restart`, luego `config:auditar-env && config:cache` (el `&&` es el candado — nunca `config:cache` suelto; ver skill `megaisp-conventions`).
 3. Permisos sincronizados si se registraron nuevos (`permissions:sync-roles`).
 4. Pendientes registrados en Hoja de Ruta.
 5. Indicar a Irving qué pantallas validar con screenshot.
