@@ -57,6 +57,8 @@ return new class extends Migration
             $modulo = $row['modulo_inferido'] ?? null;
             $fechaIntegracion = Carbon::parse($row['last_date']);
 
+            $commitCorto = substr($mergeCommit, 0, 8);
+
             RoadmapItem::firstOrCreate(
                 ['merge_commit' => $mergeCommit],
                 [
@@ -75,6 +77,12 @@ return new class extends Migration
                     'branch' => null,
                     'completed_at' => $fechaIntegracion,
                     'excluir_pool_automatico' => true,
+                    'reporte_coloquial' => "Reconstruido desde git log: item #{$origId}, mergeado a ".
+                        "main el {$fechaIntegracion->toDateString()} (commit {$commitCorto}). Sin ".
+                        "descripcion original recuperable — el codigo real ya vive en main.",
+                    'sin_ui' => true,
+                    'sin_ui_motivo' => 'Registro historico reconstruido de un incidente de perdida '.
+                        'de datos (#177); no es una feature con pantalla propia que enlazar.',
                     'comentarios_claude' => "Reconstruido por item #177 (circuito wt-6, 2026-08-26) ".
                         "desde git log. Id original perdido: #{$origId}. Commit de integracion: ".
                         "{$mergeCommit}. Fecha: {$fechaIntegracion->toDateTimeString()}.",
