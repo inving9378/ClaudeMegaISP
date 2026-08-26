@@ -50,9 +50,30 @@ MAXTURNS="${CIRCUITO_MAXTURNS:-60}"
 # CIRCUITO_MODEL sigue siendo el override manual de más prioridad (pruebas ad-hoc sin tocar settings).
 
 mkdir -p "$LOGDIR"
+
+# #175 — RETENCIÓN de logs de vuelta. Antes se acumulaban para siempre (uno por ejecución,
+# nunca se borraban): 14 días, igual que la retención ya establecida para backup_db:process.
+find "$LOGDIR" -maxdepth 1 -name 'vuelta-*.log' -mtime +14 -delete 2>/dev/null || true
+
 TS="$(date +%Y%m%d-%H%M%S)"
 LOG="$LOGDIR/vuelta-$TS-$SID.log"
+LOG_MAXBYTES=$((20*1024*1024))  # 20 MB
 log(){ echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG"; }
+
+# #175 — ROTACIÓN por tamaño. Origen del incidente: en modo POOL CONTINUO el while-loop de más
+# abajo puede encadenar items durante horas sin que el proceso vuelva a arrancar (un "zombie" que
+# no se cae), y $LOG es un único archivo fijo desde el arranque → creció a 278 MB sin límite.
+# Se llama entre items del pool: si el log activo ya pasó el tope, abre uno nuevo (mismo SID).
+rotar_log_si_crecio(){
+  local size
+  size="$(stat -c%s "$LOG" 2>/dev/null || echo 0)"
+  if [ "$size" -ge "$LOG_MAXBYTES" ]; then
+    TS="$(date +%Y%m%d-%H%M%S)"
+    local prev="$LOG"
+    LOG="$LOGDIR/vuelta-$TS-$SID.log"
+    log "Rotación por tamaño (${size} bytes >= ${LOG_MAXBYTES}). Log anterior: $prev"
+  fi
+}
 
 # Lock de instancia única: si ya hay una vuelta corriendo, salgo (nunca solapar).
 exec 9>"$LOCK"
@@ -239,6 +260,7 @@ if [ -n "$ITEM" ]; then
     fi
 
     ejecutar_una
+    rotar_log_si_crecio
 
     # Y otra vez DESPUÉS de trabajar: una vuelta dura hasta 10 min, tiempo de sobra para que alguien
     # ponga el freno mientras corría. Sin esto, el worker reclamaría un item más antes de enterarse.
