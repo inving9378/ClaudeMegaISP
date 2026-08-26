@@ -2388,3 +2388,21 @@ compartida — el defecto de fondo que persistió sin cerrarse hasta el fix de `
 25-ago). El botón de Ignition sólo entra en la historia el 24-ago, como intento fallido de
 *reparación* sobre una BD que ya llevaba dos días vacía — no como causa de ningún vaciado.
 Item cerrado `completado`, `sin_ui=true` (investigación forense, sin pantalla que enlazar).
+
+## 2026-08-26 15:25 — Item #111: auditoría APIs jQuery Bootstrap 4 legacy (collapse/tab/tooltip/popover/dropdown)
+
+Auditoría exhaustiva en `resources/` + `app/` (grep por `.collapse(`/`.tab(`/`.tooltip(`/
+`.popover(`/`.dropdown(` como llamada de método, cualquier selector): **cero ocurrencias**
+reales (el único match fue un comentario con la palabra "tab" dentro de una frase). El sistema
+solo carga `bootstrap.bundle.min.js` (standalone, sin plugin jQuery) y esos 5 componentes se
+usan en 59 archivos vía atributos `data-toggle`/`data-bs-toggle` que Bootstrap 5 auto-inicializa
+sin JS manual — no hay superficie para el bug que temía el item (jQuery silenciando una llamada
+a un método inexistente). Documentado en `docs/auditoria-jquery-bootstrap-legacy-item-111.md`.
+
+**Hallazgo relacionado, registrado como sub-item #291 (fuera del alcance literal de #111):**
+~90 llamadas `$(...).modal("show"/"hide")` jQuery-estilo en ~60 componentes Vue que el fix de
+backdrop de 2026-06-03 NO migró (ese fix solo tocó los archivos con el bug reportado entonces).
+Mismo root cause potencial — falta auditar archivo por archivo si de verdad quedan rotos o si
+tienen fallback por `data-bs-toggle` en el botón disparador.
+
+Item #111 cerrado `completado`, `sin_ui=true` (auditoría de código sin cambio de UI).
