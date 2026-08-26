@@ -1696,6 +1696,7 @@ return [
         '/message/get-data-tabs',
         '/message/reminder/table',
         '/message/payment_email/table',
+        '/message/invoice_email',
         '/message/invoice_email/table'
     ],
     'inbox_send_message' => [
