@@ -251,6 +251,11 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
     // Public: OTA — la app revisa esto al abrir y se autoactualiza
     Route::get('/app-version', [ApiController::class, 'appVersion']);
 
+    // Public: vinculación de dispositivo hijo — el link_token (de un solo
+    // uso, expira en 15 min) es la credencial, el dispositivo hijo aún no
+    // tiene sesión (item #29).
+    Route::post('/devices/link', [ApiController::class, 'linkDevice']);
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/account', [ApiController::class, 'account']);
 
@@ -274,6 +279,7 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::post('/profiles', [ApiController::class, 'storeProfile']);
         Route::get('/profiles/{id}', [ApiController::class, 'profileDetail'])->whereNumber('id');
         Route::get('/profiles/{id}/devices', [ApiController::class, 'profileDevices'])->whereNumber('id');
+        Route::post('/profiles/{id}/invite', [ApiController::class, 'inviteDevice'])->whereNumber('id');
         Route::get('/profiles/{id}/tasks', [ApiController::class, 'profileTasks'])->whereNumber('id');
         Route::get('/profiles/{id}/location', [ApiController::class, 'profileLocation'])->whereNumber('id');
 
