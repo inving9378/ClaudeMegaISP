@@ -2484,3 +2484,37 @@ de deuda desactualizada describiendo el bug como pendiente. Se corrigió esa not
 `docs/talento-dashboardservice-level-item-222-verificacion.md` con el detalle (mismo patrón que la
 verificación del item #123). Sin cambio de código funcional. Commit `75a92867` en la rama
 `circuito/item-222-...`, integrado (auto-merge encolado). Item cerrado como `completado`.
+
+## 2026-08-26 15:59 — Item #159 (worker wt-2): deuda invoices vs client_invoices — investigación + plan
+
+Ejecutado el item #159 (módulo Finanzas, nivel B, aprobado por Irving pese a que el Revisor lo
+había escalado por mencionar "factura"). El item pedía textualmente "definir tabla canónica y
+plan de unificación/sincronización" — ese ES el entregable, no una migración de datos: ejecutar
+la unificación real toca el motor de cobro vivo (dinero), así que se documentó y se dejó la
+decisión/ejecución para un sub-item aparte.
+
+**Hallazgo confirmado con datos reales de dev:** `client_invoices` (legacy, 110,860 filas) e
+`invoices` (moderna, 93,203 filas) son dos ledgers de facturación completamente paralelos, **sin
+ningún job/observer que las sincronice**. `client_invoices` es la que alimenta el cobro vivo
+(Portal de Pago SPEI, OpenPay, pagos reportados por WhatsApp); `invoices` es la de proformas
+(cron `invoice:create-proformas` 03:00 + alta manual en Finanzas). Un pago SPEI marca pagada la
+factura legacy pero nunca toca `invoices`; un pago manual en la ficha del cliente actualiza
+`invoices.pending_balance` pero nunca toca `client_invoices`. El riesgo de divergencia que
+describía el item ya es estructural, no solo teórico.
+
+Se documentaron también los consumidores de cada tabla (~24 archivos con `ClientInvoice::`, ~8
+con `Invoice::`) y el intento previo de puente
+(`PaymentApplicationService::matchPendingInvoice`, referencias internas a roadmap #191/#193) que
+quedó deliberadamente desconectado en el código porque, al conectarlo, un bug real desregistraba
+pagos (saltaba el observer que abona saldo). Es la prueba de que tocar esta unión sin control
+estricto rompe dinero real.
+
+**Entregable:** `docs/deuda-facturas-invoices-item-159-plan.md` — comparación de esquema, mapa de
+consumidores, y 3 opciones de unificación (A: `invoices` como canónica + migrar consumidores
+vivos; B: `client_invoices` como canónica + `invoices` como borrador; C: auditoría read-only de
+divergencia sin fusionar, recomendada como primer paso de bajo riesgo). Ninguna opción se
+ejecutó — **sub-item #632 creado** (nivel C, decisión de diseño de Irving) para cuando se decida
+cuál aplicar.
+
+Commit `014634c2` en `circuito/item-159-deuda-dos-tablas-de-facturas-invoices` (solo el .md,
+add selectivo), integrado (auto-merge encolado). Item #159 cerrado como `completado`.
