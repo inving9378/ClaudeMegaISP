@@ -2,9 +2,9 @@
 
 namespace App\Modules\Addons\Manual\Listeners;
 
+use App\Modules\Addons\Manual\Jobs\RegenerateManualJob;
 use Illuminate\Database\Events\MigrationEnded;
 use Illuminate\Database\Events\MigrationsEnded;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -37,17 +37,12 @@ class RegenerateManualAfterMigrate
         self::$hadChanges = false;
         self::$count      = 0;
 
-        Log::info("[Manual] {$count} migraciones nuevas detectadas — disparando manual:regenerate");
+        Log::info("[Manual] {$count} migraciones nuevas detectadas — encolando RegenerateManualJob");
 
         try {
-            Artisan::call('manual:regenerate');
-            $output = trim(Artisan::output());
-            Log::info('[Manual] Regeneración post-migrate completada', [
-                'migrations_applied' => $count,
-                'output'             => $output,
-            ]);
+            RegenerateManualJob::dispatch();
         } catch (\Throwable $e) {
-            Log::error('[Manual] Falló regeneración post-migrate: ' . $e->getMessage());
+            Log::error('[Manual] Falló encolar regeneración post-migrate: ' . $e->getMessage());
         }
     }
 }
