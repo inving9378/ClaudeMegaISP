@@ -13,7 +13,9 @@ class MarketplaceController extends Controller
     /**
      * Catálogo de servicios activables.
      * MegaFamilia: se puede activar (crea/enlaza parental_account).
-     * Flotas: gateado "en preparación" (módulo interno Meganet, no tiene escopo por cliente final).
+     * Flotas: el panel de cliente YA existe y está scopeado (`/portal/flotas`, item #152) — lo que
+     * sigue gateado aquí es la ALTA self-service (crear suscripción/vehículos sin admin), decisión
+     * de producto pendiente. Ver `docs/portal-flotas-item-152-verificacion.md`.
      */
     public function index()
     {
