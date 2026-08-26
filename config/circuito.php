@@ -209,17 +209,38 @@ return [
     | Endurecer o relajar NO requiere redeploy: son flags.
     |
     */
+    /*
+    |--------------------------------------------------------------------------
+    | FRENO DE MANO — el centinela en archivo (#170)
+    |--------------------------------------------------------------------------
+    |
+    | Ruta ABSOLUTA y literal a propósito: `vuelta.sh` hace `cd` al worktree del slot y corre
+    | `php artisan` desde ahí, y cada worktree tiene su propio `storage/` REAL. Con una ruta
+    | relativa (o `storage_path()`) cada terminal tendría su freno privado — y un freno que sólo
+    | detiene a una de seis no es un freno.
+    |
+    | Vive en `storage/app/circuito` porque es el único sitio que leen los DOS usuarios del
+    | sistema: `meganet` (cron y ejecutor) y `www-data` (la Torre). El runtime del circuito
+    | (`/home/meganet/circuito`) NO sirve: ese home es 0700 y la Torre no podría leerlo.
+    |
+    */
+    'freno' => [
+        'centinela' => env('CIRCUITO_FRENO_CENTINELA', '/var/www/megaisp/storage/app/circuito/PAUSA'),
+    ],
+
     'autopilot' => [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
 
         // Nivel MÁXIMO que el autopilot puede decidir solo (A < B < C).
-        // DECISIÓN DE IRVING (2026-08-04, confirmada tras proponerle el tope en B): MÁXIMA
-        // AUTONOMÍA = 'C'. Un nivel C solo pasa si además trae `reversible: true` y confianza alta,
-        // así que lo irreversible y lo de negocio sigue siendo suyo. La regla de CLAUDE.md se
-        // actualizó en el mismo commit para no quedar contradiciendo a este flag.
+        // DECISIÓN DE IRVING (2026-08-25): baja de 'C' a 'A' al reencender el circuito. El motivo
+        // es de SECUENCIA, no de desconfianza en el autopilot: se va a soltar al revisor sobre un
+        // backlog de ~107 items sin triar, así que va a haber material aprobable de golpe, y
+        // ninguno de riesgo B o C debe auto-aprobarse mientras se mira la primera vuelta en vivo.
+        // Historial: 2026-08-04 se puso en 'C' (máxima autonomía) tras proponerle el tope en B.
+        // Para volver a subirlo NO hace falta redeploy: es un flag (o `CIRCUITO_AUTOPILOT_MAX_NIVEL`).
         // Lo que NUNCA toca el autopilot, sin importar este valor: [BLOCKED-]/[PARKED-] (frontera
         // dura) y cualquier pregunta que el Revisor marque `requiere_irving`.
-        'max_nivel'           => env('CIRCUITO_AUTOPILOT_MAX_NIVEL', 'C'),
+        'max_nivel'           => env('CIRCUITO_AUTOPILOT_MAX_NIVEL', 'A'),
 
         // Exigir que la opción recomendada esté marcada `reversible: true`. Aplica a B y C; el
         // nivel A ya es reversible por DEFINICIÓN (aditivo, no toca dinero/permisos/auth/prod).
@@ -256,6 +277,50 @@ return [
     */
     'thomas' => [
         'enabled' => (bool) env('CIRCUITO_THOMAS', true),
+
+        /*
+        |----------------------------------------------------------------------
+        | VIGILIA (entrega A) — la mitad de Thomas que NO puede compartir destino
+        | con lo que vigila.
+        |----------------------------------------------------------------------
+        |
+        | `tick()` vive en base y cuelga del cron del scheduler. Eso basta para decidir, y no
+        | basta para vigilar: cuando la base se cayó el 22-ago, el único que podía contarlo se
+        | cayó con ella; y cuando el 24-ago se comentaron las 9 líneas del circuito, Thomas se
+        | quedó sin latido sin que ninguna pantalla lo dijera.
+        |
+        | La vigilia mide y avisa LEYENDO Y ESCRIBIENDO ARCHIVO, sin base, con su propio cron.
+        | En esta entrega SÓLO MIDE: no aísla, no libera, no mata. La autoridad llega después,
+        | y el registro de PIDs de aquí es su prerrequisito.
+        */
+        'vigilia' => [
+            'enabled' => (bool) env('CIRCUITO_THOMAS_VIGILIA', true),
+
+            // RUTA ABSOLUTA, jamás storage_path(): igual que el centinela del freno (#170), este
+            // comando puede correr desde un worktree, y cada worktree tiene su storage/ REAL.
+            // Con ruta relativa habría un Thomas por terminal, que es no tener ninguno.
+            // Vive bajo storage/app porque es el único sitio que leen los DOS usuarios
+            // (`meganet` que mide y `www-data` que pinta la Torre).
+            'dir' => env('CIRCUITO_THOMAS_DIR', '/var/www/megaisp/storage/app/circuito/thomas'),
+
+            // INTERRUPTOR DE HOMBRE MUERTO. Si el latido envejece más que esto, la Torre lo pinta
+            // en rojo. Un supervisor muerto en silencio convierte el silencio en falsa calma.
+            // 180 s = tres vueltas de su cron de un minuto: tolera un pico, no tolera una muerte.
+            'latido_umbral_seg' => (int) env('CIRCUITO_THOMAS_LATIDO_UMBRAL', 180),
+
+            // Raíz de los worktrees. De aquí sale el hallazgo que motivó la entrega: hay SIETE
+            // `laravel.log` creciendo (uno por worktree más el del checkout principal) y la sonda
+            // medía UNO. Se recorre con glob para que un worktree nuevo entre solo.
+            'raiz_worktrees' => env('CIRCUITO_RUNTIME', '/home/meganet/circuito'),
+
+            // Log del checkout principal — el único que se medía hasta hoy.
+            'log_principal' => env('CIRCUITO_LOG_PRINCIPAL', '/var/www/megaisp/storage/logs/laravel.log'),
+
+            // Un `claude` interactivo más viejo que esto es sospechoso de sesión abandonada.
+            // Se REPORTA, nunca se mata: hoy hay cuatro de 41 días y uno de ellos podría ser la
+            // sesión con la que Irving está trabajando. 24 h.
+            'claude_viejo_seg' => (int) env('CIRCUITO_THOMAS_CLAUDE_VIEJO', 86400),
+        ],
 
         /*
         | CONJUNTO DE ESCALAMIENTO — las cuatro fronteras duras del encargo, más el caso de spec

@@ -5,10 +5,12 @@ namespace App\Modules\Addons\Roadmap\Services;
 use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Jobs\ProponerOpcionesJob;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Support\HuecosDelSpec;
 use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
 use App\Modules\Addons\Roadmap\Services\ValvulaContextoService;
 use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -258,6 +260,7 @@ class RevisorService
         $item->save();
 
         if ($nuevo === 'requiere_irving') {
+            $this->sellarHuecos($item);
             $this->encolarBriefAsincrono($item);
         }
 
@@ -276,6 +279,47 @@ class RevisorService
      * estado ni acopla esta llamada a una IA síncrona; la Torre muestra "brief pendiente" hasta que
      * el job escriba el resultado. Idempotente: no encola si el item ya trae `preguntas`.
      */
+    /**
+     * NINGÚN ITEM LLEGA MUDO — punto ÚNICO donde se sella «qué le falta a este item».
+     *
+     * Se llama desde los DOS caminos que dejan un item en la bandeja (`aplicarVeredicto` cuando el
+     * revisor escala, y `aplicarTriajeNull` cuando el clasificador manda un C a Irving). Vivía en
+     * ninguno de los dos: el item caía con un sello que decía «ESCALA → requiere_irving» y una
+     * razón, pero sin decir con qué frase concreta se desbloquea.
+     *
+     * Es DETERMINISTA y no llama a nadie a propósito: el brief de `proponerPreguntas()` depende del
+     * modelo y de un worker de cola, y cuando cualquiera de los dos falta —hoy mismo, sin workers
+     * arriba— el item se quedaba mudo. Esto siempre escribe algo.
+     *
+     * Falla-segura: si el detector truena, el item se guarda igual. Un fallo midiendo no puede
+     * impedir que se registre el veredicto — sería cambiar un item mudo por un item perdido.
+     */
+    private function sellarHuecos(RoadmapItem $item): void
+    {
+        try {
+            $huecos = HuecosDelSpec::detectar($item);
+
+            $item->huecos_spec       = $huecos;
+            $item->huecos_medidos_at = now();
+
+            if ($huecos) {
+                // Espejo legible en `comentarios_claude`: la bandeja ya lo pinta, así que los huecos
+                // se ven sin esperar a que ninguna pantalla se entere de la columna nueva.
+                $lineas = "\n\n--- QUÉ LE FALTA A ESTE ITEM PARA PODER DECIDIRSE ---\n";
+                foreach ($huecos as $h) {
+                    $lineas .= '· ' . $h['titulo'] . "\n  → " . $h['pregunta'] . "\n";
+                }
+                $item->comentarios_claude = (string) $item->comentarios_claude . $lineas;
+            }
+
+            $item->save();
+        } catch (\Throwable $e) {
+            Log::channel('roadmap_externo')->warning('sellar-huecos-fallo', [
+                'item' => $item->id, 'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function encolarBriefAsincrono(RoadmapItem $item): void
     {
         if (! RoadmapItem::multiPreguntaEnabled() || ! empty($item->preguntas)) {
@@ -493,6 +537,14 @@ class RevisorService
         $item->revisado_at         = now();
         $item->aprobado_por        = $actor;
         $item->save();
+
+        // Este camino NO sellaba nada y es por donde entra la mayor parte de la bandeja: un item
+        // sin nivel que toca frontera dura se iba a `requiere_irving` con el sello del triaje y
+        // ninguna pregunta. `aplicarVeredicto` al menos encolaba el brief; aquí no había ni eso.
+        if ($t['estado'] === 'requiere_irving') {
+            $this->sellarHuecos($item);
+            $this->encolarBriefAsincrono($item);
+        }
 
         return $item->fresh();
     }

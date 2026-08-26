@@ -1874,3 +1874,61 @@ queue:restart`). `bootstrap/cache/config.php` no existe.
 
 Verificado por HTTP: `/` → 302 a login, `/login` → 200, `/devtools` → 302 a login. Cero marcas de
 Ignition. El cron del circuito **sigue pausado**.
+
+## 2026-08-24 13:45 — Entregable B: tablero de compuertas de la Torre (item #183)
+
+Engrane en la cabecera, visible desde todas las pestañas, que abre un tablero de ESTADO Y
+CONTROL: una línea principal que contesta **CORRIENDO** o **DETENIDO POR: {primera compuerta
+que bloquea}**, y una fila por compuerta con semáforo, nombre en lenguaje llano, valor real
+medido en vivo, origen del dato, motivo del bloqueo y acción para soltarlo.
+
+**Catorce compuertas, en el orden real en que el circuito se frena:** base de datos · lectura
+del SO · cron del ejecutor · freno de mano · ejecutor huérfano o colgado · workers de
+supervisor · nivel del autopilot · terminales libres · items despachables · estación · items
+agendados · auditor (cooldown y debounce) · items reservados por terminales muertas · cascada
+de errores. El orden importa: la primera en rojo es la que da la respuesta de la línea de
+arriba.
+
+**El hallazgo que definió la arquitectura.** El panel corre en php-fpm como `www-data` y
+`/home/meganet` es `drwx------`: desde la web NO se pueden ver los flock de los worktrees, ni
+el crontab de `meganet`, ni los procesos del ejecutor. Un tablero que dijera "cron activo" sin
+poder mirarlo estaría inventando — que es exactamente lo que costó una hora el 24-ago, cuando
+supervisor declaraba "detenido" y el proceso seguía vivo. Así que la medición del SO la hace
+`circuito:compuertas-sonda`, que corre por cron **como meganet** y deja un snapshot en
+`storage/app/torre/compuertas-so.json`. El panel lo lee y **siempre muestra su antigüedad**: un
+snapshot de más de 180 s es una compuerta en rojo por sí misma. Su línea de cron es
+independiente de las de `deploy/circuito` a propósito — pausar el circuito no debe dejar ciego
+al tablero.
+
+**Las cinco reglas, implementadas.** (1) Ningún rojo mudo: cada fila trae acción ejecutable o,
+si no, quién puede actuar y con qué comando; el propio DTO expone `sin_salida` y la UI lo marca
+en rojo si alguna vez faltara. (2) Lo que necesita sudo se muestra igual, con el comando exacto
+y clic para copiar. (3) Ninguna acción se dispara con un clic suelto: el servidor exige
+`confirmado=true` aunque la UI ya haya preguntado — la confirmación es del servidor, no un
+adorno del frontend; es la lección del botón RUN MIGRATIONS. (4) Cada cambio queda en
+`torre_compuerta_cambios` con quién, cuándo y de qué valor a cuál, consultable desde el mismo
+tablero. (5) Manda el proceso vivo, no lo que declare supervisor.
+
+**Permisos:** rol `super-administrator` o `DESARROLLADOR`, con `auth()->user()->hasRole()` —
+en este layout `@role`/`@can` no evalúan. Las acciones exigen además `circuito.pause` o
+`torre.config.edit` según el caso.
+
+**Prueba de aceptación — los ocho bloqueos del 22-24 ago contra el tablero:**
+
+| Escenario del incidente | Compuerta | Luz | Qué muestra |
+|---|---|---|---|
+| BD destruida (22-ago) | `bd` | ROJO | faltan settings/torre_config + comando `migrate:status` |
+| Vuelta huérfana PPID=1, 1d21h | `ejecutor` | ROJO | `1 huérfana, la más vieja 163000s` + `kill 632692` |
+| Workers de supervisor caídos | `workers` | ROJO | `0 de 3 vivos` + `sudo supervisorctl start ...` |
+| 268.896 excepciones / log 1.7 GB | `cascada` | ROJO | `480 errores/min · log 1740.8 MB` |
+| Cron del circuito pausado | `cron` | ROJO | `0 activas (9 comentadas)` + quién puede |
+| Sin lectura fresca del SO | `snapshot` | ROJO | pasa a ser la línea principal; no inventa estado |
+| Item atrapado por terminal muerta | `reservados` | ROJO | `1 item atrapado: #170` + acción soltar |
+| Freno de mano ilegible | `pausa` | ROJO | `isPaused()` en try/catch: rojo, nunca verde por omisión |
+
+Los escenarios del SO se simularon con un snapshot alterno (restaurado y verificado byte a
+byte al terminar) y el del item atrapado en transacción con rollback. Ninguna simulación dejó
+residuo: `#170` volvió a `worker_sid=NULL`, el freno quedó `suelto`.
+
+`rojos sin salida: 0`. Rama `circuito/item-183-torre-compuertas`, bundle recompilado en modo
+prod (`public/js/app.js` no se commitea).

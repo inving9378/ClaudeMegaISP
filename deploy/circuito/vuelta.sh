@@ -25,6 +25,13 @@ ITEM="${CIRCUITO_ITEM:-}"
 WT="${CIRCUITO_WT:-$RUNTIME/wt-exec}"
 SID="${CIRCUITO_SID:-wt-exec}"           # id de sesión para el estado live por-sesión (#334)
 LOCK="$RUNTIME/${SID}.lock"              # lock POR worktree → N vueltas en paralelo (una por slot)
+# #170 — CENTINELA DEL FRENO DE MANO. Ruta ABSOLUTA: este script hace `cd` al worktree del slot,
+# y cada worktree tiene su propio storage/ real — una ruta relativa daría un freno por terminal.
+# Se consulta con `test -e`, SIN php y SIN base: es lo que lo hace fiable con MySQL caído (y lo que
+# lo hace instantáneo, que es lo que permite consultarlo en cada iteración sin costo).
+CENTINELA="${CIRCUITO_FRENO_CENTINELA:-/var/www/megaisp/storage/app/circuito/PAUSA}"
+frenado(){ [ -e "$CENTINELA" ]; }
+
 PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
 PROMPT_ITEM_FILE="$PROJ/deploy/circuito/prompt-item.txt"
 TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
@@ -54,12 +61,54 @@ MODELO_FLAG="$(printf '%s\n' "$FLAGS" | sed -n 's/^modelo=//p')"
 MODEL="${CIRCUITO_MODEL:-${MODELO_FLAG:-sonnet}}"   # #336: settings circuito_modelo_rutina/forzar; CIRCUITO_MODEL manda si viene.
 log "flags: pausado=${PAUSED:-?} modo=${MODO:-?} modelo=${MODEL:-?}"
 
+# ── REGISTRO DE PROCESOS DEL CIRCUITO (vigilancia de Thomas) ────────────────────────────────
+# Se escribe EN BASH, no en PHP, y a propósito: tiene que existir cuando la base no responde y
+# cuando la app está rota, que es justo cuando hace falta saber quién está corriendo. PHP sólo lee.
+#
+# POR QUÉ: el vigilante sólo puede tocar procesos que identifique como del circuito POR SU PROPIO
+# REGISTRO. Sin esto, la única forma de identificarlos es el nombre del binario — y `ps | grep
+# claude` incluye las sesiones interactivas de Irving. Un `pkill claude` es autoinmune.
+#
+# IDENTIDAD = PID + STARTTIME: los PID se reciclan. El campo 22 de /proc/<pid>/stat es inmutable
+# para ese proceso; si no coincide, la entrada está muerta aunque el número siga existiendo.
+# Se parsea DESPUÉS del último ')' porque el campo 2 es el nombre del ejecutable entre paréntesis.
+THOMAS_PIDS="${CIRCUITO_THOMAS_PIDS:-/var/www/megaisp/storage/app/circuito/thomas/pids}"
+PIDFILE="$THOMAS_PIDS/${SID}.json"
+
+registrar_pid(){  # $1 = item (puede venir vacío)
+  mkdir -p "$THOMAS_PIDS" 2>/dev/null || return 0
+  local st pgid tmp
+  st="$(sed -e 's/^.*) //' "/proc/$$/stat" 2>/dev/null | awk '{print $20}')"
+  pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+  tmp="$PIDFILE.tmp.$$"
+  # Escritura atómica (tmp+rename): el vigilante nunca lee un registro a medio escribir.
+  printf '{"sid":"%s","pid":%s,"pgid":"%s","starttime":"%s","item":"%s","wt":"%s","log":"%s","modelo":"%s","timeout":%s,"desde_ts":%s,"host":"%s"}\n' \
+    "$SID" "$$" "${pgid:-}" "${st:-}" "${1:-}" "$WT" "$LOG" "${MODEL:-}" "${TIMEOUT:-0}" "$(date +%s)" "$(hostname)" \
+    > "$tmp" 2>/dev/null && mv -f "$tmp" "$PIDFILE" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+}
+
+borrar_pid(){ rm -f "$PIDFILE" 2>/dev/null || true; }
+
+# El trap cubre timeout, kill y error: si la vuelta muere de cualquier forma, el registro no queda
+# mintiendo. Y si aun así quedara colgado, el propio vigilante lo detecta por `starttime` y lo
+# reporta como entrada colgada en vez de creerle.
+trap borrar_pid EXIT
+
 # Registra la fila de ejecución (#319). Nunca tumba la vuelta si falla.
 registrar(){  # started finished modo pausado rc meta modelo
   php artisan circuito:registrar-ejecucion \
     --started="$1" --finished="$2" --modo="$3" --pausado="$4" --rc="$5" \
     --log="$LOG" --meta="$6" --modelo="${7:-}" >>"$LOG" 2>&1 || log "aviso: no se pudo registrar la ejecución."
 }
+
+# El centinela manda sobre el flag de base: existe para funcionar cuando la base NO contesta, así
+# que si `circuito:flags` falló (PAUSED vacío) esto sigue siendo verdad.
+if frenado; then
+  log "FRENO DE MANO PUESTO (centinela $CENTINELA). No ejecuto nada."
+  cat "$CENTINELA" 2>/dev/null | tee -a "$LOG"
+  php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
+  exit 0
+fi
 
 if [ "$PAUSED" = "1" ]; then
   NOW="$(date +%s)"
@@ -108,6 +157,7 @@ ejecutar_una() {
   else
     PROMPT_TEXT="$(cat "$PROMPT_FILE")"
   fi
+  registrar_pid "${ITEM:-}"
   log "===== inicio de la vuelta (claude -p) ====="
 
   local START FIN RC HB_PID META
@@ -157,7 +207,27 @@ if [ -n "$ITEM" ]; then
   # al cron → mantiene el slot lleno mientras haya trabajo seguro (mata los valles). claim-next
   # respeta el kill switch (pausa → nada que reclamar) y serializa por flock (reclamo atómico #341).
   while true; do
+    # #170 — EL CHEQUEO QUE FALTABA. Antes el freno sólo se miraba al ARRANCAR la vuelta: una vez
+    # dentro de este lazo, el worker seguía pidiendo items hasta secar la cola pasara lo que pasara.
+    # Por eso pausar el cron no detuvo al huérfano de 1 d 21 h: el cron ya no lo relanzaba, pero el
+    # lazo tampoco volvía a preguntar. Va ANTES de `ejecutar_una` para que también corte la primera.
+    # `test -e` sobre un archivo: sin base, sin php, sin depender de que el padre siga vivo.
+    if frenado; then
+      log "FRENO DE MANO PUESTO a mitad del pool: $SID suelta el slot sin tomar otro item."
+      cat "$CENTINELA" 2>/dev/null | tee -a "$LOG"
+      php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
+      break
+    fi
+
     ejecutar_una
+
+    # Y otra vez DESPUÉS de trabajar: una vuelta dura hasta 10 min, tiempo de sobra para que alguien
+    # ponga el freno mientras corría. Sin esto, el worker reclamaría un item más antes de enterarse.
+    if frenado; then
+      log "FRENO DE MANO PUESTO durante la vuelta: $SID no reclama el siguiente."
+      break
+    fi
+
     NEXT="$(php artisan circuito:claim-next --sid="$SID" 2>/dev/null)"
     if [ -z "$NEXT" ]; then
       log "Sin más trabajo elegible (o pausa): worker $SID suelta el slot; el scheduler lo relanza al haber trabajo."

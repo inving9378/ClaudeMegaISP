@@ -62,7 +62,7 @@ class RoadmapItem extends Model
         // #1005 — escape valve del gate de cierre para items sin pantalla (migraciones/refactors/tests)
         'sin_ui', 'sin_ui_motivo',
         // Bandeja de decisiones interactiva (#313) + brief multi-pregunta (#432 Fase 3)
-        'opciones', 'opcion_elegida', 'preguntas',
+        'opciones', 'opcion_elegida', 'preguntas', 'huecos_spec', 'huecos_medidos_at',
         // Aislamiento por rama (#311)
         'branch', 'merge_commit',
         // Acciones avanzadas de la bandeja (#320)
@@ -111,6 +111,8 @@ class RoadmapItem extends Model
         'log'          => 'array',
         'opciones'     => 'array',
         'preguntas'    => 'array',
+        'huecos_spec'  => 'array',
+        'huecos_medidos_at' => 'datetime',
         'marcado_version' => 'boolean',
         'urgente'      => 'boolean',
         'urgente_at'   => 'datetime',

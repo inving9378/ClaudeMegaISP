@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Console\DigestCommand;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -128,9 +129,37 @@ class RoadmapCircuitoService
      * (sigue leyendo/reportando). Persistido en `settings` para que lo respeten por
      * igual la Torre de control (botón), la API externa y el conector MCP.
      */
+    /**
+     * ¿Está frenado el circuito? (#170)
+     *
+     * ── EL ORDEN IMPORTA ────────────────────────────────────────────────────────────────────
+     * 1. El CENTINELA EN ARCHIVO. Su existencia es la pausa y no necesita a MySQL.
+     * 2. Sólo si no está puesto, la fila de `settings` (el freno de la Torre, que sigue siendo
+     *    el que usa Irving desde la UI y el único que respeta el candado #342).
+     *
+     * ── FAIL-CLOSED ─────────────────────────────────────────────────────────────────────────
+     * CUALQUIER excepción devuelve `true` = FRENADO. Antes, con la base caída esto lanzaba, y la
+     * excepción se propagaba en unos caminos y se tragaba en otros: el único mecanismo capaz de
+     * detener seis terminales con permiso de escritura sobre el repo dejaba de existir justo
+     * cuando más falta hacía. Un falso "frenado" cuesta una vuelta perdida; un falso "suelto"
+     * cuesta seis terminales trabajando a ciegas sobre una base que no responde.
+     *
+     * El fallo se registra EN ARCHIVO, nunca en base: si la base es el problema, escribir ahí el
+     * motivo es perder justo el rastro que lo explica.
+     */
     public function isPaused(): bool
     {
-        return (string) DB::table('settings')->where('key', self::PAUSE_KEY)->value('value') === '1';
+        try {
+            if (FrenoCircuito::activo()) {
+                return true;
+            }
+
+            return (string) DB::table('settings')->where('key', self::PAUSE_KEY)->value('value') === '1';
+        } catch (\Throwable $e) {
+            FrenoCircuito::registrarFallo('isPaused', $e);
+
+            return true;   // fail-closed: ante la duda, frenado.
+        }
     }
 
     /**
