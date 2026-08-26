@@ -412,18 +412,67 @@ class EnvironmentHealthService
         ];
     }
 
-    /** Botón "Reintentar trabajos fallidos". */
+    /**
+     * Botón "Reintentar trabajos fallidos".
+     *
+     * POR QUÉ UNO POR UNO Y NO `queue:retry all` (medido el 2026-08-26): `all` deserializa cada
+     * payload, y si uno apunta a un modelo ya borrado la `ModelNotFoundException` **aborta el lote
+     * entero** y sale a la UI como un 404 crudo ("No query results for model ..."). Es decir: mueve
+     * algunos, truena a media faena y no dice cuáles ni cuántos alcanzó. Reproducido dos veces con
+     * los 46 fallidos de may-jun de dev. Reintentando de uno en uno, un payload envenenado sólo se
+     * lleva su propia fila: los demás se reencolan igual y el envenenado se reporta por id.
+     *
+     * Devuelve además `envenenados[]` (id, uuid, job y motivo) para que el fallo tenga nombre en vez
+     * de quedar como un número que no cuadra.
+     */
     public function reintentarTrabajosFallidos(): array
     {
         if (! Schema::hasTable('failed_jobs')) {
-            return ['ok' => true, 'reencolados' => 0];
+            return ['ok' => true, 'reencolados' => 0, 'quedan' => 0, 'envenenados' => []];
         }
 
-        $antes = DB::table('failed_jobs')->count();
-        Artisan::call('queue:retry', ['id' => ['all']]);
-        $despues = DB::table('failed_jobs')->count();
+        $filas = DB::table('failed_jobs')->orderBy('id')->get(['id', 'uuid', 'payload']);
 
-        return ['ok' => true, 'reencolados' => max(0, $antes - $despues), 'quedan' => $despues];
+        $reencolados = 0;
+        $envenenados = [];
+
+        foreach ($filas as $fila) {
+            $refe = $fila->uuid ?: (string) $fila->id;   // Laravel 10 reintenta por uuid; el id es respaldo.
+            $job  = json_decode((string) $fila->payload, true)['displayName'] ?? 'desconocido';
+
+            try {
+                Artisan::call('queue:retry', ['id' => [$refe]]);
+            } catch (\Throwable $e) {
+                $envenenados[] = [
+                    'id'     => (int) $fila->id,
+                    'uuid'   => $fila->uuid,
+                    'job'    => $job,
+                    'motivo' => class_basename($e) . ': ' . mb_substr($e->getMessage(), 0, 160),
+                ];
+                continue;
+            }
+
+            // La única prueba que vale es que la fila se haya ido: `queue:retry` no devuelve
+            // código de error cuando descarta una fila que no pudo interpretar.
+            if (DB::table('failed_jobs')->where('id', $fila->id)->exists()) {
+                $envenenados[] = [
+                    'id'     => (int) $fila->id,
+                    'uuid'   => $fila->uuid,
+                    'job'    => $job,
+                    'motivo' => 'queue:retry no la reencoló y no explicó por qué',
+                ];
+                continue;
+            }
+
+            $reencolados++;
+        }
+
+        return [
+            'ok'          => true,
+            'reencolados' => $reencolados,
+            'quedan'      => DB::table('failed_jobs')->count(),
+            'envenenados' => $envenenados,
+        ];
     }
 
     /** Botón "Limpiar y recalentar cachés". NUNCA corre config:cache si config:auditar-env no pasa limpio. */

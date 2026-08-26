@@ -2135,3 +2135,28 @@ algunos jobs, truena a media faena y deja un toast de "No query results" que no 
 cuántos alcanzó. Reproducido dos veces. **No se arregló** (pendiente de decisión de Irving): la forma
 sería reintentar **job por job**, contar los que sí y reportar los envenenados por id en vez de tumbar
 la corrida.
+
+## 2026-08-26 15:30 — Arreglado el botón "Reintentar fallidos" de la Torre
+
+**Antes:** `EnvironmentHealthService::reintentarTrabajosFallidos()` corría `queue:retry all` sin
+try/catch. `all` deserializa cada payload, y entre los 46 fallidos de dev hay tres que apuntan a un
+`ClientReferralProfile` ya borrado → la `ModelNotFoundException` **abortaba el lote entero** y salía a
+la UI como un 404 crudo ("No query results for model ..."). Movía algunos, tronaba a media faena y no
+decía cuáles ni cuántos había alcanzado.
+
+**Ahora:** reintenta **uno por uno**. Un payload envenenado sólo se lleva su propia fila; los demás se
+reencolan igual, y cada envenenado se reporta con `id`, `uuid`, nombre del job y motivo. Se agregó una
+segunda verificación: `queue:retry` no devuelve código de error cuando descarta una fila que no pudo
+interpretar, así que la única prueba que vale es **que la fila haya desaparecido** de `failed_jobs`.
+El contrato con el frontend se conservó (`reencolados`/`quedan`, que es lo que lee
+`TorreSaludEntorno.vue:233`) y se sumó `envenenados[]`.
+
+**Verificado por la ruta HTTP real, en transacción con rollback:** antes 404 → **ahora 200**, con
+`reencolados=43, quedan=3`. Los 3 son `App\Listeners\Referrals\NotifyEmbajadorActivated` (ids 4, 5, 6)
+con `ModelNotFoundException: ClientReferralProfile` — ahora tienen nombre en vez de tumbar la corrida.
+Residuo tras el rollback: `failed_jobs`=46 y `jobs`=188, intactos.
+
+**Queda a decisión de Irving:** (a) esos 3 jobs no pueden triunfar nunca —el perfil de referido ya no
+existe— así que lo natural es `queue:forget 4 5 6`, pero es borrado de datos y no se hace solo;
+(b) la UI hoy dirá "Se reencolaron 43 trabajo(s); quedan 3" — mostrar *cuáles* quedaron y por qué
+requiere tocar `TorreSaludEntorno.vue` y recompilar el bundle.
