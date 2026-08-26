@@ -51,7 +51,106 @@
             }
         }
     ],
-    "api_endpoints": [],
+    "api_endpoints": [
+        {
+            "method": "GET",
+            "path": "/admin/modules",
+            "description": "Lista de módulos con estado de migración y costo de IA acumulado",
+            "scope": "admin_modules",
+            "permission": "admin_modules"
+        },
+        {
+            "method": "GET",
+            "path": "/admin/modules/{slug}/history",
+            "description": "Historial de corridas de migración asistida por IA de un módulo",
+            "scope": "admin_modules",
+            "permission": "admin_modules"
+        },
+        {
+            "method": "POST",
+            "path": "/admin/modules/{slug}/migrate",
+            "description": "Envía el MIGRATION.md del módulo a Claude y guarda el plan propuesto",
+            "scope": "admin_modules_migrate",
+            "permission": "admin_modules_migrate"
+        },
+        {
+            "method": "POST",
+            "path": "/admin/modules/{slug}/toggle",
+            "description": "Activa/desactiva un módulo addon en el registro (los core no se pueden desactivar)",
+            "scope": "admin_modules_toggle",
+            "permission": "admin_modules_toggle"
+        },
+        {
+            "method": "GET",
+            "path": "/admin/modules/{slug}/install/preview",
+            "description": "Previsualiza el manifiesto de un módulo antes de instalarlo",
+            "scope": "developer",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/admin/modules/{slug}/install",
+            "description": "Instala un módulo (ciclo de vida)",
+            "scope": "developer",
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/admin/modules/{slug}/upgrade",
+            "description": "Actualiza un módulo ya instalado a su versión declarada",
+            "scope": "developer",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/admin/modules/{slug}/uninstall/preview",
+            "description": "Previsualiza el impacto de desinstalar un módulo",
+            "scope": "developer",
+            "permission": null
+        },
+        {
+            "method": "DELETE",
+            "path": "/admin/modules/{slug}/uninstall",
+            "description": "Desinstala un módulo (con opción de conservar sus datos)",
+            "scope": "developer",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/admin/modules/registry/data",
+            "description": "Menú, tarjetas admin, secciones de config y demás compilados por ModuleRegistry",
+            "scope": "developer",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/admin/administracion",
+            "description": "Panel central de Administración (tarjetas de módulos)",
+            "scope": "developer",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/admin/administracion/cards",
+            "description": "Tarjetas del panel de Administración, filtradas server-side por permiso .view de cada módulo",
+            "scope": "developer",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/modules/config-sections",
+            "description": "Secciones de configuración de todos los módulos, agrupadas por type",
+            "scope": "auth",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/modules/config-moved-sections",
+            "description": "Tiles de /configuracion agrupados por configuracion_subsection (módulos movidos u ocultos del sidebar)",
+            "scope": "auth",
+            "permission": null
+        }
+    ],
     "ai": [],
     "client_tab": null,
     "service_type": null
