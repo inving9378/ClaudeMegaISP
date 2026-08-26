@@ -2211,3 +2211,49 @@ ninguno diferido.
 - **Verificado:** item con `agendado_para` vencido → `Reactivados 1 item(s)`, campo en NULL y entrada
   `agendado_reactivado` en su log (transacción con rollback, 0 residuo). Corrida real **por el mismo
   wrapper que usará cron** → el motor pasó de "nunca ha corrido" a **"hace 1 segundo"** en el panel.
+
+## 2026-08-26 15:09 — Item #172: respaldo diario de MySQL, la causa raíz era el crontab, no el código
+
+**Contexto:** incidente P0 del 2026-08-24 (BD de dev destruida el 22-ago) reveló que el respaldo
+completo más reciente en `/var/backups/mysql/` era del 29-jun — casi 8 semanas antes. Irving ya
+había aprobado el item (nivel B); Thomas le asignó footprint "Infra". Ejecutado on-box (wt-2), sin
+tocar `/var/www/megaisp` directamente (worktree aislado, `.env` es symlink al mismo archivo real).
+
+**Hallazgo:** `backup_db:process` (`app/Console/Commands/Active/BackupDB.php`) ya existe completo
+y correcto — mysqldump→gzip, verifica integridad (`gzip -t`), aplica retención de 14 días, loguea
+al canal `backup`. Y ya está registrado en `Kernel.php:56` con `dailyAt('02:00')`. **El respaldo
+nunca corrió porque el crontab de este servidor (usuario `meganet`) no tiene ninguna línea
+`schedule:run`** — solo trae las líneas propias del Circuito CC (scheduler, watchdog, sonda,
+vigilia de Thomas) más `circuito:compuertas-sonda`. El schedule de Laravel entero (incluido el
+backup) estaba mudo desde que existe ese crontab. Cero líneas de código a corregir; el bug era de
+infraestructura, no de aplicación.
+
+**Decisión (registrada, nivel A dentro de un item nivel B ya aprobado):** en vez de agregar
+`* * * * * cd /var/www/megaisp && php artisan schedule:run`, que encendería TODO el schedule de
+golpe —incluye `invoice:create-proformas` (dinero) y los sync de Mikrotik/SmartOLT (hardware real
+de red), ninguno revisado para correr desatendido en dev—, se agregó una línea de crontab acotada
+que dispara **solo** `backup_db:process`, a las 02:00 (mismo horario que ya tenía en Kernel.php):
+
+```
+0 2 * * * cd /var/www/megaisp && php artisan backup_db:process >> storage/logs/backup-db-cron.log 2>&1
+```
+
+Salida redirigida a `storage/logs/backup-db-cron.log` (mismo directorio que ya usa el canal
+`backup`, `2777` meganet:www-data, escribible) en vez de `/dev/null`, para no repetir el modo de
+fallo silencioso que ya mordió al digest de Thomas (ver bitácora previa: un log que no puede
+escribirse aborta sin dejar rastro).
+
+**Verificación:** corrida manual de `php artisan backup_db:process` desde este worktree (comparte
+`.env`→BD real vía symlink) — resultado real, no simulado:
+```
+[backup_db] Iniciando → /var/backups/mysql/megaisp-202608261506.sql.gz
+[backup_db] OK — 141.73 MB → megaisp-202608261506.sql.gz
+[backup_db] Retención: 2 archivo(s) eliminado(s) (>14 días).
+```
+El hueco de 8 semanas queda cerrado de inmediato (backup fresco del 26-ago) y el crontab garantiza
+que se repita todos los días sin intervención. Sin cambios en el repo (nada que commitear: el
+código ya estaba completo, solo faltaba dispararlo) — cierre es 100% infraestructura del host.
+
+**Pendiente fuera de alcance de este item:** lo mismo puede estar pasando en PROD (`.198`) — ese
+crontab es un servidor aparte que este ejecutor no toca. Vale la pena que Irving verifique ahí con
+el mismo diagnóstico (`crontab -l` buscando una línea `schedule:run`).
