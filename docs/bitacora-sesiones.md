@@ -2160,3 +2160,15 @@ Residuo tras el rollback: `failed_jobs`=46 y `jobs`=188, intactos.
 existe— así que lo natural es `queue:forget 4 5 6`, pero es borrado de datos y no se hace solo;
 (b) la UI hoy dirá "Se reencolaron 43 trabajo(s); quedan 3" — mostrar *cuáles* quedaron y por qué
 requiere tocar `TorreSaludEntorno.vue` y recompilar el bundle.
+
+**Limpieza de los 3 envenenados (15:35).** Antes de borrar se verificó el motivo: los payloads apuntan
+a los perfiles de referido **#123, #124 y #127**, y los tres **ya no existen** en
+`client_referral_profiles` → esos jobs no pueden triunfar nunca (cola `referrals`, fallidos el 28-29
+de mayo). Respaldo de las 3 filas completas en
+`/home/meganet/forense-20260825/failed_jobs-4-5-6-respaldo.json` (15.6 KB) **antes** de tocar nada.
+Borrados con `queue:forget <uuid>` (driver `database-uuids`). Verificado: `failed_jobs` 46 → **43**,
+los 3 ids fuera, y **cero** `NotifyEmbajadorActivated` restantes. La corrida del botón ahora devuelve
+`reencolados=43, quedan=0, envenenados=0` — el lote quedó limpio.
+
+⚠️ Recordatorio operativo: con los workers caídos, usar el botón dejaría esos 43 jobs sumados a los
+188 que ya esperan en cola. Levantar los workers primero.
