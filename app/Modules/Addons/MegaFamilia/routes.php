@@ -254,6 +254,9 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/account', [ApiController::class, 'account']);
 
+        // Polling barato de "algo cambió" (item #26) — ver syncStatus().
+        Route::get('/sync-status', [ApiController::class, 'syncStatus']);
+
         // Cliente dashboard (mobile home)
         Route::get('/servicio', [ApiController::class, 'servicio']);
         Route::get('/tickets', [ApiController::class, 'tickets']);
