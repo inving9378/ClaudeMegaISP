@@ -2727,3 +2727,42 @@ clientes/facturación.
 
 **Commits:** `f7508751` (migración) + `ffc5ea32` (modelo/controller) + `cd186e33` (UI) en
 `circuito/item-121-decision-talento-definir-reglas-de-co`, encolados al merge-runner.
+
+## 2026-08-26 15:15 — Item #57: auditoría OLT multi-marca — ya existía, se re-verificó y se convirtió en items concretos
+
+**Item #57** ("Módulo OLT propio multi-marca — auditoría y plan de trabajo") pedía auditar el
+módulo OLT actual (Huawei/ZTE/V-SOL) y armar un plan de trabajo en items concretos. Al arrancar
+apareció que **esa auditoría ya existía**: `docs/AUDITORIA_OLT_MULTIMARCA_2026-07-15.md`, 200
+líneas, commiteada en `main` desde el 2026-07-14 (`fab6d983`) por un worker anterior (wt-5) —
+pero el item #57 de la Hoja de Ruta nunca se cerró, así que quedó "flotando" hasta que el triaje
+lo volvió a poner en la cola y me lo asignaron hoy.
+
+**En vez de repetir el trabajo desde cero, se verificó que siga vigente:**
+- Único commit tocando el árbol OLT desde el 15-jul: `6ed4fc37` (solo doc, decisión de Irving
+  #416 — arquitectura Híbrida multi-tenant, 2026-07-15).
+- `php artisan test --filter=OltDriver` → **329 passed, 1524 assertions**, idéntico a lo que
+  reporta la auditoría. Nada cambió en el motor Huawei ni en ZTE/V-SOL (siguen en cero código).
+- Detalle relevante que la auditoría no reflejaba: la decisión #416 (Híbrido BD-por-tenant) hace
+  que **GR-6** (encapsular los modelos OLT en el módulo) **deje de ser bloqueante** para el SaaS
+  multi-tenant — sigue siendo deuda técnica válida, pero sin urgencia.
+
+**Lo que sí faltaba y se hizo ahora:** el plan de la sección 4 de la auditoría estaba solo en una
+tabla markdown, no en items de la Hoja de Ruta. Se crearon 4 sub-items colgando de #57 (nacen
+`pendiente_revision`, el circuito los triará normal):
+- **#281** — Fases A+B: cerrar escritura Huawei real en laboratorio (alta/baja/suspensión, luego
+  perfil de velocidad/VLANs). Frontera dura explícita: requiere OLT de laboratorio + Irving
+  presente, no autoriza producción.
+- **#282** — Fase C: capacidades `Supports*` opcionales en `HuaweiDriver` (paridad con SmartOLT).
+- **#283** — Fase D: decisión de negocio ZTE/V-SOL (¿hay ISP piloto con hardware real?) — es
+  decisión de Irving, no código.
+- **#284** — Fase I (opcional): GR-6, reclasificada como deuda técnica no bloqueante.
+
+No se crearon items para los stubs/drivers ZTE o V-SOL (fases E-H de la auditoría) porque
+dependen directamente de la decisión #283 — adelantarlos sería código sin forma de validar contra
+hardware real, tal como concluye la propia auditoría.
+
+**Verificación:** re-corrida de la suite `OltDriver` (329/329 verdes), lectura directa de
+`git log` del árbol OLT desde 2026-07-15 para confirmar que no hubo cambios de código no
+documentados, y confirmación de que los 4 sub-items quedaron registrados bajo #57. Sin tocar
+ninguna OLT real ni escribir código nuevo — el ítem es documental/read-only, tal como su propio
+alcance lo pedía ("NO construir todavía").
