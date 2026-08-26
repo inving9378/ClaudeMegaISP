@@ -9,8 +9,11 @@ use Illuminate\Support\Facades\Schema;
  * hoy no existen en el colaborador. NO se duplican telefono/correo/domicilio/RFC: esos ya
  * viven en `users` (phone/email/address/city_municipality/state_country/code_postal/colony/rfc)
  * y el expediente los reutiliza desde ahi. Tampoco se duplican puesto->department (ya existe,
- * "area o cuadrilla"), jefe inmediato->supervisor_id, fecha de ingreso->hire_date ni
- * salario->base_salary (ya existian). Aditiva/idempotente (guard hasColumn), nunca migrate:fresh.
+ * "area o cuadrilla"), jefe inmediato->supervisor_id, fecha de ingreso->hire_date, salario->
+ * base_salary, ni horario->shift_start/shift_end/work_days (los tres ya los agrego la migracion
+ * de Asistencia — create_talento_attendances_table — aunque hoy no tengan formulario que los
+ * capture; el expediente los reutiliza en vez de sumar un "work_schedule" de texto libre en
+ * paralelo). Aditiva/idempotente (guard hasColumn), nunca migrate:fresh.
  */
 return new class extends Migration
 {
@@ -44,11 +47,8 @@ return new class extends Migration
             if (!Schema::hasColumn('talento_colaboradores', 'pay_frequency')) {
                 $table->enum('pay_frequency', ['semanal', 'quincenal', 'mensual'])->nullable()->after('relation_end_date');
             }
-            if (!Schema::hasColumn('talento_colaboradores', 'work_schedule')) {
-                $table->string('work_schedule', 150)->nullable()->after('pay_frequency');
-            }
             if (!Schema::hasColumn('talento_colaboradores', 'work_location')) {
-                $table->string('work_location', 150)->nullable()->after('work_schedule');
+                $table->string('work_location', 150)->nullable()->after('pay_frequency');
             }
         });
     }
@@ -59,7 +59,7 @@ return new class extends Migration
             foreach ([
                 'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',
                 'job_title', 'relation_type', 'relation_end_date', 'pay_frequency',
-                'work_schedule', 'work_location',
+                'work_location',
             ] as $column) {
                 if (Schema::hasColumn('talento_colaboradores', $column)) {
                     $table->dropColumn($column);
