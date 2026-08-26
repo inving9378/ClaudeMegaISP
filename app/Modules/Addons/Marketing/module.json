@@ -89,12 +89,12 @@
                 },
                 {
                     "label": "Video MVM",
-                    "url": "/marketing/video",
+                    "url": "/marketing/video-templates",
                     "permission": "generate-video-content"
                 },
                 {
                     "label": "Publicación",
-                    "url": "/marketing/publicar",
+                    "url": "/marketing/publishing",
                     "permission": "publish-content"
                 },
                 {
@@ -182,38 +182,6 @@
                     "Configurar OpenAI",
                     "Configurar Pexels B-roll",
                     "Generar video de prueba"
-                ]
-            }
-        },
-        {
-            "key": "marketing_niches",
-            "label": "Marketing — Nichos y Director Creativo IA",
-            "type": "general",
-            "category": "Ventas",
-            "icon": "bullseye",
-            "url": "/marketing/niches",
-            "permission": "manage-marketing-niches",
-            "description": "Configura nichos de mercado y el Director Creativo IA que genera conceptos y guiones de video.",
-            "doc": {
-                "terms": [
-                    {
-                        "term": "Nicho",
-                        "definition": "Segmento de mercado con tono, voz y estilo visual específicos (ej. gamer, familiar, empresarial)."
-                    },
-                    {
-                        "term": "Director Creativo IA",
-                        "definition": "Servicio que genera conceptos creativos, guiones y selección de B-roll basándose en el nicho."
-                    }
-                ],
-                "steps": [
-                    "Seleccionar o crear un nicho de mercado.",
-                    "Ajustar el tono, voz preferida y paleta de colores.",
-                    "El Director Creativo IA usará estos parámetros en cada generación."
-                ],
-                "actions": [
-                    "Crear nicho",
-                    "Editar configuración",
-                    "Generar concepto de prueba"
                 ]
             }
         }
