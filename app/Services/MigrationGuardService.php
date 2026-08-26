@@ -26,6 +26,27 @@ use Throwable;
  * a la rama declare `contraccion_de: V{n}` y esa versión ya lleve
  * `min_dias_antes_de_contraccion` (config/migration_guard.php) aplicada en
  * producción (releases.aplicada_en_prod_at, vínculo técnico del item #1017).
+ *
+ * ── UN GUARDRAIL NO PUEDE DEPENDER DEL ESTADO QUE PROTEGE (2026-08-25) ─────────────────────────
+ *
+ * El 25-ago a las 18:14 una terminal corrió la suite, `migrate:fresh` borró las 500 tablas de dev,
+ * y el `migrate` de vuelta NO reconstruyó nada: este guardrail no podía leer la tabla `migrations`
+ * —la que ese mismo `migrate:fresh` acababa de borrar— y en esa rama fallaba CERRADO. La base
+ * terminó en 0 tablas en vez de 500. El freno no evitó el daño: impidió la reparación.
+ *
+ * De ahí las tres reglas que ordenan este archivo, y que valen para cualquier freno del sistema:
+ *
+ * 1. **La decisión de BLOQUEAR se toma con git y con el sistema de archivos**, nunca con una
+ *    consulta a la base que se está protegiendo. Todo lo que puede decir "no" —¿está commiteada?,
+ *    ¿tiene ruta a main?, ¿trae un patrón destructivo?— es texto en disco.
+ * 2. **Bloquear una acción destructiva NO es lo mismo que bloquear la reparación.** Si no se puede
+ *    leer el estado aplicado (tabla `migrations` ausente = base vacía, o conexión caída), no hay
+ *    nada que proteger y sí algo que reconstruir: se PERMITE, y se dice con esas palabras en el
+ *    log. Ver `estadoAplicadoLegible()`.
+ * 3. **La base sólo puede volver el guardrail MÁS estricto, nunca ser el motivo de que falle.**
+ *    Los dos refinamientos que la consultan (item cerrado en `hasPathToMain`, contracción madura
+ *    en `isContractionExempt`) se saltan sin ruido si la base no responde: su ausencia deja el
+ *    veredicto en manos de git, que es donde vive la decisión.
  */
 class MigrationGuardService
 {
@@ -79,6 +100,10 @@ class MigrationGuardService
      */
     public function checkPending(): array
     {
+        if (! $this->estadoAplicadoLegible()) {
+            return $this->permitirReconstruccion('checkPending');
+        }
+
         try {
             $violations = [];
 
@@ -90,7 +115,8 @@ class MigrationGuardService
 
             return $violations;
         } catch (Throwable $e) {
-            Log::channel('migration_guard')->warning('Guardrail no pudo evaluarse, se deja pasar (fail-open)', [
+            // Aquí ya sólo caben fallos de git/filesystem: el estado aplicado se comprobó arriba.
+            Log::channel('migration_guard')->warning('Guardrail no pudo evaluarse por git/archivos, se deja pasar', [
                 'error' => $e->getMessage(),
             ]);
 
@@ -108,6 +134,10 @@ class MigrationGuardService
      */
     public function checkDestructive(): array
     {
+        if (! $this->estadoAplicadoLegible()) {
+            return $this->permitirReconstruccion('checkDestructive');
+        }
+
         try {
             $exempt = $this->isContractionExempt();
             $violations = [];
@@ -124,7 +154,7 @@ class MigrationGuardService
 
             return $violations;
         } catch (Throwable $e) {
-            Log::channel('migration_guard')->warning('Guardrail destructivo no pudo evaluarse, se deja pasar (fail-open)', [
+            Log::channel('migration_guard')->warning('Guardrail destructivo no pudo evaluarse por git/archivos, se deja pasar', [
                 'error' => $e->getMessage(),
             ]);
 
@@ -178,6 +208,17 @@ class MigrationGuardService
      */
     protected function isContractionExempt(): bool
     {
+        try {
+            return $this->contraccionMaduraSegunRoadmap();
+        } catch (Throwable $e) {
+            // Sin base no hay excepción de contracción: el guardrail queda MÁS estricto, que es
+            // el lado seguro. Nunca al revés (ver regla 3 del doc de clase).
+            return false;
+        }
+    }
+
+    protected function contraccionMaduraSegunRoadmap(): bool
+    {
         $item = $this->resolveItemFromBranch();
         if (! $item) {
             return false;
@@ -204,6 +245,85 @@ class MigrationGuardService
             'rama' => $this->currentBranch(),
             'violaciones' => $violations,
         ]);
+    }
+
+    /**
+     * ¿Se puede leer el estado aplicado (la tabla `migrations`)?
+     *
+     * Se pregunta DELIBERADAMENTE y por adelantado, en vez de descubrirlo por una excepción a
+     * media evaluación. Ésa es toda la diferencia entre las dos formas de fallar: una excepción
+     * genérica no distingue "la base está vacía" de "git no respondió", y el 25-ago esa mezcla se
+     * resolvió hacia el lado que impidió reconstruir.
+     *
+     * `false` significa una de dos cosas, y las dos quieren lo mismo: no hay tabla `migrations`
+     * (base recién vaciada o recién creada — no hay nada que proteger, sí algo que reconstruir),
+     * o la conexión no responde (y entonces `migrate` no va a poder hacer daño de todos modos,
+     * porque tampoco va a poder conectarse).
+     */
+    public function estadoAplicadoLegible(): bool
+    {
+        try {
+            return $this->migrator->getRepository()->repositoryExists();
+        } catch (Throwable $e) {
+            Log::channel('migration_guard')->info('No se pudo leer el estado aplicado', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * La decisión de permitir la reconstrucción, con nombre propio y su rastro.
+     *
+     * NO es "fail-open": es la respuesta correcta a una base sin estado que proteger. Se registra
+     * aparte para que en el log se distinga de un guardrail que se rindió, que es justo lo que
+     * nadie pudo distinguir la noche del incidente.
+     *
+     * @return array<int, string> siempre vacío (sin violaciones)
+     */
+    protected function permitirReconstruccion(string $chequeo): array
+    {
+        Log::channel('migration_guard')->warning(
+            'Estado aplicado ilegible: se PERMITE migrar (reconstrucción). Un freno que impide restaurar es peor que no tener freno.',
+            ['chequeo' => $chequeo, 'rama' => $this->currentBranch()]
+        );
+
+        return [];
+    }
+
+    /**
+     * ¿La base dice que este item ya está cerrado? Refinamiento OPCIONAL: sólo puede volver el
+     * guardrail más ESTRICTO, nunca ser el motivo de que falle. `null` = sin opinión (la base no
+     * respondió), y entonces manda git.
+     */
+    protected function itemCerradoSegunRoadmap(string $branch): ?bool
+    {
+        if (! preg_match('#^circuito/item-(\d+)-#', $branch, $m)) {
+            return null;
+        }
+
+        try {
+            $item = RoadmapItem::find((int) $m[1]);
+
+            if ($item === null || $item->branch !== $branch) {
+                return null;
+            }
+
+            // 'estacion' (accessor derivado) === 'done' cubre completado/cancelado/rechazado/
+            // archivado — un item ya cerrado no es una ruta viva a main, aunque su branch exista.
+            return $item->estacion === 'done';
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    /** ¿La rama existe de verdad como referencia de git? (decisión sin base de datos) */
+    protected function ramaExiste(string $branch): bool
+    {
+        return Process::path(base_path())
+            ->run(['git', 'rev-parse', '--verify', '--quiet', 'refs/heads/'.$branch])
+            ->successful();
     }
 
     /**
@@ -259,6 +379,15 @@ class MigrationGuardService
         return $result->successful() && trim($result->output()) !== '';
     }
 
+    /**
+     * ¿Esta rama tiene ruta registrada a main?
+     *
+     * El veredicto lo da GIT: main mismo, HEAD suelto, o una rama del circuito que existe como
+     * referencia real. La Hoja de Ruta entra sólo como refinamiento que puede ENDURECER (un item
+     * ya cerrado no es ruta viva), y si no contesta, no pasa nada: manda git. Antes este método
+     * consultaba `roadmap_items` para poder decir "sí", así que con la base caída lanzaba, y esa
+     * excepción era la que terminaba decidiendo — desde fuera, sin querer.
+     */
     protected function hasPathToMain(): bool
     {
         $branch = $this->currentBranch();
@@ -267,15 +396,11 @@ class MigrationGuardService
             return true;
         }
 
-        if (preg_match('#^circuito/item-(\d+)-#', $branch, $m)) {
-            $item = RoadmapItem::find((int) $m[1]);
-
-            // 'estacion' (accessor derivado) === 'done' cubre completado/cancelado/rechazado/
-            // archivado — un item ya cerrado no es una ruta viva a main, aunque su branch exista.
-            return $item !== null && $item->branch === $branch && $item->estacion !== 'done';
+        if (! preg_match('#^circuito/item-\d+-#', $branch) || ! $this->ramaExiste($branch)) {
+            return false;
         }
 
-        return false;
+        return $this->itemCerradoSegunRoadmap($branch) !== true;
     }
 
     protected function currentBranch(): string
