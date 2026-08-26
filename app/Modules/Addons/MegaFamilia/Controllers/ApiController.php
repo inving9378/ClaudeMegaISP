@@ -717,6 +717,43 @@ class ApiController extends Controller
     }
 
     /**
+     * Estado de sincronización ligero (item roadmap #26 — "cambios en el
+     * dashboard del servidor aparecen en la app sin recargar"). En vez de
+     * levantar infraestructura de WebSocket nueva, la app hace polling barato
+     * a este endpoint (pocos bytes) y sólo refresca servicio/facturas/tickets
+     * cuando el `version` cambie respecto al último valor cacheado local.
+     */
+    public function syncStatus(): JsonResponse
+    {
+        $user = Auth::user();
+        $client = $this->resolveClientForCurrentUser();
+
+        $servicioUpdatedAt = optional($client)->updated_at;
+
+        $facturasUpdatedAt = $client
+            ? DB::table('invoices')->where('client_id', $client->id)->max('updated_at')
+            : null;
+
+        $ticketsUpdatedAt = Ticket::where('reporter_id', $user->id)
+            ->where('reporter_type', User::class)
+            ->max('updated_at');
+
+        $version = md5(implode('|', [
+            (string) $servicioUpdatedAt,
+            (string) $facturasUpdatedAt,
+            (string) $ticketsUpdatedAt,
+        ]));
+
+        return response()->json([
+            'version' => $version,
+            'servicio_updated_at' => $servicioUpdatedAt,
+            'facturas_updated_at' => $facturasUpdatedAt,
+            'tickets_updated_at' => $ticketsUpdatedAt,
+            'checked_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
      * Perfil del usuario (nombre, email, teléfono, dirección). Para que
      * la app móvil siempre tenga algo que renderizar, los datos del
      * `clients`/`client_main_information` ligado tienen prioridad sobre
