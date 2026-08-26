@@ -34,7 +34,18 @@
         { "method": "GET",  "path": "/cliente/billing/datos-fiscales/{clientId}",             "description": "Consulta los datos fiscales CFDI 4.0 del cliente",   "scope": "billing.fiscal",       "permission": "facturacion.ver" },
         { "method": "POST", "path": "/cliente/billing/datos-fiscales/{clientId}",             "description": "Guarda los datos fiscales CFDI 4.0 del cliente",     "scope": "billing.fiscal",       "permission": "facturacion.fiscal.editar" },
         { "method": "POST", "path": "/cliente/billing/datos-fiscales/{clientId}/timbrar",     "description": "Timbra la constancia fiscal del cliente",            "scope": "billing.fiscal",       "permission": "facturacion.fiscal.timbrar" },
-        { "method": "POST", "path": "/cliente/clientinternetservice/crear/{id}",              "description": "Contrata un servicio de internet para el cliente",   "scope": "servicios",            "permission": "client_service_internet_add_client" }
+        { "method": "POST", "path": "/cliente/clientinternetservice/crear/{id}",              "description": "Contrata un servicio de internet para el cliente",   "scope": "servicios",            "permission": "client_service_internet_add_client" },
+        { "method": "POST", "path": "/cliente/clientinternetservice/change-internet/{id}",    "description": "Cambia el servicio de internet contratado",          "scope": "servicios",            "permission": "client_service_internet_edit_client" },
+        { "method": "POST", "path": "/cliente/clientbundleservice/crear/{id}",                "description": "Contrata un paquete (bundle) para el cliente",       "scope": "servicios",            "permission": "client_service_bundle_add_client" },
+        { "method": "POST", "path": "/cliente/clientcustomservice/crear/{id}",                "description": "Contrata un servicio personalizado (custom)",        "scope": "servicios",            "permission": "client_service_custom_add_client" },
+        { "method": "POST", "path": "/cliente/clientvozservice/crear/{id}",                   "description": "Contrata un servicio de VoIP para el cliente",       "scope": "servicios",            "permission": "client_service_voz_add_client" },
+        { "method": "POST", "path": "/cliente/has-service/{id}",                              "description": "Verifica si el cliente ya tiene un servicio dado",   "scope": "servicios",            "permission": "client_edit_client" },
+        { "method": "POST", "path": "/cliente/get-client-with-balance/{id}",                  "description": "Consulta al cliente junto con su saldo actual",      "scope": "cliente",              "permission": "client_view_client" },
+        { "method": "POST", "path": "/cliente/debit/{id}",                                    "description": "Consulta el adeudo/domiciliación del cliente",       "scope": "billing.pagos",        "permission": "client_billing_view_tab_client" },
+        { "method": "GET",  "path": "/cliente/actives",                                       "description": "Lista los clientes activos",                         "scope": "cliente",              "permission": "client_billing_invoice_edit" },
+        { "method": "GET",  "path": "/cliente/billing/invoice/pdf/{id}",                      "description": "Descarga el PDF de una factura del cliente",         "scope": "billing.facturas",     "permission": "client_billing_invoice_client" },
+        { "method": "GET",  "path": "/cliente/billing/payment/pdf/{id}",                      "description": "Descarga el PDF de un pago del cliente",             "scope": "billing.pagos",        "permission": "finance_view_payments" },
+        { "method": "GET",  "path": "/cliente/billing/invoice/create-new-client-invoice/{id}","description": "Genera manualmente una nueva factura para el cliente","scope": "billing.facturas",     "permission": "client_billing_invoice_add" }
     ],
     "ai": [],
     "screens": [
