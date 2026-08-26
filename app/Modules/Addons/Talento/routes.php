@@ -401,6 +401,9 @@ Route::middleware(['auth:sanctum'])
 
         Route::get('/compensacion/semana',    [TalentoMobileApiController::class, 'compensacionSemana']);
 
+        // Resumen de solo lectura (referidos/comisiones) — item roadmap #28
+        Route::get('/embajador/resumen',      [TalentoMobileApiController::class, 'embajadorResumen']);
+
         Route::post('/devices/token',         [TalentoMobileApiController::class, 'registerDeviceToken']);
     });
 

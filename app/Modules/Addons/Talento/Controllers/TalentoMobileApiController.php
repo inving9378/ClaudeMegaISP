@@ -663,6 +663,99 @@ class TalentoMobileApiController extends Controller
         ]);
     }
 
+    // ── Embajador / Vendedor (resumen de solo lectura, item #28) ────────────────
+
+    /**
+     * Resumen self-scoped (por el colaborador del token) de sus datos como
+     * embajador (referidos/comisiones) y como vendedor (comisiones), si aplica.
+     * Misma fuente de datos que TalentoEmbajadoresController (web/admin), pero
+     * resuelta desde el usuario autenticado en vez de un {id} en la URL.
+     */
+    public function embajadorResumen(Request $request)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        return response()->json([
+            'embajador' => $this->embajadorSummaryFor($colaborador),
+            'vendedor'  => $this->sellerSummaryFor($colaborador),
+        ]);
+    }
+
+    private function embajadorSummaryFor(TalentoColaborador $colaborador): array
+    {
+        $email = $colaborador->user?->email;
+
+        $client = $email ? DB::table('clients')->where('email', $email)->first(['id', 'name', 'email']) : null;
+
+        if (! $client) {
+            return ['is_ambassador' => false, 'message' => 'No está registrado como cliente/embajador'];
+        }
+
+        $referralCount = \App\Models\Referrals\Referral::where('embajador_id', $client->id)->count();
+
+        if ($referralCount === 0) {
+            return [
+                'is_ambassador' => false,
+                'client_id'     => $client->id,
+                'client_name'   => $client->name,
+                'message'       => 'Es cliente pero no tiene referidos como embajador',
+            ];
+        }
+
+        $referrals = \App\Models\Referrals\Referral::where('embajador_id', $client->id)
+            ->with('referredClient:id,name,email')
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get(['id', 'referred_client_id', 'status', 'commissions_paid_count', 'commission_window_start']);
+
+        $totalCommissions = \App\Models\Referrals\ReferralCommission::whereIn(
+            'referral_id', \App\Models\Referrals\Referral::where('embajador_id', $client->id)->pluck('id')
+        )->sum('amount');
+
+        $pendingRewards = \App\Models\Referrals\ReferralReward::where('embajador_id', $client->id)
+            ->where('status', 'pending')
+            ->sum('amount');
+
+        return [
+            'is_ambassador'     => true,
+            'client_id'         => $client->id,
+            'client_name'       => $client->name,
+            'total_referrals'   => $referralCount,
+            'total_commissions' => round((float)$totalCommissions, 2),
+            'pending_rewards'   => round((float)$pendingRewards, 2),
+            'recent_referrals'  => $referrals,
+        ];
+    }
+
+    private function sellerSummaryFor(TalentoColaborador $colaborador): array
+    {
+        $seller = DB::table('sellers')
+            ->where('user_id', $colaborador->user_id)
+            ->first(['id', 'name', 'commission_percentage']);
+
+        if (! $seller) {
+            return ['is_seller' => false, 'message' => 'No está registrado como vendedor'];
+        }
+
+        $since = now()->subWeeks(4)->toDateString();
+
+        $commissions = DB::table('transaction_sellers')
+            ->where('seller_id', $seller->id)
+            ->where('created_at', '>=', $since)
+            ->selectRaw('COUNT(*) as total_txns, SUM(commission_amount) as total_commission')
+            ->first();
+
+        return [
+            'is_seller'          => true,
+            'seller_id'          => $seller->id,
+            'seller_name'        => $seller->name,
+            'commission_pct'     => $seller->commission_percentage,
+            'last_4w_txns'       => (int)($commissions->total_txns ?? 0),
+            'last_4w_commission' => round((float)($commissions->total_commission ?? 0), 2),
+        ];
+    }
+
     // ── Registro de token FCM ─────────────────────────────────────────────────
 
     public function registerDeviceToken(Request $request)
