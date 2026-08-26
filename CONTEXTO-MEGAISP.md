@@ -54,6 +54,11 @@
 - Frontend: Vue 3 + Quasar UMD sobre Blade (excepción: Flotas usa Bootstrap 5).
   SPA vía `spa-nav.js` (fetch-then-swap); respetar `data-spa-skip` y la blacklist.
 - No compilar APKs ni builds pesados en el servidor (disco cerca de capacidad).
+- **La suite de pruebas corre SÓLO contra `megaisp_test`** (o `:memory:`). `Tests\TestCase::setUp()`
+  hace `migrate:fresh --seed`, así que apuntarla a la base de la app la vacía — pasó el 22-ago y
+  otra vez el 25-ago. Ya no es una convención: `tests/GuardBaseDePruebas.php` detiene la suite si la
+  base no termina en `_test`, y `deploy/circuito/guard-bd-pruebas.sh` impide que una terminal
+  arranque en un árbol no apto. Ver §10.
 
 ---
 
@@ -763,6 +768,56 @@ Botón "Buscar actualizaciones"  (UpdateBanner.vue)
 - El error se cachea solo `updates.error_cache_minutes` (2 min), no los 30 del resultado bueno.
 - ⚠️ El resultado "sin actualización" (`null`) **no se cachea** → cada carga del dashboard de
   una consumidora consulta GitHub. Preexistente; vigilar rate-limit si crecen las instancias.
+
+---
+
+## 10. LOS DOS CANDADOS QUE DEJÓ EL INCIDENTE DEL 2026-08-25
+
+> Detalle completo: `docs/bitacora-sesiones.md` (entrada del 25-ago 18:14) y
+> `docs/circuito/reporte-noche-20260826.md`. Aquí sólo el mapa.
+
+### 10.1 La base de pruebas — regla en tres capas, una sola definición
+
+`phpunit.xml` declaraba `DB_DATABASE=megaisp` y `TestCase::setUp()` corre `migrate:fresh --seed`:
+correr la suite vaciaba dev, y era la configuración por defecto del repo. **La regla ya estaba
+escrita en CLAUDE.md** — y las seis terminales no leen prosa. Ahora es un exit code:
+
+| capa | dónde | qué atrapa |
+|---|---|---|
+| PHP | `tests/GuardBaseDePruebas.php`, aplicado en `Tests\CreatesApplication` | cualquier invocación de phpunit **si el árbol tiene el candado**. `CreatesApplication` es el único punto por el que pasan las dos familias de tests del repo (los que extienden `Tests\TestCase` y los que usan `RefreshDatabase` sobre la TestCase de Illuminate), y corre antes de `setUpTraits()`. |
+| bash | `deploy/circuito/guard-bd-pruebas.sh`, llamado desde `vuelta.sh` y `cron-wrap.sh` | el árbol que **NO** tiene el candado: una rama anterior a `04ec4395`. Los wrappers no se bifurcan (el cron los invoca por ruta absoluta), y `vuelta.sh` verifica el worktree antes de soltar al agente. |
+| git | `main` mergeado en cada rama viva | que reanudar una rama vieja no devuelva el `phpunit.xml` malo. |
+
+⚠️ **`megaisp_test` no se puede construir sólo con migraciones**: queda en **236 tablas de 502** (es
+la deuda del catálogo atrapado en `migrations_old/`). La base protege, pero la suite todavía no corre
+entera — item **#230**.
+
+### 10.2 Un guardrail no puede depender del estado que protege
+
+`MigrationGuardService` no podía leer la tabla `migrations` —la que el `migrate:fresh` acababa de
+borrar— y en la rama del #171 fallaba CERRADO: por eso dev quedó en **0 tablas y no en 500**. El
+freno no evitó el daño, impidió la reparación. La regla que quedó, y que aplica a **cualquier** freno
+del sistema:
+
+1. La decisión de **bloquear** se toma con git y archivos, nunca consultando la base que se protege.
+2. Bloquear una acción destructiva **no es** bloquear la reparación: sin estado que leer
+   (`estadoAplicadoLegible()` = false) se **permite** y se dice con esas palabras en el log.
+3. La base sólo puede volver el guardrail **más estricto**, nunca ser el motivo de que falle.
+
+Candado: `MigrationGuardBaseCaidaTest` ejecuta el guardrail **con la conexión caída**.
+
+⚠️ Corolario para el chequeo `bd_integra` (item #228): ahí la regla va **al revés**. Es un chequeo
+*sobre* la base, así que no poder medir es `critico`, nunca `ok` por ausencia de datos. Un chequeo
+que no puede medir no reporta salud.
+
+### 10.3 Recuperación: el binlog es la red que el dump no es
+
+El dump más nuevo tenía 30 h de atraso; se recuperó **sin pérdida** reproduciendo
+`binlog.000050` filtrado a `--database=megaisp` hasta el `Anonymous_GTID` anterior al `DROP`
+(`--stop-position`). Funcionó porque el binlog arrancaba con `megaisp` en 0 tablas — el mismo estado
+que dejó el incidente— así que contenía la vida entera de la base. `binlog_expire_logs_seconds` =
+30 días: esa es la ventana real de recuperación de dev, y es mucho mejor que la del último dump.
+`mysqlbinlog` necesita root o `REPLICATION_APPLIER`; el usuario de la app no lo tiene.
 
 ---
 
