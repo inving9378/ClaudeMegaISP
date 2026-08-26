@@ -2518,3 +2518,24 @@ cuál aplicar.
 
 Commit `014634c2` en `circuito/item-159-deuda-dos-tablas-de-facturas-invoices` (solo el .md,
 add selectivo), integrado (auto-merge encolado). Item #159 cerrado como `completado`.
+
+## 2026-08-26 16:23 — Item #75 (MegaFamilia: google_maps_flutter omitido) — cerrado, premisa incorrecta
+
+Worker wt-6, circuito CC. Item pedía agregar `google_maps_flutter` + Maps API key Android +
+vistas al Flutter de MegaFamilia, "en la misma sesión que #72" (Firebase greenfield).
+
+Investigado sin tocar código: (1) #72 sigue `requiere_irving`, sin ejecutar — hacer #75 aislado
+contradice el propio plan del item; (2) no existe ninguna pantalla de mapa de MegaFamilia en el
+Flutter actual — el único mapa de toda la app es Flotas/conductor, y usa `flutter_map`+OSM **sin
+API key**, agregado después del comentario de omisión de v0.1; (3) el Flutter mismo está en
+migración a `megafamilia-rn` (React Native, ~95% portado — confirmado el mismo día en el item
+#23), que ya trae `react-native-maps` con el mismo patrón OSM sin key. Configurar una key nueva de
+Maps SDK for Android, sin pantalla que la use y en un codebase que se reemplaza, es justo la
+frontera de credenciales que el revisor señaló al escalar el item — no se justifica hoy.
+
+Cerrado como `completado` / `sin_ui=true` documentando la ruta correcta para cuando se retome
+(mapa del menor en `megafamilia-rn` con `react-native-maps`+OSM; si algún día se necesita Google
+Maps real, pasar por el módulo compartido `Mapas`, no una key aparte). Detalle en
+`docs/megafamilia-google-maps-item-75-verificacion.md` + resumen en `CLAUDE.md`. Commit
+`5534a437` en `circuito/item-75-megafamilia-google-maps-flutter-tambien`, integrado (auto-merge
+encolado).
