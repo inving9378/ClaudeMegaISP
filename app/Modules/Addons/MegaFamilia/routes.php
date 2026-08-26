@@ -292,6 +292,9 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::put('/tecnico/ordenes/{id}', [ApiController::class, 'updateTecnicoOrden'])->whereNumber('id');
 
         Route::get('/hijo/tareas', [ApiController::class, 'hijoTareas']);
+        Route::post('/hijo/tareas/{id}/completar', [ApiController::class, 'completeTask'])->whereNumber('id');
+        Route::get('/hijo/logros', [ApiController::class, 'hijoLogros']);
+        Route::post('/hijo/solicitudes', [ApiController::class, 'hijoStoreRequest']);
 
         Route::post('/requests', [ApiController::class, 'storeRequest']);
         Route::get('/requests/pending', [ApiController::class, 'pendingRequests']);
