@@ -3,8 +3,8 @@
 namespace App\Modules\Addons\Manual\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\Manual\Jobs\RegenerateManualJob;
 use App\Modules\Addons\Manual\Models\ManualSection;
-use App\Modules\Addons\Manual\Services\ManualGeneratorService;
 use App\Modules\Core\ModuleManager\Services\ModuleRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -170,19 +170,19 @@ class ManualController extends Controller
         return $path === '/' ? '/' : rtrim($path, '/');
     }
 
-    public function generate(Request $request, ManualGeneratorService $service): JsonResponse
+    public function generate(Request $request): JsonResponse
     {
         $user = Auth::user();
         if (!$user || !$user->can('manual_generate')) {
             return response()->json(['message' => 'No autorizado.'], 403);
         }
 
-        $result = $service->generate();
+        // Item #165: la generación llama a Claude API (segundos/minutos) — se encola
+        // en vez de correr dentro del request para no bloquear la respuesta HTTP.
+        RegenerateManualJob::dispatch();
 
         return response()->json([
-            'message'   => 'Manual regenerado.',
-            'generated' => $result['generated'],
-            'errors'    => $result['errors'],
+            'message' => 'Regeneración encolada. Puede tardar varios minutos; recarga la página luego para ver los cambios.',
         ]);
     }
 }
