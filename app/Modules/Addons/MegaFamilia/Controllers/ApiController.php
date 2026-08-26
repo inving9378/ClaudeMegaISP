@@ -16,6 +16,7 @@ use App\Models\TicketThread;
 use App\Models\User;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
+use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
 use App\Modules\Addons\MegaFamilia\Models\ParentalLocation;
 use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRequest;
@@ -886,6 +887,108 @@ class ApiController extends Controller
     {
         $profile = $this->requireProfile($id);
         return response()->json($profile->devices);
+    }
+
+    /**
+     * Genera una invitación de vinculación para un perfil hijo: crea un
+     * dispositivo "pendiente" con link_token de un solo uso (expira en 15
+     * min). La app padre codifica `qr_payload` en un QR; la app hijo lo
+     * escanea y llama a `linkDevice()` con ese token — sin necesitar login
+     * propio (el token ES la credencial, igual que un reset de password).
+     */
+    public function inviteDevice(int $id): JsonResponse
+    {
+        $profile = $this->requireProfile($id);
+
+        $token = Str::random(64);
+        $expiresAt = now()->addMinutes(15);
+
+        $device = ParentalDevice::create([
+            'profile_id' => $profile->id,
+            'account_id' => $profile->account_id,
+            'name'       => 'Dispositivo por vincular',
+            'status'     => 'offline',
+            'link_token' => $token,
+            'link_token_expires_at' => $expiresAt,
+        ]);
+
+        ParentalEvent::create([
+            'account_id' => $profile->account_id,
+            'profile_id' => $profile->id,
+            'device_id'  => $device->id,
+            'action'     => 'device.invite',
+            'detail'     => 'Se generó una invitación de vinculación de dispositivo',
+        ]);
+
+        return response()->json([
+            'device_id'  => $device->id,
+            'token'      => $token,
+            'expires_at' => $expiresAt->toIso8601String(),
+            'qr_payload' => 'megafamilia://link/' . $token,
+        ], 201);
+    }
+
+    /**
+     * Consume una invitación (paso final del flujo: hijo escanea el QR
+     * desde su dispositivo). Público — sin auth:sanctum, el link_token
+     * hace de credencial de un solo uso. Al vincular, emite un token
+     * Sanctum sobre el User del padre (única identidad autenticable hoy en
+     * el módulo — ver MIGRATION.md) con ability `device:{id}` para que el
+     * dispositivo hijo pueda operar los endpoints de su perfil.
+     */
+    public function linkDevice(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token'       => 'required|string',
+            'name'        => 'nullable|string|max:255',
+            'model'       => 'nullable|string|max:255',
+            'os'          => 'nullable|in:android,ios',
+            'os_version'  => 'nullable|string|max:50',
+            'app_version' => 'nullable|string|max:50',
+            'fcm_token'   => 'nullable|string',
+        ]);
+
+        $device = ParentalDevice::where('link_token', $data['token'])
+            ->whereNull('linked_at')
+            ->first();
+
+        if (! $device || ($device->link_token_expires_at && $device->link_token_expires_at->isPast())) {
+            return response()->json(['success' => false, 'error' => 'Código inválido o expirado'], 410);
+        }
+
+        $device->update([
+            'name'                  => $data['name'] ?? $device->name,
+            'model'                 => $data['model'] ?? null,
+            'os'                    => $data['os'] ?? $device->os,
+            'os_version'            => $data['os_version'] ?? null,
+            'app_version'           => $data['app_version'] ?? null,
+            'fcm_token'             => $data['fcm_token'] ?? null,
+            'status'                => 'online',
+            'last_seen_at'          => now(),
+            'linked_at'             => now(),
+            'link_token'            => null,
+            'link_token_expires_at' => null,
+        ]);
+
+        ParentalEvent::create([
+            'account_id' => $device->account_id,
+            'profile_id' => $device->profile_id,
+            'device_id'  => $device->id,
+            'action'     => 'device.link',
+            'detail'     => 'Dispositivo vinculado vía código de invitación',
+        ]);
+
+        $account = $device->account;
+        $apiToken = $account?->user
+            ? $account->user->createToken('hijo:' . $device->id, ['hijo', 'device:' . $device->id])->plainTextToken
+            : null;
+
+        return response()->json([
+            'success' => true,
+            'device'  => $device,
+            'profile' => $device->profile()->select('id', 'name', 'profile_type')->first(),
+            'token'   => $apiToken,
+        ]);
     }
 
     public function deviceRules(int $id): JsonResponse
