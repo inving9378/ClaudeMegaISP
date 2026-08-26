@@ -35,9 +35,12 @@ return [
     */
 
     'channels' => [
+        // #175 — el canal 'single' escribe a laravel.log SIN rotación ni límite de tamaño;
+        // durante el incidente 2026-08-24 creció a 1.7 GB sin control. 'stack' (el canal
+        // default, LOG_CHANNEL=stack) ahora usa 'daily' (abajo, retención 14 días) en su lugar.
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['single'],
+            'channels' => ['daily'],
             'ignore_exceptions' => false,
         ],
 
