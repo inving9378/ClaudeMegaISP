@@ -243,10 +243,47 @@ ejecutar_una() {
 }
 
 if [ -n "$ITEM" ]; then
+  # #174 — TOPE DE ITERACIONES + TIMEOUT DEL PADRE + DETECCIÓN DE HUÉRFANO.
+  # El `timeout $TIMEOUT` de arriba SOLO envuelve al hijo (`claude -p`) dentro de `ejecutar_una`.
+  # El padre (este `while true`) podía reentrar sin límite mientras `claim-next` siguiera dando
+  # trabajo — y si el proceso que lo lanzó (cron/scheduler) moría a medio camino, quedaba
+  # reparentado a init (PPID=1) corriendo indefinidamente: pausar el cron ya no lo alcanzaba,
+  # porque cron sólo evita relanzar, no mata lo que ya está corriendo (incidente P0 2026-08-24,
+  # huérfano de 1 d 21 h). Tres candados independientes, cualquiera basta para soltar el slot:
+  MAXITER="${CIRCUITO_MAXITER:-20}"                    # tope de items por invocación del padre.
+  PARENT_TIMEOUT="${CIRCUITO_PARENT_TIMEOUT:-10800}"   # 3h — pared sobre TODO el proceso (no por hijo).
+  PARENT_START="$(date +%s)"
+  ITERS=0
+
+  # PPID vía /proc/$$/stat, mismo patrón que STARTTIME más arriba (campo tras el último ')'):
+  # ahí el campo 2 es el PPID. Si es 1, quien nos lanzó murió e init nos adoptó — nadie nos
+  # supervisa ya, así que ni el kill switch ni una pausa de cron pueden alcanzarnos.
+  huerfano(){ [ "$(sed -e 's/^.*) //' "/proc/$$/stat" 2>/dev/null | awk '{print $2}')" = "1" ]; }
+
   # POOL CONTINUO (#334 F1): trabaja su item y, al terminar, PIDE el siguiente elegible SIN esperar
   # al cron → mantiene el slot lleno mientras haya trabajo seguro (mata los valles). claim-next
   # respeta el kill switch (pausa → nada que reclamar) y serializa por flock (reclamo atómico #341).
   while true; do
+    if huerfano; then
+      log "HUÉRFANO: PPID=1 (mi proceso padre murió, init me adoptó). Nadie me supervisa: suelto el slot."
+      php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
+      break
+    fi
+
+    ELAPSED=$(( $(date +%s) - PARENT_START ))
+    if [ "$ELAPSED" -ge "$PARENT_TIMEOUT" ]; then
+      log "TOPE DE TIEMPO DEL PADRE (${PARENT_TIMEOUT}s, llevo ${ELAPSED}s): suelto el slot; el scheduler relanza si hay más trabajo."
+      php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
+      break
+    fi
+
+    ITERS=$((ITERS+1))
+    if [ "$ITERS" -gt "$MAXITER" ]; then
+      log "TOPE DE ITERACIONES alcanzado ($MAXITER items en esta invocación): suelto el slot; el scheduler relanza si hay más trabajo."
+      php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
+      break
+    fi
+
     # #170 — EL CHEQUEO QUE FALTABA. Antes el freno sólo se miraba al ARRANCAR la vuelta: una vez
     # dentro de este lazo, el worker seguía pidiendo items hasta secar la cola pasara lo que pasara.
     # Por eso pausar el cron no detuvo al huérfano de 1 d 21 h: el cron ya no lo relanzaba, pero el
@@ -263,9 +300,19 @@ if [ -n "$ITEM" ]; then
     rotar_log_si_crecio
 
     # Y otra vez DESPUÉS de trabajar: una vuelta dura hasta 10 min, tiempo de sobra para que alguien
-    # ponga el freno mientras corría. Sin esto, el worker reclamaría un item más antes de enterarse.
+    # ponga el freno (o para que el padre se quede huérfano) mientras corría. Sin esto, el worker
+    # reclamaría un item más antes de enterarse.
     if frenado; then
       log "FRENO DE MANO PUESTO durante la vuelta: $SID no reclama el siguiente."
+      break
+    fi
+    if huerfano; then
+      log "HUÉRFANO durante la vuelta: PPID=1, $SID no reclama el siguiente."
+      break
+    fi
+    ELAPSED=$(( $(date +%s) - PARENT_START ))
+    if [ "$ELAPSED" -ge "$PARENT_TIMEOUT" ]; then
+      log "TOPE DE TIEMPO DEL PADRE alcanzado durante la vuelta (${PARENT_TIMEOUT}s): $SID no reclama el siguiente."
       break
     fi
 
