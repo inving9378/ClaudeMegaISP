@@ -106,6 +106,12 @@ class RoadmapItem extends Model
         'started_at'   => 'datetime',
         'completed_at' => 'datetime',
         'revisado_at'  => 'datetime',
+        // #507 sub-paso 3 — sin este cast, `claimed_at` llega como string plano de MySQL y
+        // `DiagnosticoItemService::porReclamoHuerfano()` truena («Call to a member function
+        // gte() on string») justo al diagnosticar la causa `reclamo_huerfano` — el caso que
+        // ese método existe para explicar. `optional($item->claimed_at)->toIso8601String()`
+        // (ThomasService, RoadmapCircuitoService) no crashea pero devuelve null en silencio.
+        'claimed_at'   => 'datetime',
         'position'     => 'integer',
         'subtasks'     => 'array',
         'log'          => 'array',
