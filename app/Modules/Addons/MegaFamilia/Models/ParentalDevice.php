@@ -23,12 +23,13 @@ class ParentalDevice extends BaseModel
     protected $fillable = [
         'profile_id', 'account_id', 'name', 'model', 'os', 'os_version',
         'app_version', 'status', 'battery_level', 'last_seen_at',
-        'fcm_token', 'link_token', 'linked_at',
+        'fcm_token', 'link_token', 'link_token_expires_at', 'linked_at',
     ];
 
     protected $casts = [
         'battery_level' => 'integer',
         'last_seen_at' => 'datetime',
+        'link_token_expires_at' => 'datetime',
         'linked_at' => 'datetime',
     ];
 
