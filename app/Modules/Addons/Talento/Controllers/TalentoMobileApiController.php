@@ -663,6 +663,124 @@ class TalentoMobileApiController extends Controller
         ]);
     }
 
+    // ── Embajador / Vendedor (resumen de solo lectura, item #28) ────────────────
+
+    /**
+     * Resumen self-scoped (por el colaborador del token) de sus datos como
+     * embajador (referidos/comisiones) y como vendedor, si aplica.
+     *
+     * NO reusa TalentoEmbajadoresController::embajadorData()/sellerData() tal cual:
+     * ese controller exige `$this->authorize('talento.view')` (permiso admin) que un
+     * colaborador de campo normal no tiene, y además sus queries referencian columnas/
+     * tablas que ya no existen en el esquema real (`clients.name`/`email`,
+     * `referral_commissions.amount`, `referral_rewards.amount`, `sellers.name`/
+     * `commission_percentage`, tabla `transaction_sellers` — verificado por Schema
+     * contra la BD viva de dev el 2026-08-26; hallazgo registrado aparte). Este método
+     * usa el esquema real vigente.
+     */
+    public function embajadorResumen(Request $request)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        return response()->json([
+            'embajador' => $this->embajadorSummaryFor($colaborador),
+            'vendedor'  => $this->sellerSummaryFor($colaborador),
+        ]);
+    }
+
+    private function embajadorSummaryFor(TalentoColaborador $colaborador): array
+    {
+        $email = $colaborador->user?->email;
+
+        // clients no tiene name/email propios — viven en client_main_information (client_id FK).
+        $client = $email
+            ? DB::table('clients')
+                ->join('client_main_information as cmi', 'cmi.client_id', '=', 'clients.id')
+                ->where('cmi.email', $email)
+                ->first(['clients.id as id', 'cmi.name as name'])
+            : null;
+
+        if (! $client) {
+            return ['is_ambassador' => false, 'message' => 'No está registrado como cliente/embajador'];
+        }
+
+        $referralCount = \App\Models\Referrals\Referral::where('embajador_id', $client->id)->count();
+
+        if ($referralCount === 0) {
+            return [
+                'is_ambassador' => false,
+                'client_id'     => $client->id,
+                'client_name'   => $client->name,
+                'message'       => 'Es cliente pero no tiene referidos como embajador',
+            ];
+        }
+
+        $referrals = \App\Models\Referrals\Referral::where('embajador_id', $client->id)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get(['id', 'referred_client_id', 'status', 'commissions_paid_count', 'commission_window_start']);
+
+        $referredIds = $referrals->pluck('referred_client_id')->filter()->values();
+        $referredNames = $referredIds->isEmpty() ? collect() : DB::table('clients')
+            ->join('client_main_information as cmi', 'cmi.client_id', '=', 'clients.id')
+            ->whereIn('clients.id', $referredIds)
+            ->pluck('cmi.name', 'clients.id');
+
+        $referrals = $referrals->map(fn ($r) => [
+            'id'                      => $r->id,
+            'referred_client_id'      => $r->referred_client_id,
+            'referred_client_name'    => $referredNames[$r->referred_client_id] ?? null,
+            'status'                  => $r->status,
+            'commissions_paid_count'  => $r->commissions_paid_count,
+            'commission_window_start' => $r->commission_window_start,
+        ]);
+
+        // total_commissions = lo que ESTE cliente ganó como beneficiario (cualquier nivel del
+        // árbol multinivel), no solo lo generado por sus referidos directos.
+        $totalCommissions = \App\Models\Referrals\ReferralCommission::where('beneficiary_id', $client->id)
+            ->sum('commission_amount');
+
+        $pendingRewards = \App\Models\Referrals\ReferralReward::where('embajador_id', $client->id)
+            ->where('status', 'pending')
+            ->sum('plan_value_snapshot');
+
+        return [
+            'is_ambassador'     => true,
+            'client_id'         => $client->id,
+            'client_name'       => $client->name,
+            'total_referrals'   => $referralCount,
+            'total_commissions' => round((float)$totalCommissions, 2),
+            'pending_rewards'   => round((float)$pendingRewards, 2),
+            'recent_referrals'  => $referrals,
+        ];
+    }
+
+    /**
+     * Vendedor (Módulo Vendedores, `App\Models\Seller`) — solo detección de existencia.
+     * NO calcula comisiones/transacciones aquí: ese cálculo depende de `commissions_rules`
+     * (múltiples modos: fijo/porcentaje/bono, por tipo de vendedor) sin una fuente única
+     * de "comisión de las últimas 4 semanas" ya resuelta — construirlo bien es trabajo
+     * aparte (sub-item registrado), no una lectura directa de columnas.
+     */
+    private function sellerSummaryFor(TalentoColaborador $colaborador): array
+    {
+        $seller = \App\Models\Seller::with('user:id,name')
+            ->where('user_id', $colaborador->user_id)
+            ->first();
+
+        if (! $seller) {
+            return ['is_seller' => false, 'message' => 'No está registrado como vendedor'];
+        }
+
+        return [
+            'is_seller'   => true,
+            'seller_id'   => $seller->id,
+            'seller_name' => $seller->user?->name,
+            'message'     => 'Comisiones de vendedor: pendiente (ver sub-item de seguimiento)',
+        ];
+    }
+
     // ── Registro de token FCM ─────────────────────────────────────────────────
 
     public function registerDeviceToken(Request $request)
