@@ -15,11 +15,29 @@ class TalentoColaborador extends BaseModel
     protected $fillable = [
         'user_id', 'type', 'department', 'supervisor_id', 'level_id',
         'hire_date', 'status', 'base_salary', 'notes',
+        // Expediente RH (item #199 — Hijo A)
+        'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',
+        'job_title', 'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
+        'shift_start', 'shift_end', 'work_days',
     ];
 
     protected $casts = [
-        'hire_date'   => 'date',
-        'base_salary' => 'decimal:2',
+        'hire_date'         => 'date',
+        'base_salary'       => 'decimal:2',
+        'birth_date'        => 'date',
+        'relation_end_date' => 'date',
+    ];
+
+    /**
+     * Datos personales sensibles del expediente (item #199): CURP, RFC*, NSS, salario y
+     * domicilio* exigen el permiso propio 'talento.expediente.view', distinto de 'talento.view'
+     * (la ficha normal). (*RFC/domicilio viven en users, se gatean aparte en el controller que
+     * los expone). El resto del bloque laboral se agrupa aqui por ser parte del mismo expediente.
+     */
+    public const EXPEDIENTE_FIELDS = [
+        'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',
+        'job_title', 'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
+        'base_salary', 'shift_start', 'shift_end', 'work_days',
     ];
 
     public function user()
