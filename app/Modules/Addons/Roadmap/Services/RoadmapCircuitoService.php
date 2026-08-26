@@ -201,16 +201,41 @@ class RoadmapCircuitoService
         if (! $this->isPaused()) {
             return null;
         }
-        $raw  = DB::table('settings')->where('key', self::PAUSE_META_KEY)->value('value');
-        $meta = $raw ? json_decode((string) $raw, true) : null;
-        $at   = is_array($meta) ? (int) ($meta['at'] ?? 0) : 0;
+        // El freno vive en ARCHIVO desde #170, y `isPaused()` mira ahí PRIMERO. Esta info tiene
+        // que seguir la misma precedencia: si el centinela está puesto, su motivo/quién/cuándo es
+        // la verdad. Leer sólo la meta de `settings` dejaba el panel con todo en null —o sea,
+        // "pausa olvidada" sin poder decir por qué— justo cuando el freno lo puso la consola.
+        $desde = null;
+        $por   = null;
 
-        $horas   = $at > 0 ? round((time() - $at) / 3600, 1) : null;
-        $umbral  = (float) config('circuito.pausa_aviso_horas', 3);
+        if ($det = FrenoCircuito::detalle()) {
+            $por = $det['quien'] ?? null;
+            if (! empty($det['cuando'])) {
+                try {
+                    $desde = Carbon::parse($det['cuando'])->toIso8601String();
+                } catch (\Throwable $e) {
+                    $desde = null;   // centinela con fecha ilegible: sigue frenado, sin fingir la hora.
+                }
+            }
+            $motivo = $det['motivo'] ?? null;
+        }
+
+        if ($desde === null || $por === null) {
+            $raw  = DB::table('settings')->where('key', self::PAUSE_META_KEY)->value('value');
+            $meta = $raw ? json_decode((string) $raw, true) : null;
+            $at   = is_array($meta) ? (int) ($meta['at'] ?? 0) : 0;
+
+            $desde = $desde ?? ($at > 0 ? Carbon::createFromTimestamp($at)->toIso8601String() : null);
+            $por   = $por   ?? (is_array($meta) ? ($meta['by'] ?? null) : null);
+        }
+
+        $horas  = $desde ? round((time() - Carbon::parse($desde)->timestamp) / 3600, 1) : null;
+        $umbral = (float) config('circuito.pausa_aviso_horas', 3);
 
         return [
-            'desde'       => $at > 0 ? Carbon::createFromTimestamp($at)->toIso8601String() : null,
-            'por'         => is_array($meta) ? ($meta['by'] ?? null) : null,
+            'desde'       => $desde,
+            'por'         => $por,
+            'motivo'      => $motivo ?? null,
             'horas'       => $horas,
             'aviso_horas' => $umbral,
             // Sin meta (pausada antes de este fix, o vía CLI legacy) → no se puede calcular
