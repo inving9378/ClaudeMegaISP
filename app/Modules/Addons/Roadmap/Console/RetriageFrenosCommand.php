@@ -68,23 +68,45 @@ class RetriageFrenosCommand extends Command
      * en freno humano; por eso basta con mirar `origen_bloqueo`: si sigue diciendo 'clasificador',
      * nadie lo ratificó. Vencerlo NO desbloquea nada (el freno del clasificador ya no frenaba desde
      * 2A.3): sólo deja de opinar.
+     *
+     * DESDE CUÁNDO está en pie lo da `frenoDesde()` — la MISMA fuente que usa el resurfaceo del
+     * freno humano de abajo, no una segunda definición. Antes se leía `clasificado_at`, una columna
+     * FANTASMA (sin migración en `main`, desaparecida con la restauración por PITR del 2026-08-25)
+     * que además nadie escribía nunca: el comando reventaba con `1054` y este carril no caducaba
+     * nada.
+     *
+     * ⚠️ Y NO SE CAYÓ AL `updated_at` QUE HABÍA DE ÚLTIMO RECURSO. Ése es «última vez que se tocó»,
+     * no «cuándo se puso el freno»: un item con actividad reciente nunca envejecería y su consejo
+     * no caducaría jamás, con lo que 2A.4 quedaría de adorno justo en el carril que SÍ debe caducar.
+     * `frenoDesde()` puede devolver una cota INFERIOR —la marca como aproximada, y aquí se pinta
+     * con `+` igual que en el resurfaceo— cuando el freno es anterior al rastro más viejo del item.
+     * Vencer un consejo un poco antes de tiempo sólo lo calla, así que ése es el lado seguro.
      */
     private function caducarClasificador(int $dias, bool $aplicar): int
     {
         $corte = now()->subDays($dias);
 
+        // `created_at` va en la proyección porque es el ÚLTIMO recurso de `frenoDesde()`: sin él,
+        // un item sin `log` devolvería fecha null y no vencería nunca — un no-op silencioso.
         $candidatos = RoadmapItem::query()
             ->whereNull('archivado_at')
             ->where('origen_bloqueo', 'clasificador')
             ->get(['id', 'title', 'origen_bloqueo', 'motivo_bloqueo', 'bloqueo_expira_en',
-                   'bloqueo_renovaciones', 'clasificado_at', 'updated_at', 'log']);
+                   'bloqueo_renovaciones', 'created_at', 'updated_at', 'log']);
 
-        $vencen = $candidatos->filter(function (RoadmapItem $i) use ($corte) {
-            $puesto = $i->bloqueo_expira_en ?: ($i->clasificado_at ?: $i->updated_at);
+        // `frenoDesde()` recorre el log; se necesita al filtrar y al listar, así que se resuelve
+        // UNA vez por item.
+        $desde = $candidatos->mapWithKeys(fn (RoadmapItem $i) => [$i->id => $i->frenoDesde()]);
 
-            return $i->bloqueo_expira_en
-                ? $i->bloqueo_expira_en->isPast()
-                : ($puesto && $puesto->lt($corte));
+        $vencen = $candidatos->filter(function (RoadmapItem $i) use ($corte, $desde) {
+            // Una fecha de expiración explícita manda sobre cualquier estimación.
+            if ($i->bloqueo_expira_en) {
+                return $i->bloqueo_expira_en->isPast();
+            }
+
+            [$puesto] = $desde[$i->id];
+
+            return $puesto && $puesto->lt($corte);
         });
 
         $this->line("<options=bold>1. Freno del CLASIFICADOR — caduca solo ({$dias} días sin confirmar)</>");
@@ -97,7 +119,11 @@ class RetriageFrenosCommand extends Command
         }
 
         foreach ($vencen as $i) {
-            $this->line("   #{$i->id}  " . mb_strimwidth((string) $i->title, 0, 70, '…'));
+            // El `+` dice que la antigüedad es una cota inferior, misma convención que el
+            // resurfaceo del freno humano: una fecha aproximada se declara, no se disfraza.
+            [$puesto, $exacto] = $desde[$i->id];
+            $edad = $puesto ? ((int) $puesto->diffInDays(now())) . ($exacto ? '' : '+') . 'd' : '¿?';
+            $this->line("   #{$i->id}  [{$edad}]  " . mb_strimwidth((string) $i->title, 0, 70, '…'));
         }
 
         if (! $aplicar) {
