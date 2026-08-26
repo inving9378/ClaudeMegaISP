@@ -1045,7 +1045,17 @@ return [
             // verificado). Línea exacta para `crontab -e` del usuario meganet, JUSTO ANTES de la
             // línea del digest (40 6) para que a las 06:40 ya refleje lo vencido. El digest la
             // imprime tal cual cuando `agendado === false` (ver DigestCommand::procesosProgramados).
-            'linea_cron' => "30 6 * * * /var/www/megaisp/deploy/circuito/cron-wrap.sh circuito:re-triage --apply >> /var/log/circuito-digest.log 2>&1",
+            //
+            // ⚠️ EL DESTINO DE LA REDIRECCIÓN ES PARTE DE LA LÍNEA, no un detalle cosmético.
+            // Apuntaba a `/var/log/circuito-digest.log`, y `/var/log` es root:root 755: `meganet`
+            // no puede crear el archivo, así que el shell de cron FALLA AL ABRIRLO y el comando no
+            // llega a ejecutarse nunca. Ese es el modo de fallo más caro que hay aquí, porque no
+            // deja rastro en ningún panel — no hay excepción que sellar ni exit code que registrar,
+            // y el proceso se ve «agendado» mientras nunca ha corrido. Le pasó al propio digest
+            // (corregido en el crontab el 2026-08-26); esta línea lo habría reproducido en cuanto
+            // alguien la copiara. Escribe en `/home/meganet/circuito/logs/`, que es del usuario que
+            // corre el cron — mismo criterio que `vigilia-wrap.sh`.
+            'linea_cron' => "30 6 * * * /var/www/megaisp/deploy/circuito/cron-wrap.sh circuito:re-triage --apply >> /home/meganet/circuito/logs/digest.log 2>&1",
             // #942 — todavía NO está en el crontab (ver `linea_cron` arriba); no tiene cadencia real.
             'cadencia'    => 'sin agendar (#808)',
         ],
