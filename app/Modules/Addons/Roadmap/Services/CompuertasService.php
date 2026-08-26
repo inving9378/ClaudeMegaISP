@@ -51,6 +51,7 @@ class CompuertasService
             $this->cNivelAutopilot(),
             $this->cTerminales($so),
             $this->cItemsDespachables(),
+            $this->cIrvingSinClasificar(),
             $this->cEstaciones(),
             $this->cAgendados(),
             $this->cAuditor(),
@@ -64,7 +65,7 @@ class CompuertasService
         // Las que sí necesitan el sistema operativo van a 'sin_privilegio' (y ya traen el
         // comando exacto). Las que solo se MIDEN, pero para las que nunca se construyó un
         // control, van a 'no_implementado': se dice, no se disfraza de deshabilitado.
-        $soloMedidas = ['items', 'estacion', 'cascada'];
+        $soloMedidas = ['items', 'irving_sin_clasificar', 'estacion', 'cascada'];
         foreach ($compuertas as $c) {
             if ($c->acciones !== []) {
                 [$ctl, $mot, $falta]  = $this->resolverControl($c->acciones);
@@ -481,9 +482,103 @@ class CompuertasService
             );
         }
 
+        // #192 — el conteo de arriba mide una propiedad POR ITEM ("¿este item podría
+        // despacharse?"). El pool REAL de la ronda es una pregunta DISTINTA: `ejecutablesParalelo()`
+        // module-serializa (#432 B2: mismo módulo en vuelo, o footprint desconocido en vuelo) y
+        // puede dar 0 elegibles aunque el conteo de arriba diga 12. Antes esta fila solo contestaba
+        // la primera pregunta y se quedaba en verde con el circuito entero detenido — la reusa tal
+        // cual (mismo criterio que el scheduler real, `SchedulerCommand`), no la reimplementa.
+        try {
+            $ejecutables = $this->circuito->ejecutablesParalelo($this->circuito->modulosEnVuelo(), $this->circuito->getParalelismo());
+        } catch (\Throwable $e) {
+            // El conteo de arriba ya se pudo medir: no degradamos toda la fila a "sin medir" por
+            // no poder dar la segunda mirada, solo nos quedamos con la primera.
+            return new Compuerta(
+                clave: 'items', nombre: 'Items despachables', semaforo: 'verde',
+                valor: "{$n} items listos para tomar", origen: 'bd',
+            );
+        }
+
+        if ($ejecutables === []) {
+            return new Compuerta(
+                clave: 'items', nombre: 'Items despachables', semaforo: 'rojo',
+                valor: "{$n} listos, pero la ronda real da 0", origen: 'bd',
+                porQue: 'El conteo de arriba mide POR ITEM; `ejecutablesParalelo()` mide la RONDA y hoy '
+                    . 'no elige a ninguno: ' . $this->culpableDeRondaVacia(),
+                comando: 'php artisan circuito:flags',
+                quienPuede: 'Irving',
+                control: 'sin_privilegio',
+            );
+        }
+
         return new Compuerta(
             clave: 'items', nombre: 'Items despachables', semaforo: 'verde',
-            valor: "{$n} items listos para tomar", origen: 'bd',
+            valor: "{$n} items listos para tomar, " . count($ejecutables) . ' elegible(s) esta ronda', origen: 'bd',
+        );
+    }
+
+    /**
+     * #192 — a qué le echa la culpa un rojo de "listos pero la ronda da 0". Traduce el resultado
+     * de `ejecutablesParalelo()` a un motivo legible, con el mismo espíritu que
+     * `RoadmapItem::motivoNoDespachable()`: la verdad la da el servicio, esto solo la explica.
+     */
+    private function culpableDeRondaVacia(): string
+    {
+        $desconocidos = RoadmapItem::query()
+            ->where('estado_aprobacion', 'en_progreso')
+            ->where(fn ($q) => $q->whereNull('modulo')->orWhere('modulo', '')->orWhere('modulo', RoadmapCircuitoService::MODULO_DESCONOCIDO))
+            ->pluck('id');
+
+        if ($desconocidos->isNotEmpty()) {
+            return 'footprint desconocido en vuelo (#432 B2), serializa las 6 terminales: #' . $desconocidos->implode(', #');
+        }
+
+        $enVuelo = $this->circuito->modulosEnVuelo();
+
+        return $enVuelo !== []
+            ? 'todos los módulos despachables ya están en vuelo: ' . implode(', ', $enVuelo)
+            : 'ejecutablesParalelo() no eligió ninguno esta ronda — revisar con circuito:flags.';
+    }
+
+    /**
+     * #192 (ANEXO) — `scopeDespachable()` deja pasar `aprobado_irving` por las dos puertas (estado y
+     * nivel) SIN importar `nivel_riesgo`: es correcto por diseño (la aprobación explícita de Irving
+     * siempre pasa, el techo del autopilot no le aplica), pero en el tablero un item así se veía
+     * IDÉNTICO a uno que sí pasó por el triaje. Esta fila no cambia el despacho — solo distingue y
+     * cuenta, dentro del mismo pool despachable, cuántos `aprobado_irving` traen nivel_riesgo (el
+     * triaje corrió y además Irving aprobó) contra cuántos NO lo traen (la aprobación SUSTITUYÓ al
+     * triaje, no lo complementó).
+     */
+    private function cIrvingSinClasificar(): Compuerta
+    {
+        try {
+            $total = RoadmapItem::query()->despachable()->where('estado_aprobacion', 'aprobado_irving')->count();
+            $sinClasificar = RoadmapItem::query()->despachable()
+                ->where('estado_aprobacion', 'aprobado_irving')
+                ->whereNull('nivel_riesgo')
+                ->pluck('id');
+        } catch (\Throwable $e) {
+            return $this->sinMedir('irving_sin_clasificar', 'Aprobados por Irving sin clasificar', 'php artisan circuito:flags', 'Irving');
+        }
+
+        if ($sinClasificar->isEmpty()) {
+            return new Compuerta(
+                clave: 'irving_sin_clasificar', nombre: 'Aprobados por Irving sin clasificar', semaforo: 'verde',
+                valor: $total > 0 ? "{$total} aprobados por Irving en el pool, todos ya clasificados" : 'ninguno en el pool',
+                origen: 'bd',
+            );
+        }
+
+        return new Compuerta(
+            clave: 'irving_sin_clasificar', nombre: 'Aprobados por Irving sin clasificar', semaforo: 'ambar',
+            valor: "{$sinClasificar->count()} de {$total} sin nivel_riesgo: #" . $sinClasificar->implode(', #'),
+            origen: 'bd',
+            porQue: 'La aprobación de Irving SUSTITUYÓ al triaje (nivel_riesgo NULL) en vez de complementarlo: '
+                . 'el techo de nivel del autopilot no les aplica. Es correcto por diseño — la aprobación '
+                . 'explícita siempre pasa — pero no debe verse igual que un item clasificado y además aprobado.',
+            comando: 'php artisan circuito:flags',
+            quienPuede: 'Irving',
+            control: 'sin_privilegio',
         );
     }
 
