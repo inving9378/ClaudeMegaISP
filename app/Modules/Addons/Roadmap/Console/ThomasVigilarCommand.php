@@ -222,7 +222,12 @@ class ThomasVigilarCommand extends Command
 
         foreach ($ps as $p) {
             if (str_contains($p['cmd'], 'deploy/circuito/vuelta.sh')) {
-                $vueltas[] = ['pid' => $p['pid'], 'ppid' => $p['ppid'], 'seg' => $p['seg'], 'huerfano' => $p['ppid'] === 1];
+                // `huerfano` (PPID=1) se conserva porque describe un hecho, pero NO es la alarma:
+                // el cron lanza toda vuelta desprendida, así que es el estado normal. Lo que delata
+                // a la del 22-ago (1d21h viva) es haber pasado su propio timeout — ver `colgado`.
+                $vueltas[] = ['pid' => $p['pid'], 'ppid' => $p['ppid'], 'seg' => $p['seg'],
+                    'huerfano' => $p['ppid'] === 1,
+                    'colgado'  => $p['seg'] > (int) config('circuito.vuelta_colgada_seg', 3600), ];
                 continue;
             }
             if (preg_match('/timeout\s+\d+\s+claude\s+-p/', $p['cmd'])) {
@@ -239,6 +244,7 @@ class ThomasVigilarCommand extends Command
         return [
             'vueltas'            => count($vueltas),
             'vueltas_huerfanas'  => count(array_filter($vueltas, fn ($v) => $v['huerfano'])),
+            'vueltas_colgadas'   => count(array_filter($vueltas, fn ($v) => $v['colgado'])),
             'vueltas_detalle'    => $vueltas,
             'agentes_claude'     => count($agentes),
             'interactivos'       => count($interactivos),
@@ -336,9 +342,11 @@ class ThomasVigilarCommand extends Command
             $a[] = ['clave' => 'log_grande', 'nivel' => 'actua_y_avisa',
                 'texto' => "El log de {$m['donde']} pesa {$m['legible']} ({$m['ruta']}).", ];
         }
-        if (($e['procesos']['vueltas_huerfanas'] ?? 0) > 0) {
-            $a[] = ['clave' => 'huerfanas', 'nivel' => 'actua_y_avisa',
-                'texto' => "{$e['procesos']['vueltas_huerfanas']} vuelta(s) huérfana(s) con PPID=1.", ];
+        if (($e['procesos']['vueltas_colgadas'] ?? 0) > 0) {
+            $umbral = (int) config('circuito.vuelta_colgada_seg', 3600);
+            $a[] = ['clave' => 'colgadas', 'nivel' => 'actua_y_avisa',
+                'texto' => "{$e['procesos']['vueltas_colgadas']} vuelta(s) viva(s) por encima de su timeout "
+                    . "(> {$umbral}s): ya no van a terminar solas y el cron no las alcanza.", ];
         }
         if (count($e['procesos']['interactivos_viejos'] ?? []) > 0) {
             $n = count($e['procesos']['interactivos_viejos']);

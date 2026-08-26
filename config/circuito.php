@@ -180,6 +180,16 @@ return [
     // reloj de cada terminal contra el mismo número real, sin duplicar el 600 a mano.
     'vuelta_timeout_seg' => (int) env('CIRCUITO_TIMEOUT', 600),
 
+    // A partir de cuántos segundos una vuelta VIVA se considera COLGADA (2026-08-26). No basta con
+    // que esté reparentada a init: el cron lanza TODAS sus vueltas desprendidas, así que PPID=1 es
+    // el estado normal, no una anomalía. Antes la Torre pintaba rojo por PPID=1 a secas y titulaba
+    // "DETENIDO POR: Ejecutor huérfano" con seis agentes trabajando bien — un rojo que suena en
+    // operación normal enseña a ignorar el tablero. Lo que SÍ es anomalía es sobrevivir a su propio
+    // timeout: el `timeout` de vuelta.sh mata al agente hijo, no al bucle padre, y el 22-ago una
+    // vuelta corrió 1d21h lanzando un agente cada 3.7 s. 3600 = 6x el timeout nominal: holgado para
+    // el arranque + integración + limpieza, y muy por debajo de cualquier caso real de colgado.
+    'vuelta_colgada_seg' => (int) env('CIRCUITO_VUELTA_COLGADA_SEG', 3600),
+
     /*
     | Nombres por default de los workers del equipo (wt-1..wt-N). Persisten y son
     | RENOMBRABLES por Irving (override en `settings` → circuito_worker_nombres). Dan un

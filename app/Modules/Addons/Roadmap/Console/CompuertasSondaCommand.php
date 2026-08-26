@@ -110,6 +110,14 @@ class CompuertasSondaCommand extends Command
         $huerfanas = array_values(array_filter($vueltas, fn ($v) => $v['ppid'] === 1));
         $maxSeg    = $vueltas ? max(array_column($vueltas, 'segundos')) : 0;
 
+        // COLGADA ≠ huérfana (2026-08-26). El cron lanza TODAS sus vueltas desprendidas, así que
+        // PPID=1 es el estado normal de una vuelta sana y por sí solo no dice nada. La anomalía real
+        // —la del 22-ago— es la que sobrevive a su propio timeout: `timeout` mata al agente hijo, no
+        // al bucle padre. Se sigue publicando `huerfanas` (informativo, y para no romper a un lector
+        // viejo del snapshot), pero lo que enciende la alarma es esto.
+        $umbralColgada = (int) config('circuito.vuelta_colgada_seg', 3600);
+        $colgadas      = array_values(array_filter($vueltas, fn ($v) => $v['segundos'] > $umbralColgada));
+
         // Agentes `claude -p` colgando del ejecutor: el síntoma visible del bucle del 22-ago.
         $agentes = (int) trim((string) $this->sh("ps -eo cmd 2>/dev/null | grep -c 'timeout [0-9]* claude -p'"));
 
@@ -118,6 +126,9 @@ class CompuertasSondaCommand extends Command
             'huerfanas'        => count($huerfanas),
             'pids_huerfanos'   => array_column($huerfanas, 'pid'),
             'mas_vieja_seg'    => $maxSeg,
+            'colgadas'         => count($colgadas),
+            'pids_colgados'    => array_column($colgadas, 'pid'),
+            'umbral_colgada'   => $umbralColgada,
             'agentes_claude'   => max(0, $agentes - 1), // -1: el propio grep
             'timeout_nominal'  => (int) config('circuito.vuelta_timeout_seg', 600),
         ];

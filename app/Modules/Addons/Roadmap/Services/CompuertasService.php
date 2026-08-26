@@ -289,19 +289,33 @@ class CompuertasService
         }
 
         $e         = $so['ejecutor'] ?? [];
-        $huerfanas = (int) ($e['huerfanas'] ?? 0);
         $maxSeg    = (int) ($e['mas_vieja_seg'] ?? 0);
         $timeout   = (int) ($e['timeout_nominal'] ?? 600);
         $agentes   = (int) ($e['agentes_claude'] ?? 0);
-        $pids      = implode(' ', $e['pids_huerfanos'] ?? []);
+        $umbral    = (int) ($e['umbral_colgada'] ?? config('circuito.vuelta_colgada_seg', 3600));
 
-        if ($huerfanas > 0) {
+        // PPID=1 NO es la anomalía (2026-08-26): el cron lanza TODAS sus vueltas desprendidas, así
+        // que una vuelta sana siempre está reparentada a init. Pintar rojo por eso encendía el
+        // tablero —y le robaba el titular con "DETENIDO POR: Ejecutor huérfano"— cada vez que el
+        // circuito trabajaba bien; un rojo que suena en operación normal enseña a ignorar el
+        // tablero. La anomalía es SOBREVIVIR AL PROPIO TIMEOUT, que es lo que pasó el 22-ago.
+        // `colgadas` puede faltar si el snapshot es de una sonda vieja: se cae al cálculo por edad.
+        $colgadas = isset($e['colgadas'])
+            ? (int) $e['colgadas']
+            : ($maxSeg > $umbral ? 1 : 0);
+        $pids = implode(' ', $e['pids_colgados'] ?? []);
+
+        if ($colgadas > 0) {
+            $comando = $pids !== ''
+                ? "kill {$pids}   # verificar después: ps -eo pid,ppid,etimes,cmd | grep '[v]uelta.sh'"
+                : "ps -eo pid,ppid,etimes,cmd | grep '[v]uelta.sh'   # identificar la colgada y matarla";
+
             return new Compuerta(
                 clave: 'ejecutor', nombre: 'Ejecutor huérfano o colgado', semaforo: 'rojo',
-                valor: "{$huerfanas} vuelta(s) huérfana(s) (PPID=1), la más vieja {$maxSeg}s, {$agentes} agentes vivos",
+                valor: "{$colgadas} vuelta(s) colgada(s): la más vieja {$maxSeg}s (umbral {$umbral}s), {$agentes} agentes vivos",
                 origen: 'so',
-                porQue: 'Una vuelta reparentada a init ya no depende del cron: pausar el circuito NO la detiene, y sigue lanzando agentes.',
-                comando: "kill {$pids}   # verificar después: ps -eo pid,ppid,cmd | grep '[v]uelta.sh'",
+                porQue: 'Una vuelta que pasó su propio timeout ya no va a terminar sola: el `timeout` mata al agente hijo, no al bucle padre. Y como está reparentada a init, pausar el circuito NO la detiene — sigue lanzando agentes.',
+                comando: $comando,
                 quienPuede: 'Irving, como usuario meganet',
                 control: 'sin_privilegio',
             );
@@ -320,7 +334,7 @@ class CompuertasService
 
         return new Compuerta(
             clave: 'ejecutor', nombre: 'Ejecutor huérfano o colgado', semaforo: 'verde',
-            valor: ($e['vueltas'] ?? 0) . ' vuelta(s) viva(s), ninguna huérfana', origen: 'so',
+            valor: ($e['vueltas'] ?? 0) . " vuelta(s) viva(s), la más vieja {$maxSeg}s (timeout nominal {$timeout}s)", origen: 'so',
         );
     }
 

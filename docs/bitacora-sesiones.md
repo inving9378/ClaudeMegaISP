@@ -2257,3 +2257,39 @@ código ya estaba completo, solo faltaba dispararlo) — cierre es 100% infraest
 **Pendiente fuera de alcance de este item:** lo mismo puede estar pasando en PROD (`.198`) — ese
 crontab es un servidor aparte que este ejecutor no toca. Vale la pena que Irving verifique ahí con
 el mismo diagnóstico (`crontab -l` buscando una línea `schedule:run`).
+
+## 2026-08-26 15:20 — El rojo del "ejecutor huérfano" dejó de sonar cuando el circuito está sano
+
+**El defecto.** `CompuertasSondaCommand` marcaba como huérfana **toda** vuelta con `ppid === 1`, y la
+compuerta pintaba **rojo** con `if ($huerfanas > 0)`, sin mirar la edad. Pero el cron lanza TODAS sus
+vueltas desprendidas: PPID=1 es el estado **normal** de una vuelta sana. Resultado medido hoy a las
+15:06, con el circuito trabajando perfecto: `6 vuelta(s) huérfana(s), la más vieja 40s` en rojo, y el
+titular del tablero secuestrado con **"DETENIDO POR: Ejecutor huérfano o colgado"** mientras seis
+agentes cerraban items. Un rojo que suena en operación normal enseña a ignorar el tablero — lo
+contrario de para lo que se construyeron las compuertas. `ThomasVigilarCommand` tenía la misma falla
+(`'huerfano' => $p['ppid'] === 1` → alerta `actua_y_avisa`), así que la falsa alarma sonaba dos veces.
+
+**El criterio correcto: no es de quién cuelga, es cuánto lleva viva.** La anomalía del 22-ago no fue
+estar reparentada a init, fue **sobrevivir a su propio timeout**: `timeout` mata al agente hijo, no al
+bucle padre, y esa vuelta corrió 1d21h lanzando un agente cada 3.7 s. Se introduce
+`config('circuito.vuelta_colgada_seg')` = **3600** (6× el timeout nominal de 600 s: holgado para
+arranque + integración + limpieza, y muy por debajo de cualquier colgado real).
+
+- **Sonda**: publica `colgadas`, `pids_colgados` y `umbral_colgada`. `huerfanas` **se conserva**
+  (describe un hecho y no rompe a un lector viejo del snapshot), pero ya no es lo que alarma.
+- **Compuerta**: el rojo ahora exige `colgadas > 0`, y el `kill` apunta a los pids colgados. Si el
+  snapshot viene de una sonda vieja sin la llave, cae al cálculo por edad — no se queda ciega.
+  El verde dejó de decir "ninguna huérfana" (era mentira) y ahora dice la edad real contra el timeout.
+- **Thomas**: alerta por `vueltas_colgadas`, con el porqué ("ya no van a terminar solas y el cron no
+  las alcanza") en vez de "N vueltas huérfanas con PPID=1".
+
+**Verificado en las dos direcciones, que es lo que importa en una señal de seguridad:**
+1. *El rojo falso se fue*: con 6 vueltas reales (la más vieja 628 s) → **verde**, "6 vuelta(s)
+   viva(s), la más vieja 628s (timeout nominal 600s)", y el titular pasó solo al problema de verdad:
+   **"DETENIDO POR: Workers de supervisor"**. Thomas: `huerfanas=6, colgadas=0`, alerta falsa fuera.
+2. *El rojo verdadero sigue*: con un snapshot sintético que reproduce la firma del 22-ago (163000 s,
+   47 agentes) → **rojo**, recupera el titular y entrega `kill 632692`. El snapshot se restauró y se
+   verificó **byte a byte** por sha256 (idéntico).
+
+Las 2 alertas que le quedan a Thomas son legítimas y ambas `me_pregunta`: **swap al 88 %** y 5 sesiones
+interactivas de claude viejas (que NO se tocan a propósito: pueden ser las de Irving).
