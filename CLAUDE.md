@@ -1208,3 +1208,24 @@ La maquinaria **legacy/transición** de `PayWeek` (modo `Sáb–Vie`, semana de 
 
 ### 🐛 Deuda registrada aparte (NO de este trabajo)
 `DashboardService::tecnicoPreview` y `::team` truenan por `with('level')` (relación inexistente en `TalentoColaborador`) — **bug pre-existente**, no introducido en este arreglo. Arreglar en sesión futura (ver memoria `talento-fase8-9`).
+
+---
+
+## Item #123 — bridge Talento↔comisiones de vendedores (RESUELTO — premisa incorrecta)
+
+Investigado (item #123): la premisa de que "no hay puente entre el motor Talento y
+`CommissionRule`/`TransactionSeller` (comisiones de vendedores)" es **falsa**. El puente de
+**solo lectura** ya existe y está en uso desde la Fase 8/9 (commit `52c50009`):
+`TalentoEmbajadoresController::sellerData()` (`GET /talento/api/colaboradores/{id}/seller-data`)
+resume `sellers`+`transaction_sellers` y lo consume `TalentoEmbajadores.vue` en
+`/talento/embajadores-colabs` (badge + modal de detalle); `Support/Actor.php::seller()` resuelve
+lo mismo para alimentar el sidebar del Portal de Colaborador. Ya documentado en
+`docs/modulos/talento.md` §4 ("Consume"). Detalle completo en
+`docs/talento-vendedores-bridge-item-123-verificacion.md`. **Sin cambio de código** (nada que
+construir en la parte de visibilidad).
+
+La otra mitad del item — migrar el motor de comisiones de vendedores al motor único de Talento
+(que las comisiones se **paguen** vía `TalentoLedgerEntry` en vez de
+`CommissionRule`/`TransactionSeller`) — sigue **sin decidirse a propósito**: es una decisión de
+arquitectura que toca el cálculo/pago real de comisiones (**frontera dura de dinero**), fuera de
+alcance de un cambio mecánico. Queda pendiente de una decisión explícita de Irving si se retoma.
