@@ -2656,3 +2656,35 @@ cualquier usuario** (excluyendo `vendor/`, `node_modules/`, `.git/`). Incluye `c
 cualquier usuario del box inyecta código que corre como `www-data`. Es condición de todo el árbol,
 no un descuido suelto; corregirlo en masa puede romper git/worktrees/deploy, así que necesita su
 propio plan y una ventana. Queda registrado, sin ejecutar.
+
+## 2026-08-27 19:45 — Item #171 cerrado: cierre en código del botón "Run migrations" de Ignition
+
+**Contexto:** item #171 llevaba desde el 24-ago sin poder integrarse — el `merge-runner`
+registra **~210 intentos fallidos** contra el mismo archivo (`app/Services/MigrationGuardService.php`),
+uno cada ~6 min, por más de 24h.
+
+**Causa real (no era un conflicto trivial):** la rama vieja del #171 hacía fallar CERRADO
+`checkPending()`/`checkDestructive()` cuando la tabla `migrations` es ilegible. Pero Irving,
+directo en main (commit `a2a598f7`, "El guardrail de migraciones deja de depender de la base
+que protege"), ya había resuelto ese mismo punto en sentido CONTRARIO: fail-**open**
+(`estadoAplicadoLegible()` + `permitirReconstruccion()`), con su propia prueba de regresión
+(`MigrationGuardBaseCaidaTest`) citando el incidente del 25-ago donde un fail-closed impidió
+reconstruir 500 tablas borradas por `migrate:fresh`. La rama vieja del #171 y la decisión de
+Irving en main peleaban por el mismo código en sentidos opuestos — cada intento de auto-merge
+chocaba de verdad, no era ruido.
+
+**Resolución (worker wt-1):** no se re-peleó la decisión ya tomada por Irving. Se borró la
+rama vieja (`git branch -D`) y se reconstruyó `circuito/item-171-*` limpia desde `main`,
+conservando SOLO la mitad del item que main aún no cubría: el botón "Run migrations" de la
+pantalla de error de Ignition (`POST /_ignition/execute-solution`) corre por fuera del guard
+de consola y su único freno era la línea `IGNITION_ENABLE_RUNNABLE_SOLUTIONS=false` del `.env`
+(no versionada) — la que se perdió el 24-ago y dejó pasar 290 migraciones sin freno.
+
+**Fix:** `AppServiceProvider::boot()` fuerza `config(['ignition.enable_runnable_solutions' => false])`
+cuando `MigrationGuardService::shouldEnforce()` es true, sin depender de que el `.env` conserve
+la línea. Verificado leyendo el paquete (`RunnableSolutionsGuard::check()` +
+`ExecuteSolutionController::abort_unless(...)`) y probando en tinker con la línea del `.env`
+comentada: `config('ignition.enable_runnable_solutions')` sigue resolviendo `false`.
+
+**Commit:** `468309f0` en `circuito/item-171-guardrail-de-migraciones-falla-abierto-e`,
+encolado al merge-runner. Decisión completa en el historial del item #171 (reportes #1130/#1131).
