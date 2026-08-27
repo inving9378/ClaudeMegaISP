@@ -2678,9 +2678,9 @@ class RoadmapController extends Controller
                 . "→ frontera «{$frontera}» (efecto: " . ($fronteraDet['efecto'] ?? 'bandeja') . '). '
                 . 'Apruébalo desde la bandeja si es lo que quieres.';
         } elseif ($disparo['ok'] ?? false) {
-            $aviso = "Creado y aprobado: entra directo a la cola y ya se disparó — una terminal libre lo toma en segundos (Thomas lo estimó en ~{$item->eta_minutos} min).";
+            $aviso = "Creado y aprobado: entra directo a la cola y ya se disparó — una terminal libre lo toma en segundos (JARVIS lo estimó en ~{$item->eta_minutos} min).";
         } else {
-            $aviso = "Creado y aprobado: entra directo a la cola. Thomas lo estimó en ~{$item->eta_minutos} min — una terminal libre lo toma en el próximo ciclo (no se pudo adelantar el disparo: " . ($disparo['mensaje'] ?? 'circuito en pausa') . ').';
+            $aviso = "Creado y aprobado: entra directo a la cola. JARVIS lo estimó en ~{$item->eta_minutos} min — una terminal libre lo toma en el próximo ciclo (no se pudo adelantar el disparo: " . ($disparo['mensaje'] ?? 'circuito en pausa') . ').';
         }
 
         return response()->json([

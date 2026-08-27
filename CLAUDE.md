@@ -540,6 +540,30 @@ cae, se **degrada a algo que parece una decisión legítima**.
 ### 🔒 SECRETOS SOLO EN `.env` — placeholders en TODA la documentación
 Las **bitácoras, runbooks, docs y configs de deploy versionados** llevan **solo placeholders** de secretos (`<READ_TOKEN>`, `<API_KEY>`, `<SECRET>`, …), **JAMÁS valores reales** (tokens, API keys, contraseñas, cadenas de conexión). Los valores viven **únicamente en `.env`** (gitignored). Antes de commitear cualquier doc, `git grep` el patrón del secreto para confirmar que no se cuela. Si un secreto se filtró a git: **rotarlo** (ya está comprometido) + redactar a placeholder + limpiar historial **antes** del primer push si aún no se subió. (Incidente 2026-07-08: los tokens del circuito quedaron en `docs/bitacora-sesiones.md` commiteado; se rotaron y redactaron. Ver `docs/circuito-seguridad-tokens.md`.)
 
+### 🤖 JARVIS = el nombre de cara al usuario de lo que en el código es `ThomasService`
+
+Decisión de Irving (2026-08-27). **Un solo asistente.** Todo lo que Irving VE se llama **JARVIS**:
+el widget flotante, la pestaña, los avisos, la bandeja, los textos de la Torre y la compuerta que
+antes decía «Vigilancia de Thomas».
+
+**El código NO se renombra todavía.** `ThomasService`, `ThomasCommand`, las claves
+`config('circuito.thomas.*')`, la clave de compuerta `thomas` y los actores del log
+(`thomas.mecanico`, `thomas.ya_decidido`) **se quedan como están** — un refactor masivo por un
+cambio de nombre es riesgo sin ganancia. Migra en su propio item, sin prisa.
+
+Regla práctica mientras convivan los dos nombres:
+- **Cadena de texto que ve un humano → «JARVIS».**
+- **Identificador (clase, config, clave de log, permiso, nombre de compuerta interno) → `thomas`.**
+- Al leer código, `ThomasService` **es** JARVIS. No son dos cosas.
+
+⚠️ **No hay un segundo asistente.** El widget «Agente IA MegaISP» (`IaChatFloat.vue` +
+`app/Http/Controllers/IA/IAChatController.php`) contestaba desde `ModuleRegistry::getAiContext()`
+—lo *registrado*— y declaraba no poder medir, mientras JARVIS mide de verdad. Dos asistentes con el
+mismo nombre se contradicen, así que el widget quedó **APAGADO** revocando su permiso
+`usar-ia-chat` (creado en #636) de `super-administrator` y `DESARROLLADOR`. El montaje sigue en el
+layout: volver a encenderlo es devolver el permiso. Se reactivará cuando sea la **cara de JARVIS**,
+consumiendo el mismo motor que mide (Capa 1 del chat).
+
 ### 🧩 SERVICIOS COMPARTIDOS ÚNICOS — PROHIBIDO DUPLICAR
 Antes de construir **cualquier capacidad** en **cualquier módulo** (existente o futuro), verificar si ya existe en el sistema. Si existe, el módulo se **CONECTA** al servicio existente; **nunca** construye su propia versión. Servicios únicos designados:
 1. **WhatsApp** → `WhatsAppAgent` es el **gateway único**. Los consumidores usan `WhatsAppGateway` + **eventos** (`WhatsAppMessageReceived`/`TextReceived`/`MediaReceived`); **nadie** monta webhook ni línea propia.

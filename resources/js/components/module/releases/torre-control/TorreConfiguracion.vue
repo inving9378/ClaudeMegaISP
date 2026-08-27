@@ -63,9 +63,9 @@
         <div class="card-header d-flex justify-content-between align-items-center py-2">
           <b><i class="bi bi-valve me-1"></i>Válvula de contexto</b>
           <span class="small text-muted">
-            {{ fronteras.valvula.resumen.invocaciones_registradas || 0 }} invocaciones registradas ·
-            {{ fronteras.valvula.resumen.sellados_mencion || 0 }} items sellados «mención» ·
-            {{ fronteras.valvula.resumen.sellados_accion || 0 }} «acción»
+            {{ fronteras.valvula?.resumen.invocaciones_registradas || 0 }} invocaciones registradas ·
+            {{ fronteras.valvula?.resumen.sellados_mencion || 0 }} items sellados «mención» ·
+            {{ fronteras.valvula?.resumen.sellados_accion || 0 }} «acción»
           </span>
         </div>
         <div class="card-body">
@@ -79,21 +79,21 @@
             <div class="col-md-6">
               <label class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" :disabled="!puedeEditar"
-                       :checked="fronteras.valvula.activa"
+                       :checked="fronteras.valvula?.activa"
                        @change="pedirConfirmacion({
-                         titulo: fronteras.valvula.activa ? 'Apagar la válvula' : 'Encender la válvula',
-                         cuerpo: fronteras.valvula.activa
+                         titulo: fronteras.valvula?.activa ? 'Apagar la válvula' : 'Encender la válvula',
+                         cuerpo: fronteras.valvula?.activa
                            ? 'Sin válvula, toda coincidencia de término manda el item a tu bandeja aunque sólo mencione el tema. Es el comportamiento más estricto — y el más ruidoso.'
                            : 'Con la válvula encendida, un modelo puede ablandar el veredicto del keyword cuando el término sólo se menciona.',
-                         afloja: !fronteras.valvula.activa,
-                         accion: () => guardarValvula({ activa: !fronteras.valvula.activa })
+                         afloja: !fronteras.valvula?.activa,
+                         accion: () => guardarValvula({ activa: !fronteras.valvula?.activa })
                        })">
                 <span class="form-check-label">
-                  <b>Válvula {{ fronteras.valvula.activa ? 'encendida' : 'apagada' }}</b>
-                  <span class="d-block text-muted small">Modelo: <code>{{ fronteras.valvula.modelo }}</code></span>
+                  <b>Válvula {{ fronteras.valvula?.activa ? 'encendida' : 'apagada' }}</b>
+                  <span class="d-block text-muted small">Modelo: <code>{{ fronteras.valvula?.modelo }}</code></span>
                 </span>
               </label>
-              <div v-if="!fronteras.valvula.config_enabled" class="alert alert-warning py-1 px-2 small mt-2 mb-0">
+              <div v-if="!fronteras.valvula?.config_enabled" class="alert alert-warning py-1 px-2 small mt-2 mb-0">
                 <i class="bi bi-exclamation-triangle me-1"></i>
                 <code>circuito.valvula_contexto.enabled</code> está en <b>false</b> en la config: la
                 válvula no corre aunque este interruptor diga que sí.
@@ -103,7 +103,7 @@
             <div class="col-md-6">
               <div class="small fw-semibold mb-1">Modo — hasta dónde puede ablandar</div>
               <label class="d-block small mb-1">
-                <input type="radio" :disabled="!puedeEditar" :checked="fronteras.valvula.modo === 'ablandar'"
+                <input type="radio" :disabled="!puedeEditar" :checked="fronteras.valvula?.modo === 'ablandar'"
                        @change="pedirConfirmacion({
                          titulo: 'Modo «ablandar»',
                          cuerpo: 'Un veredicto de MENCIÓN baja la frontera a «requiere Irving» — nunca a «pasa». El modelo puede decir «sólo lo menciona» y el efecto es que TÚ lo ves.',
@@ -113,7 +113,7 @@
                 <b>Ablandar</b> — baja a «requiere Irving», nunca a «pasa».
               </label>
               <label class="d-block small">
-                <input type="radio" :disabled="!puedeEditar" :checked="fronteras.valvula.modo === 'apagar'"
+                <input type="radio" :disabled="!puedeEditar" :checked="fronteras.valvula?.modo === 'apagar'"
                        @change="pedirConfirmacion({
                          titulo: 'Modo «apagar» — la frontera DESAPARECE',
                          cuerpo: 'Con este modo, un veredicto de MENCIÓN hace que la frontera dura no se evalúe para ese item, y el sello queda guardado en la fila para siempre. Es el comportamiento que tenía el circuito hasta el 2026-08-27, y es la puerta por la que #182 quedó exento mientras implementaba control de acceso real.',
@@ -132,14 +132,14 @@
             <div class="col-md-6">
               <label class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" :disabled="!puedeEditar"
-                       :checked="fronteras.valvula.guarda_termino"
+                       :checked="fronteras.valvula?.guarda_termino"
                        @change="pedirConfirmacion({
-                         titulo: fronteras.valvula.guarda_termino ? 'Quitar la guarda del término' : 'Poner la guarda del término',
-                         cuerpo: fronteras.valvula.guarda_termino
+                         titulo: fronteras.valvula?.guarda_termino ? 'Quitar la guarda del término' : 'Poner la guarda del término',
+                         cuerpo: fronteras.valvula?.guarda_termino
                            ? 'Sin esta guarda se puede volver a preguntar al modelo por una palabra que no está en el texto del item. Es exactamente lo que pasó con #182 y #191: al modelo se le pasó la categoría («dinero», «credenciales») en vez del término, y de la AUSENCIA de esa palabra concluyó «mención».'
                            : 'Verificación determinista, sin modelo: si el término no aparece en el texto que vería el modelo, la pregunta está mal formada y la válvula no afloja.',
-                         afloja: fronteras.valvula.guarda_termino,
-                         accion: () => guardarValvula({ guarda_termino: !fronteras.valvula.guarda_termino })
+                         afloja: fronteras.valvula?.guarda_termino,
+                         accion: () => guardarValvula({ guarda_termino: !fronteras.valvula?.guarda_termino })
                        })">
                 <span class="form-check-label">
                   <b>El término debe aparecer en el texto</b>
@@ -153,17 +153,17 @@
             <div class="col-md-6">
               <label class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" :disabled="!puedeEditar"
-                       :checked="fronteras.valvula.guarda_razon"
+                       :checked="fronteras.valvula?.guarda_razon"
                        @change="pedirConfirmacion({
-                         titulo: fronteras.valvula.guarda_razon ? 'Quitar la guarda de la razón' : 'Poner la guarda de la razón',
+                         titulo: fronteras.valvula?.guarda_razon ? 'Quitar la guarda de la razón' : 'Poner la guarda de la razón',
                          cuerpo: 'Si la razón que da el modelo no menciona el término por el que se le preguntó, contestó sobre otra cosa y su «mención» no sostiene nada. Nace apagada porque es nueva y sin medir: enciéndela cuando el contador diga qué tan seguido pasa.',
-                         afloja: fronteras.valvula.guarda_razon,
-                         accion: () => guardarValvula({ guarda_razon: !fronteras.valvula.guarda_razon })
+                         afloja: fronteras.valvula?.guarda_razon,
+                         accion: () => guardarValvula({ guarda_razon: !fronteras.valvula?.guarda_razon })
                        })">
                 <span class="form-check-label">
                   <b>La razón debe referirse a ese término</b>
                   <span class="d-block text-muted small">
-                    Mismo criterio de procedencia que se le pide a Thomas: toda afirmación con su cita.
+                    Mismo criterio de procedencia que se le pide a JARVIS: toda afirmación con su cita.
                   </span>
                 </span>
               </label>
@@ -177,14 +177,14 @@
         <div class="card-header py-2">
           <b><i class="bi bi-speedometer2 me-1"></i>Techo del autopilot</b>
           <span class="small text-muted ms-2">
-            vigente <b>{{ fronteras.autopilot.tope_vigente }}</b> ·
-            efectivo <b>{{ fronteras.autopilot.efectivo || 'ninguno' }}</b>
-            (topado por la política base: {{ fronteras.autopilot.politica_base || 'manual' }})
+            vigente <b>{{ fronteras.autopilot?.tope_vigente }}</b> ·
+            efectivo <b>{{ fronteras.autopilot?.efectivo || 'ninguno' }}</b>
+            (topado por la política base: {{ fronteras.autopilot?.politica_base || 'manual' }})
           </span>
         </div>
         <div class="card-body">
           <p class="small text-muted mb-2">
-            Fuente del valor vigente: <code>{{ fronteras.autopilot.fuente }}</code>.
+            Fuente del valor vigente: <code>{{ fronteras.autopilot?.fuente }}</code>.
             La simulación usa <b>el mismo veredicto que aplica el real</b>, no una cuenta paralela —
             lo que promete esta tabla es lo que hace.
           </p>
@@ -193,24 +193,24 @@
               <thead><tr><th>Poner el techo en</th><th>Califican hoy</th><th>Por qué no califican los demás</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="lv in ['A','B','C']" :key="lv"
-                    :class="{ 'table-active': fronteras.autopilot.tope_vigente === lv }">
+                    :class="{ 'table-active': fronteras.autopilot?.tope_vigente === lv }">
                   <td><b>{{ lv }}</b></td>
                   <td>
-                    <b :class="(fronteras.autopilot.por_nivel[lv]?.califican || 0) === 0 ? 'text-muted' : ''">
-                      {{ fronteras.autopilot.por_nivel[lv]?.califican ?? '—' }}
+                    <b :class="(fronteras.autopilot?.por_nivel[lv]?.califican || 0) === 0 ? 'text-muted' : ''">
+                      {{ fronteras.autopilot?.por_nivel[lv]?.califican ?? '—' }}
                     </b>
-                    de {{ fronteras.autopilot.por_nivel[lv]?.de ?? '—' }} items en tu bandeja
+                    de {{ fronteras.autopilot?.por_nivel[lv]?.de ?? '—' }} items en tu bandeja
                   </td>
                   <td class="small text-muted">
-                    <span v-for="(n, m) in (fronteras.autopilot.por_nivel[lv]?.top_motivos || {})" :key="m"
+                    <span v-for="(n, m) in (fronteras.autopilot?.por_nivel[lv]?.top_motivos || {})" :key="m"
                           class="me-2"><code>{{ m }}</code> ×{{ n }}</span>
                   </td>
                   <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary" :disabled="!puedeEditar || fronteras.autopilot.tope_vigente === lv"
+                    <button class="btn btn-sm btn-outline-primary" :disabled="!puedeEditar || fronteras.autopilot?.tope_vigente === lv"
                             @click="pedirConfirmacion({
                               titulo: 'Mover el techo del autopilot a ' + lv,
-                              cuerpo: 'Con el techo en ' + lv + ' calificarían ' + (fronteras.autopilot.por_nivel[lv]?.califican ?? 0) + ' de ' + (fronteras.autopilot.por_nivel[lv]?.de ?? 0) + ' items de tu bandeja. Los topes de frontera dura siguen aplicando por delante de esto.',
-                              afloja: nivelOrden(lv) > nivelOrden(fronteras.autopilot.tope_vigente),
+                              cuerpo: 'Con el techo en ' + lv + ' calificarían ' + (fronteras.autopilot?.por_nivel[lv]?.califican ?? 0) + ' de ' + (fronteras.autopilot?.por_nivel[lv]?.de ?? 0) + ' items de tu bandeja. Los topes de frontera dura siguen aplicando por delante de esto.',
+                              afloja: nivelOrden(lv) > nivelOrden(fronteras.autopilot?.tope_vigente),
                               accion: () => guardarTecho(lv)
                             })">Fijar en {{ lv }}</button>
                   </td>
@@ -222,13 +222,13 @@
                distinto en cada una: o el techo está mal puesto, o la población muere antes de
                llegar al gate de nivel. Sin esto, la tabla de arriba invita a mover la perilla
                equivocada. -->
-          <div v-if="fronteras.autopilot.diagnostico" class="alert alert-secondary py-2 px-3 small mb-2">
+          <div v-if="fronteras.autopilot?.diagnostico" class="alert alert-secondary py-2 px-3 small mb-2">
             <div class="fw-semibold mb-1">
-              <i class="bi bi-question-circle me-1"></i>Por qué califican {{ fronteras.autopilot.por_nivel.C?.califican ?? 0 }}
+              <i class="bi bi-question-circle me-1"></i>Por qué califican {{ fronteras.autopilot?.por_nivel.C?.califican ?? 0 }}
             </div>
 
             <p class="mb-2">
-              <template v-if="dg.decisiones_historicas.decisiones === 0">
+              <template v-if="dg?.decisiones_historicas.decisiones === 0">
                 El autopilot <b>no ha decidido nunca</b> — 0 decisiones en toda la historia del roadmap.
                 Pero el techo <b>no es una perilla desconectada</b>: el disparo existe y corre
                 (<code>RevisorService::aplicarPreguntas()</code> → <code>intentar()</code>, cada vez que
@@ -714,7 +714,21 @@
 <script>
 import axios from "axios";
 
-const { ref, reactive, computed, onMounted, defineComponent, h } = Vue;
+// ⚠️ SE IMPORTA DE "vue", NO del `Vue` GLOBAL — y la diferencia no es de estilo.
+//
+// En este proyecto conviven DOS copias de Vue: la de npm (que es con la que se crea la app) y la
+// UMD global de Quasar. Los hooks de ciclo de vida sólo funcionan si vienen de la MISMA copia que
+// creó la app: un `onMounted` tomado del global **nunca se dispara**.
+//
+// Ese fue el defecto que dejó esta pestaña en blanco el 2026-08-27: como `onMounted` no corría,
+// `cargarTodo()` no se llamaba, `fronteras` se quedaba en null, y todas las secciones —que penden
+// de `v-if="fronteras"`— no pintaban nada. Sin excepción en consola: la pantalla simplemente
+// quedaba vacía, que es el peor modo de fallo posible para un panel de configuración.
+//
+// El patrón se copió de `TorreConfigPanel.vue`, que usaba el global y funcionaba... porque no tenía
+// un solo hook de ciclo de vida (sólo pintaba un botón). Todos los demás componentes de la Torre
+// con hooks importan de "vue".
+import { ref, reactive, computed, onMounted, defineComponent, h } from "vue";
 
 /**
  * Lista de controles del catálogo con su procedencia. Se declara aquí (componente local, no global)
@@ -774,7 +788,10 @@ export default {
         ];
 
         const seccion = ref("fronteras");
-        const cargando = ref(false);
+        // Arranca en `true`: entre el montaje y la primera respuesta hay un hueco real, y la
+        // pantalla debe decir «midiendo», no quedarse muda. Si además el hook no corriera, el
+        // «midiendo» permanente es una señal visible en vez de un panel en blanco.
+        const cargando = ref(true);
         const guardando = ref(false);
         const aplicando = ref(false);
         const error = ref("");

@@ -716,7 +716,7 @@ class RoadmapCircuitoService
         // ya la deriva SupervisorService de la MISMA maquinaria (scheduler + watchdog).
         $sup = app(SupervisorService::class)->estado(0);
         $filas[] = $this->filaSemaforoDerivada(
-            motor: 'Thomas',
+            motor: 'JARVIS',
             vivo: (bool) $sup['activo'],
             latidoSecs: $sup['latido_secs'],
             pausado: $pausado,

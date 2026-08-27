@@ -758,7 +758,7 @@ class CompuertasService
 
         if ($edad === null) {
             return new Compuerta(
-                clave: 'thomas', nombre: 'Vigilancia de Thomas', semaforo: 'rojo',
+                clave: 'thomas', nombre: 'Vigilancia de JARVIS', semaforo: 'rojo',
                 valor: 'nunca ha medido', origen: 'so',
                 porQue: 'No existe latido de la vigilia: o nunca arrancó su cron, o no puede escribir su estado. '
                     . 'Nadie está mirando disco, memoria, logs ni procesos.',
@@ -774,7 +774,7 @@ class CompuertasService
 
         if ($edad > $umbral) {
             return new Compuerta(
-                clave: 'thomas', nombre: 'Vigilancia de Thomas', semaforo: 'rojo',
+                clave: 'thomas', nombre: 'Vigilancia de JARVIS', semaforo: 'rojo',
                 valor: "midió hace {$edad}s (umbral {$umbral}s)", origen: 'so',
                 porQue: 'El latido del vigilante envejeció: lo que se muestre de disco, memoria y procesos '
                     . 'puede no ser el presente. Se murió o no está corriendo su cron.',
@@ -787,9 +787,9 @@ class CompuertasService
         // rojo escondería la fila de la base, que es la que de verdad bloquea.
         if ($modo === 'minimo') {
             return new Compuerta(
-                clave: 'thomas', nombre: 'Vigilancia de Thomas', semaforo: 'ambar',
+                clave: 'thomas', nombre: 'Vigilancia de JARVIS', semaforo: 'ambar',
                 valor: "midió hace {$edad}s · MODO MÍNIMO (la base no responde)", origen: 'so',
-                porQue: 'Thomas está midiendo desde archivo porque MySQL no contesta. Lo que reporte del '
+                porQue: 'JARVIS está midiendo desde archivo porque MySQL no contesta. Lo que reporte del '
                     . 'sistema es real; lo que sepa de items, no.',
                 comando: $cmd, quienPuede: 'Irving',
                 control: 'sin_privilegio',
@@ -797,7 +797,7 @@ class CompuertasService
         }
 
         return new Compuerta(
-            clave: 'thomas', nombre: 'Vigilancia de Thomas', semaforo: 'verde',
+            clave: 'thomas', nombre: 'Vigilancia de JARVIS', semaforo: 'verde',
             valor: "midió hace {$edad}s · {$alertas} alerta(s)", origen: 'so',
         );
     }

@@ -9,7 +9,7 @@
                 <div class="ia-header-left">
                     <div class="ia-avatar"><i class="fas fa-robot"></i></div>
                     <div>
-                        <div class="ia-title">Agente IA MegaISP</div>
+                        <div class="ia-title">JARVIS</div>
                         <div class="ia-subtitle"><span class="ia-dot"></span>{{ isTyping ? 'Procesando...' : 'En línea' }}</div>
                     </div>
                 </div>
@@ -20,7 +20,7 @@
                 </div>
             </div>
             <div v-if="messages.length===0" class="ia-suggestions">
-                <div class="ia-welcome"><i class="fas fa-robot ia-welcome-icon"></i><p>¡Hola! Soy tu Agente IA. ¿En qué puedo ayudarte?</p></div>
+                <div class="ia-welcome"><i class="fas fa-robot ia-welcome-icon"></i><p>¡Hola! Soy JARVIS. ¿En qué puedo ayudarte?</p></div>
                 <div class="ia-chips" v-if="suggestions.length">
                     <button class="ia-chip" v-for="s in suggestions" :key="s.text" @click="sendSuggestion(s.text)">
                         <i class="fas fa-comment-dots"></i> {{ s.label }}
