@@ -55,7 +55,14 @@ return new class extends Migration
             Schema::create('circuito_frontera_terminos', function (Blueprint $table) {
                 $table->id();
                 $table->string('categoria', 40);
-                $table->string('termino', 120);
+
+                // COLACIÓN BINARIA a propósito. La colación por defecto de la base es
+                // acento-insensible, así que `producción` y `produccion` colisionaban en la única
+                // (categoria, termino) y la segunda variante no se sembraba — pero el matcher
+                // (`DetectorTerminos`, PCRE con /u) SÍ distingue acentos, así que perder la variante
+                // sin acento habría dejado de detectar textos que hoy detecta. La lista distingue
+                // acentos porque el detector distingue acentos.
+                $table->string('termino', 120)->collation('utf8mb4_bin');
 
                 // El mismo grado de libertad que `DetectorTerminos::apariciones()`: los términos
                 // cortos/ambiguos ('rol', 'prod') exigen palabra completa; los largos admiten
