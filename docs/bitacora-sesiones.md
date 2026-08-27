@@ -2688,3 +2688,42 @@ comentada: `config('ignition.enable_runnable_solutions')` sigue resolviendo `fal
 
 **Commit:** `468309f0` en `circuito/item-171-guardrail-de-migraciones-falla-abierto-e`,
 encolado al merge-runner. Decisión completa en el historial del item #171 (reportes #1130/#1131).
+
+## 2026-08-27 20:09 — Item #121: marco de compensación KPI para roles no-técnicos (Talento)
+
+**Contexto:** item [DECISIÓN] abierto desde 2026-06-04, bloqueaba cerrar la Fase 9 de Talento
+(contabilidad/mostrador/atención a clientes sin reglas de compensación). Escalado a Irving el
+2026-08-26 por ser decisión de negocio (nómina); Irving respondió las 4 preguntas el 2026-08-27
+13:59: (q1) sueldo base + comisión variable atada a KPI del rol (ventas: activaciones netas;
+cobranza: recuperado; atención: CSAT/tickets cerrados); (q2) cálculo mensual con corte día 25,
+pago junto a nómina de fin de mes; (q3) clawback si el cliente activado se cae antes de 90 días o
+si cobranza no logra cobrar el mes; (q4) tabla `compensation_rules` editable desde admin de
+Talento.
+
+**Hallazgo:** ya existía `talento_compensation_rules` (Fase 2 del motor, commit `1e6c5241`) con
+`target_type` enum `technician/seller/counter/all` y un JSON `conditions` "extensible para fases
+futuras" — exactamente el punto de extensión que este item necesitaba. No hacía falta tabla nueva.
+
+**Implementado (aditivo, sin inventar montos/fórmulas):**
+- Migración `2026_08_27_200410_add_kpi_compensation_fields_to_talento_compensation_rules.php`:
+  amplía `target_type` con `accounting` (contabilidad) y `support` (atención a clientes) + agrega
+  `variable_type`, `kpi_key`, `formula_config` (json), `valid_from`/`valid_until`,
+  `monthly_cutoff_day`, `clawback_days`, `clawback_requires_collection` — todas nullable, sin
+  valores por defecto que inventen montos.
+- `TalentoCompensationRule` (modelo) + `TalentoCompensacionController` (validación) actualizados.
+- `TalentoCompensacion.vue` (`/talento/compensacion`): selector "Aplica a" ahora incluye
+  Contabilidad/Atención a clientes; sección opcional "Variable por KPI" (tipo, KPI, corte
+  mensual, vigencia, clawback en días + toggle "cobranza no cobra el mes").
+- `LiquidationService` **intacto** — no consume los campos nuevos todavía, sigue pagando
+  exactamente igual a todos los roles (sin regresión, sin gasto nuevo).
+
+**Verificado:** migración corrida en dev, create/fetch/delete por tinker con los campos nuevos,
+`php -l` limpio, rutas registradas, `npm-build.sh` compiló OK.
+
+**Sub-item #645** registrado para lo que NO cabía en esta vuelta (motor de cálculo real): de
+dónde sale cada KPI, los números reales de la fórmula (los debe dar Irving), el ciclo mensual día
+25 (hoy el motor es semanal vía `PayWeek`), y la evaluación real del clawback contra datos de
+clientes/facturación.
+
+**Commits:** `f7508751` (migración) + `ffc5ea32` (modelo/controller) + `cd186e33` (UI) en
+`circuito/item-121-decision-talento-definir-reglas-de-co`, encolados al merge-runner.
