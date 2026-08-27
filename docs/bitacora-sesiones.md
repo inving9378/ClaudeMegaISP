@@ -2606,3 +2606,53 @@ caliente `tmux set -g mouse on` + `history-limit 50000` y actualizado `~/.tmux.c
 ratón = **Shift + arrastrar** (salta el reporte de ratón de tmux, selección nativa del navegador).
 Revertir: `tmux set -g mouse off`. ⚠️ `history-limit` sólo aplica a paneles NUEVOS (tmux 3.3a no
 redimensiona el buffer de un panel vivo, ni con `set -p`) → para los 50 000, `Ctrl-b c`.
+
+## 2026-08-27 12:05 — Aprobación muda del autopilot (arreglada) + permisos de `.env`
+
+**Aprobación muda — commit `7b491057`.** Eran **tres** defectos, no dos (el tercero apareció al
+abrir el código y es el que volvía poco fiable todo el diagnóstico):
+
+1. `AutopilotService::aplicar()` llamaba `responderPregunta()` para todas las respuestas **antes**
+   de consultar `TorreAutomationPolicy::estadoInicial()`. Si la política rechazaba, el brief quedaba
+   «100 % contestado» por el autopilot y el item parecía decidido sin poder despachar nunca.
+   (`responderPregunta` sólo muta en memoria, pero cualquier `save()` posterior lo persistía.)
+2. `AutopilotCommand` ramificaba sobre `$r['auto']` (lo que el autopilot OPINÓ) en vez de
+   `$r['aplicado']` → de ahí el `auto-ejecutado ()` con estado vacío y el conteo que se contradecía.
+3. **El que faltaba:** el `--dry` llamaba a `evaluar()` a secas, que **no consulta la política**, así
+   que dry y real respondían preguntas distintas por construcción.
+
+Arreglo: `evaluarConPolitica()` como **punto único del veredicto**, usado por los tres consumidores
+(dry, real y el checkpoint de `RebriefBandejaCommand`, que tenía el mismo defecto). En `aplicar()` el
+gate va primero y no se escribe nada hasta pasarlo.
+
+**Trampa de nomenclatura de fondo:** `frontera_dura` significa dos cosas. En `evaluar()` sale de
+`tieneFrenoHumano()` (freno puesto SOBRE el item); en la política sale de `fronteraDuraDeItem()` (el
+item TOCA dinero/producción/borrado). Un item pasaba el primero y moría en el segundo sin que el
+reporte lo dijera. El segundo ahora es `frontera_dura_politica` y nombra la frontera concreta.
+
+Antes: `2 de 109 tomados` con cero movidos. Ahora: `0 de 109`, motivos sumando 51+38+8+7+2+2+1=109.
+Verificado: rechazo sin una sola escritura en BD (fila comparada antes/después); **camino de éxito
+intacto** (brief válido inyectado en transacción → `aplicado=true`, `aprobado_revisor`, respuesta
+registrada, `aprobado_por=autopilot`, rollback). Candado nuevo
+`tests/Unit/Modules/Addons/Roadmap/AutopilotNoAprobaMudoTest.php` (3 tests, inspección de fuente, no
+bootea Laravel ni toca BD); los 62 candados puros del módulo Roadmap en verde.
+
+**Permisos de `.env` (decisión de Irving en sesión).** Estaba en **`777 meganet:meganet`** —
+cualquier usuario del box podía leerlo **y reescribirlo**: credenciales de BD, tokens del circuito,
+llaves de OpenPay. Ahora **`640 meganet:www-data`**. Verificado en los tres consumidores: web como
+`www-data` (HTTP 200 y CSRF generado ⇒ leyó `APP_KEY`), `artisan` como `meganet` (602 items), y un
+worktree del circuito (`wt-3`). Los 8 worktrees son **symlinks** al mismo archivo, no copias — se
+cubrieron de una.
+
+También: `.env.backup-20260602-132504` (7 valores reales) y `.env.pilot` (8) estaban en `777` →
+**`600`**. `.env.example` sólo trae marcadores (`tu_pas…`), se deja. El respaldo que había creado
+esta sesión (`.env.bak-20260827_053559`) estaba **sin ignorar** — `.gitignore` tenía `.env.backup*`
+pero no `.env.bak*` — se movió a `~/env-megaisp.bak-…` con `600` y se agregó el patrón al
+`.gitignore`. Nunca llegó a staging porque el `git add` de este repo es selectivo por archivo.
+
+⚠️ **HALLAZGO ABIERTO, NO tocado:** **7 811 de 18 126 archivos del repo (43 %) son escribibles por
+cualquier usuario** (excluyendo `vendor/`, `node_modules/`, `.git/`). Incluye `config/*.php`,
+`composer.json` y `phpunit.xml` — un `config/*.php` world-writable es escalada de privilegios local:
+cualquier usuario del box inyecta código que corre como `www-data`. Es condición de todo el árbol,
+no un descuido suelto; corregirlo en masa puede romper git/worktrees/deploy, así que necesita su
+propio plan y una ventana. Queda registrado, sin ejecutar.
