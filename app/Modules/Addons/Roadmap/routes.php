@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
 use App\Modules\Addons\Roadmap\Controllers\TorreCompuertasController;
+use App\Modules\Addons\Roadmap\Controllers\JarvisIdentidadController;
 use App\Modules\Addons\Roadmap\Controllers\TorreFronterasController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapExternalController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMcpController;
@@ -121,6 +122,10 @@ Route::middleware(['web', 'auth'])
         // términos, efecto, válvula, sus dos guardas y el techo del autopilot con su simulación.
         // Toda escritura exige `torre.config.edit` + `confirmado=true` (el segundo paso lo valida
         // el servidor, no la UI).
+        // #651 — IDENTIDAD DE JARVIS: catálogo de iconos y el elegido (ajuste GLOBAL).
+        Route::get('/torre/jarvis-identidad',  [JarvisIdentidadController::class, 'identidad']);
+        Route::post('/torre/jarvis-identidad', [JarvisIdentidadController::class, 'guardar']);
+
         Route::get('/torre/fronteras',                    [TorreFronterasController::class, 'index']);
         Route::post('/torre/fronteras/categoria',         [TorreFronterasController::class, 'categoria']);
         Route::post('/torre/fronteras/termino',           [TorreFronterasController::class, 'termino']);
@@ -218,3 +223,14 @@ Route::middleware(['web', 'auth'])
         Route::post('/items/{id}/memory/report',  [RoadmapMemoryController::class, 'appendReport']);
         Route::post('/items/{id}/memory/raw',     [RoadmapMemoryController::class, 'replaceRaw']);
     });
+
+/*
+ * ESTADO DE JARVIS PARA LA BURBUJA (#651).
+ *
+ * Va aparte del bloque `api/roadmap` a propósito: lo consulta la burbuja desde CUALQUIER pantalla
+ * del sistema, así que no puede colgar de los permisos de la Torre — quien ve la burbuja ve su
+ * color. Sólo necesita sesión. No expone ni un dato de negocio: cuántas decisiones esperan a Irving
+ * y hace cuánto que el medidor no late.
+ */
+Route::middleware(['web', 'auth'])
+    ->get('/api/jarvis/estado', [JarvisIdentidadController::class, 'estado']);
