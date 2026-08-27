@@ -153,6 +153,8 @@
                   <option value="technician">Técnico</option>
                   <option value="seller">Vendedor</option>
                   <option value="counter">Mostrador</option>
+                  <option value="accounting">Contabilidad</option>
+                  <option value="support">Atención a clientes</option>
                   <option value="all">Todos</option>
                 </select>
               </div>
@@ -186,6 +188,55 @@
                   <label class="form-check-label" for="ruleActive">Activa</label>
                 </div>
               </div>
+              <!-- Item #121 — marco de compensación por KPI para roles no-técnicos (opcional,
+                   solo se guarda si se llena; el motor de liquidación NO lo consume todavía). -->
+              <div class="col-12">
+                <hr class="my-1">
+                <div class="small text-muted mb-2">
+                  <i class="fa fa-info-circle me-1"></i>Variable por KPI (roles no-técnicos) — opcional.
+                  Deja en blanco para el modelo de cuota/unidad de siempre (técnicos).
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Tipo de variable</label>
+                <select v-model="ruleModal.variable_type" class="form-select">
+                  <option :value="null">— Ninguno (cuota/unidad) —</option>
+                  <option value="comision_kpi">Comisión por KPI</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">KPI</label>
+                <input v-model="ruleModal.kpi_key" type="text" class="form-control"
+                       placeholder="p.ej. activaciones_netas, recuperado_cobranza, csat_tickets_cerrados"
+                       :disabled="!ruleModal.variable_type">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Corte mensual (día)</label>
+                <input v-model="ruleModal.monthly_cutoff_day" type="number" min="1" max="31"
+                       class="form-control" placeholder="25" :disabled="!ruleModal.variable_type">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Vigente desde</label>
+                <input v-model="ruleModal.valid_from" type="date" class="form-control" :disabled="!ruleModal.variable_type">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Vigente hasta</label>
+                <input v-model="ruleModal.valid_until" type="date" class="form-control" :disabled="!ruleModal.variable_type">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Clawback (días)</label>
+                <input v-model="ruleModal.clawback_days" type="number" min="0" class="form-control"
+                       placeholder="90" :disabled="!ruleModal.variable_type">
+              </div>
+              <div class="col-md-3">
+                <div class="form-check mt-4">
+                  <input v-model="ruleModal.clawback_requires_collection" type="checkbox"
+                         class="form-check-input" id="ruleClawbackCobranza" :disabled="!ruleModal.variable_type">
+                  <label class="form-check-label small" for="ruleClawbackCobranza">
+                    + clawback si cobranza no cobra el mes
+                  </label>
+                </div>
+              </div>
               <div v-if="ruleModal.error" class="col-12">
                 <div class="alert alert-danger py-2 small mb-0">{{ ruleModal.error }}</div>
               </div>
@@ -212,8 +263,7 @@ export default {
     return {
       rules: [],
       loadingRules: true,
-      ruleModal: { show: false, id: null, name: '', target_type: 'technician', base_salary: 0,
-                   period: 'weekly', weekly_quota_units: 0, active: true, error: '', saving: false },
+      ruleModal: this.blankRuleModal(),
       assign: {
         search: '', suggestions: [], colaborador_id: null, colaborador_name: '',
         rule_id: null, rulePreview: null, assigned_at: new Date().toISOString().substring(0,10),
@@ -234,14 +284,24 @@ export default {
         this.rules = data ?? [];
       } finally { this.loadingRules = false; }
     },
+    blankRuleModal() {
+      return { show: false, id: null, name: '', target_type: 'technician', base_salary: 0,
+               period: 'weekly', weekly_quota_units: 0, active: true, error: '', saving: false,
+               variable_type: null, kpi_key: '', valid_from: '', valid_until: '',
+               monthly_cutoff_day: '', clawback_days: '', clawback_requires_collection: false };
+    },
     openCreateRule() {
-      this.ruleModal = { show: true, id: null, name: '', target_type: 'technician', base_salary: 0,
-                         period: 'weekly', weekly_quota_units: 0, active: true, error: '', saving: false };
+      this.ruleModal = { ...this.blankRuleModal(), show: true };
     },
     openEditRule(r) {
-      this.ruleModal = { show: true, id: r.id, name: r.name, target_type: r.target_type,
-                         base_salary: r.base_salary, period: r.period,
-                         weekly_quota_units: r.weekly_quota_units, active: r.active, error: '', saving: false };
+      this.ruleModal = { ...this.blankRuleModal(), show: true, id: r.id, name: r.name,
+                         target_type: r.target_type, base_salary: r.base_salary, period: r.period,
+                         weekly_quota_units: r.weekly_quota_units, active: r.active,
+                         variable_type: r.variable_type ?? null, kpi_key: r.kpi_key ?? '',
+                         valid_from: r.valid_from ?? '', valid_until: r.valid_until ?? '',
+                         monthly_cutoff_day: r.monthly_cutoff_day ?? '',
+                         clawback_days: r.clawback_days ?? '',
+                         clawback_requires_collection: !!r.clawback_requires_collection };
     },
     async saveRule() {
       this.ruleModal.error = '';
@@ -253,6 +313,16 @@ export default {
           base_salary: parseFloat(this.ruleModal.base_salary),
           period: this.ruleModal.period, weekly_quota_units: parseInt(this.ruleModal.weekly_quota_units),
           active: this.ruleModal.active,
+          variable_type: this.ruleModal.variable_type || null,
+          kpi_key: this.ruleModal.variable_type ? (this.ruleModal.kpi_key || null) : null,
+          valid_from: this.ruleModal.variable_type ? (this.ruleModal.valid_from || null) : null,
+          valid_until: this.ruleModal.variable_type ? (this.ruleModal.valid_until || null) : null,
+          monthly_cutoff_day: this.ruleModal.variable_type && this.ruleModal.monthly_cutoff_day
+            ? parseInt(this.ruleModal.monthly_cutoff_day) : null,
+          clawback_days: this.ruleModal.variable_type && this.ruleModal.clawback_days
+            ? parseInt(this.ruleModal.clawback_days) : null,
+          clawback_requires_collection: this.ruleModal.variable_type
+            ? !!this.ruleModal.clawback_requires_collection : null,
         };
         if (this.ruleModal.id) {
           await axios.put(`/talento/api/reglas/${this.ruleModal.id}`, payload);
@@ -308,7 +378,7 @@ export default {
         this.assign.error = e.response?.data?.message ?? 'Error al asignar.';
       } finally { this.assign.saving = false; }
     },
-    targetLabel(t) { return { technician: 'Técnico', seller: 'Vendedor', counter: 'Mostrador', all: 'Todos' }[t] ?? t; },
+    targetLabel(t) { return { technician: 'Técnico', seller: 'Vendedor', counter: 'Mostrador', accounting: 'Contabilidad', support: 'Atención a clientes', all: 'Todos' }[t] ?? t; },
     periodLabel(p) { return { weekly: 'Semanal', biweekly: 'Quincenal', monthly: 'Mensual' }[p] ?? p; },
     fmt(n) { return Number(n ?? 0).toFixed(2); },
     formatDate(d) {
