@@ -3,7 +3,6 @@
 namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
-use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
 use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\Log;
 
@@ -374,17 +373,15 @@ class ThomasService
      */
     public function fronteraDuraDetalle(string $texto): array
     {
-        $heno = mb_strtolower(preg_replace('/[ \t]+/', ' ', DetectorTerminos::limpiar($texto)));
-
-        foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
-            foreach ((array) $terminos as $t) {
-                if (DetectorTerminos::dispara($heno, mb_strtolower((string) $t))) {
-                    return ['categoria' => $categoria, 'termino' => (string) $t];
-                }
-            }
-        }
-
-        return ['categoria' => null, 'termino' => null];
+        // 2026-08-27 (#648) — la LISTA dejó de vivir sólo en `config/circuito.php` y pasó a
+        // `circuito_fronteras` + `circuito_frontera_terminos`, gobernables desde la pestaña
+        // «Configuración» de la Torre. `FronterasService` es el acceso único y **cae a la config
+        // exactamente como antes** si la tabla no existe o está vacía: estrenar un panel no puede
+        // ser el motivo de que la frontera dura deje de existir.
+        //
+        // La detección NO cambió: sigue siendo `DetectorTerminos` (anclado a palabra, sin líneas de
+        // proceso, con ventana de negación), determinista y sin modelo.
+        return app(FronterasService::class)->detectar($texto);
     }
 
     /**
@@ -402,13 +399,84 @@ class ThomasService
      */
     public function fronteraDuraDeItem(RoadmapItem $item): ?string
     {
-        if ($item->frontera_valvula === 'mencion') {
-            return null;
-        }
+        return $this->fronteraDuraDeItemDetalle($item)['categoria'];
+    }
 
-        return $this->categoriaFronteraDura(
+    /**
+     * LO MISMO, con todo lo que hace falta para explicarlo en pantalla y en la bitácora.
+     *
+     * Devuelve la categoría EFECTIVA (la que retiene el item, o `null` si nada lo retiene) junto a
+     * la categoría DETECTADA, el término exacto, el efecto vigente y por qué el resultado es ése.
+     * Los dos campos son distintos a propósito: un item puede disparar `dinero` y aun así no quedar
+     * retenido —porque la categoría está en modo `avisar`, o porque la válvula lo ablandó— y esa
+     * diferencia es justo lo que antes no se veía por ningún lado.
+     *
+     * ── EL MODO DE LA VÁLVULA (#648, decisión de Irving) ────────────────────────────────────────
+     *
+     * Hasta hoy un veredicto `mencion` hacía DESAPARECER la frontera para ese item, y para siempre
+     * (el sello queda en la fila). O sea: el único control verificado del circuito tenía un
+     * interruptor de apagado, y el interruptor lo accionaba un modelo.
+     *
+     *   · `ablandar` (por defecto ahora): `mencion` baja la frontera a «requiere Irving», NUNCA a
+     *     «pasa». El modelo puede decir «sólo lo menciona» y el efecto es que Irving LO VE.
+     *   · `apagar`: el comportamiento anterior, conservado y seleccionable.
+     *
+     * @return array{categoria:?string, categoria_detectada:?string, termino:?string, efecto:?string, ablandada:bool, motivo:string}
+     */
+    public function fronteraDuraDeItemDetalle(RoadmapItem $item): array
+    {
+        $det = $this->fronteraDuraDetalle(
             (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt
         );
+
+        $vacio = [
+            'categoria' => null, 'categoria_detectada' => null, 'termino' => null,
+            'efecto' => null, 'ablandada' => false, 'motivo' => 'No dispara ninguna frontera activa.',
+        ];
+
+        if ($det['categoria'] === null) {
+            return $vacio;
+        }
+
+        $base = [
+            'categoria_detectada' => $det['categoria'],
+            'termino'             => $det['termino'],
+            'efecto'              => $det['efecto'],
+            'ablandada'           => false,
+        ];
+
+        // EFECTO `avisar`: la categoría dispara y se registra, pero no retiene a nadie. Es la
+        // posición más suave de la perilla y por eso se nombra explícitamente en el motivo — un
+        // item que pasa sin freno tiene que decir por qué pasó.
+        if ($det['efecto'] === 'avisar') {
+            return $base + [
+                'categoria' => null,
+                'motivo'    => "Dispara «{$det['termino']}» ({$det['categoria']}), pero esa categoría está en modo «sólo avisar»: no retiene.",
+            ];
+        }
+
+        if ($item->frontera_valvula === 'mencion') {
+            $modo = app(TorreConfigService::class)->get()->valvulaModo();
+
+            if ($modo === 'apagar') {
+                return $base + [
+                    'categoria' => null,
+                    'ablandada' => true,
+                    'motivo'    => "La válvula lo selló como MENCIÓN y su modo es «apagar»: la frontera «{$det['categoria']}» no se evalúa para este item.",
+                ];
+            }
+
+            return $base + [
+                'categoria' => $det['categoria'],
+                'ablandada' => true,
+                'motivo'    => "La válvula lo selló como MENCIÓN, así que la frontera «{$det['categoria']}» se ablandó a «requiere Irving» — nunca a «pasa».",
+            ];
+        }
+
+        return $base + [
+            'categoria' => $det['categoria'],
+            'motivo'    => "Dispara «{$det['termino']}» ({$det['categoria']}), efecto «{$det['efecto']}».",
+        ];
     }
 
     /**

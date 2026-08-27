@@ -70,7 +70,7 @@ class AutopilotService
      * daría "kill switch" y la herramienta de auditoría quedaría inútil justo cuando más se usa
      * (antes de aflojar la política). Ninguna vía que ESCRIBA lo activa.
      */
-    public function evaluar(RoadmapItem $item, bool $ignorarPausa = false): array
+    public function evaluar(RoadmapItem $item, bool $ignorarPausa = false, ?string $topeSimulado = null): array
     {
         $no = fn (string $motivo, string $detalle) => [
             'auto' => false, 'motivo' => $motivo, 'detalle' => $detalle,
@@ -104,8 +104,14 @@ class AutopilotService
             return $no('sin_nivel', 'El item no tiene nivel de riesgo asignado: sin triar no se ejecuta solo.');
         }
 
-        $tope = strtoupper((string) config('circuito.autopilot.max_nivel', 'B'));
-        $tope = isset(self::NIVELES[$tope]) ? $tope : 'B';   // valor raro en config → cae al tope seguro
+        // #648 — el tope se resuelve en UN solo lugar (`TorreAutomationPolicy::subTecho`), que es
+        // quien sabe si manda la perilla de la pantalla (`torre_config.autopilot_max_nivel`) o la
+        // config. Leerlo aquí a pelo dejaría la perilla a medio cablear: el panel diría `B` y esta
+        // puerta seguiría dejando pasar `C`.
+        $tope = $topeSimulado !== null && isset(self::NIVELES[$topeSimulado])
+            ? $topeSimulado
+            : (string) app(TorreAutomationPolicy::class)->subTecho('autopilot');
+        $tope = isset(self::NIVELES[$tope]) ? $tope : 'B';   // valor raro → tope seguro, nunca el permisivo
         if (self::NIVELES[$nivel] > self::NIVELES[$tope]) {
             return $no('nivel_sobre_tope', "Nivel {$nivel} por encima del tope del autopilot ({$tope}): decide Irving.");
         }
@@ -212,9 +218,9 @@ class AutopilotService
      *
      * Con un solo veredicto, lo que promete el dry-run es exactamente lo que hace el real.
      */
-    public function evaluarConPolitica(RoadmapItem $item, bool $ignorarPausa = false): array
+    public function evaluarConPolitica(RoadmapItem $item, bool $ignorarPausa = false, ?string $topeSimulado = null): array
     {
-        $v = $this->evaluar($item, $ignorarPausa);
+        $v = $this->evaluar($item, $ignorarPausa, $topeSimulado);
         if (! $v['auto']) {
             return $v;
         }
@@ -223,7 +229,7 @@ class AutopilotService
         // `min(politicaBase, autopilot.max_nivel)`. El gate de nivel de `evaluar()` es el mismo
         // número, pero los topes duros y el override sólo viven aquí.
         $policy = app(TorreAutomationPolicy::class);
-        $estado = $policy->estadoInicial($item, 'autopilot');
+        $estado = $policy->estadoInicial($item, 'autopilot', $topeSimulado);
 
         if ($estado === 'requiere_irving') {
             // Nombrar la frontera concreta (`borrar_datos`, `dinero`, …) en vez de un genérico:
@@ -318,5 +324,72 @@ class AutopilotService
                 'item' => $item->id, 'error' => mb_strimwidth($e->getMessage(), 0, 200, '…'),
             ]);
         }
+    }
+
+    /**
+     * ¿CUÁNTOS ITEMS CALIFICARÍAN CON EL TECHO EN A, EN B Y EN C? (#648)
+     *
+     * La perilla del techo del autopilot es la que más consecuencia tiene de todo el panel, y hasta
+     * hoy se movía a ciegas. El dato existía —Irving lo midió el 2026-08-27: **en A calificaban 0 de
+     * 109**— pero había que pedirlo a mano. Aquí va junto a la perilla, que es donde sirve: antes de
+     * moverla, no después.
+     *
+     * Usa `evaluarConPolitica()` con `$topeSimulado`, es decir **el mismo veredicto que aplica el
+     * real**, no una cuenta paralela. Ésa fue la lección del `--dry` que prometía 2 y movía 0: dos
+     * veredictos para lo mismo terminan discrepando, y el que se enseña en pantalla es el que menos
+     * se verifica. `ignorarPausa = true` porque con el circuito pausado todo daría «kill switch» y
+     * la herramienta quedaría inútil justo cuando más se usa — antes de aflojar la política.
+     *
+     * SIMULACIÓN PURA: no escribe nada y no toca el techo real.
+     */
+    public function simulacionTechos(): array
+    {
+        $niveles = ['A', 'B', 'C'];
+        $policy  = app(TorreAutomationPolicy::class);
+
+        $candidatos = [];
+        RoadmapItem::query()
+            ->whereNull('archivado_at')
+            ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
+            ->chunkById(200, function ($items) use (&$candidatos) {
+                foreach ($items as $item) {
+                    if ($item->estacion === 'bandeja') {
+                        $candidatos[] = $item;
+                    }
+                }
+            });
+
+        $porNivel = [];
+        foreach ($niveles as $tope) {
+            $califican = 0;
+            $motivos   = [];
+            foreach ($candidatos as $item) {
+                $v = $this->evaluarConPolitica($item, true, $tope);
+                if ($v['auto'] ?? false) {
+                    $califican++;
+                } else {
+                    $m = (string) ($v['motivo'] ?? 'desconocido');
+                    $motivos[$m] = ($motivos[$m] ?? 0) + 1;
+                }
+            }
+            arsort($motivos);
+            $porNivel[$tope] = [
+                'califican'     => $califican,
+                'de'            => count($candidatos),
+                'top_motivos'   => array_slice($motivos, 0, 4, true),
+            ];
+        }
+
+        $cfg = app(TorreConfigService::class)->get();
+
+        return [
+            'calculado_en'  => now()->toDateTimeString(),
+            'candidatos'    => count($candidatos),
+            'tope_vigente'  => $policy->subTecho('autopilot'),
+            'fuente'        => $cfg->autopilotMaxNivelFuente(),
+            'efectivo'      => $policy->nivelEfectivo('autopilot'),
+            'politica_base' => $policy->politicaBase(),
+            'por_nivel'     => $porNivel,
+        ];
     }
 }

@@ -96,30 +96,54 @@ class TorreAutomationPolicy
      * Nivel EFECTIVO de un actor = `min(techo_global, sub-techo del actor)`.
      * Un actor sin sub-techo declarado queda gobernado sólo por el global.
      */
-    public function nivelEfectivo(string $actor): ?string
+    public function nivelEfectivo(string $actor, ?string $subTechoSimulado = null): ?string
     {
         $global = $this->politicaBase();
         if ($global === null) {
             return null;   // modo manual: no hay actor que apruebe nada
         }
 
-        $clave = self::SUBTECHOS[$actor] ?? null;
-        if ($clave === null) {
+        // `$subTechoSimulado` es SÓLO para el simulador de la pantalla («¿cuántos items calificarían
+        // si moviera la perilla a B?»). Ninguna vía que ESCRIBA lo pasa: la simulación no puede
+        // convertirse por descuido en una forma de saltarse el techo real.
+        $sub = $subTechoSimulado !== null && isset(self::ORDEN[$subTechoSimulado])
+            ? $subTechoSimulado
+            : $this->subTecho($actor);
+        if ($sub === null) {
             return $global;
-        }
-
-        $sub = strtoupper((string) config($clave, 'B'));
-        if (! isset(self::ORDEN[$sub])) {
-            $sub = 'B';   // valor raro en config → cae al tope seguro, nunca al permisivo
         }
 
         return self::ORDEN[$sub] < self::ORDEN[$global] ? $sub : $global;
     }
 
-    /** ¿Este actor puede aprobar un item de este nivel? */
-    public function permite(string $actor, ?string $nivel): bool
+    /**
+     * El sub-techo declarado de un actor, o `null` si no tiene (sólo lo gobierna el global).
+     *
+     * #648 — el del AUTOPILOT es el único movible desde la pantalla: `torre_config.autopilot_max_nivel`
+     * gana sobre `config/circuito.php` cuando está puesto. Se resuelve en un solo lugar para que no
+     * haya dos sitios decidiendo cuál manda — que es cómo `autopilot.max_nivel` acabó gobernando a
+     * todos los actores con un nombre que decía otra cosa.
+     */
+    public function subTecho(string $actor): ?string
     {
-        $techo = $this->nivelEfectivo($actor);
+        if ($actor === 'autopilot') {
+            return $this->config->get()->autopilotMaxNivel();
+        }
+
+        $clave = self::SUBTECHOS[$actor] ?? null;
+        if ($clave === null) {
+            return null;
+        }
+
+        $sub = strtoupper((string) config($clave, 'B'));
+
+        return isset(self::ORDEN[$sub]) ? $sub : 'B';   // valor raro → tope seguro, nunca el permisivo
+    }
+
+    /** ¿Este actor puede aprobar un item de este nivel? */
+    public function permite(string $actor, ?string $nivel, ?string $subTechoSimulado = null): bool
+    {
+        $techo = $this->nivelEfectivo($actor, $subTechoSimulado);
         if ($techo === null || $nivel === null || ! isset(self::ORDEN[$nivel])) {
             return false;   // sin nivel no está triado: no se ejecuta solo
         }
@@ -142,7 +166,7 @@ class TorreAutomationPolicy
      * autorización es Irving mismo) ni la vía externa (`RoadmapCircuitoService::guard()`, token
      * Cowork/MCP). Esas dos quedan fuera por decisión explícita.
      */
-    public function estadoInicial(RoadmapItem $item, string $actor): string
+    public function estadoInicial(RoadmapItem $item, string $actor, ?string $subTechoSimulado = null): string
     {
         // (1-4) FRONTERA DURA. Gana siempre, por delante de todo. No se levanta desde ninguna
         // configuración: ni con `autonomo`, ni con `override = auto`.
@@ -176,7 +200,7 @@ class TorreAutomationPolicy
         }
 
         // (8) Matriz: nivel del item contra el nivel efectivo del actor.
-        return $this->permite($actor, $item->nivel_riesgo)
+        return $this->permite($actor, $item->nivel_riesgo, $subTechoSimulado)
             ? $this->estadoAprobado($item)
             : 'requiere_irving';
     }
@@ -280,7 +304,7 @@ class TorreAutomationPolicy
 
         $actores = [];
         foreach (array_keys(self::SUBTECHOS) as $actor) {
-            $sub = strtoupper((string) config(self::SUBTECHOS[$actor], 'B'));
+            $sub = (string) $this->subTecho($actor);
             $actores[$actor] = [
                 'sub_techo' => $sub,
                 'efectivo'  => $this->nivelEfectivo($actor),
@@ -310,7 +334,10 @@ class TorreAutomationPolicy
             'overrides_excedentes' => $this->overridesPorEncimaDeLaBase(),
             'actores'              => $actores,
             'matriz'               => $matriz,
-            'topes_duros'          => array_keys((array) config('circuito.thomas.escalamiento', [])),
+            // #648 — la lista viva, no la de config: desde la pestaña «Configuración» se pueden
+            // apagar categorías, y un panel que siguiera listando la config mostraría fronteras
+            // que ya no están vigentes.
+            'topes_duros'          => array_keys(app(FronterasService::class)->mapa()),
             'auditor'              => [
                 'activo'          => $cfg->auditor_activo,
                 'max_por_corrida' => $cfg->auditor_max_por_corrida,
