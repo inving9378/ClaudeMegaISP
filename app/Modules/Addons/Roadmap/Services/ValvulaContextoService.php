@@ -50,7 +50,7 @@ class ValvulaContextoService
      *         `ok=false` significa "no se pudo preguntar" — el llamador DEBE conservar el veredicto
      *         del keyword. NUNCA devuelve `afloja=true` sin una respuesta afirmativa del modelo.
      */
-    public function evaluar(RoadmapItem $item, string $termino, bool $estricto = false): array
+    public function evaluar(RoadmapItem $item, string $termino, bool $estricto = false, ?string $categoria = null): array
     {
         $noSePudo = fn (string $razon) => [
             'afloja' => false, 'ok' => false, 'veredicto' => null, 'razon' => $razon, 'modelo' => null,
@@ -76,7 +76,7 @@ class ValvulaContextoService
                 // Clasificación binaria con una frase de razón: no necesita más.
                 'max_tokens' => (int) config('circuito.valvula_contexto.max_tokens', 300),
                 'system'     => $this->systemPrompt($estricto),
-                'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, $termino)]],
+                'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, $termino, $categoria)]],
             ]);
 
             $texto = '';
@@ -138,9 +138,9 @@ class ValvulaContextoService
      *
      * @return array{afloja:bool, ok:bool, veredicto:?string, razon:string, modelo:?string}
      */
-    public function evaluarNacimiento(RoadmapItem $item, string $termino): array
+    public function evaluarNacimiento(RoadmapItem $item, string $termino, ?string $categoria = null): array
     {
-        $r = $this->evaluar($item, $termino, true);
+        $r = $this->evaluar($item, $termino, true, $categoria);
 
         // Doble candado del lado de acá: aunque el parser dejara pasar algo raro, sólo un `mencion`
         // con `seguro=true` afloja. La duda se resuelve SIEMPRE contra el item, nunca a su favor.
@@ -207,13 +207,23 @@ item; un falso "mencion" deja pasar trabajo sensible sin revisión. El costo no 
 TXT;
     }
 
-    private function userPrompt(RoadmapItem $item, string $termino): string
+    private function userPrompt(RoadmapItem $item, string $termino, ?string $categoria = null): string
     {
         // Se manda el texto YA LIMPIO de proceso, igual que lo vio el keyword: si se mandara el
         // texto crudo, el modelo juzgaría sobre líneas que el clasificador ni siquiera miró.
         $cuerpo = DetectorTerminos::limpiar((string) $item->description . "\n" . (string) $item->prompt);
 
-        return "TÉRMINO QUE DISPARÓ: «{$termino}»\n\n"
+        // El TÉRMINO es la palabra que `DetectorTerminos::dispara` hizo saltar; la CATEGORÍA es la
+        // familia a la que pertenece. Hasta el 2026-08-27 aquí se interpolaba la CATEGORÍA bajo la
+        // etiqueta «TÉRMINO QUE DISPARÓ», y el término real nunca llegaba: en #191 se preguntó por
+        // «dinero» —palabra ausente del texto— cuando lo que había disparado era «contratar».
+        // Preguntar por una palabra que no está en el documento empuja la respuesta a «mención».
+        $cat = $categoria !== null && $categoria !== ''
+            ? "CATEGORÍA DE FRONTERA DURA: «{$categoria}»\n"
+            : '';
+
+        return "TÉRMINO QUE DISPARÓ: «{$termino}»\n"
+            . $cat . "\n"
             . "TÍTULO DEL ITEM: {$item->title}\n"
             . "MÓDULO: " . ($item->modulo ?: '(sin módulo)') . "\n\n"
             . "TEXTO DEL ITEM:\n" . mb_strimwidth($cuerpo, 0, 12000, "\n…(recortado)")
