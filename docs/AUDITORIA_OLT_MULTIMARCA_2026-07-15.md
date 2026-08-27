@@ -198,3 +198,39 @@ dependencia externa. C e I son independientes y pueden intercalarse según prior
 - El supuesto de "Huawei + ZTE + V-SOL" como alcance final se confirma como **correcto en dirección,
   pero sin ningún trabajo previo en ZTE (salvo el diseño de junio, no ejecutado) ni en V-SOL (cero
   trabajo previo, ni siquiera análisis)**.
+
+---
+
+## 6. Re-verificación (2026-08-26) y plan convertido en items concretos
+
+> El item #57 de la Hoja de Ruta seguía abierto (pendiente de cierre) pese a que esta auditoría ya
+> existía en `main` desde 2026-07-14 (commit `fab6d983`). Al retomarlo, en vez de repetir la
+> auditoría desde cero se **re-verificó** que siga vigente y se completó la parte que faltaba: el
+> plan de la sección 4 en **items concretos de la Hoja de Ruta**, no solo en una tabla de este
+> documento.
+
+- **Código sin cambios de fondo desde el 15-jul:** único commit tocando el árbol OLT en ese lapso
+  es `6ed4fc37` (doc-only, decisión #416 — ver más abajo). `HuaweiDriver`, `SmartOltDriver`, los
+  drivers ZTE/V-SOL (inexistentes) y el estado de tests no cambiaron.
+- **Tests reconfirmados:** `php artisan test --filter=OltDriver` → **329 passed, 1524 assertions**
+  (idéntico a esta auditoría), sin tocar hardware.
+- **Actualización relevante no reflejada arriba:** la decisión de Irving **#416** (2026-07-15,
+  `docs/MULTIOLT_SAAS_DISENO.md` §10) eligió arquitectura **Híbrida** (BD por tenant, mismo proceso
+  Laravel) para el SaaS multi-tenant — y con eso **GR-6 (fila I de la tabla de la sección 4) dejó de
+  ser bloqueante** para el camino de negocio elegido; sigue siendo deuda técnica válida pero sin
+  urgencia. El resto del plan de la sección 4 sigue vigente sin cambios.
+- **Plan convertido en sub-items de la Hoja de Ruta** (cuelgan de #57, nacen `pendiente_revision`
+  como cualquier item — el circuito los triará normalmente):
+  - **#281** — Fases A+B: cerrar escritura Huawei real en laboratorio (alta/baja/suspensión, luego
+    perfil de velocidad/VLANs). Frontera dura: requiere OLT de laboratorio + Irving presente
+    (condición #415), no autoriza tocar producción.
+  - **#282** — Fase C: capacidades `Supports*` opcionales en `HuaweiDriver` (paridad con SmartOLT).
+    Depende de #281.
+  - **#283** — Fase D: decisión de negocio ZTE/V-SOL (¿hay ISP piloto con hardware real?). Es
+    decisión de Irving, no código — desbloquea las fases E-H (stubs y drivers reales) que **no** se
+    crearon todavía como items porque dependen de esta decisión (crear código antes sería trabajo
+    teórico sin forma de validarlo, tal como concluye la sección 3).
+  - **#284** — Fase I (opcional): GR-6, encapsular los modelos OLT en el módulo — reclasificada como
+    deuda técnica no bloqueante tras la decisión #416.
+
+*Sección 6 agregada por el circuito CC (item #57, worker wt-4) — 2026-08-26.*
