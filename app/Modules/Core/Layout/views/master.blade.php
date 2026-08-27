@@ -69,6 +69,12 @@
         {{-- Ayuda contextual por pantalla (panel flotante estilo Splynx) --}}
         <help-float url="{{ url('/') }}"></help-float>
     </div>
+    @can('usar-ia-chat')
+        <div id="ia-chat-float-root">
+            {{-- Chat IA flotante (#9 / #636): gateado por permiso, costo real de API por mensaje --}}
+            <ia-chat-float url="{{ url('/') }}"></ia-chat-float>
+        </div>
+    @endcan
     <!-- JAVASCRIPT -->
     @include('core-layout::vendor-scripts')
 
