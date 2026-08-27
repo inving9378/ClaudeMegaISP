@@ -93,10 +93,23 @@
           <span v-for="(f, fi) in r.archivos" :key="fi" class="ig-file">{{ f }}</span>
           <span v-if="!r.archivos.length" class="ig-meta">sin cambios respecto a main todavía.</span>
         </div>
-        <button v-if="r.diff" class="ig-difftoggle" @click="toggle(r.id)">
-          {{ open[r.id] ? '▾ Ocultar diff' : '▸ Ver diff' }}
+        <button v-if="r.tiene_diff" class="ig-difftoggle" @click="verDiff(r)">
+          {{ open[r.id] ? '▾ Ocultar cambios' : '▸ Ver los cambios' }}
         </button>
-        <pre v-if="open[r.id]" class="ig-diff">{{ r.diff }}</pre>
+
+        <p v-if="open[r.id] && diffCargando[r.id]" class="ig-meta">Cargando el diff…</p>
+        <p v-else-if="open[r.id] && diffError[r.id]" class="ig-meta">⚠ {{ diffError[r.id] }}</p>
+
+        <torre-diff
+          v-else-if="open[r.id] && diffs[r.id]"
+          :diff="diffs[r.id].diff"
+          :branch="r.branch"
+          :bytes="diffs[r.id].bytes"
+          :truncado="diffs[r.id].truncado"
+          :dark="darkMode"
+          :fullscreen="fullscreenId === r.id"
+          @fullscreen="fullscreenId = (fullscreenId === r.id ? null : r.id)"
+        />
       </div>
       <div v-else class="ig-meta">⚠ la rama no existe localmente.</div>
 
@@ -136,17 +149,23 @@
         ✓ {{ r.merge_result.salida }}
       </div>
     </div>
+
+    <!-- Fondo del visor a pantalla completa. Clic fuera o Escape lo cierran; el visor mismo
+         se pinta encima con `position:fixed` desde su propio estilo (scoped). -->
+    <div v-if="fullscreenId !== null" class="ig-diffbackdrop" @click="fullscreenId = null"></div>
   </div>
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 import { darkMode } from '../../../../hook/appConfig.js';
 import { useEscuchar, verMas } from './torreEscuchar.js';
+import TorreDiff from './TorreDiff.vue';
 
 export default {
     name: 'IntegracionRamas',
+    components: { TorreDiff },
     setup() {
         const loading = ref(true);
         const ramas = ref([]);
@@ -162,6 +181,38 @@ export default {
 
         const lvClass = (n) => (n === 'A' ? 'ig-lvA' : n === 'B' ? 'ig-lvB' : n === 'C' ? 'ig-lvC' : 'ig-lvNone');
         const toggle = (id) => { open[id] = !open[id]; };
+
+        // ── DIFF BAJO DEMANDA ────────────────────────────────────────────────────────────────
+        // El texto del diff ya no viaja en `/api/roadmap/integracion` (antes venían hasta 80,
+        // truncados a 20 000 caracteres, para que casi ninguno se abriera). Se pide al abrir,
+        // se cachea por item y se sirve completo hasta 400 KB.
+        const diffs = reactive({});
+        const diffCargando = reactive({});
+        const diffError = reactive({});
+        const fullscreenId = ref(null);
+
+        async function verDiff(r) {
+            open[r.id] = !open[r.id];
+            if (!open[r.id]) { if (fullscreenId.value === r.id) fullscreenId.value = null; return; }
+            if (diffs[r.id] || diffCargando[r.id]) return;   // ya cargado o en vuelo
+
+            diffCargando[r.id] = true;
+            diffError[r.id] = null;
+            try {
+                const { data } = await axios.get('/api/roadmap/integracion/diff', { params: { id: r.id } });
+                diffs[r.id] = { diff: data.diff || '', bytes: data.bytes || 0, truncado: !!data.truncado };
+            } catch (e) {
+                // Mismo criterio que el arreglo de TorreControl: distinguir "no contestó" de
+                // "contestó mal" de "contestó y fallé yo", en vez de un mensaje que culpe a la red.
+                const st = e?.response?.status;
+                diffError[r.id] = st ? `El servidor respondió ${st} al pedir el diff.`
+                    : e?.isAxiosError ? 'No se pudo contactar al servidor para traer el diff.'
+                    : `No pude procesar el diff (${e?.name || 'error'}: ${e?.message || 'sin mensaje'}).`;
+                console.error('[Integración] fallo al traer el diff:', e);
+            } finally {
+                diffCargando[r.id] = false;
+            }
+        }
         const algunoMergeado = computed(() => ramas.value.some((r) => r.merged));
         const fechaCorta = (iso) => { try { return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }); } catch (e) { return ''; } };
 
@@ -366,10 +417,17 @@ export default {
             }
         }
 
+        // Escape cierra el visor a pantalla completa. Se registra y se retira con el componente:
+        // un handler global sin `.off()` es justo el antipatrón que ya mordió en esta SPA
+        // (handlers zombis acumulados al navegar entre pantallas).
+        const onEsc = (e) => { if (e.key === 'Escape') fullscreenId.value = null; };
+
         onMounted(() => {
             load();
             initVoces();
+            document.addEventListener('keydown', onEsc);
         });
+        onBeforeUnmount(() => document.removeEventListener('keydown', onEsc));
 
         return {
             darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert,
@@ -377,6 +435,7 @@ export default {
             vista, archivadasCount, algunoMergeado, fechaCorta,
             verRadar, verHistorial, archivar, archivarMergeados, desarchivar,
             voces, vozTts, cambiarVoz, rateTts, cambiarRate,
+            verDiff, diffs, diffCargando, diffError, fullscreenId,
         };
     },
 };
@@ -414,7 +473,8 @@ export default {
 .ig-files{font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;}
 .ig-file{background:#f8fafc;border:1px solid var(--ig-line);border-radius:5px;padding:1px 6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;}
 .ig-difftoggle{margin-top:8px;font-size:12px;font-weight:600;background:none;border:none;color:var(--ig-accent);cursor:pointer;padding:0;}
-.ig-diff{margin-top:8px;max-height:340px;overflow:auto;background:#0b1220;color:#cbd5e1;border-radius:8px;padding:10px 12px;font-size:11.5px;line-height:1.4;white-space:pre;}
+/* `.ig-diff` (el <pre> crudo) se retiró: el diff lo pinta ahora <torre-diff>. */
+.ig-diffbackdrop{position:fixed;inset:0;z-index:10040;background:rgba(15,23,42,.55);}
 .ig-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0 0 32px;}
 .ig-btn{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;}
 .ig-btn:disabled{opacity:.6;cursor:default;}

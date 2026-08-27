@@ -177,6 +177,8 @@ Route::middleware(['web', 'auth'])
         // Ciclo de vida / archivo (#334): historial + archivar (individual/masivo) + desarchivar ("quiero verlo")
         Route::post('/circuito/worker-nombre',      [RoadmapController::class, 'workerNombre']);
         Route::post('/circuito/worker-avatar',      [RoadmapController::class, 'workerAvatar']);
+        // Diff completo de una rama, bajo demanda (el visor lo pide al abrir, no la lista al cargar).
+        Route::get('/integracion/diff',            [RoadmapController::class, 'integracionDiff']);
         Route::get('/integracion/historial',       [RoadmapController::class, 'integracionHistorial']);
         Route::post('/integracion/archivar',       [RoadmapController::class, 'integracionArchivar']);
         Route::post('/integracion/desarchivar',    [RoadmapController::class, 'integracionDesarchivar']);

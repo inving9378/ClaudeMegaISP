@@ -1870,7 +1870,9 @@ class RoadmapController extends Controller
             'existe_rama'       => $git['existe'],
             'stat'              => $git['stat'],
             'archivos'          => $git['archivos'],
-            'diff'              => $git['diff'],
+            // El TEXTO del diff ya no viaja aquí: lo sirve `integracionDiff()` cuando el visor lo
+            // abre. `tiene_diff` es lo único que la lista necesita para decidir si ofrece el botón.
+            'tiene_diff'        => $git['existe'] && ! empty($git['archivos']),
         ];
     }
 
@@ -2311,27 +2313,81 @@ class RoadmapController extends Controller
      * coincide con la punta de la rama y el diff daría vacío. Si NO está mergeada, se toma
      * respecto al punto de fork con main (merge-base..branch).
      */
-    private function diffRama(RoadmapItem $i): array
+    /**
+     * Diff de la rama de un item contra main (o del propio merge commit, si ya se integró).
+     *
+     * `$conDiff` — el TEXTO del diff sólo se calcula si alguien lo va a leer.
+     *
+     * Antes esto devolvía siempre el diff completo y `integracion()` lo pedía para **hasta 80
+     * ramas** en cada carga de la pestaña: 80 `git diff` por request y hasta ~1,6 MB de JSON que
+     * casi nadie miraba (el diff arranca colapsado). Ahora la lista pide sólo `--stat` y
+     * `--name-only` —que es lo que necesita para clasificar `sin_contenido` y pintar los chips de
+     * archivo— y el texto se sirve bajo demanda desde `integracionDiff()`, con un tope mucho más
+     * alto: 20 000 caracteres cortaban un diff mediano justo cuando se quería revisar.
+     */
+    private function diffRama(RoadmapItem $i, bool $conDiff = false, int $tope = 20000): array
     {
+        $vacio = ['existe' => false, 'stat' => '', 'archivos' => [], 'diff' => '', 'truncado' => false, 'bytes' => 0];
+
         if (! empty($i->merge_commit)) {
             if (! $this->git(['rev-parse', '--verify', $i->merge_commit])->isSuccessful()) {
-                return ['existe' => false, 'stat' => '', 'archivos' => [], 'diff' => ''];
+                return $vacio;
             }
             $range = "{$i->merge_commit}^1..{$i->merge_commit}";
         } else {
             if (! $this->git(['rev-parse', '--verify', $i->branch])->isSuccessful()) {
-                return ['existe' => false, 'stat' => '', 'archivos' => [], 'diff' => ''];
+                return $vacio;
             }
             $base  = trim($this->git(['merge-base', 'main', $i->branch])->getOutput());
             $range = "{$base}..{$i->branch}";
         }
         $stat  = trim($this->git(['diff', '--stat', $range])->getOutput());
         $files = array_values(array_filter(explode("\n", trim($this->git(['diff', '--name-only', $range])->getOutput()))));
-        $diff  = $this->git(['diff', $range])->getOutput();
-        if (mb_strlen($diff) > 20000) {
-            $diff = mb_substr($diff, 0, 20000) . "\n… (diff truncado; ver rama completa)";
+
+        if (! $conDiff) {
+            return ['existe' => true, 'stat' => $stat, 'archivos' => $files, 'diff' => '', 'truncado' => false, 'bytes' => 0];
         }
-        return ['existe' => true, 'stat' => $stat, 'archivos' => $files, 'diff' => $diff];
+
+        $diff     = $this->git(['diff', $range])->getOutput();
+        $bytes    = mb_strlen($diff);
+        $truncado = $bytes > $tope;
+        if ($truncado) {
+            $diff = mb_substr($diff, 0, $tope);
+        }
+
+        return ['existe' => true, 'stat' => $stat, 'archivos' => $files,
+            'diff' => $diff, 'truncado' => $truncado, 'bytes' => $bytes];
+    }
+
+    /**
+     * GET /api/roadmap/integracion/diff?id=N — el diff COMPLETO de una rama, para el visor.
+     *
+     * Va aparte de `integracion()` a propósito: el visor lo pide cuando el usuario abre una rama,
+     * no 80 veces por si acaso. Tope de 400 KB — por encima de eso ningún humano revisa en pantalla
+     * y el navegador sufre; el flag `truncado` hace que el visor lo diga en vez de mentir.
+     */
+    public function integracionDiff(Request $request): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = $request->validate(['id' => ['required', 'integer', 'min:1']]);
+        $item = RoadmapItem::findOrFail($data['id']);
+
+        abort_if(empty($item->branch), 404, 'El item no tiene rama.');
+
+        $git = $this->diffRama($item, true, 400000);
+
+        return response()->json([
+            'ok'       => true,
+            'id'       => $item->id,
+            'branch'   => $item->branch,
+            'existe'   => $git['existe'],
+            'stat'     => $git['stat'],
+            'archivos' => $git['archivos'],
+            'diff'     => $git['diff'],
+            'truncado' => $git['truncado'],
+            'bytes'    => $git['bytes'],
+        ]);
     }
 
     private function actor(): string
