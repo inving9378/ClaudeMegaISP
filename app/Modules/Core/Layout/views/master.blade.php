@@ -71,8 +71,21 @@
     </div>
     @can('usar-ia-chat')
         <div id="ia-chat-float-root">
-            {{-- Chat IA flotante (#9 / #636): gateado por permiso, costo real de API por mensaje --}}
+            {{-- Chat IA flotante (#9 / #636): gateado por permiso, costo real de API por mensaje.
+                 ⚠️ APAGADO desde el 2026-08-27 (#649): contestaba desde `ModuleRegistry::getAiContext()`
+                 —lo REGISTRADO— y declaraba no poder medir, mientras JARVIS mide de verdad. Dos
+                 asistentes con el mismo nombre se contradicen. Se apaga revocando `usar-ia-chat`;
+                 el montaje se deja porque partes de este panel se reusan en la Capa 1 del chat. --}}
             <ia-chat-float url="{{ url('/') }}"></ia-chat-float>
+        </div>
+    @endcan
+
+    @can('torre.config.view')
+        <div id="jarvis-burbuja-root">
+            {{-- LA CARA DE JARVIS (#651): presencia + estado en cualquier pantalla.
+                 El anillo es el interruptor de hombre muerto — si el medidor deja de latir, lo dice
+                 solo, en la esquina, sin que nadie entre a la Torre a buscarlo. --}}
+            <jarvis-burbuja url="{{ url('/') }}"></jarvis-burbuja>
         </div>
     @endcan
     <!-- JAVASCRIPT -->

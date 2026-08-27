@@ -639,6 +639,120 @@
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════════════════════════
+         SECCIÓN · JARVIS · IDENTIDAD
+         ══════════════════════════════════════════════════════════════════════════════════ -->
+    <div v-show="seccion === 'identidad'">
+      <p class="small text-muted">
+        La cara de JARVIS es <b>una sola para todos</b>: no es una preferencia por usuario. El mismo
+        icono se usa en la burbuja, en la cabecera del chat, en los avisos y en su pestaña — una
+        fuente, no cuatro imágenes para lo mismo.
+      </p>
+
+      <div v-if="!identidad" class="text-muted small">Leyendo el catálogo…</div>
+
+      <template v-else>
+        <div v-if="!identidad.para_burbuja.length && !identidad.solo_pantalla.length"
+             class="alert alert-warning py-2 px-3 small">
+          <b>Todavía no hay iconos importados.</b>
+          Deja los PNG en <code>{{ identidad.dir_origen }}</code> y corre
+          <code>php artisan jarvis:iconos-importar</code>. Mientras tanto la burbuja usa el icono de
+          fábrica — que es la verdad, no un hueco.
+        </div>
+
+        <template v-else>
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <div class="small text-muted">
+              Catálogo generado {{ identidad.generado_en || '—' }} ·
+              tamaños {{ identidad.tamanos.join(' · ') }} px
+            </div>
+            <div class="small text-muted">
+              <i class="bi bi-eye me-1"></i>Pasa el ratón por un icono: <b>la burbuja de la esquina
+              cambia de verdad</b> mientras miras. Sales y vuelve.
+            </div>
+          </div>
+
+          <!-- Grupo 1 · los que SÍ pueden ir en la burbuja -->
+          <div class="card mb-3">
+            <div class="card-header py-2"><b>Para la burbuja</b>
+              <span class="small text-muted ms-2">{{ identidad.para_burbuja.length }} disponibles</span>
+            </div>
+            <div class="card-body">
+              <div class="jvsel-grid">
+                <button v-for="ic in identidad.para_burbuja" :key="ic.slug" type="button"
+                        class="jvsel" :class="{ 'jvsel-on': identidad.elegido === ic.slug, 'jvsel-ruido': !ic.legible_48 }"
+                        :disabled="!puedeEditar"
+                        @mouseenter="previsualizar(ic)" @mouseleave="previsualizar(null)"
+                        @click="pedirConfirmacion({
+                          titulo: 'Poner «' + ic.nombre + '» como cara de JARVIS',
+                          cuerpo: 'Es un ajuste global: JARVIS se verá así para todos, en la burbuja, la cabecera, los avisos y su pestaña.'
+                                  + (ic.legible_48 ? '' : ' ⚠ Este diseño se marcó como RUIDOSO a 48 px: en la burbuja va a leerse mal.'),
+                          afloja: false,
+                          accion: () => guardarIcono(ic.slug)
+                        })">
+                  <img :src="ic.urls[96] || ic.urls[192]" :alt="ic.nombre" class="jvsel-img">
+                  <div class="jvsel-48">
+                    <img :src="ic.urls[48]" :alt="ic.nombre + ' a 48px'" width="48" height="48">
+                    <span class="jvsel-48-txt">48 px real</span>
+                  </div>
+                  <div class="jvsel-nombre">{{ ic.nombre }}</div>
+                  <span v-if="identidad.elegido === ic.slug" class="badge bg-success jvsel-badge">en uso</span>
+                  <span v-else-if="!ic.legible_48" class="badge bg-warning text-dark jvsel-badge">ruidoso en 48</span>
+                  <span v-else class="badge bg-light text-muted jvsel-badge">se lee bien</span>
+                  <div v-if="ic.nota" class="jvsel-nota">{{ ic.nota }}</div>
+                </button>
+              </div>
+
+              <button class="btn btn-sm btn-outline-secondary mt-3" :disabled="!puedeEditar || !identidad.elegido"
+                      @click="pedirConfirmacion({
+                        titulo: 'Volver al icono de fábrica',
+                        cuerpo: 'JARVIS deja de usar el icono elegido y vuelve al de fábrica.',
+                        afloja: false,
+                        accion: () => guardarIcono(null)
+                      })">Volver al de fábrica</button>
+            </div>
+          </div>
+
+          <!-- Grupo 2 · los que llevan la palabra escrita -->
+          <div v-if="identidad.solo_pantalla.length" class="card mb-3">
+            <div class="card-header py-2">
+              <b>Con la palabra JARVIS escrita</b>
+              <span class="small text-muted ms-2">
+                pantalla de inicio y documentación — <b>no se ofrecen para la burbuja</b>: a 48 px la
+                palabra es una mancha
+              </span>
+            </div>
+            <div class="card-body">
+              <div class="jvsel-grid">
+                <div v-for="ic in identidad.solo_pantalla" :key="ic.slug" class="jvsel jvsel-quieto">
+                  <img :src="ic.urls[192] || ic.urls[96]" :alt="ic.nombre" class="jvsel-img">
+                  <div class="jvsel-nombre">{{ ic.nombre }}</div>
+                  <span class="badge bg-secondary jvsel-badge">solo pantalla</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <div v-if="identidad.bitacora && identidad.bitacora.length" class="card mb-3">
+          <div class="card-header py-2"><b>Cambios de icono</b></div>
+          <div class="card-body p-0 table-responsive">
+            <table class="table table-sm mb-0">
+              <thead><tr><th>Cuándo</th><th>Quién</th><th>De</th><th>A</th></tr></thead>
+              <tbody>
+                <tr v-for="(b, i) in identidad.bitacora" :key="i">
+                  <td class="small text-nowrap">{{ b.cuando }}</td>
+                  <td class="small">{{ b.quien }}</td>
+                  <td class="small text-muted">{{ b.de }}</td>
+                  <td class="small">{{ b.a }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════════════
          SUB-PESTAÑA · PERMISOS
          ══════════════════════════════════════════════════════════════════════════════════ -->
     <div v-show="seccion === 'permisos'">
@@ -784,6 +898,7 @@ export default {
             { clave: "umbrales", titulo: "Niveles y umbrales", icono: "bi-sliders" },
             { clave: "acciones", titulo: "Acciones", icono: "bi-lightning" },
             { clave: "sin-interruptor", titulo: "Sin interruptor", icono: "bi-lock" },
+            { clave: "identidad", titulo: "JARVIS · identidad", icono: "bi-person-badge" },
             { clave: "permisos", titulo: "Permisos", icono: "bi-key" },
         ];
 
@@ -802,6 +917,7 @@ export default {
         const config = ref(null);
         const compuertas = ref(null);
         const permisos = ref(null);
+        const identidad = ref(null);
 
         const form = reactive({
             nivel_automatizacion: "estandar",
@@ -852,6 +968,7 @@ export default {
                 .then((r) => { compuertas.value = r.data; sembrarValoresSeleccionados(); })
                 .catch(() => {});
             axios.get("/api/roadmap/torre/compuertas/permisos").then((r) => { permisos.value = r.data; }).catch(() => {});
+            axios.get("/api/roadmap/torre/jarvis-identidad").then((r) => { identidad.value = r.data; }).catch(() => {});
         }
 
         // ── Confirmación en dos pasos ────────────────────────────────────────────────────
@@ -919,6 +1036,30 @@ export default {
                 avisar(e?.response?.data?.message || e.message, true);
             } finally {
                 guardando.value = false;
+            }
+        }
+
+        /**
+         * VISTA PREVIA EN SITIO. La burbuja vive en OTRA instancia de Vue (se monta fuera de la
+         * SPA para estar en todas las pantallas), así que el canal entre las dos es un evento del
+         * navegador. Pasar el ratón por un icono cambia la burbuja REAL de la esquina; salir la
+         * devuelve. Es la única forma de ver cómo queda antes de guardar — una miniatura en la
+         * cuadrícula no dice cómo se lee a 48 px sobre el fondo oscuro de la burbuja.
+         */
+        function previsualizar(ic) {
+            const url = ic ? (ic.urls[96] || ic.urls[48]) : null;
+            window.dispatchEvent(new CustomEvent("jarvis:preview-icono", { detail: { url } }));
+        }
+
+        async function guardarIcono(slug) {
+            const data = await post("/api/roadmap/torre/jarvis-identidad", { slug }, false);
+            if (data && data.ok) {
+                const urls = data.identidad?.urls || {};
+                window.dispatchEvent(new CustomEvent("jarvis:icono-cambiado", {
+                    detail: { url: urls[96] || urls[48] || null },
+                }));
+                const r = await axios.get("/api/roadmap/torre/jarvis-identidad");
+                identidad.value = r.data;
             }
         }
 
@@ -1000,11 +1141,11 @@ export default {
 
         return {
             secciones, seccion, cargando, guardando, aplicando, error, puedeEditar, avisoConsolidacion,
-            fronteras, config, compuertas, permisos, form, nuevoTermino, nuevoExacto,
+            fronteras, config, compuertas, permisos, identidad, form, nuevoTermino, nuevoExacto,
             confirmacion, toast, toastError, valorSel, etiquetaControl, etiquetaOrigen,
             cargarTodo, pedirConfirmacion, cancelarConfirmacion, confirmar,
             guardarValvula, guardarCategoria, guardarTecho, guardarTermino, agregarTermino,
-            guardarConfig, togglePermiso, ejecutarAccion,
+            guardarConfig, togglePermiso, ejecutarAccion, previsualizar, guardarIcono,
             controlesEditables, controlesUmbral, controlesSoloLectura,
             techoDeNivel, nivelOrden, durezaEfecto, badgeEfecto, dg,
         };
@@ -1030,6 +1171,24 @@ export default {
 .tconf-verde { background: #2e9e5b; }
 .tconf-ambar { background: #d9a406; }
 .tconf-rojo  { background: #d63939; }
+.jvsel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.jvsel {
+    position: relative; border: 1px solid #dee2e6; border-radius: 10px; background: #fff;
+    padding: 12px 10px 34px; text-align: center; cursor: pointer; transition: border-color .15s, box-shadow .15s;
+}
+.jvsel:hover:not(:disabled) { border-color: #0d6efd; box-shadow: 0 4px 14px rgba(13, 110, 253, .12); }
+.jvsel:disabled { cursor: not-allowed; opacity: .7; }
+.jvsel-on { border-color: #198754; box-shadow: 0 0 0 2px rgba(25, 135, 84, .18); }
+.jvsel-ruido { border-style: dashed; }
+.jvsel-quieto { cursor: default; }
+.jvsel-img { width: 84px; height: 84px; object-fit: contain; }
+/* El 48 px REAL al lado del grande: es el tamaño al que de verdad se va a ver en la esquina, y
+   verlo aquí evita el «lo elegí y en chico no se entiende» de después. */
+.jvsel-48 { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; }
+.jvsel-48-txt { font-size: 10px; color: #6c757d; }
+.jvsel-nombre { font-size: 12px; font-weight: 600; margin-top: 6px; word-break: break-word; }
+.jvsel-badge { position: absolute; left: 10px; bottom: 10px; font-size: 10px; }
+.jvsel-nota { font-size: 10.5px; color: #6c757d; margin-top: 4px; }
 .spin { animation: tconf-spin 1s linear infinite; display: inline-block; }
 @keyframes tconf-spin { to { transform: rotate(360deg); } }
 </style>
