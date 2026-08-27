@@ -59,9 +59,20 @@ class AutopilotCommand extends Command
         foreach ($items as $item) {
             // El dry-run audita aunque el circuito esté pausado (no escribe nada); la aplicación
             // real sí respeta el kill switch.
-            $r = $dry ? $autopilot->evaluar($item, true) : $autopilot->aplicar($item);
+            // El dry-run consulta la MISMA condición que la aplicación real (`evaluarConPolitica`).
+            // Antes llamaba a `evaluar()` a secas, que no mira la política, y por eso prometía
+            // items que el real rechazaba: el dry decía «2 calificarían» y se movían cero.
+            $r = $dry ? $autopilot->evaluarConPolitica($item, true) : $autopilot->aplicar($item);
 
-            if ($r['auto']) {
+            // ⚠️ SE CUENTA `aplicado`, NO `auto` (2026-08-27). `auto` es lo que el autopilot OPINÓ;
+            // `aplicado` es si de verdad escribió el estado. Ramificar sobre `auto` hacía que un
+            // item rechazado por la política se imprimiera como «auto-ejecutado ()» —con el estado
+            // vacío, porque era null— y se contara como tomado. El resumen decía «2 de 109 tomados»
+            // con cero items movidos, y el mismo output los listaba también bajo «quedan para
+            // Irving». Un reporte que se contradice a sí mismo es peor que no tenerlo.
+            $ok = $dry ? (bool) $r['auto'] : (bool) ($r['aplicado'] ?? false);
+
+            if ($ok) {
                 $auto++;
                 $this->info(sprintf('  %s#%d [%s] → %s · %s',
                     $dry ? 'DRY ' : '', $item->id, $item->nivel_riesgo ?: '—',

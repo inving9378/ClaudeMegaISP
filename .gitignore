@@ -77,3 +77,4 @@ docs/auditorias/_sets_*/
 # allowlist del deploy (git_staging_gate) abortaría el release, que es justo el bug.
 docs/pendientes-perfil-irving.md
 docs/decisiones-pendientes-irving.md
+.env.bak*

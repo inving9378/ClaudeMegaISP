@@ -197,31 +197,76 @@ class AutopilotService
     }
 
     /**
-     * Decide el item si `evaluar` lo autoriza: responde cada pregunta con su recomendada, lo pasa al
-     * estado aprobado que corresponde a su nivel y deja el rastro en el `log`.
-     * Devuelve el mismo arreglo de `evaluar` + ['aplicado' => bool, 'estado' => ?string].
+     * ¿CALIFICA DE VERDAD? — la evaluación del brief **más** la política de la Torre, en una sola
+     * respuesta. Éste es el punto único que deben usar tanto el dry-run como la aplicación real.
+     *
+     * POR QUÉ EXISTE (2026-08-27). Antes había dos veredictos y no coincidían:
+     *
+     *  · `--dry` llamaba sólo a `evaluar()`, que NO consulta la política → prometía items que la
+     *    aplicación real rechazaba un segundo después. Medido en la bandeja de dev: el dry decía
+     *    «2 de 109 calificarían» y al aplicar se movieron **cero**.
+     *  · Las dos capas usan además el rótulo `frontera_dura` para COSAS DISTINTAS: `evaluar()` lo
+     *    devuelve por `tieneFrenoHumano()` (freno puesto sobre el item), y la política por
+     *    `tocaFronteraDura()` (el item TOCA dinero/producción/borrado). Un item podía pasar el
+     *    primero y morir en el segundo sin que el reporte lo dijera.
+     *
+     * Con un solo veredicto, lo que promete el dry-run es exactamente lo que hace el real.
+     */
+    public function evaluarConPolitica(RoadmapItem $item, bool $ignorarPausa = false): array
+    {
+        $v = $this->evaluar($item, $ignorarPausa);
+        if (! $v['auto']) {
+            return $v;
+        }
+
+        // La POLÍTICA DE LA TORRE: 4 topes duros → `manual` absoluto → override → matriz con
+        // `min(politicaBase, autopilot.max_nivel)`. El gate de nivel de `evaluar()` es el mismo
+        // número, pero los topes duros y el override sólo viven aquí.
+        $policy = app(TorreAutomationPolicy::class);
+        $estado = $policy->estadoInicial($item, 'autopilot');
+
+        if ($estado === 'requiere_irving') {
+            // Nombrar la frontera concreta (`borrar_datos`, `dinero`, …) en vez de un genérico:
+            // «la política no autoriza» no le dice a nadie qué habría que cambiar, y en este caso
+            // la respuesta correcta es que NO hay nada que cambiar — esa frontera no se levanta.
+            $frontera = $policy->tocaFronteraDura($item);
+
+            return array_merge($v, [
+                'auto'    => false,
+                'motivo'  => $frontera !== null ? 'frontera_dura_politica' : 'politica_torre',
+                'detalle' => $frontera !== null
+                    ? "Frontera dura ({$frontera}): no la levanta ninguna configuración, decide Irving."
+                    : 'La política de la Torre no autoriza este item al autopilot (tope, `manual` u override).',
+            ]);
+        }
+
+        return $v + ['estado_previsto' => $estado];
+    }
+
+    /**
+     * Decide el item si `evaluarConPolitica` lo autoriza: responde cada pregunta con su recomendada,
+     * lo pasa al estado aprobado que corresponde a su nivel y deja el rastro en el `log`.
+     * Devuelve el mismo arreglo + ['aplicado' => bool, 'estado' => ?string].
      */
     public function aplicar(RoadmapItem $item): array
     {
-        $v = $this->evaluar($item);
+        $v = $this->evaluarConPolitica($item);
         if (! $v['auto']) {
             return $v + ['aplicado' => false, 'estado' => null];
         }
 
+        $estado = (string) $v['estado_previsto'];
+
+        // ⚠️ LAS RESPUESTAS SE ESCRIBEN DESPUÉS DEL GATE, NUNCA ANTES (2026-08-27).
+        // Antes este bucle iba arriba y la política se consultaba después: si rechazaba, el item se
+        // quedaba con TODAS sus preguntas contestadas por el autopilot y sin aprobar. El brief se
+        // veía «100 % contestado» —`ThomasService` ya advertía que eso no implica que lo contestara
+        // un humano— y el item parecía decidido sin poder despachar nunca. Es la familia de las
+        // aprobaciones mudas (#32, #186): no falla, se degrada a algo que parece una decisión.
+        // `responderPregunta()` sólo muta en memoria, pero cualquier `save()` posterior del mismo
+        // objeto persistía la mutación; el orden es lo que lo cierra de raíz.
         foreach ($v['respuestas'] as $pid => $clave) {
             $item->responderPregunta((string) $pid, (string) $clave);
-        }
-
-        // ENTREGA 1 — el estado lo resuelve la POLÍTICA DE LA TORRE (4 topes duros → `manual`
-        // absoluto → override → matriz con `min(politicaBase, autopilot.max_nivel)`). El gate de
-        // nivel de `evaluar()` sigue arriba y es el mismo número; esto lo hace explícito y de paso
-        // aplica los topes duros y el override, que `evaluar()` no miraba.
-        $estado = app(\App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy::class)
-            ->estadoInicial($item, 'autopilot');
-
-        if ($estado === 'requiere_irving') {
-            return $v + ['aplicado' => false, 'estado' => null,
-                'motivo_politica' => 'La política de la Torre no autoriza este item al autopilot.'];
         }
 
         $item->estado_aprobacion = $estado;

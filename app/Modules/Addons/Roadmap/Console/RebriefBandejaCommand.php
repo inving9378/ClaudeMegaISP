@@ -159,7 +159,9 @@ class RebriefBandejaCommand extends Command
 
         foreach ($items as $i) {
             $nv = $i->nivel_riesgo ?: '—';
-            $r  = $autopilot->evaluar($i, true);
+            // Misma condición que el dry-run y que la aplicación real: `evaluar()` a secas no mira
+            // la política de la Torre, así que este checkpoint prometía de más (2026-08-27).
+            $r  = $autopilot->evaluarConPolitica($i, true);
             if ($r['auto']) {
                 $califican[$nv]++;
                 $listaOk[] = "#{$i->id} [{$nv}] " . mb_strimwidth((string) $i->title, 0, 52, '…')
