@@ -44,6 +44,7 @@ class TorreConfig extends Model
         'valvula_modo',
         'valvula_guarda_termino',
         'valvula_guarda_razon',
+        'jarvis_icono',
     ];
 
     protected $casts = [

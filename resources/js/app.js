@@ -380,6 +380,7 @@ import ManualIndex from "./components/module/manual/ManualIndex.vue";
 import HelpFloat from "./components/ayuda/HelpFloat.vue";
 //Chat IA flotante (#9 / #636): gateado por permiso usar-ia-chat en el layout
 import IaChatFloat from "./components/ia/IaChatFloat.vue";
+import JarvisBurbuja from "./components/jarvis/JarvisBurbuja.vue";
 
 //Evaluador Empresarial — portado desde MEGANET 2026-05-22
 import EvaluadorEmpresarial from "./components/module/sellers/EvaluadorEmpresarial.vue";
@@ -974,6 +975,16 @@ store
             iaChatFloatApp.use(store);
             iaChatFloatApp.component('ia-chat-float', IaChatFloat);
             iaChatFloatApp.mount('#ia-chat-float-root');
+        }
+
+        // #651 — LA CARA DE JARVIS. App propia y montaje propio, igual que la burbuja anterior:
+        // vive fuera de #init-vue para estar en todas las pantallas, incluidas las que no montan
+        // la SPA. No comparte nada con `ia-chat-float` — son dos cosas distintas y una está apagada.
+        const jarvisEl = document.querySelector('#jarvis-burbuja-root');
+        if (jarvisEl) {
+            const jarvisApp = createApp({});
+            jarvisApp.component('jarvis-burbuja', JarvisBurbuja);
+            jarvisApp.mount('#jarvis-burbuja-root');
         }
     })
     .catch((error) => {
