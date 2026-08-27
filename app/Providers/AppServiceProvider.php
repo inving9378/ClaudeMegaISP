@@ -158,6 +158,17 @@ class AppServiceProvider extends ServiceProvider
                 $app[\Illuminate\Contracts\Events\Dispatcher::class]
             )
         );
+
+        // Item #171 — el botón "Run migrations" de la pantalla de error de Ignition llama
+        // Artisan::call('migrate') desde una ruta web (POST /_ignition/execute-solution),
+        // sin terminal y sin GuardedMigrateCommand de por medio. La única traba previa era
+        // la línea IGNITION_ENABLE_RUNNABLE_SOLUTIONS=false en el .env (no versionado,
+        // compartido entre worktrees): se perdió una vez y el 24-ago ese botón aplicó 290
+        // migraciones sin freno. Se fuerza aquí en código, atado al mismo shouldEnforce()
+        // del guardrail de arriba, para que no dependa de que el .env conserve esa línea.
+        if ($this->app->make(\App\Services\MigrationGuardService::class)->shouldEnforce()) {
+            config(['ignition.enable_runnable_solutions' => false]);
+        }
     }
 
     /**
