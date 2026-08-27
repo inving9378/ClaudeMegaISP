@@ -218,6 +218,75 @@
               </tbody>
             </table>
           </div>
+          <!-- POR QUÉ EL CERO. Un «0 califican» admite dos lecturas opuestas y la perilla se mueve
+               distinto en cada una: o el techo está mal puesto, o la población muere antes de
+               llegar al gate de nivel. Sin esto, la tabla de arriba invita a mover la perilla
+               equivocada. -->
+          <div v-if="fronteras.autopilot.diagnostico" class="alert alert-secondary py-2 px-3 small mb-2">
+            <div class="fw-semibold mb-1">
+              <i class="bi bi-question-circle me-1"></i>Por qué califican {{ fronteras.autopilot.por_nivel.C?.califican ?? 0 }}
+            </div>
+
+            <p class="mb-2">
+              <template v-if="dg.decisiones_historicas.decisiones === 0">
+                El autopilot <b>no ha decidido nunca</b> — 0 decisiones en toda la historia del roadmap.
+                Pero el techo <b>no es una perilla desconectada</b>: el disparo existe y corre
+                (<code>RevisorService::aplicarPreguntas()</code> → <code>intentar()</code>, cada vez que
+                se escribe un brief). Lo que pasa es que la bandeja muere antes de llegar al gate de nivel.
+              </template>
+              <template v-else>
+                El autopilot ha decidido <b>{{ dg.decisiones_historicas.decisiones }}</b> veces sobre
+                {{ dg.decisiones_historicas.items }} items · última: {{ dg.decisiones_historicas.ultima }}.
+              </template>
+            </p>
+
+            <div class="row g-2 mb-2">
+              <div class="col-md-6">
+                <div class="border rounded p-2 h-100">
+                  <b>{{ dg.sin_brief }}</b> de {{ fronteras.autopilot.candidatos }} <b>no tienen brief</b>
+                  <span class="text-muted d-block">
+                    por nivel:
+                    <span v-for="(n, lv) in dg.sin_brief_por_nivel" :key="'sb'+lv" class="me-2">{{ lv }}: {{ n }}</span>
+                  </span>
+                  <span class="text-muted d-block">Sin brief no hay nada que decidir — el autopilot ni evalúa.</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="border rounded p-2 h-100">
+                  <b>{{ dg.irving_sin_responder }}</b> de {{ dg.preguntas }} preguntas están marcadas
+                  <code>requiere_irving</code> y <b>sin responder</b>
+                  <span class="text-muted d-block">
+                    {{ dg.con_brief }} items sí tienen brief · sólo <b>{{ dg.todas_respondidas }}</b> lo
+                    tienen completamente respondido.
+                  </span>
+                  <span class="text-muted d-block">Una sola pregunta tuya sin responder frena todo el item.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="fw-semibold mb-1">Quién escribe ese brief, y si está vivo</div>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead><tr><th>Quién</th><th>Qué escribe</th><th>A quién cubre</th><th>Estado</th></tr></thead>
+                <tbody>
+                  <tr v-for="(p, i) in dg.productores" :key="i">
+                    <td><code>{{ p.quien }}</code></td>
+                    <td>{{ p.escribe }}</td>
+                    <td>{{ p.cubre }}</td>
+                    <td>
+                      <span v-if="p.estado.ultima" :class="p.estado.vencido ? 'text-danger' : 'text-success'">
+                        latió {{ p.estado.ultima }}
+                      </span>
+                      <span v-else class="text-muted">{{ p.estado.cadencia }}</span>
+                      <span v-if="p.estado.cadencia && p.estado.ultima" class="text-muted d-block">{{ p.estado.cadencia }}</span>
+                      <span v-if="p.estado.agendado === false" class="text-danger d-block">NO está en el crontab</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <button class="btn btn-sm btn-link p-0 small" :disabled="!puedeEditar"
                   @click="pedirConfirmacion({
                     titulo: 'Devolver el techo a la config',
@@ -898,6 +967,10 @@ export default {
         );
 
         // ── Utilidades de pintado ────────────────────────────────────────────────────────
+        // Atajo de lectura: el diagnóstico se usa en una docena de sitios del template y
+        // `fronteras.autopilot.diagnostico.x` en cada uno lo vuelve ilegible.
+        const dg = computed(() => fronteras.value?.autopilot?.diagnostico || null);
+
         const TECHOS = { manual: null, estandar: "A", asistido: "B", autonomo: "C" };
         const techoDeNivel = (n) => TECHOS[n];
         const nivelOrden = (l) => ({ A: 1, B: 2, C: 3 }[l] || 0);
@@ -916,7 +989,7 @@ export default {
             guardarValvula, guardarCategoria, guardarTecho, guardarTermino, agregarTermino,
             guardarConfig, togglePermiso, ejecutarAccion,
             controlesEditables, controlesUmbral, controlesSoloLectura,
-            techoDeNivel, nivelOrden, durezaEfecto, badgeEfecto,
+            techoDeNivel, nivelOrden, durezaEfecto, badgeEfecto, dg,
         };
     },
 };
