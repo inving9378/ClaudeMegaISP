@@ -383,7 +383,7 @@
           </button>
         </div>
       </div>
-      <control-lista :controles="controlesEditables" titulo="Otros interruptores ya cableados" />
+      <control-lista :controles="controlesEditables" titulo="Otros controles verdes del catálogo (se editan donde viven)" mostrar-nota />
     </div>
 
     <div v-show="seccion === 'umbrales'" v-if="config">
@@ -876,9 +876,16 @@ export default {
         const todosLosControles = computed(() =>
             (config.value?.grupos_actor || []).flatMap((g) => (g.controles || []).map((c) => ({ ...c, grupo: g.titulo })))
         );
+        // Controles que YA tienen su propia UI en otra sección de esta misma pantalla. No se
+        // repiten en la lista genérica: pintarlos ahí como una fila verde sin interruptor sería
+        // exactamente el «control falso» que esta pantalla existe para no tener.
         const EDITABLES_CON_UI_PROPIA = [
             "torre_config.nivel_automatizacion", "auditor.enabled",
             "auditor.cap_por_ciclo", "auditor.min_intervalo_minutos",
+            "fronteras.categorias", "fronteras.terminos", "fronteras.efecto",
+            "torre_config.valvula_activa", "torre_config.valvula_modo",
+            "torre_config.valvula_guarda_termino", "torre_config.valvula_guarda_razon",
+            "torre_config.autopilot_max_nivel",
         ];
         const controlesEditables = computed(() =>
             todosLosControles.value.filter((c) => c.bucket === "verde" && !EDITABLES_CON_UI_PROPIA.includes(c.clave))

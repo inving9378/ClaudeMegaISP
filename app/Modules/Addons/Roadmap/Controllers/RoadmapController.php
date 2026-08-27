@@ -366,7 +366,12 @@ class RoadmapController extends Controller
         ['icono' => '🔒', 'texto' => 'Prod bloqueado · 192.168.105.108 · v1megaisp.com.mx', 'donde' => 'fijo en código'],
         ['icono' => '🔒', 'texto' => 'migrate:fresh prohibido',                             'donde' => 'fijo en código'],
         ['icono' => '🔒', 'texto' => 'git add -A prohibido',                                'donde' => 'fijo en código'],
-        ['icono' => '🔒', 'texto' => 'Topes duros: producción · borrar datos · dinero · credenciales', 'donde' => 'ThomasService, no configurable'],
+        // #648 — ESTA LÍNEA DECÍA «no configurable» Y DEJÓ DE SER CIERTA. Los topes duros ahora se
+        // gobiernan desde la pestaña «Configuración» → Fronteras (encender/apagar categorías, editar
+        // sus términos, elegir su efecto), por decisión explícita de Irving. Lo que SIGUE sin tener
+        // interruptor es la DETECCIÓN: es determinista y no la decide ningún modelo. Un guardrail
+        // que promete un candado que ya no existe es peor que no listarlo.
+        ['icono' => '🔓', 'texto' => 'Topes duros (producción · borrar datos · dinero · credenciales): la DETECCIÓN es determinista y no se apaga; la lista y su efecto SÍ se gobiernan desde Configuración → Fronteras, con bitácora de cada cambio', 'donde' => 'circuito_fronteras (antes: fijo en ThomasService)'],
         ['icono' => '🔒', 'texto' => 'Vía externa (Cowork/MCP): solo nivel A puede quedar aprobado_claude', 'donde' => 'guard() — sin endpoint'],
         // #943 — completa la cubeta roja de `plan-configuracion-torre.md` §1 (antes faltaban
         // estos 2 de los 6 ahí listados).

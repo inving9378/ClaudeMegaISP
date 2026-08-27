@@ -63,28 +63,67 @@ class PanelSoloLecturaTest extends TestCase
      * Los controles se DESHABILITAN, no se ocultan. Que todos vean la política vigente es parte del
      * valor: un panel que se esconde de quien no puede editarlo deja a media empresa sin saber bajo
      * qué régimen corre el circuito.
+     *
+     * ⚠️ 2026-08-27 (#648) — este candado apuntaba a `TorreConfigPanel.vue`, que era el modal del
+     * engrane. Ese modal desapareció: la configuración vive ahora en la pestaña
+     * `TorreConfiguracion.vue` y el engrane quedó como atajo (había TRES pantallas mostrando lo
+     * mismo). El candado sigue al contenido, no al archivo — lo que se protege es el trato al que
+     * sólo puede mirar, y ése no cambió.
      */
     public function test_los_controles_se_deshabilitan_no_se_ocultan(): void
     {
-        $vue = $this->fuente('resources/js/components/module/releases/torre-control/TorreConfigPanel.vue');
+        $vue = $this->fuente('resources/js/components/module/releases/torre-control/TorreConfiguracion.vue');
 
         $this->assertStringContainsString(':disabled="!puedeEditar"', $vue,
             'Los controles del panel ya no se deshabilitan con `puedeEditar`.');
 
-        // El ÚNICO `v-if="puedeEditar"` permitido es el del botón Guardar: ése es la ACCIÓN, no un
-        // control de política. Cualquier otro significaría un control oculto — y el modo solo-lectura
-        // muestra el panel COMPLETO y deshabilitado, no recortado.
+        // La pantalla nueva NO oculta absolutamente nada: hasta los botones de guardar se pintan
+        // deshabilitados. Se admite como mucho UNO (el botón de acción), nunca más — cualquier otro
+        // significaría un control de política escondido a quien sólo puede mirar.
         $ocultos = substr_count($vue, 'v-if="puedeEditar"');
-        $this->assertSame(1, $ocultos,
-            "Hay {$ocultos} elementos tras `v-if=\"puedeEditar\"` y sólo debería haber uno (el botón "
-            . 'Guardar). Ocultar un control de política a quien sólo puede mirar cambia el trato: el '
-            . 'panel deja de decirle bajo qué régimen corre el circuito.');
-
-        $this->assertStringContainsString('v-if="puedeEditar" class="tcfg-btn tcfg-primary"', $vue,
-            'El botón Guardar debe existir sólo para quien puede editar.');
+        $this->assertLessThanOrEqual(1, $ocultos,
+            "Hay {$ocultos} elementos tras `v-if=\"puedeEditar\"` y como mucho debería haber uno (un "
+            . 'botón de acción). Ocultar un control de política a quien sólo puede mirar cambia el '
+            . 'trato: el panel deja de decirle bajo qué régimen corre el circuito.');
 
         $this->assertStringContainsString('v-if="!puedeEditar"', $vue,
             'Se quitó el aviso de «solo lectura»: sin él, alguien puede pensar que el panel está roto.');
+    }
+
+    /**
+     * CANDADO DE LA SUPERFICIE NUEVA (#648) — gobernar las fronteras duras desde una pantalla web
+     * sólo es defendible mientras cada escritura exija permiso de edición Y el segundo paso.
+     *
+     * La confirmación tiene que vivir en el SERVIDOR. Una que sólo exista en el frontend es un
+     * adorno: el endpoint sigue estando a un `curl` de distancia, y lo que hay del otro lado es el
+     * único control por contenido que no depende de la autodeclaración de un modelo.
+     */
+    public function test_toda_escritura_de_fronteras_exige_edicion_y_confirmacion(): void
+    {
+        $src = $this->fuente('app/Modules/Addons/Roadmap/Controllers/TorreFronterasController.php');
+
+        $guarda = $this->metodo($src, 'autorizarEscribir');
+        $this->assertStringContainsString("authorize('torre.config.edit')", $guarda,
+            'La guarda de escritura dejó de exigir `torre.config.edit`.');
+        $this->assertStringContainsString("boolean('confirmado')", $guarda,
+            'La guarda de escritura dejó de exigir el segundo paso (`confirmado`) en el SERVIDOR.');
+
+        foreach (['categoria', 'termino', 'valvula', 'techoAutopilot'] as $metodo) {
+            $cuerpo = $this->metodo($src, $metodo);
+            $this->assertStringContainsString('autorizarEscribir($request)', $cuerpo,
+                "El endpoint `{$metodo}` escribe sin pasar por la guarda de edición + confirmación.");
+        }
+
+        // El GET pasa por su propia guarda de lectura, y esa guarda pide `.view` — nunca `.edit`:
+        // mirar bajo qué régimen corre el circuito no debería requerir poder cambiarlo.
+        $this->assertStringContainsString("authorize('torre.config.view')", $this->metodo($src, 'autorizarVer'),
+            'La guarda de lectura dejó de exigir `torre.config.view`.');
+
+        $get = $this->metodo($src, 'index');
+        $this->assertStringContainsString('autorizarVer()', $get,
+            'El GET de fronteras dejó de pasar por la guarda de lectura.');
+        $this->assertStringNotContainsString("authorize('torre.config.edit')", $get,
+            'El GET exige el permiso de edición: mirar la configuración no debería requerir poder cambiarla.');
     }
 
     /** Cuerpo fuente de un método, balanceando llaves. */

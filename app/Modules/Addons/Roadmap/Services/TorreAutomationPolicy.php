@@ -30,14 +30,20 @@ use App\Modules\Addons\Roadmap\Models\TorreConfig;
  *
  * ── LOS CUATRO TOPES DUROS ──────────────────────────────────────────────────────────────────────
  *
- * Producción · borrar datos · dinero · credenciales/seguridad. **No se pueden levantar desde ninguna
- * configuración**: ni con `nivel_automatizacion = autonomo`, ni con `automatizacion_override = auto`.
- * Si algún día hay que levantarlos será otro trabajo con su propia discusión, nunca un checkbox.
+ * Producción · borrar datos · dinero · credenciales/seguridad. **Ningún ajuste de AUTOMATIZACIÓN los
+ * levanta**: ni `nivel_automatizacion = autonomo`, ni `automatizacion_override = auto`. Eso no
+ * cambió y es lo que este archivo garantiza.
  *
- * La detección la hace `ThomasService::categoriaFronteraDura()`. **Aquí no hay ni una lista nueva de
- * términos**: esa lista ya costó dos incidentes documentados («palabra completa, no substring» y «no
- * distingue mención de negación»), y una segunda copia envejeciendo por separado sería el tercero.
- * Si la frontera necesita crecer, crece en Thomas.
+ * ⚠️ Lo que SÍ cambió (#648, 2026-08-27, decisión explícita de Irving): la LISTA y el EFECTO de cada
+ * frontera se gobiernan desde la pestaña «Configuración» → Fronteras (`circuito_fronteras`). Aquel
+ * «será otro trabajo con su propia discusión, nunca un checkbox» fue justamente ese trabajo — y la
+ * contrapartida es que cada perilla viene con su número al lado (cuántos items dispara, cuántas
+ * veces la válvula la abrió) y cada cambio queda auditado, aflojar como alerta.
+ *
+ * La detección la hace `ThomasService::fronteraDuraDeItem()` sobre `FronterasService`. **Aquí no hay
+ * ni una lista nueva de términos**: esa lista ya costó dos incidentes documentados («palabra
+ * completa, no substring» y «no distingue mención de negación»), y una segunda copia envejeciendo
+ * por separado sería el tercero. Si la frontera necesita crecer, crece en su tabla.
  */
 class TorreAutomationPolicy
 {
