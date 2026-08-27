@@ -2539,3 +2539,70 @@ Maps real, pasar por el módulo compartido `Mapas`, no una key aparte). Detalle 
 `docs/megafamilia-google-maps-item-75-verificacion.md` + resumen en `CLAUDE.md`. Commit
 `5534a437` en `circuito/item-75-megafamilia-google-maps-flutter-tambien`, integrado (auto-merge
 encolado).
+
+## 2026-08-27 06:30 — El circuito llevaba 13 h muerto por el guard de huérfano de #174
+
+Sesión de reanudación pedida por Irving ("reanuda el circuito"). El freno **ya estaba suelto**
+desde el 26-ago 15:04 (centinela ausente, `circuito_pausado=0`) y el cron disparaba cada minuto.
+El circuito no corría por otra razón.
+
+**Causa raíz — `deploy/circuito/vuelta.sh`, guard de PPID (commit `5cfdad29`).** El tercer candado
+que agregó #174 el 26-ago preguntaba "¿mi PPID es 1?" para detectar que el proceso que lanzó la
+vuelta había muerto. En esta arquitectura la pregunta **no se puede contestar**: el scheduler lanza
+cada vuelta con `setsid nohup … &` (`SchedulerCommand::lanzarVueltaItem`) justamente para
+desligarla del cron, así que **PPID=1 es el estado normal desde el segundo cero**. El guard
+disparaba en la PRIMERA iteración del pool, antes de tomar un solo item.
+
+- **192 vueltas abortadas seguidas** desde el 26-ago 16:32 (todas con log de 579 bytes idénticos).
+- Falla **muda**: en la Torre se veía igual que "no hay trabajo elegible".
+- Los otros dos candados de #174 quedan **intactos** y sí acotan el runaway del P0 del 24-ago
+  (huérfano de 1 d 21 h): `PARENT_TIMEOUT` (3 h sobre todo el lazo) + `MAXITER` (20 items por
+  invocación). Fuera del proceso siguen `reap-stuck`, `watchdog` y el freno en archivo.
+- Queda un comentario en el punto exacto para que no se reintroduzca.
+
+**Segundo muro — el techo del autopilot corría en `A`, no en `C`.** `config/circuito.php:253` es
+`env('CIRCUITO_AUTOPILOT_MAX_NIVEL', 'A')` y el `.env` **no traía la clave**, así que el default
+mandaba pese a que `CLAUDE.md` §circuito afirma `max_nivel = C` desde la decisión #507. Con la
+bandeja entera en B/C, el autopilot no calificaba ni un item (`circuito:autopilot --dry`: 0 de 25;
+23 por `nivel_sobre_tope`). Ojo: la política BASE de la Torre (`TorreAutomationPolicy::politicaBase()`)
+sí estaba en `C` — **son dos techos distintos**.
+
+Decisión explícita de Irving en sesión: subirlo. Aplicado `CIRCUITO_AUTOPILOT_MAX_NIVEL=C` en el
+`.env` de DEV (respaldo `.env.bak-20260827_053559`) + `config:clear`/`route:clear`/`queue:restart`.
+Verificado: `nivel_sobre_tope` **desapareció de los 109 items** de la bandeja.
+
+**Pero `despachable` sigue en 0, y por razones legítimas.** Reparto medido con el techo nuevo:
+`sin_brief`=51 · `pregunta_requiere_irving`=38 · `confianza_insuficiente`=8 · `nada_que_responder`=7
+· `frontera_dura`=2 · `sin_nivel`=1. El cuello real son los 51 sin brief: `circuito:brief-c` corre
+cada 10 min con `--limit=2` (~4 h para cubrirlos).
+
+**Defecto detectado y NO arreglado — aprobación muda del autopilot.** El comando reportó
+`2 de 109 tomados al autopilot` e imprimió `#225 [B] → auto-ejecutado ()` con el estado **vacío**.
+No se ejecutó ninguno: los dos siguen en `requiere_irving` y los dos son `frontera_dura`
+(`borrar_datos`) — el mismo output los cuenta *también* bajo "quedan para Irving". Dos defectos:
+1. `AutopilotService::aplicar()` (~211) llama `responderPregunta()` para todas las respuestas
+   **antes** de consultar `TorreAutomationPolicy::estadoInicial()` (~219): si la política rechaza,
+   las respuestas ya quedaron escritas y el brief aparece "100 % contestado" por el autopilot.
+2. `AutopilotCommand::handle()` (~62) ramifica sobre `$r['auto']` (lo que el autopilot opinó) en vez
+   de `$r['aplicado']` (si de verdad escribió el estado).
+Familia de las **aprobaciones mudas** ya documentada (#32: 8; #186: 32). Que esos dos items no
+corran está BIEN — `borrar_datos` es frontera dura y ninguna config la levanta, a propósito; el
+fallo es reportarlo como ejecutado. Pendiente de decisión de Irving (es política del circuito).
+
+**Workers de cola (26-ago 16:42, mismo bloque de trabajo).** Supervisor **no se puede tocar desde
+esta sesión**: el socket es `/run/supervisor.sock srwx------ root:root` y el `sudo` de `meganet`
+sólo tiene NOPASSWD para nginx y asterisk. Levantados a mano 2 `queue:work` con
+`nohup setsid` (los dir de `storage` son `2777` setgid a grupo `www-data` → no rompe permisos).
+Drenaron **192 → 0 jobs** (casi todos `ProponerOpcionesJob` del roadmap). Mueren al reiniciar el
+box; si alguien levanta el grupo `megaisp-queue` con sudo, matar antes los manuales
+(`pkill -f 'queue:work --queue=cobranza'`).
+
+**Terminal web — el scroll (colateral del tmux del 26-ago).** Envuelto en tmux, ttyd sólo ve la
+pantalla actual: la rueda dejó de subir y no había forma de copiar lo de más arriba. Dos causas:
+(1) `mouse off`, puesto a propósito el 26-ago por miedo a perder el copiado por selección; (2) el
+`history-limit 50000` del `~/.tmux.conf` **nunca aplicó** — el servidor tmux arrancó el 8-jul, mucho
+antes que la config, y tmux sólo la lee al arrancar el SERVIDOR: corría con **2000**. Aplicado en
+caliente `tmux set -g mouse on` + `history-limit 50000` y actualizado `~/.tmux.conf`. Copiar con
+ratón = **Shift + arrastrar** (salta el reporte de ratón de tmux, selección nativa del navegador).
+Revertir: `tmux set -g mouse off`. ⚠️ `history-limit` sólo aplica a paneles NUEVOS (tmux 3.3a no
+redimensiona el buffer de un panel vivo, ni con `set -p`) → para los 50 000, `Ctrl-b c`.
