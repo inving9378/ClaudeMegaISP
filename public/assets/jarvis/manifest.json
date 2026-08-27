@@ -1,0 +1,14 @@
+{
+    "_comentario": [
+        "Catálogo de iconos de JARVIS. Lo escribe `php artisan jarvis:iconos-importar` a partir de",
+        "los PNG de /home/meganet/jarvis-iconos/, y se puede corregir a mano: el importador respeta",
+        "los campos `tiene_texto`, `legible_48` y `nota` de un icono que ya exista aquí.",
+        "",
+        "tiene_texto  = el diseño lleva la palabra JARVIS escrita. NO se ofrece para la burbuja:",
+        "               a 48 px la palabra es una mancha. Va al grupo de pantalla/documentación.",
+        "legible_48   = a 48 px se sigue leyendo la figura. false = los trazos se convierten en ruido.",
+        "               Se marca en el selector para que la elección sea informada."
+    ],
+    "generado_en": null,
+    "iconos": []
+}
