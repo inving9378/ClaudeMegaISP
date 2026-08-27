@@ -103,7 +103,7 @@
                                 </span>
                                 <span v-if="item.eta_minutos && (item.status === 'pending' || item.status === 'in_progress')"
                                       class="rdm-tag rdm-tag-eta"
-                                      :title="`Thomas lo estimó ${fullDateTime(item.eta_asignada_at)} · ponlo en tu temporizador`">
+                                      :title="`JARVIS lo estimó ${fullDateTime(item.eta_asignada_at)} · ponlo en tu temporizador`">
                                     <i class="bi bi-stopwatch me-1"></i>ETA ~{{ item.eta_minutos }} min
                                 </span>
                                 <!-- ENTREGA 1 — override de automatización POR ITEM. Solo se pinta

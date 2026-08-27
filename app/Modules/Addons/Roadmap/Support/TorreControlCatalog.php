@@ -51,7 +51,7 @@ class TorreControlCatalog
             ],
             [
                 'clave'   => 'thomas',
-                'titulo'  => 'Thomas',
+                'titulo'  => 'JARVIS',
                 'resumen' => 'Decide sin esperar a Irving cuando la acción es reversible; arma el merge y el consolidado.',
                 'controles' => self::gruposThomas(),
             ],

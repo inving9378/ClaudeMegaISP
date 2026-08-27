@@ -80,7 +80,20 @@
         </ul>
 
         <!-- ── Tab: Configuración de la Torre (#648) ── -->
-        <torre-configuracion v-if="tab === 'configuracion'" />
+        <!-- #649 — RED DE SEGURIDAD. Un error de render en una sub-pestaña dejaba el panel EN
+             BLANCO: Vue desmonta el subárbol y el único rastro queda en la consola del navegador,
+             que nadie tiene abierta. Una pantalla en blanco no dice si falta desplegar, si reventó
+             o si es que no hay datos. Ahora dice cuál de las tres. -->
+        <div v-if="errorTab" class="alert alert-danger">
+            <b>⚠ Esta pestaña no pudo pintarse.</b>
+            <div class="small mt-1"><code>{{ errorTab }}</code></div>
+            <div class="small text-muted mt-1">
+                El resto de la Torre sigue funcionando. Si acabas de desplegar, recarga con Ctrl+F5;
+                si persiste, este texto es el error exacto.
+            </div>
+            <button class="btn btn-sm btn-outline-secondary mt-2" @click="errorTab = ''">Reintentar</button>
+        </div>
+        <torre-configuracion v-else-if="tab === 'configuracion'" :key="'cfg-' + reintentos" />
 
         <!-- ── Tab: Reporte ── -->
         <audit-report v-if="tab === 'reporte'" />
@@ -285,7 +298,7 @@
 </template>
 
 <script>
-import { ref, onMounted, onBeforeUnmount, reactive } from "vue";
+import { ref, onMounted, onBeforeUnmount, onErrorCaptured, reactive, watch } from "vue";
 import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
 import AuditReport from "./torre-control/AuditReport.vue";
@@ -323,6 +336,16 @@ export default {
             }
         })();
         const tab = ref(tabInicial);
+
+        // Captura los errores de render de las sub-pestañas (Vue los propaga al padre). Devolver
+        // `false` corta la propagación: el error se muestra aquí y no tumba la Torre entera.
+        const errorTab = ref('');
+        const reintentos = ref(0);
+        onErrorCaptured((err) => {
+            errorTab.value = (err && (err.message || String(err))) || 'error desconocido';
+            return false;
+        });
+        watch(tab, () => { errorTab.value = ''; reintentos.value += 1; });
         const releases = ref(JSON.parse(props.releases));
         const nextPageUrl = ref(props.next_page_url);
         const isLoading = ref(false);
@@ -572,6 +595,8 @@ export default {
 
         return {
             tab,
+            errorTab,
+            reintentos,
             releases,
             crudModal,
             deployModal,

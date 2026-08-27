@@ -390,6 +390,178 @@ class AutopilotService
             'efectivo'      => $policy->nivelEfectivo('autopilot'),
             'politica_base' => $policy->politicaBase(),
             'por_nivel'     => $porNivel,
+            'diagnostico'   => $this->diagnosticoDelCero($candidatos),
+        ];
+    }
+
+    /**
+     * POR QUÉ CALIFICAN 0 — el número solo no dice nada (#649).
+     *
+     * Un «0 califican» admite dos lecturas opuestas y la perilla se mueve distinto en cada una:
+     *
+     *   (a) el techo está mal puesto  → moverlo cambia algo;
+     *   (b) la población muere ANTES de llegar al gate de nivel → moverlo no cambia nada, y el
+     *       trabajo real está en otra parte.
+     *
+     * Medido el 2026-08-27, la respuesta es (b): 51 de 108 items de la bandeja no tienen brief, y de
+     * las 162 preguntas que sí existen, 118 están marcadas como decisión de Irving y sin responder.
+     * El autopilot lleva **0 decisiones en toda la historia** del roadmap. El techo está conectado
+     * —el disparo existe y es `RevisorService::aplicarPreguntas()` → `intentar()`, que corre cada vez
+     * que se escribe un brief— pero es irrelevante mientras la bandeja esté así.
+     *
+     * Esto se calcula EN VIVO, no se copia: si mañana la bandeja cambia, el diagnóstico cambia con
+     * ella. Un texto fijo explicando un número variable es otra forma de mentir despacio.
+     *
+     * @param  array<int,RoadmapItem>  $candidatos
+     */
+    private function diagnosticoDelCero(array $candidatos): array
+    {
+        $conBrief = $sinBrief = 0;
+        $sinBriefPorNivel = $conBriefPorNivel = [];
+        $preguntas = $irvingPendientes = $todasRespondidas = 0;
+
+        foreach ($candidatos as $item) {
+            $nivel = $item->nivel_riesgo ?: '(sin nivel)';
+            $p     = $item->preguntasNormalizadas();
+
+            if (empty($p)) {
+                $sinBrief++;
+                $sinBriefPorNivel[$nivel] = ($sinBriefPorNivel[$nivel] ?? 0) + 1;
+                continue;
+            }
+
+            $conBrief++;
+            $conBriefPorNivel[$nivel] = ($conBriefPorNivel[$nivel] ?? 0) + 1;
+
+            $pendientes = 0;
+            foreach ($p as $q) {
+                $preguntas++;
+                if (empty($q['opcion_elegida'])) {
+                    $pendientes++;
+                    if (! empty($q['requiere_irving'])) {
+                        $irvingPendientes++;
+                    }
+                }
+            }
+            if ($pendientes === 0) {
+                $todasRespondidas++;
+            }
+        }
+
+        ksort($sinBriefPorNivel);
+        ksort($conBriefPorNivel);
+
+        return [
+            'con_brief'            => $conBrief,
+            'sin_brief'            => $sinBrief,
+            'sin_brief_por_nivel'  => $sinBriefPorNivel,
+            'con_brief_por_nivel'  => $conBriefPorNivel,
+            'preguntas'            => $preguntas,
+            'irving_sin_responder' => $irvingPendientes,
+            'todas_respondidas'    => $todasRespondidas,
+            'decisiones_historicas' => $this->decisionesHistoricas(),
+            'productores'          => $this->productoresDeBrief(),
+        ];
+    }
+
+    /**
+     * ¿Cuántas veces ha decidido el autopilot, alguna vez? Se cuenta sobre el rastro real de los
+     * items (`log`), no sobre un contador aparte que podría estar mal.
+     *
+     * Es el número que distingue «el motor está afinado y hoy no hay trabajo para él» de «este
+     * motor nunca ha arrancado». Al 2026-08-27 vale **0**.
+     */
+    private function decisionesHistoricas(): array
+    {
+        $n = 0;
+        $items = [];
+        $ultima = null;
+
+        RoadmapItem::query()->whereNotNull('log')->select(['id', 'log'])
+            ->chunkById(300, function ($chunk) use (&$n, &$items, &$ultima) {
+                foreach ($chunk as $item) {
+                    foreach ((array) $item->log as $e) {
+                        if (! is_array($e)) {
+                            continue;
+                        }
+                        $quien = (string) ($e['por'] ?? '') . '|' . (string) ($e['decidido_por'] ?? '');
+                        if (! str_contains($quien, 'autopilot')) {
+                            continue;
+                        }
+                        $n++;
+                        $items[$item->id] = true;
+                        $ts = (string) ($e['ts'] ?? '');
+                        if ($ts !== '' && ($ultima === null || $ts > $ultima)) {
+                            $ultima = $ts;
+                        }
+                    }
+                }
+            });
+
+        return ['decisiones' => $n, 'items' => count($items), 'ultima' => $ultima];
+    }
+
+    /**
+     * QUIÉN ESCRIBE EL BRIEF, y si ese productor está vivo.
+     *
+     * La pregunta importa porque «no hay brief» tiene dos causas muy distintas: que el productor
+     * esté muerto (otro motor sin arranque, el patrón que ya mordió con `circuito:re-triage`), o
+     * que esté vivo pero no cubra a esa población. Aquí es lo SEGUNDO, y por eso hay que decirlo:
+     * `circuito:brief-c` late cada 10 minutos pero sólo mira items de **nivel C**, y el grueso de
+     * los que no tienen brief son **B**.
+     */
+    private function productoresDeBrief(): array
+    {
+        $latidos = [];
+        try {
+            foreach ((array) app(RoadmapCircuitoService::class)->latidos() as $m) {
+                if (is_array($m) && isset($m['comando'])) {
+                    $latidos[$m['comando']] = $m;
+                }
+            }
+        } catch (\Throwable) {
+            $latidos = [];
+        }
+
+        $foto = function (string $comando) use ($latidos): array {
+            $m = $latidos[$comando] ?? null;
+
+            return [
+                'ultima'   => $m['at'] ?? null,
+                'cadencia' => $m['cadencia'] ?? null,
+                'vencido'  => (bool) ($m['vencido'] ?? false),
+                'agendado' => $m['agendado'] ?? null,
+            ];
+        };
+
+        return [
+            [
+                'quien'   => 'circuito:brief-c',
+                'escribe' => 'El brief de decisión (preguntas + opciones) de los items nivel C.',
+                'cubre'   => 'SÓLO nivel C. Los B sin brief no los toca nadie automáticamente.',
+                'estado'  => $foto('circuito:brief-c'),
+            ],
+            [
+                'quien'   => 'circuito:revisar-backlog',
+                'escribe' => 'Nada: emite veredictos sobre B en pendiente_revision. NO escribe briefs.',
+                'cubre'   => 'B en pendiente_revision — no la bandeja.',
+                'estado'  => $foto('circuito:revisar-backlog'),
+            ],
+            [
+                'quien'   => 'RevisorService::aplicarPreguntas() → AutopilotService::intentar()',
+                'escribe' => 'Es el DISPARO del autopilot, no un productor de briefs.',
+                'cubre'   => 'Corre cada vez que se escribe un brief. Por eso el autopilot sí se ejecuta; '
+                           . 'lo que no ha hecho nunca es calificar.',
+                'estado'  => ['ultima' => null, 'cadencia' => 'en línea, al escribirse cada brief',
+                    'vencido' => false, 'agendado' => null],
+            ],
+            [
+                'quien'   => 'Irving',
+                'escribe' => 'Las respuestas a las preguntas marcadas `requiere_irving`.',
+                'cubre'   => 'Ningún motor puede sustituirlo: el Revisor las marcó como decisión suya.',
+                'estado'  => ['ultima' => null, 'cadencia' => 'a mano, desde la bandeja',
+                    'vencido' => false, 'agendado' => null],
+            ],
         ];
     }
 }
