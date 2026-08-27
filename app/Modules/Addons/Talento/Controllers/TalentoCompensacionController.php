@@ -35,14 +35,23 @@ class TalentoCompensacionController extends Controller
         $this->authorize('talento.compensation.manage');
 
         $data = $request->validate([
-            'name'               => 'required|string|max:120',
-            'target_type'        => 'required|in:technician,seller,counter,all',
-            'base_salary'        => 'required|numeric|min:0',
-            'period'             => 'required|in:weekly,biweekly,monthly',
-            'weekly_quota_units' => 'required|integer|min:0',
-            'monthly_bonus'      => 'nullable|array',
-            'conditions'         => 'nullable|array',
-            'active'             => 'boolean',
+            'name'                         => 'required|string|max:120',
+            'target_type'                  => 'required|in:technician,seller,counter,all,accounting,support',
+            'base_salary'                  => 'required|numeric|min:0',
+            'period'                       => 'required|in:weekly,biweekly,monthly',
+            'weekly_quota_units'           => 'required|integer|min:0',
+            'monthly_bonus'                => 'nullable|array',
+            'conditions'                   => 'nullable|array',
+            'active'                       => 'boolean',
+            // Item #121 — marco KPI para roles no-técnicos (scaffolding).
+            'variable_type'                => 'nullable|string|max:30',
+            'kpi_key'                      => 'nullable|string|max:60',
+            'formula_config'               => 'nullable|array',
+            'valid_from'                   => 'nullable|date',
+            'valid_until'                  => 'nullable|date|after_or_equal:valid_from',
+            'monthly_cutoff_day'           => 'nullable|integer|min:1|max:31',
+            'clawback_days'                => 'nullable|integer|min:0',
+            'clawback_requires_collection' => 'nullable|boolean',
         ]);
 
         $rule = TalentoCompensationRule::create($data);
@@ -58,14 +67,22 @@ class TalentoCompensacionController extends Controller
         $rule = TalentoCompensationRule::findOrFail($id);
 
         $data = $request->validate([
-            'name'               => 'sometimes|string|max:120',
-            'target_type'        => 'sometimes|in:technician,seller,counter,all',
-            'base_salary'        => 'sometimes|numeric|min:0',
-            'period'             => 'sometimes|in:weekly,biweekly,monthly',
-            'weekly_quota_units' => 'sometimes|integer|min:0',
-            'monthly_bonus'      => 'nullable|array',
-            'conditions'         => 'nullable|array',
-            'active'             => 'sometimes|boolean',
+            'name'                         => 'sometimes|string|max:120',
+            'target_type'                  => 'sometimes|in:technician,seller,counter,all,accounting,support',
+            'base_salary'                  => 'sometimes|numeric|min:0',
+            'period'                       => 'sometimes|in:weekly,biweekly,monthly',
+            'weekly_quota_units'           => 'sometimes|integer|min:0',
+            'monthly_bonus'                => 'nullable|array',
+            'conditions'                   => 'nullable|array',
+            'active'                       => 'sometimes|boolean',
+            'variable_type'                => 'nullable|string|max:30',
+            'kpi_key'                      => 'nullable|string|max:60',
+            'formula_config'               => 'nullable|array',
+            'valid_from'                   => 'nullable|date',
+            'valid_until'                  => 'nullable|date|after_or_equal:valid_from',
+            'monthly_cutoff_day'           => 'nullable|integer|min:1|max:31',
+            'clawback_days'                => 'nullable|integer|min:0',
+            'clawback_requires_collection' => 'nullable|boolean',
         ]);
 
         $rule->update($data);
