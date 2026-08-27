@@ -255,21 +255,24 @@ if [ -n "$ITEM" ]; then
   PARENT_START="$(date +%s)"
   ITERS=0
 
-  # PPID vía /proc/$$/stat, mismo patrón que STARTTIME más arriba (campo tras el último ')'):
-  # ahí el campo 2 es el PPID. Si es 1, quien nos lanzó murió e init nos adoptó — nadie nos
-  # supervisa ya, así que ni el kill switch ni una pausa de cron pueden alcanzarnos.
-  huerfano(){ [ "$(sed -e 's/^.*) //' "/proc/$$/stat" 2>/dev/null | awk '{print $2}')" = "1" ]; }
+  # ⚠️ NO REINTRODUCIR UN CHEQUEO DE PPID=1 AQUÍ (regresión del 2026-08-26, #174; retirado 08-27).
+  # El tercer candado original preguntaba "¿mi PPID es 1?" para detectar "ya nadie me supervisa".
+  # En ESTA arquitectura esa pregunta no se puede contestar: el scheduler lanza cada vuelta con
+  # `setsid nohup … &` (SchedulerCommand::lanzarVueltaItem) justamente para desligarla del cron,
+  # así que PPID=1 es el estado NORMAL desde el segundo cero, no la señal de un padre muerto.
+  # El guard disparaba en la PRIMERA iteración, antes de tocar un solo item: 192 vueltas seguidas
+  # abortadas con "suelto el slot" y el circuito parado en seco ~13 h, con el freno suelto y el
+  # cron disparando cada minuto. Falla muda: se veía igual que "no hay trabajo elegible".
+  # Lo que ese candado quería evitar (el huérfano de 1 d 21 h del P0 del 24-ago) YA lo acotan los
+  # otros dos, que sí son medibles desde dentro del proceso: PARENT_TIMEOUT (pared de 3 h sobre
+  # todo el lazo) y MAXITER (tope de items por invocación) — un runaway queda acotado a 3 h / 20
+  # items en vez de días. Desde fuera siguen `circuito:reap-stuck`, `circuito:watchdog` y el freno
+  # de mano en archivo, que este lazo sí consulta antes y después de cada item.
 
   # POOL CONTINUO (#334 F1): trabaja su item y, al terminar, PIDE el siguiente elegible SIN esperar
   # al cron → mantiene el slot lleno mientras haya trabajo seguro (mata los valles). claim-next
   # respeta el kill switch (pausa → nada que reclamar) y serializa por flock (reclamo atómico #341).
   while true; do
-    if huerfano; then
-      log "HUÉRFANO: PPID=1 (mi proceso padre murió, init me adoptó). Nadie me supervisa: suelto el slot."
-      php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
-      break
-    fi
-
     ELAPSED=$(( $(date +%s) - PARENT_START ))
     if [ "$ELAPSED" -ge "$PARENT_TIMEOUT" ]; then
       log "TOPE DE TIEMPO DEL PADRE (${PARENT_TIMEOUT}s, llevo ${ELAPSED}s): suelto el slot; el scheduler relanza si hay más trabajo."
@@ -304,10 +307,6 @@ if [ -n "$ITEM" ]; then
     # reclamaría un item más antes de enterarse.
     if frenado; then
       log "FRENO DE MANO PUESTO durante la vuelta: $SID no reclama el siguiente."
-      break
-    fi
-    if huerfano; then
-      log "HUÉRFANO durante la vuelta: PPID=1, $SID no reclama el siguiente."
       break
     fi
     ELAPSED=$(( $(date +%s) - PARENT_START ))
