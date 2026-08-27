@@ -2509,7 +2509,11 @@ class RoadmapController extends Controller
         // EXCEPCIÓN: si el item declara algo de la frontera dura (prod / borrar datos / dinero /
         // credenciales), NO corre solo. Se queda esperando que él lo confirme a propósito — que
         // lo haya escrito no vuelve reversible un borrado de datos.
-        $frontera = $thomas->categoriaFronteraDura($texto);
+        // Se pide el DETALLE, no sólo la categoría: la válvula de más abajo necesita el término
+        // exacto que disparó para poder juzgarlo. Antes recibía la categoría y la presentaba al
+        // modelo como si fuera el término — ver `ThomasService::fronteraDuraDetalle()`.
+        $fronteraDet = $thomas->fronteraDuraDetalle($texto);
+        $frontera    = $fronteraDet['categoria'];
 
         if ($frontera === null) {
             $data['estado_aprobacion'] = 'aprobado_irving';
@@ -2533,7 +2537,7 @@ class RoadmapController extends Controller
                 'modulo'      => $data['modulo'] ?? null,
             ]);
             $v = app(\App\Modules\Addons\Roadmap\Services\ValvulaContextoService::class)
-                ->evaluarNacimiento($itemTmp, $frontera);
+                ->evaluarNacimiento($itemTmp, (string) $fronteraDet['termino'], $frontera);
 
             $data['frontera_valvula']    = $v['ok'] ? ($v['afloja'] ? 'mencion' : 'accion') : null;
             $data['frontera_valvula_at'] = $v['ok'] ? now() : null;

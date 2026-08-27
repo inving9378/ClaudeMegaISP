@@ -351,17 +351,40 @@ class ThomasService
         // ahora la definición única de `DetectorTerminos`: se quitan las líneas de proceso, se ancla
         // a palabra y se respetan las negaciones. El colapso de espacios se hace DESPUÉS de limpiar,
         // porque limpiar trabaja por líneas y necesita los saltos.
+        return $this->fronteraDuraDetalle($texto)['categoria'];
+    }
+
+    /**
+     * Lo mismo que `categoriaFronteraDura()`, pero devolviendo TAMBIÉN el término que disparó.
+     *
+     * POR QUÉ EXISTE (2026-08-27). El término se calculaba aquí dentro y se TIRABA: el bucle lo
+     * tenía en la mano y devolvía sólo la categoría. Río abajo, la VÁLVULA DE CONTEXTO —que puede
+     * APAGAR esta frontera— recibía esa categoría y su prompt se la presentaba al modelo como
+     * «TÉRMINO QUE DISPARÓ», etiqueta que era falsa.
+     *
+     * Medido en #191: el término real era «contratar» (categoría `dinero`), pero al modelo se le
+     * preguntó si el item «toca dinero» — palabra que NI SIQUIERA APARECE en el texto del item.
+     * Con esa pregunta, «mención» es la respuesta estructuralmente esperable: el modelo no se
+     * equivocaba de criterio, contestaba sobre otra cosa. El item quedó exento del único control
+     * determinista del sistema llevando dentro CURP, RFC, NSS y sueldos.
+     *
+     * `categoriaFronteraDura()` queda delegando aquí, así que sus llamadores no cambian.
+     *
+     * @return array{categoria:?string, termino:?string}
+     */
+    public function fronteraDuraDetalle(string $texto): array
+    {
         $heno = mb_strtolower(preg_replace('/[ \t]+/', ' ', DetectorTerminos::limpiar($texto)));
 
         foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
             foreach ((array) $terminos as $t) {
                 if (DetectorTerminos::dispara($heno, mb_strtolower((string) $t))) {
-                    return $categoria;
+                    return ['categoria' => $categoria, 'termino' => (string) $t];
                 }
             }
         }
 
-        return null;
+        return ['categoria' => null, 'termino' => null];
     }
 
     /**
