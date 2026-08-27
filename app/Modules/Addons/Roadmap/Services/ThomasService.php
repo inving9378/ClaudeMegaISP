@@ -449,34 +449,42 @@ class ThomasService
         // posición más suave de la perilla y por eso se nombra explícitamente en el motivo — un
         // item que pasa sin freno tiene que decir por qué pasó.
         if ($det['efecto'] === 'avisar') {
-            return $base + [
+            return array_merge($base, [
                 'categoria' => null,
                 'motivo'    => "Dispara «{$det['termino']}» ({$det['categoria']}), pero esa categoría está en modo «sólo avisar»: no retiene.",
-            ];
+            ]);
         }
 
         if ($item->frontera_valvula === 'mencion') {
-            $modo = app(TorreConfigService::class)->get()->valvulaModo();
+            // FALLA-SEGURA: si no se puede leer la configuración (tabla ausente, base caída), se
+            // asume `ablandar`, que es el modo que RETIENE. Un fallo al leer una perilla no puede
+            // ser la vía por la que una frontera dura se abre sola — es la misma regla que hace que
+            // la válvula caiga del lado del keyword cuando el modelo no contesta.
+            try {
+                $modo = app(TorreConfigService::class)->get()->valvulaModo();
+            } catch (\Throwable) {
+                $modo = 'ablandar';
+            }
 
             if ($modo === 'apagar') {
-                return $base + [
+                return array_merge($base, [
                     'categoria' => null,
                     'ablandada' => true,
                     'motivo'    => "La válvula lo selló como MENCIÓN y su modo es «apagar»: la frontera «{$det['categoria']}» no se evalúa para este item.",
-                ];
+                ]);
             }
 
-            return $base + [
+            return array_merge($base, [
                 'categoria' => $det['categoria'],
                 'ablandada' => true,
                 'motivo'    => "La válvula lo selló como MENCIÓN, así que la frontera «{$det['categoria']}» se ablandó a «requiere Irving» — nunca a «pasa».",
-            ];
+            ]);
         }
 
-        return $base + [
+        return array_merge($base, [
             'categoria' => $det['categoria'],
             'motivo'    => "Dispara «{$det['termino']}» ({$det['categoria']}), efecto «{$det['efecto']}».",
-        ];
+        ]);
     }
 
     /**

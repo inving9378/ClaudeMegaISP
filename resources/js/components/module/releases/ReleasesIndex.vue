@@ -67,10 +67,20 @@
                     <i class="bi bi-clipboard-data me-1"></i> Reporte
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'configuracion' }" href="#" @click.prevent="tab = 'configuracion'">
+                    <i class="bi bi-gear me-1"></i> Configuración
+                </a>
+            </li>
             <!-- Engrane de configuración de la Torre. Va al final, empujado con margin-left:auto
-                 (dentro del propio componente) para que no dependa del ancho de las pestañas. -->
-            <torre-config-panel />
+                 (dentro del propio componente) para que no dependa del ancho de las pestañas.
+                 #648 — ya NO abre un tablero propio: trae a la pestaña «Configuración», que es la
+                 única pantalla de configuración. Tres lugares mostrando lo mismo era la queja. -->
+            <torre-config-panel @abrir-configuracion="tab = 'configuracion'" />
         </ul>
+
+        <!-- ── Tab: Configuración de la Torre (#648) ── -->
+        <torre-configuracion v-if="tab === 'configuracion'" />
 
         <!-- ── Tab: Reporte ── -->
         <audit-report v-if="tab === 'reporte'" />
@@ -299,7 +309,20 @@ export default {
         next_page_url: { type: String },
     },
     setup(props) {
-        const tab = ref('panorama');
+        // #648 — la pestaña inicial se puede fijar por query string (`/releases?tab=configuracion`).
+        // Es lo que usan los engranes de fuera de esta pantalla para traer aquí en vez de abrir cada
+        // uno su propio tablero. Un valor desconocido cae a 'panorama'.
+        const TABS_VALIDAS = ['panorama', 'roadmap', 'terminales', 'integracion', 'acciones',
+            'salud', 'cola', 'historial', 'reporte', 'configuracion'];
+        const tabInicial = (() => {
+            try {
+                const q = new URLSearchParams(window.location.search).get('tab');
+                return TABS_VALIDAS.includes(q) ? q : 'panorama';
+            } catch (e) {
+                return 'panorama';
+            }
+        })();
+        const tab = ref(tabInicial);
         const releases = ref(JSON.parse(props.releases));
         const nextPageUrl = ref(props.next_page_url);
         const isLoading = ref(false);

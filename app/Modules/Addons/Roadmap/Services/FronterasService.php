@@ -218,10 +218,23 @@ class FronterasService
         return ['cambio' => true, 'antes' => $antes, 'despues' => $efecto];
     }
 
+    /**
+     * Normaliza un término a como se guarda y se busca: minúsculas y sin espacios sobrantes.
+     *
+     * Punto ÚNICO a propósito. La columna es de colación binaria (para no perder `producción` vs
+     * `produccion`), así que también distingue mayúsculas: normalizar sólo al escribir y no al
+     * buscar dejaba «agregar PRUEBA» funcionando y «quitar PRUEBA» respondiendo «no existe».
+     * El detector compara siempre en minúsculas, así que ésta es la forma canónica.
+     */
+    private function normalizar(string $termino): string
+    {
+        return trim(mb_strtolower($termino));
+    }
+
     /** Agrega un término a una categoría. Agregar ENDURECE (más cosas disparan). */
     public function agregarTermino(string $categoria, string $termino, bool $palabraCompleta): array
     {
-        $termino = trim(mb_strtolower($termino));
+        $termino = $this->normalizar($termino);
         if ($termino === '') {
             throw new \InvalidArgumentException('El término está vacío.');
         }
@@ -257,6 +270,8 @@ class FronterasService
     /** Quita un término (baja lógica: `activo=false`). Quitar AFLOJA. */
     public function quitarTermino(string $categoria, string $termino): array
     {
+        $termino = $this->normalizar($termino);
+
         $t = CircuitoFronteraTermino::query()
             ->where('categoria', $categoria)->where('termino', $termino)->firstOrFail();
 
@@ -279,6 +294,8 @@ class FronterasService
     /** Cambia el modo de coincidencia de un término (palabra completa vs. flexión). */
     public function setPalabraCompleta(string $categoria, string $termino, bool $palabraCompleta): array
     {
+        $termino = $this->normalizar($termino);
+
         $t = CircuitoFronteraTermino::query()
             ->where('categoria', $categoria)->where('termino', $termino)->firstOrFail();
 

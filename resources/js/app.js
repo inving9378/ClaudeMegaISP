@@ -361,6 +361,7 @@ import ReleasesIndex from "./components/module/releases/ReleasesIndex.vue";
 import ReleasesDescription from "./components/module/releases/ReleasesDescription.vue";
 import RoadmapTab from "./components/module/releases/torre-control/RoadmapTab.vue";
 import TorreConfigPanel from "./components/module/releases/torre-control/TorreConfigPanel.vue";
+import TorreConfiguracion from "./components/module/releases/torre-control/TorreConfiguracion.vue";
 import DeployProgressModal from "./components/module/releases/DeployProgressModal.vue";
 import UpdateBanner from "./components/module/releases/UpdateBanner.vue";
 import RoadmapItemDetalle from "./components/module/roadmap/RoadmapItemDetalle.vue";
@@ -729,6 +730,7 @@ const app = createApp({
         ReleasesDescription,
         RoadmapTab,
         TorreConfigPanel,
+        TorreConfiguracion,
         DeployProgressModal,
         UpdateBanner,
         RoadmapItemDetalle,

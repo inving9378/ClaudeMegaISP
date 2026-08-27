@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
 use App\Modules\Addons\Roadmap\Controllers\TorreCompuertasController;
+use App\Modules\Addons\Roadmap\Controllers\TorreFronterasController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapExternalController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMcpController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMemoryController;
@@ -116,6 +117,15 @@ Route::middleware(['web', 'auth'])
         // ponerla allá cruzaría la frontera de módulos por una ruta cosmética.
         Route::get('/torre/config',        [RoadmapController::class, 'torreConfig']);
         Route::post('/torre/config',       [RoadmapController::class, 'torreConfigGuardar']);
+        // #648 — FRONTERAS DURAS gobernables desde la pestaña «Configuración»: categorías,
+        // términos, efecto, válvula, sus dos guardas y el techo del autopilot con su simulación.
+        // Toda escritura exige `torre.config.edit` + `confirmado=true` (el segundo paso lo valida
+        // el servidor, no la UI).
+        Route::get('/torre/fronteras',                    [TorreFronterasController::class, 'index']);
+        Route::post('/torre/fronteras/categoria',         [TorreFronterasController::class, 'categoria']);
+        Route::post('/torre/fronteras/termino',           [TorreFronterasController::class, 'termino']);
+        Route::post('/torre/fronteras/valvula',           [TorreFronterasController::class, 'valvula']);
+        Route::post('/torre/fronteras/techo-autopilot',   [TorreFronterasController::class, 'techoAutopilot']);
         // #890 (Torre fase 6) — cola ejecutable REAL: orden exacto de despacho + excluidos con
         // causa. Solo lectura (`torre.cola.ver`, self-authorized dentro del controller).
         Route::get('/torre/cola',          [RoadmapController::class, 'torreCola']);
