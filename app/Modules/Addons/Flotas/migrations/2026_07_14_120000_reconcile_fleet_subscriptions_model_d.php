@@ -15,6 +15,12 @@ use Illuminate\Support\Facades\Schema;
  * excedente. Básico $99 (≤5) / Medio $199 (≤15) / Pro $349 (≤30) MXN/mes,
  * excedente $15 MXN/vehículo extra/mes. GPS add-on por vehículo fuera de alcance
  * (precio pendiente).
+ *
+ * `price_per_vehicle` queda DEPRECADA pero NO se elimina aquí (patrón en dos
+ * tiempos del guardrail #1018 — borrar una columna es borrar datos, frontera
+ * dura fuera de mi alcance sin la maduración que el guard exige). Ningún
+ * código lee ni escribe esa columna desde este corte; su retiro real queda
+ * para una migración de contracción posterior con `contraccion_de: V{n}`.
  */
 return new class extends Migration
 {
@@ -49,22 +55,10 @@ return new class extends Migration
         foreach (self::LEGACY_TO_MODEL_D as $legacy => $modelD) {
             DB::table('fleet_subscriptions')->where('plan', $legacy)->update(['plan' => $modelD]);
         }
-
-        if (Schema::hasColumn('fleet_subscriptions', 'price_per_vehicle')) {
-            Schema::table('fleet_subscriptions', function (Blueprint $table) {
-                $table->dropColumn('price_per_vehicle');
-            });
-        }
     }
 
     public function down(): void
     {
-        Schema::table('fleet_subscriptions', function (Blueprint $table) {
-            if (! Schema::hasColumn('fleet_subscriptions', 'price_per_vehicle')) {
-                $table->decimal('price_per_vehicle', 8, 2)->default(0)->after('vehicles_count');
-            }
-        });
-
         foreach (array_flip(self::LEGACY_TO_MODEL_D) as $modelD => $legacy) {
             DB::table('fleet_subscriptions')->where('plan', $modelD)->update(['plan' => $legacy]);
         }
