@@ -1088,10 +1088,33 @@ export default {
             } catch (e) {
                 // #878 — ANTES no había catch: la excepción se tragaba y los refs se quedaban en su
                 // valor inicial (ceros). La pantalla mentía en silencio. Ahora lo dice.
+                //
+                // CONTINUACIÓN 2026-08-27 — DECIR CUÁL DE LOS TRES FALLOS FUE.
+                // Este `catch` envuelve la petición Y todo el procesado de la respuesta. Con un solo
+                // ternario sobre `e.response`, un TypeError del código de abajo salía como «no se
+                // pudo contactar a la Torre»: mandaba a revisar red, sesión y servidor cuando el
+                // servidor había contestado 200 y el payload estaba impecable. Pasó de verdad y
+                // costó una búsqueda entera. Es el mismo pecado que #878 vino a cerrar —reportar
+                // una causa plausible en vez de la real—, sólo que un nivel más arriba.
                 const st = e?.response?.status;
-                errorCarga.value = st
-                    ? `La Torre respondió ${st}. Los números de abajo NO son datos: no se pudieron leer.`
-                    : 'No se pudo contactar a la Torre. Los números de abajo NO son datos: no se pudieron leer.';
+
+                if (st) {
+                    // El servidor contestó, y contestó mal.
+                    errorCarga.value = `La Torre respondió ${st}. Los números de abajo NO son datos: no se pudieron leer.`;
+                } else if (e?.isAxiosError) {
+                    // La petición salió y no volvió: red, nginx caído, timeout.
+                    errorCarga.value = e?.code === 'ECONNABORTED'
+                        ? 'La Torre no respondió a tiempo. Los números de abajo NO son datos: no se pudieron leer.'
+                        : 'No se pudo contactar a la Torre. Los números de abajo NO son datos: no se pudieron leer.';
+                } else {
+                    // El servidor SÍ contestó; lo que falló fue procesar la respuesta aquí. Decirlo
+                    // con nombre y mensaje evita que se busque el problema en el lugar equivocado.
+                    errorCarga.value = `La Torre respondió, pero no pude procesar los datos (${e?.name || 'error'}: ${e?.message || 'sin mensaje'}). Los números de abajo NO son datos.`;
+                }
+
+                // El error íntegro a la consola: el texto de arriba es para leerlo de un vistazo;
+                // esto es lo que hace falta para arreglarlo.
+                console.error('[Torre] fallo al cargar el panorama:', e);
             } finally {
                 loading.value = false;
             }
