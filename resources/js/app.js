@@ -377,6 +377,8 @@ import IAConfiguracion from "./components/module/ia/IAConfiguracion.vue";
 import ManualIndex from "./components/module/manual/ManualIndex.vue";
 //Ayuda contextual por pantalla (panel flotante estilo Splynx)
 import HelpFloat from "./components/ayuda/HelpFloat.vue";
+//Chat IA flotante (#9 / #636): gateado por permiso usar-ia-chat en el layout
+import IaChatFloat from "./components/ia/IaChatFloat.vue";
 
 //Evaluador Empresarial — portado desde MEGANET 2026-05-22
 import EvaluadorEmpresarial from "./components/module/sellers/EvaluadorEmpresarial.vue";
@@ -962,6 +964,14 @@ store
             helpFloatApp.use(store);
             helpFloatApp.component('help-float', HelpFloat);
             helpFloatApp.mount('#help-float-root');
+        }
+
+        const iaChatFloatEl = document.querySelector('#ia-chat-float-root');
+        if (iaChatFloatEl) {
+            const iaChatFloatApp = createApp({});
+            iaChatFloatApp.use(store);
+            iaChatFloatApp.component('ia-chat-float', IaChatFloat);
+            iaChatFloatApp.mount('#ia-chat-float-root');
         }
     })
     .catch((error) => {

@@ -227,14 +227,16 @@ Route::get('/notification-email', function () {
 // Chat IA flotante (#9 Fase 1): el asistente conoce los módulos/acciones registrados
 // dinámicamente vía ModuleRegistry::getAiContext(). READ-ONLY (no ejecuta acciones).
 // Antes esta ruta estaba atrapada como código muerto dentro del closure de /notification-email.
+// #636: segunda capa además del @can('usar-ia-chat') del layout — evita que un
+// usuario sin el permiso llame el endpoint directo aunque el widget no se le renderice.
 Route::post('/ia/chat', [\App\Http\Controllers\IA\IAChatController::class, 'chat'])
-    ->middleware('auth')
+    ->middleware(['auth', 'can:usar-ia-chat'])
     ->name('ia.chat');
 
 // Sugerencias dinámicas del chat flotante (#9 Fase 3): derivadas de example_intents de
 // los módulos activos, en vez de hardcodearlas en el frontend.
 Route::get('/ia/suggestions', [\App\Http\Controllers\IA\IAChatController::class, 'suggestions'])
-    ->middleware('auth')
+    ->middleware(['auth', 'can:usar-ia-chat'])
     ->name('ia.suggestions');
 
 // ── IPv6 1.7a (item #999, épica #811 → #951/#950) — pantalla standalone de
