@@ -31,18 +31,61 @@ class TorreConfig extends Model
         'autonomo' => 'C',
     ];
 
+    /** Modos de la válvula de contexto. `ablandar` nunca deja pasar; `apagar` es el de antes. */
+    public const VALVULA_MODOS = ['ablandar', 'apagar'];
+
     protected $fillable = [
         'nivel_automatizacion',
+        'autopilot_max_nivel',
         'auditor_activo',
         'auditor_max_por_corrida',
         'auditor_cooldown_min',
+        'valvula_activa',
+        'valvula_modo',
+        'valvula_guarda_termino',
+        'valvula_guarda_razon',
     ];
 
     protected $casts = [
         'auditor_activo'          => 'boolean',
         'auditor_max_por_corrida' => 'integer',
         'auditor_cooldown_min'    => 'integer',
+        'valvula_activa'          => 'boolean',
+        'valvula_guarda_termino'  => 'boolean',
+        'valvula_guarda_razon'    => 'boolean',
     ];
+
+    /**
+     * Sub-techo del autopilot. `null` en la columna = **lo gobierna `config/circuito.php`**, que es
+     * el estado de fábrica; sólo cuando Irving mueve la perilla en pantalla la columna manda.
+     *
+     * Se resuelve aquí y no en el llamador para que no haya dos lugares decidiendo qué gana.
+     */
+    public function autopilotMaxNivel(): string
+    {
+        $col = strtoupper((string) $this->autopilot_max_nivel);
+        if (in_array($col, ['A', 'B', 'C'], true)) {
+            return $col;
+        }
+
+        $cfg = strtoupper((string) config('circuito.autopilot.max_nivel', 'B'));
+
+        return in_array($cfg, ['A', 'B', 'C'], true) ? $cfg : 'B';
+    }
+
+    /** De dónde salió el sub-techo vigente — la pantalla lo muestra junto al valor. */
+    public function autopilotMaxNivelFuente(): string
+    {
+        return in_array(strtoupper((string) $this->autopilot_max_nivel), ['A', 'B', 'C'], true)
+            ? 'tabla torre_config (lo fijaste en pantalla)'
+            : 'config/circuito.php → circuito.autopilot.max_nivel';
+    }
+
+    /** El modo vigente de la válvula, saneado. */
+    public function valvulaModo(): string
+    {
+        return in_array($this->valvula_modo, self::VALVULA_MODOS, true) ? $this->valvula_modo : 'ablandar';
+    }
 
     /**
      * El techo de `nivel_riesgo` (A|B|C|null) que implica el nivel de automatización vigente.

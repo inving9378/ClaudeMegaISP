@@ -28,6 +28,16 @@ class TorreControlCatalog
         'auditor.enabled',
         'auditor.cap_por_ciclo',
         'auditor.min_intervalo_minutos',
+        // #648 — tienen endpoint de guardado real (`TorreFronterasController`), con permiso de
+        // edición y confirmación en dos pasos exigida por el servidor.
+        'fronteras.categorias',
+        'fronteras.terminos',
+        'fronteras.efecto',
+        'torre_config.valvula_activa',
+        'torre_config.valvula_modo',
+        'torre_config.valvula_guarda_termino',
+        'torre_config.valvula_guarda_razon',
+        'torre_config.autopilot_max_nivel',
     ];
 
     public static function grupos(): array
@@ -81,6 +91,12 @@ class TorreControlCatalog
                 'resumen' => 'Motor todavía no existe — no se pinta ningún control (fase 5 del plan).',
                 'controles' => [],
                 'no_existe' => true,
+            ],
+            [
+                'clave'   => 'fronteras',
+                'titulo'  => 'Fronteras duras',
+                'resumen' => 'El único control por contenido que no depende de lo que un modelo declare de sí mismo.',
+                'controles' => self::gruposFronteras(),
             ],
             [
                 'clave'   => 'guardrails',
@@ -695,6 +711,91 @@ class TorreControlCatalog
                 'circuito:cabida',
                 'Mediana histórica (segundos) por encima de la cual un item se recomienda descomponer antes de empezar.',
                 'Queda por debajo del timeout real (600s) a propósito: conviene descomponer antes de rozar la pared.',
+                'verde',
+            ),
+        ];
+    }
+
+    // ── FRONTERAS DURAS (#648) ───────────────────────────────────────────────────────────────
+    private static function gruposFronteras(): array
+    {
+        $f = app(\App\Modules\Addons\Roadmap\Services\FronterasService::class);
+        $mapa = $f->mapa();
+        $activas = count(array_filter($mapa, fn ($c) => $c['activa']));
+        $terminos = array_sum(array_map(fn ($c) => count(array_filter($c['terminos'], fn ($t) => $t['activo'])), $mapa));
+        $cfg = app(\App\Modules\Addons\Roadmap\Services\TorreConfigService::class)->get();
+
+        return [
+            self::control(
+                'fronteras.categorias',
+                'tabla circuito_fronteras',
+                self::fuenteLiteral("{$activas}/" . count($mapa) . ' activas', null),
+                'ThomasService::fronteraDuraDetalle → toda la cadena de aprobación',
+                'Qué familias de trabajo frenan el circuito por su contenido.',
+                'Apagar una categoría deja de frenar por ese motivo a TODOS los items que la disparan.',
+                'verde',
+            ),
+            self::control(
+                'fronteras.terminos',
+                'tabla circuito_frontera_terminos',
+                self::fuenteLiteral("{$terminos} términos activos", null),
+                'DetectorTerminos (determinista, sin modelo)',
+                'Las palabras concretas que encienden cada frontera.',
+                'Quitar un término afloja; agregarlo endurece. La pantalla muestra cuántos items dispara cada uno.',
+                'verde',
+            ),
+            self::control(
+                'fronteras.efecto',
+                'tabla circuito_fronteras (columna efecto)',
+                self::fuenteLiteral(implode(' · ', array_map(fn ($c, $k) => "{$k}:{$c['efecto']}", $mapa, array_keys($mapa))), null),
+                'RoadmapController::store + TorreAutomationPolicy',
+                'Qué pasa cuando la categoría dispara: bloquear · bandeja · sólo avisar.',
+                '«Sólo avisar» NO retiene el item: la detección se registra y se cuenta, pero el trabajo sigue.',
+                'verde',
+            ),
+            self::control(
+                'torre_config.valvula_activa',
+                'tabla torre_config',
+                self::fuenteLiteral($cfg->valvula_activa ? 'sí' : 'no', null),
+                'ValvulaContextoService',
+                'Si se le pregunta a un modelo cuando el keyword marca frontera dura.',
+                'Apagada, toda coincidencia manda el item a tu bandeja aunque sólo mencione el tema.',
+                'verde',
+            ),
+            self::control(
+                'torre_config.valvula_modo',
+                'tabla torre_config',
+                self::fuenteLiteral($cfg->valvulaModo(), null),
+                'ThomasService::fronteraDuraDeItemDetalle',
+                'Hasta dónde puede ablandar un veredicto de MENCIÓN.',
+                '`ablandar` baja a «requiere Irving»; `apagar` hace desaparecer la frontera para ese item (comportamiento anterior al 2026-08-27).',
+                'verde',
+            ),
+            self::control(
+                'torre_config.valvula_guarda_termino',
+                'tabla torre_config',
+                self::fuenteLiteral($cfg->valvula_guarda_termino ? 'sí' : 'no', null),
+                'ValvulaContextoService::evaluar (antes del modelo)',
+                'Exige que el término consultado aparezca en el texto que vería el modelo.',
+                'Sin ella se puede volver a preguntar por una palabra ausente del item — el defecto que dejó exento al #182.',
+                'verde',
+            ),
+            self::control(
+                'torre_config.valvula_guarda_razon',
+                'tabla torre_config',
+                self::fuenteLiteral($cfg->valvula_guarda_razon ? 'sí' : 'no', null),
+                'ValvulaContextoService::evaluar (después del modelo)',
+                'Exige que la razón del modelo se refiera al término por el que se le preguntó.',
+                'Sólo puede quitar un aflojo, nunca crearlo. Nace apagada: es nueva y sin medir.',
+                'verde',
+            ),
+            self::control(
+                'torre_config.autopilot_max_nivel',
+                'tabla torre_config (override de config/circuito.php)',
+                self::fuenteLiteral($cfg->autopilotMaxNivel() . ' — ' . $cfg->autopilotMaxNivelFuente(), null),
+                'AutopilotService + TorreAutomationPolicy::subTecho',
+                'Hasta qué nivel_riesgo decide el autopilot por su cuenta.',
+                'La pantalla muestra cuántos items califican en A, B y C ANTES de mover la perilla.',
                 'verde',
             ),
         ];

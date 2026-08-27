@@ -366,7 +366,12 @@ class RoadmapController extends Controller
         ['icono' => '🔒', 'texto' => 'Prod bloqueado · 192.168.105.108 · v1megaisp.com.mx', 'donde' => 'fijo en código'],
         ['icono' => '🔒', 'texto' => 'migrate:fresh prohibido',                             'donde' => 'fijo en código'],
         ['icono' => '🔒', 'texto' => 'git add -A prohibido',                                'donde' => 'fijo en código'],
-        ['icono' => '🔒', 'texto' => 'Topes duros: producción · borrar datos · dinero · credenciales', 'donde' => 'ThomasService, no configurable'],
+        // #648 — ESTA LÍNEA DECÍA «no configurable» Y DEJÓ DE SER CIERTA. Los topes duros ahora se
+        // gobiernan desde la pestaña «Configuración» → Fronteras (encender/apagar categorías, editar
+        // sus términos, elegir su efecto), por decisión explícita de Irving. Lo que SIGUE sin tener
+        // interruptor es la DETECCIÓN: es determinista y no la decide ningún modelo. Un guardrail
+        // que promete un candado que ya no existe es peor que no listarlo.
+        ['icono' => '🔓', 'texto' => 'Topes duros (producción · borrar datos · dinero · credenciales): la DETECCIÓN es determinista y no se apaga; la lista y su efecto SÍ se gobiernan desde Configuración → Fronteras, con bitácora de cada cambio', 'donde' => 'circuito_fronteras (antes: fijo en ThomasService)'],
         ['icono' => '🔒', 'texto' => 'Vía externa (Cowork/MCP): solo nivel A puede quedar aprobado_claude', 'donde' => 'guard() — sin endpoint'],
         // #943 — completa la cubeta roja de `plan-configuracion-torre.md` §1 (antes faltaban
         // estos 2 de los 6 ahí listados).
@@ -2515,6 +2520,15 @@ class RoadmapController extends Controller
         $fronteraDet = $thomas->fronteraDuraDetalle($texto);
         $frontera    = $fronteraDet['categoria'];
 
+        // #648 — EL EFECTO DE LA CATEGORÍA GOBIERNA AQUÍ. `avisar` es la posición más suave de la
+        // perilla: la detección se registra y se cuenta, pero NO retiene el item. Se separa de
+        // `$frontera` en vez de anularla para que la bitácora siga diciendo qué disparó — un item
+        // que pasó sin freno tiene que decir por qué pasó.
+        $fronteraSoloAvisa = $frontera !== null && ($fronteraDet['efecto'] ?? 'bandeja') === 'avisar';
+        if ($fronteraSoloAvisa) {
+            $frontera = null;
+        }
+
         if ($frontera === null) {
             $data['estado_aprobacion'] = 'aprobado_irving';
             $data['aprobado_por']      = $this->actorLabel();
@@ -2610,6 +2624,10 @@ class RoadmapController extends Controller
             'via'     => 'torre',
             'directo_a_cola' => $frontera === null,
             'frontera'       => $frontera,
+            'frontera_detectada' => $fronteraDet['categoria'],
+            'frontera_termino'   => $fronteraDet['termino'],
+            'frontera_efecto'    => $fronteraDet['efecto'] ?? null,
+            'frontera_solo_avisa' => $fronteraSoloAvisa,
             'eta_minutos'    => $item->eta_minutos,
             'disparo'        => $disparo,
         ]];
@@ -2623,7 +2641,12 @@ class RoadmapController extends Controller
                 'ts'        => now()->toIso8601String(),
                 'por'       => 'valvula:nacimiento',
                 'evento'    => 'valvula_nacimiento',
-                'termino'   => $frontera,
+                // #648 — antes aquí se guardaba la CATEGORÍA bajo la etiqueta `termino`, el mismo
+                // error que tenía el prompt. Ahora van los dos campos, cada uno con su nombre.
+                'termino'   => $fronteraDet['termino'],
+                'categoria' => $fronteraDet['categoria'],
+                'efecto'    => $fronteraDet['efecto'] ?? null,
+                'guarda'    => $valvulaNacimiento['guarda'] ?? null,
                 'veredicto' => $valvulaNacimiento['veredicto'],
                 'aflojo'    => (bool) $valvulaNacimiento['afloja'],
                 'ok'        => (bool) $valvulaNacimiento['ok'],
@@ -2635,11 +2658,24 @@ class RoadmapController extends Controller
             ];
         }
 
+        // EFECTO `bloquear`: además de retenerlo, lo saca del pool automático. Es lo que distingue
+        // «bloquear» de «bandeja» — el item no vuelve a la cola hasta que Irving lo suelte a mano.
+        if ($frontera !== null && ($fronteraDet['efecto'] ?? 'bandeja') === 'bloquear') {
+            $item->excluir_pool_automatico = true;
+            $item->motivo_bloqueo = "Frontera dura «{$frontera}» en modo BLOQUEAR (disparó «{$fronteraDet['termino']}»). "
+                . 'Suéltalo desde la Torre cuando lo hayas revisado.';
+            $item->origen_bloqueo = 'frontera_dura';
+        }
+
         $item->log = array_merge($item->log ?? [], $entradas);
         $item->save();
 
-        if ($frontera !== null) {
-            $aviso = "Creado, pero NO entra solo a la cola: declara «{$frontera}» (frontera dura). "
+        if ($fronteraSoloAvisa) {
+            $aviso = "Creado y aprobado. Ojo: dispara «{$fronteraDet['termino']}» ({$fronteraDet['categoria']}), "
+                . 'pero esa categoría está en modo «sólo avisar» y no retiene. Queda registrado.';
+        } elseif ($frontera !== null) {
+            $aviso = "Creado, pero NO entra solo a la cola: disparó «{$fronteraDet['termino']}» "
+                . "→ frontera «{$frontera}» (efecto: " . ($fronteraDet['efecto'] ?? 'bandeja') . '). '
                 . 'Apruébalo desde la bandeja si es lo que quieres.';
         } elseif ($disparo['ok'] ?? false) {
             $aviso = "Creado y aprobado: entra directo a la cola y ya se disparó — una terminal libre lo toma en segundos (Thomas lo estimó en ~{$item->eta_minutos} min).";

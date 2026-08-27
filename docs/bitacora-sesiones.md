@@ -2766,3 +2766,70 @@ hardware real, tal como concluye la propia auditoría.
 documentados, y confirmación de que los 4 sub-items quedaron registrados bajo #57. Sin tocar
 ninguna OLT real ni escribir código nuevo — el ítem es documental/read-only, tal como su propio
 alcance lo pedía ("NO construir todavía").
+
+## 2026-08-27 15:35 — Válvula: re-sello de #182, guarda determinista, y pestaña «Configuración de la Torre» (#648)
+
+**Rama:** `circuito/item-648-torre-configuracion-y-fronteras` · **Item:** #648 (creado en la sesión)
+**Merge previo a main:** `valvula-termino-real` (commit `474b6adf`) — la válvula juzga el término
+que disparó, no la categoría.
+
+### 1 · Re-sello de #182 a `accion`
+No se sobrescribió un juicio: se corrigió una **medición inválida**. El sello anterior lo produjo
+una pregunta mal formada — a la válvula se le pasó la CATEGORÍA (`credenciales`) bajo la etiqueta
+«TÉRMINO QUE DISPARÓ», y esa palabra no aparece en el texto del item. El propio modelo lo dijo en su
+razón («el término *credenciales* no aparece en el texto») y de esa **ausencia** concluyó «mención»,
+abriendo la frontera dura. El término real era `permiso`.
+
+El sello anterior **se conserva íntegro** en la bitácora del item (evento `valvula_nacimiento` del
+2026-08-24, con su razón textual) y se agregó un evento `valvula_resello` que trae los dos veredictos,
+la razón del anterior y el motivo del cambio. El registro muestra los dos y el porqué.
+
+Evidencia independiente que ya estaba en el mismo item: el evento `valvula_contexto` del 2026-08-25,
+que SÍ recibió el término real, ya había respondido `accion`.
+
+**#191 se queda como está** — mismo veredicto, ahora bien fundado (con `contratar` el modelo responde
+`mencion` igual). Nada que tocar.
+
+### 2 · La guarda que cierra la clase (pieza 0-bis de #646)
+Verificación **determinista, antes de consultar al modelo**: si el término no aparece en el texto que
+el modelo vería, la pregunta está mal formada → no se pregunta y **no afloja**. Habría atrapado los
+dos casos sin involucrar a ningún modelo. Va por delante de la guarda (c), que también quedó
+implementada pero **apagada por defecto** (es nueva y sin medir).
+
+Candado: `tests/Unit/Modules/Addons/Roadmap/ValvulaGuardaTerminoPresenteTest.php` (6 casos con los
+textos reales de #182 y #191, sin BD y sin modelo).
+
+### 3 · Pestaña «Configuración de la Torre» (#648)
+Pantalla única en la fila superior de `/releases`, con el engrane a la derecha. Consolida los **tres**
+lugares que mostraban lo mismo: el modal del engrane de la Torre y el tablero del engrane de la
+cabecera dejan de abrir tableros propios y traen aquí (el de la cabecera conserva el aviso rojo de
+compuertas bloqueando, que es lo único no visible desde otro lado).
+
+Secciones: Fronteras · Interruptores · Niveles y umbrales · Acciones · Sin interruptor (con motivo) ·
+Permisos.
+
+**Fronteras duras ahora gobernables** (`circuito_fronteras` + `circuito_frontera_terminos`, sembradas
+desde `config/circuito.php` con el comportamiento de hoy; la config queda de respaldo):
+categorías on/off · términos editables con cuántos items dispara cada uno · efecto por categoría
+(`bloquear` | `bandeja` | `avisar`) · válvula on/off y su modo · las dos guardas · techo del autopilot
+A/B/C **con el número de items que califican en cada nivel** (medido con el mismo veredicto que aplica
+el real: hoy 0 de 108 en los tres niveles).
+
+⚠️ **Cambia el modelo de seguridad, a petición explícita de Irving:** antes los topes duros se
+documentaban como «no se levantan desde ninguna configuración». El guardrail que lo prometía se
+corrigió para no mentir. Lo que NO cambió: la detección sigue siendo determinista y sin modelo, y
+ningún ajuste de automatización levanta una frontera.
+
+### Decisiones tomadas sin preguntar
+- **Modo de válvula por defecto = `ablandar`** (baja a «requiere Irving», nunca a «pasa»), que es la
+  semántica que Irving describió. El `apagar` anterior queda seleccionable. Es la dirección segura.
+- **Guarda de la razón nace apagada**; la del término, encendida.
+- **Efecto por defecto = `bandeja`** en las cuatro categorías = comportamiento actual exacto.
+- **La lista de términos distingue acentos** (colación binaria): la colación por defecto es
+  acento-insensible y hacía colisionar `producción` con `produccion`, pero el detector (PCRE `/u`) sí
+  distingue → se habría perdido detección.
+
+### Pendiente
+- Validación visual de Irving en el navegador (`/releases?tab=configuracion`).
+- 2 tests de `DiagnosticoItemServiceTest` erran por la BD de tests (`megaisp_test` no tiene
+  `torre_config`). **Pre-existentes** — verificado corriéndolos en `main`.

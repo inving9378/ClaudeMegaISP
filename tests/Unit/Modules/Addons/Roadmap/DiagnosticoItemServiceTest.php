@@ -138,10 +138,25 @@ class DiagnosticoItemServiceTest extends BaseTestCase
         $this->assertNull($d['accion']);
     }
 
-    public function test_frontera_dura_despejada_por_la_valvula_no_es_tope_duro(): void
+    /**
+     * ⚠️ LA SEMÁNTICA DE ESTE CASO SE INVIRTIÓ EL 2026-08-27 (#648, decisión de Irving).
+     *
+     * ANTES: `frontera_valvula==='mencion'` hacía DESAPARECER la frontera dura para ese item — y
+     * para siempre, porque el sello queda guardado en la fila. O sea: el único control por
+     * contenido que no depende de la autodeclaración de un modelo tenía un interruptor de apagado,
+     * y el interruptor lo accionaba un modelo. Ese camino dejó exento al #182 mientras implementaba
+     * control de acceso real con Spatie, sobre una pregunta mal formada.
+     *
+     * AHORA (modo `ablandar`, el de fábrica): una «mención» baja la frontera a «requiere Irving»,
+     * NUNCA a «pasa». El modelo puede seguir diciendo «sólo lo menciona» y el efecto es que Irving
+     * LO VE, no que el control se apague solo. Sigue siendo `tope_duro`.
+     *
+     * El comportamiento anterior no se borró: es el modo `apagar`, seleccionable desde la pestaña
+     * «Configuración» → Fronteras → Válvula. Este test fija el DE FÁBRICA, que es el que corre si
+     * nadie toca nada — incluida la lectura fallida de la config, que cae a `ablandar` a propósito.
+     */
+    public function test_una_mencion_ablanda_la_frontera_pero_no_la_apaga(): void
     {
-        // Réplica del guard de #566: `frontera_valvula==='mencion'` significa que la válvula de
-        // nacimiento ya determinó que el término solo se MENCIONA, no se usa → no debe frenar.
         $i = $this->item([
             'id'                => 999907,
             'estado_aprobacion' => 'pendiente_revision',
@@ -152,7 +167,9 @@ class DiagnosticoItemServiceTest extends BaseTestCase
 
         $d = DiagnosticoItemService::para($i);
 
-        $this->assertNotSame('tope_duro', $d['causa']);
+        $this->assertSame('tope_duro', $d['causa'],
+            'Una «mención» volvió a APAGAR la frontera dura. El modo de fábrica es `ablandar`: '
+            . 'baja a «requiere Irving», nunca a «pasa».');
     }
 
     public function test_ninguna_causa_cubierta_devuelve_no_determinado_honesto(): void

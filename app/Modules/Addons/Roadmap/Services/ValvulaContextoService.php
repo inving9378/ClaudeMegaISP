@@ -54,15 +54,49 @@ class ValvulaContextoService
     {
         $noSePudo = fn (string $razon) => [
             'afloja' => false, 'ok' => false, 'veredicto' => null, 'razon' => $razon, 'modelo' => null,
-            'seguro' => false,
+            'seguro' => false, 'guarda' => null,
         ];
 
-        if (! config('circuito.valvula_contexto.enabled', true)) {
-            return $noSePudo('Válvula de contexto desactivada por configuración; queda el veredicto del keyword.');
+        $cfg = app(TorreConfigService::class)->get();
+
+        // Dos interruptores, uno de código y uno de pantalla. La perilla de la Torre manda sobre la
+        // de config: es la que Irving puede ver y mover, y un panel cuyo interruptor no gobierna
+        // enseña a desconfiar del panel entero.
+        if (! config('circuito.valvula_contexto.enabled', true) || ! $cfg->valvula_activa) {
+            return $noSePudo('Válvula de contexto apagada; queda el veredicto del keyword.');
         }
 
         if (trim($termino) === '') {
             return $noSePudo('Sin término que evaluar.');
+        }
+
+        /*
+         * ── GUARDA 1 · LA PREGUNTA TIENE QUE ESTAR BIEN FORMADA (2026-08-27, #646/#648) ──────────
+         *
+         * Determinista, ANTES del modelo, y por delante de la guarda de la razón.
+         *
+         * QUÉ CIERRA. Hasta hoy al modelo se le pasaba la CATEGORÍA de la frontera ('dinero',
+         * 'credenciales') bajo la etiqueta «TÉRMINO QUE DISPARÓ». En los DOS items que llegaron a
+         * sellarse —#182 y #191, 2 de 2— esa palabra ni siquiera aparecía en el texto. Y preguntar
+         * «¿este item TOCA "dinero"?» sobre un documento donde esa palabra no existe empuja la
+         * respuesta a «mención»: no era un error de criterio del modelo, era otra pregunta. El
+         * #182 quedó exento de la única capa determinista mientras implementaba control de acceso
+         * real con Spatie; el propio modelo lo dijo en su razón: «el término no aparece en el texto».
+         *
+         * LA REGLA. Una válvula sólo puede aflojar sobre algo que ESTÁ AHÍ. Si el término no
+         * aparece en el texto que se le va a mostrar al modelo, la pregunta está mal formada: no se
+         * pregunta y NO se afloja. Sin involucrar a ningún modelo — habría atrapado los dos casos.
+         *
+         * Se comprueba contra lo que el modelo VA A VER (`textoVisible()`), no contra el texto
+         * crudo: si el término vive en una línea que `limpiar()` quita, el modelo no puede juzgarlo,
+         * y juzgar sobre lo que no se ve es exactamente el defecto que esto cierra.
+         */
+        if ($cfg->valvula_guarda_termino && ! self::terminoPresente(self::textoVisible($item), $termino)) {
+            return array_merge($noSePudo(
+                "PREGUNTA MAL FORMADA: el término «{$termino}» no aparece en el texto que vería el modelo. "
+                . 'Una válvula sólo puede aflojar sobre algo que está ahí, así que no se consulta y NO se afloja: '
+                . 'queda el veredicto del keyword.'
+            ), ['guarda' => 'termino_ausente']);
         }
 
         $modelo = (string) config(
@@ -96,6 +130,31 @@ class ValvulaContextoService
             // ampliar, solo abrir.
             $afloja = $v['veredicto'] === self::MENCION;
 
+            /*
+             * ── GUARDA 2 · LA RAZÓN TIENE QUE REFERIRSE AL TÉRMINO (guarda «(c)» de #646) ────────
+             *
+             * Mismo criterio de procedencia que se le exige a Thomas —toda afirmación con su cita—
+             * aplicado al control de seguridad: si la razón que da el modelo no menciona el término
+             * por el que se le preguntó, contestó sobre otra cosa y su «mención» no sostiene nada.
+             *
+             * Sólo puede QUITAR un aflojo, nunca crearlo. Nace APAGADA a propósito: es nueva y sin
+             * medir, y encenderla antes de tener número endurecería a ciegas. Se enciende desde la
+             * pantalla, cuando el contador diga qué tan seguido pasa.
+             */
+            if ($afloja && $cfg->valvula_guarda_razon
+                && ! self::terminoPresente($v['razon'], $termino)) {
+                return [
+                    'afloja'    => false,
+                    'ok'        => false,
+                    'veredicto' => $v['veredicto'],
+                    'razon'     => "La válvula leyó «mención», pero su razón no se refiere a «{$termino}» "
+                                 . '(contestó sobre otra cosa): no afloja. Dijo: ' . $v['razon'],
+                    'modelo'    => $modelo,
+                    'seguro'    => false,
+                    'guarda'    => 'razon_no_menciona_termino',
+                ];
+            }
+
             return [
                 'afloja'    => $afloja,
                 'ok'        => true,
@@ -103,6 +162,7 @@ class ValvulaContextoService
                 'razon'     => $v['razon'],
                 'modelo'    => $modelo,
                 'seguro'    => $v['seguro'],
+                'guarda'    => null,
             ];
         } catch (\Throwable $e) {
             // Falla-segura EXPLÍCITA: sin modelo, sin red, timeout o error de la API → el keyword
@@ -150,6 +210,8 @@ class ValvulaContextoService
                 'razon'  => 'La válvula lo leyó como mención pero sin seguridad suficiente; en la puerta '
                           . 'de nacimiento la duda no afloja. ' . $r['razon'],
                 'modelo' => $r['modelo'],
+                'seguro' => false,
+                'guarda' => $r['guarda'] ?? null,
             ];
         }
 
@@ -205,6 +267,38 @@ cierto estado; el nombre de un directorio (deploy/circuito/) dentro de una ruta 
 REGLA DURA: ante la duda, responde "accion". Un falso "accion" solo hace que un humano revise el
 item; un falso "mencion" deja pasar trabajo sensible sin revisión. El costo no es simétrico.
 TXT;
+    }
+
+    /**
+     * El texto que el modelo VA A VER — exactamente los mismos trozos que arma `userPrompt()`.
+     *
+     * Se mantiene junto al prompt a propósito: si un día el prompt cambia lo que muestra, la guarda
+     * tiene que cambiar con él, y tenerlos separados es cómo se llega a comprobar una cosa y
+     * preguntar otra — que es el defecto que la guarda existe para cerrar.
+     */
+    public static function textoVisible(RoadmapItem $item): string
+    {
+        return (string) $item->title . "\n" . (string) $item->modulo . "\n"
+            . DetectorTerminos::limpiar((string) $item->description . "\n" . (string) $item->prompt);
+    }
+
+    /**
+     * ¿El término APARECE en este texto? Presencia, no disparo.
+     *
+     * Deliberadamente `apariciones()` y no `dispara()`: un término negado («no toca producción»)
+     * SÍ está en el texto, así que la pregunta está bien formada y le toca al modelo juzgarla. Lo
+     * que esta guarda ataja es el otro caso — preguntar por una palabra que no existe en el
+     * documento.
+     *
+     * Anclado al inicio de palabra y admitiendo flexión, el modo más permisivo de `DetectorTerminos`:
+     * al ser una guarda que sólo puede ENDURECER, conviene que su falso positivo sea «deja pasar la
+     * pregunta al modelo» y no «bloquea una consulta legítima».
+     */
+    public static function terminoPresente(string $texto, string $termino): bool
+    {
+        $heno = mb_strtolower(preg_replace('/[ \t]+/', ' ', $texto));
+
+        return DetectorTerminos::apariciones($heno, mb_strtolower(trim($termino)), false) !== [];
     }
 
     private function userPrompt(RoadmapItem $item, string $termino, ?string $categoria = null): string
