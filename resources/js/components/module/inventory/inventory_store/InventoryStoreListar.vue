@@ -73,7 +73,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudinventorystore").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudinventorystore'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Almacen";
             action.value = "/inventory/inventory_store/add";
@@ -81,7 +81,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudinventorystore").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudinventorystore')).show();
             title.value = "Editar Almacen";
             action.value = `/inventory/inventory_store/update/${idItem}`;
         };

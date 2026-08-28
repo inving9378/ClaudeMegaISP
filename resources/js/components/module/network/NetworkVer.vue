@@ -78,13 +78,13 @@ export default {
         });
 
         const closeModal = () => {
-            $("#modalEditIp").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalEditIp'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             datatable.table.reload();
         };
 
         const showEditModal = (idItem) => {
-            $("#modalEditIp").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditIp')).show();
             action.value = `/red/ipv4/ip/update/${idItem}`;
         };
 

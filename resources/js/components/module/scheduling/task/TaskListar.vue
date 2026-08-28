@@ -209,7 +209,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#crudTask").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudTask'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Tarea";
             action.value = "/scheduling/task/add";
@@ -219,7 +219,7 @@ export default {
         const showModal = () => {
             title.value = "Crear Tarea";
             action.value = "/scheduling/task/add";
-            $("#crudTask").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudTask')).show();
         }
 
         const showEditModal = (idItem) => {

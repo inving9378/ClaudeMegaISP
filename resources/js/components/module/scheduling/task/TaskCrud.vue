@@ -365,7 +365,7 @@ export default {
 
         const closeModalNote = () => {
             observation.value = null;
-            $("#addNote").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('addNote'))?.hide();
         };
 
         const archiveTask = () => {

@@ -154,7 +154,7 @@ export default {
 
         const showModalChangeTarif = (idItem) => {
             actionCrudBundleService.value = `update/${idItem}`;
-            $("#modalbundleserviceChange").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalbundleserviceChange')).show();
         };
 
         const getButtonDatatable = () => {

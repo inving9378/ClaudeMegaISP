@@ -470,7 +470,7 @@ export default {
 
       $(document).on("click", `#${props.idTable} .edit_id`, function (e) {
         iDClient.value = $(e.target).parent().attr("id-item");
-        $(`#modaleditIdClient`).modal("show");
+        window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modaleditIdClient')).show();
       });
 
       let showInHedaer = headers.value.length;
@@ -546,7 +546,7 @@ export default {
             visibleColumns.value = trueProperties;
             location.reload();
 
-            $(`#modaleditcolumn`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modaleditcolumn'))?.hide();
           }
         });
     };

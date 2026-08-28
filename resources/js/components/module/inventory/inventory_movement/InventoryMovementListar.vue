@@ -135,7 +135,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudinventorymovement").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudinventorymovement'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Movimiento";
             action.value = "/inventory/inventory_movement/add";
@@ -143,7 +143,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudinventorymovement").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudinventorymovement')).show();
             title.value = "Editar Movimiento";
             action.value = `/inventory/inventory_movement/update/${idItem}`;
         };

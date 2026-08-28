@@ -402,7 +402,7 @@ export default {
         const showModal = async (release = null) => {
             currentId.value = release ? release.id : null;
             await crudModal.value.load(currentId.value);
-            $("#releaseModal").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('releaseModal')).show();
         };
 
         const refreshList = (saved) => {
@@ -484,7 +484,7 @@ export default {
             planRegresoVersion.value = release.version;
             planRegresoMarkdown.value = "";
             planRegresoLoadingId.value = release.id;
-            $("#planRegresoModal").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('planRegresoModal')).show();
             try {
                 const { data } = await axios.get(`/releases/${release.id}/plan-regreso`);
                 if (data.success) {

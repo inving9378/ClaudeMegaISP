@@ -156,7 +156,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#cruddocumentationsubmenu").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('cruddocumentationsubmenu'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear submenú para documentación";
             
@@ -179,7 +179,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#cruddocumentationsubmenu").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('cruddocumentationsubmenu')).show();
             title.value = "Editar submenú para documentación";
             action.value = `/administracion/documentation/documentation_submenu/update/${idItem}`;
         };

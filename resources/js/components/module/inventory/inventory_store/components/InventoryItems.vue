@@ -233,11 +233,11 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudinventoryitem").modal("hide");
-            $(`#modalchange_item_store`).modal("hide");
-            $(`#modalchange_item_stock`).modal("hide");
-            $(`#modalcrudstore_zone`).modal("hide");
-            $(`#modal_media_item`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudinventoryitem'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_store'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_stock'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalcrudstore_zone'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modal_media_item'))?.hide();
 
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Articulo";
@@ -246,26 +246,26 @@ export default {
         };
 
         const showEditModal = (id) => {
-            $("#crudinventoryitem").modal("show");
-            $(`#modalassign_item_to_user`).modal("hide");
-            $(`#modalchange_item_store`).modal("hide");
-            $(`#modalchange_item_stock`).modal("hide");
-            $(`#modalcrudstore_zone`).modal("hide");
-            $(`#modal_media_item`).modal("hide");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudinventoryitem')).show();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalassign_item_to_user'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_store'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_stock'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalcrudstore_zone'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modal_media_item'))?.hide();
             title.value = "Editar Articulo";
             action.value = `/inventory/inventory_item/update/${id}`;
         };
 
         const showChangeStoreModal = () => {
-            $(`#modalchange_item_store`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalchange_item_store')).show();
         };
         const showChangeItemStock = (id) => {
             idItem.value = id;
-            $(`#modalchange_item_stock`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalchange_item_stock')).show();
         };
 
         const showStoreZoneModal = () => {
-            $(`#modalcrudstore_zone`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalcrudstore_zone')).show();
         };
 
         const reload = () => {
@@ -278,7 +278,7 @@ export default {
 
         const showMediaItem = (id) => {
             idItem.value = id;
-            $(`#modal_media_item`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modal_media_item')).show();
         };
 
         const setFilter = (obj) => {

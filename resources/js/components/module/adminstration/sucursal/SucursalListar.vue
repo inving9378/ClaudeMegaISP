@@ -66,7 +66,7 @@ onMounted(() => {
 });
 
 const closeModal = (reload) => {
-    $("#crudlocation").modal("hide");
+    window.bootstrap.Modal.getInstance(document.getElementById('crudlocation'))?.hide();
     reloadCrud.value = !reloadCrud.value;
     title.value = "Crear sucursal";
     action.value = "/administracion/sucursal/add";
@@ -76,7 +76,7 @@ const closeModal = (reload) => {
 };
 
 const showEditModal = (idItem) => {
-    $("#crudlocation").modal("show");
+    window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudlocation')).show();
     title.value = "Editar sucursal";
     action.value = `/administracion/sucursal/update/${idItem}`;
 };

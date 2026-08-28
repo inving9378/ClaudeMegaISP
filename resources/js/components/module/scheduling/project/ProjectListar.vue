@@ -73,7 +73,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudProject").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudProject'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Proyecto";
             action.value = "/scheduling/project/add";
@@ -81,7 +81,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudProject").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudProject')).show();
             title.value = "Editar Proyecto";
             action.value = `/scheduling/project/update/${idItem}`;
         };

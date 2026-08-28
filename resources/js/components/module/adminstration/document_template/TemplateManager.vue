@@ -173,7 +173,7 @@ export default {
             getfieldsJson("DocumentTemplate");
             cleanHtml.value = true;
             resetDatatable.value = true;
-            $(`#modalDocumentTemplates`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalDocumentTemplates'))?.hide();
         };
 
         const updateThisField = ({ field, value }) => {

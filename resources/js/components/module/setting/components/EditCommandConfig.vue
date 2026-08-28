@@ -68,7 +68,7 @@ export default {
             //TODO Quitar despues que se arreglen todos los comandos
             fieldsJson.value.status.include = false;
             setIncludeTrueOrFalseToExecutionTime(dataForm.data["frequency_id"]);
-            $(`#${idModal}`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById(idModal)).show();
         };
 
         const updateThisField = ({ field, value }) => {
@@ -108,7 +108,7 @@ export default {
                         "update"
                     )
                     .then((response) => {
-                        $(`#${idModal.value}`).modal("hide");
+                        window.bootstrap.Modal.getInstance(document.getElementById(idModal.value))?.hide();
                     });
             }
         };

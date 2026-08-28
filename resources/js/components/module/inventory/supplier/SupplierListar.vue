@@ -91,11 +91,11 @@ export default {
             reloadCrud.value = !reloadCrud.value;
             title.value = "Editar Proveedor";
             action.value = `/inventory/supplier/update/${idItem}`;
-            $("#crudsupplier").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudsupplier')).show();
         };
 
         const closeModal = () => {
-            $("#crudsupplier").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudsupplier'))?.hide();
             editId.value = null;
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Proveedor";

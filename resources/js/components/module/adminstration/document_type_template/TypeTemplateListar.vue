@@ -71,7 +71,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudTypeTemplate").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudTypeTemplate'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Tipo de Plantilla";
             action.value = "/administracion/document_type_template/add";
@@ -79,7 +79,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudTypeTemplate").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudTypeTemplate')).show();
             title.value = "Editar Tipo de Plantilla";
             action.value = `/administracion/document_type_template/update/${idItem}`;
         };

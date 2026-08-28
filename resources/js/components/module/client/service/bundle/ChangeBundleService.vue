@@ -263,7 +263,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#modalbundleserviceChange").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalbundleserviceChange'))?.hide();
         };
 
         return {

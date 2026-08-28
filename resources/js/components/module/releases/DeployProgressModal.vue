@@ -448,14 +448,14 @@ export default {
             elapsedSeconds.value = 0;
             startedAtTime.value  = null;
             clockTimer = setInterval(tickClock, 1000);
-            $("#deployProgressModal").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('deployProgressModal')).show();
             poll();
         };
 
         const close = () => {
             clearTimeout(pollTimer);
             clearInterval(clockTimer);
-            $("#deployProgressModal").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('deployProgressModal'))?.hide();
             emit("closed", overallStatus.value);
         };
 

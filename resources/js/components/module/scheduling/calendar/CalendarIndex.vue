@@ -231,13 +231,13 @@ export default {
         };
 
         const closeModal = () => {
-            $("#crudTask").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudTask'))?.hide();
             reloadCrud.value = !reloadCrud.value;
         };
 
         const showEditModal = (idItem) => {
             reloadCrud.value = true;
-            $("#crudTask").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudTask')).show();
             title.value = "Editar Tarea";
             action.value = `/scheduling/task/update/${idItem}`;
         };

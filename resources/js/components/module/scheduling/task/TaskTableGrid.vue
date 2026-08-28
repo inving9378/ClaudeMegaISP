@@ -380,7 +380,7 @@ export default {
             );
         });
         const closeModal = () => {
-            $("#crudTask").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudTask'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Tarea";
             action.value = "/scheduling/task/add";

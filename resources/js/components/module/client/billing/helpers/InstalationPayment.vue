@@ -87,7 +87,7 @@ export default {
                 toastr.success(`Costo de Instalación Pagado Correctamente`, props.module);
                 emit("updateInformation");
                 cleanForm();
-                $(`#modaleditPaymentInstalationCost`).modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('modaleditPaymentInstalationCost'))?.hide();
             } catch (error) {
                 if (
                     error.response &&

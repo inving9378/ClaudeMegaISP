@@ -168,7 +168,7 @@ export default {
             loading.value   = false;
             aiDescription.value = '';
             nextTick(() => {
-                $("#releaseModal").modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('releaseModal'))?.hide();
             });
         };
 

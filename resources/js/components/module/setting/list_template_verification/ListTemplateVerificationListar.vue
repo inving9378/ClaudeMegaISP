@@ -73,7 +73,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudlisttemplateverification").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudlisttemplateverification'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Lista de Plantilla de Verificación";
             action.value = "/configuracion/list-template-verification/add";
@@ -81,7 +81,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudlisttemplateverification").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudlisttemplateverification')).show();
             title.value = "Editar Lista de Plantilla de Verificación";
             action.value = `/configuracion/list-template-verification/update/${idItem}`;
         };

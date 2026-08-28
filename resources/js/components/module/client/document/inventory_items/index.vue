@@ -365,12 +365,12 @@ export default {
         const reloadCrud = ref(true);
         const moveItem = async (id) => {
             idItem.value = id;
-            $(`#modalchange_item_seller`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalchange_item_seller')).show();
         };
 
         const closeModal = () => {
             idItem.value = null;
-            $(`#modalchange_item_seller`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_seller'))?.hide();
             reloadCrud.value = !reloadCrud.value;
         };
 

@@ -39,7 +39,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudinventoryitemtype").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudinventoryitemtype'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Vendedor";
             action.value = "/sellers/seller/add";
@@ -47,7 +47,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudinventoryitemtype").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudinventoryitemtype')).show();
             title.value = "Editar Vendedor";
             action.value = `/sellers/seller/update/${idItem}`;
         };

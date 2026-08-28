@@ -73,7 +73,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#cruddocumentationmenu").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('cruddocumentationmenu'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear menú para documentación";
             action.value = "/administracion/documentation/documentation_menu/add";
@@ -81,7 +81,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#cruddocumentationmenu").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('cruddocumentationmenu')).show();
             title.value = "Editar menú para documentación";
             action.value = `/administracion/documentation/documentation_menu/update/${idItem}`;
         };

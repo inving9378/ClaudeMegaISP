@@ -699,7 +699,7 @@ const onSubmit = () => {
                 }
 
                 headers.value = updatedHeaders;
-                $(`#modaleditcolumn_${props.idTable}`).modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById(`modaleditcolumn_${props.idTable}`))?.hide();
             }
         })
         .catch((error) => {

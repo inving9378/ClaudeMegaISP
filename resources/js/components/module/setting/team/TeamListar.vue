@@ -75,7 +75,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudteam").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudteam'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Equipo";
             action.value = "/configuracion/team/add";
@@ -83,7 +83,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudteam").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudteam')).show();
             title.value = "Editar Equipo";
             action.value = `/configuracion/team/update/${idItem}`;
         };
