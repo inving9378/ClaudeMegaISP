@@ -382,3 +382,109 @@ dedicada a lab de dev**, aislada de producción.
 *Sección 11 agregada por el circuito CC (item #283) — 2026-08-28: registro de la decisión de
 Irving (ZTE primero, hardware vía compra/préstamo de lab) + stub ZTE aditivo.*
 *Basado en auditoría directa del codebase — no estimaciones.*
+
+---
+
+## 12. Tercer driver: V-SOL (auditoría/diseño — retomar tras ZTE)
+
+> Item roadmap #670, sub-item de seguimiento de #283 (Fase G de `AUDITORIA_OLT_MULTIMARCA_2026-07-15.md`
+> §4). Ejercicio análogo al de §5 para ZTE, pero **sin crear código** — ver §12.4 sobre por qué.
+
+### 12.1 Punto de partida: sigue en cero, sin cambios desde julio
+
+Reconfirmado en esta vuelta (`grep -ril "vsol\|v-sol" app/ resources/ config/` → cero resultados,
+igual que documentó `AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` §1.3): no hay constante
+`Olt::DRIVER_VSOL`, ni driver, ni stub, ni fixtures, ni documento de protocolo previo a este. Sigue
+siendo la marca menos explorada de las tres del alcance original del item #57 ("Huawei + ZTE +
+V-SOL") — más atrás que ZTE, que al menos ya tiene su stub (`NullZteDriver`, §11).
+
+### 12.2 Lo que necesitaría un `VsolDriver`
+
+```php
+class VsolDriver implements OltDriverInterface
+{
+    // ── Autenticación ──────────────────────────────────────────────
+    // V-SOL es un ODM chino (Shenzhen V-SOL) cuyas OLTs GPON/EPON se
+    // configuran tradicionalmente por CLI vía Telnet/SSH, con una sintaxis
+    // de comandos propia (no VRP de Huawei, no compatible con ella pese a
+    // parecidos superficiales de OLTs "genéricas" chinas). Modelos de la
+    // línea V16xx/V27xx exponen distinto set de comandos según firmware;
+    // algunos modelos más nuevos añaden SNMP (MIB propietaria) para
+    // monitoreo y, en ciertas líneas, un panel Web/HTTP — pero no hay una
+    // API REST pública y documentada equivalente a SmartOLT.
+
+    // ── Métodos mínimos del interface (OltDriverInterface, 15 métodos) ──
+    public function getName(): string { return 'V-SOL'; }
+    public function listOlts(): array { ... }
+    public function listSpeedProfiles(): array { ... }
+    public function getUnconfiguredOnus(?string $oltId = null): array { ... }
+    public function getOnusByOlt(string $oltId): array { ... }
+    public function getOnusSignals(?string $oltId = null): array { ... }
+    public function getOnusStatus(?string $oltId = null): array { ... }
+    public function findOnuBySn(string $sn): array { ... }
+    public function getOnuDetails(string $onuId): array { ... }
+    public function getOnuSignal(string $onuId): array { ... }
+    public function getOnuStatus(string $onuId): array { ... }
+    public function authorizeOnu(array $data): array { ... }
+    public function deauthorizeOnu(string $onuId): array { ... }
+    public function setOnuEnabled(string $onuId, bool $enabled): array { ... }
+    public function rebootOnu(string $onuId): array { ... }
+    public function setOnuSpeedProfile(string $onuId, array $data): array { ... }
+    // ...mismo contrato que HuaweiDriver/NullZteDriver, sin métodos extra
+    // conocidos (a reserva de lo que exija el modelo real una vez elegido).
+}
+```
+
+El `OltDriverManager` ya está preparado para agregar V-SOL con el mismo patrón usado para ZTE
+(§11): una constante `Olt::DRIVER_VSOL = 'vsol'` + un caso más en el `match()` de
+`OltDriverManager::driverFor()` apuntando a un `NullVsolDriver` (o directo al `VsolDriver` real,
+cuando exista). El contrato (`OltDriverInterface` + capacidades `Supports*` opcionales) no necesita
+ningún cambio — ya está diseñado para ser agnóstico de marca (ver
+`AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` §2.1).
+
+### 12.3 El problema real: cero hardware, y protocolo más fragmentado que ZTE
+
+- **Cero OLTs V-SOL en el inventario** — las 3 OLTs reales de producción son Huawei; tampoco hay
+  ninguna ZTE (§11) ni V-SOL.
+- **Protocolo más fragmentado que ZTE.** ZTE al menos tiene dos familias de firmware conocidas
+  (C300/C600 con algo de REST en firmware reciente, C220G-N solo CLI) documentadas en §5. V-SOL,
+  al ser un ODM cuyo hardware se revende bajo múltiples marcas (rebranding común en el mercado de
+  ISPs pequeños/medianos), tiene aún más variación de comando/firmware por modelo — sin acceso a
+  la documentación CLI del modelo concreto que se vaya a usar, cualquier mapeo a
+  `OltDriverInterface` sería pura especulación.
+- **Sin siquiera un modelo candidato.** A diferencia de ZTE, donde el item #283 (Irving) ya fijó
+  una vía concreta de adquisición de hardware de lab (compra/préstamo, decisión q2 de ese item),
+  para V-SOL no hay todavía ni modelo elegido, ni ISP piloto identificado, ni compromiso de
+  adquisición — el propio item #283 lo pospuso explícitamente ("V-SOL después", sin fecha).
+
+### 12.4 Recomendación para V-SOL — y por qué esta vuelta NO crea el stub
+
+**No implementar ahora ningún código** (ni el driver real ni siquiera el stub trivial
+`NullVsolDriver`). Diferencia clave con lo que se hizo para ZTE en §11: ahí el stub se creó como
+parte de una decisión de negocio ya tomada por Irving (item #283: ZTE primero, con compromiso de
+conseguir hardware de lab). Para V-SOL **esa decisión de negocio todavía no existe** — el mismo
+item #283 solo la difirió ("después"), sin ISP piloto ni vía de hardware confirmada. Adelantar el
+enum/constante `Olt::DRIVER_VSOL` sin ese compromiso sería anticipar una decisión de priorización
+que es de Irving, no del circuito (mismo criterio que ya aplicó
+`AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` §4, fila E: el stub de una marca nueva está condicionado
+a que la fase de decisión de negocio la confirme primero).
+
+La secuencia para retomar V-SOL, en orden:
+
+1. **Decisión de negocio (pendiente, es de Irving):** ¿qué ISP piloto (interno o cliente) tiene o
+   puede conseguir hardware V-SOL real, y de qué modelo concreto? Sin esto, el resto es teórico
+   — mismo argumento que ya se aplicó a ZTE en §5 y en el item #283.
+2. **Con modelo confirmado:** conseguir la documentación CLI/SNMP/API de ESE modelo específico
+   (no genérica "V-SOL" — el protocolo varía demasiado entre modelos como para generalizar).
+3. **Solo entonces, el stub trivial:** `Olt::DRIVER_VSOL = 'vsol'` + `NullVsolDriver` (lanza
+   `RuntimeException('V-SOL driver no implementado')`) + entrada en `OltDriverManager` — mismo
+   patrón mecánico ya usado para ZTE, trivial de ejecutar una vez que el paso 1 lo autorice.
+4. **Implementación real** — solo contra hardware de laboratorio confirmado, nunca directo a
+   producción de un ISP cliente (mismo riesgo de "bugs silenciosos" ya documentado para ZTE en §5
+   y para Huawei en la condición #415).
+
+*Sección 12 agregada por el circuito CC (item #670, worker wt-4) — 2026-08-28: auditoría/diseño
+V-SOL análoga a §5, sin crear código (decisión de negocio de hardware/piloto V-SOL sigue
+pendiente de Irving, a diferencia de ZTE).*
+*Basado en auditoría directa del codebase (grep + lectura de `OltDriverInterface`/
+`OltDriverManager`/`NullZteDriver`) — no estimaciones.*
