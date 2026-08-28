@@ -1,0 +1,10 @@
+# SINTÉTICO — pendiente validar contra equipo real
+# formato aproximado de `display vlan all` en dispositivos VRP genéricos
+# usado solo para probar el parseo tolerante de parseVlanTable() (item #282)
+
+  VID  Type      Ports
+  ---------------------------------------------
+  1    common    GE0/1/0(D)
+  105  common    GE0/1/0(T)
+  200  common    GE0/1/0(T)
+  ---------------------------------------------
