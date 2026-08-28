@@ -77,8 +77,18 @@ en migración `2026_07_08_210000`). Manual de criterios servido en el GET = `doc
 - Namespace: `App\Modules\...`
 - Layout principal: `app/Modules/Core/Layout/views/master.blade.php`
 - Sidebar: `app/Modules/Core/Layout/views/sidebar.blade.php`
-  - Blade estático con `@can`/`@hasanyrole` — **NO es Vue ni API**
-  - Para agregar items: editar directamente el Blade
+  - Blade con `@can`/`@hasanyrole` — **NO es Vue ni API**
+  - **Híbrido desde el item #44 → #68:** hay bloques hardcodeados (los módulos
+    viejos, listados en `$sidebarHardcoded` dentro del blade) **y** un bloque
+    **dinámico** (`sidebar.blade.php:195-254`) que renderiza bajo el título
+    "Módulos" todo addon activo que declare `menu[]` en su `module.json`.
+    `SidebarComposer` lo inyecta como `$addonMenuItems = ModuleRegistry::getMenu()`,
+    filtrado por permiso, con sus `children`.
+  - **Para agregar un addon NUEVO: declarar `menu[]` en `module.json` y ya.**
+    NO se toca el Blade. (Editarlo a mano solo aplica a los módulos que siguen
+    en `$sidebarHardcoded`; migrar uno = borrar su bloque y sacarlo de esa lista.)
+  - Tarjeta en `/admin/administracion`: declarar `admin_cards[]` en `module.json`
+    (también declarativo, lo consume `AdminPanelController::cards()`).
 
 ### Autenticación
 - Login field: `login_user` (**NO** es `email`)
@@ -946,7 +956,7 @@ BD + abstracción de drivers + MockDriver + UI de tracking funcional con datos s
 **Fix sidebar Flotas (2026-06-01):** el módulo no aparecía en el sidebar izquierdo.
 - **Causa raíz:** el sidebar (`app/Modules/Core/Layout/views/sidebar.blade.php`) es **Blade estático**: cada módulo está hardcodeado con `@canany`/`@can`. El `getMenu()` del ModuleRegistry (que SÍ incluye Flotas) **no se itera en el blade** (`addonMenuItems` se ignora; solo se consume `sidebarSubmenu` para hijos `location:submenu` bajo finanzas). Flotas nunca se agregó a mano → no se renderizaba. (Prueba: MegaFamilia **no tiene** campo `sidebar` en su module.json y SÍ aparece, porque está hardcodeado; Flotas **sí lo tiene** y no aparecía → el campo `sidebar` del module.json es irrelevante para el render.)
 - **Fix:** se agregó el bloque Flotas en `sidebar.blade.php` (~línea 602, entre Embajadores y War Room), guardado por `@canany(['fleet.view','fleet.gps.view'])`, con links a Dashboard `/flotas`, Vehículos `/flotas/vehiculos` y Mapa `/flotas/mapa` (solo rutas que funcionan; mantenimientos/documentos/proveedores siguen 404). Verificado renderizando el sidebar como admin: HTML incluye los 3 enlaces.
-- ⚠️ **Nota técnica para futuros addons:** el sidebar NO es dinámico desde `module.json`. Aunque declares `sidebar`/`menu` en el manifest, **hay que agregar el bloque a mano en `sidebar.blade.php`** para que aparezca. Solo los hijos `location:submenu`+`parent:finanzas` se renderizan dinámicamente vía `SidebarComposer`/`getSubmenuItemsFor('finanzas')`.
+- ⚠️ **Nota técnica — DESACTUALIZADA, corregida el 2026-08-28 (item #662).** Cuando se escribió esto el sidebar no era dinámico. **Ya lo es**: el item #44 → #68 agregó el bloque dinámico de `sidebar.blade.php:195-254`, así que **un addon nuevo aparece solo con declarar `menu[]` en su `module.json`** — no hay que tocar el Blade. Lo que sigue siendo cierto: los módulos viejos (Flotas incluido) están hardcodeados y listados en `$sidebarHardcoded`, que es justo la lista que EXCLUYE del render dinámico para no duplicarlos. Verificado al construir `addon-documentacion-corporativa`, que no tocó el Blade.
 
 ### Fase 3 — Geocercas (item #62)
 
