@@ -16,4 +16,14 @@ return [
     'whatsapp_status_api_base' => env('WHATSAPP_API_BASE'),
     'whatsapp_status_api_key'  => env('WHATSAPP_API_KEY'),
     'whatsapp_status_instance' => env('WHATSAPP_INSTANCE', 'meganet-ventas'),
+
+    /*
+    | Piloto interno de campaña multivariante A/B por email — item roadmap #47.
+    | Kill-switch default SEGURO (false): el dry-run (previsualizar/contar
+    | destinatarios) siempre está disponible; el envío real solo procede si
+    | esta bandera está en true, que es un paso manual y explícito (mismo
+    | patrón que DOMICILIACION_COBRO_LIVE_ENABLED / PAYMENTS_AUTO_APPLY_ENABLED
+    | — sube en false, se activa aparte cuando Irving lo confirme).
+    */
+    'pilot_campaign_send_enabled' => env('MARKETING_PILOT_CAMPAIGN_SEND_ENABLED', false),
 ];
