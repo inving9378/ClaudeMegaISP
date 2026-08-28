@@ -98,7 +98,7 @@ export default {
 
         onMounted(() => {
             $(document).on("click", `#show_activity_log`, function (e) {
-                $(`#modalShowActivityLog`).modal("show");
+                window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalShowActivityLog')).show();
                 let dataValue = JSON.parse($(this).attr("data-data"));
                 data.value = Object.assign({}, dataValue);
                 let propertiesValue = JSON.parse(dataValue.properties);

@@ -76,7 +76,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#crudInventoryItemCustomModel").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudInventoryItemCustomModel'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Tipo de Articulo";
             action.value = "/inventory/inventory_item_custom_model/add";
@@ -84,7 +84,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudInventoryItemCustomModel").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudInventoryItemCustomModel')).show();
             title.value = "Editar Modelo de Articulo";
             action.value = `/inventory/inventory_item_custom_model/update/${idItem}`;
         };

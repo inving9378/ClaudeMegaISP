@@ -164,7 +164,7 @@ export default {
             );
             emit("resetShowAddService", "internet");
             modal.value.hide();
-            $("#modalinternetserviceChange").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalinternetserviceChange'))?.hide();
             render.value++;
             actionCrudInternetService.value = `crear/${props.idClient}`;
             if (datatable.table) datatable.table.reload();
@@ -186,7 +186,7 @@ export default {
 
         const showModalChangeTarif = (idItem) => {
             actionCrudInternetService.value = `update/${idItem}`;
-            $("#modalinternetserviceChange").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalinternetserviceChange')).show();
         };
 
         const getButtonDatatable = () => {

@@ -113,7 +113,7 @@ export default {
             reloadCrud.value = !reloadCrud.value;
             title.value = "Editar Vendedor";
             action.value = `/inventory/supplier/${props.supplierId}/vendors/update/${idItem}`;
-            $("#crudsupplier_vendor").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudsupplier_vendor')).show();
         };
 
         const deleteVendor = async (idItem) => {
@@ -172,7 +172,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#crudsupplier_vendor").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudsupplier_vendor'))?.hide();
             editId.value = null;
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Vendedor";

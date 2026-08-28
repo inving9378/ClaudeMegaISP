@@ -73,7 +73,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudTemplateTask").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudTemplateTask'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Plantilla de Tarea";
             action.value = "/configuracion/template-task/add";
@@ -81,7 +81,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudTemplateTask").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudTemplateTask')).show();
             title.value = "Editar Plantilla de Tarea";
             action.value = `/configuracion/template-task/update/${idItem}`;
         };

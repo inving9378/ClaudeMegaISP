@@ -182,7 +182,7 @@ export default {
     setup(props, { emit }) {
         const showInfo = (item) => {
             showInformation(item);
-            $(".modal-center.modal-activity").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.querySelector('.modal-center.modal-activity')).show();
         };
 
         const textInformation = ref("");

@@ -84,7 +84,7 @@ export default {
                 toastr.success(`Fecha Cambiada correctamente`, props.module);
                 emit("updateInformation");
                 cleanForm();
-                $(`#modaleditUpdatePayment`).modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('modaleditUpdatePayment'))?.hide();
             } catch (error) {
                 if (
                     error.response &&

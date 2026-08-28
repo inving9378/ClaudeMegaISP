@@ -122,7 +122,7 @@ export default {
             );
             emit("resetShowAddService", "custom");
             modal.value.hide();
-            $("#modalcustomserviceChange").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalcustomserviceChange'))?.hide();
             render.value++;
             actionCrudCustomService.value = `crear/${props.idClient}`;
             if (datatable.table) datatable.table.reload();
@@ -144,7 +144,7 @@ export default {
 
         const showModalChangeTarif = (idItem) => {
             actionCrudCustomService.value = `update/${idItem}`;
-            $("#modalcustomserviceChange").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalcustomserviceChange')).show();
         };
 
         const getButtonDatatable = () => {

@@ -73,7 +73,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudworkflow").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudworkflow'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Flujo de Trabajo";
             action.value = "/configuracion/work-flow/add";
@@ -81,7 +81,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudworkflow").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudworkflow')).show();
             title.value = "Editar Flujo de Trabajo";
             action.value = `/configuracion/work-flow/update/${idItem}`;
         };

@@ -120,7 +120,7 @@ export default {
             allService.Voz = await hasService(props.idClient, 'voz_service')
             emit('resetShowAddService', 'voz')
             modal.value.hide();
-            $("#modalvozserviceChange").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalvozserviceChange'))?.hide();
             render.value++;
             actionCrudVozService.value = `crear/${props.idClient}`;
             if (datatable.table) datatable.table.reload();
@@ -142,7 +142,7 @@ export default {
 
         const showModalChangeTarif = (idItem) => {
             actionCrudVozService.value = `update/${idItem}`;
-            $("#modalvozserviceChange").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalvozserviceChange')).show();
         };
 
         const getButtonDatatable = () => {

@@ -82,7 +82,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#modalcrudstore_zone").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalcrudstore_zone'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Zona";
             action.value = "/inventory/store_zone/add";
@@ -90,7 +90,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#modalcrudstore_zone").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalcrudstore_zone')).show();
             title.value = "Editar Zona";
             action.value = `/inventory/store_zone/update/${idItem}`;
         };

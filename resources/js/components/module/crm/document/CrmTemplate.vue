@@ -151,7 +151,7 @@ export default {
         onMounted(() => {
             $(document).on("click", `#generateContract`, function (e) {
                 getfieldsJson("DocumentTemplateClient");
-                $(`#modalDocumentPlantillas`).modal("show");
+                window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDocumentPlantillas')).show();
             });
         });
 
@@ -165,7 +165,7 @@ export default {
             getfieldsJson("DocumentTemplateClient");
             cleanHtml.value = true;
             resetDatatable.value = true;
-            $(`#modalDocumentPlantillas`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalDocumentPlantillas'))?.hide();
         };
 
         const updateThisField = ({ field, value }) => {

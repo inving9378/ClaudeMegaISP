@@ -212,7 +212,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudnomenclature").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudnomenclature'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Nomenclatura";
             action.value = "/configuracion/nomenclature/add";
@@ -220,14 +220,14 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudnomenclature").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudnomenclature')).show();
             title.value = "Editar Nomenclatura";
             action.value = `/configuracion/nomenclature/update/${idItem}`;
         };
 
         const showModalChangeClient = (idItem) => {
             action.value = `/configuracion/nomenclature/update/${idItem}`;
-            $("#modaleChangeClientNomenclature").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modaleChangeClientNomenclature')).show();
         };
 
         const reload = () => {
@@ -283,7 +283,7 @@ export default {
             nameDistrict.value = "";
             nameZone.value = "";
             disabledForm.value = false;
-            $("#crudnomenclatureMultiple").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudnomenclatureMultiple'))?.hide();
         };
 
         return {

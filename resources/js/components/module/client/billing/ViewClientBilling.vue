@@ -419,7 +419,7 @@ export default {
         };
 
         const showModalEdit = async (modal) => {
-            $(`#${modal}`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById(modal)).show();
         };
 
         const getBillingInformationBlock = async () => {

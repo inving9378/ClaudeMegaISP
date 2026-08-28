@@ -75,7 +75,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudmunicipality").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudmunicipality'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Municipio";
             action.value = "/administracion/municipio/add";
@@ -83,7 +83,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudmunicipality").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudmunicipality')).show();
             title.value = "Editar Municipio";
             action.value = `/administracion/municipio/update/${idItem}`;
         };

@@ -73,7 +73,7 @@ export default {
         const closeModal = () => {};
 
         const showModal = () => {
-            $("#modalDocumentTemplates").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDocumentTemplates')).show();
         };
 
         const reload = () => {

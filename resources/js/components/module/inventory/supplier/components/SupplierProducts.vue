@@ -86,7 +86,7 @@ export default {
             reloadCrud.value = !reloadCrud.value;
             title.value = "Agregar Producto al Catálogo";
             action.value = `/inventory/supplier/${props.supplierId}/product-prices/add`;
-            $("#crudsupplier_productprice").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudsupplier_productprice')).show();
         };
 
         const showEditModal = (idItem) => {
@@ -94,7 +94,7 @@ export default {
             reloadCrud.value = !reloadCrud.value;
             title.value = "Editar Precio";
             action.value = `/inventory/supplier/${props.supplierId}/product-prices/update/${idItem}`;
-            $("#crudsupplier_productprice").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudsupplier_productprice')).show();
         };
 
         const onSaved = () => {
@@ -103,7 +103,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#crudsupplier_productprice").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudsupplier_productprice'))?.hide();
             editId.value = null;
             reloadCrud.value = !reloadCrud.value;
             title.value = "Agregar Producto al Catálogo";

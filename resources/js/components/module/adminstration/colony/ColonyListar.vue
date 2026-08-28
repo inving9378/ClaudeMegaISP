@@ -75,7 +75,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudcolony").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudcolony'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Colonia";
             action.value = "/administracion/colonia/add";
@@ -83,7 +83,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudcolony").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudcolony')).show();
             title.value = "Editar Colonia";
             action.value = `/administracion/colonia/update/${idItem}`;
         };
