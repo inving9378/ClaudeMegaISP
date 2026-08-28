@@ -47,6 +47,9 @@ class CompanyInformation extends Model
         'company_street',
         'company_external_number',
         'company_internal_number',
+        // Expediente RH (item #199 — Hijo A), config global de la empresa
+        'legal_representative',
+        'data_privacy_address',
     ];
 
     protected $appends = ['state_name','colony_name','municipality_name'];

@@ -220,6 +220,85 @@
                 </div>
               </div>
 
+              <!-- Expediente RH (item #199) — datos personales sensibles, gateados en la lectura por talento.expediente.view -->
+              <div class="col-12 mt-2">
+                <hr class="my-1">
+                <h6 class="text-muted small text-uppercase mb-0">Expediente RH</h6>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Fecha de nacimiento</label>
+                <input v-model="modal.birth_date" type="date" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">CURP</label>
+                <input v-model="modal.curp" type="text" maxlength="18" class="form-control text-uppercase" placeholder="CURP">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">NSS</label>
+                <input v-model="modal.nss" type="text" maxlength="11" class="form-control" placeholder="Número de seguro social">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Contacto de emergencia</label>
+                <input v-model="modal.emergency_contact_name" type="text" class="form-control" placeholder="Nombre">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Teléfono de emergencia</label>
+                <input v-model="modal.emergency_contact_phone" type="text" class="form-control" placeholder="Teléfono">
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Puesto</label>
+                <input v-model="modal.job_title" type="text" class="form-control" placeholder="Ej. Técnico instalador">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Tipo de relación laboral</label>
+                <select v-model="modal.relation_type" class="form-select">
+                  <option :value="null">— Sin especificar —</option>
+                  <option value="indeterminada">Indeterminada</option>
+                  <option value="determinada">Determinada</option>
+                  <option value="obra">Por obra</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Fecha fin de relación</label>
+                <input v-model="modal.relation_end_date" type="date" class="form-control">
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Periodicidad de pago</label>
+                <select v-model="modal.pay_frequency" class="form-select">
+                  <option :value="null">— Sin especificar —</option>
+                  <option value="semanal">Semanal</option>
+                  <option value="quincenal">Quincenal</option>
+                  <option value="mensual">Mensual</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Lugar principal de trabajo</label>
+                <input v-model="modal.work_location" type="text" class="form-control" placeholder="Ej. Base Centro">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Entrada</label>
+                <input v-model="modal.shift_start" type="time" class="form-control">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Salida</label>
+                <input v-model="modal.shift_end" type="time" class="form-control">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Días laborables</label>
+                <div class="d-flex gap-2 flex-wrap">
+                  <div v-for="d in diasSemana" :key="d.value" class="form-check">
+                    <input type="checkbox" class="form-check-input" :id="`dia-${d.value}`"
+                           :checked="workDaysList.includes(d.value)" @change="toggleWorkDay(d.value)">
+                    <label class="form-check-label small" :for="`dia-${d.value}`">{{ d.label }}</label>
+                  </div>
+                </div>
+              </div>
+
               <!-- Notas -->
               <div class="col-12">
                 <label class="form-label">Notas</label>
@@ -256,9 +335,13 @@ export default {
       saving: false,
       pagination: { current_page: 1, last_page: 1 },
       filters: { search: '', status: '', type: '' },
-      modal: { show: false, id: null, user_id: null, user_name: '', type: 'interno', status: 'active',
-               department: '', supervisor_id: null, hire_date: '', base_salary: '', notes: '' },
+      modal: this.emptyModal(),
       errors: {},
+      diasSemana: [
+        { value: '1', label: 'Lun' }, { value: '2', label: 'Mar' }, { value: '3', label: 'Mié' },
+        { value: '4', label: 'Jue' }, { value: '5', label: 'Vie' }, { value: '6', label: 'Sáb' },
+        { value: '7', label: 'Dom' },
+      ],
       userSearch: '',
       userSuggestions: [],
       userSearchTimeout: null,
@@ -266,6 +349,11 @@ export default {
       canManage: false,
       roleDepartments: {},
     };
+  },
+  computed: {
+    workDaysList() {
+      return (this.modal.work_days || '').split(',').filter(Boolean);
+    },
   },
   mounted() {
     this.checkPermission();
@@ -308,12 +396,24 @@ export default {
       if (p < 1 || p > this.pagination.last_page) return;
       this.load(p);
     },
+    emptyModal() {
+      return {
+        show: false, id: null, user_id: null, user_name: '', type: 'interno', status: 'active',
+        department: '', supervisor_id: null, hire_date: '', base_salary: '', notes: '',
+        role_names: [],
+        // Expediente RH (item #199)
+        birth_date: '', curp: '', nss: '', emergency_contact_name: '', emergency_contact_phone: '',
+        job_title: '', relation_type: null, relation_end_date: '', pay_frequency: null,
+        work_location: '', shift_start: '', shift_end: '', work_days: '',
+      };
+    },
     openModal(col) {
       this.errors = {};
       this.userSearch = '';
       this.userSuggestions = [];
       if (col) {
         this.modal = {
+          ...this.emptyModal(),
           show: true, id: col.id,
           user_id: col.user_id, user_name: col.user?.name ?? '',
           type: col.type, status: col.status,
@@ -322,14 +422,27 @@ export default {
           base_salary: col.base_salary ?? '', notes: col.notes ?? '',
           // Roles Spatie (solo lectura — se gestionan en Administradores)
           role_names: col.user?.role_names ?? [],
+          // Expediente RH — ausente en la respuesta si el usuario no tiene talento.expediente.view
+          birth_date: col.birth_date ? col.birth_date.substring(0,10) : '',
+          curp: col.curp ?? '', nss: col.nss ?? '',
+          emergency_contact_name: col.emergency_contact_name ?? '',
+          emergency_contact_phone: col.emergency_contact_phone ?? '',
+          job_title: col.job_title ?? '', relation_type: col.relation_type ?? null,
+          relation_end_date: col.relation_end_date ? col.relation_end_date.substring(0,10) : '',
+          pay_frequency: col.pay_frequency ?? null, work_location: col.work_location ?? '',
+          shift_start: col.shift_start ?? '', shift_end: col.shift_end ?? '',
+          work_days: col.work_days ?? '',
         };
       } else {
-        this.modal = { show: true, id: null, user_id: null, user_name: '', type: 'interno', status: 'active',
-                       department: '', supervisor_id: null, hire_date: '', base_salary: '', notes: '',
-                       role_names: [] };
+        this.modal = { ...this.emptyModal(), show: true };
       }
     },
     closeModal() { this.modal.show = false; },
+    toggleWorkDay(value) {
+      const list = this.workDaysList;
+      const next = list.includes(value) ? list.filter(d => d !== value) : [...list, value].sort();
+      this.modal.work_days = next.join(',');
+    },
     debounceUserSearch() {
       clearTimeout(this.userSearchTimeout);
       this.userSearchTimeout = setTimeout(() => this.searchUsers(), 300);
@@ -383,6 +496,20 @@ export default {
           hire_date: this.modal.hire_date || null,
           base_salary: this.modal.base_salary || null,
           notes: this.modal.notes || null,
+          // Expediente RH (item #199)
+          birth_date: this.modal.birth_date || null,
+          curp: this.modal.curp || null,
+          nss: this.modal.nss || null,
+          emergency_contact_name: this.modal.emergency_contact_name || null,
+          emergency_contact_phone: this.modal.emergency_contact_phone || null,
+          job_title: this.modal.job_title || null,
+          relation_type: this.modal.relation_type || null,
+          relation_end_date: this.modal.relation_end_date || null,
+          pay_frequency: this.modal.pay_frequency || null,
+          work_location: this.modal.work_location || null,
+          shift_start: this.modal.shift_start || null,
+          shift_end: this.modal.shift_end || null,
+          work_days: this.modal.work_days || null,
         };
         if (this.modal.id) {
           await axios.put(`/talento/api/colaboradores/${this.modal.id}`, payload);
