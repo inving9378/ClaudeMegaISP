@@ -210,13 +210,15 @@ class CompuertasSondaCommand extends Command
     /** Cascada de errores y tamaño del log: 268.896 excepciones pasaron inadvertidas. */
     private function medirLogs(): array
     {
-        $log = storage_path('logs/laravel.log');
-        $bytes = file_exists($log) ? (int) filesize($log) : 0;
+        $log = $this->rutaLogActivo();
+        $bytes = ($log !== null && file_exists($log)) ? (int) filesize($log) : 0;
 
-        // Errores del último minuto, leyendo solo la cola del archivo.
-        $errores = (int) trim((string) $this->sh(
-            'tail -c 2000000 ' . escapeshellarg($log) . ' 2>/dev/null | grep -c '
-            . escapeshellarg('^\[' . now()->format('Y-m-d H:i'))
+        // Errores del último minuto: SOLO líneas de nivel ERROR/CRITICAL/ALERT/EMERGENCY
+        // (antes contaba cualquier línea del minuto sin filtrar nivel — "errores_ult_min"
+        // medía volumen de log, no errores), leyendo solo la cola del archivo.
+        $errores = $log === null ? 0 : (int) trim((string) $this->sh(
+            'tail -c 2000000 ' . escapeshellarg($log) . ' 2>/dev/null | grep -cE '
+            . escapeshellarg('^\[' . now()->format('Y-m-d H:i') . '[^]]*\]\s+\S+\.(ERROR|CRITICAL|ALERT|EMERGENCY):')
         ));
 
         return [
@@ -225,6 +227,40 @@ class CompuertasSondaCommand extends Command
             'disco_libre'       => trim((string) $this->sh("df -h / 2>/dev/null | tail -1 | awk '{print \$4}'")),
             'disco_uso_pct'     => trim((string) $this->sh("df -h / 2>/dev/null | tail -1 | awk '{print \$5}'")),
         ];
+    }
+
+    /**
+     * Ruta del log activo AHORA MISMO, derivada de la config real de logging — no una ruta fija.
+     * El item #175 cambió el canal default de 'single' a 'daily' (mismo incidente: laravel.log
+     * llegó a 1.7 GB sin rotación), y esta sonda seguía apuntando a `storage/logs/laravel.log` a
+     * secas: ese archivo quedó CONGELADO desde el cambio de canal, así que `errores_ult_min`
+     * llevaba días leyendo un archivo que ya no crece — cero errores para siempre, alarma muda,
+     * exactamente la falsa calma que este umbral existe para evitar. Sigue el canal 'stack' hasta
+     * su primer canal real y arma el nombre fechado que usa el driver 'daily' de Monolog.
+     */
+    private function rutaLogActivo(): ?string
+    {
+        $canal = (string) config('logging.default', 'stack');
+        $cfg = (array) config("logging.channels.{$canal}", []);
+
+        if (($cfg['driver'] ?? null) === 'stack') {
+            $primero = (string) (($cfg['channels'] ?? [])[0] ?? '');
+            $cfg = (array) config("logging.channels.{$primero}", []);
+        }
+
+        $ruta = $cfg['path'] ?? null;
+        if (! is_string($ruta) || $ruta === '') {
+            return null;
+        }
+
+        if (($cfg['driver'] ?? null) !== 'daily') {
+            return $ruta;
+        }
+
+        $ext = pathinfo($ruta, PATHINFO_EXTENSION);
+        $base = $ext !== '' ? mb_substr($ruta, 0, -(mb_strlen($ext) + 1)) : $ruta;
+
+        return $base . '-' . now()->format('Y-m-d') . ($ext !== '' ? '.' . $ext : '');
     }
 
     /** Ejecuta un comando de shell devolviendo null si no se pudo. */
