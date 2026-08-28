@@ -6,6 +6,7 @@ use App\Http\Traits\RouterConnection;
 use App\Models\Client;
 use App\Models\DailyPingStatistic;
 use App\Models\PingStatistic;
+use App\Models\Router;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use PEAR2\Net\RouterOS\Request as RouterOSRequest;
@@ -73,6 +74,7 @@ class SyncPingMonitoring extends Command
 
             try {
                 $connection = $this->getConnectionByRouter($router);
+                $this->trackRouterAvailability($router, (bool) $connection);
                 if (!$connection) {
                     $this->error("No se pudo conectar al router {$router->name}");
                     Log::warning("SyncPingMonitoring: sin conexión con router {$router->id}");
@@ -105,6 +107,31 @@ class SyncPingMonitoring extends Command
         if ($elapsed > 240) {
             Log::warning("mikrotik:sync-ping tardó {$elapsed}s — revisar cantidad de clientes o timeouts");
         }
+    }
+
+    /**
+     * Item roadmap #699 (Fase 1 de #678) — trackea el último estado conocido de
+     * disponibilidad del router y detecta la transición offline→online. Solo
+     * marca/loguea la reconexión; NO dispara ningún sync (eso queda para la
+     * Fase 2, bloqueada por #676).
+     */
+    private function trackRouterAvailability(Router $router, bool $isUp): void
+    {
+        $newStatus = $isUp ? 'up' : 'down';
+        $previousStatus = $router->mikrotik_last_status;
+
+        if ($previousStatus === $newStatus) {
+            return;
+        }
+
+        if ($previousStatus === 'down' && $newStatus === 'up') {
+            Log::info("SyncPingMonitoring: router {$router->id} recuperó conexión (offline→online) — sin disparar sync (Fase 1, item #699).");
+        }
+
+        $router->update([
+            'mikrotik_last_status'        => $newStatus,
+            'mikrotik_status_changed_at'  => now(),
+        ]);
     }
 
     private function pingAndRecord($connection, int $clientId, string $ip): void
