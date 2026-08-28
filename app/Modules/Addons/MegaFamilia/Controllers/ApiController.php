@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
 use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
+use App\Modules\Addons\MegaFamilia\Models\ParentalGeofence;
 use App\Modules\Addons\MegaFamilia\Models\ParentalLocation;
 use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRequest;
@@ -1104,6 +1105,56 @@ class ApiController extends Controller
         return response()->json(['success' => true, 'rules' => $rules]);
     }
 
+    // ---- GEOFENCES (Panel del Padre) --------------------------------------
+
+    public function profileGeofences(int $id): JsonResponse
+    {
+        $profile = $this->requireProfile($id);
+        return response()->json($profile->geofences()->orderByDesc('id')->get());
+    }
+
+    public function storeProfileGeofence(Request $request, int $id): JsonResponse
+    {
+        $profile = $this->requireProfile($id);
+        $data = $request->validate([
+            'name'           => 'required|string|max:120',
+            'address'        => 'nullable|string|max:500',
+            'lat'            => 'required|numeric|between:-90,90',
+            'lng'            => 'required|numeric|between:-180,180',
+            'radius_meters'  => 'required|integer|min:50|max:50000',
+            'alert_on_enter' => 'sometimes|boolean',
+            'alert_on_exit'  => 'sometimes|boolean',
+        ]);
+        $data['profile_id'] = $profile->id;
+        $data['active'] = true;
+        $geofence = ParentalGeofence::create($data);
+        return response()->json(['success' => true, 'geofence' => $geofence], 201);
+    }
+
+    public function updateProfileGeofence(Request $request, int $id): JsonResponse
+    {
+        $geofence = $this->requireGeofence($id);
+        $data = $request->validate([
+            'name'           => 'sometimes|string|max:120',
+            'address'        => 'sometimes|nullable|string|max:500',
+            'lat'            => 'sometimes|numeric|between:-90,90',
+            'lng'            => 'sometimes|numeric|between:-180,180',
+            'radius_meters'  => 'sometimes|integer|min:50|max:50000',
+            'alert_on_enter' => 'sometimes|boolean',
+            'alert_on_exit'  => 'sometimes|boolean',
+            'active'         => 'sometimes|boolean',
+        ]);
+        $geofence->update($data);
+        return response()->json(['success' => true, 'geofence' => $geofence]);
+    }
+
+    public function destroyProfileGeofence(int $id): JsonResponse
+    {
+        $geofence = $this->requireGeofence($id);
+        $geofence->delete();
+        return response()->json(['success' => true]);
+    }
+
     // ---- TASKS / REQUESTS ------------------------------------------------
 
     public function profileTasks(int $id): JsonResponse
@@ -1569,6 +1620,20 @@ class ApiController extends Controller
             ->first();
         abort_unless($device, 404);
         return $device;
+    }
+
+    /**
+     * Resuelve una geocerca SOLO si pertenece a un perfil de la cuenta del
+     * usuario autenticado. Evita IDOR: un geofence_id ajeno devuelve 404.
+     */
+    private function requireGeofence(int $id): ParentalGeofence
+    {
+        $account = $this->requireAccount();
+        $geofence = ParentalGeofence::where('id', $id)
+            ->whereHas('profile', fn ($q) => $q->where('account_id', $account->id))
+            ->first();
+        abort_unless($geofence, 404);
+        return $geofence;
     }
 
     // ---- EMBAJADORES --------------------------------------------------------
