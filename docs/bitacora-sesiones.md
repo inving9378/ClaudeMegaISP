@@ -2955,3 +2955,41 @@ más allá de la documentación de cierre. Detalle en
 **Enlace de revisión:** no aplica UI propia — el hallazgo completo está en
 `docs/megafamilia-hijo-mocks-item-639-verificacion.md` y el resumen en `CLAUDE.md` (sección
 "Item #639").
+
+## 2026-08-28 16:07 — Item #24: endpoints faltantes de transferencia en la APK MegaFamilia (perfil Cliente)
+
+**Contexto:** la auditoría del 2026-06-03 había marcado como PARCIAL la implementación del perfil
+Cliente en la APK MegaFamilia: de los 5 endpoints mock (`GET /servicio`, `GET /facturas`, `GET /pagos`,
+`GET /payments/clabe`, `POST /payments/notify-transfer`), los primeros 3 ya eran reales y solo faltaban
+los 2 de transferencia bancaria. Irving ya había respondido las preguntas de alcance del item (no toca
+dinero real, solo lectura de datos bancarios + reporte del cliente sin aplicar el pago) → quedó
+`aprobado_revisor` y se ejecutó tal cual.
+
+**Implementado** (worker wt-4, rama `circuito/item-24-completar-pantallas-parciales-del-perfil`):
+- `GET /api/megafamilia/payments/clabe` — devuelve la CLABE/banco de la cuenta activa de
+  `portal_pago_accounts` + la referencia `MEG-{id}-{cc}` del cliente autenticado vía
+  `PaymentReferenceService::ensureFor()` (misma infraestructura del Portal Cliente web/mostrador —
+  regla de servicios únicos, sin duplicar). Solo lectura, no mueve dinero.
+- `POST /api/megafamilia/payments/notify-transfer` — el cliente reporta que ya transfirió; crea un
+  `ReportedPayment` con `payment_id=null` (nadie aplicó el pago aún) y
+  `conciliation_status='pendiente_verificar'`, igual que hace `ManualPaymentController` (mostrador)
+  pero SIN el paso de `applyPayment` — el dinero no se toca hasta que un asesor lo confirme por el
+  flujo ya existente. Sube el comprobante (si viene) al disco `local` privado, mismo patrón que
+  mostrador.
+- Ambos métodos en `app/Modules/Addons/MegaFamilia/Controllers/ApiController.php`
+  (`paymentsClabe`/`notifyTransfer`), rutas en `app/Modules/Addons/MegaFamilia/routes.php` bajo el
+  grupo `auth:sanctum` ya existente.
+
+**Verificación:** `php -l` limpio en ambos archivos; `php artisan route:list` confirma las 2 rutas
+registradas (bootea sin error); smoke test funcional vía tinker dentro de una transacción con
+rollback (cliente real 6884, `user_id=4036`): `GET clabe` devolvió `reference=MEG-00006884-10` +
+cuenta STP activa; `POST notify-transfer` creó el `reported_payment` con `payment_id=null` y
+`pendiente_verificar` — sin dejar datos de prueba (rollback confirmado).
+
+**Estado:** commit `500844c1` en la rama, `circuito:integrar` ejecutado. Nivel de riesgo C
+(el ítem toca la palabra "pago") → queda `esperando merge` de Irving, no auto-mergeado. Item marcado
+`sin_ui=true` con motivo (son 2 endpoints REST que consume la APK, sin pantalla web equivalente).
+
+**Enlace de revisión:** no aplica UI propia — endpoints consumidos por la APK MegaFamilia
+(`api/megafamilia/payments/clabe` y `api/megafamilia/payments/notify-transfer`); verificados por
+tinker según el detalle de arriba.
