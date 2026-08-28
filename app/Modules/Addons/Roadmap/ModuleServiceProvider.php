@@ -53,6 +53,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // FASE 2A.3 — separa el freno humano del consejo del clasificador
                 \App\Modules\Addons\Roadmap\Console\BackfillBloqueosCommand::class,
                 \App\Modules\Addons\Roadmap\Console\CoherenciaPoolCommand::class,
+                // #233 — candado: scripts de deploy/circuito/ que el crontab invoca deben ser +x
+                \App\Modules\Addons\Roadmap\Console\CoherenciaCronCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RetriageFrenosCommand::class,
                 \App\Modules\Addons\Roadmap\Console\InventarioSpecCommand::class,
                 \App\Modules\Addons\Roadmap\Console\VerificarSoloLecturaCommand::class,
