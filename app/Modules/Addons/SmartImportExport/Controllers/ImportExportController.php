@@ -383,6 +383,7 @@ class ImportExportController extends Controller
      |  Helpers
      * ============================================================ */
 
+
     private function cacheKey(string $token): string
     {
         return 'smart_import:analysis:' . $token;
@@ -456,42 +457,5 @@ class ImportExportController extends Controller
         return auth()->user()->login_user
             ?? auth()->user()->email
             ?? 'admin';
-    }
-
-    /**
-     * Defensa contra "Malformed UTF-8" al castear ai_analysis a JSON.
-     * Recorre el payload y arregla strings cuyo encoding no sea UTF-8 válido.
-     * Previene JsonEncodingException si analyzeFile() devolvió bytes raros
-     * (zip mal parseado, dumps SQL en latin1, etc.).
-     */
-    private function sanitizeForJson(mixed $value): mixed
-    {
-        if (is_array($value)) {
-            $out = [];
-            foreach ($value as $k => $v) {
-                $out[$k] = $this->sanitizeForJson($v);
-            }
-            return $out;
-        }
-        if (!is_string($value)) {
-            return $value;
-        }
-        if (mb_check_encoding($value, 'UTF-8')) {
-            return $value;
-        }
-        // Bytes inválidos: detectar encoding origen probable y reconvertir.
-        // mb_convert_encoding('UTF-8','UTF-8') era no-op para bytes mal codificados —
-        // SQL dumps en latin1 / Windows-1252 son la causa más común aquí.
-        $detected = mb_detect_encoding(
-            $value,
-            ['UTF-8', 'ISO-8859-1', 'Windows-1252', 'ASCII'],
-            true
-        );
-        $converted = mb_convert_encoding($value, 'UTF-8', $detected ?: 'Windows-1252');
-        if (mb_check_encoding($converted, 'UTF-8')) {
-            return $converted;
-        }
-        // Último recurso: descartar bytes inválidos.
-        return mb_scrub($value, 'UTF-8');
     }
 }
