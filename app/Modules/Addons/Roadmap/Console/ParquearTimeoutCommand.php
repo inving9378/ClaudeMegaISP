@@ -32,6 +32,13 @@ use Illuminate\Console\Command;
  *
  * Vive como comando y no como tinker inline para que la regla sea testeable: es la que decide si el
  * circuito re-gasta 600 s de límite, y esa no es una decisión que deba vivir en un string de bash.
+ *
+ * #194 — `reanudaciones_timeout` y `veces_timeouteo` NO son el mismo contador. El primero solo
+ * cuenta dentro de `puedeReanudar` (exige avance): mide "cuántas veces se le dio otra vuelta". El
+ * segundo se incrementa en TODO timeout real, avance o no: es la señal empírica que consume
+ * `JarvisService::caberEnVuelta()` para detectar el item que gira en vacío repetidas veces. Antes
+ * de esta separación, un item sin avance nunca incrementaba ningún contador y `caberEnVuelta` lo
+ * evaluaba "cabe" cada vez, sin aprender nada de sus timeouts previos.
  */
 class ParquearTimeoutCommand extends Command
 {
@@ -94,6 +101,7 @@ class ParquearTimeoutCommand extends Command
 
         if ($puedeReanudar) {
             $item->reanudaciones_timeout = $usadas + 1;
+            $item->veces_timeouteo       = (int) $item->veces_timeouteo + 1;
             $item->estado_aprobacion     = $destino;
             $item->aprobado_por          = 'timeout:reanudado';
             $item->worker_sid            = null;   // libera el slot para que cualquier terminal lo retome
@@ -134,6 +142,7 @@ class ParquearTimeoutCommand extends Command
 
         $item->estado_aprobacion = 'requiere_irving';
         $item->aprobado_por      = 'timeout';
+        $item->veces_timeouteo   = (int) $item->veces_timeouteo + 1;
         $log[] = [
             'ts'           => now()->toIso8601String(),
             'por'          => 'timeout',

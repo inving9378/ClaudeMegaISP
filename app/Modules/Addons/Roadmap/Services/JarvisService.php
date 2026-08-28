@@ -1138,7 +1138,9 @@ class JarvisService
      * CONSERVADOR A PROPÓSITO: solo dice que NO cabe con evidencia dura — nunca con el bucket
      * heurístico de `EstimadorTiempo` (techo fijo por nivel de riesgo sin muestras reales, que
      * dispararía para casi cualquier item B/C sin decir nada útil). Tres señales, cualquiera basta:
-     *   1. Empírica: `reanudaciones_timeout >= 1` — el item YA timeouteó antes.
+     *   1. Empírica: `veces_timeouteo >= 1` — el item YA timeouteó antes, avanzó o no (#194: separado
+     *      de `reanudaciones_timeout`, que solo cuenta reanudaciones CON avance y por eso es ciego
+     *      al item que gira en vacío — justo el perfil que esta señal necesita detectar).
      *   2. Declarada (#193): `fasesExplicitasDeclaradas()` — el propio spec se enumera a sí mismo
      *      en >= `min_fases_explicitas` partes (`--- HIJO A ... ---`, `--- HIJO B ... ---`, …). No
      *      es una inferencia: es lo que el autor del spec ya escribió.
@@ -1158,7 +1160,7 @@ class JarvisService
             return ['cabe' => true, 'motivo' => 'ya_descompuesto', 'eta_segundos' => null];
         }
 
-        if ((int) $item->reanudaciones_timeout >= 1) {
+        if ((int) $item->veces_timeouteo >= 1) {
             return ['cabe' => false, 'motivo' => 'ya_timeouteo_antes', 'eta_segundos' => null];
         }
 
