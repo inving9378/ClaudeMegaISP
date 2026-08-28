@@ -75,7 +75,7 @@ import axios from "axios";
 /**
  * LA CARA DE JARVIS — presencia y estado, en cualquier pantalla del sistema.
  *
- * Un solo asistente: esto es la cara de lo que en el código es `ThomasService`, el mismo motor que
+ * Un solo asistente: esto es la cara de lo que en el código es `JarvisService`, el mismo motor que
  * mide. No tiene cerebro propio ni contesta desde otro sitio — el widget que hacía eso quedó
  * apagado justamente porque dos asistentes con el mismo nombre se contradicen.
  *

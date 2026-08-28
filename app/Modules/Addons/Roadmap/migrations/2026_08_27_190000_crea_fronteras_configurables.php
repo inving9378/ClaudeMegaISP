@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
  * FRONTERAS DURAS GOBERNABLES DESDE LA TORRE (pestaña «Configuración»).
  *
  * POR QUÉ EXISTE. La frontera dura es el ÚNICO control por contenido que no depende de una
- * autodeclaración de un modelo, y hasta hoy vivía entera en `config('circuito.thomas.escalamiento')`:
+ * autodeclaración de un modelo, y hasta hoy vivía entera en `config('circuito.jarvis.escalamiento')`:
  * cuatro categorías con ~50 términos que nadie podía ver sin abrir un archivo, mucho menos ajustar.
  * El resultado práctico es que la lista envejecía sola y cada falso positivo se pagaba en la bandeja
  * de Irving sin que él pudiera hacer nada al respecto salvo pedir un cambio de código.
@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Schema;
  * quién, cuándo y el valor anterior.
  *
  * VALORES INICIALES = EXACTAMENTE LO QUE EL CIRCUITO HACE HOY. La tabla se siembra desde
- * `config('circuito.thomas.escalamiento')`, todas las categorías activas y con efecto `bandeja`
+ * `config('circuito.jarvis.escalamiento')`, todas las categorías activas y con efecto `bandeja`
  * (= `requiere_irving`, el comportamiento actual). Migrar y cambiar el comportamiento a la vez
  * haría imposible saber cuál de los dos causó lo que pase después — misma regla que la Entrega 1.
  *
@@ -79,7 +79,7 @@ return new class extends Migration
         // Siembra idempotente desde la config viva. `updateOrInsert` por llave de negocio: re-correr
         // no duplica y NO pisa lo que Irving haya ajustado después (sólo inserta lo que falte).
         $orden = 0;
-        foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
+        foreach ((array) config('circuito.jarvis.escalamiento', []) as $categoria => $terminos) {
             $existe = DB::table('circuito_fronteras')->where('categoria', $categoria)->exists();
             if (! $existe) {
                 DB::table('circuito_fronteras')->insert([

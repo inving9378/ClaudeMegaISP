@@ -760,7 +760,7 @@ export default {
     font-size: 11px; letter-spacing: 0; text-transform: none; padding: 0;
 }
 .rdm-dark .rdm-tag-age { color: rgba(255,255,255,.3); }
-/* ETA de Thomas (#480) — discreto como .rdm-tag-age, con acento propio */
+/* ETA de Jarvis (#480) — discreto como .rdm-tag-age, con acento propio */
 .rdm-tag-eta {
     background: transparent; color: #0284c7; font-weight: 600;
     font-size: 11px; letter-spacing: 0; text-transform: none; padding: 0;
