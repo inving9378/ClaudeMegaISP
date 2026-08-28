@@ -28,6 +28,7 @@ class HuaweiDriverTest extends TestCase
     private static string $opticalFixture;
     private static string $dbaFixture;
     private static string $bySNFixture;           // real MA5800-X7 by-sn output — for findOnuBySn
+    private static string $vlanFixture;            // sintético — for getOltVlans (item #282)
 
     public static function setUpBeforeClass(): void
     {
@@ -42,6 +43,7 @@ class HuaweiDriverTest extends TestCase
         self::$opticalFixture       = file_get_contents($base . 'display_ont_optical_info.txt');
         self::$dbaFixture           = file_get_contents($base . 'display_dba_profile_all.txt');
         self::$bySNFixture          = file_get_contents($base . 'display_ont_info_by_sn_real.txt');
+        self::$vlanFixture          = file_get_contents($base . 'display_vlan_all.txt');
     }
 
     protected function setUp(): void
@@ -598,6 +600,215 @@ class HuaweiDriverTest extends TestCase
         $this->transport->expects($this->once())->method('leaveToUserView');
 
         $this->driver->findOnuBySn('HWTCFEFCC9A2');
+    }
+
+    // ── SupportsOltTopology (item #282) ─────────────────────────────────────────
+
+    public function test_get_olt_cards_returns_all_boards(): void
+    {
+        $this->transport->method('exec')->willReturn(self::$boardFixture);
+
+        $result = $this->driver->getOltCards('1');
+
+        $this->assertTrue($result['success']);
+        $this->assertCount(9, $result['response']);
+    }
+
+    public function test_get_olt_cards_flags_gpon_boards(): void
+    {
+        $this->transport->method('exec')->willReturn(self::$boardFixture);
+
+        $result = $this->driver->getOltCards('1');
+        $slot3  = current(array_filter($result['response'], fn($b) => $b['slot'] === 3));
+
+        $this->assertNotFalse($slot3);
+        $this->assertTrue($slot3['is_gpon']);
+        $this->assertSame(16, $slot3['port_count']);
+    }
+
+    public function test_get_olt_cards_rejects_foreign_olt(): void
+    {
+        $result = $this->driver->getOltCards('other-olt');
+
+        $this->assertFalse($result['success']);
+    }
+
+    public function test_get_olt_uplink_ports_excludes_gpon_boards(): void
+    {
+        $this->transport->method('exec')->willReturn(self::$boardFixture);
+
+        $result = $this->driver->getOltUplinkPorts('1');
+
+        $this->assertTrue($result['success']);
+        // Fixture: slots 8,9,10,11 son no-GPON (control/uplink); 1-5 son GPON.
+        $this->assertCount(4, $result['response']);
+        foreach ($result['response'] as $port) {
+            $this->assertNotContains($port['slot'], [1, 2, 3, 4, 5]);
+        }
+    }
+
+    public function test_get_olt_pon_ports_counts_onus_per_port(): void
+    {
+        $this->setupBoardAndOntMock();
+
+        $result = $this->driver->getOltPonPorts('1');
+
+        $this->assertTrue($result['success']);
+        $port = current(array_filter($result['response'], fn($p) => $p['board'] === 3 && $p['pon_port'] === 2));
+
+        $this->assertNotFalse($port);
+        $this->assertSame(2, $port['onus']); // tabular fixture: 1 online + 1 offline
+    }
+
+    public function test_get_olt_outage_pons_empty_when_some_online(): void
+    {
+        $this->setupBoardAndOntMock();
+
+        $result = $this->driver->getOltOutagePons('1');
+
+        // El único puerto con ONTs (3/2) tiene 1 online → no cuenta como outage.
+        $this->assertTrue($result['success']);
+        $this->assertSame([], $result['response']);
+    }
+
+    public function test_get_olt_outage_pons_detects_all_offline_port(): void
+    {
+        $currentSlot = 0;
+        $allOffline  = str_replace('online', 'offline', self::$ontTabularFixture);
+
+        $this->transport->method('enterGponInterface')
+            ->willReturnCallback(function (int $frame, int $slot) use (&$currentSlot): void {
+                $currentSlot = $slot;
+            });
+        $this->transport->method('exec')
+            ->willReturnCallback(function (string $cmd) use (&$currentSlot, $allOffline): string {
+                if (str_contains($cmd, 'display board')) {
+                    return self::$boardFixture;
+                }
+                if (preg_match('/^display ont info (\d+) all$/', trim($cmd), $m)) {
+                    return ($currentSlot === 3 && (int) $m[1] === 2) ? $allOffline : self::$ontEmptyFixture;
+                }
+                return '';
+            });
+
+        $result = $this->driver->getOltOutagePons('1');
+
+        $this->assertTrue($result['success']);
+        $this->assertCount(1, $result['response']);
+        $this->assertSame(3, $result['response'][0]['board']);
+        $this->assertSame(2, $result['response'][0]['pon_port']);
+    }
+
+    public function test_get_olt_vlans_parses_ids(): void
+    {
+        $this->transport->method('exec')->willReturn(self::$vlanFixture);
+
+        $result = $this->driver->getOltVlans('1');
+
+        $this->assertTrue($result['success']);
+        $ids = array_column($result['response'], 'id');
+        $this->assertSame([1, 105, 200], $ids);
+    }
+
+    public function test_get_olt_environment_stats_reads_uptime(): void
+    {
+        $this->transport->method('exec')->willReturn(self::$versionFixture);
+
+        $result = $this->driver->getOltEnvironmentStats();
+
+        $this->assertTrue($result['success']);
+        $this->assertCount(1, $result['response']);
+        $this->assertStringContainsString('3 day', $result['response'][0]['uptime']);
+        $this->assertNull($result['response'][0]['temperature']);
+    }
+
+    // ── SupportsAdvancedDiagnostics (item #282) ───────────────────────────────
+
+    public function test_get_onu_full_status_wraps_onu_details(): void
+    {
+        $this->transport->method('enterGponInterface');
+        $this->transport->method('leaveToUserView');
+        $this->transport->method('exec')
+            ->willReturnCallback(fn($cmd) => str_contains($cmd, 'optical') ? self::$opticalFixture : self::$ontPortFixture);
+
+        $result = $this->driver->getOnuFullStatus('1:0/3/2:0');
+
+        $this->assertTrue($result['success']);
+        $this->assertArrayHasKey('response', $result);
+        $this->assertSame('HWTCFEFCC9A2', $result['response']['sn']);
+    }
+
+    public function test_get_onu_running_config_returns_parsed_block(): void
+    {
+        $this->transport->method('enterGponInterface');
+        $this->transport->method('leaveToUserView');
+        $this->transport->method('exec')->willReturn(self::$ontPortFixture);
+
+        $result = $this->driver->getOnuRunningConfig('1:0/3/2:0');
+
+        $this->assertTrue($result['success']);
+        $this->assertArrayHasKey('sn', $result['response']);
+        $this->assertArrayHasKey('run_state', $result['response']);
+    }
+
+    public function test_get_onu_running_config_not_found(): void
+    {
+        $this->transport->method('enterGponInterface');
+        $this->transport->method('leaveToUserView');
+        $this->transport->method('exec')->willReturn(self::$ontEmptyFixture);
+
+        $result = $this->driver->getOnuRunningConfig('1:0/3/2:99');
+
+        $this->assertFalse($result['success']);
+    }
+
+    public function test_get_onu_mgmt_ip_returns_not_implemented(): void
+    {
+        $result = $this->driver->getOnuMgmtIp('1:0/3/2:0');
+
+        $this->assertFalse($result['success']);
+        $this->assertArrayHasKey('message', $result);
+    }
+
+    public function test_get_onu_ip_address_returns_not_implemented(): void
+    {
+        $result = $this->driver->getOnuIpAddress('1:0/3/2:0');
+
+        $this->assertFalse($result['success']);
+        $this->assertArrayHasKey('message', $result);
+    }
+
+    public function test_get_onu_details_by_sn_composes_find_and_details(): void
+    {
+        $this->transport->method('enterConfigView');
+        $this->transport->method('enterGponInterface');
+        $this->transport->method('leaveToUserView');
+        $this->transport->method('exec')->willReturnCallback(function (string $cmd) {
+            if (str_contains($cmd, 'by-sn')) {
+                return self::$bySNFixture;
+            }
+            if (str_contains($cmd, 'optical')) {
+                return self::$opticalFixture;
+            }
+            return self::$ontPortFixture;
+        });
+
+        $result = $this->driver->getOnuDetailsBySn('HWTCFEFCC9A2');
+
+        $this->assertTrue($result['success']);
+        $this->assertArrayHasKey('onu_details', $result);
+        $this->assertSame('HWTCFEFCC9A2', $result['onu_details']['sn']);
+    }
+
+    public function test_get_onu_details_by_sn_not_found(): void
+    {
+        $this->transport->method('enterConfigView');
+        $this->transport->method('leaveToUserView');
+        $this->transport->method('exec')->willReturn('  Failure: The ONT does not exist.');
+
+        $result = $this->driver->getOnuDetailsBySn('DEADBEEF0000');
+
+        $this->assertFalse($result['success']);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
