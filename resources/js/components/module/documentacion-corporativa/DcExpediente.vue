@@ -136,6 +136,12 @@
                                 color="red-5"
                                 :label="ap.faltantes.length + ' faltan'"
                             />
+                            <q-badge
+                                v-if="ap.clave === 'XIII' && alertasXIII"
+                                class="q-ml-xs"
+                                :color="alertasXIII.vencidas > 0 ? 'negative' : (alertasXIII.total > 0 ? 'warning' : 'positive')"
+                                :label="badgeAlertasXIII"
+                            />
                         </div>
 
                         <div class="q-mt-xs text-caption text-grey">
@@ -226,6 +232,13 @@
         <q-inner-loading :showing="loading">
             <q-spinner size="40px" color="primary" />
         </q-inner-loading>
+
+        <!-- Apartado XIII tiene vista dedicada (calendario regulatorio + ficha
+             con pagos), no el diálogo genérico de conceptos de arriba. -->
+        <dc-concesiones
+            ref="concesiones"
+            @calendario-cargado="actualizarAlertasXIII"
+        />
     </div>
 </template>
 
@@ -250,12 +263,27 @@ export default {
             apartados: [],
             global: { porcentaje: 0, resueltos: 0, obligatorios: 0, semaforo: 'rojo' },
             detalle: { clave: '', nombre: '', descripcion: '', porcentaje: 0, semaforo: 'rojo', conceptos: [] },
+            // Semáforo del calendario regulatorio (apartado XIII), aparte de la
+            // completitud genérica: aquí lo urgente es la vigencia, no si el
+            // registro existe. null mientras no se ha cargado.
+            alertasXIII: null,
         };
     },
 
     computed: {
         totalFaltantes() {
             return this.apartados.reduce((n, a) => n + a.faltantes.length, 0);
+        },
+
+        badgeAlertasXIII() {
+            if (!this.alertasXIII) return '';
+            if (this.alertasXIII.vencidas > 0) {
+                return this.alertasXIII.vencidas + (this.alertasXIII.vencidas > 1 ? ' vencidas' : ' vencida');
+            }
+            if (this.alertasXIII.total > 0) {
+                return this.alertasXIII.total + ' por vencer';
+            }
+            return 'al día';
         },
     },
 
@@ -275,6 +303,10 @@ export default {
                 this.empresaSeleccionada = data.empresa.id;
                 this.apartados = data.apartados;
                 this.global = data.global;
+
+                if (this.apartados.some((a) => a.clave === 'XIII')) {
+                    this.cargarAlertasXIII();
+                }
             } catch (e) {
                 this.aviso('No se pudo cargar el expediente.', 'negative');
             } finally {
@@ -282,7 +314,29 @@ export default {
             }
         },
 
+        async cargarAlertasXIII() {
+            try {
+                const { data } = await axios.get('/documentacion-corporativa/api/concesiones/calendario');
+                this.actualizarAlertasXIII(data);
+            } catch (e) {
+                // Sin permiso de ver el apartado XIII u otro fallo: sin badge, sin ruido.
+                this.alertasXIII = null;
+            }
+        },
+
+        actualizarAlertasXIII(data) {
+            this.alertasXIII = {
+                total: data.total_alertas,
+                vencidas: (data.vigencias.vencidas || []).length,
+            };
+        },
+
         async abrirApartado(ap) {
+            if (ap.clave === 'XIII') {
+                this.$refs.concesiones.abrir();
+                return;
+            }
+
             this.detalle = { ...ap, conceptos: [] };
             this.dialogo = true;
             this.cargandoDetalle = true;
