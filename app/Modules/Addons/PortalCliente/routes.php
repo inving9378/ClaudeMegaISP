@@ -27,8 +27,17 @@ use App\Modules\Addons\PortalCliente\Controllers\HijoMegaFamiliaController;
 use Illuminate\Support\Facades\Route;
 
 // ── Portal Cliente — rutas bajo /portal ────────────────────────────────────
+//
+// Item roadmap #144: el mismo bloque de rutas se monta dos veces —
+// (1) bajo el prefijo /portal (canónico, como siempre) y
+// (2) bajo el dominio dedicado (config('portalcliente.domain'), ej. portal.meganet.mx)
+// SIN prefijo, para que el subdominio sirva el portal directo en la raíz
+// (portal.meganet.mx/facturas en vez de portal.meganet.mx/portal/facturas).
+// Un solo closure = cero duplicación/drift. El mount por dominio usa un
+// namespace de nombres de ruta distinto (portal_domain.) para no pisar los
+// nombres canónicos `portal.*` que ya usan vistas/JS existentes.
 
-Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function () {
+$portalRoutes = function () {
 
     // ── Webhook OpenPay (FUERA del guard cliente — lo llama OpenPay, no el cliente) ──
     // Autenticación: Basic Auth donde password = OPENPAY_PRIVATE_KEY (validado en el controller).
@@ -143,4 +152,10 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group(function ()
         // Vista previa de la app del hijo (read-only, para el papá)
         Route::get('/hijo-megafamilia/{profile_id}', [HijoMegaFamiliaController::class, 'index'])->name('hijo-megafamilia.preview');
     });
-});
+};
+
+// (1) Mount canónico — /portal/* (sin cambios de comportamiento ni de nombres)
+Route::prefix('portal')->name('portal.')->middleware(['web'])->group($portalRoutes);
+
+// (2) Mount por dominio dedicado — item #144, DEV primero (ver deploy/README-portal-dev.md)
+Route::domain(config('portalcliente.domain'))->name('portal_domain.')->middleware(['web'])->group($portalRoutes);
