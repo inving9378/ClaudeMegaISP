@@ -138,6 +138,12 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping(30)
             ->onOneServer()
             ->name('domiciliacion:cobrar');
+
+        // Item #627 — purga diaria de push tokens FCM sin actividad (>60 días)
+        $schedule->command('push-tokens:purge')
+            ->dailyAt('04:30')
+            ->withoutOverlapping()
+            ->onOneServer();
     }
 
     protected function commands(): void
