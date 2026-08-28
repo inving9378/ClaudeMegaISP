@@ -3,7 +3,8 @@
 namespace Tests\Unit\DocumentacionCorporativa;
 
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcDocumento;
-use PHPUnit\Framework\TestCase; // TestCase PURO: el estado se deriva en memoria, no toca BD.
+use Illuminate\Foundation\Testing\TestCase;
+use Tests\CreatesApplication;
 
 /**
  * El estado de vigencia de un documento es un ACCESSOR, no una columna.
@@ -14,6 +15,10 @@ use PHPUnit\Framework\TestCase; // TestCase PURO: el estado se deriva en memoria
  */
 class EstadoDocumentoTest extends TestCase
 {
+    // Bootea Laravel (el cast `date` necesita el resolver de conexión para
+    // formatear), pero NO ejecuta una sola query: el estado se deriva en memoria.
+    use CreatesApplication;
+
     private function documento(?string $vigenciaFin): DcDocumento
     {
         $d = new DcDocumento();

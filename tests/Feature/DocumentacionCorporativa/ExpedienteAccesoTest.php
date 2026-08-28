@@ -45,7 +45,6 @@ class ExpedienteAccesoTest extends TestCase
         $user = User::create([
             'name'       => 'Prueba DC ' . $sufijo,
             'login_user' => 'prueba_dc_' . $sufijo . '_' . uniqid(),
-            'estado'     => 'activo',
         ]);
 
         foreach ($permisos as $nombre) {
@@ -66,8 +65,15 @@ class ExpedienteAccesoTest extends TestCase
     {
         $user = $this->usuarioCon([], 'sin_nada');
 
+        // Política de denegación silenciosa del sistema (item #537): la
+        // navegación de página completa redirige en silencio al dashboard...
         $this->actingAs($user)
-            ->get('/documentacion-corporativa/api/tablero')
+            ->get('/documentacion-corporativa')
+            ->assertStatus(302);
+
+        // ...pero las llamadas JSON conservan el 403 real.
+        $this->actingAs($user)
+            ->getJson('/documentacion-corporativa/api/tablero')
             ->assertStatus(403);
     }
 
@@ -106,7 +112,6 @@ class ExpedienteAccesoTest extends TestCase
         $user = User::create([
             'name'       => 'Consejero de prueba',
             'login_user' => 'prueba_dc_consejo_' . uniqid(),
-            'estado'     => 'activo',
         ]);
         $user->assignRole($consejo);
 

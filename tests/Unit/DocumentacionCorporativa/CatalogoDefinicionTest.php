@@ -88,21 +88,61 @@ class CatalogoDefinicionTest extends TestCase
         }
     }
 
-    public function test_el_apartado_xi_nunca_pide_guardar_un_secreto(): void
+    public function test_ningun_concepto_lee_una_columna_que_guarde_un_secreto(): void
     {
-        // Bancos: el campo de credencial se rinde como constante, nunca como dato.
-        // Si algún concepto de XI declarara una columna de secreto, aquí se ve.
-        $prohibidas = ['password', 'contrasena', 'contraseña', 'token', 'clabe_completa', 'pan', 'llave_privada'];
+        // El campo de credencial se rinde como constante (********), nunca como
+        // dato: no hay columna que lo respalde. Este test mira los NOMBRES DE
+        // COLUMNA que los conceptos declaran leer, no los valores — 'token' como
+        // valor es una categoría legítima de inventario ('tipo' => 'token'),
+        // mientras que 'token' como COLUMNA sería el secreto que no debe existir.
+        $columnasProhibidas = [
+            'password', 'contrasena', 'contraseña', 'secreto', 'token',
+            'clabe', 'clabe_completa', 'pan', 'numero_tarjeta', 'llave_privada',
+            'private_key', 'api_key', 'pin',
+        ];
 
-        foreach ($this->definicion()['XI']['conceptos'] as $c) {
-            $config = json_encode($c['c'] ?? [], JSON_UNESCAPED_UNICODE);
-            foreach ($prohibidas as $palabra) {
-                $this->assertStringNotContainsStringIgnoringCase(
-                    $palabra,
-                    (string) $config,
-                    "El concepto '{$c['s']}' referencia un secreto en su config."
-                );
+        foreach ($this->definicion() as $clave => $apartado) {
+            foreach ($apartado['conceptos'] as $c) {
+                $columnas = array_keys($c['c']['filtros'] ?? []);
+
+                foreach ($columnas as $columna) {
+                    $this->assertNotContains(
+                        mb_strtolower((string) $columna),
+                        $columnasProhibidas,
+                        "El concepto '{$c['s']}' (apartado {$clave}) lee la columna "
+                        . "'{$columna}', que guardaría un secreto."
+                    );
+                }
             }
         }
+    }
+
+    public function test_los_conceptos_de_credenciales_estan_marcados_sin_secretos(): void
+    {
+        // Los conceptos que la solicitud pide sobre credenciales (81, 104, 117,
+        // 118, 119) llevan la bandera explícita: la interfaz sabe que ahí va la
+        // constante con su leyenda, no un valor.
+        $deCredenciales = [
+            'credenciales-de-acceso',
+            'clabe-interbancaria',
+            'usuarios-bancarios',
+            'tokens-fisicos-o-digitales',
+            'aplicaciones-y-accesos-electronicos',
+        ];
+
+        $encontrados = [];
+        foreach ($this->definicion() as $apartado) {
+            foreach ($apartado['conceptos'] as $c) {
+                if (in_array($c['s'], $deCredenciales, true)) {
+                    $encontrados[] = $c['s'];
+                    $this->assertTrue(
+                        (bool) ($c['c']['sin_secretos'] ?? false),
+                        "El concepto '{$c['s']}' debe declarar sin_secretos = true."
+                    );
+                }
+            }
+        }
+
+        $this->assertEqualsCanonicalizing($deCredenciales, $encontrados);
     }
 }
