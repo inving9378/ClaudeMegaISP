@@ -71,4 +71,21 @@ class FlotasController extends Controller
             'tracking'     => $tracking,
         ]);
     }
+
+    /**
+     * JSON de última posición por vehículo, para el polling del mapa overview (item #102).
+     * Mismo candado fail-closed que index(): sin client_id resuelto, arreglo vacío.
+     */
+    public function tracking(CurrentClientResolver $resolver, FleetPositionService $positions)
+    {
+        $clientId = $resolver->resolve();
+
+        $vehicles = $clientId
+            ? $positions->getCurrentPositions($clientId)
+                ->filter(fn (array $v) => $v['position'] !== null)
+                ->values()
+            : collect();
+
+        return response()->json(['vehicles' => $vehicles]);
+    }
 }

@@ -99,6 +99,7 @@ $portalRoutes = function () {
 
         // Mi Flota — panel del cliente (solo lectura, scopeado ->forClient)
         Route::get('/flotas', [FlotasController::class, 'index'])->name('flotas');
+        Route::get('/flotas/tracking', [FlotasController::class, 'tracking'])->name('flotas.tracking');
 
         // MegaFamilia — panel del cliente (solo lectura, scopeado por client_isp_id)
         Route::get('/megafamilia', [MegaFamiliaController::class, 'index'])->name('megafamilia');
