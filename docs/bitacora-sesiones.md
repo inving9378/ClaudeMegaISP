@@ -3112,3 +3112,22 @@ las 6 terminales (`/home/meganet/circuito/wt-N`).
   reiniciaron a media corrida. Se dejó `provision-test.sh` (aditivo) para reprovisionarla.
 
 **Pendiente de Irving:** validación visual (4 pantallas) y decidir qué hacer con los commits en main.
+
+## 2026-08-28 17:10 — Item #117 (PAC CFDI 4.0): verificada e integrada la Fase 0, resto sigue bloqueado en #683
+
+Item #117 ("Integración PAC para CFDI 4.0") ya había pasado por varias sesiones previas (wt-5 y
+otras): la parte real de conectar un PAC (Facturama/Finkok/SW) está **bloqueada por credenciales
+que solo Irving puede crear** (cuenta sandbox + CSD) — correctamente separada en el sub-item
+**#683** (`requiere_irving`). Lo que quedaba pendiente en #117 era solo **integrar a main** la
+Fase 0 ya escrita en la rama `circuito/item-117-integracion-pac-para-cfdi-40-factura-f` (3 commits
+de una sesión de julio: auditoría `docs/pac-cfdi-auditoria-fase0.md`, migración+modelo
+`ClientCfdiInvoice` para la tabla `client_cfdi_invoices`, fix que vuelve `payment_id` índice simple
+en vez de único) — todo aditivo/nivel A, sin PAC conectado, sin credenciales.
+
+**Esta sesión (wt-1):** verifiqué los 3 commits (`php -l` limpio, migraciones ya corridas contra la
+BD compartida de dev, modelo resuelve en tinker, merge de prueba contra `main` sin conflictos) y
+corrí `circuito:integrar 117`. Al ser nivel de riesgo **C**, el comando **no auto-mergea** —
+correctamente dejó el item en `aprobado_irving` con `esperando_merge_irving=true`, fuera del pool.
+**Pendiente de Irving:** revisar y mergear esa rama a `main` a mano (schema puramente aditivo,
+sin riesgo técnico) cuando lo decida. El trabajo bloqueado por credenciales sigue en #683, sin
+tocar.
