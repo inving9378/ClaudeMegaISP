@@ -139,14 +139,30 @@ class TalentoColaboradorController extends Controller
     }
 
     /**
+     * RFC y domicilio completo (item #199) viven en `users`, no en `talento_colaboradores` —
+     * se ocultan aparte porque el `user` cargado por relación no pasa por EXPEDIENTE_FIELDS.
+     */
+    private const USER_EXPEDIENTE_FIELDS = [
+        'rfc', 'address', 'city_municipality', 'state_country', 'code_postal', 'colony',
+    ];
+
+    /**
      * CURP, RFC, NSS, salario y domicilio son datos personales sensibles (item #199): ocultarlos
      * de la respuesta a quien no tenga 'talento.expediente.view', permiso propio y distinto del
      * de ver la ficha normal ('talento.view'). Acepta un Model o una Collection de Eloquent.
      */
     private function hideExpedienteFields($items): void
     {
-        if (!auth()->user()?->can('talento.expediente.view')) {
-            $items->makeHidden(TalentoColaborador::EXPEDIENTE_FIELDS);
+        if (auth()->user()?->can('talento.expediente.view')) {
+            return;
+        }
+
+        $items->makeHidden(TalentoColaborador::EXPEDIENTE_FIELDS);
+
+        if ($items instanceof \Illuminate\Support\Collection) {
+            $items->each(fn ($item) => $item->user?->makeHidden(self::USER_EXPEDIENTE_FIELDS));
+        } else {
+            $items->user?->makeHidden(self::USER_EXPEDIENTE_FIELDS);
         }
     }
 
