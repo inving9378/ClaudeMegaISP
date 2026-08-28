@@ -92,7 +92,7 @@ MODELO_FLAG="$(printf '%s\n' "$FLAGS" | sed -n 's/^modelo=//p')"
 MODEL="${CIRCUITO_MODEL:-${MODELO_FLAG:-sonnet}}"   # #336: settings circuito_modelo_rutina/forzar; CIRCUITO_MODEL manda si viene.
 log "flags: pausado=${PAUSED:-?} modo=${MODO:-?} modelo=${MODEL:-?}"
 
-# ── REGISTRO DE PROCESOS DEL CIRCUITO (vigilancia de Thomas) ────────────────────────────────
+# ── REGISTRO DE PROCESOS DEL CIRCUITO (vigilancia de Jarvis) ────────────────────────────────
 # Se escribe EN BASH, no en PHP, y a propósito: tiene que existir cuando la base no responde y
 # cuando la app está rota, que es justo cuando hace falta saber quién está corriendo. PHP sólo lee.
 #
@@ -103,11 +103,11 @@ log "flags: pausado=${PAUSED:-?} modo=${MODO:-?} modelo=${MODEL:-?}"
 # IDENTIDAD = PID + STARTTIME: los PID se reciclan. El campo 22 de /proc/<pid>/stat es inmutable
 # para ese proceso; si no coincide, la entrada está muerta aunque el número siga existiendo.
 # Se parsea DESPUÉS del último ')' porque el campo 2 es el nombre del ejecutable entre paréntesis.
-THOMAS_PIDS="${CIRCUITO_THOMAS_PIDS:-/var/www/megaisp/storage/app/circuito/thomas/pids}"
-PIDFILE="$THOMAS_PIDS/${SID}.json"
+JARVIS_PIDS="${CIRCUITO_JARVIS_PIDS:-/var/www/megaisp/storage/app/circuito/jarvis/pids}"
+PIDFILE="$JARVIS_PIDS/${SID}.json"
 
 registrar_pid(){  # $1 = item (puede venir vacío)
-  mkdir -p "$THOMAS_PIDS" 2>/dev/null || return 0
+  mkdir -p "$JARVIS_PIDS" 2>/dev/null || return 0
   local st pgid tmp
   st="$(sed -e 's/^.*) //' "/proc/$$/stat" 2>/dev/null | awk '{print $20}')"
   pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
