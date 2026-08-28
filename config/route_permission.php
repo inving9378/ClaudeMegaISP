@@ -2431,4 +2431,16 @@ return [
         '/inversiones/**',
     ],
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Documentación Corporativa (addon-documentacion-corporativa) — Fase 0
+    // ══════════════════════════════════════════════════════════════════════════
+    // Este middleware mapea RUTA → permiso, y las 14 claves de apartado comparten
+    // una sola ruta (`/api/apartado/{clave}`). Por eso aquí sólo se gatea la
+    // ENTRADA al módulo; el permiso por apartado (`.apartado.{i..xiv}.view`) lo
+    // aplica `ExpedienteController` sobre cada apartado que devuelve.
+    'documentacion-corporativa.view' => [
+        '/documentacion-corporativa',
+        '/documentacion-corporativa/**',
+    ],
+
 ];
