@@ -48,6 +48,14 @@ return [
         'endpoint' => env('CLAUDE_API_ENDPOINT', 'https://api.anthropic.com/v1/messages'),
     ],
 
+    // Firebase Cloud Messaging (item #101/#72) — sin valores hasta que #72 (greenfield)
+    // provea el proyecto real. Con project_id vacío, PushChannel (Flotas) rechaza el
+    // envío en vez de fingir éxito.
+    'firebase' => [
+        'project_id'       => env('FIREBASE_PROJECT_ID'),
+        'credentials_path' => env('FIREBASE_CREDENTIALS_PATH'),
+    ],
+
     // Huawei OLT (motor propio — B1b-4). Sin valores hasta validar B1c.
     'huawei_olt' => [
         'host'            => env('OLT_HUAWEI_HOST', ''),
