@@ -2921,3 +2921,37 @@ del código para no invadir su alcance ni arriesgar ping-pong con quien lo traba
 
 **Enlace de revisión:** `/releases` (Torre de Control) → pestaña Hoja de ruta → item #212, o
 `/releases?tab=configuracion` para ver el flag `desconocido_diferido`.
+
+## 2026-08-28 15:59 — Item #639 cerrado: Vista Hijo APK (mocks) — paraguas resuelto, decompuesto en #658/#659/#661
+
+El item pedía reemplazar 3 mocks de la Vista Hijo en `megafamilia-rn` por datos reales
+(Logros, Apps permitidas, Tiempo de pantalla). No cabía en una vuelta — una sesión previa del
+circuito (`wt-1`) ya lo había descompuesto correctamente siguiendo el propio "orden sugerido"
+de la spec, pero se cortó por timeout antes de cerrar formalmente #639, así que el reaper lo
+reencoló como huérfano y quedó reclamado de nuevo por esta vuelta (`wt-5`).
+
+**Re-verificado de forma independiente, sin repetir el análisis:**
+- El WIP de fase 1 (`LogrosScreen.tsx` + `useHijoStore.ts`, que conecta `loadLogros()` real y
+  calcula `points`/`streakWeeks` desde los logros obtenidos en vez del arreglo `BADGES`
+  hardcodeado) sigue presente en `/var/www/megafamilia-rn` y sigue siendo correcto:
+  `npx tsc --noEmit` termina limpio.
+- El bloqueo de git para comitear ahí sigue vigente: intenté `git -C /var/www/megafamilia-rn
+  add ...` desde este worktree y el clasificador de auto-mode lo denegó — confirma que no es
+  un problema de la sesión anterior sino una restricción real de la sandbox (ese repo no tiene
+  worktree dedicado en el circuito, y sin remoto tampoco hay forma de empujar el cambio desde
+  otro lado).
+
+**Cierre:** #639 se cierra como paraguas resuelto — el 100% de su alcance ya vive en los
+sub-items **#658** (commitear el WIP de fase 1, requiere alguien con permiso de git en
+`megafamilia-rn`), **#659** (Apps permitidas — requiere construir primero la UI admin de
+`parental_app_blocks`) y **#661** (tiempo de pantalla real — instrumentación nativa Android,
+decisión de alcance pendiente con Irving). Sin cambio de código propio en este repo (megaisp)
+más allá de la documentación de cierre. Detalle en
+`docs/megafamilia-hijo-mocks-item-639-verificacion.md` + sección nueva en `CLAUDE.md`.
+
+**Verificado:** `npx tsc --noEmit` limpio sobre el WIP de megafamilia-rn (re-confirmado);
+`php artisan --version` bootea limpio en este repo; `git status` limpio tras el commit.
+
+**Enlace de revisión:** no aplica UI propia — el hallazgo completo está en
+`docs/megafamilia-hijo-mocks-item-639-verificacion.md` y el resumen en `CLAUDE.md` (sección
+"Item #639").
