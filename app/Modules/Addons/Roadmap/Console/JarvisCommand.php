@@ -2,7 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Console;
 
-use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Services\JarvisService;
 use Illuminate\Console\Command;
 
 /**
@@ -17,16 +17,16 @@ use Illuminate\Console\Command;
  *
  * Corre enganchado al scheduler (cada minuto) y también a mano. Respeta el kill switch.
  */
-class ThomasCommand extends Command
+class JarvisCommand extends Command
 {
-    protected $signature = 'circuito:thomas
+    protected $signature = 'circuito:jarvis
         {--dry : evalúa y reporta sin escribir nada}
         {--diagnostico : solo imprime el estado del reparto}
         {--politica : imprime el conjunto de escalamiento vigente y sale, sin tocar nada}';
 
-    protected $description = 'Vuelta del supervisor Thomas: resuelve consultas, estima esfuerzo y vigila el reparto.';
+    protected $description = 'Vuelta del supervisor Jarvis: resuelve consultas, estima esfuerzo y vigila el reparto.';
 
-    /** Etiquetas legibles de cada categoría, en el mismo orden que config('circuito.thomas.escalamiento'). */
+    /** Etiquetas legibles de cada categoría, en el mismo orden que config('circuito.jarvis.escalamiento'). */
     private const ETIQUETAS_ESCALAMIENTO = [
         'produccion' => '1) Tocar PRODUCCIÓN',
         'borrar_datos' => '2) BORRAR datos',
@@ -34,7 +34,7 @@ class ThomasCommand extends Command
         'credenciales' => '4) CREDENCIALES / seguridad',
     ];
 
-    public function handle(ThomasService $thomas): int
+    public function handle(JarvisService $jarvis): int
     {
         if ($this->option('politica')) {
             $this->imprimirPolitica();
@@ -43,15 +43,15 @@ class ThomasCommand extends Command
         }
 
         if ($this->option('diagnostico')) {
-            $this->line(json_encode($thomas->diagnostico(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            $this->line(json_encode($jarvis->diagnostico(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
             return self::SUCCESS;
         }
 
-        $res = $thomas->tick(! $this->option('dry'));
+        $res = $jarvis->tick(! $this->option('dry'));
 
         if (isset($res['saltado'])) {
-            $this->warn('Thomas no corrió: ' . $res['saltado']);
+            $this->warn('Jarvis no corrió: ' . $res['saltado']);
 
             return self::SUCCESS;
         }
@@ -61,19 +61,19 @@ class ThomasCommand extends Command
             $this->line(($this->option('dry') ? 'DRY ' : '') . "#{$c['item']} → {$c['decision']}");
         }
 
-        $this->info(($this->option('dry') ? 'DRY ' : '') . 'Thomas: ' . count($consultas)
+        $this->info(($this->option('dry') ? 'DRY ' : '') . 'Jarvis: ' . count($consultas)
             . ' consulta(s) resuelta(s), ' . ($res['esfuerzos_sellados'] ?? 0) . ' estimación(es) sellada(s).');
 
         return self::SUCCESS;
     }
 
-    /** Solo lee config('circuito.thomas.*'): no toca BD ni escribe nada. */
+    /** Solo lee config('circuito.jarvis.*'): no toca BD ni escribe nada. */
     private function imprimirPolitica(): void
     {
-        $escalamiento = config('circuito.thomas.escalamiento', []);
-        $exigeReversible = config('circuito.thomas.exige_reversible_sin_recomendada');
+        $escalamiento = config('circuito.jarvis.escalamiento', []);
+        $exigeReversible = config('circuito.jarvis.exige_reversible_sin_recomendada');
 
-        $this->info('Política de decisión y escalamiento de Thomas (vigente):');
+        $this->info('Política de decisión y escalamiento de Jarvis (vigente):');
         $this->line('');
 
         foreach ($escalamiento as $categoria => $terminos) {
@@ -85,7 +85,7 @@ class ThomasCommand extends Command
 
         $this->line(
             'exige_reversible_sin_recomendada: ' . ($exigeReversible ? 'true' : 'false')
-            . ' (sin opción recomendada, Thomas toma la primera reversible=true; si ninguna lo es, escala)'
+            . ' (sin opción recomendada, Jarvis toma la primera reversible=true; si ninguna lo es, escala)'
         );
     }
 }

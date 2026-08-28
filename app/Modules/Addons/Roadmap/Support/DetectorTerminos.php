@@ -12,7 +12,7 @@ namespace App\Modules\Addons\Roadmap\Support;
  *
  *   · `RevisorService::triarNivelNull()` — substring para una lista, `\b…\b` para otra.
  *   · `RevisorService::enAlcance()`      — substring crudo, sin quitar boilerplate ni negaciones.
- *   · `ThomasService::categoriaFronteraDura()` — substring crudo, y es la puerta de NACIMIENTO:
+ *   · `JarvisService::categoriaFronteraDura()` — substring crudo, y es la puerta de NACIMIENTO:
  *     lo que decide si un item que Irving crea nace autorizado o no.
  *
  * El costo real: los items #874-#877 salieron nivel C por su PROPIO bloque de guardrails. El #875

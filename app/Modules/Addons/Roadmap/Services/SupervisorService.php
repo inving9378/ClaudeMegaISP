@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * SUPERVISOR del circuito ("Thomas T") — VISTA de su actividad, #334. NO ejecuta desde la UI: es
+ * SUPERVISOR del circuito ("Jarvis T") — VISTA de su actividad, #334. NO ejecuta desde la UI: es
  * read-only. DERIVA su feed de lo que ya ocurre (sin escribir en las rutas calientes):
  *  - Asignaciones: qué item está en manos de qué worker (roadmap_items.worker_sid + en_progreso).
  *  - Revisor: veredictos autoriza/escala (tabla circuito_revisiones).
@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
  */
 class SupervisorService
 {
-    public const NOMBRE = 'Thomas T';
+    public const NOMBRE = 'Jarvis T';
 
     /**
      * #854 — clave de cache que `RevisarBacklogCommand` escribe mientras el revisor analiza UN
@@ -162,7 +162,7 @@ class SupervisorService
             ->count();
     }
 
-    /** El PROTOCOLO DE COORDINACIÓN que Thomas T arbitra (para la identidad/UI del supervisor). */
+    /** El PROTOCOLO DE COORDINACIÓN que Jarvis T arbitra (para la identidad/UI del supervisor). */
     public function protocolo(): array
     {
         return [

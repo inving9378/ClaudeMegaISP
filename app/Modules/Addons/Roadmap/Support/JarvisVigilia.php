@@ -3,31 +3,31 @@
 namespace App\Modules\Addons\Roadmap\Support;
 
 /**
- * ESTADO EN ARCHIVO DE LA VIGILIA DE THOMAS (entrega A).
+ * ESTADO EN ARCHIVO DE LA VIGILIA DE JARVIS (entrega A).
  *
  * ── POR QUÉ NO VIVE EN BASE ─────────────────────────────────────────────────────────────────
- * Thomas no puede compartir destino con lo que vigila. Hoy todo lo que sabe está en MySQL
+ * Jarvis no puede compartir destino con lo que vigila. Hoy todo lo que sabe está en MySQL
  * (`roadmap_items`, el historial, y el watchdog entero en `settings`), así que cuando la base
  * se cayó el 22-ago el único que podía contarlo se cayó con ella. Su criterio ya vivía en
  * archivo (`config/circuito.php`); su MEMORIA de vigilancia empieza a vivir aquí.
  *
  * Dos archivos, a propósito:
  *   · `latido.json` — diminuto, se reescribe cada vuelta. Es el interruptor de hombre muerto:
- *     la Torre muestra "Thomas midió hace X" y lo pinta en rojo si esa marca envejece.
+ *     la Torre muestra "Jarvis midió hace X" y lo pinta en rojo si esa marca envejece.
  *   · `estado.json` — la medición completa de la última vuelta.
  * Separados porque el latido tiene que poder escribirse aunque la medición grande falle a la
- * mitad: si el latido dependiera de que todo salió bien, un Thomas medio roto se vería igual
- * que un Thomas muerto, y son dos cosas distintas.
+ * mitad: si el latido dependiera de que todo salió bien, un Jarvis medio roto se vería igual
+ * que un Jarvis muerto, y son dos cosas distintas.
  *
  * ── RUTA ABSOLUTA ───────────────────────────────────────────────────────────────────────────
  * Nunca `storage_path()`. Este código puede correr desde un worktree, y cada worktree tiene su
- * `storage/` REAL: con ruta relativa habría un Thomas por terminal, que es no tener ninguno.
+ * `storage/` REAL: con ruta relativa habría un Jarvis por terminal, que es no tener ninguno.
  * Es la misma lección del centinela del freno (#170).
  *
  * Esta clase NO mide y NO actúa: sólo guarda y devuelve. Quien mide es
- * `circuito:thomas-vigilar`; quien pinta es la Torre.
+ * `circuito:jarvis-vigilar`; quien pinta es la Torre.
  */
-class ThomasVigilia
+class JarvisVigilia
 {
     public const ARCHIVO_LATIDO = 'latido.json';
 
@@ -36,8 +36,8 @@ class ThomasVigilia
     public static function dir(): string
     {
         return rtrim((string) config(
-            'circuito.thomas.vigilia.dir',
-            '/var/www/megaisp/storage/app/circuito/thomas'
+            'circuito.jarvis.vigilia.dir',
+            '/var/www/megaisp/storage/app/circuito/jarvis'
         ), '/');
     }
 
@@ -54,7 +54,7 @@ class ThomasVigilia
     /** Umbral del hombre muerto: pasado esto, el latido está viejo y la Torre lo pinta en rojo. */
     public static function umbralLatidoSeg(): int
     {
-        return max(30, (int) config('circuito.thomas.vigilia.latido_umbral_seg', 180));
+        return max(30, (int) config('circuito.jarvis.vigilia.latido_umbral_seg', 180));
     }
 
     /**
@@ -64,7 +64,7 @@ class ThomasVigilia
      * el sistema está mal.
      *
      * El latido se escribe DESPUÉS del estado: si la escritura grande falla, el latido viejo se
-     * queda viejo y el hombre muerto se dispara. Preferimos que Thomas se declare muerto a que
+     * queda viejo y el hombre muerto se dispara. Preferimos que Jarvis se declare muerto a que
      * se declare vivo mostrando una medición que no pudo guardar.
      */
     public static function guardar(array $estado): void

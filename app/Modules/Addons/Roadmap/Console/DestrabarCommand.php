@@ -3,13 +3,13 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
-use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Services\JarvisService;
 use Illuminate\Console\Command;
 
 /**
- * #566 — DESTRABE: Thomas resuelve lo que hoy se queda esperando a Irving.
+ * #566 — DESTRABE: Jarvis resuelve lo que hoy se queda esperando a Irving.
  *
- * Ordena el trabajo por lo que cada item ESPERA DE VERDAD (`ThomasService::pendienteReal`), que es
+ * Ordena el trabajo por lo que cada item ESPERA DE VERDAD (`JarvisService::pendienteReal`), que es
  * la pieza que faltaba. El bucle de #117 (13 vueltas) y las 9 aprobaciones de #19 no eran falta de
  * permiso: era que **aprobar se trataba como responder**. Un item cuya única pendiente era el
  * merge volvía a `aprobado_irving` con cada clic, el pool lo re-despachaba, el worker veía que no
@@ -18,11 +18,11 @@ use Illuminate\Console\Command;
  * Por eso aquí cada item se enruta a lo que le falta:
  *   merge       → auto-merge si es reversible y no toca prod (E1)
  *   ejecucion   → auto-decisión si hay default/patrón/reversibilidad (E2)
- *   respuesta   → al consolidado, con la recomendación de Thomas (E4)
+ *   respuesta   → al consolidado, con la recomendación de Jarvis (E4)
  *   dependencia → se deja, con su motivo
  *
- * Dry-run por default. Cap y kill-switch en `config/circuito.php → thomas.automerge` y
- * `thomas.mecanico`; el kill-switch global sigue siendo `circuito_pausado`.
+ * Dry-run por default. Cap y kill-switch en `config/circuito.php → jarvis.automerge` y
+ * `jarvis.mecanico`; el kill-switch global sigue siendo `circuito_pausado`.
  */
 class DestrabarCommand extends Command
 {
@@ -31,17 +31,17 @@ class DestrabarCommand extends Command
         {--limit=120 : tope de items a revisar}
         {--cap= : sobreescribe el cap de auto-merges de ESTA corrida (el de config rige el régimen normal)}';
 
-    protected $description = 'Thomas destraba: auto-mergea lo verificado, decide lo reversible y consolida lo estratégico (#566).';
+    protected $description = 'Jarvis destraba: auto-mergea lo verificado, decide lo reversible y consolida lo estratégico (#566).';
 
     /**
-     * #864 — columnas MÍNIMAS que este comando (y `ThomasService::pendienteReal/elegibleAutoMerge/
+     * #864 — columnas MÍNIMAS que este comando (y `JarvisService::pendienteReal/elegibleAutoMerge/
      * autoMergear/evaluarYaDecidido/aprobarYaDecidido/clasificarMecanico/aprobarMecanico/consolidar`,
      * más los hooks `saving` del modelo que corren en cada `save()`) realmente leen o escriben sobre
      * los items que salen de esta consulta. `roadmap_items` tiene 96 columnas, varias TEXT/JSON
      * grandes (log, comentarios_claude, opciones, preguntas, reporte_tecnico, validacion_brief…) que
      * un `select *` con este WHERE + `ORDER BY id LIMIT 120` arrastraba al filesort — con
      * sort_buffer_size=256KB eso tronaba "Out of sort memory" cada minuto desde el 2026-08-11
-     * (item #864). Si Thomas empieza a leer/escribir otra columna sobre un item salido de ESTA
+     * (item #864). Si Jarvis empieza a leer/escribir otra columna sobre un item salido de ESTA
      * consulta, hay que sumarla aquí.
      *
      * ⚠️ UNA COLUMNA QUE NO EXISTE AQUÍ NO FALLA SILENCIOSA: revienta con `1054 Unknown column` y
@@ -63,7 +63,7 @@ class DestrabarCommand extends Command
         'aprobado_por', 'revisado_at', 'excluir_pool_automatico', 'bloqueado_por_bucle',
     ];
 
-    public function handle(ThomasService $thomas): int
+    public function handle(JarvisService $jarvis): int
     {
         $aplicar = (bool) $this->option('apply');
         // El cap de config rige el régimen normal (un ciclo cada minuto). El override existe para
@@ -71,7 +71,7 @@ class DestrabarCommand extends Command
         // debieron pasar hace semanas, no ritmo nuevo.
         $capMerge = $this->option('cap') !== null
             ? max(1, (int) $this->option('cap'))
-            : (int) config('circuito.thomas.automerge.cap_por_ciclo', 5);
+            : (int) config('circuito.jarvis.automerge.cap_por_ciclo', 5);
 
         // Todo lo que está esperando algo de Irving, incluidos los parqueados y los del anti-bucle:
         // el punto del destrabe es justamente mirar esas bolsas.
@@ -112,7 +112,7 @@ class DestrabarCommand extends Command
         $capAlcanzado = false;
 
         foreach ($items as $item) {
-            $p = $thomas->pendienteReal($item);
+            $p = $jarvis->pendienteReal($item);
 
             switch ($p['pendiente']) {
                 case 'merge':
@@ -121,8 +121,8 @@ class DestrabarCommand extends Command
                         $retenidos['Cap de auto-merges por ciclo alcanzado (vuelve el próximo ciclo)'][] = $item->id;
                         break;
                     }
-                    $e = $aplicar ? $thomas->autoMergear($item) : ['ok' => $thomas->elegibleAutoMerge($item)['elegible'],
-                        'motivo' => $thomas->elegibleAutoMerge($item)['motivo']];
+                    $e = $aplicar ? $jarvis->autoMergear($item) : ['ok' => $jarvis->elegibleAutoMerge($item)['elegible'],
+                        'motivo' => $jarvis->elegibleAutoMerge($item)['motivo']];
                     if ($e['ok']) {
                         $mergeados[] = $item->id;
                         $this->line(($aplicar ? '' : 'DRY ') . "→ MERGE     #{$item->id}  " . $this->corto($item));
@@ -136,13 +136,13 @@ class DestrabarCommand extends Command
                     //  (a) YA DECIDIDO — el brief está contestado y el item seguía retenido sin
                     //      que faltara nadie. Es la bolsa más grande y la menos discutible.
                     //  (b) MECÁNICO — no había nada que decidir desde el enunciado.
-                    $r = $aplicar ? $thomas->aprobarYaDecidido($item) : $thomas->evaluarYaDecidido($item);
+                    $r = $aplicar ? $jarvis->aprobarYaDecidido($item) : $jarvis->evaluarYaDecidido($item);
 
                     if (! $r['aprobado']) {
                         $r = $aplicar
-                            ? $thomas->aprobarMecanico($item)
-                            : ['aprobado' => $thomas->clasificarMecanico($item)['mecanico'],
-                                'motivo'  => $thomas->clasificarMecanico($item)['motivo']];
+                            ? $jarvis->aprobarMecanico($item)
+                            : ['aprobado' => $jarvis->clasificarMecanico($item)['mecanico'],
+                                'motivo'  => $jarvis->clasificarMecanico($item)['motivo']];
                     }
 
                     if ($r['aprobado']) {
@@ -183,10 +183,10 @@ class DestrabarCommand extends Command
         }
 
         // E4 — lo estratégico se junta en UNA pregunta, no en N items bloqueados por separado.
-        if ($consolida && config('circuito.thomas.consolidado.enabled', true)) {
-            $puntos = $thomas->consolidar($consolida);
+        if ($consolida && config('circuito.jarvis.consolidado.enabled', true)) {
+            $puntos = $jarvis->consolidar($consolida);
             if ($aplicar) {
-                $path = $thomas->escribirConsolidado($puntos);
+                $path = $jarvis->escribirConsolidado($puntos);
                 $this->newLine();
                 $this->info('Consolidado escrito en: ' . $path);
             }
@@ -194,7 +194,7 @@ class DestrabarCommand extends Command
             $this->comment('Para definir de una pasada (' . count($puntos) . '):');
             foreach ($puntos as $p) {
                 $this->line("  #{$p['id']} · {$p['pregunta']}");
-                $this->line('      Thomas recomienda: ' . ($p['recomendacion'] ?? '—')
+                $this->line('      Jarvis recomienda: ' . ($p['recomendacion'] ?? '—')
                     . ($p['reversible'] ? '  ♻️ reversible' : ''));
             }
         }

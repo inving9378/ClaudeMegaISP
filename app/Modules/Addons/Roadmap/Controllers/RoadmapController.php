@@ -9,7 +9,7 @@ use App\Modules\Addons\Roadmap\Services\AutopilotService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
-use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Services\JarvisService;
 use App\Modules\Addons\Roadmap\Support\TorreControlCatalog;
 use App\Modules\Addons\Roadmap\Services\WatchdogService;
 use Illuminate\Http\JsonResponse;
@@ -371,11 +371,11 @@ class RoadmapController extends Controller
         // sus términos, elegir su efecto), por decisión explícita de Irving. Lo que SIGUE sin tener
         // interruptor es la DETECCIÓN: es determinista y no la decide ningún modelo. Un guardrail
         // que promete un candado que ya no existe es peor que no listarlo.
-        ['icono' => '🔓', 'texto' => 'Topes duros (producción · borrar datos · dinero · credenciales): la DETECCIÓN es determinista y no se apaga; la lista y su efecto SÍ se gobiernan desde Configuración → Fronteras, con bitácora de cada cambio', 'donde' => 'circuito_fronteras (antes: fijo en ThomasService)'],
+        ['icono' => '🔓', 'texto' => 'Topes duros (producción · borrar datos · dinero · credenciales): la DETECCIÓN es determinista y no se apaga; la lista y su efecto SÍ se gobiernan desde Configuración → Fronteras, con bitácora de cada cambio', 'donde' => 'circuito_fronteras (antes: fijo en JarvisService)'],
         ['icono' => '🔒', 'texto' => 'Vía externa (Cowork/MCP): solo nivel A puede quedar aprobado_claude', 'donde' => 'guard() — sin endpoint'],
         // #943 — completa la cubeta roja de `plan-configuracion-torre.md` §1 (antes faltaban
         // estos 2 de los 6 ahí listados).
-        ['icono' => '🔒', 'texto' => 'thomas.automerge.rutas_sensibles / patrones_destructivos: lo que NUNCA se auto-mergea', 'donde' => 'config/circuito.php'],
+        ['icono' => '🔒', 'texto' => 'jarvis.automerge.rutas_sensibles / patrones_destructivos: lo que NUNCA se auto-mergea', 'donde' => 'config/circuito.php'],
         ['icono' => '🔒', 'texto' => 'Tokens y llaves (ROADMAP_*_TOKEN, CLAUDE_API_KEY, AMI_SECRET…) — se listan por nombre, nunca su valor', 'donde' => '.env'],
     ];
 
@@ -741,7 +741,7 @@ class RoadmapController extends Controller
             'no_avanza'            => $noAvanza,
             'no_avanza_count'      => RoadmapItem::noAvanza(10)->count(),
             'worker_nombres'       => $this->svc->nombresWorkers(),   // roster editable (#334)
-            'supervisor'           => $this->supervisor->estado(),    // Thomas T: jefe + su feed (#334)
+            'supervisor'           => $this->supervisor->estado(),    // Jarvis T: jefe + su feed (#334)
             'can_disparar'         => (bool) auth()->user()?->can('circuito.disparar'),
             'voz_tts'              => $this->svc->getVozTts(),   // #424: voz guardada para 🔊 Escuchar (bandeja + Integración usan la misma)
             'rate_tts'             => $this->svc->getRateTts(),  // #424: velocidad guardada
@@ -781,7 +781,7 @@ class RoadmapController extends Controller
             'vuelta_limite_segundos' => (int) config('circuito.vuelta_timeout_seg', 600),
             // Watchdog del equipo (#334): salud por slot + alertas para el polling en vivo.
             'watchdog'          => $this->watchdog->estado(),
-            'supervisor'        => $this->supervisor->estado(),   // Thomas T + su feed (#334)
+            'supervisor'        => $this->supervisor->estado(),   // Jarvis T + su feed (#334)
             'can_disparar'      => (bool) auth()->user()?->can('circuito.disparar'),
             // #854: gate del ícono de cámara (subir avatar) — mismo payload del poll, sin llamada nueva.
             'puede_editar_avatar' => (bool) auth()->user()?->can('torre.terminales.editar_avatar'),
@@ -2508,7 +2508,7 @@ class RoadmapController extends Controller
          * sigue naciendo `pendiente_revision`. Esta ruta exige sesión + `roadmap_manage`, así que
          * "lo creó un humano autorizado en la UI" es exactamente lo que la distingue.
          */
-        $thomas = app(ThomasService::class);
+        $jarvis = app(JarvisService::class);
         $texto  = trim(($data['title'] ?? '') . ' ' . ($data['description'] ?? '') . ' ' . ($data['prompt'] ?? ''));
 
         // EXCEPCIÓN: si el item declara algo de la frontera dura (prod / borrar datos / dinero /
@@ -2516,8 +2516,8 @@ class RoadmapController extends Controller
         // lo haya escrito no vuelve reversible un borrado de datos.
         // Se pide el DETALLE, no sólo la categoría: la válvula de más abajo necesita el término
         // exacto que disparó para poder juzgarlo. Antes recibía la categoría y la presentaba al
-        // modelo como si fuera el término — ver `ThomasService::fronteraDuraDetalle()`.
-        $fronteraDet = $thomas->fronteraDuraDetalle($texto);
+        // modelo como si fuera el término — ver `JarvisService::fronteraDuraDetalle()`.
+        $fronteraDet = $jarvis->fronteraDuraDetalle($texto);
         $frontera    = $fronteraDet['categoria'];
 
         // #648 — EL EFECTO DE LA CATEGORÍA GOBIERNA AQUÍ. `avisar` es la posición más suave de la
@@ -2561,7 +2561,7 @@ class RoadmapController extends Controller
         // Footprint: un item sin `modulo` corre SOLO y bloquea a las 6 terminales (#432 B2), así
         // que se le asigna aquí mismo en vez de dejarlo para el barrido posterior.
         if (empty($data['modulo'])) {
-            $data['modulo'] = $thomas->clasificarModulo($texto);
+            $data['modulo'] = $jarvis->clasificarModulo($texto);
         }
 
         $item = RoadmapItem::create($data);
@@ -2575,14 +2575,14 @@ class RoadmapController extends Controller
          *
          * El item pedía que el botón "Agregar" avisara al supervisor y éste devolviera un tiempo
          * estimado para que quien lo agregó lo ponga en su temporizador. El "supervisor" del
-         * circuito hoy es Thomas (no un rol Spatie humano ni WhatsApp — eso es de antes de #566):
+         * circuito hoy es Jarvis (no un rol Spatie humano ni WhatsApp — eso es de antes de #566):
          * ya calcula un ETA determinista por nivel_riesgo/tamaño del spec (`sellarEsfuerzo`) y lo
          * sella en `eta_minutos`/`eta_asignada_at`, pero solo lo hacía en su barrido periódico
          * (`tick()`), así que el alta no lo veía hasta el siguiente minuto. Aquí se sella
          * SÍNCRONO — el "toque" ocurre en el mismo request, sin esperar al barrido.
          */
         if ($frontera === null) {
-            $thomas->sellarEsfuerzo($item);
+            $jarvis->sellarEsfuerzo($item);
         }
 
         /*

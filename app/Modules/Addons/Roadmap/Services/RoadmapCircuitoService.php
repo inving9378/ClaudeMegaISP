@@ -655,7 +655,7 @@ class RoadmapCircuitoService
      * configurable en vez de un múltiplo de cadencia — ver `iconoSemaforo()`.
      *
      * Suma 2 filas DERIVADAS que no tienen cron propio (documentado en config/circuito.php: corren
-     * dentro de CADA vuelta del scheduler, sin throttle) — Thomas (reusa el latido de su propia
+     * dentro de CADA vuelta del scheduler, sin throttle) — Jarvis (reusa el latido de su propia
      * maquinaria, ya calculado por `SupervisorService::estado()`) y Terminales (reusa la salud de
      * slots de `WatchdogService`) — en vez de fabricar un reloj nuevo para cada una.
      *
@@ -712,7 +712,7 @@ class RoadmapCircuitoService
             ];
         }
 
-        // Thomas — sin cron propio (ver bloque de comentario en config/circuito.php). Su salud real
+        // Jarvis — sin cron propio (ver bloque de comentario en config/circuito.php). Su salud real
         // ya la deriva SupervisorService de la MISMA maquinaria (scheduler + watchdog).
         $sup = app(SupervisorService::class)->estado(0);
         $filas[] = $this->filaSemaforoDerivada(
@@ -859,7 +859,7 @@ class RoadmapCircuitoService
         return '🟢';
     }
 
-    /** #946 — fila del semáforo para un motor DERIVADO (Thomas/Terminales): sin cron propio, su
+    /** #946 — fila del semáforo para un motor DERIVADO (Jarvis/Terminales): sin cron propio, su
      *  señal es booleana (vivo/no vivo), no un ratio de cadencia. */
     private function filaSemaforoDerivada(
         string $motor,
@@ -1006,7 +1006,7 @@ class RoadmapCircuitoService
             'merge_commit'       => $i->merge_commit,
             'item_padre'         => $i->origen_item_id ? (int) $i->origen_item_id : null,
             'eta_minutos'        => $i->eta_minutos !== null ? (int) $i->eta_minutos : null,
-            // Consulta viva a Thomas (la terminal preguntó y espera respuesta).
+            // Consulta viva a Jarvis (la terminal preguntó y espera respuesta).
             'consulta_supervisor' => $i->tieneConsultaViva() ? [
                 'pregunta' => $i->consulta_supervisor,
                 'terminal' => $i->consulta_supervisor_sid,
@@ -2779,7 +2779,7 @@ class RoadmapCircuitoService
     /**
      * Archivos que una rama cambió respecto de main (`git diff --name-only main...rama`).
      *
-     * Existe para que el auto-merge de Thomas decida por el DIFF y no por el título: "el item dice
+     * Existe para que el auto-merge de Jarvis decida por el DIFF y no por el título: "el item dice
      * que no toca prod" no es verificable; "el diff no toca `deploy/`" sí. Devuelve null si no se
      * puede leer (rama inexistente, git que falla) → el llamador debe tratarlo como fail-closed.
      */

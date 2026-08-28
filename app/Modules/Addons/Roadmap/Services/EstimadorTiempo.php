@@ -39,7 +39,7 @@ class EstimadorTiempo
      *
      * Por eso `eta_segundos` sale TOPADO al techo: es lo que se persiste y lo que pinta el reloj,
      * y nunca puede prometer más de lo que la vuelta permite. El estimado CRUDO se conserva en
-     * `eta_crudo_segundos` porque sí significa algo donde es accionable: `ThomasService::
+     * `eta_crudo_segundos` porque sí significa algo donde es accionable: `JarvisService::
      * caberEnVuelta()` lo compara contra su umbral para decidir si un item hay que descomponerlo
      * ANTES de picar código. Topar ahí también habría vuelto "cabe" a todo por construcción.
      *

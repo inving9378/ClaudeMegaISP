@@ -25,7 +25,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\PausarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ReanudarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\CompuertasSondaCommand::class,
-                \App\Modules\Addons\Roadmap\Console\ThomasVigilarCommand::class,
+                \App\Modules\Addons\Roadmap\Console\JarvisVigilarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RegistrarEjecucionCommand::class,
                 \App\Modules\Addons\Roadmap\Console\VivoCommand::class,
                 \App\Modules\Addons\Roadmap\Console\DisparoCheckCommand::class,
@@ -65,9 +65,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\ParquearTimeoutCommand::class,
                 // Backfill de briefs de la bandeja para poblar confianza/reversible (#507)
                 \App\Modules\Addons\Roadmap\Console\RebriefBandejaCommand::class,
-                // TORRE V2 — Thomas (autoridad intermedia) y el kit de la terminal:
+                // TORRE V2 — Jarvis (autoridad intermedia) y el kit de la terminal:
                 // consultar en vez de despertar a Irving, reportar sin pisar, y partir en sub-items.
-                \App\Modules\Addons\Roadmap\Console\ThomasCommand::class,
+                \App\Modules\Addons\Roadmap\Console\JarvisCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ConsultarSupervisorCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ReportarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\SubItemCommand::class,

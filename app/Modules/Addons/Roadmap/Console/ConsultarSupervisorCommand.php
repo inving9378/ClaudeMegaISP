@@ -3,17 +3,17 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
-use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Services\JarvisService;
 use Illuminate\Console\Command;
 
 /**
- * TORRE V2 — la terminal le PREGUNTA A THOMAS (no a Irving).
+ * TORRE V2 — la terminal le PREGUNTA A JARVIS (no a Irving).
  *
  * Es la única vía por la que una terminal puede detenerse a consultar. Responde EN EL ACTO
  * (la política es determinista, no hay llamada a IA ni espera de un turno del loop), así que la
  * terminal no se queda bloqueada ni gasta su slot esperando.
  *
- * Exit code 0 = PROCEDE (sigue trabajando con la opción que Thomas te dio).
+ * Exit code 0 = PROCEDE (sigue trabajando con la opción que Jarvis te dio).
  * Exit code 1 = ESCALADO (detente y termina; el item ya está en la bandeja de Irving).
  * El prompt del ejecutor ramifica por ese código.
  *
@@ -32,9 +32,9 @@ class ConsultarSupervisorCommand extends Command
         {--opcion=* : opción en formato "texto|recomendada|reversible" (los flags son opcionales)}
         {--json : responde en JSON en vez de texto}';
 
-    protected $description = 'Consulta a Thomas (supervisor). Responde al instante: PROCEDE (0) o ESCALADO (1).';
+    protected $description = 'Consulta a Jarvis (supervisor). Responde al instante: PROCEDE (0) o ESCALADO (1).';
 
-    public function handle(ThomasService $thomas): int
+    public function handle(JarvisService $jarvis): int
     {
         $item = RoadmapItem::find($this->argument('id'));
         if (! $item) {
@@ -45,7 +45,7 @@ class ConsultarSupervisorCommand extends Command
 
         $pregunta = trim((string) $this->option('pregunta'));
         if ($pregunta === '') {
-            $this->error('Falta --pregunta: Thomas no adivina la duda.');
+            $this->error('Falta --pregunta: Jarvis no adivina la duda.');
 
             return self::FAILURE;
         }
@@ -54,7 +54,7 @@ class ConsultarSupervisorCommand extends Command
 
         $opciones = $this->parsearOpciones((array) $this->option('opcion'));
 
-        $v = $thomas->resolverConsulta($item, $pregunta, $opciones, $sid);
+        $v = $jarvis->resolverConsulta($item, $pregunta, $opciones, $sid);
 
         if ($this->option('json')) {
             $this->line(json_encode($v, JSON_UNESCAPED_UNICODE));

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * TORRE V2 — un reporte del historial de un item. APPEND-ONLY.
  *
  * Regla dura: estas filas se CREAN y se LEEN, nunca se actualizan ni se borran. Es el rastro de
- * quién decidió qué y por qué, con seis terminales y Thomas escribiendo sobre los mismos items.
+ * quién decidió qué y por qué, con seis terminales y Jarvis escribiendo sobre los mismos items.
  * Si un reporte quedó mal, se agrega otro que lo corrija — no se edita el anterior.
  *
  * Los campos resumen de `roadmap_items` (comentarios_claude / reporte_tecnico / reporte_coloquial)
@@ -35,8 +35,8 @@ class RoadmapItemReport extends Model
      *
      *  - avance       → la terminal reporta progreso parcial.
      *  - decision     → se tomó una decisión sin consultar (la regla de oro: opción recomendada).
-     *  - consulta     → la terminal le PREGUNTA a Thomas y se detiene.
-     *  - respuesta    → Thomas (o Irving, si se escaló) resuelve la consulta.
+     *  - consulta     → la terminal le PREGUNTA a Jarvis y se detiene.
+     *  - respuesta    → Jarvis (o Irving, si se escaló) resuelve la consulta.
      *  - verificacion → resultado de verificar contra los criterios de aceptación.
      *  - escalacion   → salió del circuito hacia Irving (conjunto de escalamiento).
      *  - cierre       → el item quedó terminado.

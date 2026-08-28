@@ -45,8 +45,8 @@ class DiagnosticoItemService
             return null;
         }
 
-        // `revisado_at` lo sella el revisor/Thomas en el mismo movimiento que deja el item en
-        // `requiere_irving` (RevisorService::aplicarVeredicto, ThomasService) — es la marca de
+        // `revisado_at` lo sella el revisor/Jarvis en el mismo movimiento que deja el item en
+        // `requiere_irving` (RevisorService::aplicarVeredicto, JarvisService) — es la marca de
         // tiempo más cercana a «desde cuándo espera». `updated_at` es el respaldo honesto si un
         // item legacy no la trae.
         $desde = $item->revisado_at ?? $item->updated_at;
@@ -134,7 +134,7 @@ class DiagnosticoItemService
             'explicacion' => 'Bloqueado: toca ' . static::etiquetaCategoria($categoria) . '.',
             'accion'      => null,
             'procedencia' => "TorreAutomationPolicy::tocaFronteraDura() → categoría '{$categoria}' "
-                . '(ThomasService::fronteraDuraDeItem sobre título+descripción+prompt, honrando '
+                . '(JarvisService::fronteraDuraDeItem sobre título+descripción+prompt, honrando '
                 . 'la válvula de nacimiento).',
         ];
     }

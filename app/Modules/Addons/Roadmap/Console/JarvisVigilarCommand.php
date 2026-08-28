@@ -4,12 +4,12 @@ namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use App\Modules\Addons\Roadmap\Support\RegistroPids;
-use App\Modules\Addons\Roadmap\Support\ThomasVigilia;
+use App\Modules\Addons\Roadmap\Support\JarvisVigilia;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * LA VIGILIA DE THOMAS — entrega A: modo mínimo, cron propio, hombre muerto.
+ * LA VIGILIA DE JARVIS — entrega A: modo mínimo, cron propio, hombre muerto.
  *
  * ── QUÉ HACE Y QUÉ NO ───────────────────────────────────────────────────────────────────────
  * MIDE y DEJA CONSTANCIA. No aísla, no baja concurrencia, no comprime, no trunca, no mata y no
@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
  * que puede hacer cosas sin medir bien es peligroso, y ya sabemos cuál de los dos duele más.
  *
  * ── POR QUÉ NO PUEDE DEPENDER DE LA BASE ────────────────────────────────────────────────────
- * Todo lo demás de Thomas vive en MySQL, así que el 22-ago se cayó con ella. Aquí el orden está
+ * Todo lo demás de Jarvis vive en MySQL, así que el 22-ago se cayó con ella. Aquí el orden está
  * invertido a propósito: PRIMERO se mide todo lo que se puede leer del sistema de archivos y de
  * /proc —disco, memoria, logs, procesos, registro, freno—, y sólo AL FINAL, dentro de un
  * try/catch, se intenta la base. Si falla, el modo queda en `minimo`, se dice con esas palabras
@@ -31,18 +31,18 @@ use Illuminate\Support\Facades\DB;
  * limpieza: es falsa calma, que es el peor modo de fallo de un vigilante. Aquí se recorren todos
  * con glob, para que un worktree nuevo entre solo.
  */
-class ThomasVigilarCommand extends Command
+class JarvisVigilarCommand extends Command
 {
-    protected $signature = 'circuito:thomas-vigilar
+    protected $signature = 'circuito:jarvis-vigilar
         {--print : imprime la medición en pantalla además de guardarla}
         {--seco : mide e imprime SIN escribir el estado (para inspeccionar sin tocar el latido)}';
 
-    protected $description = 'Vigilia de Thomas: mide disco, memoria, logs, procesos y registro SIN depender de la base.';
+    protected $description = 'Vigilia de Jarvis: mide disco, memoria, logs, procesos y registro SIN depender de la base.';
 
     public function handle(): int
     {
-        if (! config('circuito.thomas.vigilia.enabled', true)) {
-            $this->warn('La vigilia está apagada (circuito.thomas.vigilia.enabled=false).');
+        if (! config('circuito.jarvis.vigilia.enabled', true)) {
+            $this->warn('La vigilia está apagada (circuito.jarvis.vigilia.enabled=false).');
 
             return self::SUCCESS;
         }
@@ -70,7 +70,7 @@ class ThomasVigilarCommand extends Command
 
         if (! $this->option('seco')) {
             try {
-                ThomasVigilia::guardar($estado);
+                JarvisVigilia::guardar($estado);
             } catch (\Throwable $e) {
                 // Si no puede guardar, NO finge que midió: el latido viejo se queda viejo y el
                 // hombre muerto de la Torre se dispara solo. Eso es exactamente lo que debe pasar.
@@ -159,11 +159,11 @@ class ThomasVigilarCommand extends Command
     private function medirLogs(): array
     {
         $rutas = [];
-        $principal = (string) config('circuito.thomas.vigilia.log_principal');
+        $principal = (string) config('circuito.jarvis.vigilia.log_principal');
         if ($principal !== '') {
             $rutas['principal'] = $principal;
         }
-        $raiz = rtrim((string) config('circuito.thomas.vigilia.raiz_worktrees'), '/');
+        $raiz = rtrim((string) config('circuito.jarvis.vigilia.raiz_worktrees'), '/');
         foreach (glob($raiz . '/*/storage/logs/laravel.log') ?: [] as $r) {
             $rutas[basename(dirname($r, 3))] = $r;   // .../wt-2/storage/logs/laravel.log → wt-2
         }
@@ -239,7 +239,7 @@ class ThomasVigilarCommand extends Command
             }
         }
 
-        $viejo = (int) config('circuito.thomas.vigilia.claude_viejo_seg', 86400);
+        $viejo = (int) config('circuito.jarvis.vigilia.claude_viejo_seg', 86400);
 
         return [
             'vueltas'            => count($vueltas),

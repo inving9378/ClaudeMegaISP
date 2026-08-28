@@ -266,7 +266,7 @@ class AutopilotService
         // ⚠️ LAS RESPUESTAS SE ESCRIBEN DESPUÉS DEL GATE, NUNCA ANTES (2026-08-27).
         // Antes este bucle iba arriba y la política se consultaba después: si rechazaba, el item se
         // quedaba con TODAS sus preguntas contestadas por el autopilot y sin aprobar. El brief se
-        // veía «100 % contestado» —`ThomasService` ya advertía que eso no implica que lo contestara
+        // veía «100 % contestado» —`JarvisService` ya advertía que eso no implica que lo contestara
         // un humano— y el item parecía decidido sin poder despachar nunca. Es la familia de las
         // aprobaciones mudas (#32, #186): no falla, se degrada a algo que parece una decisión.
         // `responderPregunta()` sólo muta en memoria, pero cualquier `save()` posterior del mismo
