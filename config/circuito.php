@@ -396,7 +396,9 @@ return [
         | Deliberadamente CONSERVADOR: solo dispara con evidencia dura (nunca con el bucket
         | heurístico de `EstimadorTiempo`, que es un techo por nivel de riesgo sin muestras reales
         | y dispararía casi siempre). Tres señales, cualquiera basta:
-        |   1. `reanudaciones_timeout >= 1` — el item YA timeouteó antes (dato empírico, no estimado).
+        |   1. `veces_timeouteo >= 1` — el item YA timeouteó antes, avanzó o no (dato empírico, no
+        |      estimado; #194 separado de `reanudaciones_timeout`, que solo cuenta reanudaciones CON
+        |      avance y es ciego al item que gira en vacío).
         |   2. (#193) el propio spec se declara multi-fase: >= `min_fases_explicitas` encabezados
         |      `--- ETIQUETA ENUM ... ---` con la MISMA etiqueta y enumeradores distintos (p.ej.
         |      `HIJO A` … `HIJO E`). No es el modelo infiriendo fases: es quien escribió el spec
