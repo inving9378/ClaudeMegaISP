@@ -418,6 +418,7 @@ import VoiceComparatorView from "./components/module/marketing/VoiceComparatorVi
 // Marketing Fase 5 — Publicador Multicanal
 import MarketingPublishingDashboardView from "./components/module/marketing/publishing/PublishingDashboardView.vue";
 import MarketingPublishCampaignView from "./components/module/marketing/publishing/PublishCampaignView.vue";
+import MarketingPilotCampaignsView from "./components/module/marketing/PilotCampaignsView.vue";
 import MarketingPublicationQueueView from "./components/module/marketing/publishing/PublicationQueueView.vue";
 import MarketingChannelsSetupView from "./components/module/marketing/publishing/ChannelsSetupView.vue";
 import IntegrationsHubView from "./components/module/hub/IntegrationsHubView.vue";
@@ -791,6 +792,7 @@ const app = createApp({
         // Marketing Fase 5 — Publicador Multicanal
         'marketing-publishing-dashboard-view': MarketingPublishingDashboardView,
         'marketing-publish-campaign-view': MarketingPublishCampaignView,
+        'marketing-pilot-campaigns-view': MarketingPilotCampaignsView,
         'marketing-publication-queue-view': MarketingPublicationQueueView,
         'marketing-channels-setup-view': MarketingChannelsSetupView,
 
