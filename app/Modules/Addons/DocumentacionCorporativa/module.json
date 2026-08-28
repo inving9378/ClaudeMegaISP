@@ -1,0 +1,63 @@
+{
+    "slug": "addon-documentacion-corporativa",
+    "name": "Documentación Corporativa",
+    "version": "0.1.0",
+    "description": "Expediente corporativo y societario vivo: 14 apartados y 139 conceptos que combinan los datos que el sistema ya conoce, los documentos que solo existen en papel y los que se generan desde plantilla. Multi-empresa.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "keep_data": true,
+
+    "permissions": [
+        { "name": "documentacion-corporativa.view", "description": "Ver el expediente corporativo (índice de apartados y tablero de completitud)" },
+
+        { "name": "documentacion-corporativa.apartado.i.view",    "description": "Ver apartado I — Documentación corporativa y societaria" },
+        { "name": "documentacion-corporativa.apartado.ii.view",   "description": "Ver apartado II — Información financiera y contable" },
+        { "name": "documentacion-corporativa.apartado.iii.view",  "description": "Ver apartado III — Información fiscal" },
+        { "name": "documentacion-corporativa.apartado.iv.view",   "description": "Ver apartado IV — Cuentas por cobrar, por pagar y flujo" },
+        { "name": "documentacion-corporativa.apartado.v.view",    "description": "Ver apartado V — Activos, bienes e infraestructura" },
+        { "name": "documentacion-corporativa.apartado.vi.view",   "description": "Ver apartado VI — Contratos y relaciones comerciales" },
+        { "name": "documentacion-corporativa.apartado.vii.view",  "description": "Ver apartado VII — Personal y recursos humanos" },
+        { "name": "documentacion-corporativa.apartado.viii.view", "description": "Ver apartado VIII — Activos digitales y tecnológicos" },
+        { "name": "documentacion-corporativa.apartado.ix.view",   "description": "Ver apartado IX — Marcas y propiedad intelectual" },
+        { "name": "documentacion-corporativa.apartado.x.view",    "description": "Ver apartado X — Proveedores estratégicos y contactos operativos" },
+        { "name": "documentacion-corporativa.apartado.xi.view",   "description": "Ver apartado XI — Cuentas bancarias, firmas y productos financieros" },
+        { "name": "documentacion-corporativa.apartado.xii.view",  "description": "Ver apartado XII — Confidencialidad, conservación y no retención" },
+        { "name": "documentacion-corporativa.apartado.xiii.view", "description": "Ver apartado XIII — Títulos de concesión, permisos y derechos de uso" },
+        { "name": "documentacion-corporativa.apartado.xiv.view",  "description": "Ver apartado XIV — Reserva de derechos y trazabilidad" },
+
+        { "name": "documentacion-corporativa.documento.upload",   "description": "Subir documentos al expediente corporativo" },
+        { "name": "documentacion-corporativa.documento.download", "description": "Descargar documentos del expediente corporativo" },
+        { "name": "documentacion-corporativa.documento.delete",   "description": "Eliminar (soft delete) documentos del expediente corporativo" },
+        { "name": "documentacion-corporativa.concepto.manage",    "description": "Administrar el catálogo de conceptos del expediente" },
+        { "name": "documentacion-corporativa.pendiente.assign",   "description": "Asignar responsables y fechas compromiso a conceptos pendientes" },
+        { "name": "documentacion-corporativa.inventario.accesos.view", "description": "Ver el inventario de accesos (nunca credenciales: el valor no se almacena)" },
+        { "name": "documentacion-corporativa.bitacora.view",      "description": "Consultar la bitácora de accesos al expediente corporativo" },
+        { "name": "documentacion-corporativa.entrega.create",     "description": "Armar paquetes de entrega y generar actas de entrega-recepción" }
+    ],
+
+    "menu": [
+        {
+            "label": "Doc. Corporativa",
+            "icon": "briefcase",
+            "permission": "documentacion-corporativa.view",
+            "url": "/documentacion-corporativa"
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Documentación Corporativa",
+            "description": "Expediente corporativo y societario: 14 apartados, completitud y bitácora de accesos.",
+            "icon": "briefcase",
+            "url": "/documentacion-corporativa",
+            "permission": "documentacion-corporativa.view"
+        }
+    ],
+
+    "sidebar": { "location": "main" },
+    "config_sections": [],
+    "api_endpoints": [],
+    "client_tab": null,
+    "service_type": null
+}
