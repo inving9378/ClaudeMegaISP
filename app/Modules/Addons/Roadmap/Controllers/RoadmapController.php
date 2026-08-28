@@ -41,6 +41,8 @@ class RoadmapController extends Controller
         'consulta_supervisor_at', 'consulta_resuelta_at', 'comentarios_claude', 'opciones',
         'preguntas', 'reporte_coloquial', 'enlace_revision', 'alcance_autorizado', 'fuera_de_alcance',
         'prompt', 'reanudaciones_timeout', 'frontera_valvula', 'motivo_espera',
+        // #652 — el resumen en llano que la bandeja pinta como línea principal.
+        'resumen_natural',
     ];
 
     // #9990906 (CIRC-03 Fase C) — label legible + emoji por tipo de insumo para "Esperan un

@@ -248,7 +248,23 @@
                 <span v-if="it.toca_produccion" class="tc-frn tc-frn-prod"
                       :title="'Este item referencia producción (' + it.toca_produccion + '). No se bloquea; queda avisado.'">🏭 toca prod</span>
               </div>
-              <div class="tc-titulo-c">{{ it.title }}</div>
+              <!-- #652 — LO PRIMERO QUE SE LEE ES EL TICKET EN LLANO, no su título técnico.
+                   Esta bandeja se revisa a diario y se decide sobre ella; escrita para la máquina,
+                   el costo de traducirla lo pagaba Irving en cada pasada. El texto técnico NO
+                   desaparece: baja al desplegable de aquí abajo, a un clic.
+                   Sin `resumen_natural` (item viejo o traducción fallida) se pinta el título de
+                   siempre — la tarjeta nunca se queda muda. -->
+              <div v-if="it.resumen_natural" class="tc-titulo-nat">{{ it.resumen_natural }}</div>
+              <div v-else class="tc-titulo-c">{{ it.title }}</div>
+
+              <!-- El título técnico, disponible sin estorbar: es el que se busca, el que se cita
+                   entre nosotros y el que hay que ver para saber de qué habla el resumen. -->
+              <div v-if="it.resumen_natural" class="tc-tec-wrap">
+                <button type="button" class="tc-tec-toggle" @click="tecOpen[it.id] = !tecOpen[it.id]">
+                  {{ tecOpen[it.id] ? 'Ocultar título técnico ▲' : 'Ver título técnico ▼' }}
+                </button>
+                <div v-if="tecOpen[it.id]" class="tc-tec-panel">{{ it.title }}</div>
+              </div>
 
               <!-- #432 Fase 3 — brief COMPLETO: TODAS las preguntas del item juntas, cada una con sus
                    opciones. #431: objetos {clave,texto,recomendada}; se marca por CLAVE estable.
@@ -981,6 +997,7 @@ export default {
 
         // #477 — tarjeta compacta para TODA "Tu bandeja": colapsa descripción/observaciones tras "Ver descripción".
         const descOpen = reactive({}); // id -> bool (desplegable abierto)
+        const tecOpen  = reactive({}); // #652: id -> bool (título técnico desplegado)
         const tieneDescExtendida = (it) => !!(it.description || it.alcance_autorizado || it.fuera_de_alcance || it.recomendacion);
         const estadoLabelItem = (it) => (it.estado_aprobacion === 'requiere_irving' ? 'requiere tu decisión' : (it.estado_aprobacion || 'requiere tu decisión'));
 
@@ -1494,7 +1511,7 @@ export default {
             cambiosValidacion, valBusy, abrirYProbar, validarFunciona, reportarProblema,
             sel, coment, soloComentario, deciding, decidir, elegirOpcion, selPreg, aviso,
             // #477: tarjeta compacta nivel C
-            descOpen, tieneDescExtendida, estadoLabelItem,
+            descOpen, tecOpen, tieneDescExtendida, estadoLabelItem,
             // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
             hablando, leer, verMas,
             segOpen, seg, toggleSeg, crearSeguimiento,
@@ -1600,6 +1617,13 @@ export default {
 /* #477 — tarjeta compacta nivel C */
 .tc-t-compact{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;}
 .tc-titulo-c{font-size:14px;font-weight:700;line-height:1.35;margin-top:4px;}
+/* #652 — el ticket en llano: es la línea que se lee, no un subtítulo. */
+.tc-titulo-nat{font-size:14.5px;font-weight:600;line-height:1.5;margin-top:6px;color:var(--tc-ink);}
+.tc-tec-wrap{margin-top:6px;}
+.tc-tec-toggle{font-size:11.5px;font-weight:600;color:var(--tc-muted);background:none;border:none;padding:0;cursor:pointer;}
+.tc-tec-toggle:hover{text-decoration:underline;color:var(--tc-accent);}
+.tc-tec-panel{margin-top:5px;padding:7px 10px;border:1px solid var(--tc-line);border-radius:6px;background:#f8fafc;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.45;color:var(--tc-ink);}
 .tc-modulo-chip{font-size:11px;font-weight:600;color:var(--tc-muted);background:var(--tc-line);border-radius:6px;padding:1px 8px;}
 /* 2A.3 — badges de freno/aviso. El rojo FRENA, el ámbar sólo informa: la diferencia tiene que
    leerse de un vistazo, porque es exactamente la distinción que el sistema no tenía. */
