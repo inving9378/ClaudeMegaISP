@@ -574,6 +574,15 @@ class RoadmapCircuitoService
                     continue;
                 }
                 if (str_contains($linea, $comando)) {
+                    // #233 — la línea existe, pero si apunta a un wrapper de deploy/circuito/ sin
+                    // permiso de ejecución (o inexistente), el proceso NUNCA arranca aunque la
+                    // línea esté ahí — fue exactamente el incidente de `vigilia-wrap.sh` (100644,
+                    // 25-ago): "está agendado" respondía que sí a un proceso que no podía correr.
+                    // Reusa CronScriptsGuard (no reinventa el chequeo del candado #233).
+                    if (CronScriptsGuard::problemas($linea) !== []) {
+                        return false;
+                    }
+
                     return true;
                 }
             }
