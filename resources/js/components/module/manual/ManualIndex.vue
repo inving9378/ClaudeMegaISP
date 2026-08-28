@@ -224,6 +224,11 @@ const MENU = [
         { label: 'Calendario', search: 'calendar' },
         { label: 'Archivados', search: 'archived' },
     ]},
+    { label: 'Marketing', icon: 'send', children: [
+        { label: 'Publicador — Manual Técnico',     search: 'marketing-publishing-tecnico' },
+        { label: 'Publicador — Manual de Usuario',  search: 'marketing-publishing-usuario' },
+        { label: 'Publicador — Setup Cuentas Meta', search: 'marketing-publishing-setup-meta' },
+    ]},
     { label: 'Mapas', icon: 'map',    search: 'maps' },
     { label: 'OLTs',  icon: 'server', search: 'olt' },
     { label: 'Gestión de red', icon: 'box', children: [
