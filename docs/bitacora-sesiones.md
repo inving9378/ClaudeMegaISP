@@ -2875,3 +2875,49 @@ tasa de errores) y requerir manejar N archivos por worktree en vez de uno.
 
 **Enlace de revisión:** `/releases?tab=configuracion` → tablero de compuertas → fila "Cascada
 de errores".
+
+## 2026-08-28 21:58 — Item #212: fix de inanición del footprint desconocido en el scheduler
+
+**Worktree:** wt-3 · **Commit:** `2af97451` en `circuito/item-212-inanicion-los-items-sin-footprint-nunca` (integración encolada al `main` compartido).
+
+**Defecto medido (2026-08-25, item #191):** `RoadmapCircuitoService::ejecutablesParalelo()` diferían
+los items con `modulo` desconocido a una "ronda dedicada" al cierre del barrido, pero esa ronda
+exigía `empty($excludeModulos)` (NADA en vuelo en TODO el circuito). Con 6 terminales en pool
+continuo casi siempre hay algo corriendo → los desconocidos, incluidos 5 urgentes nacidos del
+incidente P0 del 24-ago, nunca alcanzaban turno. Inanición total, invisible en cualquier pantalla.
+
+**Decisión de Irving (brief de 3 preguntas, ya resuelto y aprobado antes de esta vuelta):**
+- q1 (mecanismo): reservar 1 slot dedicado para items sin footprint, aunque haya otros módulos
+  en vuelo (opción recomendada).
+- q2 (qué hacer con los 5 urgentes YA bloqueados): drenar manualmente — verificado en esta vuelta
+  que ya NO aplica: los 5 (#173/175/176/178/179) fueron clasificados y en su mayoría completados
+  entre el 25 y 28-ago por el propio circuito (vía `circuito:clasificar-modulo`). Sin acción
+  operativa pendiente.
+- q3 (modelo de seguridad): footprint desconocido = **aditivo seguro por default** (corre en
+  paralelo con cualquier módulo conocido), salvo OTRO desconocido que ya esté en vuelo. La
+  colisión real contra trabajo conocido, si la hubiera, la sigue atrapando
+  `detectarColisionesEnVuelo()` (diff real de archivos entre ramas `en_progreso`, agnóstico de
+  módulo, ya existente — pausa al que reclamó más tarde).
+
+**Cambio de código:** en la condición de la ronda dedicada, se quitó `&& empty($excludeModulos)`;
+se conserva `! $unknownEnVuelo` (nunca dos desconocidos a la vez) y `(empty($out) || urgente)`
+(sigue cediendo el turno a trabajo módulo-disjunto ya encontrado esta ronda, salvo urgencia).
+Docblocks de la función y de `config/circuito.php` (`desconocido_diferido`) actualizados para
+reflejar el comportamiento nuevo.
+
+**Verificación:** sin tests dedicados existentes para este método. Se armó una réplica aislada
+del algoritmo (sin tocar la BD compartida) con 5 escenarios (nada en vuelo / módulo conocido en
+vuelo × 2 / otro desconocido ya en vuelo / no-urgente cede el turno) — los 5 pasan. Además se
+corrió la función REAL contra la cola real de dev antes y después del cambio: idéntica en ambos
+casos (0 items con footprint desconocido pendientes hoy → el fix es inerte sobre el estado actual,
+solo cambia el comportamiento la próxima vez que aparezca uno). `php -l` limpio en ambos archivos,
+`php artisan --version` bootea.
+
+**No tocado a propósito (territorio de un item hermano distinto, ver texto de #212):** el caso
+inverso — un desconocido YA en vuelo bloqueando a items de módulo conocido en cola
+(`$unknownEnVuelo` en el filtro principal del loop) — es el defecto OPUESTO ("el desconocido
+serializa las 6 terminales"), ya identificado como item hermano separado. No se modificó esa rama
+del código para no invadir su alcance ni arriesgar ping-pong con quien lo trabaje.
+
+**Enlace de revisión:** `/releases` (Torre de Control) → pestaña Hoja de ruta → item #212, o
+`/releases?tab=configuracion` para ver el flag `desconocido_diferido`.
