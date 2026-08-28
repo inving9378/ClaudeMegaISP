@@ -540,21 +540,37 @@ cae, se **degrada a algo que parece una decisión legítima**.
 ### 🔒 SECRETOS SOLO EN `.env` — placeholders en TODA la documentación
 Las **bitácoras, runbooks, docs y configs de deploy versionados** llevan **solo placeholders** de secretos (`<READ_TOKEN>`, `<API_KEY>`, `<SECRET>`, …), **JAMÁS valores reales** (tokens, API keys, contraseñas, cadenas de conexión). Los valores viven **únicamente en `.env`** (gitignored). Antes de commitear cualquier doc, `git grep` el patrón del secreto para confirmar que no se cuela. Si un secreto se filtró a git: **rotarlo** (ya está comprometido) + redactar a placeholder + limpiar historial **antes** del primer push si aún no se subió. (Incidente 2026-07-08: los tokens del circuito quedaron en `docs/bitacora-sesiones.md` commiteado; se rotaron y redactaron. Ver `docs/circuito-seguridad-tokens.md`.)
 
-### 🤖 JARVIS = el nombre de cara al usuario de lo que en el código es `ThomasService`
+### 🤖 JARVIS = el nombre de cara al usuario, y desde el item #650 también el del código
 
-Decisión de Irving (2026-08-27). **Un solo asistente.** Todo lo que Irving VE se llama **JARVIS**:
-el widget flotante, la pestaña, los avisos, la bandeja, los textos de la Torre y la compuerta que
-antes decía «Vigilancia de Thomas».
+Decisión de Irving (2026-08-27, #648/#649). **Un solo asistente.** Todo lo que Irving VE se llama
+**JARVIS**: el widget flotante, la pestaña, los avisos, la bandeja, los textos de la Torre y la
+compuerta que antes decía «Vigilancia de Thomas».
 
-**El código NO se renombra todavía.** `ThomasService`, `ThomasCommand`, las claves
-`config('circuito.thomas.*')`, la clave de compuerta `thomas` y los actores del log
-(`thomas.mecanico`, `thomas.ya_decidido`) **se quedan como están** — un refactor masivo por un
-cambio de nombre es riesgo sin ganancia. Migra en su propio item, sin prisa.
+**El código YA se renombró (item #650, 2026-08-28).** `ThomasService` → `JarvisService`,
+`ThomasCommand` → `JarvisCommand`, `ThomasVigilarCommand` → `JarvisVigilarCommand`,
+`ThomasVigilia` → `JarvisVigilia`; las claves `config('circuito.thomas.*')` →
+`config('circuito.jarvis.*')`; la clave de compuerta `thomas` → `jarvis`; los comandos
+`circuito:thomas`/`circuito:thomas-vigilar` → `circuito:jarvis`/`circuito:jarvis-vigilar`; los env
+`CIRCUITO_THOMAS_*` → `CIRCUITO_JARVIS_*`; y los actores de log que se ESCRIBEN a partir de ahora
+(`jarvis-mecanico`, `jarvis-ya-decidido`, antes `thomas-mecanico`/`thomas-ya-decidido`).
 
-Regla práctica mientras convivan los dos nombres:
+⚠️ **Lo histórico NO se migró, a propósito** (decisión explícita del propio item #650): las ~784
+entradas ya persistidas en `roadmap_items.log`/`aprobado_por` con los valores viejos
+(`thomas`/`thomas-mecanico`/`thomas-ya-decidido`) se quedan como texto congelado — igual que un log
+de git no se reescribe. Ninguna lógica de negocio compara contra esos valores históricos (se
+verificó antes de renombrar); `mecanicosHoy()` filtra por `whereDate(hoy)`, así que se autosana
+al primer día posterior al cambio. Si alguna vez lees un `"por":"thomas-mecanico"` en un item
+viejo, es correcto — es historia, no un bug.
+
+Fuera del rename (a propósito, sin relación): `config/inversiones.php` (`'thomas'` ahí es
+`THOMAS_TOKEN`, un bot de trading sin ninguna relación con el circuito) y las migraciones ya
+corridas (su contenido histórico no se toca).
+
+Regla práctica:
 - **Cadena de texto que ve un humano → «JARVIS».**
-- **Identificador (clase, config, clave de log, permiso, nombre de compuerta interno) → `thomas`.**
-- Al leer código, `ThomasService` **es** JARVIS. No son dos cosas.
+- **Identificador (clase, config, clave de log, permiso, nombre de compuerta interno) → `jarvis`
+  desde ahora hacia adelante; `thomas` solo sobrevive en filas históricas ya escritas.**
+- Al leer código, `JarvisService` **es** JARVIS. No son dos cosas.
 
 ⚠️ **No hay un segundo asistente.** El widget «Agente IA MegaISP» (`IaChatFloat.vue` +
 `app/Http/Controllers/IA/IAChatController.php`) contestaba desde `ModuleRegistry::getAiContext()`

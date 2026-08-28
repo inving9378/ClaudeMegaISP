@@ -1,12 +1,12 @@
-# Política de decisión y escalamiento de Thomas (Torre v2)
+# Política de decisión y escalamiento de Jarvis (Torre v2)
 
-> **Qué es esto.** La regla fija con la que Thomas —el supervisor del Circuito CC— resuelve las
+> **Qué es esto.** La regla fija con la que Jarvis —el supervisor del Circuito CC— resuelve las
 > dudas de las seis terminales de ejecución. Es la respuesta a un problema concreto: hasta ahora
 > la única salida de una terminal que dudaba era `requiere_irving`, así que cualquier titubeo
 > despertaba al humano y el item se quedaba parado en vez de avanzar sobre la opción recomendada.
 >
-> **Fuente de verdad ejecutable:** `config/circuito.php` → bloque `thomas`.
-> **Implementación:** `app/Modules/Addons/Roadmap/Services/ThomasService.php`.
+> **Fuente de verdad ejecutable:** `config/circuito.php` → bloque `jarvis`.
+> **Implementación:** `app/Modules/Addons/Roadmap/Services/JarvisService.php`.
 > Este doc explica el *porqué*; la config manda sobre el *qué*.
 
 ---
@@ -34,13 +34,13 @@ necesita permiso previo: ese es todo el punto del circuito.
 ## 2. Quién le pregunta a quién
 
 ```
-  terminal (wt-1..wt-6)  ──duda──▶  THOMAS  ──sólo lo irreversible de alto impacto──▶  IRVING
+  terminal (wt-1..wt-6)  ──duda──▶  JARVIS  ──sólo lo irreversible de alto impacto──▶  IRVING
                                       │
                                       └── todo lo demás: responde al instante y el item sigue
 ```
 
 **Una terminal nunca escala a Irving por su cuenta.** Ese camino no existe para ella. Le pregunta
-a Thomas con:
+a Jarvis con:
 
 ```bash
 php artisan circuito:consultar <id> --sid=wt-K \
@@ -53,7 +53,7 @@ El contrato es el **exit code**:
 
 | Código | Significado                                                                 |
 |--------|-----------------------------------------------------------------------------|
-| `0`    | **PROCEDE** — sigue con la opción que Thomas indicó. No vuelvas a preguntar. |
+| `0`    | **PROCEDE** — sigue con la opción que Jarvis indicó. No vuelvas a preguntar. |
 | `1`    | **ESCALADO** — detente. El item ya está en la bandeja de Irving.            |
 
 La respuesta es **inmediata**: la política es determinista (coincidencia de términos, sin llamada
@@ -63,7 +63,7 @@ a IA), así que la terminal no se bloquea esperando un turno del loop ni desperd
 
 ## 3. El conjunto de escalamiento (lo único que llega a Irving)
 
-Thomas escala **sólo** si la acción es **irreversible y de alto impacto**. Son cuatro fronteras
+Jarvis escala **sólo** si la acción es **irreversible y de alto impacto**. Son cuatro fronteras
 duras, más un caso especial:
 
 | # | Frontera | Ejemplos de lo que la dispara |
@@ -74,7 +74,7 @@ duras, más un caso especial:
 | 4 | **Credenciales / seguridad** | API keys, secretos, contraseñas, `.env`, otorgar permisos, IDOR |
 | 5 | **Spec contradictorio** | el item se contradice a un grado que impide avanzar (lo declara la terminal con esas palabras) |
 
-Los términos exactos viven en `config/circuito.php` → `thomas.escalamiento`. Se evalúan contra la
+Los términos exactos viven en `config/circuito.php` → `jarvis.escalamiento`. Se evalúan contra la
 pregunta **más** el título y módulo del item: un item de "cobros" cuya pregunta suena inocente
 sigue siendo territorio de dinero.
 
@@ -91,7 +91,7 @@ hacer, no una duda) · código muerto confirmado sin consumidores (se borra, es 
 
 ---
 
-## 4. Cómo decide Thomas, en orden
+## 4. Cómo decide Jarvis, en orden
 
 1. ¿La pregunta o el item caen en el **conjunto de escalamiento**? → **Irving**.
 2. ¿La terminal declara el **spec contradictorio**? → **Irving**.
@@ -100,36 +100,36 @@ hacer, no una duda) · código muerto confirmado sin consumidores (se borra, es 
 5. **Ninguna opción es reversible** (o no vinieron opciones) → **Irving**.
 
 El paso 5 es deliberado: si nada de lo que la terminal propone se puede deshacer, esa ausencia
-*es* la señal de riesgo. Se controla con `thomas.exige_reversible_sin_recomendada`.
+*es* la señal de riesgo. Se controla con `jarvis.exige_reversible_sin_recomendada`.
 
 `reversible` significa: aditivo, sin borrar datos, sin tocar dinero ni permisos, y se puede
 revertir con un `git revert` o una migración inversa.
 
 ---
 
-## 5. Qué pasa cuando Thomas escala
+## 5. Qué pasa cuando Jarvis escala
 
 - El item pasa a `estado_aprobacion = requiere_irving` y **suelta la terminal** (`worker_sid = null`),
   así el slot queda libre para el siguiente item de la cola.
 - Queda en el historial la cadena completa: la `consulta` de la terminal y la `escalacion` de
-  Thomas con su motivo y su categoría.
+  Jarvis con su motivo y su categoría.
 - La terminal termina su vuelta con `ejecuto=false`. **No** deja trabajo a medias.
 
 ---
 
-## 6. Lo demás que hace Thomas
+## 6. Lo demás que hace Jarvis
 
 - **Estima esfuerzo** (`eta_minutos`): minutos base por nivel de riesgo + tamaño del spec.
   Es **orientativo y nunca bloqueante** — nada se rechaza por pasarse del estimado.
 - **Verifica el cierre**: exige que el item traiga `reporte_coloquial` (qué cambió y dónde, en
   llano) y `enlace_revision` (la ruta real de la UI donde verlo). Sin eso, Irving no puede revisar
-  el resultado. Configurable en `thomas.cierre`.
-- **Vigila las invariantes** del reparto: `php artisan circuito:thomas --diagnostico` reporta
+  el resultado. Configurable en `jarvis.cierre`.
+- **Vigila las invariantes** del reparto: `php artisan circuito:jarvis --diagnostico` reporta
   terminales libres/ocupadas, cola ejecutable, colisiones de módulo y si hay ocio con cola.
 
-**Lo que Thomas NO hace: repartir el trabajo.** El reparto (slots, módulo-disjunto, reclamo
+**Lo que Jarvis NO hace: repartir el trabajo.** El reparto (slots, módulo-disjunto, reclamo
 atómico, lease) ya lo hace `circuito:scheduler`, que es el único despachador desde #432 B1.
-Duplicarlo crearía una segunda verdad sobre quién trabaja qué. Por eso la vuelta de Thomas va
+Duplicarlo crearía una segunda verdad sobre quién trabaja qué. Por eso la vuelta de Jarvis va
 enganchada al scheduler y no en un cron paralelo.
 
 ---
@@ -138,10 +138,10 @@ enganchada al scheduler y no en un cron paralelo.
 
 | Freno | Efecto |
 |---|---|
-| `circuito_pausado` (kill switch, botón de la Torre) | Thomas no decide nada, igual que el autopilot. |
-| `thomas.enabled = false` | Se apaga el loop; las consultas quedan vivas sin resolver. |
-| Ampliar `thomas.escalamiento` | Más cosas llegan a Irving (menos autonomía). |
-| Recortar `thomas.escalamiento` | Más autonomía. **Tocar con cuidado**: es la frontera de seguridad. |
+| `circuito_pausado` (kill switch, botón de la Torre) | Jarvis no decide nada, igual que el autopilot. |
+| `jarvis.enabled = false` | Se apaga el loop; las consultas quedan vivas sin resolver. |
+| Ampliar `jarvis.escalamiento` | Más cosas llegan a Irving (menos autonomía). |
+| Recortar `jarvis.escalamiento` | Más autonomía. **Tocar con cuidado**: es la frontera de seguridad. |
 
 ---
 
@@ -151,6 +151,6 @@ enganchada al scheduler y no en un cron paralelo.
 php artisan circuito:consultar <id> --sid=wt-K --pregunta="…" --opcion="…|recomendada|reversible"
 php artisan circuito:reportar  <id> --sid=wt-K --tipo=decision --resumen="…"
 php artisan circuito:sub-item  <padre> --sid=wt-K --titulo="…" --spec="…"
-php artisan circuito:thomas --diagnostico     # estado del reparto
-php artisan circuito:thomas --dry             # evalúa consultas colgadas sin escribir
+php artisan circuito:jarvis --diagnostico     # estado del reparto
+php artisan circuito:jarvis --dry             # evalúa consultas colgadas sin escribir
 ```
