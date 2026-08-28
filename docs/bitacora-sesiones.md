@@ -3028,3 +3028,87 @@ archivo/sección.
 hardware V-SOL concreta (análogo a la decisión q2 de #283 para ZTE), el paso mecánico siguiente es
 trivial: `Olt::DRIVER_VSOL` + `NullVsolDriver` + entrada en `OltDriverManager` — mismo patrón ya
 ejecutado para ZTE.
+
+## 2026-08-28 16:45 — Documentación Corporativa Fase 0 (item #662): cimiento del expediente corporativo
+
+**Contexto.** Un miembro del consejo presentó una solicitud formal de información corporativa: 14
+apartados (I a XIV), ~139 conceptos, plazo de 180 días hábiles. En vez de juntar papeles a mano se
+construyó dentro de MegaISP un expediente corporativo vivo. Esta sesión entregó la **Fase 0**: la
+estructura donde va a vivir toda esa información, más los 6 items de la Hoja de Ruta que la continúan.
+
+### Paso 0 — auditoría (gate, aprobada por Irving con enmiendas)
+Se auditaron 8 puntos antes de escribir una línea. Tres premisas del prompt resultaron falsas:
+1. **No existe módulo "Plantillas"** — es `core-documentos` (`document_templates` +
+   `DocumentTemplateService` + dompdf). Se **consume**, no se reemplaza.
+2. **No existe "contrato de módulos v0.9"** — `contrato-modulo-medussa.md` está referenciado pero
+   **no está en el repo**. El contrato real es el código (`ModuleDefinition`,
+   `BaseModuleServiceProvider`, `ModuleRegistry`, `ModuleLifecycleService`).
+3. **`roadmap_items` no tiene `tipo`, `titulo` ni `cuerpo`** — son `title`/`description`, y el canal
+   de respuesta vive en `roadmap_item_reports` (append-only). El candado de `RoadmapIntakeService`
+   obliga a que todo item nazca `pendiente_revision`; **no se saltó**.
+
+Además: `company_information` es un singleton de 1 fila (no sirve como tabla multi-empresa),
+`maatwebsite/excel` está instalado pero sin ningún patrón de uso en el repo, el rol `consejo` no
+existía, y `CLAUDE.md` estaba desactualizado sobre el sidebar.
+
+### Items creados en la Hoja de Ruta (8)
+`#662` Fase 0 (B/alta) · `#663` Fase 1 datos vivos (A/alta) · `#664` Fase 2 repositorio documental
+(B) · `#665` Fase 3 inventarios (B) · `#666` Fase 4 concesiones (B) · `#667` Fase 5
+entrega-recepción (C — **debe escalarse a `requiere_irving`**, decisión legal previa) ·
+`#668` absorción de DocumentosOficiales · `#669` hallazgo `keep_data` inerte.
+
+El circuito **ya trabajó y cerró #668 y #669 por su cuenta** (wt-3 y wt-5) mientras esta sesión
+seguía. #669 aplicó la opción recomendada: `ModuleLifecycleService::resolveKeepData()` ahora honra
+`"keep_data": true` del manifiesto, así que la clave dejó de ser decorativa el mismo día.
+
+### Lo entregado (Fase 0)
+- Addon `app/Modules/Addons/DocumentacionCorporativa/`, prefijo `/documentacion-corporativa`.
+- 4 migraciones aditivas: `dc_empresas`, `dc_apartados`, `dc_conceptos`, `dc_documentos`,
+  `dc_documento_versiones`, `dc_pendientes`, `dc_accesos_log` (append-only) + rol `consejo`.
+- Seeder idempotente de **14 apartados y 139 conceptos** (verificado: dos corridas → 139, sin duplicar).
+- Contrato `ConceptoResolver` + `ResultadoConcepto` + `FuenteRegistry` + `ResolverFactory` + los 6
+  drivers. La factory cae a `PendienteResolver` cuando el declarado no está disponible: ningún
+  apartado puede quedar en blanco ni reventar.
+- 23 permisos + rol `consejo` (14 permisos: 13 apartados, **nunca el XI**, sin descarga ni bitácora).
+- `BitacoraService` (punto único, escribe ANTES de servir, sin flag para apagarlo) y
+  `CompletitudService` (una sola fórmula; cacheada 15 min en el tablero, ~0.8 s para los 139).
+- Pantalla `dc-expediente` (Vue 3 + Quasar) con índice, tablero y detalle por apartado.
+- **28 pruebas en verde** (13 unitarias + 15 feature contra `megaisp_test`).
+
+### Decisiones de diseño que valen más que el código
+- **El estado de vigencia se deriva, no se persiste.** Sin columna `estado`: una copia envejece sola
+  a medianoche. Se filtra por `vigencia_fin`, indexada.
+- **Un apartado sin obligatorios NO es medible, y no es verde.** La primera versión daba 100 % ahí y
+  el apartado IV —cartera, saldos, proveedores, ingresos— salía en VERDE con cero datos. Ahora da
+  `medible=false`, semáforo gris y la interfaz pinta `—`. Un tablero que dice "completo" sobre un
+  apartado vacío no se vuelve a revisar.
+- **Doble puerta de permisos:** el middleware gatea la entrada al módulo; el controlador gatea cada
+  apartado (una ruta, 14 permisos).
+
+### Bugs encontrados por las propias pruebas
+- **`FuenteRegistry` no era singleton** → cada resolvedor recibía una instancia vacía y las fuentes
+  que registre la Fase 1 **nunca** habrían llegado, sin ningún error que lo delatara. Corregido.
+- El controlador **duplicaba** la fórmula de porcentaje/semáforo para el global del usuario, ya con
+  la versión vieja. Unificado en `CompletitudService::agregarGlobal()`.
+
+### ⚠️ Incidente de proceso — los commits quedaron en `main`, no en su rama
+Se creó `circuito/item-662-documentacion-corporativa-fase-0`, pero **el integrador del circuito
+corre en este mismo checkout** (`/var/www/megaisp`) y hace `git checkout main` entre merges: el
+reflog muestra su patrón `checkout: moving from main to main` + `commit (merge)`. HEAD volvió a
+`main` antes del primer commit y los 12 commits de la Fase 0 quedaron ahí, intercalados con merges
+del circuito. **Nada se empujó a origin** (`origin/main` sigue 724 commits atrás). Además, un worker
+**borró del árbol de trabajo** los 34 archivos del módulo a media sesión (seguían en los commits;
+se restauraron con `git restore`).
+
+Lección: en este repo `main` es la rama de integración que el circuito toca continuamente en
+`/var/www/megaisp`. **El trabajo de una sesión larga va en un `git worktree` aparte**, como hacen
+las 6 terminales (`/home/meganet/circuito/wt-N`).
+
+### Hallazgos fuera de alcance (registrados, no tocados)
+- **`migrate:fresh` está roto en el repo:** `2026_02_14_063009_sync-olts-tables` referencia
+  `olt_smartolt_config`, que crea una migración de **junio**. Como `Tests\TestCase` corre
+  `migrate:fresh --seed`, la BD de pruebas queda a medias para cualquiera.
+- **`megaisp_test` está compartida** por las 6 terminales del circuito: durante esta sesión la
+  reiniciaron a media corrida. Se dejó `provision-test.sh` (aditivo) para reprovisionarla.
+
+**Pendiente de Irving:** validación visual (4 pantallas) y decidir qué hacer con los commits en main.
