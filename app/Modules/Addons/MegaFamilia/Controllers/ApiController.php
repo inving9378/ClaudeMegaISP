@@ -23,6 +23,9 @@ use App\Modules\Addons\MegaFamilia\Models\ParentalRequest;
 use App\Modules\Addons\MegaFamilia\Models\ParentalReward;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRule;
 use App\Modules\Addons\MegaFamilia\Models\ParentalTask;
+use App\Modules\Addons\Payments\Models\ReportedPayment;
+use App\Modules\Addons\Payments\Services\PaymentReferenceService;
+use App\Modules\Addons\PortalPago\Models\PortalPagoAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -667,6 +670,94 @@ class ApiController extends Controller
         }
 
         return Storage::disk($disk)->download($notif->pdf_path, "recibo-{$id}.pdf");
+    }
+
+    /**
+     * ID fijo de "Transferencia Bancaria" en method_of_payments — mismo valor
+     * que usa ManualPaymentController (mostrador) como método por defecto.
+     */
+    private const METHOD_TRANSFERENCIA = 2;
+
+    /**
+     * CLABE/banco de la empresa + referencia MEG del cliente autenticado,
+     * para que pague por transferencia SPEI desde la app. Reusa la MISMA
+     * infraestructura que el Portal Cliente web y el mostrador (item #24):
+     * PaymentReferenceService (referencia) + portal_pago_accounts (cuenta).
+     * Solo lectura, no mueve dinero.
+     */
+    public function paymentsClabe(): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) {
+            return response()->json(['error' => 'Cuenta sin cliente ISP asociado.'], 404);
+        }
+
+        $reference = PaymentReferenceService::ensureFor((int) $client->id)->reference;
+        $account = PortalPagoAccount::activas()->first(['id', 'nombre', 'banco', 'clabe', 'titular', 'beneficiario']);
+
+        if (! $account) {
+            return response()->json(['error' => 'No hay una cuenta de cobro configurada.'], 404);
+        }
+
+        return response()->json([
+            'reference'           => $reference,
+            'receiver_account_id' => $account->id,
+            'banco'               => $account->banco,
+            'clabe'               => $account->clabe,
+            'titular'             => $account->titular ?: $account->beneficiario,
+            'nombre_cuenta'       => $account->nombre,
+        ]);
+    }
+
+    /**
+     * El cliente reporta desde la app que ya hizo una transferencia. NO
+     * aplica el pago (no toca saldo) — solo registra un `reported_payment`
+     * con `conciliation_status=pendiente_verificar`, igual que el flujo de
+     * mostrador (ManualPaymentController) pero sin el paso de aplicar dinero,
+     * porque aquí nadie del staff lo validó todavía (item #24).
+     */
+    public function notifyTransfer(Request $request): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) {
+            return response()->json(['error' => 'Cuenta sin cliente ISP asociado.'], 404);
+        }
+
+        $data = $request->validate([
+            'amount'               => ['required', 'numeric', 'min:0.01'],
+            'fecha_pago'           => ['required', 'date'],
+            'clave_rastreo'        => ['nullable', 'string', 'max:40'],
+            'titular'              => ['nullable', 'string', 'max:255'],
+            'banco_origen'         => ['nullable', 'string', 'max:255'],
+            'receiver_account_id'  => ['nullable', 'integer', 'exists:portal_pago_accounts,id'],
+            'comprobante'          => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:8192'],
+        ]);
+
+        $comprobantePath = null;
+        if ($request->hasFile('comprobante')) {
+            $comprobantePath = $request->file('comprobante')
+                ->store('private/payments/megafamilia/comprobantes', 'local');
+        }
+
+        $report = ReportedPayment::create([
+            'payment_id'           => null,
+            'client_id'            => (int) $client->id,
+            'receiver_account_id'  => $data['receiver_account_id'] ?? null,
+            'method_of_payment_id' => self::METHOD_TRANSFERENCIA,
+            'amount'               => $data['amount'],
+            'fecha_pago'           => $data['fecha_pago'],
+            'clave_rastreo'        => $data['clave_rastreo'] ?? null,
+            'titular'              => $data['titular'] ?? null,
+            'banco_origen'         => $data['banco_origen'] ?? null,
+            'comprobante_path'     => $comprobantePath,
+            'conciliation_status'  => ReportedPayment::ESTADO_PENDIENTE,
+        ]);
+
+        return response()->json([
+            'ok'                  => true,
+            'reported_payment_id' => $report->id,
+            'message'             => 'Recibimos tu transferencia, un asesor la confirmará pronto.',
+        ]);
     }
 
     // ---- ACCOUNT / PROFILE (ISP cliente) ---------------------------------

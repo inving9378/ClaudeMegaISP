@@ -275,6 +275,10 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::post('/pagos', [ApiController::class, 'crearPago']);
         Route::get('/pagos/{id}/pdf', [ApiController::class, 'pagoPdf'])->whereNumber('id');
 
+        // Transferencia bancaria: CLABE de la empresa + reporte del cliente (item roadmap #24)
+        Route::get('/payments/clabe', [ApiController::class, 'paymentsClabe']);
+        Route::post('/payments/notify-transfer', [ApiController::class, 'notifyTransfer']);
+
         Route::get('/profiles', [ApiController::class, 'profiles']);
         Route::post('/profiles', [ApiController::class, 'storeProfile']);
         Route::get('/profiles/{id}', [ApiController::class, 'profileDetail'])->whereNumber('id');
