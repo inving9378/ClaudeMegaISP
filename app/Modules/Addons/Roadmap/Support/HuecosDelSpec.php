@@ -3,7 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Support;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
-use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Services\JarvisService;
 
 /**
  * QUÉ LE FALTA A ESTE ITEM PARA PODER DECIDIRSE — determinista, sin IA.
@@ -32,7 +32,7 @@ use App\Modules\Addons\Roadmap\Services\ThomasService;
  * ── SOBRE LOS TÉRMINOS ──────────────────────────────────────────────────────────────────────────
  *
  * **Aquí no nace ninguna lista nueva de términos de frontera.** La detección de producción / dinero
- * / credenciales / borrado se le pregunta a `ThomasService::categoriaFronteraDura()`, que es el
+ * / credenciales / borrado se le pregunta a `JarvisService::categoriaFronteraDura()`, que es el
  * único detector. Una segunda copia envejeciendo por separado sería el tercer incidente de la misma
  * familia («palabra completa, no substring» y «no distingue mención de negación»).
  */
@@ -94,7 +94,7 @@ class HuecosDelSpec
 
         // 3 — Frontera dura MENCIONADA sin pronunciarse. El detector no distingue mención de uso
         //     (limitación documentada), así que en vez de decidir por él, se pregunta.
-        $categoria = app(ThomasService::class)->categoriaFronteraDura($bruto);
+        $categoria = app(JarvisService::class)->categoriaFronteraDura($bruto);
         if ($categoria !== null) {
             $yaSePronuncio = $categoria === 'produccion' && self::mencionaAlguno($heno, self::SENALES_PRONUNCIA_PROD);
             if (! $yaSePronuncio) {

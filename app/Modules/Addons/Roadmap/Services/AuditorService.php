@@ -15,7 +15,7 @@ use RecursiveIteratorIterator;
 /**
  * MOTOR DE AUDITORÍA CONTINUA (#559, "Item Madre") — el GENERADOR de trabajo del circuito.
  *
- * El circuito ya sabía repartir (`circuito:scheduler`) y juzgar (Thomas / revisor / autopilot),
+ * El circuito ya sabía repartir (`circuito:scheduler`) y juzgar (Jarvis / revisor / autopilot),
  * pero no sabía GENERAR: cuando la cola se vaciaba, las 6 terminales se quedaban ociosas hasta que
  * un humano escribiera items. Este servicio cierra ese hueco: escanea el sistema módulo por módulo,
  * detecta lo que falta, y crea los items-hijo que lo cierran.
@@ -30,7 +30,7 @@ use RecursiveIteratorIterator;
  *
  * CONTENCIÓN (para que no se desborde): kill-switch propio + kill-switch global del circuito, cap
  * duro por ciclo, dedup contra items abiertos Y cerrados, intervalo mínimo entre escaneos, y
- * frontera dura de Thomas aplicada a TODO gap antes de dejarlo salir como mecánico.
+ * frontera dura de Jarvis aplicada a TODO gap antes de dejarlo salir como mecánico.
  */
 class AuditorService
 {
@@ -1023,14 +1023,14 @@ class AuditorService
     // ═══════════════════════════════════════════════════════════════════════════════════════════
 
     /**
-     * ¿El texto cae en una de las cuatro fronteras duras de Thomas? Devuelve el nombre de la
-     * frontera o null. Reusa `circuito.thomas.escalamiento` a propósito: la política de qué
+     * ¿El texto cae en una de las cuatro fronteras duras de Jarvis? Devuelve el nombre de la
+     * frontera o null. Reusa `circuito.jarvis.escalamiento` a propósito: la política de qué
      * despierta a Irving debe vivir en UN solo lugar, no duplicada por cada generador de trabajo.
      */
     public function fronteraDura(string $texto): ?string
     {
         $heno = $this->normalizar($texto);
-        foreach ((array) config('circuito.thomas.escalamiento', []) as $frontera => $terminos) {
+        foreach ((array) config('circuito.jarvis.escalamiento', []) as $frontera => $terminos) {
             foreach ((array) $terminos as $t) {
                 if ($this->contieneTermino($heno, $this->normalizar($t))) {
                     return (string) $frontera;
@@ -1262,7 +1262,7 @@ class AuditorService
             . "CÓMO CERRARLO\n"
             . "- Cambio mínimo que resuelve el gap. Nada de refactors de paso.\n"
             . "- Si al abrirlo resulta que SÍ hay una decisión de producto detrás (qué debe hacer la "
-            . "pantalla, qué política aplica), NO la inventes: consulta a Thomas.\n"
+            . "pantalla, qué política aplica), NO la inventes: consulta a Jarvis.\n"
             . "- Verifica: `php -l` de lo que toques + `php artisan --version` (que bootee). Si tocas "
             . "frontend, compila con `bash deploy/circuito/npm-build.sh`.\n"
             . "- DoD del item: el gap ya no aparece si se vuelve a correr `php artisan circuito:auditor --dry`.";

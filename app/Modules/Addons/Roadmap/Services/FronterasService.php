@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * ── QUÉ CAMBIA RESPECTO DE ANTES ────────────────────────────────────────────────────────────────
  *
- * La lista vivía sólo en `config('circuito.thomas.escalamiento')`. Seguía siendo el único control
+ * La lista vivía sólo en `config('circuito.jarvis.escalamiento')`. Seguía siendo el único control
  * por contenido que no depende de la autodeclaración de un modelo, pero nadie podía verla sin abrir
  * un archivo ni ajustarla sin un cambio de código. Ahora vive en `circuito_fronteras` +
  * `circuito_frontera_terminos`, gobernable desde la Torre, y **la config es el respaldo**: si la
@@ -94,7 +94,7 @@ class FronterasService
     {
         $mapa = $orden = [];
         $n = 0;
-        foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
+        foreach ((array) config('circuito.jarvis.escalamiento', []) as $categoria => $terminos) {
             $mapa[$categoria] = [
                 'activa'   => true,
                 'efecto'   => 'bandeja',

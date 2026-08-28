@@ -77,22 +77,22 @@ class SchedulerCommand extends Command
                     // best-effort, igual que el drain de arriba.
                 }
 
-                // TORRE V2 — vuelta de Thomas. Va ENGANCHADA aquí, y no en su propia línea de cron,
+                // TORRE V2 — vuelta de Jarvis. Va ENGANCHADA aquí, y no en su propia línea de cron,
                 // porque el scheduler ya es el único despachador (#432 B1) y corre cada minuto: un
                 // cron paralelo abriría una segunda carrera sobre los mismos items.
                 // Recoge consultas que quedaron colgadas (la terminal preguntó y se le acabó el
                 // turno) y sella estimaciones. Best-effort: un fallo suyo no frena el reparto.
                 try {
-                    app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)->tick();
+                    app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)->tick();
                 } catch (\Throwable $e) {
-                    Log::channel('roadmap_externo')->warning('thomas-tick-fallo', ['error' => $e->getMessage()]);
+                    Log::channel('roadmap_externo')->warning('jarvis-tick-fallo', ['error' => $e->getMessage()]);
                 }
 
                 // #547 — DESTRABE automático: ver docblock de tickDestrabe() abajo.
                 $this->tickDestrabe();
 
                 // #559 — MOTOR DE AUDITORÍA CONTINUA. El generador de trabajo va enganchado aquí,
-                // igual que Thomas, y por el mismo motivo: el scheduler es el único despachador y
+                // igual que Jarvis, y por el mismo motivo: el scheduler es el único despachador y
                 // ya corre cada minuto; una línea de cron aparte abriría una segunda carrera sobre
                 // los mismos items.
                 //
@@ -192,20 +192,20 @@ class SchedulerCommand extends Command
      * auto-mergea lo verificado y reversible, auto-decide lo ya contestado/mecánico y consolida
      * lo estratégico (#566 E1/E2/E4). Antes de esto el comando existía pero nada lo llamaba —
      * items terminados + decididos se quedaban parqueados en `esperando_merge_irving` para
-     * siempre. Va aquí, no en su propia línea de crontab, por la misma razón que Thomas y el
+     * siempre. Va aquí, no en su propia línea de crontab, por la misma razón que Jarvis y el
      * Auditor arriba: el scheduler ya es el único despachador (#432 B1); una línea aparte abriría
      * una segunda carrera sobre los mismos items. Throttle propio (config
-     * `circuito.thomas.destrabe_bandeja`) para no re-escanear cada minuto sin necesidad — el cap
+     * `circuito.jarvis.destrabe_bandeja`) para no re-escanear cada minuto sin necesidad — el cap
      * de auto-merges por CICLO ya acota el daño de cada corrida, esto solo acota la frecuencia.
      * Best-effort: un fallo aquí nunca debe frenar el reparto.
      */
     private function tickDestrabe(): void
     {
-        if (! (bool) config('circuito.thomas.destrabe_bandeja.enabled', true)) {
+        if (! (bool) config('circuito.jarvis.destrabe_bandeja.enabled', true)) {
             return;
         }
 
-        $intervalo = max(1, (int) config('circuito.thomas.destrabe_bandeja.intervalo_minutos', 5));
+        $intervalo = max(1, (int) config('circuito.jarvis.destrabe_bandeja.intervalo_minutos', 5));
         $ultima    = DB::table('settings')->where('key', self::SETTING_DESTRABE_BEAT)->value('value');
         if ($ultima !== null && (time() - (int) $ultima) < $intervalo * 60) {
             return;
@@ -214,7 +214,7 @@ class SchedulerCommand extends Command
         try {
             $rc = Artisan::call('circuito:destrabar-bandeja', [
                 '--apply' => true,
-                '--limit' => (int) config('circuito.thomas.destrabe_bandeja.limit', 120),
+                '--limit' => (int) config('circuito.jarvis.destrabe_bandeja.limit', 120),
             ]);
             DB::table('settings')->updateOrInsert(
                 ['key' => self::SETTING_DESTRABE_BEAT],

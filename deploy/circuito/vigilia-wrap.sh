@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# WRAPPER DE LA VIGILIA DE THOMAS — deliberadamente SEPARADO de cron-wrap.sh.
+# WRAPPER DE LA VIGILIA DE JARVIS — deliberadamente SEPARADO de cron-wrap.sh.
 #
 # POR QUÉ NO USA cron-wrap.sh: el 24-ago se comentaron de golpe las nueve líneas del circuito
 # marcándolas `# PAUSADO-20260824-incidente:`. Ese barrido busca `cron-wrap.sh`. Si la vigilia
 # colgara del mismo wrapper, pausar el circuito dejaría ciego al que tiene que mirar mientras
-# está pausado — y eso es justo lo que pasó: Thomas lleva desde entonces sin latir.
+# está pausado — y eso es justo lo que pasó: Jarvis lleva desde entonces sin latir.
 #
 # Pausar el circuito NO debe apagar al vigilante. Son dos cosas distintas y por eso tienen dos
 # caminos distintos, igual que la sonda de compuertas tiene el suyo.
@@ -20,7 +20,7 @@ cd /var/www/megaisp || exit 1
 # crece cuando hay algo que contar.
 ERRLOG="/home/meganet/circuito/logs/vigilia-errores.log"
 
-if ! out="$(php artisan circuito:thomas-vigilar 2>&1)"; then
+if ! out="$(php artisan circuito:jarvis-vigilar 2>&1)"; then
   printf '[%s] %s\n' "$(date +%FT%T)" "$out" >> "$ERRLOG" 2>/dev/null
   exit 1
 fi

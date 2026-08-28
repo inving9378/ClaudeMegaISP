@@ -99,13 +99,13 @@ class ClasificarModuloCommand extends Command
     }
 
     /**
-     * Delega en el punto ÚNICO de clasificación (`ThomasService::clasificarModulo`), que comparte
+     * Delega en el punto ÚNICO de clasificación (`JarvisService::clasificarModulo`), que comparte
      * con el alta desde la Torre. Devuelve null si nada matchea, y eso está bien: no clasificar es
      * mejor que clasificar mal.
      */
     private function clasificar(RoadmapItem $item): ?string
     {
-        return app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)
+        return app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)
             ->clasificarModulo((string) $item->title . ' ' . (string) $item->description);
     }
 }

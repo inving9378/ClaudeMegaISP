@@ -9,7 +9,7 @@ use InvalidArgumentException;
 /**
  * TORRE V2 — PUNTO ÚNICO del historial de reportes de un item.
  *
- * Todo lo que reporte una terminal, Thomas, Irving o la vía externa entra por aquí. Antes cada
+ * Todo lo que reporte una terminal, Jarvis, Irving o la vía externa entra por aquí. Antes cada
  * quien concatenaba a mano sobre `comentarios_claude` (`$i->comentarios_claude .= "\nEJECUTADO: …"`)
  * desde el prompt del ejecutor: con seis terminales sobre la misma columna, dos escrituras
  * simultáneas se pisan y el rastro se pierde.

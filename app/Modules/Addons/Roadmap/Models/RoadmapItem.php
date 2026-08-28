@@ -89,7 +89,7 @@ class RoadmapItem extends Model
         'agendado_para',
         // FASE 2A.3 — quién puso el freno (humano FRENA / clasificador INFORMA) y hasta cuándo
         'origen_bloqueo', 'bloqueo_expira_en', 'bloqueo_renovaciones',
-        // TORRE V2 — canal de consulta terminal → Thomas (autoridad intermedia antes de Irving)
+        // TORRE V2 — canal de consulta terminal → Jarvis (autoridad intermedia antes de Irving)
         'consulta_supervisor', 'consulta_supervisor_sid', 'consulta_supervisor_at', 'consulta_opciones',
         'consulta_respuesta', 'consulta_resuelta_at', 'consulta_resuelta_por',
         // Estimación de esfuerzo del reparto (orientativa, nunca bloqueante)
@@ -110,7 +110,7 @@ class RoadmapItem extends Model
         // `DiagnosticoItemService::porReclamoHuerfano()` truena («Call to a member function
         // gte() on string») justo al diagnosticar la causa `reclamo_huerfano` — el caso que
         // ese método existe para explicar. `optional($item->claimed_at)->toIso8601String()`
-        // (ThomasService, RoadmapCircuitoService) no crashea pero devuelve null en silencio.
+        // (JarvisService, RoadmapCircuitoService) no crashea pero devuelve null en silencio.
         'claimed_at'   => 'datetime',
         'position'     => 'integer',
         'subtasks'     => 'array',
@@ -147,7 +147,7 @@ class RoadmapItem extends Model
         // FASE 2A.3
         'bloqueo_expira_en'           => 'datetime',
         'bloqueo_renovaciones'        => 'integer',
-        // TORRE V2 — consulta a Thomas
+        // TORRE V2 — consulta a Jarvis
         'consulta_supervisor_at'      => 'datetime',
         'consulta_resuelta_at'        => 'datetime',
         'consulta_opciones'           => 'array',
@@ -237,7 +237,7 @@ class RoadmapItem extends Model
         //   (B) estado_aprobacion → status   ← el hook de `completado` de más abajo, y el parqueo
         //                                      de C-con-rama, que además fuerza `status = pending`
         //
-        // REGLA: **gana `estado_aprobacion`.** Es la máquina de estados real del circuito (Thomas,
+        // REGLA: **gana `estado_aprobacion`.** Es la máquina de estados real del circuito (Jarvis,
         // autopilot, MergeRunner); `status` es el espejo Kanban. Por eso (A) sólo actúa cuando el
         // llamador NO tocó `estado_aprobacion` en el mismo save — que es el caso para el que existe
         // el #456: `RoadmapController::start/complete/cancel` mutan `status` a secas.
@@ -361,7 +361,7 @@ class RoadmapItem extends Model
             }
         });
 
-        // (4) #1005 — GATE DE CIERRE. `ThomasService::verificarCierre()` existía desde #427/#432 pero
+        // (4) #1005 — GATE DE CIERRE. `JarvisService::verificarCierre()` existía desde #427/#432 pero
         // nadie lo llamaba (cero consumidores, greppeado): el fail-closed que promete el spec (#1003
         // §1) no se aplicaba en ningún punto real. Se conecta aquí, DESPUÉS de los reroutes (1)/(2b)
         // de arriba: un C-sin-merge o un paraguas con hijos abiertos ya no tienen
@@ -370,7 +370,7 @@ class RoadmapItem extends Model
         //
         // ROLLOUT EN DOS FASES — decisión explícita del propio spec de #1005 ("considerar un periodo
         // de solo-warning antes de bloquear duro": esto afecta el cierre de CUALQUIER item de
-        // CUALQUIER terminal en paralelo). `circuito.thomas.cierre.bloquea` (default false) por ahora
+        // CUALQUIER terminal en paralelo). `circuito.jarvis.cierre.bloquea` (default false) por ahora
         // SOLO deja el hueco escrito en el log del item (visible/auditable, no bloqueante — hoy ni
         // eso pasaba). Flip a `true` cuando quede validado en vivo, y este mismo bloque empieza a
         // parquear el cierre incompleto a `aprobado_irving` (mismo patrón que (1)/(2b) de arriba) en
@@ -380,19 +380,19 @@ class RoadmapItem extends Model
                 return;
             }
 
-            $verificacion = app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)->verificarCierre($item);
+            $verificacion = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)->verificarCierre($item);
             if (! $verificacion['ok']) {
                 $log = $item->log ?: [];
                 $log[] = [
                     'ts'        => now()->toIso8601String(),
-                    'por'       => 'thomas:verificarCierre',
+                    'por'       => 'jarvis:verificarCierre',
                     'evento'    => 'cierre_incompleto',
                     'faltantes' => $verificacion['faltantes'],
-                    'bloqueado' => (bool) config('circuito.thomas.cierre.bloquea', false),
+                    'bloqueado' => (bool) config('circuito.jarvis.cierre.bloquea', false),
                 ];
                 $item->log = $log;
 
-                if (config('circuito.thomas.cierre.bloquea', false)) {
+                if (config('circuito.jarvis.cierre.bloquea', false)) {
                     $item->estado_aprobacion       = 'aprobado_irving';
                     $item->status                  = 'pending';
                     $item->excluir_pool_automatico  = true;
@@ -410,17 +410,17 @@ class RoadmapItem extends Model
             // 'completado' aquí y este bloque no dispara — correcto: el item ni siquiera terminó de
             // cerrarse todavía.
             if ($item->estado_aprobacion === 'completado') {
-                $sinResolver = app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)
+                $sinResolver = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)
                     ->preguntasSinResolver($item);
 
                 if ($sinResolver !== []) {
-                    $hijo = app(\App\Modules\Addons\Roadmap\Services\ThomasService::class)
+                    $hijo = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)
                         ->generarSeguimientoPreguntas($item, $sinResolver);
 
                     $log   = $item->log ?: [];
                     $log[] = [
                         'ts'        => now()->toIso8601String(),
-                        'por'       => 'thomas:generarSeguimientoPreguntas',
+                        'por'       => 'jarvis:generarSeguimientoPreguntas',
                         'evento'    => 'seguimiento_generado',
                         'hijo'      => $hijo->id,
                         'preguntas' => count($sinResolver),
@@ -506,7 +506,7 @@ class RoadmapItem extends Model
         // se ejecuta después del parqueo de C-con-rama y de `contarEscalacion()` y alcanza a ver
         // los cambios que ELLOS hacen. Si se mueve arriba, deja de registrarlos.
         //
-        // ⚠️ Cubre a todo el que escriba por el MODELO (controlador, Thomas, integrar, hooks). Las
+        // ⚠️ Cubre a todo el que escriba por el MODELO (controlador, Jarvis, integrar, hooks). Las
         // escrituras crudas por `DB::table()` —claim atómico, lease, migraciones de reconciliación—
         // no pasan por aquí y siguen anotando su propio rastro a mano.
         //
@@ -1221,7 +1221,7 @@ class RoadmapItem extends Model
                     // #1035 — «decisión TOMADA» (opcion_elegida, arriba) ≠ «decisión EJECUTADA»
                     // (reflejada en un commit real). Null = tomada pero aún no ejecutada; poblado
                     // por `marcarPreguntasEjecutadas()` cuando la rama que la implementa se integra
-                    // a main. Ver ThomasService::evaluarYaDecidido() para el guard que usa esto.
+                    // a main. Ver JarvisService::evaluarYaDecidido() para el guard que usa esto.
                     'ejecutada_commit' => $p['ejecutada_commit'] ?? null,
                     'ejecutada_at'      => $p['ejecutada_at'] ?? null,
                     'ejecutada_por'     => $p['ejecutada_por'] ?? null,
@@ -1331,7 +1331,7 @@ class RoadmapItem extends Model
      * Modelo (q1 de #1035, opción elegida): dos campos separados en el brief — `opcion_elegida`
      * (+ el `log`/`decision_fecha` de cuándo se tomó) = decisión TOMADA; `ejecutada_commit` /
      * `ejecutada_at` / `ejecutada_por` = decisión EJECUTADA. Una pregunta cuya opción elegida es
-     * "escalar a Irving" (`ThomasService::opcionElegidaEsEscalar()`) nunca se marca ejecutada: ahí
+     * "escalar a Irving" (`JarvisService::opcionElegidaEsEscalar()`) nunca se marca ejecutada: ahí
      * no hay ninguna decisión de trabajo que un commit pueda reflejar.
      *
      * Devuelve cuántas preguntas marcó (0 = nada que marcar: brief legacy, o todo ya estaba
@@ -1360,7 +1360,7 @@ class RoadmapItem extends Model
                     break;
                 }
             }
-            if ($norm && \App\Modules\Addons\Roadmap\Services\ThomasService::opcionElegidaEsEscalar($norm)) {
+            if ($norm && \App\Modules\Addons\Roadmap\Services\JarvisService::opcionElegidaEsEscalar($norm)) {
                 continue;
             }
 
@@ -1470,7 +1470,7 @@ class RoadmapItem extends Model
     /**
      * #880 — Épica #874 Fase 2: candidatos a "por qué no avanza". Une los items con al menos UNA
      * señal REAL de estancamiento (columnas que ya existen, no una fecha vieja por sí sola): el
-     * anti-bucle, una consulta a Thomas sin resolver, una colisión de archivos pausada, reclamos
+     * anti-bucle, una consulta a Jarvis sin resolver, una colisión de archivos pausada, reclamos
      * huérfanos repetidos, o el estancamiento por tiempo que ya detectaba `posibleEstancado` (#346).
      * Cualquier estación puede traer una señal, por eso solo excluye lo ya cerrado/archivado.
      */
@@ -1555,7 +1555,7 @@ class RoadmapItem extends Model
     }
 
     /**
-     * TORRE V2 — ESTADO DE COLA del item, en el vocabulario del reparto de Thomas.
+     * TORRE V2 — ESTADO DE COLA del item, en el vocabulario del reparto de Jarvis.
      *
      * DERIVADO, nunca almacenado: los datos ya viven en `estado_aprobacion` + `worker_sid` +
      * `branch` + `merge_commit`. Una columna paralela solo agregaría una segunda verdad que se
@@ -1641,7 +1641,7 @@ class RoadmapItem extends Model
         return $this->hasMany(RoadmapItemReport::class, 'roadmap_item_id');
     }
 
-    /** ¿Hay una consulta a Thomas viva (preguntada y sin responder)? */
+    /** ¿Hay una consulta a Jarvis viva (preguntada y sin responder)? */
     public function tieneConsultaViva(): bool
     {
         return $this->consulta_supervisor_at !== null && $this->consulta_resuelta_at === null;
@@ -1665,7 +1665,7 @@ class RoadmapItem extends Model
         if ($this->tieneConsultaViva()) {
             $desde = $this->consulta_supervisor_at ? $this->consulta_supervisor_at->diffForHumans() : 'hace un momento';
             $pregunta = mb_strimwidth((string) $this->consulta_supervisor, 0, 140, '…');
-            return "Espera que Thomas resuelva una consulta abierta {$desde}: «{$pregunta}»";
+            return "Espera que Jarvis resuelva una consulta abierta {$desde}: «{$pregunta}»";
         }
 
         if ($this->colision_pausada_por) {
@@ -1689,7 +1689,7 @@ class RoadmapItem extends Model
         return null;
     }
 
-    /** Items con una consulta esperando resolución de Thomas. */
+    /** Items con una consulta esperando resolución de Jarvis. */
     public function scopeConConsultaViva($query)
     {
         return $query->whereNotNull('consulta_supervisor_at')->whereNull('consulta_resuelta_at');

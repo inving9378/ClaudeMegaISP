@@ -133,7 +133,7 @@ class ValvulaContextoService
             /*
              * ── GUARDA 2 · LA RAZÓN TIENE QUE REFERIRSE AL TÉRMINO (guarda «(c)» de #646) ────────
              *
-             * Mismo criterio de procedencia que se le exige a Thomas —toda afirmación con su cita—
+             * Mismo criterio de procedencia que se le exige a Jarvis —toda afirmación con su cita—
              * aplicado al control de seguridad: si la razón que da el modelo no menciona el término
              * por el que se le preguntó, contestó sobre otra cosa y su «mención» no sostiene nada.
              *

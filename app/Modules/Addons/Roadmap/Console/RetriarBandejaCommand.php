@@ -3,7 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
-use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Services\JarvisService;
 use Illuminate\Console\Command;
 
 /**
@@ -31,7 +31,7 @@ class RetriarBandejaCommand extends Command
 
     protected $description = 'Re-tría la bandeja con el carril mecánico: lo mecánico vuelve a la cola, lo demás queda agrupado por motivo.';
 
-    public function handle(ThomasService $thomas): int
+    public function handle(JarvisService $jarvis): int
     {
         $aplicar = (bool) $this->option('apply');
 
@@ -58,12 +58,12 @@ class RetriarBandejaCommand extends Command
 
         foreach ($items as $item) {
             if ($aplicar) {
-                $r = $thomas->aprobarMecanico($item);
+                $r = $jarvis->aprobarMecanico($item);
                 $ok = $r['aprobado'];
                 $motivo = $r['motivo'];
                 $estado = $r['estado'];
             } else {
-                $c = $thomas->clasificarMecanico($item);
+                $c = $jarvis->clasificarMecanico($item);
                 $ok = $c['mecanico'];
                 $motivo = $c['motivo'];
                 $estado = $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor';

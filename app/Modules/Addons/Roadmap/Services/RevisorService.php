@@ -29,7 +29,7 @@ use Illuminate\Support\Str;
  * ejecutor ejecute los aprobado_revisor.
  *
  * ⚠️ `enAlcance()` es un PREFILTRO PROPIO del Revisor, distinto de LA frontera dura del circuito
- * (`thomas.escalamiento` / `ThomasService::categoriaFronteraDura()`). Son dos listas separadas a
+ * (`jarvis.escalamiento` / `JarvisService::categoriaFronteraDura()`). Son dos listas separadas a
  * propósito (item #944): antes ambas se llamaban "frontera dura" y un item podía estar "en
  * alcance" para una y "frontera dura" para la otra sin que el nombre lo delatara.
  */
@@ -64,8 +64,8 @@ class RevisorService
      * (dinero/seguridad/permisos/prod/destructivo), queda FUERA de alcance y ni llega a
      * Sonnet (se escala directo). Denylist configurable en config('circuito.revisor.alcance').
      *
-     * ⚠️ Esta denylist es el criterio PROPIO del Revisor, NO la frontera dura de Thomas
-     * (`thomas.escalamiento`) — son dos listas distintas con dos propósitos distintos (item #944).
+     * ⚠️ Esta denylist es el criterio PROPIO del Revisor, NO la frontera dura de Jarvis
+     * (`jarvis.escalamiento`) — son dos listas distintas con dos propósitos distintos (item #944).
      */
     public function enAlcance(RoadmapItem $item): array
     {
@@ -90,9 +90,9 @@ class RevisorService
                 if (DetectorTerminos::dispara($heno, $kw, $palabraCompleta)) {
                     return [
                         'en_alcance' => false,
-                        // Item #944: ya NO dice "frontera dura" — esa es la de Thomas
-                        // (`thomas.escalamiento`), distinta de esta denylist propia del Revisor.
-                        'motivo'     => "Fuera del alcance conservador del Revisor: menciona \"{$kw}\" (denylist propia — dinero/seguridad/prod/negocio, distinta de la frontera dura de Thomas).",
+                        // Item #944: ya NO dice "frontera dura" — esa es la de Jarvis
+                        // (`jarvis.escalamiento`), distinta de esta denylist propia del Revisor.
+                        'motivo'     => "Fuera del alcance conservador del Revisor: menciona \"{$kw}\" (denylist propia — dinero/seguridad/prod/negocio, distinta de la frontera dura de Jarvis).",
                         'kw'         => $kw,
                     ];
                 }
@@ -348,7 +348,7 @@ class RevisorService
     /**
      * #844 — Las NEGACIONES y la ventana viven en `DetectorTerminos`, no aquí.
      *
-     * Estaban duplicadas: esta copia y la del chequeo de nacimiento de Thomas. Una lista de
+     * Estaban duplicadas: esta copia y la del chequeo de nacimiento de Jarvis. Una lista de
      * términos que decide qué se escala tiene que tener UN dueño — que se bifurcara es exactamente
      * cómo un item podía pasar un filtro y no el otro.
      *
@@ -362,7 +362,7 @@ class RevisorService
     /**
      * #432 ADENDA C — clasificar por el TRABAJO, no por el guardrail: quita del texto las líneas
      * que son proceso antes de buscar términos. La lista de marcadores vive en `DetectorTerminos`
-     * (definición única, compartida con la puerta de nacimiento de Thomas).
+     * (definición única, compartida con la puerta de nacimiento de Jarvis).
      */
     private function stripBoilerplate(string $texto): string
     {

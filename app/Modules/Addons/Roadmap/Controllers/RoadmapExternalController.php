@@ -625,14 +625,14 @@ class RoadmapExternalController extends Controller
             ? file_get_contents($destilado)
             : "Manual destilado no disponible (docs/manual-criterios-circuito.md ausente).";
 
-        // … + la POLÍTICA DE THOMAS (Torre v2). Va aquí porque quien define el trabajo desde fuera
+        // … + la POLÍTICA DE JARVIS (Torre v2). Va aquí porque quien define el trabajo desde fuera
         // necesita saber qué frontera detiene a una terminal: un spec que cae en el conjunto de
         // escalamiento va a parar a la bandeja de Irving en vez de ejecutarse, y eso se puede
         // evitar al redactarlo.
-        $politica = base_path('docs/politica-thomas.md');
+        $politica = base_path('docs/politica-jarvis.md');
         if (is_file($politica)) {
             $partes[] = "\n\n===================================================================\n"
-                . "# ANEXO — POLÍTICA DE DECISIÓN Y ESCALAMIENTO DE THOMAS (Torre v2)\n"
+                . "# ANEXO — POLÍTICA DE DECISIÓN Y ESCALAMIENTO DE JARVIS (Torre v2)\n"
                 . "===================================================================\n\n"
                 . file_get_contents($politica);
         }

@@ -18,7 +18,7 @@ cd /var/www/megaisp || exit 1
 # main volviera a apuntar a la base de la app, esa regresión se repartiría a las seis terminales
 # en la vuelta siguiente. Por eso el circuito ENTERO no arranca desde un main no apto: es
 # preferible un circuito detenido y ruidoso a seis terminales capaces de vaciar dev.
-# La vigilia de Thomas tiene su propio wrapper y NO pasa por aquí, a propósito: frenar el
+# La vigilia de Jarvis tiene su propio wrapper y NO pasa por aquí, a propósito: frenar el
 # circuito nunca debe dejar ciego al que mira.
 if [ -r /var/www/megaisp/deploy/circuito/guard-bd-pruebas.sh ]; then
   . /var/www/megaisp/deploy/circuito/guard-bd-pruebas.sh

@@ -7,29 +7,29 @@ use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\Log;
 
 /**
- * TORRE V2 — THOMAS, la autoridad intermedia que faltaba.
+ * TORRE V2 — JARVIS, la autoridad intermedia que faltaba.
  *
  * ANTES: la única salida de una terminal que dudaba era `estado_aprobacion = requiere_irving`. No
  * existía nadie entre las seis terminales e Irving, así que cualquier titubeo —incluso sobre algo
  * rutinario y reversible— despertaba al humano y el item se quedaba parado esperando confirmación
  * en vez de avanzar sobre la opción recomendada.
  *
- * AHORA: la terminal le pregunta a Thomas y Thomas responde EN EL ACTO con la política fija
- * (`config/circuito.thomas`). Solo lo irreversible de alto impacto —prod, borrar datos, gastar
+ * AHORA: la terminal le pregunta a Jarvis y Jarvis responde EN EL ACTO con la política fija
+ * (`config/circuito.jarvis`). Solo lo irreversible de alto impacto —prod, borrar datos, gastar
  * dinero, credenciales/seguridad— y el spec contradictorio llegan a Irving.
  *
  * DETERMINISTA A PROPÓSITO: la resolución es coincidencia de términos, sin llamada a IA. Así la
  * terminal no se bloquea esperando un turno del loop, la respuesta es reproducible y auditable, y
  * la política se cambia editando config en vez de re-prompteando a un modelo.
  *
- * QUÉ **NO** ES: Thomas no reparte trabajo por su cuenta. El reparto (slots, módulo-disjunto,
+ * QUÉ **NO** ES: Jarvis no reparte trabajo por su cuenta. El reparto (slots, módulo-disjunto,
  * reclamo atómico, lease) ya lo hace `circuito:scheduler`, que es el único despachador desde #432
- * B1; duplicarlo aquí sería crear una segunda verdad sobre quién trabaja qué. Thomas es el JUICIO
+ * B1; duplicarlo aquí sería crear una segunda verdad sobre quién trabaja qué. Jarvis es el JUICIO
  * que le faltaba a esa maquinaria: resuelve dudas, estima esfuerzo y verifica el cierre.
  */
-class ThomasService
+class JarvisService
 {
-    public const NOMBRE = 'thomas';
+    public const NOMBRE = 'jarvis';
 
     public function __construct(
         private RoadmapReportService $reportes,
@@ -74,7 +74,7 @@ class ThomasService
             $this->responder($item, $veredicto, $sid);
         }
 
-        Log::channel('roadmap_externo')->info('thomas-consulta', [
+        Log::channel('roadmap_externo')->info('jarvis-consulta', [
             'item' => $item->id, 'sid' => $sid, 'decision' => $veredicto['decision'],
             'categoria' => $veredicto['categoria'],
         ]);
@@ -97,7 +97,7 @@ class ThomasService
         // (1) Frontera dura. Se mira la pregunta MÁS el contexto del item: un item titulado
         // "cobros" cuya pregunta suena inocente sigue siendo territorio de dinero.
         $heno = mb_strtolower($pregunta . ' ' . $item->title . ' ' . (string) $item->modulo);
-        foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
+        foreach ((array) config('circuito.jarvis.escalamiento', []) as $categoria => $terminos) {
             foreach ((array) $terminos as $t) {
                 if ($t !== '' && str_contains($heno, mb_strtolower($t))) {
                     return [
@@ -105,7 +105,7 @@ class ThomasService
                         'categoria' => $categoria,
                         'motivo'    => "Cae en la frontera dura «{$categoria}» (término detectado: «{$t}»): "
                             . 'irreversible y de alto impacto, es decisión de Irving.',
-                        'respuesta' => 'DETENTE. Esto sale del alcance que Thomas puede autorizar. '
+                        'respuesta' => 'DETENTE. Esto sale del alcance que Jarvis puede autorizar. '
                             . 'El item queda en la bandeja de Irving con tu pregunta registrada. '
                             . 'No lo ejecutes ni lo dejes a medias: libera el área y termina.',
                     ];
@@ -137,7 +137,7 @@ class ThomasService
         }
 
         // (4) Sin recomendada → la primera reversible.
-        if (config('circuito.thomas.exige_reversible_sin_recomendada', true)) {
+        if (config('circuito.jarvis.exige_reversible_sin_recomendada', true)) {
             foreach ($opciones as $o) {
                 if (is_array($o) && RoadmapItem::boolEstricto($o, 'reversible') === true) {
                     return [
@@ -163,7 +163,7 @@ class ThomasService
             'decision'  => 'escalado',
             'categoria' => 'sin_opcion_segura',
             'motivo'    => $opciones
-                ? 'Ninguna de las opciones planteadas se declara reversible: no hay camino que Thomas pueda deshacer si sale mal.'
+                ? 'Ninguna de las opciones planteadas se declara reversible: no hay camino que Jarvis pueda deshacer si sale mal.'
                 : 'La consulta llegó sin opciones que evaluar.',
             'respuesta' => 'DETENTE. Plantea al menos una opción reversible, o queda para Irving. '
                 . 'El item ya está en su bandeja con tu pregunta.',
@@ -184,7 +184,7 @@ class ThomasService
         return false;
     }
 
-    /** Thomas resuelve: registra la respuesta y el item sigue su curso con la terminal. */
+    /** Jarvis resuelve: registra la respuesta y el item sigue su curso con la terminal. */
     private function responder(RoadmapItem $item, array $veredicto, string $sid): void
     {
         $item->forceFill([
@@ -204,7 +204,7 @@ class ThomasService
     }
 
     /**
-     * Escala a Irving. La consulta se marca resuelta (por Irving, no por Thomas) para que el loop
+     * Escala a Irving. La consulta se marca resuelta (por Irving, no por Jarvis) para que el loop
      * no la reprocese, pero el item SÍ sale del lazo automático hacia su bandeja.
      */
     private function escalar(RoadmapItem $item, array $veredicto, string $sid): void
@@ -246,11 +246,11 @@ class ThomasService
     {
         $no = fn (string $m) => ['mecanico' => false, 'motivo' => $m, 'senal' => null];
 
-        if (! config('circuito.thomas.mecanico.enabled', true)) {
-            return $no('El carril mecánico está apagado (circuito.thomas.mecanico.enabled).');
+        if (! config('circuito.jarvis.mecanico.enabled', true)) {
+            return $no('El carril mecánico está apagado (circuito.jarvis.mecanico.enabled).');
         }
-        if (! config('circuito.thomas.enabled', true) || $this->circuito->isPaused()) {
-            return $no('Circuito en pausa o Thomas apagado: no se aprueba nada.');
+        if (! config('circuito.jarvis.enabled', true) || $this->circuito->isPaused()) {
+            return $no('Circuito en pausa o Jarvis apagado: no se aprueba nada.');
         }
 
         // Rótulo de frontera dura: es de Irving por definición, sin importar el contenido.
@@ -262,7 +262,7 @@ class ThomasService
         // Un C es una decisión de diseño; un item sin nivel no está triado.
         $nivel = (string) $item->nivel_riesgo;
         $orden = ['A' => 1, 'B' => 2, 'C' => 3];
-        $tope  = strtoupper((string) config('circuito.thomas.mecanico.max_nivel', 'B'));
+        $tope  = strtoupper((string) config('circuito.jarvis.mecanico.max_nivel', 'B'));
         if (! isset($orden[$nivel])) {
             return $no('Sin nivel de riesgo: sin triar no entra al carril mecánico.');
         }
@@ -276,7 +276,7 @@ class ThomasService
         // (1) Frontera dura: prod / borrar datos / dinero / credenciales. Se reusa EXACTAMENTE el
         // mismo conjunto que gobierna las consultas de las terminales — una sola definición de
         // "esto no lo decide la máquina", no dos que puedan divergir.
-        foreach ((array) config('circuito.thomas.escalamiento', []) as $categoria => $terminos) {
+        foreach ((array) config('circuito.jarvis.escalamiento', []) as $categoria => $terminos) {
             foreach ((array) $terminos as $t) {
                 if ($t !== '' && str_contains($heno, mb_strtolower($t))) {
                     return $no("Cae en la frontera dura «{$categoria}» («{$t}»): irreversible o de alto impacto.");
@@ -285,14 +285,14 @@ class ThomasService
         }
 
         // (2) Negocio/producto: qué DEBE hacer una feature no lo decide una máquina.
-        foreach ((array) config('circuito.thomas.mecanico.negocio', []) as $t) {
+        foreach ((array) config('circuito.jarvis.mecanico.negocio', []) as $t) {
             if ($t !== '' && $this->apareceComoPalabra($heno, mb_strtolower($t))) {
                 return $no("Menciona «{$t}»: es decisión de negocio/producto, no trabajo mecánico.");
             }
         }
 
         // (3) Señal mecánica explícita. ALLOWLIST: sin señal conocida, se queda con Irving.
-        foreach ((array) config('circuito.thomas.mecanico.senales', []) as $t) {
+        foreach ((array) config('circuito.jarvis.mecanico.senales', []) as $t) {
             if ($t !== '' && $this->apareceComoPalabra($heno, mb_strtolower($t))) {
                 return [
                     'mecanico' => true,
@@ -498,7 +498,7 @@ class ThomasService
      *
      * Aquí se cierra: si todas las preguntas están contestadas y ninguna pendiente es de Irving,
      * el item pasa a la cola. Aplica hasta nivel C porque la decisión de C ya la tomó quien
-     * respondió el brief; Thomas no está decidiendo por él, está dejando de retenerlo.
+     * respondió el brief; Jarvis no está decidiendo por él, está dejando de retenerlo.
      */
     public function aprobarYaDecidido(RoadmapItem $item): array
     {
@@ -536,7 +536,7 @@ class ThomasService
             ['estado' => $estado, 'reversible' => true]
         );
 
-        Log::channel('roadmap_externo')->info('thomas-ya-decidido', [
+        Log::channel('roadmap_externo')->info('jarvis-ya-decidido', [
             'item' => $item->id, 'nivel' => $item->nivel_riesgo, 'estado' => $estado,
         ]);
 
@@ -564,8 +564,8 @@ class ThomasService
     {
         $no = fn (string $m) => ['aprobado' => false, 'estado' => null, 'motivo' => $m];
 
-        if (! config('circuito.thomas.enabled', true) || $this->circuito->isPaused()) {
-            return $no('Circuito en pausa o Thomas apagado.');
+        if (! config('circuito.jarvis.enabled', true) || $this->circuito->isPaused()) {
+            return $no('Circuito en pausa o Jarvis apagado.');
         }
         // FASE 2A.3 — punto único: freno HUMANO frena, el del clasificador sólo informa.
         if ($item->tieneFrenoHumano()) {
@@ -590,14 +590,14 @@ class ThomasService
         // #893 — REGRESIÓN detectada al verificar este fix (`$texto` quedó indefinida en 96cf38f2:
         // ese commit reemplazó `categoriaFronteraDura($texto)` por `fronteraDuraDeItem($item)` pero
         // olvidó que el guard de NEGOCIO de abajo también consumía `$texto`). Sin esto el guard corría
-        // contra `null`, jamás matcheaba, y "Thomas nunca inventa dirección de negocio/producto" —la
+        // contra `null`, jamás matcheaba, y "Jarvis nunca inventa dirección de negocio/producto" —la
         // regla que el comentario de abajo dice que NO CAMBIA— quedaba rota en silencio. Se repone
         // aquí porque es la misma función que este item ya toca.
         $texto = (string) $item->title . ' ' . (string) $item->description . ' ' . (string) $item->prompt;
 
-        // REGLA DURA QUE NO CAMBIA: Thomas nunca inventa dirección de negocio/producto. Que el
+        // REGLA DURA QUE NO CAMBIA: Jarvis nunca inventa dirección de negocio/producto. Que el
         // brief esté contestado no convierte una decisión de producto en trabajo mecánico.
-        foreach ((array) config('circuito.thomas.mecanico.negocio', []) as $t) {
+        foreach ((array) config('circuito.jarvis.mecanico.negocio', []) as $t) {
             if ($t !== '' && $this->apareceComoPalabra(mb_strtolower($texto), mb_strtolower($t))) {
                 return $no("Menciona «{$t}»: es decisión de negocio/producto.");
             }
@@ -678,7 +678,7 @@ class ThomasService
         // carril no miraba NINGÚN tope de nivel: un item C con el brief contestado quedaba
         // `aprobado_revisor` y se despachaba. Ahora pasa por `min(politicaBase, ya_decidido)`, cuyo
         // sub-techo nace en `C` justamente para no apagar ese comportamiento al construir el panel.
-        $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'thomas.ya_decidido');
+        $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'jarvis.ya_decidido');
         if ($estado === 'requiere_irving') {
             return $no('La política de la Torre no autoriza este nivel por el carril «ya decidido».');
         }
@@ -728,7 +728,7 @@ class ThomasService
         return array_values(array_unique(array_map('intval', $m[1])));
     }
 
-    public const APROBADOR_YA_DECIDIDO = 'thomas-ya-decidido';
+    public const APROBADOR_YA_DECIDIDO = 'jarvis-ya-decidido';
 
     /** ¿Cuántas auto-aprobaciones mecánicas van hoy? (para el tope diario) */
     public function mecanicosHoy(): int
@@ -738,7 +738,7 @@ class ThomasService
             ->count();
     }
 
-    public const APROBADOR_MECANICO = 'thomas-mecanico';
+    public const APROBADOR_MECANICO = 'jarvis-mecanico';
 
     /**
      * Aprueba un item por el carril mecánico y lo manda a la cola ejecutable.
@@ -754,16 +754,16 @@ class ThomasService
             return ['aprobado' => false, 'estado' => null, 'motivo' => $c['motivo']];
         }
 
-        $tope = (int) config('circuito.thomas.mecanico.tope_diario', 25);
+        $tope = (int) config('circuito.jarvis.mecanico.tope_diario', 25);
         if ($tope > 0 && $this->mecanicosHoy() >= $tope) {
             return ['aprobado' => false, 'estado' => null,
                 'motivo' => "Tope diario del carril mecánico alcanzado ({$tope}). Se reanuda mañana."];
         }
 
         // ENTREGA 1 — la política decide el estado (y aplica los 4 topes duros + el override).
-        // El sub-techo `thomas.mecanico.max_nivel` (B) sigue siendo más conservador que el del
+        // El sub-techo `jarvis.mecanico.max_nivel` (B) sigue siendo más conservador que el del
         // autopilot a propósito: este carril no tiene un brief humano detrás.
-        $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'thomas.mecanico');
+        $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'jarvis.mecanico');
         if ($estado === 'requiere_irving') {
             return ['aprobado' => false, 'estado' => null,
                 'motivo' => 'La política de la Torre no autoriza este nivel por el carril mecánico.'];
@@ -781,7 +781,7 @@ class ThomasService
             'motivo'       => $c['motivo'],
             // Con qué política se decidió: si mañana se afloja, el histórico sigue siendo legible.
             'politica'     => [
-                'max_nivel'   => config('circuito.thomas.mecanico.max_nivel'),
+                'max_nivel'   => config('circuito.jarvis.mecanico.max_nivel'),
                 'tope_diario' => $tope,
             ],
         ];
@@ -802,7 +802,7 @@ class ThomasService
             ['senal' => $c['senal'], 'estado' => $estado, 'reversible' => true]
         );
 
-        Log::channel('roadmap_externo')->info('thomas-mecanico', [
+        Log::channel('roadmap_externo')->info('jarvis-mecanico', [
             'item' => $item->id, 'nivel' => $item->nivel_riesgo, 'estado' => $estado, 'senal' => $c['senal'],
         ]);
 
@@ -898,7 +898,7 @@ class ThomasService
     /**
      * ¿La rama de este item se puede auto-mergear?
      *
-     * Thomas NO reimplementa el merge: decide la ELEGIBILIDAD y se lo encola al MergeRunner de
+     * Jarvis NO reimplementa el merge: decide la ELEGIBILIDAD y se lo encola al MergeRunner de
      * siempre, que ya corre la verificación de regresión, el gate de frontend y aborta ante
      * conflicto dejando main intacto.
      *
@@ -910,8 +910,8 @@ class ThomasService
     {
         $no = fn (string $m) => ['elegible' => false, 'motivo' => $m];
 
-        if (! config('circuito.thomas.automerge.enabled', true)) {
-            return $no('El auto-merge está apagado (circuito.thomas.automerge.enabled).');
+        if (! config('circuito.jarvis.automerge.enabled', true)) {
+            return $no('El auto-merge está apagado (circuito.jarvis.automerge.enabled).');
         }
         if ($this->circuito->isPaused()) {
             return $no('Circuito en pausa (kill switch): no se auto-mergea nada.');
@@ -943,7 +943,7 @@ class ThomasService
             return $no('La rama no trae cambios: no hay nada que integrar.');
         }
 
-        foreach ((array) config('circuito.thomas.automerge.rutas_sensibles', []) as $ruta) {
+        foreach ((array) config('circuito.jarvis.automerge.rutas_sensibles', []) as $ruta) {
             foreach ($diff as $archivo) {
                 if ($ruta !== '' && str_contains($archivo, $ruta)) {
                     return $no("La rama toca «{$archivo}» (ruta sensible): lo mergea Irving.");
@@ -956,7 +956,7 @@ class ThomasService
         $migraciones = array_filter($diff, fn ($f) => str_contains($f, 'migrations/'));
         if ($migraciones) {
             $cuerpo = $this->circuito->contenidoDeRama((string) $item->branch, $migraciones);
-            foreach ((array) config('circuito.thomas.automerge.patrones_destructivos', []) as $p) {
+            foreach ((array) config('circuito.jarvis.automerge.patrones_destructivos', []) as $p) {
                 if ($p !== '' && stripos($cuerpo, $p) !== false) {
                     return $no("Trae una migración con «{$p}»: no se deshace con git revert, lo revisa Irving.");
                 }
@@ -978,7 +978,7 @@ class ThomasService
             return ['ok' => false, 'motivo' => $e['motivo']];
         }
 
-        // Sale del parqueo: ya no espera a Irving, lo integra Thomas.
+        // Sale del parqueo: ya no espera a Irving, lo integra Jarvis.
         $item->forceFill([
             'esperando_merge_irving'  => false,
             'excluir_pool_automatico' => false,
@@ -995,7 +995,7 @@ class ThomasService
             ['rama' => $item->branch, 'reversible' => true]
         );
 
-        Log::channel('roadmap_externo')->info('thomas-automerge', [
+        Log::channel('roadmap_externo')->info('jarvis-automerge', [
             'item' => $item->id, 'rama' => $item->branch, 'motivo' => $e['motivo'],
         ]);
 
@@ -1007,13 +1007,13 @@ class ThomasService
     // =================================================================
 
     /**
-     * Junta en UNA sola pregunta lo estratégico que Thomas no debe decidir.
+     * Junta en UNA sola pregunta lo estratégico que Jarvis no debe decidir.
      *
      * El problema no era el volumen sino la FORMA: N items bloqueados por separado, cada uno
      * pidiendo una decisión suelta, se leen como una montaña y no se despachan nunca. Juntos, con
-     * la recomendación de Thomas al lado de cada punto, se contestan de una pasada.
+     * la recomendación de Jarvis al lado de cada punto, se contestan de una pasada.
      *
-     * Thomas NO decide aquí: recomienda. La recomendación es la opción que él tomaría si pudiera,
+     * Jarvis NO decide aquí: recomienda. La recomendación es la opción que él tomaría si pudiera,
      * y sirve para dos cosas — que Irving conteste con un sí/no en vez de redactar, y que exista un
      * default por si no contesta (ver `procederPorDefault`).
      */
@@ -1061,17 +1061,17 @@ class ThomasService
     /** Escribe el consolidado como un solo documento legible para Irving. */
     public function escribirConsolidado(array $puntos): string
     {
-        $path  = (string) config('circuito.thomas.consolidado.doc_path', storage_path('app/circuito/decisiones-pendientes-irving.md'));
-        $horas = (int) config('circuito.thomas.consolidado.horas_default', 48);
+        $path  = (string) config('circuito.jarvis.consolidado.doc_path', storage_path('app/circuito/decisiones-pendientes-irving.md'));
+        $horas = (int) config('circuito.jarvis.consolidado.horas_default', 48);
 
         $md  = "# Decisiones pendientes — una sola pasada\n\n";
-        $md .= '> Generado por Thomas el ' . now()->format('Y-m-d H:i') . ". Son las decisiones que **no**\n";
+        $md .= '> Generado por Jarvis el ' . now()->format('Y-m-d H:i') . ". Son las decisiones que **no**\n";
         $md .= "> puede tomar solo: estratégicas o irreversibles. Todo lo demás ya lo resolvió y está corriendo.\n";
         $md .= ">\n";
         $md .= $horas > 0
-            ? "> **Si no contestas en {$horas} h**, Thomas procede con la recomendación en los puntos marcados\n"
+            ? "> **Si no contestas en {$horas} h**, Jarvis procede con la recomendación en los puntos marcados\n"
                 . "> ♻️ *reversible* y lo deja registrado para que lo revises después. Los no reversibles esperan.\n\n"
-            : "> Thomas **no** procede solo en ninguno: todos esperan tu respuesta.\n\n";
+            : "> Jarvis **no** procede solo en ninguno: todos esperan tu respuesta.\n\n";
 
         foreach ($puntos as $i => $p) {
             $n = $i + 1;
@@ -1079,10 +1079,10 @@ class ThomasService
             $md .= "- **Módulo:** {$p['modulo']} · **Nivel:** {$p['nivel']}\n";
             $md .= "- **Qué hay que definir:** {$p['pregunta']}\n";
             if ($p['recomendacion']) {
-                $md .= '- **Recomendación de Thomas:** ' . $p['recomendacion']
+                $md .= '- **Recomendación de Jarvis:** ' . $p['recomendacion']
                     . ($p['reversible'] ? "  ♻️ *reversible*" : '  ⚠️ *no reversible — espera tu respuesta*') . "\n";
             } else {
-                $md .= "- **Recomendación de Thomas:** — (no hay opción estructurada que recomendar)\n";
+                $md .= "- **Recomendación de Jarvis:** — (no hay opción estructurada que recomendar)\n";
             }
             $md .= "\n";
         }
@@ -1109,7 +1109,7 @@ class ThomasService
      */
     public function estimarEsfuerzo(RoadmapItem $item): int
     {
-        $cfg  = (array) config('circuito.thomas.esfuerzo', []);
+        $cfg  = (array) config('circuito.jarvis.esfuerzo', []);
         $base = $cfg['base_por_nivel'][$item->nivel_riesgo] ?? ($cfg['base_sin_nivel'] ?? 45);
 
         $kbSpec = (mb_strlen((string) $item->description) + mb_strlen((string) $item->prompt)) / 1024;
@@ -1162,7 +1162,7 @@ class ThomasService
             return ['cabe' => false, 'motivo' => 'ya_timeouteo_antes', 'eta_segundos' => null];
         }
 
-        $minFases = (int) config('circuito.thomas.cabida.min_fases_explicitas', 3);
+        $minFases = (int) config('circuito.jarvis.cabida.min_fases_explicitas', 3);
         if ($minFases > 0) {
             $fases = self::fasesExplicitasDeclaradas((string) $item->description . ' ' . (string) $item->prompt);
             if ($fases >= $minFases) {
@@ -1171,7 +1171,7 @@ class ThomasService
         }
 
         $eta    = $this->circuito->estimarEtaTrabajo($item->modulo, $item->nivel_riesgo);
-        $umbral = (int) config('circuito.thomas.cabida.umbral_segundos', 480);
+        $umbral = (int) config('circuito.jarvis.cabida.umbral_segundos', 480);
 
         // Se compara el estimado CRUDO, no el topado al techo de la vuelta (2026-08-26): topar aquí
         // volvería "cabe" a todo por construcción, que es justo lo contrario de lo que decide esto.
@@ -1228,7 +1228,7 @@ class ThomasService
     // =================================================================
 
     /**
-     * Criterios de aceptación COMUNES que Thomas exige antes de dar por bueno un cierre. Los
+     * Criterios de aceptación COMUNES que Jarvis exige antes de dar por bueno un cierre. Los
      * específicos de cada item viven en su propio spec y los verifica la terminal.
      *
      * #1005 (#1003 §1/§2): `sin_ui` es el escape valve para items sin pantalla (migraciones,
@@ -1242,7 +1242,7 @@ class ThomasService
      */
     public function verificarCierre(RoadmapItem $item): array
     {
-        $cfg       = (array) config('circuito.thomas.cierre', []);
+        $cfg       = (array) config('circuito.jarvis.cierre', []);
         $faltantes = [];
 
         if (empty($item->branch)) {
@@ -1264,7 +1264,7 @@ class ThomasService
         }
 
         if ($item->tieneConsultaViva()) {
-            $faltantes[] = 'cerró con una consulta a Thomas todavía sin resolver';
+            $faltantes[] = 'cerró con una consulta a Jarvis todavía sin resolver';
         }
 
         return ['ok' => $faltantes === [], 'faltantes' => $faltantes];
@@ -1370,7 +1370,7 @@ class ThomasService
     }
 
     // =================================================================
-    // 4. DIAGNÓSTICO DEL REPARTO (invariantes que Thomas vigila)
+    // 4. DIAGNÓSTICO DEL REPARTO (invariantes que Jarvis vigila)
     // =================================================================
 
     /**
@@ -1417,10 +1417,10 @@ class ThomasService
      */
     public function tick(bool $apply = true): array
     {
-        if (! config('circuito.thomas.enabled', true)) {
-            return ['saltado' => 'thomas deshabilitado'];
+        if (! config('circuito.jarvis.enabled', true)) {
+            return ['saltado' => 'jarvis deshabilitado'];
         }
-        // Kill switch: en pausa Thomas no decide nada, igual que el autopilot.
+        // Kill switch: en pausa Jarvis no decide nada, igual que el autopilot.
         if ($this->circuito->isPaused()) {
             return ['saltado' => 'circuito en pausa'];
         }

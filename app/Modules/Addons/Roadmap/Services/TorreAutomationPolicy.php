@@ -22,7 +22,7 @@ use App\Modules\Addons\Roadmap\Models\TorreConfig;
  * El techo global (`TorreConfig`) es la única fuente de verdad. Los sub-techos por actor sobreviven
  * con su significado LITERAL, y el nivel efectivo de cada uno es `min(global, sub-techo)`.
  *
- * Que `thomas.mecanico` sea más conservador que `autopilot` es una distinción REAL: el carril
+ * Que `jarvis.mecanico` sea más conservador que `autopilot` es una distinción REAL: el carril
  * mecánico no tiene un brief humano detrás. Colapsarlos en un solo número perdería esa asimetría.
  *
  * **El candado es una DESIGUALDAD, no una igualdad** (`TorreTechosCoherentesTest`): divergir hacia
@@ -40,7 +40,7 @@ use App\Modules\Addons\Roadmap\Models\TorreConfig;
  * contrapartida es que cada perilla viene con su número al lado (cuántos items dispara, cuántas
  * veces la válvula la abrió) y cada cambio queda auditado, aflojar como alerta.
  *
- * La detección la hace `ThomasService::fronteraDuraDeItem()` sobre `FronterasService`. **Aquí no hay
+ * La detección la hace `JarvisService::fronteraDuraDeItem()` sobre `FronterasService`. **Aquí no hay
  * ni una lista nueva de términos**: esa lista ya costó dos incidentes documentados («palabra
  * completa, no substring» y «no distingue mención de negación»), y una segunda copia envejeciendo
  * por separado sería el tercero. Si la frontera necesita crecer, crece en su tabla.
@@ -60,13 +60,13 @@ class TorreAutomationPolicy
      */
     public const SUBTECHOS = [
         'autopilot'          => 'circuito.autopilot.max_nivel',
-        'thomas.mecanico'    => 'circuito.thomas.mecanico.max_nivel',
-        'thomas.ya_decidido' => 'circuito.thomas.ya_decidido.max_nivel',
+        'jarvis.mecanico'    => 'circuito.jarvis.mecanico.max_nivel',
+        'jarvis.ya_decidido' => 'circuito.jarvis.ya_decidido.max_nivel',
     ];
 
     public function __construct(
         private TorreConfigService $config,
-        private ThomasService $thomas,
+        private JarvisService $jarvis,
     ) {
     }
 
@@ -273,7 +273,7 @@ class TorreAutomationPolicy
     }
 
     /**
-     * La categoría de frontera dura que toca el item, o null. Delega en Thomas: **cero listas
+     * La categoría de frontera dura que toca el item, o null. Delega en Jarvis: **cero listas
      * nuevas**. Mira el mismo texto que el carril mecánico (título + descripción + prompt) — mirar
      * menos campos que él dejaría pasar aquí lo que allá se frena, que es cómo dos guards con la
      * misma regla terminan dando veredictos distintos.
@@ -285,7 +285,7 @@ class TorreAutomationPolicy
         // delante de todo», así que un item que sólo MENCIONABA «producción» quedaba en su bandeja
         // para siempre aunque el triaje ya lo hubiera leído como B. Un item que TOCA la frontera lo
         // sigue frenando igual — la válvula sólo despeja las menciones, y sólo cuando está segura.
-        return $this->thomas->fronteraDuraDeItem($item);
+        return $this->jarvis->fronteraDuraDeItem($item);
     }
 
     /**
@@ -301,7 +301,7 @@ class TorreAutomationPolicy
 
     /**
      * La foto completa que pinta el panel: techo global + nivel efectivo de cada actor + la matriz.
-     * Si Thomas está en `B` con el global en `C`, eso SE VE, porque es información.
+     * Si Jarvis está en `B` con el global en `C`, eso SE VE, porque es información.
      */
     public function panorama(): array
     {

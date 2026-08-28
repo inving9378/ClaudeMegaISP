@@ -13,7 +13,7 @@ use InvalidArgumentException;
  * candados:
  *   - la API externa (Cowork define el qué),
  *   - las terminales (sub-items de seguimiento cuando un item resulta ser multi-fase),
- *   - Thomas (descomposición de un item grande al repartir).
+ *   - Jarvis (descomposición de un item grande al repartir).
  *
  * CANDADO CENTRAL: un item creado NACE SIN APROBAR (`pendiente_revision`) pase lo que pase. Crear
  * y aprobar son dos actos separados: quien crea no puede darse permiso de ejecución en el mismo
@@ -30,8 +30,8 @@ class RoadmapIntakeService
      *
      * @param  array   $datos   title (req), description, prompt, modulo, nivel_riesgo, priority,
      *                          origen_item_id, target_version
-     * @param  string  $autor   quién lo crea: 'claude-cowork' | 'wt-3' | 'thomas' | 'claude-code'
-     * @param  bool    $interno true si el autor corre ON-BOX (terminal/Thomas/CC). Decide cómo se
+     * @param  string  $autor   quién lo crea: 'claude-cowork' | 'wt-3' | 'jarvis' | 'claude-code'
+     * @param  bool    $interno true si el autor corre ON-BOX (terminal/Jarvis/CC). Decide cómo se
      *                          sella `nivel_riesgo_origen`, del que depende el guard #260: un nivel
      *                          A de origen externo nunca habilita `aprobado_claude`.
      */

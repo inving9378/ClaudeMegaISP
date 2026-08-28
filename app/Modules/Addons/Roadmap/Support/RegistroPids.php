@@ -35,7 +35,7 @@ class RegistroPids
 {
     public static function dir(): string
     {
-        return ThomasVigilia::dir() . '/pids';
+        return JarvisVigilia::dir() . '/pids';
     }
 
     /**

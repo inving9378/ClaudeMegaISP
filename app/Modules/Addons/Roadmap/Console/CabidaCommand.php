@@ -3,7 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
-use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Services\JarvisService;
 use Illuminate\Console\Command;
 
 /**
@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
  *
  * Primer paso de la terminal (antes de `circuito:rama`): si esto dice que NO cabe, la terminal
  * NO empieza a implementar — usa `circuito:sub-item` para dejar fases registradas y termina su
- * vuelta. La decisión vive en `ThomasService::caberEnVuelta()` (aquí solo se imprime/traduce a
+ * vuelta. La decisión vive en `JarvisService::caberEnVuelta()` (aquí solo se imprime/traduce a
  * exit code); ver ahí el porqué de las tres señales que usa y por qué es deliberadamente
  * conservador (nunca dispara con el bucket heurístico sin muestras reales).
  *
@@ -25,7 +25,7 @@ class CabidaCommand extends Command
 
     protected $description = '#895 — decide si un item cabe en una vuelta o si hay que descomponerlo antes de arrancar.';
 
-    public function handle(ThomasService $thomas): int
+    public function handle(JarvisService $jarvis): int
     {
         $item = RoadmapItem::find($this->argument('id'));
         if (! $item) {
@@ -34,7 +34,7 @@ class CabidaCommand extends Command
             return self::FAILURE;
         }
 
-        $r = $thomas->caberEnVuelta($item);
+        $r = $jarvis->caberEnVuelta($item);
         $eta = $r['eta_segundos'] !== null ? " (histórico ~{$r['eta_segundos']}s)" : '';
 
         if ($r['cabe']) {

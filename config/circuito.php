@@ -78,7 +78,7 @@ return [
     | `alcance.denylist`: si el título/módulo/plan del item menciona alguno de estos términos,
     | queda FUERA de alcance y se ESCALA sin gastar IA (temas sensibles: dinero/seguridad/prod/
     | destructivo/negocio). ⚠️ Es el PREFILTRO PROPIO del Revisor, no "la" frontera dura del
-    | circuito — esa es `thomas.escalamiento` (`ThomasService::categoriaFronteraDura`), una lista
+    | circuito — esa es `jarvis.escalamiento` (`JarvisService::categoriaFronteraDura`), una lista
     | aparte con su propio criterio. Item #944 (2026-08-21): antes este bloque se llamaba a sí
     | mismo "frontera dura" a secas y confundía las dos listas. Arranque estrecho: ante la duda,
     | agrega términos, no los quites.
@@ -119,11 +119,11 @@ return [
         'perfil_path'   => base_path('docs/perfil-decisiones-irving.md'),
         // Candidatos CRUDOS que el circuito captura solo (PerfilAprendizajeService). ESTADO de
         // runtime, no fuente: vive en storage/ (gitignored) por la misma razón que
-        // `thomas.consolidado.doc_path` — ensuciaba docs/ en cada vuelta y abortaba el deploy.
+        // `jarvis.consolidado.doc_path` — ensuciaba docs/ en cada vuelta y abortaba el deploy.
         'pendientes_perfil_path' => storage_path('app/circuito/pendientes-perfil-irving.md'),
         'alcance'    => [
             // PREFILTRO PROPIO DEL REVISOR (si el título/módulo/plan menciona esto → escala SIN
-            // gastar IA). NO es la frontera dura de Thomas — ver nota arriba.
+            // gastar IA). NO es la frontera dura de Jarvis — ver nota arriba.
             // Afinada (#338): se quitaron términos demasiado amplios que escalaban FALSOS POSITIVOS
             // ('rol ', 'roles', 'auth', 'banco', 'prod' bare) — la sensibilidad real la cubren
             // términos específicos (permiso/permisos/spatie, credencial/bcrypt, producción/deploy…).
@@ -267,7 +267,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | THOMAS — política de decisión y escalamiento (Torre v2)
+    | JARVIS — política de decisión y escalamiento (Torre v2)
     |--------------------------------------------------------------------------
     |
     | El problema que resuelve: hasta ahora la ÚNICA salida de una terminal que dudaba era
@@ -277,7 +277,7 @@ return [
     | REGLA DE ORO (default): opción recomendada → avanza → registra la decisión en el historial
     | del item. Revisión POSTERIOR, no previa.
     |
-    | Thomas escala a Irving SOLO si la acción es IRREVERSIBLE y de ALTO IMPACTO. Ese conjunto es
+    | Jarvis escala a Irving SOLO si la acción es IRREVERSIBLE y de ALTO IMPACTO. Ese conjunto es
     | el de abajo y es corto a propósito: cada término que se agregue aquí es una interrupción más
     | para Irving. Al revés también: quitar términos abre autonomía, así que se tocan con cuidado.
     |
@@ -285,18 +285,18 @@ return [
     | pregunta y recibe respuesta en el acto, sin quedarse bloqueada esperando un turno del loop.
     |
     */
-    'thomas' => [
-        'enabled' => (bool) env('CIRCUITO_THOMAS', true),
+    'jarvis' => [
+        'enabled' => (bool) env('CIRCUITO_JARVIS', true),
 
         /*
         |----------------------------------------------------------------------
-        | VIGILIA (entrega A) — la mitad de Thomas que NO puede compartir destino
+        | VIGILIA (entrega A) — la mitad de Jarvis que NO puede compartir destino
         | con lo que vigila.
         |----------------------------------------------------------------------
         |
         | `tick()` vive en base y cuelga del cron del scheduler. Eso basta para decidir, y no
         | basta para vigilar: cuando la base se cayó el 22-ago, el único que podía contarlo se
-        | cayó con ella; y cuando el 24-ago se comentaron las 9 líneas del circuito, Thomas se
+        | cayó con ella; y cuando el 24-ago se comentaron las 9 líneas del circuito, Jarvis se
         | quedó sin latido sin que ninguna pantalla lo dijera.
         |
         | La vigilia mide y avisa LEYENDO Y ESCRIBIENDO ARCHIVO, sin base, con su propio cron.
@@ -304,19 +304,19 @@ return [
         | y el registro de PIDs de aquí es su prerrequisito.
         */
         'vigilia' => [
-            'enabled' => (bool) env('CIRCUITO_THOMAS_VIGILIA', true),
+            'enabled' => (bool) env('CIRCUITO_JARVIS_VIGILIA', true),
 
             // RUTA ABSOLUTA, jamás storage_path(): igual que el centinela del freno (#170), este
             // comando puede correr desde un worktree, y cada worktree tiene su storage/ REAL.
-            // Con ruta relativa habría un Thomas por terminal, que es no tener ninguno.
+            // Con ruta relativa habría un Jarvis por terminal, que es no tener ninguno.
             // Vive bajo storage/app porque es el único sitio que leen los DOS usuarios
             // (`meganet` que mide y `www-data` que pinta la Torre).
-            'dir' => env('CIRCUITO_THOMAS_DIR', '/var/www/megaisp/storage/app/circuito/thomas'),
+            'dir' => env('CIRCUITO_JARVIS_DIR', '/var/www/megaisp/storage/app/circuito/jarvis'),
 
             // INTERRUPTOR DE HOMBRE MUERTO. Si el latido envejece más que esto, la Torre lo pinta
             // en rojo. Un supervisor muerto en silencio convierte el silencio en falsa calma.
             // 180 s = tres vueltas de su cron de un minuto: tolera un pico, no tolera una muerte.
-            'latido_umbral_seg' => (int) env('CIRCUITO_THOMAS_LATIDO_UMBRAL', 180),
+            'latido_umbral_seg' => (int) env('CIRCUITO_JARVIS_LATIDO_UMBRAL', 180),
 
             // Raíz de los worktrees. De aquí sale el hallazgo que motivó la entrega: hay SIETE
             // `laravel.log` creciendo (uno por worktree más el del checkout principal) y la sonda
@@ -329,7 +329,7 @@ return [
             // Un `claude` interactivo más viejo que esto es sospechoso de sesión abandonada.
             // Se REPORTA, nunca se mata: hoy hay cuatro de 41 días y uno de ellos podría ser la
             // sesión con la que Irving está trabajando. 24 h.
-            'claude_viejo_seg' => (int) env('CIRCUITO_THOMAS_CLAUDE_VIEJO', 86400),
+            'claude_viejo_seg' => (int) env('CIRCUITO_JARVIS_CLAUDE_VIEJO', 86400),
         ],
 
         /*
@@ -372,11 +372,11 @@ return [
         ],
 
         /*
-        | Cuando la terminal NO marca opción recomendada, Thomas toma la primera opción declarada
+        | Cuando la terminal NO marca opción recomendada, Jarvis toma la primera opción declarada
         | `reversible: true`. Si NINGUNA lo es, eso ya es una señal de irreversibilidad: escala.
-        | Ponerlo en false hace que Thomas tome la primera opción sin más (más autonomía, más riesgo).
+        | Ponerlo en false hace que Jarvis tome la primera opción sin más (más autonomía, más riesgo).
         */
-        'exige_reversible_sin_recomendada' => (bool) env('CIRCUITO_THOMAS_EXIGE_REVERSIBLE', true),
+        'exige_reversible_sin_recomendada' => (bool) env('CIRCUITO_JARVIS_EXIGE_REVERSIBLE', true),
 
         /*
         | ESTIMACIÓN DE ESFUERZO — orientativa y NUNCA bloqueante (nada se rechaza por pasarse).
@@ -437,7 +437,7 @@ return [
         |
         */
         'mecanico' => [
-            'enabled'   => (bool) env('CIRCUITO_THOMAS_MECANICO', true),
+            'enabled'   => (bool) env('CIRCUITO_JARVIS_MECANICO', true),
 
             /*
             | SUB-TECHO del carril mecánico. Es más conservador que el del autopilot A PROPÓSITO: el
@@ -447,11 +447,11 @@ return [
             | ⚠️ El nivel EFECTIVO es `min(techo_global, este)`. Subirlo por encima del techo global
             | no tiene efecto y `TorreTechosCoherentesTest` lo impide. Bajarlo siempre se puede.
             */
-            'max_nivel' => env('CIRCUITO_THOMAS_MECANICO_MAX_NIVEL', 'B'),
+            'max_nivel' => env('CIRCUITO_JARVIS_MECANICO_MAX_NIVEL', 'B'),
 
             // Tope de auto-aprobaciones mecánicas por día. Freno de mano: si la política se
             // desmadra, el daño está acotado a este número y se ve en un solo día.
-            'tope_diario' => (int) env('CIRCUITO_THOMAS_MECANICO_TOPE_DIA', 25),
+            'tope_diario' => (int) env('CIRCUITO_JARVIS_MECANICO_TOPE_DIA', 25),
 
             // (3) SEÑALES — lo que sí se reconoce como mecánico. Ampliar esto es ampliar autonomía.
             'senales' => [
@@ -488,9 +488,9 @@ return [
         | lo tomaba, veía que no había nada que hacer y lo re-escalaba. Ese es el bucle de #117
         | (13 vueltas) — no era falta de permiso, era que lo pendiente NO era una aprobación.
         |
-        | Thomas ahora mergea ese trabajo él mismo. NO reimplementa el merge: se lo encola al
+        | Jarvis ahora mergea ese trabajo él mismo. NO reimplementa el merge: se lo encola al
         | MergeRunner de siempre, que ya corre la verificación de regresión (php -l + boot), el
-        | gate de frontend y aborta ante conflicto dejando main intacto. Thomas sólo decide QUÉ
+        | gate de frontend y aborta ante conflicto dejando main intacto. Jarvis sólo decide QUÉ
         | ramas son elegibles.
         |
         | RETIENE para Irving lo que apunte a prod o sea irreversible: la rama se inspecciona
@@ -509,15 +509,15 @@ return [
         | Bajarlo es un clic de Irving en el panel, no una decisión de quien escribe esta línea.
         */
         'ya_decidido' => [
-            'max_nivel' => env('CIRCUITO_THOMAS_YA_DECIDIDO_MAX_NIVEL', 'C'),
+            'max_nivel' => env('CIRCUITO_JARVIS_YA_DECIDIDO_MAX_NIVEL', 'C'),
         ],
 
         'automerge' => [
-            'enabled' => (bool) env('CIRCUITO_THOMAS_AUTOMERGE', true),
+            'enabled' => (bool) env('CIRCUITO_JARVIS_AUTOMERGE', true),
 
             // Tope de auto-merges por ciclo. Cap chico a propósito: un merge malo es más caro de
             // deshacer que una aprobación mala, y así el daño de un ciclo cabe en un vistazo.
-            'cap_por_ciclo' => (int) env('CIRCUITO_THOMAS_AUTOMERGE_CAP', 5),
+            'cap_por_ciclo' => (int) env('CIRCUITO_JARVIS_AUTOMERGE_CAP', 5),
 
             /*
             | RUTAS SENSIBLES — si la rama toca alguna, NO se auto-mergea aunque el título sea
@@ -552,16 +552,16 @@ return [
         | elegibilidad ya era correcta (frontera dura / nivel C / migración destructiva la
         | retienen); solo faltaba encender el motor.
         |
-        | Enganchado en el SCHEDULER (`SchedulerCommand::tickDestrabe()`), igual que Thomas::tick()
+        | Enganchado en el SCHEDULER (`SchedulerCommand::tickDestrabe()`), igual que Jarvis::tick()
         | y el Auditor arriba — NO en su propia línea de crontab: el scheduler ya es "el único
         | despachador" (#432 B1) y una línea aparte abriría una segunda carrera sobre los mismos
         | items. Throttle propio para no re-escanear la bandeja cada minuto sin necesidad (el cap
         | de auto-merges por CICLO de arriba ya acota el daño; esto solo acota la frecuencia).
         */
         'destrabe_bandeja' => [
-            'enabled'           => (bool) env('CIRCUITO_THOMAS_DESTRABE_SCHEDULER', true),
-            'intervalo_minutos' => (int) env('CIRCUITO_THOMAS_DESTRABE_INTERVALO', 5),
-            'limit'             => (int) env('CIRCUITO_THOMAS_DESTRABE_LIMIT', 120),
+            'enabled'           => (bool) env('CIRCUITO_JARVIS_DESTRABE_SCHEDULER', true),
+            'intervalo_minutos' => (int) env('CIRCUITO_JARVIS_DESTRABE_INTERVALO', 5),
+            'limit'             => (int) env('CIRCUITO_JARVIS_DESTRABE_LIMIT', 120),
         ],
 
         /*
@@ -570,15 +570,15 @@ return [
         |----------------------------------------------------------------------
         |
         | Lo genuinamente estratégico no se adivina, pero tampoco tiene por qué bloquear N items
-        | por separado: se junta en UNA sola pregunta con la recomendación de Thomas para cada
+        | por separado: se junta en UNA sola pregunta con la recomendación de Jarvis para cada
         | punto, para que Irving conteste en bloque.
         |
-        | `horas_default`: si no contesta en ese plazo, Thomas procede con la opción reversible
+        | `horas_default`: si no contesta en ese plazo, Jarvis procede con la opción reversible
         | recomendada y la deja registrada para revisión POSTERIOR. 0 = nunca procede solo.
         */
         'consolidado' => [
-            'enabled'       => (bool) env('CIRCUITO_THOMAS_CONSOLIDADO', true),
-            'horas_default' => (int) env('CIRCUITO_THOMAS_CONSOLIDADO_HORAS', 48),
+            'enabled'       => (bool) env('CIRCUITO_JARVIS_CONSOLIDADO', true),
+            'horas_default' => (int) env('CIRCUITO_JARVIS_CONSOLIDADO_HORAS', 48),
             // ESTADO que el circuito reescribe en runtime, NO fuente versionada: vive en
             // storage/ (gitignored). Estaba en docs/ y cada vuelta del circuito ensuciaba un
             // archivo trackeado → el guardrail de allowlist del deploy (git_staging_gate)
@@ -587,17 +587,17 @@ return [
         ],
 
         /*
-        | CIERRE — qué exige Thomas antes de dar un item por terminado. Son los criterios de
+        | CIERRE — qué exige Jarvis antes de dar un item por terminado. Son los criterios de
         | aceptación mínimos y comunes a todo item; los específicos viven en el propio item.
         */
         'cierre' => [
             // El item debe traer con qué revisarlo: en llano y con el lugar de la UI donde verlo.
-            'exige_reporte_coloquial' => (bool) env('CIRCUITO_THOMAS_EXIGE_REPORTE', true),
-            'exige_enlace_revision'   => (bool) env('CIRCUITO_THOMAS_EXIGE_ENLACE', true),
+            'exige_reporte_coloquial' => (bool) env('CIRCUITO_JARVIS_EXIGE_REPORTE', true),
+            'exige_enlace_revision'   => (bool) env('CIRCUITO_JARVIS_EXIGE_ENLACE', true),
 
             // #1005 (#1003 §2) — si hay `enlace_revision`, exigir que el path resuelva contra el
             // registro de rutas (Route match) antes de aceptar el cierre.
-            'valida_enlace_resuelve'  => (bool) env('CIRCUITO_THOMAS_VALIDA_ENLACE', true),
+            'valida_enlace_resuelve'  => (bool) env('CIRCUITO_JARVIS_VALIDA_ENLACE', true),
 
             /*
             | #1005 — ROLLOUT EN DOS FASES a propósito (el propio spec del item pide "considerar un
@@ -609,7 +609,7 @@ return [
             | `aprobado_irving` (mismo patrón que el parqueo C-sin-merge) en vez de completarse.
             | Subir a `true` cuando el modo advertencia lleve un tiempo sin sorpresas.
             */
-            'bloquea'                 => (bool) env('CIRCUITO_THOMAS_CIERRE_BLOQUEA', false),
+            'bloquea'                 => (bool) env('CIRCUITO_JARVIS_CIERRE_BLOQUEA', false),
         ],
     ],
 
@@ -698,7 +698,7 @@ return [
             ],
             'Roadmap / Circuito CC' => [
                 'autopilot', 'revisor', 'scheduler', 'worker', 'terminal', 'terminales', 'bandeja',
-                'cola', 'auto-merge', 'automerge', 'reaper', 'thomas', 'circuito', 'escalamiento',
+                'cola', 'auto-merge', 'automerge', 'reaper', 'jarvis', 'circuito', 'escalamiento',
                 'destrabar', 'anti-bucle', 'vuelta',
             ],
             'Roadmap' => ['hoja de ruta', 'roadmap'],
@@ -710,7 +710,7 @@ return [
     | MOTOR DE AUDITORÍA CONTINUA — el generador de trabajo (#559, "Item Madre")
     |--------------------------------------------------------------------------
     |
-    | Qué resuelve: el circuito ya sabe REPARTIR (scheduler) y JUZGAR (Thomas/revisor/autopilot),
+    | Qué resuelve: el circuito ya sabe REPARTIR (scheduler) y JUZGAR (Jarvis/revisor/autopilot),
     | pero no sabe GENERAR. Cuando la cola se vacía, las 6 terminales se quedan ociosas esperando
     | que un humano escriba items. Este motor escanea el sistema módulo por módulo, detecta lo que
     | falta y CREA los items-hijo que cierran esos huecos.
@@ -857,8 +857,8 @@ return [
         | Irving con la pregunta. "Refactorizar esto" es mecánico; "preguntar si eliminamos el
         | archivo" no lo es, y adivinarlo sería fabricar una decisión suya.
         |
-        | Nota: ADEMÁS de esto, todo gap pasa por la frontera dura de Thomas
-        | (`circuito.thomas.escalamiento`: producción / borrar datos / dinero / credenciales). Lo
+        | Nota: ADEMÁS de esto, todo gap pasa por la frontera dura de Jarvis
+        | (`circuito.jarvis.escalamiento`: producción / borrar datos / dinero / credenciales). Lo
         | que cae ahí NUNCA sale como item mecánico, sin importar lo que diga este listado.
         */
         'terminos_producto' => [
@@ -1168,7 +1168,7 @@ return [
         | simetría:
         |  · `circuito:disparo-check` — sólo ADELANTA una corrida del scheduler, que ya está
         |    vigilado. Su fallo no pierde nada que el scheduler no recupere al minuto siguiente.
-        |  · `MergeRunner::drain()` y `ThomasService::tick()` — corren en CADA vuelta del scheduler,
+        |  · `MergeRunner::drain()` y `JarvisService::tick()` — corren en CADA vuelta del scheduler,
         |    sin throttle. «Cuándo corrieron por última vez» siempre diría «hace un minuto» y no
         |    informaría de nada: su señal útil no es liveness, es si su último intento falló.
         */

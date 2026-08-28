@@ -10,7 +10,7 @@
  * divergencia que ya costó `eta_minutos` contra `eta_segundos`.
  *
  * Los escalones son la POLÍTICA; este archivo es sólo dónde vive. Quien mida disco —panel de
- * Salud, compuertas, Thomas— deriva de aquí y no define umbrales propios.
+ * Salud, compuertas, Jarvis— deriva de aquí y no define umbrales propios.
  *
  * Cada escalón es un PORCENTAJE DE USO del sistema de archivos, y son acumulativos: al llegar
  * a uno, todo lo del escalón anterior ya se hizo y volvió a medirse. Nunca un barrido de golpe.
@@ -34,7 +34,7 @@ return [
 
     /**
      * Mapa escalón → nivel de escalamiento del encargo. Aquí no se ejecuta nada: es el contrato
-     * que la entrega de RECURSOS tendrá que respetar cuando se le den manos a Thomas.
+     * que la entrega de RECURSOS tendrá que respetar cuando se le den manos a Jarvis.
      *
      * Ojo con 'trunca': truncar un log activo es PÉRDIDA IRREVERSIBLE, así que no vive en el
      * peldaño silencioso — actúa y avisa, y sólo si la ventana forense se escribió con éxito

@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase; // TestCase PURO de PHPUnit: NO bootea Laravel, 
  *
  * La lección se documentó DOS VECES sin quedar blindada: `RevisorService::enAlcance()` seguía
  * usando `Str::contains` crudo sobre las 40 palabras del denylist mucho después de que
- * `ThomasService::apareceComoPalabra()` ya la aplicaba con palabra completa. Un aprendizaje
+ * `JarvisService::apareceComoPalabra()` ya la aplicaba con palabra completa. Un aprendizaje
  * documentado sobre un defecto vivo no es un aprendizaje: es un recordatorio de que ahí sigue.
  *
  * Irving migró `enAlcance()`/`triarNivelNull()`/`categoriaFronteraDura()` a la definición ÚNICA
