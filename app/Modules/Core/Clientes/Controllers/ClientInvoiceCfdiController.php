@@ -139,18 +139,18 @@ class ClientInvoiceCfdiController extends Controller
                 return null;
             }
 
-            $ns = $xml->getNamespaces(true);
-            $tfdNs = $ns['tfd'] ?? 'http://www.sat.gob.mx/TimbreFiscalDigital';
+            // XPath, no navegación por propiedad: SimpleXMLElement::children()
+            // colapsa el nodo cuando hay un solo hijo en ese namespace (el caso
+            // real de TimbreFiscalDigital, único hijo de Complemento), y entonces
+            // ->TimbreFiscalDigital busca un nieto que no existe → falso negativo.
+            $xml->registerXPathNamespace('tfd', 'http://www.sat.gob.mx/TimbreFiscalDigital');
+            $nodos = $xml->xpath('//tfd:TimbreFiscalDigital');
 
-            $complemento = $xml->children($ns['cfdi'] ?? 'http://www.sat.gob.mx/cfd/4')->Complemento;
-
-            if (! $complemento) {
+            if (! $nodos) {
                 return null;
             }
 
-            $timbre = $complemento->children($tfdNs)->TimbreFiscalDigital;
-
-            $uuid = (string) ($timbre['UUID'] ?? '');
+            $uuid = (string) ($nodos[0]['UUID'] ?? '');
 
             return $uuid !== '' ? $uuid : null;
         } catch (\Throwable $e) {
