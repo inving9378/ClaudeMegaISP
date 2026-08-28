@@ -2451,10 +2451,17 @@ class RoadmapCircuitoService
      * excluyendo en_progreso/bloqueados (tomablePorCircuito, #341), urgentes primero (ordered, #337).
      * #432 B2 — REGLA ÚNICA de no-colisión (conservadora):
      *   - mismo `modulo` en vuelo o ya elegido esta ronda → SERIALIZA (se salta).
-     *   - footprint DESCONOCIDO (`modulo` null/vacío) → corre SOLO: se despacha únicamente si nada hay
-     *     en vuelo ni elegido esta ronda, y mientras corre no se despacha nada más (no sabemos qué
-     *     archivos toca → no se puede garantizar disjunto). Poblar el footprint (B3) reduce esto.
+     *   - footprint DESCONOCIDO (`modulo` null/vacío) → SOLO UNO a la vez: nunca dos desconocidos
+     *     en vuelo simultáneamente (no sabemos qué archivos toca ninguno → no se puede garantizar
+     *     que sean disjuntos entre sí). Poblar el footprint (B3) reduce esto.
      *   - [PARKED-PROD] (frontera dura de producción) queda FUERA del pool paralelo.
+     *
+     * #212 (decisión de Irving, q3) — el desconocido es ADITIVO SEGURO por default: se despacha en
+     * un slot dedicado aunque haya OTROS módulos conocidos en vuelo (antes exigía la flota
+     * completamente quieta → los desconocidos urgentes nunca alcanzaban turno con 6 terminales en
+     * pool continuo). La colisión real contra ese trabajo conocido, si la hay, la atrapa después
+     * `detectarColisionesEnVuelo()` (diff de archivos real, agnóstico de módulo) y pausa al que
+     * reclamó más tarde — este pre-filtro solo necesita seguir evitando DOS desconocidos a la vez.
      */
     public function ejecutablesParalelo(array $excludeModulos, int $limit): array
     {
@@ -2531,12 +2538,15 @@ class RoadmapCircuitoService
             }
         }
 
-        // RONDA DEDICADA del footprint desconocido. Las condiciones de seguridad son las MISMAS que
-        // antes (nada en vuelo, nada elegido esta ronda) — lo único que cambia es CUÁNDO se evalúan:
-        // después de intentar llenar la flota con trabajo módulo-disjunto, no antes. Así el
-        // desconocido deja de ganarle el turno al trabajo que sí puede correr en paralelo.
-        // Un `urgente` conserva la prioridad que le da `ordenCola()` y sí desplaza a lo elegido.
-        if ($candidato !== null && $diferido && ! $unknownEnVuelo && empty($excludeModulos)
+        // SLOT DEDICADO del footprint desconocido (#212 — fix de inanición, decisión Irving q1+q3).
+        // Ya NO exige `empty($excludeModulos)` (flota entera quieta): un desconocido puede despacharse
+        // en su propio slot aunque OTROS módulos ya estén en vuelo — es aditivo seguro por default,
+        // la colisión real la atrapa `detectarColisionesEnVuelo()` post-hoc. La única condición de
+        // seguridad que se conserva es `! $unknownEnVuelo` (nunca dos desconocidos a la vez, ver
+        // docblock de arriba). Sigue prefiriendo el trabajo módulo-disjunto ya encontrado esta ronda
+        // (`empty($out)`) salvo que el candidato sea `urgente`, que conserva la prioridad de
+        // `ordenCola()` y desplaza a lo elegido.
+        if ($candidato !== null && $diferido && ! $unknownEnVuelo
             && (empty($out) || ! empty($candidato->urgente))) {
             return [['id' => (int) $candidato->id, 'modulo' => '']];
         }
