@@ -902,7 +902,7 @@ Módulo modular estándar (`module.json` id=200, slug `addon-flotas`, activo).
 - **Fotos:** se guardan en disco `local` (privado) sin ruta pública para servirlas → la galería usa `/storage/{path}` con fallback `@error`. Falta endpoint/симлink de servido en Fase 2.
 - **Multi-tenancy permisos:** los addons (MegaFamilia/Embajadores/WarRoom/Flotas) NO tienen entradas en `config/route_permission.php`; funcionan por bypass admin/DESARROLLADOR + `authorize()` en controller. Si se vende a un cliente ISP no-admin, agregar patrones `flotas/*` a ese config.
 - **GPS / mapa / "en movimiento":** placeholders Fase 1. Tracking en vivo = Fase 2.
-- **OCR documentos:** placeholder "Detección automática con IA (Fase 7)" visible, sin implementar.
+- **OCR documentos (RESUELTO — item #580, 2026-08-08):** ya no es placeholder. `FleetDocumentOcrService` lee el documento vía el módulo IA compartido (`IAAdaptadorFactory`) y prellena la pestaña Documentos con confirmación humana. Detalle en `docs/flotas-ocr-item-224-verificacion.md`.
 - Menú `module.json` apunta a `/flotas/mantenimientos|documentos|proveedores` que aún caen en `/{id}` (404) — vistas dedicadas pendientes (fuera de alcance Fase 1).
 
 ### Fase 2 — Tracking GPS (item #61)
