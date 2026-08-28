@@ -21,13 +21,13 @@ class SmartExportService
         'clientes' => [
             'label'     => 'Clientes',
             'icon'      => 'fas fa-users',
-            'tables'    => ['clients', 'client_main_informations', 'client_additional_informations', 'client_internet_services', 'client_voz_services', 'client_custom_services', 'client_bundle_services'],
+            'tables'    => ['clients', 'client_main_information', 'client_additional_information', 'client_internet_services', 'client_voz_services', 'client_custom_services', 'client_bundle_services'],
             'sensitive' => ['password', 'token', 'remember_token'],
         ],
         'finanzas' => [
             'label'     => 'Finanzas',
             'icon'      => 'fas fa-dollar-sign',
-            'tables'    => ['invoices', 'invoice_items', 'payments', 'payment_details', 'payment_accounts'],
+            'tables'    => ['invoices', 'invoice_items', 'payments', 'payments_details', 'payment_accounts'],
             'sensitive' => ['card_number', 'cvv', 'iban'],
         ],
         'planes' => [
@@ -45,7 +45,7 @@ class SmartExportService
         'vendedores' => [
             'label'     => 'Vendedores',
             'icon'      => 'fas fa-user-tie',
-            'tables'    => ['sellers', 'seller_types', 'seller_status', 'commissions', 'commission_details'],
+            'tables'    => ['sellers', 'seller_types', 'seller_status', 'commissions', 'commissions_details'],
             'sensitive' => ['password'],
         ],
         'inventario' => [
@@ -63,7 +63,7 @@ class SmartExportService
         'crm' => [
             'label'     => 'CRM',
             'icon'      => 'fas fa-handshake',
-            'tables'    => ['crms', 'crm_main_informations', 'crm_lead_informations'],
+            'tables'    => ['crms', 'crm_main_information', 'crm_lead_information'],
             'sensitive' => [],
         ],
         'usuarios' => [
