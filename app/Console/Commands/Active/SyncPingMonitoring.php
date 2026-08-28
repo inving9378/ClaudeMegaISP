@@ -124,13 +124,19 @@ class SyncPingMonitoring extends Command
             return;
         }
 
+        $changedAt = now();
+
         if ($previousStatus === 'down' && $newStatus === 'up') {
-            Log::info("SyncPingMonitoring: router {$router->id} recuperó conexión (offline→online) — sin disparar sync (Fase 1, item #699).");
+            $before = $router->mikrotik_status_changed_at ?: 'sin registro previo';
+            Log::info(
+                "SyncPingMonitoring: router {$router->id} ({$router->name}) recuperó conexión (offline→online) "
+                . "— antes: {$before}, después: {$changedAt->toDateTimeString()} — sin disparar sync (Fase 1, item #699)."
+            );
         }
 
         $router->update([
             'mikrotik_last_status'        => $newStatus,
-            'mikrotik_status_changed_at'  => now(),
+            'mikrotik_status_changed_at'  => $changedAt,
         ]);
     }
 
