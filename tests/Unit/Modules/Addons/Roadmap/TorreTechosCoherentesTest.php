@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase; // TestCase PURO de PHPUnit: NO bootea Laravel, 
 /**
  * CANDADO DE LOS TECHOS — y es una DESIGUALDAD, no una igualdad.
  *
- * Divergir hacia ABAJO está permitido y es sano: que `thomas.mecanico` sea `B` mientras la política
+ * Divergir hacia ABAJO está permitido y es sano: que `jarvis.mecanico` sea `B` mientras la política
  * base es `C` es una distinción real —el carril mecánico no tiene un brief humano detrás— y el
  * panel la muestra como información, no como inconsistencia.
  *

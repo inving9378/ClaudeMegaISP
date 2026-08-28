@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase; // TestCase PURO de PHPUnit: NO bootea Laravel, 
  * CANDADO #865 — `RevisorService::enAlcance()` no puede volver a `Str::contains`/`str_contains`
  * crudo sobre el denylist de alcance. Es exactamente el defecto que #865 reporta: la lección de
  * #338 («palabra completa, no substring») estaba documentada en CONTEXTO-MEGAISP.md §8.4-quinquies
- * y aun así `enAlcance()` seguía con substring mucho después de que `ThomasService` ya lo aplicaba.
+ * y aun así `enAlcance()` seguía con substring mucho después de que `JarvisService` ya lo aplicaba.
  *
  * Inspección de fuente (no ejecuta el método: `config()`/Eloquent exigirían bootear Laravel, y los
  * tests de este módulo evitan eso a propósito — ver hermanos en este mismo directorio). El
@@ -64,6 +64,6 @@ class RevisorEnAlcancePalabraCompletaTest extends TestCase
 
         $this->assertStringContainsString('DetectorTerminos::dispara(', $cuerpo,
             "`enAlcance()` dejó de delegar en `DetectorTerminos::dispara()`: el pre-filtro de alcance "
-            . 'del revisor y la frontera dura de Thomas volverían a tener dos semánticas distintas.');
+            . 'del revisor y la frontera dura de Jarvis volverían a tener dos semánticas distintas.');
     }
 }

@@ -7,7 +7,7 @@ use PHPUnit\Framework\TestCase; // TestCase PURO de PHPUnit: NO bootea Laravel, 
 /**
  * CANDADO DEL INVARIANTE DEL CARRIL «YA DECIDIDO».
  *
- * `ThomasService::evaluarYaDecidido()` aprueba un item cuyo brief está 100 % contestado. Pero
+ * `JarvisService::evaluarYaDecidido()` aprueba un item cuyo brief está 100 % contestado. Pero
  * «contestado» NO implica «contestado por un humano»: `AutopilotService::aplicar()` escribe
  * `opcion_elegida` con sus propias respuestas.
  *
@@ -71,7 +71,7 @@ class DestrabeNoRecibeAutoAprobadosTest extends TestCase
      */
     public function test_el_carril_rechaza_el_brief_vacio(): void
     {
-        $src = $this->fuente('app/Modules/Addons/Roadmap/Services/ThomasService.php');
+        $src = $this->fuente('app/Modules/Addons/Roadmap/Services/JarvisService.php');
         $cuerpo = $this->metodo($src, 'evaluarYaDecidido');
 
         $this->assertMatchesRegularExpression('/if \(\s*!\s*\$preguntas\s*\)/', $cuerpo,
@@ -87,7 +87,7 @@ class DestrabeNoRecibeAutoAprobadosTest extends TestCase
     public function test_una_pregunta_sin_opciones_no_cuenta_como_contestada(): void
     {
         $cuerpo = $this->metodo(
-            $this->fuente('app/Modules/Addons/Roadmap/Services/ThomasService.php'),
+            $this->fuente('app/Modules/Addons/Roadmap/Services/JarvisService.php'),
             'evaluarYaDecidido'
         );
 

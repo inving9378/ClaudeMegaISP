@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Modules\Addons\Roadmap;
 
-use App\Modules\Addons\Roadmap\Services\ThomasService;
+use App\Modules\Addons\Roadmap\Services\JarvisService;
 use PHPUnit\Framework\TestCase; // TestCase PURO de PHPUnit: NO bootea Laravel, NO toca BD.
                                  // (`tests/TestCase.php` corre `migrate:fresh` contra la BD
                                  // compartida de dev — inaceptable para un test de este carril).
@@ -11,11 +11,11 @@ use PHPUnit\Framework\TestCase; // TestCase PURO de PHPUnit: NO bootea Laravel, 
  * CANDADO DEL FIX #967 — «pregunta maestra contestada» ≠ «la acción física que implica ya ocurrió».
  *
  * Caso real #463↔#308: Irving eligió 9+ veces "mergear #308 a main" en la pregunta maestra de
- * #463, pero mergear es un botón manual suyo en la Torre — `ThomasService::evaluarYaDecidido()`
+ * #463, pero mergear es un botón manual suyo en la Torre — `JarvisService::evaluarYaDecidido()`
  * no lo verificaba, así que cada re-aprobación reabría el pool para descubrir el mismo bloqueo
  * ("#308 sigue sin mergear a main") otra vez, generando 22+ confirmaciones idénticas.
  *
- * `ThomasService::referenciasItemEnTexto()` es el núcleo puro (solo regex, sin BD) que extrae los
+ * `JarvisService::referenciasItemEnTexto()` es el núcleo puro (solo regex, sin BD) que extrae los
  * "#N" del texto de la pregunta maestra — se prueba aquí igual que `opcionElegidaEsEscalar()`
  * (candado del #893 hermano, ver `EvaluarYaDecididoEscalarTest`). La resolución de si esa
  * dependencia sigue sin resolver (nivel C + rama + sin merge_commit) vive en `evaluarYaDecidido()`
@@ -29,24 +29,24 @@ class ReferenciasItemEnTextoTest extends TestCase
         $texto = '#463 esta BLOQUEADO desde 2026-07-14: depende de que #308 '
             . '(registro module_contracts/module_contract_consumers) se mergee a main.';
 
-        $this->assertSame([463, 308], ThomasService::referenciasItemEnTexto($texto));
+        $this->assertSame([463, 308], JarvisService::referenciasItemEnTexto($texto));
     }
 
     public function test_multiples_referencias_unicas_en_orden_de_aparicion(): void
     {
         $texto = 'Ver #100, luego #200, y otra vez #100.';
 
-        $this->assertSame([100, 200], ThomasService::referenciasItemEnTexto($texto));
+        $this->assertSame([100, 200], JarvisService::referenciasItemEnTexto($texto));
     }
 
     public function test_texto_sin_referencias_devuelve_vacio(): void
     {
-        $this->assertSame([], ThomasService::referenciasItemEnTexto('Sin ninguna referencia aquí.'));
+        $this->assertSame([], JarvisService::referenciasItemEnTexto('Sin ninguna referencia aquí.'));
     }
 
     public function test_texto_vacio_no_revienta(): void
     {
-        $this->assertSame([], ThomasService::referenciasItemEnTexto(''));
+        $this->assertSame([], JarvisService::referenciasItemEnTexto(''));
     }
 
     /**
@@ -59,7 +59,7 @@ class ReferenciasItemEnTextoTest extends TestCase
      */
     public function test_guard_de_dependencia_sin_merge_esta_antes_del_bucle_de_preguntas(): void
     {
-        $f = dirname(__DIR__, 5) . '/app/Modules/Addons/Roadmap/Services/ThomasService.php';
+        $f = dirname(__DIR__, 5) . '/app/Modules/Addons/Roadmap/Services/JarvisService.php';
         $this->assertFileExists($f);
         $src = file_get_contents($f);
 
