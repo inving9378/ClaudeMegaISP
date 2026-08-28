@@ -47,6 +47,7 @@ class OltDriverManager
         return match($olt->driver) {
             Olt::DRIVER_SMARTOLT => $this->container->make(SmartOltDriver::class),
             Olt::DRIVER_HUAWEI   => $this->container->make(HuaweiDriver::class),
+            Olt::DRIVER_ZTE      => $this->container->make(NullZteDriver::class),
             default              => throw new UnknownOltDriverException($olt->driver),
         };
     }

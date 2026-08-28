@@ -16,6 +16,7 @@ class Olt extends Model
 
     const DRIVER_SMARTOLT = 'smartolt';
     const DRIVER_HUAWEI   = 'huawei';
+    const DRIVER_ZTE      = 'zte';
 
     const MOTOR_SMARTOLT = 'smartolt';
     const MOTOR_PROPIO   = 'propio';
