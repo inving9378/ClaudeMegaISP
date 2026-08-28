@@ -298,6 +298,7 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::get('/hijo/tareas', [ApiController::class, 'hijoTareas']);
         Route::post('/hijo/tareas/{id}/completar', [ApiController::class, 'completeTask'])->whereNumber('id');
         Route::get('/hijo/logros', [ApiController::class, 'hijoLogros']);
+        Route::get('/hijo/apps-permitidas', [ApiController::class, 'hijoAppsPermitidas']);
         Route::post('/hijo/solicitudes', [ApiController::class, 'hijoStoreRequest']);
 
         Route::post('/requests', [ApiController::class, 'storeRequest']);
