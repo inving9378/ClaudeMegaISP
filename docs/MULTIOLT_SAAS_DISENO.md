@@ -340,4 +340,45 @@ sigue vigente; solo cambia la casilla de "Camino A/B" por "Híbrido" en la fase 
 
 *Sección 10 agregada por el circuito CC (item #416) — 2026-07-15: registro de la decisión de
 Irving (Híbrido), sin código de implementación.*
+
+---
+
+## 11. Decisión: priorizar ZTE sobre V-SOL + vía de hardware piloto (2026-08-28)
+
+> Decisión de Irving, Hoja de Ruta item #283 (aprobado 2026-08-28). Opciones elegidas:
+> **(q1)** priorizar **ZTE** primero (driver + provisioning + telemetría), V-SOL después ·
+> **(q2)** conseguir el hardware piloto **comprando/prestando una OLT chica del vendor
+> priorizado** para lab de dev (aislado de producción) · **(q3)** alcance mínimo de la primera
+> entrega = **lectura + provisioning básico** (alta/baja de ONU, asignación de perfil de
+> servicio).
+
+**Qué se decidió:** entre ZTE y V-SOL (ninguno tiene código ni hardware disponible hoy — ver
+§5 y la auditoría `docs/AUDITORIA_OLT_MULTIMARCA_2026-07-15.md`), ZTE queda primero en la cola.
+V-SOL se retoma después, cuando ZTE tenga su driver validado contra hardware real. El acceso a
+hardware NO se resuelve usando una OLT de producción de Meganet (opción descartada por riesgo a
+clientes reales) ni pidiendo prestado a un ISP externo (opción descartada por dependencia de
+terceros): el camino elegido es que Meganet **adquiera o consiga en préstamo una OLT ZTE chica
+dedicada a lab de dev**, aislada de producción.
+
+**Qué se ejecutó en este item (código, sin hardware):** el "Camino recomendado" de §5 punto 1
+— el stub trivial y aditivo que reserva el espacio sin crear código sin verificar:
+- `Olt::DRIVER_ZTE = 'zte'` (constante nueva, `app/Models/Olt.php`).
+- `App\Services\OltDriver\NullZteDriver` — implementa `OltDriverInterface` completo; cada
+  método lanza `RuntimeException('ZTE driver no implementado')` (mismo patrón que el `NullSession`
+  ya existente para Huawei sin credenciales).
+- `OltDriverManager::driverFor()` resuelve `Olt::DRIVER_ZTE => NullZteDriver` (una OLT con
+  `driver='zte'` en BD ya resuelve al stub en vez de lanzar `UnknownOltDriverException`).
+- `UnknownOltDriverException` actualizado para listar `'zte'` entre los valores válidos.
+
+**Qué queda pendiente y por qué NO se hizo aquí:**
+- **Adquirir/conseguir la OLT ZTE de lab (q2):** es una acción de Irving en el mundo físico
+  (comprar o gestionar un préstamo), no ejecutable desde este circuito de código.
+- **`ZteDriver` real** (lectura + provisioning básico, per q3): bloqueado hasta que exista esa
+  OLT confirmada — implementarlo antes sería exactamente el riesgo que este mismo item señala
+  ("código sin verificar" / "bugs silenciosos en producción de un ISP cliente").
+- **Auditoría/diseño de V-SOL:** deprioritizada por la propia decisión de Irving (ZTE primero);
+  registrada como sub-item de seguimiento para retomarla en su momento, no en esta vuelta.
+
+*Sección 11 agregada por el circuito CC (item #283) — 2026-08-28: registro de la decisión de
+Irving (ZTE primero, hardware vía compra/préstamo de lab) + stub ZTE aditivo.*
 *Basado en auditoría directa del codebase — no estimaciones.*
