@@ -42,6 +42,7 @@
             @endif
             @if(auth()->user()->can('publish-content'))
                 <li><a href="{{ url('/marketing/publishing/campaign') }}"><span data-key="t-mkt-pubcam"><small><i class="fa fa-fw fa-paper-plane"></i></small> Publicar</span></a></li>
+                <li><a href="{{ url('/marketing/pilot-campaigns') }}"><span data-key="t-mkt-pilot"><small><i class="fa fa-fw fa-flask"></i></small> Piloto A/B</span></a></li>
             @endif
             @if(auth()->user()->can('manage-publication-queue'))
                 <li><a href="{{ url('/marketing/publishing/queue') }}"><span data-key="t-mkt-queue"><small><i class="fa fa-fw fa-list-ol"></i></small> Cola</span></a></li>
