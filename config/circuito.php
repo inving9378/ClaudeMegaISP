@@ -55,13 +55,22 @@ return [
     | Antes se tomaba en cuanto ordenaba primero con la flota quieta y se cortaba la ronda ahí mismo,
     | así que un solo item sin clasificar se llevaba las 6 terminales aunque detrás de él hubiera
     | trabajo módulo-disjunto listo. Con esto en `true`, el desconocido se DIFIERE al cierre del
-    | barrido: sólo se despacha si la flota sigue quieta y no hubo nada más que despachar (o si es
-    | `urgente`, que conserva su prioridad de `ordenCola()`).
+    | barrido: sólo se despacha si no hubo nada más que despachar esta ronda (o si es `urgente`, que
+    | conserva su prioridad de `ordenCola()`).
     |
-    | ⚠️ CONTRAPARTIDA: con cola sostenida de trabajo módulo-disjunto, el desconocido puede esperar
-    | varias rondas. El desatasco real es CLASIFICARLO (`circuito:clasificar-modulo`); el detector
-    | `sin_clasificar` del auditor ya emite el item que lo pide. Ponerlo en `false` restaura el
-    | comportamiento anterior sin redeploy.
+    | #212 (2026-08-28, decisión Irving) — YA NO exige la flota completamente quieta. Antes de este
+    | fix, la ronda dedicada además requería `nada en vuelo` → con 6 terminales en pool continuo casi
+    | siempre hay ALGO corriendo, así que los desconocidos (5 urgentes del incidente P0) nunca
+    | alcanzaban turno: inanición total. Ahora se despacha en su propio slot aunque otros módulos
+    | conocidos estén en vuelo (aditivo seguro por default); la única serialización que se conserva
+    | es contra OTRO desconocido ya en vuelo (`desconocidoEnVuelo()`) — nunca dos a la vez. La
+    | colisión real contra trabajo conocido, si la hay, la atrapa `detectarColisionesEnVuelo()`
+    | (diff de archivos real, post-hoc).
+    |
+    | ⚠️ CONTRAPARTIDA: con cola sostenida de trabajo módulo-disjunto NO urgente, el desconocido puede
+    | seguir esperando varias rondas (solo se prefiere sobre `$out` si es urgente). El desatasco real
+    | es CLASIFICARLO (`circuito:clasificar-modulo`); el detector `sin_clasificar` del auditor ya
+    | emite el item que lo pide. Ponerlo en `false` restaura el comportamiento legacy sin redeploy.
     |
     */
     'desconocido_diferido' => (bool) env('CIRCUITO_DESCONOCIDO_DIFERIDO', true),
