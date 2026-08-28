@@ -1304,3 +1304,25 @@ la ruta correcta para cuando se retome (mapa del menor en `megafamilia-rn` con `
 + OSM, no `google_maps_flutter`; si algún día se necesita Google Maps real, pasar por el módulo
 compartido `Mapas`, no una key aparte). Detalle completo en
 `docs/megafamilia-google-maps-item-75-verificacion.md`. **Sin cambio de código.**
+
+---
+
+## Item #639 — Vista Hijo APK: mocks de Logros/Apps permitidas/Tiempo de pantalla (RESUELTO — decompuesto en sub-items)
+
+El item pedía reemplazar 3 mocks de la Vista Hijo en `megafamilia-rn` por datos reales:
+`LogrosScreen.tsx` (arreglo `BADGES` hardcodeado, sin llamar a `loadLogros()`), "Apps
+permitidas" en `HijoDashboard.tsx` (arreglo `APPS` hardcodeado, sin relación con
+`parental_app_blocks`, que no tiene UI admin todavía) y `minutesUsedToday`/`minutesLimitToday`
+en `useHijoStore.ts` (hardcodeados, requieren instrumentación nativa Android). No cabía en una
+sola vuelta — una sesión previa del circuito (`wt-1`) ya lo descompuso siguiendo el propio
+"orden sugerido" del item: **#658** (fase 1 — el WIP de `LogrosScreen.tsx`+`useHijoStore.ts`
+ya está escrito y verificado con `tsc --noEmit` limpio, pero **sin commitear**: el clasificador
+de auto-mode bloquea git fuera del worktree del circuito en el repo `megafamilia-rn`, que no
+tiene worktree dedicado — requiere que alguien con permiso de git ahí lo comitee), **#659**
+(fase 2+3 — Apps permitidas, requiere construir primero la UI admin de `parental_app_blocks`) y
+**#661** (fase 4 — tiempo de pantalla real, instrumentación nativa Android, decisión de
+alcance/plataforma pendiente con Irving). Esta vuelta (`wt-5`) re-verificó ambos hallazgos de
+forma independiente (WIP sigue correcto, bloqueo de git sigue vigente) y cerró #639 como
+paraguas resuelto — el trabajo real vive en los 3 sub-items. Detalle completo en
+`docs/megafamilia-hijo-mocks-item-639-verificacion.md`. **Sin cambio de código propio** (el
+código del WIP ya existía de una sesión anterior a `wt-1`).
