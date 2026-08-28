@@ -2833,3 +2833,45 @@ ningún ajuste de automatización levanta una frontera.
 - Validación visual de Irving en el navegador (`/releases?tab=configuracion`).
 - 2 tests de `DiagnosticoItemServiceTest` erran por la BD de tests (`megaisp_test` no tiene
   `torre_config`). **Pre-existentes** — verificado corriéndolos en `main`.
+
+## 2026-08-28 15:16 — Item #176: la cascada de errores dejó de dispararse (arreglado — leía un log congelado)
+
+**Contexto:** el item pedía un umbral de errores por minuto que avisara ante otro incidente
+como el del 22-24 ago (268.896 excepciones sin detectar). Al investigar encontré que ese
+umbral **ya existía**: `CompuertasService::cCascadaErrores()` (fila "Cascada de errores" del
+tablero de compuertas de la Torre) se agregó el mismo 24-ago junto con todo el motor de
+compuertas, y pinta la fila roja si `errores_ult_min > 60`.
+
+**El bug real:** `CompuertasSondaCommand::medirLogs()` (la sonda que alimenta esa compuerta,
+corre cada minuto por cron) leía `storage/logs/laravel.log` a secas. El item **#175**
+—resuelto el mismo día, por el mismo incidente— cambió el canal de logging default
+(`stack`) de `single` a `daily` para que el log rotara y no volviera a crecer sin control.
+Efecto colateral no detectado: `laravel.log` quedó **congelado** desde ese cambio (dejó de
+recibir escrituras; en prod se ve con `mtime` del 26-ago mientras los `laravel-{fecha}.log`
+siguen creciendo a diario). La sonda seguía leyendo el archivo congelado → `errores_ult_min`
+llevaba días reportando **0 siempre** → la fila "Cascada de errores" nunca podía ponerse roja,
+sin que ninguna pantalla lo dijera. Una alarma que mide 0 para siempre es indistinguible de
+un sistema sano — exactamente la falsa calma que el propio item pedía evitar.
+
+**Fix** (rama `circuito/item-176-alerta-de-errores-en-cascada-268896-ex`, encolada para
+merge): `rutaLogActivo()` deriva el log activo real desde `config('logging.*')` (sigue el
+canal `stack` hasta su canal real, arma el nombre fechado si es `daily`) en vez de una ruta
+fija. De paso corregí que `errores_ult_min` contaba **cualquier línea** del minuto actual, no
+solo errores — ahora filtra por nivel `ERROR|CRITICAL|ALERT|EMERGENCY`.
+
+**Verificado:** `php -l` limpio; corrida en vivo del comando (`laravel_log_bytes` coincide
+con el tamaño real del log activo); `CompuertasService::tablero()` vía tinker devuelve la
+fila `cascada` leyendo el snapshot corregido de punta a punta; grep manual sobre logs reales
+de prod (`laravel-2026-08-27.log`) confirmó que el filtro nuevo cuenta las 40 líneas `ERROR`
+de un minuto real y excluye correctamente líneas `INFO` de otro minuto (el comportamiento
+viejo las habría contado como "error").
+
+**Sub-item #653 (sin ejecutar, registrado para otra vuelta):** el mismo bug existe en el
+archivo hermano `JarvisVigilarCommand::medirLogs()` (mide **tamaño** de log por worktree, no
+errores/min) — su glob `raiz_worktrees/*/storage/logs/laravel.log` tampoco matchea nada desde
+que #175 rotó los logs a `laravel-{fecha}.log`, así que la alerta `log_grande` (>500MB) está
+ciega en los 7 worktrees. Quedó fuera de esta vuelta por ser una alerta distinta (tamaño, no
+tasa de errores) y requerir manejar N archivos por worktree en vez de uno.
+
+**Enlace de revisión:** `/releases?tab=configuracion` → tablero de compuertas → fila "Cascada
+de errores".
