@@ -1336,3 +1336,28 @@ forma independiente (WIP sigue correcto, bloqueo de git sigue vigente) y cerró 
 paraguas resuelto — el trabajo real vive en los 3 sub-items. Detalle completo en
 `docs/megafamilia-hijo-mocks-item-639-verificacion.md`. **Sin cambio de código propio** (el
 código del WIP ya existía de una sesión anterior a `wt-1`).
+
+---
+
+## Item #103 — Celular conductor como tracker GPS en APK (RESUELTO — ya implementado)
+
+El item daba por hecho que faltaba la UI de APK (botón activar tracking, permiso de ubicación,
+loop de envío) sobre un backend `POST /conductor/posicion` que asumía ya existía en
+`FleetPositionService`/Flotas. Investigado (item #103): **backend y UI ya están construidos,
+mergeados y funcionando de punta a punta** — repartidos entre este repo y `megafamilia-rn`
+(React Native, checkout separado en `/var/www/megafamilia-rn`, solo leído — no tocado, mismo
+criterio de aislamiento #334 que #639). Backend real:
+`ConductorApiController::reportarPosicion` (`app/Modules/Addons/MegaFamilia/`, NO en
+`Flotas/FleetGpsController` como asumía la premisa), self-scoped por `FleetAssignment`, con
+anti-jump (descarta saltos >1km en <5s) y reuso de `FleetPositionService::saveBatch` sin tocar
+su lógica. Un commit previo (`6ff9bad1`) agregó por error un endpoint duplicado en `Flotas` y
+el commit siguiente (`a3d38742`, mismo día) lo revirtió al encontrar el real vía grep amplio —
+regla "servicios compartidos únicos"; se conservó solo la migración del enum `'phone'` de
+`fleet_devices.brand`, que corregía un bug real de `STRICT_TRANS_TABLES`. UI real en
+`megafamilia-rn`: rol `conductor` → `ConductorNavigator` → `ConductorDashboard` → tab "Mapa"
+(`MapaTab.tsx`) con botón "▶ Iniciar tracking", `PermissionsAndroid.request(ACCESS_FINE_LOCATION)`
+y `setInterval` cada 30s (comentario propio del código: *"mismo intervalo que Flutter"* — se
+portó tal cual de la app Flutter predecesora al hacer el RN rewrite). El rol `conductor` existe
+en BD pero con 0 usuarios asignados hoy — rollout de negocio (asignar choferes reales), fuera de
+alcance del item (que pedía la capacidad técnica, no el alta). Detalle completo en
+`docs/flotas-conductor-gps-item-103-verificacion.md`. **Sin cambio de código.**
