@@ -1043,6 +1043,15 @@ return [
             // segundo: dos relojes del mismo hecho es cómo empieza siempre la deriva.
             'beat_key'    => 'circuito_scheduler_beat',
             'formato'     => 'unix',
+            // #197 — a propósito SIN `excluye_opciones`/`exige_opciones` aquí, igual que los otros
+            // 3 procesos `formato => 'unix'` de este archivo (destrabar-bandeja/auditor/watchdog):
+            // `sellarLatido()` retorna temprano para `formato==='unix'` ANTES de leer esas llaves
+            // (RoadmapCircuitoService::sellarLatido), así que declararlas aquí sería config sin
+            // consumidor. La protección real contra dry-run vive INLINE en el propio comando
+            // (`SchedulerCommand::handle()`, `if (! $this->option('dry'))` antes de sellar el
+            // latido) — verificado empíricamente 2026-08-28: `circuito:scheduler --dry` NO mueve
+            // `circuito_scheduler_beat`. Si se re-audita este archivo y parece "el scheduler es
+            // el único sin excluir --dry", NO es un bug: es el patrón correcto para self-sealing.
             'si_no_corre' => 'NADIE reparte trabajo: las 6 terminales quedan paradas',
             // #942 — texto tal cual aparece en el crontab real de `meganet` (verificado con
             // `crontab -l` el 2026-08-21). Solo lectura: se edita en el crontab, no aquí.
