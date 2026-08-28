@@ -181,6 +181,13 @@ return [
             'level'  => 'debug',
             'days'   => 30,
         ],
+
+        'pagos_recurrentes' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/pagos-recurrentes.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
     ],
 
 ];

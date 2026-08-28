@@ -75,8 +75,13 @@ class Kernel extends ConsoleKernel
         $schedule->command('embajadores:rebuild-kpis')->dailyAt('04:00')->withoutOverlapping()->onOneServer();
 
         // Portal de Pago — recurrencia asistida (genera ligas del mes, NO auto-débito).
-        // Activar en .198 — handoff al programador (descomentar cuando el módulo entre en producción).
-        // $schedule->command('pagos:enviar-recurrentes')->daily()->withoutOverlapping();
+        // Gateado por config('pagos.recurrentes_cron_enabled') (env PAGOS_RECURRENTES_CRON_ENABLED,
+        // false por default — mismo patrón que domiciliacion.cobro_live_enabled). El schedule ya
+        // queda listo con el deploy; activarlo en .198 es flip de env, decisión explícita de Irving
+        // (item roadmap #163, q1: primero dry-run en dev, recién después activar en producción).
+        if (config('pagos.recurrentes_cron_enabled')) {
+            $schedule->command('pagos:enviar-recurrentes')->daily()->withoutOverlapping();
+        }
 
         // Deploy remoto — ejecuta los DeploymentLogs pendientes creados por el webhook.
         // Se desactiva en consumidoras (GITHUB_UPDATES_ENABLED=true): en esas instancias
