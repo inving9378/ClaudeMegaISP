@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\CobranzaBlaster;
 
 use App\Modules\Addons\CobranzaBlaster\Console\AmiEventListenerCommand;
+use App\Modules\Addons\CobranzaBlaster\Console\LlamadaPruebaCommand;
 use App\Modules\Addons\CobranzaBlaster\Services\AmiConnectionService;
 use App\Modules\Addons\CobranzaBlaster\Services\CobranzaCampanaService;
 use App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService;
@@ -30,6 +31,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 AmiEventListenerCommand::class,
+                LlamadaPruebaCommand::class,
             ]);
         }
     }
