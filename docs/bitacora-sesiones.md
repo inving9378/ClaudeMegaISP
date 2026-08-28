@@ -2993,3 +2993,38 @@ cuenta STP activa; `POST notify-transfer` creó el `reported_payment` con `payme
 **Enlace de revisión:** no aplica UI propia — endpoints consumidos por la APK MegaFamilia
 (`api/megafamilia/payments/clabe` y `api/megafamilia/payments/notify-transfer`); verificados por
 tinker según el detalle de arriba.
+
+## 2026-08-28 16:14 — Item #670: auditoría/diseño V-SOL (retomar tras ZTE)
+
+**Worker:** wt-4. **Rama:** `circuito/item-670-auditoriadiseno-v-sol-driver-olt-re` (integrada,
+merge encolado al runner on-box).
+
+Item de seguimiento de #283 (decisión "ZTE primero, V-SOL después") y Fase G de
+`docs/AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` §4. Se agregó **§12 a
+`docs/MULTIOLT_SAAS_DISENO.md`** ("Tercer driver: V-SOL"), análogo al §5 que ya existía para ZTE:
+
+- Confirmado que V-SOL sigue en cero código/mención en todo el repo (mismo grep que en julio, sin
+  cambios).
+- Qué necesitaría un `VsolDriver` (mapeo a los 15 métodos de `OltDriverInterface`, mismo patrón
+  que Huawei/ZTE — el contrato ya es agnóstico de marca).
+- Por qué V-SOL es **más fragmentado** que ZTE: es un ODM que se revende bajo múltiples marcas, sin
+  un firmware/protocolo único, y sin siquiera un modelo candidato identificado (a diferencia de
+  ZTE, que ya tiene familias de firmware documentadas en §5).
+- **Decisión de alcance de esta vuelta (registrada en el item):** NO se creó el stub
+  `NullVsolDriver`/`Olt::DRIVER_VSOL`, a diferencia del `NullZteDriver` que sí se creó en #283.
+  Razón: el stub ZTE se creó como parte de una decisión de negocio YA TOMADA por Irving (#283: ZTE
+  primero, con vía de hardware confirmada — compra/préstamo). Para V-SOL esa decisión de negocio
+  sigue sin existir (el propio #283 la difirió sin fecha ni ISP piloto) — crear el enum ahora
+  habría sido anticipar una priorización que le toca decidir a Irving, no al circuito. Se marcó la
+  Fase G del plan de `AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` como hecha, apuntando a §12.
+
+**Cambio:** 2 archivos, solo `docs/` (`MULTIOLT_SAAS_DISENO.md` +106 líneas, sección nueva;
+`AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` 1 línea, fila de la tabla). **Sin código funcional
+tocado.** Verificado: fences de markdown balanceados, `git diff --stat` limpio. Item marcado
+`sin_ui=true` (auditoría en documentación, sin pantalla que revisar) con `enlace_revision` al
+archivo/sección.
+
+**Siguiente paso real (fuera de este item):** cuando Irving confirme un ISP piloto o vía de
+hardware V-SOL concreta (análogo a la decisión q2 de #283 para ZTE), el paso mecánico siguiente es
+trivial: `Olt::DRIVER_VSOL` + `NullVsolDriver` + entrada en `OltDriverManager` — mismo patrón ya
+ejecutado para ZTE.
