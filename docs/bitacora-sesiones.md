@@ -3112,3 +3112,31 @@ las 6 terminales (`/home/meganet/circuito/wt-N`).
   reiniciaron a media corrida. Se dejó `provision-test.sh` (aditivo) para reprovisionarla.
 
 **Pendiente de Irving:** validación visual (4 pantallas) y decidir qué hacer con los commits en main.
+
+## 2026-08-28 16:43 — Item #66 (wt-6): Flotas Fase 7 "IA agrupada" cerrada como paraguas
+
+**Item:** #66 "Flotas Fase 7 — IA agrupada (OCR, predicción, asistente conversacional, análisis
+comparativo)". Venía escalado dos veces (des-trabe Opus 2026-08-26) por estar vacío y mezclar 4
+decisiones distintas; el brief recomendó Opción A (partir en items, priorizar solo OCR).
+
+**Investigado antes de picar código:**
+- OCR (1/4 subsistemas) **ya estaba resuelto** por otro item independiente (#580/#224,
+  `FleetDocumentOcrService`) — exactamente lo que el brief des-trabe recomendaba priorizar.
+- Los otros 3 (predicción de servicios, asistente conversacional, análisis comparativo de gastos)
+  están bloqueados por la **propia precondición del item**: "DESPUES de Fases 1-6 estables y con
+  minimo 6 meses de datos reales". Solo existen documentadas Fases 1-3 de Flotas y esto es DEV
+  (sin histórico real de producción) — no se puede construir sin violar el propio spec.
+
+**Acción:** descompuse en 3 sub-items de backlog, cada uno con su precondición explícita y las
+decisiones de producto (proveedor IA, presupuesto, alcance) pendientes de Irving:
+- **#686** — Predicción de próximos servicios (historial + km)
+- **#687** — Asistente conversacional sobre la flota
+- **#688** — Análisis comparativo de gastos
+
+Commit del doc de verificación (`docs/flotas-fase7-ia-agrupada-item-66-verificacion.md`) en rama
+`circuito/item-66-flotas-fase-7-ia-agrupada-ocr-predic`, integrado vía `circuito:integrar` (merge
+encolado al runner on-box). Sin cambio de código funcional — solo documentación + roadmap.
+
+**Estado final del #66:** auto-parqueado como **paraguas** (`aprobado_irving`/`pending`, excluido
+del pool automático) por el guard `(2b)` de `RoadmapItem` — cierra solo cuando los 3 hijos cierren.
+Mismo patrón que #75/#123/#639.
