@@ -42,9 +42,20 @@
     </div>
     @endif
 
+    @if($cfdi)
+    <div style="margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid var(--border)">
+        <div style="font-size:.75rem; color:var(--text-muted); text-transform:uppercase; font-weight:600; margin-bottom:.5rem">Factura fiscal (CFDI)</div>
+        @if($cfdi->uuid_fiscal)
+        <div style="font-size:.8rem; color:var(--text-muted); margin-bottom:.75rem">UUID: {{ $cfdi->uuid_fiscal }}</div>
+        @endif
+        <a href="{{ route('portal.facturas.cfdi.pdf', $factura->id) }}" class="btn btn-outline btn-sm">📄 Descargar PDF</a>
+        <a href="{{ route('portal.facturas.cfdi.xml', $factura->id) }}" class="btn btn-outline btn-sm">🧾 Descargar XML</a>
+    </div>
+    @else
     <div style="margin-top:1.5rem; padding:.75rem; background:var(--surface); border-radius:8px; font-size:.82rem; color:var(--text-muted)">
         💡 El timbrado CFDI estará disponible próximamente. Para solicitar tu factura fiscal, contacta a nuestro equipo de soporte.
     </div>
+    @endif
 
     {{-- Botón de pago: visible solo para facturas pendientes/atrasadas y con OpenPay habilitado --}}
     @php
