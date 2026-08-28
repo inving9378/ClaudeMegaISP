@@ -15,6 +15,7 @@ use App\Models\Ticket;
 use App\Models\TicketThread;
 use App\Models\User;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
+use App\Modules\Addons\MegaFamilia\Models\ParentalAppBlock;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
 use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
 use App\Modules\Addons\MegaFamilia\Models\ParentalLocation;
@@ -1480,6 +1481,35 @@ class ApiController extends Controller
             'badge' => 'Insignia',
             default => 'Logro',
         };
+    }
+
+    /**
+     * Apps bloqueadas configuradas por el padre (portal /portal/megafamilia),
+     * visibles para el hijo. `parental_app_blocks` sólo registra lo que el
+     * padre bloqueó explícitamente — no existe catálogo de apps instaladas
+     * en el dispositivo — así que esto es la lista de bloqueadas, no un
+     * universo de "permitidas" (mismo criterio anti-inventar de #639 q3).
+     * Mismo patrón que hijoTareas()/hijoLogros(): sin cuenta → vacío.
+     */
+    public function hijoAppsPermitidas(): JsonResponse
+    {
+        $account = ParentalAccount::where('user_id', Auth::id())->first();
+        if (! $account) {
+            return response()->json([]);
+        }
+
+        $profileIds = $account->profiles()->pluck('id');
+        $blocks = ParentalAppBlock::whereIn('profile_id', $profileIds)
+            ->where('blocked', true)
+            ->orderBy('app_name')
+            ->get(['id', 'app_name', 'package_name', 'category']);
+
+        return response()->json($blocks->map(fn ($b) => [
+            'id' => $b->id,
+            'name' => $b->app_name,
+            'packageName' => $b->package_name ?: null,
+            'category' => $b->category,
+        ]));
     }
 
     /**
