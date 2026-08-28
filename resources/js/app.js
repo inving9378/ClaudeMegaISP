@@ -103,6 +103,7 @@ import PagosCuentas from "./components/module/portalpago/PagosCuentas.vue";
 import PagosLinks from "./components/module/portalpago/PagosLinks.vue";
 // Documentación Corporativa (addon-documentacion-corporativa)
 import DcExpediente from "./components/module/documentacion-corporativa/DcExpediente.vue";
+import DcConcesiones from "./components/module/documentacion-corporativa/DcConcesiones.vue";
 import MegaFamiliaIngresos from "./components/module/megafamilia/MegaFamiliaIngresos.vue";
 import MegaFamiliaAlertas from "./components/module/megafamilia/MegaFamiliaAlertas.vue";
 import MegaFamiliaSolicitudes from "./components/module/megafamilia/MegaFamiliaSolicitudes.vue";
@@ -789,6 +790,7 @@ const app = createApp({
         'pagos-links': PagosLinks,
         // Documentación Corporativa (addon-documentacion-corporativa)
         'dc-expediente': DcExpediente,
+        'dc-concesiones': DcConcesiones,
         // Marketing Fase 4.5b — Director Creativo IA
         'marketing-campaign-generator-view': MarketingCampaignGeneratorView,
         'voice-comparator-view': VoiceComparatorView,
