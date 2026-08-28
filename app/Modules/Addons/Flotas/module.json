@@ -71,6 +71,10 @@
         {
             "name": "fleet.rules.manage",
             "description": "Crear, editar y eliminar reglas de alertas"
+        },
+        {
+            "name": "fleet.push.manage",
+            "description": "Registrar y eliminar el token de notificaciones push del dispositivo propio (APK conductor)"
         }
     ],
     "menu": [
@@ -157,7 +161,9 @@
         { "method": "POST",   "path": "/flotas/api/geocercas",                          "description": "Crear geocerca",                                        "scope": "fleet.geofences.manage",   "permission": "fleet.geofences.manage" },
         { "method": "GET",    "path": "/flotas/api/vehiculos/{id}/geofence-events",     "description": "Eventos de entrada/salida de geocerca del vehículo",    "scope": "fleet.gps.view",           "permission": "fleet.gps.view" },
         { "method": "GET",    "path": "/flotas/api/reglas",                             "description": "Listar reglas de alertas de geocerca",                  "scope": "fleet.rules.view",         "permission": "fleet.rules.view" },
-        { "method": "GET",    "path": "/flotas/api/suscripciones/client/{clientId}",    "description": "Suscripción Flotas SaaS de un cliente",                 "scope": "fleet.subscriptions.manage","permission": "fleet.subscriptions.manage" }
+        { "method": "GET",    "path": "/flotas/api/suscripciones/client/{clientId}",    "description": "Suscripción Flotas SaaS de un cliente",                 "scope": "fleet.subscriptions.manage","permission": "fleet.subscriptions.manage" },
+        { "method": "POST",   "path": "/flotas/api/push-tokens",                        "description": "Registrar/actualizar token push del dispositivo propio","scope": "fleet.push.manage",         "permission": "fleet.push.manage" },
+        { "method": "DELETE", "path": "/flotas/api/push-tokens/{id}",                   "description": "Eliminar token push del dispositivo propio",            "scope": "fleet.push.manage",         "permission": "fleet.push.manage" }
     ],
     "client_tab": {
         "label": "Plan Flotas",
