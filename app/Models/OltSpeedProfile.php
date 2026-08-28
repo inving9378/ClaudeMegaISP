@@ -1,20 +1,8 @@
 <?php
 
+// Modelo movido a App\Modules\Addons\GestionRed\Models\OltSpeedProfile (roadmap #284).
+// Alias de compatibilidad: los consumidores existentes siguen usando App\Models\OltSpeedProfile.
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-
-class OltSpeedProfile extends Model
-{
-    use HasFactory;
-
-    public $incrementing = false;
-
-    protected $fillable = [
-        'name',
-        'speed',
-        'direction',
-        'type',
-    ];
-}
+class_alias(\App\Modules\Addons\GestionRed\Models\OltSpeedProfile::class, __NAMESPACE__ . '\\OltSpeedProfile');
