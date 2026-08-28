@@ -75,7 +75,7 @@ class ExpedienteController extends Controller
             ])->values(),
             'mostrar_selector' => $this->empresas->mostrarSelector(),
             'apartados'        => $visibles,
-            'global'           => $this->globalDe($visibles),
+            'global'           => $this->completitud->agregarGlobal($visibles),
             'calculado_at'     => $tablero['calculado_at'],
         ]);
     }
@@ -122,25 +122,5 @@ class ExpedienteController extends Controller
         $user = auth()->user();
 
         return $user !== null && $user->can($permiso);
-    }
-
-    /** Global recalculado sobre lo que este usuario SÍ puede ver. */
-    private function globalDe(array $apartados): array
-    {
-        $obligatorios = array_sum(array_column($apartados, 'obligatorios'));
-        $resueltos    = array_sum(array_column($apartados, 'resueltos'));
-        $porcentaje   = $obligatorios === 0 ? 100 : (int) round($resueltos / $obligatorios * 100);
-
-        return [
-            'obligatorios' => $obligatorios,
-            'resueltos'    => $resueltos,
-            'porcentaje'   => $porcentaje,
-            'semaforo'     => match (true) {
-                $porcentaje >= 100 => 'verde',
-                $porcentaje >= 34  => 'amarillo',
-                default            => 'rojo',
-            },
-            'apartados'    => count($apartados),
-        ];
     }
 }

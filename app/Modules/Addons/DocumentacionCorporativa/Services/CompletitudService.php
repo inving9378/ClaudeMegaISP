@@ -50,6 +50,28 @@ class CompletitudService
         return $this->resumirConceptos($apartado, $conceptos, $empresaId);
     }
 
+    /**
+     * Agrega un conjunto de apartados en un solo global. Público porque el
+     * controlador lo necesita para recalcular sobre lo que ESE usuario puede ver
+     * — y si lo hiciera por su cuenta habría dos definiciones de "porcentaje" y
+     * dos de "semáforo", que es exactamente como divergen.
+     */
+    public function agregarGlobal(array $apartados): array
+    {
+        $obligatorios = array_sum(array_column($apartados, 'obligatorios'));
+        $resueltos    = array_sum(array_column($apartados, 'resueltos'));
+        $porcentaje   = $this->porcentaje($resueltos, $obligatorios);
+
+        return [
+            'obligatorios' => $obligatorios,
+            'resueltos'    => $resueltos,
+            'porcentaje'   => $porcentaje,
+            'medible'      => $obligatorios > 0,
+            'semaforo'     => $this->semaforo($porcentaje, $obligatorios),
+            'apartados'    => count($apartados),
+        ];
+    }
+
     private function calcularTablero(int $empresaId): array
     {
         $apartados = DcApartado::deEmpresa($empresaId)->activos()
@@ -72,13 +94,8 @@ class CompletitudService
         }
 
         return [
-            'apartados' => $filas,
-            'global'    => [
-                'obligatorios' => $totalObligat,
-                'resueltos'    => $totalResueltos,
-                'porcentaje'   => $this->porcentaje($totalResueltos, $totalObligat),
-                'semaforo'     => $this->semaforo($this->porcentaje($totalResueltos, $totalObligat)),
-            ],
+            'apartados'    => $filas,
+            'global'       => $this->agregarGlobal($filas),
             'calculado_at' => now()->toDateTimeString(),
         ];
     }
@@ -131,6 +148,7 @@ class CompletitudService
         $porcentaje = $this->porcentaje($resueltos, $obligatorios);
 
         return [
+            'medible'      => $obligatorios > 0,
             'apartado_id'  => $apartado->id,
             'clave'        => $apartado->clave,
             'nombre'       => $apartado->nombre,
@@ -142,27 +160,41 @@ class CompletitudService
             'resueltos'    => $resueltos,
             'faltantes'    => $faltantes,
             'porcentaje'   => $porcentaje,
-            'semaforo'     => $this->semaforo($porcentaje),
+            'semaforo'     => $this->semaforo($porcentaje, $obligatorios),
             'responsables' => $this->responsables($apartado, $empresaId),
             'conceptos'    => $detalle,
         ];
     }
 
     /**
-     * Un apartado sin conceptos obligatorios está completo por definición: no hay
-     * nada que exigir. Devolver 0 % ahí lo pintaría en rojo para siempre.
+     * Un apartado sin conceptos obligatorios NO es medible, y eso no es lo mismo
+     * que estar completo.
+     *
+     * La primera versión devolvía 100 % ahí, con el argumento de que no hay nada
+     * que exigir. El resultado real fue que el apartado IV —cartera, saldos,
+     * proveedores, ingresos: justo lo que el consejo pidió— salía en VERDE con
+     * cero datos dentro. Un tablero que dice "completo" sobre un apartado vacío
+     * es peor que uno que dice "rojo": el rojo se revisa, el verde no.
+     *
+     * Ahora esos apartados devuelven 0 % con semáforo `gris` y `medible = false`,
+     * y la interfaz pinta "—" en vez de un porcentaje. No cuentan para el global
+     * (su denominador es cero de todos modos).
      */
     private function porcentaje(int $resueltos, int $obligatorios): int
     {
         if ($obligatorios === 0) {
-            return 100;
+            return 0;
         }
 
         return (int) round($resueltos / $obligatorios * 100);
     }
 
-    private function semaforo(int $porcentaje): string
+    private function semaforo(int $porcentaje, ?int $obligatorios = null): string
     {
+        if ($obligatorios === 0) {
+            return 'gris';
+        }
+
         return match (true) {
             $porcentaje >= 100 => 'verde',
             $porcentaje >= 34  => 'amarillo',

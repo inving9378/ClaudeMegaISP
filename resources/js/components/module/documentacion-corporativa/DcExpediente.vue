@@ -46,7 +46,7 @@
                     <q-card-section class="text-center">
                         <i class="bi bi-clipboard-check" style="font-size:26px" :style="{ color: colorSemaforo(global.semaforo) }"></i>
                         <div class="text-h4 text-weight-bold" :style="{ color: colorSemaforo(global.semaforo) }">
-                            {{ global.porcentaje }}%
+                            {{ global.medible === false ? '—' : global.porcentaje + '%' }}
                         </div>
                         <div class="text-subtitle2">Completitud del expediente</div>
                         <div class="text-caption text-grey">
@@ -108,11 +108,16 @@
                             <div
                                 class="text-h6 text-weight-bold q-ml-sm"
                                 :style="{ color: colorSemaforo(ap.semaforo) }"
-                            >{{ ap.porcentaje }}%</div>
+                            >
+                                {{ ap.medible === false ? '—' : ap.porcentaje + '%' }}
+                                <q-tooltip v-if="ap.medible === false">
+                                    Este apartado no tiene conceptos obligatorios: no hay porcentaje que medir.
+                                </q-tooltip>
+                            </div>
                         </div>
 
                         <q-linear-progress
-                            :value="ap.porcentaje / 100"
+                            :value="ap.medible === false ? 0 : ap.porcentaje / 100"
                             :color="colorQuasar(ap.semaforo)"
                             size="6px"
                             rounded
@@ -120,7 +125,11 @@
                         />
 
                         <div class="row items-center q-mt-sm text-caption text-grey">
-                            <div>{{ ap.conceptos_total }} conceptos · {{ ap.resueltos }}/{{ ap.obligatorios }} obligatorios</div>
+                            <div>
+                                {{ ap.conceptos_total }} conceptos ·
+                                <span v-if="ap.medible === false">sin obligatorios que medir</span>
+                                <span v-else>{{ ap.resueltos }}/{{ ap.obligatorios }} obligatorios</span>
+                            </div>
                             <q-space />
                             <q-badge
                                 v-if="ap.faltantes.length"
@@ -156,7 +165,7 @@
                     <div
                         class="text-h5 text-weight-bold q-mr-md"
                         :style="{ color: colorSemaforo(detalle.semaforo) }"
-                    >{{ detalle.porcentaje }}%</div>
+                    >{{ detalle.medible === false ? '—' : detalle.porcentaje + '%' }}</div>
                     <q-btn flat dense icon="close" v-close-popup />
                 </q-card-section>
 
@@ -300,11 +309,11 @@ export default {
         },
 
         colorSemaforo(s) {
-            return { verde: '#07703a', amarillo: '#b25e00', rojo: '#c62828' }[s] || '#c62828';
+            return { verde: '#07703a', amarillo: '#b25e00', rojo: '#c62828', gris: '#78909c' }[s] || '#c62828';
         },
 
         colorQuasar(s) {
-            return { verde: 'positive', amarillo: 'warning', rojo: 'negative' }[s] || 'negative';
+            return { verde: 'positive', amarillo: 'warning', rojo: 'negative', gris: 'grey-5' }[s] || 'negative';
         },
 
         colorEstado(e) {

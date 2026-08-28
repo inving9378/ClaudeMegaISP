@@ -312,4 +312,36 @@ class ExpedienteAccesoTest extends TestCase
         $this->assertSame(1, $resumen['resueltos']);
         $this->assertSame(10, $resumen['porcentaje']);
     }
+
+    public function test_un_apartado_sin_obligatorios_no_es_medible_y_nunca_sale_verde(): void
+    {
+        // El apartado IV (cartera, saldos, proveedores, ingresos) no declara
+        // conceptos obligatorios. La primera versión lo pintaba VERDE al 100%
+        // con cero datos dentro: un tablero que dice "completo" sobre un
+        // apartado vacío no se vuelve a revisar.
+        $resumen = app(CompletitudService::class)->apartado($this->apartado('IV'), $this->empresa->id);
+
+        $this->assertSame(0, $resumen['obligatorios']);
+        $this->assertFalse($resumen['medible']);
+        $this->assertSame('gris', $resumen['semaforo']);
+        $this->assertNotSame('verde', $resumen['semaforo']);
+        $this->assertSame(0, $resumen['porcentaje']);
+    }
+
+    public function test_el_global_del_tablero_lo_calcula_el_servicio_no_el_controlador(): void
+    {
+        // Una sola definición de porcentaje y semáforo. Si el controlador
+        // volviera a calcularlo por su cuenta, este test no lo detectaría —
+        // pero sí detecta que el contrato del agregado es el mismo.
+        $user = $this->usuarioCon([
+            'documentacion-corporativa.view',
+            'documentacion-corporativa.apartado.i.view',
+        ], 'global');
+
+        $respuesta = $this->actingAs($user)->getJson('/documentacion-corporativa/api/tablero');
+
+        $esperado = app(CompletitudService::class)->agregarGlobal($respuesta->json('apartados'));
+
+        $this->assertSame($esperado, $respuesta->json('global'));
+    }
 }
