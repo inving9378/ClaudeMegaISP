@@ -77,25 +77,6 @@ class PermissionController extends Controller
         return response()->json(['permissions' => $permissions], 200);
     }
 
-    /**
-     * Reforma de permisos B1.3 — RETIRADO. El candado de permisos individuales
-     * por usuario se eliminó: el rol es la única fuente de verdad y la asignación
-     * vive en la pantalla de Roles. Las rutas get/update-permission-for-user ya
-     * no se registran (ver Usuarios/routes.php). Se conservan estos stubs que
-     * abortan para evitar re-cableo accidental; borrar en una limpieza futura.
-     */
-    public function getPermissionUser($userId)
-    {
-        abort(410, 'Retirado (reforma de permisos B1.3): la asignación de permisos es por rol.');
-    }
-
-    public function updatePermissionUser(Request $request, $userId)
-    {
-        abort(410, 'Retirado (reforma de permisos B1.3): la asignación de permisos es por rol.');
-    }
-
-
-
     public function update(Request $request, $role_id)
     {
         $request->validate([
