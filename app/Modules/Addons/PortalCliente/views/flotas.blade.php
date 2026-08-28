@@ -93,6 +93,22 @@
         </div>
     @endif
 
+    {{-- Mapa overview: última posición conocida de todos los vehículos con GPS --}}
+    @php
+        $trackedVehicles = $tracking->filter(fn ($t) => $t['position'] !== null)->values();
+    @endphp
+    <div class="card">
+        <div class="card-title">Ubicación de mi flota</div>
+        @if($trackedVehicles->isEmpty())
+            <p style="color:var(--text-muted)">Aún no hay datos de rastreo GPS para tus vehículos.</p>
+        @else
+            <div id="flota-map" style="height:400px; width:100%; border-radius:.5rem; box-shadow:0 2px 8px rgba(0,0,0,.1); border:1px solid var(--border)"></div>
+            <p style="font-size:.75rem; color:var(--text-muted); margin-top:.5rem">
+                Se actualiza automáticamente cada 25 segundos.
+            </p>
+        @endif
+    </div>
+
     {{-- Vehículos --}}
     <div class="card">
         <div class="card-title">Mis vehículos ({{ (int) $standing['total'] }})</div>
@@ -139,5 +155,68 @@
             </div>
         @endif
     </div>
+
+    @if($trackedVehicles->isNotEmpty())
+        @push('scripts')
+            <link rel="stylesheet" href="/assets/libs/leaflet/leaflet.css">
+            <script src="/assets/libs/leaflet/leaflet.js"></script>
+            <script>
+            (function () {
+                var COLORS = { moving: '#22c55e', stopped: '#f59e0b', idle: '#9ca3af', offline: '#ef4444' };
+                var LABELS = { moving: 'En movimiento', stopped: 'Detenido', idle: 'Inactivo', offline: 'Sin señal' };
+                var initial = @json($trackedVehicles);
+                var map = null, markers = {};
+
+                function popupHtml(v) {
+                    var label = LABELS[v.live_status] || 'Sin señal';
+                    var name = (v.brand + ' ' + v.model).trim() || v.display_name || ('Vehículo #' + v.vehicle_id);
+                    return '<strong>' + name + '</strong><br>' + v.plates + '<br>' + label;
+                }
+
+                function upsertMarker(v) {
+                    if (!v.position) return;
+                    var latlng = [v.position.lat, v.position.lng];
+                    var color = COLORS[v.live_status] || COLORS.offline;
+                    if (markers[v.vehicle_id]) {
+                        markers[v.vehicle_id].setLatLng(latlng).setStyle({ color: '#fff', fillColor: color });
+                        markers[v.vehicle_id].setPopupContent(popupHtml(v));
+                    } else {
+                        markers[v.vehicle_id] = L.circleMarker(latlng, {
+                            radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1,
+                        }).addTo(map).bindPopup(popupHtml(v));
+                    }
+                }
+
+                function refresh() {
+                    fetch('{{ route('portal.flotas.tracking') }}', { headers: { 'Accept': 'application/json' } })
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (data) {
+                            if (!data || !data.vehicles) return;
+                            data.vehicles.forEach(upsertMarker);
+                        })
+                        .catch(function () { /* silencioso: se reintenta en el próximo ciclo */ });
+                }
+
+                document.addEventListener('DOMContentLoaded', function () {
+                    if (typeof L === 'undefined') return;
+                    var el = document.getElementById('flota-map');
+                    if (!el) return;
+
+                    map = L.map('flota-map');
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+
+                    initial.forEach(upsertMarker);
+
+                    var bounds = Object.keys(markers).map(function (id) { return markers[id].getLatLng(); });
+                    if (bounds.length === 1) map.setView(bounds[0], 14);
+                    else if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
+
+                    setTimeout(function () { map.invalidateSize(); }, 60);
+                    setInterval(refresh, 25000);
+                });
+            })();
+            </script>
+        @endpush
+    @endif
 @endif
 @endsection
