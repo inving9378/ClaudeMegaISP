@@ -16,7 +16,8 @@ use RuntimeException;
  * Blade, JS ni en ningún archivo versionado.
  *
  * En sandbox, OpenPay acepta números de tarjeta de prueba sin cobrar dinero real.
- * Para producción: cambiar OPENPAY_SANDBOX=false en .env (solo configuración, no código).
+ * `config('openpay.sandbox')` (env OPENPAY_SANDBOX) es el ÚNICO interruptor
+ * sandbox↔producción — lo que pase aquí sigue exactamente ese valor.
  */
 class OpenpayService
 {
@@ -24,17 +25,17 @@ class OpenpayService
 
     public function __construct()
     {
-        if (! config('openpay.sandbox')) {
+        if (! config('openpay.id') || ! config('openpay.private_key')) {
             throw new RuntimeException(
-                'OPENPAY_SANDBOX debe ser true. Cambia el .env antes de habilitar producción.'
+                'Credenciales OpenPay incompletas (OPENPAY_ID/OPENPAY_PRIVATE_KEY) en .env.'
             );
         }
 
         Openpay::setId(config('openpay.id'));
         Openpay::setApiKey(config('openpay.private_key'));
         Openpay::setCountry('MX');
-        Openpay::setEndpointUrl('MX');   // rellena $apiSandboxEndpoint; sin esto el SDK lanza "No API endpoint set"
-        Openpay::setSandboxMode(true);
+        Openpay::setEndpointUrl('MX');   // rellena $apiSandboxEndpoint y $apiEndpoint (live)
+        Openpay::setSandboxMode((bool) config('openpay.sandbox'));
 
         $this->api = OpenpayApi::getInstance(null);
     }
