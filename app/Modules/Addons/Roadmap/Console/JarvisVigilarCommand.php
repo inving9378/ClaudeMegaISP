@@ -48,6 +48,7 @@ class JarvisVigilarCommand extends Command
         }
 
         $ps = $this->psCrudo();
+        $anterior = JarvisVigilia::estado();
 
         $estado = [
             'medido_en' => date('c'),
@@ -63,6 +64,21 @@ class JarvisVigilarCommand extends Command
             'freno'     => $this->medirFreno(),
             'sonda'     => $this->medirSonda(),
         ];
+
+        $estado['bd_integra'] = $this->medirBdIntegra($anterior);
+
+        // FRENAR ANTES DE AVISAR (item #228). El 25-ago el freno lo puso una persona 21 minutos
+        // tarde; el gate humano va en QUÉ se construye, no en CUÁNDO se detiene el daño. Se llama
+        // aquí, antes de `guardar()` (lo que hace visible el aviso en la Torre/CLI), para que el
+        // orden en disco sea siempre freno→aviso. Si ya estaba puesto (por un humano o por una
+        // vuelta anterior) no se toca: no se pisa su motivo/quién/cuándo original.
+        if (! $this->option('seco') && $estado['bd_integra']['escalon'] === 'critico' && ! FrenoCircuito::activo()) {
+            try {
+                FrenoCircuito::poner($this->motivoBdIntegra($estado['bd_integra']), 'jarvis:bd_integra');
+            } catch (\Throwable $e) {
+                FrenoCircuito::registrarFallo('jarvis:bd_integra', $e);
+            }
+        }
 
         $estado['base'] = $this->medirBase($estado);
         $estado['modo'] = $estado['base']['responde'] ? 'completo' : 'minimo';
@@ -295,6 +311,81 @@ class JarvisVigilarCommand extends Command
     }
 
     /**
+     * CHEQUEO bd_integra (item #228) — cuenta las tablas de `megaisp` y las compara contra el
+     * último conteo BUENO. El umbral y ese conteo viven en el estado en ARCHIVO (el `$anterior`
+     * que se recibe, leído de `estado.json` antes de tocar la base): si la base es el problema,
+     * leer el umbral DESDE la base es el mismo error que se está corrigiendo.
+     *
+     * Al revés que el resto de la vigilia, aquí "no pude medir" NO es el modo mínimo legítimo:
+     * es el peor caso. Un chequeo que no puede medir no reporta `ok` — sería indistinguible de
+     * "medí y está bien", que es exactamente la falsa calma del 25-ago. Por eso una excepción de
+     * conexión cae en `escalon => 'critico'`, igual que 0 tablas.
+     */
+    private function medirBdIntegra(?array $anterior): array
+    {
+        $conteoBueno = $anterior['bd_integra']['ultimo_conteo_bueno'] ?? null;
+        $conteoBueno = is_int($conteoBueno) && $conteoBueno > 0 ? $conteoBueno : null;
+
+        try {
+            $esquema = (string) config('database.connections.mysql.database');
+            $fila    = DB::selectOne(
+                'SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = ?',
+                [$esquema]
+            );
+            $tablas = (int) ($fila->n ?? 0);
+        } catch (\Throwable $e) {
+            return [
+                'medido' => false, 'escalon' => 'critico', 'tablas' => null,
+                'ultimo_conteo_bueno' => $conteoBueno, 'caida_pct' => null,
+                'error' => substr($e->getMessage(), 0, 200),
+            ];
+        }
+
+        if ($tablas === 0) {
+            return [
+                'medido' => true, 'escalon' => 'critico', 'tablas' => 0,
+                'ultimo_conteo_bueno' => $conteoBueno, 'caida_pct' => $conteoBueno ? 100.0 : null, 'error' => null,
+            ];
+        }
+
+        if ($conteoBueno === null) {
+            // Sin baseline previa (primera vuelta, o la última fue mala): esta medición se
+            // vuelve la baseline. No hay caída que evaluar todavía.
+            return [
+                'medido' => true, 'escalon' => 'ok', 'tablas' => $tablas,
+                'ultimo_conteo_bueno' => $tablas, 'caida_pct' => 0.0, 'error' => null,
+            ];
+        }
+
+        $caida = $tablas < $conteoBueno ? round(100 * ($conteoBueno - $tablas) / $conteoBueno, 1) : 0.0;
+        $escalon = $caida > 50 ? 'critico' : ($caida > 10 ? 'alerta' : 'ok');
+
+        return [
+            'medido' => true,
+            'escalon' => $escalon,
+            'tablas' => $tablas,
+            // El conteo bueno SOLO avanza en 'ok': si se queda quieto durante una caída, la
+            // próxima vuelta sigue comparando contra el piso sano, no contra uno ya erosionado.
+            'ultimo_conteo_bueno' => $escalon === 'ok' ? $tablas : $conteoBueno,
+            'caida_pct' => $caida,
+            'error' => null,
+        ];
+    }
+
+    private function motivoBdIntegra(array $bd): string
+    {
+        if ($bd['medido'] === false) {
+            return "Freno automático (item #228): la vigilia no pudo contar las tablas de la base ({$bd['error']}).";
+        }
+
+        $antes = $bd['ultimo_conteo_bueno'] !== null ? $bd['ultimo_conteo_bueno'] : 'sin dato previo';
+        $caida = $bd['caida_pct'] !== null ? ", caída {$bd['caida_pct']}%" : '';
+
+        return "Freno automático (item #228): la base quedó en {$bd['tablas']} tabla(s) "
+            . "(antes {$antes}{$caida}).";
+    }
+
+    /**
      * Lo único que necesita MySQL, y por eso va al final y entre try/catch. Si no responde, se
      * dice —no se omite ni se rellena con ceros, que es como un panel en ceros se vuelve
      * indistinguible de un sistema sano (la lección del 1038 en `roadmap_items`).
@@ -361,6 +452,15 @@ class JarvisVigilarCommand extends Command
         if (! ($e['base']['responde'] ?? false)) {
             $a[] = ['clave' => 'base', 'nivel' => 'alarma',
                 'texto' => 'Estoy en modo mínimo: la base no responde. Esto es lo que sé desde archivo.', ];
+        }
+        $bd = $e['bd_integra'] ?? [];
+        if (($bd['escalon'] ?? 'ok') === 'critico') {
+            $a[] = ['clave' => 'bd_integra', 'nivel' => 'alarma',
+                'texto' => 'CRÍTICO — ' . $this->motivoBdIntegra($bd) . ' Freno puesto automáticamente.', ];
+        } elseif (($bd['escalon'] ?? 'ok') === 'alerta') {
+            $a[] = ['clave' => 'bd_integra', 'nivel' => 'me_pregunta',
+                'texto' => "La base cayó a {$bd['tablas']} tabla(s) (antes {$bd['ultimo_conteo_bueno']}, "
+                    . "-{$bd['caida_pct']}%). Todavía no es crítico (>50%), pero ya no es ruido.", ];
         }
         if (($e['sonda']['edad_seg'] ?? null) !== null && $e['sonda']['edad_seg'] > 180) {
             $a[] = ['clave' => 'sonda', 'nivel' => 'me_pregunta',
