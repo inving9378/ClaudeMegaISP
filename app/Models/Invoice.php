@@ -83,6 +83,30 @@ class Invoice extends Model
         return $this->hasMany(InvoiceItem::class);
     }
 
+    /**
+     * Relación morph a servicios (paralela a ClientInvoice::client_bundle_service()
+     * vía client_serviceables, item roadmap #719 — Fase 1, sin consumidores todavía).
+     */
+    public function client_bundle_service()
+    {
+        return $this->morphedByMany(\App\Models\ClientBundleService::class, 'invoice_serviceable');
+    }
+
+    public function client_internet_service()
+    {
+        return $this->morphedByMany(\App\Models\ClientInternetService::class, 'invoice_serviceable');
+    }
+
+    public function client_voz_service()
+    {
+        return $this->morphedByMany(\App\Models\ClientVozService::class, 'invoice_serviceable');
+    }
+
+    public function client_custom_service()
+    {
+        return $this->morphedByMany(\App\Models\ClientCustomService::class, 'invoice_serviceable');
+    }
+
 
     /**
      * Relación con la transacción
