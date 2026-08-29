@@ -1368,6 +1368,27 @@ originales de #218 siguen clasificadas igual que documentó #733 (sin regresione
 (la carrera del generador entre cierre del padre y lectura de `preguntas[]`) queda anotada como
 deuda de bajo costo si se repite una tercera vez — no se toca en este item.
 
+## Item #738 — Deriva de esquema #216 Fase 1 — bucle reap sobre paraguas nunca aparcado (RESUELTO — se completa el cierre-intento faltante)
+
+Una sesión previa ya había hecho lo correcto: al recibir `circuito:cabida` = NO CABE, descompuso
+#738 en **#797** (Fase 1a: vaciar+migrar `megaisp_dryrun` desde cero) y **#798** (Fase 1b: exportar
+a `storage/schema/reference.sql` vía `schema:build-reference`), y terminó su vuelta sin ejecutar
+más código. Pero nunca **intentó cerrar** al padre — y el guard de paraguas del modelo
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") solo aparca un ítem descompuesto (`aprobado_irving` +
+`excluir_pool_automatico`) cuando algo intenta activamente `estado_aprobacion = 'completado'` y
+detecta hijos abiertos. Sin ese intento, #738 se quedó en `en_progreso` con el `worker_sid` de esa
+sesión, sin nadie liberando el claim; el reaper (que solo sabe re-encolar huérfanos a su estado
+previo) lo devolvió a `aprobado_revisor` dos veces (`reap_count=2`), y el pool lo repartió de nuevo
+sin que hubiera trabajo propio que hacer — mismo síntoma que #745/#664, un nivel más abajo (ahí el
+paraguas SÍ estaba aparcado y el problema era que nadie despachaba a los hijos; aquí el paraguas
+nunca llegó a aparcarse). Verificado: #797/#798 seguían intactos (`aprobado_revisor`, `pending`,
+sin reclamar) — nadie los tocó, la descomposición original seguía siendo la correcta. Corrección:
+esta vuelta ejecuta el paso que faltaba (intento de cierre a `completado`), el guard lo reenruta
+solo a `aprobado_irving`+`excluir_pool_automatico=true`, sacándolo del pool/reaper para siempre
+hasta que el hook de cierre en cascada (ya existente, `RoadmapItem.php:459-491`) lo complete solo
+cuando #797 y #798 cierren. Detalle en `docs/roadmap-bucle-reap-item-738-verificacion.md`. **Sin
+cambio de código de negocio** — el trabajo técnico real del esquema de referencia sigue en #797/#798.
+
 ## Item #745 — [RESPUESTA] DocumentaciónCorporativa Fase 2 — bucle reap/escalación en paraguas ya descompuesto (RESUELTO — cerrado no-accionable, decisión de Irving)
 
 El item #664 ("DocumentaciónCorporativa — Fase 2") ya fue descompuesto en 4 sub-items (#734
