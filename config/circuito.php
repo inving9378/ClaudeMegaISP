@@ -399,6 +399,29 @@ return [
                 '/var/www/megaisp/storage/app/circuito/jarvis/arranques-claude.log'
             ),
             'gasto_umbral_hora' => (int) env('CIRCUITO_JARVIS_GASTO_UMBRAL_HORA', 60),
+
+            // CANAL DE ALERTA FUERA DE LA TORRE (#707, sub-item de #208, parte 3/3) — el
+            // vigilante SOLO AVISA, nunca corrige. Reusa el gateway WhatsApp ÚNICO ya designado
+            // (`EvolutionApiService`, ver CLAUDE.md §"SERVICIOS COMPARTIDOS ÚNICOS"), nunca un
+            // cliente HTTP propio. Apagado por default A PROPÓSITO (mismo patrón que
+            // PAYMENTS_AUTO_APPLY_ENABLED/DOMICILIACION_COBRO_LIVE_ENABLED): sin `enabled=true`
+            // Y `destino` configurados explícitamente, este canal jamás manda un mensaje.
+            'alerta_externa' => [
+                'enabled' => (bool) env('CIRCUITO_JARVIS_ALERTA_WHATSAPP', false),
+
+                // Número/JID de WhatsApp destino (solo dígitos, sin '+'; o un JID de grupo).
+                'destino' => env('CIRCUITO_JARVIS_ALERTA_DESTINO', ''),
+
+                // Empresa/instancia Evolution a usar — mismo patrón que el resto de consumidores
+                // de EvolutionApiService (Flotas, etc). 1 = instancia principal Meganet.
+                'company_id' => (int) env('CIRCUITO_JARVIS_ALERTA_COMPANY_ID', 1),
+
+                // Ningún hallazgo repite aviso antes de esto, aunque `alertas()` lo siga
+                // reportando cada vuelta (cron de 1 min): sin cooldown, un reinicio normal (que
+                // dispara varias alertas de golpe y las mantiene activas unos minutos) floodearía
+                // el WhatsApp. Lo pidió el propio revisor del #208. 1800s = 30 min.
+                'cooldown_seg' => (int) env('CIRCUITO_JARVIS_ALERTA_COOLDOWN', 1800),
+            ],
         ],
 
         /*
