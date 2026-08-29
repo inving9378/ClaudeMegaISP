@@ -3198,3 +3198,30 @@ En `megaisp` (este worktree): doc de verificación
 `docs/megafamilia-sync-status-item-280-verificacion.md` + esta entrada, rama
 `circuito/item-280-consumir-apimegafamiliasync-status-en`, integrado vía `circuito:integrar`. Item
 #280 y su sub-item #716 cerrados como completados.
+
+## 2026-08-28 18:41 — Item #682: guard en migración sync-olts-tables (migrate:fresh roto)
+
+`database/migrations/2026_02_14_063009_sync-olts-tables.php` llama a `Artisan::call('smartolt:sync-inventory')`
+y `Artisan::call('smartolt:sync-critical')` sin guard. Ambos comandos consultan `OltSmartoltConfig::current()`
+(tabla `olt_smartolt_config`), que crea `2026_06_13_000001_create_olt_smartolt_config_table.php` — fecha
+POSTERIOR. En un `migrate` desde cero (como el `migrate:fresh --seed` que corre `Tests\TestCase::setUp()`)
+la tabla aún no existe, la excepción no se captura, y el `migrate` completo aborta ahí (510 migraciones
+pendientes sin aplicar, según midió el item #662 que originó este hallazgo).
+
+Auditadas las 5 migraciones del repo que usan `Artisan::call()` en `up()`: las otras 4
+(`2026_01_09_000622_add_fields_to_onu`, `2026_03_07_050150_update-clientes-whith-ont`,
+`2026_03_19_071941_add_power_olt`, `2026_03_20_092657_create_olt_billings_table`) YA envuelven la
+llamada en `try { ... } catch (\Throwable $th) {}` precisamente por este riesgo. Solo la de febrero
+no lo tenía. Fix: mismo guard try/catch, sin renombrar el archivo (no reescribe una migración ya
+aplicada en dev/prod — recomendación del propio item #682).
+
+Verificación: `php -l` limpio, `php artisan --version` arranca. El mecanismo se confirmó en tinker con
+una query de solo lectura a una tabla inexistente (`QueryException` capturada por `\Throwable`, igual
+comportamiento que usan las hermanas). **No se corrió `migrate:fresh` completo** — `megaisp_test`,
+`megaisp_dryrun` y `megaisp_pilot` son compartidas por las 6 terminales del circuito y no hay privilegio
+MySQL para crear una BD de prueba propia (`GRANT` solo cubre esas 5 BDs nombradas); correrlo sin coordinar
+es exactamente el problema que originó el item #662/#682. Queda como verificación pendiente si alguien
+corre un `migrate:fresh` coordinado.
+
+Rama `circuito/item-682-hallazgo-migratefresh-esta-roto-en-e`, commit `baa525b5`, integrado vía
+`circuito:integrar`. Item #682 cerrado como completado.
