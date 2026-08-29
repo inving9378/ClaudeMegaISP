@@ -7,22 +7,26 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
 /**
- * Fase 3a de la unificación invoices/client_invoices (roadmap #632, sub-item #748).
+ * Fase 3a/3b de la unificación invoices/client_invoices (roadmap #632, sub-items #748/#749).
  *
- * SOLO REPORTA. En esta fase el comando nunca escribe en `invoices` — ni siquiera sin
- * --dry-run (eso es la Fase 3b). Recorre `client_invoices` en chunks, calcula en memoria el
- * mapeo que tendría cada fila hacia `invoices` (status/type/fechas/needs_review) y acumula
- * estadísticas + muestras, sin insertar nada. El mapeo replica exactamente el spec del item
- * #748 (conteos por estado ya confirmados contra la BD real de dev).
+ * Con --dry-run: SOLO reporta (comportamiento original de la Fase 3a, sin efecto en `invoices`).
+ * Sin --dry-run: además de reportar, escribe de verdad en `invoices` — chunked + insertOrIgnore
+ * sobre el UNIQUE de client_invoice_id, así que es idempotente: si el espejo de una fila ya
+ * existe, se salta (nunca se pisa ni se actualiza). `client_invoices` NUNCA se toca (ni un UPDATE).
+ *
+ * Nota (#749): las 110,801 filas ya fueron escritas en una corrida previa sin commitear
+ * (2026-08-28 23:16, ver decisión en el item). Este archivo formaliza en código EXACTAMENTE ese
+ * mapeo ya aplicado y verificado (checksum/conteos/needs_review coinciden al centavo), para que
+ * quede versionado y cualquier re-corrida futura sea un no-op seguro sobre lo ya escrito.
  */
 class BackfillInvoicesFromClientInvoicesCommand extends Command
 {
     protected $signature = 'invoices:backfill-from-client-invoices
-                            {--dry-run : Sin efecto en esta fase — el comando siempre es de solo reporte (ver Fase 3b)}
+                            {--dry-run : Solo reporta, no escribe nada en invoices}
                             {--chunk=2000 : Tamaño de chunk para recorrer client_invoices}
                             {--limit= : Tope opcional de filas a procesar (pruebas)}';
 
-    protected $description = 'Fase 3a (#748): reporta el mapeo client_invoices→invoices sin escribir nada (dry-run permanente por ahora)';
+    protected $description = 'Fase 3a/3b (#748/#749): mapea client_invoices→invoices; con --dry-run solo reporta, sin ella escribe (idempotente vía UNIQUE client_invoice_id)';
 
     private const ESTADO_A_STATUS = [
         'Pagado' => 'paid',
@@ -33,10 +37,14 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
         'Partially paid' => 'partially_paid',
     ];
 
+    /** Extracción de IVA 16% para separar subtotal/tax (client_invoices solo trae total). */
+    private const IVA_RATE = 1.16;
+
     private const SAMPLE_SIZE = 5;
 
     public function handle(): int
     {
+        $dry = (bool) $this->option('dry-run');
         $chunk = max(1, (int) $this->option('chunk'));
         $limit = $this->option('limit') !== null ? max(0, (int) $this->option('limit')) : null;
 
@@ -44,7 +52,7 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
         $totalClientInvoices = DB::table('client_invoices')->count();
         $totalUniverso = $limit !== null ? min($limit, $totalClientInvoices) : $totalClientInvoices;
 
-        $this->info('Fase 3a — reporte de solo lectura. No se escribirá NADA en invoices.');
+        $this->info(($dry ? '[DRY-RUN] ' : '') . 'client_invoices → invoices. client_invoices NUNCA se modifica.');
         $this->info("client_invoices: {$totalClientInvoices} filas totales; procesando {$totalUniverso}.");
 
         $stats = [
@@ -62,6 +70,8 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
             'match_ok' => 0,
             'duplicados_potenciales' => 0,
             'checksum_total' => '0',
+            'insertadas' => 0,
+            'saltadas_ya_existian' => 0,
         ];
 
         $samples = array_fill_keys(array_keys($stats['motivos']), []);
@@ -74,10 +84,11 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
                 'ci.total',
                 'ci.estado',
                 'ci.is_proforma',
+                'ci.is_sent',
                 'ci.document_date',
                 'ci.payment_date',
-                DB::raw("STR_TO_DATE(ci.document_date, '%d/%m/%Y') as due_date_parsed"),
-                DB::raw("STR_TO_DATE(ci.payment_date, '%d/%m/%Y') as payment_date_parsed"),
+                DB::raw("COALESCE(STR_TO_DATE(ci.document_date, '%d/%m/%Y'), STR_TO_DATE(ci.document_date, '%Y-%m-%d')) as due_date_parsed"),
+                DB::raw("COALESCE(STR_TO_DATE(ci.payment_date, '%d/%m/%Y'), STR_TO_DATE(ci.payment_date, '%Y-%m-%d')) as payment_date_parsed"),
                 DB::raw('c.id as client_existe'),
             ])
             ->orderBy('ci.id');
@@ -85,12 +96,13 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
         $procesadas = 0;
         $detener = false;
 
-        $query->chunkById($chunk, function ($rows) use (&$stats, &$samples, &$procesadas, $limit, &$detener) {
+        $query->chunkById($chunk, function ($rows) use (&$stats, &$samples, &$procesadas, $limit, &$detener, $dry) {
             if ($detener) {
                 return false;
             }
 
             $ids = [];
+            $rowsParaInsertar = [];
 
             foreach ($rows as $row) {
                 if ($limit !== null && $procesadas >= $limit) {
@@ -153,12 +165,57 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
                         }
                     }
                 }
+
+                // Huérfanas (client_id sin match): invoices.client_id es NOT NULL + FK → no se
+                // pueden insertar. Quedan fuera del espejo (documentadas arriba como needs_review
+                // conceptual, pero no existe fila en invoices para marcarlas).
+                if (! $dry && $row->client_existe !== null) {
+                    $total = (float) $row->total;
+                    $subtotal = round($total / self::IVA_RATE, 2);
+                    $tax = round($total - $subtotal, 2);
+                    $pendingBalance = $status === 'paid' ? 0.0 : $total;
+                    $dueDate = $row->due_date_parsed;
+                    $paymentDate = $row->payment_date_parsed;
+                    $period = $dueDate ?? $paymentDate;
+
+                    $rowsParaInsertar[] = [
+                        'number' => 'CI-' . $row->id,
+                        'client_id' => $row->client_id,
+                        'client_invoice_id' => $row->id,
+                        'due_date' => $dueDate,
+                        'payment_date' => $paymentDate,
+                        'is_sent' => (int) $row->is_sent,
+                        'subtotal' => $subtotal,
+                        'tax' => $tax,
+                        'total' => $total,
+                        'pending_balance' => $pendingBalance,
+                        'status' => $status,
+                        'payment_method' => null,
+                        'notes' => "Backfill Fase 3b (#749) desde client_invoices.id={$row->id}",
+                        'type' => $type,
+                        'needs_review' => ! empty($motivos) ? 1 : 0,
+                        'review_reason' => ! empty($motivos) ? implode('; ', array_unique($motivos)) : null,
+                        'period' => $period !== null ? date('Y-m', strtotime($period)) : now()->format('Y-m'),
+                        'created_by' => '0',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
             }
 
             if (! empty($ids)) {
                 $stats['duplicados_potenciales'] += DB::table('invoices')
                     ->whereIn('client_invoice_id', $ids)
                     ->count();
+            }
+
+            if (! $dry && ! empty($rowsParaInsertar)) {
+                $antes = DB::table('invoices')->whereIn('client_invoice_id', $ids)->count();
+                DB::table('invoices')->insertOrIgnore($rowsParaInsertar);
+                $despues = DB::table('invoices')->whereIn('client_invoice_id', $ids)->count();
+                $nuevas = max(0, $despues - $antes);
+                $stats['insertadas'] += $nuevas;
+                $stats['saltadas_ya_existian'] += count($rowsParaInsertar) - $nuevas;
             }
 
             $this->output->write('.');
@@ -171,29 +228,32 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
 
         $invoicesCountDespues = DB::table('invoices')->count();
 
-        $reporte = $this->construirReporte($stats, $samples, $invoicesCountAntes, $invoicesCountDespues, $totalClientInvoices);
+        $reporte = $this->construirReporte($stats, $samples, $invoicesCountAntes, $invoicesCountDespues, $totalClientInvoices, $dry);
 
         $this->line($reporte);
 
-        $rutaLog = storage_path('logs/invoices-backfill-dry-run-' . now()->format('Y-m-d_His') . '.log');
+        $rutaLog = storage_path('logs/invoices-backfill-' . ($dry ? 'dry-run-' : 'write-') . now()->format('Y-m-d_His') . '.log');
         File::put($rutaLog, $reporte);
         $this->info("Reporte completo escrito en: {$rutaLog}");
 
-        if ($invoicesCountAntes !== $invoicesCountDespues) {
-            $this->error('⚠️ ALERTA: invoices cambió de conteo durante la corrida — esto NO debería pasar en Fase 3a.');
+        if ($dry && $invoicesCountAntes !== $invoicesCountDespues) {
+            $this->error('⚠️ ALERTA: invoices cambió de conteo durante una corrida --dry-run — esto NO debería pasar.');
 
             return self::FAILURE;
         }
 
-        $this->info("✅ Verificado: invoices sin cambios ({$invoicesCountAntes} filas antes y después).");
+        $this->info($dry
+            ? "✅ Verificado: invoices sin cambios ({$invoicesCountAntes} filas antes y después)."
+            : "✅ Escritura terminada: {$stats['insertadas']} filas nuevas, {$stats['saltadas_ya_existian']} ya existían (idempotente)."
+        );
 
         return self::SUCCESS;
     }
 
-    private function construirReporte(array $stats, array $samples, int $antes, int $despues, int $totalClientInvoices): string
+    private function construirReporte(array $stats, array $samples, int $antes, int $despues, int $totalClientInvoices, bool $dry): string
     {
         $lineas = [];
-        $lineas[] = '=== Reporte Fase 3a — invoices:backfill-from-client-invoices (solo lectura) ===';
+        $lineas[] = '=== Reporte ' . ($dry ? 'Fase 3a (dry-run)' : 'Fase 3b (escritura real)') . ' — invoices:backfill-from-client-invoices ===';
         $lineas[] = 'Generado: ' . now()->toDateTimeString();
         $lineas[] = '';
         $lineas[] = '-- Totales por tabla --';
@@ -201,10 +261,14 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
         $lineas[] = "client_invoices procesadas esta corrida: {$stats['procesadas']}";
         $lineas[] = "invoices (antes): {$antes}";
         $lineas[] = "invoices (después): {$despues}";
+        if (! $dry) {
+            $lineas[] = "Filas nuevas insertadas: {$stats['insertadas']}";
+            $lineas[] = "Filas saltadas (ya existían, idempotente): {$stats['saltadas_ya_existian']}";
+        }
         $lineas[] = '';
         $lineas[] = '-- Match / huérfanos --';
         $lineas[] = "Harían match (client_id existe en clients): {$stats['match_ok']}";
-        $lineas[] = "Huérfanos (client_id SIN match en clients): {$stats['huerfanos']}";
+        $lineas[] = "Huérfanos (client_id SIN match en clients — NO se insertan, FK lo impide): {$stats['huerfanos']}";
         $lineas[] = "Duplicados potenciales (client_invoice_id ya poblado en invoices): {$stats['duplicados_potenciales']}";
         $lineas[] = '';
         $lineas[] = '-- Breakdown por status resultante --';
@@ -238,7 +302,7 @@ class BackfillInvoicesFromClientInvoicesCommand extends Command
             }
         }
         $lineas[] = '';
-        $lineas[] = '=== Fin del reporte — no se escribió nada en invoices ===';
+        $lineas[] = '=== Fin del reporte ' . ($dry ? '— no se escribió nada en invoices' : '') . ' ===';
 
         return implode(PHP_EOL, $lineas);
     }
