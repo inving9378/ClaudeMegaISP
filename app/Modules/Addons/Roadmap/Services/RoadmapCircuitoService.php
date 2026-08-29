@@ -1271,14 +1271,25 @@ class RoadmapCircuitoService
         // con un UPDATE crudo a propósito: NO toca `updated_at`, para que "sigo vivo" (claimed_at) y
         // "escribí algo en el item" (updated_at) queden como dos señales independientes — el reaper
         // exige que ambas estén frías antes de dar por muerto al worker.
-        $this->renovarLease($sid);
+        // #640 — se acota al item_id ACTUAL de la vuelta (current_item, ya calculado arriba): si un
+        // worker_sid quedó con más de un item en_progreso (el bug que #210 documentó: una vuelta
+        // previa murió/timeouteó sin soltar el suyo), el latido de la vuelta NUEVA ya NO renueva el
+        // claimed_at del huérfano, solo el del item que de verdad se está trabajando ahora. Si aún
+        // no hay current_item conocido (arranque, antes de la primera miga CIRCUITO_FASE), se cae al
+        // comportamiento previo (renueva todos los en_progreso del sid) para no matar por error un
+        // lease legítimo en ese instante inicial.
+        $this->renovarLease($sid, $d['current_item'] ?? null);
     }
 
     /**
      * Renueva el lease del item reclamado por este worker. Best-effort: un fallo aquí no debe tumbar
      * el latido (la Torre seguiría mostrando la vuelta viva; a lo sumo el reaper la libera después).
+     *
+     * #640: si $currentItemId viene informado, el UPDATE se acota también por `id` — así un
+     * worker_sid con más de un item en_progreso (huérfano + el que de verdad se trabaja) no le
+     * renueva el lease al huérfano solo por compartir sid y estado.
      */
-    public function renovarLease(string $sid): void
+    public function renovarLease(string $sid, ?int $currentItemId = null): void
     {
         if (! $this->normalizaSid($sid)) {
             return;   // 'main'/'wt-exec' y demás sesiones sin slot no tienen lease que renovar
@@ -1287,6 +1298,7 @@ class RoadmapCircuitoService
             DB::table('roadmap_items')
                 ->where('worker_sid', $sid)
                 ->where('estado_aprobacion', 'en_progreso')
+                ->when($currentItemId !== null, fn ($q) => $q->where('id', $currentItemId))
                 ->update(['claimed_at' => now()]);
         } catch (\Throwable $e) {
             // best-effort

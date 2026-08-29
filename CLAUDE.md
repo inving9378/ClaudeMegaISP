@@ -1367,3 +1367,20 @@ originales de #218 siguen clasificadas igual que documentó #733 (sin regresione
 `docs/inventario-seguimiento-733-item-741-verificacion.md`. **Sin cambio de código.** Causa raíz
 (la carrera del generador entre cierre del padre y lectura de `preguntas[]`) queda anotada como
 deuda de bajo costo si se repite una tercera vez — no se toca en este item.
+
+## Item #745 — [RESPUESTA] DocumentaciónCorporativa Fase 2 — bucle reap/escalación en paraguas ya descompuesto (RESUELTO — cerrado no-accionable, decisión de Irving)
+
+El item #664 ("DocumentaciónCorporativa — Fase 2") ya fue descompuesto en 4 sub-items (#734
+repositorio, #735 bandeja, #736 registros estructurados, #737 plantillas), todos aprobados y
+**sin reclamar** (`worker_sid` vacío) desde el 2026-08-28. #745 documentó el bucle: cada vuelta
+que reclama el paraguas #664 llega a la misma conclusión (nada que implementar sin duplicar el
+trabajo de los hijos) → timeoutea → el reaper de huérfanos lo re-encola → escala a Irving otra
+vez → se repite (`reap_count`=4 en #664, 3+ notas idénticas). Irving aprobó explícitamente la
+**Opción 1** de la pregunta estructurada del item: cerrar #745 como no-accionable (el paraguas ya
+descompuesto no tiene trabajo propio; el trabajo real vive en #734-#737) en vez de re-descomponer
+(Opción 2, rechazada) o volver a escalar (Opción 3, rechazada — es el propio bucle). Reverificado
+contra la BD de dev (2026-08-29): #664 sigue reclamado por otra sesión en curso (no se tocó, un
+item = un dueño) y los 4 hijos siguen aprobados sin `worker_sid`. Detalle completo, incluida la
+deuda de fondo sobre por qué el pool no despacha los hijos solos, en
+`docs/roadmap-bucle-reap-item-745-verificacion.md`. **Sin cambio de código** (cierre documental
+ejecutando la decisión ya tomada por Irving).

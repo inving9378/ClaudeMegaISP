@@ -2071,6 +2071,14 @@ class RoadmapController extends Controller
      *     pending; se descarta el puntero a la rama —la rama queda en git— para que el circuito
      *     cree una nueva al re-tomarlo). El comentario le dice al próximo intento POR QUÉ se rechazó.
      *   • accion=borrar   → cancelado + archivado (fila CONSERVADA, NO hard-delete).
+     *
+     * #630 — si el item YA fue integrado (merge_commit no nulo), rechazarlo revierte el código real
+     * en main con el MISMO `git revert -m1` del botón manual "Revertir" (integracionRevert), en vez
+     * de solo limpiar metadata y dejar el código huérfano viviendo en main hasta un segundo clic
+     * aparte (rama huérfana C2, jul-13, nunca mergeada — recuperada aquí). Aplica a ambas acciones:
+     * "reciclar" también competiría con el próximo intento si el código viejo se queda. Falla-cerrado:
+     * si el revert no se puede aplicar (árbol sucio/conflicto) NO se rechaza nada — se devuelve el
+     * motivo para resolverlo a mano y reintentar.
      */
     public function integracionRechazar(Request $request): JsonResponse
     {
@@ -2087,11 +2095,30 @@ class RoadmapController extends Controller
 
         $por        = $this->actor();
         $comentario = trim($data['comentario']);
+
+        $mergeRevertido = null;
+        $revertCommit   = null;
+        if ($item->merge_commit) {
+            $res = $this->revertirMergeCommit($item->merge_commit);
+            if (! $res['ok']) {
+                return response()->json(['error' => 'No se pudo revertir el merge ya integrado: ' . $res['error']], 409);
+            }
+            $mergeRevertido      = $item->merge_commit;
+            $revertCommit        = $res['revert_commit'];
+            $item->merge_commit  = null;
+        }
+
         $item->comentarios_claude = (string) $item->comentarios_claude
             . "\n\n--- RECHAZADA ({$data['accion']}, " . now()->toDateTimeString() . ", {$por}) ---\n" . $comentario;
         $item->aprobado_por = $por;
         $item->revisado_at  = now();
         $log = $item->log ?: [];
+
+        if ($mergeRevertido) {
+            $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => 'revert_merge',
+                'revert_commit' => $revertCommit, 'merge_revertido' => $mergeRevertido,
+                'motivo' => "rechazo ({$data['accion']})"];
+        }
 
         if ($data['accion'] === 'reciclar') {
             $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => 'rechazo_reciclar',
@@ -2112,9 +2139,9 @@ class RoadmapController extends Controller
             $this->sellarArchivo($item, $por . ' (rechazo/borrar)');
         }
 
-        Log::channel('roadmap_externo')->info('integracion-rechazo', ['item' => $item->id, 'accion' => $data['accion'], 'por' => $por]);
+        Log::channel('roadmap_externo')->info('integracion-rechazo', ['item' => $item->id, 'accion' => $data['accion'], 'por' => $por, 'revert_commit' => $revertCommit]);
 
-        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'estado_aprobacion' => $item->estado_aprobacion, 'accion' => $data['accion']]]);
+        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'estado_aprobacion' => $item->estado_aprobacion, 'accion' => $data['accion']], 'revert_commit' => $revertCommit]);
     }
 
     /** POST /api/roadmap/integracion/revert — revierte un merge ya integrado a dev. */
@@ -2127,28 +2154,45 @@ class RoadmapController extends Controller
             return response()->json(['error' => 'No hay merge que revertir para este item'], 422);
         }
 
-        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
-            return response()->json(['error' => 'El árbol de trabajo tiene cambios sin commitear'], 409);
+        $res = $this->revertirMergeCommit($item->merge_commit);
+        if (! $res['ok']) {
+            return response()->json(['error' => $res['error']], 409);
         }
 
-        $this->git(['checkout', 'main']);
-        $rev = $this->git(['revert', '--no-edit', '-m', '1', $item->merge_commit]);
-        if (! $rev->isSuccessful()) {
-            $this->git(['revert', '--abort']);
-            return response()->json(['error' => 'No se pudo revertir (conflicto): ' . $rev->getErrorOutput()], 409);
-        }
-
-        $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
         $log = $item->log ?: [];
-        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'revert_merge', 'revert_commit' => $sha, 'merge_revertido' => $item->merge_commit];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'revert_merge', 'revert_commit' => $res['revert_commit'], 'merge_revertido' => $item->merge_commit];
         $item->log = $log;
         $item->merge_commit = null;
         $item->estado_aprobacion = 'requiere_irving';
         $item->save();
 
-        Log::channel('roadmap_externo')->info('integracion-revert', ['item' => $item->id, 'por' => $this->actor(), 'revert' => $sha]);
+        Log::channel('roadmap_externo')->info('integracion-revert', ['item' => $item->id, 'por' => $this->actor(), 'revert' => $res['revert_commit']]);
 
-        return response()->json(['ok' => true, 'revert_commit' => $sha]);
+        return response()->json(['ok' => true, 'revert_commit' => $res['revert_commit']]);
+    }
+
+    /**
+     * Revierte UN merge_commit en main con `git revert -m1` (mismo mecanismo para el botón manual
+     * "Revertir" y para el rechazo automático de un item ya integrado, #630). Fail-closed: árbol
+     * sucio o conflicto → aborta sin tocar nada y devuelve el motivo; nunca deja el revert a medias.
+     *
+     * @return array{ok: bool, revert_commit?: string, error?: string}
+     */
+    private function revertirMergeCommit(string $mergeCommit): array
+    {
+        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
+            return ['ok' => false, 'error' => 'El árbol de trabajo tiene cambios sin commitear'];
+        }
+
+        $this->git(['checkout', 'main']);
+        $rev = $this->git(['revert', '--no-edit', '-m', '1', $mergeCommit]);
+        if (! $rev->isSuccessful()) {
+            $this->git(['revert', '--abort']);
+
+            return ['ok' => false, 'error' => 'No se pudo revertir (conflicto): ' . $rev->getErrorOutput()];
+        }
+
+        return ['ok' => true, 'revert_commit' => trim($this->git(['rev-parse', 'HEAD'])->getOutput())];
     }
 
     /**

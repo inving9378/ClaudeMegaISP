@@ -966,6 +966,18 @@ class JarvisService
         if ($item->tieneFrenoHumano()) {
             return $no('Item con freno humano vigente: frontera dura.');
         }
+        // #637 — `bloqueado_por_bucle` existe para frenar reintentos automáticos de la MISMA causa
+        // (`RoadmapItem::contarEscalacion()` lo sella tras 3+ escalaciones idénticas), pero este
+        // carril lo ignoraba por completo: un item con conflicto real de merge (ej. #57) escalaba,
+        // `saving()` revertía el estado a `aprobado_irving` por venir de un humano, y en el
+        // siguiente tick `elegibleAutoMerge()` lo volvía a ver "elegible" (seguía con branch sin
+        // merge_commit) y reencolaba el mismo merge fallido — 7+ intentos idénticos en <1h. A
+        // diferencia del guard hermano en `evaluarYaDecidido()` (#710), aquí no hay fingerprint que
+        // comparar: el merge en sí no cambia solo, así que el bloqueo se respeta sin condición hasta
+        // que alguien lo destrabe a mano (resolviendo el conflicto o limpiando el flag).
+        if ($item->bloqueado_por_bucle) {
+            return $no('Bloqueado por anti-bucle: requiere destrabe manual antes de reintentar el merge.');
+        }
         if (empty($item->branch)) {
             return $no('No tiene rama que integrar.');
         }
