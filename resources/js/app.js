@@ -105,6 +105,7 @@ import PagosLinks from "./components/module/portalpago/PagosLinks.vue";
 import DcExpediente from "./components/module/documentacion-corporativa/DcExpediente.vue";
 import DcConcesiones from "./components/module/documentacion-corporativa/DcConcesiones.vue";
 import DcPendientesBandeja from "./components/module/documentacion-corporativa/DcPendientesBandeja.vue";
+import DcRegistros from "./components/module/documentacion-corporativa/DcRegistros.vue";
 import MegaFamiliaIngresos from "./components/module/megafamilia/MegaFamiliaIngresos.vue";
 import MegaFamiliaAlertas from "./components/module/megafamilia/MegaFamiliaAlertas.vue";
 import MegaFamiliaSolicitudes from "./components/module/megafamilia/MegaFamiliaSolicitudes.vue";
@@ -795,6 +796,7 @@ const app = createApp({
         'dc-expediente': DcExpediente,
         'dc-concesiones': DcConcesiones,
         'dc-pendientes-bandeja': DcPendientesBandeja,
+        'dc-registros': DcRegistros,
         // Marketing Fase 4.5b — Director Creativo IA
         'marketing-campaign-generator-view': MarketingCampaignGeneratorView,
         'voice-comparator-view': VoiceComparatorView,
