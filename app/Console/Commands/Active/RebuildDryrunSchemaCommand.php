@@ -106,6 +106,9 @@ class RebuildDryrunSchemaCommand extends Command
 
         try {
             $migrator->setConnection('dryrun');
+            if (!$migrator->repositoryExists()) {
+                $migrator->getRepository()->createRepository();
+            }
             $ran = $migrator->run([database_path('migrations')]);
         } catch (\Throwable $e) {
             $error = $e->getMessage();
