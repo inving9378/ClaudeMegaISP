@@ -410,21 +410,46 @@ class RoadmapItem extends Model
             // 'completado' aquí y este bloque no dispara — correcto: el item ni siquiera terminó de
             // cerrarse todavía.
             if ($item->estado_aprobacion === 'completado') {
-                $sinResolver = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)
-                    ->preguntasSinResolver($item);
+                $jarvis      = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class);
+                $sinResolver = $jarvis->preguntasSinResolver($item);
 
-                if ($sinResolver !== []) {
-                    $hijo = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)
-                        ->generarSeguimientoPreguntas($item, $sinResolver);
+                // #753 — separa las que ya formaron una cadena de 3+ seguimientos idénticos (esas
+                // NO generan un hijo más, ver `cadenaSeguimientoRepetida()`) de las genuinamente
+                // nuevas.
+                $porGenerar = [];
+                $omitidas   = [];
+                foreach ($sinResolver as $p) {
+                    if ($jarvis->cadenaSeguimientoRepetida($item, $p)) {
+                        $omitidas[] = $p;
+                    } else {
+                        $porGenerar[] = $p;
+                    }
+                }
 
-                    $log   = $item->log ?: [];
+                $log = $item->log ?: [];
+
+                if ($porGenerar !== []) {
+                    $hijo  = $jarvis->generarSeguimientoPreguntas($item, $porGenerar);
                     $log[] = [
                         'ts'        => now()->toIso8601String(),
                         'por'       => 'jarvis:generarSeguimientoPreguntas',
                         'evento'    => 'seguimiento_generado',
                         'hijo'      => $hijo->id,
-                        'preguntas' => count($sinResolver),
+                        'preguntas' => count($porGenerar),
                     ];
+                }
+
+                if ($omitidas !== []) {
+                    $log[] = [
+                        'ts'        => now()->toIso8601String(),
+                        'por'       => 'jarvis:generarSeguimientoPreguntas',
+                        'evento'    => 'seguimiento_omitido_cadena_repetida',
+                        'preguntas' => count($omitidas),
+                        'motivo'    => 'La misma pregunta ya generó 3+ seguimientos en cadena sin resolverse; se detiene para no crear otro item — la respuesta real queda en el reporte_coloquial de este cierre.',
+                    ];
+                }
+
+                if ($porGenerar !== [] || $omitidas !== []) {
                     $item->log = $log;
                 }
             }
