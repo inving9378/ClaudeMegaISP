@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Modules\Addons\DocumentacionCorporativa\Contracts\FuenteRegistry;
+use App\Modules\Addons\DocumentacionCorporativa\Models\DcProveedorClasificacion;
 use App\Modules\Addons\Payments\Models\ReconciliationTicket;
 use App\Services\Cobranza\InvoiceAgingService;
 
@@ -139,19 +140,38 @@ class FinanzasFuentes
     }
 
     /**
-     * Relación de proveedores. `suppliers` no tiene columna de clasificación
-     * todavía: si el concepto pide `config.clasificacion`, no hay forma
-     * honesta de filtrar, así que se devuelve vacío con el motivo (nunca se
-     * finge un filtro). Sin clasificación en el config → todos.
+     * Relación de proveedores. Apartado X (item #729/#763): con
+     * `config.clasificacion` filtra por `dc_proveedor_clasificaciones`
+     * (Fase 1.2a, item #762) — un proveedor sin filas ahí simplemente no
+     * aparece en ninguna clasificación, no es un error. Sin clasificación en
+     * el config → todos (comportamiento del Apartado IV, sin cambios).
      */
     private static function proveedores(array $config): array
     {
         if (! empty($config['clasificacion'])) {
+            $ids = DcProveedorClasificacion::query()
+                ->where('clasificacion', $config['clasificacion'])
+                ->pluck('supplier_id');
+
+            $proveedores = Supplier::query()->whereIn('id', $ids)->orderBy('name')->get();
+
+            $datos = $proveedores->map(fn (Supplier $s) => [
+                'nombre'   => $s->name,
+                'rfc'      => $s->rfc,
+                'telefono' => $s->phone,
+                'email'    => $s->email,
+                'estado'   => $s->status_name,
+            ])->all();
+
             return [
-                'datos'    => [],
-                'metricas' => ['total' => 0, 'clasificacion' => $config['clasificacion']],
-                'mensaje'  => 'Los proveedores todavía no tienen clasificación por categoría en el '
-                    . 'catálogo (columna pendiente). Este concepto se llenará cuando exista esa clasificación.',
+                'datos' => $datos,
+                'metricas' => [
+                    'total'         => $proveedores->count(),
+                    'clasificacion' => $config['clasificacion'],
+                ],
+                'mensaje' => $proveedores->isEmpty()
+                    ? "Sin proveedores clasificados como '{$config['clasificacion']}' en este entorno."
+                    : null,
             ];
         }
 
