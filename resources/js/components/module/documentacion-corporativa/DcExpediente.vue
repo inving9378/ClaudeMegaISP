@@ -38,6 +38,17 @@
             />
 
             <q-btn
+                v-hasPermission="'documentacion-corporativa.bitacora.view'"
+                flat
+                dense
+                icon="history"
+                color="primary"
+                label="Bitácora de accesos"
+                class="q-mr-sm"
+                @click="$refs.bitacora.abrir()"
+            />
+
+            <q-btn
                 flat
                 dense
                 icon="refresh"
@@ -450,6 +461,9 @@
              la tarjeta del concepto "Registro de solicitudes de información
              recibidas" (apartado XIV). -->
         <dc-solicitudes ref="solicitudes" @guardado="alGuardarPendiente" />
+
+        <!-- Bitácora consultable/exportable (Fase 5c, item #760). -->
+        <dc-bitacora ref="bitacora" />
     </div>
 </template>
 

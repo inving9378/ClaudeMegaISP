@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\BitacoraController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DcSolicitudController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DocumentoController;
@@ -73,5 +74,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/solicitudes', [DcSolicitudController::class, 'store'])->name('solicitudes.store');
             Route::put('/solicitudes/{id}', [DcSolicitudController::class, 'update'])->name('solicitudes.update');
             Route::delete('/solicitudes/{id}', [DcSolicitudController::class, 'destroy'])->name('solicitudes.destroy');
+
+            // Bitácora consultable/exportable (Fase 5c, item #760) — data/*
+            // y exportar ANTES de la ruta base, mismo criterio que el resto.
+            Route::get('/bitacora/data/empresas', [BitacoraController::class, 'empresasFiltro'])->name('bitacora.empresas');
+            Route::get('/bitacora/data/usuarios', [BitacoraController::class, 'usuariosFiltro'])->name('bitacora.usuarios');
+            Route::get('/bitacora/exportar', [BitacoraController::class, 'exportar'])->name('bitacora.exportar');
+            Route::get('/bitacora', [BitacoraController::class, 'index'])->name('bitacora.index');
         });
     });
