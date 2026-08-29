@@ -97,6 +97,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\BackfillEnlaceRevisionCommand::class,
                 // #215 — cortar una vuelta por PID/PGID del registro propio, nunca por pkill -f.
                 \App\Modules\Addons\Roadmap\Console\CortarVueltaCommand::class,
+                // #711 (Jarvis Parte 1) — índice vivo derivado del sistema real + su consulta.
+                \App\Modules\Addons\Roadmap\Console\JarvisIndexarCommand::class,
+                \App\Modules\Addons\Roadmap\Console\JarvisPreguntarCommand::class,
             ]);
         }
     }
