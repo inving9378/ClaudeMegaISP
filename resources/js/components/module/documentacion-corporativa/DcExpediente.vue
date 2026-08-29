@@ -30,6 +30,16 @@
             <q-btn
                 flat
                 dense
+                icon="inbox"
+                color="primary"
+                label="Bandeja de pendientes"
+                class="q-mr-sm"
+                @click="$refs.pendientes.abrir()"
+            />
+
+            <q-btn
+                flat
+                dense
                 icon="refresh"
                 color="primary"
                 :loading="loading"
@@ -222,6 +232,17 @@
                                     :label="etiquetaEstado(c.estado)"
                                     outline
                                 />
+                                <q-btn
+                                    v-if="c.estado === 'sin_fuente'"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="person_add"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    :label="c.metricas && c.metricas.pendiente_id ? 'Editar pendiente' : 'Asignar responsable'"
+                                    @click="$refs.pendientes.abrirParaConcepto(c)"
+                                />
                             </q-item-section>
                         </q-item>
                     </q-list>
@@ -239,6 +260,10 @@
             ref="concesiones"
             @calendario-cargado="actualizarAlertasXIII"
         />
+
+        <!-- Bandeja de pendientes (Fase 2b): lista global + alta/edición desde
+             la tarjeta "sin fuente" de un concepto. -->
+        <dc-pendientes-bandeja ref="pendientes" @guardado="alGuardarPendiente" />
     </div>
 </template>
 
@@ -351,6 +376,21 @@ export default {
             } finally {
                 this.cargandoDetalle = false;
             }
+        },
+
+        /** Un pendiente cambió (nuevo/editado): refresca lo que esté abierto. */
+        async alGuardarPendiente() {
+            if (this.dialogo && this.detalle.clave) {
+                try {
+                    const { data } = await axios.get(
+                        `/documentacion-corporativa/api/apartado/${this.detalle.clave}`
+                    );
+                    this.detalle = data;
+                } catch (e) {
+                    // El modal conserva los datos previos; no interrumpe al usuario.
+                }
+            }
+            this.cargar();
         },
 
         async cambiarEmpresa(id) {
