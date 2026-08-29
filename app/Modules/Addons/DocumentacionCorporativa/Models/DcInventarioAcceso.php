@@ -30,12 +30,13 @@ class DcInventarioAcceso extends Model
     protected $fillable = [
         'empresa_id', 'tipo', 'institucion_o_sistema', 'identificador_publico',
         'titular', 'secreto_existe', 'custodio_user_id', 'ubicacion_resguardo',
-        'fecha_ultima_revision', 'notas',
+        'fecha_ultima_revision', 'notas', 'revocado_at', 'revocado_por_user_id',
     ];
 
     protected $casts = [
         'secreto_existe'        => 'boolean',
         'fecha_ultima_revision' => 'date',
+        'revocado_at'           => 'datetime',
     ];
 
     /** Constante ASCII de 8 asteriscos. Nunca se lee de la base de datos. */
@@ -58,9 +59,25 @@ class DcInventarioAcceso extends Model
         return $this->belongsTo(User::class, 'custodio_user_id');
     }
 
+    public function revocadoPor()
+    {
+        return $this->belongsTo(User::class, 'revocado_por_user_id');
+    }
+
     public function scopeDeEmpresa($query, int $empresaId)
     {
         return $query->where('empresa_id', $empresaId);
+    }
+
+    /** Checklist de offboarding (item #761): accesos a cargo de un colaborador. */
+    public function scopeDeCustodio($query, int $userId)
+    {
+        return $query->where('custodio_user_id', $userId);
+    }
+
+    public function estaRevocado(): bool
+    {
+        return $this->revocado_at !== null;
     }
 
     /** Máximo 4 caracteres, solo lo necesario para identificar el registro en una lista. */
