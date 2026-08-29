@@ -11,9 +11,12 @@ use Illuminate\Http\Request;
 /**
  * Item #806 (Jarvis Parte 3b) — el chat donde Irving conversa el brief de una sugerencia de
  * Jarvis antes de encolarla como item. Vive bajo el mismo prefijo `api/roadmap` que el resto de
- * la Torre de Control: la ruta no está en `route_permission.php`, así que `CheckRoutePermission`
- * ya la deja pasar solo a admin/DESARROLLADOR/super-administrator — mismo gate que
- * `RoadmapController::store` y sus hermanos, sin permiso nuevo que mantener.
+ * la Torre de Control, que NO usa `CheckRoutePermission` (esas rutas solo llevan `web`+`auth`,
+ * ver `routes.php`) — el gate real es `$this->authorize()` explícito por método, igual que
+ * `RoadmapController::store` (`roadmap_manage`) y el resto de los controllers de la Torre
+ * (`JarvisIdentidadController`, `TorreFronterasController`). Se reusa `roadmap_manage` (ya
+ * existe, ya asignado) en vez de crear un permiso nuevo: el chat es un paso previo a lo mismo
+ * que ya gatea ese permiso (crear/gestionar items del roadmap).
  */
 class JarvisChatController extends Controller
 {
@@ -24,12 +27,16 @@ class JarvisChatController extends Controller
     /** GET — candidatos vivos del detector (#805) + el hilo ya abierto, si existe. */
     public function sugerencias(): JsonResponse
     {
+        $this->authorize('roadmap_manage');
+
         return response()->json(['ok' => true] + $this->chat->sugerenciasConHilo());
     }
 
     /** POST — abre (o retoma) el hilo de una sugerencia. Idempotente por `sugerencia_clave`. */
     public function abrir(Request $request): JsonResponse
     {
+        $this->authorize('roadmap_manage');
+
         $datos = $request->validate([
             'clave'     => ['required', 'string', 'max:40'],
             'categoria' => ['nullable', 'string', 'max:60'],
@@ -50,6 +57,8 @@ class JarvisChatController extends Controller
     /** GET — hilo completo, para retomar una conversación ya abierta. */
     public function mostrar(int $id): JsonResponse
     {
+        $this->authorize('roadmap_manage');
+
         $conversacion = JarvisConversacion::findOrFail($id);
 
         return response()->json(['ok' => true, 'conversacion' => $this->presentar($conversacion)]);
@@ -58,6 +67,8 @@ class JarvisChatController extends Controller
     /** POST — manda un mensaje de Irving y devuelve la respuesta de Jarvis. */
     public function mensaje(Request $request, int $id): JsonResponse
     {
+        $this->authorize('roadmap_manage');
+
         $datos        = $request->validate(['mensaje' => ['required', 'string', 'max:4000']]);
         $conversacion = JarvisConversacion::findOrFail($id);
 
@@ -82,6 +93,8 @@ class JarvisChatController extends Controller
      */
     public function vincularItem(Request $request, int $id): JsonResponse
     {
+        $this->authorize('roadmap_manage');
+
         $datos        = $request->validate(['item_id' => ['required', 'integer', 'exists:roadmap_items,id']]);
         $conversacion = JarvisConversacion::findOrFail($id);
         $this->chat->vincularItem($conversacion, (int) $datos['item_id']);
