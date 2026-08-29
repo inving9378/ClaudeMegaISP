@@ -1,0 +1,242 @@
+[
+    {
+        "id": 867,
+        "titulo": "TEST #863 undo (residuo de prueba del botón Deshacer)",
+        "estado_final": "rechazado",
+        "razon_no_merge": "Residuo de prueba sin spec real (título \"TEST #863 undo\", sin description/prompt/comentarios_claude, aprobado_por=irving:test): un test manual del botón \"Deshacer\" del toast de creación de items. Se cerró como cancelado sin cambios de código apenas se detectó, por lo que nunca generó rama ni commit que mergear.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item de prueba sin spec real, no aplica clasificación de riesgo"
+    },
+    {
+        "id": 874,
+        "titulo": "Épica Torre de Control / Consola — paraguas de fases",
+        "estado_final": "completado",
+        "razon_no_merge": "Item paraguas sin código propio: se descompuso en 7 sub-items de fase (#879-#885, la Fase 4 ya existía como #852) y se cerró como completado. El trabajo real vive en los merge_commit de esos sub-items, no en #874 directamente.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas, decomposición sin evaluación de riesgo propia"
+    },
+    {
+        "id": 875,
+        "titulo": "Consola / Torre de Control — Fase 1: Semáforo de motores",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Tras varios intentos y reanudaciones (2 commits en su rama, circuito/item-875-consola-fase-1-semaforo-de-motores-en), quedó parqueado en aprobado_irving (reanudación 2/2) esperando el merge manual de Irving. Sigue el mismo patrón que sus hermanos de la misma épica (#879/#881/#882), todos nivel C, sin confirmación de merge a main en los logs disponibles.",
+        "nivel_riesgo": "C",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": null
+    },
+    {
+        "id": 876,
+        "titulo": "Consola — Fase 3: Catálogo de acciones (fundamento)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Nivel C explícito en el log (\"item #876 encolado y parqueado esperando_merge_irving por ser nivel C\"). Quedó con fundamento verificado (reglas de validación + ejecutor + auditoría) y un botón real migrado end-to-end, rama con 166 commits de adelanto sobre main, pero nunca se fusionó — confirmado repetidamente hasta el 2026-08-21 18:55 por al menos 8 vueltas distintas que dependían de él (#961-#964) y quedaron bloqueadas por la misma razón.",
+        "nivel_riesgo": "C",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": null
+    },
+    {
+        "id": 877,
+        "titulo": "Torre de Control — Diagnóstico de items (backend + ficha + tablero)",
+        "estado_final": "completado",
+        "razon_no_merge": "Item paraguas: no cabía en una vuelta, se descompuso en 3 sub-items (#935 backend, #936 ficha, #937 tablero). El plan completo (8 causas) se terminó implementando vía #980/#981 (DiagnosticoItemService, commit af83a0b6) y el propio #877 se cerró como completado sin generar código directo — el trabajo real vive en el merge_commit de esos sub-items.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas resuelto vía sub-items, sin evaluación de riesgo propia"
+    },
+    {
+        "id": 879,
+        "titulo": "Torre de Control — Fase 1: Semáforo de motores (endpoint + pestaña)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Nivel C explícito en el log (\"integrado y parqueado como aprobado_irving+esperando_merge_irving a la espera del merge manual de Irving (nivel C)\"). Pestaña \"Semáforo de motores\" en /releases con endpoint de backend, probado end-to-end y con build limpio, 2 commits en rama circuito/item-879-torre-de-control-fase-1-semaforo-de-m, pero el merge a main quedó pendiente de la acción manual de Irving.",
+        "nivel_riesgo": "C",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": null
+    },
+    {
+        "id": 881,
+        "titulo": "Consola — Fase 3: Catálogo de acciones real (TorreAccionCatalogo + endpoint)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Nivel C explícito en el log (\"Creado TorreAccionCatalogo ... commiteado, integrado, esperando merge de Irving (nivel C)\"). Bloqueó como prerrequisito duro a múltiples items (#883, #930, #961-#964) durante más de 10 vueltas consecutivas hasta el 2026-08-21 16:02, siempre en aprobado_irving con branch abierta pero merge_commit=null — nunca llegó a fusionarse a main en la ventana de logs disponible.",
+        "nivel_riesgo": "C",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": null
+    },
+    {
+        "id": 882,
+        "titulo": "Torre de Control — Fase 5: Terminales, botón Liberar",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Nivel C explícito en el log (\"trabajo ya commiteado ... encolado con circuito:integrar — nivel C queda esperando merge manual de Irving\"). Botón Liberar en Terminales verificado, build/lint OK, 2 commits en circuito/item-882-torre-de-control-fase-5-terminales, pero quedó parqueado esperando el merge manual de Irving sin confirmación de fusión a main en los logs disponibles.",
+        "nivel_riesgo": "C",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": null
+    },
+    {
+        "id": 883,
+        "titulo": "Torre de Control — Fase 6 (dependiente del Catálogo de acciones)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Nunca llegó a escribir código: su propio spec (Paso 0) exige que la Fase 3 (#881, Catálogo de acciones) esté VALIDADA y requiere confirmación explícita de Irving antes de arrancar. #881 nunca se validó ni mergeó, así que el bloqueo se re-verificó repetidamente (7+ veces, wt-3/wt-5/wt-2/wt-1) sin cambios; el plan completo (Paso 0) se dejó documentado en el sub-item #930. Tras el bucle de reclamos repetidos se marcó bloqueado_por_bucle+excluir_pool_automatico para cortarlo.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — nunca llegó a ejecutar código ni a evaluarse, bloqueado desde el primer intento por su prerrequisito interno (#881)"
+    },
+    {
+        "id": 888,
+        "titulo": "Torre de Control — Fase (rename de controles, dependiente de #881)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "No cabía en una vuelta (circuito:cabida = NO CABE) y su Paso 0 exige que la Fase 3 (#881, Catálogo de acciones) esté validada antes de tocar código — #881 nunca se validó ni mergeó. Se descompuso en 4 sub-items (#941-#944), todos quedaron en requiere_irving sin ejecutar; el propio #888 se marcó excluir_pool_automatico como paraguas para cortar el bucle de re-reclamo, sin generar código propio.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas descompuesto sin código propio, bloqueado por dependencia (#881)"
+    },
+    {
+        "id": 892,
+        "titulo": "Consola — Fase 8: Historial de acciones",
+        "estado_final": "abandonado",
+        "razon_no_merge": "Tres intentos consecutivos (16:27 wt-4, 17:10 wt-2, 18:27 wt-4, 18:41 wt-2) hicieron timeout a los 600s sin generar ningún commit (\"la rama no tiene commits: no hubo avance, así que no se re-encola\"). No hay evidencia en los logs disponibles de que el ítem se haya descompuesto, bloqueado explícitamente ni retomado después del último timeout.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — nunca se generó código ni brief evaluado, solo timeouts repetidos sin commits"
+    },
+    {
+        "id": 909,
+        "titulo": "Consola — Catálogo de acciones: migración de ~30 botones restantes",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Sub-item creado a partir del fundamento de #876 (nivel C, sin mergear). No cabía en una vuelta (circuito:cabida = NO); se descompuso en 6 sub-items (#960-#965: inventario + 4 lotes de migración por permiso/riesgo + caso especial AuditReport), todos dependientes de que #876 se fusionara a main, lo cual nunca ocurrió en la ventana de logs. #909 quedó como paraguas sin código propio, cerrado vía el guard automático de paraguas.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — paraguas descompuesto sin código propio, dependiente de #876 (nivel C) sin mergear"
+    },
+    {
+        "id": 915,
+        "titulo": "MegaFamilia RN — cablear UI de tickets (detalle/foto/calificación)",
+        "estado_final": "completado",
+        "razon_no_merge": "El trabajo se completó y commiteó (715c98c) en el repo separado /var/www/megafamilia-rn (React Native), fuera de este repo megaisp — por eso el item nunca tuvo un merge_commit en el repo megaisp aunque el trabajo real sí se hizo y se cerró como completado.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — trabajo completado pero en repo externo (megafamilia-rn), sin evaluación de nivel_riesgo documentada en este repo"
+    },
+    {
+        "id": 916,
+        "titulo": "MegaFamilia RN — UI de tracking GPS del conductor",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Bloqueado estructuralmente: el código real vive en un repo git separado (/var/www/megafamilia-rn), sin submódulo ni worktree hermano disponible desde el circuito, con cambios sin commitear ahí — imposible de tocar desde este workflow. Escalado a Irving dos veces (wt-6 18:24, wt-1 19:42) sin ejecutar nada.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado estructuralmente (repo externo) antes de cualquier evaluación de riesgo"
+    },
+    {
+        "id": 919,
+        "titulo": "Item con título \"REVISAR\" migrado al mecanismo agendado_para (vía #921)",
+        "estado_final": "indeterminado",
+        "razon_no_merge": "No se evaluó código: la única acción registrada fue reprogramarlo (agendado_para=2026-09-20) vía el mecanismo de limpieza de #921, confirmando que estaba mal marcado como despachable hoy pese a su título \"REVISAR\", y simplificando su título. Sin tocar su contenido real ni evaluar brief/nivel_riesgo.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — solo se registró su reprogramación (agendado_para), sin evaluación de contenido"
+    },
+    {
+        "id": 920,
+        "titulo": "Flotas — UI de \"ficha de conductor\" (documentos sin vehículo)",
+        "estado_final": "en_curso_interrumpido",
+        "razon_no_merge": "El backend relacionado (fleet_documents.vehicle_id nullable + scopeForClient) se mergeó a main, pero la UI se difirió explícitamente como este mismo sub-item #920. Seis intentos sucesivos (18:31, 19:00, 19:12, 19:31, 13:41 del día siguiente, 16:02) iniciaron la vuelta (\"modo POR-ITEM\") pero ninguno dejó un meta_tocado de cierre en los logs disponibles — no hay evidencia de que llegara a completarse, bloquearse explícitamente ni descomponerse.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — múltiples intentos sin meta_tocado de cierre registrado en los logs disponibles"
+    },
+    {
+        "id": 922,
+        "titulo": "Agendar items a futuro (columna reactivación)",
+        "estado_final": "completado",
+        "razon_no_merge": "Su spec ya estaba 100% implementado en main por items paralelos (#921/#957/#958/#959), verificado en vivo por wt-4; no generó código propio ni merge_commit porque hubiera sido duplicado — se cerró como completado sin cambios nuevos, tras un primer intento que hizo timeout sin commits.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — cerrado como duplicado de trabajo ya mergeado por otros items, sin evaluación propia"
+    },
+    {
+        "id": 930,
+        "titulo": "Torre de Control — Fase 6, Paso 0 (plan detallado, dependiente de #881)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Bloqueado desde su creación por el mismo prerrequisito duro que #883: #881 (Catálogo de acciones, nivel C) nunca llegó a completado/mergeado a main. El propio spec de #930 prohibía retomarlo antes de eso. Re-verificado repetidamente (>10 veces) sin cambios ni código nuevo; en una vuelta se le puso agendado_para+4h para evitar reclamos huérfanos. Sí tuvo una pregunta de brief (q1) ya respondida por Irving confirmando la secuencia (validar #881 primero, pedir brief detallado después), pero eso no incluye una definición de nivel_riesgo para #930 mismo.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": true,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — el item tiene brief respondido (pregunta q1 de Irving) pero ningún log declara su propio nivel_riesgo; queda bloqueado indefinidamente por el prerrequisito #881 (nivel C, nunca mergeado)"
+    },
+    {
+        "id": 932,
+        "titulo": "Item referenciado de pasada junto a #934 en el cierre de #938",
+        "estado_final": "indeterminado",
+        "razon_no_merge": "Evidencia insuficiente: la única mención disponible es de paso, como referencia dentro del cierre de otro item (#938 pasado a requiere_irving); no hay detalle de qué es #932 en sí, de su spec, ni de por qué no llegó a merge_commit.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — solo 1 mención de pasada, sin contexto propio suficiente"
+    },
+    {
+        "id": 939,
+        "titulo": "Torre de Control — backend: orden real de la cola + endpoint GET /torre/cola",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Nivel C explícito en el log (\"cerrado con commit de bitácora en rama nivel C esperando merge de Irving\"). Verificado que el backend real (orden de cola, permiso torre.cola.ver, endpoint GET /torre/cola) ya estaba en main desde el item #890; #939 no requirió código nuevo, solo un commit de bitácora documentando la verificación, en una rama nivel C que quedó esperando el merge manual de Irving.",
+        "nivel_riesgo": "C",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": null
+    },
+    {
+        "id": 952,
+        "titulo": "Épica IPv6 (#811) — Fase 1.7: configuración IPv6",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Sub-item de la épica IPv6 (#811, descompuesta en 8 fases #949-#956). No cabía en una vuelta y quedó bloqueada por dependencias (#949/#950) sin cerrar del todo; se descompuso en 4 sub-items (#999-#1002, ninguno reclamado en la ventana de logs). Se activó el guard de paraguas (excluir_pool_automatico) para cortar el bucle de reencolado tras varios reclamos huérfanos. Nunca generó código propio.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas descompuesto sin código propio, bloqueado por dependencias"
+    },
+    {
+        "id": 953,
+        "titulo": "Épica IPv6 (#811) — Fase 2: spike RADIUS PD (dev vs prod)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Requiere una definición explícita de Irving sobre el conflicto RADIUS dev-vs-prod antes de poder ejecutarse (bloqueo por diseño propio del spec), además de que su Fase 1 previa (#949-#952) nunca cerró del todo. Escalado repetidamente a Irving vía Thomas (toca routers MikroTik de producción — frontera dura, referenciada sobre todo a través del item dependiente #993) sin ejecutar código en ninguna de las más de 20 vueltas registradas en los logs.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — nunca se ejecutó código, bloqueado por precondición propia (definición de Irving sobre conflicto RADIUS) desde el primer intento"
+    },
+    {
+        "id": 954,
+        "titulo": "Épica IPv6 (#811) — Fase 3",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Bloqueada por su precondición propia: la Fase 2 (#953) nunca cerró. No cabía en una vuelta y se descompuso en 4 sub-items (#991-#994) sin tocar código ni infraestructura real; permaneció bloqueada en todas las verificaciones posteriores (wt-2, wt-1, wt-5) sin cambios.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas bloqueado por precondición (#953), sin código propio"
+    },
+    {
+        "id": 955,
+        "titulo": "Épica IPv6 (#811) — Fase 4",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "No cabía en una vuelta; se descompuso en 4 sub-items (#995-#998) con fronteras duras propias (geofeed marcado BLOCKED-NEGOCIO, prevuelo toca MikroTik de producción) y dependencia de #954 (aún sin cerrar). Se activó el guard de paraguas (excluir_pool_automatico) tras 4 reclamos consecutivos para cortar el bucle de reencolado, sin generar código propio.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas bloqueado por fronteras duras y dependencia, sin código propio"
+    }
+]
