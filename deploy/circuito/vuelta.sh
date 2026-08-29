@@ -120,6 +120,19 @@ registrar_pid(){  # $1 = item (puede venir vacío)
 
 borrar_pid(){ rm -f "$PIDFILE" 2>/dev/null || true; }
 
+# ── HISTÓRICO DE ARRANQUES DE claude -p (familia GASTO, #706 sub-item de #208) ──────────────
+# APPEND-ONLY, a propósito distinto de $PIDFILE de arriba: ese es estado VIVO (una fila por SID,
+# se borra al terminar por el trap EXIT); esto es HISTORIA (una línea por arranque, nunca se
+# borra ni se trunca aquí) — es lo único que le permite a la vigilia contar "invocaciones/hora"
+# más allá de la vuelta que está corriendo ahora mismo. JSONL para que el lector en PHP no tenga
+# que parsear texto libre.
+JARVIS_ARRANQUES="${CIRCUITO_JARVIS_ARRANQUES_LOG:-$(dirname "$JARVIS_PIDS")/arranques-claude.log}"
+registrar_arranque(){  # $1 = item (puede venir vacío)
+  mkdir -p "$(dirname "$JARVIS_ARRANQUES")" 2>/dev/null || return 0
+  printf '{"ts":%s,"sid":"%s","item":"%s","modelo":"%s"}\n' \
+    "$(date +%s)" "$SID" "${1:-}" "${MODEL:-}" >> "$JARVIS_ARRANQUES" 2>/dev/null || true
+}
+
 # El trap cubre timeout, kill y error: si la vuelta muere de cualquier forma, el registro no queda
 # mintiendo. Y si aun así quedara colgado, el propio vigilante lo detecta por `starttime` y lo
 # reporta como entrada colgada en vez de creerle.
@@ -198,6 +211,7 @@ ejecutar_una() {
     PROMPT_TEXT="$(cat "$PROMPT_FILE")"
   fi
   registrar_pid "${ITEM:-}"
+  registrar_arranque "${ITEM:-}"
   log "===== inicio de la vuelta (claude -p) ====="
 
   local START FIN RC HB_PID META

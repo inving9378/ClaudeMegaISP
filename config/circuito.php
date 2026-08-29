@@ -372,6 +372,33 @@ return [
             // separada de `circuito.reaper.gracia_minutos` (que vive en base) porque esta familia
             // tiene que poder medir aunque la base sea justo lo que está fallando.
             'reclamos_gracia_seg' => (int) env('CIRCUITO_JARVIS_RECLAMOS_GRACIA', 180),
+
+            // FAMILIA "GIT" (#706, sub-item de #208) — ningún worktree del circuito debe quedar
+            // con HEAD desatado apuntando a un commit que NINGUNA rama referencia. El flujo sano
+            // deja cada worktree detached-en-main un instante (`vuelta.sh`: `checkout --detach -f
+            // main`) hasta que `circuito:rama` lo ata a `circuito/item-N-...`; en ese estado
+            // `git branch --contains` siempre devuelve al menos `main`. La anomalía es un COMMIT
+            // hecho mientras seguía desatado (nadie corrió `circuito:rama` antes): ese commit no
+            // es ancestro de ninguna rama, y el SIGUIENTE `checkout --detach -f main` de otra
+            // vuelta en ese mismo worktree lo deja inalcanzable. Caso real: #191 Fase 3, 25-ago
+            // 15:38:45, el pool continuo abandonó el worktree 32 s después; se rescató a mano en
+            // `rescate/bitacora-item-191`. Gracia corta: le da tiempo a `circuito:rama` de atar el
+            // commit recién hecho antes de que se le juzgue huérfano (en operación sana nunca se
+            // usa, porque el flujo normal jamás commitea en detached).
+            'git_huerfano_gracia_seg' => (int) env('CIRCUITO_JARVIS_GIT_GRACIA', 20),
+
+            // FAMILIA "GASTO" (#706, sub-item de #208) — invocaciones de `claude -p` por hora
+            // contra un umbral configurable. Fuente: `arranques-claude.log`, un JSONL
+            // append-only que escribe `vuelta.sh` en cada arranque — aparte del registro de PIDs
+            // VIVOS de `RegistroPids` (que el `trap EXIT` borra al terminar la vuelta): este
+            // archivo es histórico, no de estado vivo, y por diseño nunca se trunca ahí.
+            // Con `paralelismo`=6 (arriba) y `CIRCUITO_TIMEOUT`=600s, el techo teórico corriendo
+            // sin pausa es 36/h; el default deja margen sobre eso.
+            'gasto_arranques_log' => env(
+                'CIRCUITO_JARVIS_GASTO_LOG',
+                '/var/www/megaisp/storage/app/circuito/jarvis/arranques-claude.log'
+            ),
+            'gasto_umbral_hora' => (int) env('CIRCUITO_JARVIS_GASTO_UMBRAL_HORA', 60),
         ],
 
         /*

@@ -66,6 +66,8 @@ class JarvisVigilarCommand extends Command
             'registro'  => $this->medirRegistro(),
             'freno'     => $this->medirFreno(),
             'sonda'     => $this->medirSonda(),
+            'git'       => $this->medirGit(),
+            'gasto'     => $this->medirGasto(),
         ];
 
         $estado['bd_integra'] = $this->medirBdIntegra($anterior);
@@ -352,6 +354,123 @@ class JarvisVigilarCommand extends Command
         return [
             'disponible' => is_array($j),
             'edad_seg'   => is_array($j) ? max(0, time() - (int) ($j['medido_ts'] ?? 0)) : null,
+        ];
+    }
+
+    /**
+     * FAMILIA "GIT" (#706, sub-item de #208) — ningún worktree del circuito debe quedar con HEAD
+     * desatado apuntando a un commit que NINGUNA rama referencia. El flujo sano deja cada
+     * worktree detached-en-main un instante (`vuelta.sh`: `checkout --detach -f main`) hasta que
+     * `circuito:rama` lo ata a `circuito/item-N-...`; en ese estado `git for-each-ref --contains`
+     * siempre devuelve al menos `main`. La anomalía es un COMMIT hecho mientras seguía desatado
+     * (nadie corrió `circuito:rama` antes de commitear): ese commit no es ancestro de ninguna
+     * rama, y el SIGUIENTE `checkout --detach -f main` de otra vuelta en ese mismo worktree lo
+     * deja inalcanzable. Caso real: #191 Fase 3, 25-ago 15:38:45, el pool continuo abandonó el
+     * worktree 32 s después; se rescató a mano en `rescate/bitacora-item-191`.
+     *
+     * Filesystem + subprocesos `git` sobre CADA worktree — sin BD, puede correr con la base caída.
+     */
+    private function medirGit(): array
+    {
+        $raiz = rtrim((string) config('circuito.jarvis.vigilia.raiz_worktrees'), '/');
+        $graciaSeg = max(0, (int) config('circuito.jarvis.vigilia.git_huerfano_gracia_seg', 20));
+
+        $huerfanos = [];
+        $evaluados = 0;
+
+        foreach (glob($raiz . '/wt-*', GLOB_ONLYDIR) ?: [] as $wt) {
+            if (! file_exists($wt . '/.git')) {
+                continue; // no es un worktree git (o está a medio provisionar)
+            }
+            $evaluados++;
+
+            $rama = $this->sh('git -C ' . escapeshellarg($wt) . ' symbolic-ref -q --short HEAD 2>/dev/null');
+            if ($rama !== null && trim($rama) !== '') {
+                continue; // atado a una rama: el estado sano de "trabajando" (circuito:rama ya corrió)
+            }
+
+            $sha = trim((string) $this->sh('git -C ' . escapeshellarg($wt) . ' rev-parse HEAD 2>/dev/null'));
+            if ($sha === '') {
+                continue; // worktree sin commits o ilegible; nada que evaluar
+            }
+
+            // `for-each-ref --contains`, NUNCA `branch --contains`: en detached HEAD, `branch
+            // --contains` imprime el pseudo-renglón "* (HEAD desacoplado en ...)" incluso cuando
+            // NINGUNA rama real contiene el commit — con eso el trim() de abajo saldría no-vacío
+            // y el huérfano real pasaría desapercibido. `for-each-ref` solo lista refs de verdad.
+            $ramas = $this->sh('git -C ' . escapeshellarg($wt) . ' for-each-ref --contains ' . escapeshellarg($sha) . " --format='%(refname)' refs/heads/ 2>/dev/null");
+            if (trim((string) $ramas) !== '') {
+                continue; // alguna rama (main u otra) contiene este commit: detached-en-main normal
+            }
+
+            $tsRaw = trim((string) $this->sh('git -C ' . escapeshellarg($wt) . ' log -1 --format=%ct ' . escapeshellarg($sha) . ' 2>/dev/null'));
+            $edadSeg = ctype_digit($tsRaw) ? max(0, time() - (int) $tsRaw) : null;
+
+            if ($edadSeg !== null && $edadSeg < $graciaSeg) {
+                continue; // recién commiteado: se le da la gracia a que `circuito:rama` lo ate
+            }
+
+            $huerfanos[] = [
+                'worktree'  => basename($wt),
+                'sha'       => $sha,
+                'sha_corto' => substr($sha, 0, 12),
+                'edad_seg'  => $edadSeg,
+            ];
+        }
+
+        return [
+            'evaluados'  => $evaluados,
+            'gracia_seg' => $graciaSeg,
+            'huerfanos'  => $huerfanos,
+        ];
+    }
+
+    /**
+     * FAMILIA "GASTO" (#706, sub-item de #208) — invocaciones de `claude -p` en la última hora
+     * contra un umbral configurable. Fuente: `arranques-claude.log`, el histórico JSONL
+     * append-only que escribe `vuelta.sh` en cada arranque (distinto del registro de PIDs VIVOS
+     * de `RegistroPids`, que el `trap EXIT` de la vuelta borra al terminar).
+     */
+    private function medirGasto(): array
+    {
+        $ruta = (string) config('circuito.jarvis.vigilia.gasto_arranques_log');
+        $umbral = max(1, (int) config('circuito.jarvis.vigilia.gasto_umbral_hora', 60));
+
+        clearstatcache(true, $ruta);
+        if ($ruta === '' || ! is_readable($ruta)) {
+            return ['medido' => false, 'ruta' => $ruta, 'umbral_hora' => $umbral, 'invocaciones_hora' => 0];
+        }
+
+        $fh = @fopen($ruta, 'r');
+        if ($fh === false) {
+            return ['medido' => false, 'ruta' => $ruta, 'umbral_hora' => $umbral, 'invocaciones_hora' => 0];
+        }
+
+        $desde = time() - 3600;
+        $conteo = 0;
+        $ultimoTs = null;
+
+        while (($linea = fgets($fh)) !== false) {
+            $j = json_decode(trim($linea), true);
+            $ts = is_array($j) ? (int) ($j['ts'] ?? 0) : 0;
+            if ($ts <= 0) {
+                continue;
+            }
+            if ($ultimoTs === null || $ts > $ultimoTs) {
+                $ultimoTs = $ts;
+            }
+            if ($ts >= $desde) {
+                $conteo++;
+            }
+        }
+        fclose($fh);
+
+        return [
+            'medido'             => true,
+            'ruta'               => $ruta,
+            'umbral_hora'        => $umbral,
+            'invocaciones_hora'  => $conteo,
+            'ultimo_arranque_ts' => $ultimoTs,
         ];
     }
 
@@ -664,6 +783,21 @@ class JarvisVigilarCommand extends Command
             $ids = implode(', ', array_map(fn ($r) => "#{$r['id']} ({$r['worker_sid']})", $rec['sin_proceso_vivo']));
             $a[] = ['clave' => 'reclamos_sin_proceso_vivo', 'nivel' => 'actua_y_avisa',
                 'texto' => "Item(s) en_progreso cuyo worker_sid no tiene proceso vivo en el registro de PIDs: {$ids}.", ];
+        }
+
+        $git = $e['git'] ?? [];
+        if (count($git['huerfanos'] ?? []) > 0) {
+            $detalle = implode(', ', array_map(fn ($h) => "{$h['worktree']} ({$h['sha_corto']})", $git['huerfanos']));
+            $a[] = ['clave' => 'git_huerfano', 'nivel' => 'alarma',
+                'texto' => "Worktree(s) con HEAD desatado y commit(s) que ninguna rama referencia: {$detalle}. "
+                    . 'Se pierden en el siguiente checkout a main si nadie los rescata con una rama.', ];
+        }
+
+        $gasto = $e['gasto'] ?? [];
+        if (($gasto['medido'] ?? false) && $gasto['invocaciones_hora'] > $gasto['umbral_hora']) {
+            $a[] = ['clave' => 'gasto_claude', 'nivel' => 'me_pregunta',
+                'texto' => "{$gasto['invocaciones_hora']} invocaciones de claude -p en la última hora "
+                    . "(umbral {$gasto['umbral_hora']}).", ];
         }
 
         return $a;
