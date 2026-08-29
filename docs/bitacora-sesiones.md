@@ -3275,3 +3275,25 @@ vuelve a timeoutear/re-escalar en bucle — llevaba reap_count=6 y 1 timeout) y 
 el último de los 4 hijos cierre (hook `saved`, ya verificado en el código). Decisión registrada
 también en `circuito:reportar 208 --tipo=decision` (reporte #2219). Sin cambio de código de
 aplicación — los 4 sub-items quedan disponibles para que el pool los reclame normalmente.
+
+## 2026-08-28 19:33 — Item #216 (Deriva de esquema en dev): re-confirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-2.** #216 ("deriva de esquema en dev: medir cuántas columnas existen solo porque alguien las
+agregó a mano, sin migración que las respalde") volvió a `en_progreso` reclamado para mí, pero
+`circuito:cabida` devolvió `CABE [ya_descompuesto]`: una vuelta anterior (también wt-2, 2026-08-28
+19:16) ya lo había partido en 3 sub-items reales — **#738** (Fase 1: esquema de referencia desde
+migraciones en BD desechable `megaisp_dryrun`), **#739** (Fase 2: diff esquema vivo `megaisp` vs
+referencia de migraciones) y **#740** (Fase 3: consumidores + entregable final + cierre del
+paraguas) — los tres con `origen_item_id=216`, aprobados (`aprobado_revisor`/`aprobado_irving`) y
+**sin reclamar** (worker_sid vacío, sin rama). El motivo del rebote: la vuelta anterior sí registró
+la decisión y creó los sub-items, pero nunca intentó el cierre del padre, así que #216 se quedó
+`en_progreso` colgado → el reaper lo vio huérfano (slot libre) y lo re-escaló en bucle
+(`reap_count=6`, 1 timeout).
+
+Mismo mecanismo de "paraguas" ya usado hoy en #208 (guard `saving` 2b de `RoadmapItem`, pensado
+exactamente para esto): intenté cerrar #216 a `completado` y el guard lo reenrutó solo a
+`aprobado_irving` + `excluir_pool_automatico=true`, dejando en el log el evento `paraguas_abierto`
+("le quedan 3 sub-items abiertos: no se completa"). Con eso #216 sale del pool de reclamo y se
+cerrará solo cuando el último de los 3 hijos cierre. Decisión registrada también en
+`circuito:reportar 216 --tipo=decision` (reporte #2247). Sin cambio de código de aplicación — los 3
+sub-items quedan disponibles para que el pool los reclame normalmente.
