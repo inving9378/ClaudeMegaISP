@@ -605,6 +605,21 @@ class JarvisService
                     . '(rama/opción/nivel/preguntas distintos) lo destraba.');
             }
         }
+        // #757 — un PARAGUAS con sub-items abiertos no está retenido por una decisión pendiente:
+        // puede tener el brief 100% contestado (a veces desde hace días, sin cambiar nunca) y aun
+        // así seguir sin poder avanzar porque sus hijos (`origen_item_id`) no cerraron. Sin este
+        // guard, `aprobarYaDecidido()` veía «brief contestado», reseteaba el master switch
+        // `excluir_pool_automatico`/`bloqueado_por_bucle` (pensado para soltar SOLO lo que esperaba
+        // una decisión) y lo devolvía al pool; un worker lo reclamaba, no encontraba nada reclamable
+        // en sus hijos (regla #341: un item = un dueño) y lo volvía a parquear a mano — bucle sin
+        // avance real (#722, 4 ocurrencias verificadas entre wt-2/wt-4/wt-6, ~10 min de worker cada
+        // vuelta). Misma condición estructural que ya usa el guard (2b) de `RoadmapItem::saving()`
+        // para impedir que un paraguas se cierre con hijos abiertos — aquí se aplica ANTES de tocar
+        // estado/flags, no sólo al momento de cerrar.
+        if ($item->tieneSubItemsAbiertos()) {
+            return $no('Paraguas con sub-items abiertos: lo retiene la descomposición pendiente de '
+                . 'cerrar, no una decisión sin tomar. Cierra solo cuando sus hijos cierren.');
+        }
         // MISMO texto que el carril mecánico (título + descripción + prompt): antes este carril
         // miraba sólo título+descripción y un término de frontera que viviera en el `prompt` se le
         // escapaba, así que dos carriles con la misma regla daban veredictos distintos.
