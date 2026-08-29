@@ -26,8 +26,10 @@ class MergeRunner
 {
     private const LOCK = '/home/meganet/circuito/merge.lock';
 
-    public function __construct(private RoadmapCircuitoService $svc)
-    {
+    public function __construct(
+        private RoadmapCircuitoService $svc,
+        private JarvisIndiceService $jarvisIndice,
+    ) {
     }
 
     /**
@@ -173,6 +175,12 @@ class MergeRunner
 
         $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
         $this->markMerged($item, $sha, $branch);
+
+        // #711 (Jarvis Parte 1) — "al cambiar main" y "al cerrarse un item" son el MISMO evento
+        // en este flujo (un item se cierra integrándose aquí), así que este es el único punto de
+        // enganche que hace falta para que el índice vivo no se quede atrás. Best-effort: un
+        // fallo al reindexar NUNCA debe tumbar un merge ya commiteado.
+        $this->jarvisIndice->regenerarSilencioso();
 
         // #432 ADENDA A — "mergeado" = DESPLEGADO y VISIBLE, no solo en git. Si el merge tocó
         // frontend, recompila el bundle + limpia cachés (SIN config:cache) para servir el cambio de
