@@ -255,6 +255,7 @@ class JarvisVigilarCommand extends Command
                 'bytes'    => $info['bytes'],
                 'legible'  => $this->humano($info['bytes']),
                 'mtime'    => is_readable($info['ruta']) ? date('c', (int) @filemtime($info['ruta'])) : null,
+                'errores_ult_min' => $this->erroresUltimoMinuto($info['ruta']),
             ];
         }
         usort($archivos, fn ($a, $b) => $b['bytes'] <=> $a['bytes']);
@@ -276,6 +277,24 @@ class JarvisVigilarCommand extends Command
         if (! isset($mayores[$etiqueta]) || $bytes > $mayores[$etiqueta]['bytes']) {
             $mayores[$etiqueta] = ['ruta' => $ruta, 'bytes' => $bytes];
         }
+    }
+
+    /**
+     * Líneas de nivel ERROR/CRITICAL/ALERT/EMERGENCY en el último minuto de UN log — mismo
+     * regex que `CompuertasSondaCommand::medirLogs()` ya prueba en producción, aquí aplicado
+     * por worktree (#774, fase 4 de #705) en vez de solo al log principal. `tail -c` para no
+     * leer archivos de gigabytes completos; `sh()` ya es tolerante a fallo (null, no excepción).
+     */
+    private function erroresUltimoMinuto(string $ruta): int
+    {
+        if (! is_readable($ruta)) {
+            return 0;
+        }
+
+        return (int) trim((string) $this->sh(
+            'tail -c 2000000 ' . escapeshellarg($ruta) . ' 2>/dev/null | grep -cE '
+            . escapeshellarg('^\[' . now()->format('Y-m-d H:i') . '[^]]*\]\s+\S+\.(ERROR|CRITICAL|ALERT|EMERGENCY):')
+        ));
     }
 
     // ── PROCESOS ────────────────────────────────────────────────────────────────────────────
@@ -926,6 +945,17 @@ class JarvisVigilarCommand extends Command
             $m = $e['logs']['mayor'];
             $a[] = ['clave' => 'log_grande', 'nivel' => 'actua_y_avisa',
                 'texto' => "El log de {$m['donde']} pesa {$m['legible']} ({$m['ruta']}).", ];
+        }
+        // FAMILIA "ERRORES POR MINUTO" (#774, fase 4 de #705) — por WORKTREE, no un total: un
+        // error masivo en uno solo no debe quedar enmascarado por el resto tranquilo (el mismo
+        // problema que motivó medir los 7 logs en vez de uno solo, ver docblock de la clase).
+        $umbralErrores = (int) config('circuito.jarvis.vigilia.errores_por_minuto_umbral', 20);
+        foreach ($e['logs']['archivos'] ?? [] as $log) {
+            if (($log['errores_ult_min'] ?? 0) > $umbralErrores) {
+                $a[] = ['clave' => 'errores_por_minuto:' . $log['donde'], 'nivel' => 'alarma',
+                    'texto' => "{$log['errores_ult_min']} error(es)/critical(es) en el último minuto en "
+                        . "el log de {$log['donde']} (umbral {$umbralErrores}): {$log['ruta']}.", ];
+            }
         }
         if (($e['procesos']['vueltas_colgadas'] ?? 0) > 0) {
             $umbral = (int) config('circuito.vuelta_colgada_seg', 3600);
