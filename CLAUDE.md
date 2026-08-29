@@ -1355,3 +1355,15 @@ y 4ª (`equipo_red`, decisión de Irving en #1007) que la pregunta planteaba com
 y están aplicadas**. Nada pendiente de la lista original. Detalle completo en
 `docs/inventario-seguimiento-218-item-733-verificacion.md`. **Sin cambio de código** (el cambio ya
 estaba en `main` desde antes de que el item existiera).
+
+## Item #741 — Seguimiento de la pregunta sin resolver de #733 (RESUELTO — misma carrera del generador, un nivel más abajo)
+
+Mismo patrón que #733, repetido: al cerrar #733 (`completado`, con la respuesta completa ya en su
+`reporte_coloquial`), el generador de seguimientos leyó el arreglo estructurado `preguntas[]` (que
+seguía con `opcion_elegida:null`) en el **mismo segundo** del merge y creó #741 sin mirar que el
+padre ya había resuelto la pregunta. Reverificado contra la BD de dev (2026-08-29): las 17 entradas
+originales de #218 siguen clasificadas igual que documentó #733 (sin regresiones); `POWER` sigue
+`NULL` a propósito. Nada nuevo que decidir. Detalle en
+`docs/inventario-seguimiento-733-item-741-verificacion.md`. **Sin cambio de código.** Causa raíz
+(la carrera del generador entre cierre del padre y lectura de `preguntas[]`) queda anotada como
+deuda de bajo costo si se repite una tercera vez — no se toca en este item.
