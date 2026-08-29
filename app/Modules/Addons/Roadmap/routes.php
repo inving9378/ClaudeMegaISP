@@ -131,6 +131,9 @@ Route::middleware(['web', 'auth'])
         Route::post('/torre/fronteras/termino',           [TorreFronterasController::class, 'termino']);
         Route::post('/torre/fronteras/valvula',           [TorreFronterasController::class, 'valvula']);
         Route::post('/torre/fronteras/techo-autopilot',   [TorreFronterasController::class, 'techoAutopilot']);
+        // #766 (Pieza 1c hija de #672) — KPI card del panorama: cuántas veces abrió la válvula,
+        // sobre qué items y por qué término, leído de `torre_frontera_dura_eventos` (#764).
+        Route::get('/torre/frontera-dura',                [RoadmapController::class, 'torreFronteraDura']);
         // #890 (Torre fase 6) — cola ejecutable REAL: orden exacto de despacho + excluidos con
         // causa. Solo lectura (`torre.cola.ver`, self-authorized dentro del controller).
         Route::get('/torre/cola',          [RoadmapController::class, 'torreCola']);
