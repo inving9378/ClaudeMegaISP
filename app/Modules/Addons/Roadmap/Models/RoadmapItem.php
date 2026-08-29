@@ -100,6 +100,9 @@ class RoadmapItem extends Model
         'trabajo_iniciado_at', 'eta_segundos', 'eta_metodo',
         // #559 — huella del Motor de Auditoría Continua (dedup contra abiertos Y cerrados)
         'auditor_fingerprint',
+        // #744 — mecanismo de reconstrucción de items P0 no-mergeados: id original referenciado
+        // (SIN FK, ver migración) por el item nuevo que lo reconstruye.
+        'reabre_item_id',
     ];
 
     protected $casts = [
