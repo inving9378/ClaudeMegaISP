@@ -96,6 +96,27 @@ class DestrabeNoRecibeAutoAprobadosTest extends TestCase
             . 'pasa de largo y el item se aprueba sin que nadie haya decidido nada.');
     }
 
+    /**
+     * CANDADO DEL FIX #757 — un paraguas con sub-items abiertos no está retenido por una decisión
+     * pendiente. `aprobarYaDecidido()` reseteaba `excluir_pool_automatico`/`bloqueado_por_bucle`
+     * cada vez que el brief seguía 100% contestado, sin distinguir ese caso de un parqueo manual
+     * por paraguas-con-hijos-no-reclamables (#722, 4 ocurrencias del mismo bucle sin avance real).
+     * El guard tiene que estar ANTES del `forceFill` de `aprobarYaDecidido()` (dentro de
+     * `evaluarYaDecidido()`, que es lo único que decide `aprobado`), no después.
+     */
+    public function test_el_carril_rechaza_un_paraguas_con_sub_items_abiertos(): void
+    {
+        $cuerpo = $this->metodo(
+            $this->fuente('app/Modules/Addons/Roadmap/Services/JarvisService.php'),
+            'evaluarYaDecidido'
+        );
+
+        $this->assertStringContainsString('tieneSubItemsAbiertos()', $cuerpo,
+            'Se quitó (o se movió fuera de `evaluarYaDecidido`) el guard de paraguas-con-hijos-abiertos. '
+            . 'Sin él, `aprobarYaDecidido()` vuelve a resetear `excluir_pool_automatico` de un paraguas '
+            . 'parqueado a propósito y reabre el bucle de re-encolado de #722.');
+    }
+
     /** Cuerpo fuente de un método, balanceando llaves. */
     private function metodo(string $src, string $nombre): string
     {
