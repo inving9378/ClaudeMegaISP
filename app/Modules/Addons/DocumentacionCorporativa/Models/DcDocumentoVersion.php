@@ -18,7 +18,7 @@ class DcDocumentoVersion extends Model
     public const UPDATED_AT = null;
 
     protected $fillable = [
-        'empresa_id', 'documento_id', 'version', 'archivo_uuid',
+        'empresa_id', 'documento_id', 'version', 'archivo_uuid', 'ruta_archivo',
         'archivo_nombre_original', 'mime', 'bytes', 'hash', 'subido_por', 'nota_cambio',
     ];
 
@@ -31,5 +31,10 @@ class DcDocumentoVersion extends Model
     public function documento()
     {
         return $this->belongsTo(DcDocumento::class, 'documento_id');
+    }
+
+    public function subidoPor()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'subido_por');
     }
 }

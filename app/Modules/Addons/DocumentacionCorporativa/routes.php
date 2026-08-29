@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\DocumentoController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PlantillaController;
@@ -55,5 +56,15 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // Plantillas (Fase 2d) — generar el documento de un concepto tipo `plantilla`.
             Route::post('/concepto/{clave}/generar', [PlantillaController::class, 'generar'])->name('concepto.generar');
+
+            // Repositorio documental (Fase 2a) — subir/versionar/descargar/eliminar.
+            // 'lote' y '{id}/versiones/{version}/descargar' declarados ANTES de las
+            // rutas con solo {id} para que no se interpreten como parte de un id.
+            Route::post('/documentos/lote', [DocumentoController::class, 'storeLote'])->name('documentos.lote');
+            Route::post('/documentos', [DocumentoController::class, 'store'])->name('documentos.store');
+            Route::get('/documentos/{id}/versiones', [DocumentoController::class, 'versiones'])->name('documentos.versiones');
+            Route::get('/documentos/{id}/versiones/{version}/descargar', [DocumentoController::class, 'descargarVersion'])->name('documentos.versiones.descargar');
+            Route::get('/documentos/{id}/descargar', [DocumentoController::class, 'descargar'])->name('documentos.descargar');
+            Route::delete('/documentos/{id}', [DocumentoController::class, 'destroy'])->name('documentos.destroy');
         });
     });
