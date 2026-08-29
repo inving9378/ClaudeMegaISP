@@ -193,6 +193,31 @@
                         class="text-h5 text-weight-bold q-mr-md"
                         :style="{ color: colorSemaforo(detalle.semaforo) }"
                     >{{ detalle.medible === false ? '—' : detalle.porcentaje + '%' }}</div>
+
+                    <!-- Exportación agregada del apartado (Fase 1.5c, item #787,
+                         backend #785): TODOS los conceptos ya resueltos en un solo
+                         archivo, PDF o Excel. -->
+                    <q-btn-dropdown
+                        flat
+                        dense
+                        icon="download"
+                        label="Exportar apartado"
+                        color="primary"
+                        class="q-mr-sm"
+                        :loading="!!exportandoApartado"
+                    >
+                        <q-list>
+                            <q-item clickable v-close-popup @click="exportarApartado('pdf')">
+                                <q-item-section avatar><q-icon name="picture_as_pdf" /></q-item-section>
+                                <q-item-section>PDF</q-item-section>
+                            </q-item>
+                            <q-item clickable v-close-popup @click="exportarApartado('excel')">
+                                <q-item-section avatar><q-icon name="table_view" /></q-item-section>
+                                <q-item-section>Excel</q-item-section>
+                            </q-item>
+                        </q-list>
+                    </q-btn-dropdown>
+
                     <q-btn flat dense icon="close" v-close-popup />
                 </q-card-section>
 
@@ -369,6 +394,21 @@
                                     label="Generar documento"
                                     @click="generarDocumento(c)"
                                 />
+                                <!-- Detalle nominal de cartera (Fase 1.5c, item #787,
+                                     backend #786): expone identidad de clientes, por
+                                     eso pide permiso de descarga + justificación. -->
+                                <q-btn
+                                    v-if="esCarteraNominal(c)"
+                                    v-hasPermission="'documentacion-corporativa.documento.download'"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="badge"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    label="Ver detalle nominal"
+                                    @click="abrirDetalleNominal()"
+                                />
                             </q-item-section>
                         </q-item>
                     </q-list>
@@ -429,6 +469,64 @@
                         </q-timeline-entry>
                     </q-timeline>
                 </q-card-section>
+            </q-card>
+        </q-dialog>
+
+        <!-- Justificación para el detalle nominal de cartera (Fase 1.5c, item #787,
+             backend #786) — regla LFPDPPP: no se genera el archivo sin motivo. -->
+        <q-dialog v-model="dialogoNominal" persistent>
+            <q-card style="min-width: 420px; max-width: 520px">
+                <q-card-section class="row items-center">
+                    <div class="text-subtitle1">Detalle nominal — Cartera de clientes</div>
+                    <q-space />
+                    <q-btn flat dense icon="close" v-close-popup :disable="exportandoNominal" />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-section>
+                    <div class="text-caption text-grey q-mb-sm">
+                        Este archivo incluye nombre y saldo de cada cliente con adeudo. Indica el
+                        motivo de la consulta antes de generarlo.
+                    </div>
+
+                    <q-input
+                        v-model="justificacionNominal"
+                        type="textarea"
+                        autogrow
+                        outlined
+                        dense
+                        label="Justificación *"
+                        :error="!!erroresNominal"
+                        :error-message="erroresNominal"
+                        @update:model-value="erroresNominal = null"
+                    />
+
+                    <q-option-group
+                        v-model="formatoNominal"
+                        :options="[
+                            { label: 'Excel', value: 'excel' },
+                            { label: 'PDF', value: 'pdf' },
+                        ]"
+                        color="primary"
+                        inline
+                        dense
+                        class="q-mt-sm"
+                    />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-actions align="right">
+                    <q-btn flat label="Cancelar" v-close-popup :disable="exportandoNominal" />
+                    <q-btn
+                        unelevated
+                        color="primary"
+                        label="Confirmar y descargar"
+                        :loading="exportandoNominal"
+                        @click="confirmarDetalleNominal"
+                    />
+                </q-card-actions>
             </q-card>
         </q-dialog>
 
@@ -503,6 +601,14 @@ export default {
             dialogoVersiones: false,
             cargandoVersiones: false,
             versionesInfo: { documento: null, versiones: [] },
+
+            // Exportación de apartado + detalle nominal (Fase 1.5c, item #787).
+            exportandoApartado: null,
+            dialogoNominal: false,
+            justificacionNominal: '',
+            formatoNominal: 'excel',
+            erroresNominal: null,
+            exportandoNominal: false,
         };
     },
 
@@ -805,6 +911,96 @@ export default {
             return new Date(fecha).toLocaleString('es-MX', {
                 day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
             });
+        },
+
+        // ---- Exportación de apartado + detalle nominal (Fase 1.5c, item #787) --
+
+        /** Sólo el concepto "Cartera de clientes" del apartado IV (item #786). */
+        esCarteraNominal(c) {
+            return this.detalle.clave === 'IV' && c.slug === 'cartera-de-clientes';
+        },
+
+        async exportarApartado(formato) {
+            if (!this.detalle.clave || this.exportandoApartado) return;
+            this.exportandoApartado = formato;
+            try {
+                const response = await axios.get(
+                    `/documentacion-corporativa/api/apartado/${this.detalle.clave}/exportar`,
+                    { params: { formato }, responseType: 'blob' }
+                );
+                const ext = formato === 'excel' ? 'xlsx' : 'pdf';
+                this.descargarBlob(response, `dc-apartado-${this.detalle.clave.toLowerCase()}.${ext}`);
+            } catch (e) {
+                this.aviso(await this.mensajeErrorBlob(e, 'No se pudo exportar el apartado.'), 'negative');
+            } finally {
+                this.exportandoApartado = null;
+            }
+        },
+
+        abrirDetalleNominal() {
+            this.justificacionNominal = '';
+            this.formatoNominal = 'excel';
+            this.erroresNominal = null;
+            this.dialogoNominal = true;
+        },
+
+        async confirmarDetalleNominal() {
+            const justificacion = (this.justificacionNominal || '').trim();
+            if (!justificacion) {
+                this.erroresNominal = 'La justificación es obligatoria.';
+                return;
+            }
+
+            this.exportandoNominal = true;
+            try {
+                const response = await axios.get(
+                    '/documentacion-corporativa/api/apartado/iv/cartera/detalle-nominal',
+                    { params: { justificacion, formato: this.formatoNominal }, responseType: 'blob' }
+                );
+                const ext = this.formatoNominal === 'excel' ? 'xlsx' : 'pdf';
+                this.descargarBlob(response, `dc-cartera-detalle-nominal.${ext}`);
+                this.dialogoNominal = false;
+            } catch (e) {
+                // 422 (falta justificación) o 403 (sin permiso, por si el botón
+                // igual llegó a mostrarse): mensaje inline, el modal NO se cierra.
+                this.erroresNominal = await this.mensajeErrorBlob(e, 'No se pudo generar el detalle nominal.');
+            } finally {
+                this.exportandoNominal = false;
+            }
+        },
+
+        /** El backend responde JSON de error pero `responseType: 'blob'` lo envuelve en un Blob. */
+        async mensajeErrorBlob(e, fallback) {
+            const data = e.response && e.response.data;
+            if (data instanceof Blob) {
+                try {
+                    const json = JSON.parse(await data.text());
+                    if (json && json.message) return json.message;
+                } catch (err) {
+                    // No era JSON: se queda con el fallback.
+                }
+            } else if (data && data.message) {
+                return data.message;
+            }
+            return fallback;
+        },
+
+        /** Descarga un blob de axios como archivo, usando el filename del header si viene. */
+        descargarBlob(response, filenameFallback) {
+            const disposition = response.headers && response.headers['content-disposition'];
+            let filename = filenameFallback;
+            if (disposition) {
+                const match = disposition.match(/filename="?([^"; ]+)"?/i);
+                if (match && match[1]) filename = match[1];
+            }
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
         },
     },
 };
