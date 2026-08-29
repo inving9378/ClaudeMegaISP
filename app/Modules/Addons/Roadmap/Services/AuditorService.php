@@ -46,6 +46,9 @@ class AuditorService
     /** #1015 — corridas EN VIVO seguidas con 0 nuevos en TODO el ciclo (fuente "código"). */
     private const SETTING_RACHA_SECA = 'circuito_auditor_racha_seca';
 
+    /** #712 — Nivel 2 ("EL GASTO"): ISO8601 de cuándo se apagó, o ausente = armado. */
+    private const SETTING_GASTO_APAGADO_DESDE = 'circuito_auditor_gasto_apagado_desde';
+
     /** Cache por-request del índice de rutas registradas. */
     private ?array $indiceRutas = null;
 
@@ -128,7 +131,15 @@ class AuditorService
         $umbral = (int) config('circuito.auditor.umbral_cola', 3);
         $racha  = $this->rachaSeca();
 
-        $base = ['cola' => $cola, 'slots_libres' => $slots, 'umbral' => $umbral, 'racha_seca' => $racha];
+        // #712 — NIVEL 2 ("EL GASTO"). Se evalúa (y, si toca, se RE-ARMA) una sola vez aquí: el
+        // propio chequeo intenta reactivarse si ya se completó un item real desde que se apagó —
+        // así una corrida del scheduler basta, sin depender de un observer.
+        $gastoApagado = $this->gastoApagado();
+
+        $base = [
+            'cola' => $cola, 'slots_libres' => $slots, 'umbral' => $umbral, 'racha_seca' => $racha,
+            'gasto_apagado' => $gastoApagado,
+        ];
 
         if (! $this->habilitado()) {
             return $base + ['corre' => false, 'motivo' => 'Motor APAGADO (auditor_activo = false en Torre → Configuración).'];
@@ -137,7 +148,17 @@ class AuditorService
             return $base + ['corre' => false, 'motivo' => 'Circuito en PAUSA (kill switch global): el motor no crea nada.'];
         }
         if ($forzar) {
-            return $base + ['corre' => true, 'motivo' => 'Forzado (--forzar): se ignoran umbral e intervalo.'];
+            return $base + ['corre' => true, 'motivo' => 'Forzado (--forzar): se ignoran umbral, intervalo y el apagado por sequía.'];
+        }
+
+        // Gate DURO, previo a cola/intervalo: si está apagado, no genera nada, ocupe o no la cola
+        // terminales libres.
+        if ($gastoApagado) {
+            $umbralGasto = (int) config('circuito.auditor.sequia.gasto_racha_umbral', 2);
+
+            return $base + ['corre' => false, 'motivo' => "Generador APAGADO por sequía (Nivel 2, #712): "
+                . "{$racha} ciclo(s) seguido(s) sin hallazgos nuevos (≥ {$umbralGasto}). Se re-arma solo "
+                . 'cuando un item REAL (sin auditor_fingerprint, no generado por este motor) se complete.'];
         }
 
         $base_min  = (int) $this->torreConfig->get()->auditor_cooldown_min;
@@ -184,6 +205,83 @@ class AuditorService
         $exceso     = $racha - $umbral + 1;
 
         return min($max, $base + $exceso * $incremento);
+    }
+
+    /**
+     * #712 (Thomas Parte 2) — NIVEL 2, "EL GASTO": ¿el generador está apagado?
+     *
+     * Distinto de `intervaloEfectivo()` (Nivel 1, LA SONDA): eso sólo ALARGA cada cuánto se
+     * escanea y nunca deja de escanear del todo. Esto es un apagado DURO — tras
+     * `sequia.gasto_racha_umbral` ciclos EN VIVO seguidos sin hallazgos nuevos, deja de ocupar
+     * terminales por completo, aunque la cola esté seca y haya slots libres.
+     *
+     * Antes de responder, intenta RE-ARMARSE: si ya se completó un item REAL desde que se apagó,
+     * se reactiva aquí mismo y responde `false`. Sin esto habría que enganchar un observer sólo
+     * para una condición que un query ya resuelve en cada chequeo del scheduler.
+     */
+    public function gastoApagado(): bool
+    {
+        $desde = $this->gastoApagadoDesde();
+        if ($desde === null) {
+            return false;
+        }
+        if ($this->huboItemRealCompletadoDesde($desde)) {
+            $this->rearmarGasto();
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /** ISO8601 de cuándo se apagó el gasto, o null si está armado. */
+    private function gastoApagadoDesde(): ?string
+    {
+        $v = DB::table('settings')->where('key', self::SETTING_GASTO_APAGADO_DESDE)->value('value');
+
+        return $v !== null && $v !== '' ? (string) $v : null;
+    }
+
+    /**
+     * ¿Se completó un item REAL después de `$desde`? "Real" = SIN `auditor_fingerprint` — el
+     * motor sella esa columna en TODO lo que él mismo crea (`crear()` más abajo), así que su
+     * ausencia es justo la señal de "no lo generó Thomas". Usa `completed_at` (no `updated_at`):
+     * el modelo lo sella UNA sola vez al completar (`RoadmapItem::booted()`), así que no se
+     * dispara por una edición posterior cualquiera del mismo item.
+     */
+    private function huboItemRealCompletadoDesde(string $desde): bool
+    {
+        return RoadmapItem::where('estado_aprobacion', 'completado')
+            ->whereNull('auditor_fingerprint')
+            ->where('completed_at', '>', $desde)
+            ->exists();
+    }
+
+    private function rearmarGasto(): void
+    {
+        DB::table('settings')->where('key', self::SETTING_GASTO_APAGADO_DESDE)->delete();
+        Log::channel('roadmap_externo')->info('auditor-gasto-rearmado', [
+            'motivo' => 'item real completado desde el apagado',
+        ]);
+    }
+
+    /**
+     * Apaga el gasto si la racha (ya actualizada) cruzó el umbral de Nivel 2. Se llama SOLO al
+     * cierre de un ciclo COMPLETO en vivo (mismo punto donde ya se actualiza `racha_seca`) — un
+     * `--modulo` parcial no dice nada sobre si la fuente está agotada.
+     */
+    private function evaluarApagarGasto(int $racha): void
+    {
+        $umbral = (int) config('circuito.auditor.sequia.gasto_racha_umbral', 2);
+        if ($racha < $umbral || $this->gastoApagadoDesde() !== null) {
+            return;
+        }
+
+        DB::table('settings')->updateOrInsert(
+            ['key' => self::SETTING_GASTO_APAGADO_DESDE],
+            ['value' => now()->toIso8601String(), 'updated_at' => now()]
+        );
+        Log::channel('roadmap_externo')->info('auditor-gasto-apagado', ['racha_seca' => $racha, 'umbral' => $umbral]);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -1380,10 +1478,15 @@ class AuditorService
             // general está agotada.
             if ($soloModulo === null) {
                 $totalNuevos = array_sum(array_column($resumen, 'nuevos'));
+                $racha       = $totalNuevos > 0 ? 0 : $this->rachaSeca() + 1;
                 DB::table('settings')->updateOrInsert(
                     ['key' => self::SETTING_RACHA_SECA],
-                    ['value' => (string) ($totalNuevos > 0 ? 0 : $this->rachaSeca() + 1), 'updated_at' => now()]
+                    ['value' => (string) $racha, 'updated_at' => now()]
                 );
+
+                // #712 — Nivel 2: sólo APAGA, nunca reactiva por su cuenta (el re-arme es
+                // EXCLUSIVO de `gastoApagado()`, disparado por un item real completado).
+                $this->evaluarApagarGasto($racha);
             }
         }
 
@@ -1395,6 +1498,7 @@ class AuditorService
             'creados'   => $creados,
             'por_modulo' => $resumen,
             'racha_seca' => $this->rachaSeca(),   // #1015 — visible sin tocar UI, ver comentario abajo
+            'gasto_apagado' => $this->gastoApagadoDesde() !== null,   // #712 — ídem, Nivel 2
         ];
 
         // Reporte VISIBLE sin tocar UI: queda en `settings` (la Torre ya lee de ahí) y en el log

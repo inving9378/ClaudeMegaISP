@@ -1077,6 +1077,14 @@ return [
             // sólo más espaciado), y un cambio real de código lo revive de inmediato (cualquier
             // corrida con nuevos > 0 resetea la racha a 0).
             'intervalo_max_minutos' => (int) env('CIRCUITO_AUDITOR_SEQUIA_MAX', 120),
+
+            // #712 (Thomas Parte 2) — NIVEL 2, "EL GASTO": distinto de lo de arriba (que sólo
+            // ALARGA el intervalo de LA SONDA y nunca deja de escanear). Tras esta racha de
+            // ciclos EN VIVO seguidos con 0 nuevos, el generador se APAGA del todo (deja de
+            // ocupar terminales) hasta que un item REAL (sin `auditor_fingerprint`, no generado
+            // por este motor) se complete — ver `AuditorService::gastoApagado()`. Umbral de #590
+            // restituido ("dos corridas por hambre consecutivas").
+            'gasto_racha_umbral' => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_UMBRAL', 2),
         ],
     ],
 
