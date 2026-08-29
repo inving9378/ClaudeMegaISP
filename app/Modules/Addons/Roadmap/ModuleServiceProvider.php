@@ -88,6 +88,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\ReactivarAgendadosCommand::class,
                 // #902 — mide disparos/aflojos por término de la válvula de contexto; read-only.
                 \App\Modules\Addons\Roadmap\Console\MedirValvulaContextoCommand::class,
+                // #674 (Pieza 3 de #646) — cruza reversible/confianza autodeclarados contra
+                // revert/escalada/reabertura reales; read-only.
+                \App\Modules\Addons\Roadmap\Console\MedirAutodeclaracionCommand::class,
                 \App\Modules\Addons\Roadmap\Console\JarvisIconosImportarCommand::class,
                 // #1006 — backfill de enlace_revision (tier 2: URL de respaldo del módulo) en
                 // items completados que lo tienen vacío.
