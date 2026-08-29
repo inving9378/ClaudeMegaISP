@@ -1,0 +1,242 @@
+[
+  {
+    "id": 956,
+    "titulo": "Épica IPv6 — Fase 5 (paraguas, sub-item de #811)",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Item paraguas (IPv6 Fase 5) sin código propio: descompuesto repetidamente (y re-confirmado por al menos 5 workers distintos entre 2026-08-20 y 2026-08-22) en 4 sub-items (#1031-#1034), que cubren las fases 5.1-5.4. Cayó en un loop de reclamos huérfanos (reap x2) hasta quedar parqueado con excluir_pool_automatico=true; el trabajo real vive en los sub-items, nunca generó rama/commit propio que mergear.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas sin código propio, la evaluación de riesgo vive en sus sub-items"
+  },
+  {
+    "id": 959,
+    "titulo": "Migrar los 4 casos reales de #921 a agendado_para (incluye renovación de certificado SSL)",
+    "estado_final": "completado",
+    "razon_no_merge": "Operación de datos sobre el propio roadmap (migrar agendado_para de 4 casos: 919, 862, 856 verificado ya resuelto, y creación de #969 para el certificado), explícitamente 'sin cambios de código' — al no tocar código no generó rama/build ni merge_commit, aunque el item se cerró como completado con reporte coloquial y enlace de revisión.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — operación de datos sobre el roadmap sin evaluación de riesgo de código explícita"
+  },
+  {
+    "id": 961,
+    "titulo": "Migración de acciones a ConsolaAcciones — Lote 1 por permiso/riesgo (bloqueado por fundamento #876)",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Bloqueado por dependencia externa: el fundamento del catálogo de acciones (ConsolaAcciones/*, item #876) solo existe en su propia rama sin mergear a main (168+ commits detrás). Escalado a Irving vía Thomas y reconfirmado sin cambios por al menos 4 workers distintos (wt-1/wt-2/wt-3/wt-4) entre el 2026-08-21 15:21 y 18:04; nunca se generó código ni rama propia.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por la frontera de #876 antes de alcanzar una evaluación de riesgo propia"
+  },
+  {
+    "id": 962,
+    "titulo": "Migración de acciones a ConsolaAcciones — Lote 2 por permiso/riesgo (bloqueado por fundamento #876)",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Misma dependencia externa que #961/#963/#964: el fundamento de #876 (ConsolaAcciones/*) no está mergeado a main. Consultado a Thomas 3 veces (2026-08-21 15:22, 17:02, 18:52), escalado a Irving cada vez con 'DETENTE' sin hechos nuevos; nunca se ejecutó código.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por la frontera de #876 antes de alcanzar una evaluación de riesgo propia"
+  },
+  {
+    "id": 963,
+    "titulo": "Migración de acciones a ConsolaAcciones — Lote 3 por permiso/riesgo (bloqueado por fundamento #876)",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Misma dependencia externa que sus hermanos: el fundamento de #876 sigue solo en su rama (172 commits detrás de main, RoadmapController.php divergido). Escalado explícitamente a la bandeja de Irving (estado_aprobacion=requiere_irving) y reconfirmado por wt-2/wt-3 en 3 vueltas (2026-08-21 15:23, 17:03, 18:54) sin tocar código.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por la frontera de #876 antes de alcanzar una evaluación de riesgo propia"
+  },
+  {
+    "id": 964,
+    "titulo": "Migración de acciones a ConsolaAcciones — Lote 4 por permiso/riesgo (bloqueado por fundamento #876)",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Misma dependencia externa que sus hermanos: el fundamento de #876 (ConsolaAcciones/*) no está mergeado a main. Thomas reafirmó el escalado a Irving en 3 vueltas sucesivas (2026-08-21 15:35, 17:14, 18:55, la última citando explícitamente 'frontera credenciales/permiso') sin ejecutar código.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por la frontera de #876 antes de alcanzar una evaluación de riesgo propia"
+  },
+  {
+    "id": 969,
+    "titulo": "Renovar certificado SSL de dev.meganett.com.mx (vencimiento real 2026-10-08)",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Item recién creado (por la vuelta que cerró #959) para agendar a futuro la renovación del certificado, con agendado_para=2026-09-24; no hay evidencia en los logs de que se haya trabajado en él todavía — no genera código/rama propia.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item agendado a futuro, aún no procesado en el rango de logs disponible"
+  },
+  {
+    "id": 973,
+    "titulo": "Comando circuito:barrer-reclamos-huerfanos + pulso #808",
+    "estado_final": "completado",
+    "razon_no_merge": "El log reporta implementación completa: RoadmapCircuitoService::barrerReclamosHuerfanos(), el comando circuito:barrer-reclamos-huerfanos y su config (3 commits: 11a15847, 34397017, ede8cc81), 'integrado (encolado para merge on-box) y cerrado como completado'. Sin embargo el item no persiste en la BD actual (no hay fila viva ni merge_commit verificable) — no hay evidencia de que el merge on-box haya concluido pese al reporte de éxito.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sin mención explícita de nivel en el log pese a la implementación completa reportada"
+  },
+  {
+    "id": 977,
+    "titulo": "Corregir 4 paths rotos de update (estado/municipio/colonia/sucursal) en config/route_permission.php",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Nivel C explícito en el log ('nivel C queda esperando merge manual de Irving'): los 4 paths se corrigieron, se commiteó e integró la rama, pero el auto-merge no aplica a nivel C — queda pendiente de la acción manual de Irving, sin confirmación de merge en los logs disponibles.",
+    "nivel_riesgo": "C",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": null
+  },
+  {
+    "id": 978,
+    "titulo": "Deprecar (no retirar) el permiso legado config_view_system — opción 2 aprobada por Irving (q3)",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Nivel C explícito: se implementó la opción 2 aprobada por Irving (config_view_system marcado deprecated con log de advertencia en CheckRoutePermission), rama commiteada e integrada, pero 'esperando_merge_irving=true (no auto-merge)' — distinto del merge 8ab8b806 de un item padre relacionado, que sí llegó a main pero corresponde a otro trabajo. Sin confirmación de merge de #978 mismo en los logs.",
+    "nivel_riesgo": "C",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": null
+  },
+  {
+    "id": 981,
+    "titulo": "DiagnosticoItemService — investigar y agregar las 3 causas restantes (8 causas totales, plan de #877)",
+    "estado_final": "completado",
+    "razon_no_merge": "Implementado y commiteado tras varios timeouts previos (commits: 2b2f41bf/af83a0b6, DiagnosticoItemService con las 8 causas), verificado contra 676 items reales de dev, e 'integrado' según el propio reporte del agente ('commiteado, integrado y el item cerrado como completado'). Verificación directa contra git: el commit af83a0b6 existe en el repositorio pero `git merge-base --is-ancestor af83a0b6 main` confirma que NO es ancestro de main — el merge on-box nunca se completó pese a reportarse como éxito.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sin mención explícita de nivel pese a implementación y commit verificados en git"
+  },
+  {
+    "id": 984,
+    "titulo": "Scaffold del módulo app/Modules/Addons/Ipv6 + 8 permisos ipv6.*",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Nivel C explícito: módulo Addons/Ipv6 scaffolded e instalado, 8 permisos ipv6.* sincronizados a super-administrator/DESARROLLADOR, rama integrada, pero queda 'esperando_merge_irving=true' — confirmado repetidamente (más de 10 verificaciones posteriores por items dependientes #1002/#1043/#1044/#1045 entre el 2026-08-21 20:01 y el 2026-08-22 12:02) que `app/Modules/Addons/Ipv6/` nunca llegó a existir en main.",
+    "nivel_riesgo": "C",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": null
+  },
+  {
+    "id": 985,
+    "titulo": "Migraciones IPv6 — 7 tablas de persistencia (incluye clientes_ipv6_prefijos)",
+    "estado_final": "completado",
+    "razon_no_merge": "Paraguas sin código propio: descompuesto en sub-items #1043 (infra) y #1044 (cliente/despliegues, depende de 1043 y de que #984 esté mergeado). El item se marcó completado pero el guard de paraguas del modelo lo retuvo (no genera merge_commit propio) hasta que ambos hijos cierren — verificado repetidamente que ninguna de las 7 tablas existe en main.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas sin evaluación de riesgo propia"
+  },
+  {
+    "id": 986,
+    "titulo": "Modelos Eloquent IPv6 (dependen de #984 módulo y #985 migraciones)",
+    "estado_final": "completado",
+    "razon_no_merge": "Bloqueado por dependencias no completadas (#984 registro del módulo, #985/#1043/#1044 migraciones); descompuesto en sub-items #1045/#1046. Marcado completado pero retenido por el guard de paraguas — sin modelos/código propio que mergear, verificado que `app/Modules/Addons/Ipv6` no existe en main.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas sin evaluación de riesgo propia"
+  },
+  {
+    "id": 991,
+    "titulo": "IPv6 Fase 3.1 — orquestación dry-run / asignación (sub-fase de Fase 3, bloqueada por #953)",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Paraguas descompuesto en sub-items #1047 (dry-run, viable ya) y #1048 (integración real con router, bloqueada hasta que #953 cierre y haya autorización explícita); parqueado (excluir_pool_automatico=true) tras una vuelta previa interrumpida por el reaper, sin código propio bajo #991.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas sin código propio"
+  },
+  {
+    "id": 993,
+    "titulo": "IPv6 Fase 3.3 — Simple queues VLANs 600-700 con target IPv6 (bloqueado por #953 y frontera de producción MikroTik)",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Bloqueado por su propia definición ('hasta que #953 esté cerrado', que nunca cerró) y por frontera dura de producción (routers MikroTik VLANs 600-700 sirviendo tráfico real de clientes). Reclamado y re-verificado como bloqueado en más de 40 vueltas idénticas entre 2026-08-21 00:06 y 2026-08-22 03:10, escalado a Irving vía Thomas al menos 5 veces, hasta que el freno anti-bucle (bloqueado_por_bucle=true) lo sacó del pool automático. Nunca generó código ni rama.",
+    "nivel_riesgo": "B",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": null
+  },
+  {
+    "id": 994,
+    "titulo": "IPv6 Fase 3.4 — Detección de deriva y recuperación (bloqueado por #953)",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Bloqueado por precondición propia ('bloqueado hasta que #953 esté cerrado', que nunca cerró); escalado a la bandeja de Irving vía Thomas. Un intento posterior de ejecución (2026-08-22 11:18) timeouteó a los 600s sin commits (destino=aprobado_irving), sin generar código ni rama.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por precondición #953 antes de alcanzar una evaluación de riesgo propia"
+  },
+  {
+    "id": 995,
+    "titulo": "IPv6 Fase 4.1 — Búsqueda inversa (cliente por dirección IPv6)",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Descrito inicialmente como 'solo lectura, sin dependencias, bajo riesgo, desbloqueado ya', pero al reclamarse se detectó que sus prerrequisitos reales (#984 módulo+permisos, #985 migraciones incluyendo clientes_ipv6_prefijos, #986 modelos) NO estaban mergeados a main pese a que el propio #995 asumía que sí. Escalado a Irving (la palabra 'permiso' disparó la frontera dura de credenciales); descompuesto después en sub-items #1074/#1075 sin código propio.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — descrito como 'bajo riesgo' en prosa sin letra explícita, y bloqueado antes de poder ejecutarse"
+  },
+  {
+    "id": 996,
+    "titulo": "IPv6 Fase 4.2 — Salud/alertas (depende del job de detección de deriva, Fase 3.4)",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Bloqueado de facto: su sub-bloque de 'deriva' depende del job de Fase 3.4 (#954, aún pending/requiere_irving). Tras investigar se confirmó bloqueo total (sin infraestructura IPv6 real en main); descompuesto en sub-item #1052 para retomar tras #952/#953/#954, sin implementar con datos falsos ni código propio.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado de facto antes de alcanzar una evaluación propia"
+  },
+  {
+    "id": 997,
+    "titulo": "IPv6 Fase 4.3 — Geofeed público (depende de que Fase 2 y Fase 3 estén en main)",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "clientes_ipv6_prefijos y el módulo Ipv6 no existen en main (Fase 2/3 no cerradas); Thomas confirmó diferir la construcción del geofeed hasta que existan. Se creó el sub-item #1053 con las decisiones de Irving ya documentadas; #997 quedó como paraguas (excluir_pool_automatico=true) que se autocompleta al cerrar #1053, sin código propio.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — diferido por Thomas antes de una evaluación de riesgo propia"
+  },
+  {
+    "id": 998,
+    "titulo": "IPv6 Fase 4.4 — Prevuelo/plantillas/reversión sobre equipos MikroTik reales",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Toca equipos MikroTik reales — nivel C explícito en el log ('requiere confirmación explícita antes de ejecutar contra cualquier equipo'). No cabía en una vuelta; descompuesto en 4 sub-items (#1054-#1057) para las sub-fases 4.4a-d con las decisiones q1-q4 de Irving ya incorporadas; el item se mantuvo como paraguas (no completado), sin código ni rama propia.",
+    "nivel_riesgo": "C",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": null
+  },
+  {
+    "id": 1002,
+    "titulo": "IPv6 — Pantalla 4: Historial de despliegues (bloqueada hasta que #949 aporte persistencia real)",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Explícitamente bloqueada hasta que #949 (persistencia IPv6) aporte datos reales, para no duplicar esas migraciones; reclamada y liberada en un ciclo de más de 15 verificaciones idénticas entre 2026-08-20 y 2026-08-22 (con agendado_para extendido +6h y luego +24h para frenar el ciclo), antes de descomponerse en #1062 (tab Historial con banner informativo, accionable ya) y #1063 (Pantalla 4 real, sigue bloqueada por #949/984/985/986). Nunca generó código ni rama propia bajo #1002.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por dependencia de persistencia antes de una evaluación propia"
+  },
+  {
+    "id": 1012,
+    "titulo": "Rollback a versión previa del deploy — paraguas de 5 fases",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Paraguas puro para una feature de rollback-a-versión-previa en 5 fases: descompuesto en sub-items #1017-#1021 (todos enviados a la bandeja de Irving, nivel B/C por ser decisiones de arquitectura), por lo que #1012 mismo nunca tuvo código ni rama propia que mergear; se parqueó fuera del pool automático (aprobado_irving + excluir_pool_automatico) para cortar el loop de reap tras una vuelta previa huérfana.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas sin evaluación de riesgo propia (sus 5 hijos son nivel B/C)"
+  },
+  {
+    "id": 1013,
+    "titulo": "Auditoría de 13 items cerrados con una decisión requiere_irving enterrada",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Meta-item de auditoría (no una tarea de código): investigados los 13 items vía tinker, 12 ya resueltos por otro camino (documentado) y 1 (#967) consolidado en el sub-item nuevo #1035 para Irving. Al intentar marcar #1013 como completado, el guardrail propio del sistema (nivel de riesgo C, rama sin contenido de código) lo revirtió a aprobado_irving + esperando_merge_irving — sin código que integrar, nunca llegó a merge_commit.",
+    "nivel_riesgo": "C",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": null
+  }
+]
