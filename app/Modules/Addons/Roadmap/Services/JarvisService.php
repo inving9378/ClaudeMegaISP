@@ -578,6 +578,33 @@ class JarvisService
         if ($item->requiere_sesion_supervisada) {
             return $no('Item marcado `requiere_sesion_supervisada`: Irving pidió estar presente, no se auto-despacha.');
         }
+        // #710 — `bloqueado_por_bucle` existe PARA ESTO, y este carril lo ignoraba por completo.
+        // El bug real (#626, 9 escalaciones idénticas entre 15:13 y 16:59 del 2026-08-28): el
+        // anti-bucle sella `bloqueado_por_bucle=true` cuando la MISMA causa escala
+        // `escalacion_bucle_umbral` veces seguidas (`contarEscalacion()`); un minuto después este
+        // carril veía el brief 100% contestado (q1..q4 con `opcion_elegida`) y lo re-aprobaba, sin
+        // notar que "contestado" era justo la causa que ya escaló 3+ veces — no una respuesta nueva.
+        // El scheduler re-despachaba, un worker distinto re-investigaba, encontraba EXACTAMENTE el
+        // mismo hallazgo y volvía a escalar: 9 vueltas sin que nadie se ahorrara el trabajo.
+        //
+        // Guard: si el fingerprint ACTUAL (branch/opción/nivel/preguntas AHORA MISMO) es igual al
+        // que quedó sellado cuando se marcó el bloqueo, nada material cambió desde entonces — "brief
+        // contestado" es la misma foto de siempre, no destraba nada. Si el fingerprint YA CAMBIÓ
+        // (otra rama, otra opción, otro nivel, otro brief), sí puede evaluarse normal: `contarEscalacion()`
+        // ya lo habría tratado como causa nueva (reinicia el conteo en 1) y `aprobarYaDecidido()`
+        // limpia el flag al aprobar. Solo Irving (a mano, en la Torre) o ese cambio material lo
+        // destraba — nunca la re-aprobación automática de brief-respondido.
+        if ($item->bloqueado_por_bucle) {
+            $sellado = is_array($item->escalaciones_fingerprint)
+                ? ($item->escalaciones_fingerprint['fingerprint'] ?? null)
+                : null;
+            if (self::bloqueoBucleSigueVigente($sellado, $item->escalacionFingerprint())) {
+                return $no('Bloqueado por anti-bucle y la causa sigue igual (mismo fingerprint que '
+                    . 'selló el bloqueo): la contradicción que escaló no se resolvió, solo el brief '
+                    . 'sigue contestado igual que antes. Solo Irving o un cambio material '
+                    . '(rama/opción/nivel/preguntas distintos) lo destraba.');
+            }
+        }
         // MISMO texto que el carril mecánico (título + descripción + prompt): antes este carril
         // miraba sólo título+descripción y un término de frontera que viviera en el `prompt` se le
         // escapaba, así que dos carriles con la misma regla daban veredictos distintos.
@@ -688,6 +715,25 @@ class JarvisService
             'estado'   => $estado,
             'motivo'   => 'Brief ya respondido: no falta ninguna decisión.',
         ];
+    }
+
+    /**
+     * #710 — ¿el bloqueo anti-bucle de este item sigue siendo la MISMA causa que lo selló, o ya
+     * cambió algo material? PURA (solo compara dos strings, sin BD ni contenedor) a propósito,
+     * misma razón que `opcionElegidaEsEscalar()`: necesita un test de regresión que no dependa de
+     * bootear Laravel ni tocar la BD compartida de dev.
+     *
+     * `$fingerprintSellado` es el que quedó guardado en `escalaciones_fingerprint['fingerprint']`
+     * cuando `RoadmapItem::contarEscalacion()` marcó `bloqueado_por_bucle=true` (o `null` si nunca
+     * se guardó uno — dato legacy/corrupto). `$fingerprintActual` es
+     * `RoadmapItem::escalacionFingerprint()` calculado AHORA MISMO sobre el item. Iguales → nada
+     * material cambió desde que se selló el bloqueo: sigue vigente. Distintos (o sin sello) → no
+     * hay manera de afirmar que es la misma causa, así que el bloqueo no se considera vigente por
+     * esta vía (puede evaluarse normal).
+     */
+    public static function bloqueoBucleSigueVigente(?string $fingerprintSellado, string $fingerprintActual): bool
+    {
+        return $fingerprintSellado !== null && $fingerprintSellado === $fingerprintActual;
     }
 
     /**
