@@ -224,6 +224,76 @@
                                     <span v-if="c.periodicidad"> · revisión {{ c.periodicidad }}</span>
                                     <span v-if="c.base_legal"> · {{ c.base_legal }}</span>
                                 </q-item-label>
+
+                                <!-- Repositorio documental (Fase 2a, item #767): subir,
+                                     versionar y descargar sólo para conceptos tipo 'documento'. -->
+                                <div v-if="c.tipo_resolvedor === 'documento'" class="q-mt-sm dc-repo">
+                                    <div
+                                        class="dc-dropzone"
+                                        :class="{ 'dc-dropzone--over': dragOverConceptoId === c.id }"
+                                        @dragover.prevent="dragOverConceptoId = c.id"
+                                        @dragleave.prevent="dragOverConceptoId = null"
+                                        @drop.prevent="onDrop($event, c)"
+                                    >
+                                        <q-btn
+                                            v-hasPermission="'documentacion-corporativa.documento.upload'"
+                                            size="sm"
+                                            dense
+                                            outline
+                                            color="primary"
+                                            icon="upload"
+                                            label="Subir documento"
+                                            :loading="subiendoConceptoId === c.id"
+                                            @click="abrirSelector(c)"
+                                        />
+                                        <span class="text-caption text-grey q-ml-sm">o arrastra el archivo aquí</span>
+                                    </div>
+
+                                    <q-list v-if="c.datos && c.datos.length" dense bordered separator class="q-mt-xs">
+                                        <q-item v-for="d in c.datos" :key="d.id" dense>
+                                            <q-item-section>
+                                                <q-item-label class="text-caption">
+                                                    {{ d.archivo }}
+                                                    <q-badge color="grey-7" class="q-ml-xs" :label="'v' + d.version" />
+                                                    <q-badge
+                                                        v-if="d.estado !== 'vigente'"
+                                                        :color="d.estado === 'vencido' ? 'negative' : 'warning'"
+                                                        class="q-ml-xs"
+                                                        :label="d.estado === 'vencido' ? 'vencido' : 'por vencer'"
+                                                    />
+                                                </q-item-label>
+                                                <q-item-label caption class="text-grey-6" v-if="d.vigencia_fin">
+                                                    vigencia hasta {{ d.vigencia_fin }}
+                                                </q-item-label>
+                                            </q-item-section>
+
+                                            <q-item-section side>
+                                                <div class="row no-wrap q-gutter-xs">
+                                                    <q-btn
+                                                        v-hasPermission="'documentacion-corporativa.documento.upload'"
+                                                        dense flat round size="sm" icon="upload_file"
+                                                        @click="abrirSelector(c, d)"
+                                                    >
+                                                        <q-tooltip>Subir nueva versión</q-tooltip>
+                                                    </q-btn>
+                                                    <q-btn dense flat round size="sm" icon="history" @click="verVersiones(d)">
+                                                        <q-tooltip>Ver versiones</q-tooltip>
+                                                    </q-btn>
+                                                    <q-btn dense flat round size="sm" icon="download" @click="descargarDocumento(d.id)">
+                                                        <q-tooltip>Descargar</q-tooltip>
+                                                    </q-btn>
+                                                    <q-btn
+                                                        v-hasPermission="'documentacion-corporativa.documento.delete'"
+                                                        dense flat round size="sm" icon="delete" color="negative"
+                                                        @click="eliminarDocumento(d)"
+                                                    >
+                                                        <q-tooltip>Eliminar</q-tooltip>
+                                                    </q-btn>
+                                                </div>
+                                            </q-item-section>
+                                        </q-item>
+                                    </q-list>
+                                </div>
                             </q-item-section>
 
                             <q-item-section side>
@@ -269,6 +339,62 @@
                             </q-item-section>
                         </q-item>
                     </q-list>
+                </q-card-section>
+            </q-card>
+        </q-dialog>
+
+        <!-- Input de archivo único, reusado por todos los conceptos tipo
+             'documento': evita un <input> por fila. `documentoActivo` decide
+             si la subida crea un documento nuevo (null) o una versión nueva
+             (id del documento sobre el que se hizo clic). -->
+        <input
+            ref="inputArchivo"
+            type="file"
+            style="display: none"
+            @change="onArchivoSeleccionado"
+        />
+
+        <!-- Timeline de versiones de un documento -------------------------->
+        <q-dialog v-model="dialogoVersiones">
+            <q-card style="min-width: 420px; max-width: 600px">
+                <q-card-section class="row items-center">
+                    <div class="text-subtitle1">
+                        Versiones — {{ versionesInfo.documento ? versionesInfo.documento.archivo_nombre_original : '' }}
+                    </div>
+                    <q-space />
+                    <q-btn flat dense icon="close" v-close-popup />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-section style="max-height: 55vh" class="scroll">
+                    <q-inner-loading :showing="cargandoVersiones">
+                        <q-spinner size="30px" color="primary" />
+                    </q-inner-loading>
+
+                    <q-timeline v-if="!cargandoVersiones" color="primary">
+                        <q-timeline-entry
+                            v-for="v in versionesInfo.versiones"
+                            :key="v.id"
+                            :title="'Versión ' + v.version"
+                            :subtitle="formatoFecha(v.created_at) + (v.subido_por ? ' · ' + v.subido_por.name : '')"
+                        >
+                            <div class="text-caption text-grey">
+                                {{ v.archivo_nombre_original }} · {{ formatoBytes(v.bytes) }}
+                            </div>
+                            <div v-if="v.nota_cambio" class="text-caption q-mt-xs">{{ v.nota_cambio }}</div>
+                            <q-btn
+                                class="q-mt-xs"
+                                size="sm"
+                                dense
+                                outline
+                                color="primary"
+                                icon="download"
+                                label="Descargar esta versión"
+                                @click="descargarDocumento(versionesInfo.documento.id, v.version)"
+                            />
+                        </q-timeline-entry>
+                    </q-timeline>
                 </q-card-section>
             </q-card>
         </q-dialog>
@@ -322,6 +448,15 @@ export default {
             alertasXIII: null,
             // slug del concepto cuyo documento se está generando (spinner del botón).
             generandoSlug: null,
+
+            // Repositorio documental (Fase 2a, item #767).
+            conceptoActivo: null,
+            documentoActivo: null,
+            dragOverConceptoId: null,
+            subiendoConceptoId: null,
+            dialogoVersiones: false,
+            cargandoVersiones: false,
+            versionesInfo: { documento: null, versiones: [] },
         };
     },
 
@@ -503,6 +638,115 @@ export default {
                 this.$q.notify({ message: mensaje, color, position: 'top' });
             }
         },
+
+        // ---- Repositorio documental (Fase 2a, item #767) -------------------
+
+        /** Abre el selector de archivo. Sin `documento` = documento nuevo; con `documento` = versión nueva sobre ese. */
+        abrirSelector(concepto, documento = null) {
+            this.conceptoActivo = concepto;
+            this.documentoActivo = documento;
+            this.$refs.inputArchivo.value = '';
+            this.$refs.inputArchivo.click();
+        },
+
+        onArchivoSeleccionado(evento) {
+            const archivo = evento.target.files && evento.target.files[0];
+            if (archivo) {
+                this.subirArchivo(archivo);
+            }
+        },
+
+        onDrop(evento, concepto) {
+            this.dragOverConceptoId = null;
+            const archivo = evento.dataTransfer.files && evento.dataTransfer.files[0];
+            if (!archivo) return;
+            this.conceptoActivo = concepto;
+            this.documentoActivo = null;
+            this.subirArchivo(archivo);
+        },
+
+        async subirArchivo(archivo) {
+            const concepto = this.conceptoActivo;
+            if (!concepto) return;
+
+            this.subiendoConceptoId = concepto.id;
+
+            const formData = new FormData();
+            formData.append('archivo', archivo);
+            formData.append('concepto_id', concepto.id);
+            if (this.documentoActivo) {
+                formData.append('documento_id', this.documentoActivo.id);
+            }
+
+            try {
+                await axios.post('/documentacion-corporativa/api/documentos', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+                this.aviso('Documento subido correctamente.', 'positive');
+                await this.alGuardarPendiente();
+            } catch (e) {
+                const mensaje = e.response && e.response.data && e.response.data.message
+                    ? e.response.data.message
+                    : 'No se pudo subir el documento.';
+                this.aviso(mensaje, 'negative');
+            } finally {
+                this.subiendoConceptoId = null;
+                this.conceptoActivo = null;
+                this.documentoActivo = null;
+            }
+        },
+
+        async verVersiones(documento) {
+            this.dialogoVersiones = true;
+            this.cargandoVersiones = true;
+            try {
+                const { data } = await axios.get(
+                    `/documentacion-corporativa/api/documentos/${documento.id}/versiones`
+                );
+                this.versionesInfo = data;
+            } catch (e) {
+                this.aviso('No se pudieron cargar las versiones.', 'negative');
+                this.dialogoVersiones = false;
+            } finally {
+                this.cargandoVersiones = false;
+            }
+        },
+
+        descargarDocumento(documentoId, version = null) {
+            const base = `/documentacion-corporativa/api/documentos/${documentoId}`;
+            const url = version ? `${base}/versiones/${version}/descargar` : `${base}/descargar`;
+            window.open(url, '_blank');
+        },
+
+        async eliminarDocumento(documento) {
+            if (!confirm(`¿Eliminar "${documento.archivo}"? Podrás verlo en la papelera de datos, no en esta vista.`)) {
+                return;
+            }
+            try {
+                await axios.delete(`/documentacion-corporativa/api/documentos/${documento.id}`);
+                this.aviso('Documento eliminado.', 'positive');
+                await this.alGuardarPendiente();
+            } catch (e) {
+                const mensaje = e.response && e.response.data && e.response.data.message
+                    ? e.response.data.message
+                    : 'No se pudo eliminar el documento.';
+                this.aviso(mensaje, 'negative');
+            }
+        },
+
+        formatoBytes(bytes) {
+            if (!bytes) return '0 B';
+            const unidades = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), unidades.length - 1);
+            return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${unidades[i]}`;
+        },
+
+        formatoFecha(fecha) {
+            if (!fecha) return '';
+            return new Date(fecha).toLocaleString('es-MX', {
+                day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+            });
+        },
     },
 };
 </script>
@@ -527,5 +771,17 @@ export default {
 }
 .dc-card:hover {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.dc-dropzone {
+    border: 1px dashed #b0bec5;
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.dc-dropzone--over {
+    border-color: #0057a8;
+    background-color: rgba(0, 87, 168, 0.06);
 }
 </style>
