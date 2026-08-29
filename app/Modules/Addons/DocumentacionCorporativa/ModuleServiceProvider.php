@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\DocumentacionCorporativa;
 
 use App\Modules\Addons\DocumentacionCorporativa\Contracts\FuenteRegistry;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FinanzasFuentes;
 use App\Modules\BaseModuleServiceProvider;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
@@ -21,5 +22,14 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         // llegarían nunca al resolvedor — el concepto seguiría diciendo "sin fuente
         // configurada" para siempre, sin ningún error que lo delatara.
         $this->app->singleton(FuenteRegistry::class);
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        // Fase 1.1 (item #728): fuentes vivas de finanzas del Apartado IV.
+        // Cada fase posterior agrega su propio `Fuentes\*::registrar()` aquí.
+        FinanzasFuentes::registrar($this->app->make(FuenteRegistry::class));
     }
 }
