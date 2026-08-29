@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
+use App\Modules\Addons\Roadmap\Services\FronterasService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
@@ -487,6 +488,22 @@ class RoadmapController extends Controller
         $data = $request->validate(['comando' => ['required', 'string', 'max:80']]);
 
         return response()->json($this->svc->detalleFallo($data['comando']));
+    }
+
+    /**
+     * GET /api/roadmap/torre/frontera-dura (#766, Pieza 1c hija de #672) — la KPI card «Frontera
+     * dura» del dashboard: total de aperturas de la válvula + últimos 7 días + desglose por
+     * categoría + listado detallado (item/término/categoría/veredicto/razón/cuándo/ejecutado).
+     * Lee `torre_frontera_dura_eventos` (Pieza 1a, #764) vía {@see FronterasService::resumenTorreFronteraDura()}
+     * — solo lectura, mismo gate que el resto del panorama de la Torre.
+     */
+    public function torreFronteraDura(FronterasService $fronteras): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = Cache::remember('roadmap:torre:frontera-dura', 30, fn () => $fronteras->resumenTorreFronteraDura());
+
+        return response()->json(['ok' => true] + $data);
     }
 
     public function historialAcciones(Request $request): JsonResponse

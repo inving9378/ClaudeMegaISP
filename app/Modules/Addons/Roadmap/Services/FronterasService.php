@@ -6,6 +6,7 @@ use App\Modules\Addons\Roadmap\Models\CircuitoFrontera;
 use App\Modules\Addons\Roadmap\Models\CircuitoFronteraTermino;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Models\TorreCompuertaCambio;
+use App\Modules\Addons\Roadmap\Models\TorreFronteraDuraEvento;
 use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -507,6 +508,64 @@ class FronterasService
                 'sellados_mencion'         => (int) ($sellos['mencion'] ?? 0),
                 'sellados_accion'          => (int) ($sellos['accion'] ?? 0),
             ],
+        ];
+    }
+
+    /**
+     * Pieza 1c (#766, sub-item de #672) — el contador de la Torre: mismas aperturas que
+     * {@see aperturasDeValvula()} (evento `valvula_contexto`/`valvula_nacimiento`, veredicto
+     * `mencion`), pero leídas de `torre_frontera_dura_eventos` (Pieza 1a, #764) en vez de
+     * reescanear `roadmap_items.log` en caliente — la tabla ya trae la categoría resuelta y
+     * permite el JOIN contra `roadmap_items` sin duplicar el dato de si el item se ejecutó.
+     *
+     * `ejecutado` = `estado_aprobacion === 'completado'` CON `merge_commit` (el item no sólo se
+     * cerró, además hay un commit real integrado a main) — mismo criterio que usa el resto de la
+     * Torre para distinguir «cerrado» de «cerrado y aplicado».
+     *
+     * @return array{total:int,ultimos_7_dias:int,por_categoria:array<string,int>,listado:array}
+     */
+    public function resumenTorreFronteraDura(int $limite = 200): array
+    {
+        $total     = TorreFronteraDuraEvento::query()->count();
+        $ultimos7  = TorreFronteraDuraEvento::query()
+            ->where('ocurrido_at', '>=', now()->subDays(7))
+            ->count();
+
+        $porCategoria = TorreFronteraDuraEvento::query()
+            ->selectRaw('categoria, COUNT(*) as n')
+            ->groupBy('categoria')
+            ->orderByDesc('n')
+            ->pluck('n', 'categoria')
+            ->all();
+
+        $listado = TorreFronteraDuraEvento::query()
+            ->with(['item:id,title,estado_aprobacion,merge_commit'])
+            ->orderByDesc('ocurrido_at')
+            ->limit($limite)
+            ->get()
+            ->map(function (TorreFronteraDuraEvento $e) {
+                $item = $e->item;
+
+                return [
+                    'item_id'    => $e->roadmap_item_id,
+                    'item_title' => $item->title ?? null,
+                    'termino'    => $e->termino,
+                    'categoria'  => $e->categoria,
+                    'veredicto'  => $e->veredicto,
+                    'razon'      => $e->razon,
+                    'cuando'     => optional($e->ocurrido_at)->toDateTimeString(),
+                    'ejecutado'  => $item
+                        ? ($item->estado_aprobacion === 'completado' && $item->merge_commit !== null)
+                        : null,
+                ];
+            })
+            ->all();
+
+        return [
+            'total'          => $total,
+            'ultimos_7_dias' => $ultimos7,
+            'por_categoria'  => $porCategoria,
+            'listado'        => $listado,
         ];
     }
 }
