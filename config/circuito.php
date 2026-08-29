@@ -357,6 +357,21 @@ return [
             // una base realmente caída al arranque tardaría en frenar; bajarlo a 0 restaura el
             // comportamiento anterior (frenar siempre que no se pueda medir).
             'gracia_arranque_seg' => (int) env('CIRCUITO_JARVIS_GRACIA_ARRANQUE', 180),
+
+            // FAMILIA "RECLAMOS" (#704, sub-item de #208) — invariantes sobre quién tiene
+            // reclamado cada item en_progreso. Umbral del gap entre `claimed_at` (heartbeat vivo,
+            // lo renueva `RoadmapCircuitoService::renovarLease()` con un UPDATE crudo que a
+            // propósito NO toca `updated_at`) y `updated_at` (última escritura real sobre el
+            // item): pasado esto, el heartbeat sigue vivo pero el trabajo no avanza, y el reaper
+            // lento (`circuito:reap-stuck`, que exige AMBAS señales frías) no lo ve. 300 s cubre
+            // el caso real medido en #191 Fase 3 (25-ago, gap de ~8 min invisible para el reaper).
+            'reclamos_claimed_sin_avance_umbral_seg' => (int) env('CIRCUITO_JARVIS_RECLAMOS_GAP_UMBRAL', 300),
+
+            // Gracia antes de juzgar "en_progreso sin proceso vivo": un reclamo recién hecho
+            // todavía no tiene su PID registrado por `vuelta.sh` (registro de #334 A). Propia y
+            // separada de `circuito.reaper.gracia_minutos` (que vive en base) porque esta familia
+            // tiene que poder medir aunque la base sea justo lo que está fallando.
+            'reclamos_gracia_seg' => (int) env('CIRCUITO_JARVIS_RECLAMOS_GRACIA', 180),
         ],
 
         /*
