@@ -103,6 +103,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #744 (Fase 3 de #624) — mecanismo de reconstrucción de items P0 no-mergeados
                 // (reabre_item_id). Solo el mecanismo: la ejecución real es una vuelta posterior.
                 \App\Modules\Addons\Roadmap\Console\ReconstruirP0Command::class,
+                // #747 (sub-item de #279) — auditoría retroactiva READ-ONLY de merges que pudieron
+                // entrar sin aprobación fresca de Irving. Nunca revierte nada (opción descartada).
+                \App\Modules\Addons\Roadmap\Console\AuditarMergesPostAprobacionCommand::class,
             ]);
         }
     }
