@@ -383,18 +383,25 @@ class JarvisVigilarCommand extends Command
         ];
     }
 
+    /**
+     * Fase 3 (#773, "opción B liviana"): además de la frescura de siempre, lee el campo
+     * `workers.discrepancias` que ahora escribe `CompuertasSondaCommand::medirWorkers()` — la
+     * correlación por PID ya la hizo la sonda, aquí solo se traduce a alerta si el dato no está
+     * viejo (ver `alertas()`).
+     */
     private function medirSonda(): array
     {
         $ruta = '/var/www/megaisp/storage/app/' . CompuertasSondaCommand::SNAPSHOT;
         clearstatcache(true, $ruta);
         if (! is_readable($ruta)) {
-            return ['disponible' => false, 'edad_seg' => null];
+            return ['disponible' => false, 'edad_seg' => null, 'discrepancias' => []];
         }
         $j = json_decode((string) @file_get_contents($ruta), true);
 
         return [
-            'disponible' => is_array($j),
-            'edad_seg'   => is_array($j) ? max(0, time() - (int) ($j['medido_ts'] ?? 0)) : null,
+            'disponible'    => is_array($j),
+            'edad_seg'      => is_array($j) ? max(0, time() - (int) ($j['medido_ts'] ?? 0)) : null,
+            'discrepancias' => is_array($j) ? (array) ($j['workers']['discrepancias'] ?? []) : [],
         ];
     }
 
@@ -994,6 +1001,22 @@ class JarvisVigilarCommand extends Command
         if (($e['sonda']['edad_seg'] ?? null) !== null && $e['sonda']['edad_seg'] > 180) {
             $a[] = ['clave' => 'sonda', 'nivel' => 'me_pregunta',
                 'texto' => "El snapshot del SO tiene {$e['sonda']['edad_seg']} s: la Torre está midiendo con datos viejos.", ];
+        }
+        // Fase 3 (#773): discrepancia programa-por-programa entre lo que supervisor declara y el
+        // proceso real (correlación por PID, ya calculada por CompuertasSondaCommand). Un worker
+        // de cola/cobranza fantasma es blast radius real (pagos, notificaciones) — solo se avisa,
+        // no se toca nada. Se ignora si el snapshot ya está viejo (esa alarma la da el bloque de
+        // arriba, no hay que duplicarla aquí).
+        $discSonda = $e['sonda']['discrepancias'] ?? [];
+        if ($discSonda && ($e['sonda']['edad_seg'] ?? null) !== null && $e['sonda']['edad_seg'] <= 180) {
+            $detalle = implode(', ', array_map(
+                fn ($d) => "{$d['programa']} (supervisor: {$d['estado_supervisor']}, PID {$d['pid']} "
+                    . ($d['estado_real'] === 'proceso_vivo' ? 'vivo' : 'sin proceso') . ')',
+                $discSonda
+            ));
+            $a[] = ['clave' => 'sonda_discrepancia_worker', 'nivel' => 'alarma',
+                'texto' => "Supervisor y proceso real no coinciden: {$detalle}. Posible worker fantasma "
+                    . '(pagos, notificaciones) — no se tocó nada, solo se avisa.', ];
         }
 
         $rec = $e['reclamos'] ?? [];
