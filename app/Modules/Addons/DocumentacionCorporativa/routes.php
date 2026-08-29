@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\InventarioController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PlantillaController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\RegistroEstructuradoController;
@@ -52,6 +53,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/registros/{recurso}', [RegistroEstructuradoController::class, 'store'])->name('registros.store');
             Route::put('/registros/{recurso}/{id}', [RegistroEstructuradoController::class, 'update'])->name('registros.update');
             Route::delete('/registros/{recurso}/{id}', [RegistroEstructuradoController::class, 'destroy'])->name('registros.destroy');
+
+            // Inventario (Fase 3.2) — activos, activos digitales e inventario de accesos.
+            Route::get('/inventario/{recurso}', [InventarioController::class, 'index'])->name('inventario.index');
+            Route::post('/inventario/{recurso}', [InventarioController::class, 'store'])->name('inventario.store');
+            Route::put('/inventario/{recurso}/{id}', [InventarioController::class, 'update'])->name('inventario.update');
+            Route::delete('/inventario/{recurso}/{id}', [InventarioController::class, 'destroy'])->name('inventario.destroy');
 
             // Plantillas (Fase 2d) — generar el documento de un concepto tipo `plantilla`.
             Route::post('/concepto/{clave}/generar', [PlantillaController::class, 'generar'])->name('concepto.generar');
