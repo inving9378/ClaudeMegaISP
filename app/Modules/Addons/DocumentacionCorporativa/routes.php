@@ -3,6 +3,7 @@
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\PlantillaController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\RegistroEstructuradoController;
 use Illuminate\Support\Facades\Route;
 
@@ -51,5 +52,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/registros/{recurso}', [RegistroEstructuradoController::class, 'store'])->name('registros.store');
             Route::put('/registros/{recurso}/{id}', [RegistroEstructuradoController::class, 'update'])->name('registros.update');
             Route::delete('/registros/{recurso}/{id}', [RegistroEstructuradoController::class, 'destroy'])->name('registros.destroy');
+
+            // Plantillas (Fase 2d) — generar el documento de un concepto tipo `plantilla`.
+            Route::post('/concepto/{clave}/generar', [PlantillaController::class, 'generar'])->name('concepto.generar');
         });
     });
