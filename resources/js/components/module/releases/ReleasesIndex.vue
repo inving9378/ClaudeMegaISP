@@ -5,6 +5,9 @@
         <div class="d-flex align-items-center gap-2 mb-3">
             <i class="bi bi-broadcast-pin fs-4"></i>
             <h1 class="h4 fw-bold mb-0">Torre de control V2</h1>
+            <!-- Item #827 (Jarvis Parte 3b, Fase 3) — drawer del chat de sugerencias, a la
+                 derecha del título para que se vea desde cualquier pestaña de la Torre. -->
+            <jarvis-chat-drawer class="ms-auto" />
         </div>
 
         <!-- Item #891 §3 — alerta anticipada del certificado TLS en la CABECERA, no solo en el
@@ -309,6 +312,7 @@ import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
 import TorreSaludEntorno from "./torre-control/TorreSaludEntorno.vue";
 import TorreColaEjecutable from "./torre-control/TorreColaEjecutable.vue";
 import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
+import JarvisChatDrawer from "./torre-control/JarvisChatDrawer.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
@@ -316,7 +320,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreSaludEntorno, TorreColaEjecutable, IntegracionRamas, DeployProgressModal },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreSaludEntorno, TorreColaEjecutable, IntegracionRamas, JarvisChatDrawer, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
