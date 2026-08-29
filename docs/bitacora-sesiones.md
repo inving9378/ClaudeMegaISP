@@ -3140,3 +3140,37 @@ encolado al runner on-box). Sin cambio de código funcional — solo documentaci
 **Estado final del #66:** auto-parqueado como **paraguas** (`aprobado_irving`/`pending`, excluido
 del pool automático) por el guard `(2b)` de `RoadmapItem` — cierra solo cuando los 3 hijos cierren.
 Mismo patrón que #75/#123/#639.
+
+## 2026-08-28 18:15 — Item #215: circuito:cortar-vuelta (fin del pkill -f autoinmune)
+
+Worker wt-2. El item documentaba un incidente real del 2026-08-25: para cortar una vuelta se corrió
+`pkill -TERM -f 'claude -p Eres un EJECUTOR ON-BOX'`, y el propio shell que ejecutaba ese `pkill`
+traía el patrón LITERAL en su línea de comando → se mató a sí mismo. Agravante medido el mismo día:
+el latido `circuito:vivo --watch` (hijo en background de `vuelta.sh`) no murió con la vuelta, quedó
+huérfano con PPID=1, porque su cmdline no contiene el patrón buscado.
+
+**Hecho:**
+- `App\Modules\Addons\Roadmap\Console\CortarVueltaCommand.php` → `php artisan circuito:cortar-vuelta
+  --sid=wt-K [--confirmar] [--senal=TERM|KILL]`. Usa `RegistroPids` (identidad PID+starttime) para
+  identificar la vuelta — nunca `ps`/cmdline por patrón. Mata por **PGID** (grupo de procesos), que
+  es el mismo grupo donde nace `circuito:vivo --watch` dentro de `vuelta.sh`, así el heartbeat cae
+  junto con la vuelta. Dry-run por default; tras `--confirmar` vuelve a escanear `/proc` para
+  confirmar APARTE que no sobrevive nada del grupo (si algo sobrevive, lo reporta por PID exacto,
+  nunca reintenta por patrón). Registrado en `ModuleServiceProvider`.
+- `docs/circuito/cortar-vuelta-runbook.md` — el runbook completo (incidente + patrón seguro + qué
+  hace/no hace el comando), referenciado desde `docs/circuito/README.md` y desde `CONTEXTO-MEGAISP.md`
+  (junto a la sección de `RegistroPids`/Vigilia de Thomas, donde ya se mencionaba el riesgo).
+
+**Verificado con procesos reales de prueba** (no se tocó ninguna vuelta real: `wt-1`/`wt-2` seguían
+vivas durante la prueba): par de procesos con el mismo PGID simulando `claude -p` + `circuito:vivo
+--watch` → dry-run no toca nada; `--confirmar` mata ambos y confirma "sin huérfanos"; un proceso que
+ignora `SIGTERM` a propósito → se reporta como sobreviviente por su PID exacto en vez de asumirse
+muerto. Registro temporal de prueba limpiado al terminar.
+
+**No se tocó `vuelta.sh`:** su limpieza normal del heartbeat en la ruta feliz (mata `HB_PID` justo
+después de que `claude -p` termina) ya es correcta — el incidente fue el operador usando `pkill -f`
+por fuera, no un bug de ese script.
+
+Rama `circuito/item-215-pkill-f-sobre-el-patron-del-ejecutor-ma`, 2 commits (código + docs), merge
+encolado vía `circuito:integrar` (lo aplica el runner on-box). Item marcado `sin_ui=true` (es una
+herramienta de operador por línea de comandos, sin pantalla que enlazar).
