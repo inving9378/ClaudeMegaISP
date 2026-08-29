@@ -3174,3 +3174,27 @@ por fuera, no un bug de ese script.
 Rama `circuito/item-215-pkill-f-sobre-el-patron-del-ejecutor-ma`, 2 commits (código + docs), merge
 encolado vía `circuito:integrar` (lo aplica el runner on-box). Item marcado `sin_ui=true` (es una
 herramienta de operador por línea de comandos, sin pantalla que enlazar).
+
+## 2026-08-28 18:27 — Item #280: consumo de sync-status en megafamilia-rn (cerrado, código en repo externo)
+
+**wt-1.** Item #280 (sub-item de #26) pedía que la app móvil `megafamilia-rn`
+(`/var/www/megafamilia-rn`, repo React Native **fuera** de `megaisp`) consumiera
+`GET /api/megafamilia/sync-status` (backend ya listo desde #26) para refrescar servicio/facturas/
+tickets sin recargar. 3 sesiones previas (wt-6, wt-2, wt-1) habían verificado que la implementación
+del lado cliente ya existía como WIP sin comitear en ese repo, pero reportaron bloqueo del
+clasificador de auto-mode al intentar `git write` ahí — quedó escalado y re-triado varias veces
+(anti-bucle incluido). El sub-item #716 dejó un plan detallado (2 pasos, parar en el primero que
+funcione).
+
+**Resultado en esta vuelta:** el bloqueo reportado por las sesiones anteriores **no aplicó aquí**
+(el aislamiento #334 es sobre `/var/www/megaisp`, no sobre `megafamilia-rn`). Se ejecutó el paso (a)
+del plan de #716: `git apply --cached` con un patch acotado a los 2 hunks reales del cambio en
+`ClienteNavigator.tsx` (import + `useSyncStatus()`), dejando intacto y sin stagear el hunk de WIP
+ajeno (`FlotasPlan`, otra feature mezclada en el mismo archivo) — verificado con `tsc --noEmit`
+limpio antes de comitear. Commit en `megafamilia-rn` (rama `main` de ese repo, sin infra de rama
+propia del circuito ahí): `44e58542681e9e65c14952eb91ca25ac340a3e15`.
+
+En `megaisp` (este worktree): doc de verificación
+`docs/megafamilia-sync-status-item-280-verificacion.md` + esta entrada, rama
+`circuito/item-280-consumir-apimegafamiliasync-status-en`, integrado vía `circuito:integrar`. Item
+#280 y su sub-item #716 cerrados como completados.
