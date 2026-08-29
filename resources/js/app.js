@@ -155,6 +155,7 @@ import FleetGeofenceForm from "./components/module/flotas/FleetGeofenceForm.vue"
 import FleetGeofenceShow from "./components/module/flotas/FleetGeofenceShow.vue";
 import FleetNotificationLog from "./components/module/flotas/FleetNotificationLog.vue";
 import FleetRuleList from "./components/module/flotas/FleetRuleList.vue";
+import FleetExpenseComparison from "./components/module/flotas/FleetExpenseComparison.vue";
 import FleetDocumentsDashboard from "./components/module/flotas/FleetDocumentsDashboard.vue";
 import FleetClientPlanTab from "./components/module/flotas/FleetClientPlanTab.vue";
 import FleetSubscriptionDashboard from "./components/module/flotas/FleetSubscriptionDashboard.vue";
@@ -603,6 +604,7 @@ const app = createApp({
         'fleet-geofence-show': FleetGeofenceShow,
         'fleet-notification-log': FleetNotificationLog,
         'fleet-rule-list': FleetRuleList,
+        'fleet-expense-comparison': FleetExpenseComparison,
         'fleet-documents-dashboard': FleetDocumentsDashboard,
         'FleetClientPlanTab': FleetClientPlanTab,
         'fleet-subscription-dashboard': FleetSubscriptionDashboard,

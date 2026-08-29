@@ -41,6 +41,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // Dashboard global de documentos (Sub-fase 4.1b) — antes de /{id}.
         Route::get('/documentos',             fn() => view('addon-flotas::flotas.documentos'));
 
+        // Análisis comparativo de gastos (item #688) — antes de /{id}.
+        Route::get('/comparativo',            fn() => view('addon-flotas::flotas.comparativo'));
+
         Route::get('/{id}',       fn() => view('addon-flotas::flotas.show'));
 
         // ── API: Vehículos ─────────────────────────────────────────────────────
