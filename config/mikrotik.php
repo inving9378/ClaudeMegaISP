@@ -78,4 +78,17 @@ return [
         // caídos; se vuelve a intentar en la siguiente corrida programada.
         'circuit_breaker_threshold' => (int) env('MIKROTIK_RETRY_SYNC_CIRCUIT_BREAKER', 100),
     ],
+
+    /*
+     * Disparo de sync masivo al reconectar (item roadmap #701, Fase 2 de #678 — depende de
+     * #676 y #699, ambos completados). Cuando SyncPingMonitoring detecta que un router pasó
+     * de offline→online, MikrotikReconnectSyncService re-despacha en lote los servicios de
+     * ESE router marcados mikrotik_sync_status=failed (mismo job de #676, sin reintento
+     * propio). batch_limit_per_router es independiente de retry.batch_limit: protege un solo
+     * router con muchos failed acumulados, no la corrida global de reintentar-sync.
+     */
+    'reconnect_sync' => [
+        'enabled' => (bool) env('MIKROTIK_RECONNECT_SYNC_ENABLED', true),
+        'batch_limit_per_router' => (int) env('MIKROTIK_RECONNECT_SYNC_BATCH_LIMIT', 100),
+    ],
 ];
