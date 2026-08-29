@@ -2858,6 +2858,38 @@ class RoadmapCircuitoService
     }
 
     /**
+     * Fecha del commit MÁS RECIENTE de la rama (`git log -1 --format=%aI`). `null` si no se pudo
+     * preguntar (rama inexistente, git que falla) — el llamador debe tratarlo como fail-closed.
+     *
+     * Existe para #746: comparar contra `revisado_at` y detectar si la rama recibió commits
+     * DESPUÉS de la última aprobación de Irving, antes de dejar que el auto-merge la integre a
+     * ciegas. Mismo patrón de seguridad que `archivosDeRama`/`commitsDeRama` de arriba.
+     */
+    public function fechaUltimoCommitDeRama(string $branch): ?Carbon
+    {
+        if (! preg_match('#^[\w./-]+$#', $branch)) {
+            return null;   // nunca construir un comando con una ref arbitraria
+        }
+
+        $p = $this->git(['log', '-1', '--format=%aI', $branch]);
+
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+
+        $fecha = trim($p->getOutput());
+        if ($fecha === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($fecha);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
      * Contenido concatenado de unos archivos EN la rama (para inspeccionar qué hace una migración
      * antes de auto-mergearla). Devuelve '' si no se puede leer alguno — el llamador decide.
      */

@@ -1036,6 +1036,21 @@ class JarvisService
             }
         }
 
+        // #746 — APROBACIÓN FRESCA (#279 q1): si la rama recibió commits DESPUÉS de la última vez
+        // que el item se revisó/aprobó (`revisado_at`), esa aprobación ya no cubre lo que se va a
+        // mergear — el commit aprobado no es el mismo que el que se integraría. Sin `revisado_at`
+        // no hay «antes» contra qué comparar: no bloquea (no es este el guard que exige que el
+        // item esté revisado, otros checks de arriba ya lo cubren).
+        if ($item->revisado_at) {
+            $ultimoCommit = $this->circuito->fechaUltimoCommitDeRama((string) $item->branch);
+            if ($ultimoCommit === null) {
+                return $no('No se pudo leer la fecha del último commit de la rama: fail-closed, lo revisa Irving.');
+            }
+            if ($ultimoCommit->gt($item->revisado_at)) {
+                return $no('La rama recibió commits después de la última aprobación de Irving (revisado_at): no se auto-mergea sin que la vea de nuevo.');
+            }
+        }
+
         return ['elegible' => true, 'motivo' => 'Trabajo verificado, reversible y sin tocar prod ('
             . count($diff) . ' archivo(s)).'];
     }
