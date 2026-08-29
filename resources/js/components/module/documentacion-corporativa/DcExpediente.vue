@@ -38,6 +38,17 @@
             />
 
             <q-btn
+                v-hasPermission="'documentacion-corporativa.offboarding.ver'"
+                flat
+                dense
+                icon="person_remove"
+                color="primary"
+                label="Checklist de offboarding"
+                class="q-mr-sm"
+                @click="$refs.offboarding.abrir()"
+            />
+
+            <q-btn
                 v-hasPermission="'documentacion-corporativa.bitacora.view'"
                 flat
                 dense
@@ -562,6 +573,9 @@
 
         <!-- Bitácora consultable/exportable (Fase 5c, item #760). -->
         <dc-bitacora ref="bitacora" />
+
+        <!-- Checklist de offboarding (Fase 5d-1, apartado XII, item #815). -->
+        <dc-offboarding ref="offboarding" />
     </div>
 </template>
 

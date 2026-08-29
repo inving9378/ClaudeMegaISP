@@ -5,6 +5,7 @@ use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DcSolicitudController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DocumentoController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\OffboardingController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PlantillaController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\RegistroEstructuradoController;
@@ -91,5 +92,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/bitacora/data/usuarios', [BitacoraController::class, 'usuariosFiltro'])->name('bitacora.usuarios');
             Route::get('/bitacora/exportar', [BitacoraController::class, 'exportar'])->name('bitacora.exportar');
             Route::get('/bitacora', [BitacoraController::class, 'index'])->name('bitacora.index');
+
+            // Checklist de offboarding (Fase 5d-1, apartado XII, item #815) —
+            // data/colaboradores ANTES de pendientes/revocar, mismo criterio que el resto.
+            Route::get('/offboarding/data/colaboradores', [OffboardingController::class, 'colaboradores'])->name('offboarding.colaboradores');
+            Route::get('/offboarding/pendientes', [OffboardingController::class, 'pendientes'])->name('offboarding.pendientes');
+            Route::post('/offboarding/revocar', [OffboardingController::class, 'revocar'])->name('offboarding.revocar');
         });
     });
