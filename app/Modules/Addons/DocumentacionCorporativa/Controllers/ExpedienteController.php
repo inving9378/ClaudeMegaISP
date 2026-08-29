@@ -4,13 +4,17 @@ namespace App\Modules\Addons\DocumentacionCorporativa\Controllers;
 
 use App\Exports\DocumentacionApartadoExport;
 use App\Http\Controllers\Controller;
+use App\Models\Balance;
+use App\Models\Client;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcApartado;
+use App\Modules\Addons\DocumentacionCorporativa\Models\DcConcepto;
 use App\Modules\Addons\DocumentacionCorporativa\Services\BitacoraService;
 use App\Modules\Addons\DocumentacionCorporativa\Services\CompletitudService;
 use App\Modules\Addons\DocumentacionCorporativa\Services\EmpresaContextService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -164,6 +168,115 @@ class ExpedienteController extends Controller
         $pdf = Pdf::loadView('addon-documentacion-corporativa::export.apartado', [
             'apartado'  => $apartado,
             'conceptos' => $resumen['conceptos'],
+            'generado'  => now(),
+        ]);
+
+        $destino = $this->rutaTemporalApartado($nombreBase);
+        file_put_contents($destino, $pdf->output());
+
+        return response()->download($destino, "{$nombreBase}.pdf")->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Detalle NOMINAL (con nombre) de la cartera de clientes — Apartado IV.
+     *
+     * Concepto APARTE del agregado ('clientes.cartera', `config.detalle=agregado`
+     * en `FinanzasFuentes::cartera()`, fuera de esta fase por diseño): expone
+     * identidad de clientes con saldo, así que exige, además del gate normal del
+     * apartado, el permiso de descarga `documentacion-corporativa.documento.download`
+     * (ya sembrado y asignado, no se crea aquí) + justificación de texto libre
+     * ANTES de generarse — regla dura LFPDPPP del item padre #663.
+     *
+     * Reusa el mismo mecanismo de exportación PDF/Excel de `exportarApartado()`
+     * (item #785), envolviendo la lista nominal como un único "concepto" — no
+     * se duplica ninguna clase de export ni vista.
+     */
+    public function carteraDetalleNominal(Request $request)
+    {
+        $empresa = $this->empresas->actual();
+
+        $apartado = DcApartado::deEmpresa($empresa->id)
+            ->activos()
+            ->where('clave', 'IV')
+            ->first();
+
+        if ($apartado && ! $this->puedeVer($apartado->permiso())) {
+            return response()->json([
+                'message' => 'No tienes permiso para ver este apartado.',
+            ], 403);
+        }
+
+        if (! $this->puedeVer('documentacion-corporativa.documento.download')) {
+            return response()->json([
+                'message' => 'No tienes permiso para descargar el detalle nominal de cartera.',
+            ], 403);
+        }
+
+        $justificacion = trim((string) $request->query('justificacion', ''));
+        if ($justificacion === '') {
+            return response()->json([
+                'message' => 'La justificación es obligatoria para exportar datos personales de clientes.',
+            ], 422);
+        }
+
+        $formato = mb_strtolower((string) $request->query('formato', 'excel'));
+        if (! in_array($formato, ['pdf', 'excel'], true)) {
+            return response()->json([
+                'message' => "Formato de exportación no soportado: '{$formato}'. Disponibles: pdf, excel.",
+            ], 422);
+        }
+
+        $concepto = $apartado
+            ? DcConcepto::deEmpresa($empresa->id)->where('apartado_id', $apartado->id)->where('slug', 'cartera-de-clientes')->first()
+            : null;
+
+        $filas = Balance::query()
+            ->where('balanceable_type', Client::class)
+            ->where('amount', '<', 0)
+            ->join('client_main_information as cmi', 'cmi.client_id', '=', 'balances.balanceable_id')
+            ->orderBy('cmi.name')
+            ->get([
+                'balances.balanceable_id as cliente_id',
+                DB::raw("TRIM(CONCAT(cmi.name, ' ', COALESCE(cmi.father_last_name, ''), ' ', COALESCE(cmi.mother_last_name, ''))) as nombre"),
+                'balances.amount as saldo',
+            ])
+            ->map(fn ($r) => [
+                'cliente_id' => $r->cliente_id,
+                'nombre'     => $r->nombre,
+                'saldo'      => round(abs((float) $r->saldo), 2),
+            ])->all();
+
+        // Se registra ANTES de servir el archivo (misma regla que exportarApartado):
+        // la justificación queda en el contexto de la bitácora, append-only.
+        $this->bitacora->exportar($empresa->id, $apartado?->id, $concepto?->id, [
+            'pantalla'       => 'apartado.iv.cartera.detalle_nominal',
+            'justificacion'  => $justificacion,
+            'formato'        => $formato,
+            'total_clientes' => count($filas),
+        ]);
+
+        $conceptos = [[
+            'nombre'  => 'Cartera de clientes — detalle nominal',
+            'datos'   => $filas,
+            'mensaje' => $filas === [] ? 'Sin clientes con saldo negativo en este entorno.' : null,
+        ]];
+
+        $nombreBase = 'dc-cartera-detalle-nominal-' . now()->format('Ymd-His') . '-' . Str::random(6);
+
+        if ($formato === 'excel') {
+            return Excel::download(
+                new DocumentacionApartadoExport('IV', $conceptos),
+                "{$nombreBase}.xlsx"
+            );
+        }
+
+        $pdf = Pdf::loadView('addon-documentacion-corporativa::export.apartado', [
+            'apartado'  => $apartado ?? (object) [
+                'clave'       => 'IV',
+                'nombre'      => 'Cuentas por cobrar, por pagar y flujo',
+                'descripcion' => 'Detalle nominal de cartera de clientes',
+            ],
+            'conceptos' => $conceptos,
             'generado'  => now(),
         ]);
 

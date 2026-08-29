@@ -34,6 +34,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // Exportación agregada por apartado (Fase 1.5a, item #785) — PDF/Excel
             // con TODOS los conceptos ya resueltos de ese apartado en un solo archivo.
             Route::get('/apartado/{clave}/exportar', [ExpedienteController::class, 'exportarApartado'])->name('apartado.exportar');
+
+            // Detalle nominal de cartera de clientes (Fase 1.5b, item #786) — gateado
+            // aparte por `documento.download` + justificación. Ruta de 3 segmentos
+            // ('iv/cartera/detalle-nominal'): no colisiona con `{clave}` (1 segmento)
+            // ni con `{clave}/exportar` (2 segmentos) de arriba.
+            Route::get('/apartado/iv/cartera/detalle-nominal', [ExpedienteController::class, 'carteraDetalleNominal'])->name('apartado.iv.cartera.detalle_nominal');
             Route::post('/empresa', [ExpedienteController::class, 'cambiarEmpresa'])->name('empresa.cambiar');
 
             // Apartado XIII — calendario ANTES de {id}: si no, "calendario" se
