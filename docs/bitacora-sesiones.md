@@ -3198,3 +3198,38 @@ En `megaisp` (este worktree): doc de verificación
 `docs/megafamilia-sync-status-item-280-verificacion.md` + esta entrada, rama
 `circuito/item-280-consumir-apimegafamiliasync-status-en`, integrado vía `circuito:integrar`. Item
 #280 y su sub-item #716 cerrados como completados.
+
+## 2026-08-29 00:45 — Item #632: auditoría profunda invoices/client_invoices (nivel C, esperando merge de Irving)
+
+**wt-5.** Item #632 (sub-item de #159) pedía decidir Y ejecutar la unificación de las dos tablas
+de facturas — dinero en vivo, nivel C. Irving ya había respondido las 3 preguntas del brief
+(log del 2026-08-28 18:28): **q1 = investigación previa SIN tocar código** (esta vuelta), **q2 =
+`invoices` como tabla canónica**, **q3 = switch gradual detrás de feature flag**. El alcance de
+esta vuelta fue exactamente q1: no se tocó ningún modelo/controller/flujo de cobro.
+
+**Entregado:** `docs/deuda-facturas-invoices-item-632-plan-ejecucion.md`, que retoma el hallazgo
+de #159 y agrega evidencia nueva verificada contra la BD/código de hoy: (1) el propio panel de
+auto-diagnóstico de la Torre (`AuditController::generate()`) ya trae una métrica que compara
+`invoices` vs `client_invoices` del mes en curso y las marca en error si divergen; (2) bug ACTIVO
+e independiente de la unificación en `WarRoom\KpiController` — filtra el mes actual con
+`whereYear`/`whereMonth` sobre `client_invoices.payment_date`, que es `varchar(255)` formato
+`d/m/Y` (confirmado con `SHOW COLUMNS` + muestreo real), así que esas métricas probablemente
+devuelven `0` en vivo hoy mismo; (3) colisión de nombres: dos clases `InvoiceService` (una sobre
+`ClientInvoice` en `App\Services`, otra sobre `Invoice` en `App\Services\Finance\Invoice`) que un
+`grep` sin filtrar mezcla; (4) los **5 puntos exactos** donde hoy se escribe
+`client_invoices.estado='Pagado'` (`PaymentApplicationService::applyPayment`,
+`DomiciliacionCobrarCommand`, `PortalCliente\OpenpayWebhookController`,
+`PortalCliente\PortalPagoController`, `PortalPago\ConciliacionService`) — el blast radius real de
+cualquier fase de escritura futura.
+
+Con destino y mecanismo ya fijados por Irving, se propuso un plan de 7 fases (esquema aditivo →
+feature flag dual-write → backfill → lectores de bajo riesgo → ventana de monitoreo → cortar
+escritura → decommission) dimensionadas para caber una por vuelta, cada una registrada como
+sub-item independiente (**#719, #721, #722, #723, #724, #725, #726**) para que no re-pregunten
+q2/q3. El bug de KpiController se registró aparte como **#727**, nivel A (solo lectura, no
+depende de que avance la unificación grande).
+
+Rama `circuito/item-632-decidir-y-ejecutar-la-unificacion-invoic`, 2 commits (doc + esta
+bitácora), `circuito:integrar` encolado — **nivel C, queda esperando el merge manual de Irving**
+(no auto-mergea como los niveles A/B). Item marcado `sin_ui=true` (entregable es el documento, no
+hay pantalla que cambió).
