@@ -42,6 +42,22 @@ class JarvisVigilarCommand extends Command
 
     protected $description = 'Vigilia de Jarvis: mide disco, memoria, logs, procesos y registro SIN depender de la base.';
 
+    /**
+     * TABLAS CLAVE DEL CIRCUITO (item #775, fase 5 de #705/#228) — lista fija verificada por
+     * NOMBRE, no por conteo. medirBdIntegra() ve el esquema completo (cientos de tablas): si sólo
+     * se caen estas 4, el porcentaje nunca cruza ni el umbral de alerta. Los 4 nombres vienen de
+     * sus migraciones (`create_roadmap_items_table`, `create_roadmap_item_reports_table`,
+     * `create_roadmap_item_memory_table`, `create_circuito_motor_pulsos_table`): las 2 primeras
+     * son el mínimo indiscutible que nombra el item; las otras 2 son igual de críticas para el
+     * propio circuito (memoria de items y pulsos del motor) y entran también.
+     */
+    private const TABLAS_CLAVE_CIRCUITO = [
+        'roadmap_items',
+        'roadmap_item_reports',
+        'roadmap_item_memory',
+        'circuito_motor_pulsos',
+    ];
+
     public function handle(): int
     {
         if (! config('circuito.jarvis.vigilia.enabled', true)) {
@@ -83,6 +99,17 @@ class JarvisVigilarCommand extends Command
                 FrenoCircuito::poner($this->motivoBdIntegra($estado['bd_integra']), 'jarvis:bd_integra');
             } catch (\Throwable $e) {
                 FrenoCircuito::registrarFallo('jarvis:bd_integra', $e);
+            }
+        }
+
+        // CHEQUEO PUNTUAL (item #775, hermano de bd_integra) — ausencia de una tabla nombrada es
+        // síntoma suficiente por sí solo, sin esperar caída porcentual. Mismo orden freno→aviso.
+        $estado['tablas_clave'] = $this->medirTablasClaveCircuito($estado['bd_integra']);
+        if (! $this->option('seco') && $estado['tablas_clave']['escalon'] === 'critico' && ! FrenoCircuito::activo()) {
+            try {
+                FrenoCircuito::poner($this->motivoTablasClaveCircuito($estado['tablas_clave']), 'jarvis:tablas_clave');
+            } catch (\Throwable $e) {
+                FrenoCircuito::registrarFallo('jarvis:tablas_clave', $e);
             }
         }
 
@@ -579,6 +606,59 @@ class JarvisVigilarCommand extends Command
     }
 
     /**
+     * CHEQUEO tablas_clave (item #775, fase 5 de #705) — hermano de medirBdIntegra(): en vez de
+     * comparar un conteo total contra un porcentaje, verifica por NOMBRE que las tablas de
+     * self::TABLAS_CLAVE_CIRCUITO sigan existiendo. Cualquier ausencia es escalón crítico
+     * inmediato, sin necesidad de caída porcentual — la ausencia misma es el síntoma.
+     *
+     * Solo corre la consulta si `$bdIntegra['medido']` ya probó que la base responde: si la
+     * conexión falló, medirBdIntegra() ya decidió escalón/freno/gracia-de-arranque para ese caso,
+     * y repetir aquí la misma consulta fallida sería ruido, no una señal nueva.
+     */
+    private function medirTablasClaveCircuito(array $bdIntegra): array
+    {
+        if (($bdIntegra['medido'] ?? false) !== true) {
+            return [
+                'medido' => false, 'escalon' => 'no_aplica', 'faltantes' => [],
+                'esperadas' => self::TABLAS_CLAVE_CIRCUITO, 'error' => null,
+            ];
+        }
+
+        try {
+            $esquema = (string) config('database.connections.mysql.database');
+            $placeholders = implode(',', array_fill(0, count(self::TABLAS_CLAVE_CIRCUITO), '?'));
+            $filas = DB::select(
+                "SELECT table_name AS nombre FROM information_schema.tables "
+                    . "WHERE table_schema = ? AND table_name IN ({$placeholders})",
+                array_merge([$esquema], self::TABLAS_CLAVE_CIRCUITO)
+            );
+            $presentes = array_map(fn ($f) => $f->nombre, $filas);
+        } catch (\Throwable $e) {
+            return [
+                'medido' => false, 'escalon' => 'critico', 'faltantes' => self::TABLAS_CLAVE_CIRCUITO,
+                'esperadas' => self::TABLAS_CLAVE_CIRCUITO, 'error' => substr($e->getMessage(), 0, 200),
+            ];
+        }
+
+        $faltantes = array_values(array_diff(self::TABLAS_CLAVE_CIRCUITO, $presentes));
+
+        return [
+            'medido' => true,
+            'escalon' => count($faltantes) > 0 ? 'critico' : 'ok',
+            'faltantes' => $faltantes,
+            'esperadas' => self::TABLAS_CLAVE_CIRCUITO,
+            'error' => null,
+        ];
+    }
+
+    private function motivoTablasClaveCircuito(array $t): string
+    {
+        $lista = implode(', ', $t['faltantes']);
+
+        return "Freno automático (item #775): falta(n) tabla(s) clave del circuito: {$lista}.";
+    }
+
+    /**
      * Lo único que necesita MySQL, y por eso va al final y entre try/catch. Si no responde, se
      * dice —no se omite ni se rellena con ceros, que es como un panel en ceros se vuelve
      * indistinguible de un sistema sano (la lección del 1038 en `roadmap_items`).
@@ -830,6 +910,11 @@ class JarvisVigilarCommand extends Command
             $a[] = ['clave' => 'bd_integra', 'nivel' => 'me_pregunta',
                 'texto' => "La base cayó a {$bd['tablas']} tabla(s) (antes {$bd['ultimo_conteo_bueno']}, "
                     . "-{$bd['caida_pct']}%). Todavía no es crítico (>50%), pero ya no es ruido.", ];
+        }
+        $tc = $e['tablas_clave'] ?? [];
+        if (($tc['escalon'] ?? 'ok') === 'critico') {
+            $a[] = ['clave' => 'tablas_clave_circuito', 'nivel' => 'alarma',
+                'texto' => 'CRÍTICO — ' . $this->motivoTablasClaveCircuito($tc) . ' Freno puesto automáticamente.', ];
         }
         if (($e['sonda']['edad_seg'] ?? null) !== null && $e['sonda']['edad_seg'] > 180) {
             $a[] = ['clave' => 'sonda', 'nivel' => 'me_pregunta',
