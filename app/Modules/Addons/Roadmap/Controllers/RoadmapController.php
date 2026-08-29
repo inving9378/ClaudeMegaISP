@@ -1865,6 +1865,7 @@ class RoadmapController extends Controller
             'archivado'         => ! empty($i->archivado_at),
             'archivado_at'      => optional($i->archivado_at)->toIso8601String(),
             'archivado_por'     => $i->archivado_por,
+            'frontera_control'  => $this->fronteraControlBadge($i),   // #675 (Pieza 4 de #646): control verificado vs autodeclaración
             'modulo'            => $i->modulo,
             'modulo_url'        => $this->moduloUrl($i->modulo),   // "Ver más" → pantalla del módulo (fallback)
             'enlace_revision'   => $i->enlace_revision,            // #432 ADENDA B — deep-link REAL (preferente en "Ver")
@@ -1878,6 +1879,70 @@ class RoadmapController extends Controller
             // El TEXTO del diff ya no viaja aquí: lo sirve `integracionDiff()` cuando el visor lo
             // abre. `tiene_diff` es lo único que la lista necesita para decidir si ofrece el botón.
             'tiene_diff'        => $git['existe'] && ! empty($git['archivos']),
+        ];
+    }
+
+    /**
+     * #675 (Pieza 4 de #646) — LA TORRE DISTINGUE CONTROL VERIFICADO DE AUTODECLARACIÓN.
+     *
+     * `frontera_valvula` (columna ya sellada, hecho histórico) SOLO se llena al nacer el item si
+     * el detector determinista disparó (ver `store()`: se asigna únicamente dentro del `else` de
+     * `$frontera === null`). Cruzarlo con una RELECTURA en vivo del mismo detector
+     * (`JarvisService::fronteraDuraDeItemDetalle()`, la misma fuente que `categoriaFronteraDura()`,
+     * anclada a palabra, sin modelo) da las 3 combinaciones que pidió el item, más la anomalía de
+     * un disparo sin sello (item de antes de que la válvula existiera, o categoría hoy en «avisar»):
+     *
+     *   sin_frontera       → el detector no encuentra nada: no hubo nada que autodeclarar.
+     *   mencion            → SÍ disparó; la válvula (autodeclaración del modelo) lo dejó pasar/ablandó.
+     *   accion             → SÍ disparó; la válvula NO lo abrió — pasó por Irving, sin atajo del modelo.
+     *   avisar / disparo_sin_sello → dispara HOY pero el item no tiene veredicto de válvula guardado.
+     *
+     * Solo lectura: no cambia ningún flujo de decisión, es únicamente lo que la Torre muestra.
+     *
+     * @return array{estado:string, label:string, detalle:string}
+     */
+    private function fronteraControlBadge(RoadmapItem $i): array
+    {
+        $det = app(JarvisService::class)->fronteraDuraDeItemDetalle($i);
+
+        if ($det['categoria_detectada'] === null) {
+            return [
+                'estado'  => 'sin_frontera',
+                'label'   => 'Sin frontera',
+                'detalle' => 'El detector determinista (DetectorTerminos, sin modelo) no encuentra ningún término de frontera dura en este item: no hubo nada que autodeclarar.',
+            ];
+        }
+
+        $termino = $det['termino'] ? "«{$det['termino']}» ({$det['categoria_detectada']})" : $det['categoria_detectada'];
+
+        if ($i->frontera_valvula === 'mencion') {
+            return [
+                'estado'  => 'mencion',
+                'label'   => 'Disparó · autodeclaración',
+                'detalle' => "El detector determinista encontró {$termino}; la válvula de nacimiento lo leyó como MENCIÓN (el modelo se autodeclaró reversible) y lo dejó avanzar por el camino normal.",
+            ];
+        }
+
+        if ($i->frontera_valvula === 'accion') {
+            return [
+                'estado'  => 'accion',
+                'label'   => 'Disparó · control verificado',
+                'detalle' => "El detector determinista encontró {$termino}; la válvula confirmó que SÍ toca la frontera y lo retuvo — pasó por la decisión de Irving, sin atajo del modelo.",
+            ];
+        }
+
+        if ($det['efecto'] === 'avisar') {
+            return [
+                'estado'  => 'avisar',
+                'label'   => 'Disparó · solo avisar',
+                'detalle' => "El detector determinista encontró {$termino}, pero esa categoría está configurada en modo «solo avisar»: se registra y no retiene a nadie.",
+            ];
+        }
+
+        return [
+            'estado'  => 'disparo_sin_sello',
+            'label'   => 'Disparó · sin veredicto de válvula',
+            'detalle' => "El detector determinista encuentra {$termino} en una relectura actual, pero este item no tiene un veredicto de válvula guardado (nació antes de que existiera, o no llegó a evaluarse).",
         ];
     }
 
