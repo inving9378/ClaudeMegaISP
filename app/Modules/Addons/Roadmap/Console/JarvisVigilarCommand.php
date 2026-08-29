@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
+use App\Modules\Addons\Roadmap\Support\GraciaDeArranque;
 use App\Modules\Addons\Roadmap\Support\RegistroPids;
 use App\Modules\Addons\Roadmap\Support\JarvisVigilia;
 use Illuminate\Console\Command;
@@ -334,10 +335,27 @@ class JarvisVigilarCommand extends Command
             );
             $tablas = (int) ($fila->n ?? 0);
         } catch (\Throwable $e) {
+            // GRACIA DE ARRANQUE (incidente 2026-08-28). "No pude conectarme" sigue siendo el peor
+            // caso... salvo en los primeros segundos de vida del box, donde la explicación
+            // abrumadoramente probable es que MySQL todavía no levanta. Sin esto, TODO reinicio del
+            // servidor frenaba el circuito: el 28-ago el freno cayó 66 s después del boot, con la
+            // base perfecta, y las seis terminales quedaron una hora paradas hasta que un humano lo
+            // soltó a mano. Ojo con lo que NO se ablanda: la rama de "medí y las tablas cayeron"
+            // (abajo) queda idéntica, así que una base vaciada de verdad frena igual que siempre.
+            $uptime = GraciaDeArranque::uptimeSegundos();
+            $gracia = (int) config('circuito.jarvis.vigilia.gracia_arranque_seg', 180);
+
             return [
-                'medido' => false, 'escalon' => 'critico', 'tablas' => null,
+                // `arranque` NO es `ok`: no frena, pero sigue saliendo como aviso en la Torre. Un
+                // chequeo que no pudo medir jamás debe reportar salud (esa es la falsa calma que
+                // #228 vino a matar); lo único que cambia aquí es que no dispara el freno todavía.
+                'medido' => false,
+                'escalon' => GraciaDeArranque::enGracia($uptime, $gracia) ? 'arranque' : 'critico',
+                'tablas' => null,
                 'ultimo_conteo_bueno' => $conteoBueno, 'caida_pct' => null,
                 'error' => substr($e->getMessage(), 0, 200),
+                'uptime_seg' => $uptime !== null ? (int) $uptime : null,
+                'gracia_seg' => $gracia,
             ];
         }
 
@@ -457,6 +475,12 @@ class JarvisVigilarCommand extends Command
         if (($bd['escalon'] ?? 'ok') === 'critico') {
             $a[] = ['clave' => 'bd_integra', 'nivel' => 'alarma',
                 'texto' => 'CRÍTICO — ' . $this->motivoBdIntegra($bd) . ' Freno puesto automáticamente.', ];
+        } elseif (($bd['escalon'] ?? 'ok') === 'arranque') {
+            $up = $bd['uptime_seg'] ?? '?';
+            $a[] = ['clave' => 'bd_integra', 'nivel' => 'me_pregunta',
+                'texto' => "No pude contar las tablas y el box lleva {$up} s encendido: lo trato como "
+                    . 'base todavía arrancando, NO como base perdida. No freno por esto. Si sigue '
+                    . 'sin responder pasada la gracia, la próxima corrida sí frena.', ];
         } elseif (($bd['escalon'] ?? 'ok') === 'alerta') {
             $a[] = ['clave' => 'bd_integra', 'nivel' => 'me_pregunta',
                 'texto' => "La base cayó a {$bd['tablas']} tabla(s) (antes {$bd['ultimo_conteo_bueno']}, "

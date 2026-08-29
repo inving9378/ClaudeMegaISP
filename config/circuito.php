@@ -339,6 +339,21 @@ return [
             // Se REPORTA, nunca se mata: hoy hay cuatro de 41 días y uno de ellos podría ser la
             // sesión con la que Irving está trabajando. 24 h.
             'claude_viejo_seg' => (int) env('CIRCUITO_JARVIS_CLAUDE_VIEJO', 86400),
+
+            // GRACIA DE ARRANQUE — segundos tras el boot del box durante los cuales un "no pude
+            // conectarme a la base" se lee como «MySQL aún no levanta», no como «la base
+            // desapareció», y por tanto NO dispara el freno automático de #228.
+            //
+            // Nace del 2026-08-28: el box arrancó 20:54:57, la vigilia midió a las 20:56:03 contra
+            // un MySQL que todavía no aceptaba conexiones, puso el freno, y las seis terminales se
+            // quedaron una hora paradas con la base intacta (522 tablas). No fue mala suerte: la
+            // vigilia corre cada minuto desde el boot y siempre gana la carrera, así que CADA
+            // reinicio frenaba el circuito.
+            //
+            // 180 s = tres corridas de su cron de un minuto. Subirlo alarga la ventana en la que
+            // una base realmente caída al arranque tardaría en frenar; bajarlo a 0 restaura el
+            // comportamiento anterior (frenar siempre que no se pueda medir).
+            'gracia_arranque_seg' => (int) env('CIRCUITO_JARVIS_GRACIA_ARRANQUE', 180),
         ],
 
         /*
