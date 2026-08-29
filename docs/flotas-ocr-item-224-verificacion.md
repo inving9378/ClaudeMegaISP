@@ -54,3 +54,16 @@ que no vuelva a generar un hallazgo fantasma en una futura auditoría del invent
 
 `/flotas/{id}` → pestaña **Documentos** → botón "Agregar documento" → adjuntar un PDF/imagen: se
 dispara la lectura por IA y prellena los campos con badge de confianza.
+
+## Addendum — Item #685 (seguimiento, 2026-08-29)
+
+El item #224 se cerró en su momento con la pregunta `q1` estructuralmente sin `opcion_elegida`
+(aunque el cuerpo del cierre, arriba, ya la respondía en prosa) → el sistema generó
+automáticamente #685 para no perder una pregunta que parecía abierta.
+
+Re-verificado en esta vuelta, sin cambios desde el cierre de #224: `FleetDocumentOcrService`,
+`FleetDocumentOcrRun` y el wiring en `FleetDocumentController::ocr` siguen presentes e íntegros
+(`php -l` limpio en ambos archivos), sin texto "Fase 7" visible en la UI. No hay nada nuevo que
+decidir — la respuesta a la pregunta de #224 sigue siendo la misma: **ya se construyó el OCR
+real** (obra de #580, previa incluso a que #224 existiera). Se cierra #685 sin cambio de código,
+dejando registrada la opción elegida en el propio item para que el hueco estructural no se repita.
