@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\DcSolicitudController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DocumentoController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
@@ -66,5 +67,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/documentos/{id}/versiones/{version}/descargar', [DocumentoController::class, 'descargarVersion'])->name('documentos.versiones.descargar');
             Route::get('/documentos/{id}/descargar', [DocumentoController::class, 'descargar'])->name('documentos.descargar');
             Route::delete('/documentos/{id}', [DocumentoController::class, 'destroy'])->name('documentos.destroy');
+
+            // Solicitudes de información recibidas (Fase 5a, apartado XIV, item #758).
+            Route::get('/solicitudes', [DcSolicitudController::class, 'index'])->name('solicitudes.index');
+            Route::post('/solicitudes', [DcSolicitudController::class, 'store'])->name('solicitudes.store');
+            Route::put('/solicitudes/{id}', [DcSolicitudController::class, 'update'])->name('solicitudes.update');
+            Route::delete('/solicitudes/{id}', [DcSolicitudController::class, 'destroy'])->name('solicitudes.destroy');
         });
     });

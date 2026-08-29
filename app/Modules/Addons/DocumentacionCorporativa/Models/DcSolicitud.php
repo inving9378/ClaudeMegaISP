@@ -33,6 +33,12 @@ class DcSolicitud extends Model
 
     public const ESTADOS = ['recibida', 'en_preparacion', 'entregada', 'rechazada'];
 
+    /** Claves de apartado I..XIV, mismo orden/numeración que `CatalogoSeeder`. */
+    public const APARTADOS = [
+        'I', 'II', 'III', 'IV', 'V', 'VI', 'VII',
+        'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV',
+    ];
+
     public function empresa()
     {
         return $this->belongsTo(DcEmpresa::class, 'empresa_id');

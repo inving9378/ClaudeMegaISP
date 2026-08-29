@@ -37,7 +37,8 @@
         { "name": "documentacion-corporativa.bitacora.view",      "description": "Consultar la bitácora de accesos al expediente corporativo" },
         { "name": "documentacion-corporativa.entrega.create",     "description": "Armar paquetes de entrega y generar actas de entrega-recepción" },
         { "name": "documentacion-corporativa.offboarding.ver",       "description": "Ver el checklist de offboarding de un colaborador (apartado XII)" },
-        { "name": "documentacion-corporativa.offboarding.gestionar", "description": "Marcar accesos y activos como revocados en el checklist de offboarding" }
+        { "name": "documentacion-corporativa.offboarding.gestionar", "description": "Marcar accesos y activos como revocados en el checklist de offboarding" },
+        { "name": "documentacion-corporativa.solicitud.manage",   "description": "Crear, editar y eliminar solicitudes de información recibidas (apartado XIV)" }
     ],
 
     "menu": [
