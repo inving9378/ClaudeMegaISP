@@ -3252,3 +3252,26 @@ Sin cambio de código de aplicación. Doc:
 `circuito/item-700-talento-activar-motor-de-comision-kpi`, integrado vía `circuito:integrar`. Item
 #700 cerrado documentando el bloqueo — la cadena completa C→B→A queda esperando que Irving cargue
 reglas reales en `/talento/compensacion`.
+
+## 2026-08-28 19:13 — Item #208 (Vigilante on-box): re-confirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-1.** #208 ("vigilante on-box: que los atascos se avisen solos") volvió a en_progreso reclamado
+para mí, pero `circuito:cabida` devolvió `CABE [ya_descompuesto]`: una vuelta anterior (wt-2,
+2026-08-28 17:14) ya lo había partido en 4 sub-items reales — **#704** (Reclamos: claimed_at sin
+updated_at, en_progreso sin worker_sid, en_progreso sin proceso vivo), **#705** (Cola + discrepancias
+Sistema/Supervisor), **#706** (Git HEAD desatado + Gasto claude -p/hora) y **#707** (publicar en el
+tablero de compuertas + canal de alerta fuera de la Torre + hombre-muerto visible) — los cuatro con
+`origen_item_id=208`, aprobados (`aprobado_revisor`/`aprobado_irving`) y **sin reclamar** (branch
+vacío, worker_sid vacío). Verifiqué la rama `circuito/item-208-...` que ya existía: **0 commits**
+sobre main — nunca hubo código real bajo el item padre.
+
+Como el alcance completo de #208 ya vive en esos 4 items (que no son míos — "un item = un dueño"),
+no había nada legítimo que implementar directamente bajo #208 sin duplicar/pisar ese trabajo.
+Apliqué el mecanismo de "paraguas" que ya existe en `RoadmapItem` (guard `saving` 2b, pensado
+exactamente para esto): intenté cerrar #208 a `completado` y el propio guard lo reenrutó solo a
+`aprobado_irving` + `excluir_pool_automatico=true`, dejando en el log el evento `paraguas_abierto`
+("le quedan 4 sub-items abiertos: no se completa"). Con eso #208 sale del pool de reclamo (ya no
+vuelve a timeoutear/re-escalar en bucle — llevaba reap_count=6 y 1 timeout) y se cerrará solo cuando
+el último de los 4 hijos cierre (hook `saved`, ya verificado en el código). Decisión registrada
+también en `circuito:reportar 208 --tipo=decision` (reporte #2219). Sin cambio de código de
+aplicación — los 4 sub-items quedan disponibles para que el pool los reclame normalmente.
