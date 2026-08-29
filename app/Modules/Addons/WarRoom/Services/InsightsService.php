@@ -234,10 +234,27 @@ class InsightsService
     private function ingresosDelPeriodo(string $period): float
     {
         [$y, $m] = explode('-', $period);
+        $pd = $this->parsedDate('payment_date');
         return (float) DB::table('client_invoices')
             ->where('estado', 'Pagado')
-            ->whereYear('payment_date', $y)
-            ->whereMonth('payment_date', $m)
+            ->whereRaw("YEAR($pd) = ?", [$y])
+            ->whereRaw("MONTH($pd) = ?", [$m])
             ->sum('total');
+    }
+
+    /**
+     * Expresión SQL que parsea payment_date con formato MIXTO (mismo criterio que
+     * KpiController::parsedDate — DD/MM/YYYY histórico + YYYY-MM-DD actual).
+     * NULL / "0" / vacío / malformado → NULL (compatible con NO_ZERO_DATE strict mode).
+     */
+    private function parsedDate(string $col): string
+    {
+        return "CASE
+            WHEN {$col} REGEXP '^[0-3][0-9]/[01][0-9]/[0-9]{4}\$'
+                THEN STR_TO_DATE({$col},'%d/%m/%Y')
+            WHEN {$col} REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                THEN CAST({$col} AS DATE)
+            ELSE NULL
+        END";
     }
 }
