@@ -6,6 +6,7 @@ use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\Repository\TransactionRepository;
 use App\Http\Traits\RouterConnection;
 use App\Models\Contratable\ClientContratableSubscription;
+use App\Modules\Addons\Flotas\Models\FleetSubscription;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\Mikrotik\MikrotikRemoveClientServiceFromAddressList;
 use App\Models\Balance;
@@ -944,6 +945,19 @@ class ClientRepository
             }
         }
 
+        // === Suscripciones de Flotas (AISLADO + GATEADO, off por defecto) ==========
+        // Mismo patrón que contratables arriba: con el kill-switch en false el bloque
+        // no inyecta nada y el motor de facturación es idéntico al actual.
+        if (config('flotas_billing.billing_enabled')) {
+            foreach ($this->resolveFleetSubscriptionLines($client) as $line) {
+                $line['number'] = $i + 1;
+                $client_services[] = $line;
+                $ivaSum   += $line['iva'];
+                $subTotal += $line['monto'];
+                $i++;
+            }
+        }
+
         $total = $subTotal + $ivaSum;
         return [
             'subtotal' => round($subTotal, 2),
@@ -998,6 +1012,47 @@ class ClientRepository
                 'iva_porcent'   => $tasa ?? 0,
                 'iva'           => $hasIva ? $info['iva'] : 0,
                 'monto'         => $hasIva ? $info['monto'] : $price,
+                'service_id'    => $sub->id,
+                'service_class' => get_class($sub),
+            ];
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Construye las líneas de suscripción de Flotas FACTURABLES de un cliente.
+     * Solo entran suscripciones status active|past_due con monthly_price > 0.
+     *
+     * FleetSubscription no tiene tasa de IVA propia en su catálogo (a diferencia de
+     * internet/custom/contratables, que sí la tienen); no existe una tasa default a
+     * nivel sistema (ver decisión registrada en el item #99). Se usa 16% IVA incluido,
+     * igual criterio que el resto del sistema (getIvaInformation desglosa el precio).
+     * Solo lectura: no muta nada (calculateAmounts pura).
+     */
+    private function resolveFleetSubscriptionLines(Client $client): array
+    {
+        $lines = [];
+        $tasa = 16;
+
+        $subs = FleetSubscription::query()
+            ->where('client_id', $client->id)
+            ->whereIn('status', ['active', 'past_due'])
+            ->get();
+
+        foreach ($subs as $sub) {
+            $price = (float) $sub->monthly_price;
+            if ($price <= 0) {
+                continue;
+            }
+
+            $info = $this->getIvaInformation($tasa, $price);
+
+            $lines[] = [
+                'service_name'  => sprintf('Suscripción Flotas (%s, %d vehículos)', $sub->plan_name, $sub->vehicles_count),
+                'iva_porcent'   => $tasa,
+                'iva'           => $info['iva'],
+                'monto'         => $info['monto'],
                 'service_id'    => $sub->id,
                 'service_class' => get_class($sub),
             ];
