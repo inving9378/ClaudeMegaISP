@@ -387,6 +387,13 @@ return [
             // usa, porque el flujo normal jamás commitea en detached).
             'git_huerfano_gracia_seg' => (int) env('CIRCUITO_JARVIS_GIT_GRACIA', 20),
 
+            // FAMILIA "COLA: JOBS VARADOS" (#772, fase 2 de #705) — filas de la tabla `jobs`
+            // con `created_at` más viejo que este umbral Y `reserved_at` NULL (nunca tomadas por
+            // un worker). Caso medido: 9 varados desde 24-ago con 0 de 3 workers vivos, efecto
+            // colateral: ningún item recibía `nivel_riesgo` (vía `ClasificarRiesgoJob`). 600 s da
+            // margen a un pico normal de cola sin disparar ruido.
+            'jobs_varados_umbral_seg' => (int) env('CIRCUITO_JARVIS_JOBS_VARADOS_UMBRAL', 600),
+
             // FAMILIA "GASTO" (#706, sub-item de #208) — invocaciones de `claude -p` por hora
             // contra un umbral configurable. Fuente: `arranques-claude.log`, un JSONL
             // append-only que escribe `vuelta.sh` en cada arranque — aparte del registro de PIDs
