@@ -14,6 +14,7 @@
 | [`directiva-2a-cierre.md`](directiva-2a-cierre.md) | `escala:sin_modelo`, liveness de procesos programados, stashes, Paso 0 de 2B |
 | [`directiva-2b.md`](directiva-2b.md) | El generador arranca produciendo su propio sustrato |
 | [`../fase2b-paso0-inventario-modulejson.md`](../fase2b-paso0-inventario-modulejson.md) | La medición que fundamenta la 2B |
+| [`cortar-vuelta-runbook.md`](cortar-vuelta-runbook.md) | Cómo cortar una vuelta a mano sin repetir el auto-`pkill` de #215 (`circuito:cortar-vuelta`) |
 
 ## Lo que estos documentos tienen en común
 

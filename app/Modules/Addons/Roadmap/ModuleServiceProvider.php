@@ -92,6 +92,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #1006 — backfill de enlace_revision (tier 2: URL de respaldo del módulo) en
                 // items completados que lo tienen vacío.
                 \App\Modules\Addons\Roadmap\Console\BackfillEnlaceRevisionCommand::class,
+                // #215 — cortar una vuelta por PID/PGID del registro propio, nunca por pkill -f.
+                \App\Modules\Addons\Roadmap\Console\CortarVueltaCommand::class,
             ]);
         }
     }
