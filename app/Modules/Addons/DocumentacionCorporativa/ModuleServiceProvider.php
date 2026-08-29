@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\DocumentacionCorporativa;
 
+use App\Modules\Addons\DocumentacionCorporativa\Console\PendientesRecordatorioCommand;
 use App\Modules\Addons\DocumentacionCorporativa\Contracts\FuenteRegistry;
 use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FinanzasFuentes;
 use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FlotasFuentes;
@@ -30,6 +31,12 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
     public function boot(): void
     {
         parent::boot();
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                PendientesRecordatorioCommand::class,
+            ]);
+        }
 
         // Fase 1.1 (item #728): fuentes vivas de finanzas del Apartado IV.
         // Cada fase posterior agrega su propio `Fuentes\*::registrar()` aquí.

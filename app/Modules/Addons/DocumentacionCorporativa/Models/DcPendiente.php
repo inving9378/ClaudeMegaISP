@@ -25,7 +25,33 @@ class DcPendiente extends Model
         'recordatorio_enviado_at' => 'datetime',
     ];
 
+    protected $appends = ['vencido'];
+
     public const ESTADOS = ['pendiente', 'en_proceso', 'entregado', 'no_aplica'];
+
+    /** Días de antelación con los que un pendiente entra en alcance de recordatorio. */
+    public const DIAS_AVISO = 7;
+
+    /**
+     * ¿Está vencido? DERIVADO, no columna — mismo criterio que
+     * `DcDocumento::getEstadoAttribute()`: una copia persistida envejecería sola
+     * a medianoche sin que nadie escriba esa fila.
+     */
+    public function getVencidoAttribute(): bool
+    {
+        if ($this->fecha_compromiso === null || in_array($this->estado, ['entregado', 'no_aplica'], true)) {
+            return false;
+        }
+
+        return $this->fecha_compromiso->lt(now()->startOfDay());
+    }
+
+    public function scopePorVencerOVencidos($query)
+    {
+        return $query->abiertos()
+            ->whereNotNull('fecha_compromiso')
+            ->where('fecha_compromiso', '<=', now()->startOfDay()->addDays(self::DIAS_AVISO));
+    }
 
     public function concepto()
     {
