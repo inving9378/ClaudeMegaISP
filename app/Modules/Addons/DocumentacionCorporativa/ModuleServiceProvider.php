@@ -4,6 +4,8 @@ namespace App\Modules\Addons\DocumentacionCorporativa;
 
 use App\Modules\Addons\DocumentacionCorporativa\Contracts\FuenteRegistry;
 use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FinanzasFuentes;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FlotasFuentes;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\RedFuentes;
 use App\Modules\Addons\DocumentacionCorporativa\Fuentes\TalentoFuentes;
 use App\Modules\BaseModuleServiceProvider;
 
@@ -35,5 +37,10 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
 
         // Fase 1.3 (item #730): fuentes vivas de talento humano del Apartado VII.
         TalentoFuentes::registrar($this->app->make(FuenteRegistry::class));
+
+        // Fase 1.4 (item #731): fuentes vivas de flota vehicular y equipos de
+        // telecomunicaciones (red OLT/ONU) del Apartado V.
+        FlotasFuentes::registrar($this->app->make(FuenteRegistry::class));
+        RedFuentes::registrar($this->app->make(FuenteRegistry::class));
     }
 }
