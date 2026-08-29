@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\DailyPingStatistic;
 use App\Models\PingStatistic;
 use App\Models\Router;
+use App\Services\Mikrotik\MikrotikReconnectSyncService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use PEAR2\Net\RouterOS\Request as RouterOSRequest;
@@ -111,9 +112,11 @@ class SyncPingMonitoring extends Command
 
     /**
      * Item roadmap #699 (Fase 1 de #678) — trackea el último estado conocido de
-     * disponibilidad del router y detecta la transición offline→online. Solo
-     * marca/loguea la reconexión; NO dispara ningún sync (eso queda para la
-     * Fase 2, bloqueada por #676).
+     * disponibilidad del router y detecta la transición offline→online.
+     *
+     * Item roadmap #701 (Fase 2 de #678): al detectar esa transición, dispara el sync
+     * masivo de los servicios failed de ese router vía MikrotikReconnectSyncService
+     * (reusa el mecanismo de reintento de #676, no reimplementa nada nuevo).
      */
     private function trackRouterAvailability(Router $router, bool $isUp): void
     {
@@ -129,8 +132,8 @@ class SyncPingMonitoring extends Command
         if ($previousStatus === 'down' && $newStatus === 'up') {
             $before = $router->mikrotik_status_changed_at ?: 'sin registro previo';
             Log::info(
-                "SyncPingMonitoring: router {$router->id} ({$router->name}) recuperó conexión (offline→online) "
-                . "— antes: {$before}, después: {$changedAt->toDateTimeString()} — sin disparar sync (Fase 1, item #699)."
+                "SyncPingMonitoring: router {$router->id} ({$router->title}) recuperó conexión (offline→online) "
+                . "— antes: {$before}, después: {$changedAt->toDateTimeString()} — disparando sync masivo (item #701)."
             );
         }
 
@@ -138,6 +141,10 @@ class SyncPingMonitoring extends Command
             'mikrotik_last_status'        => $newStatus,
             'mikrotik_status_changed_at'  => $changedAt,
         ]);
+
+        if ($previousStatus === 'down' && $newStatus === 'up') {
+            MikrotikReconnectSyncService::dispatchForRouter($router);
+        }
     }
 
     private function pingAndRecord($connection, int $clientId, string $ip): void
