@@ -65,6 +65,16 @@ class Kernel extends ConsoleKernel
         // #921 Fase 2 / #957 — reactiva items del Roadmap con agendado_para ya vencido (vuelven al pool).
         $schedule->command('circuito:reactivar-agendados')->dailyAt('00:05')->withoutOverlapping();
 
+        // #634 — el freno del CLASIFICADOR caduca solo a los N días sin confirmar (2A.4), pero nada
+        // corría `circuito:re-triage --apply`: los frenos se quedaban bloqueados para siempre en vez
+        // de liberarse. El freno HUMANO nunca caduca (el propio comando es fail-closed sobre eso),
+        // así que correrlo aquí no revoca ninguna decisión de Irving, sólo vence consejos vencidos.
+        $schedule->command('circuito:re-triage --apply')
+            ->hourly()
+            ->withoutOverlapping()
+            ->onOneServer()
+            ->appendOutputTo(storage_path('logs/circuito-retriage.log'));
+
         // Regeneración semanal del manual de usuario vía Claude API
         $schedule->command('manual:regenerate')->weekly()->sundays()->at('03:00')->withoutOverlapping();
 
