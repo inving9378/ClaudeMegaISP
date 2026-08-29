@@ -1,6 +1,8 @@
 <?php
 
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\BitacoraController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\DcSolicitudController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DocumentoController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
@@ -66,5 +68,18 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/documentos/{id}/versiones/{version}/descargar', [DocumentoController::class, 'descargarVersion'])->name('documentos.versiones.descargar');
             Route::get('/documentos/{id}/descargar', [DocumentoController::class, 'descargar'])->name('documentos.descargar');
             Route::delete('/documentos/{id}', [DocumentoController::class, 'destroy'])->name('documentos.destroy');
+
+            // Solicitudes de información recibidas (Fase 5a, apartado XIV, item #758).
+            Route::get('/solicitudes', [DcSolicitudController::class, 'index'])->name('solicitudes.index');
+            Route::post('/solicitudes', [DcSolicitudController::class, 'store'])->name('solicitudes.store');
+            Route::put('/solicitudes/{id}', [DcSolicitudController::class, 'update'])->name('solicitudes.update');
+            Route::delete('/solicitudes/{id}', [DcSolicitudController::class, 'destroy'])->name('solicitudes.destroy');
+
+            // Bitácora consultable/exportable (Fase 5c, item #760) — data/*
+            // y exportar ANTES de la ruta base, mismo criterio que el resto.
+            Route::get('/bitacora/data/empresas', [BitacoraController::class, 'empresasFiltro'])->name('bitacora.empresas');
+            Route::get('/bitacora/data/usuarios', [BitacoraController::class, 'usuariosFiltro'])->name('bitacora.usuarios');
+            Route::get('/bitacora/exportar', [BitacoraController::class, 'exportar'])->name('bitacora.exportar');
+            Route::get('/bitacora', [BitacoraController::class, 'index'])->name('bitacora.index');
         });
     });

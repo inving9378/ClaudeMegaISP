@@ -38,6 +38,17 @@
             />
 
             <q-btn
+                v-hasPermission="'documentacion-corporativa.bitacora.view'"
+                flat
+                dense
+                icon="history"
+                color="primary"
+                label="Bitácora de accesos"
+                class="q-mr-sm"
+                @click="$refs.bitacora.abrir()"
+            />
+
+            <q-btn
                 flat
                 dense
                 icon="refresh"
@@ -336,6 +347,17 @@
                                     @click="$refs.mapaActivos.abrirParaConcepto(c)"
                                 />
                                 <q-btn
+                                    v-if="esSolicitudesGestionable(c)"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="mail"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    :label="'Gestionar solicitudes' + (c.metricas && c.metricas.registros !== undefined ? ' (' + c.metricas.registros + ')' : '')"
+                                    @click="$refs.solicitudes.abrir()"
+                                />
+                                <q-btn
                                     v-if="esPlantillaGenerable(c)"
                                     flat
                                     dense
@@ -434,6 +456,14 @@
              (torres, postería, fibra, redes troncales, centros de distribución,
              almacenes y bodegas). -->
         <dc-activos-mapa ref="mapaActivos" />
+
+        <!-- Solicitudes de información recibidas (Fase 5a, item #758) — desde
+             la tarjeta del concepto "Registro de solicitudes de información
+             recibidas" (apartado XIV). -->
+        <dc-solicitudes ref="solicitudes" @guardado="alGuardarPendiente" />
+
+        <!-- Bitácora consultable/exportable (Fase 5c, item #760). -->
+        <dc-bitacora ref="bitacora" />
     </div>
 </template>
 
@@ -621,6 +651,11 @@ export default {
         /** Conceptos de dc_activos con mapa Leaflet (Fase 3.3, item #752/#783). */
         esMapaGestionable(c) {
             return !!(c.metricas && c.metricas.mapa === true);
+        },
+
+        /** Concepto "Registro de solicitudes de información recibidas" (Fase 5a, item #758). */
+        esSolicitudesGestionable(c) {
+            return c.tipo_resolvedor === 'inventario' && c.metricas && c.metricas.tabla === 'dc_solicitudes';
         },
 
         /**
