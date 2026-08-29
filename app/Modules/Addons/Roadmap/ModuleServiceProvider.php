@@ -88,6 +88,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\ReactivarAgendadosCommand::class,
                 // #902 — mide disparos/aflojos por término de la válvula de contexto; read-only.
                 \App\Modules\Addons\Roadmap\Console\MedirValvulaContextoCommand::class,
+                // #764 (Pieza 1a de #672) — backfill histórico de torre_frontera_dura_eventos.
+                \App\Modules\Addons\Roadmap\Console\BackfillFronteraDuraEventosCommand::class,
                 // #674 (Pieza 3 de #646) — cruza reversible/confianza autodeclarados contra
                 // revert/escalada/reabertura reales; read-only.
                 \App\Modules\Addons\Roadmap\Console\MedirAutodeclaracionCommand::class,
