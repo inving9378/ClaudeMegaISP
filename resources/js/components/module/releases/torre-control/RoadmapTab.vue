@@ -120,6 +120,20 @@
                                       title="Este item solo avanza contigo, aunque la política base lo permitiera.">
                                     <i class="bi bi-hand-index-fill me-1"></i>solo contigo
                                 </span>
+                                <!-- #675 (Pieza 4) — mismo badge que "Tu bandeja" (TorreControl.vue),
+                                     para que no desaparezca al pasar el item a Hoja de ruta: un item
+                                     que ejecutó vía válvula-mención debe seguir viéndose distinto de
+                                     uno que nunca tocó la frontera, también ya completado. -->
+                                <span v-if="item.frontera_valvula === 'mencion'"
+                                      class="rdm-tag rdm-tag-frontera-mencion"
+                                      title="La válvula de nacimiento leyó el término de frontera como MENCIÓN, no como acción: el item entró al camino normal (triaje → revisor → autopilot). NO nació auto-ejecutable.">
+                                    ⇢ mención
+                                </span>
+                                <span v-else-if="item.frontera_valvula === 'accion'"
+                                      class="rdm-tag rdm-tag-frontera-accion"
+                                      title="La válvula de nacimiento confirmó que el item TOCA la frontera dura: se retuvo, como siempre.">
+                                    ⛔ toca frontera
+                                </span>
                             </div>
                         </div>
 
@@ -988,6 +1002,12 @@ export default {
 /* ENTREGA 1 — override de automatización por item */
 .rdm-tag-ovauto{background:rgba(220,38,38,.12);color:#b91c1c;font-weight:700;}
 .rdm-tag-ovman{background:rgba(100,116,139,.15);color:#475569;font-weight:700;}
+
+/* #675 (Pieza 4) — mismos colores semánticos que TorreControl.vue (--tc-ok/--tc-bad) */
+.rdm-tag-frontera-mencion{background:rgba(22,163,74,.12);color:#15803d;font-weight:700;}
+.rdm-dark .rdm-tag-frontera-mencion{background:rgba(74,222,128,.18);color:#4ade80;}
+.rdm-tag-frontera-accion{background:rgba(220,38,38,.12);color:#b91c1c;font-weight:700;}
+.rdm-dark .rdm-tag-frontera-accion{background:rgba(248,113,113,.18);color:#f87171;}
 .rdm-ov{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;}
 .rdm-ov-sel{padding:5px 10px;border-radius:8px;border:1px solid rgba(148,163,184,.5);background:transparent;color:inherit;font-size:12.5px;}
 .rdm-ov-note{font-size:11.5px;opacity:.72;line-height:1.5;flex:1 1 260px;}
