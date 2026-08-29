@@ -40,6 +40,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:mikrotik-sync-command')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-consumption')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-ping')->everyFiveMinutes()->withoutOverlapping();
+        // Item #676: cada 30 min, ventana mayor a los ~18 min de los 5 tries internos de
+        // CreateClientWithServiceJob (ver ese job) — evita re-despachar mientras un intento
+        // previo sigue en su propio ciclo de backoff.
+        $schedule->command('mikrotik:reintentar-sync')->everyThirtyMinutes()->withoutOverlapping();
 
         //Comandos OLT
         $schedule->command('smartolt:sync-inventory')->dailyAt('05:00')->withoutOverlapping();

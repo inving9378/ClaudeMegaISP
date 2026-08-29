@@ -61,4 +61,21 @@ return [
             'allowed_addresses' => array_filter(array_map('trim', explode(',', (string) env('MIKROTIK_MANAGEMENT_ALLOWLIST_MONITOREO', '')))),
         ],
     ],
+
+    /*
+     * Cola de reintentos para servicios con mikrotik_sync_status=failed (item roadmap #676,
+     * sub-item de #86). El comando mikrotik:reintentar-sync re-despacha CreateClientWithServiceJob
+     * (que ya trae $tries/backoff() nativos de Laravel — 5 intentos, 30s..10min) por cada servicio
+     * marcado failed. Solo toca 'failed' (NO 'pending' — eso requiere que Irving elija entre las
+     * opciones A/B/C del brief de #86, sigue sin decidirse). Parámetros tuneables sin deploy.
+     */
+    'retry' => [
+        'enabled' => (bool) env('MIKROTIK_RETRY_SYNC_ENABLED', true),
+        // Máximo de servicios re-despachados por corrida (protege contra flood si hay muchos failed).
+        'batch_limit' => (int) env('MIKROTIK_RETRY_SYNC_BATCH_LIMIT', 50),
+        // Circuit breaker: si el total de 'failed' supera esto, probablemente es una caída masiva
+        // de red (no fallas puntuales) — aborta la corrida completa en vez de bombardear routers
+        // caídos; se vuelve a intentar en la siguiente corrida programada.
+        'circuit_breaker_threshold' => (int) env('MIKROTIK_RETRY_SYNC_CIRCUIT_BREAKER', 100),
+    ],
 ];
