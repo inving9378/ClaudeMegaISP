@@ -3,6 +3,7 @@
 use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
 use App\Modules\Addons\Roadmap\Controllers\TorreCompuertasController;
 use App\Modules\Addons\Roadmap\Controllers\JarvisIdentidadController;
+use App\Modules\Addons\Roadmap\Controllers\JarvisChatController;
 use App\Modules\Addons\Roadmap\Controllers\TorreFronterasController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapExternalController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMcpController;
@@ -125,6 +126,16 @@ Route::middleware(['web', 'auth'])
         // #651 — IDENTIDAD DE JARVIS: catálogo de iconos y el elegido (ajuste GLOBAL).
         Route::get('/torre/jarvis-identidad',  [JarvisIdentidadController::class, 'identidad']);
         Route::post('/torre/jarvis-identidad', [JarvisIdentidadController::class, 'guardar']);
+
+        // #806 (Jarvis Parte 3b) — chat donde Irving conversa el brief de una sugerencia de
+        // Jarvis (#805) antes de convertirla en item. "Generar item" reusa `POST /items` de
+        // abajo (misma ruta que el botón "Agregar item"), este bloque solo abre/sostiene el
+        // hilo y lo liga al item resultante.
+        Route::get('/jarvis-chat/sugerencias',    [JarvisChatController::class, 'sugerencias']);
+        Route::post('/jarvis-chat/conversaciones', [JarvisChatController::class, 'abrir']);
+        Route::get('/jarvis-chat/conversaciones/{id}', [JarvisChatController::class, 'mostrar'])->whereNumber('id');
+        Route::post('/jarvis-chat/conversaciones/{id}/mensajes', [JarvisChatController::class, 'mensaje'])->whereNumber('id');
+        Route::post('/jarvis-chat/conversaciones/{id}/vincular-item', [JarvisChatController::class, 'vincularItem'])->whereNumber('id');
 
         Route::get('/torre/fronteras',                    [TorreFronterasController::class, 'index']);
         Route::post('/torre/fronteras/categoria',         [TorreFronterasController::class, 'categoria']);
