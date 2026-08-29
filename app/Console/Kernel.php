@@ -75,6 +75,18 @@ class Kernel extends ConsoleKernel
             ->onOneServer()
             ->appendOutputTo(storage_path('logs/circuito-retriage.log'));
 
+        // Pieza 1b (#765, sub-item de #672) — INVOCADOR REAL del backfill de #764. Reconciliación
+        // diaria de `torre_frontera_dura_eventos` sobre TODO `roadmap_items.log` (idempotente, ver
+        // BackfillFronteraDuraEventosCommand). Cubre las dos vías que la captura en vivo de
+        // `TorreAutomationPolicy::estadoInicial()` no ve (excluidas a propósito de su docblock):
+        // el alta directa de un humano (`RoadmapController::store`) y la vía externa/MCP
+        // (`RoadmapCircuitoService::guard()`). Sin este `schedule`, el comando quedaría igual que
+        // #902 (`MedirValvulaContextoCommand`): escrito y nunca invocado por nadie.
+        $schedule->command('circuito:backfill-frontera-dura-eventos')
+            ->dailyAt('03:35')
+            ->withoutOverlapping()
+            ->onOneServer();
+
         // Regeneración semanal del manual de usuario vía Claude API
         $schedule->command('manual:regenerate')->weekly()->sundays()->at('03:00')->withoutOverlapping();
 

@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Models\TorreConfig;
+use App\Modules\Addons\Roadmap\Models\TorreFronteraDuraEvento;
 
 /**
  * EL CORAZÓN — un solo lugar donde vive la decisión de «¿esto puede avanzar sin Irving?».
@@ -177,6 +178,8 @@ class TorreAutomationPolicy
         // (1-4) FRONTERA DURA. Gana siempre, por delante de todo. No se levanta desde ninguna
         // configuración: ni con `autonomo`, ni con `override = auto`.
         if ($this->tocaFronteraDura($item) !== null) {
+            $this->registrarFronteraDuraVivo($item);
+
             return 'requiere_irving';
         }
 
@@ -286,6 +289,72 @@ class TorreAutomationPolicy
         // para siempre aunque el triaje ya lo hubiera leído como B. Un item que TOCA la frontera lo
         // sigue frenando igual — la válvula sólo despeja las menciones, y sólo cuando está segura.
         return $this->jarvis->fronteraDuraDeItem($item);
+    }
+
+    /**
+     * Pieza 1b (#765, sub-item de #672) — CAPTURA EN VIVO. Proyecta a `torre_frontera_dura_eventos`
+     * (creada en la Pieza 1a, #764) el mismo instante en que `estadoInicial()` retiene un item por
+     * frontera dura, con `origen='vivo'` — a diferencia del backfill (#764), que sólo reconstruye lo
+     * ya escrito en `roadmap_items.log`.
+     *
+     * IDEMPOTENCIA: este método se llama en CADA re-evaluación de un item que sigue retenido (cada
+     * intento de despacho automático de cada actor). No cada llamada es un evento nuevo:
+     *   - Si el item **no estaba ya** en `requiere_irving` (viene de otro estado) → es una apertura
+     *     NUEVA de la frontera → siempre se registra.
+     *   - Si el item **ya estaba** en `requiere_irving` → es la misma retención re-evaluándose →
+     *     sólo se registra si no hay ya un evento reciente (mismo item+término+veredicto, `vivo`).
+     *
+     * Nunca debe tumbar la decisión real: cualquier fallo de lectura/escritura se traga (es
+     * instrumentación, no la frontera misma).
+     */
+    private function registrarFronteraDuraVivo(RoadmapItem $item): void
+    {
+        if (! $item->exists) {
+            return; // sin id no hay a qué colgar el evento (no debería pasar: ver docblock de estadoInicial).
+        }
+
+        try {
+            $det = $this->jarvis->fronteraDuraDeItemDetalle($item);
+        } catch (\Throwable) {
+            return;
+        }
+
+        $categoria = $det['categoria'] ?? null;
+        $termino   = trim((string) ($det['termino'] ?? ''));
+        if ($categoria === null || $termino === '') {
+            return;
+        }
+
+        $veredicto = ($det['ablandada'] ?? false) ? 'mencion' : 'accion';
+
+        try {
+            if ($item->estado_aprobacion === 'requiere_irving') {
+                $yaRegistrado = TorreFronteraDuraEvento::query()
+                    ->where('roadmap_item_id', $item->id)
+                    ->where('termino', $termino)
+                    ->where('veredicto', $veredicto)
+                    ->where('origen', 'vivo')
+                    ->where('ocurrido_at', '>=', now()->subHours(6))
+                    ->exists();
+
+                if ($yaRegistrado) {
+                    return;
+                }
+            }
+
+            TorreFronteraDuraEvento::create([
+                'roadmap_item_id' => $item->id,
+                'categoria'       => $categoria,
+                'termino'         => $termino,
+                'veredicto'       => $veredicto,
+                'razon'           => $det['motivo'] ?? null,
+                'ocurrido_at'     => now(),
+                'origen'          => 'vivo',
+            ]);
+        } catch (\Throwable) {
+            // Colisión de unique (mismo item+término+timestamp) u otro fallo de escritura: la
+            // instrumentación se pierde, la decisión real (arriba) ya se tomó y no se toca.
+        }
     }
 
     /**
