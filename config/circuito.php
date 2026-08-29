@@ -333,6 +333,9 @@ return [
             'raiz_worktrees' => env('CIRCUITO_RUNTIME', '/home/meganet/circuito'),
 
             // Log del checkout principal — el único que se medía hasta hoy.
+            // Desde #175/#653: `medirLogs()` solo usa el DIRECTORIO de esta ruta (dirname) para
+            // buscar ahí los `laravel-*.log` diarios reales — el nombre de archivo legacy
+            // (`laravel.log` a secas) ya no se lee ni tiene que existir.
             'log_principal' => env('CIRCUITO_LOG_PRINCIPAL', '/var/www/megaisp/storage/logs/laravel.log'),
 
             // Un `claude` interactivo más viejo que esto es sospechoso de sesión abandonada.

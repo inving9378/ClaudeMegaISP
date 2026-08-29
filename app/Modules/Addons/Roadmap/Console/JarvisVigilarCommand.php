@@ -173,31 +173,43 @@ class JarvisVigilarCommand extends Command
         return ['1min' => (float) ($c[0] ?? 0), '5min' => (float) ($c[1] ?? 0), '15min' => (float) ($c[2] ?? 0)];
     }
 
-    /** LOS SIETE `laravel.log`, no uno. Ver la nota de cabecera. */
+    /**
+     * LOS SIETE `laravel.log`, no uno. Ver la nota de cabecera.
+     *
+     * El #175 cambió el canal 'stack' de single a daily: nadie escribe ya a `laravel.log` a
+     * secas (queda CONGELADO desde el cambio), el archivo real es `laravel-{fecha}.log` rotado
+     * a diario. Mismo incidente que #176 arregló en `CompuertasSondaCommand`, aquí en el hermano
+     * de la vigilia: se busca `laravel-*.log` por worktree y se toma el MÁS GRANDE de cada uno
+     * como representante (el que dispararía 'log_grande' si alguno lo hace), preservando la
+     * semántica de una entrada por worktree que ya usaba este método.
+     */
     private function medirLogs(): array
     {
-        $rutas = [];
+        $mayores = []; // etiqueta => ['ruta' => string, 'bytes' => int]
+
         $principal = (string) config('circuito.jarvis.vigilia.log_principal');
         if ($principal !== '') {
-            $rutas['principal'] = $principal;
+            foreach (glob(dirname($principal) . '/laravel-*.log') ?: [] as $r) {
+                $this->quedateConElMayor($mayores, 'principal', $r);
+            }
         }
+
         $raiz = rtrim((string) config('circuito.jarvis.vigilia.raiz_worktrees'), '/');
-        foreach (glob($raiz . '/*/storage/logs/laravel.log') ?: [] as $r) {
-            $rutas[basename(dirname($r, 3))] = $r;   // .../wt-2/storage/logs/laravel.log → wt-2
+        foreach (glob($raiz . '/*/storage/logs/laravel-*.log') ?: [] as $r) {
+            // .../wt-2/storage/logs/laravel-2026-08-28.log → wt-2
+            $this->quedateConElMayor($mayores, basename(dirname($r, 3)), $r);
         }
 
         $archivos = [];
         $total = 0;
-        foreach ($rutas as $etiqueta => $ruta) {
-            clearstatcache(true, $ruta);
-            $b = is_readable($ruta) ? (int) @filesize($ruta) : 0;
-            $total += $b;
+        foreach ($mayores as $etiqueta => $info) {
+            $total += $info['bytes'];
             $archivos[] = [
                 'donde'    => $etiqueta,
-                'ruta'     => $ruta,
-                'bytes'    => $b,
-                'legible'  => $this->humano($b),
-                'mtime'    => is_readable($ruta) ? date('c', (int) @filemtime($ruta)) : null,
+                'ruta'     => $info['ruta'],
+                'bytes'    => $info['bytes'],
+                'legible'  => $this->humano($info['bytes']),
+                'mtime'    => is_readable($info['ruta']) ? date('c', (int) @filemtime($info['ruta'])) : null,
             ];
         }
         usort($archivos, fn ($a, $b) => $b['bytes'] <=> $a['bytes']);
@@ -209,6 +221,16 @@ class JarvisVigilarCommand extends Command
             'mayor'        => $archivos[0] ?? null,
             'archivos'     => $archivos,
         ];
+    }
+
+    /** Dentro de un mismo worktree/checkout, conserva solo el `laravel-*.log` más grande como representante. */
+    private function quedateConElMayor(array &$mayores, string $etiqueta, string $ruta): void
+    {
+        clearstatcache(true, $ruta);
+        $bytes = is_readable($ruta) ? (int) @filesize($ruta) : 0;
+        if (! isset($mayores[$etiqueta]) || $bytes > $mayores[$etiqueta]['bytes']) {
+            $mayores[$etiqueta] = ['ruta' => $ruta, 'bytes' => $bytes];
+        }
     }
 
     // ── PROCESOS ────────────────────────────────────────────────────────────────────────────
