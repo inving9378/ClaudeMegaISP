@@ -158,6 +158,13 @@ class Kernel extends ConsoleKernel
             ->dailyAt('04:30')
             ->withoutOverlapping()
             ->onOneServer();
+
+        // DocumentacionCorporativa Fase 2b (item #735) — marca recordatorio_enviado_at
+        // en pendientes vencidos o por vencer. Sólo marca; el envío real es aparte.
+        $schedule->command('dc:pendientes-recordatorio')
+            ->dailyAt('08:30')
+            ->withoutOverlapping()
+            ->onOneServer();
     }
 
     protected function commands(): void

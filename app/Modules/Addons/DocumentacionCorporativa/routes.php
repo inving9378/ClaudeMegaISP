@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,5 +37,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/concesiones/{id}', [ConcesionController::class, 'update'])->name('concesiones.update');
             Route::post('/concesiones/{id}/pagos', [ConcesionController::class, 'storePago'])->name('concesiones.pagos.store');
             Route::put('/concesiones/{id}/pagos/{pagoId}/pagar', [ConcesionController::class, 'marcarPagado'])->name('concesiones.pagos.pagar');
+
+            // Bandeja de pendientes (Fase 2b) — data/responsables ANTES de {id}.
+            Route::get('/pendientes/data/responsables', [PendienteController::class, 'responsables'])->name('pendientes.responsables');
+            Route::get('/pendientes', [PendienteController::class, 'index'])->name('pendientes.index');
+            Route::post('/pendientes', [PendienteController::class, 'store'])->name('pendientes.store');
+            Route::get('/pendientes/{id}', [PendienteController::class, 'show'])->name('pendientes.show');
+            Route::put('/pendientes/{id}', [PendienteController::class, 'update'])->name('pendientes.update');
         });
     });
