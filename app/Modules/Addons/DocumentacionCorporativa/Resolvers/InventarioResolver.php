@@ -69,6 +69,11 @@ class InventarioResolver extends BaseResolver
             // frontend los usa para saber con qué tabla/filtro administrar
             // los registros de ESTE concepto sin tener que adivinarlo.
             'filtros'     => $concepto->config['filtros'] ?? [],
+            // Fase 3.3 (item #752): `config.mapa=true` marca los conceptos de
+            // dc_activos que además de la lista deben ofrecer un mapa Leaflet
+            // (torres, postería, fibra, redes troncales, centros de
+            // distribución, almacenes y bodegas).
+            'mapa'        => (bool) ($concepto->config['mapa'] ?? false),
         ];
 
         if (! $this->disponible($concepto, $empresaId)) {
