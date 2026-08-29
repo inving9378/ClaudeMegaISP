@@ -254,6 +254,18 @@
                                     :label="'Gestionar registros' + (c.metricas && c.metricas.registros !== undefined ? ' (' + c.metricas.registros + ')' : '')"
                                     @click="$refs.registros.abrirParaConcepto(c)"
                                 />
+                                <q-btn
+                                    v-if="esPlantillaGenerable(c)"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="description"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    :loading="generandoSlug === c.slug"
+                                    label="Generar documento"
+                                    @click="generarDocumento(c)"
+                                />
                             </q-item-section>
                         </q-item>
                     </q-list>
@@ -308,6 +320,8 @@ export default {
             // completitud genérica: aquí lo urgente es la vigencia, no si el
             // registro existe. null mientras no se ha cargado.
             alertasXIII: null,
+            // slug del concepto cuyo documento se está generando (spinner del botón).
+            generandoSlug: null,
         };
     },
 
@@ -448,6 +462,31 @@ export default {
         esRegistroGestionable(c) {
             const TABLAS_CON_CRUD = ['dc_accionistas', 'dc_capital_variaciones', 'dc_actas', 'dc_poderes', 'dc_contratos'];
             return c.tipo_resolvedor === 'inventario' && c.metricas && TABLAS_CON_CRUD.includes(c.metricas.tabla);
+        },
+
+        /**
+         * Conceptos tipo "plantilla" con plantilla YA asignada (Fase 2d, item #737).
+         * `estado === 'sin_fuente'` es justo el caso sin plantilla asignada todavía
+         * (ver `PlantillaResolver::resolver`); en ese caso no hay nada que generar.
+         */
+        esPlantillaGenerable(c) {
+            return c.tipo_resolvedor === 'plantilla' && c.estado !== 'sin_fuente';
+        },
+
+        async generarDocumento(c) {
+            this.generandoSlug = c.slug;
+            try {
+                await axios.post(`/documentacion-corporativa/api/concepto/${c.slug}/generar`);
+                this.aviso('Documento generado correctamente.', 'positive');
+                await this.alGuardarPendiente();
+            } catch (e) {
+                const mensaje = e.response && e.response.data && e.response.data.message
+                    ? e.response.data.message
+                    : 'No se pudo generar el documento.';
+                this.aviso(mensaje, 'negative');
+            } finally {
+                this.generandoSlug = null;
+            }
         },
 
         etiquetaEstado(e) {
