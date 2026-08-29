@@ -1336,3 +1336,22 @@ forma independiente (WIP sigue correcto, bloqueo de git sigue vigente) y cerró 
 paraguas resuelto — el trabajo real vive en los 3 sub-items. Detalle completo en
 `docs/megafamilia-hijo-mocks-item-639-verificacion.md`. **Sin cambio de código propio** (el
 código del WIP ya existía de una sesión anterior a `wt-1`).
+
+---
+
+## Item #733 — Seguimiento de la pregunta sin resolver de #218 (RESUELTO — la pregunta ya tenía respuesta)
+
+Seguimiento auto-generado al cerrar #218 con 1 pregunta `requiere_irving` sin `opcion_elegida`
+("¿cómo se clasifica cada tipo dudoso de inventario: herramienta/material/tercera categoría
+'equipo de cliente'?"). Investigado: nació **37 segundos después** de que el commit de cierre del
+sub-item **#684** (el que resolvía justo esa última pieza, "POWER") quedara en `main` — carrera del
+generador de seguimientos contra su propio sub-item. Verificado directo contra la BD de dev: los
+17 tipos originales de #218 están **todos** clasificados (`equipo_cliente`: ONT/MODEM/TELEFONOS DE
+CASA/ELIMINADOR; `material`: ACOPLADOR/SPLITTER/CONECTOR/CONECTORES/CABLE/PILAS/PAPELERIA/FLYERS/
+CARRETE/TENSOR/TENSORES/HOJAS), y "POWER" quedó `categoria=NULL` **a propósito** (#684 encontró que
+era un tipo mezclado — 3 de sus 5 artículos no encajaban en una sola categoría — y movió cada
+artículo a su tipo real en vez de forzar una categoría al tipo). Las categorías 3ª (`equipo_cliente`)
+y 4ª (`equipo_red`, decisión de Irving en #1007) que la pregunta planteaba como opción **ya existen
+y están aplicadas**. Nada pendiente de la lista original. Detalle completo en
+`docs/inventario-seguimiento-218-item-733-verificacion.md`. **Sin cambio de código** (el cambio ya
+estaba en `main` desde antes de que el item existiera).
