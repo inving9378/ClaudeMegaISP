@@ -52,6 +52,12 @@ class RoadmapController extends Controller
         'estado_aprobacion', 'target_version', 'eta_minutos', 'eta_asignada_at',
         'automatizacion_override', 'subtasks', 'prompt', 'position', 'worker_sid', 'branch',
         'created_at', 'updated_at',
+        // #675 (Pieza 4) — el veredicto de la válvula de nacimiento (`mencion`/`accion`/null) ya se
+        // pintaba como badge en "Tu bandeja" (TorreControl.vue, desde el commit 96cf38f2) pero
+        // desaparecía al pasar el item a "Hoja de ruta": un item ejecutado vía válvula-mención se
+        // veía IGUAL que uno que nunca tocó la frontera. Columna varchar(16) indexada, no TEXT — no
+        // reintroduce el problema de sort-memory de #878 (prompt, mucho más pesado, ya está arriba).
+        'frontera_valvula',
     ];
 
     // #890 (Torre fase 6) — MISMA lista que `RoadmapItem::COLUMNAS_COMPACT` (la usa `$this->svc->
