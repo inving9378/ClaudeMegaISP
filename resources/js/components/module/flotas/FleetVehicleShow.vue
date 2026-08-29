@@ -350,9 +350,11 @@ export default {
 .flt-info-value { font-size: 14px; font-weight: 600; color: #1f2937; }
 .flt-gps-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }
 .flt-inline-form { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; }
-.flt-banner { border-radius: 10px; padding: 12px 16px; font-size: 13px; font-weight: 600; display: flex; align-items: center; }
+.flt-banner { border-radius: 10px; padding: 12px 16px; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: stretch; }
 .flt-banner-blue { background: #dbeafe; color: #1e40af; }
 .flt-banner-red { background: #fee2e2; color: #b91c1c; }
+.flt-banner-green { background: #dcfce7; color: #166534; }
+.flt-banner-gray { background: #f3f4f6; color: #374151; }
 .flt-mini-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; height: 100%; }
 .flt-mini-label { font-size: 11px; color: #6b7280; }
 .flt-mini-value { font-size: 17px; font-weight: 700; }

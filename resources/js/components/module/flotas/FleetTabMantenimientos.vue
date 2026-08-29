@@ -4,6 +4,23 @@
             <i class="bi bi-wrench-adjustable-circle me-2"></i>{{ nextServiceBanner }}
         </div>
 
+        <div class="flt-banner mb-3" :class="predictionBannerClass">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                    <i class="bi bi-graph-up-arrow me-2"></i>
+                    <strong>Predicción de próximo servicio:</strong>
+                    {{ predictedService.predictedDate ? fmtDate(predictedService.predictedDate) : 'Sin datos suficientes' }}
+                    <span v-if="predictedService.predictedKm"> · a los {{ fmtKm(predictedService.predictedKm) }} km</span>
+                </div>
+                <span class="badge" :class="confidenceBadgeClass">Confianza {{ confidenceLabel }}</span>
+            </div>
+            <div class="small text-muted mt-1">
+                {{ predictedService.basis === 'promedio_movil'
+                    ? `Estimado con el promedio de los últimos ${predictedService.sampleSize} servicios registrados.`
+                    : 'Historial insuficiente — se usa una referencia fija (cada 6 meses o 5,000 km desde el último dato conocido).' }}
+            </div>
+        </div>
+
         <div class="row g-3 mb-3">
             <div class="col-6 col-lg-3"><div class="flt-mini-card"><div class="flt-mini-label">Total</div><div class="flt-mini-value">{{ maintenances.length }}</div></div></div>
             <div class="col-6 col-lg-3"><div class="flt-mini-card"><div class="flt-mini-label">Este año</div><div class="flt-mini-value">{{ maintYearCount }}</div></div></div>
@@ -187,6 +204,63 @@ export default {
         const maintSpendYear = computed(() => maintenances.value.filter((m) => isThisYear(m.service_date)).reduce((s, m) => s + Number(m.total_cost || 0), 0));
         const maintAvg       = computed(() => maintenances.value.length ? maintenances.value.reduce((s, m) => s + Number(m.total_cost || 0), 0) / maintenances.value.length : 0);
 
+        // Predicción de próximo servicio (item #686): promedio móvil de intervalos días/km
+        // entre los últimos servicios registrados, con fallback a regla fija cuando el
+        // historial es insuficiente (0 o 1 servicio). Confianza según nº de servicios.
+        const FALLBACK_DAYS = 180; // ~6 meses
+        const FALLBACK_KM = 5000;
+        const MAX_INTERVALS = 5; // ventana del promedio móvil
+        const addDays = (date, days) => { const d = new Date(date); d.setDate(d.getDate() + Math.round(days)); return d; };
+
+        const predictedService = computed(() => {
+            const hist = maintenances.value
+                .filter((m) => !m.is_draft && m.service_date)
+                .map((m) => ({ date: m.service_date, km: m.service_km != null ? Number(m.service_km) : null }))
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            if (hist.length < 2) {
+                const base = hist[0] || null;
+                return {
+                    predictedDate: base ? addDays(base.date, FALLBACK_DAYS) : null,
+                    predictedKm: base?.km != null ? base.km + FALLBACK_KM : null,
+                    confidence: 'baja',
+                    basis: 'regla_fija',
+                    sampleSize: hist.length,
+                };
+            }
+
+            const dayIntervals = []; const kmIntervals = [];
+            for (let i = 1; i < hist.length; i++) {
+                const days = (new Date(hist[i].date) - new Date(hist[i - 1].date)) / 86400000;
+                if (days > 0) dayIntervals.push(days);
+                if (hist[i].km != null && hist[i - 1].km != null && hist[i].km > hist[i - 1].km) {
+                    kmIntervals.push(hist[i].km - hist[i - 1].km);
+                }
+            }
+            const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+            const avgDays = avg(dayIntervals.slice(-MAX_INTERVALS));
+            const avgKm = avg(kmIntervals.slice(-MAX_INTERVALS));
+            const last = hist[hist.length - 1];
+
+            return {
+                predictedDate: avgDays != null ? addDays(last.date, avgDays) : addDays(last.date, FALLBACK_DAYS),
+                predictedKm: avgKm != null && last.km != null
+                    ? Math.round(last.km + avgKm)
+                    : (last.km != null ? last.km + FALLBACK_KM : null),
+                confidence: hist.length >= 4 ? 'alta' : 'media',
+                basis: (avgDays != null || avgKm != null) ? 'promedio_movil' : 'regla_fija',
+                sampleSize: hist.length,
+            };
+        });
+
+        const confidenceLabel = computed(() => ({ alta: 'alta', media: 'media', baja: 'baja' }[predictedService.value.confidence]));
+        const confidenceBadgeClass = computed(() => ({
+            alta: 'bg-success', media: 'bg-info text-dark', baja: 'bg-secondary',
+        }[predictedService.value.confidence]));
+        const predictionBannerClass = computed(() => ({
+            alta: 'flt-banner-green', media: 'flt-banner-blue', baja: 'flt-banner-gray',
+        }[predictedService.value.confidence] || 'flt-banner-gray'));
+
         const nextServiceRecord = computed(() => {
             const withNext = maintenances.value.filter((m) => m.next_service_date || m.next_service_km);
             if (!withNext.length) return null;
@@ -288,6 +362,7 @@ export default {
 
         return {
             maintenances, maintYearCount, maintSpendYear, maintAvg, nextServiceBanner,
+            predictedService, confidenceLabel, confidenceBadgeClass, predictionBannerClass,
             search, typeFilter, periodFilter, filtered,
             showForm, saving, drag, files, form, totalLive, onDrop, onPick, saveMaint, deleteMaint,
             showProviderForm, newProviderName, creatingProvider, createProvider,
