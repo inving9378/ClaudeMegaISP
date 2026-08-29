@@ -3225,3 +3225,30 @@ corre un `migrate:fresh` coordinado.
 
 Rama `circuito/item-682-hallazgo-migratefresh-esta-roto-en-e`, commit `baa525b5`, integrado vía
 `circuito:integrar`. Item #682 cerrado como completado.
+
+## 2026-08-28 18:53 — Item #700: Fase A (motor comisión-KPI pago+clawback real) bloqueada — cadena C→B→A sigue sin reglas
+
+**wt-5.** Item #700 pedía activar en Talento el motor de comisión-KPI con **pago real** (vía
+`talento_ledger_entries`) y **clawback real** (reversión de comisiones). Es la Fase A del plan
+C→B→A del des-trabe de #645, con condición de entrada explícita en el propio texto: "NO ejecutar
+si la Fase B no fue validada primero" — además de la frontera dura de dinero de siempre.
+
+Verificado en esta vuelta (misma worktree que ya había cerrado #693/#697/#698 en sesiones previas):
+`talento_compensation_rules` sigue en **0 filas**. Fase C (#693/#697, catálogo de reglas) sigue
+bloqueada esperando que Irving defina rol piloto/KPI/fórmula/ventana de clawback. Fase B (#698/#694,
+motor de preview read-only) **nunca se construyó** — se investigó y se dejó documentada y bloqueada
+en una vuelta anterior (confirmado con Thomas: "PROCEDE con documentar, sin escribir código de
+cálculo") precisamente porque Fase C no tenía reglas reales que leer.
+
+Como Fase B ni siquiera se construyó, la precondición de #700 está doblemente incumplida. Construir
+el motor de pago+clawback ahora exigiría inventar tanto la lógica de evaluación de KPI (que Fase B
+ya se negó a inventar) como la definición propia de Fase A de "qué es un cliente activado por este
+vendedor" — dinero real sin reglas de negocio confirmadas. No se consultó a Thomas de nuevo porque
+es la misma pregunta ya resuelta un eslabón abajo en la misma cadena, con la misma precondición
+objetivamente verificada como incumplida (query directa, no criterio).
+
+Sin cambio de código de aplicación. Doc:
+`docs/talento-motor-kpi-fase-a-item-700-verificacion.md`. Rama
+`circuito/item-700-talento-activar-motor-de-comision-kpi`, integrado vía `circuito:integrar`. Item
+#700 cerrado documentando el bloqueo — la cadena completa C→B→A queda esperando que Irving cargue
+reglas reales en `/talento/compensacion`.
