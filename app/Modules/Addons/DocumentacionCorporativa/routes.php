@@ -3,6 +3,7 @@
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\RegistroEstructuradoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -44,5 +45,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/pendientes', [PendienteController::class, 'store'])->name('pendientes.store');
             Route::get('/pendientes/{id}', [PendienteController::class, 'show'])->name('pendientes.show');
             Route::put('/pendientes/{id}', [PendienteController::class, 'update'])->name('pendientes.update');
+
+            // Registros estructurados (Fase 2c) — accionistas, capital, actas, poderes, contratos.
+            Route::get('/registros/{recurso}', [RegistroEstructuradoController::class, 'index'])->name('registros.index');
+            Route::post('/registros/{recurso}', [RegistroEstructuradoController::class, 'store'])->name('registros.store');
+            Route::put('/registros/{recurso}/{id}', [RegistroEstructuradoController::class, 'update'])->name('registros.update');
+            Route::delete('/registros/{recurso}/{id}', [RegistroEstructuradoController::class, 'destroy'])->name('registros.destroy');
         });
     });

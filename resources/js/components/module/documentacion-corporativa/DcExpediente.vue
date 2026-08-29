@@ -243,6 +243,17 @@
                                     :label="c.metricas && c.metricas.pendiente_id ? 'Editar pendiente' : 'Asignar responsable'"
                                     @click="$refs.pendientes.abrirParaConcepto(c)"
                                 />
+                                <q-btn
+                                    v-if="esRegistroGestionable(c)"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="table_view"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    :label="'Gestionar registros' + (c.metricas && c.metricas.registros !== undefined ? ' (' + c.metricas.registros + ')' : '')"
+                                    @click="$refs.registros.abrirParaConcepto(c)"
+                                />
                             </q-item-section>
                         </q-item>
                     </q-list>
@@ -264,6 +275,11 @@
         <!-- Bandeja de pendientes (Fase 2b): lista global + alta/edición desde
              la tarjeta "sin fuente" de un concepto. -->
         <dc-pendientes-bandeja ref="pendientes" @guardado="alGuardarPendiente" />
+
+        <!-- Registros estructurados (Fase 2c): alta/edición desde la tarjeta de
+             un concepto tipo "inventario" (accionistas, capital, actas, poderes,
+             contratos). -->
+        <dc-registros ref="registros" @guardado="alGuardarPendiente" />
     </div>
 </template>
 
@@ -426,6 +442,12 @@ export default {
                 vacio: 'inbox',
                 sin_fuente: 'help_outline',
             }[e] || 'help_outline';
+        },
+
+        /** Conceptos "inventario" cuya tabla ya tiene CRUD propio (Fase 2c, item #736). */
+        esRegistroGestionable(c) {
+            const TABLAS_CON_CRUD = ['dc_accionistas', 'dc_capital_variaciones', 'dc_actas', 'dc_poderes', 'dc_contratos'];
+            return c.tipo_resolvedor === 'inventario' && c.metricas && TABLAS_CON_CRUD.includes(c.metricas.tabla);
         },
 
         etiquetaEstado(e) {
