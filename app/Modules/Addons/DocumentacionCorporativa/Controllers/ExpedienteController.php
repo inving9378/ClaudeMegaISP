@@ -2,13 +2,17 @@
 
 namespace App\Modules\Addons\DocumentacionCorporativa\Controllers;
 
+use App\Exports\DocumentacionApartadoExport;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcApartado;
 use App\Modules\Addons\DocumentacionCorporativa\Services\BitacoraService;
 use App\Modules\Addons\DocumentacionCorporativa\Services\CompletitudService;
 use App\Modules\Addons\DocumentacionCorporativa\Services\EmpresaContextService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Índice de los 14 apartados + tablero de completitud.
@@ -106,6 +110,69 @@ class ExpedienteController extends Controller
         return response()->json($resumen);
     }
 
+    /**
+     * Exportación agregada de un apartado completo (PDF o Excel): TODOS sus
+     * conceptos ya resueltos en un solo archivo, no uno por concepto.
+     *
+     * Mismo gate que `apartado()` — reusa el permiso `.apartado.{clave}.view`,
+     * no crea uno nuevo. Reusa `CompletitudService::apartado()` (misma fuente
+     * de datos que el detalle en vivo) para no duplicar el recorrido por
+     * `ResolverFactory`.
+     */
+    public function exportarApartado(string $clave, Request $request)
+    {
+        $empresa = $this->empresas->actual();
+
+        $apartado = DcApartado::deEmpresa($empresa->id)
+            ->activos()
+            ->where('clave', mb_strtoupper($clave))
+            ->firstOrFail();
+
+        if (! $this->puedeVer($apartado->permiso())) {
+            return response()->json([
+                'message' => 'No tienes permiso para ver este apartado.',
+            ], 403);
+        }
+
+        $formato = mb_strtolower((string) $request->query('formato', 'pdf'));
+
+        if (! in_array($formato, ['pdf', 'excel'], true)) {
+            return response()->json([
+                'message' => "Formato de exportación no soportado: '{$formato}'. Disponibles: pdf, excel.",
+            ], 422);
+        }
+
+        $resumen = $this->completitud->apartado($apartado, $empresa->id);
+
+        // Se registra ANTES de servir el archivo (regla del propio servicio):
+        // si el registro falla, el archivo no sale.
+        $this->bitacora->exportar($empresa->id, $apartado->id, null, [
+            'pantalla' => 'apartado.exportar',
+            'clave'    => $apartado->clave,
+            'formato'  => $formato,
+        ]);
+
+        $nombreBase = 'dc-apartado-' . mb_strtolower($apartado->clave) . '-' . now()->format('Ymd-His') . '-' . Str::random(6);
+
+        if ($formato === 'excel') {
+            return Excel::download(
+                new DocumentacionApartadoExport($apartado->clave, $resumen['conceptos']),
+                "{$nombreBase}.xlsx"
+            );
+        }
+
+        $pdf = Pdf::loadView('addon-documentacion-corporativa::export.apartado', [
+            'apartado'  => $apartado,
+            'conceptos' => $resumen['conceptos'],
+            'generado'  => now(),
+        ]);
+
+        $destino = $this->rutaTemporalApartado($nombreBase);
+        file_put_contents($destino, $pdf->output());
+
+        return response()->download($destino, "{$nombreBase}.pdf")->deleteFileAfterSend(true);
+    }
+
     public function cambiarEmpresa(Request $request): JsonResponse
     {
         $validado = $request->validate(['empresa_id' => ['required', 'integer']]);
@@ -122,5 +189,16 @@ class ExpedienteController extends Controller
         $user = auth()->user();
 
         return $user !== null && $user->can($permiso);
+    }
+
+    /** Mismo directorio temporal que usa `BaseResolver::rutaTemporal()` para exports por concepto. */
+    private function rutaTemporalApartado(string $nombreBase): string
+    {
+        $dir = storage_path('app/documentacion_corporativa/tmp');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0770, true);
+        }
+
+        return $dir . '/' . $nombreBase . '.pdf';
     }
 }

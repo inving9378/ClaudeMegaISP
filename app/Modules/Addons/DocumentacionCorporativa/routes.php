@@ -30,6 +30,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::prefix('api')->group(function () {
             Route::get('/tablero', [ExpedienteController::class, 'tablero'])->name('tablero');
             Route::get('/apartado/{clave}', [ExpedienteController::class, 'apartado'])->name('apartado');
+
+            // Exportación agregada por apartado (Fase 1.5a, item #785) — PDF/Excel
+            // con TODOS los conceptos ya resueltos de ese apartado en un solo archivo.
+            Route::get('/apartado/{clave}/exportar', [ExpedienteController::class, 'exportarApartado'])->name('apartado.exportar');
             Route::post('/empresa', [ExpedienteController::class, 'cambiarEmpresa'])->name('empresa.cambiar');
 
             // Apartado XIII — calendario ANTES de {id}: si no, "calendario" se
