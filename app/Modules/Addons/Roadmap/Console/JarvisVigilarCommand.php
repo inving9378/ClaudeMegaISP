@@ -88,6 +88,7 @@ class JarvisVigilarCommand extends Command
 
         $estado['base'] = $this->medirBase($estado);
         $estado['reclamos'] = $this->medirReclamos();
+        $estado['jobs_varados'] = $this->medirJobsVarados();
         $estado['modo'] = $estado['base']['responde'] ? 'completo' : 'minimo';
         $estado['alertas'] = $this->alertas($estado);
 
@@ -703,6 +704,54 @@ class JarvisVigilarCommand extends Command
     }
 
     /**
+     * FAMILIA "COLA: JOBS VARADOS" (#772, fase 2 de #705) — filas de `jobs` con `created_at`
+     * más viejo que el umbral configurable Y `reserved_at` NULL: nunca fueron tomadas por ningún
+     * worker. Se cruza en `alertas()` con `medirColaWorkers()` (ya calculado sobre el mismo `$ps`
+     * de `psCrudo()`, sin correr otro `ps` aparte): 0 workers vivos explica por qué nadie las
+     * toma; con workers vivos y aun así varadas podría ser lentitud normal de cola, NO lo mismo.
+     * Caso medido: 9 varados desde el 24-ago con 0 de 3 workers vivos, efecto colateral ningún
+     * item recibía `nivel_riesgo` (vía `ClasificarRiesgoJob`, que despacha por esa misma cola).
+     *
+     * NO corrige nada (no reintenta, no libera, no mata). La tabla `jobs` guarda `created_at` y
+     * `reserved_at` como enteros unix (no datetime) — se compara directo contra `time()`. Va en
+     * su PROPIO try/catch: aunque comparte conexión con `roadmap_items` (`medirReclamos()`), es
+     * una medición independiente y un fallo aquí no debe tumbar esa ni viceversa.
+     */
+    private function medirJobsVarados(): array
+    {
+        $umbral = max(1, (int) config('circuito.jarvis.vigilia.jobs_varados_umbral_seg', 600));
+        $corte = time() - $umbral;
+
+        try {
+            $varados = DB::table('jobs')
+                ->whereNull('reserved_at')
+                ->where('created_at', '<', $corte)
+                ->get(['id', 'queue', 'attempts', 'created_at']);
+
+            return [
+                'medido'     => true,
+                'error'      => null,
+                'umbral_seg' => $umbral,
+                'cantidad'   => $varados->count(),
+                'detalle'    => $varados->map(fn ($j) => [
+                    'id'       => (int) $j->id,
+                    'queue'    => $j->queue,
+                    'attempts' => (int) $j->attempts,
+                    'edad_seg' => max(0, time() - (int) $j->created_at),
+                ])->all(),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'medido'     => false,
+                'error'      => substr($e->getMessage(), 0, 200),
+                'umbral_seg' => $umbral,
+                'cantidad'   => 0,
+                'detalle'    => [],
+            ];
+        }
+    }
+
+    /**
      * Las alertas de esta entrega son OBSERVACIONES, no acciones: nombran el nivel del encargo
      * que le tocaría a cada una para que cuando se otorgue la autoridad no haya que reinterpretar
      * nada. Ninguna dispara nada hoy.
@@ -749,6 +798,19 @@ class JarvisVigilarCommand extends Command
                 'texto' => "{$cw['cantidad']} worker(s) de cola activos (esperados {$cw['esperado']}+): "
                     . 'los jobs pendientes (pagos capturados en mostrador, notificaciones de geocercas, '
                     . 'cobranza) no se procesan.', ];
+        }
+        $jv = $e['jobs_varados'] ?? [];
+        if (($jv['medido'] ?? true) === false) {
+            $a[] = ['clave' => 'jobs_varados', 'nivel' => 'me_pregunta',
+                'texto' => 'No pude auditar jobs varados en la cola (#772): la base no respondió para esta familia.', ];
+        } elseif (($jv['cantidad'] ?? 0) > 0) {
+            $sinWorkers = ($e['cola_workers']['estado'] ?? 'verde') === 'rojo';
+            $a[] = ['clave' => 'jobs_varados', 'nivel' => $sinWorkers ? 'alarma' : 'me_pregunta',
+                'texto' => $sinWorkers
+                    ? "{$jv['cantidad']} job(s) varado(s) en la cola (creados hace más de {$jv['umbral_seg']}s, "
+                        . 'nunca tomados) Y 0 workers vivos: nadie los va a procesar.'
+                    : "{$jv['cantidad']} job(s) varado(s) en la cola (creados hace más de {$jv['umbral_seg']}s, "
+                        . 'nunca tomados) con workers vivos: podría ser lentitud normal, revisar.', ];
         }
         if (! ($e['base']['responde'] ?? false)) {
             $a[] = ['clave' => 'base', 'nivel' => 'alarma',
