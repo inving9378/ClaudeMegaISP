@@ -19,4 +19,16 @@ return [
     */
     'pdf_disk'          => 'local',
     'pdf_path_prefix'   => 'billing/pdf',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dual-write invoices (roadmap #632/#721)
+    |--------------------------------------------------------------------------
+    | Cuando está ON, los puntos de cobro que marcan client_invoices.estado=
+    | 'Pagado' además reflejan el estado en su fila espejo de `invoices`
+    | (creándola si no existe). client_invoices sigue siendo la fuente de
+    | verdad; invoices es solo espejo mientras dure la transición. Default
+    | OFF — activar es una decisión aparte de Irving (Fase 5 del plan).
+    */
+    'dual_write_invoices' => env('BILLING_DUAL_WRITE_INVOICES', false),
 ];
