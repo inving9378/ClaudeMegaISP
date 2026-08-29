@@ -1,0 +1,122 @@
+[
+    {
+        "id": 186,
+        "titulo": "Habilitar AMI (puerto 5038) en Asterisk DEV — editar manager.conf y \"manager reload\"",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Requiere sesión EN VIVO con Irving (frontera dura de credenciales de infraestructura VoIP): editar \/etc\/asterisk\/manager.conf y ejecutar 'manager reload' está fuera del repo git, requiere sudo, y hay instrucción explícita de Irving ('No ejecutar autónomamente', vigente desde 2026-07-14\/15, nunca revocada). Escalado 17+ veces consecutivas sin poder tocar código.",
+        "nivel_riesgo": "B",
+        "brief_completo": true,
+        "incluir": true,
+        "motivo_exclusion": null
+    },
+    {
+        "id": 254,
+        "titulo": "FcmService legacy — reactivar push notifications Firebase (FASE 0 diagnóstico)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Bloqueado por falta de credencial externa: no existe el archivo service-account.json de Firebase en el servidor. El alcance autorizado por Irving se limita a FASE 0 (diagnóstico). Escalado 8 veces consecutivas a la bandeja de Irving por el mismo bloqueo estructural.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": true,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — el bloqueo es una credencial externa faltante, los logs no mencionan nivel A\/B\/C explícito"
+    },
+    {
+        "id": 308,
+        "titulo": "Registro de contratos de módulo (tablas module_contracts \/ module_contract_consumers)",
+        "estado_final": "en_curso_interrumpido",
+        "razon_no_merge": "El trabajo existe completo en una rama propia (commit a1daad57) pero nunca se fusionó a main: fusionarlo es una acción nivel C (botón manual de Irving en la Torre) que ningún ejecutor puede sustituir. Además el propio item quedó bloqueado_por_bucle con un claim obsoleto de otro worker (wt-3, ~2 semanas sin actividad). Confirmado sin fusionar por 28+ ejecutores sucesivos.",
+        "nivel_riesgo": "C",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "nivel_riesgo=C explícito (merge nivel C, botón manual de Irving) — excluido por el filtro (solo A\/B)"
+    },
+    {
+        "id": 463,
+        "titulo": "Tarea dependiente del registro de contratos de módulo (bloqueada por #308 sin mergear)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "Depende exclusivamente de que #308 (module_contracts\/module_contract_consumers) se fusione a main, acción nivel C que solo Irving ejecuta con el botón manual en la Torre. Sus propias preguntas q0-q4 ya están respondidas por Irving; no queda ninguna decisión pendiente, solo la acción física del merge ajeno. Confirmado bloqueado 29+ veces consecutivas; terminó agendado 3 días fuera del pool automático para no seguir quemando ciclos de ejecutor.",
+        "nivel_riesgo": "C",
+        "brief_completo": true,
+        "incluir": false,
+        "motivo_exclusion": "nivel_riesgo=C (la única acción pendiente, mergear #308, es nivel C) — excluido por el filtro pese a brief_completo=true"
+    },
+    {
+        "id": 485,
+        "titulo": "Decisión de negocio de cobranza (no ejecutable por código)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "No es una tarea de código: es una decisión de negocio de cobranza que solo Irving puede tomar. Quedó re-bloqueado con motivo_bloqueo documentado explícitamente (antes solo vivía en comentarios_claude, lo que causó que una migración lo tratara como huérfano).",
+        "nivel_riesgo": "C",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "nivel_riesgo=C (decisión de negocio, diseño exclusivo de Irving) — excluido por el filtro"
+    },
+    {
+        "id": 528,
+        "titulo": "Motor auditor auto-encadenado (superado por #559 \/ circuito:auditor)",
+        "estado_final": "en_curso_interrumpido",
+        "razon_no_merge": "El ejecutor documentó que #528 estaba superado por #559 (circuito:auditor, ya vivo en main) y cerró vía reporte, pero el guardrail nivel-C del sistema lo dejó en aprobado_irving\/esperando_merge_irving para la firma final de Irving en vez de marcarlo completado directamente.",
+        "nivel_riesgo": "C",
+        "brief_completo": true,
+        "incluir": false,
+        "motivo_exclusion": "nivel_riesgo=C (guardrail nivel-C del modelo) — excluido por el filtro pese a brief_completo=true"
+    },
+    {
+        "id": 541,
+        "titulo": "indeterminado",
+        "estado_final": "indeterminado",
+        "razon_no_merge": "indeterminado — las 5 ocurrencias en el JSON son solo el marcador de arranque ('modo POR-ITEM: trabajando SOLO el item #541') repetido por distintos workers\/horarios el 2026-08-20 (16:05, 17:14, 17:26, 18:02), sin ningún meta_tocado ni snippet que documente resultado, título o motivo de bloqueo.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo y para brief_completo — solo hay registros de toma del item, ningún resultado documentado en el JSON fuente"
+    },
+    {
+        "id": 542,
+        "titulo": "Fix role_permission_overrides — evitar que un sync re-inyecte permisos de rol revocados a mano",
+        "estado_final": "en_curso_interrumpido",
+        "razon_no_merge": "Fix implementado (tabla role_permission_overrides + PermissionSyncService\/PermissionController) y verificado en tinker con rollback, pero la rama quedó esperando merge manual de Irving por ser nivel C.",
+        "nivel_riesgo": "C",
+        "brief_completo": true,
+        "incluir": false,
+        "motivo_exclusion": "nivel_riesgo=C explícito — excluido por el filtro pese a brief_completo=true y código ya implementado\/verificado"
+    },
+    {
+        "id": 544,
+        "titulo": "Fase 2 — tabla de clasificación real (rama circuito\/item-544-fase-2-tabla-de-clasificacion-real-ver…)",
+        "estado_final": "escalado_a_irving",
+        "razon_no_merge": "La vuelta se cortó a los 600s (timeout) con la rama en 0 commits — no hubo ningún avance de código. El sistema decidió no re-encolarlo (para no quemar otra vuelta en lo mismo) y lo mandó directo a la bandeja de Irving (destino=aprobado_irving).",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — el registro solo documenta un timeout sin commits, sin mención de nivel A\/B\/C ni de brief evaluado"
+    },
+    {
+        "id": 559,
+        "titulo": "Motor de Auditoría Continua (AuditorService \/ AuditorCommand, comando circuito:auditor)",
+        "estado_final": "completado",
+        "razon_no_merge": "El motor SÍ está completo, integrado y vivo en main (AuditorService\/circuito:auditor, dedupe por auditor_fingerprint, gateado por circuito:scheduler con cap+kill-switch) — confirmado en múltiples sesiones posteriores que lo referencian al descartar volver a construirlo. El propio item #559 aparentemente no quedó con su propio commit formal 'Integra circuito #559' registrado en el historial de recuperación, por lo que sigue apareciendo como candidato pese a estar funcionalmente resuelto.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": true,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo (ningún snippet menciona nivel A\/B\/C para #559) — aunque brief_completo=true y el trabajo está funcionalmente completado e integrado en main"
+    },
+    {
+        "id": 566,
+        "titulo": "indeterminado (regla preexistente \"crear es aprobar\" — items creados desde la Torre se auto-aprueban)",
+        "estado_final": "indeterminado",
+        "razon_no_merge": "indeterminado — la única ocurrencia es una mención de PASADA dentro del log de OTRO item, citando la regla preexistente #566 ('crear es aprobar') como contexto\/fuera de alcance. No hay evidencia de que alguna vuelta trabajara directamente sobre el item #566 ni de su resultado.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente — única mención es de paso dentro del log de un item distinto, no hay registro de trabajo directo, brief ni nivel de riesgo sobre #566"
+    },
+    {
+        "id": 595,
+        "titulo": "indeterminado",
+        "estado_final": "indeterminado",
+        "razon_no_merge": "indeterminado — las 3 ocurrencias del JSON son solo el marcador de arranque ('modo POR-ITEM: trabajando SOLO el item #595') en dos sesiones distintas (2026-08-20 16:16 wt-4 y 18:22 wt-1), sin ningún meta_tocado ni snippet que documente resultado, título o motivo de bloqueo.",
+        "nivel_riesgo": "indeterminado",
+        "brief_completo": false,
+        "incluir": false,
+        "motivo_exclusion": "evidencia insuficiente para nivel_riesgo y para brief_completo — solo hay registros de toma del item, ningún resultado documentado en el JSON fuente"
+    }
+]
