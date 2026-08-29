@@ -6,6 +6,7 @@ use App\Modules\Addons\DocumentacionCorporativa\Console\PendientesRecordatorioCo
 use App\Modules\Addons\DocumentacionCorporativa\Contracts\FuenteRegistry;
 use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FinanzasFuentes;
 use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FlotasFuentes;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\PropiaFuentes;
 use App\Modules\Addons\DocumentacionCorporativa\Fuentes\RedFuentes;
 use App\Modules\Addons\DocumentacionCorporativa\Fuentes\TalentoFuentes;
 use App\Modules\BaseModuleServiceProvider;
@@ -49,5 +50,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         // telecomunicaciones (red OLT/ONU) del Apartado V.
         FlotasFuentes::registrar($this->app->make(FuenteRegistry::class));
         RedFuentes::registrar($this->app->make(FuenteRegistry::class));
+
+        // Fase 2d (item #737): estructura accionaria — fuente propia del módulo
+        // (namespace `dc.*`), lee `dc_accionistas` (Fase 2c, item #736).
+        PropiaFuentes::registrar($this->app->make(FuenteRegistry::class));
     }
 }
