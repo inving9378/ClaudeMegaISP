@@ -417,6 +417,13 @@ return [
             ),
             'gasto_umbral_hora' => (int) env('CIRCUITO_JARVIS_GASTO_UMBRAL_HORA', 60),
 
+            // FAMILIA "ERRORES POR MINUTO" (#774, fase 4 de #705) — mismo regex que ya prueba
+            // `CompuertasSondaCommand::medirLogs()` en producción (nivel ERROR/CRITICAL/ALERT/
+            // EMERGENCY), pero aplicado a CADA uno de los 7 `laravel-*.log` (uno por worktree
+            // más el principal), no solo al log principal. Un error masivo en un worktree no
+            // debe quedar enmascarado por el resto tranquilo — ver medirLogs() y alertas().
+            'errores_por_minuto_umbral' => (int) env('CIRCUITO_JARVIS_ERRORES_MINUTO_UMBRAL', 20),
+
             // CANAL DE ALERTA FUERA DE LA TORRE (#707, sub-item de #208, parte 3/3) — el
             // vigilante SOLO AVISA, nunca corrige. Reusa el gateway WhatsApp ÚNICO ya designado
             // (`EvolutionApiService`, ver CLAUDE.md §"SERVICIOS COMPARTIDOS ÚNICOS"), nunca un
