@@ -100,6 +100,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #711 (Jarvis Parte 1) — índice vivo derivado del sistema real + su consulta.
                 \App\Modules\Addons\Roadmap\Console\JarvisIndexarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\JarvisPreguntarCommand::class,
+                // #744 (Fase 3 de #624) — mecanismo de reconstrucción de items P0 no-mergeados
+                // (reabre_item_id). Solo el mecanismo: la ejecución real es una vuelta posterior.
+                \App\Modules\Addons\Roadmap\Console\ReconstruirP0Command::class,
             ]);
         }
     }
