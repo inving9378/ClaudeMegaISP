@@ -62,7 +62,14 @@ class InventarioResolver extends BaseResolver
     public function resolver(DcConcepto $concepto, int $empresaId): ResultadoConcepto
     {
         $tabla    = $concepto->config['tabla'] ?? null;
-        $metricas = ['obligatorio' => (bool) $concepto->obligatorio, 'tabla' => $tabla];
+        $metricas = [
+            'obligatorio' => (bool) $concepto->obligatorio,
+            'tabla'       => $tabla,
+            // Filtros declarativos del concepto (p.ej. {tipo: 'consejo'}): el
+            // frontend los usa para saber con qué tabla/filtro administrar
+            // los registros de ESTE concepto sin tener que adivinarlo.
+            'filtros'     => $concepto->config['filtros'] ?? [],
+        ];
 
         if (! $this->disponible($concepto, $empresaId)) {
             return ResultadoConcepto::sinFuente(
