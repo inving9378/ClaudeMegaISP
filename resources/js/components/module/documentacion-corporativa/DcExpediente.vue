@@ -325,6 +325,17 @@
                                     @click="$refs.registros.abrirParaConcepto(c)"
                                 />
                                 <q-btn
+                                    v-if="esMapaGestionable(c)"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="map"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    label="Ver mapa"
+                                    @click="$refs.mapaActivos.abrirParaConcepto(c)"
+                                />
+                                <q-btn
                                     v-if="esPlantillaGenerable(c)"
                                     flat
                                     dense
@@ -416,8 +427,13 @@
 
         <!-- Registros estructurados (Fase 2c): alta/edición desde la tarjeta de
              un concepto tipo "inventario" (accionistas, capital, actas, poderes,
-             contratos). -->
+             contratos, activos, activos digitales, inventario de accesos). -->
         <dc-registros ref="registros" @guardado="alGuardarPendiente" />
+
+        <!-- Mapa Leaflet (Fase 3.3): conceptos de dc_activos con config.mapa=true
+             (torres, postería, fibra, redes troncales, centros de distribución,
+             almacenes y bodegas). -->
+        <dc-activos-mapa ref="mapaActivos" />
     </div>
 </template>
 
@@ -593,10 +609,18 @@ export default {
             }[e] || 'help_outline';
         },
 
-        /** Conceptos "inventario" cuya tabla ya tiene CRUD propio (Fase 2c, item #736). */
+        /** Conceptos "inventario" cuya tabla ya tiene CRUD propio (Fase 2c/3.3, items #736/#752). */
         esRegistroGestionable(c) {
-            const TABLAS_CON_CRUD = ['dc_accionistas', 'dc_capital_variaciones', 'dc_actas', 'dc_poderes', 'dc_contratos'];
+            const TABLAS_CON_CRUD = [
+                'dc_accionistas', 'dc_capital_variaciones', 'dc_actas', 'dc_poderes', 'dc_contratos',
+                'dc_activos', 'dc_activos_digitales', 'dc_inventario_accesos',
+            ];
             return c.tipo_resolvedor === 'inventario' && c.metricas && TABLAS_CON_CRUD.includes(c.metricas.tabla);
+        },
+
+        /** Conceptos de dc_activos con mapa Leaflet (Fase 3.3, item #752/#783). */
+        esMapaGestionable(c) {
+            return !!(c.metricas && c.metricas.mapa === true);
         },
 
         /**
