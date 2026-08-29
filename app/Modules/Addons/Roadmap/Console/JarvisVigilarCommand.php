@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Console;
 
+use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use App\Modules\Addons\Roadmap\Support\GraciaDeArranque;
 use App\Modules\Addons\Roadmap\Support\RegistroPids;
@@ -83,6 +84,7 @@ class JarvisVigilarCommand extends Command
         }
 
         $estado['base'] = $this->medirBase($estado);
+        $estado['reclamos'] = $this->medirReclamos();
         $estado['modo'] = $estado['base']['responde'] ? 'completo' : 'minimo';
         $estado['alertas'] = $this->alertas($estado);
 
@@ -469,6 +471,108 @@ class JarvisVigilarCommand extends Command
     }
 
     /**
+     * FAMILIA "RECLAMOS" (#704, sub-item de #208) — invariantes sobre el reclamo de items
+     * `en_progreso`:
+     *   1) `claimed_at` renovándose mientras `updated_at` no avanza — el heartbeat de
+     *      `RoadmapCircuitoService::renovarLease()` escribe con un UPDATE crudo que a propósito
+     *      NO toca `updated_at` (ver su docblock), así que un worker vivo-pero-atascado puede
+     *      mantener el lease caliente sin producir ningún avance real. `circuito:reap-stuck`
+     *      exige AMBAS señales frías para liberar → mientras el heartbeat siga, ese reaper no lo
+     *      ve (caso real: #191 Fase 3, 25-ago, claimed_at renovado 15:39-15:47 con updated_at
+     *      congelado en 15:36:34).
+     *   2) `en_progreso` sin `worker_sid` — reclamo sin dueño identificable (caso real:
+     *      #81/#109/#126 desde el 24-ago).
+     *   3) `en_progreso` con `worker_sid` pero sin proceso vivo que lo respalde — se cruza contra
+     *      `RegistroPids` (identidad por PID+starttime, #334 A). Solo aplica a sids con forma
+     *      `wt-K`: sesiones legacy sin slot ('main'/'wt-exec') nunca tienen registro de PID, y
+     *      es el mismo criterio que ya usa `RoadmapCircuitoService::normalizaSid()`.
+     *
+     * Al revés que el resto de la vigilia, esta familia SÍ necesita `roadmap_items` en base. Va
+     * en su propio try/catch: si la base no responde, se marca `medido=false` aquí y las demás
+     * mediciones (disco/memoria/procesos/registro/freno) siguen intactas — el mismo principio que
+     * ya aplica `medirBase()` para el bloque `base`. NO corrige nada, solo detecta.
+     */
+    private function medirReclamos(): array
+    {
+        $umbralGap = max(60, (int) config('circuito.jarvis.vigilia.reclamos_claimed_sin_avance_umbral_seg', 300));
+        $graciaSeg = max(30, (int) config('circuito.jarvis.vigilia.reclamos_gracia_seg', 180));
+
+        try {
+            $items = RoadmapItem::query()
+                ->where('estado_aprobacion', 'en_progreso')
+                ->where('en_desarrollo_humano', false)
+                ->get(['id', 'worker_sid', 'claimed_at', 'updated_at']);
+        } catch (\Throwable $e) {
+            return [
+                'medido' => false,
+                'error'  => substr($e->getMessage(), 0, 200),
+                'umbral_claimed_sin_avance_seg' => $umbralGap,
+                'gracia_seg' => $graciaSeg,
+            ];
+        }
+
+        $sinWorkerSid = [];
+        $claimedSinAvance = [];
+        $candidatosProceso = [];
+
+        foreach ($items as $it) {
+            if (empty($it->worker_sid)) {
+                $sinWorkerSid[] = [
+                    'id'         => (int) $it->id,
+                    'updated_at' => optional($it->updated_at)->toIso8601String(),
+                ];
+                continue;
+            }
+
+            if ($it->claimed_at !== null && $it->updated_at !== null) {
+                $gap = $it->claimed_at->gt($it->updated_at) ? $it->claimed_at->diffInSeconds($it->updated_at) : 0;
+                if ($gap > $umbralGap) {
+                    $claimedSinAvance[] = [
+                        'id'         => (int) $it->id,
+                        'worker_sid' => $it->worker_sid,
+                        'claimed_at' => $it->claimed_at->toIso8601String(),
+                        'updated_at' => $it->updated_at->toIso8601String(),
+                        'gap_seg'    => $gap,
+                    ];
+                }
+
+                if (preg_match('/^wt-\d+$/', $it->worker_sid) && $it->claimed_at->lt(now()->subSeconds($graciaSeg))) {
+                    $candidatosProceso[] = $it;
+                }
+            }
+        }
+
+        $vivosPorSid = [];
+        foreach (RegistroPids::todos() as $e) {
+            if ($e['vivo']) {
+                $vivosPorSid[$e['sid']] = true;
+            }
+        }
+
+        $sinProcesoVivo = [];
+        foreach ($candidatosProceso as $it) {
+            if (empty($vivosPorSid[$it->worker_sid])) {
+                $sinProcesoVivo[] = [
+                    'id'         => (int) $it->id,
+                    'worker_sid' => $it->worker_sid,
+                    'claimed_at' => $it->claimed_at->toIso8601String(),
+                ];
+            }
+        }
+
+        return [
+            'medido' => true,
+            'error'  => null,
+            'umbral_claimed_sin_avance_seg' => $umbralGap,
+            'gracia_seg' => $graciaSeg,
+            'en_progreso_evaluados' => $items->count(),
+            'sin_worker_sid'        => $sinWorkerSid,
+            'claimed_sin_avance'    => $claimedSinAvance,
+            'sin_proceso_vivo'      => $sinProcesoVivo,
+        ];
+    }
+
+    /**
      * Las alertas de esta entrega son OBSERVACIONES, no acciones: nombran el nivel del encargo
      * que le tocaría a cada una para que cuando se otorgue la autoridad no haya que reinterpretar
      * nada. Ninguna dispara nada hoy.
@@ -538,6 +642,28 @@ class JarvisVigilarCommand extends Command
         if (($e['sonda']['edad_seg'] ?? null) !== null && $e['sonda']['edad_seg'] > 180) {
             $a[] = ['clave' => 'sonda', 'nivel' => 'me_pregunta',
                 'texto' => "El snapshot del SO tiene {$e['sonda']['edad_seg']} s: la Torre está midiendo con datos viejos.", ];
+        }
+
+        $rec = $e['reclamos'] ?? [];
+        if (($rec['medido'] ?? true) === false) {
+            $a[] = ['clave' => 'reclamos', 'nivel' => 'me_pregunta',
+                'texto' => 'No pude auditar los invariantes de Reclamos (#704): la base no respondió para esta familia.', ];
+        }
+        if (count($rec['sin_worker_sid'] ?? []) > 0) {
+            $ids = implode(', ', array_map(fn ($r) => '#' . $r['id'], $rec['sin_worker_sid']));
+            $a[] = ['clave' => 'reclamos_sin_worker_sid', 'nivel' => 'actua_y_avisa',
+                'texto' => "Item(s) en_progreso sin worker_sid: {$ids}. Reclamo sin dueño identificable.", ];
+        }
+        if (count($rec['claimed_sin_avance'] ?? []) > 0) {
+            $ids = implode(', ', array_map(fn ($r) => "#{$r['id']} ({$r['gap_seg']}s)", $rec['claimed_sin_avance']));
+            $a[] = ['clave' => 'reclamos_claimed_sin_avance', 'nivel' => 'actua_y_avisa',
+                'texto' => "Item(s) con claimed_at renovándose sin que updated_at avance: {$ids}. "
+                    . 'El reaper lento (circuito:reap-stuck) no los ve mientras el latido siga vivo.', ];
+        }
+        if (count($rec['sin_proceso_vivo'] ?? []) > 0) {
+            $ids = implode(', ', array_map(fn ($r) => "#{$r['id']} ({$r['worker_sid']})", $rec['sin_proceso_vivo']));
+            $a[] = ['clave' => 'reclamos_sin_proceso_vivo', 'nivel' => 'actua_y_avisa',
+                'texto' => "Item(s) en_progreso cuyo worker_sid no tiene proceso vivo en el registro de PIDs: {$ids}.", ];
         }
 
         return $a;
