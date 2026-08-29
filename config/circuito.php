@@ -394,6 +394,16 @@ return [
             // margen a un pico normal de cola sin disparar ruido.
             'jobs_varados_umbral_seg' => (int) env('CIRCUITO_JARVIS_JOBS_VARADOS_UMBRAL', 600),
 
+            // FAMILIA "COLA: FALSO VERDE" (#771, fase 1 de #705) — `RoadmapItem::despachable()`
+            // dice que hay trabajo listo (>0) pero `RoadmapCircuitoService::ejecutablesParalelo()`
+            // —la MISMA puerta que usa el scheduler para tomar trabajo— no elige a nadie ([]).
+            // Caso medido item #192: despachable=12, ejecutablesParalelo=0, compuerta en VERDE.
+            // Igual que bd_integra, "sostenido en el tiempo" se lee del `$anterior` en archivo
+            // (sin tabla nueva): un desfase de un minuto es normal (footprint desconocido en
+            // vuelo, colisión de módulo), sostenido más de esto ya no lo es. 300 s = cinco
+            // corridas del cron de un minuto.
+            'falso_verde_umbral_seg' => (int) env('CIRCUITO_JARVIS_FALSO_VERDE_UMBRAL', 300),
+
             // FAMILIA "GASTO" (#706, sub-item de #208) — invocaciones de `claude -p` por hora
             // contra un umbral configurable. Fuente: `arranques-claude.log`, un JSONL
             // append-only que escribe `vuelta.sh` en cada arranque — aparte del registro de PIDs

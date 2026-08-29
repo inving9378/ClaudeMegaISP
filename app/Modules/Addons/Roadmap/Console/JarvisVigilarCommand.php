@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Support\AlertaExterna;
 use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use App\Modules\Addons\Roadmap\Support\GraciaDeArranque;
@@ -116,6 +117,7 @@ class JarvisVigilarCommand extends Command
         $estado['base'] = $this->medirBase($estado);
         $estado['reclamos'] = $this->medirReclamos();
         $estado['jobs_varados'] = $this->medirJobsVarados();
+        $estado['cola_falso_verde'] = $this->medirColaFalsoVerde($anterior);
         $estado['modo'] = $estado['base']['responde'] ? 'completo' : 'minimo';
         $estado['alertas'] = $this->alertas($estado);
 
@@ -832,6 +834,68 @@ class JarvisVigilarCommand extends Command
     }
 
     /**
+     * FAMILIA "COLA: FALSO VERDE" (item #771, fase 1 de #705) — `RoadmapItem::despachable()`
+     * dice que hay trabajo listo para tomar (>0) pero `RoadmapCircuitoService::ejecutablesParalelo()`
+     * —la MISMA puerta que usa el scheduler (`SchedulerCommand`) para asignar terminales— no elige
+     * a ninguno ([]). Caso medido item #192: despachable=12, ejecutablesParalelo=0, la compuerta
+     * seguía en VERDE. NO corrige nada (no reasigna, no reintenta): solo detecta.
+     *
+     * "Sostenido en el tiempo": mismo patrón que `medirBdIntegra()` — sin tabla nueva, se lee el
+     * `$anterior` (el `estado.json` de la vuelta previa) para saber DESDE CUÁNDO viene la
+     * discrepancia. Un desfase de una sola vuelta (footprint desconocido en vuelo, colisión de
+     * módulo entre rondas) es ruido normal; sostenido más allá del umbral configurable ya no lo es.
+     *
+     * Va en su PROPIO try/catch (mismo principio que `medirReclamos()`/`medirJobsVarados()`): una
+     * familia que falla no tumba las demás.
+     */
+    private function medirColaFalsoVerde(?array $anterior): array
+    {
+        $umbralSeg = max(60, (int) config('circuito.jarvis.vigilia.falso_verde_umbral_seg', 300));
+
+        try {
+            $despachables = RoadmapItem::query()->despachable()->count();
+            $ejecutables  = count(app(RoadmapCircuitoService::class)->ejecutablesParalelo([], 200));
+        } catch (\Throwable $e) {
+            return [
+                'medido' => false,
+                'error' => substr($e->getMessage(), 0, 200),
+                'umbral_seg' => $umbralSeg,
+                'discrepante' => false,
+                'discrepante_desde' => null,
+                'duracion_seg' => 0,
+                'escalon' => 'no_aplica',
+            ];
+        }
+
+        $discrepante = $despachables > 0 && $ejecutables === 0;
+
+        $anteriorFV = (array) ($anterior['cola_falso_verde'] ?? []);
+        $veniaDiscrepante = (bool) ($anteriorFV['discrepante'] ?? false);
+        $desdeAnterior = $anteriorFV['discrepante_desde'] ?? null;
+
+        $desde = null;
+        if ($discrepante) {
+            $desde = ($veniaDiscrepante && is_string($desdeAnterior) && $desdeAnterior !== '')
+                ? $desdeAnterior
+                : date('c');
+        }
+
+        $duracionSeg = ($discrepante && $desde !== null) ? max(0, time() - strtotime($desde)) : 0;
+
+        return [
+            'medido'               => true,
+            'error'                => null,
+            'despachables'         => $despachables,
+            'ejecutables_paralelo' => $ejecutables,
+            'discrepante'          => $discrepante,
+            'discrepante_desde'    => $desde,
+            'duracion_seg'         => $duracionSeg,
+            'umbral_seg'           => $umbralSeg,
+            'escalon'              => ($discrepante && $duracionSeg >= $umbralSeg) ? 'critico' : 'ok',
+        ];
+    }
+
+    /**
      * Las alertas de esta entrega son OBSERVACIONES, no acciones: nombran el nivel del encargo
      * que le tocaría a cada una para que cuando se otorgue la autoridad no haya que reinterpretar
      * nada. Ninguna dispara nada hoy.
@@ -892,6 +956,17 @@ class JarvisVigilarCommand extends Command
                     : "{$jv['cantidad']} job(s) varado(s) en la cola (creados hace más de {$jv['umbral_seg']}s, "
                         . 'nunca tomados) con workers vivos: podría ser lentitud normal, revisar.', ];
         }
+        $fv = $e['cola_falso_verde'] ?? [];
+        if (($fv['medido'] ?? true) === false) {
+            $a[] = ['clave' => 'cola_falso_verde', 'nivel' => 'me_pregunta',
+                'texto' => 'No pude auditar el falso verde de la cola (#771): la base no respondió para esta familia.', ];
+        } elseif (($fv['escalon'] ?? 'ok') === 'critico') {
+            $a[] = ['clave' => 'cola_falso_verde', 'nivel' => 'actua_y_avisa',
+                'texto' => "Falso verde en la cola (#771): {$fv['despachables']} item(s) despachable(s) pero "
+                    . "ejecutablesParalelo() no eligió ninguno desde hace {$fv['duracion_seg']}s "
+                    . "(umbral {$fv['umbral_seg']}s). La compuerta puede seguir en VERDE sin que nadie avance.", ];
+        }
+
         if (! ($e['base']['responde'] ?? false)) {
             $a[] = ['clave' => 'base', 'nivel' => 'alarma',
                 'texto' => 'Estoy en modo mínimo: la base no responde. Esto es lo que sé desde archivo.', ];
