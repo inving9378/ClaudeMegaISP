@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Support\AlertaExterna;
 use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use App\Modules\Addons\Roadmap\Support\GraciaDeArranque;
 use App\Modules\Addons\Roadmap\Support\RegistroPids;
@@ -99,6 +100,16 @@ class JarvisVigilarCommand extends Command
                 $this->error('No se pudo guardar la vigilia: ' . $e->getMessage());
 
                 return self::FAILURE;
+            }
+
+            // CANAL DE ALERTA FUERA DE LA TORRE (#707, sub-item de #208, parte 3/3). Aparte del
+            // guardado del latido/estado: si el aviso falla, la vigilia YA quedó registrada en
+            // archivo. `--seco` nunca dispara esto (es justo su propósito: inspeccionar sin
+            // efectos secundarios). Apagado por default — ver `AlertaExterna`.
+            try {
+                AlertaExterna::avisar($estado['alertas']);
+            } catch (\Throwable $e) {
+                $this->warn('No se pudo avisar por el canal externo: ' . $e->getMessage());
             }
         }
 
