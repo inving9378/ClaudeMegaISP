@@ -105,7 +105,7 @@ return new class extends Migration
                     'name' => self::TIPO_NUEVO,
                     'type' => 'material',
                     'categoria' => 'equipo_red',
-                    'created_by' => 0,
+                    'created_by' => 1, // "created_by=0" (usado en catálogo legacy) viola la FK; 1 = Admin
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
