@@ -3,12 +3,15 @@
 namespace App\Console\Commands\Active;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\Process\Process;
 
 /**
- * Fase 1a-i (item #817, sub-item de #797): SOLO candados de seguridad + drop/recreate
- * de la BD `{database}_dryrun` vacía. NO corre migraciones todavía — eso es la Fase 1a-ii
- * (sub-item hermano), que reusará este mismo comando añadiendo el bloque de Migrator.
+ * Fase 1a-i (item #817, sub-item de #797): candados de seguridad + drop/recreate de la
+ * BD `{database}_dryrun` vacía. Fase 1a-ii parte 1/2 (item #821): añade el bloque de
+ * Migrator para correr TODAS las migraciones de `database/migrations` (NO `migrations_old`)
+ * contra esa BD recién creada — construcción del código solamente, la corrida real completa
+ * de las ~555 migraciones (con su verificación) queda para la parte 2/2.
  *
  * Candados (decisión ya tomada en las preguntas del item #797, opción recomendada q1):
  *   (a) el nombre de BD objetivo se DERIVA de la conexión configurada + sufijo '_dryrun'
@@ -17,13 +20,18 @@ use Symfony\Component\Process\Process;
  *   (c) --force explícito obligatorio, si falta se aborta sin tocar nada;
  *   (d) verificación de que el nombre objetivo no coincida con la BD principal
  *       (imposible dropear `megaisp` por accidente).
+ *
+ * Limitación conocida (documentada, no resuelta aquí — ver decisión registrada en el item
+ * #821 con circuito:reportar --tipo=decision): el Migrator aborta en la PRIMERA migración
+ * que falle: no hay corrida lote-por-lote que permita reportar "cuáles fallaron" en plural.
+ * Se captura y reporta el mensaje de la migración que truena; suficiente para esta fase.
  */
 class RebuildDryrunSchemaCommand extends Command
 {
     protected $signature = 'schema:rebuild-dryrun
                             {--force : Requerido explícitamente para (re)crear la BD dryrun}';
 
-    protected $description = 'Candados de seguridad + drop/recreate de la BD auxiliar {database}_dryrun vacía (sin migrar aún — Fase 1a-i de #797).';
+    protected $description = 'Candados de seguridad + drop/recreate de la BD auxiliar {database}_dryrun vacía + corre todas las migraciones (Fase 1a de #797).';
 
     public function handle(): int
     {
@@ -67,14 +75,60 @@ class RebuildDryrunSchemaCommand extends Command
                 . "GRANT ALL PRIVILEGES ON `{$tempDb}`.* TO '{$cfg['username']}'@'<host>'; FLUSH PRIVILEGES;");
             return 1;
         }
-        $elapsed = round(microtime(true) - $start, 2);
+        $elapsedRecreate = round(microtime(true) - $start, 2);
+        $this->info("BD `{$tempDb}` recreada vacía en {$elapsedRecreate}s. Corriendo migraciones de database/migrations…");
+
+        return $this->runMigrations($cfg, $tempDb, $elapsedRecreate);
+    }
+
+    /**
+     * Registra la conexión 'dryrun' apuntando a la BD ya vacía y corre TODAS las
+     * migraciones de database/migrations (NO migrations_old) vía el Migrator directo
+     * — nunca el comando 'migrate' interactivo, que se cuelga esperando confirmación
+     * de producción en contexto no interactivo. La conexión default del proceso se
+     * restaura SIEMPRE en el finally (este mismo proceso puede seguir hablando con la
+     * BD real después).
+     */
+    private function runMigrations(array $cfg, string $tempDb, float $elapsedRecreate): int
+    {
+        $originalDefault = config('database.default');
+
+        config(['database.connections.dryrun' => array_merge($cfg, ['database' => $tempDb])]);
+        DB::purge('dryrun');
+
+        /** @var \Illuminate\Database\Migrations\Migrator $migrator */
+        $migrator = app('migrator');
+        $migrator->setOutput($this->output);
+
+        $start = microtime(true);
+        $ran   = [];
+        $error = null;
+
+        try {
+            $migrator->setConnection('dryrun');
+            $ran = $migrator->run([database_path('migrations')]);
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+        } finally {
+            $migrator->setConnection($originalDefault);
+            DB::setDefaultConnection($originalDefault);
+            DB::purge('dryrun');
+        }
+
+        $elapsedMigrate = round(microtime(true) - $start, 2);
 
         $this->table(
-            ['BD', 'Charset', 'Collation', 'Tablas actuales', 'Tiempo'],
-            [[$tempDb, $charset, $collation, 0, "{$elapsed}s"]]
+            ['BD', 'Migraciones corridas', 'Tiempo recreate', 'Tiempo migrate', 'Resultado'],
+            [[$tempDb, count($ran), "{$elapsedRecreate}s", "{$elapsedMigrate}s", $error ? 'FALLÓ' : 'OK']]
         );
-        $this->info("BD `{$tempDb}` recreada vacía — lista para recibir migraciones en la Fase 1a-ii.");
 
+        if ($error !== null) {
+            $this->error('MIGRACIÓN FALLÓ contra la BD dryrun: ' . $error);
+            $this->warn('El Migrator aborta en la primera migración que falla — este es el mensaje de esa migración, no un resumen de todas las pendientes.');
+            return 1;
+        }
+
+        $this->info('Dry-run de esquema OK: ' . count($ran) . " migración(es) corrieron sin error contra `{$tempDb}`.");
         return 0;
     }
 
