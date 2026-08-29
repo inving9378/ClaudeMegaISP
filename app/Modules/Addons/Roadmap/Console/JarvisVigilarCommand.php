@@ -61,6 +61,7 @@ class JarvisVigilarCommand extends Command
             'carga'     => $this->medirCarga(),
             'logs'      => $this->medirLogs(),
             'procesos'  => $this->medirProcesos($ps),
+            'cola_workers' => $this->medirColaWorkers($ps),
             'registro'  => $this->medirRegistro(),
             'freno'     => $this->medirFreno(),
             'sonda'     => $this->medirSonda(),
@@ -270,6 +271,25 @@ class JarvisVigilarCommand extends Command
         ];
     }
 
+    /**
+     * #641 — workers de `queue:work` caídos y nadie se entera hasta que alguien mira la Torre.
+     * El indicador PASIVO ya existe ahí (`EnvironmentHealthService::queueWorkers()`, #884); esto
+     * es el ACTIVO: corre cada minuto por cron sin depender de que alguien abra el panel. Mismo
+     * umbral (`torre_salud.umbrales.queue_workers.minimo_esperado`) para no tener dos números de
+     * verdad — y se cuenta sobre el `$ps` ya capturado por `psCrudo()`, sin otro `ps` aparte.
+     */
+    private function medirColaWorkers(array $ps): array
+    {
+        $minimo = (int) config('torre_salud.umbrales.queue_workers.minimo_esperado', 1);
+        $cantidad = count(array_filter($ps, fn ($p) => str_contains($p['cmd'], 'artisan queue:work')));
+
+        return [
+            'cantidad' => $cantidad,
+            'esperado' => $minimo,
+            'estado'   => $cantidad >= $minimo ? 'verde' : 'rojo',
+        ];
+    }
+
     private function medirRegistro(): array
     {
         $todos = RegistroPids::todos();
@@ -466,6 +486,13 @@ class JarvisVigilarCommand extends Command
             $n = count($e['registro']['pasados_timeout']);
             $a[] = ['clave' => 'timeout', 'nivel' => 'actua_y_avisa',
                 'texto' => "{$n} vuelta(s) pasada(s) de su propio timeout.", ];
+        }
+        if (($e['cola_workers']['estado'] ?? 'verde') === 'rojo') {
+            $cw = $e['cola_workers'];
+            $a[] = ['clave' => 'cola_workers', 'nivel' => 'alarma',
+                'texto' => "{$cw['cantidad']} worker(s) de cola activos (esperados {$cw['esperado']}+): "
+                    . 'los jobs pendientes (pagos capturados en mostrador, notificaciones de geocercas, '
+                    . 'cobranza) no se procesan.', ];
         }
         if (! ($e['base']['responde'] ?? false)) {
             $a[] = ['clave' => 'base', 'nivel' => 'alarma',
