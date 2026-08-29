@@ -8,6 +8,7 @@
             @if(auth()->user()->can('fleet.view'))
                 <li><a href="{{ url('/flotas') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
                 <li><a href="{{ url('/flotas/vehiculos') }}"><span><small><i class="fa fa-fw fa-car"></i></small> Vehículos</span></a></li>
+                <li><a href="{{ url('/flotas/comparativo') }}"><span><small><i class="fa fa-fw fa-chart-bar"></i></small> Análisis comparativo</span></a></li>
             @endif
             @if(auth()->user()->can('fleet.gps.view'))
                 <li><a href="{{ url('/flotas/mapa') }}"><span><small><i class="fa fa-fw fa-map-marked-alt"></i></small> Mapa</span></a></li>
