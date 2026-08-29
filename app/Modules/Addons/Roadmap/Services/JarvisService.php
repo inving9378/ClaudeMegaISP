@@ -974,6 +974,34 @@ class JarvisService
         if (! config('circuito.jarvis.automerge.enabled', true)) {
             return $no('El auto-merge está apagado (circuito.jarvis.automerge.enabled).');
         }
+
+        // #756 — GUARD nivel_riesgo=C / preguntas[].requiere_irving: `elegibleAutoMerge()` decidía
+        // mirando el diff (rutas sensibles, migraciones, frontera dura por texto) pero NUNCA estos
+        // dos campos, así que un item C o con una pregunta que se escaló a Irving podía marcarse
+        // "elegible" igual que uno A/B limpio (bypass real: #753 llegó a encolarse así). Empata con
+        // lo que `IntegrarItemCommand` ya asume por comentario propio ("nivel C: nunca auto-integra,
+        // solo Irving con botón/--force") y con CLAUDE.md #507 (lo escalado a Irving se queda en su
+        // bandeja). Va ANTES de `isPaused()`/diff para que sea incondicional — "SIEMPRE, sin
+        // importar qué tan limpio esté el diff" — y sin excepción por "ya la respondió": que una
+        // pregunta se haya marcado `requiere_irving=true` alguna vez es la señal de que ESE punto
+        // lo decidió (o lo decide) un humano, no el diff que sigue.
+        if ($item->nivel_riesgo === 'C') {
+            Log::channel('roadmap_externo')->info('jarvis-automerge-bloqueado', [
+                'item' => $item->id, 'motivo' => 'nivel_riesgo_c',
+            ]);
+
+            return $no('Nivel de riesgo C: lo mergea Irving (botón/--force), el auto-merge no decide sobre frontera dura.');
+        }
+        foreach ((array) $item->preguntas as $p) {
+            if (is_array($p) && filter_var($p['requiere_irving'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                Log::channel('roadmap_externo')->info('jarvis-automerge-bloqueado', [
+                    'item' => $item->id, 'motivo' => 'pregunta_requiere_irving', 'pregunta' => $p['id'] ?? null,
+                ]);
+
+                return $no('Tiene una pregunta marcada requiere_irving: lo mergea Irving, no el auto-merge.');
+            }
+        }
+
         if ($this->circuito->isPaused()) {
             return $no('Circuito en pausa (kill switch): no se auto-mergea nada.');
         }
