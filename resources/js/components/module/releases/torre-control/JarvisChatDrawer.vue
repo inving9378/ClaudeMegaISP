@@ -74,13 +74,41 @@
               </div>
             </div>
 
-            <!-- Sin botón de "generar item" a propósito — eso es la Fase 4. -->
             <form class="jcd-input" @submit.prevent="enviarMensaje">
               <input v-model="mensaje" type="text" class="form-control form-control-sm" placeholder="Escribe a Jarvis…" :disabled="enviando" maxlength="4000">
               <button type="submit" class="btn btn-primary btn-sm" :disabled="enviando || !mensaje.trim()">
                 <i class="bi bi-send"></i>
               </button>
             </form>
+
+            <!-- Item #828 (Fase 4) — botón explícito al cierre del chat: Irving revisa el brief
+                 (título + prompt, prellenados del hilo) y CONFIRMA antes de encolar. Nunca se
+                 auto-crea el item ni hay slash-command (decisión q4, ya tomada). -->
+            <div v-if="conversacionSel.estado === 'convertida'" class="jcd-generado">
+              <i class="bi bi-check-circle-fill me-1"></i> Item #{{ conversacionSel.item_id }} generado en la Hoja de Ruta.
+            </div>
+            <div v-else-if="!mostrarBorrador" class="jcd-generar">
+              <button
+                type="button"
+                class="btn btn-outline-success btn-sm w-100"
+                :disabled="!conversacionSel.mensajes.length"
+                @click="abrirBorrador"
+              >
+                <i class="bi bi-clipboard-check me-1"></i> Generar item del roadmap
+              </button>
+            </div>
+            <div v-else class="jcd-borrador">
+              <label class="form-label small fw-semibold mb-1">Título del item</label>
+              <input v-model="borrador.title" type="text" class="form-control form-control-sm mb-2" maxlength="255" placeholder="Título">
+              <label class="form-label small fw-semibold mb-1">Prompt para quien lo ejecute</label>
+              <textarea v-model="borrador.prompt" class="form-control form-control-sm mb-2" rows="5" placeholder="Instrucciones…"></textarea>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-secondary btn-sm" :disabled="generando" @click="cancelarBorrador">Cancelar</button>
+                <button type="button" class="btn btn-success btn-sm flex-fill" :disabled="generando || !borrador.title.trim()" @click="confirmarGenerarItem">
+                  {{ generando ? 'Generando…' : 'Confirmar y encolar' }}
+                </button>
+              </div>
+            </div>
           </template>
         </div>
       </aside>
@@ -111,6 +139,11 @@ export default {
     const mensaje = ref("");
     const enviando = ref(false);
     const msgsEl = ref(null);
+
+    // Item #828 (Fase 4) — borrador del brief antes de encolarlo como item del roadmap.
+    const mostrarBorrador = ref(false);
+    const borrador = ref({ title: "", prompt: "" });
+    const generando = ref(false);
 
     const conversacionSel = computed(() => conversacion.value);
 
@@ -154,6 +187,7 @@ export default {
 
     async function abrirConversacion(candidato) {
       error.value = "";
+      mostrarBorrador.value = false;
       try {
         const { data } = await axios.post("/api/roadmap/jarvis-chat/conversaciones", {
           clave: candidato.clave,
@@ -172,6 +206,7 @@ export default {
     function volver() {
       vista.value = "lista";
       conversacion.value = null;
+      mostrarBorrador.value = false;
       cargarSugerencias();
     }
 
@@ -197,6 +232,67 @@ export default {
       } finally {
         enviando.value = false;
         scrollAbajo();
+      }
+    }
+
+    // Item #828 (Fase 4) — cierra el ciclo #806: NO auto-crea el item ni hay slash-command
+    // (decisión q4 ya tomada). El botón prellena un borrador editable a partir del hilo (el
+    // último mensaje de Jarvis suele traer el título/prompt que redactó); Irving lo revisa,
+    // lo ajusta si quiere y confirma. Reusa exactamente el mismo camino que "Agregar item" en
+    // la Hoja de Ruta (`POST /api/roadmap/items` → `RoadmapController::store`, el mecanismo
+    // interno único) — nada nuevo que escriba items aquí. El vínculo con
+    // `jarvis_conversaciones.item_id` es solo trazabilidad (Fase 2/#826, ya existente).
+    function idemKey() {
+      if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+      return "idem-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    }
+
+    function abrirBorrador() {
+      if (!conversacion.value) return;
+      const ultimoJarvis = [...conversacion.value.mensajes].reverse().find((m) => m.rol === "jarvis");
+      const categoria = conversacion.value.categoria
+        ? conversacion.value.categoria.charAt(0).toUpperCase() + conversacion.value.categoria.slice(1) + " — "
+        : "";
+      borrador.value = {
+        title: (categoria + (conversacion.value.texto_sugerencia || "")).slice(0, 255),
+        prompt: ultimoJarvis ? ultimoJarvis.contenido : "",
+      };
+      mostrarBorrador.value = true;
+    }
+
+    function cancelarBorrador() {
+      mostrarBorrador.value = false;
+    }
+
+    async function confirmarGenerarItem() {
+      const titulo = borrador.value.title.trim();
+      if (!titulo || !conversacion.value || generando.value) return;
+      generando.value = true;
+      error.value = "";
+      try {
+        const { data } = await axios.post("/api/roadmap/items", {
+          title: titulo,
+          description: conversacion.value.texto_sugerencia || null,
+          prompt: borrador.value.prompt.trim() || null,
+          idempotency_key: idemKey(),
+        });
+        const itemId = data.item.id;
+        try {
+          await axios.post(`/api/roadmap/jarvis-chat/conversaciones/${conversacion.value.id}/vincular-item`, {
+            item_id: itemId,
+          });
+        } catch (e) {
+          // El item YA se creó; el vínculo es solo trazabilidad (#826) y no debe bloquear el
+          // flujo si falla por su cuenta.
+          console.error("No se pudo vincular el hilo al item recién creado:", e);
+        }
+        conversacion.value.item_id = itemId;
+        conversacion.value.estado = "convertida";
+        mostrarBorrador.value = false;
+      } catch (e) {
+        error.value = "No se pudo generar el item: " + (e?.response?.data?.message || e.message);
+      } finally {
+        generando.value = false;
       }
     }
 
@@ -231,6 +327,7 @@ export default {
     return {
       abierto, vista, cargando, error, candidatos, generadoAt, conversacionSel, mensaje, enviando, msgsEl,
       pendientes, tituloToggle, toggle, cerrar, abrirConversacion, volver, enviarMensaje, citaTexto, formatoFecha,
+      mostrarBorrador, borrador, generando, abrirBorrador, cancelarBorrador, confirmarGenerarItem,
     };
   },
 };
@@ -287,6 +384,13 @@ export default {
 
 .jcd-input { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid #e2e8f0; flex: 0 0 auto; }
 .jcd-input input { flex: 1 1 auto; }
+
+.jcd-generar { padding: 10px 14px; border-top: 1px solid #e2e8f0; flex: 0 0 auto; }
+.jcd-generado {
+    padding: 10px 14px; border-top: 1px solid #e2e8f0; flex: 0 0 auto;
+    color: #15803d; font-size: 13px; font-weight: 600;
+}
+.jcd-borrador { padding: 10px 14px; border-top: 1px solid #e2e8f0; flex: 0 0 auto; background: #f8fafc; }
 
 .jcd-fade-enter-active, .jcd-fade-leave-active { transition: opacity .15s ease; }
 .jcd-fade-enter-from, .jcd-fade-leave-to { opacity: 0; }
