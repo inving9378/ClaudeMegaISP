@@ -1405,3 +1405,27 @@ item = un dueño) y los 4 hijos siguen aprobados sin `worker_sid`. Detalle compl
 deuda de fondo sobre por qué el pool no despacha los hijos solos, en
 `docs/roadmap-bucle-reap-item-745-verificacion.md`. **Sin cambio de código** (cierre documental
 ejecutando la decisión ya tomada por Irving).
+
+## Item #830 — Fase 1a-ii parte 2/2 (ciclo fix-drift, 555 migraciones) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745, un nivel más abajo en la Fase 1a-ii (ciclo fix-drift de
+`schema:rebuild-dryrun` sobre las 555 migraciones, continuación de #822). Una vuelta previa
+(2026-08-31 17:36) ya había hecho lo correcto: verificó que los fixes de #822 (`ab7804e0` crea la
+tabla `migrations` en dryrun, `8c938dd1` guard `Schema::hasTable` en `create_jobs_table`) ya están
+en `main`, corrió `circuito:cabida` (NO CABE, `ya_timeouteo_antes`) y descompuso el siguiente tramo
+de trabajo en **#833** (resolver la colisión `failed_jobs` — posible carrera con #831 sobre
+`megaisp_dryrun` compartida, o drift real con el mismo guard `hasTable` — y seguir el ciclo por el
+siguiente lote), con la política de ejecución ya aprobada por Irving (lotes, un commit por fix,
+stop-and-escalate en frontera dura). Pero nunca intentó **cerrar** al padre — el guard de paraguas
+del modelo (`RoadmapItem.php` bloque "(2b) PARAGUAS") solo aparca un item descompuesto cuando algo
+intenta activamente `estado_aprobacion = 'completado'` y detecta hijos abiertos. Sin ese intento,
+#830 se quedó `en_progreso` colgado; el reaper lo devolvió a `aprobado_revisor`, el pool lo repartió
+de nuevo sin trabajo propio que hacer, timeouteó otra vez sin commits y volvió a escalar — mismo
+síntoma que #738/#745. Verificado: #833 sigue `requiere_irving`, único hijo (`origen_item_id=830`),
+sin reclamar — la descomposición original seguía siendo correcta, nadie más la tocó. Corrección:
+esta vuelta ejecuta el intento de cierre faltante; el guard lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log), sacándolo del pool/reaper
+hasta que el hook de cierre en cascada (ya existente, `RoadmapItem.php:459-491`) lo complete solo
+cuando #833 cierre. Detalle en `docs/roadmap-bucle-reap-item-830-verificacion.md`. **Sin cambio de
+código de negocio** — el trabajo técnico real del ciclo fix-drift sigue en #833, pendiente de que
+Irving resuelva sus preguntas estructuradas.
