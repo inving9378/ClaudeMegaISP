@@ -1454,3 +1454,29 @@ complete solo cuando #839 y #840 cierren. Detalle en
 `docs/roadmap-bucle-reap-item-816-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo técnico real (backend de los 6 ítems y su wire en la UI de #815) sigue en #839/#840,
 pendiente de que Irving los resuelva.
+
+## Item #818 — Fase 1a-ii (schema:rebuild-dryrun completo) — bucle reap sobre paraguas cuyos hijos YA cerraron (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816, pero con una variante de timing: aquí los dos hijos
+directos (`origen_item_id=818`) llevaban **días** cerrados y archivados (**#821** "construir el
+comando completo", `completado` 2026-08-29 17:18; **#822** "correrlo contra megaisp_dryrun real
++ catalogar drift", `completado` 2026-08-29 17:45) — no es que faltara descomponer nada. El
+bucle nació de una carrera de timing distinta: el hook de cierre en cascada
+(`RoadmapItem.php:462-491`) sólo completa al padre en el instante exacto en que el ÚLTIMO hijo
+cierra, y sólo si en ESE momento el padre ya está en `aprobado_irving`. `#822` no cerró de un
+tirón — quedó parqueado como paraguas propio de sus propios nietos (`#830`/`#831`, ver
+`docs/roadmap-bucle-reap-item-830-verificacion.md`) y sólo alcanzó `completado` real cuando
+`#831` cerró el 2026-08-31 18:05:52. En ese instante `#818` estaba en `requiere_irving` (lo
+había escalado un timeout a las 17:32:09) — la cascada lo descartó como candidato y nunca se
+disparó. Irving volvió a aprobar `#818` el 2026-09-01 13:04:12, pero nadie volvió a *intentar*
+el cierre después: el hook sólo reacciona al `saved` de un hijo, no a un cambio posterior del
+padre. Sin ese intento, `#818` quedó colgado (5 timeouts, 2 reanudaciones, `reap_count=1`) y el
+pool lo repartió una y otra vez sin trabajo propio que hacer, porque el trabajo real ya estaba
+hecho. Verificado esta vuelta: `tieneSubItemsAbiertos()` para #818 = `false` (#821 y #822 ambos
+`completado`/`done`/archivados). Corrección: esta vuelta ejecuta el intento de cierre faltante;
+como ya no quedan hijos abiertos, el guard NO lo parquea esta vez — cierra de verdad a
+`completado`. Detalle en `docs/roadmap-bucle-reap-item-818-verificacion.md`. **Sin cambio de
+código de aplicación** — el comando `schema:rebuild-dryrun` (candados + drop/recreate + bloque
+Migrator + 2 fixes de drift) ya está completo y mergeado desde #821/#822; la continuación del
+ciclo fix-drift hasta que las 555 migraciones corran limpias de punta a punta es descendiente de
+`#822` (no de #818) y sigue su curso aparte en `#830`/`#833`.
