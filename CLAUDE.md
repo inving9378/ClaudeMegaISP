@@ -1480,3 +1480,26 @@ código de aplicación** — el comando `schema:rebuild-dryrun` (candados + drop
 Migrator + 2 fixes de drift) ya está completo y mergeado desde #821/#822; la continuación del
 ciclo fix-drift hasta que las 555 migraciones corran limpias de punta a punta es descendiente de
 `#822` (no de #818) y sigue su curso aparte en `#830`/`#833`.
+
+## Item #848 — Fase 2 del menú de una sola fuente de verdad — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818, sub-item de seguimiento de #843 (ocultar módulo
+completo del sidebar si 0 entradas visibles). Una vuelta previa (`wt-2`, 2026-09-01 15:56) ya hizo
+lo correcto: `circuito:cabida` devolvió NO CABE (ya había timeouteado 2 veces sin commits) →
+descompuso el trabajo real en **#855** (envolver el `<li>`/`<ul>` completo del bloque hardcodeado
+en el `@if` de permiso, evita shell huérfano vacío), **#856** (los `dynamic_children` de
+`module_sidebar_config` no tienen chequeo de permiso individual — hallazgo nuevo, fila
+`gestion-red-mikrotik-sync` sin permiso ni guard de ruta) y **#857** (aplicar la decisión de
+Irving de la pregunta `q2` sobre módulos con landing propia sin hijos visibles). Pero el proceso se
+cortó a media escritura del reporte (comentario truncado en "Verificado y") antes de intentar
+cerrar al padre — el reaper (`reaper-rapido`) vio el slot `wt-2` libre, re-encoló #848 a
+`aprobado_irving` (`reap_count=1`), y el pool lo repartió de nuevo sin trabajo propio que hacer.
+Verificado esta vuelta: los 3 hijos (`origen_item_id=848`) existen intactos, todos
+`requiere_irving`, sin reclamar — la descomposición original seguía siendo correcta, nadie más la
+tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS", ~301-326) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true`
+(evento `paraguas_abierto` en el log, confirmado: "le quedan 3 sub-item(s) abierto(s)"), sacándolo
+del pool/reaper hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete
+solo cuando #855, #856 y #857 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-848-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real de la Fase 2 del sidebar sigue en #855/#856/#857, pendiente de triaje/aprobación.
