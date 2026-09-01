@@ -1,18 +1,16 @@
+@if(auth()->user()->canAny(['router_view_router', 'ipv4_view_ipv4', 'router_add_router', 'ipv4_add_ipv4']))
 <li>
-    @if(auth()->user()->canAny(['router_view_router', 'ipv4_view_ipv4', 'router_add_router', 'ipv4_add_ipv4']))
-        <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="box"></i>
-            <span data-key="t-gestion-red">{{ $item->sidebar_label ?? 'Gestión de red' }}</span>
-        </a>
-    @endcanany
+    <a href="javascript: void(0);" class="has-arrow">
+        <i data-feather="box"></i>
+        <span data-key="t-gestion-red">{{ $item->sidebar_label ?? 'Gestión de red' }}</span>
+    </a>
     <ul class="sub-menu" aria-expanded="false">
+        @if(auth()->user()->canAny(['router_add_router', 'router_view_router']))
         <li>
-            @if(auth()->user()->canAny(['router_add_router', 'router_view_router']))
-                <a href="javascript: void(0);" class="has-arrow">
-                    <i data-feather="box"></i>
-                    <span data-key="t-router">Enrutadores</span>
-                </a>
-            @endcanany
+            <a href="javascript: void(0);" class="has-arrow">
+                <i data-feather="box"></i>
+                <span data-key="t-router">Enrutadores</span>
+            </a>
             <ul class="sub-menu" aria-expanded="false">
                 @if(auth()->user()->can('router_add_router'))
                     <li>
@@ -30,13 +28,13 @@
                 @endif
             </ul>
         </li>
+        @endif
+        @if(auth()->user()->canAny(['ipv4_add_ipv4', 'ipv4_view_ipv4']))
         <li>
-            @if(auth()->user()->canAny(['ipv4_add_ipv4', 'ipv4_view_ipv4']))
-                <a href="javascript: void(0);" class="has-arrow">
-                    <i data-feather="box"></i>
-                    <span data-key="t-ipv4">Redes IPv4</span>
-                </a>
-            @endcanany
+            <a href="javascript: void(0);" class="has-arrow">
+                <i data-feather="box"></i>
+                <span data-key="t-ipv4">Redes IPv4</span>
+            </a>
             <ul class="sub-menu" aria-expanded="false">
                 @if(auth()->user()->can('ipv4_add_ipv4'))
                     <li>
@@ -54,6 +52,7 @@
                 @endif
             </ul>
         </li>
+        @endif
 
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
         @foreach($item->dynamic_children ?? collect() as $child)
@@ -65,3 +64,4 @@
         @endforeach
     </ul>
 </li>
+@endif
