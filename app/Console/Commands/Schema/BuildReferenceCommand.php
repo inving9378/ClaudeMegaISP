@@ -84,7 +84,13 @@ class BuildReferenceCommand extends Command
                 $migrator->getRepository()->createRepository();
             }
 
-            $ran = $migrator->run([database_path('migrations')]);
+            // Mismo patrón que Illuminate\Database\Console\Migrations\BaseCommand::getMigrationPaths():
+            // $migrator->paths() ya trae registrados los directorios de migraciones de todos los
+            // módulos ACTIVOS (loadMigrationsFrom en BaseModuleServiceProvider::boot, ya corrido para
+            // cuando arranca este comando) — sin esto, cualquier migración de database/migrations que
+            // dependa de una tabla creada por un módulo (ALTER, seed, etc.) falla en esta reconstrucción
+            // aislada aunque en dev/prod real la tabla sí exista.
+            $ran = $migrator->run(array_merge($migrator->paths(), [database_path('migrations')]));
         } catch (\Throwable $e) {
             $this->error('MIGRACIÓN FALLÓ reconstruyendo el esquema de referencia: ' . $e->getMessage());
             return 1;
