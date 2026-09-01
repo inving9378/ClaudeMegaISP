@@ -64,11 +64,14 @@
              Marketing dejó de ser caso especial: ahora es módulo top-level
              con su propio partial (module-sidebar/marketing.blade.php). --}}
         @foreach($item->dynamic_children ?? collect() as $child)
+            @php($childPermission = $child->permission ?? $item->permission ?? null)
+            @if(!$childPermission || auth()->user()->can($childPermission))
             <li>
                 <a href="{{ $child->sidebar_url ? url($child->sidebar_url) : url('/' . $child->module_key) }}">
                     <span>@if($child->sidebar_icon)<small><i class="{{ $child->sidebar_icon }}"></i></small> @endif{{ $child->sidebar_label ?? $child->module_key }}</span>
                 </a>
             </li>
+            @endif
         @endforeach
     </ul>
 </li>

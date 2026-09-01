@@ -36,6 +36,8 @@
 
             {{-- Hijos dinámicos desde module_sidebar_config --}}
             @foreach($item->dynamic_children ?? collect() as $child)
+                @php($childPermission = $child->permission ?? $item->permission ?? null)
+                @if(!$childPermission || auth()->user()->can($childPermission))
                 <li>
                     <a href="{{ $child->sidebar_url ? url($child->sidebar_url) : url('/' . $child->module_key) }}">
                         <span>
@@ -44,6 +46,7 @@
                         </span>
                     </a>
                 </li>
+                @endif
             @endforeach
         </ul>
     </li>
