@@ -3297,3 +3297,22 @@ exactamente para esto): intenté cerrar #216 a `completado` y el guard lo reenru
 cerrará solo cuando el último de los 3 hijos cierre. Decisión registrada también en
 `circuito:reportar 216 --tipo=decision` (reporte #2247). Sin cambio de código de aplicación — los 3
 sub-items quedan disponibles para que el pool los reclame normalmente.
+
+## 2026-08-31 17:57 — Item #830 (Fase 1a-ii parte 2/2, ciclo fix-drift 555 migraciones): reconfirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-1.** #830 volvió a `en_progreso` reclamado para mí (había pasado por dos ciclos de
+timeout→re-escalación→reap→re-aprobación, `reap_count=1` + 2 timeouts en el log). `circuito:cabida`
+devolvió `CABE [ya_descompuesto]`: una vuelta anterior (también wt-1, 2026-08-31 17:36) ya había
+verificado que los fixes de #822 (`ab7804e0`+`8c938dd1`) están en `main`, y descompuso el trabajo
+real pendiente (colisión `failed_jobs` en `schema:rebuild-dryrun`, posible carrera con #831 sobre
+`megaisp_dryrun` compartida) en el sub-item **#833** (`origen_item_id=830`), que quedó
+`requiere_irving` sin reclamar. El rebote: esa vuelta registró la decisión y creó el sub-item, pero
+nunca intentó el cierre del padre, así que #830 se quedó colgado y el reaper lo re-escaló en bucle.
+
+Mismo mecanismo de "paraguas" ya usado en #208/#216/#738/#745 (guard `saving` 2b de `RoadmapItem`):
+intenté cerrar #830 a `completado` y el guard lo reenrutó solo a `aprobado_irving` +
+`excluir_pool_automatico=true`, dejando en el log el evento `paraguas_abierto` ("le queda 1
+sub-item abierto: no se completa"). Con eso #830 sale del pool de reclamo y se cerrará solo cuando
+#833 cierre. Decisión registrada también en `circuito:reportar 830 --tipo=decision` (reporte
+#3767). Sin cambio de código de aplicación — #833 queda disponible para que el pool lo reclame
+normalmente cuando Irving resuelva sus preguntas pendientes.
