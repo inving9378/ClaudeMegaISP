@@ -3391,3 +3391,23 @@ commit `e5581b67`, encolado con `circuito:integrar` para merge a main.
 #848 queda fuera del pool/reaper hasta que #855/#856/#857 cierren; el hook de cierre en cascada lo
 completará solo. Sin cambio de código de negocio — el trabajo real de la Fase 2 del sidebar sigue
 en los 3 sub-items, pendientes de triaje/aprobación de Irving.
+
+## 2026-09-01 16:27 — Item #859: verificación de permissions:sync-roles --manifests en dev (wt-2)
+
+Sub-item de seguimiento de #852. Su dependencia (#858 — fix de `permissions.description` + extensión
+del glob de `PermissionSyncService::syncFromModuleManifests()` a `Core/*/module.json`) ya estaba
+mergeada en `main` (`3ad8dfdf`) al ramificar #859.
+
+Corrido en dev: `php artisan permissions:sync-roles --manifests`. Snapshot antes/después:
+`permissions` 740→740 (0 nuevos: el glob de Core ya no dejaba huecos), `role_has_permissions`
+3765→3769 (+4: super-administrator y DESARROLLADOR ganaron 2 permisos de prueba de #842 que aún no
+tenían asignados), `model_has_permissions` 4035→4035 (sin cambio). Diff exacto de
+`role_has_permissions` (comparación de conjuntos antes/después): **0 filas eliminadas**, 4 agregadas
+— consistente con la regla de negocio del propio comando (full-access roles reciben TODO). Diff
+puramente aditivo, sin regresiones. Doc completo:
+`docs/permisos-sync-manifests-item-859-verificacion.md` (commit `16bba349`).
+
+Nivel de riesgo C: la rama `circuito/item-859-correr-permissionssync-roles-manifest` quedó
+parqueada como `aprobado_irving` + `esperando_merge_irving=true` (guard del modelo intercepta
+cualquier intento de cerrar a `completado` sin `merge_commit` en nivel C) — fuera del pool/reaper,
+esperando el botón de merge manual de Irving. `reporte_coloquial` y `enlace_revision` ya poblados.
