@@ -3367,3 +3367,27 @@ paraguas NO lo parquea esta vez: cierra de verdad a `completado`. Decisión regi
 comando `schema:rebuild-dryrun` ya está completo y mergeado desde #821/#822; la continuación del
 ciclo fix-drift (555 migraciones corriendo limpias de punta a punta) es descendiente de #822, no
 de #818, y sigue su curso aparte en #830/#833.
+
+## 2026-09-01 16:03 — Item #848: cierre del bucle reap sobre paraguas ya descompuesto (sub-items #855/#856/#857)
+
+Worktree `wt-2`. #848 (sub-item de #843, "Fase 2 - Menu de una sola fuente de verdad: ocultar
+módulo completo si 0 entradas visibles") llevaba 2 timeouts + 1 reap-huérfano en bucle. Una vuelta
+previa (misma `wt-2`, 2026-09-01 15:56) ya había hecho el diagnóstico y la descomposición
+correctos vía `circuito:cabida` (NO CABE) → creó **#855** (envolver `<li>`/`<ul>` completo en el
+`@if` de permiso), **#856** (dynamic_children de `module_sidebar_config` sin chequeo de permiso
+individual — hallazgo nuevo, fila `gestion-red-mikrotik-sync`) y **#857** (aplicar la decisión de
+Irving q2 sobre módulos con landing propia). Pero el proceso se cortó a media escritura del
+reporte, antes de intentar cerrar al padre — el reaper lo re-encoló y el pool lo repartió de nuevo
+sin trabajo propio (mismo bug ya documentado 5 veces: #738/#745/#830/#816/#818).
+
+Esta vuelta: confirmó que los 3 hijos siguen abiertos e intactos (nadie los tocó), ejecutó el
+intento de cierre faltante (`RoadmapItem::find(848)->estado_aprobacion='completado'->save()`), el
+guard de paraguas (`RoadmapItem.php` ~301-326) lo auto-aparcó a `aprobado_irving` +
+`excluir_pool_automatico=true` (confirmado en el log del item, evento `paraguas_abierto`: "le
+quedan 3 sub-item(s) abierto(s)"). Creó branch `circuito/item-848-fase-2-menu-de-una-sola-fuente-de-verd`,
+doc de verificación `docs/roadmap-bucle-reap-item-848-verificacion.md`, entrada en CLAUDE.md,
+commit `e5581b67`, encolado con `circuito:integrar` para merge a main.
+
+#848 queda fuera del pool/reaper hasta que #855/#856/#857 cierren; el hook de cierre en cascada lo
+completará solo. Sin cambio de código de negocio — el trabajo real de la Fase 2 del sidebar sigue
+en los 3 sub-items, pendientes de triaje/aprobación de Irving.
