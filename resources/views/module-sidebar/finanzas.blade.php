@@ -1,11 +1,10 @@
+@if(auth()->user()->canAny(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments',
+         'finance_view_invoices', 'finance_view_general_accounting', 'payments_manage_providers', 'conciliacion.manage']))
 <li>
-    @if(auth()->user()->canAny(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments',
-             'finance_view_invoices', 'finance_view_general_accounting', 'payments_manage_providers', 'conciliacion.manage']))
-        <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="grid"></i>
-            <span data-key="t-finanzas">{{ $item->sidebar_label ?? 'Finanzas' }}</span>
-        </a>
-    @endcanany
+    <a href="javascript: void(0);" class="has-arrow">
+        <i data-feather="grid"></i>
+        <span data-key="t-finanzas">{{ $item->sidebar_label ?? 'Finanzas' }}</span>
+    </a>
     <ul class="sub-menu" aria-expanded="false">
 
         {{-- Finanzas core --}}
@@ -73,3 +72,4 @@
         @endforeach
     </ul>
 </li>
+@endif

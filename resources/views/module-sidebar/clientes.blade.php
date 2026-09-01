@@ -1,10 +1,9 @@
+@if(auth()->user()->canAny(['client_view_dashboard', 'client_view_client', 'client_add_client']))
 <li>
-    @if(auth()->user()->canAny(['client_view_dashboard', 'client_view_client', 'client_add_client']))
-        <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="user-check"></i>
-            <span data-key="t-cliente">{{ $item->sidebar_label ?? 'Clientes' }}</span>
-        </a>
-    @endcanany
+    <a href="javascript: void(0);" class="has-arrow">
+        <i data-feather="user-check"></i>
+        <span data-key="t-cliente">{{ $item->sidebar_label ?? 'Clientes' }}</span>
+    </a>
     <ul class="sub-menu" aria-expanded="false">
         @if(auth()->user()->can('client_view_dashboard'))
             <li>
@@ -38,3 +37,4 @@
         @endforeach
     </ul>
 </li>
+@endif

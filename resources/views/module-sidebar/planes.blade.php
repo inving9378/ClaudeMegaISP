@@ -1,10 +1,9 @@
+@if(auth()->user()->canAny(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package', 'contratables.manage']))
 <li>
-    @if(auth()->user()->canAny(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package', 'contratables.manage']))
-        <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="layers"></i>
-            <span data-key="t-planes">{{ $item->sidebar_label ?? 'Planes' }}</span>
-        </a>
-    @endcanany
+    <a href="javascript: void(0);" class="has-arrow">
+        <i data-feather="layers"></i>
+        <span data-key="t-planes">{{ $item->sidebar_label ?? 'Planes' }}</span>
+    </a>
     <ul class="sub-menu" aria-expanded="false">
         @if(auth()->user()->can('plan_view_internet'))
             <li>
@@ -52,3 +51,4 @@
         @endforeach
     </ul>
 </li>
+@endif
