@@ -3316,3 +3316,26 @@ sub-item abierto: no se completa"). Con eso #830 sale del pool de reclamo y se c
 #833 cierre. Decisión registrada también en `circuito:reportar 830 --tipo=decision` (reporte
 #3767). Sin cambio de código de aplicación — #833 queda disponible para que el pool lo reclame
 normalmente cuando Irving resuelva sus preguntas pendientes.
+
+## 2026-09-01 19:20 — Item #816 (DocumentaciónCorporativa Fase 5d-2, checklist offboarding): reconfirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-1.** #816 volvió a `en_progreso` reclamado para mí vía `reaper-rapido` (`reap_count=1`, "el
+slot wt-1 está libre: reclamo huérfano → re-encolado"). Al leer el item: una vuelta anterior
+(también wt-1, 2026-09-01 13:09) ya había corrido `circuito:cabida` (NO CABE, `ya_timeouteo_antes`)
+y descompuesto el trabajo real en **#839** (backend de los 6 ítems fijos sin tabla propia — correo,
+VPN, WhatsApp, equipo, respaldo, finiquito RH — ejecutable ya) y **#840** (wire de "Otros
+pendientes" en `DcOffboarding.vue`, bloqueado a propósito hasta que #815 tenga `merge_commit` en
+`main`), documentando además por qué no re-escalaba la contradicción de spec #816-depende-de-#815
+que una vuelta aún anterior (`wt-2`) ya había escalado y que Irving resolvió reaprobando #816 sin
+mergear #815. El rebote: esa vuelta registró la decisión y creó los sub-items, pero nunca intentó
+el cierre del padre, así que #816 se quedó `en_progreso` colgado → el reaper lo vio huérfano y lo
+re-encoló a `aprobado_irving`.
+
+Mismo mecanismo de "paraguas" ya usado en #208/#216/#738/#745/#830 (guard `saving` 2b de
+`RoadmapItem`): intenté cerrar #816 a `completado` y el guard lo reenrutó solo a `aprobado_irving`
++ `excluir_pool_automatico=true`, dejando en el log el evento `paraguas_abierto`. Verificado además
+que #815 sigue `aprobado_irving` con rama propia pero sin `merge_commit` — confirma que #840 sigue
+correctamente bloqueado. Con esto #816 sale del pool de reclamo y se cerrará solo cuando #839 y
+#840 cierren. Decisión registrada también en `circuito:reportar 816 --tipo=decision` (reporte
+#3871). Sin cambio de código de aplicación — #839/#840 quedan disponibles para que el pool los
+reclame normalmente cuando Irving resuelva sus preguntas pendientes.

@@ -1429,3 +1429,28 @@ hasta que el hook de cierre en cascada (ya existente, `RoadmapItem.php:459-491`)
 cuando #833 cierre. Detalle en `docs/roadmap-bucle-reap-item-830-verificacion.md`. **Sin cambio de
 código de negocio** — el trabajo técnico real del ciclo fix-drift sigue en #833, pendiente de que
 Irving resuelva sus preguntas estructuradas.
+
+## Item #816 — DocumentaciónCorporativa Fase 5d-2 (checklist offboarding, ítems sin tabla propia) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830, esta vez en la Fase 5d-2 de DocumentaciónCorporativa (ampliar el
+checklist de offboarding de #815 con los 6 ítems sin tabla propia: correo, VPN, WhatsApp, equipo,
+respaldo, finiquito RH). Una vuelta previa (2026-09-01 13:09) ya había hecho lo correcto: corrió
+`circuito:cabida` (NO CABE, `ya_timeouteo_antes`) y descompuso el trabajo en **#839** (backend de
+los 6 ítems fijos, ejecutable ya) + **#840** (wire de "Otros pendientes" en `DcOffboarding.vue`,
+bloqueado a propósito hasta que #815 tenga `merge_commit` en `main` — la contradicción de spec
+"#816 depende de #815 cerrada" ya la había escalado una vuelta aún anterior, `wt-2`, e Irving la
+resolvió reaprobando #816 sin mergear #815). Pero nunca intentó **cerrar** al padre — el guard de
+paraguas del modelo (`RoadmapItem.php` bloque "(2b) PARAGUAS") solo aparca un item descompuesto
+cuando algo intenta activamente `estado_aprobacion = 'completado'` y detecta hijos abiertos. Sin
+ese intento, #816 se quedó `en_progreso` colgado con el `worker_sid` de esa sesión; el reaper de
+huérfanos lo devolvió a `aprobado_irving` (`reap_count=1`) sin que hubiera trabajo propio que
+hacer — mismo síntoma que #738/#745/#830. Verificado: #839 y #840 siguen `requiere_irving`, únicos
+hijos (`origen_item_id=816`), sin reclamar — la descomposición original seguía siendo correcta,
+nadie más la tocó; #815 sigue `aprobado_irving` con rama propia pero sin `merge_commit`, confirma
+que #840 sigue correctamente bloqueado. Corrección: esta vuelta ejecuta el intento de cierre
+faltante; el guard lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true`, sacándolo del
+pool/reaper hasta que el hook de cierre en cascada (ya existente, `RoadmapItem.php:459-491`) lo
+complete solo cuando #839 y #840 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-816-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (backend de los 6 ítems y su wire en la UI de #815) sigue en #839/#840,
+pendiente de que Irving los resuelva.
