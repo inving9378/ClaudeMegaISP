@@ -85,7 +85,10 @@ class PermissionSyncService
         $created = [];
         $synced  = 0;
 
-        $manifests = glob(base_path('app/Modules/Addons/*/module.json'));
+        $manifests = array_merge(
+            glob(base_path('app/Modules/Addons/*/module.json')) ?: [],
+            glob(base_path('app/Modules/Core/*/module.json')) ?: []
+        );
 
         foreach ($manifests as $manifestPath) {
             $manifest    = json_decode(file_get_contents($manifestPath), true);
