@@ -3339,3 +3339,31 @@ correctamente bloqueado. Con esto #816 sale del pool de reclamo y se cerrará so
 #840 cierren. Decisión registrada también en `circuito:reportar 816 --tipo=decision` (reporte
 #3871). Sin cambio de código de aplicación — #839/#840 quedan disponibles para que el pool los
 reclame normalmente cuando Irving resuelva sus preguntas pendientes.
+
+## 2026-09-01 19:20 — Item #818 (Fase 1a-ii, schema:rebuild-dryrun completo): bucle reap sobre paraguas cuyos hijos ya habían cerrado, sin código nuevo
+
+**wt-2.** #818 volvió a `en_progreso` reclamado para mí (`circuito:cabida` devolvió `CABE
+[ya_descompuesto]`). Investigué: sus dos hijos directos (`origen_item_id=818`) llevan cerrados
+y archivados desde el **2026-08-29** — `#821` (construir el comando `schema:rebuild-dryrun`
+completo: candados + drop/recreate + bloque Migrator) y `#822` (correrlo contra `megaisp_dryrun`
+real, catalogar 2 fallas de drift reales y corregirlas). No faltaba descomponer nada nuevo; el
+bucle nació de una carrera de timing distinta a la de #738/#745/#830/#816: el hook de cierre en
+cascada (`RoadmapItem.php:462-491`) sólo completa al padre en el instante exacto en que su
+último hijo cierra, y sólo si el padre está en `aprobado_irving` en ESE momento. `#822` no cerró
+de un tirón — quedó parqueado como paraguas de sus propios nietos (`#830`/`#831`) y sólo alcanzó
+`completado` real el 2026-08-31 18:05:52, cuando `#831` cerró. En ese instante `#818` estaba en
+`requiere_irving` (timeout de las 17:32:09), así que la cascada lo descartó y nunca se disparó.
+Irving volvió a aprobar `#818` el 2026-09-01 13:04:12, pero nadie volvió a intentar el cierre
+después — el hook reacciona al `saved` de un hijo, no a un cambio posterior del padre. Sin ese
+intento, `#818` quedó colgado y el pool lo repartió de nuevo sin trabajo propio (5 timeouts, 2
+reanudaciones documentadas en su log).
+
+Verificado antes de tocar nada: `RoadmapItem::find(818)->tieneSubItemsAbiertos()` = `false`
+(`#821` y `#822` ambos `completado`/`status=done`/`archivado_at` poblado). Corrección: esta
+vuelta ejecuta el intento de cierre faltante — como ya no quedan hijos abiertos, el guard de
+paraguas NO lo parquea esta vez: cierra de verdad a `completado`. Decisión registrada también en
+`circuito:reportar 818 --tipo=decision`. Detalle completo en
+`docs/roadmap-bucle-reap-item-818-verificacion.md`. Sin cambio de código de aplicación — el
+comando `schema:rebuild-dryrun` ya está completo y mergeado desde #821/#822; la continuación del
+ciclo fix-drift (555 migraciones corriendo limpias de punta a punta) es descendiente de #822, no
+de #818, y sigue su curso aparte en #830/#833.
