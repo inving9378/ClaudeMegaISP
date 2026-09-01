@@ -9,7 +9,7 @@ class ModuleSidebarConfig extends Model
     protected $table = 'module_sidebar_config';
 
     protected $fillable = [
-        'module_key', 'show_in_sidebar', 'sidebar_location', 'sidebar_parent',
+        'module_key', 'show_in_sidebar', 'sidebar_location', 'sidebar_parent', 'permission',
         'sidebar_section', 'sidebar_position', 'sidebar_icon', 'sidebar_label',
         'sidebar_url', 'config_moved', 'admin_section', 'configuracion_subsection', 'is_core',
     ];
