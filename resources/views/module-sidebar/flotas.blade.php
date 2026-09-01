@@ -1,4 +1,4 @@
-@if(auth()->user()->canAny(['fleet.view', 'fleet.gps.view']))
+@if(auth()->user()->canAny(['fleet.view', 'fleet.gps.view', 'fleet.geofences.view', 'fleet.notifications.view', 'fleet.rules.view', 'fleet.documents.view', 'fleet.subscriptions.manage']))
     <li>
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="truck"></i>

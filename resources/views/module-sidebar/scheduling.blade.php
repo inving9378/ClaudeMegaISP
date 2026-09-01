@@ -1,4 +1,4 @@
-@if(auth()->user()->canAny(['scheduling_view_scheduling', 'scheduling_task_view_task']))
+@if(auth()->user()->canAny(['scheduling_view_scheduling', 'scheduling_task_view_task', 'scheduling_project_view_project', 'scheduling_view_calendar', 'templatetask_view_templatetask']))
     <li>
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="check-square"></i>

@@ -1,4 +1,4 @@
-@if(auth()->user()->can('voip.view'))
+@if(auth()->user()->canAny(['voip.view', 'voip.troncales.view', 'voip.extensiones.view', 'voip.grupos.view', 'voip.ia-bot.view']))
     <li>
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="phone"></i>
