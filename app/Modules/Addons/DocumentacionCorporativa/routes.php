@@ -5,6 +5,7 @@ use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DcSolicitudController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DocumentoController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\OffboardingOtrosItemsController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PlantillaController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\RegistroEstructuradoController;
@@ -91,5 +92,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/bitacora/data/usuarios', [BitacoraController::class, 'usuariosFiltro'])->name('bitacora.usuarios');
             Route::get('/bitacora/exportar', [BitacoraController::class, 'exportar'])->name('bitacora.exportar');
             Route::get('/bitacora', [BitacoraController::class, 'index'])->name('bitacora.index');
+
+            // Checklist de los 6 ítems fijos de offboarding sin tabla propia
+            // (Fase 5d-2a, item #839). Backend independiente de #815/#840
+            // (UI del apartado XII, aún sin mergear).
+            Route::get('/offboarding/otros-items', [OffboardingOtrosItemsController::class, 'index'])->name('offboarding.otros_items.index');
+            Route::post('/offboarding/otros-items', [OffboardingOtrosItemsController::class, 'marcar'])->name('offboarding.otros_items.marcar');
         });
     });
