@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -21,8 +22,22 @@ return new class extends Migration
         // client_invoice_id hoy tiene índice simple (migración 2026_08_28_192630 de #721, ya
         // corrida en esta BD aunque esa rama no esté mergeada a main). 0 filas pobladas → seguro
         // subirlo a UNIQUE, y sirve de candado real de idempotencia para el backfill de Fase 3b.
+        //
+        // Guard (#854): en la reconstrucción aislada de schema:build-reference la migración de
+        // la rama #721 no corre (no está en main), así que el índice simple puede no existir
+        // todavía — sin este guard, dropIndex truena. Sin efecto en dev/prod real (ahí el
+        // índice simple sí existe porque #721 ya corrió).
+        $indexSimpleExiste = collect(DB::select(
+            "SHOW INDEX FROM invoices WHERE Key_name = 'invoices_client_invoice_id_index'"
+        ))->isNotEmpty();
+
+        if ($indexSimpleExiste) {
+            Schema::table('invoices', function (Blueprint $table) {
+                $table->dropIndex(['client_invoice_id']);
+            });
+        }
+
         Schema::table('invoices', function (Blueprint $table) {
-            $table->dropIndex(['client_invoice_id']);
             $table->unique('client_invoice_id');
         });
     }
