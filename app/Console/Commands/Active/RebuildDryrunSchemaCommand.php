@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Active;
 
+use App\Console\Commands\Concerns\MideContencionDryrun;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\Process\Process;
@@ -28,6 +29,8 @@ use Symfony\Component\Process\Process;
  */
 class RebuildDryrunSchemaCommand extends Command
 {
+    use MideContencionDryrun;
+
     protected $signature = 'schema:rebuild-dryrun
                             {--force : Requerido explícitamente para (re)crear la BD dryrun}';
 
@@ -65,6 +68,7 @@ class RebuildDryrunSchemaCommand extends Command
         }
 
         $this->line("schema:rebuild-dryrun → BD objetivo `{$tempDb}` (drop/recreate vacía)");
+        $this->iniciarMedicionContencion('schema:rebuild-dryrun', $tempDb);
 
         $charset   = $cfg['charset'] ?? 'utf8mb4';
         $collation = $cfg['collation'] ?? 'utf8mb4_unicode_ci';
@@ -73,12 +77,16 @@ class RebuildDryrunSchemaCommand extends Command
         if (!$this->mysql("DROP DATABASE IF EXISTS `{$tempDb}`; CREATE DATABASE `{$tempDb}` CHARACTER SET {$charset} COLLATE {$collation};", $cfg)) {
             $this->error("No se pudo (re)crear la BD `{$tempDb}`. Verifica el grant: "
                 . "GRANT ALL PRIVILEGES ON `{$tempDb}`.* TO '{$cfg['username']}'@'<host>'; FLUSH PRIVILEGES;");
+            $this->cerrarMedicionContencion('schema:rebuild-dryrun', $tempDb, false, 'No se pudo (re)crear la BD (grant)');
             return 1;
         }
         $elapsedRecreate = round(microtime(true) - $start, 2);
         $this->info("BD `{$tempDb}` recreada vacía en {$elapsedRecreate}s. Corriendo migraciones de database/migrations…");
 
-        return $this->runMigrations($cfg, $tempDb, $elapsedRecreate);
+        $exit = $this->runMigrations($cfg, $tempDb, $elapsedRecreate);
+        $this->cerrarMedicionContencion('schema:rebuild-dryrun', $tempDb, $exit === 0);
+
+        return $exit;
     }
 
     /**
