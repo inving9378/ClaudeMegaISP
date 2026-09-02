@@ -3391,3 +3391,29 @@ commit `e5581b67`, encolado con `circuito:integrar` para merge a main.
 #848 queda fuera del pool/reaper hasta que #855/#856/#857 cierren; el hook de cierre en cascada lo
 completará solo. Sin cambio de código de negocio — el trabajo real de la Fase 2 del sidebar sigue
 en los 3 sub-items, pendientes de triaje/aprobación de Irving.
+
+## 2026-09-02 16:18 — Item #829 cerrado (bucle reap sobre paraguas cuyos hijos YA cerraron)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848, esta vez sobre #829 ("Re-analizar
+consumidores+desde-cuándo del diff #216 tras el rebuild limpio de megaisp_dryrun"). Una vuelta
+previa (wt-1, 2026-09-02 15:47) ya había verificado que la precondición del item se cumplió
+(#817/#818 completados, `reference.sql` y `diff-esquema-216.json` regenerados con datos
+confiables) y descompuso el trabajo real en **#868** (8 índices faltantes de
+`api_integrations`/`marketing_generated_content`/`marketing_messages`, migración `89eeba9e`,
+merge `d80e8f9a`) y **#869** (índices/FK de `referral_prospects`/`referrals`: `converted_client_id`,
+`prospect_id`, `chain_path`, `status`, `referred_client_id` unique, migración `9972c6c3`, merge
+`f475af8b`). Ambos hijos ya estaban `completado` y mergeados a `main` antes de que arrancara esta
+vuelta — confirmado en `git log` y en la BD (`origen_item_id=829`, ambos `estado_aprobacion=completado`,
+`status=done`).
+
+Nadie había vuelto a intentar cerrar al padre después de esos merges: el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) solo completa al padre en el instante exacto en que el ÚLTIMO hijo
+cierra, y solo si en ESE momento el padre ya está en `aprobado_irving`. Sin ese intento, #829 quedó
+colgado (`reap_count=5`, 3 aprobaciones de Irving sin que nadie repitiera el cierre) y el reaper lo
+re-encoló/escaló repetidamente sin que hubiera trabajo propio pendiente.
+
+Esta vuelta verificó `tieneSubItemsAbiertos()` = `false` para #829 y ejecutó el intento de cierre
+faltante vía tinker: como ya no quedan hijos abiertos, el guard de paraguas (`RoadmapItem.php`
+bloque "(2b) PARAGUAS", ~301-326) NO lo re-parqueó esta vez — cerró de verdad a `completado`
+(`excluir_pool_automatico` quedó en `false`). Sin cambio de código de aplicación — el trabajo
+técnico real (los índices/FK de drift) ya estaba hecho y mergeado por #868/#869.
