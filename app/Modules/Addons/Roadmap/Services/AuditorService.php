@@ -857,6 +857,9 @@ class AuditorService
             if (($det['andamiaje'] ?? true)) {
                 $gaps = array_merge($gaps, $this->detAndamiaje($modulo, $dir));
             }
+            if (($det['null_safety'] ?? true)) {
+                $gaps = array_merge($gaps, $this->detNullSafety($modulo, $dir));
+            }
         }
 
         if (($det['sin_clasificar'] ?? true)) {
@@ -1110,6 +1113,198 @@ class AuditorService
                 . "(esos son huecos funcionales y van en su propio item). Verifica con `php -l` y que la app "
                 . "siga booteando (`php artisan --version`).",
         ]];
+    }
+
+    // ── Detector 9: null-safety — auth()->user()-> y json_decode() sin guard (#900/#973) ───────
+
+    /**
+     * Dos patrones sin guard contra null, tokenizador `token_get_all` (no regex — frágil con
+     * saltos de línea/comentarios/strings), misma técnica que `EnvRuntimeScanner::llamadasEnv()`
+     * (#790): tokeniza, filtra whitespace/comentarios a un array de índices significativos, camina
+     * la secuencia de tokens.
+     *
+     *  1. `auth()->user()->` SIN `?->` inmediatamente después — el caso real que ya mordió el
+     *     repo (ver CLAUDE.md "DefaultValueRepository.php:35"). Acotado ESTRICTAMENTE a esa
+     *     secuencia exacta (NO se generaliza a "cualquier método que pueda devolver null").
+     *  2. `$var = json_decode(...)` cuyo resultado se usa (`$var->`/`$var[`) sin comprobar null
+     *     antes (caso real: `Module.php` líneas 186/190, ya corregidas). Heurística APROXIMADA:
+     *     ventana de las ~15 líneas siguientes del mismo archivo, no análisis de flujo real —
+     *     la limitación se documenta en el `detalle` de cada gap.
+     */
+    private function detNullSafety(string $modulo, string $dir): array
+    {
+        $porArchivo = [];
+
+        foreach ($this->archivosPhp($dir) as $file) {
+            $src = @file_get_contents($file);
+            $lineasSrc = $src !== false ? @file($file) : false;
+            if (! $src || ! $lineasSrc) {
+                continue;
+            }
+
+            $tokens = @token_get_all($src);
+            $sig    = [];
+            foreach ($tokens as $i => $t) {
+                if (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                    continue;
+                }
+                $sig[] = $i;
+            }
+
+            $hallazgos = [];
+            foreach ($this->authUserSinGuard($tokens, $sig) as $linea) {
+                $hallazgos[] = ['linea' => $linea, 'patron' => 'auth()->user()-> sin ?->', 'contexto' => trim($lineasSrc[$linea - 1] ?? '')];
+            }
+            foreach ($this->jsonDecodeSinGuard($tokens, $sig, $lineasSrc) as $linea) {
+                $hallazgos[] = ['linea' => $linea, 'patron' => 'json_decode() sin guard', 'contexto' => trim($lineasSrc[$linea - 1] ?? '')];
+            }
+            if (! $hallazgos) {
+                continue;
+            }
+            usort($hallazgos, fn ($a, $b) => $a['linea'] <=> $b['linea']);
+            $porArchivo[$file] = $hallazgos;
+        }
+
+        $gaps = [];
+        foreach ($porArchivo as $file => $hallazgos) {
+            $rel   = $this->relativo($file);
+            $lista = '';
+            foreach ($hallazgos as $h) {
+                $lista .= "  - L{$h['linea']} [{$h['patron']}] {$h['contexto']}\n";
+            }
+            $n = count($hallazgos);
+
+            $gaps[] = [
+                'modulo'  => $modulo,
+                'tipo'    => 'null_safety',
+                'clase'   => 'mecanico',
+                'clave'   => 'null-safety:' . $rel,
+                'titulo'  => "{$modulo}: {$n} patrón(es) null-safety sin guard en " . basename($file),
+                'detalle' => "Dos patrones sin guard contra null: `auth()->user()->` sin `?->` inmediatamente "
+                    . "después (el caso real que ya mordió el repo, ver CLAUDE.md \"DefaultValueRepository.php:35\"), "
+                    . "y `\$var = json_decode(...)` cuyo resultado se usa (`\$var->`/`\$var[`) sin comprobar null "
+                    . "antes (caso real: `Module.php` líneas 186/190, ya corregidas). El patrón de json_decode es "
+                    . "una heurística APROXIMADA (ventana de las ~15 líneas siguientes, no análisis de flujo real): "
+                    . "puede haber falsos positivos/negativos — revisar manualmente cada hallazgo antes de corregir.\n\n"
+                    . "Archivo: `{$rel}`\n\nHallazgos:\n{$lista}\n"
+                    . "Corrección aditiva, SIN tocar lógica de negocio: agrega `?->` en el caso 1, o un guard "
+                    . "`if (\$var !== null)` (o `?->`/`??`/`isset()`) antes del uso en el caso 2.",
+            ];
+        }
+
+        return $gaps;
+    }
+
+    /**
+     * `auth()->user()->` SIN `?->` inmediatamente después. Descarta `->auth(`/`::auth(` (no es
+     * el helper global) igual que `EnvRuntimeScanner` descarta `->env(`/`::env(`.
+     *
+     * @return int[] líneas del token `auth` donde se encontró el patrón
+     */
+    private function authUserSinGuard(array $tokens, array $sig): array
+    {
+        $lineas = [];
+        foreach ($sig as $k => $i) {
+            $t = $tokens[$i];
+            if (! is_array($t) || $t[0] !== T_STRING || strtolower($t[1]) !== 'auth') {
+                continue;
+            }
+            $prev = $k > 0 ? $tokens[$sig[$k - 1]] : null;
+            if (is_array($prev) && in_array($prev[0], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR,
+                T_DOUBLE_COLON, T_FUNCTION, T_NEW], true)) {
+                continue;
+            }
+            if (($tokens[$sig[$k + 1] ?? $i] ?? null) !== '(') {
+                continue;
+            }
+            if (($tokens[$sig[$k + 2] ?? $i] ?? null) !== ')') {
+                continue;
+            }
+            $opUser = $tokens[$sig[$k + 3] ?? $i] ?? null;
+            if (! is_array($opUser) || $opUser[0] !== T_OBJECT_OPERATOR) {
+                continue;
+            }
+            $userTok = $tokens[$sig[$k + 4] ?? $i] ?? null;
+            if (! is_array($userTok) || $userTok[0] !== T_STRING || strtolower($userTok[1]) !== 'user') {
+                continue;
+            }
+            if (($tokens[$sig[$k + 5] ?? $i] ?? null) !== '(') {
+                continue;
+            }
+            if (($tokens[$sig[$k + 6] ?? $i] ?? null) !== ')') {
+                continue;
+            }
+            $opFinal = $tokens[$sig[$k + 7] ?? $i] ?? null;
+            if (is_array($opFinal) && $opFinal[0] === T_OBJECT_OPERATOR) {
+                $lineas[] = (int) $t[2];
+            }
+        }
+
+        return $lineas;
+    }
+
+    /**
+     * `$var = json_decode(...)` cuyo resultado se usa sin guard en la ventana de las siguientes
+     * ~15 líneas. Solo rastrea asignación DIRECTA (`$var = json_decode(`) — si el resultado se
+     * pasa inline a otra expresión no se puede identificar la variable de forma mecánica, así
+     * que ese caso se omite (lado seguro: no generar ruido que no se puede verificar).
+     *
+     * @return int[] líneas del `json_decode(` donde se encontró el patrón
+     */
+    private function jsonDecodeSinGuard(array $tokens, array $sig, array $lineasSrc): array
+    {
+        $lineas = [];
+        foreach ($sig as $k => $i) {
+            $t = $tokens[$i];
+            if (! is_array($t) || $t[0] !== T_STRING || strtolower($t[1]) !== 'json_decode') {
+                continue;
+            }
+            $prev = $k > 0 ? $tokens[$sig[$k - 1]] : null;
+            if (is_array($prev) && in_array($prev[0], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR,
+                T_DOUBLE_COLON, T_FUNCTION, T_NEW], true)) {
+                continue;
+            }
+            if (($tokens[$sig[$k + 1] ?? $i] ?? null) !== '(') {
+                continue;
+            }
+            // ¿Asignación directa `$var = json_decode(`?
+            $prevPrev = $k > 1 ? ($tokens[$sig[$k - 2]] ?? null) : null;
+            if ($prev !== '=' || ! is_array($prevPrev) || $prevPrev[0] !== T_VARIABLE) {
+                continue;
+            }
+
+            $var         = $prevPrev[1];
+            $lineaDecode = (int) $t[2];
+            if ($this->usoSinGuardEnVentana($var, $lineaDecode, $lineasSrc)) {
+                $lineas[] = $lineaDecode;
+            }
+        }
+
+        return $lineas;
+    }
+
+    /** ¿`$var` se usa (`->`/`[`) en la ventana de 15 líneas siguientes SIN guard previo en esa misma ventana? */
+    private function usoSinGuardEnVentana(string $var, int $lineaDecode, array $lineasSrc): bool
+    {
+        $fin    = min(count($lineasSrc), $lineaDecode + 15);
+        $varEsc = preg_quote($var, '/');
+
+        for ($ln = $lineaDecode + 1; $ln <= $fin; $ln++) {
+            $texto = $lineasSrc[$ln - 1] ?? '';
+
+            if (preg_match("/{$varEsc}\s*(!==|===)\s*null/", $texto)
+                || preg_match("/{$varEsc}\s*\?->/", $texto)
+                || str_contains($texto, '??')
+                || preg_match("/is_null\(\s*{$varEsc}\s*\)/", $texto)
+                || preg_match("/isset\(\s*{$varEsc}\b/", $texto)) {
+                return false; // guard antes del uso, dentro de la ventana → no es hallazgo
+            }
+            if (preg_match("/{$varEsc}\s*->/", $texto) || preg_match("/{$varEsc}\s*\[/", $texto)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ── Detector 5: items de la Hoja de Ruta sin footprint ─────────────────────────────────────
