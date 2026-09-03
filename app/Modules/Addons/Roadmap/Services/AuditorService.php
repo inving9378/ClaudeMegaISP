@@ -175,8 +175,18 @@ class AuditorService
             return $base + ['corre' => false, 'motivo' => "Escaneado hace poco: faltan ~{$faltan} min para el próximo (intervalo {$intervalo} min{$sequia})."];
         }
 
+        // #980 (Torre 24/7 Pieza 5a-i) — slots_libres AHORA cuenta como razón de disparo por sí
+        // solo: con >= N terminales libres el motor corre aunque la cola no haya bajado del umbral
+        // (pool continuo sin valles, decisión de Irving en #907/#980). Umbral configurable; hasta
+        // que el sub-item de config Torre (#981) exista, usa el fallback inline.
+        $slotsMinDisparo = (int) config('circuito.auditor.slots_libres_min_disparo', 2);
+
+        if ($cola >= $umbral && $slots < $slotsMinDisparo) {
+            return $base + ['corre' => false, 'motivo' => "Cola con {$cola} item(s) reclamables (umbral {$umbral}) y solo {$slots} terminal(es) libre(s) (< {$slotsMinDisparo}): hay trabajo, no hace falta generar."];
+        }
+
         if ($cola >= $umbral) {
-            return $base + ['corre' => false, 'motivo' => "Cola con {$cola} item(s) reclamables (umbral {$umbral}): hay trabajo, no hace falta generar."];
+            return $base + ['corre' => true, 'motivo' => "Cola con {$cola} item(s) reclamables (umbral {$umbral}), pero {$slots} terminal(es) libre(s) (≥ {$slotsMinDisparo}): se dispara para no dejarlas ociosas."];
         }
 
         return $base + ['corre' => true, 'motivo' => "Cola en {$cola} (< umbral {$umbral}) con {$slots} terminal(es) libre(s)."];
