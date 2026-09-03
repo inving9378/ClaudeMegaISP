@@ -2164,6 +2164,38 @@ class RoadmapController extends Controller
         return response()->json(['ok' => true, 'violaciones' => $this->svc->detectarDependenciasVersion()]);
     }
 
+    /**
+     * POST /api/roadmap/integracion/version-construir-rama — #966 Fase 4: construye la rama de
+     * release por cherry-pick de lo marcado (`marcado_version=true`). Operación AISLADA e invocada
+     * a demanda por Irving desde el modal de crear release; NO forma parte del pipeline de deploy
+     * automático. `ignorar_avisos=true` permite continuar aunque `detectarDependenciasVersion()`
+     * haya encontrado violaciones (bajo responsabilidad explícita de quien lo pide).
+     */
+    public function integracionVersionConstruirRama(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'version'         => ['required', 'string', 'max:80'],
+            'nombre_rama'     => ['nullable', 'string', 'max:120'],
+            'ignorar_avisos'  => ['nullable', 'boolean'],
+        ]);
+
+        $version    = trim($data['version']);
+        $nombreRama = trim((string) ($data['nombre_rama'] ?? ''));
+        if ($nombreRama === '') {
+            $nombreRama = 'release/' . preg_replace('/[^A-Za-z0-9_.\-]/', '-', $version);
+        }
+
+        $resultado = $this->svc->construirRamaVersion($nombreRama, $version, (bool) ($data['ignorar_avisos'] ?? false));
+
+        Log::channel('roadmap_externo')->info('integracion-version-construir-rama', [
+            'rama' => $nombreRama, 'version' => $version, 'ok' => $resultado['ok'] ?? false,
+            'motivo' => $resultado['motivo'] ?? null, 'por' => $this->actor(),
+        ]);
+
+        return response()->json($resultado);
+    }
+
     /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */
     public function integracionMerge(Request $request): JsonResponse
     {

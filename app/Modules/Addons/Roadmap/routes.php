@@ -204,6 +204,8 @@ Route::middleware(['web', 'auth'])
         // #933 — armado de versión: candidatos desde el último tag + detector de dependencias.
         Route::get('/integracion/version-candidatos',   [RoadmapController::class, 'integracionVersionCandidatos']);
         Route::get('/integracion/version-dependencias', [RoadmapController::class, 'integracionVersionDependencias']);
+        // #966 Fase 4 — construye la rama de release por cherry-pick de lo marcado (aislado, a demanda).
+        Route::post('/integracion/version-construir-rama', [RoadmapController::class, 'integracionVersionConstruirRama']);
         // Voz (es-*) para 🔊 Escuchar en la Torre (#424).
         Route::post('/integracion/voz',            [RoadmapController::class, 'integracionVoz']);
         // Ciclo de vida / archivo (#334): historial + archivar (individual/masivo) + desarchivar ("quiero verlo")

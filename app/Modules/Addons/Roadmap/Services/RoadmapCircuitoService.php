@@ -3125,4 +3125,111 @@ class RoadmapCircuitoService
 
         return $violaciones;
     }
+
+    /**
+     * #966 Fase 4 — construye la rama de release por cherry-pick de los candidatos marcados
+     * (`marcado_version=true`), en orden CRONOLÓGICO de merge ascendente (mismo `%ct` de
+     * `detectarDependenciasVersion()` — fuera de orden multiplica conflictos, según el propio
+     * item padre). Antes de tocar nada corre `detectarDependenciasVersion()`: con violaciones y
+     * `$ignorarAvisos=false` no construye nada y las devuelve para que el llamador (UI/Irving)
+     * decida "continuar bajo tu responsabilidad" explícitamente.
+     *
+     * Manejo de conflicto — decisión explícita de Irving en el brief de #966 (pregunta "qué
+     * hacer cuando un cherry-pick falla"): NO aborta la construcción entera. Aborta SOLO ese
+     * pick (`cherry-pick --abort`), lo reporta en `fallidos` y CONTINÚA con el resto de los
+     * marcados — la release no queda bloqueada por un item conflictivo, Irving decide después
+     * qué hacer con lo caído. Si NINGÚN marcado logra aplicarse, la rama queda vacía: se borra
+     * (nada que revisar) y el resultado se reporta como fallo total.
+     *
+     * Operación AISLADA e invocada a demanda (su propio endpoint — ver
+     * `RoadmapController::integracionVersionConstruirRama`): NO forma parte del pipeline de
+     * `config/deployment.php`, no hace push, no toca `git_tag`/`git_push` del pipeline existente.
+     * Solo git LOCAL sobre `base_path()` (mismo patrón que `MergeRunner`/`footprintDeRama`).
+     */
+    public function construirRamaVersion(string $nombreRama, string $version, bool $ignorarAvisos = false): array
+    {
+        $violaciones = $this->detectarDependenciasVersion();
+        if ($violaciones !== [] && ! $ignorarAvisos) {
+            return ['ok' => false, 'motivo' => 'dependencias_sin_resolver', 'violaciones' => $violaciones];
+        }
+
+        $marcados = $this->itemsCandidatosVersion()->where('marcado_version', true)->values();
+        if ($marcados->isEmpty()) {
+            return ['ok' => false, 'motivo' => 'sin_candidatos_marcados'];
+        }
+
+        if ($this->git(['rev-parse', '--verify', $nombreRama])->isSuccessful()) {
+            return ['ok' => false, 'motivo' => 'rama_ya_existe', 'rama' => $nombreRama];
+        }
+
+        // Orden cronológico ascendente por fecha real de merge (mismo patrón que $mergedAt en
+        // detectarDependenciasVersion()).
+        $mergedAt = [];
+        foreach ($marcados as $i) {
+            if (empty($i->merge_commit)) {
+                continue;
+            }
+            $p = $this->git(['log', '-1', '--format=%ct', $i->merge_commit]);
+            $mergedAt[$i->id] = $p->isSuccessful() ? (int) trim($p->getOutput()) : 0;
+        }
+        $ordenados = $marcados->sortBy(fn (RoadmapItem $i) => $mergedAt[$i->id] ?? 0)->values();
+
+        $ramaOrigen = trim($this->git(['rev-parse', '--abbrev-ref', 'HEAD'])->getOutput());
+        if ($ramaOrigen === '' || $ramaOrigen === 'HEAD') {
+            $ramaOrigen = 'main';
+        }
+
+        $tag  = $this->ultimoTag();
+        $base = $tag ?: 'main';
+
+        if (! $this->git(['checkout', '-b', $nombreRama, $base])->isSuccessful()) {
+            return ['ok' => false, 'motivo' => 'no_se_pudo_crear_rama', 'base' => $base];
+        }
+
+        $incluidos = [];
+        $fallidos  = [];
+        foreach ($ordenados as $item) {
+            if (empty($item->merge_commit)) {
+                $fallidos[] = ['item_id' => (int) $item->id, 'title' => $item->title, 'motivo' => 'sin_merge_commit'];
+                continue;
+            }
+
+            $pick = $this->git(['cherry-pick', '-m', '1', $item->merge_commit]);
+            if ($pick->isSuccessful()) {
+                $incluidos[] = ['item_id' => (int) $item->id, 'title' => $item->title, 'merge_commit' => $item->merge_commit];
+                continue;
+            }
+
+            $conflicto = trim($this->git(['diff', '--name-only', '--diff-filter=U'])->getOutput());
+            $this->git(['cherry-pick', '--abort']);
+            $fallidos[] = [
+                'item_id'      => (int) $item->id,
+                'title'        => $item->title,
+                'merge_commit' => $item->merge_commit,
+                'motivo'       => 'conflicto_cherry_pick',
+                'archivos'     => array_values(array_filter(preg_split('/\R/', $conflicto))),
+            ];
+        }
+
+        if ($incluidos === []) {
+            $this->git(['checkout', $ramaOrigen]);
+            $this->git(['branch', '-D', $nombreRama]);
+
+            return ['ok' => false, 'motivo' => 'ningun_cherry_pick_aplico', 'fallidos' => $fallidos, 'base' => $base];
+        }
+
+        // Tag SOBRE la rama de release (HEAD sigue ahí), nunca sobre main.
+        $tagResult = $this->git(['tag', '-a', $version, '-m', "Release {$version}"]);
+        $this->git(['checkout', $ramaOrigen]);
+
+        return [
+            'ok'         => true,
+            'rama'       => $nombreRama,
+            'base'       => $base,
+            'version'    => $version,
+            'tag_creado' => $tagResult->isSuccessful(),
+            'incluidos'  => $incluidos,
+            'fallidos'   => $fallidos,
+        ];
+    }
 }
