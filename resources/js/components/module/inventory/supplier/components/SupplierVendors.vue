@@ -45,7 +45,7 @@
 <script>
 import Datatable from "../../../../base/shared/Datatable.vue";
 import DatatableHelper from "../../../../../helpers/datatableHelper";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import SupplierVendorsCrud from "./SupplierVendorsCrud.vue";
 import Swal from "sweetalert2";
 import axios from "axios";
@@ -60,6 +60,10 @@ export default {
         },
     },
     setup(props) {
+        const ns = `.leak983-supplierVendors-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Vendedor");
         const action = ref(`/inventory/supplier/${props.supplierId}/vendors/add`);
         const editId = ref(null);
@@ -70,13 +74,13 @@ export default {
         });
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function (e) {
+            $(document).on("click" + ns, ".uil-pen-modal", function (e) {
                 e.stopPropagation();
                 const idItem = $(this).attr("id-item");
                 showEditModal(idItem);
             });
 
-            $(document).on("click", ".btn-delete-item", async function (e) {
+            $(document).on("click" + ns, ".btn-delete-item", async function (e) {
                 e.stopPropagation();
                 e.preventDefault();
                 
@@ -90,7 +94,7 @@ export default {
                 await deleteVendor(idItem);
             });
 
-            $(document).on("click", "#table-datatable tbody tr", function (e) {
+            $(document).on("click" + ns, "#table-datatable tbody tr", function (e) {
                 if (
                     $(e.target).closest(
                         "a, button, input[type='checkbox'], .uil-pen-modal, .btn-delete-item"
@@ -99,7 +103,7 @@ export default {
             });
 
             $(document).on(
-                "mouseenter",
+                "mouseenter" + ns,
                 "#table-datatable tbody tr",
                 function () {
                     $(this).css("cursor", "pointer");

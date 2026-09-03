@@ -48,7 +48,7 @@
 <script>
 import Datatable from "../../../base/shared/Datatable";
 import InventoryItemTypeCrud from "./InventoryItemTypeCrud";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 
 export default {
@@ -57,6 +57,10 @@ export default {
     props: {
     },
     setup(props) {
+        const ns = `.leak983-inventoryItemTypeListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Tipo de Articulo");
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -65,7 +69,7 @@ export default {
         const reloadCrud = ref(true);
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(idItem, modal);

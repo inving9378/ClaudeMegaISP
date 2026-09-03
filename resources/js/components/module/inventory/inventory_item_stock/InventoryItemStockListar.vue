@@ -171,7 +171,7 @@
 <script>
 import Datatable from "../../../base/shared/Datatable.vue";
 import InventoryItemCrud from "./InventoryItemCrud.vue";
-import {onMounted, reactive, ref} from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import Form from "../../../../helpers/Form";
 import SelectComponentWithCheckbox from "../../../../shared/SelectComponentWithCheckbox.vue";
@@ -201,6 +201,10 @@ export default {
         url_base: String,
     },
     setup(props) {
+        const ns = `.leak983-inventoryItemStockListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Articulo");
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -212,25 +216,25 @@ export default {
         });
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let id = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(id, modal);
             });
-            $(document).on("click", ".change_item_store", function () {
+            $(document).on("click" + ns, ".change_item_store", function () {
                 let id = $(this).parent().attr("id-item");
                 showChangeStoreModal(id);
             });
-            $(document).on("click", ".change_item_stock", function () {
+            $(document).on("click" + ns, ".change_item_stock", function () {
                 let id = $(this).parent().attr("id-item");
                 showChangeItemStock(id);
             });
 
-            $(document).on("click", ".inventory_item_image", function () {
+            $(document).on("click" + ns, ".inventory_item_image", function () {
                 let id = $(this).parent().attr("id-item");
                 showMediaItem(id);
             });
-            $(document).on("click", ".change_zone", function () {
+            $(document).on("click" + ns, ".change_zone", function () {
                 const $a = $(this).closest("a");
                 showEditZone({
                     inventory_store_id: $a.data("inventory-store-id"),

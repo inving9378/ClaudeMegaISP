@@ -14,7 +14,7 @@
 
 <script>
 import Datatable from "../../../base/shared/Datatable";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import TemplateManager from "./TemplateManager.vue";
 import { action } from "./helper";
@@ -24,23 +24,27 @@ export default {
     components: { Datatable, TemplateManager },
     props: { filters: String },
     setup(props) {
+        const ns = `.leak983-documentTemplateListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
         const reloadCrud = ref(true);
 
         onMounted(async () => {
-            $(document).on("click", "#addTemplateManager", function () {
+            $(document).on("click" + ns, "#addTemplateManager", function () {
                 action.value = "/administracion/document_template/add";
                 showModal();
             });
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 action.value = `/administracion/document_template/update/${idItem}`;
                 showModal();
             });
             $(document).on(
-                "click",
+                "click" + ns,
                 `.show_document_template_pdf`,
                 async function () {
                     let idItem = $(this).parent().attr("id-item");
