@@ -488,6 +488,30 @@ class JarvisService
     }
 
     /**
+     * #978 — Defecto 2 de #902 (FASE 4a). Antes los dos carriles («ya decidido» y mecánico) usaban
+     * el MISMO mensaje fijo cuando `TorreAutomationPolicy::estadoInicial()` devolvía
+     * `requiere_irving`, sin decir si la retención fue por una FRONTERA DURA real (dinero/seguridad/
+     * permisos/producción) o simplemente porque el `nivel_riesgo` del item excede el techo
+     * configurado de ese carril — dos causas muy distintas que en la bandeja de Irving se veían
+     * idénticas. Decisión de Irving (opción 1 del brief, `circuito:reportar --tipo=decision`):
+     * prefijo `[FRONTERA DURA]` / `[TECHO NIVEL X]` + razón corta, sin tocar veredicto ni política.
+     */
+    private function mensajeTechoOFrontera(RoadmapItem $item, string $actor, string $etiquetaCarril): string
+    {
+        $det = $this->fronteraDuraDeItemDetalle($item);
+
+        if ($det['categoria'] !== null) {
+            return "[FRONTERA DURA] La política de la Torre no autoriza este nivel por el carril «{$etiquetaCarril}»: "
+                . "retenido por frontera dura «{$det['categoria_detectada']}», término «{$det['termino']}» — {$det['motivo']}";
+        }
+
+        $techo = app(TorreAutomationPolicy::class)->nivelEfectivo($actor) ?? 'manual';
+
+        return "[TECHO NIVEL {$item->nivel_riesgo}] La política de la Torre no autoriza este nivel por el carril «{$etiquetaCarril}»: "
+            . "el item es {$item->nivel_riesgo}, el techo del carril es {$techo}.";
+    }
+
+    /**
      * #566 E2 — LA DECISIÓN YA ESTÁ TOMADA, el item sólo no avanzó.
      *
      * El autopilot audita 25 items de la bandeja y 11 salen con «no quedan preguntas sin responder
@@ -722,7 +746,7 @@ class JarvisService
         // sub-techo nace en `C` justamente para no apagar ese comportamiento al construir el panel.
         $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'jarvis.ya_decidido');
         if ($estado === 'requiere_irving') {
-            return $no('La política de la Torre no autoriza este nivel por el carril «ya decidido».');
+            return $no($this->mensajeTechoOFrontera($item, 'jarvis.ya_decidido', 'ya decidido'));
         }
 
         return [
@@ -827,7 +851,7 @@ class JarvisService
         $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'jarvis.mecanico');
         if ($estado === 'requiere_irving') {
             return ['aprobado' => false, 'estado' => null,
-                'motivo' => 'La política de la Torre no autoriza este nivel por el carril mecánico.'];
+                'motivo' => $this->mensajeTechoOFrontera($item, 'jarvis.mecanico', 'mecánico')];
         }
 
         $log = $item->log ?: [];
