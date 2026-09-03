@@ -1558,3 +1558,26 @@ abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
 `docs/roadmap-bucle-reap-item-878-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo técnico real (implementar el re-armado del freno de sequía + exponerlo en Torre →
 Configuración) sigue en #891, pendiente de que Irving decida su brief de 4 preguntas.
+
+## Item #906 — Defecto 2 de #902 (mensajes de escalada nombran el candado equivocado) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#905/#878. #906 pedía corregir los 4 mensajes de
+escalada del circuito que siempre dicen "la política no permite este nivel" aunque la causa real
+sea una frontera dura y no un techo de nivel (`RevisorService.php:224` y `:1077`,
+`JarvisService.php:725` y `:830`). Una vuelta previa (`wt-2`, 2026-09-03 15:24) ya hizo lo correcto:
+corrió `circuito:cabida` (NO CABE, histórico ~2399s) y descompuso el trabajo **por archivo** para
+que no se pisaran entre sí — **#978** (`JarvisService.php`: carriles "ya decidido" y "mecánico") y
+**#979** (`RevisorService.php`: `aplicarVeredicto()` y el carril des-trabador), cada uno con el
+detalle de `fronteraDuraDeItemDetalle()`/`nivelEfectivo()` a usar y su propia verificación. Pero esa
+vuelta nunca intentó **cerrar** #906 tras crear los sub-items — quedó `en_progreso` colgado con el
+`worker_sid` de esa sesión; el reaper lo vio con el slot libre y lo re-encoló (`reap_count=1`), y el
+pool lo repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta: #978
+(`origen_item_id=906`) sigue `requiere_irving` sin reclamar, #979 sigue `aprobado_revisor` sin
+reclamar — la descomposición original seguía siendo correcta, nadie más la tocó. Corrección: esta
+vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS",
+~301-326) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 2 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta
+que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #978 y #979
+cierren. Detalle en `docs/roadmap-bucle-reap-item-906-verificacion.md`. **Sin cambio de código de
+negocio** — el trabajo técnico real (distinguir frontera dura vs. techo de nivel en los 4 mensajes)
+sigue en #978 (pendiente de que Irving lo apruebe) y #979 (`aprobado_revisor`, listo para tomarse).
