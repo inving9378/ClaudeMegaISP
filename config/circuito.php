@@ -915,6 +915,14 @@ return [
         'min_intervalo_minutos' => (int) env('CIRCUITO_AUDITOR_INTERVALO', 15),
 
         /*
+        | Slots libres mínimos para que el auditor dispare (Torre 24/7 Pieza 5a-ii, item #981).
+        | Default de fábrica que la migración de `torre_config` lee al sembrar la fila. Editable
+        | después desde Torre → Configuración (columna `auditor_slots_libres_min`), que manda una
+        | vez migrada.
+        */
+        'slots_libres_min_disparo' => (int) env('CIRCUITO_AUDITOR_SLOTS_LIBRES_MIN', 2),
+
+        /*
         | LOS DOS CARRILES (inventario de módulos, 2026-08-08).
         |
         | `paralelo`: módulos con acoplamiento ~0 (nadie los consume, no consumen a nadie) → sus
