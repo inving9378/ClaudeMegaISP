@@ -1806,6 +1806,14 @@ class RoadmapItem extends Model
                 'describe' => fn ($v) => 'su prioridad es ' . $v,
             ],
             [
+                // #987 (Pieza 5b FASE 3) — este es el mecanismo que hace FIFO a los hallazgos del
+                // barrido: ni `RoadmapIntakeService::crear()` ni `circuito:sub-item` tocan
+                // `position` (queda en su default de columna, 0), así que entre hallazgos —y entre
+                // cualquier item sin `position` explícita— el desempate real es `id ASC` = orden de
+                // creación. No hace falta cola dedicada: verificado con prueba real (transacción con
+                // rollback) que 3 hallazgos de módulos distintos salen de `ejecutablesParalelo()` en
+                // el mismo orden en que se crearon, y que una `priority` puesta a mano SÍ los
+                // adelanta (criterio de arriba) — comportamiento vigente y deseado, no un bug.
                 'label'    => 'antigüedad',
                 'orderBy'  => fn ($q) => $q->orderBy('position')->orderBy('id'),
                 'valor'    => fn (self $i) => $i->position,
