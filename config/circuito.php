@@ -1183,6 +1183,38 @@ return [
     ],
 
     /*
+    |---------------------------------------------------------------------------------------------
+    | "MODO BARRIDO" — Torre 24/7 Pieza 5b (#908), FASE 2a (#985): disparador + candado de un solo
+    | barrido + rotación de módulo. NO espera a que #907/#980 (slots_libres como disparador de
+    | primera clase del auditor) estén implementados — usa directo los métodos públicos ya vivos de
+    | `AuditorService` (`slotsLibres()`, `rachaSeca()`, `profundidadCola()`).
+    |
+    | El barrido en sí (explorar el módulo elegido y crear hallazgos, FASE 2b/#986) y el despacho
+    | FIFO de esos hallazgos (FASE 3/#987) son items aparte. Este bloque sólo gobierna CUÁNDO entrar
+    | en modo barrido, que SÓLO una terminal lo haga a la vez, y QUÉ módulo le toca.
+    |---------------------------------------------------------------------------------------------
+    */
+    'barrido' => [
+        // Pool "seco" = cola reclamable (AuditorService::profundidadCola()) en o por debajo de
+        // esto. Con cola real, barrer no tiene sentido: sobra trabajo de verdad que despachar.
+        'cola_max_para_barrer' => (int) env('CIRCUITO_BARRIDO_COLA_MAX', 0),
+
+        // Además de la cola vacía, exige que la racha seca del auditor (misma señal que ya alarga
+        // su intervalo, #1015) haya cruzado esto — evita disparar barrido por un valle momentáneo
+        // de la cola que se vuelve a llenar al minuto siguiente.
+        'racha_seca_min' => (int) env('CIRCUITO_BARRIDO_RACHA_MIN', 1),
+
+        // Terminales libres (AuditorService::slotsLibres()) mínimas para que valga la pena
+        // dedicar una a explorar en vez de esperar.
+        'slots_libres_min' => (int) env('CIRCUITO_BARRIDO_SLOTS_MIN', 1),
+
+        // TTL del candado single-flight (`circuito_barrido_en_curso` en `settings`): un barrido
+        // que no se libera en este tiempo se trata como HUÉRFANO (terminal caída a medio barrido)
+        // y deja de bloquear — ver `BarridoService::leerCandado()`.
+        'candado_ttl_min' => (int) env('CIRCUITO_BARRIDO_CANDADO_TTL_MIN', 25),
+    ],
+
+    /*
     | #432 Fase 3 — Brief COMPLETO (multi-pregunta). ON: la bandeja usa la columna JSON `preguntas`
     | (varias preguntas por item) y la escalación las puebla TODAS de una. OFF: fallback al modelo
     | viejo de una sola `opciones`/`opcion_elegida`. Un item SIN `preguntas` cae al fallback aunque
