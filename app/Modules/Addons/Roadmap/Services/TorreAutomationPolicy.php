@@ -414,9 +414,10 @@ class TorreAutomationPolicy
             // que ya no están vigentes.
             'topes_duros'          => array_keys(app(FronterasService::class)->mapa()),
             'auditor'              => [
-                'activo'          => $cfg->auditor_activo,
-                'max_por_corrida' => $cfg->auditor_max_por_corrida,
-                'cooldown_min'    => $cfg->auditor_cooldown_min,
+                'activo'            => $cfg->auditor_activo,
+                'max_por_corrida'   => $cfg->auditor_max_por_corrida,
+                'cooldown_min'      => $cfg->auditor_cooldown_min,
+                'slots_libres_min'  => $cfg->auditor_slots_libres_min,
             ],
         ];
     }
