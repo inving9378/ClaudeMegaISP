@@ -182,6 +182,28 @@ return [
     | (con semáforo de builds). `max_builds` = builds npm simultáneos máx (CPU de 4 cores).
     */
     'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
+
+    /*
+    | Item #916 (sub-item de #911) — CUÁNTAS terminales pueden trabajar el MISMO módulo a la vez.
+    |
+    | `1` = comportamiento histórico (un módulo, una terminal). Subirlo destraba la flota cuando la
+    | cola se concentra en un módulo —el caso real: 31 items despachables, TODOS de
+    | `Roadmap / Circuito CC`, con 4 terminales libres y 0 reclamables—, porque el techo de
+    | ocupación no lo marcaba el trabajo disponible sino la variedad de módulos.
+    |
+    | La serialización por módulo es un PRE-FILTRO conservador, no la protección real: la colisión
+    | de verdad la detecta `detectarColisionesEnVuelo()` comparando el diff de archivos de cada rama
+    | en vuelo, agnóstico de módulo, en cada pasada del scheduler.
+    |
+    | PRECONDICIÓN CUMPLIDA para subirlo de 1: el candado de esquema de #915
+    | (`GuardedMigrateCommand::conCandadoDeEsquema`) serializa los `migrate` entre worktrees, que es
+    | el único riesgo de CORRUPCIÓN real (la base `megaisp` es compartida por los 6 worktrees).
+    | PENDIENTE #913: el detector sólo ve trabajo ya COMMITEADO, así que dos terminales del mismo
+    | módulo pueden editar el mismo archivo sin verse hasta el merge. Ese riesgo es ACOTADO
+    | (conflicto de merge y una vuelta perdida, nunca corrupción: cada worktree es un checkout
+    | aparte), y por eso este valor sube GRADUALMENTE y se mide antes de subirlo más.
+    */
+    'paralelo_mismo_modulo' => max(1, (int) env('CIRCUITO_PARALELO_MISMO_MODULO', 1)),
     'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
 
     // #938 — límite real de una vuelta (lo aplica `timeout` en deploy/circuito/vuelta.sh vía
