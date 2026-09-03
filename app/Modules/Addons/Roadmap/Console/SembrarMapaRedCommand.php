@@ -82,8 +82,8 @@ TXT;
         $dry  = (bool) $this->option('dry-run');
         $defs = $this->definiciones();
 
-        if (count($defs) !== 29) {
-            $this->error('Definiciones incompletas: se esperaban 29, hay ' . count($defs) . '.');
+        if (count($defs) !== 32) {
+            $this->error('Definiciones incompletas: se esperaban 32, hay ' . count($defs) . '.');
             return self::FAILURE;
         }
 
@@ -166,11 +166,21 @@ TXT;
 
         $this->newLine();
         $this->table(['id', 'código', 'título', 'nivel', 'estado', 'padre', ''], $filas);
+
+        // Parches a items ya sembrados (D31/D32 en MR-00, rúbrica en MR-27, reversión en MR-28).
+        $parches = $this->aplicaParches($dry);
         $this->newLine();
-        $this->line("Creados: <info>{$creados}</info>   Omitidos (ya existían): <comment>{$omitidos}</comment>   Total definido: 29");
+        $this->line('<comment>Parches a items ya sembrados</comment>');
+        $this->table(['id', 'código', 'qué', 'resultado'], $parches);
+
+        $aplicados = count(array_filter($parches, fn ($f) => $f[3] === 'aplicado'));
+
+        $this->newLine();
+        $this->line("Creados: <info>{$creados}</info>   Omitidos (ya existían): <comment>{$omitidos}</comment>   Total definido: " . count($defs));
+        $this->line("Parches aplicados: <info>{$aplicados}</info> de " . count($parches));
 
         if (! $dry) {
-            $this->warn('Los 29 quedaron con excluir_pool_automatico=true: la Torre NO los despachará.');
+            $this->warn('Los ' . count($defs) . ' quedaron con excluir_pool_automatico=true: la Torre NO los despachará.');
             $this->warn('Para arrancar, liberar MR-01 desde la Torre. La ejecución es una sesión aparte.');
         }
 
@@ -191,12 +201,67 @@ TXT;
      */
     private function sincronizaCanal(string $prompt): string
     {
+        return $this->cuerpoSinCanal($prompt) . "\n\n" . self::CANAL_RESPUESTA;
+    }
+
+    /**
+     * El `prompt` sin su bloque de canal: todo lo que hay antes del encabezado. Sirve para agregar
+     * texto AL CUERPO sin que quede debajo del canal (que siempre va al final).
+     */
+    private function cuerpoSinCanal(string $prompt): string
+    {
         $marca = '## Canal de respuesta (obligatorio)';
         if (($pos = mb_strpos($prompt, $marca)) !== false) {
             $prompt = mb_substr($prompt, 0, $pos);
         }
 
-        return rtrim($prompt) . "\n\n" . self::CANAL_RESPUESTA;
+        return rtrim($prompt);
+    }
+
+    /**
+     * PARCHES a items YA sembrados, para cerrar huecos sin re-sembrar ni tocar su alcance.
+     *
+     * Cada parche declara la `marca` que prueba que ya está aplicado: si el campo la contiene, no
+     * se escribe. Por eso la segunda corrida del comando no toca nada (DoD de idempotencia).
+     */
+    private function aplicaParches(bool $dry): array
+    {
+        $filas = [];
+
+        foreach ($this->parches() as $p) {
+            $item = RoadmapItem::find($p['id']);
+
+            if (! $item) {
+                $filas[] = [$p['id'], $p['codigo'], $p['que'], 'FALTA el item'];
+                continue;
+            }
+
+            $actual = (string) $item->{$p['campo']};
+
+            if (mb_strpos($actual, $p['marca']) !== false) {
+                $filas[] = [$item->id, $p['codigo'], $p['que'], 'ya aplicado'];
+                continue;
+            }
+
+            if ($dry) {
+                $filas[] = [$item->id, $p['codigo'], $p['que'], 'se aplicaría'];
+                continue;
+            }
+
+            if ($p['campo'] === 'prompt') {
+                // Al cuerpo, nunca debajo del canal: el canal se corta y se repega al final.
+                $item->prompt = $this->sincronizaCanal(
+                    $this->cuerpoSinCanal($actual) . "\n\n" . rtrim($p['texto'])
+                );
+            } else {
+                $item->{$p['campo']} = rtrim($actual) . "\n\n" . rtrim($p['texto']);
+            }
+
+            $item->save();
+            $filas[] = [$item->id, $p['codigo'], $p['que'], 'aplicado'];
+        }
+
+        return $filas;
     }
 
     /**
@@ -777,6 +842,252 @@ se registra item nuevo.
 TXT,
         ],
 
+        // ───────── CIERRE DE SIEMBRA (2026-09-03) — rúbrica, contingencia y seguimiento ─────────
+        //
+        // No son "fase 7": son los tres huecos que quedaban abiertos para que nada se decida
+        // después. MR-29 congela CÓMO se compara antes de comparar; MR-30 escribe qué se hace si
+        // el piloto reprueba, antes de que la frustración decida por nosotros; MR-31 pone la épica
+        // bajo la mirada periódica del Supervisor.
+
+        [
+            'codigo' => 'MR-29', 'nivel' => 'B', 'priority' => 'media',
+            'modulo' => 'Mapa de Red', 'estado' => 'aprobado_irving',
+            'title'  => 'MR-29 — Rúbrica de comparación congelada (la tabla que MR-27 va a llenar)',
+            'description' => <<<'TXT'
+Congela **hoy**, antes de que exista el resultado, los criterios con los que MR-27 va a decidir qué
+módulo gana. Una rúbrica escrita después de ver los números no es una rúbrica: es una justificación.
+
+Este item **no compara nada**. Sólo deja la tabla lista, con umbrales numéricos, la evidencia que
+prueba cada fila y quién la firma.
+
+## Rúbrica de comparación — Mapas vs MAPA DE RED
+
+| # | Criterio | Umbral (se aprueba si…) | Evidencia que lo prueba | Quién firma |
+|---|---|---|---|---|
+| 1 | Paridad de conteo por tipo de elemento entre `Mapas` y `mapared_*` | **Tolerancia 0**: el conteo coincide exactamente para cada tipo (pack, cupboard, junction_box, source, splitter, equipo activo/pasivo) | Query de conteo por tipo lado a lado, pegada en el item, más la lista de omitidos de MR-05 con su motivo | Terminal MR-27 |
+| 2 | Elementos huérfanos en el módulo nuevo | **0** elementos con padre inexistente, `lat`/`lng` nulos o en (0,0) que no vinieran ya así del origen | Query de huérfanos sobre `mapared_*`, contrastada con la misma query sobre el módulo viejo | Terminal MR-27 |
+| 3 | Trazo OLT→ONT en la zona piloto `T-TULTITLAN-FO96-*` | **100%** de las NAPs de la zona resuelven cadena completa hasta el puerto PON | Salida del motor de MR-16 para cada NAP de la zona, con la lista de las que fallan (debe quedar vacía) | Terminal MR-27, valida Irving |
+| 4 | Alta de una NAP nueva | **≤ 3 pasos** de principio a fin, sin escribir el nombre a mano | Screenshot de la secuencia completa (clic en el mapa → tipo + splitter → guardar) | **Irving** (visual) |
+| 5 | Carga del mapa con todos los elementos de Tultitlán visibles | **≤ 3 s** hasta que el mapa es usable | Medición repetible (3 corridas, se reporta la peor) + screenshot con el contador visible | **Irving** (visual) |
+| 6 | Presupuesto óptico calculado vs. RX real de MultiOLT | Desviación **≤ 3 dB** en **al menos 20 ONUs** | Tabla de las 20+ ONUs con calculado, real y diferencia; las que se pasen quedan explicadas una por una | Terminal MR-27 |
+
+## Regla de desempate
+
+**Si el módulo nuevo no gana en TODOS los criterios, no se retira el viejo y MR-28 no se ejecuta.**
+No hay promedio, ni "ganó en 5 de 6", ni empate a favor del nuevo por ser el nuevo. Un solo criterio
+reprobado activa **MR-30 (contingencia)** y los dos módulos siguen conviviendo.
+TXT,
+            'prompt' => <<<'TXT'
+⚠️ Este item **NO compara** los módulos y **NO mide** nada. Comparar es MR-27.
+
+Su trabajo es dejar la rúbrica de la `description` **operativa**: que cada uno de los 6 criterios
+tenga identificada, hoy, la fuente concreta con la que se va a medir en el sistema real.
+
+Para cada fila de la tabla, anotá en `comentarios_claude` **con qué se mide**:
+
+- Criterios 1 y 2: la query exacta (tabla y columnas reales, verificadas contra el esquema que dejó
+  MR-04), no una descripción de la query.
+- Criterio 3: qué endpoint o servicio de MR-16 se invoca y cómo se enumeran las NAPs de la zona
+  piloto.
+- Criterios 4 y 5: qué pantalla se abre y qué se captura, para que Irving pueda firmarlos sin
+  interpretar.
+- Criterio 6: de dónde sale el RX real (MultiOLT, D18 — **no** un lector propio) y cómo se emparejan
+  las ONUs con su trazo.
+
+Si algún criterio **no se puede medir todavía** porque el item que lo habilita aún no cerró, se
+anota así explícitamente, con el item del que depende. Eso no es un fallo: es el estado real.
+
+**Prohibido** cambiar umbrales, agregar criterios o quitar filas. La rúbrica está congelada — si
+creés que un umbral está mal, abrí un item de respuesta y dejá la tabla intacta.
+
+**DoD:** las 6 filas con su fuente de medición anotada y verificada contra el sistema real, o
+marcadas como bloqueadas con el item del que dependen. Cero mediciones ejecutadas.
+TXT,
+        ],
+
+        [
+            'codigo' => 'MR-30', 'nivel' => 'B', 'priority' => 'media',
+            'modulo' => 'Mapa de Red', 'estado' => 'aprobado_irving',
+            'title'  => 'MR-30 — Contingencia si el piloto falla (qué se hace cuando MR-29 reprueba)',
+            'description' => <<<'TXT'
+Escribe **hoy** qué pasa si el módulo nuevo no aprueba la rúbrica de MR-29, para que esa decisión no
+se tome en caliente, con el trabajo ya hecho encima y las ganas de cerrarlo.
+
+## Qué se hace si MR-29 reprueba
+
+1. **Los dos módulos se quedan conviviendo.** `MR-28 no corre.` No se oculta, no se deshabilita y
+   no se borra nada del módulo viejo. La convivencia era el plan desde D1; volver a ella no es un
+   retroceso, es el estado seguro.
+2. **Se abre un item `[RESPUESTA]` contra #936** con: qué criterios reprobaron, el número medido
+   contra el umbral, y la **causa raíz** de cada uno (no "faltó tiempo": qué falta técnicamente).
+3. **El módulo nuevo queda marcado como `beta` en el sidebar**, visible y usable, no retirado. Quien
+   lo abra debe saber que todavía no es la fuente de verdad.
+4. Se decide con Irving si el trabajo restante justifica otra ronda, y esa ronda nace como items
+   nuevos hijos de #936 — nunca reabriendo los ya cerrados.
+
+## Lo que NO se hace
+
+**Nadie borra nada por frustración ni por antigüedad del item.** Que la épica lleve meses abierta no
+es un argumento técnico. Que el módulo nuevo "ya casi" pase la rúbrica tampoco: el umbral es el
+umbral. Un item viejo no se cierra retirándole el alcance.
+TXT,
+            'prompt' => <<<'TXT'
+Este item se ejecuta **sólo si MR-29 reprueba** (uno o más criterios por debajo de su umbral). Si
+MR-29 aprueba en todo, se cierra como no aplicable, citando el resultado de MR-27.
+
+Cuando aplique:
+
+1. Verificá que **MR-28 no se haya ejecutado**. Si alguien ya corrió el Tiempo 1 (módulo oculto o
+   `module_registry.enabled=false`), **revertilo**: `keep_data:true` garantiza que los datos siguen
+   ahí, y los permisos Spatie nunca se tocaron.
+2. Abrí **un** item `[RESPUESTA]` contra #936 con la lista de criterios reprobados: valor medido,
+   umbral, y causa raíz técnica de cada uno.
+3. Marcá el módulo nuevo como **beta** en el sidebar (etiqueta visible junto a "MAPA DE RED"), sin
+   quitarlo ni degradar sus permisos.
+4. Dejá en el reporte qué haría falta para aprobar cada criterio reprobado, como insumo de la ronda
+   siguiente. No crees vos los items de esa ronda: eso lo decide Irving con la lista delante.
+
+**Prohibido:** retirar, ocultar o borrar cualquiera de los dos módulos. Este item es la contingencia,
+no una vía alterna para ejecutar el retiro.
+
+**DoD:** MR-28 verificado sin ejecutar (o revertido), item `[RESPUESTA]` abierto contra #936 con
+causa raíz por criterio, módulo nuevo etiquetado beta en el sidebar y visible.
+**Screenshot a validar:** el sidebar mostrando los dos módulos, con el nuevo marcado beta.
+TXT,
+        ],
+
+        [
+            'codigo' => 'MR-31', 'nivel' => 'A', 'priority' => 'media',
+            'modulo' => 'Mapa de Red', 'estado' => 'aprobado_irving',
+            'title'  => 'MR-31 — Seguimiento de la épica por el Supervisor (resumen semanal de #936)',
+            'description' => <<<'TXT'
+Pone la épica bajo mirada periódica, para que no se descubra dentro de dos meses que lleva cinco
+semanas detenida en un item que nadie miró.
+
+El Supervisor **ya existe**: `SupervisorService` (Jarvis T), con su vuelta `circuito:jarvis` y su
+digest `circuito:digest`. Este item **no construye infraestructura nueva** — cuelga un resumen del
+canal que Jarvis ya usa.
+
+## Qué reporta, cada semana
+
+- **Cuántos hijos de #936 cerraron** y cuántos quedan (sobre los 31 sembrados).
+- **Cuál está en curso** ahora mismo, con su `worker_sid` y desde cuándo.
+- **Cuáles llevan más de 7 días parados en `requiere_irving`** — la señal que importa: un item que
+  espera decisión humana y nadie la toma no se distingue solo de uno que avanza.
+- Si la épica **no tuvo movimiento** en la semana, eso se dice explícitamente. Un resumen que se
+  calla cuando no pasa nada es indistinguible de un resumen que no corrió.
+TXT,
+            'prompt' => <<<'TXT'
+Agregá al digest que Jarvis ya emite (`circuito:digest`) una sección de seguimiento de la épica
+#936. **No** construyas un canal, un comando ni una pantalla nuevos: si hace falta un comando
+propio, es señal de que estás saliéndote del alcance — abrí item de respuesta y pará.
+
+La sección debe responder, sobre los hijos de #936 (`origen_item_id = 936`):
+
+- cerrados vs. total;
+- cuál está `en_progreso`, con `worker_sid` y `trabajo_iniciado_at`;
+- cuáles llevan **> 7 días** en `requiere_irving` (usar `revisado_at`/`updated_at`, el que refleje
+  la entrada al estado);
+- si no hubo cambios en la semana, decirlo con esas palabras.
+
+Todo es **lectura**: contar y presentar. Este item no cambia el estado de ningún item de la épica,
+no despacha, no libera frenos y no toca `excluir_pool_automatico` de nadie.
+
+Cadencia semanal. Si el digest es diario, la sección de #936 sale una vez por semana (o marcada como
+"sin cambios" el resto de los días) — el criterio lo define quien lo implemente, con tal de que no
+genere ruido diario sobre una épica que avanza de a poco.
+
+**DoD:** el digest incluye la sección de #936 con los 4 datos, verificada en una corrida real, y
+cero escrituras sobre los items de la épica.
+TXT,
+        ],
+
+        ];
+    }
+
+    /**
+     * Parches declarativos a items YA sembrados. `marca` es la prueba de idempotencia: si el campo
+     * ya la contiene, no se escribe.
+     */
+    private function parches(): array
+    {
+        return [
+            [
+                'id' => 936, 'codigo' => 'MR-00', 'campo' => 'description',
+                'que' => 'D31 congelamiento + D32 entrega final',
+                'marca' => 'REGLA DE CONGELAMIENTO (D31)',
+                'texto' => <<<'TXT'
+## REGLA DE CONGELAMIENTO (D31)
+
+El alcance de esta épica quedó cerrado el 2026-09-03. A partir de aquí:
+
+- Ningún item sembrado (MR-01 a MR-28) se edita para cambiar su alcance.
+  Se corrigen erratas y se sincroniza el bloque de canal de respuesta;
+  nada más.
+- Todo cambio de idea, mejora o alcance nuevo nace como item NUEVO hijo
+  de #936, numerado MR-29 en adelante, y arranca en `requiere_irving`.
+- Una instrucción verbal posterior que contradiga un item sembrado NO lo
+  reemplaza. La terminal que la reciba abre un item [RESPUESTA] contra el
+  item afectado y sigue con el prompt sembrado hasta que Irving apruebe el
+  cambio por escrito en la Hoja de Ruta.
+- Esta regla la puede levantar Irving, pero solo citándola explícitamente.
+  El objetivo no es impedirle cambiar de opinión; es que el cambio quede
+  visible en vez de disolverse dentro de un prompt editado a mano.
+
+## ENTREGA FINAL (D32)
+
+La épica se considera entregada cuando: MR-27 cerró con veredicto escrito,
+MR-28 ejecutó el retiro del módulo perdedor, y existe un item [RESPUESTA]
+o reporte final que liste qué quedó fuera de alcance (inalámbrico D29 y
+multi-tenant D30 incluidos) para la ronda siguiente.
+
+> Nota de siembra (2026-09-03): MR-29, MR-30 y MR-31 se crearon en la misma tanda que D31, como
+> cierre de la siembra y no como cambio de alcance posterior. Son, respectivamente, la rúbrica
+> congelada con la que MR-27 decide, la contingencia si el piloto reprueba, y el seguimiento
+> semanal de esta épica por el Supervisor.
+TXT,
+            ],
+            [
+                'id' => 963, 'codigo' => 'MR-27', 'campo' => 'prompt',
+                'que' => 'referencia a MR-29 como su rúbrica',
+                'marca' => 'La rúbrica con la que se decide',
+                'texto' => <<<'TXT'
+## La rúbrica con la que se decide ya está escrita: MR-29
+
+**No inventes criterios ni umbrales acá.** La tabla de comparación quedó congelada en
+**MR-29 — Rúbrica de comparación congelada**, antes de que existiera cualquier resultado, y es la
+única que vale: 6 criterios con umbral numérico, la evidencia que prueba cada uno y quién lo firma.
+
+Tu trabajo en este item es **llenarla** con lo medido y firmar cada fila. Si al medir te parece que
+un umbral está mal calibrado, **no lo cambies**: abrí un item de respuesta y reportá el número real
+contra el umbral vigente.
+
+**Regla de desempate (de MR-29):** si el módulo nuevo no gana en TODOS los criterios, no se retira
+el viejo y **MR-28 no se ejecuta** — se activa **MR-30 (contingencia)** y los dos módulos siguen
+conviviendo. No hay promedio ni "ganó en 5 de 6".
+TXT,
+            ],
+            [
+                'id' => 964, 'codigo' => 'MR-28', 'campo' => 'prompt',
+                'que' => 'ventana de reversión de 30 días',
+                'marca' => 'Ventana de reversión (30 días)',
+                'texto' => <<<'TXT'
+## Ventana de reversión (30 días) — complementa los 14 días de convivencia
+
+Son **dos plazos distintos y los dos aplican**. No se sustituyen:
+
+- **14 días de convivencia** — entre el Tiempo 1 (ocultar) y el Tiempo 2 (borrar). Es el plazo ya
+  decidido en la pregunta q1 de este item y no cambia.
+- **30 días de reversión** — cuentan **desde el Tiempo 2**, ya con el módulo eliminado.
+
+Durante esos 30 días, el respaldo verificado de MR-02 sobre el módulo perdedor **se conserva en
+línea y localizable**, con su comando de restauración ya probado, de modo que el retiro pueda
+deshacerse sin depender de que un backup rotado siga existiendo.
+
+**No se borra ni se rota ese respaldo antes de que expiren los 30 días.** Recién cumplidos pasa a la
+política de retención normal. Anotá en el item la fecha exacta de expiración al ejecutar el Tiempo 2.
+TXT,
+            ],
         ];
     }
 

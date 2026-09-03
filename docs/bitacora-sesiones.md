@@ -3605,3 +3605,56 @@ re-ejecutarlo cuando ya está sincronizado no escribe nada.
 14:11:53 y 14:12:00), pocos minutos después de la siembra. Ambos conservan
 `excluir_pool_automatico = true`, así que siguen fuera del pool. No hubo proceso automático de por
 medio; se registra sólo para que el cambio de estado no sorprenda a quien lea la entrada anterior.
+
+## 2026-09-03 14:28 — Épica MAPA DE RED: cierre de siembra (MR-29…MR-31 + D31/D32 + parches)
+
+Cierra los huecos que dejaban decisiones para después. La épica #936 pasa de **28 a 31 hijos**.
+
+**Items nuevos** (los tres cuelgan de #936, con el canal de respuesta vigente y
+`excluir_pool_automatico=true`):
+
+| id | código | nivel | qué congela |
+|----|--------|-------|-------------|
+| **#967** | MR-29 | B | **Rúbrica de comparación congelada.** Los 6 criterios con los que MR-27 decidirá, escritos ANTES de que exista el resultado: paridad de conteo (tolerancia 0), huérfanos (0), trazo OLT→ONT en Tultitlán (100% de las NAPs), alta de NAP (≤3 pasos), carga del mapa (≤3 s), presupuesto óptico vs RX de MultiOLT (≤3 dB en ≥20 ONUs). Cada fila con evidencia y quién firma. **Regla de desempate: si no gana en TODOS, no se retira el viejo y MR-28 no corre.** El item NO compara: sólo deja anotada la fuente de medición de cada criterio. |
+| **#968** | MR-30 | B | **Contingencia si el piloto reprueba.** Los dos módulos conviven (MR-28 no corre), se abre `[RESPUESTA]` contra #936 con criterios reprobados y causa raíz, y el módulo nuevo queda **beta** en el sidebar en vez de retirarse. Explícito: nadie borra nada por frustración ni por antigüedad del item. |
+| **#969** | MR-31 | A | **Seguimiento semanal de #936 por el Supervisor.** Cerrados vs. total, cuál está en curso, cuáles llevan >7 días parados en `requiere_irving`, y decir "sin cambios" cuando no hubo. Cuelga del `circuito:digest` que Jarvis ya emite — **sin construir canal ni comando nuevos**. |
+
+**Parches a items ya sembrados** (idempotentes, cada uno con su marca de aplicado):
+- **#936 (MR-00)** → **D31 (regla de congelamiento)** y **D32 (entrega final)**. La tabla D1–D30
+  quedó intacta (30 filas verificadas).
+- **#963 (MR-27)** → referencia a MR-29 como su rúbrica y a MR-30 como contingencia, con la regla de
+  desempate. Su DoD original intacto.
+- **#964 (MR-28)** → ventana de reversión de 30 días.
+
+**Tres puntos que se decidieron antes de escribir, no después:**
+
+1. **14 vs 30 días — son plazos complementarios, no un reemplazo.** #964 ya tenía su decisión C
+   tomada (q1: Tiempo 1 con cronómetro de **14 días de convivencia**; q2: Tiempo 2 exige
+   **confirmación explícita de Irving + respaldo fresco verificado**, con la opción de pre-autorizar
+   descartada por "cruza frontera dura sin ojo humano final"). Los **30 días de reversión** cuentan
+   **desde el Tiempo 2**: durante ellos el respaldo de MR-02 se conserva en línea y localizable, con
+   su comando de restauración probado, y no se rota. Se agregó como precisión; **no se tocaron los
+   14 días ni la decisión tomada**.
+2. **`opciones` de #964 se dejó NULL a propósito.** La decisión vive en `preguntas[]` (brief
+   multi-pregunta, el mecanismo vigente) con sus alternativas descartadas y su justificación.
+   Poblar además el campo legacy habría duplicado la decisión en dos lugares que pueden divergir.
+   El DoD "MR-28 tiene su decisión C resuelta" **ya se cumplía**.
+3. **El Supervisor SÍ existe** (`SupervisorService` = Jarvis T, con `circuito:jarvis` y
+   `circuito:digest`), así que MR-31 se redactó **ejecutable ya**, sin la cláusula de espera que
+   traía el encargo — su condición no aplicaba y habría dejado una instrucción muerta.
+
+**El comando se extendió, no se reescribió.** `roadmap:sembrar-mapa-red` suma los 3 items al array
+de definiciones y un paso nuevo `aplicaParches()`: parches declarativos con una `marca` que prueba
+si ya están aplicados, sobre `description` o sobre el cuerpo del `prompt` (el canal se corta y se
+repega al final, nunca queda texto debajo de él). Refactor mínimo: `cuerpoSinCanal()` extraído de
+`sincronizaCanal()`.
+
+**Verificado:** 3/3 items nuevos con padre #936, freno puesto y canal vigente · 0 con el texto viejo
+`tipo='respuesta'` · MR-00 con D31 y D32 y sus 30 filas D1–D30 intactas · #964 nivel C con q1 y q2
+resueltas y ambos plazos en su prompt · #963 citando MR-29/MR-30 y con su DoD intacto · **31 hijos
+de #936** · **0 elegibles para el pool** · 0 bloques de canal duplicados · **idempotencia: 2ª corrida
+= 0 creados, 0 parches**.
+
+⚠️ La rama `roadmap/siembra-mapa-red` **sigue sin mergear** a main (main avanzó por su cuenta con
+integraciones del circuito). El checkout se había quedado en `main` al inicio de esta sesión porque
+el circuito cambió de rama al integrar #899/#897.
