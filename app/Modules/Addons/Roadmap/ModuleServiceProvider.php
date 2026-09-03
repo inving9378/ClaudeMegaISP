@@ -66,6 +66,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // Autopilot: decide solo lo respaldado, deja a Irving lo indispensable (#507)
                 \App\Modules\Addons\Roadmap\Console\AutopilotCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ParquearTimeoutCommand::class,
+                \App\Modules\Addons\Roadmap\Console\SoltarClaimCommand::class,
                 // Backfill de briefs de la bandeja para poblar confianza/reversible (#507)
                 \App\Modules\Addons\Roadmap\Console\RebriefBandejaCommand::class,
                 // TORRE V2 — Jarvis (autoridad intermedia) y el kit de la terminal:
