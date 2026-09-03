@@ -375,10 +375,20 @@ class AuditorService
      */
     public function modulosAAuditar(): array
     {
+        return $this->modulosOrdenadosPorCobertura($this->cobertura());
+    }
+
+    /**
+     * Lista candidata de módulos (carriles menos excluidos), SIN ordenar por cobertura. Insumo
+     * compartido de cualquier rotación por módulo — hoy el auditor mecánico (`modulosAAuditar()`),
+     * y desde #985 también el "modo barrido" (`BarridoService::elegirModulo()`, Torre 24/7 Pieza
+     * 5b): ambos recorren el MISMO universo de módulos, pero con su propia memoria de cobertura.
+     */
+    public function modulosCandidatos(): array
+    {
         $c          = (array) config('circuito.auditor.carriles', []);
         $excluir    = array_map('mb_strtolower', (array) config('circuito.auditor.excluir_modulos', []));
-        $serializado = (array) ($c['serializado'] ?? []);
-        $ordenado   = array_merge((array) ($c['paralelo'] ?? []), $serializado);
+        $ordenado   = array_merge((array) ($c['paralelo'] ?? []), (array) ($c['serializado'] ?? []));
 
         $modulos = array_values(array_filter(
             array_unique($ordenado),
@@ -400,15 +410,25 @@ class AuditorService
             }
         }
 
-        // #1015 — MEMORIA DE COBERTURA: dentro de cada carril (el carril sigue mandando — la base
-        // acoplada sigue yendo siempre después de la paralela, esa propiedad no se toca), prioriza
-        // los módulos NUNCA auditados y luego los de auditoría más VIEJA, en vez de recorrer
-        // siempre la lista en el mismo orden fijo. `usort` es estable desde PHP 8.0: sin cobertura
-        // registrada (recién desplegado), el orden de config se conserva tal cual.
-        $cobertura = $this->cobertura();
-        $esSerial  = array_flip(array_map('mb_strtolower', $serializado));
-        $carrilDe  = fn (string $m) => isset($esSerial[mb_strtolower($m)]) ? 1 : 0;
-        $ultimaDe  = fn (string $m) => $cobertura[$m]['ultima_auditoria_at'] ?? null;
+        return $modulos;
+    }
+
+    /**
+     * `modulosCandidatos()` ordenados por PRIORIDAD DE CARRIL (paralelo antes que serializado,
+     * esa propiedad no se toca) y luego por la `$cobertura` dada: primero los módulos NUNCA
+     * cubiertos, luego los de fecha más VIEJA. `$campoFecha` es el nombre de la llave de fecha
+     * dentro de cada entrada de `$cobertura` — el auditor mecánico usa `ultima_auditoria_at`
+     * (#1015); el barrido (#985) usa su propia `ultima_barrida_at` sobre su propia memoria, para
+     * que un ciclo no pise la cobertura que usa el otro. `usort` es estable desde PHP 8.0: sin
+     * cobertura registrada, el orden de config se conserva tal cual.
+     */
+    public function modulosOrdenadosPorCobertura(array $cobertura, string $campoFecha = 'ultima_auditoria_at'): array
+    {
+        $modulos     = $this->modulosCandidatos();
+        $serializado = array_map('mb_strtolower', (array) config('circuito.auditor.carriles.serializado', []));
+        $esSerial    = array_flip($serializado);
+        $carrilDe    = fn (string $m) => isset($esSerial[mb_strtolower($m)]) ? 1 : 0;
+        $ultimaDe    = fn (string $m) => $cobertura[$m][$campoFecha] ?? null;
 
         usort($modulos, function (string $a, string $b) use ($carrilDe, $ultimaDe) {
             $ca = $carrilDe($a);
@@ -422,7 +442,7 @@ class AuditorService
                 return 0;
             }
             if ($ua === null) {
-                return -1;   // nunca auditado → primero
+                return -1;   // nunca cubierto → primero
             }
             if ($ub === null) {
                 return 1;
