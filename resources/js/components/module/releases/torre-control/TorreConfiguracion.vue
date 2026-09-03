@@ -498,6 +498,11 @@
                 <input type="number" min="5" max="1440" class="form-control form-control-sm"
                        v-model.number="form.auditor_cooldown_min" :disabled="!puedeEditar"></label>
             </div>
+            <div class="col-md-6">
+              <label class="small d-block">Slots libres mínimos para disparar el auditor <em>(0–6)</em>
+                <input type="number" min="0" max="6" class="form-control form-control-sm"
+                       v-model.number="form.auditor_slots_libres_min" :disabled="!puedeEditar"></label>
+            </div>
           </div>
 
           <button class="btn btn-sm btn-primary mt-3" :disabled="!puedeEditar || guardando" @click="guardarConfig">
@@ -924,6 +929,7 @@ export default {
             auditor_activo: true,
             auditor_max_por_corrida: 10,
             auditor_cooldown_min: 15,
+            auditor_slots_libres_min: 2,
         });
 
         const nuevoTermino = reactive({});
@@ -956,6 +962,7 @@ export default {
                 form.auditor_activo = !!c.data.politica.auditor.activo;
                 form.auditor_max_por_corrida = c.data.politica.auditor.max_por_corrida;
                 form.auditor_cooldown_min = c.data.politica.auditor.cooldown_min;
+                form.auditor_slots_libres_min = c.data.politica.auditor.slots_libres_min;
             } catch (e) {
                 error.value = "No se pudo leer la configuración: " + (e?.response?.data?.message || e.message);
             } finally {
