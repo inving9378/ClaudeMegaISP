@@ -325,7 +325,14 @@ PROMPT;
         try {
             $response = $this->claude->messages([
                 'model'      => 'claude-sonnet-4-6',
-                'max_tokens' => 700,
+                // 700 (igual que callClaude()) se quedaba corto aquí: con rangos grandes (10+
+                // lotes) el texto a sintetizar es mucho mayor que el de una sola llamada directa,
+                // el modelo no siempre respeta el límite de 200 palabras del prompt, y el JSON se
+                // cortaba a medias → parseStructured() fallaba y todo el "improvements" quedaba
+                // como texto crudo truncado (encontrado al verificar Fase 4 del item roadmap #892
+                // con el rango real V1.32..HEAD, 726 commits / 10 lotes). 2048 da margen holgado
+                // sin acercarse al límite de salida del modelo.
+                'max_tokens' => 2048,
                 'messages'   => [['role' => 'user', 'content' => $prompt]],
             ]);
 
