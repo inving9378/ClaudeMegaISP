@@ -311,6 +311,12 @@ class RoadmapItem extends Model
                 $item->estado_aprobacion       = 'aprobado_irving';
                 $item->status                  = 'pending';
                 $item->excluir_pool_automatico = true;
+                // #898 — sin esto el `worker_sid`/`claimed_at` de la sesión que disparó el intento
+                // de cierre se queda pegado: `status` ya no es 'done' aquí, así que
+                // `reclamosHuerfanosPorSid()` (solo mira status='done') nunca lo ve y el botón
+                // "Liberar reclamo" de la Torre no lo alcanza. Se libera aquí mismo, al parquear.
+                $item->worker_sid              = null;
+                $item->claimed_at              = null;
 
                 $log = $item->log ?: [];
                 $log[] = [
@@ -400,6 +406,10 @@ class RoadmapItem extends Model
                     $item->status                  = 'pending';
                     $item->excluir_pool_automatico  = true;
                     $item->decision_resuelta        = true;
+                    // #898 — mismo fix que el bloque (2b) PARAGUAS de arriba: liberar el reclamo
+                    // al parquear, no dejarlo pegado.
+                    $item->worker_sid               = null;
+                    $item->claimed_at               = null;
                 } else {
                     Log::warning('roadmap: cierre incompleto (modo advertencia, no bloquea todavía)', [
                         'item' => $item->id, 'faltantes' => $verificacion['faltantes'],
