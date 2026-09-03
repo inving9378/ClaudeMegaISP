@@ -2455,6 +2455,26 @@ class RoadmapCircuitoService
     }
 
     /**
+     * #916 — cuántos items EN VUELO tiene cada módulo (no la lista única de `modulosEnVuelo()`).
+     * Es lo que permite topar «N terminales por módulo» de verdad: sin este conteo, tres items del
+     * mismo módulo en vuelo se veían como uno solo.
+     *
+     * @return array<string,int> modulo => items en vuelo
+     */
+    private function itemsEnVueloPorModulo(): array
+    {
+        return DB::table('roadmap_items')
+            ->where('estado_aprobacion', 'en_progreso')
+            ->whereNotNull('modulo')
+            ->where('modulo', '!=', '')
+            ->where('modulo', '!=', self::MODULO_DESCONOCIDO)
+            ->selectRaw('modulo, count(*) as n')
+            ->groupBy('modulo')
+            ->pluck('n', 'modulo')
+            ->all();
+    }
+
+    /**
      * #432 B2 — ¿hay un item con footprint DESCONOCIDO (null/vacío/'Sin clasificar') en vuelo? Si lo
      * hay, no podemos garantizar que nada más se pise con él → nadie más se despacha hasta que integre.
      */
@@ -2515,6 +2535,22 @@ class RoadmapCircuitoService
             ->get(['id', 'modulo', 'urgente']);
 
         $taken     = array_map('strval', $excludeModulos);
+
+        // #916 (fix) — `modulosEnVuelo()` devuelve módulos ÚNICOS: si 3 items del mismo módulo
+        // están en vuelo, llega UNA sola entrada. Contar entradas de `$taken` subestimaba, y con
+        // la perilla en 2 habría dejado entrar un CUARTO. Para topes > 1 se expande `$taken` al
+        // conteo REAL por módulo (una entrada por item en vuelo) para que el conteo de abajo sea
+        // el número de terminales que ese módulo ya tiene.
+        // Con la perilla en 1 este bloque NO corre: comportamiento histórico byte-idéntico.
+        if (max(1, (int) config('circuito.paralelo_mismo_modulo', 1)) > 1) {
+            foreach ($this->itemsEnVueloPorModulo() as $m => $n) {
+                $m       = (string) $m;
+                $faltan  = (int) $n - count(array_keys($taken, $m, true));
+                for ($j = 0; $j < $faltan; $j++) {
+                    $taken[] = $m;
+                }
+            }
+        }
         $out       = [];
         $diferido  = (bool) config('circuito.desconocido_diferido', true);
         $candidato = null;   // primer item sin footprint que aparece en la cola
