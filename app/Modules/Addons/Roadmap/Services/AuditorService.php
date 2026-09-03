@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\InventarioSemilla;
+use App\Services\EnvRuntimeScanner;
 use FilesystemIterator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -798,6 +799,9 @@ class AuditorService
         if (($det['jquery_sin_off'] ?? true)) {
             $gaps = array_merge($gaps, $this->detJquerySinOff($modulo));
         }
+        if (($det['env_runtime'] ?? true)) {
+            $gaps = array_merge($gaps, $this->detEnvRuntime($modulo));
+        }
 
         $gaps = array_merge($gaps, $this->medirContraSpec($modulo));
 
@@ -1188,6 +1192,58 @@ class AuditorService
                 . "Cerrar = namespacear el evento ('click.miComponente', no 'click' a secas) y llamar "
                 . "\$(document).off(ns) en onUnmounted/beforeUnmount. Verifica montando/desmontando el "
                 . "componente y confirmando que la funcionalidad original sigue viva.",
+        ]];
+    }
+
+    // ── Detector 8: env() en tiempo de ejecución fuera de config/ (#901) ──────────────────────
+
+    /**
+     * Cross-cutting (app/, routes/, bootstrap/, no un $dir de módulo PHP): se emite UNA vez bajo
+     * el ancla 'Roadmap / Circuito CC', igual que detSinClasificar()/detJquerySinOff(). Consume el
+     * mismo escaneo que `config:auditar-env` (#790) vía EnvRuntimeScanner — NO reimplementa el
+     * tokenizador.
+     */
+    private function detEnvRuntime(string $modulo): array
+    {
+        if ($modulo !== 'Roadmap / Circuito CC') {
+            return [];
+        }
+
+        $hallazgos = (new EnvRuntimeScanner())->escanear();
+        if (! $hallazgos) {
+            return [];
+        }
+
+        $porArchivo = [];
+        foreach ($hallazgos as $h) {
+            $porArchivo[$h['file']][] = $h;
+        }
+        ksort($porArchivo);
+
+        $n     = count($hallazgos);
+        $lista = '';
+        foreach ($porArchivo as $file => $hits) {
+            $claves = array_map(
+                fn ($h) => ':' . $h['linea'] . ' ' . ($h['clave'] ?? '(clave dinámica)'),
+                $hits
+            );
+            $lista .= "  - {$file}: " . implode(', ', $claves) . "\n";
+        }
+
+        return [[
+            'modulo'  => $modulo,
+            'tipo'    => 'env_runtime',
+            'clase'   => 'mecanico',
+            'clave'   => 'env-runtime:lote',
+            'titulo'  => "Circuito: {$n} llamada(s) a env() en tiempo de ejecución fuera de config/",
+            'detalle' => "Una llamada a `env()` fuera de `config/*.php` sólo funciona mientras nadie corra "
+                . "`config:cache` — hoy el checklist de cierre lo evita con `php artisan config:auditar-env` "
+                . "(#790), pero la lista de llamadas sigue sin vaciarse. Cada una se mueve a una clave de "
+                . "`config/<archivo>.php` (donde `env()` sí es el patrón correcto) y el llamador pasa a usar "
+                . "`config('...')` en su lugar — mismo cambio mecánico ya aplicado en #792/#793.\n\n"
+                . "Verificación de cierre: `php artisan config:auditar-env` debe bajar de {$n} hallazgo(s) "
+                . "tras el cambio; en 0 el checklist queda desbloqueado.\n\n"
+                . "Llamadas ({$n}):\n{$lista}",
         ]];
     }
 
