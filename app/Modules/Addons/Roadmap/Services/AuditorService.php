@@ -7,6 +7,7 @@ use App\Modules\Addons\Roadmap\Support\InventarioSemilla;
 use App\Services\EnvRuntimeScanner;
 use FilesystemIterator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route as RouteFacade;
@@ -232,7 +233,70 @@ class AuditorService
             return false;
         }
 
+        // #891 Fase 3a — HALF-OPEN: deja pasar UN sondeo cada `gasto_reintento_min` minutos sin
+        // rearmar el timestamp. Si el ciclo vuelve a salir seco, `evaluarApagarGasto()` lo renueva
+        // al cierre — así el costo queda acotado a un sondeo por ventana, nunca indefinido.
+        if ($this->reintentoActivo() && $this->venceReintento($desde)) {
+            return false;
+        }
+
         return true;
+    }
+
+    /**
+     * #891 Fase 3a — estado del freno para UI (Fase 3b lo consume, sin duplicar esta lectura):
+     * `armado` = nunca se apagó; `disparado` = apagado y el sondeo aún no toca (o el half-open
+     * está desactivado); `medio_abierto` = apagado pero la ventana de reintento YA venció, el
+     * próximo sondeo pasará. `reintento_en_segundos` es el countdown hasta ese punto (null si no
+     * aplica: armado, o half-open desactivado).
+     */
+    public function estadoGastoUi(): array
+    {
+        $desde = $this->gastoApagadoDesde();
+        if ($desde === null) {
+            return ['estado' => 'armado', 'desde' => null, 'reintento_en_segundos' => null];
+        }
+
+        if (! $this->reintentoActivo()) {
+            return ['estado' => 'disparado', 'desde' => $desde, 'reintento_en_segundos' => null];
+        }
+
+        $vence = Carbon::parse($desde)->addMinutes((int) config('circuito.auditor.sequia.gasto_reintento_min', 30));
+        if ($vence->isPast()) {
+            return ['estado' => 'medio_abierto', 'desde' => $desde, 'reintento_en_segundos' => 0];
+        }
+
+        return [
+            'estado' => 'disparado',
+            'desde' => $desde,
+            'reintento_en_segundos' => now()->diffInSeconds($vence),
+        ];
+    }
+
+    /**
+     * #891 Fase 3a — ¿el half-open está activo? Lee de `torre_config` si la Fase 3b ya agregó la
+     * columna; si no, cae al default de fábrica en `config/circuito.php` (mismo patrón que usa
+     * `debeCorrer()` con `auditor_cooldown_min`, línea ~165).
+     *
+     * TODO(#925 Fase 3b): cuando exista `torre_config.auditor_gasto_reintento_activo`, cambiar a
+     * `(bool) $this->torreConfig->get()->auditor_gasto_reintento_activo`.
+     */
+    private function reintentoActivo(): bool
+    {
+        return (bool) config('circuito.auditor.sequia.gasto_reintento_activo', true);
+    }
+
+    /**
+     * #891 Fase 3a — ¿ya venció la ventana de reintento desde que se apagó el gasto? Mismo
+     * fallback que `reintentoActivo()`: `torre_config` cuando exista (Fase 3b), config por ahora.
+     *
+     * TODO(#925 Fase 3b): cambiar a `(int) $this->torreConfig->get()->auditor_gasto_reintento_min`.
+     */
+    private function venceReintento(string $desde): bool
+    {
+        $minutos = (int) config('circuito.auditor.sequia.gasto_reintento_min', 30);
+
+        return Carbon::parse($desde)->addMinutes($minutos)->isPast();
     }
 
     /** ISO8601 de cuándo se apagó el gasto, o null si está armado. */
@@ -270,11 +334,16 @@ class AuditorService
      * Apaga el gasto si la racha (ya actualizada) cruzó el umbral de Nivel 2. Se llama SOLO al
      * cierre de un ciclo COMPLETO en vivo (mismo punto donde ya se actualiza `racha_seca`) — un
      * `--modulo` parcial no dice nada sobre si la fuente está agotada.
+     *
+     * #891 Fase 3a — idempotente A PROPÓSITO (ya no corta si ya estaba apagado): así el sondeo del
+     * half-open, cuando vuelve a salir seco, RENUEVA el timestamp en vez de dejarlo viejo — es lo
+     * que acota el costo a un sondeo cada `gasto_reintento_min` minutos en vez de indefinido. Si la
+     * racha volvió a 0 (hubo hallazgo nuevo), esta función ni se dispara: el guard corta antes.
      */
     private function evaluarApagarGasto(int $racha): void
     {
         $umbral = (int) config('circuito.auditor.sequia.gasto_racha_umbral', 2);
-        if ($racha < $umbral || $this->gastoApagadoDesde() !== null) {
+        if ($racha < $umbral) {
             return;
         }
 
