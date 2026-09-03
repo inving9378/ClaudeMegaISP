@@ -3417,3 +3417,30 @@ faltante vía tinker: como ya no quedan hijos abiertos, el guard de paraguas (`R
 bloque "(2b) PARAGUAS", ~301-326) NO lo re-parqueó esta vez — cerró de verdad a `completado`
 (`excluir_pool_automatico` quedó en `false`). Sin cambio de código de aplicación — el trabajo
 técnico real (los índices/FK de drift) ya estaba hecho y mergeado por #868/#869.
+
+## 2026-09-03 16:41 — Item #202 re-parqueado (bucle reap sobre paraguas, causa raíz distinta: script "cadena-rh" fuera del repo)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#829: #202 ("Expediente RH — Hijo D: paquetes de
+documentos por puesto y generación automática al alta") ya estaba descompuesto desde esta mañana
+(2026-09-03 09:00) en **#870** (D1, modelo+pantalla paquete por puesto), **#871** (D2, motor de
+generación al alta) y **#872** (D3, enlace Flotas/Inventario para completar pendientes) — los tres
+`aprobado_irving`/`aprobado_revisor`, `pending`, sin reclamar. Verificado en esta vuelta que los
+tres siguen intactos y abiertos: la descomposición original sigue siendo la correcta, nadie la tocó.
+
+Variante nueva de causa raíz: no fue solo el reaper. El log muestra que el guard de paraguas SÍ
+parqueó correctamente al item dos veces hoy (10:24:33 y 10:26:05, `excluir_pool_automatico=true`),
+pero un evento `por: "cadena-rh"` (**no existe en el codebase** — grep completo sin resultados; es
+un script ad-hoc corrido por tinker en una sesión previa, autorizado por Irving el 2026-09-02 para
+desbloquear la cadena de dependencias de Expediente RH cuando su padre #201 cerrara) se ejecutó
+**tres veces** (07:18:54, 10:25:02, 10:30:03) y cada vez deshizo el parqueo
+(`excluir_pool_automatico=false`) sin comprobar si el item ya se había vuelto un paraguas con hijos
+abiertos — simplemente reabre el pool porque su condición ("la dependencia #201 ya cerró") sigue
+siendo cierta. El item incluso llegó a mergearse a main una vez (10:27:03, `merge_commit=8fffbcd2`)
+en medio de este vaivén, y aun así volvió a quedar disponible para el pool después.
+
+Esta vuelta ejecutó el intento de cierre faltante (tercera vez del día): el guard confirmó los 3
+sub-items abiertos y re-enrutó a `aprobado_irving` + `excluir_pool_automatico=true`. Riesgo
+residual documentado en el reporte del item: si el script `cadena-rh` se vuelve a correr sobre
+#202 antes de que #870/#871/#872 cierren, va a volver a des-parquearlo — no se puede blindar desde
+este item porque el script vive fuera del repo (ejecución manual, no un comando versionado). Sin
+cambio de código de aplicación — el trabajo real de Expediente RH Hijo D sigue en #870/#871/#872.
