@@ -52,6 +52,14 @@
                                     {{ aiLoading ? 'Generando...' : 'Generar automáticamente' }}
                                 </button>
                             </div>
+                            <div
+                                v-if="aiTruncationNotice"
+                                class="alert alert-warning py-2 px-3 mb-2 d-flex align-items-start"
+                                style="font-size:0.85rem;"
+                            >
+                                <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                                <span>{{ aiTruncationNotice }}</span>
+                            </div>
                             <textarea
                                 v-model="aiDescription"
                                 class="form-control form-control-sm"
@@ -108,6 +116,9 @@ export default {
         const loading       = ref(false);
         const aiDescription = ref('');
         const aiLoading     = ref(false);
+        // Aviso "imposible de ignorar" cuando el resumen generado no cubrió todo el rango de
+        // commits (item roadmap #892) — antes el truncamiento era silencioso.
+        const aiTruncationNotice = ref('');
 
         const requestEditedFieldsById = async (module, id) => {
             let fields = {};
@@ -167,6 +178,7 @@ export default {
             dataForm.data.reset();
             loading.value   = false;
             aiDescription.value = '';
+            aiTruncationNotice.value = '';
             nextTick(() => {
                 window.bootstrap.Modal.getInstance(document.getElementById('releaseModal'))?.hide();
             });
@@ -174,6 +186,7 @@ export default {
 
         const generateChangelog = async () => {
             aiLoading.value = true;
+            aiTruncationNotice.value = '';
             try {
                 const version = dataForm.data['version'] || '';
                 const { data } = await axios.post('/releases/generate-changelog', { version });
@@ -184,6 +197,9 @@ export default {
                     dataForm.data['title']   = data.title || '';
                     dataForm.data['summary'] = data.summary || '';
                     aiDescription.value      = data.improvements || '';
+                    // Si el backend no pudo cubrir todo el rango de commits, mostrarlo de forma
+                    // imposible de ignorar (item roadmap #892) — antes esto se quedaba en silencio.
+                    aiTruncationNotice.value = data.truncado ? (data.aviso_truncamiento || '') : '';
                 } else {
                     Swal.fire('Error', data.message || 'No se pudo generar el resumen.', 'error');
                 }
@@ -267,6 +283,7 @@ export default {
             loading,
             aiDescription,
             aiLoading,
+            aiTruncationNotice,
             generateChangelog,
         };
     },
