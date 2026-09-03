@@ -1115,13 +1115,15 @@ class AuditorService
         ]];
     }
 
-    // ── Detector 9: null-safety — auth()->user()-> y json_decode() sin guard (#900/#973) ───────
+    // ── Detector 9: null-safety — auth()->user()->, json_decode() y Module::…->getfields() sin
+    //    guard (#900/#973/#974) ─────────────────────────────────────────────────────────────────
 
     /**
-     * Dos patrones sin guard contra null, tokenizador `token_get_all` (no regex — frágil con
-     * saltos de línea/comentarios/strings), misma técnica que `EnvRuntimeScanner::llamadasEnv()`
-     * (#790): tokeniza, filtra whitespace/comentarios a un array de índices significativos, camina
-     * la secuencia de tokens.
+     * Tres patrones sin guard contra null. Patrones 1-2 vía tokenizador `token_get_all` (no
+     * regex — frágil con saltos de línea/comentarios/strings), misma técnica que
+     * `EnvRuntimeScanner::llamadasEnv()` (#790): tokeniza, filtra whitespace/comentarios a un
+     * array de índices significativos, camina la secuencia de tokens. Patrón 3 vía regex de línea
+     * (más simple, acotado a un solo nombre de clase — ver `moduleGetfieldsSinGuard()`).
      *
      *  1. `auth()->user()->` SIN `?->` inmediatamente después — el caso real que ya mordió el
      *     repo (ver CLAUDE.md "DefaultValueRepository.php:35"). Acotado ESTRICTAMENTE a esa
@@ -1130,6 +1132,13 @@ class AuditorService
      *     antes (caso real: `Module.php` líneas 186/190, ya corregidas). Heurística APROXIMADA:
      *     ventana de las ~15 líneas siguientes del mismo archivo, no análisis de flujo real —
      *     la limitación se documenta en el `detalle` de cada gap.
+     *  3. `$var = Module::find(...)` / `Module::where(...)->first()` cuyo resultado se usa
+     *     (`$var->getfields()`/`$var->getColumns...`) sin `abort_if`/`if (!$var)` antes (caso real
+     *     ya corregido en `HelperController.php` con 8 guards `abort_if(!$module, 404, ...)`, y
+     *     AÚN VIVO sin guard en `ClientBundleServiceController.php` — verificado #974). Acotado
+     *     ESTRICTAMENTE a la clase `Module` (NO "cualquier `->first()` de cualquier modelo" — el
+     *     item padre #900 ya advirtió que generalizar más allá es trabajo de una iteración
+     *     futura). Misma heurística de ventana aproximada que el patrón 2.
      */
     private function detNullSafety(string $modulo, string $dir): array
     {
@@ -1158,6 +1167,9 @@ class AuditorService
             foreach ($this->jsonDecodeSinGuard($tokens, $sig, $lineasSrc) as $linea) {
                 $hallazgos[] = ['linea' => $linea, 'patron' => 'json_decode() sin guard', 'contexto' => trim($lineasSrc[$linea - 1] ?? '')];
             }
+            foreach ($this->moduleGetfieldsSinGuard($lineasSrc) as $linea) {
+                $hallazgos[] = ['linea' => $linea, 'patron' => 'Module::.../getfields() sin guard', 'contexto' => trim($lineasSrc[$linea - 1] ?? '')];
+            }
             if (! $hallazgos) {
                 continue;
             }
@@ -1180,15 +1192,20 @@ class AuditorService
                 'clase'   => 'mecanico',
                 'clave'   => 'null-safety:' . $rel,
                 'titulo'  => "{$modulo}: {$n} patrón(es) null-safety sin guard en " . basename($file),
-                'detalle' => "Dos patrones sin guard contra null: `auth()->user()->` sin `?->` inmediatamente "
+                'detalle' => "Tres patrones sin guard contra null: `auth()->user()->` sin `?->` inmediatamente "
                     . "después (el caso real que ya mordió el repo, ver CLAUDE.md \"DefaultValueRepository.php:35\"), "
-                    . "y `\$var = json_decode(...)` cuyo resultado se usa (`\$var->`/`\$var[`) sin comprobar null "
-                    . "antes (caso real: `Module.php` líneas 186/190, ya corregidas). El patrón de json_decode es "
-                    . "una heurística APROXIMADA (ventana de las ~15 líneas siguientes, no análisis de flujo real): "
-                    . "puede haber falsos positivos/negativos — revisar manualmente cada hallazgo antes de corregir.\n\n"
+                    . "`\$var = json_decode(...)` cuyo resultado se usa (`\$var->`/`\$var[`) sin comprobar null "
+                    . "antes (caso real: `Module.php` líneas 186/190, ya corregidas), y `\$var = Module::find(...)`"
+                    . "/`Module::where(...)->first()` cuyo resultado se usa (`\$var->getfields()`/`\$var->getColumns...`) "
+                    . "sin `abort_if`/`if (!\$var)` antes (caso real: 8 guards ya agregados en HelperController.php, "
+                    . "acotado ESTRICTAMENTE a la clase `Module` — no se generaliza a cualquier `->first()`). Los "
+                    . "patrones de json_decode y Module son heurísticas APROXIMADAS (ventana de las ~15 líneas "
+                    . "siguientes, no análisis de flujo real): puede haber falsos positivos/negativos — revisar "
+                    . "manualmente cada hallazgo antes de corregir.\n\n"
                     . "Archivo: `{$rel}`\n\nHallazgos:\n{$lista}\n"
-                    . "Corrección aditiva, SIN tocar lógica de negocio: agrega `?->` en el caso 1, o un guard "
-                    . "`if (\$var !== null)` (o `?->`/`??`/`isset()`) antes del uso en el caso 2.",
+                    . "Corrección aditiva, SIN tocar lógica de negocio: agrega `?->` en el caso 1, un guard "
+                    . "`if (\$var !== null)` (o `?->`/`??`/`isset()`) antes del uso en el caso 2, o `abort_if(!\$var, "
+                    . "404, ...)` antes del uso en el caso 3.",
             ];
         }
 
@@ -1296,10 +1313,59 @@ class AuditorService
                 || preg_match("/{$varEsc}\s*\?->/", $texto)
                 || str_contains($texto, '??')
                 || preg_match("/is_null\(\s*{$varEsc}\s*\)/", $texto)
-                || preg_match("/isset\(\s*{$varEsc}\b/", $texto)) {
+                || preg_match("/isset\(\s*{$varEsc}\b/", $texto)
+                || str_contains($texto, 'json_last_error(')) {
                 return false; // guard antes del uso, dentro de la ventana → no es hallazgo
             }
             if (preg_match("/{$varEsc}\s*->/", $texto) || preg_match("/{$varEsc}\s*\[/", $texto)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * PATRÓN 3 — `$var = Module::find(...)` / `Module::where(...)->first()` seguido de
+     * `$var->getfields()`/`$var->getColumns...` sin `abort_if`/`if (!$var)` en la ventana de las
+     * ~15 líneas siguientes. Acotado ESTRICTAMENTE a la clase `Module` (no cualquier `->first()`
+     * de cualquier modelo) — ver docblock de `detNullSafety()`.
+     *
+     * @return int[] líneas de la asignación `Module::find/where(...)->first()` donde se encontró
+     */
+    private function moduleGetfieldsSinGuard(array $lineasSrc): array
+    {
+        $lineas = [];
+        foreach ($lineasSrc as $idx => $texto) {
+            if (! preg_match('/\$(\w+)\s*=\s*Module::(?:find\(|where\(.*\)\s*->\s*first\()/', $texto, $m)) {
+                continue;
+            }
+            $linea = $idx + 1;
+            if ($this->usoModuleSinGuardEnVentana($m[1], $linea, $lineasSrc)) {
+                $lineas[] = $linea;
+            }
+        }
+
+        return $lineas;
+    }
+
+    /** ¿`$var->getfields()`/`$var->getColumns...` se usa en la ventana de 15 líneas siguientes SIN `abort_if`/`if (!$var)` previo en esa misma ventana? */
+    private function usoModuleSinGuardEnVentana(string $var, int $lineaAsignacion, array $lineasSrc): bool
+    {
+        $fin       = min(count($lineasSrc), $lineaAsignacion + 15);
+        $varDollar = '\\$' . preg_quote($var, '/'); // el capture group no incluye el `$` (a diferencia del token T_VARIABLE de los patrones 1-2), se agrega aquí
+
+        for ($ln = $lineaAsignacion + 1; $ln <= $fin; $ln++) {
+            $texto = $lineasSrc[$ln - 1] ?? '';
+
+            if (preg_match("/abort_if\(\s*!\s*{$varDollar}\b/", $texto)
+                || preg_match("/if\s*\(\s*!\s*{$varDollar}\b/", $texto)
+                || preg_match("/{$varDollar}\s*\?->/", $texto)
+                || preg_match("/{$varDollar}\s*(!==|===)\s*null/", $texto)
+                || preg_match("/is_null\(\s*{$varDollar}\s*\)/", $texto)) {
+                return false; // guard antes del uso, dentro de la ventana → no es hallazgo
+            }
+            if (preg_match("/{$varDollar}\s*->\s*(getfields|getColumns\w*)\s*\(/", $texto)) {
                 return true;
             }
         }
