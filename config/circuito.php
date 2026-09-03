@@ -1157,6 +1157,16 @@ return [
             // por este motor) se complete — ver `AuditorService::gastoApagado()`. Umbral de #590
             // restituido ("dos corridas por hambre consecutivas").
             'gasto_racha_umbral' => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_UMBRAL', 2),
+
+            // #891 Fase 3a — HALF-OPEN del gasto: en vez de esperar indefinidamente a un item
+            // real completado, cada `gasto_reintento_min` minutos se deja pasar UN sondeo (sin
+            // rearmar el timestamp) para ver si la fuente revivió. Si el sondeo vuelve a salir
+            // seco, `evaluarApagarGasto()` renueva el timestamp y el freno sigue frenando otros
+            // `gasto_reintento_min` minutos más — el costo queda acotado, nunca indefinido.
+            // Son solo el DEFAULT DE FÁBRICA; si `torre_config` trae estas columnas (Fase 3b), el
+            // valor de la BD manda, igual que pasa hoy con `auditor_cooldown_min`.
+            'gasto_reintento_min'    => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_MIN', 30),
+            'gasto_reintento_activo' => (bool) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_ACTIVO', true),
         ],
     ],
 
