@@ -3484,3 +3484,23 @@ las 3 veces anteriores, esta vez el próximo disparo de `cadena-rh` (crontab cad
 deshacer el parqueo — el bucle queda roto en la causa raíz, no solo re-documentado. Sin cambio de
 código de aplicación en el repo — el trabajo real de Expediente RH Hijo D sigue en
 #870/#871/#872; el fix de esta vuelta es sobre infraestructura del circuito, no sobre MegaISP.
+
+## 2026-09-03 11:13 — Item #878 cierra el bucle reap sobre el paraguas ya descompuesto en #891
+
+Mismo patrón que #738/#745/#830/#816/#818/#848: una vuelta previa (`wt-2`) hizo FASE 1
+(documentación del mecanismo de `AuditorService::gastoApagado()`/`rachaSeca()`/`debeCorrer()`) y
+FASE 2 (diseño — eligió candidato (c) caducidad temporal/half-open) de #878 en modo solo-lectura,
+y descompuso correctamente FASE 3+4 en el sub-item **#891**, que pasó el triaje y quedó
+`requiere_irving` con un brief completo de 4 preguntas (TTL del re-armado, mecanismo de disparo,
+qué exponer en Torre → Configuración, dónde persistir el estado) esperando decisión de Irving. Esa
+vuelta nunca intentó *cerrar* #878 — quedó `en_progreso` colgado, el reaper lo re-encoló
+(`reap_count=1`), y el pool lo repartió de nuevo sin trabajo propio que hacer.
+
+Esta vuelta verificó que #891 sigue intacto (sin reclamar, brief completo) y ejecutó el intento de
+cierre faltante: `RoadmapItem::find(878)->estado_aprobacion='completado'` → el guard de paraguas
+(`RoadmapItem.php` ~301-326) lo reenrutó a `aprobado_irving` + `excluir_pool_automatico=true`
+(log `paraguas_abierto`, "le quedan 1 sub-item(s) abierto(s)"). #878 queda fuera del
+pool/reaper hasta que #891 cierre — la cascada existente (`RoadmapItem.php:459-491`) lo completará
+solo. Detalle en `docs/roadmap-bucle-reap-item-878-verificacion.md`. Sin cambio de código de
+negocio — el trabajo técnico real (implementar el re-armado del freno de sequía) sigue en #891,
+pendiente de que Irving decida su brief.

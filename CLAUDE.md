@@ -1503,3 +1503,30 @@ del pool/reaper hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491
 solo cuando #855, #856 y #857 cierren. Detalle en
 `docs/roadmap-bucle-reap-item-848-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo real de la Fase 2 del sidebar sigue en #855/#856/#857, pendiente de triaje/aprobación.
+
+## Item #878 — Torre 24/7 Pieza 2, deadlock del freno de sequía — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848. #878 pedía documentar el deadlock del freno de
+sequía Nivel 2 (#712) de `circuito:auditor` y diseñar+implementar una vía de re-armado que no
+dependa de completar un item real. Una vuelta previa (`wt-2`, 2026-09-03 11:06-11:12) ya hizo lo
+correcto: FASE 1 (documentó `AuditorService::gastoApagado()`/`rachaSeca()`/`debeCorrer()`) + FASE 2
+(diseño — eligió candidato **(c) caducidad temporal/half-open**, descartando (a)/(b)/(d) con
+justificación) en modo solo-lectura, y descompuso FASE 3 (implementar) + FASE 4 (verificar) en
+**#891** con spec completo (archivos/líneas exactas: `config/circuito.php`,
+`AuditorService.php`, migración de `torre_config`, `TorreAutomationPolicy`, `RoadmapController`,
+`TorreConfiguracion.vue`). #891 pasó el triaje y el revisor lo **escaló a Irving** (categoría
+negocio: define umbrales/tiempos de un guardrail del propio circuito) con un brief completo de 4
+preguntas estructuradas (TTL, mecanismo de disparo, qué exponer en Torre, dónde persistir el
+estado), cada una con opciones/pros/contras/recomendación. Pero esa vuelta nunca intentó **cerrar**
+#878 tras crear el sub-item — quedó `en_progreso` colgado con el `worker_sid` de esa sesión; el
+reaper lo vio con el slot libre y lo re-encoló (`reap_count=1`), y el pool lo repartió de nuevo sin
+trabajo propio que hacer. Verificado esta vuelta: #891 (único hijo, `origen_item_id=878`) sigue
+intacto, `requiere_irving`, brief completo, sin reclamar — la descomposición original seguía
+siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante;
+el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS", ~301-326) lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 1 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #891 cierre. Detalle en
+`docs/roadmap-bucle-reap-item-878-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (implementar el re-armado del freno de sequía + exponerlo en Torre →
+Configuración) sigue en #891, pendiente de que Irving decida su brief de 4 preguntas.
