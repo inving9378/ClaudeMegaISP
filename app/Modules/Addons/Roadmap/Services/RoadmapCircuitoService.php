@@ -2666,6 +2666,64 @@ class RoadmapCircuitoService
     }
 
     /**
+     * #913 — archivos MODIFICADOS SIN COMMITEAR en el worktree de una terminal en vuelo
+     * (`git status --porcelain`), para complementar el diff ya commiteado de footprintDeRama().
+     * Solo lectura: nunca hace checkout/add/commit en el worktree ajeno.
+     *
+     * Devuelve `null` cuando el árbol NO se pudo leer (worktree inexistente, o `git status` cae a
+     * mitad de un add/commit de esa terminal): la llamante DEBE tratar `null` como footprint
+     * DESCONOCIDO (colisiona con todo lo que esté en vuelo), NUNCA como "no toca nada" — es el
+     * requisito explícito del item, distinto de `esFootprintDesconocido()` (esa es sobre la
+     * columna `modulo`; esta es la semántica local de `detectarColisionesEnVuelo()`).
+     */
+    public function footprintEnVivo(string $sid): ?array
+    {
+        $sid = trim($sid);
+        // Mismo candado que slotLibre(): nunca construir un path con texto arbitrario del item.
+        if (! preg_match('/^wt-\d+$/', $sid)) {
+            return null;
+        }
+
+        $dir = self::RUNTIME_DIR . "/{$sid}";
+        if (! is_dir($dir)) {
+            return null;
+        }
+
+        try {
+            $p = new \Symfony\Component\Process\Process(['git', '-C', $dir, 'status', '--porcelain'], $dir);
+            $p->setTimeout(15);
+            $p->run();
+        } catch (\Throwable $e) {
+            return null;
+        }
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+
+        $archivos = [];
+        // rtrim SOLO del final: la primera columna de porcelain suele ser un espacio literal
+        // ("modificado sin stage") — un trim() normal se lo come y desalinea el substr(3) de abajo.
+        foreach (preg_split('/\R/', rtrim($p->getOutput(), "\r\n")) as $linea) {
+            if ($linea === '') {
+                continue;
+            }
+            // Porcelain: 2 columnas de estado + espacio + ruta (índice 3 en adelante). Renombres
+            // ('R  origen -> destino') traen DOS rutas en la misma línea — hay que separarlas o el
+            // archivo de destino (el que realmente existe ahora) se pierde del footprint.
+            $resto = mb_substr($linea, 3);
+            if (str_contains($resto, ' -> ')) {
+                foreach (explode(' -> ', $resto, 2) as $ruta) {
+                    $archivos[] = trim($ruta, '"');
+                }
+            } else {
+                $archivos[] = trim($resto, '"');
+            }
+        }
+
+        return array_values(array_unique(array_filter($archivos)));
+    }
+
+    /**
      * Detecta colisiones nuevas entre items `en_progreso` con rama registrada y AÚN no pausados,
      * y PAUSA (marca `colision_pausada_por`) al perdedor: regla determinística = el que reclamó
      * más tarde (`updated_at` mayor; empate → mayor id). El ganador sigue corriendo normal.
@@ -2680,15 +2738,30 @@ class RoadmapCircuitoService
             ->whereNotNull('branch')
             ->where('branch', '!=', '')
             ->whereNull('colision_pausada_por')
-            ->get(['id', 'branch', 'updated_at']);
+            ->get(['id', 'branch', 'updated_at', 'worker_sid']);
 
         if ($rows->count() < 2) {
             return [];
         }
 
-        $footprints = [];
+        // #913 — footprint EN VIVO: el commiteado (footprintDeRama) UNIDO a lo sin commitear del
+        // worktree de la terminal (footprintEnVivo). Si el árbol en vivo no se pudo leer, el item
+        // queda marcado DESCONOCIDO — se trata como si colisionara con TODO lo que esté en vuelo
+        // (nunca como "no toca nada"), tal como exige el requisito del item.
+        $footprints   = [];
+        $desconocidos = [];
         foreach ($rows as $r) {
             $footprints[$r->id] = $this->footprintDeRama($r->branch);
+
+            if (! $r->worker_sid) {
+                continue; // sin sid registrado no hay worktree que inspeccionar; queda solo el commiteado
+            }
+            $enVivo = $this->footprintEnVivo($r->worker_sid);
+            if ($enVivo === null) {
+                $desconocidos[$r->id] = true;
+            } else {
+                $footprints[$r->id] = array_values(array_unique(array_merge($footprints[$r->id], $enVivo)));
+            }
         }
 
         $detectadas = [];
@@ -2698,7 +2771,13 @@ class RoadmapCircuitoService
                 if ($a->id >= $b->id) {
                     continue; // cada par una sola vez
                 }
-                $comunes = array_values(array_intersect($footprints[$a->id] ?? [], $footprints[$b->id] ?? []));
+                if (isset($desconocidos[$a->id]) || isset($desconocidos[$b->id])) {
+                    // Conservador a propósito (#913): no se pudo leer el árbol en vivo de uno de
+                    // los dos → no se puede garantizar que sean disjuntos, se trata como colisión.
+                    $comunes = ['(footprint en vivo desconocido)'];
+                } else {
+                    $comunes = array_values(array_intersect($footprints[$a->id] ?? [], $footprints[$b->id] ?? []));
+                }
                 if (! $comunes) {
                     continue;
                 }
