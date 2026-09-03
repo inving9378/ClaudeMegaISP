@@ -959,6 +959,10 @@ return [
         |  - sin_clasificar: items de la Hoja de Ruta con footprint desconocido, que por diseño
         |    corren SOLOS y bloquean a las 6 terminales (#526). Clasificarlos libera la flota.
         |  - semilla:       pendientes del inventario 2026-08-08 que el escaneo no puede ver.
+        |  - jquery_sin_off: componentes Vue con `$(document).on(...)` delegado sin su `.off()`
+        |    correspondiente en el mismo archivo → handlers jQuery que se acumulan en cada remount
+        |    de la SPA (#899). Cross-cutting (resources/js/, no un $dir de módulo PHP): se emite
+        |    UNA vez bajo el ancla 'Roadmap / Circuito CC', igual que sin_clasificar.
         */
         'detectores' => [
             'hueco_ruteado'  => (bool) env('CIRCUITO_AUDITOR_D_HUECOS', true),
@@ -967,6 +971,7 @@ return [
             'andamiaje'      => (bool) env('CIRCUITO_AUDITOR_D_ANDAMIAJE', true),
             'sin_clasificar' => (bool) env('CIRCUITO_AUDITOR_D_SINCLAS', true),
             'semilla'        => (bool) env('CIRCUITO_AUDITOR_D_SEMILLA', true),
+            'jquery_sin_off' => (bool) env('CIRCUITO_AUDITOR_D_JQUERYOFF', true),
         ],
 
         /*
