@@ -2586,14 +2586,34 @@ class RoadmapCircuitoService
      * sigan corriendo en paralelo.
      */
 
-    /** Archivos que cambia una rama vs su punto de partida en main (solo lectura, nunca falla fuerte). */
-    public function footprintDeRama(string $branch): array
+    /**
+     * Archivos que cambia una rama vs su punto de partida en main (solo lectura, nunca falla fuerte).
+     *
+     * #933 — una rama YA fusionada a main tiene `merge-base(main, branch) === branch` (su propia
+     * punta es ancestro de main), así que el diff de arriba da SIEMPRE vacío para ramas fusionadas
+     * (verificado con git real). Ese es justo el caso de los items ya integrados (candidatos a
+     * versión): $mergeCommitSiFusionado permite pedir el diff correcto (merge_commit^1..merge_commit,
+     * el mainline justo antes de esa fusión) SIN tocar el comportamiento existente — si se omite,
+     * el método es idéntico al de antes (usado por detectarColisionesEnVuelo() con ramas en vuelo).
+     */
+    public function footprintDeRama(string $branch, ?string $mergeCommitSiFusionado = null): array
     {
         $base = $this->git(['merge-base', 'main', $branch]);
         if (! $base->isSuccessful()) {
             return [];
         }
         $sha = trim($base->getOutput());
+
+        if ($mergeCommitSiFusionado) {
+            $tip = $this->git(['rev-parse', $branch]);
+            if ($tip->isSuccessful() && trim($tip->getOutput()) === $sha) {
+                $diff = $this->git(['diff', '--name-only', $mergeCommitSiFusionado . '^1', $mergeCommitSiFusionado]);
+                return $diff->isSuccessful()
+                    ? array_values(array_filter(preg_split('/\R/', trim($diff->getOutput()))))
+                    : [];
+            }
+        }
+
         $diff = $this->git(['diff', '--name-only', $sha, $branch]);
         if (! $diff->isSuccessful()) {
             return [];
@@ -2965,5 +2985,144 @@ class RoadmapCircuitoService
         $p->run();
 
         return $p;
+    }
+
+    /** Último tag publicado (orden semver descendente), o null si no hay ninguno. Solo lectura. */
+    private function ultimoTag(): ?string
+    {
+        $p = $this->git(['tag', '--sort=-version:refname']);
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+        $tags = array_values(array_filter(preg_split('/\R/', trim($p->getOutput()))));
+
+        return $tags[0] ?? null;
+    }
+
+    /**
+     * #933 Fase 2 — candidatos a "armado de versión": items YA integrados a main cuyo `merge_commit`
+     * todavía NO forma parte del último tag publicado (lo no elegido en una versión queda disponible
+     * para la siguiente, tal cual pidió Irving). Un solo `git log {tag}..HEAD --merges` calcula el
+     * set de commits nuevos desde el tag — evita una llamada git por item (cientos de candidatos
+     * posibles). Solo lectura.
+     *
+     * @return \Illuminate\Support\Collection<int,RoadmapItem>
+     */
+    public function itemsCandidatosVersion(): \Illuminate\Support\Collection
+    {
+        $items = RoadmapItem::whereNotNull('merge_commit')
+            ->where('merge_commit', '!=', '')
+            ->orderByDesc('id')
+            ->get(['id', 'title', 'branch', 'merge_commit', 'marcado_version', 'origen_item_id', 'modulo']);
+
+        $tag = $this->ultimoTag();
+        if ($tag === null) {
+            return $items->values(); // sin tag previo: todo lo mergeado es candidato
+        }
+
+        $log = $this->git(['log', $tag . '..HEAD', '--format=%H', '--merges']);
+        if (! $log->isSuccessful()) {
+            return $items->values(); // git falló: falla-abierto (mejor mostrar de más que de menos)
+        }
+        $hashes = array_flip(array_values(array_filter(preg_split('/\R/', trim($log->getOutput())))));
+
+        return $items->filter(fn (RoadmapItem $i) => isset($hashes[$i->merge_commit]))->values();
+    }
+
+    /**
+     * #933 Fase 3 — detector de dependencias/colisiones ANTES de construir una rama de versión
+     * (la Fase 4 de cherry-pick no se implementa en este item; este detector es la pieza de
+     * seguridad que la habilita). Sobre los candidatos actuales, separa marcados
+     * (`marcado_version=true`) de no-marcados y busca dos señales de riesgo real:
+     *
+     *   a) jerarquía — `origen_item_id`: un item marcado cuyo padre es candidato pero NO está
+     *      marcado probablemente depende de su código (caso real citado en el item: la cadena
+     *      #199→#200→#201→#870→#871→#872).
+     *   b) archivos — un candidato NO marcado que toca los mismos archivos que uno marcado y cuyo
+     *      merge es CRONOLÓGICAMENTE ANTERIOR: el cherry-pick del marcado, aplicado sobre el
+     *      último tag sin el commit del excluido, puede conflictuar.
+     *
+     * Solo lectura; no cambia ningún estado. Devuelve un array de violaciones para mostrar en
+     * pantalla ANTES de permitir construir la rama (bloqueante por defecto, con opción explícita
+     * de continuar — eso lo decide la UI, no este método).
+     */
+    public function detectarDependenciasVersion(): array
+    {
+        $candidatos = $this->itemsCandidatosVersion();
+        $porId = $candidatos->keyBy('id');
+        $marcados = $candidatos->where('marcado_version', true);
+        if ($marcados->isEmpty()) {
+            return [];
+        }
+
+        $violaciones = [];
+
+        // a) jerarquía (origen_item_id)
+        foreach ($marcados as $item) {
+            $padreId = $item->origen_item_id;
+            if (! $padreId || ! isset($porId[$padreId])) {
+                continue; // sin padre, o el padre ya no es candidato (ya iba en un tag anterior)
+            }
+            $padre = $porId[$padreId];
+            if (! $padre->marcado_version) {
+                $violaciones[] = [
+                    'tipo' => 'jerarquia',
+                    'item_id' => (int) $item->id,
+                    'item_title' => $item->title,
+                    'depende_de_id' => (int) $padre->id,
+                    'depende_de_title' => $padre->title,
+                    'detalle' => "#{$item->id} es hijo de #{$padre->id} (origen_item_id) y #{$padre->id} NO está marcado para esta versión.",
+                ];
+            }
+        }
+
+        // b) archivos, respetando el orden cronológico real del merge (no el id del item)
+        $conRama = $candidatos->filter(fn (RoadmapItem $i) => ! empty($i->branch) && ! empty($i->merge_commit));
+        if ($conRama->count() >= 2) {
+            $mergedAt = [];
+            foreach ($conRama as $i) {
+                $p = $this->git(['log', '-1', '--format=%ct', $i->merge_commit]);
+                $mergedAt[$i->id] = $p->isSuccessful() ? (int) trim($p->getOutput()) : 0;
+            }
+
+            $footprints = [];
+            $footprintDe = function (RoadmapItem $i) use (&$footprints) {
+                if (! isset($footprints[$i->id])) {
+                    $footprints[$i->id] = $this->footprintDeRama($i->branch, $i->merge_commit);
+                }
+
+                return $footprints[$i->id];
+            };
+
+            foreach ($marcados as $m) {
+                if (empty($m->branch) || empty($m->merge_commit)) {
+                    continue;
+                }
+                foreach ($conRama as $c) {
+                    if ($c->id === $m->id || $c->marcado_version) {
+                        continue; // no es "excluido": es el propio item, o ya está marcado también
+                    }
+                    if (($mergedAt[$c->id] ?? 0) >= ($mergedAt[$m->id] ?? PHP_INT_MAX)) {
+                        continue; // el excluido no mergeó antes: no aplica el riesgo de cherry-pick
+                    }
+                    $comunes = array_values(array_intersect($footprintDe($m), $footprintDe($c)));
+                    if (! $comunes) {
+                        continue;
+                    }
+                    $violaciones[] = [
+                        'tipo' => 'archivos',
+                        'item_id' => (int) $m->id,
+                        'item_title' => $m->title,
+                        'depende_de_id' => (int) $c->id,
+                        'depende_de_title' => $c->title,
+                        'detalle' => "#{$m->id} toca los mismos archivos que #{$c->id} (mergeado antes, NO marcado): "
+                            . implode(', ', array_slice($comunes, 0, 5)) . (count($comunes) > 5 ? '…' : ''),
+                        'archivos' => $comunes,
+                    ];
+                }
+            }
+        }
+
+        return $violaciones;
     }
 }

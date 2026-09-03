@@ -2132,6 +2132,38 @@ class RoadmapController extends Controller
         return response()->json(['ok' => true, 'marcado_version' => $item->marcado_version]);
     }
 
+    /**
+     * GET /api/roadmap/integracion/version-candidatos — #933 Fase 2: items integrados a main desde
+     * el último tag (candidatos a entrar en la próxima versión), con su estado de marcado.
+     */
+    public function integracionVersionCandidatos(): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $items = $this->svc->itemsCandidatosVersion()->map(fn (RoadmapItem $i) => [
+            'id' => $i->id,
+            'title' => $i->title,
+            'modulo' => $i->modulo,
+            'branch' => $i->branch,
+            'merge_commit' => $i->merge_commit,
+            'marcado_version' => (bool) $i->marcado_version,
+            'origen_item_id' => $i->origen_item_id,
+        ])->values();
+
+        return response()->json(['ok' => true, 'items' => $items]);
+    }
+
+    /**
+     * GET /api/roadmap/integracion/version-dependencias — #933 Fase 3: detector de dependencias/
+     * colisiones de lo marcado ahora mismo, ANTES de construir la rama de versión (Fase 4, no
+     * implementada aquí). Solo lectura.
+     */
+    public function integracionVersionDependencias(): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+
+        return response()->json(['ok' => true, 'violaciones' => $this->svc->detectarDependenciasVersion()]);
+    }
+
     /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */
     public function integracionMerge(Request $request): JsonResponse
     {
