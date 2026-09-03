@@ -1530,3 +1530,29 @@ abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
 `docs/roadmap-bucle-reap-item-878-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo técnico real (implementar el re-armado del freno de sequía + exponerlo en Torre →
 Configuración) sigue en #891, pendiente de que Irving decida su brief de 4 preguntas.
+
+## Item #880 — Torre 24/7 Pieza 4, auto-corregir hardening de código — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#878. #880 pedía partir la clasificación de
+"seguridad" en dos carriles (AUTO endurece sin tocar autorización; BANDEJA queda intacto para
+permisos/auth/dinero) siguiendo 5 fases. Una vuelta previa (`wt-1`, 2026-09-03 12:29-12:44) ya
+hizo lo correcto: corrió `circuito:cabida` (NO CABE, ya había timeouteado antes con la rama sin
+commits) y descompuso el trabajo en **#918** (Fase 2 — declarar el criterio AUTO/BANDEJA en
+`config/circuito.php`, sin wiring), **#919** (Fase 3+4 — activar el carril AUTO en
+`circuito:priorizar-seguridad` + candado de regresión, bloqueante en el mismo merge) y **#920**
+(Fase 5 — verificar el clasificador contra items de seguridad reales ya cerrados), documentando
+la Fase 1 (lectura de la política actual) directamente en `comentarios_claude` del propio #880
+para que ningún hijo tuviera que re-investigar. Pero esa vuelta nunca intentó **cerrar** #880
+tras crear los sub-items — quedó `en_progreso` colgado con el `worker_sid` de esa sesión; el
+reaper lo vio con el slot libre y lo re-encoló (`reap_count=1`), y el pool lo repartió de nuevo
+(a la misma terminal `wt-1`) sin trabajo propio que hacer. Verificado esta vuelta: los 3 hijos
+(`origen_item_id=880`) siguen intactos, `requiere_irving`, `nivel_riesgo=B`, sin reclamar — la
+descomposición original seguía siendo correcta, nadie más la tocó; la rama del item existe pero
+sin commits propios (coincide con el `commits_rama:0` del timeout previo). Corrección: esta
+vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS",
+~301-326) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (+
+`esperando_merge_irving=true`), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #918, #919 y #920 cierren los tres. Detalle en
+`docs/roadmap-bucle-reap-item-880-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (criterio AUTO/BANDEJA + carril AUTO con su candado de regresión +
+verificación contra casos reales) sigue en #918/#919/#920, pendiente de triaje/aprobación.
