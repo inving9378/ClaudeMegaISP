@@ -1581,3 +1581,24 @@ que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cu
 cierren. Detalle en `docs/roadmap-bucle-reap-item-906-verificacion.md`. **Sin cambio de código de
 negocio** — el trabajo técnico real (distinguir frontera dura vs. techo de nivel en los 4 mensajes)
 sigue en #978 (pendiente de que Irving lo apruebe) y #979 (`aprobado_revisor`, listo para tomarse).
+
+## Item #907 — Torre 24/7 Pieza 5a (slots_libres como disparador de primera clase) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#905/#878/#906. #907 (sub-item de #904) pedía tratar
+`slots_libres` como disparador de primera clase en `AuditorService::debeCorrer()`: (a) condición de
+disparo, (b) toggle configurable en Torre → Configuración con el patrón de
+`auditor_activo`/`auditor_cooldown_min`, (c) métrica "N de 6 terminales trabajando" en la Torre. Una
+vuelta previa (`wt-2`, 2026-09-03 12:10) ya hizo lo correcto: corrió `circuito:cabida` (NO CABE) y
+descompuso el trabajo por fase — **#980** (condición de disparo), **#981** (toggle configurable),
+**#982** (métrica de ocupación en la Torre). Pero esa vuelta nunca intentó **cerrar** #907 tras crear
+los sub-items — quedó colgado; el reaper lo vio con el slot libre dos veces y lo re-encoló
+(`reap_count=2`), y el pool lo repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta:
+#980/#981/#982 (`origen_item_id=907`) siguen intactos, sin reclamar — la descomposición original
+seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de cierre
+faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS", ~301-326) lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 3
+sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #980, #981 y #982 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-907-verificacion.md`. **Sin cambio de código de negocio** — el trabajo
+técnico real (condición de disparo, toggle configurable, métrica de ocupación) sigue en #980
+(pendiente de que Irving lo apruebe) y #981/#982 (`aprobado_revisor`, listos para tomarse).

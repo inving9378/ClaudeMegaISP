@@ -3697,3 +3697,24 @@ complete solo.
 Detalle en `docs/roadmap-bucle-reap-item-906-verificacion.md`. Sin cambio de código de negocio —
 el trabajo real (distinguir frontera dura vs. techo de nivel en los 4 mensajes) sigue en #978
 (pendiente de aprobación de Irving) y #979 (`aprobado_revisor`, listo para tomarse).
+
+## 2026-09-03 15:44 — Item #907: cierre del bucle reap sobre paraguas ya descompuesto (Torre 24/7 Pieza 5a — slots_libres como disparador)
+
+`#907` ("Torre 24/7 · Pieza 5a — slots_libres como disparador de primera clase en
+AuditorService::debeCorrer()", sub-item de #904) venía en bucle de reap: una vuelta previa (`wt-2`)
+ya lo había descompuesto correctamente por fase en **#980** (condición de disparo: slots_libres
+cuenta aunque la cola no baje del umbral), **#981** (nuevo parámetro configurable en Torre →
+Configuración) y **#982** (métrica "N de 6 terminales trabajando" en la Torre), tras
+`circuito:cabida`=NO CABE, pero nunca intentó cerrar al padre. El reaper lo re-encoló 2 veces y el
+pool lo repartió de nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/
+#816/#818/#848/#905/#878/#906.
+
+Esta vuelta verificó que los 3 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 3 sub-items
+abiertos), sacándolo del pool hasta que #980/#981/#982 cierren y el hook de cierre en cascada lo
+complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-907-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real (condición de disparo, toggle configurable, métrica de ocupación) sigue en #980
+(pendiente de aprobación de Irving) y #981/#982 (`aprobado_revisor`, listos para tomarse).
