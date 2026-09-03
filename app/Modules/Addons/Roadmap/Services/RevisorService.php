@@ -509,6 +509,12 @@ class RevisorService
                 'motivo'    => $t['valvula']['razon'],
             ];
             $item->log = $log;
+
+            // FASE 2 (#975, sub-item de #905) — misma convención que la válvula de NACIMIENTO
+            // (RoadmapController::store líneas ~2752-2753): sellar la columna aquí también, no solo
+            // el log. Cubre 'mencion' y 'accion' por igual; el veredicto más reciente pisa al anterior.
+            $item->frontera_valvula    = $t['valvula']['veredicto'];
+            $item->frontera_valvula_at = now();
         }
 
         if ($declarado !== null && $declarado !== $t['nivel']) {
