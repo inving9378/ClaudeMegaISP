@@ -1504,6 +1504,34 @@ solo cuando #855, #856 y #857 cierren. Detalle en
 `docs/roadmap-bucle-reap-item-848-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo real de la Fase 2 del sidebar sigue en #855/#856/#857, pendiente de triaje/aprobación.
 
+## Item #905 — Válvula: sellar frontera_valvula + backfill + test de regresión (Defecto 1 de #902) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#878. #905 pedía sellar `frontera_valvula` en el
+mismo acto que el log de válvula (`RevisorService::aplicarTriajeNull()`, que arma el log de
+`valvula_contexto` pero nunca setea la columna, a diferencia de la válvula de nacimiento en
+`RoadmapController.php:2688-2689` que sí la sella), el backfill de los 112 items ya afectados y un
+test de regresión. Una vuelta previa (`wt-2`, 2026-09-03 15:18) ya hizo lo correcto: corrió
+`circuito:cabida` (NO CABE, `historico_excede_umbral`) y descompuso el trabajo en **#975** (Fase 2
+— sellar la columna en `aplicarTriajeNull()`, cubriendo tanto `mencion` como `accion`), **#976**
+(Fase 3 — backfill de los 112 items con `frontera_valvula` NULL, depende de que #975 esté
+commiteado) y **#977** (Fase 5 — test de regresión que falle si un veredicto de válvula escribe el
+log sin sellar la columna). Pero esa vuelta nunca intentó **cerrar** al padre — el guard de
+paraguas del modelo (`RoadmapItem.php` bloque "(2b) PARAGUAS") solo aparca un item descompuesto
+cuando algo intenta activamente `estado_aprobacion = 'completado'` y detecta hijos abiertos. Sin
+ese intento, #905 se quedó `en_progreso` colgado; el reaper lo devolvió a `aprobado_revisor`
+(`reap_count=1`, log `huerfano_reencolado`), y el pool lo repartió de nuevo sin trabajo propio que
+hacer — mismo síntoma que los items anteriores de esta misma familia. Verificado: los 3 hijos
+(`origen_item_id=905`) siguen intactos y sin reclamar (`#975` en `requiere_irving`, `#976`/`#977`
+en `pendiente_revision`) — la descomposición original seguía siendo correcta, nadie más la tocó.
+Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le
+quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en
+cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #975, #976 y #977 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-905-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (sellado de `frontera_valvula`, backfill y test de regresión) sigue en
+#975/#976/#977, pendiente de que Irving apruebe #975 (`requiere_irving`) y de que corra el resto
+de la cadena.
+
 ## Item #878 — Torre 24/7 Pieza 2, deadlock del freno de sequía — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
 
 Mismo patrón que #738/#745/#830/#816/#818/#848. #878 pedía documentar el deadlock del freno de
