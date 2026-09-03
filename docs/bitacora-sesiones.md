@@ -3658,3 +3658,22 @@ de #936** · **0 elegibles para el pool** · 0 bloques de canal duplicados · **
 ⚠️ La rama `roadmap/siembra-mapa-red` **sigue sin mergear** a main (main avanzó por su cuenta con
 integraciones del circuito). El checkout se había quedado en `main` al inicio de esta sesión porque
 el circuito cambió de rama al integrar #899/#897.
+
+## 2026-09-03 15:23 — Item #905: cierre del bucle reap sobre paraguas ya descompuesto (Válvula frontera_valvula)
+
+`#905` ("Válvula: sellar frontera_valvula en el mismo acto que el log + backfill de 112 items +
+test de regresión — Defecto 1 de #902") venía en bucle de reap: una vuelta previa (`wt-2`) ya lo
+había descompuesto correctamente en **#975** (Fase 2 — sellar la columna en
+`RevisorService::aplicarTriajeNull()`), **#976** (Fase 3 — backfill de 112 items) y **#977**
+(Fase 5 — test de regresión), pero nunca intentó cerrar al padre. El reaper lo re-encoló y el pool
+lo repartió de nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/#816/
+#818/#848/#878.
+
+Esta vuelta verificó que los 3 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 3 sub-items
+abiertos), sacándolo del pool hasta que #975/#976/#977 cierren y el hook de cierre en cascada lo
+complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-905-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real (sellado de frontera_valvula, backfill, test) sigue en #975/#976/#977.
