@@ -795,6 +795,9 @@ class AuditorService
         if (($det['semilla'] ?? true)) {
             $gaps = array_merge($gaps, $this->detSemilla($modulo));
         }
+        if (($det['jquery_sin_off'] ?? true)) {
+            $gaps = array_merge($gaps, $this->detJquerySinOff($modulo));
+        }
 
         $gaps = array_merge($gaps, $this->medirContraSpec($modulo));
 
@@ -1114,6 +1117,78 @@ class AuditorService
         }
 
         return $gaps;
+    }
+
+    // ── Detector 7: jQuery $(document).on() delegado sin su .off() correspondiente (#899) ─────
+
+    /**
+     * `$(document).on(...)` delega el handler en `document`. La navegación SPA sólo intercambia
+     * `#init-vue` (no recarga el bundle JS), así que un componente sin `.off()` en su cleanup deja
+     * vivo el handler viejo cada vez que se vuelve a montar — se acumulan sin límite.
+     *
+     * Cross-cutting: los componentes Vue no viven bajo el `$dir` PHP de ningún módulo de negocio
+     * (viven en resources/js/components/...), así que este detector escanea ESE árbol una sola vez
+     * por ciclo y emite el hallazgo bajo el ancla del circuito — mismo patrón que detSinClasificar().
+     */
+    private function detJquerySinOff(string $modulo): array
+    {
+        if ($modulo !== 'Roadmap / Circuito CC') {
+            return [];
+        }
+
+        $dir = base_path('resources/js/components');
+        if (! is_dir($dir)) {
+            return [];
+        }
+
+        $afectados = [];
+        foreach ($this->archivosVue($dir) as $file) {
+            $lineas = @file($file);
+            if (! $lineas) {
+                continue;
+            }
+            $onLineas = [];
+            $tieneOff = false;
+            foreach ($lineas as $i => $linea) {
+                if (str_contains($linea, '$(document).off(')) {
+                    $tieneOff = true;
+                }
+                if (str_contains($linea, '$(document).on(')) {
+                    $onLineas[] = $i + 1;
+                }
+            }
+            if ($onLineas && ! $tieneOff) {
+                $afectados[$this->relativo($file)] = $onLineas;
+            }
+        }
+
+        if (! $afectados) {
+            return [];
+        }
+
+        ksort($afectados);
+        $n     = count($afectados);
+        $lista = '';
+        foreach ($afectados as $rel => $onLineas) {
+            $lista .= "  - {$rel}: L" . implode(', L', $onLineas) . "\n";
+        }
+
+        return [[
+            'modulo'  => $modulo,
+            'tipo'    => 'jquery_sin_off',
+            'clase'   => 'mecanico',
+            'clave'   => 'jquery-sin-off:lote',
+            'titulo'  => "Circuito: {$n} componente(s) Vue con \$(document).on() global sin su .off() (memory leak SPA)",
+            'detalle' => "`\$(document).on(...)` delega el handler en `document` — la navegación SPA sólo "
+                . "reemplaza `#init-vue` (no recarga el bundle), así que cada vez que el componente se "
+                . "vuelve a montar se acumula OTRO handler vivo encima del anterior, nunca limpiado.\n\n"
+                . "Patrón ya corregido de referencia (namespace de evento + `.off()` en cleanup): "
+                . "`resources/js/shared/TextTemplate.vue` y `resources/js/shared/ContractTemplate.vue`.\n\n"
+                . "Componentes afectados ({$n}):\n{$lista}\n"
+                . "Cerrar = namespacear el evento ('click.miComponente', no 'click' a secas) y llamar "
+                . "\$(document).off(ns) en onUnmounted/beforeUnmount. Verifica montando/desmontando el "
+                . "componente y confirmando que la funcionalidad original sigue viva.",
+        ]];
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -1560,6 +1635,24 @@ class AuditorService
         $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
         foreach ($it as $f) {
             if ($f->isFile() && strtolower($f->getExtension()) === 'php') {
+                $out[] = $f->getPathname();
+            }
+        }
+        sort($out);
+
+        return $out;
+    }
+
+    /** @return string[] */
+    private function archivosVue(string $dir): array
+    {
+        if (! is_dir($dir)) {
+            return [];
+        }
+        $out = [];
+        $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $f) {
+            if ($f->isFile() && strtolower($f->getExtension()) === 'vue') {
                 $out[] = $f->getPathname();
             }
         }
