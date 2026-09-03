@@ -41,6 +41,9 @@
         @if(auth()->user()->can('talento.credentials.view'))
             <li><a href="{{ url('/talento/credenciales') }}"><span><small><i class="fa fa-fw fa-id-card"></i></small> Credenciales</span></a></li>
         @endif
+        @if(auth()->user()->can('talento.expediente.paquetes.manage'))
+            <li><a href="{{ url('/talento/expediente/paquetes') }}"><span><small><i class="fa fa-fw fa-folder-open"></i></small> Paquetes de documentos</span></a></li>
+        @endif
         @if(auth()->user()->can('talento.loans.view'))
             <li><a href="{{ url('/talento/finiquito') }}"><span><small><i class="fa fa-fw fa-hand-holding-usd"></i></small> Préstamos y finiquito</span></a></li>
         @endif
