@@ -2549,7 +2549,14 @@ class RoadmapCircuitoService
             // Módulo conocido: serializa contra mismo módulo (en vuelo/elegido) y contra un desconocido
             // EN VUELO (podría pisar cualquier archivo). Ya no existe el caso "desconocido elegido esta
             // ronda": el desconocido nunca se mezcla con trabajo conocido — o va solo, o espera.
-            if (in_array($mod, $taken, true) || $unknownEnVuelo) {
+            // #916 — el pre-filtro deja de ser booleano: cuenta cuántas terminales tiene ya ese
+            // módulo (en vuelo + elegidas esta ronda) y lo compara contra la perilla
+            // `circuito.paralelo_mismo_modulo`. Con la perilla en 1 el comportamiento es
+            // EXACTAMENTE el histórico (in_array === conteo >= 1), así que subir la perilla es el
+            // único cambio de conducta y bajarla a 1 lo revierte sin tocar código.
+            $tope = max(1, (int) config('circuito.paralelo_mismo_modulo', 1));
+            $yaEnEseModulo = count(array_keys($taken, $mod, true));
+            if ($yaEnEseModulo >= $tope || $unknownEnVuelo) {
                 continue;
             }
             $out[]   = ['id' => (int) $r->id, 'modulo' => $mod];

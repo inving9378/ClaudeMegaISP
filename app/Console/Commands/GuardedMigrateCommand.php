@@ -79,6 +79,48 @@ class GuardedMigrateCommand extends MigrateCommand
             }
         }
 
-        return parent::handle();
+        return $this->conCandadoDeEsquema(fn () => parent::handle());
+    }
+
+    /**
+     * Item #915 (sub-item de #911) — CANDADO DE ESQUEMA ENTRE WORKTREES.
+     *
+     * Los 6 worktrees del circuito (`/home/meganet/circuito/wt-N`) aíslan ARCHIVOS, pero NO estado:
+     * los tres `.env` revisados apuntan a la misma `DB_DATABASE=megaisp`. Dos vueltas migrando a la
+     * vez sobre esa base se pisan de verdad, y eso no lo atrapa ningún detector de archivos ni la
+     * serialización por módulo (que lo venía mitigando por accidente).
+     *
+     * Es la precondición para aflojar el pre-filtro de módulo (#916): al permitir varias terminales
+     * en el mismo módulo, desaparece esa mitigación accidental.
+     *
+     * Lock de archivo exclusivo y BLOQUEANTE: el segundo `migrate` espera su turno en vez de fallar
+     * — una migración legítima nunca debe perderse por concurrencia. Si el lock no se puede tomar
+     * (FS de solo lectura, permisos), NO se bloquea la migración: se avisa y se sigue, porque este
+     * candado es una protección de concurrencia, no la autorización para migrar.
+     */
+    private function conCandadoDeEsquema(callable $run)
+    {
+        $ruta = storage_path('app/circuito');
+        if (! is_dir($ruta)) {
+            @mkdir($ruta, 0775, true);
+        }
+        $fh = @fopen($ruta . '/migrate-esquema.lock', 'c');
+        if ($fh === false) {
+            $this->components->warn('No se pudo abrir el candado de esquema (#915): se migra sin serializar.');
+
+            return $run();
+        }
+
+        if (! flock($fh, LOCK_EX | LOCK_NB)) {
+            $this->components->info('Otra vuelta está migrando sobre la misma base: esperando el candado de esquema (#915)…');
+            flock($fh, LOCK_EX);   // bloqueante: espera su turno, no falla
+        }
+
+        try {
+            return $run();
+        } finally {
+            flock($fh, LOCK_UN);
+            fclose($fh);
+        }
     }
 }
