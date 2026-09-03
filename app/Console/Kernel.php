@@ -65,6 +65,19 @@ class Kernel extends ConsoleKernel
         // #921 Fase 2 / #957 — reactiva items del Roadmap con agendado_para ya vencido (vuelven al pool).
         $schedule->command('circuito:reactivar-agendados')->dailyAt('00:05')->withoutOverlapping();
 
+        // MR-32 (#971) — LIBERADOR EN CASCADA ACOTADO de la épica MAPA DE RED (#936).
+        //
+        // Libera el freno del SIGUIENTE item de MR-01→MR-07 sólo cuando el anterior cerró limpio, y
+        // se autodesactiva al llegar al techo #943. Nunca pasa de ahí: de MR-08 en adelante empieza
+        // el modelo de datos, donde una decisión mal tomada se arrastra a diez items.
+        //
+        // Sólo mueve `excluir_pool_automatico` de true a false. No despacha, no cierra items y no
+        // vuelve a frenar nada. Verifica en cada vuelta que la red de guards de datos siga vigente
+        // (GuardBaseDePruebas + phpunit.xml en _test + MigrationGuardService) y se detiene si falta.
+        $schedule->command('circuito:liberar-cascada-mapa-red')
+            ->everyTenMinutes()
+            ->withoutOverlapping();
+
         // #634 — el freno del CLASIFICADOR caduca solo a los N días sin confirmar (2A.4), pero nada
         // corría `circuito:re-triage --apply`: los frenos se quedaban bloqueados para siempre en vez
         // de liberarse. El freno HUMANO nunca caduca (el propio comando es fail-closed sobre eso),

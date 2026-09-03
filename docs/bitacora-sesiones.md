@@ -3658,3 +3658,60 @@ de #936** · **0 elegibles para el pool** · 0 bloques de canal duplicados · **
 ⚠️ La rama `roadmap/siembra-mapa-red` **sigue sin mergear** a main (main avanzó por su cuenta con
 integraciones del circuito). El checkout se había quedado en `main` al inicio de esta sesión porque
 el circuito cambió de rama al integrar #899/#897.
+
+## 2026-09-03 14:51 — MR-32 (#971): liberador en cascada acotado para la épica MAPA DE RED
+
+**Antes que nada, el merge.** `roadmap/siembra-mapa-red` quedó **integrada a main** (merge `--no-ff`,
+sin conflictos). Era condición previa: dejar corriendo un liberador automático mientras el comando de
+siembra vive sólo en una rama significa que cualquier terminal que arranque desde main trabaja sobre
+un repo distinto al planeado.
+
+**Item nuevo conforme a D31** (no se editó nada de lo sembrado): **#971 — MR-32**, hijo de #936,
+nivel B, prioridad alta.
+
+**Qué hace:** `php artisan circuito:liberar-cascada-mapa-red`, en el scheduler **cada 10 minutos**.
+Libera el `excluir_pool_automatico` del siguiente item de **MR-01 → MR-07** (#937→#943, en ese orden)
+**sólo** cuando el anterior cerró limpio. **Dirección única:** el comando sólo pasa el freno de
+`true` a `false`; nunca cambia `estado_aprobacion`, nunca despacha, nunca cierra items y nunca
+vuelve a frenar nada.
+
+**Techo duro #943 (MR-07)**, con candado estructural: si alguien mete en `SECUENCIA` un id mayor al
+techo, el comando **aborta al arrancar**. Al cerrar MR-07 escribe su bitácora y **se autodesactiva**;
+`--reactivar` levanta una detención pero **no levanta el techo**.
+
+**Por qué ese corte:** hasta MR-07 nada toca las tablas del módulo viejo y todo lo que se escribe va a
+tablas `mapared_*` nuevas. De MR-08 en adelante empieza el modelo de datos, donde una decisión mal
+tomada se arrastra a diez items.
+
+**Distinción que importa — pausa ≠ detención.** El kill switch, el archivo `storage/app/circuito/PAUSA`
+y "hay items en `requiere_irving`" **saltan la vuelta** (son transitorios). Los frenos duros
+(`[RESPUESTA]` en la épica, item `rechazado`/`cancelado`, item atascado >3× su `eta_minutos`,
+red de seguridad caída, techo) **detienen la cascada** y exigen `--reactivar`.
+
+**Red de seguridad verificada en CADA vuelta**, no una sola vez al activar: `GuardBaseDePruebas`
+presente y **efectivamente invocado** desde `CreatesApplication`, `phpunit.xml` fijando una base
+terminada en `_test`, y `MigrationGuardService` presente. Si falta cualquiera, la cascada se
+detiene sola. Las cuatro estaban vigentes en main antes de activar el scheduler.
+
+**Sin rastro no hay liberación:** el `log` del item liberado se escribe en el mismo `save()` que
+baja el freno, dentro de try/catch — si el rastro falla, el freno **no** se toca y el comando sale en
+error.
+
+**Reporte sin canal nuevo** (lo que MR-31 previó): al detenerse entrega el resumen por donde ya va el
+`circuito:digest` — salida de consola + `Log::channel('roadmap_externo')` — y deja copia en el
+`log` de #971 y del paraguas #936, que es donde la Torre lo muestra.
+
+**Probado (4 escenarios, todos con rollback / restauración garantizada):**
+1. #937 cierra limpio → propone **#938** con su evidencia (item previo, fecha, merge_commit). ✅
+2. Tramo completo cerrado → **techo alcanzado**, se detiene, y **#944 sigue frenado**
+   (`excluir_pool_automatico=true`) — sólo aparece en el texto que dice que no se toca. ✅
+3. Nace un `[RESPUESTA]` en la épica → freno duro `respuesta_en_epica`. ✅
+4. `phpunit.xml` alterado para apuntar a la BD de dev → freno `red_de_seguridad` con el motivo
+   exacto. Archivo restaurado y verificado idéntico. ✅
+
+Estado real intacto tras las pruebas; `--dry-run` no persiste archivo de estado ni toca items.
+
+**Contexto que justifica el diseño:** la BD de dev se borró dos veces por terminales autónomas (22 y
+25 de agosto), por el mismo mecanismo. Lo que hace aceptable automatizar esto es el **orden** —MR-02
+respalda antes de que MR-04/MR-05 escriban nada— y el **techo**, que impide que la cadena alcance lo
+destructivo. Si la red de guards se cae, el liberador prefiere no arrancar.
