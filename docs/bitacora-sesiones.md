@@ -3444,3 +3444,43 @@ residual documentado en el reporte del item: si el script `cadena-rh` se vuelve 
 #202 antes de que #870/#871/#872 cierren, va a volver a des-parquearlo — no se puede blindar desde
 este item porque el script vive fuera del repo (ejecución manual, no un comando versionado). Sin
 cambio de código de aplicación — el trabajo real de Expediente RH Hijo D sigue en #870/#871/#872.
+
+## 2026-09-03 16:52 — Item #202 CUARTO re-parqueo — esta vez se localizó y corrigió la causa raíz en `cadena-rh.php` (fuera del repo)
+
+Cuarta vuelta sobre el mismo bucle. A diferencia de las tres anteriores, esta vez el script
+`cadena-rh` sí se pudo localizar: vive en `/home/meganet/circuito/cadena-rh.php` +
+`cadena-rh.sh`, invocado por crontab de `meganet` cada 5 min (`*/5 * * * * ... # cadena-rh`,
+confirmado con `crontab -l`). No está en ningún repo git — es infraestructura del propio circuito,
+compartida por todas las terminales (wt-1..wt-6), documentada en su propia cabecera como "glue
+operativo autorizado por Irving el 2026-09-02 para encadenar #201→#202→#203".
+
+**Causa raíz confirmada leyendo el código:** `cadena-rh.php` decide si "soltar" (poner
+`excluir_pool_automatico=false`) al hijo #202 evaluando SOLO una condición: ¿su padre #201 está
+`completado` y mergeado? Como #201 lleva cerrado desde hace días, esa condición es **permanentemente
+cierta**. El script no distingue *por qué* #202 está parqueado ahora mismo — no sabe que, a partir
+de las 09:00 de hoy, #202 se descompuso en #870/#871/#872 y el guard de paraguas lo parquea por una
+razón totalmente distinta (hijos propios abiertos, no la dependencia original). El log de ejecuciones
+(`logs/cadena-rh.log`) confirma 5 disparos reales el mismo día (07:18, 10:25, 10:30, 10:40, 10:45),
+cada uno deshaciendo el parqueo que el guard acababa de poner minutos antes — una guerra entre el
+cron (cada 5 min) y el guard de paraguas (cada vez que alguien reclama el item), exactamente el
+patrón que las 3 vueltas anteriores documentaron pero no pudieron blindar.
+
+**Fix aplicado** (en el archivo fuera del repo, no requiere PR — se anota aquí por la regla de
+bitácora): dentro de `$soltar()`, antes de limpiar `excluir_pool_automatico`, se agregó un guard
+`if ($m->tieneSubItemsAbiertos())` que usa el mismo método que ya usa el guard de paraguas real
+(`RoadmapItem::tieneSubItemsAbiertos()`, `app/Modules/Addons/Roadmap/Models/RoadmapItem.php:1625`)
+— si el hijo tiene sub-items propios sin cerrar, `cadena-rh` ya NO lo suelta (deja una nota una sola
+vez por item, vía archivo marca `cadena-rh.paraguas-{id}.avisado`, para no spamear el log cada 5
+min). Es seguro: la cascada de cierre automático cuando el último sub-item cierra
+(`RoadmapItem.php:459-491`) pone `estado_aprobacion=completado` directo sobre el padre sin pasar
+por el pool, así que no depender de `excluir_pool_automatico=false` para cerrar no bloquea nada.
+Verificado con `php -l` (sin errores) y en tinker: `RoadmapItem::find(202)->tieneSubItemsAbiertos()`
+= `true` con el estado actual (#870 `aprobado_irving`, #871/#872 `aprobado_revisor`, los tres sin
+archivar) — el guard nuevo dispara correctamente.
+
+Esta vuelta ejecutó el intento de cierre faltante de #202 (cuarta vez): el guard confirmó los 3
+sub-items abiertos y re-enrutó a `aprobado_irving` + `excluir_pool_automatico=true`. A diferencia de
+las 3 veces anteriores, esta vez el próximo disparo de `cadena-rh` (crontab cada 5 min) ya NO debería
+deshacer el parqueo — el bucle queda roto en la causa raíz, no solo re-documentado. Sin cambio de
+código de aplicación en el repo — el trabajo real de Expediente RH Hijo D sigue en
+#870/#871/#872; el fix de esta vuelta es sobre infraestructura del circuito, no sobre MegaISP.
