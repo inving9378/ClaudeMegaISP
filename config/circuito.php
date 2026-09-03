@@ -1005,6 +1005,9 @@ return [
         |    `config:cache`. Consume ese escaneo vía `EnvRuntimeScanner` (#901), no lo reimplementa.
         |    Cross-cutting (app/, routes/, bootstrap/): se emite UNA vez bajo el ancla
         |    'Roadmap / Circuito CC', igual que sin_clasificar/jquery_sin_off.
+        |  - null_safety:   dos patrones sin guard contra null (#900/#973): `auth()->user()->` sin
+        |    `?->` inmediatamente después, y `$var = json_decode(...)` usado (`$var->`/`$var[`) sin
+        |    comprobar null en la ventana de las ~15 líneas siguientes (heurística aproximada).
         */
         'detectores' => [
             'hueco_ruteado'  => (bool) env('CIRCUITO_AUDITOR_D_HUECOS', true),
@@ -1015,6 +1018,7 @@ return [
             'semilla'        => (bool) env('CIRCUITO_AUDITOR_D_SEMILLA', true),
             'jquery_sin_off' => (bool) env('CIRCUITO_AUDITOR_D_JQUERYOFF', true),
             'env_runtime'    => (bool) env('CIRCUITO_AUDITOR_D_ENVRUNTIME', true),
+            'null_safety'    => (bool) env('CIRCUITO_AUDITOR_D_NULLSAFE', true),
         ],
 
         /*
