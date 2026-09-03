@@ -3504,3 +3504,21 @@ pool/reaper hasta que #891 cierre — la cascada existente (`RoadmapItem.php:459
 solo. Detalle en `docs/roadmap-bucle-reap-item-878-verificacion.md`. Sin cambio de código de
 negocio — el trabajo técnico real (implementar el re-armado del freno de sequía) sigue en #891,
 pendiente de que Irving decida su brief.
+
+## 2026-09-03 19:50 — Item #883: auditoría completa de los `esperando_merge_irving` (60 vivos)
+
+Sub-item de #873. Una vuelta previa (mismo slot wt-2, 13:19) ya había clasificado 57/58 items
+como retenidos legítimamente por `nivel_riesgo=C` + 1 especial (#638), pero se cortó a los 600s
+sin comitear y escaló a Irving con 3 preguntas de metodología (cómo procesar, qué criterio usar,
+qué hacer con los retenidos). Irving aprobó las 3 opciones recomendadas (13:38, irving:CARLOS).
+
+Esta vuelta re-corrió la clasificación completa (el conteo creció de 58→60): confirmado en código
+que `JarvisService::elegibleAutoMerge()` trae un guard incondicional para `nivel_riesgo=C`
+(línea 988-993, item #756, con comentario explícito de por qué es incondicional — corrige un
+bypass real de #753). Los 60 items vivos en `esperando_merge_irving=true` se descomponen en 59
+por `nivel_riesgo=C` (candado a propósito, 100% legítimo) + 1 (#638) que vive en un repo git
+externo (`megafamilia-rn`) sin integración del circuito, también legítimo (fusión manual de
+Irving en ese repo, `circuito:merge-run` no aplica ahí). **Resultado: 0 candidatos a
+`circuito:merge-run`.** Reporte completo (tabla por módulo, 60 items) en
+`docs/roadmap-esperando-merge-irving-item-883-verificacion.md`. Sin cambio de código de negocio —
+es una auditoría read-only; el único artefacto es el reporte + el registro en el log del item.
