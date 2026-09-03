@@ -13,16 +13,17 @@ class ReleaseChangelogService
         '/\.env/i', '/\.pem$/i', '/\.key$/i', '/credential/i', '/secret/i',
     ];
 
-    // [CIRCUITO-CC][REGLA] (item roadmap #434) — el versionado NUNCA incluye la Torre de
-    // control ni el "Desarrollador / Dev Tools" del sidebar: son herramientas internas de
-    // dev, jamás forman parte del historial de versiones. Exclusión por módulo/namespace
-    // (prefijo de ruta), no archivo por archivo: cualquier archivo nuevo dentro de estas
-    // carpetas queda excluido automáticamente sin tocar esta lista.
+    // [CIRCUITO-CC][REGLA] (item roadmap #434, ajustada por el #893 el 2026-09-03) — el
+    // versionado excluye SOLO el "Desarrollador / Dev Tools" del sidebar: es una herramienta
+    // interna de dev que jamás forma parte del historial de versiones. La Torre de control
+    // (Hoja de Ruta / circuito CC) SÍ se incluye desde el #893 — decisión explícita de Irving:
+    // el trabajo hecho en la Torre es trabajo real del sistema y debe aparecer en el changelog.
+    // No la vuelvas a excluir sin una decisión igual de explícita. Exclusión por
+    // módulo/namespace (prefijo de ruta), no archivo por archivo: cualquier archivo nuevo
+    // dentro de estas carpetas queda excluido automáticamente sin tocar esta lista.
     private const EXCLUDED_PATH_PREFIXES = [
-        'app/Modules/Addons/Roadmap',                          // Hoja de Ruta / circuito CC (backend de la Torre)
-        'app/Modules/Addons/DevTools',                         // Desarrollador / DevTools (backend)
-        'resources/js/components/module/releases/torre-control', // Torre de control (frontend: panorama, roadmap, terminales, integración, reporte)
-        'resources/js/components/module/devtools',             // Desarrollador / DevTools (frontend)
+        'app/Modules/Addons/DevTools',             // Desarrollador / DevTools (backend)
+        'resources/js/components/module/devtools', // Desarrollador / DevTools (frontend)
     ];
 
     private const MAX_COMMITS = 40;
@@ -81,7 +82,8 @@ class ReleaseChangelogService
 
     /**
      * Pathspec de exclusión ':(exclude)ruta' para dejar fuera del changelog (git log / diff
-     * --stat) a la Torre de control y al Dev Tools (item roadmap #434) — ver EXCLUDED_PATH_PREFIXES.
+     * --stat) al Dev Tools (item roadmap #434; la Torre de control se incluyó de vuelta en
+     * el #893) — ver EXCLUDED_PATH_PREFIXES.
      */
     private function buildExcludePathspec(): string
     {
