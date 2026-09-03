@@ -269,6 +269,21 @@ return [
         'centinela' => env('CIRCUITO_FRENO_CENTINELA', '/var/www/megaisp/storage/app/circuito/PAUSA'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | CANDADO DE ESQUEMA — migrate entre worktrees (#915, bug de #916 documentado abajo)
+    |--------------------------------------------------------------------------
+    |
+    | MISMO patrón que el freno de arriba: ruta ABSOLUTA al storage/ del checkout PRINCIPAL,
+    | jamás `storage_path()`. El primer intento de #915 (commit c1ee65f1) usó `storage_path()`
+    | dentro de `GuardedMigrateCommand` — como cada worktree tiene su propio `storage/` real,
+    | cada terminal tomaba SU PROPIO candado y nunca veía el de las demás: el lock no serializaba
+    | nada entre worktrees, exactamente el mismo error que ya advertía el comentario del freno de
+    | mano. `paralelo_mismo_modulo` (#916, abajo) subió a 2 confiando en esta precondición —
+    | mientras el candado no apunte aquí, ese riesgo de corrupción de esquema está VIVO.
+    */
+    'candado_migraciones' => env('CIRCUITO_CANDADO_MIGRACIONES', '/var/www/megaisp/storage/app/circuito/migrate-esquema.lock'),
+
     'autopilot' => [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
 

@@ -97,14 +97,21 @@ class GuardedMigrateCommand extends MigrateCommand
      * — una migración legítima nunca debe perderse por concurrencia. Si el lock no se puede tomar
      * (FS de solo lectura, permisos), NO se bloquea la migración: se avisa y se sigue, porque este
      * candado es una protección de concurrencia, no la autorización para migrar.
+     *
+     * ⚠️ FIX (misma vuelta de #915): la ruta DEBE ser absoluta al checkout PRINCIPAL
+     * (`config('circuito.candado_migraciones')`), jamás `storage_path()`. Cada worktree tiene su
+     * propio `storage/` real — con `storage_path()` cada terminal tomaba SU candado privado y el
+     * lock nunca serializaba nada entre worktrees (mismo error que ya advertía el freno de mano,
+     * `config/circuito.php` línea ~258). Ver detalle en el comentario del config.
      */
     private function conCandadoDeEsquema(callable $run)
     {
-        $ruta = storage_path('app/circuito');
-        if (! is_dir($ruta)) {
-            @mkdir($ruta, 0775, true);
+        $ruta = config('circuito.candado_migraciones');
+        $dir = dirname($ruta);
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0775, true);
         }
-        $fh = @fopen($ruta . '/migrate-esquema.lock', 'c');
+        $fh = @fopen($ruta, 'c');
         if ($fh === false) {
             $this->components->warn('No se pudo abrir el candado de esquema (#915): se migra sin serializar.');
 
