@@ -963,6 +963,11 @@ return [
         |    correspondiente en el mismo archivo → handlers jQuery que se acumulan en cada remount
         |    de la SPA (#899). Cross-cutting (resources/js/, no un $dir de módulo PHP): se emite
         |    UNA vez bajo el ancla 'Roadmap / Circuito CC', igual que sin_clasificar.
+        |  - env_runtime:   llamadas a `env()` en tiempo de ejecución fuera de `config/`, la misma
+        |    lista que vigila `php artisan config:auditar-env` (#790) antes de permitir
+        |    `config:cache`. Consume ese escaneo vía `EnvRuntimeScanner` (#901), no lo reimplementa.
+        |    Cross-cutting (app/, routes/, bootstrap/): se emite UNA vez bajo el ancla
+        |    'Roadmap / Circuito CC', igual que sin_clasificar/jquery_sin_off.
         */
         'detectores' => [
             'hueco_ruteado'  => (bool) env('CIRCUITO_AUDITOR_D_HUECOS', true),
@@ -972,6 +977,7 @@ return [
             'sin_clasificar' => (bool) env('CIRCUITO_AUDITOR_D_SINCLAS', true),
             'semilla'        => (bool) env('CIRCUITO_AUDITOR_D_SEMILLA', true),
             'jquery_sin_off' => (bool) env('CIRCUITO_AUDITOR_D_JQUERYOFF', true),
+            'env_runtime'    => (bool) env('CIRCUITO_AUDITOR_D_ENVRUNTIME', true),
         ],
 
         /*
