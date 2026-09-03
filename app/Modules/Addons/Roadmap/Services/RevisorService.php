@@ -220,8 +220,18 @@ class RevisorService
             $porPolitica = app(TorreAutomationPolicy::class)->estadoInicial($item, 'revisor');
             if ($porPolitica === 'requiere_irving') {
                 $autoriza = false;
+                // #979 — el mensaje distinguía "la política no permite este nivel" tanto si la
+                // causa real era una frontera dura (dinero/seguridad/prod) como si era solo el
+                // techo de nivel del carril: dos causas distintas con el mismo texto.
+                $det = app(JarvisService::class)->fronteraDuraDeItemDetalle($item);
+                if ($det['categoria'] !== null) {
+                    $detalle = "retenido por frontera dura «{$det['categoria_detectada']}», término «{$det['termino']}» — {$det['motivo']}";
+                } else {
+                    $techo = app(TorreAutomationPolicy::class)->nivelEfectivo('revisor');
+                    $detalle = "nivel del item «{$item->nivel_riesgo}» por encima del techo del carril revisor (" . ($techo ?? 'sin techo definido') . ')';
+                }
                 $v['razon'] = trim((string) ($v['razon'] ?? ''))
-                    . ' — El revisor autorizaba, pero la política de la Torre no permite este nivel: queda para Irving.';
+                    . " — El revisor autorizaba, pero la política de la Torre no permite este nivel ({$detalle}): queda para Irving.";
             }
         }
 
@@ -1080,7 +1090,16 @@ TXT;
             if ($porPolitica === 'requiere_irving') {
                 $v['reejecutable'] = false;
                 $v['categoria']    = $v['categoria'] ?? 'politica';
-                $v['razon']        = 'La política de la Torre no autoriza este nivel al des-trabador. ' . trim((string) $v['razon']);
+                // #979 — mismo defecto que en aplicarVeredicto(): el mensaje no distinguía
+                // frontera dura real de simple techo de nivel del carril des-trabador.
+                $det = app(JarvisService::class)->fronteraDuraDeItemDetalle($item);
+                if ($det['categoria'] !== null) {
+                    $detalle = "retenido por frontera dura «{$det['categoria_detectada']}», término «{$det['termino']}» — {$det['motivo']}";
+                } else {
+                    $techo = app(TorreAutomationPolicy::class)->nivelEfectivo('destrabe');
+                    $detalle = "nivel del item «{$item->nivel_riesgo}» por encima del techo del carril des-trabador (" . ($techo ?? 'sin techo definido') . ')';
+                }
+                $v['razon'] = "La política de la Torre no autoriza este nivel al des-trabador ({$detalle}). " . trim((string) $v['razon']);
             }
         }
 
