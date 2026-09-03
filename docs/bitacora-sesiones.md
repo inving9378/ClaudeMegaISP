@@ -3522,3 +3522,54 @@ Irving en ese repo, `circuito:merge-run` no aplica ahí). **Resultado: 0 candida
 `circuito:merge-run`.** Reporte completo (tabla por módulo, 60 items) en
 `docs/roadmap-esperando-merge-irving-item-883-verificacion.md`. Sin cambio de código de negocio —
 es una auditoría read-only; el único artefacto es el reporte + el registro en el log del item.
+
+## 2026-09-03 14:10 — Siembra de la Hoja de Ruta: módulo MAPA DE RED (29 items, #936–#964)
+
+**Alcance de la sesión:** SOLO altas en el Roadmap. No se implementó nada del módulo — sin código
+de `MapaRed`, sin migraciones, sin tocar `app/Modules/Addons/Mapas`.
+
+**Qué se creó:** comando idempotente `php artisan roadmap:sembrar-mapa-red {--dry-run}`
+(`app/Modules/Addons/Roadmap/Console/SembrarMapaRedCommand.php`, registrado en el
+`ModuleServiceProvider`). Dedupe por `title` exacto: re-ejecutarlo reporta 29 omitidos y crea 0.
+Commit `87e47b23` en la rama `roadmap/siembra-mapa-red` (sin mergear — pendiente de Irving).
+
+**Los 29 items:** épica **#936 (MR-00)** + 28 hijos enlazados por `origen_item_id`, en orden de
+ejecución: MR-01/02 salvamento read-only de Mapas · MR-03..07 andamiaje y paridad · MR-08..15
+modelo de planta (cable, puerto, hilo, empalme, splitter, enlace de servicio, backfill) · MR-16..21
+motor (grafo, impacto MRR, presupuesto óptico, carta de empalme, semáforos) · MR-22..24 navegación ·
+MR-25/26 interoperabilidad y cobertura · MR-27/28 comparativa y retiro del perdedor.
+
+**Hallazgo que cambió la siembra — el circuito estaba vivo.** `aprobado_irving` es estado ELEGIBLE
+para el pool (`RoadmapItem::sqlElegibleParaPool()`) y `circuito_pausado = false`. Sembrar los 29
+en ese estado, sin más, habría hecho que la Torre los repartiera sola, en paralelo y sin respetar la
+secuencia (MR-05 copiando datos antes de que MR-02 hiciera el respaldo; MR-16 trazando el grafo sin
+los hilos de MR-09) — contra la instrucción explícita del documento de origen: *"No ejecutar ninguno
+de los items. La ejecución arranca en una sesión aparte con MR-01."*
+**Decisión de Irving:** nacen `aprobado_irving` como pedía el documento, pero con
+**`excluir_pool_automatico = true`**. Verificado: 29/29 con freno, **0 elegibles para el pool**.
+De paso, eso protege a MR-00 del bucle reap de paraguas (#738/#745/#830/#816/#818/#848/#878).
+**Para arrancar: liberar el flag de MR-01 (#937) desde la Torre, item por item, en orden.**
+
+**Tres discrepancias del documento, resueltas con Irving antes de escribir:**
+1. **Conteo:** el encabezado pedía 28 (MR-00..MR-27) pero el cuerpo definía 29 (MR-00..MR-28). Se
+   sembraron los 29.
+2. **Estados:** las reglas decían `requiere_irving` en "MR-26 y MR-27"; el listado los marcaba en
+   MR-27 y MR-28. Se aplicó lo del listado (MR-27 comparativa, MR-28 retiro nivel C).
+3. **Referencias cruzadas con off-by-one** de un renumerado previo: MR-11 citaba MR-15 (es MR-16),
+   MR-12 citaba MR-18 (es MR-19), MR-13 citaba MR-17 (es MR-18), MR-14 citaba MR-16/MR-20 (son
+   MR-17/MR-21). **Corregidas y anotadas dentro de cada item**, para no darle instrucciones falsas a
+   la terminal que lo ejecute. Misma corrección en D1/D26 de la tabla de decisiones.
+
+**Mapeo de campos** (el documento usaba nombres que no existen en `roadmap_items`):
+`prompt_para_claude` → **`prompt`** · `item_padre` → **`origen_item_id`** · `tipo='manual'` →
+**no existe columna `tipo`** (los items de respuesta se marcan por título `[RESPUESTA]` +
+`origen_item_id`). El bloque "Canal de respuesta" se copió textual en los 29 `prompt`, con su
+placeholder, como pedía el documento.
+
+**Verificado:** 29 sembrados · 29 con freno · 0 elegibles para el pool · 28 hijos enlazados a #936 ·
+bloque Canal de respuesta en 29/29 · tabla D1–D30 completa (30 filas) en el `description` de MR-00 ·
+priority alta=9 / media=20 · nivel B=25, A=3, C=1 · módulo "Mapa de Red"=27, "Mapas"=2 ·
+0 duplicados · idempotencia probada (2ª corrida = 0 creados).
+
+**No se tocó:** `app/Modules/Addons/Mapas`, esquema de BD, datos fuera de `roadmap_items`.
+Los items #933–#935 que aparecieron durante la sesión son de otras terminales del circuito, ajenos.
