@@ -1602,3 +1602,28 @@ sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre
 `docs/roadmap-bucle-reap-item-907-verificacion.md`. **Sin cambio de código de negocio** — el trabajo
 técnico real (condición de disparo, toggle configurable, métrica de ocupación) sigue en #980
 (pendiente de que Irving lo apruebe) y #981/#982 (`aprobado_revisor`, listos para tomarse).
+
+## Item #930 — FASE 4 de #927: ¿debe agotar los 60 turnos disparar la misma descomposición (`circuito:cabida`) que un timeout? (RESUELTO — el mecanismo ya estaba en vigor)
+
+Sub-item de evaluación/reporte de #927 (causa raíz de los claims huérfanos por `Reached max turns`).
+Irving aprobó la Opción 1 de la pregunta estructurada: "sí, tratar max-turns como timeout y disparar
+`circuito:cabida`". Verificado contra el código real de `main` (ya con #927-FASE1-3 y #928
+mergeados): **esa decisión ya está implementada, sin necesitar código nuevo**. `deploy/circuito/vuelta.sh`
+(líneas 262-278) ya llama `circuito:parquear-timeout --causa=max_turns` al detectar `Reached max
+turns` en el log, igual que hace con timeout; `ParquearTimeoutCommand` incrementa `veces_timeouteo`
+para ambas causas por igual; y `JarvisService::caberEnVuelta()` (línea 1279) devuelve `NO CABE
+[ya_timeouteo_antes]` en cuanto `veces_timeouteo >= 1`, sin mirar la causa — y `circuito:cabida` es
+paso obligatorio (2) de cada vuelta (`prompt-item.txt:103-106`). Efecto neto: un item que agota sus
+60 turnos topa con la descomposición obligatoria en su siguiente intento, sea cual sea el motivo por
+el que se reencola. **Q1** (¿max-turns = item grande?): no por sí solo — criterio de distinción es el
+artefacto dejado (commits/decisión/sub-item), no el conteo de turnos; el único caso medido de #871
+agotó 60 turnos en ~5 min (~5s/turno), ritmo compatible con bucle/exploración, no con trabajo
+sostenido. **Q3** (aplicación a #871, caso de prueba real con `reap_count=10`): revisado su historial
+completo — solo 1 de ~10 ciclos agotó max-turns (con el `vuelta.sh` viejo, sin registro por el propio
+bug que #927 corrigió); los otros ~9 fueron un bloqueo externo distinto (#870 sin mergear, ya
+resuelto el 2026-09-03 14:22) + bucle reaper↔jarvis-ya-decidido, fuera de alcance de este item
+(#897/#898). No se fuerza la descomposición de #871 (el análisis de Q1 no la hace inequívoca —
+forzarla sería el falso-positivo que la propia Opción 1 señala como contra); se dejó la recomendación
+de corte en 3 fases escrita en su log para el próximo ejecutor, si vuelve a agotar turnos. Detalle
+completo en `docs/circuito-maxturns-cabida-item-930-verificacion.md`. **Sin cambio de código de
+aplicación** — el mecanismo que satisface la Opción 1 ya existía en `main` antes de este item.
