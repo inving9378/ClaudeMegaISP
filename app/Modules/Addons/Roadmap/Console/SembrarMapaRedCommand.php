@@ -41,16 +41,22 @@ class SembrarMapaRedCommand extends Command
     protected $description = 'Siembra idempotente de los 29 items del módulo MAPA DE RED (MR-00 a MR-28).';
 
     /**
-     * Bloque obligatorio al final del `prompt` de LOS 29 items. Copiado textual del documento de
-     * origen, incluido el placeholder `{id de este item}` (es autoexplicativo para la terminal que
-     * lo lea, y el documento pidió copiarlo "textualmente ... sin excepciones").
+     * Bloque obligatorio al final del `prompt` de LOS 29 items.
+     *
+     * Versión vigente entregada por Irving (2026-09-03), que corrige la del documento original:
+     * ésta ya NO instruye `tipo='respuesta'` (esa columna no existe en `roadmap_items`; el item de
+     * respuesta se marca por título `[RESPUESTA]` + `origen_item_id`), fija `nivel_riesgo` mínimo
+     * `B` con su motivo —un `A` puede quedar `aprobado_claude` y saltarse al supervisor— y deja
+     * `excluir_pool_automatico` sujeto a la política vigente del pool.
+     *
+     * `sincronizaCanal()` la propaga: re-ejecutar el comando reemplaza el bloque en los items ya
+     * sembrados sin tocar el cuerpo de su `prompt`.
      */
     private const CANAL_RESPUESTA = <<<'TXT'
-
 ## Canal de respuesta (obligatorio)
 
 Antes de marcar este item como `completado`, evalúa tu propio reporte. Si
-contiene ALGUNA de estas cinco cosas, crea un item `tipo='respuesta'`:
+contiene ALGUNA de estas cinco cosas, crea un item de respuesta:
 
 1. Pregunta abierta que no pudiste resolver sin criterio humano.
 2. Decisión que no te toca (alcance, arquitectura, negocio).
@@ -60,12 +66,15 @@ contiene ALGUNA de estas cinco cosas, crea un item `tipo='respuesta'`:
 
 Si nada de eso aplica, NO crees nada. Un cierre limpio no genera respuesta.
 
-El item de respuesta nace: `tipo='respuesta'`, `origen_item_id`={id de este
-item}, `estado_aprobacion='requiere_irving'`, `nivel_riesgo` mínimo `B`.
-Título: `[RESPUESTA] {título de este item} — {resumen en ≤10 palabras}`.
-Máximo UNO por item origen. Cuerpo: Contexto · Qué se hizo · Qué NO se hizo y
-por qué · La decisión pendiente · Opciones con recomendación · Qué se bloquea ·
-Qué validar con screenshot. La recomendación es obligatoria.
+El item de respuesta nace con título `[RESPUESTA] {título de este item} —
+{resumen en ≤10 palabras}`, `origen_item_id`={id de este item},
+`estado_aprobacion='requiere_irving'`, `nivel_riesgo` mínimo `B` (nunca `A`:
+un item A puede quedar `aprobado_claude` y saltarse al supervisor), y
+`excluir_pool_automatico` según la política vigente del pool.
+Máximo UNO por item origen: varias preguntas se consolidan en una lista.
+Cuerpo: Contexto · Qué se hizo · Qué NO se hizo y por qué · La decisión
+pendiente · Opciones con recomendación · Qué se bloquea · Qué validar con
+screenshot. La recomendación es obligatoria.
 TXT;
 
     public function handle(): int
@@ -90,17 +99,36 @@ TXT;
             $existente = RoadmapItem::where('title', $d['title'])->first();
 
             if ($existente) {
-                // Idempotencia: no se re-crea ni se pisa. Sólo se repara el enlace al paraguas si
-                // una corrida anterior murió entre MR-00 y sus hijos.
+                // Idempotencia: no se re-crea ni se pisa el cuerpo del prompt. Sólo dos reparaciones
+                // acotadas: el enlace al paraguas (si una corrida anterior murió entre MR-00 y sus
+                // hijos) y el bloque de canal de respuesta (para poder corregirlo en los 29 de una
+                // pasada, sin tocar nada más de su texto).
                 if ($d['codigo'] === 'MR-00') {
                     $padreId = (int) $existente->id;
-                } elseif (! $dry && $padreId && ! $existente->origen_item_id) {
-                    $existente->origen_item_id = $padreId;
-                    $existente->save();
                 }
+
+                $nota = 'ya existía';
+
+                if (! $dry) {
+                    if ($d['codigo'] !== 'MR-00' && $padreId && ! $existente->origen_item_id) {
+                        $existente->origen_item_id = $padreId;
+                        $nota = 'enlace reparado';
+                    }
+                    // Se sincroniza sobre el texto QUE ESTÁ EN BD, no sobre la definición: así una
+                    // edición manual del cuerpo sobrevive y sólo se normaliza el canal.
+                    $sinc = $this->sincronizaCanal((string) $existente->prompt);
+                    if ($sinc !== (string) $existente->prompt) {
+                        $existente->prompt = $sinc;
+                        $nota = $nota === 'ya existía' ? 'canal actualizado' : $nota . ' + canal';
+                    }
+                    if ($existente->isDirty()) {
+                        $existente->save();
+                    }
+                }
+
                 $omitidos++;
                 $filas[] = [$existente->id, $d['codigo'], $this->corta($d['title']), $d['nivel'],
-                            $existente->estado_aprobacion, $existente->origen_item_id ?? '—', 'ya existía'];
+                            $existente->estado_aprobacion, $existente->origen_item_id ?? '—', $nota];
                 continue;
             }
 
@@ -114,7 +142,7 @@ TXT;
             $item = RoadmapItem::create([
                 'title'               => $d['title'],
                 'description'         => $d['description'],
-                'prompt'              => rtrim($d['prompt']) . "\n" . self::CANAL_RESPUESTA,
+                'prompt'              => $this->sincronizaCanal($d['prompt']),
                 'modulo'              => $d['modulo'],
                 'nivel_riesgo'        => $d['nivel'],
                 'nivel_riesgo_origen' => 'interno',
@@ -152,6 +180,23 @@ TXT;
     private function corta(string $t, int $n = 52): string
     {
         return mb_strlen($t) > $n ? mb_substr($t, 0, $n - 1) . '…' : $t;
+    }
+
+    /**
+     * Deja el `prompt` terminando en la versión VIGENTE del canal de respuesta.
+     *
+     * Corta cualquier bloque de canal previo por su encabezado y pega el actual, así que es
+     * idempotente y sirve tanto para construir el prompt de un item nuevo como para actualizar el
+     * de uno ya sembrado sin tocar el cuerpo de arriba.
+     */
+    private function sincronizaCanal(string $prompt): string
+    {
+        $marca = '## Canal de respuesta (obligatorio)';
+        if (($pos = mb_strpos($prompt, $marca)) !== false) {
+            $prompt = mb_substr($prompt, 0, $pos);
+        }
+
+        return rtrim($prompt) . "\n\n" . self::CANAL_RESPUESTA;
     }
 
     /**

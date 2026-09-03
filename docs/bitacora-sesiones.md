@@ -3573,3 +3573,35 @@ priority alta=9 / media=20 · nivel B=25, A=3, C=1 · módulo "Mapa de Red"=27, 
 
 **No se tocó:** `app/Modules/Addons/Mapas`, esquema de BD, datos fuera de `roadmap_items`.
 Los items #933–#935 que aparecieron durante la sesión son de otras terminales del circuito, ajenos.
+
+### 2026-09-03 14:15 — ACTUALIZACIÓN de la entrada anterior: canal de respuesta corregido en los 29
+
+Irving entregó la versión vigente del bloque **Canal de respuesta** y quedó aplicada a los 29 items
+(#936–#964). **Corrige el punto que se había reportado como deuda:** el bloque del documento original
+instruía crear el item de respuesta con `tipo='respuesta'`, y esa columna **no existe** en
+`roadmap_items`. La versión nueva ya no la menciona; el item de respuesta se identifica por título
+`[RESPUESTA]` + `origen_item_id`. Suma además dos reglas que antes no estaban: `nivel_riesgo`
+**mínimo `B`, nunca `A`** —con su motivo explícito: un item A puede quedar `aprobado_claude` y
+saltarse al supervisor— y `excluir_pool_automatico` **según la política vigente del pool**.
+
+Por tanto queda **sin efecto** la frase de la entrada anterior que decía que el bloque se copió
+textual del documento de origen "con su placeholder": lo que está sembrado hoy es la versión de
+Irving.
+
+**Cómo se propagó:** el comando `roadmap:sembrar-mapa-red` dejó de ser sólo "crea si no existe".
+Ahora, para un item ya sembrado, hace dos reparaciones acotadas — el enlace al paraguas y el bloque
+de canal — mediante `sincronizaCanal()`, que corta cualquier bloque previo por su encabezado y pega
+el vigente. Opera **sobre el texto que está en BD, no sobre la definición del comando**, así que una
+edición manual del cuerpo de un `prompt` sobrevive y sólo se normaliza el canal. Es idempotente:
+re-ejecutarlo cuando ya está sincronizado no escribe nada.
+
+**Verificado:** 29/29 con el bloque nuevo (encabezado, "crea un item de respuesta", "nunca \`A\`",
+"política vigente del pool", "se consolidan en una lista") · **0** con el texto viejo
+(`tipo='respuesta'` ya no aparece en ninguno) · **0** bloques duplicados · **28/28** conservan su
+`**DoD:**` (el cuerpo de los prompts no se tocó) · 0 elegibles para el pool · 28 hijos de #936.
+
+**Nota de estado, ajena a este cambio:** MR-27 (#963) y MR-28 (#964) ya no están en
+`requiere_irving` — **Irving los aprobó él mismo** desde la Torre (`aprobado_por = irving:admin`,
+14:11:53 y 14:12:00), pocos minutos después de la siembra. Ambos conservan
+`excluir_pool_automatico = true`, así que siguen fuera del pool. No hubo proceso automático de por
+medio; se registra sólo para que el cambio de estado no sorprenda a quien lea la entrada anterior.
