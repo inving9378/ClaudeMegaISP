@@ -29,10 +29,15 @@ use Symfony\Component\Process\Process;
  * item puntual, pero NO sus guards: respeta la pausa, respeta los frenos por item (el mismo
  * `despachable()`/`motivoNoDespachable()` que usa la bandeja) y sella en el log del item que fue
  * un despacho DIRIGIDO y por quién — la vía deja de ser un puenteo manual sin rastro.
+ *
+ * #211 — `--once` (solo junto con `--item`): además de saltar el picker, corta el POOL CONTINUO
+ * después de ese item — la vuelta no pide el siguiente. Sin `--once`, `--item` se comporta IGUAL
+ * que siempre (elige el primero, pero el slot se mantiene lleno con lo que siga eligible). Es la
+ * vía para verificar UN item puntual sin que el circuito se lleve trabajo ajeno detrás.
  */
 class SchedulerCommand extends Command
 {
-    protected $signature = 'circuito:scheduler {--dry : solo reporta el plan, no lanza} {--item= : despacho DIRIGIDO de un item concreto (#198), salta el picker}';
+    protected $signature = 'circuito:scheduler {--dry : solo reporta el plan, no lanza} {--item= : despacho DIRIGIDO de un item concreto (#198), salta el picker} {--once : junto con --item, corta el pool continuo tras ese item (#211)}';
 
     protected $description = 'Planifica y lanza N vueltas por-item en paralelo (#334 Fase 1).';
 
@@ -43,7 +48,7 @@ class SchedulerCommand extends Command
     public function handle(RoadmapCircuitoService $svc): int
     {
         if ($this->option('item') !== null) {
-            return $this->despacharDirigido($svc, (int) $this->option('item'));
+            return $this->despacharDirigido($svc, (int) $this->option('item'), (bool) $this->option('once'));
         }
 
         // Latido del SCHEDULER PRIMERO (antes del flock, SIEMPRE): así cada corrida del cron marca
@@ -274,12 +279,17 @@ class SchedulerCommand extends Command
     }
 
     /** Lanza vuelta.sh en modo por-item, detached, en el worktree del slot. */
-    private function lanzarVueltaItem(int $itemId, int $slot): void
+    private function lanzarVueltaItem(int $itemId, int $slot, bool $once = false): void
     {
         $script = base_path('deploy/circuito/vuelta.sh');
         $wt     = self::RUNTIME . "/wt-{$slot}";
         $sid    = "wt-{$slot}";
         $env    = sprintf('CIRCUITO_ITEM=%d CIRCUITO_WT=%s CIRCUITO_SID=%s', $itemId, escapeshellarg($wt), escapeshellarg($sid));
+        // #211 — modo dirigido de una sola vuelta: el item ya se sella como despacho_dirigido en
+        // el log (claimNextParalelo); esto además le dice al wrapper que no encadene el siguiente.
+        if ($once) {
+            $env .= ' CIRCUITO_ONCE=1';
+        }
         $cmd    = "setsid nohup env {$env} " . escapeshellarg($script) . ' >/dev/null 2>&1 &';
         $p = Process::fromShellCommandline($cmd, base_path());
         $p->run();
@@ -296,7 +306,7 @@ class SchedulerCommand extends Command
      * Usa el flock del scheduler (bloqueante: es una acción puntual, puede esperar el segundo que
      * tarde una ronda de cron en curso) para no pisar el slot libre que esa ronda esté por tomar.
      */
-    private function despacharDirigido(RoadmapCircuitoService $svc, int $itemId): int
+    private function despacharDirigido(RoadmapCircuitoService $svc, int $itemId, bool $once = false): int
     {
         if ($svc->isPaused()) {
             $this->error('El circuito está en pausa (kill switch). No se despacha nada — reanúdalo primero.');
@@ -342,21 +352,22 @@ class SchedulerCommand extends Command
             }
 
             if ($this->option('dry')) {
-                $this->line("PLAN: #{$itemId} → slot wt-{$slot} (despacho dirigido).");
+                $modo = $once ? 'despacho dirigido, once' : 'despacho dirigido';
+                $this->line("PLAN: #{$itemId} → slot wt-{$slot} ({$modo}).");
 
                 return self::SUCCESS;
             }
 
             $sid = "wt-{$slot}";
-            $reclamado = $svc->claimNextParalelo($sid, $itemId, 'scheduler-item');
+            $reclamado = $svc->claimNextParalelo($sid, $itemId, 'scheduler-item', $once);
             if ($reclamado !== $itemId) {
                 $this->error("No se pudo reclamar #{$itemId}: otra terminal lo tomó justo ahora, o dejó de ser elegible.");
 
                 return self::FAILURE;
             }
 
-            $this->lanzarVueltaItem($itemId, $slot);
-            $this->info("Despacho dirigido: #{$itemId} → slot {$sid}.");
+            $this->lanzarVueltaItem($itemId, $slot, $once);
+            $this->info("Despacho dirigido: #{$itemId} → slot {$sid}" . ($once ? ' (once: no encadena el siguiente).' : '.'));
 
             return self::SUCCESS;
         } finally {
