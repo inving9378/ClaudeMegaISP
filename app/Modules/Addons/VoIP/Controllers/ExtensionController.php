@@ -59,7 +59,7 @@ class ExtensionController extends Controller
 
         // "whereHas any role AND whereDoesntHave client" omite colaboradores que
         // también tienen el rol client asignado (datos mixtos en producción).
-        // La lista explícita es la única que captura correctamente a todo el staff.
+        // La lista explícita es la única que captura correctamente al personal completo.
         // Al agregar un rol de staff nuevo: actualizar esta lista.
         $rolesStaff = [
             'Administrador', 'ADMINISTRADOR_COMPLETO', 'Almacen', 'conductor', 'CONTADOR',
