@@ -261,7 +261,7 @@
         {
             "key": "vendedores_estadisticas",
             "label": "Estadísticas de Ventas",
-            "url": "/sellers/statistics",
+            "url": "/vendedores/dashboard",
             "permission": "seller_view_statics",
             "terms": [
                 { "term": "Medio de venta", "definition": "Canal por el que llegó la venta (referido, llamada, campaña, etc.)." },
