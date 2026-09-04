@@ -1425,6 +1425,31 @@ return [
             'cadencia'    => 'dentro del scheduler · cola < 3 y ≥ 15 min desde la última',
         ],
 
+        // #9990235 — EL BARRIDO CONTINUO. Corría por cron cada 5 min (línea añadida el 2026-09-04
+        // al ponerlo en modo continuo) SIN estar aquí: si esa línea se rompía, el 24/7 dejaba de
+        // barrer y el panel no lo habría pintado en rojo — ni siquiera lo habría pintado. Es
+        // exactamente el fallo que documenta la auditoría del 2026-08-19 unas líneas más arriba:
+        // «ausente es peor que rojo».
+        //
+        // `exige_opciones => ['apply']` es lo que hace honesto este latido: el barrido se corre a
+        // mano en DRY-RUN a menudo (para ver qué encontraría sin crear nada), y esas corridas NO
+        // deben sellar el pulso. Si lo hicieran, un cron muerto quedaría enmascarado por la primera
+        // exploración manual que alguien hiciera — la mentira precisa que este vigilante evita.
+        //
+        // El latido lo sella el listener de `ModuleServiceProvider` con la clave por defecto
+        // (`circuito_beat_circuito_barrido`); NO se toca `circuito_barrido_cobertura_modulos`, que
+        // es otra cosa: la cobertura POR MÓDULO que usa el propio barrido para rotar. Dos fuentes
+        // de la misma verdad se desincronizan, así que cada una conserva su propósito.
+        'circuito:barrido' => [
+            'motor'          => 'Barrido',
+            'cadencia_horas' => 5 / 60,
+            'max_horas'      => 1,
+            'exige_opciones' => ['apply'],
+            'si_no_corre'    => 'con la cola seca las terminales se quedan ociosas y nadie descubre '
+                . 'defectos nuevos en el código: el modo 24/7 deja de explorar sin avisar',
+            'cadencia'       => 'cada 5 min (cron)',
+        ],
+
         'circuito:watchdog' => [
             'motor'         => 'Watchdog',
             'cadencia_horas' => 2 / 60,
