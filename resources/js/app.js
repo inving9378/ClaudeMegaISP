@@ -109,6 +109,7 @@ import DcRegistros from "./components/module/documentacion-corporativa/DcRegistr
 import DcActivosMapa from "./components/module/documentacion-corporativa/DcActivosMapa.vue";
 import DcSolicitudes from "./components/module/documentacion-corporativa/DcSolicitudes.vue";
 import DcBitacora from "./components/module/documentacion-corporativa/DcBitacora.vue";
+import DcOffboarding from "./components/module/documentacion-corporativa/DcOffboarding.vue";
 import MegaFamiliaIngresos from "./components/module/megafamilia/MegaFamiliaIngresos.vue";
 import MegaFamiliaAlertas from "./components/module/megafamilia/MegaFamiliaAlertas.vue";
 import MegaFamiliaSolicitudes from "./components/module/megafamilia/MegaFamiliaSolicitudes.vue";
@@ -189,6 +190,7 @@ import TalentoEscalafon from "./components/module/talento/TalentoEscalafon.vue";
 import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.vue";
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
 import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
+import TalentoPuestos from "./components/module/talento/TalentoPuestos.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -640,6 +642,7 @@ const app = createApp({
         'talento-embajadores': TalentoEmbajadores,
         'talento-evidencia-config': TalentoEvidenciaConfig,
         'talento-paquete-documentos': TalentoPaqueteDocumentos,
+        'talento-puestos': TalentoPuestos,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
@@ -807,6 +810,7 @@ const app = createApp({
         'dc-activos-mapa': DcActivosMapa,
         'dc-solicitudes': DcSolicitudes,
         'dc-bitacora': DcBitacora,
+        'dc-offboarding': DcOffboarding,
         // Marketing Fase 4.5b — Director Creativo IA
         'marketing-campaign-generator-view': MarketingCampaignGeneratorView,
         'voice-comparator-view': VoiceComparatorView,

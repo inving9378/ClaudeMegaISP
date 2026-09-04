@@ -2042,6 +2042,8 @@ return [
         '/talento/api/colaboradores/{id}/certifications',
         '/talento/api/colaboradores/{id}/credentials',
         '/talento/api/colaboradores/{id}/custodia',
+        '/talento/api/colaboradores/{id}/documentos',
+        '/talento/colaboradores/{id}/documentos/{docId}',
         '/talento/api/colaboradores/{id}/dispositivos',
         '/talento/api/colaboradores/{id}/embajador-data',
         '/talento/api/colaboradores/{id}/funds',

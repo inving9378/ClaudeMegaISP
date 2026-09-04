@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="pkg-docs">
     <!-- Encabezado -->
     <div class="d-flex align-items-center justify-content-between mb-3">
       <div>
@@ -33,17 +33,19 @@
     </div>
 
     <div v-else>
-      <!-- Selector de puesto -->
-      <div class="row mb-3">
-        <div class="col-md-5">
-          <label class="form-label fw-semibold">Puesto</label>
-          <select class="form-select" v-model="puestoSeleccionado">
-            <option :value="null" disabled>Selecciona un puesto…</option>
-            <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
-          </select>
-          <small v-if="!puestos.length" class="text-muted">
-            No hay puestos capturados aún (catálogo Talento → Puestos).
-          </small>
+      <!-- Selector de puesto (superficie glass) -->
+      <div class="pkg-docs__glass mb-3">
+        <div class="row">
+          <div class="col-md-5">
+            <label class="form-label fw-semibold">Puesto</label>
+            <select class="form-select" v-model="puestoSeleccionado">
+              <option :value="null" disabled>Selecciona un puesto…</option>
+              <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
+            </select>
+            <small v-if="!puestos.length" class="text-muted">
+              No hay puestos capturados aún (catálogo Talento → Puestos).
+            </small>
+          </div>
         </div>
       </div>
 
@@ -57,7 +59,8 @@
       </div>
 
       <div v-else>
-        <div class="mb-2">
+        <!-- Barra de acciones (superficie glass) -->
+        <div class="pkg-docs__glass pkg-docs__toolbar mb-3">
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-outline-secondary" @click="marcarTodos">
               Marcar todos
@@ -71,36 +74,30 @@
           </div>
         </div>
 
-        <div class="table-responsive">
-          <table class="table table-bordered table-sm align-middle" style="max-width:640px">
-            <thead class="table-dark">
-              <tr>
-                <th style="width:60px" class="text-center">Aplica</th>
-                <th>Documento</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="tpl in templates" :key="tpl.id">
-                <td class="text-center">
-                  <div class="form-check d-flex justify-content-center mb-0">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      style="width:1.2rem;height:1.2rem;cursor:pointer"
-                      :checked="isAssigned(tpl.id)"
-                      @change="toggleLocal(tpl.id, $event.target.checked)"
-                    />
-                  </div>
-                </td>
-                <td>{{ tpl.name }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Píldoras neumórficas por documento (reemplaza la tabla oscura) -->
+        <div class="pkg-docs__doc-grid" role="group" aria-label="Documentos del paquete">
+          <label
+            v-for="tpl in templates"
+            :key="tpl.id"
+            class="pkg-docs__doc-pill"
+            :class="{ 'is-checked': isAssigned(tpl.id) }"
+          >
+            <input
+              class="pkg-docs__doc-checkbox"
+              type="checkbox"
+              :checked="isAssigned(tpl.id)"
+              @change="toggleLocal(tpl.id, $event.target.checked)"
+            />
+            <span class="pkg-docs__doc-indicator" aria-hidden="true">
+              <i class="fas fa-check"></i>
+            </span>
+            <span class="pkg-docs__doc-name">{{ tpl.name }}</span>
+          </label>
         </div>
 
         <button
           type="button"
-          class="btn btn-primary"
+          class="btn btn-primary pkg-docs__save-btn mt-3"
           :disabled="!dirty || saving"
           @click="guardar"
         >
@@ -288,3 +285,125 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Raíz propia del componente: cualquier estilo de esta hoja vive bajo .pkg-docs
+   o sus descendientes. `scoped` además ata cada regla al data-attribute de este
+   componente, así que nada se fuga a otras pantallas (ver incidente Flotas). */
+.pkg-docs {
+  position: relative;
+  padding: 1.25rem;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #eef2f8 0%, #e6ebf4 50%, #eef2f8 100%);
+}
+
+/* Superficie "glass": necesita un fondo detrás para que el blur se note,
+   por eso vive dentro del degradado de .pkg-docs y no del <body>. */
+.pkg-docs__glass {
+  padding: 1rem 1.25rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 8px 24px rgba(148, 163, 184, 0.25);
+}
+
+.pkg-docs__toolbar {
+  display: flex;
+  align-items: center;
+}
+
+.pkg-docs__doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.75rem;
+  max-width: 760px;
+}
+
+/* Neumorfismo: sombra doble (clara arriba-izq / oscura abajo-der) en reposo,
+   e "inset" al marcar, para dar sensación física de tecla presionada. */
+.pkg-docs__doc-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 1rem;
+  border-radius: 14px;
+  background: #eef1f6;
+  border: 1px solid transparent;
+  cursor: pointer;
+  box-shadow:
+    6px 6px 12px rgba(163, 177, 198, 0.5),
+    -6px -6px 12px rgba(255, 255, 255, 0.85);
+  transition: box-shadow 150ms ease, transform 150ms ease,
+    background-color 150ms ease, border-color 150ms ease;
+}
+
+.pkg-docs__doc-pill:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    8px 8px 16px rgba(163, 177, 198, 0.45),
+    -8px -8px 16px rgba(255, 255, 255, 0.9);
+}
+
+.pkg-docs__doc-pill.is-checked {
+  background: #e8f0ff;
+  border-color: rgba(61, 107, 255, 0.4);
+  box-shadow:
+    inset 4px 4px 8px rgba(148, 163, 184, 0.45),
+    inset -4px -4px 8px rgba(255, 255, 255, 0.85);
+}
+
+/* El neumorfismo tiende a comerse el :focus nativo → se restituye con anillo propio. */
+.pkg-docs__doc-pill:focus-within {
+  outline: 2px solid #3d6bff;
+  outline-offset: 2px;
+}
+
+.pkg-docs__doc-checkbox {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #3d6bff;
+  flex-shrink: 0;
+}
+
+/* Indicador redundante: círculo hueco vs. círculo relleno con check.
+   El estado marcado/desmarcado no depende solo del color (forma + icono). */
+.pkg-docs__doc-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  border: 1.5px solid rgba(100, 116, 139, 0.45);
+  color: transparent;
+  font-size: 0.65rem;
+  flex-shrink: 0;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.pkg-docs__doc-pill.is-checked .pkg-docs__doc-indicator {
+  background: #3d6bff;
+  border-color: #3d6bff;
+  color: #fff;
+}
+
+.pkg-docs__doc-name {
+  color: #1f2937;
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+
+.pkg-docs__save-btn {
+  border-radius: 12px;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.pkg-docs__save-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(61, 107, 255, 0.35);
+}
+</style>
