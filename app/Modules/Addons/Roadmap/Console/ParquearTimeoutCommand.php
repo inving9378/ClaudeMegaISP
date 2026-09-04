@@ -66,6 +66,9 @@ class ParquearTimeoutCommand extends Command
         $comoTermino = match ($causa) {
             'max_turns' => 'La vuelta agotó sus turnos (max-turns)',
             'error'     => "La vuelta terminó con error tras {$segs}s",
+            // #9990302 — el guard de vida máxima necesitó el SIGKILL de respaldo: el proceso
+            // ignoró el SIGTERM del timeout normal.
+            'sigkill'   => "El guard de vida máxima forzó el cierre con SIGKILL (ignoró SIGTERM tras {$segs}s)",
             default     => "La vuelta se cortó a los {$segs}s",
         };
 
@@ -92,7 +95,14 @@ class ParquearTimeoutCommand extends Command
 
         // Sólo se reanuda hacia un estado que de verdad vuelve a la cola. Si el previo era la propia
         // bandeja, reanudar no significaría nada.
-        $puedeReanudar = $avance
+        //
+        // #9990302 — q3 (decisión de Irving en #9990295, opción 1): un proceso que ignoró SIGTERM y
+        // necesitó el SIGKILL de respaldo del guard de vida máxima NUNCA se reanuda solo, tenga
+        // avance o no — va SIEMPRE a la bandeja de Irving con traza parcial. Es la señal real de
+        // "algo quedó genuinamente colgado", a diferencia del timeout normal (RC=124, SIGTERM
+        // bastó), que si tiene avance sí se reanuda como siempre.
+        $puedeReanudar = $causa !== 'sigkill'
+            && $avance
             && $usadas < self::TOPE_REANUDACIONES
             && in_array($destino, ['aprobado_irving', 'aprobado_revisor', 'aprobado_claude'], true);
 
@@ -146,11 +156,14 @@ class ParquearTimeoutCommand extends Command
             return self::SUCCESS;
         }
 
-        $motivo = ! $avance
-            ? "{$comoTermino} y la rama no tiene commits: no hubo avance, así que "
-              . 'no se re-encola (evita quemar otra vuelta en lo mismo).'
-            : "{$comoTermino}. Ya se reanudó {$usadas} vez(ces): el item es más "
-              . 'grande que una vuelta y necesita que lo dividas o lo acotes.';
+        $motivo = match (true) {
+            $causa === 'sigkill' => "{$comoTermino}. El guard de vida máxima escala SIEMPRE en "
+                . 'este caso (no reanuda solo, tenga o no avance) — decisión de Irving en #9990295 (q3).',
+            ! $avance => "{$comoTermino} y la rama no tiene commits: no hubo avance, así que "
+                . 'no se re-encola (evita quemar otra vuelta en lo mismo).',
+            default => "{$comoTermino}. Ya se reanudó {$usadas} vez(ces): el item es más "
+                . 'grande que una vuelta y necesita que lo dividas o lo acotes.',
+        };
 
         $item->estado_aprobacion = 'requiere_irving';
         $item->aprobado_por      = 'timeout';
