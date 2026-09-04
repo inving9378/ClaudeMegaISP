@@ -242,7 +242,12 @@ class BarridoService
         return array_slice($hallazgos, 0, $cap);
     }
 
-    /** Grep case-insensitive de TODO/FIXME/deprecated — un hallazgo por ocurrencia (archivo+línea). */
+    /**
+     * Grep de marcadores TODO/FIXME/deprecated EN COMENTARIO — un hallazgo por ocurrencia
+     * (archivo+línea). Mismo patrón que `AuditorService::detTodos()` (comentario `//`/`/*`/`#`
+     * + TODO/FIXME exactos en mayúsculas): evita el falso positivo de la palabra española "todo"
+     * (ej. "Todo ya estaba sincronizado") que el `/i` sin anclar a comentario disparaba antes.
+     */
     private function detTodoFixme(string $modulo, string $dir): array
     {
         $hallazgos = [];
@@ -253,7 +258,7 @@ class BarridoService
             }
             $rel = $this->auditor->relativo($file);
             foreach ($lineas as $i => $linea) {
-                if (! preg_match('/\b(TODO|FIXME|deprecated)\b/i', $linea, $m)) {
+                if (! preg_match('#(?://|/\*+|\#)\s*(TODO|FIXME|[Dd]eprecated)\b#u', $linea, $m)) {
                     continue;
                 }
                 $n = $i + 1;
