@@ -17,6 +17,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('roadmap_items')) {
+            return;
+        }
+
         Schema::table('roadmap_items', function (Blueprint $t) {
             if (! Schema::hasColumn('roadmap_items', 'revision_ui')) {
                 $t->boolean('revision_ui')->nullable()->after('marcado_version');
@@ -35,6 +39,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('roadmap_items')) {
+            return;
+        }
+
         Schema::table('roadmap_items', function (Blueprint $t) {
             foreach (['revision_ui', 'ui_hint', 'archivado_at', 'archivado_por'] as $c) {
                 if (Schema::hasColumn('roadmap_items', $c)) {

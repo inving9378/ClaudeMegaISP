@@ -17,6 +17,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('whatsapp_payment_extractions')) {
+            return;
+        }
+
         Schema::table('whatsapp_payment_extractions', function (Blueprint $table) {
             $table->timestamp('discarded_at')->nullable()->index()->after('extracted_at');
             $table->string('discard_reason')->nullable()->after('discarded_at');
@@ -25,6 +29,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('whatsapp_payment_extractions')) {
+            return;
+        }
+
         Schema::table('whatsapp_payment_extractions', function (Blueprint $table) {
             $table->dropColumn(['discarded_at', 'discard_reason']);
         });

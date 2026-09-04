@@ -3,6 +3,7 @@
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Item #177 — Reconstruye lo recuperable de la Hoja de Ruta perdida en el
@@ -42,6 +43,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('roadmap_items')) {
+            return;
+        }
+
         $path = database_path('files/roadmap_reconstruccion_item177.json');
 
         if (!file_exists($path)) {
