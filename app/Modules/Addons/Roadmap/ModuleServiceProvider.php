@@ -118,6 +118,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // terminal lo consulta en puntos naturales de su vuelta en vez de enterarse hasta
                 // circuito:integrar.
                 \App\Modules\Addons\Roadmap\Console\EstadoItemCommand::class,
+                // #988 — motor de detección de una vuelta: php -l + boot + tests del módulo +
+                // dry-run de migraciones. Solo detecta y reporta, no revierte ni escala.
+                \App\Modules\Addons\Roadmap\Console\VerificarVueltaCommand::class,
             ]);
         }
     }
