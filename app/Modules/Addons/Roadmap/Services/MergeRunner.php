@@ -34,14 +34,18 @@ class MergeRunner
 
     /**
      * Drena la cola de merge (serializado por flock). Devuelve la lista de resultados.
-     * Si el lock está ocupado (otro drain corriendo) devuelve [] sin bloquear.
+     *
+     * Distingue (#9990294) "cola vacía" de "no pude tomar el lock": si el lock está ocupado
+     * (otro drain corriendo) devuelve NULL sin bloquear; si sí tomó el lock y no había nada
+     * que mergear, devuelve []. Ambos casos siguen siendo falsy, así que cualquier consumidor
+     * que solo haga `if (!$res)` sigue funcionando igual sin cambios.
      */
-    public function drain(): array
+    public function drain(): ?array
     {
         @mkdir(dirname(self::LOCK), 0775, true);
         $lock = @fopen(self::LOCK, 'c');
         if (! $lock || ! flock($lock, LOCK_EX | LOCK_NB)) {
-            return []; // ya hay un drain en curso
+            return null; // no se pudo tomar el lock: ya hay un drain en curso
         }
 
         $out = [];

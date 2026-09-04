@@ -20,8 +20,13 @@ class MergeRunCommand extends Command
     public function handle(MergeRunner $runner): int
     {
         $res = $runner->drain();
+        if ($res === null) {
+            $this->info('No pude tomar el lock de merge — ya hay un drain en curso (probablemente el tick del scheduler). Reintenta en unos segundos.');
+
+            return self::SUCCESS;
+        }
         if (! $res) {
-            $this->info('Cola de merge vacía (o ya hay un drain en curso).');
+            $this->info('Cola de merge vacía.');
 
             return self::SUCCESS;
         }
