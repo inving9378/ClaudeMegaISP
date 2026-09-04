@@ -81,7 +81,7 @@ export default {
             try {
                 showLoading("showTextDef");
                 const response = await axios.post(url, data);
-                $(`#modaleditIdClient`).modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('modaleditIdClient'))?.hide();
                 errorEditId.value = false; // Maneja la salida del comando
                 toastr.success(`Id Cambiado correctamente`, props.module);
                 emit("resetTable");

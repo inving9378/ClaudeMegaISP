@@ -2875,3 +2875,1099 @@ tasa de errores) y requerir manejar N archivos por worktree en vez de uno.
 
 **Enlace de revisión:** `/releases?tab=configuracion` → tablero de compuertas → fila "Cascada
 de errores".
+
+## 2026-08-28 21:58 — Item #212: fix de inanición del footprint desconocido en el scheduler
+
+**Worktree:** wt-3 · **Commit:** `2af97451` en `circuito/item-212-inanicion-los-items-sin-footprint-nunca` (integración encolada al `main` compartido).
+
+**Defecto medido (2026-08-25, item #191):** `RoadmapCircuitoService::ejecutablesParalelo()` diferían
+los items con `modulo` desconocido a una "ronda dedicada" al cierre del barrido, pero esa ronda
+exigía `empty($excludeModulos)` (NADA en vuelo en TODO el circuito). Con 6 terminales en pool
+continuo casi siempre hay algo corriendo → los desconocidos, incluidos 5 urgentes nacidos del
+incidente P0 del 24-ago, nunca alcanzaban turno. Inanición total, invisible en cualquier pantalla.
+
+**Decisión de Irving (brief de 3 preguntas, ya resuelto y aprobado antes de esta vuelta):**
+- q1 (mecanismo): reservar 1 slot dedicado para items sin footprint, aunque haya otros módulos
+  en vuelo (opción recomendada).
+- q2 (qué hacer con los 5 urgentes YA bloqueados): drenar manualmente — verificado en esta vuelta
+  que ya NO aplica: los 5 (#173/175/176/178/179) fueron clasificados y en su mayoría completados
+  entre el 25 y 28-ago por el propio circuito (vía `circuito:clasificar-modulo`). Sin acción
+  operativa pendiente.
+- q3 (modelo de seguridad): footprint desconocido = **aditivo seguro por default** (corre en
+  paralelo con cualquier módulo conocido), salvo OTRO desconocido que ya esté en vuelo. La
+  colisión real contra trabajo conocido, si la hubiera, la sigue atrapando
+  `detectarColisionesEnVuelo()` (diff real de archivos entre ramas `en_progreso`, agnóstico de
+  módulo, ya existente — pausa al que reclamó más tarde).
+
+**Cambio de código:** en la condición de la ronda dedicada, se quitó `&& empty($excludeModulos)`;
+se conserva `! $unknownEnVuelo` (nunca dos desconocidos a la vez) y `(empty($out) || urgente)`
+(sigue cediendo el turno a trabajo módulo-disjunto ya encontrado esta ronda, salvo urgencia).
+Docblocks de la función y de `config/circuito.php` (`desconocido_diferido`) actualizados para
+reflejar el comportamiento nuevo.
+
+**Verificación:** sin tests dedicados existentes para este método. Se armó una réplica aislada
+del algoritmo (sin tocar la BD compartida) con 5 escenarios (nada en vuelo / módulo conocido en
+vuelo × 2 / otro desconocido ya en vuelo / no-urgente cede el turno) — los 5 pasan. Además se
+corrió la función REAL contra la cola real de dev antes y después del cambio: idéntica en ambos
+casos (0 items con footprint desconocido pendientes hoy → el fix es inerte sobre el estado actual,
+solo cambia el comportamiento la próxima vez que aparezca uno). `php -l` limpio en ambos archivos,
+`php artisan --version` bootea.
+
+**No tocado a propósito (territorio de un item hermano distinto, ver texto de #212):** el caso
+inverso — un desconocido YA en vuelo bloqueando a items de módulo conocido en cola
+(`$unknownEnVuelo` en el filtro principal del loop) — es el defecto OPUESTO ("el desconocido
+serializa las 6 terminales"), ya identificado como item hermano separado. No se modificó esa rama
+del código para no invadir su alcance ni arriesgar ping-pong con quien lo trabaje.
+
+**Enlace de revisión:** `/releases` (Torre de Control) → pestaña Hoja de ruta → item #212, o
+`/releases?tab=configuracion` para ver el flag `desconocido_diferido`.
+
+## 2026-08-28 15:59 — Item #639 cerrado: Vista Hijo APK (mocks) — paraguas resuelto, decompuesto en #658/#659/#661
+
+El item pedía reemplazar 3 mocks de la Vista Hijo en `megafamilia-rn` por datos reales
+(Logros, Apps permitidas, Tiempo de pantalla). No cabía en una vuelta — una sesión previa del
+circuito (`wt-1`) ya lo había descompuesto correctamente siguiendo el propio "orden sugerido"
+de la spec, pero se cortó por timeout antes de cerrar formalmente #639, así que el reaper lo
+reencoló como huérfano y quedó reclamado de nuevo por esta vuelta (`wt-5`).
+
+**Re-verificado de forma independiente, sin repetir el análisis:**
+- El WIP de fase 1 (`LogrosScreen.tsx` + `useHijoStore.ts`, que conecta `loadLogros()` real y
+  calcula `points`/`streakWeeks` desde los logros obtenidos en vez del arreglo `BADGES`
+  hardcodeado) sigue presente en `/var/www/megafamilia-rn` y sigue siendo correcto:
+  `npx tsc --noEmit` termina limpio.
+- El bloqueo de git para comitear ahí sigue vigente: intenté `git -C /var/www/megafamilia-rn
+  add ...` desde este worktree y el clasificador de auto-mode lo denegó — confirma que no es
+  un problema de la sesión anterior sino una restricción real de la sandbox (ese repo no tiene
+  worktree dedicado en el circuito, y sin remoto tampoco hay forma de empujar el cambio desde
+  otro lado).
+
+**Cierre:** #639 se cierra como paraguas resuelto — el 100% de su alcance ya vive en los
+sub-items **#658** (commitear el WIP de fase 1, requiere alguien con permiso de git en
+`megafamilia-rn`), **#659** (Apps permitidas — requiere construir primero la UI admin de
+`parental_app_blocks`) y **#661** (tiempo de pantalla real — instrumentación nativa Android,
+decisión de alcance pendiente con Irving). Sin cambio de código propio en este repo (megaisp)
+más allá de la documentación de cierre. Detalle en
+`docs/megafamilia-hijo-mocks-item-639-verificacion.md` + sección nueva en `CLAUDE.md`.
+
+**Verificado:** `npx tsc --noEmit` limpio sobre el WIP de megafamilia-rn (re-confirmado);
+`php artisan --version` bootea limpio en este repo; `git status` limpio tras el commit.
+
+**Enlace de revisión:** no aplica UI propia — el hallazgo completo está en
+`docs/megafamilia-hijo-mocks-item-639-verificacion.md` y el resumen en `CLAUDE.md` (sección
+"Item #639").
+
+## 2026-08-28 16:07 — Item #24: endpoints faltantes de transferencia en la APK MegaFamilia (perfil Cliente)
+
+**Contexto:** la auditoría del 2026-06-03 había marcado como PARCIAL la implementación del perfil
+Cliente en la APK MegaFamilia: de los 5 endpoints mock (`GET /servicio`, `GET /facturas`, `GET /pagos`,
+`GET /payments/clabe`, `POST /payments/notify-transfer`), los primeros 3 ya eran reales y solo faltaban
+los 2 de transferencia bancaria. Irving ya había respondido las preguntas de alcance del item (no toca
+dinero real, solo lectura de datos bancarios + reporte del cliente sin aplicar el pago) → quedó
+`aprobado_revisor` y se ejecutó tal cual.
+
+**Implementado** (worker wt-4, rama `circuito/item-24-completar-pantallas-parciales-del-perfil`):
+- `GET /api/megafamilia/payments/clabe` — devuelve la CLABE/banco de la cuenta activa de
+  `portal_pago_accounts` + la referencia `MEG-{id}-{cc}` del cliente autenticado vía
+  `PaymentReferenceService::ensureFor()` (misma infraestructura del Portal Cliente web/mostrador —
+  regla de servicios únicos, sin duplicar). Solo lectura, no mueve dinero.
+- `POST /api/megafamilia/payments/notify-transfer` — el cliente reporta que ya transfirió; crea un
+  `ReportedPayment` con `payment_id=null` (nadie aplicó el pago aún) y
+  `conciliation_status='pendiente_verificar'`, igual que hace `ManualPaymentController` (mostrador)
+  pero SIN el paso de `applyPayment` — el dinero no se toca hasta que un asesor lo confirme por el
+  flujo ya existente. Sube el comprobante (si viene) al disco `local` privado, mismo patrón que
+  mostrador.
+- Ambos métodos en `app/Modules/Addons/MegaFamilia/Controllers/ApiController.php`
+  (`paymentsClabe`/`notifyTransfer`), rutas en `app/Modules/Addons/MegaFamilia/routes.php` bajo el
+  grupo `auth:sanctum` ya existente.
+
+**Verificación:** `php -l` limpio en ambos archivos; `php artisan route:list` confirma las 2 rutas
+registradas (bootea sin error); smoke test funcional vía tinker dentro de una transacción con
+rollback (cliente real 6884, `user_id=4036`): `GET clabe` devolvió `reference=MEG-00006884-10` +
+cuenta STP activa; `POST notify-transfer` creó el `reported_payment` con `payment_id=null` y
+`pendiente_verificar` — sin dejar datos de prueba (rollback confirmado).
+
+**Estado:** commit `500844c1` en la rama, `circuito:integrar` ejecutado. Nivel de riesgo C
+(el ítem toca la palabra "pago") → queda `esperando merge` de Irving, no auto-mergeado. Item marcado
+`sin_ui=true` con motivo (son 2 endpoints REST que consume la APK, sin pantalla web equivalente).
+
+**Enlace de revisión:** no aplica UI propia — endpoints consumidos por la APK MegaFamilia
+(`api/megafamilia/payments/clabe` y `api/megafamilia/payments/notify-transfer`); verificados por
+tinker según el detalle de arriba.
+
+## 2026-08-28 16:14 — Item #670: auditoría/diseño V-SOL (retomar tras ZTE)
+
+**Worker:** wt-4. **Rama:** `circuito/item-670-auditoriadiseno-v-sol-driver-olt-re` (integrada,
+merge encolado al runner on-box).
+
+Item de seguimiento de #283 (decisión "ZTE primero, V-SOL después") y Fase G de
+`docs/AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` §4. Se agregó **§12 a
+`docs/MULTIOLT_SAAS_DISENO.md`** ("Tercer driver: V-SOL"), análogo al §5 que ya existía para ZTE:
+
+- Confirmado que V-SOL sigue en cero código/mención en todo el repo (mismo grep que en julio, sin
+  cambios).
+- Qué necesitaría un `VsolDriver` (mapeo a los 15 métodos de `OltDriverInterface`, mismo patrón
+  que Huawei/ZTE — el contrato ya es agnóstico de marca).
+- Por qué V-SOL es **más fragmentado** que ZTE: es un ODM que se revende bajo múltiples marcas, sin
+  un firmware/protocolo único, y sin siquiera un modelo candidato identificado (a diferencia de
+  ZTE, que ya tiene familias de firmware documentadas en §5).
+- **Decisión de alcance de esta vuelta (registrada en el item):** NO se creó el stub
+  `NullVsolDriver`/`Olt::DRIVER_VSOL`, a diferencia del `NullZteDriver` que sí se creó en #283.
+  Razón: el stub ZTE se creó como parte de una decisión de negocio YA TOMADA por Irving (#283: ZTE
+  primero, con vía de hardware confirmada — compra/préstamo). Para V-SOL esa decisión de negocio
+  sigue sin existir (el propio #283 la difirió sin fecha ni ISP piloto) — crear el enum ahora
+  habría sido anticipar una priorización que le toca decidir a Irving, no al circuito. Se marcó la
+  Fase G del plan de `AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` como hecha, apuntando a §12.
+
+**Cambio:** 2 archivos, solo `docs/` (`MULTIOLT_SAAS_DISENO.md` +106 líneas, sección nueva;
+`AUDITORIA_OLT_MULTIMARCA_2026-07-15.md` 1 línea, fila de la tabla). **Sin código funcional
+tocado.** Verificado: fences de markdown balanceados, `git diff --stat` limpio. Item marcado
+`sin_ui=true` (auditoría en documentación, sin pantalla que revisar) con `enlace_revision` al
+archivo/sección.
+
+**Siguiente paso real (fuera de este item):** cuando Irving confirme un ISP piloto o vía de
+hardware V-SOL concreta (análogo a la decisión q2 de #283 para ZTE), el paso mecánico siguiente es
+trivial: `Olt::DRIVER_VSOL` + `NullVsolDriver` + entrada en `OltDriverManager` — mismo patrón ya
+ejecutado para ZTE.
+
+## 2026-08-28 16:45 — Documentación Corporativa Fase 0 (item #662): cimiento del expediente corporativo
+
+**Contexto.** Un miembro del consejo presentó una solicitud formal de información corporativa: 14
+apartados (I a XIV), ~139 conceptos, plazo de 180 días hábiles. En vez de juntar papeles a mano se
+construyó dentro de MegaISP un expediente corporativo vivo. Esta sesión entregó la **Fase 0**: la
+estructura donde va a vivir toda esa información, más los 6 items de la Hoja de Ruta que la continúan.
+
+### Paso 0 — auditoría (gate, aprobada por Irving con enmiendas)
+Se auditaron 8 puntos antes de escribir una línea. Tres premisas del prompt resultaron falsas:
+1. **No existe módulo "Plantillas"** — es `core-documentos` (`document_templates` +
+   `DocumentTemplateService` + dompdf). Se **consume**, no se reemplaza.
+2. **No existe "contrato de módulos v0.9"** — `contrato-modulo-medussa.md` está referenciado pero
+   **no está en el repo**. El contrato real es el código (`ModuleDefinition`,
+   `BaseModuleServiceProvider`, `ModuleRegistry`, `ModuleLifecycleService`).
+3. **`roadmap_items` no tiene `tipo`, `titulo` ni `cuerpo`** — son `title`/`description`, y el canal
+   de respuesta vive en `roadmap_item_reports` (append-only). El candado de `RoadmapIntakeService`
+   obliga a que todo item nazca `pendiente_revision`; **no se saltó**.
+
+Además: `company_information` es un singleton de 1 fila (no sirve como tabla multi-empresa),
+`maatwebsite/excel` está instalado pero sin ningún patrón de uso en el repo, el rol `consejo` no
+existía, y `CLAUDE.md` estaba desactualizado sobre el sidebar.
+
+### Items creados en la Hoja de Ruta (8)
+`#662` Fase 0 (B/alta) · `#663` Fase 1 datos vivos (A/alta) · `#664` Fase 2 repositorio documental
+(B) · `#665` Fase 3 inventarios (B) · `#666` Fase 4 concesiones (B) · `#667` Fase 5
+entrega-recepción (C — **debe escalarse a `requiere_irving`**, decisión legal previa) ·
+`#668` absorción de DocumentosOficiales · `#669` hallazgo `keep_data` inerte.
+
+El circuito **ya trabajó y cerró #668 y #669 por su cuenta** (wt-3 y wt-5) mientras esta sesión
+seguía. #669 aplicó la opción recomendada: `ModuleLifecycleService::resolveKeepData()` ahora honra
+`"keep_data": true` del manifiesto, así que la clave dejó de ser decorativa el mismo día.
+
+### Lo entregado (Fase 0)
+- Addon `app/Modules/Addons/DocumentacionCorporativa/`, prefijo `/documentacion-corporativa`.
+- 4 migraciones aditivas: `dc_empresas`, `dc_apartados`, `dc_conceptos`, `dc_documentos`,
+  `dc_documento_versiones`, `dc_pendientes`, `dc_accesos_log` (append-only) + rol `consejo`.
+- Seeder idempotente de **14 apartados y 139 conceptos** (verificado: dos corridas → 139, sin duplicar).
+- Contrato `ConceptoResolver` + `ResultadoConcepto` + `FuenteRegistry` + `ResolverFactory` + los 6
+  drivers. La factory cae a `PendienteResolver` cuando el declarado no está disponible: ningún
+  apartado puede quedar en blanco ni reventar.
+- 23 permisos + rol `consejo` (14 permisos: 13 apartados, **nunca el XI**, sin descarga ni bitácora).
+- `BitacoraService` (punto único, escribe ANTES de servir, sin flag para apagarlo) y
+  `CompletitudService` (una sola fórmula; cacheada 15 min en el tablero, ~0.8 s para los 139).
+- Pantalla `dc-expediente` (Vue 3 + Quasar) con índice, tablero y detalle por apartado.
+- **28 pruebas en verde** (13 unitarias + 15 feature contra `megaisp_test`).
+
+### Decisiones de diseño que valen más que el código
+- **El estado de vigencia se deriva, no se persiste.** Sin columna `estado`: una copia envejece sola
+  a medianoche. Se filtra por `vigencia_fin`, indexada.
+- **Un apartado sin obligatorios NO es medible, y no es verde.** La primera versión daba 100 % ahí y
+  el apartado IV —cartera, saldos, proveedores, ingresos— salía en VERDE con cero datos. Ahora da
+  `medible=false`, semáforo gris y la interfaz pinta `—`. Un tablero que dice "completo" sobre un
+  apartado vacío no se vuelve a revisar.
+- **Doble puerta de permisos:** el middleware gatea la entrada al módulo; el controlador gatea cada
+  apartado (una ruta, 14 permisos).
+
+### Bugs encontrados por las propias pruebas
+- **`FuenteRegistry` no era singleton** → cada resolvedor recibía una instancia vacía y las fuentes
+  que registre la Fase 1 **nunca** habrían llegado, sin ningún error que lo delatara. Corregido.
+- El controlador **duplicaba** la fórmula de porcentaje/semáforo para el global del usuario, ya con
+  la versión vieja. Unificado en `CompletitudService::agregarGlobal()`.
+
+### ⚠️ Incidente de proceso — los commits quedaron en `main`, no en su rama
+Se creó `circuito/item-662-documentacion-corporativa-fase-0`, pero **el integrador del circuito
+corre en este mismo checkout** (`/var/www/megaisp`) y hace `git checkout main` entre merges: el
+reflog muestra su patrón `checkout: moving from main to main` + `commit (merge)`. HEAD volvió a
+`main` antes del primer commit y los 12 commits de la Fase 0 quedaron ahí, intercalados con merges
+del circuito. **Nada se empujó a origin** (`origin/main` sigue 724 commits atrás). Además, un worker
+**borró del árbol de trabajo** los 34 archivos del módulo a media sesión (seguían en los commits;
+se restauraron con `git restore`).
+
+Lección: en este repo `main` es la rama de integración que el circuito toca continuamente en
+`/var/www/megaisp`. **El trabajo de una sesión larga va en un `git worktree` aparte**, como hacen
+las 6 terminales (`/home/meganet/circuito/wt-N`).
+
+### Hallazgos fuera de alcance (registrados, no tocados)
+- **`migrate:fresh` está roto en el repo:** `2026_02_14_063009_sync-olts-tables` referencia
+  `olt_smartolt_config`, que crea una migración de **junio**. Como `Tests\TestCase` corre
+  `migrate:fresh --seed`, la BD de pruebas queda a medias para cualquiera.
+- **`megaisp_test` está compartida** por las 6 terminales del circuito: durante esta sesión la
+  reiniciaron a media corrida. Se dejó `provision-test.sh` (aditivo) para reprovisionarla.
+
+**Pendiente de Irving:** validación visual (4 pantallas) y decidir qué hacer con los commits en main.
+
+## 2026-08-28 16:43 — Item #66 (wt-6): Flotas Fase 7 "IA agrupada" cerrada como paraguas
+
+**Item:** #66 "Flotas Fase 7 — IA agrupada (OCR, predicción, asistente conversacional, análisis
+comparativo)". Venía escalado dos veces (des-trabe Opus 2026-08-26) por estar vacío y mezclar 4
+decisiones distintas; el brief recomendó Opción A (partir en items, priorizar solo OCR).
+
+**Investigado antes de picar código:**
+- OCR (1/4 subsistemas) **ya estaba resuelto** por otro item independiente (#580/#224,
+  `FleetDocumentOcrService`) — exactamente lo que el brief des-trabe recomendaba priorizar.
+- Los otros 3 (predicción de servicios, asistente conversacional, análisis comparativo de gastos)
+  están bloqueados por la **propia precondición del item**: "DESPUES de Fases 1-6 estables y con
+  minimo 6 meses de datos reales". Solo existen documentadas Fases 1-3 de Flotas y esto es DEV
+  (sin histórico real de producción) — no se puede construir sin violar el propio spec.
+
+**Acción:** descompuse en 3 sub-items de backlog, cada uno con su precondición explícita y las
+decisiones de producto (proveedor IA, presupuesto, alcance) pendientes de Irving:
+- **#686** — Predicción de próximos servicios (historial + km)
+- **#687** — Asistente conversacional sobre la flota
+- **#688** — Análisis comparativo de gastos
+
+Commit del doc de verificación (`docs/flotas-fase7-ia-agrupada-item-66-verificacion.md`) en rama
+`circuito/item-66-flotas-fase-7-ia-agrupada-ocr-predic`, integrado vía `circuito:integrar` (merge
+encolado al runner on-box). Sin cambio de código funcional — solo documentación + roadmap.
+
+**Estado final del #66:** auto-parqueado como **paraguas** (`aprobado_irving`/`pending`, excluido
+del pool automático) por el guard `(2b)` de `RoadmapItem` — cierra solo cuando los 3 hijos cierren.
+Mismo patrón que #75/#123/#639.
+
+## 2026-08-28 22:55 — Item #103: GPS por celular del conductor, ya estaba implementado (wt-5)
+
+Item #103 pedía UI de APK (botón tracking, permiso de ubicación, loop de envío) sobre un
+backend que la premisa daba por existente. Investigado a fondo: **ambas mitades ya estaban
+construidas y funcionando**, solo que repartidas entre este repo y `megafamilia-rn` (checkout
+separado, solo leído, nunca tocado — mismo criterio de aislamiento #334 que #639).
+
+- Backend real: `ConductorApiController::reportarPosicion` en `app/Modules/Addons/MegaFamilia/`
+  (NO en `Flotas/FleetGpsController` como suponía el item), self-scoped por `FleetAssignment`,
+  con anti-salto GPS, reusa `FleetPositionService::saveBatch` sin tocarla. Un commit previo
+  (`6ff9bad1`) había agregado un endpoint duplicado en Flotas y el siguiente (`a3d38742`,
+  mismo día) lo revirtió al encontrar el real — regla "servicios compartidos únicos".
+- UI real en `megafamilia-rn`: rol `conductor` → tab "Mapa" → `MapaTab.tsx` con botón
+  "Iniciar tracking", `PermissionsAndroid.request(ACCESS_FINE_LOCATION)` y polling cada 30s
+  (comentario del propio código: "mismo intervalo que Flutter" — se portó de la app Flutter
+  predecesora al hacer el RN rewrite).
+- Rol `conductor` existe en BD (id=19) con 0 usuarios asignados — alta de negocio, fuera de
+  alcance del item.
+
+**Sin cambio de código.** Se documentó en `docs/flotas-conductor-gps-item-103-verificacion.md`
++ nota en `CLAUDE.md`, se commiteó en la rama del item (`circuito/item-103-...`) y se marcó
+`sin_ui=true` (la pantalla real es de app móvil, no ruta web de este deploy) con
+`sin_ui_motivo` explicando la verificación. `circuito:integrar` lo parqueó como nivel C
+terminado → `esperando_merge_irving=true` (fuera del pool, espera el merge manual de Irving).
+Mismo patrón de cierre que #75/#123/#639.
+## 2026-08-28 18:15 — Item #215: circuito:cortar-vuelta (fin del pkill -f autoinmune)
+
+Worker wt-2. El item documentaba un incidente real del 2026-08-25: para cortar una vuelta se corrió
+`pkill -TERM -f 'claude -p Eres un EJECUTOR ON-BOX'`, y el propio shell que ejecutaba ese `pkill`
+traía el patrón LITERAL en su línea de comando → se mató a sí mismo. Agravante medido el mismo día:
+el latido `circuito:vivo --watch` (hijo en background de `vuelta.sh`) no murió con la vuelta, quedó
+huérfano con PPID=1, porque su cmdline no contiene el patrón buscado.
+
+**Hecho:**
+- `App\Modules\Addons\Roadmap\Console\CortarVueltaCommand.php` → `php artisan circuito:cortar-vuelta
+  --sid=wt-K [--confirmar] [--senal=TERM|KILL]`. Usa `RegistroPids` (identidad PID+starttime) para
+  identificar la vuelta — nunca `ps`/cmdline por patrón. Mata por **PGID** (grupo de procesos), que
+  es el mismo grupo donde nace `circuito:vivo --watch` dentro de `vuelta.sh`, así el heartbeat cae
+  junto con la vuelta. Dry-run por default; tras `--confirmar` vuelve a escanear `/proc` para
+  confirmar APARTE que no sobrevive nada del grupo (si algo sobrevive, lo reporta por PID exacto,
+  nunca reintenta por patrón). Registrado en `ModuleServiceProvider`.
+- `docs/circuito/cortar-vuelta-runbook.md` — el runbook completo (incidente + patrón seguro + qué
+  hace/no hace el comando), referenciado desde `docs/circuito/README.md` y desde `CONTEXTO-MEGAISP.md`
+  (junto a la sección de `RegistroPids`/Vigilia de Thomas, donde ya se mencionaba el riesgo).
+
+**Verificado con procesos reales de prueba** (no se tocó ninguna vuelta real: `wt-1`/`wt-2` seguían
+vivas durante la prueba): par de procesos con el mismo PGID simulando `claude -p` + `circuito:vivo
+--watch` → dry-run no toca nada; `--confirmar` mata ambos y confirma "sin huérfanos"; un proceso que
+ignora `SIGTERM` a propósito → se reporta como sobreviviente por su PID exacto en vez de asumirse
+muerto. Registro temporal de prueba limpiado al terminar.
+
+**No se tocó `vuelta.sh`:** su limpieza normal del heartbeat en la ruta feliz (mata `HB_PID` justo
+después de que `claude -p` termina) ya es correcta — el incidente fue el operador usando `pkill -f`
+por fuera, no un bug de ese script.
+
+Rama `circuito/item-215-pkill-f-sobre-el-patron-del-ejecutor-ma`, 2 commits (código + docs), merge
+encolado vía `circuito:integrar` (lo aplica el runner on-box). Item marcado `sin_ui=true` (es una
+herramienta de operador por línea de comandos, sin pantalla que enlazar).
+
+## 2026-08-28 18:27 — Item #280: consumo de sync-status en megafamilia-rn (cerrado, código en repo externo)
+
+**wt-1.** Item #280 (sub-item de #26) pedía que la app móvil `megafamilia-rn`
+(`/var/www/megafamilia-rn`, repo React Native **fuera** de `megaisp`) consumiera
+`GET /api/megafamilia/sync-status` (backend ya listo desde #26) para refrescar servicio/facturas/
+tickets sin recargar. 3 sesiones previas (wt-6, wt-2, wt-1) habían verificado que la implementación
+del lado cliente ya existía como WIP sin comitear en ese repo, pero reportaron bloqueo del
+clasificador de auto-mode al intentar `git write` ahí — quedó escalado y re-triado varias veces
+(anti-bucle incluido). El sub-item #716 dejó un plan detallado (2 pasos, parar en el primero que
+funcione).
+
+**Resultado en esta vuelta:** el bloqueo reportado por las sesiones anteriores **no aplicó aquí**
+(el aislamiento #334 es sobre `/var/www/megaisp`, no sobre `megafamilia-rn`). Se ejecutó el paso (a)
+del plan de #716: `git apply --cached` con un patch acotado a los 2 hunks reales del cambio en
+`ClienteNavigator.tsx` (import + `useSyncStatus()`), dejando intacto y sin stagear el hunk de WIP
+ajeno (`FlotasPlan`, otra feature mezclada en el mismo archivo) — verificado con `tsc --noEmit`
+limpio antes de comitear. Commit en `megafamilia-rn` (rama `main` de ese repo, sin infra de rama
+propia del circuito ahí): `44e58542681e9e65c14952eb91ca25ac340a3e15`.
+
+En `megaisp` (este worktree): doc de verificación
+`docs/megafamilia-sync-status-item-280-verificacion.md` + esta entrada, rama
+`circuito/item-280-consumir-apimegafamiliasync-status-en`, integrado vía `circuito:integrar`. Item
+#280 y su sub-item #716 cerrados como completados.
+
+## 2026-08-28 18:41 — Item #682: guard en migración sync-olts-tables (migrate:fresh roto)
+
+`database/migrations/2026_02_14_063009_sync-olts-tables.php` llama a `Artisan::call('smartolt:sync-inventory')`
+y `Artisan::call('smartolt:sync-critical')` sin guard. Ambos comandos consultan `OltSmartoltConfig::current()`
+(tabla `olt_smartolt_config`), que crea `2026_06_13_000001_create_olt_smartolt_config_table.php` — fecha
+POSTERIOR. En un `migrate` desde cero (como el `migrate:fresh --seed` que corre `Tests\TestCase::setUp()`)
+la tabla aún no existe, la excepción no se captura, y el `migrate` completo aborta ahí (510 migraciones
+pendientes sin aplicar, según midió el item #662 que originó este hallazgo).
+
+Auditadas las 5 migraciones del repo que usan `Artisan::call()` en `up()`: las otras 4
+(`2026_01_09_000622_add_fields_to_onu`, `2026_03_07_050150_update-clientes-whith-ont`,
+`2026_03_19_071941_add_power_olt`, `2026_03_20_092657_create_olt_billings_table`) YA envuelven la
+llamada en `try { ... } catch (\Throwable $th) {}` precisamente por este riesgo. Solo la de febrero
+no lo tenía. Fix: mismo guard try/catch, sin renombrar el archivo (no reescribe una migración ya
+aplicada en dev/prod — recomendación del propio item #682).
+
+Verificación: `php -l` limpio, `php artisan --version` arranca. El mecanismo se confirmó en tinker con
+una query de solo lectura a una tabla inexistente (`QueryException` capturada por `\Throwable`, igual
+comportamiento que usan las hermanas). **No se corrió `migrate:fresh` completo** — `megaisp_test`,
+`megaisp_dryrun` y `megaisp_pilot` son compartidas por las 6 terminales del circuito y no hay privilegio
+MySQL para crear una BD de prueba propia (`GRANT` solo cubre esas 5 BDs nombradas); correrlo sin coordinar
+es exactamente el problema que originó el item #662/#682. Queda como verificación pendiente si alguien
+corre un `migrate:fresh` coordinado.
+
+Rama `circuito/item-682-hallazgo-migratefresh-esta-roto-en-e`, commit `baa525b5`, integrado vía
+`circuito:integrar`. Item #682 cerrado como completado.
+
+## 2026-08-28 18:53 — Item #700: Fase A (motor comisión-KPI pago+clawback real) bloqueada — cadena C→B→A sigue sin reglas
+
+**wt-5.** Item #700 pedía activar en Talento el motor de comisión-KPI con **pago real** (vía
+`talento_ledger_entries`) y **clawback real** (reversión de comisiones). Es la Fase A del plan
+C→B→A del des-trabe de #645, con condición de entrada explícita en el propio texto: "NO ejecutar
+si la Fase B no fue validada primero" — además de la frontera dura de dinero de siempre.
+
+Verificado en esta vuelta (misma worktree que ya había cerrado #693/#697/#698 en sesiones previas):
+`talento_compensation_rules` sigue en **0 filas**. Fase C (#693/#697, catálogo de reglas) sigue
+bloqueada esperando que Irving defina rol piloto/KPI/fórmula/ventana de clawback. Fase B (#698/#694,
+motor de preview read-only) **nunca se construyó** — se investigó y se dejó documentada y bloqueada
+en una vuelta anterior (confirmado con Thomas: "PROCEDE con documentar, sin escribir código de
+cálculo") precisamente porque Fase C no tenía reglas reales que leer.
+
+Como Fase B ni siquiera se construyó, la precondición de #700 está doblemente incumplida. Construir
+el motor de pago+clawback ahora exigiría inventar tanto la lógica de evaluación de KPI (que Fase B
+ya se negó a inventar) como la definición propia de Fase A de "qué es un cliente activado por este
+vendedor" — dinero real sin reglas de negocio confirmadas. No se consultó a Thomas de nuevo porque
+es la misma pregunta ya resuelta un eslabón abajo en la misma cadena, con la misma precondición
+objetivamente verificada como incumplida (query directa, no criterio).
+
+Sin cambio de código de aplicación. Doc:
+`docs/talento-motor-kpi-fase-a-item-700-verificacion.md`. Rama
+`circuito/item-700-talento-activar-motor-de-comision-kpi`, integrado vía `circuito:integrar`. Item
+#700 cerrado documentando el bloqueo — la cadena completa C→B→A queda esperando que Irving cargue
+reglas reales en `/talento/compensacion`.
+
+## 2026-08-28 19:13 — Item #208 (Vigilante on-box): re-confirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-1.** #208 ("vigilante on-box: que los atascos se avisen solos") volvió a en_progreso reclamado
+para mí, pero `circuito:cabida` devolvió `CABE [ya_descompuesto]`: una vuelta anterior (wt-2,
+2026-08-28 17:14) ya lo había partido en 4 sub-items reales — **#704** (Reclamos: claimed_at sin
+updated_at, en_progreso sin worker_sid, en_progreso sin proceso vivo), **#705** (Cola + discrepancias
+Sistema/Supervisor), **#706** (Git HEAD desatado + Gasto claude -p/hora) y **#707** (publicar en el
+tablero de compuertas + canal de alerta fuera de la Torre + hombre-muerto visible) — los cuatro con
+`origen_item_id=208`, aprobados (`aprobado_revisor`/`aprobado_irving`) y **sin reclamar** (branch
+vacío, worker_sid vacío). Verifiqué la rama `circuito/item-208-...` que ya existía: **0 commits**
+sobre main — nunca hubo código real bajo el item padre.
+
+Como el alcance completo de #208 ya vive en esos 4 items (que no son míos — "un item = un dueño"),
+no había nada legítimo que implementar directamente bajo #208 sin duplicar/pisar ese trabajo.
+Apliqué el mecanismo de "paraguas" que ya existe en `RoadmapItem` (guard `saving` 2b, pensado
+exactamente para esto): intenté cerrar #208 a `completado` y el propio guard lo reenrutó solo a
+`aprobado_irving` + `excluir_pool_automatico=true`, dejando en el log el evento `paraguas_abierto`
+("le quedan 4 sub-items abiertos: no se completa"). Con eso #208 sale del pool de reclamo (ya no
+vuelve a timeoutear/re-escalar en bucle — llevaba reap_count=6 y 1 timeout) y se cerrará solo cuando
+el último de los 4 hijos cierre (hook `saved`, ya verificado en el código). Decisión registrada
+también en `circuito:reportar 208 --tipo=decision` (reporte #2219). Sin cambio de código de
+aplicación — los 4 sub-items quedan disponibles para que el pool los reclame normalmente.
+
+## 2026-08-28 19:33 — Item #216 (Deriva de esquema en dev): re-confirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-2.** #216 ("deriva de esquema en dev: medir cuántas columnas existen solo porque alguien las
+agregó a mano, sin migración que las respalde") volvió a `en_progreso` reclamado para mí, pero
+`circuito:cabida` devolvió `CABE [ya_descompuesto]`: una vuelta anterior (también wt-2, 2026-08-28
+19:16) ya lo había partido en 3 sub-items reales — **#738** (Fase 1: esquema de referencia desde
+migraciones en BD desechable `megaisp_dryrun`), **#739** (Fase 2: diff esquema vivo `megaisp` vs
+referencia de migraciones) y **#740** (Fase 3: consumidores + entregable final + cierre del
+paraguas) — los tres con `origen_item_id=216`, aprobados (`aprobado_revisor`/`aprobado_irving`) y
+**sin reclamar** (worker_sid vacío, sin rama). El motivo del rebote: la vuelta anterior sí registró
+la decisión y creó los sub-items, pero nunca intentó el cierre del padre, así que #216 se quedó
+`en_progreso` colgado → el reaper lo vio huérfano (slot libre) y lo re-escaló en bucle
+(`reap_count=6`, 1 timeout).
+
+Mismo mecanismo de "paraguas" ya usado hoy en #208 (guard `saving` 2b de `RoadmapItem`, pensado
+exactamente para esto): intenté cerrar #216 a `completado` y el guard lo reenrutó solo a
+`aprobado_irving` + `excluir_pool_automatico=true`, dejando en el log el evento `paraguas_abierto`
+("le quedan 3 sub-items abiertos: no se completa"). Con eso #216 sale del pool de reclamo y se
+cerrará solo cuando el último de los 3 hijos cierre. Decisión registrada también en
+`circuito:reportar 216 --tipo=decision` (reporte #2247). Sin cambio de código de aplicación — los 3
+sub-items quedan disponibles para que el pool los reclame normalmente.
+
+## 2026-08-28 22:41 — wt-5: #753 cierra la cadena de seguimientos repetidos (Inventario)
+
+**wt-5.** #753 ("Seguimiento: pregunta sin resolver de #741") era la 3ra repetición consecutiva de
+la misma pregunta heredada de #218 (clasificación herramienta/material/equipo_cliente en
+Inventario), vía la carrera del generador de seguimientos ya documentada en #733/#741
+(`docs/inventario-seguimiento-733-item-741-verificacion.md`, que anotaba: "si se repite una
+tercera vez vale la pena frenar el mecanismo"). Reverifiqué la BD: las 17 entradas originales de
+#218 siguen clasificadas igual (ONT/MODEM/TELEFONOS DE CASA/ELIMINADOR=`equipo_cliente`, el resto
+`material`, POWER sigue `NULL` a propósito) — nada nuevo que decidir sobre inventario.
+
+A diferencia de los dos cierres anteriores (que solo documentaron el hallazgo), esta vez corregí
+la causa raíz: `JarvisService::cadenaSeguimientoRepetida()` (nuevo) camina la cadena
+`origen_item_id` del item que se cierra y, si la misma pregunta textual ya generó 3+ generaciones
+de seguimiento, el hook `RoadmapItem::saving()` (`#1008`) deja de crear un hijo más — solo anota
+`seguimiento_omitido_cadena_repetida` en el log, auditable sin ensuciar la bandeja. #753 se cerró
+con `preguntas[0].opcion_elegida` fijado a la respuesta real (defensa en profundidad, por si el
+guard fallara). Detalle en `docs/inventario-seguimiento-741-item-753-verificacion.md`. Commit
+`a7b3bf44` en la rama `circuito/item-753-...`, integrado vía `circuito:integrar` (nivel C, queda
+`aprobado_irving`+`esperando_merge_irving=true` a la espera del runner de merge on-box).
+## 2026-08-31 17:57 — Item #830 (Fase 1a-ii parte 2/2, ciclo fix-drift 555 migraciones): reconfirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-1.** #830 volvió a `en_progreso` reclamado para mí (había pasado por dos ciclos de
+timeout→re-escalación→reap→re-aprobación, `reap_count=1` + 2 timeouts en el log). `circuito:cabida`
+devolvió `CABE [ya_descompuesto]`: una vuelta anterior (también wt-1, 2026-08-31 17:36) ya había
+verificado que los fixes de #822 (`ab7804e0`+`8c938dd1`) están en `main`, y descompuso el trabajo
+real pendiente (colisión `failed_jobs` en `schema:rebuild-dryrun`, posible carrera con #831 sobre
+`megaisp_dryrun` compartida) en el sub-item **#833** (`origen_item_id=830`), que quedó
+`requiere_irving` sin reclamar. El rebote: esa vuelta registró la decisión y creó el sub-item, pero
+nunca intentó el cierre del padre, así que #830 se quedó colgado y el reaper lo re-escaló en bucle.
+
+Mismo mecanismo de "paraguas" ya usado en #208/#216/#738/#745 (guard `saving` 2b de `RoadmapItem`):
+intenté cerrar #830 a `completado` y el guard lo reenrutó solo a `aprobado_irving` +
+`excluir_pool_automatico=true`, dejando en el log el evento `paraguas_abierto` ("le queda 1
+sub-item abierto: no se completa"). Con eso #830 sale del pool de reclamo y se cerrará solo cuando
+#833 cierre. Decisión registrada también en `circuito:reportar 830 --tipo=decision` (reporte
+#3767). Sin cambio de código de aplicación — #833 queda disponible para que el pool lo reclame
+normalmente cuando Irving resuelva sus preguntas pendientes.
+
+## 2026-09-01 19:20 — Item #816 (DocumentaciónCorporativa Fase 5d-2, checklist offboarding): reconfirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-1.** #816 volvió a `en_progreso` reclamado para mí vía `reaper-rapido` (`reap_count=1`, "el
+slot wt-1 está libre: reclamo huérfano → re-encolado"). Al leer el item: una vuelta anterior
+(también wt-1, 2026-09-01 13:09) ya había corrido `circuito:cabida` (NO CABE, `ya_timeouteo_antes`)
+y descompuesto el trabajo real en **#839** (backend de los 6 ítems fijos sin tabla propia — correo,
+VPN, WhatsApp, equipo, respaldo, finiquito RH — ejecutable ya) y **#840** (wire de "Otros
+pendientes" en `DcOffboarding.vue`, bloqueado a propósito hasta que #815 tenga `merge_commit` en
+`main`), documentando además por qué no re-escalaba la contradicción de spec #816-depende-de-#815
+que una vuelta aún anterior (`wt-2`) ya había escalado y que Irving resolvió reaprobando #816 sin
+mergear #815. El rebote: esa vuelta registró la decisión y creó los sub-items, pero nunca intentó
+el cierre del padre, así que #816 se quedó `en_progreso` colgado → el reaper lo vio huérfano y lo
+re-encoló a `aprobado_irving`.
+
+Mismo mecanismo de "paraguas" ya usado en #208/#216/#738/#745/#830 (guard `saving` 2b de
+`RoadmapItem`): intenté cerrar #816 a `completado` y el guard lo reenrutó solo a `aprobado_irving`
++ `excluir_pool_automatico=true`, dejando en el log el evento `paraguas_abierto`. Verificado además
+que #815 sigue `aprobado_irving` con rama propia pero sin `merge_commit` — confirma que #840 sigue
+correctamente bloqueado. Con esto #816 sale del pool de reclamo y se cerrará solo cuando #839 y
+#840 cierren. Decisión registrada también en `circuito:reportar 816 --tipo=decision` (reporte
+#3871). Sin cambio de código de aplicación — #839/#840 quedan disponibles para que el pool los
+reclame normalmente cuando Irving resuelva sus preguntas pendientes.
+
+## 2026-09-01 19:20 — Item #818 (Fase 1a-ii, schema:rebuild-dryrun completo): bucle reap sobre paraguas cuyos hijos ya habían cerrado, sin código nuevo
+
+**wt-2.** #818 volvió a `en_progreso` reclamado para mí (`circuito:cabida` devolvió `CABE
+[ya_descompuesto]`). Investigué: sus dos hijos directos (`origen_item_id=818`) llevan cerrados
+y archivados desde el **2026-08-29** — `#821` (construir el comando `schema:rebuild-dryrun`
+completo: candados + drop/recreate + bloque Migrator) y `#822` (correrlo contra `megaisp_dryrun`
+real, catalogar 2 fallas de drift reales y corregirlas). No faltaba descomponer nada nuevo; el
+bucle nació de una carrera de timing distinta a la de #738/#745/#830/#816: el hook de cierre en
+cascada (`RoadmapItem.php:462-491`) sólo completa al padre en el instante exacto en que su
+último hijo cierra, y sólo si el padre está en `aprobado_irving` en ESE momento. `#822` no cerró
+de un tirón — quedó parqueado como paraguas de sus propios nietos (`#830`/`#831`) y sólo alcanzó
+`completado` real el 2026-08-31 18:05:52, cuando `#831` cerró. En ese instante `#818` estaba en
+`requiere_irving` (timeout de las 17:32:09), así que la cascada lo descartó y nunca se disparó.
+Irving volvió a aprobar `#818` el 2026-09-01 13:04:12, pero nadie volvió a intentar el cierre
+después — el hook reacciona al `saved` de un hijo, no a un cambio posterior del padre. Sin ese
+intento, `#818` quedó colgado y el pool lo repartió de nuevo sin trabajo propio (5 timeouts, 2
+reanudaciones documentadas en su log).
+
+Verificado antes de tocar nada: `RoadmapItem::find(818)->tieneSubItemsAbiertos()` = `false`
+(`#821` y `#822` ambos `completado`/`status=done`/`archivado_at` poblado). Corrección: esta
+vuelta ejecuta el intento de cierre faltante — como ya no quedan hijos abiertos, el guard de
+paraguas NO lo parquea esta vez: cierra de verdad a `completado`. Decisión registrada también en
+`circuito:reportar 818 --tipo=decision`. Detalle completo en
+`docs/roadmap-bucle-reap-item-818-verificacion.md`. Sin cambio de código de aplicación — el
+comando `schema:rebuild-dryrun` ya está completo y mergeado desde #821/#822; la continuación del
+ciclo fix-drift (555 migraciones corriendo limpias de punta a punta) es descendiente de #822, no
+de #818, y sigue su curso aparte en #830/#833.
+
+## 2026-09-01 14:33 — Item #843 (Enforcement real de permisos en el portal): reconfirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-3.** #843 volvió a `en_progreso` reclamado para mí vía `reaper-rapido` (`reap_count=2`, dos
+ciclos de timeout→re-escalación→reap→re-aprobación). Al leer el item: una vuelta anterior (también
+wt-3, 2026-09-01 14:17) ya había corrido `circuito:cabida` (`NO CABE`, ya había timeouteado antes
+con 0 commits), investigado que las decisiones de motor de permisos del prompt (Spatie `can()`,
+sin copia rol→directo) ya estaban resueltas por trabajo previo (Fase 3a, Permisos B1.1), y
+descompuesto el trabajo real pendiente en 5 sub-items — #847 (tests de resolución de permisos),
+#848 (menú de una sola fuente de verdad), #849 (auditoría Blade `@can` vs `@if(can())`), #850
+(checks explícitos en controladores/APIs) y #851 (alcance de datos por módulo). El rebote: esa
+vuelta se cortó a mitad de la descomposición (`comentarios_claude` termina literalmente en
+"Descom…") y nunca intentó el cierre del padre, así que #843 se quedó `en_progreso` colgado y el
+reaper lo re-escaló dos veces.
+
+Mismo mecanismo de "paraguas" ya usado en #208/#216/#738/#745/#830/#816/#818/#841 (guard `saving`
+de `RoadmapItem`): intenté cerrar #843 a `completado` y el guard lo reenrutó a `aprobado_irving` +
+`excluir_pool_automatico=true`. Matiz de esta vuelta: disparó el guard (1) —"nivel C con rama sin
+merge_commit"— en vez del guard (2b) específico de paraguas, porque #843 conserva un campo
+`branch` de una vuelta aún más antigua; verificado con `git log main..<rama>` que esa rama tiene
+**0 commits propios** (nada esperando merge de verdad), así que el efecto es el mismo (fuera del
+pool) aunque la etiqueta interna (`esperando_merge_irving=true`) no sea la más precisa. Un intento
+de limpiar ese campo vía tinker para forzar el guard específico fue bloqueado por el clasificador
+de auto-mode (candado de guardrail) — correcto no insistir, es puramente cosmético y sin riesgo.
+Con esto #843 sale del pool de reclamo y se cerrará solo cuando #847-#851 cierren. Decisión
+registrada también en `circuito:reportar 843 --tipo=decision` (reporte #3927). Detalle completo en
+`docs/roadmap-bucle-reap-item-843-verificacion.md`. Sin cambio de código de aplicación — #847-#851
+quedan disponibles para que el pool los reclame normalmente (#847 ya fue reclamado por otra
+terminal durante esta misma vuelta).
+## 2026-09-01 16:03 — Item #848: cierre del bucle reap sobre paraguas ya descompuesto (sub-items #855/#856/#857)
+
+Worktree `wt-2`. #848 (sub-item de #843, "Fase 2 - Menu de una sola fuente de verdad: ocultar
+módulo completo si 0 entradas visibles") llevaba 2 timeouts + 1 reap-huérfano en bucle. Una vuelta
+previa (misma `wt-2`, 2026-09-01 15:56) ya había hecho el diagnóstico y la descomposición
+correctos vía `circuito:cabida` (NO CABE) → creó **#855** (envolver `<li>`/`<ul>` completo en el
+`@if` de permiso), **#856** (dynamic_children de `module_sidebar_config` sin chequeo de permiso
+individual — hallazgo nuevo, fila `gestion-red-mikrotik-sync`) y **#857** (aplicar la decisión de
+Irving q2 sobre módulos con landing propia). Pero el proceso se cortó a media escritura del
+reporte, antes de intentar cerrar al padre — el reaper lo re-encoló y el pool lo repartió de nuevo
+sin trabajo propio (mismo bug ya documentado 5 veces: #738/#745/#830/#816/#818).
+
+Esta vuelta: confirmó que los 3 hijos siguen abiertos e intactos (nadie los tocó), ejecutó el
+intento de cierre faltante (`RoadmapItem::find(848)->estado_aprobacion='completado'->save()`), el
+guard de paraguas (`RoadmapItem.php` ~301-326) lo auto-aparcó a `aprobado_irving` +
+`excluir_pool_automatico=true` (confirmado en el log del item, evento `paraguas_abierto`: "le
+quedan 3 sub-item(s) abierto(s)"). Creó branch `circuito/item-848-fase-2-menu-de-una-sola-fuente-de-verd`,
+doc de verificación `docs/roadmap-bucle-reap-item-848-verificacion.md`, entrada en CLAUDE.md,
+commit `e5581b67`, encolado con `circuito:integrar` para merge a main.
+
+#848 queda fuera del pool/reaper hasta que #855/#856/#857 cierren; el hook de cierre en cascada lo
+completará solo. Sin cambio de código de negocio — el trabajo real de la Fase 2 del sidebar sigue
+en los 3 sub-items, pendientes de triaje/aprobación de Irving.
+
+## 2026-09-01 16:27 — Item #859: verificación de permissions:sync-roles --manifests en dev (wt-2)
+
+Sub-item de seguimiento de #852. Su dependencia (#858 — fix de `permissions.description` + extensión
+del glob de `PermissionSyncService::syncFromModuleManifests()` a `Core/*/module.json`) ya estaba
+mergeada en `main` (`3ad8dfdf`) al ramificar #859.
+
+Corrido en dev: `php artisan permissions:sync-roles --manifests`. Snapshot antes/después:
+`permissions` 740→740 (0 nuevos: el glob de Core ya no dejaba huecos), `role_has_permissions`
+3765→3769 (+4: super-administrator y DESARROLLADOR ganaron 2 permisos de prueba de #842 que aún no
+tenían asignados), `model_has_permissions` 4035→4035 (sin cambio). Diff exacto de
+`role_has_permissions` (comparación de conjuntos antes/después): **0 filas eliminadas**, 4 agregadas
+— consistente con la regla de negocio del propio comando (full-access roles reciben TODO). Diff
+puramente aditivo, sin regresiones. Doc completo:
+`docs/permisos-sync-manifests-item-859-verificacion.md` (commit `16bba349`).
+
+Nivel de riesgo C: la rama `circuito/item-859-correr-permissionssync-roles-manifest` quedó
+parqueada como `aprobado_irving` + `esperando_merge_irving=true` (guard del modelo intercepta
+cualquier intento de cerrar a `completado` sin `merge_commit` en nivel C) — fuera del pool/reaper,
+esperando el botón de merge manual de Irving. `reporte_coloquial` y `enlace_revision` ya poblados.
+## 2026-09-02 16:18 — Item #829 cerrado (bucle reap sobre paraguas cuyos hijos YA cerraron)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848, esta vez sobre #829 ("Re-analizar
+consumidores+desde-cuándo del diff #216 tras el rebuild limpio de megaisp_dryrun"). Una vuelta
+previa (wt-1, 2026-09-02 15:47) ya había verificado que la precondición del item se cumplió
+(#817/#818 completados, `reference.sql` y `diff-esquema-216.json` regenerados con datos
+confiables) y descompuso el trabajo real en **#868** (8 índices faltantes de
+`api_integrations`/`marketing_generated_content`/`marketing_messages`, migración `89eeba9e`,
+merge `d80e8f9a`) y **#869** (índices/FK de `referral_prospects`/`referrals`: `converted_client_id`,
+`prospect_id`, `chain_path`, `status`, `referred_client_id` unique, migración `9972c6c3`, merge
+`f475af8b`). Ambos hijos ya estaban `completado` y mergeados a `main` antes de que arrancara esta
+vuelta — confirmado en `git log` y en la BD (`origen_item_id=829`, ambos `estado_aprobacion=completado`,
+`status=done`).
+
+Nadie había vuelto a intentar cerrar al padre después de esos merges: el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) solo completa al padre en el instante exacto en que el ÚLTIMO hijo
+cierra, y solo si en ESE momento el padre ya está en `aprobado_irving`. Sin ese intento, #829 quedó
+colgado (`reap_count=5`, 3 aprobaciones de Irving sin que nadie repitiera el cierre) y el reaper lo
+re-encoló/escaló repetidamente sin que hubiera trabajo propio pendiente.
+
+Esta vuelta verificó `tieneSubItemsAbiertos()` = `false` para #829 y ejecutó el intento de cierre
+faltante vía tinker: como ya no quedan hijos abiertos, el guard de paraguas (`RoadmapItem.php`
+bloque "(2b) PARAGUAS", ~301-326) NO lo re-parqueó esta vez — cerró de verdad a `completado`
+(`excluir_pool_automatico` quedó en `false`). Sin cambio de código de aplicación — el trabajo
+técnico real (los índices/FK de drift) ya estaba hecho y mergeado por #868/#869.
+
+## 2026-09-03 16:41 — Item #202 re-parqueado (bucle reap sobre paraguas, causa raíz distinta: script "cadena-rh" fuera del repo)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#829: #202 ("Expediente RH — Hijo D: paquetes de
+documentos por puesto y generación automática al alta") ya estaba descompuesto desde esta mañana
+(2026-09-03 09:00) en **#870** (D1, modelo+pantalla paquete por puesto), **#871** (D2, motor de
+generación al alta) y **#872** (D3, enlace Flotas/Inventario para completar pendientes) — los tres
+`aprobado_irving`/`aprobado_revisor`, `pending`, sin reclamar. Verificado en esta vuelta que los
+tres siguen intactos y abiertos: la descomposición original sigue siendo la correcta, nadie la tocó.
+
+Variante nueva de causa raíz: no fue solo el reaper. El log muestra que el guard de paraguas SÍ
+parqueó correctamente al item dos veces hoy (10:24:33 y 10:26:05, `excluir_pool_automatico=true`),
+pero un evento `por: "cadena-rh"` (**no existe en el codebase** — grep completo sin resultados; es
+un script ad-hoc corrido por tinker en una sesión previa, autorizado por Irving el 2026-09-02 para
+desbloquear la cadena de dependencias de Expediente RH cuando su padre #201 cerrara) se ejecutó
+**tres veces** (07:18:54, 10:25:02, 10:30:03) y cada vez deshizo el parqueo
+(`excluir_pool_automatico=false`) sin comprobar si el item ya se había vuelto un paraguas con hijos
+abiertos — simplemente reabre el pool porque su condición ("la dependencia #201 ya cerró") sigue
+siendo cierta. El item incluso llegó a mergearse a main una vez (10:27:03, `merge_commit=8fffbcd2`)
+en medio de este vaivén, y aun así volvió a quedar disponible para el pool después.
+
+Esta vuelta ejecutó el intento de cierre faltante (tercera vez del día): el guard confirmó los 3
+sub-items abiertos y re-enrutó a `aprobado_irving` + `excluir_pool_automatico=true`. Riesgo
+residual documentado en el reporte del item: si el script `cadena-rh` se vuelve a correr sobre
+#202 antes de que #870/#871/#872 cierren, va a volver a des-parquearlo — no se puede blindar desde
+este item porque el script vive fuera del repo (ejecución manual, no un comando versionado). Sin
+cambio de código de aplicación — el trabajo real de Expediente RH Hijo D sigue en #870/#871/#872.
+
+## 2026-09-03 16:52 — Item #202 CUARTO re-parqueo — esta vez se localizó y corrigió la causa raíz en `cadena-rh.php` (fuera del repo)
+
+Cuarta vuelta sobre el mismo bucle. A diferencia de las tres anteriores, esta vez el script
+`cadena-rh` sí se pudo localizar: vive en `/home/meganet/circuito/cadena-rh.php` +
+`cadena-rh.sh`, invocado por crontab de `meganet` cada 5 min (`*/5 * * * * ... # cadena-rh`,
+confirmado con `crontab -l`). No está en ningún repo git — es infraestructura del propio circuito,
+compartida por todas las terminales (wt-1..wt-6), documentada en su propia cabecera como "glue
+operativo autorizado por Irving el 2026-09-02 para encadenar #201→#202→#203".
+
+**Causa raíz confirmada leyendo el código:** `cadena-rh.php` decide si "soltar" (poner
+`excluir_pool_automatico=false`) al hijo #202 evaluando SOLO una condición: ¿su padre #201 está
+`completado` y mergeado? Como #201 lleva cerrado desde hace días, esa condición es **permanentemente
+cierta**. El script no distingue *por qué* #202 está parqueado ahora mismo — no sabe que, a partir
+de las 09:00 de hoy, #202 se descompuso en #870/#871/#872 y el guard de paraguas lo parquea por una
+razón totalmente distinta (hijos propios abiertos, no la dependencia original). El log de ejecuciones
+(`logs/cadena-rh.log`) confirma 5 disparos reales el mismo día (07:18, 10:25, 10:30, 10:40, 10:45),
+cada uno deshaciendo el parqueo que el guard acababa de poner minutos antes — una guerra entre el
+cron (cada 5 min) y el guard de paraguas (cada vez que alguien reclama el item), exactamente el
+patrón que las 3 vueltas anteriores documentaron pero no pudieron blindar.
+
+**Fix aplicado** (en el archivo fuera del repo, no requiere PR — se anota aquí por la regla de
+bitácora): dentro de `$soltar()`, antes de limpiar `excluir_pool_automatico`, se agregó un guard
+`if ($m->tieneSubItemsAbiertos())` que usa el mismo método que ya usa el guard de paraguas real
+(`RoadmapItem::tieneSubItemsAbiertos()`, `app/Modules/Addons/Roadmap/Models/RoadmapItem.php:1625`)
+— si el hijo tiene sub-items propios sin cerrar, `cadena-rh` ya NO lo suelta (deja una nota una sola
+vez por item, vía archivo marca `cadena-rh.paraguas-{id}.avisado`, para no spamear el log cada 5
+min). Es seguro: la cascada de cierre automático cuando el último sub-item cierra
+(`RoadmapItem.php:459-491`) pone `estado_aprobacion=completado` directo sobre el padre sin pasar
+por el pool, así que no depender de `excluir_pool_automatico=false` para cerrar no bloquea nada.
+Verificado con `php -l` (sin errores) y en tinker: `RoadmapItem::find(202)->tieneSubItemsAbiertos()`
+= `true` con el estado actual (#870 `aprobado_irving`, #871/#872 `aprobado_revisor`, los tres sin
+archivar) — el guard nuevo dispara correctamente.
+
+Esta vuelta ejecutó el intento de cierre faltante de #202 (cuarta vez): el guard confirmó los 3
+sub-items abiertos y re-enrutó a `aprobado_irving` + `excluir_pool_automatico=true`. A diferencia de
+las 3 veces anteriores, esta vez el próximo disparo de `cadena-rh` (crontab cada 5 min) ya NO debería
+deshacer el parqueo — el bucle queda roto en la causa raíz, no solo re-documentado. Sin cambio de
+código de aplicación en el repo — el trabajo real de Expediente RH Hijo D sigue en
+#870/#871/#872; el fix de esta vuelta es sobre infraestructura del circuito, no sobre MegaISP.
+
+## 2026-09-03 11:13 — Item #878 cierra el bucle reap sobre el paraguas ya descompuesto en #891
+
+Mismo patrón que #738/#745/#830/#816/#818/#848: una vuelta previa (`wt-2`) hizo FASE 1
+(documentación del mecanismo de `AuditorService::gastoApagado()`/`rachaSeca()`/`debeCorrer()`) y
+FASE 2 (diseño — eligió candidato (c) caducidad temporal/half-open) de #878 en modo solo-lectura,
+y descompuso correctamente FASE 3+4 en el sub-item **#891**, que pasó el triaje y quedó
+`requiere_irving` con un brief completo de 4 preguntas (TTL del re-armado, mecanismo de disparo,
+qué exponer en Torre → Configuración, dónde persistir el estado) esperando decisión de Irving. Esa
+vuelta nunca intentó *cerrar* #878 — quedó `en_progreso` colgado, el reaper lo re-encoló
+(`reap_count=1`), y el pool lo repartió de nuevo sin trabajo propio que hacer.
+
+Esta vuelta verificó que #891 sigue intacto (sin reclamar, brief completo) y ejecutó el intento de
+cierre faltante: `RoadmapItem::find(878)->estado_aprobacion='completado'` → el guard de paraguas
+(`RoadmapItem.php` ~301-326) lo reenrutó a `aprobado_irving` + `excluir_pool_automatico=true`
+(log `paraguas_abierto`, "le quedan 1 sub-item(s) abierto(s)"). #878 queda fuera del
+pool/reaper hasta que #891 cierre — la cascada existente (`RoadmapItem.php:459-491`) lo completará
+solo. Detalle en `docs/roadmap-bucle-reap-item-878-verificacion.md`. Sin cambio de código de
+negocio — el trabajo técnico real (implementar el re-armado del freno de sequía) sigue en #891,
+pendiente de que Irving decida su brief.
+
+## 2026-09-03 12:52 — Item #880 cierra el bucle reap sobre el paraguas ya descompuesto en #918/#919/#920
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#878: una vuelta previa (`wt-1`, 12:29-12:44) corrió
+`circuito:cabida` sobre #880 (Torre 24/7 · Pieza 4 — auto-corregir hardening de código en dos
+carriles AUTO/BANDEJA), obtuvo NO CABE (ya había timeouteado antes con la rama sin commits) y
+descompuso correctamente el trabajo en tres sub-items siguiendo las fases del prompt: **#918**
+(Fase 2 — criterio AUTO/BANDEJA en `config/circuito.php`), **#919** (Fase 3+4 — activar el carril
+AUTO en `circuito:priorizar-seguridad` + candado de regresión bloqueante) y **#920** (Fase 5 —
+verificación contra items de seguridad reales), documentando la Fase 1 (lectura de la política
+actual) directamente en `comentarios_claude` del propio #880. Esa vuelta nunca intentó *cerrar*
+#880 — quedó `en_progreso` colgado, el reaper lo re-encoló (`reap_count=1`), y el pool lo repartió
+de nuevo (a la misma terminal `wt-1`) sin trabajo propio que hacer.
+
+Esta vuelta verificó que los 3 hijos siguen intactos (sin reclamar, `requiere_irving`,
+`nivel_riesgo=B`) y ejecutó el intento de cierre faltante:
+`RoadmapItem::find(880)->estado_aprobacion='completado'` → el guard de paraguas (`RoadmapItem.php`
+~301-326) lo reenrutó a `aprobado_irving` + `excluir_pool_automatico=true` +
+`esperando_merge_irving=true`. #880 queda fuera del pool/reaper hasta que #918, #919 y #920
+cierren los tres — la cascada existente (`RoadmapItem.php:459-491`) lo completará solo. Detalle en
+`docs/roadmap-bucle-reap-item-880-verificacion.md`. Sin cambio de código de negocio — el trabajo
+técnico real (criterio AUTO/BANDEJA + carril AUTO con candado de regresión + verificación) sigue
+en #918/#919/#920, pendiente de triaje/aprobación.
+## 2026-09-03 19:50 — Item #883: auditoría completa de los `esperando_merge_irving` (60 vivos)
+
+Sub-item de #873. Una vuelta previa (mismo slot wt-2, 13:19) ya había clasificado 57/58 items
+como retenidos legítimamente por `nivel_riesgo=C` + 1 especial (#638), pero se cortó a los 600s
+sin comitear y escaló a Irving con 3 preguntas de metodología (cómo procesar, qué criterio usar,
+qué hacer con los retenidos). Irving aprobó las 3 opciones recomendadas (13:38, irving:CARLOS).
+
+Esta vuelta re-corrió la clasificación completa (el conteo creció de 58→60): confirmado en código
+que `JarvisService::elegibleAutoMerge()` trae un guard incondicional para `nivel_riesgo=C`
+(línea 988-993, item #756, con comentario explícito de por qué es incondicional — corrige un
+bypass real de #753). Los 60 items vivos en `esperando_merge_irving=true` se descomponen en 59
+por `nivel_riesgo=C` (candado a propósito, 100% legítimo) + 1 (#638) que vive en un repo git
+externo (`megafamilia-rn`) sin integración del circuito, también legítimo (fusión manual de
+Irving en ese repo, `circuito:merge-run` no aplica ahí). **Resultado: 0 candidatos a
+`circuito:merge-run`.** Reporte completo (tabla por módulo, 60 items) en
+`docs/roadmap-esperando-merge-irving-item-883-verificacion.md`. Sin cambio de código de negocio —
+es una auditoría read-only; el único artefacto es el reporte + el registro en el log del item.
+
+## 2026-09-03 14:10 — Siembra de la Hoja de Ruta: módulo MAPA DE RED (29 items, #936–#964)
+
+**Alcance de la sesión:** SOLO altas en el Roadmap. No se implementó nada del módulo — sin código
+de `MapaRed`, sin migraciones, sin tocar `app/Modules/Addons/Mapas`.
+
+**Qué se creó:** comando idempotente `php artisan roadmap:sembrar-mapa-red {--dry-run}`
+(`app/Modules/Addons/Roadmap/Console/SembrarMapaRedCommand.php`, registrado en el
+`ModuleServiceProvider`). Dedupe por `title` exacto: re-ejecutarlo reporta 29 omitidos y crea 0.
+Commit `87e47b23` en la rama `roadmap/siembra-mapa-red` (sin mergear — pendiente de Irving).
+
+**Los 29 items:** épica **#936 (MR-00)** + 28 hijos enlazados por `origen_item_id`, en orden de
+ejecución: MR-01/02 salvamento read-only de Mapas · MR-03..07 andamiaje y paridad · MR-08..15
+modelo de planta (cable, puerto, hilo, empalme, splitter, enlace de servicio, backfill) · MR-16..21
+motor (grafo, impacto MRR, presupuesto óptico, carta de empalme, semáforos) · MR-22..24 navegación ·
+MR-25/26 interoperabilidad y cobertura · MR-27/28 comparativa y retiro del perdedor.
+
+**Hallazgo que cambió la siembra — el circuito estaba vivo.** `aprobado_irving` es estado ELEGIBLE
+para el pool (`RoadmapItem::sqlElegibleParaPool()`) y `circuito_pausado = false`. Sembrar los 29
+en ese estado, sin más, habría hecho que la Torre los repartiera sola, en paralelo y sin respetar la
+secuencia (MR-05 copiando datos antes de que MR-02 hiciera el respaldo; MR-16 trazando el grafo sin
+los hilos de MR-09) — contra la instrucción explícita del documento de origen: *"No ejecutar ninguno
+de los items. La ejecución arranca en una sesión aparte con MR-01."*
+**Decisión de Irving:** nacen `aprobado_irving` como pedía el documento, pero con
+**`excluir_pool_automatico = true`**. Verificado: 29/29 con freno, **0 elegibles para el pool**.
+De paso, eso protege a MR-00 del bucle reap de paraguas (#738/#745/#830/#816/#818/#848/#878).
+**Para arrancar: liberar el flag de MR-01 (#937) desde la Torre, item por item, en orden.**
+
+**Tres discrepancias del documento, resueltas con Irving antes de escribir:**
+1. **Conteo:** el encabezado pedía 28 (MR-00..MR-27) pero el cuerpo definía 29 (MR-00..MR-28). Se
+   sembraron los 29.
+2. **Estados:** las reglas decían `requiere_irving` en "MR-26 y MR-27"; el listado los marcaba en
+   MR-27 y MR-28. Se aplicó lo del listado (MR-27 comparativa, MR-28 retiro nivel C).
+3. **Referencias cruzadas con off-by-one** de un renumerado previo: MR-11 citaba MR-15 (es MR-16),
+   MR-12 citaba MR-18 (es MR-19), MR-13 citaba MR-17 (es MR-18), MR-14 citaba MR-16/MR-20 (son
+   MR-17/MR-21). **Corregidas y anotadas dentro de cada item**, para no darle instrucciones falsas a
+   la terminal que lo ejecute. Misma corrección en D1/D26 de la tabla de decisiones.
+
+**Mapeo de campos** (el documento usaba nombres que no existen en `roadmap_items`):
+`prompt_para_claude` → **`prompt`** · `item_padre` → **`origen_item_id`** · `tipo='manual'` →
+**no existe columna `tipo`** (los items de respuesta se marcan por título `[RESPUESTA]` +
+`origen_item_id`). El bloque "Canal de respuesta" se copió textual en los 29 `prompt`, con su
+placeholder, como pedía el documento.
+
+**Verificado:** 29 sembrados · 29 con freno · 0 elegibles para el pool · 28 hijos enlazados a #936 ·
+bloque Canal de respuesta en 29/29 · tabla D1–D30 completa (30 filas) en el `description` de MR-00 ·
+priority alta=9 / media=20 · nivel B=25, A=3, C=1 · módulo "Mapa de Red"=27, "Mapas"=2 ·
+0 duplicados · idempotencia probada (2ª corrida = 0 creados).
+
+**No se tocó:** `app/Modules/Addons/Mapas`, esquema de BD, datos fuera de `roadmap_items`.
+Los items #933–#935 que aparecieron durante la sesión son de otras terminales del circuito, ajenos.
+
+### 2026-09-03 14:15 — ACTUALIZACIÓN de la entrada anterior: canal de respuesta corregido en los 29
+
+Irving entregó la versión vigente del bloque **Canal de respuesta** y quedó aplicada a los 29 items
+(#936–#964). **Corrige el punto que se había reportado como deuda:** el bloque del documento original
+instruía crear el item de respuesta con `tipo='respuesta'`, y esa columna **no existe** en
+`roadmap_items`. La versión nueva ya no la menciona; el item de respuesta se identifica por título
+`[RESPUESTA]` + `origen_item_id`. Suma además dos reglas que antes no estaban: `nivel_riesgo`
+**mínimo `B`, nunca `A`** —con su motivo explícito: un item A puede quedar `aprobado_claude` y
+saltarse al supervisor— y `excluir_pool_automatico` **según la política vigente del pool**.
+
+Por tanto queda **sin efecto** la frase de la entrada anterior que decía que el bloque se copió
+textual del documento de origen "con su placeholder": lo que está sembrado hoy es la versión de
+Irving.
+
+**Cómo se propagó:** el comando `roadmap:sembrar-mapa-red` dejó de ser sólo "crea si no existe".
+Ahora, para un item ya sembrado, hace dos reparaciones acotadas — el enlace al paraguas y el bloque
+de canal — mediante `sincronizaCanal()`, que corta cualquier bloque previo por su encabezado y pega
+el vigente. Opera **sobre el texto que está en BD, no sobre la definición del comando**, así que una
+edición manual del cuerpo de un `prompt` sobrevive y sólo se normaliza el canal. Es idempotente:
+re-ejecutarlo cuando ya está sincronizado no escribe nada.
+
+**Verificado:** 29/29 con el bloque nuevo (encabezado, "crea un item de respuesta", "nunca \`A\`",
+"política vigente del pool", "se consolidan en una lista") · **0** con el texto viejo
+(`tipo='respuesta'` ya no aparece en ninguno) · **0** bloques duplicados · **28/28** conservan su
+`**DoD:**` (el cuerpo de los prompts no se tocó) · 0 elegibles para el pool · 28 hijos de #936.
+
+**Nota de estado, ajena a este cambio:** MR-27 (#963) y MR-28 (#964) ya no están en
+`requiere_irving` — **Irving los aprobó él mismo** desde la Torre (`aprobado_por = irving:admin`,
+14:11:53 y 14:12:00), pocos minutos después de la siembra. Ambos conservan
+`excluir_pool_automatico = true`, así que siguen fuera del pool. No hubo proceso automático de por
+medio; se registra sólo para que el cambio de estado no sorprenda a quien lea la entrada anterior.
+
+## 2026-09-03 14:28 — Épica MAPA DE RED: cierre de siembra (MR-29…MR-31 + D31/D32 + parches)
+
+Cierra los huecos que dejaban decisiones para después. La épica #936 pasa de **28 a 31 hijos**.
+
+**Items nuevos** (los tres cuelgan de #936, con el canal de respuesta vigente y
+`excluir_pool_automatico=true`):
+
+| id | código | nivel | qué congela |
+|----|--------|-------|-------------|
+| **#967** | MR-29 | B | **Rúbrica de comparación congelada.** Los 6 criterios con los que MR-27 decidirá, escritos ANTES de que exista el resultado: paridad de conteo (tolerancia 0), huérfanos (0), trazo OLT→ONT en Tultitlán (100% de las NAPs), alta de NAP (≤3 pasos), carga del mapa (≤3 s), presupuesto óptico vs RX de MultiOLT (≤3 dB en ≥20 ONUs). Cada fila con evidencia y quién firma. **Regla de desempate: si no gana en TODOS, no se retira el viejo y MR-28 no corre.** El item NO compara: sólo deja anotada la fuente de medición de cada criterio. |
+| **#968** | MR-30 | B | **Contingencia si el piloto reprueba.** Los dos módulos conviven (MR-28 no corre), se abre `[RESPUESTA]` contra #936 con criterios reprobados y causa raíz, y el módulo nuevo queda **beta** en el sidebar en vez de retirarse. Explícito: nadie borra nada por frustración ni por antigüedad del item. |
+| **#969** | MR-31 | A | **Seguimiento semanal de #936 por el Supervisor.** Cerrados vs. total, cuál está en curso, cuáles llevan >7 días parados en `requiere_irving`, y decir "sin cambios" cuando no hubo. Cuelga del `circuito:digest` que Jarvis ya emite — **sin construir canal ni comando nuevos**. |
+
+**Parches a items ya sembrados** (idempotentes, cada uno con su marca de aplicado):
+- **#936 (MR-00)** → **D31 (regla de congelamiento)** y **D32 (entrega final)**. La tabla D1–D30
+  quedó intacta (30 filas verificadas).
+- **#963 (MR-27)** → referencia a MR-29 como su rúbrica y a MR-30 como contingencia, con la regla de
+  desempate. Su DoD original intacto.
+- **#964 (MR-28)** → ventana de reversión de 30 días.
+
+**Tres puntos que se decidieron antes de escribir, no después:**
+
+1. **14 vs 30 días — son plazos complementarios, no un reemplazo.** #964 ya tenía su decisión C
+   tomada (q1: Tiempo 1 con cronómetro de **14 días de convivencia**; q2: Tiempo 2 exige
+   **confirmación explícita de Irving + respaldo fresco verificado**, con la opción de pre-autorizar
+   descartada por "cruza frontera dura sin ojo humano final"). Los **30 días de reversión** cuentan
+   **desde el Tiempo 2**: durante ellos el respaldo de MR-02 se conserva en línea y localizable, con
+   su comando de restauración probado, y no se rota. Se agregó como precisión; **no se tocaron los
+   14 días ni la decisión tomada**.
+2. **`opciones` de #964 se dejó NULL a propósito.** La decisión vive en `preguntas[]` (brief
+   multi-pregunta, el mecanismo vigente) con sus alternativas descartadas y su justificación.
+   Poblar además el campo legacy habría duplicado la decisión en dos lugares que pueden divergir.
+   El DoD "MR-28 tiene su decisión C resuelta" **ya se cumplía**.
+3. **El Supervisor SÍ existe** (`SupervisorService` = Jarvis T, con `circuito:jarvis` y
+   `circuito:digest`), así que MR-31 se redactó **ejecutable ya**, sin la cláusula de espera que
+   traía el encargo — su condición no aplicaba y habría dejado una instrucción muerta.
+
+**El comando se extendió, no se reescribió.** `roadmap:sembrar-mapa-red` suma los 3 items al array
+de definiciones y un paso nuevo `aplicaParches()`: parches declarativos con una `marca` que prueba
+si ya están aplicados, sobre `description` o sobre el cuerpo del `prompt` (el canal se corta y se
+repega al final, nunca queda texto debajo de él). Refactor mínimo: `cuerpoSinCanal()` extraído de
+`sincronizaCanal()`.
+
+**Verificado:** 3/3 items nuevos con padre #936, freno puesto y canal vigente · 0 con el texto viejo
+`tipo='respuesta'` · MR-00 con D31 y D32 y sus 30 filas D1–D30 intactas · #964 nivel C con q1 y q2
+resueltas y ambos plazos en su prompt · #963 citando MR-29/MR-30 y con su DoD intacto · **31 hijos
+de #936** · **0 elegibles para el pool** · 0 bloques de canal duplicados · **idempotencia: 2ª corrida
+= 0 creados, 0 parches**.
+
+⚠️ La rama `roadmap/siembra-mapa-red` **sigue sin mergear** a main (main avanzó por su cuenta con
+integraciones del circuito). El checkout se había quedado en `main` al inicio de esta sesión porque
+el circuito cambió de rama al integrar #899/#897.
+
+## 2026-09-03 14:51 — MR-32 (#971): liberador en cascada acotado para la épica MAPA DE RED
+
+**Antes que nada, el merge.** `roadmap/siembra-mapa-red` quedó **integrada a main** (merge `--no-ff`,
+sin conflictos). Era condición previa: dejar corriendo un liberador automático mientras el comando de
+siembra vive sólo en una rama significa que cualquier terminal que arranque desde main trabaja sobre
+un repo distinto al planeado.
+
+**Item nuevo conforme a D31** (no se editó nada de lo sembrado): **#971 — MR-32**, hijo de #936,
+nivel B, prioridad alta.
+
+**Qué hace:** `php artisan circuito:liberar-cascada-mapa-red`, en el scheduler **cada 10 minutos**.
+Libera el `excluir_pool_automatico` del siguiente item de **MR-01 → MR-07** (#937→#943, en ese orden)
+**sólo** cuando el anterior cerró limpio. **Dirección única:** el comando sólo pasa el freno de
+`true` a `false`; nunca cambia `estado_aprobacion`, nunca despacha, nunca cierra items y nunca
+vuelve a frenar nada.
+
+**Techo duro #943 (MR-07)**, con candado estructural: si alguien mete en `SECUENCIA` un id mayor al
+techo, el comando **aborta al arrancar**. Al cerrar MR-07 escribe su bitácora y **se autodesactiva**;
+`--reactivar` levanta una detención pero **no levanta el techo**.
+
+**Por qué ese corte:** hasta MR-07 nada toca las tablas del módulo viejo y todo lo que se escribe va a
+tablas `mapared_*` nuevas. De MR-08 en adelante empieza el modelo de datos, donde una decisión mal
+tomada se arrastra a diez items.
+
+**Distinción que importa — pausa ≠ detención.** El kill switch, el archivo `storage/app/circuito/PAUSA`
+y "hay items en `requiere_irving`" **saltan la vuelta** (son transitorios). Los frenos duros
+(`[RESPUESTA]` en la épica, item `rechazado`/`cancelado`, item atascado >3× su `eta_minutos`,
+red de seguridad caída, techo) **detienen la cascada** y exigen `--reactivar`.
+
+**Red de seguridad verificada en CADA vuelta**, no una sola vez al activar: `GuardBaseDePruebas`
+presente y **efectivamente invocado** desde `CreatesApplication`, `phpunit.xml` fijando una base
+terminada en `_test`, y `MigrationGuardService` presente. Si falta cualquiera, la cascada se
+detiene sola. Las cuatro estaban vigentes en main antes de activar el scheduler.
+
+**Sin rastro no hay liberación:** el `log` del item liberado se escribe en el mismo `save()` que
+baja el freno, dentro de try/catch — si el rastro falla, el freno **no** se toca y el comando sale en
+error.
+
+**Reporte sin canal nuevo** (lo que MR-31 previó): al detenerse entrega el resumen por donde ya va el
+`circuito:digest` — salida de consola + `Log::channel('roadmap_externo')` — y deja copia en el
+`log` de #971 y del paraguas #936, que es donde la Torre lo muestra.
+
+**Probado (4 escenarios, todos con rollback / restauración garantizada):**
+1. #937 cierra limpio → propone **#938** con su evidencia (item previo, fecha, merge_commit). ✅
+2. Tramo completo cerrado → **techo alcanzado**, se detiene, y **#944 sigue frenado**
+   (`excluir_pool_automatico=true`) — sólo aparece en el texto que dice que no se toca. ✅
+3. Nace un `[RESPUESTA]` en la épica → freno duro `respuesta_en_epica`. ✅
+4. `phpunit.xml` alterado para apuntar a la BD de dev → freno `red_de_seguridad` con el motivo
+   exacto. Archivo restaurado y verificado idéntico. ✅
+
+Estado real intacto tras las pruebas; `--dry-run` no persiste archivo de estado ni toca items.
+
+**Contexto que justifica el diseño:** la BD de dev se borró dos veces por terminales autónomas (22 y
+25 de agosto), por el mismo mecanismo. Lo que hace aceptable automatizar esto es el **orden** —MR-02
+respalda antes de que MR-04/MR-05 escriban nada— y el **techo**, que impide que la cadena alcance lo
+destructivo. Si la red de guards se cae, el liberador prefiere no arrancar.
+## 2026-09-03 15:23 — Item #905: cierre del bucle reap sobre paraguas ya descompuesto (Válvula frontera_valvula)
+
+`#905` ("Válvula: sellar frontera_valvula en el mismo acto que el log + backfill de 112 items +
+test de regresión — Defecto 1 de #902") venía en bucle de reap: una vuelta previa (`wt-2`) ya lo
+había descompuesto correctamente en **#975** (Fase 2 — sellar la columna en
+`RevisorService::aplicarTriajeNull()`), **#976** (Fase 3 — backfill de 112 items) y **#977**
+(Fase 5 — test de regresión), pero nunca intentó cerrar al padre. El reaper lo re-encoló y el pool
+lo repartió de nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/#816/
+#818/#848/#878.
+
+Esta vuelta verificó que los 3 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 3 sub-items
+abiertos), sacándolo del pool hasta que #975/#976/#977 cierren y el hook de cierre en cascada lo
+complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-905-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real (sellado de frontera_valvula, backfill, test) sigue en #975/#976/#977.
+
+## 2026-09-03 15:28 — Item #906: cierre del bucle reap sobre paraguas ya descompuesto (Defecto 2 de #902 — mensajes de escalada)
+
+`#906` ("4 mensajes de escalada nombran el candado equivocado: frontera dura vs. techo de nivel —
+Defecto 2 de #902") venía en bucle de reap: una vuelta previa (`wt-2`) ya lo había descompuesto
+correctamente por archivo en **#978** (`JarvisService.php`: carriles "ya decidido" y "mecánico") y
+**#979** (`RevisorService.php`: `aplicarVeredicto()` y el carril des-trabador), tras
+`circuito:cabida`=NO CABE, pero nunca intentó cerrar al padre. El reaper lo re-encoló y el pool lo
+repartió de nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/#816/
+#818/#848/#905/#878.
+
+Esta vuelta verificó que los 2 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 2 sub-items
+abiertos), sacándolo del pool hasta que #978/#979 cierren y el hook de cierre en cascada lo
+complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-906-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real (distinguir frontera dura vs. techo de nivel en los 4 mensajes) sigue en #978
+(pendiente de aprobación de Irving) y #979 (`aprobado_revisor`, listo para tomarse).
+
+## 2026-09-03 15:44 — Item #907: cierre del bucle reap sobre paraguas ya descompuesto (Torre 24/7 Pieza 5a — slots_libres como disparador)
+
+`#907` ("Torre 24/7 · Pieza 5a — slots_libres como disparador de primera clase en
+AuditorService::debeCorrer()", sub-item de #904) venía en bucle de reap: una vuelta previa (`wt-2`)
+ya lo había descompuesto correctamente por fase en **#980** (condición de disparo: slots_libres
+cuenta aunque la cola no baje del umbral), **#981** (nuevo parámetro configurable en Torre →
+Configuración) y **#982** (métrica "N de 6 terminales trabajando" en la Torre), tras
+`circuito:cabida`=NO CABE, pero nunca intentó cerrar al padre. El reaper lo re-encoló 2 veces y el
+pool lo repartió de nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/
+#816/#818/#848/#905/#878/#906.
+
+Esta vuelta verificó que los 3 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 3 sub-items
+abiertos), sacándolo del pool hasta que #980/#981/#982 cierren y el hook de cierre en cascada lo
+complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-907-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real (condición de disparo, toggle configurable, métrica de ocupación) sigue en #980
+(pendiente de aprobación de Irving) y #981/#982 (`aprobado_revisor`, listos para tomarse).
+
+## 2026-09-04 00:42 — Item #924: cierre del bucle reap sobre paraguas ya descompuesto (root-cause del cierre-en-cascada que dejó pasar a #32)
+
+`#924` ("Root-cause: paraguas cierre-en-cascada dejó pasar un nivel-C sin merge a 'completado' —
+item #32", sub-item de #883) venía en bucle de reap: una vuelta previa (`wt-2`) ya había
+descompuesto correctamente el trabajo aprobado por Irving (sus 3 preguntas estructuradas, todas
+Opción 1) en **#9990012** (reproducir en dev la carrera exacta que esquivó el guard bloque (1)) y
+**#9990013** (endurecer el punto confirmado + test de regresión, bloqueado a propósito hasta tener
+la causa exacta), tras `circuito:cabida`=NO CABE, pero nunca intentó cerrar al padre. El reaper lo
+re-encoló y un timeout adicional lo escaló de nuevo sin trabajo propio que hacer — misma familia de
+bug que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907.
+
+Esta vuelta verificó que los 2 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 2 sub-items
+abiertos), sacándolo del pool hasta que #9990012/#9990013 cierren y el hook de cierre en cascada
+lo complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-924-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real de investigación (reproducir la carrera de #32 y endurecer el guard con test de
+regresión) sigue en #9990012 (`aprobado_revisor`, listo para tomarse) y #9990013
+(`requiere_irving`, bloqueado hasta tener la causa confirmada).
+
+## 2026-09-03 19:54 — Item #9990061: auditoría de 13 completados sin mergear + causa raíz del auto-merge de Jarvis
+
+Auditoría 100% solo-lectura (sin mergear nada). Verificados uno por uno los 13 items `completado`
+con `branch` poblada y `merge_commit` NULL: **6 no tienen nada que perder** (rama = main, cero
+commits propios — la investigación quedó solo en campos de BD), **5 tienen una nota `docs/` de
+cierre huérfana** (bajo impacto) y **2 tienen código funcional real varado** (#806 backend del
+chat de Jarvis Parte 3b, #971 el liberador en cascada de la épica MAPA DE RED — el que el propio
+item señala como bloqueante desde MR-01).
+
+**Causa raíz, dos rutas de cierre que nunca encolan merge:** (A) el hook de cascada de paraguas
+(`RoadmapItem.php:472-501`, `static::saved`) pone `estado_aprobacion='completado'` directo vía
+`save()`, sin llamar nunca `JarvisService::enqueueMerge()` — afecta a 8 de los 13 (#279/#646/#672/
+#705/#739/#740/#797/#900/#933, el mismo patrón ya parcheado caso-por-caso en items previos
+#738/#745/#830/etc. sin tocar la causa estructural del hook). (B) cierre manual por `tinker` sin
+pasar antes por `circuito:integrar` — #971 solo se intentó mergear 5h después (probablemente
+click manual de Irving en la Torre) y topó con un **conflicto de contenido real**; #806 y #825
+nunca se encolaron ni entonces ni después (cero trazas de `merge-runner` en su log).
+
+**El archivo caliente:** el 100% de los 7 commits huérfanos toca `docs/bitacora-sesiones.md` (la
+propia REGLA PERMANENTE de este archivo) — con N terminales en paralelo es el punto de choque más
+disputado del repo; 10 reintentos de merge de #705 fallaron seguidos por árbol sucio en el checkout
+principal sobre ESTE archivo, hasta que el anti-bucle lo excluyó del pool para siempre.
+
+**`circuito:destrabar-bandeja` (#566):** confirmado NO agendado en crontab (hay un comando
+`circuito:destrabe` parecido en nombre pero de función totalmente distinta — fácil de confundir).
+Pero aunque se hubiera agendado, no habría movido estos 13 items: su lógica (`pendienteReal()`)
+trata cualquier `estado_aprobacion=completado` como `'cierre'` (nada que hacer) antes de llegar a
+la rama de decisión de merge. Sí vale la pena agendarlo (recomendado cada 10 min) para la bolsa
+real que atiende: items `aprobado_irving`/`esperando_merge_irving` aún no completados.
+
+**Fix mínimo propuesto (no aplicado — decisión de diseño sobre un mecanismo compartido, queda
+para que Irving decida):** un barrido nuevo (opción nueva de `destrabar-bandeja` o comando
+dedicado, agendado cada 10-15 min) que busque
+`completado AND branch NOT NULL AND merge_commit NULL AND archivado_at NULL` y llame
+`enqueueMerge()` por cada uno — idempotente vía `MergeRunner::performMerge` (si la rama ya es
+ancestro de main, solo rellena `merge_commit` sin tocar nada). Detalle completo, tabla de los 13
+con hash/fecha/causa, y el trade-off de tocar el hook de cascada directamente (descartado por
+riesgo de reentrancia) en
+`docs/circuito-auditoria-13-completados-sin-mergear-item-9990061.md`.
+
+## 2026-09-04 01:56 — Item #9990012: cierre del bucle reap sobre paraguas ya descompuesto (carrera del cierre-en-cascada de #32)
+
+`#9990012` (sub-item de seguimiento de #924) venía en bucle de reap: una vuelta previa (`wt-2`)
+ya había hecho el forense estático completo (guard(1)/guard(2b)/hook de cascada en
+`RoadmapItem.php`, los 3 `save()` de `MergeRunner.php`) y confirmado en el log real de #32 que el
+bug sí se escribió en BD, y descompuso el repro ejecutable en **#9990063** (transacción+rollback,
+instrumentación temporal con `Log::debug`, spec detallado que ya descarta la hipótesis de merge
+directo del padre), tras `circuito:cabida`=NO CABE. Pero el proceso murió a media escritura del
+comentario de decisión, antes de intentar cerrar al padre — el log solo registra
+`claim_liberado_al_morir_la_vuelta`, y el pool lo repartió de nuevo sin trabajo propio que hacer —
+misma familia de bug que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907.
+
+Esta vuelta verificó que #9990063 seguía intacto y sin reclamar, y ejecutó el intento de cierre
+faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 1 sub-item
+abierto), sacándolo del pool hasta que #9990063 cierre y el hook de cierre en cascada lo complete
+solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-9990012-verificacion.md`. Sin cambio de código de
+negocio — el trabajo técnico real (reproducir la carrera y confirmar el mecanismo exacto) sigue en
+#9990063 (`pendiente_revision`, pendiente de que el revisor lo trie).

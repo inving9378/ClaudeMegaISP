@@ -395,6 +395,41 @@
             "description": "Vista previa del aprovisionamiento de una ONU",
             "scope": "gestion-red.provision.preview",
             "permission": "gestion-red.provision.preview"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/details/{id}",
+            "description": "Detalle completo de una ONU",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/get-mgmt-ip/{id}",
+            "description": "Obtiene la IP de gestión de una ONU",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/get-ip-address/{id}",
+            "description": "Obtiene la IP de servicio (WAN) de una ONU",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/full-status/{id}",
+            "description": "Consulta el estado completo de una ONU",
+            "scope": "olt_view",
+            "permission": "olt_view"
+        },
+        {
+            "method": "POST",
+            "path": "/olts/onus/change-onu-type/{id}",
+            "description": "Cambia el tipo de una ONU",
+            "scope": "onu_edit",
+            "permission": "onu_edit"
         }
     ],
     "ai": {

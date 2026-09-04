@@ -121,7 +121,7 @@
 <script>
 import Datatable from "../../../base/shared/Datatable.vue";
 import InventoryItemCustomCrud from "./InventoryItemCustomCrud.vue";
-import {onMounted, reactive, ref} from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import Form from "../../../../helpers/Form";
 import {filters} from "../../../../helpers/filters";
@@ -150,6 +150,10 @@ export default {
         custom_model_id:Number
     },
     setup(props) {
+        const ns = `.leak983-inventoryItemCustomListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Articulo");
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -166,25 +170,25 @@ export default {
             if (props.persistent_filters) {
                 filterPersistent.value = JSON.parse(props.persistent_filters);
             }
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let id = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(id, modal);
             });
-            $(document).on("click", ".change_item_store", function () {
+            $(document).on("click" + ns, ".change_item_store", function () {
                 let id = $(this).parent().attr("id-item");
                 showChangeStoreModal(id);
             });
-            $(document).on("click", ".change_item_stock", function () {
+            $(document).on("click" + ns, ".change_item_stock", function () {
                 let id = $(this).parent().attr("id-item");
                 showChangeItemStock(id);
             });
 
-            $(document).on("click", ".inventory_item_image", function () {
+            $(document).on("click" + ns, ".inventory_item_image", function () {
                 let id = $(this).parent().attr("id-item");
                 showMediaItem(id);
             });
-            $(document).on("click", ".change_zone", function () {
+            $(document).on("click" + ns, ".change_zone", function () {
                 const $a = $(this).closest("a");
                 showEditZone({
                     inventory_store_id: $a.data("inventory-store-id"),
@@ -198,10 +202,10 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudinventoryitem").modal("hide");
-            $(`#modalchange_item_store`).modal("hide");
-            $(`#modalchange_item_stock`).modal("hide");
-            $(`#modal_media_item`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudinventoryitem'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_store'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_stock'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modal_media_item'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Articulo";
             action.value = "/inventory/inventory_item/add-custom";
@@ -209,27 +213,27 @@ export default {
         };
 
         const showEditModal = (id) => {
-            $("#crudinventoryitem").modal("show");
-            $(`#modalassign_item_to_user`).modal("hide");
-            $(`#modalchange_item_store`).modal("hide");
-            $(`#modalchange_item_stock`).modal("hide");
-            $(`#modal_media_item`).modal("hide");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudinventoryitem')).show();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalassign_item_to_user'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_store'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modalchange_item_stock'))?.hide();
+            window.bootstrap.Modal.getInstance(document.getElementById('modal_media_item'))?.hide();
             title.value = "Editar Articulo";
             action.value = `/inventory/inventory_item/update/${id}`;
         };
 
         const showChangeStoreModal = () => {
-            $(`#modalchange_item_store`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalchange_item_store')).show();
         };
         const showChangeItemStock = (id) => {
             idItem.value = id;
 
-            $(`#modalchange_item_stock`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalchange_item_stock')).show();
         };
 
         const showMediaItem = (id) => {
             idItem.value = id;
-            $(`#modal_media_item`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modal_media_item')).show();
         };
 
         const reload = () => {

@@ -11,6 +11,9 @@
                 <a :href="`${baseUrl}/mapa`" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-map me-1"></i>Ver mapa
                 </a>
+                <a :href="`${baseUrl}/comparativo`" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-bar-chart me-1"></i>Comparativo de gastos
+                </a>
                 <button class="btn btn-outline-secondary btn-sm" @click="exportCsv">
                     <i class="bi bi-download me-1"></i>Exportar CSV
                 </button>

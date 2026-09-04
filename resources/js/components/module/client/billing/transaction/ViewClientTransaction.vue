@@ -37,7 +37,7 @@
 
 <script>
 import DatatableHelper from "../../../../../helpers/datatableHelper";
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import Datatable from "../../../../base/shared/Datatable";
 import Modal from "../../../../../helpers/modal";
 import ClientCrudTransaction from "./ClientCrudTransaction";
@@ -55,6 +55,10 @@ export default {
     },
     components: { Datatable, ClientCrudTransaction, ViewTotalTransaction },
     setup(props) {
+        const ns = `.leak983-viewClientTransaction-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -75,11 +79,11 @@ export default {
             modal.value = new Modal("modaltransaction");
             transaction.value = await transactions(props.id);
 
-            $(document).on("click", "#buttonmodaltransaction", function () {
+            $(document).on("click" + ns, "#buttonmodaltransaction", function () {
                 showAddModal();
             });
 
-            $(document).on("click", "#button-reload-table-transaction", function () {
+            $(document).on("click" + ns, "#button-reload-table-transaction", function () {
                 datatable.table.reload();
             });
         });

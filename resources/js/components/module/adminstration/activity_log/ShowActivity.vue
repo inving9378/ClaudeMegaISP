@@ -83,13 +83,17 @@
 </template>
 
 <script>
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 
 export default {
     name: "ShowActivity",
     props: {},
     components: {},
     setup(props, { emit }) {
+        const ns = `.leak983-showActivity-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Revisar Actividad");
         const data = ref({});
         const properties = ref();
@@ -97,8 +101,8 @@ export default {
         const newAttributes = ref([]);
 
         onMounted(() => {
-            $(document).on("click", `#show_activity_log`, function (e) {
-                $(`#modalShowActivityLog`).modal("show");
+            $(document).on("click" + ns, `#show_activity_log`, function (e) {
+                window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalShowActivityLog')).show();
                 let dataValue = JSON.parse($(this).attr("data-data"));
                 data.value = Object.assign({}, dataValue);
                 let propertiesValue = JSON.parse(dataValue.properties);

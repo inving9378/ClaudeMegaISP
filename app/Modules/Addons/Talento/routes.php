@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\Talento\Controllers\TalentoColaboradorController;
 use App\Modules\Addons\Talento\Controllers\TalentoCustodiaController;
+use App\Modules\Addons\Talento\Controllers\TalentoEmployeeDocumentController;
 use App\Modules\Addons\Talento\Controllers\TalentoDeviceController;
 use App\Modules\Addons\Talento\Controllers\TalentoRoadmapController;
 use App\Modules\Addons\Talento\Controllers\TalentoWorkOrderController;
@@ -25,6 +26,8 @@ use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
+use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
+use App\Modules\Addons\Talento\Controllers\TalentoPuestoController;
 use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
 use Illuminate\Support\Facades\Route;
 
@@ -57,6 +60,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
         Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
         Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
+        Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
+        Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
+
+        // ── Documentos del expediente (Hijo D2, fase C) — HTML ya generado, solo lectura ────
+        Route::get('/colaboradores/{id}/documentos/{docId}', [TalentoEmployeeDocumentController::class, 'show']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -72,6 +80,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // ── Custodia (solo lectura) ───────────────────────────────────────
             Route::get('/colaboradores/{id}/custodia',     [TalentoCustodiaController::class, 'show']);
+
+            // ── Documentos del expediente (Hijo D2, fase C — solo lectura) ────
+            Route::get('/colaboradores/{id}/documentos',   [TalentoEmployeeDocumentController::class, 'forColaborador']);
 
             // ── Dispositivos ─────────────────────────────────────────────────
             Route::get('/colaboradores/{id}/dispositivos',                    [TalentoDeviceController::class, 'forColaborador']);
@@ -340,6 +351,17 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Config: evidencias por tipo de OT ─────────────────────────
             Route::get('/config/evidencias',       [TalentoEvidenciaConfigController::class, 'catalogo']);
             Route::post('/config/evidencias/toggle', [TalentoEvidenciaConfigController::class, 'toggle']);
+
+            // ── Expediente RH: paquete de documentos por puesto (Hijo D1) ──
+            Route::get('/expediente/paquetes/puestos',      [TalentoPaqueteDocumentoController::class, 'puestos']);
+            Route::get('/expediente/paquetes/templates',    [TalentoPaqueteDocumentoController::class, 'templates']);
+            Route::get('/expediente/paquetes/asignaciones', [TalentoPaqueteDocumentoController::class, 'asignaciones']);
+            Route::post('/expediente/paquetes/sincronizar',  [TalentoPaqueteDocumentoController::class, 'sincronizar']);
+
+            // ── Catálogo de puestos (item #923 Fase 2) ─────────────────────
+            Route::get('/puestos',           [TalentoPuestoController::class, 'data']);
+            Route::post('/puestos',          [TalentoPuestoController::class, 'store']);
+            Route::put('/puestos/{id}',      [TalentoPuestoController::class, 'update']);
         });
     });
 

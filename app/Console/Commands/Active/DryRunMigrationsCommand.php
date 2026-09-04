@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Active;
 
+use App\Console\Commands\Concerns\MideContencionDryrun;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\Process\Process;
@@ -26,6 +27,8 @@ use Symfony\Component\Process\Process;
  */
 class DryRunMigrationsCommand extends Command
 {
+    use MideContencionDryrun;
+
     protected $signature = 'deploy:dry-run-migrations
                             {--with-data= : Tablas (csv) cuyos datos copiar para validar fallos dependientes de datos}
                             {--keep : No borrar la BD temporal al terminar (para depurar)}';
@@ -43,6 +46,10 @@ class DryRunMigrationsCommand extends Command
         $dbName = $cfg['database'];
         $tempDb = $dbName . '_dryrun';
         $this->line("Dry-run de migraciones → BD temporal `{$tempDb}`");
+        $this->iniciarMedicionContencion('deploy:dry-run-migrations', $tempDb);
+
+        $contencionOk    = false;
+        $contencionError = null;
 
         // 1. (Re)crear la BD temporal limpia. Un fallo aquí es de SETUP/infra (típicamente
         //    falta el grant CREATE DATABASE) → NO debe bloquear el deploy: se omite con un
@@ -50,6 +57,7 @@ class DryRunMigrationsCommand extends Command
         $charset   = $cfg['charset'] ?? 'utf8mb4';
         $collation = $cfg['collation'] ?? 'utf8mb4_unicode_ci';
         if (!$this->mysql("DROP DATABASE IF EXISTS `{$tempDb}`; CREATE DATABASE `{$tempDb}` CHARACTER SET {$charset} COLLATE {$collation};", $cfg)) {
+            $this->cerrarMedicionContencion('deploy:dry-run-migrations', $tempDb, false, '(omitido) falta el grant CREATE/DROP DATABASE');
             return $this->skip("No se pudo crear la BD temporal `{$tempDb}`. Falta el grant: "
                 . "GRANT ALL PRIVILEGES ON `{$tempDb}`.* TO '{$cfg['username']}'@'<host>'. "
                 . "El dry-run se omite (no bloquea); corre el grant para activarlo.");
@@ -60,6 +68,7 @@ class DryRunMigrationsCommand extends Command
         try {
             // 2. Clonar SOLO el esquema (sin datos) — rápido. Fallo = setup → skip, no aborta.
             if (!$this->cloneSchema($cfg, $dbName, $tempDb)) {
+                $contencionError = '(omitido) falló el clonado de esquema (mysqldump | mysql)';
                 return $this->skip('Falló el clonado de esquema (mysqldump | mysql).');
             }
 
@@ -74,6 +83,7 @@ class DryRunMigrationsCommand extends Command
             }
             foreach (array_values(array_unique($tables)) as $t) {
                 if (!$this->copyTableData($cfg, $dbName, $tempDb, $t)) {
+                    $contencionError = "(omitido) no se pudieron copiar datos de la tabla `{$t}`";
                     return $this->skip("No se pudieron copiar datos de la tabla `{$t}` (¿nombre mal escrito en --with-data?).");
                 }
             }
@@ -97,6 +107,7 @@ class DryRunMigrationsCommand extends Command
                 $ran = $migrator->run($paths);
             } catch (\Throwable $e) {
                 $this->error('MIGRACIÓN FALLÓ en dry-run: ' . $e->getMessage());
+                $contencionError = $e->getMessage();
                 return 1;
             } finally {
                 $migrator->setConnection($originalDefault);
@@ -110,12 +121,14 @@ class DryRunMigrationsCommand extends Command
                 $this->info('Dry-run OK: ' . count($ran) . ' migración(es) pendiente(s) corrieron sin error contra la copia.');
             }
 
+            $contencionOk = true;
             return 0;
         } finally {
             // 5. Tirar la BD temporal (salvo --keep).
             if (!$this->option('keep')) {
                 $this->mysql("DROP DATABASE IF EXISTS `{$tempDb}`;", $cfg);
             }
+            $this->cerrarMedicionContencion('deploy:dry-run-migrations', $tempDb, $contencionOk, $contencionError);
         }
     }
 

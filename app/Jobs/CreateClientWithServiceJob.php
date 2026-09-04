@@ -37,6 +37,14 @@ class CreateClientWithServiceJob implements ShouldQueue
     protected $forceCreate;
 
     /**
+     * Item roadmap #676: reintentos nativos de Laravel ante fallo (router caído/timeout).
+     * Backoff exponencial vía backoff(); si las 5 tentativas se agotan, el job queda en
+     * failed_jobs y la fila ya quedó marcada mikrotik_sync_status=failed (ver
+     * markMikrotikSyncStatus) para que mikrotik:reintentar-sync la recoja más tarde.
+     */
+    public $tries = 5;
+
+    /**
      * Create a new job instance.
      *
      * @return void
@@ -46,6 +54,14 @@ class CreateClientWithServiceJob implements ShouldQueue
         $this->clientInternetService = $clientInternetService;
         $this->model = $model;
         $this->forceCreate = $forceCreate;
+    }
+
+    /**
+     * Backoff exponencial nativo de Laravel (30s, 1m, 2m, 5m, 10m) — sin loop manual.
+     */
+    public function backoff(): array
+    {
+        return [30, 60, 120, 300, 600];
     }
 
     /**
@@ -59,35 +75,68 @@ class CreateClientWithServiceJob implements ShouldQueue
         $router = $routerRepository->getRouterById($this->clientInternetService->router_id);
         $tail = '';
         $son = '';
-        if ($router && $router->isMikrotik()) {
-            $this->authorizationAccounting = $router->authorization_accounting;
-            $mikrotik = $router->mikrotik()->first();
-            $connection = $mikrotikService->getConnection($router);
-            if ($this->isClientAdditionalInformationConectionTypeWifi($this->clientInternetService)) {
-                if ($this->isShapingTypeSimpleQueue($mikrotik)) {
-                    $parentTail = $this->getParentTailIfExistAndIfHasSpace();
-                    if (!$parentTail) {
-                        $tail = $this->getCountOfParentQueue();
-                        $parentTail = $this->createParentQueue($mikrotik, $connection, $tail);
-                        $son = 1;
-                    } else {
-                        $tail = $this->getCountOfParentQueue($parentTail);
-                        $son = $this->getSonForTailParent($parentTail);
+        try {
+            if ($router && $router->isMikrotik()) {
+                $this->authorizationAccounting = $router->authorization_accounting;
+                $mikrotik = $router->mikrotik()->first();
+                $connection = $mikrotikService->getConnection($router);
+                if ($this->isClientAdditionalInformationConectionTypeWifi($this->clientInternetService)) {
+                    if ($this->isShapingTypeSimpleQueue($mikrotik)) {
+                        $parentTail = $this->getParentTailIfExistAndIfHasSpace();
+                        if (!$parentTail) {
+                            $tail = $this->getCountOfParentQueue();
+                            $parentTail = $this->createParentQueue($mikrotik, $connection, $tail);
+                            $son = 1;
+                        } else {
+                            $tail = $this->getCountOfParentQueue($parentTail);
+                            $son = $this->getSonForTailParent($parentTail);
+                        }
+                        $this->addTargetToParentQueue($connection, $parentTail);
+                        $this->createSunQueue($mikrotik, $connection, $tail, $parentTail, $son);
                     }
-                    $this->addTargetToParentQueue($connection, $parentTail);
-                    $this->createSunQueue($mikrotik, $connection, $tail, $parentTail, $son);
                 }
-            }
 
-            if ($this->authorizationAccounting == Router::PPPOE_USER) {
-                $this->createClientPPoeIfNotExist($connection, $mikrotik, $tail, $son, $this->forceCreate);
-            } else if ($this->authorizationAccounting == Router::HOSTPOT_USER) {
-                $this->createClientHotspotIfNotExist($connection, $mikrotik, $tail, $son, $this->forceCreate);
-            } else if ($this->authorizationAccounting == Router::RADIUS_USER) {
-                $this->addServerRadius($connection, $router, $this->forceCreate);
-                $this->createClientPPoeIfNotExist($connection, $mikrotik, $tail, $son, $this->forceCreate);
+                if ($this->authorizationAccounting == Router::PPPOE_USER) {
+                    $this->createClientPPoeIfNotExist($connection, $mikrotik, $tail, $son, $this->forceCreate);
+                } else if ($this->authorizationAccounting == Router::HOSTPOT_USER) {
+                    $this->createClientHotspotIfNotExist($connection, $mikrotik, $tail, $son, $this->forceCreate);
+                } else if ($this->authorizationAccounting == Router::RADIUS_USER) {
+                    $this->addServerRadius($connection, $router, $this->forceCreate);
+                    $this->createClientPPoeIfNotExist($connection, $mikrotik, $tail, $son, $this->forceCreate);
+                }
+
+                $this->markMikrotikSyncStatus('synced');
             }
+        } catch (\Throwable $exception) {
+            $this->markMikrotikSyncStatus('failed', $exception->getMessage());
+            throw $exception;
         }
+    }
+
+    /**
+     * Auditoría best-effort de sync_status (item #86 fase 1 — observabilidad, NO cambia el
+     * flujo síncrono actual). saveQuietly() evita re-disparar updating()/updated() de los
+     * observers de servicio, que en Bundle re-encolan CreateClientWithServiceJob para todos
+     * los hijos en cada update() — usar update() normal aquí formaría un bucle.
+     */
+    protected function markMikrotikSyncStatus(string $status, ?string $error = null)
+    {
+        if (!$this->clientInternetService instanceof \Illuminate\Database\Eloquent\Model) {
+            return;
+        }
+        if (!in_array($this->clientInternetService->getTable(), [
+            'client_internet_services',
+            'client_custom_services',
+            'client_bundle_services',
+        ], true)) {
+            return;
+        }
+        $this->clientInternetService->mikrotik_sync_status = $status;
+        $this->clientInternetService->mikrotik_sync_error = $error;
+        if ($status === 'synced') {
+            $this->clientInternetService->mikrotik_synced_at = now();
+        }
+        $this->clientInternetService->saveQuietly();
     }
 
     public

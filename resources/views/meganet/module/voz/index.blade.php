@@ -8,9 +8,9 @@
     <Datatable
         module="voz"
         model="Voise"
-        @can($group.'_add_'.$module)
+        @if(auth()->user() && auth()->user()->can($group.'_add_'.$module))
         add="Agregar Plan Voz"
-        @endcan
+        @endif
         list="Listado de Planes de Voz"
     ></Datatable>
     @if(session()->has('message'))

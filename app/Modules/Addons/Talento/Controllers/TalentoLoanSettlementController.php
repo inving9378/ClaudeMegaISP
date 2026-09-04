@@ -9,10 +9,13 @@ use App\Modules\Addons\Talento\Models\TalentoSettlement;
 use App\Modules\Addons\Talento\Models\TalentoSettlementItem;
 use App\Modules\Addons\Talento\Services\LoanService;
 use App\Modules\Addons\Talento\Services\SettlementService;
+use App\Modules\Core\Security\Traits\ChecksActionPermission;
 use Illuminate\Http\Request;
 
 class TalentoLoanSettlementController extends Controller
 {
+    use ChecksActionPermission;
+
     public function __construct(
         private LoanService       $loanSvc,
         private SettlementService $settlementSvc
@@ -110,6 +113,7 @@ class TalentoLoanSettlementController extends Controller
     public function closeSettlement(int $id)
     {
         $this->authorize('talento.settlement.manage');
+        $this->verificarPermisoAccion('talento.finiquito.cerrar', 'finiquito.close');
         $settlement = TalentoSettlement::with(['items', 'colaborador.user'])->findOrFail($id);
         $closed     = $this->settlementSvc->close($settlement);
         return response()->json($closed->load('items'));

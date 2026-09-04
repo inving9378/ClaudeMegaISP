@@ -13,11 +13,11 @@ class TalentoColaborador extends BaseModel
     protected $table = 'talento_colaboradores';
 
     protected $fillable = [
-        'user_id', 'type', 'department', 'supervisor_id', 'level_id',
+        'user_id', 'type', 'categoria_externo', 'department', 'supervisor_id', 'level_id',
         'hire_date', 'status', 'base_salary', 'notes',
         // Expediente RH (item #199 — Hijo A)
         'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',
-        'job_title', 'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
+        'job_title', 'puesto_id', 'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
         'shift_start', 'shift_end', 'work_days',
     ];
 
@@ -36,13 +36,19 @@ class TalentoColaborador extends BaseModel
      */
     public const EXPEDIENTE_FIELDS = [
         'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',
-        'job_title', 'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
+        'job_title', 'puesto_id', 'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
         'base_salary', 'shift_start', 'shift_end', 'work_days',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    // Catálogo de puestos (item #923). job_title (texto libre) se conserva como espejo legible.
+    public function puesto()
+    {
+        return $this->belongsTo(TalentoPuesto::class, 'puesto_id');
     }
 
     public function supervisor()

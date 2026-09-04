@@ -55,16 +55,45 @@ return [
     | Antes se tomaba en cuanto ordenaba primero con la flota quieta y se cortaba la ronda ahí mismo,
     | así que un solo item sin clasificar se llevaba las 6 terminales aunque detrás de él hubiera
     | trabajo módulo-disjunto listo. Con esto en `true`, el desconocido se DIFIERE al cierre del
-    | barrido: sólo se despacha si la flota sigue quieta y no hubo nada más que despachar (o si es
-    | `urgente`, que conserva su prioridad de `ordenCola()`).
+    | barrido: sólo se despacha si no hubo nada más que despachar esta ronda (o si es `urgente`, que
+    | conserva su prioridad de `ordenCola()`).
     |
-    | ⚠️ CONTRAPARTIDA: con cola sostenida de trabajo módulo-disjunto, el desconocido puede esperar
-    | varias rondas. El desatasco real es CLASIFICARLO (`circuito:clasificar-modulo`); el detector
-    | `sin_clasificar` del auditor ya emite el item que lo pide. Ponerlo en `false` restaura el
-    | comportamiento anterior sin redeploy.
+    | #212 (2026-08-28, decisión Irving) — YA NO exige la flota completamente quieta. Antes de este
+    | fix, la ronda dedicada además requería `nada en vuelo` → con 6 terminales en pool continuo casi
+    | siempre hay ALGO corriendo, así que los desconocidos (5 urgentes del incidente P0) nunca
+    | alcanzaban turno: inanición total. Ahora se despacha en su propio slot aunque otros módulos
+    | conocidos estén en vuelo (aditivo seguro por default); la única serialización que se conserva
+    | es contra OTRO desconocido ya en vuelo (`desconocidoEnVuelo()`) — nunca dos a la vez. La
+    | colisión real contra trabajo conocido, si la hay, la atrapa `detectarColisionesEnVuelo()`
+    | (diff de archivos real, post-hoc).
+    |
+    | ⚠️ CONTRAPARTIDA: con cola sostenida de trabajo módulo-disjunto NO urgente, el desconocido puede
+    | seguir esperando varias rondas (solo se prefiere sobre `$out` si es urgente). El desatasco real
+    | es CLASIFICARLO (`circuito:clasificar-modulo`); el detector `sin_clasificar` del auditor ya
+    | emite el item que lo pide. Ponerlo en `false` restaura el comportamiento legacy sin redeploy.
     |
     */
     'desconocido_diferido' => (bool) env('CIRCUITO_DESCONOCIDO_DIFERIDO', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | DependenciaGate — cablear el gate de dependencias entre sub-items (#9990274)
+    |--------------------------------------------------------------------------
+    |
+    | `DependenciaGate` (Services/Descomposicion/DependenciaGate.php) ya existía como pieza PURA
+    | y testeable, sin cablear al scheduler vivo. Con este flag en `true` (default — si no, el
+    | item no cumple su propósito, decisión de Irving q1), `RoadmapItem::scopeDespachable()`
+    | excluye del despacho a los sub-items cuyas predecesoras (`subtasks.descomposicion.depende_de`)
+    | aún no están `completado`, así que una sección de FRONTEND ya no puede tomarse antes que el
+    | BACKEND del que depende.
+    |
+    | Aditivo con feature flag: `false` restaura el comportamiento actual byte-idéntico, sin
+    | redeploy — apagar SOLO si genera deadlocks en el pool paralelo N=6.
+    |
+    */
+    'dependencia_gate' => [
+        'enabled' => (bool) env('CIRCUITO_DEPENDENCIA_GATE', true),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -173,6 +202,28 @@ return [
     | (con semáforo de builds). `max_builds` = builds npm simultáneos máx (CPU de 4 cores).
     */
     'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
+
+    /*
+    | Item #916 (sub-item de #911) — CUÁNTAS terminales pueden trabajar el MISMO módulo a la vez.
+    |
+    | `1` = comportamiento histórico (un módulo, una terminal). Subirlo destraba la flota cuando la
+    | cola se concentra en un módulo —el caso real: 31 items despachables, TODOS de
+    | `Roadmap / Circuito CC`, con 4 terminales libres y 0 reclamables—, porque el techo de
+    | ocupación no lo marcaba el trabajo disponible sino la variedad de módulos.
+    |
+    | La serialización por módulo es un PRE-FILTRO conservador, no la protección real: la colisión
+    | de verdad la detecta `detectarColisionesEnVuelo()` comparando el diff de archivos de cada rama
+    | en vuelo, agnóstico de módulo, en cada pasada del scheduler.
+    |
+    | PRECONDICIÓN CUMPLIDA para subirlo de 1: el candado de esquema de #915
+    | (`GuardedMigrateCommand::conCandadoDeEsquema`) serializa los `migrate` entre worktrees, que es
+    | el único riesgo de CORRUPCIÓN real (la base `megaisp` es compartida por los 6 worktrees).
+    | PENDIENTE #913: el detector sólo ve trabajo ya COMMITEADO, así que dos terminales del mismo
+    | módulo pueden editar el mismo archivo sin verse hasta el merge. Ese riesgo es ACOTADO
+    | (conflicto de merge y una vuelta perdida, nunca corrupción: cada worktree es un checkout
+    | aparte), y por eso este valor sube GRADUALMENTE y se mide antes de subirlo más.
+    */
+    'paralelo_mismo_modulo' => max(1, (int) env('CIRCUITO_PARALELO_MISMO_MODULO', 1)),
     'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
 
     // #938 — límite real de una vuelta (lo aplica `timeout` en deploy/circuito/vuelta.sh vía
@@ -189,6 +240,41 @@ return [
     // vuelta corrió 1d21h lanzando un agente cada 3.7 s. 3600 = 6x el timeout nominal: holgado para
     // el arranque + integración + limpieza, y muy por debajo de cualquier caso real de colgado.
     'vuelta_colgada_seg' => (int) env('CIRCUITO_VUELTA_COLGADA_SEG', 3600),
+
+    /*
+    |--------------------------------------------------------------------------
+    | GUARD DE VIDA MÁXIMA POR-TIPO DE BRIEF (#9990302, decisión de Irving en #9990295 q2/q3)
+    |--------------------------------------------------------------------------
+    |
+    | q2 (opción 2, elegida): guard SUAVE — timeout por `nivel_riesgo` del item, no el uniforme
+    | 600s de `vuelta_timeout_seg` de arriba (ese queda como default/techo nominal para lo que no
+    | conoce el nivel, p.ej. el reloj de la Torre). `SchedulerCommand::lanzarVueltaItem` resuelve
+    | el segundero aquí y lo manda como CIRCUITO_TIMEOUT al entorno de `vuelta.sh`, que arma
+    | `timeout -k <grace_seg> <segundero> claude -p ...`: al vencer manda SIGTERM (como siempre);
+    | si el proceso lo ignora, `-k` manda SIGKILL de respaldo tras `grace_seg` — antes NO había
+    | respaldo si un item quedaba sordo a la señal.
+    |
+    | q3 (opción 1, elegida): "matar, marcar FALLIDO y escalar SIEMPRE a la bandeja de Irving con
+    | traza parcial". Decisión de implementación (#9990302, registrada en el log del item): esa
+    | regla aplica SOLO cuando hizo falta el SIGKILL de respaldo (`timeout` sale con 137, no 124 —
+    | verificado empírico: `timeout -k 2 3 bash -c 'trap "" TERM; sleep 20'` → RC=137). Un proceso
+    | que ignoró SIGTERM y necesitó el hachazo es la señal real de "algo quedó genuinamente
+    | colgado"; un RC=124 normal (SIGTERM bastó) sigue el circuito reanudar-si-avanzó de siempre
+    | (`ParquearTimeoutCommand`) — matarlo ahí también habría apagado la reanudación barata que
+    | ese comando ya documenta como protección real contra quemar Max, sin que q3 lo pidiera (su
+    | pregunta era sobre "excede el timeout", el caso normal ya estaba resuelto aparte).
+    |
+    | Nivel sin timeout propio (null / desconocido) cae al default histórico de 600s (nivel A):
+    | ante la duda, más conservador (suelta el slot antes) es más seguro que dejarlo correr de más.
+    */
+    'vida_maxima' => [
+        'segundos' => [
+            'A' => (int) env('CIRCUITO_VIDA_MAXIMA_A', 600),   // 10 min
+            'B' => (int) env('CIRCUITO_VIDA_MAXIMA_B', 1200),  // 20 min
+            'C' => (int) env('CIRCUITO_VIDA_MAXIMA_C', 2700),  // 45 min
+        ],
+        'grace_seg' => (int) env('CIRCUITO_VIDA_MAXIMA_GRACE', 30),
+    ],
 
     /*
     | Nombres por default de los workers del equipo (wt-1..wt-N). Persisten y son
@@ -237,6 +323,51 @@ return [
     'freno' => [
         'centinela' => env('CIRCUITO_FRENO_CENTINELA', '/var/www/megaisp/storage/app/circuito/PAUSA'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | CANDADO DE ESQUEMA — migrate entre worktrees (#915, bug de #916 documentado abajo)
+    |--------------------------------------------------------------------------
+    |
+    | MISMO patrón que el freno de arriba: ruta ABSOLUTA al storage/ del checkout PRINCIPAL,
+    | jamás `storage_path()`. El primer intento de #915 (commit c1ee65f1) usó `storage_path()`
+    | dentro de `GuardedMigrateCommand` — como cada worktree tiene su propio `storage/` real,
+    | cada terminal tomaba SU PROPIO candado y nunca veía el de las demás: el lock no serializaba
+    | nada entre worktrees, exactamente el mismo error que ya advertía el comentario del freno de
+    | mano. `paralelo_mismo_modulo` (#916, abajo) subió a 2 confiando en esta precondición —
+    | mientras el candado no apunte aquí, ese riesgo de corrupción de esquema está VIVO.
+    */
+    'candado_migraciones' => env('CIRCUITO_CANDADO_MIGRACIONES', '/var/www/megaisp/storage/app/circuito/migrate-esquema.lock'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Item #9990210 — QUÉ CATEGORÍAS RETIENEN AUNQUE SEAN SÓLO UNA MENCIÓN
+    |--------------------------------------------------------------------------
+    | La válvula de contexto distingue un item que TOCA una frontera dura de uno
+    | que sólo la NOMBRA de paso (ej. «falta permiso» describiendo un catálogo de
+    | gaps, o citar `deploy:dry-run-migrations` para reusarlo). Hasta este item,
+    | esa distinción no cambiaba NADA: en modo «ablandar» una mención seguía
+    | reteniendo igual que un hit, así que el circuito pagaba una llamada de IA
+    | por un veredicto que no movía ninguna decisión.
+    |
+    | DECISIÓN DE IRVING (2026-09-04): una MENCIÓN deja de retener, SALVO en las
+    | categorías de esta lista, que retienen igual que un hit. Elegido a propósito
+    | más conservador que «toda mención pasa»: se acepta que algún hallazgo
+    | legítimo siga cayendo en la bandeja con tal de no tocar nunca dinero ni
+    | credenciales sin que Irving lo vea.
+    |
+    | ⚠️ Esto gobierna SÓLO las menciones. Una ACCIÓN real (`frontera_valvula` =
+    | 'accion') sigue reteniendo en las CUATRO categorías, pase lo que pase, y
+    | eso no es configurable desde aquí a propósito.
+    |
+    | Mover una categoría de un lado a otro es cambiar esta lista — sin redeploy
+    | ni tocar código. Vaciarla = toda mención pasa. Ponerlas las cuatro =
+    | comportamiento anterior a este item.
+    */
+    'mencion_retiene_categorias' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('CIRCUITO_MENCION_RETIENE', 'dinero,credenciales'))
+    ))),
 
     'autopilot' => [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
@@ -324,12 +455,151 @@ return [
             'raiz_worktrees' => env('CIRCUITO_RUNTIME', '/home/meganet/circuito'),
 
             // Log del checkout principal — el único que se medía hasta hoy.
+            // Desde #175/#653: `medirLogs()` solo usa el DIRECTORIO de esta ruta (dirname) para
+            // buscar ahí los `laravel-*.log` diarios reales — el nombre de archivo legacy
+            // (`laravel.log` a secas) ya no se lee ni tiene que existir.
             'log_principal' => env('CIRCUITO_LOG_PRINCIPAL', '/var/www/megaisp/storage/logs/laravel.log'),
 
             // Un `claude` interactivo más viejo que esto es sospechoso de sesión abandonada.
             // Se REPORTA, nunca se mata: hoy hay cuatro de 41 días y uno de ellos podría ser la
             // sesión con la que Irving está trabajando. 24 h.
             'claude_viejo_seg' => (int) env('CIRCUITO_JARVIS_CLAUDE_VIEJO', 86400),
+
+            // GRACIA DE ARRANQUE — segundos tras el boot del box durante los cuales un "no pude
+            // conectarme a la base" se lee como «MySQL aún no levanta», no como «la base
+            // desapareció», y por tanto NO dispara el freno automático de #228.
+            //
+            // Nace del 2026-08-28: el box arrancó 20:54:57, la vigilia midió a las 20:56:03 contra
+            // un MySQL que todavía no aceptaba conexiones, puso el freno, y las seis terminales se
+            // quedaron una hora paradas con la base intacta (522 tablas). No fue mala suerte: la
+            // vigilia corre cada minuto desde el boot y siempre gana la carrera, así que CADA
+            // reinicio frenaba el circuito.
+            //
+            // 180 s = tres corridas de su cron de un minuto. Subirlo alarga la ventana en la que
+            // una base realmente caída al arranque tardaría en frenar; bajarlo a 0 restaura el
+            // comportamiento anterior (frenar siempre que no se pueda medir).
+            'gracia_arranque_seg' => (int) env('CIRCUITO_JARVIS_GRACIA_ARRANQUE', 180),
+
+            // FAMILIA "RECLAMOS" (#704, sub-item de #208) — invariantes sobre quién tiene
+            // reclamado cada item en_progreso. Umbral del gap entre `claimed_at` (heartbeat vivo,
+            // lo renueva `RoadmapCircuitoService::renovarLease()` con un UPDATE crudo que a
+            // propósito NO toca `updated_at`) y `updated_at` (última escritura real sobre el
+            // item): pasado esto, el heartbeat sigue vivo pero el trabajo no avanza, y el reaper
+            // lento (`circuito:reap-stuck`, que exige AMBAS señales frías) no lo ve. 300 s cubre
+            // el caso real medido en #191 Fase 3 (25-ago, gap de ~8 min invisible para el reaper).
+            'reclamos_claimed_sin_avance_umbral_seg' => (int) env('CIRCUITO_JARVIS_RECLAMOS_GAP_UMBRAL', 300),
+
+            // Gracia antes de juzgar "en_progreso sin proceso vivo": un reclamo recién hecho
+            // todavía no tiene su PID registrado por `vuelta.sh` (registro de #334 A). Propia y
+            // separada de `circuito.reaper.gracia_minutos` (que vive en base) porque esta familia
+            // tiene que poder medir aunque la base sea justo lo que está fallando.
+            'reclamos_gracia_seg' => (int) env('CIRCUITO_JARVIS_RECLAMOS_GRACIA', 180),
+
+            // FAMILIA "GIT" (#706, sub-item de #208) — ningún worktree del circuito debe quedar
+            // con HEAD desatado apuntando a un commit que NINGUNA rama referencia. El flujo sano
+            // deja cada worktree detached-en-main un instante (`vuelta.sh`: `checkout --detach -f
+            // main`) hasta que `circuito:rama` lo ata a `circuito/item-N-...`; en ese estado
+            // `git branch --contains` siempre devuelve al menos `main`. La anomalía es un COMMIT
+            // hecho mientras seguía desatado (nadie corrió `circuito:rama` antes): ese commit no
+            // es ancestro de ninguna rama, y el SIGUIENTE `checkout --detach -f main` de otra
+            // vuelta en ese mismo worktree lo deja inalcanzable. Caso real: #191 Fase 3, 25-ago
+            // 15:38:45, el pool continuo abandonó el worktree 32 s después; se rescató a mano en
+            // `rescate/bitacora-item-191`. Gracia corta: le da tiempo a `circuito:rama` de atar el
+            // commit recién hecho antes de que se le juzgue huérfano (en operación sana nunca se
+            // usa, porque el flujo normal jamás commitea en detached).
+            'git_huerfano_gracia_seg' => (int) env('CIRCUITO_JARVIS_GIT_GRACIA', 20),
+
+            // FAMILIA "COLA: JOBS VARADOS" (#772, fase 2 de #705) — filas de la tabla `jobs`
+            // con `created_at` más viejo que este umbral Y `reserved_at` NULL (nunca tomadas por
+            // un worker). Caso medido: 9 varados desde 24-ago con 0 de 3 workers vivos, efecto
+            // colateral: ningún item recibía `nivel_riesgo` (vía `ClasificarRiesgoJob`). 600 s da
+            // margen a un pico normal de cola sin disparar ruido.
+            'jobs_varados_umbral_seg' => (int) env('CIRCUITO_JARVIS_JOBS_VARADOS_UMBRAL', 600),
+
+            // FAMILIA "COLA: FALSO VERDE" (#771, fase 1 de #705) — `RoadmapItem::despachable()`
+            // dice que hay trabajo listo (>0) pero `RoadmapCircuitoService::ejecutablesParalelo()`
+            // —la MISMA puerta que usa el scheduler para tomar trabajo— no elige a nadie ([]).
+            // Caso medido item #192: despachable=12, ejecutablesParalelo=0, compuerta en VERDE.
+            // Igual que bd_integra, "sostenido en el tiempo" se lee del `$anterior` en archivo
+            // (sin tabla nueva): un desfase de un minuto es normal (footprint desconocido en
+            // vuelo, colisión de módulo), sostenido más de esto ya no lo es. 300 s = cinco
+            // corridas del cron de un minuto.
+            'falso_verde_umbral_seg' => (int) env('CIRCUITO_JARVIS_FALSO_VERDE_UMBRAL', 300),
+
+            // FAMILIA "GASTO" (#706, sub-item de #208) — invocaciones de `claude -p` por hora
+            // contra un umbral configurable. Fuente: `arranques-claude.log`, un JSONL
+            // append-only que escribe `vuelta.sh` en cada arranque — aparte del registro de PIDs
+            // VIVOS de `RegistroPids` (que el `trap EXIT` borra al terminar la vuelta): este
+            // archivo es histórico, no de estado vivo, y por diseño nunca se trunca ahí.
+            // Con `paralelismo`=6 (arriba) y `CIRCUITO_TIMEOUT`=600s, el techo teórico corriendo
+            // sin pausa es 36/h; el default deja margen sobre eso.
+            'gasto_arranques_log' => env(
+                'CIRCUITO_JARVIS_GASTO_LOG',
+                '/var/www/megaisp/storage/app/circuito/jarvis/arranques-claude.log'
+            ),
+            'gasto_umbral_hora' => (int) env('CIRCUITO_JARVIS_GASTO_UMBRAL_HORA', 60),
+
+            // FAMILIA "ERRORES POR MINUTO" (#774, fase 4 de #705) — mismo regex que ya prueba
+            // `CompuertasSondaCommand::medirLogs()` en producción (nivel ERROR/CRITICAL/ALERT/
+            // EMERGENCY), pero aplicado a CADA uno de los 7 `laravel-*.log` (uno por worktree
+            // más el principal), no solo al log principal. Un error masivo en un worktree no
+            // debe quedar enmascarado por el resto tranquilo — ver medirLogs() y alertas().
+            'errores_por_minuto_umbral' => (int) env('CIRCUITO_JARVIS_ERRORES_MINUTO_UMBRAL', 20),
+
+            // CHEQUEO cert_dev (item #226, paso 5) — vigencia del certificado TLS de
+            // dev.meganett.com.mx, verificada por handshake real (openssl s_client), sin
+            // depender de sudo ni de ninguna credencial: los certs de Let's Encrypt en
+            // /etc/letsencrypt son root:root, ilegibles para este usuario, así que se mide
+            // por red, igual que lo vería cualquier cliente. El cert se emitió con
+            // `certbot --manual` y NO auto-renueva; si expira, la API HTTPS que consume
+            // Cowork se cae y el circuito entero se apaga sin que ninguna otra sonda lo note
+            // (es tráfico saliente a otra máquina, no un proceso local). 21/7 días = alerta
+            // con margen de sobra / crítico ya en la última semana.
+            'cert_dev' => [
+                'dominio' => env('CIRCUITO_JARVIS_CERT_DEV_DOMINIO', 'dev.meganett.com.mx'),
+                'umbral_alerta_dias' => (int) env('CIRCUITO_JARVIS_CERT_DEV_ALERTA_DIAS', 21),
+                'umbral_critico_dias' => (int) env('CIRCUITO_JARVIS_CERT_DEV_CRITICO_DIAS', 7),
+            ],
+
+            // CANAL DE ALERTA FUERA DE LA TORRE (#707, sub-item de #208, parte 3/3) — el
+            // vigilante SOLO AVISA, nunca corrige. Reusa el gateway WhatsApp ÚNICO ya designado
+            // (`EvolutionApiService`, ver CLAUDE.md §"SERVICIOS COMPARTIDOS ÚNICOS"), nunca un
+            // cliente HTTP propio. Apagado por default A PROPÓSITO (mismo patrón que
+            // PAYMENTS_AUTO_APPLY_ENABLED/DOMICILIACION_COBRO_LIVE_ENABLED): sin `enabled=true`
+            // Y `destino` configurados explícitamente, este canal jamás manda un mensaje.
+            'alerta_externa' => [
+                'enabled' => (bool) env('CIRCUITO_JARVIS_ALERTA_WHATSAPP', false),
+
+                // Número/JID de WhatsApp destino (solo dígitos, sin '+'; o un JID de grupo).
+                'destino' => env('CIRCUITO_JARVIS_ALERTA_DESTINO', ''),
+
+                // Empresa/instancia Evolution a usar — mismo patrón que el resto de consumidores
+                // de EvolutionApiService (Flotas, etc). 1 = instancia principal Meganet.
+                'company_id' => (int) env('CIRCUITO_JARVIS_ALERTA_COMPANY_ID', 1),
+
+                // Ningún hallazgo repite aviso antes de esto, aunque `alertas()` lo siga
+                // reportando cada vuelta (cron de 1 min): sin cooldown, un reinicio normal (que
+                // dispara varias alertas de golpe y las mantiene activas unos minutos) floodearía
+                // el WhatsApp. Lo pidió el propio revisor del #208. 1800s = 30 min.
+                'cooldown_seg' => (int) env('CIRCUITO_JARVIS_ALERTA_COOLDOWN', 1800),
+            ],
+
+            // CHEQUEO auto_increment_roadmap (item #9990206) — un `id` explícito insertado a
+            // mano (p.ej. para probar un comando) despega el AUTO_INCREMENT de `roadmap_items`
+            // para SIEMPRE: MySQL nunca lo baja por debajo de `max(id)+1`, ni borrando la fila
+            // después. Así nació el salto real de 990 a 1.000.000 y luego a 9.990.000. El guard
+            // del modelo (`RoadmapItem::booted()`) ya cierra la puerta hacia adelante; esto
+            // detecta si algo la vuelve a abrir (escritura cruda, `DB::table()->insert()`,
+            // import, etc. — caminos que NO pasan por el modelo y por tanto no ven el guard).
+            //
+            // El salto se mide como `AUTO_INCREMENT actual − MAX(id) actual`: en operación sana
+            // es 1 (el próximo id sería max+1). Un salto mayor a este umbral es anómalo.
+            //
+            // TRAMPA DE DIAGNÓSTICO (medida en vivo, ver el propio item): `SHOW TABLE STATUS` e
+            // `information_schema.tables` devuelven el AUTO_INCREMENT de una ESTADÍSTICA
+            // CACHEADA de InnoDB, que puede quedar desactualizada. `SHOW CREATE TABLE` es el
+            // único que da el valor REAL — el medidor debe usar ese, nunca el otro.
+            'auto_increment_salto_umbral' => (int) env('CIRCUITO_JARVIS_AUTOINCREMENT_SALTO_UMBRAL', 1000),
         ],
 
         /*
@@ -762,6 +1032,14 @@ return [
         'min_intervalo_minutos' => (int) env('CIRCUITO_AUDITOR_INTERVALO', 15),
 
         /*
+        | Slots libres mínimos para que el auditor dispare (Torre 24/7 Pieza 5a-ii, item #981).
+        | Default de fábrica que la migración de `torre_config` lee al sembrar la fila. Editable
+        | después desde Torre → Configuración (columna `auditor_slots_libres_min`), que manda una
+        | vez migrada.
+        */
+        'slots_libres_min_disparo' => (int) env('CIRCUITO_AUDITOR_SLOTS_LIBRES_MIN', 2),
+
+        /*
         | LOS DOS CARRILES (inventario de módulos, 2026-08-08).
         |
         | `paralelo`: módulos con acoplamiento ~0 (nadie los consume, no consumen a nadie) → sus
@@ -843,6 +1121,18 @@ return [
         |  - sin_clasificar: items de la Hoja de Ruta con footprint desconocido, que por diseño
         |    corren SOLOS y bloquean a las 6 terminales (#526). Clasificarlos libera la flota.
         |  - semilla:       pendientes del inventario 2026-08-08 que el escaneo no puede ver.
+        |  - jquery_sin_off: componentes Vue con `$(document).on(...)` delegado sin su `.off()`
+        |    correspondiente en el mismo archivo → handlers jQuery que se acumulan en cada remount
+        |    de la SPA (#899). Cross-cutting (resources/js/, no un $dir de módulo PHP): se emite
+        |    UNA vez bajo el ancla 'Roadmap / Circuito CC', igual que sin_clasificar.
+        |  - env_runtime:   llamadas a `env()` en tiempo de ejecución fuera de `config/`, la misma
+        |    lista que vigila `php artisan config:auditar-env` (#790) antes de permitir
+        |    `config:cache`. Consume ese escaneo vía `EnvRuntimeScanner` (#901), no lo reimplementa.
+        |    Cross-cutting (app/, routes/, bootstrap/): se emite UNA vez bajo el ancla
+        |    'Roadmap / Circuito CC', igual que sin_clasificar/jquery_sin_off.
+        |  - null_safety:   dos patrones sin guard contra null (#900/#973): `auth()->user()->` sin
+        |    `?->` inmediatamente después, y `$var = json_decode(...)` usado (`$var->`/`$var[`) sin
+        |    comprobar null en la ventana de las ~15 líneas siguientes (heurística aproximada).
         */
         'detectores' => [
             'hueco_ruteado'  => (bool) env('CIRCUITO_AUDITOR_D_HUECOS', true),
@@ -851,6 +1141,9 @@ return [
             'andamiaje'      => (bool) env('CIRCUITO_AUDITOR_D_ANDAMIAJE', true),
             'sin_clasificar' => (bool) env('CIRCUITO_AUDITOR_D_SINCLAS', true),
             'semilla'        => (bool) env('CIRCUITO_AUDITOR_D_SEMILLA', true),
+            'jquery_sin_off' => (bool) env('CIRCUITO_AUDITOR_D_JQUERYOFF', true),
+            'env_runtime'    => (bool) env('CIRCUITO_AUDITOR_D_ENVRUNTIME', true),
+            'null_safety'    => (bool) env('CIRCUITO_AUDITOR_D_NULLSAFE', true),
         ],
 
         /*
@@ -985,7 +1278,63 @@ return [
             // sólo más espaciado), y un cambio real de código lo revive de inmediato (cualquier
             // corrida con nuevos > 0 resetea la racha a 0).
             'intervalo_max_minutos' => (int) env('CIRCUITO_AUDITOR_SEQUIA_MAX', 120),
+
+            // #712 (Thomas Parte 2) — NIVEL 2, "EL GASTO": distinto de lo de arriba (que sólo
+            // ALARGA el intervalo de LA SONDA y nunca deja de escanear). Tras esta racha de
+            // ciclos EN VIVO seguidos con 0 nuevos, el generador se APAGA del todo (deja de
+            // ocupar terminales) hasta que un item REAL (sin `auditor_fingerprint`, no generado
+            // por este motor) se complete — ver `AuditorService::gastoApagado()`. Umbral de #590
+            // restituido ("dos corridas por hambre consecutivas").
+            'gasto_racha_umbral' => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_UMBRAL', 2),
+
+            // #891 Fase 3a — HALF-OPEN del gasto: en vez de esperar indefinidamente a un item
+            // real completado, cada `gasto_reintento_min` minutos se deja pasar UN sondeo (sin
+            // rearmar el timestamp) para ver si la fuente revivió. Si el sondeo vuelve a salir
+            // seco, `evaluarApagarGasto()` renueva el timestamp y el freno sigue frenando otros
+            // `gasto_reintento_min` minutos más — el costo queda acotado, nunca indefinido.
+            // Son solo el DEFAULT DE FÁBRICA; si `torre_config` trae estas columnas (Fase 3b), el
+            // valor de la BD manda, igual que pasa hoy con `auditor_cooldown_min`.
+            'gasto_reintento_min'    => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_MIN', 30),
+            'gasto_reintento_activo' => (bool) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_ACTIVO', true),
         ],
+    ],
+
+    /*
+    |---------------------------------------------------------------------------------------------
+    | "MODO BARRIDO" — Torre 24/7 Pieza 5b (#908), FASE 2a (#985): disparador + candado de un solo
+    | barrido + rotación de módulo. NO espera a que #907/#980 (slots_libres como disparador de
+    | primera clase del auditor) estén implementados — usa directo los métodos públicos ya vivos de
+    | `AuditorService` (`slotsLibres()`, `rachaSeca()`, `profundidadCola()`).
+    |
+    | El barrido en sí (explorar el módulo elegido y crear hallazgos, FASE 2b/#986) y el despacho
+    | FIFO de esos hallazgos (FASE 3/#987) son items aparte. Este bloque sólo gobierna CUÁNDO entrar
+    | en modo barrido, que SÓLO una terminal lo haga a la vez, y QUÉ módulo le toca.
+    |---------------------------------------------------------------------------------------------
+    */
+    'barrido' => [
+        // Pool "seco" = cola reclamable (AuditorService::profundidadCola()) en o por debajo de
+        // esto. Con cola real, barrer no tiene sentido: sobra trabajo de verdad que despachar.
+        'cola_max_para_barrer' => (int) env('CIRCUITO_BARRIDO_COLA_MAX', 0),
+
+        // Además de la cola vacía, exige que la racha seca del auditor (misma señal que ya alarga
+        // su intervalo, #1015) haya cruzado esto — evita disparar barrido por un valle momentáneo
+        // de la cola que se vuelve a llenar al minuto siguiente.
+        'racha_seca_min' => (int) env('CIRCUITO_BARRIDO_RACHA_MIN', 1),
+
+        // Terminales libres (AuditorService::slotsLibres()) mínimas para que valga la pena
+        // dedicar una a explorar en vez de esperar.
+        'slots_libres_min' => (int) env('CIRCUITO_BARRIDO_SLOTS_MIN', 1),
+
+        // TTL del candado single-flight (`circuito_barrido_en_curso` en `settings`): un barrido
+        // que no se libera en este tiempo se trata como HUÉRFANO (terminal caída a medio barrido)
+        // y deja de bloquear — ver `BarridoService::leerCandado()`.
+        'candado_ttl_min' => (int) env('CIRCUITO_BARRIDO_CANDADO_TTL_MIN', 25),
+
+        // #9990032 (FASE 2b-i) — tope de hallazgos que `BarridoService::explorar()` devuelve por
+        // corrida. Inspirado en `circuito.auditor.items_por_modulo_por_ciclo`: no tiene sentido
+        // que una sola exploración genere de un jalón más hallazgos de los que el despacho FIFO
+        // (Fase 3/#987) pueda repartir sin dejar terminales ociosas.
+        'hallazgos_max_por_barrida' => (int) env('CIRCUITO_BARRIDO_HALLAZGOS_MAX', 3),
     ],
 
     /*
@@ -1131,6 +1480,31 @@ return [
             'cadencia'    => 'dentro del scheduler · cola < 3 y ≥ 15 min desde la última',
         ],
 
+        // #9990235 — EL BARRIDO CONTINUO. Corría por cron cada 5 min (línea añadida el 2026-09-04
+        // al ponerlo en modo continuo) SIN estar aquí: si esa línea se rompía, el 24/7 dejaba de
+        // barrer y el panel no lo habría pintado en rojo — ni siquiera lo habría pintado. Es
+        // exactamente el fallo que documenta la auditoría del 2026-08-19 unas líneas más arriba:
+        // «ausente es peor que rojo».
+        //
+        // `exige_opciones => ['apply']` es lo que hace honesto este latido: el barrido se corre a
+        // mano en DRY-RUN a menudo (para ver qué encontraría sin crear nada), y esas corridas NO
+        // deben sellar el pulso. Si lo hicieran, un cron muerto quedaría enmascarado por la primera
+        // exploración manual que alguien hiciera — la mentira precisa que este vigilante evita.
+        //
+        // El latido lo sella el listener de `ModuleServiceProvider` con la clave por defecto
+        // (`circuito_beat_circuito_barrido`); NO se toca `circuito_barrido_cobertura_modulos`, que
+        // es otra cosa: la cobertura POR MÓDULO que usa el propio barrido para rotar. Dos fuentes
+        // de la misma verdad se desincronizan, así que cada una conserva su propósito.
+        'circuito:barrido' => [
+            'motor'          => 'Barrido',
+            'cadencia_horas' => 5 / 60,
+            'max_horas'      => 1,
+            'exige_opciones' => ['apply'],
+            'si_no_corre'    => 'con la cola seca las terminales se quedan ociosas y nadie descubre '
+                . 'defectos nuevos en el código: el modo 24/7 deja de explorar sin avisar',
+            'cadencia'       => 'cada 5 min (cron)',
+        ],
+
         'circuito:watchdog' => [
             'motor'         => 'Watchdog',
             'cadencia_horas' => 2 / 60,
@@ -1215,6 +1589,68 @@ return [
             // a 3: con cadencia de 10 min, media hora sin latir ya es señal de que el cron murió.
             'cadencia'    => 'cada 10 min (crontab del circuito) + 00:05 diario (Kernel.php, donde haya schedule:run)',
         ],
+
+        // #9990235 — cron propio (`*/5 * * * * … circuito:barrido --apply`, añadido 2026-09-04),
+        // pero GATEADO igual que el Auditor (cola seca + racha seca + slots libres): sólo resella
+        // cobertura cuando de verdad barrió un módulo. Por eso `cadencia_horas => null` (umbral por
+        // `max_horas`, no un múltiplo de cadencia fija): con cadencia fija de 5 min, un 3× (15 min)
+        // pintaría 🔴 cada vez que la cola trae trabajo real por más de un cuarto de hora — que es
+        // justo el caso SANO que el gating existe para respetar (no hace falta barrer si sobra
+        // trabajo real). `max_horas` holgado da margen a rachas ocupadas legítimas.
+        //
+        // `formato => 'json_cobertura_max'` (opción (a) del item): el barrido NO sella un reloj
+        // plano, escribe `circuito_barrido_cobertura_modulos` = JSON {modulo: {ultima_barrida_at}}
+        // (`BarridoService::marcarBarrido()`). En vez de sumar una segunda escritura sólo para que
+        // este vigilante la lea (dos fuentes de la misma verdad se desincronizan), `latidos()`
+        // aprende a leer ESE JSON y tomar la marca MÁS RECIENTE de cualquier módulo como el latido.
+        'circuito:barrido' => [
+            'motor'         => 'Barrido',
+            'cadencia_horas' => null,
+            'max_horas'   => 24,
+            'beat_key'    => 'circuito_barrido_cobertura_modulos',
+            'formato'     => 'json_cobertura_max',
+            'campo'       => 'ultima_barrida_at',
+            'si_no_corre' => 'con la cola seca las terminales se quedan ociosas y nadie descubre '
+                . 'defectos nuevos en el código',
+            'cadencia'    => 'cada 5 min (cron) · gated por cola seca / racha seca / slots libres, '
+                . 'igual que el Auditor',
+        ],
+
+        // #9990238 (FASE 4 de #9990235) — cron propio (`*/10 * * * * .../cron-wrap.sh
+        // circuito:liberar-cascada-mapa-red`, tag `# mr-32`), no estaba en este registro: si esa
+        // línea se rompía, la cascada MR-01→MR-07 dejaba de avanzar sin que ningún panel lo pintara
+        // en rojo. A diferencia de `circuito:compuertas-sonda` (ver la nota que sigue), este comando
+        // NO deja rastro de "sigo vivo" en ninguna otra parte — su archivo de estado
+        // (`circuito/liberador-mapa-red.json`) solo se escribe cuando la cascada se DETIENE, no en
+        // cada tick sano — así que el latido genérico de `CommandFinished` es la única señal de que
+        // el cron sigue corriendo.
+        //
+        // `excluye_opciones`: las 3 banderas manuales (`--dry-run` no escribe nada, `--estado` y
+        // `--reactivar` son inspección/intervención humana) NUNCA las manda el cron — pero si
+        // alguien las corre a mano para revisar la cascada, no deben sellar el latido como si el
+        // cron hubiera corrido: sería la misma mentira que ya evitan `re-triage`/`priorizar-seguridad`
+        // arriba.
+        'circuito:liberar-cascada-mapa-red' => [
+            'motor'         => 'Liberador cascada Mapa de Red (MR-32)',
+            'cadencia_horas' => 10 / 60,
+            'max_horas'   => 1,
+            'excluye_opciones' => ['dry-run', 'estado', 'reactivar'],
+            'si_no_corre' => 'la cascada MR-01→MR-07 deja de avanzar sola aunque el item anterior '
+                . 'ya haya cerrado, y nadie lo nota hasta revisar a mano',
+            'cadencia'    => 'cada 10 min (cron-wrap.sh)',
+        ],
+
+        // #9990238 (FASE 4 de #9990235) — `circuito:compuertas-sonda` también tiene cron PROPIO
+        // (`* * * * * ... circuito:compuertas-sonda`, cada minuto) y tampoco estaba aquí, pero a
+        // propósito NO se agrega: a diferencia de `liberar-cascada-mapa-red` de arriba, esta sonda
+        // YA es su propio latido, uno mejor que el genérico de este archivo. Cada corrida escribe
+        // `storage/app/torre/compuertas-so.json` con `medido_ts`, y `CompuertasService` (el ÚNICO
+        // consumidor, junto al panel de la Torre) lo lee DIRECTO y calcula su propia antigüedad
+        // (`SNAPSHOT_FRESCO_SEG=180`) con su propio mensaje de remediación ("revisar su línea en el
+        // crontab de meganet"). Duplicarlo aquí sería un segundo reloj del mismo hecho — la deriva
+        // que este mismo archivo advierte evitar más arriba (ver `circuito:scheduler`) — sin ganar
+        // nada: el panel de Compuertas seguiría sin usar `latidos()`, así que un segundo latido acá
+        // seria una fuente muerta, más código de vigilancia para el mismo dato.
     ],
 
     'retriage' => [

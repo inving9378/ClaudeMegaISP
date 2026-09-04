@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Console;
 
+use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\MergeRunner;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Console\Command;
@@ -20,10 +21,23 @@ use Symfony\Component\Process\Process;
  *  - Anti-colisión (#341): solo toma items `tomablePorCircuito` (excluye en_progreso/bloqueados);
  *    RECLAMA atómico (aprobado_* → en_progreso) antes de lanzar (dos rondas no toman el mismo item).
  * Un solo scheduler a la vez (flock propio). Nunca push ni prod.
+ *
+ * #198 — `--item=N`: DESPACHO DIRIGIDO. Antes no había forma de decirle al circuito "corre ESTE
+ * item ahora": ni este comando ni `circuito:claim-next` aceptaban un id, y el botón "Jalar
+ * trabajo ahora" de la Torre solo adelantaba una corrida del picker (que siempre elegía por su
+ * propia política — footprint/urgente/módulo-disjunto). Con `--item` se salta el picker para ESE
+ * item puntual, pero NO sus guards: respeta la pausa, respeta los frenos por item (el mismo
+ * `despachable()`/`motivoNoDespachable()` que usa la bandeja) y sella en el log del item que fue
+ * un despacho DIRIGIDO y por quién — la vía deja de ser un puenteo manual sin rastro.
+ *
+ * #211 — `--once` (solo junto con `--item`): además de saltar el picker, corta el POOL CONTINUO
+ * después de ese item — la vuelta no pide el siguiente. Sin `--once`, `--item` se comporta IGUAL
+ * que siempre (elige el primero, pero el slot se mantiene lleno con lo que siga eligible). Es la
+ * vía para verificar UN item puntual sin que el circuito se lleve trabajo ajeno detrás.
  */
 class SchedulerCommand extends Command
 {
-    protected $signature = 'circuito:scheduler {--dry : solo reporta el plan, no lanza}';
+    protected $signature = 'circuito:scheduler {--dry : solo reporta el plan, no lanza} {--item= : despacho DIRIGIDO de un item concreto (#198), salta el picker} {--once : junto con --item, corta el pool continuo tras ese item (#211)}';
 
     protected $description = 'Planifica y lanza N vueltas por-item en paralelo (#334 Fase 1).';
 
@@ -33,6 +47,10 @@ class SchedulerCommand extends Command
 
     public function handle(RoadmapCircuitoService $svc): int
     {
+        if ($this->option('item') !== null) {
+            return $this->despacharDirigido($svc, (int) $this->option('item'), (bool) $this->option('once'));
+        }
+
         // Latido del SCHEDULER PRIMERO (antes del flock, SIEMPRE): así cada corrida del cron marca
         // "vivo" aunque otra instancia tenga el lock o esté pausado → cron_vivo confiable, sin falso
         // "cron detenido". Distingue "scheduler VIVO pero ocioso" de "cron MUERTO".
@@ -151,10 +169,8 @@ class SchedulerCommand extends Command
                 }
 
                 // #546 — arranca el reloj de ETA en el MISMO instante que el lease (mismo UPDATE atómico).
-                $eta = $svc->estimarEtaTrabajo(
-                    $item['modulo'] ?? null,
-                    DB::table('roadmap_items')->where('id', $id)->value('nivel_riesgo')
-                );
+                $nivel = DB::table('roadmap_items')->where('id', $id)->value('nivel_riesgo');
+                $eta = $svc->estimarEtaTrabajo($item['modulo'] ?? null, $nivel);
 
                 // RECLAMO atómico: solo si sigue aprobado_* o A-pendiente (evita doble-toma).
                 // Sella la firma del worker (#334 A): quién lo tomó = el slot wt-{slot}.
@@ -173,7 +189,7 @@ class SchedulerCommand extends Command
                     continue; // ya lo tomó otro
                 }
 
-                $this->lanzarVueltaItem($id, $slot);
+                $this->lanzarVueltaItem($id, $slot, false, $nivel);
                 $lanzados[] = $id;
             }
 
@@ -260,15 +276,129 @@ class SchedulerCommand extends Command
         return $free;
     }
 
-    /** Lanza vuelta.sh en modo por-item, detached, en el worktree del slot. */
-    private function lanzarVueltaItem(int $itemId, int $slot): void
+    /**
+     * #9990302 — segundero del guard de vida máxima por nivel_riesgo (decisión de Irving en
+     * #9990295, q2 opción 2: A=10min/B=20min/C=45min). Nivel desconocido/null cae al default
+     * histórico de nivel A (600s) — ver el docblock de `config('circuito.vida_maxima')`.
+     */
+    private static function vidaMaximaSegundos(?string $nivelRiesgo): int
     {
-        $script = base_path('deploy/circuito/vuelta.sh');
-        $wt     = self::RUNTIME . "/wt-{$slot}";
-        $sid    = "wt-{$slot}";
-        $env    = sprintf('CIRCUITO_ITEM=%d CIRCUITO_WT=%s CIRCUITO_SID=%s', $itemId, escapeshellarg($wt), escapeshellarg($sid));
-        $cmd    = "setsid nohup env {$env} " . escapeshellarg($script) . ' >/dev/null 2>&1 &';
+        $mapa  = (array) config('circuito.vida_maxima.segundos', []);
+        $nivel = strtoupper((string) $nivelRiesgo);
+
+        return (int) ($mapa[$nivel] ?? $mapa['A'] ?? 600);
+    }
+
+    /** Lanza vuelta.sh en modo por-item, detached, en el worktree del slot. */
+    private function lanzarVueltaItem(int $itemId, int $slot, bool $once = false, ?string $nivelRiesgo = null): void
+    {
+        $script  = base_path('deploy/circuito/vuelta.sh');
+        $wt      = self::RUNTIME . "/wt-{$slot}";
+        $sid     = "wt-{$slot}";
+        $timeout = self::vidaMaximaSegundos($nivelRiesgo);
+        $grace   = (int) config('circuito.vida_maxima.grace_seg', 30);
+        $env     = sprintf(
+            'CIRCUITO_ITEM=%d CIRCUITO_WT=%s CIRCUITO_SID=%s CIRCUITO_TIMEOUT=%d CIRCUITO_VIDA_MAXIMA_GRACE=%d',
+            $itemId, escapeshellarg($wt), escapeshellarg($sid), $timeout, $grace
+        );
+        // #211 — modo dirigido de una sola vuelta: el item ya se sella como despacho_dirigido en
+        // el log (claimNextParalelo); esto además le dice al wrapper que no encadene el siguiente.
+        if ($once) {
+            $env .= ' CIRCUITO_ONCE=1';
+        }
+        // #9990293 — cron-wrap.sh invoca `php artisan` dentro de `$(...)` (sustitución de
+        // comando de bash), que abre una pipe cuyo extremo de escritura este proceso PHP
+        // hereda. `proc_open` (bajo `Process::fromShellCommandline`) no cierra por sí solo
+        // los fds >2 heredados al lanzar el hijo, así que ese fd de la pipe se propaga a
+        // setsid/nohup/timeout/claude — y mientras la vuelta siga viva, cron-wrap.sh queda
+        // bloqueado en `pipe_read` esperando un EOF que nunca llega, aunque su `php artisan`
+        // ya haya terminado. `exec N>&-` cierra esos fds en el `sh -c` intermedio ANTES del
+        // `setsid nohup ...`, así el hijo detached ya no los hereda. Cerrar un fd que no está
+        // abierto no falla (verificado con dash, el shell real de `/bin/sh` aquí).
+        $cierraFds = 'exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 2>/dev/null';
+        $cmd    = "{$cierraFds}; setsid nohup env {$env} " . escapeshellarg($script) . ' >/dev/null 2>&1 &';
         $p = Process::fromShellCommandline($cmd, base_path());
         $p->run();
+    }
+
+    /**
+     * #198 — DESPACHO DIRIGIDO: `--item=N` saltándose el picker (`ejecutablesParalelo`). Reclama
+     * ESE item concreto para el primer slot libre, con el MISMO candado atómico y los MISMOS
+     * frenos por item que el reclamo normal (delega en `claimNextParalelo`, que ya los aplica) —
+     * lo único que cambia es la SELECCIÓN. Deliberadamente NO reaplica el pre-filtro
+     * módulo-disjunto/footprint-desconocido de `ejecutablesParalelo()` (esa es una regla de la
+     * RONDA del picker, no del item): si el operador pide este item a propósito, corre; el
+     * backstop real contra colisiones sigue siendo git al mergear + `detectarColisionesEnVuelo()`.
+     * Usa el flock del scheduler (bloqueante: es una acción puntual, puede esperar el segundo que
+     * tarde una ronda de cron en curso) para no pisar el slot libre que esa ronda esté por tomar.
+     */
+    private function despacharDirigido(RoadmapCircuitoService $svc, int $itemId, bool $once = false): int
+    {
+        if ($svc->isPaused()) {
+            $this->error('El circuito está en pausa (kill switch). No se despacha nada — reanúdalo primero.');
+
+            return self::FAILURE;
+        }
+
+        $item = RoadmapItem::find($itemId);
+        if (! $item) {
+            $this->error("Item #{$itemId} no existe.");
+
+            return self::FAILURE;
+        }
+
+        $esDespachable = RoadmapItem::query()->whereKey($itemId)->despachable()->exists();
+        if (! $esDespachable) {
+            $motivo = $item->motivoNoDespachable(false);
+            $this->error("Item #{$itemId} no es despachable ahora mismo: " . ($motivo['error'] ?? 'sin motivo determinado') . '.');
+
+            return self::FAILURE;
+        }
+
+        $lock = @fopen(self::SCHED_LOCK, 'c');
+        if (! $lock || ! flock($lock, LOCK_EX)) {
+            $this->error('No se pudo tomar el candado del scheduler.');
+
+            return self::FAILURE;
+        }
+
+        try {
+            $n = $svc->getParalelismo();
+            $slot = null;
+            for ($k = 1; $k <= $n; $k++) {
+                if ($this->slotFree("wt-{$k}")) {
+                    $slot = $k;
+                    break;
+                }
+            }
+            if ($slot === null) {
+                $this->error("No hay ningún slot libre ahora mismo (las {$n} terminales están ocupadas). Reintenta en unos segundos.");
+
+                return self::FAILURE;
+            }
+
+            if ($this->option('dry')) {
+                $modo = $once ? 'despacho dirigido, once' : 'despacho dirigido';
+                $this->line("PLAN: #{$itemId} → slot wt-{$slot} ({$modo}).");
+
+                return self::SUCCESS;
+            }
+
+            $sid = "wt-{$slot}";
+            $reclamado = $svc->claimNextParalelo($sid, $itemId, 'scheduler-item', $once);
+            if ($reclamado !== $itemId) {
+                $this->error("No se pudo reclamar #{$itemId}: otra terminal lo tomó justo ahora, o dejó de ser elegible.");
+
+                return self::FAILURE;
+            }
+
+            $this->lanzarVueltaItem($itemId, $slot, $once, $item->nivel_riesgo);
+            $this->info("Despacho dirigido: #{$itemId} → slot {$sid}" . ($once ? ' (once: no encadena el siguiente).' : '.'));
+
+            return self::SUCCESS;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 }

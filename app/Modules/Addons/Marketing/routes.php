@@ -15,6 +15,8 @@ use App\Modules\Addons\Marketing\Controllers\PublicLeadFormController;
 use App\Modules\Addons\Marketing\Controllers\MarketingLeadController;
 use App\Modules\Addons\Marketing\Controllers\MarketingLeadFormController;
 use App\Modules\Addons\Marketing\Controllers\MetaOAuthController;
+use App\Modules\Addons\Marketing\Controllers\PilotCampaignController;
+use App\Modules\Addons\Marketing\Controllers\PilotCampaignTrackingController;
 use App\Modules\Addons\Marketing\Controllers\PublishingController;
 use App\Modules\Addons\Marketing\Controllers\VoiceComparatorController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +36,14 @@ Route::middleware(['web'])->group(function () {
         Route::get('lead-form/{slug}', [PublicLeadFormController::class, 'show'])->name('form.show');
         Route::post('lead-form/{slug}/submit', [PublicLeadFormController::class, 'submit'])->name('form.submit');
         Route::get('embed.js', [PublicLeadFormController::class, 'embedScript'])->name('embed.js');
+    });
+
+    // Tracking del piloto de campaña A/B (item #47) — lo abre el correo del destinatario, sin sesión.
+    Route::prefix('marketing/pilot/track')->name('marketing.pilot.track.')->group(function () {
+        Route::get('open/{token}.gif', [PilotCampaignTrackingController::class, 'open'])
+            ->where('token', '[A-Za-z0-9]+')->name('open');
+        Route::get('click/{token}', [PilotCampaignTrackingController::class, 'click'])
+            ->where('token', '[A-Za-z0-9]+')->name('click');
     });
 });
 
@@ -120,6 +130,17 @@ Route::middleware(['web', 'auth'])->prefix('api/marketing')->name('api.marketing
         Route::post('generate-samples',[VoiceComparatorController::class, 'generateSamples'])->name('generate-samples');
         Route::post('assign-niche',   [VoiceComparatorController::class, 'assignToNiche'])->name('assign-niche');
     });
+
+    // Piloto de campaña multivariante A/B por email (item #47) — solo lista de prueba interna.
+    Route::prefix('pilot-campaigns')->name('pilot-campaigns.')->group(function () {
+        Route::get('/',                     [PilotCampaignController::class, 'index'])->name('index');
+        Route::post('/',                    [PilotCampaignController::class, 'store'])->name('store');
+        Route::get('/{id}',                 [PilotCampaignController::class, 'show'])->name('show');
+        Route::delete('/{id}',              [PilotCampaignController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/dry-run',        [PilotCampaignController::class, 'dryRun'])->name('dry-run');
+        Route::post('/{id}/send',           [PilotCampaignController::class, 'send'])->name('send');
+        Route::post('/{id}/sends/{sendId}/mark-converted', [PilotCampaignController::class, 'markConverted'])->name('mark-converted');
+    });
 });
 
 // ── STAFF: panel admin (Blade views) ─────────────────────────────────────────
@@ -190,6 +211,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/{id}', [MarketingController::class, 'updateTemplate'])->name('update');
             Route::delete('/{id}', [MarketingController::class, 'destroyTemplate'])->name('destroy');
         });
+
+        // Piloto de campaña multivariante A/B (item #47)
+        Route::get('/pilot-campaigns', fn () => view('addon-marketing::pilot-campaigns'))->name('pilot-campaigns.view');
 
         // ── Fase 5: Publicador Multicanal — Vistas Blade ────────────────────
         Route::get('/publishing', fn () => view('addon-marketing::publishing.dashboard'))->name('publishing.dashboard');

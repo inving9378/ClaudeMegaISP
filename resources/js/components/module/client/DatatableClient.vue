@@ -300,7 +300,7 @@
 </template>
 
 <script>
-import { ref, watch, reactive, onMounted, computed } from "vue";
+import { ref, watch, reactive, onMounted, computed, onUnmounted, getCurrentInstance } from "vue";
 import { debounce } from "lodash";
 import {
   requestColumnsDatatableByModule,
@@ -416,6 +416,10 @@ export default {
     "customservicetable",
   ],
   setup(props, { emit }) {
+      const ns = `.leak983-datatableClient-${getCurrentInstance().uid}`;
+      onUnmounted(() => {
+          $(document).off(ns);
+      });
     const { getOnuStatusClass, getOnuStatusIcon } = useOlts();
     const lengthButtons = _.values(props.buttons).length;
     const headers = ref(JSON.parse(props.header_columns_by_module));
@@ -450,7 +454,7 @@ export default {
     const columnsToExpand = ref([]);
 
     onMounted(async () => {
-      $(document).on("click", `#${props.idTable} .fa-trash`, function (e) {
+      $(document).on("click" + ns, `#${props.idTable} .fa-trash`, function (e) {
         if (confirm("Esta seguro que desea eliminar")) {
           let deleteItem = deleteRowDatatable(
             props.module,
@@ -468,9 +472,9 @@ export default {
         }
       });
 
-      $(document).on("click", `#${props.idTable} .edit_id`, function (e) {
+      $(document).on("click" + ns, `#${props.idTable} .edit_id`, function (e) {
         iDClient.value = $(e.target).parent().attr("id-item");
-        $(`#modaleditIdClient`).modal("show");
+        window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modaleditIdClient')).show();
       });
 
       let showInHedaer = headers.value.length;
@@ -546,7 +550,7 @@ export default {
             visibleColumns.value = trueProperties;
             location.reload();
 
-            $(`#modaleditcolumn`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modaleditcolumn'))?.hide();
           }
         });
     };

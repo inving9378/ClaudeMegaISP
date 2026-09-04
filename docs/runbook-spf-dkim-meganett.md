@@ -68,15 +68,24 @@ v=DMARC1; p=none; rua=mailto:no-reply@meganett.com.mx; fo=1
 - Revisar los reportes agregados (`rua`) para confirmar que SPF/DKIM alinean en el 100%
   del correo real antes de subir a `p=quarantine` y luego `p=reject`.
 
-## Verificación post-cambio
+## Verificación — antes y después (baseline con mail-tester.com)
 
-- `dig txt meganett.com.mx` → debe incluir la línea `v=spf1 ...`
-- `dig txt default._domainkey.meganett.com.mx` → debe incluir la línea `v=DKIM1 ...`
-- `dig txt _dmarc.meganett.com.mx` → debe incluir la línea `v=DMARC1 ...`
-- Enviar un correo de prueba real (ej. recuperación de contraseña del Portal Cliente) a
-  una cuenta de Gmail y revisar "Mostrar original" → `SPF: PASS`, `DKIM: PASS`,
-  `DMARC: PASS`.
-- Propagación DNS: hasta 24-48h según el TTL del registrador.
+1. **Baseline ANTES de tocar DNS:** enviar un correo real (ej. recuperación de contraseña
+   del Portal Cliente, o cualquier envío desde `no-reply@meganett.com.mx`) a la dirección
+   temporal que da [mail-tester.com](https://www.mail-tester.com/) y anotar el score y los
+   checks de SPF/DKIM que salgan en rojo — es la foto de "antes" para comparar.
+2. Aplicar los pasos 1-3 (SPF, DKIM, DMARC `p=none`) y esperar propagación.
+3. **Repetir con mail-tester.com** (nueva dirección temporal) → SPF y DKIM deben salir en
+   verde; comparar el score contra el baseline del paso 1.
+4. `dig txt meganett.com.mx` → debe incluir la línea `v=spf1 ...`
+5. `dig txt default._domainkey.meganett.com.mx` → debe incluir la línea `v=DKIM1 ...`
+6. `dig txt _dmarc.meganett.com.mx` → debe incluir la línea `v=DMARC1 ...`
+7. Enviar un correo de prueba real a una cuenta de Gmail y revisar "Mostrar original" →
+   `SPF: PASS`, `DKIM: PASS`, `DMARC: PASS` (Google's check-auth, complementa mail-tester).
+8. **Monitoreo continuo:** el `rua=mailto:no-reply@meganett.com.mx` del registro DMARC ya
+   funciona como buzón de reportes agregados — revisar ahí semanalmente durante las
+   primeras 2-4 semanas antes de subir `p=none` a `p=quarantine`/`p=reject`.
+9. Propagación DNS: hasta 24-48h según el TTL del registrador.
 
 ## Qué NO hace este runbook
 

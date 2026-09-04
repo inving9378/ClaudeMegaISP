@@ -170,7 +170,7 @@
 </template>
 
 <script>
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import TaskCrud from "../task/TaskCrud.vue";
 import QCalendar from "../../../../shared/QCalendar.vue";
 import { filters } from "../../../../helpers/filters";
@@ -199,6 +199,10 @@ export default {
         imgbase: String,
     },
     setup(props) {
+        const ns = `.leak983-calendarIndex-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Editar Tarea");
         const action = ref("/scheduling/task/add");
         const reloadCrud = ref(true);
@@ -214,7 +218,7 @@ export default {
 
         onMounted(async () => {
             hasPermission.data = new Permission(await allViewHasPermission());
-            $(document).on("click", ".event_edit_task", function () {
+            $(document).on("click" + ns, ".event_edit_task", function () {
                 let idItem = $(this).attr("data-id-item");
                 clientMainInformationId.value = $(this).attr(
                     "data-client-information"
@@ -231,13 +235,13 @@ export default {
         };
 
         const closeModal = () => {
-            $("#crudTask").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudTask'))?.hide();
             reloadCrud.value = !reloadCrud.value;
         };
 
         const showEditModal = (idItem) => {
             reloadCrud.value = true;
-            $("#crudTask").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudTask')).show();
             title.value = "Editar Tarea";
             action.value = `/scheduling/task/update/${idItem}`;
         };

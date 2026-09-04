@@ -700,6 +700,15 @@ sin latir sin que ninguna pantalla lo dijera**. Por eso se separó su mitad de O
 - **Defecto de medición corregido**: había **nueve** `laravel.log` (uno por worktree, cada uno con
   su `storage/` real) y la sonda medía uno. `wt-2` acumuló **1.86 GB** invisible.
 
+⚠️ **El `pkill claude` autoinmune YA PASÓ de verdad (item #215, 2026-08-25):** cortar una vuelta a
+mano con `pkill -TERM -f 'claude -p Eres un EJECUTOR ON-BOX...'` se mató a sí mismo (el shell que
+ejecuta el `pkill` trae el patrón LITERAL en su propia línea de comando → `pkill -f` lo encuentra
+también a él) y además dejó huérfano el latido `circuito:vivo --watch` (su cmdline no matchea el
+patrón). **Comando seguro:** `php artisan circuito:cortar-vuelta --sid=wt-K` (dry-run por default,
+`--confirmar` para cortar de verdad) — usa el registro propio (PID+`starttime`) para matar por
+**PGID**, nunca por patrón de cmdline, y verifica APARTE que no sobrevive nada del grupo. Detalle y
+runbook completo: `docs/circuito/cortar-vuelta-runbook.md`.
+
 Doc: `docs/circuito/thomas-vigilia-entrega-a.md` · inventario previo:
 `docs/circuito/thomas-vigilante-paso0.md` · contrato del chat: `docs/circuito/thomas-chat-contrato.md`.
 

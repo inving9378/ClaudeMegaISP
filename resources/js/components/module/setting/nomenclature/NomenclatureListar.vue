@@ -172,7 +172,7 @@
 
 <script>
 import Datatable from "../../../base/shared/Datatable";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import NomenclatureCrud from "./NomenclatureCrud.vue";
 import { showLoading, hideLoading } from "../../../../helpers/loading";
@@ -185,6 +185,10 @@ export default {
         filters: String,
     },
     setup(props) {
+        const ns = `.leak983-nomenclatureListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Nomenclatura");
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -199,20 +203,20 @@ export default {
         const nameZone = ref("");
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(idItem, modal);
             });
 
-            $(document).on("click", "#change_client_nomenclature", function (e) {
+            $(document).on("click" + ns, "#change_client_nomenclature", function (e) {
                 let idItem =$(e.target).parent().attr("id-item");
                 showModalChangeClient(idItem);
             });
         });
 
         const closeModal = () => {
-            $("#crudnomenclature").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudnomenclature'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Nomenclatura";
             action.value = "/configuracion/nomenclature/add";
@@ -220,14 +224,14 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudnomenclature").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudnomenclature')).show();
             title.value = "Editar Nomenclatura";
             action.value = `/configuracion/nomenclature/update/${idItem}`;
         };
 
         const showModalChangeClient = (idItem) => {
             action.value = `/configuracion/nomenclature/update/${idItem}`;
-            $("#modaleChangeClientNomenclature").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modaleChangeClientNomenclature')).show();
         };
 
         const reload = () => {
@@ -283,7 +287,7 @@ export default {
             nameDistrict.value = "";
             nameZone.value = "";
             disabledForm.value = false;
-            $("#crudnomenclatureMultiple").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudnomenclatureMultiple'))?.hide();
         };
 
         return {

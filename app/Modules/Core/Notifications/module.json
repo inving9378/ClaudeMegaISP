@@ -1,0 +1,19 @@
+{
+    "slug": "core-notifications",
+    "name": "Notificaciones Push",
+    "version": "0.1.0",
+    "description": "Infra transversal de registro de push tokens (FCM) por usuario. Sin UI propia; lo consumen las apps móviles (MegaFamilia app padre, y futuros módulos) vía API autenticada con Sanctum.",
+    "type": "core",
+    "dependencies": [],
+    "active": true,
+    "menu": [],
+    "admin_cards": [],
+    "config_sections": [],
+    "api_endpoints": [
+        { "method": "POST", "path": "/api/push-tokens", "description": "Registrar (upsert por token) el push token FCM del usuario autenticado", "scope": null, "permission": null },
+        { "method": "DELETE", "path": "/api/push-tokens/{token}", "description": "Dar de baja un push token propio (logout)", "scope": null, "permission": null }
+    ],
+    "ai": [],
+    "client_tab": null,
+    "service_type": null
+}

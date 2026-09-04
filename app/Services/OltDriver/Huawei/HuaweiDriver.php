@@ -3,6 +3,8 @@
 namespace App\Services\OltDriver\Huawei;
 
 use App\Services\OltDriver\OltDriverInterface;
+use App\Services\OltDriver\Capabilities\SupportsAdvancedDiagnostics;
+use App\Services\OltDriver\Capabilities\SupportsOltTopology;
 use App\Services\OltDriver\Huawei\Parsers\AutofindParser;
 use App\Services\OltDriver\Huawei\Parsers\BoardParser;
 use App\Services\OltDriver\Huawei\Parsers\OntInfoParser;
@@ -38,7 +40,7 @@ use Throwable;
  *   dry_run = false           — W3: commands are executed against the live OLT.
  *   Allow-list enforced by ReadOnlyGuard::assertWriteTargetAllowed().
  */
-class HuaweiDriver implements OltDriverInterface
+class HuaweiDriver implements OltDriverInterface, SupportsOltTopology, SupportsAdvancedDiagnostics
 {
     private readonly string        $oltId;
     private readonly int           $frame;
@@ -391,6 +393,285 @@ class HuaweiDriver implements OltDriverInterface
                 return $this->error($e);
             }
         });
+    }
+
+    // ── SupportsOltTopology — paridad de lectura con SmartOLT (item #282) ──────
+    //
+    // Alcance decidido por Irving (item #282, q1 = opción recomendada "paridad
+    // mínima de lectura"): solo capacidades no destructivas (listar ONUs, señal,
+    // estado, inventario). SupportsCatalog (zonas/tipos de ONU/ODBs — conceptos
+    // propios de la nube SmartOLT sin equivalente VRP) y SupportsBulkOperations
+    // (getOnusBulk mezclado con bulkSetSpeedProfile, que es escritura) quedaron
+    // fuera de esta pasada — ver decisión registrada en circuito:reportar.
+
+    /**
+     * Tarjetas/slots de la OLT. Reusa `display board 0` + BoardParser, el mismo
+     * comando que ya usa collectAllOnts() — sin I/O nuevo.
+     */
+    public function getOltCards(string $oltId): array
+    {
+        if (! $this->handlesOlt($oltId)) {
+            return ['success' => false, 'message' => "OLT '{$oltId}' is not managed by this driver."];
+        }
+
+        return $this->withSession(function () {
+            try {
+                $boards   = BoardParser::parse($this->transport->exec('display board 0'));
+                $response = array_map(fn($b) => [
+                    'slot'       => $b['slot'],
+                    'type'       => $b['board'],
+                    'status'     => $b['status'],
+                    'port_count' => $b['port_count'],
+                    'is_gpon'    => $b['is_gpon'],
+                ], $boards);
+                return ['success' => true, 'response' => $response];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * Puertos PON derivados de collectAllOnts() (mismo dato ya usado por
+     * getOnusByOlt): agrupa ONUs por slot+puerto y cuenta cuántas hay en cada
+     * uno. Cero comandos VRP nuevos — reusa el mismo camino de lectura probado.
+     */
+    public function getOltPonPorts(string $oltId): array
+    {
+        if (! $this->handlesOlt($oltId)) {
+            return ['success' => false, 'message' => "OLT '{$oltId}' is not managed by this driver."];
+        }
+
+        return $this->withSession(function () {
+            try {
+                $onus  = $this->collectAllOnts();
+                $ports = [];
+                foreach ($onus as $onu) {
+                    $key = $onu['board'] . '/' . $onu['port'];
+                    if (! isset($ports[$key])) {
+                        $ports[$key] = [
+                            'board'    => (int) $onu['board'],
+                            'pon_port' => (int) $onu['port'],
+                            'onus'     => 0,
+                        ];
+                    }
+                    $ports[$key]['onus']++;
+                }
+                return ['success' => true, 'response' => array_values($ports)];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * Puertos uplink derivados de las tarjetas NO-GPON (control/uplink) que
+     * reporta `display board 0` — mismo comando que getOltCards(), sin I/O
+     * adicional.
+     *
+     * @pending-validation BoardParser::GPON_PORT_COUNTS solo reconoce boards
+     * GPON conocidas; cualquier board fuera de esa lista se asume uplink/control
+     * sin distinguir el tipo real. Ajustar si aparece un board no-GPON que no sea
+     * uplink (ej. tarjeta de respaldo) al validar contra hardware real.
+     */
+    public function getOltUplinkPorts(string $oltId): array
+    {
+        if (! $this->handlesOlt($oltId)) {
+            return ['success' => false, 'message' => "OLT '{$oltId}' is not managed by this driver."];
+        }
+
+        return $this->withSession(function () {
+            try {
+                $boards   = BoardParser::parse($this->transport->exec('display board 0'));
+                $uplinks  = array_filter($boards, fn($b) => ! $b['is_gpon']);
+                $response = array_values(array_map(fn($b) => [
+                    'name'   => "slot-{$b['slot']}",
+                    'slot'   => $b['slot'],
+                    'type'   => $b['board'],
+                    'status' => $b['status'],
+                ], $uplinks));
+                return ['success' => true, 'response' => $response];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * PON con interrupción activa: heurística determinista sobre
+     * collectAllOnts() (sin comando VRP nuevo) — un puerto "en outage" es uno
+     * con ONUs provisionadas donde NINGUNA está Online. No es necesariamente
+     * la misma definición que usa SmartOLT (la calcula server-side con sus
+     * propios criterios) — documentar la diferencia si algún día se comparan
+     * 1:1.
+     */
+    public function getOltOutagePons(string $oltId): array
+    {
+        if (! $this->handlesOlt($oltId)) {
+            return ['success' => false, 'message' => "OLT '{$oltId}' is not managed by this driver."];
+        }
+
+        return $this->withSession(function () {
+            try {
+                $onus   = $this->collectAllOnts();
+                $groups = [];
+                foreach ($onus as $onu) {
+                    $key = $onu['board'] . '/' . $onu['port'];
+                    if (! isset($groups[$key])) {
+                        $groups[$key] = [
+                            'board'    => (int) $onu['board'],
+                            'pon_port' => (int) $onu['port'],
+                            'total'    => 0,
+                            'online'   => 0,
+                        ];
+                    }
+                    $groups[$key]['total']++;
+                    if ($onu['status'] === 'Online') {
+                        $groups[$key]['online']++;
+                    }
+                }
+
+                $outages = array_values(array_map(
+                    fn($g) => ['board' => $g['board'], 'pon_port' => $g['pon_port'], 'onus' => $g['total']],
+                    array_filter($groups, fn($g) => $g['total'] > 0 && $g['online'] === 0)
+                ));
+
+                return ['success' => true, 'response' => $outages];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * @pending-validation `display vlan all` es un comando VRP estándar en
+     * equipos Huawei, pero el formato exacto de columnas en MA5800 no se ha
+     * validado contra hardware real. Parseo tolerante estilo parseDbaProfiles():
+     * primera columna numérica = VLAN ID, resto de la línea = descripción tal
+     * cual la reporta VRP.
+     */
+    public function getOltVlans(string $oltId): array
+    {
+        if (! $this->handlesOlt($oltId)) {
+            return ['success' => false, 'message' => "OLT '{$oltId}' is not managed by this driver."];
+        }
+
+        return $this->withSession(function () {
+            try {
+                $output = $this->transport->exec('display vlan all');
+                return ['success' => true, 'response' => $this->parseVlanTable($output)];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * Uptime desde `display version` (mismo comando que listOlts(), ya
+     * probado). temperature=null: no hay comando VRP validado para leerla —
+     * se deja el gap explícito en vez de adivinar un comando que no se puede
+     * probar contra hardware real desde aquí (decisión item #282 q2: validar
+     * en OLT de laboratorio antes de exponer cada comando nuevo).
+     */
+    public function getOltEnvironmentStats(): array
+    {
+        return $this->withSession(function () {
+            try {
+                $ver = VersionParser::parse($this->transport->exec('display version'));
+                return [
+                    'success'  => true,
+                    'response' => [[
+                        'olt_id'      => $this->oltId,
+                        'uptime'      => $ver['uptime'],
+                        'temperature' => null,
+                    ]],
+                ];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    // ── SupportsAdvancedDiagnostics — paridad de lectura con SmartOLT (item #282) ──
+
+    /**
+     * Compone getOnuDetails() (ya probado) reshapeando 'onu_details' →
+     * 'response' para calzar con la forma que declara la interfaz.
+     */
+    public function getOnuFullStatus(string $onuId): array
+    {
+        $details = $this->getOnuDetails($onuId);
+        if (! ($details['success'] ?? false)) {
+            return $details;
+        }
+        return ['success' => true, 'response' => $details['onu_details']];
+    }
+
+    /**
+     * VRP no tiene un archivo de configuración independiente por ONT:
+     * `display ont info` (mismo comando que ya usan getOnuDetails/
+     * getOnuStatus) ES la configuración corriendo. Se reusa tal cual, sin
+     * I/O nuevo.
+     */
+    public function getOnuRunningConfig(string $onuId): array
+    {
+        return $this->withSession(function () use ($onuId) {
+            try {
+                [$frame, $slot, $port, $ontId] = $this->parseOnuId($onuId);
+                $this->transport->enterGponInterface($frame, $slot);
+                $output = $this->transport->exec("display ont info {$port} {$ontId}");
+                $this->transport->leaveToUserView();
+                $onts = OntInfoParser::parse($output, $this->logger);
+
+                if (empty($onts)) {
+                    return ['success' => false, 'message' => "ONT not found: {$onuId}"];
+                }
+
+                return ['success' => true, 'response' => $onts[0]];
+            } catch (Throwable $e) {
+                return $this->error($e);
+            }
+        });
+    }
+
+    /**
+     * No implementado: la IP de gestión OMCI/TR-069 requiere un comando VRP
+     * que aún no se validó contra hardware real (getOnuDetails() ya deja
+     * mode/wan_mode='N/A' por el mismo motivo). Se deja como gap explícito en
+     * vez de adivinar el comando — decisión item #282 q2 (validar en lab
+     * antes de exponer).
+     */
+    public function getOnuMgmtIp(string $onuId): array
+    {
+        return [
+            'success' => false,
+            'message' => 'getOnuMgmtIp: no implementado para Huawei — requiere validar el comando VRP de IP de gestión contra OLT real.',
+        ];
+    }
+
+    /**
+     * No implementado: misma razón que getOnuMgmtIp() — la IP WAN/DHCP del
+     * cliente requiere un comando VRP no validado aún.
+     */
+    public function getOnuIpAddress(string $onuId): array
+    {
+        return [
+            'success' => false,
+            'message' => 'getOnuIpAddress: no implementado para Huawei — requiere validar el comando VRP de IP WAN contra OLT real.',
+        ];
+    }
+
+    /**
+     * Compone findOnuBySn() (ya probado) + getOnuDetails() para entregar el
+     * detalle completo (con óptica) en la forma que exige la interfaz.
+     */
+    public function getOnuDetailsBySn(string $sn): array
+    {
+        $found = $this->findOnuBySn($sn);
+        if (! ($found['success'] ?? false)) {
+            return $found;
+        }
+        return $this->getOnuDetails($found['onu']['unique_external_id']);
     }
 
     // ── Gestión de sesión (uso exclusivo del cron) ────────────────────────────
@@ -999,6 +1280,35 @@ class HuaweiDriver implements OltDriverInterface
         }
 
         return $profiles;
+    }
+
+    /**
+     * @pending-validation — ver getOltVlans(). Parseo tolerante: descarta
+     * separadores/encabezados y toma la primera columna numérica como VLAN ID.
+     */
+    private function parseVlanTable(string $output): array
+    {
+        $vlans = [];
+
+        foreach (explode("\n", $output) as $line) {
+            $line = rtrim($line);
+
+            if ($line === '' || str_starts_with(ltrim($line), '-') || str_starts_with(ltrim($line), '#')) {
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', trim($line));
+            if (empty($parts) || ! ctype_digit($parts[0])) {
+                continue;
+            }
+
+            $vlans[] = [
+                'id'          => (int) $parts[0],
+                'description' => implode(' ', array_slice($parts, 1)),
+            ];
+        }
+
+        return $vlans;
     }
 
     /**

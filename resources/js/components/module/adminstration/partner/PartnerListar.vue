@@ -38,13 +38,17 @@
 
 import Datatable from "../../../base/shared/Datatable";
 import PartnerCrud from "./PartnerCrud";
-import {onMounted, reactive, ref} from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 
 export default {
     name: "SocioListar",
     components: {Datatable, PartnerCrud},
     setup(props) {
+        const ns = `.leak983-partnerListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref('Crear Socio');
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -53,7 +57,7 @@ export default {
         const reloadCrud = ref(true);
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(idItem, modal);

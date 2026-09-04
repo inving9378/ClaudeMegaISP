@@ -76,7 +76,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#addClientNomenclature").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('addClientNomenclature'))?.hide();
         };
 
         const updateThisField = ({ field, value }) => {
@@ -92,7 +92,7 @@ export default {
             dataForm.data
                 .submit("post", `${props.action}`, props.action)
                 .then((response) => {
-                    $("#addClientNomenclature").modal("hide");
+                    window.bootstrap.Modal.getInstance(document.getElementById('addClientNomenclature'))?.hide();
                 });
         };
 

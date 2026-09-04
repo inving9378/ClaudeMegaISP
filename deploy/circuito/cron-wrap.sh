@@ -28,4 +28,17 @@ else
   exit 1
 fi
 
-exec php artisan "$@"
+# #233 — FIN DE LA CEGUERA. Toda línea del crontab termina en `>/dev/null 2>&1`, así que un
+# `exec php artisan "$@"` que fallara (comando inexistente, excepción no atrapada, etc.) se veía
+# EXACTAMENTE igual que uno que corrió bien: nada en ningún lado. Mismo patrón de rastro-en-archivo
+# que guard-bd-pruebas.sh y vigilia-wrap.sh: stdout se sigue descartando (cron ya lo manda a
+# /dev/null), pero un fallo real siempre queda escrito aquí.
+ERRLOG="/home/meganet/circuito/logs/cron-wrap-errores.log"
+
+salida="$(php artisan "$@" 2>&1)"
+rc=$?
+printf '%s\n' "$salida"
+if [ $rc -ne 0 ]; then
+  printf '[%s] rc=%s comando="%s"\n%s\n\n' "$(date +%FT%T)" "$rc" "$*" "$salida" >> "$ERRLOG" 2>/dev/null
+fi
+exit $rc

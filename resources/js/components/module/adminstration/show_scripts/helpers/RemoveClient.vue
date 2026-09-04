@@ -63,7 +63,7 @@ export default {
         const deleteClient = async () => {
             await axios.post('/cliente/force_delete', {id_client: idClient.value}).then((response) => {
                 if (response.data.success) {
-                    $(`#modalDeleteClient`).modal("hide");
+                    window.bootstrap.Modal.getInstance(document.getElementById('modalDeleteClient'))?.hide();
                     errorEditId.value = false; // Maneja la salida del comando
                     toastr.success(`Cliente eliminado correctamente`, "Client", 5000);
                     cleanForm();

@@ -12,6 +12,7 @@ use App\Modules\Addons\Flotas\Controllers\FleetGeofenceController;
 use App\Modules\Addons\Flotas\Controllers\FleetNotificationController;
 use App\Modules\Addons\Flotas\Controllers\FleetRuleController;
 use App\Modules\Addons\Flotas\Controllers\FleetSubscriptionController;
+use App\Modules\Addons\Flotas\Controllers\FleetPushTokenController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -39,6 +40,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // Dashboard global de documentos (Sub-fase 4.1b) — antes de /{id}.
         Route::get('/documentos',             fn() => view('addon-flotas::flotas.documentos'));
+
+        // Análisis comparativo de gastos (item #688) — antes de /{id}.
+        Route::get('/comparativo',            fn() => view('addon-flotas::flotas.comparativo'));
 
         Route::get('/{id}',       fn() => view('addon-flotas::flotas.show'));
 
@@ -81,6 +85,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::prefix('api/notificaciones-log')->group(function () {
             Route::get('/',            [FleetNotificationController::class, 'log']);
             Route::post('/{id}/resend',[FleetNotificationController::class, 'resend']);
+        });
+
+        // ── API: Tokens de push del conductor (item #101, Fase 5.5) ─────────────
+        // Scaffold aditivo: registro del token, envío real bloqueado hasta item #72 (Firebase).
+        Route::prefix('api/push-tokens')->group(function () {
+            Route::post('/',       [FleetPushTokenController::class, 'store']);
+            Route::delete('/{id}', [FleetPushTokenController::class, 'destroy']);
         });
 
         // ── API: Reglas de alertas (Sub-fase 3.4) ───────────────────────────────

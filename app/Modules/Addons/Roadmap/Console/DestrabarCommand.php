@@ -61,6 +61,20 @@ class DestrabarCommand extends Command
         'branch', 'merge_commit', 'esperando_merge_irving', 'origen_bloqueo',
         'preguntas', 'opciones', 'opcion_elegida', 'log',
         'aprobado_por', 'revisado_at', 'excluir_pool_automatico', 'bloqueado_por_bucle',
+        // #710 — `evaluarYaDecidido()` ahora compara el fingerprint sellado (guardado aquí cuando
+        // `contarEscalacion()` marcó `bloqueado_por_bucle=true`) contra el fingerprint ACTUAL del
+        // item, para no re-aprobar un bloqueo anti-bucle cuya causa sigue igual. Sin esta columna
+        // en el select, `$item->escalaciones_fingerprint` llega `null` en SILENCIO (no revienta,
+        // sólo queda desatendida como con `requiere_sesion_supervisada` en #893 más abajo) y el
+        // guard nunca frenaría nada por esta vía.
+        'escalaciones_fingerprint',
+        // #893 — `evaluarYaDecidido()` frena si `requiere_sesion_supervisada` está en true, pero
+        // esa columna NO estaba aquí: sobre un item salido de ESTA consulta llega desatendida
+        // (Eloquent la devuelve `null` sin error, a diferencia del 1054 que describe el aviso de
+        // arriba), así que el guard leía `null` y nunca frenaba. Item #36 lo evidenció: quedaba
+        // marcado `requiere_sesion_supervisada=true` a mano y este comando lo re-aprobaba solo
+        // (carril `aprobarYaDecidido`) unos minutos después, una y otra vez.
+        'requiere_sesion_supervisada',
     ];
 
     public function handle(JarvisService $jarvis): int

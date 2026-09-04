@@ -299,7 +299,7 @@ export default {
         };
 
         const showDeleteClient = () => {
-            $(`#modalDeleteClient`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDeleteClient')).show();
         };
 
         return {

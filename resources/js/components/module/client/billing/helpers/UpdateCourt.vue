@@ -84,7 +84,7 @@ export default {
                 toastr.success(`Fecha Cambiada correctamente`, props.module);
                 emit("updateInformation");
                 cleanForm();
-                $(`#modaleditUpdaeCourt`).modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('modaleditUpdaeCourt'))?.hide();
             } catch (error) {
                 if (
                     error.response &&

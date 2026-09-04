@@ -63,7 +63,7 @@ export default {
         });
 
         const showModalEdit = async (modal) => {
-            $(`#${modal}`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById(modal)).show();
         };
 
         return { data, showModalEdit, hasPermission };

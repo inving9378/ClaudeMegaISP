@@ -2,12 +2,12 @@
 @section('title') @lang('translation.Dashboard') @endsection
 
 @section('content')
-    @can('crm_edit_crm')
+    @if(auth()->user() && auth()->user()->can('crm_edit_crm'))
         <crm-crud
             action="update/{{$id}}"
             tabs="{{ $tabs }}"
             id="{{ $id }}"
         >
         </crm-crud>
-    @endcan
+    @endif
 @endsection

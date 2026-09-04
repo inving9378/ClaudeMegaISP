@@ -37,4 +37,8 @@ return [
 
     'imei_new_per_ip_per_hour' => (int) env('GPS_IMEI_NEW_PER_IP_PER_HOUR', 3),
 
+    // IP pública del listener TCP (flotas:gps-listen) — usada en las instrucciones
+    // de activación de dispositivo (FleetGpsController::activateDevice).
+    'listener_public_ip' => env('GPS_LISTENER_PUBLIC_IP', '[IP pública del servidor]'),
+
 ];

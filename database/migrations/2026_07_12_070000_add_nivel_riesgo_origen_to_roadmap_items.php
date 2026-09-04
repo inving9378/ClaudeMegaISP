@@ -16,6 +16,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('roadmap_items')) {
+            return;
+        }
+
         Schema::table('roadmap_items', function (Blueprint $t) {
             if (! Schema::hasColumn('roadmap_items', 'nivel_riesgo_origen')) {
                 $t->enum('nivel_riesgo_origen', ['interno', 'externo'])
@@ -27,6 +31,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('roadmap_items')) {
+            return;
+        }
+
         Schema::table('roadmap_items', function (Blueprint $t) {
             if (Schema::hasColumn('roadmap_items', 'nivel_riesgo_origen')) {
                 $t->dropColumn('nivel_riesgo_origen');

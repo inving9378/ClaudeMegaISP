@@ -89,7 +89,7 @@ class EmbajadoresController extends Controller
     }
 
     /**
-     * Fuente de verdad ÚNICA del standing del embajador, todo en vivo y scopeado por
+     * Fuente de verdad ÚNICA del standing del embajador: cálculo en vivo, scopeado por
      * cliente. Alimenta tanto las tarjetas KPI como los encabezados de las tablas para
      * que el titular SIEMPRE concuerde con el detalle.
      *

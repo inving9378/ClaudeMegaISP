@@ -160,6 +160,8 @@ class ModuleLifecycleService
      * Desinstala un módulo.
      *
      * @param bool $keepData  Si true, no hace rollback de migraciones (conserva tablas y datos).
+     *                        Si el manifiesto del módulo declara `"keep_data": true`, este
+     *                        parámetro se ignora y se fuerza a true (ver resolveKeepData()).
      * @throws \LogicException si el módulo es core, o si otros módulos dependen de él.
      */
     public function uninstall(string $slug, bool $keepData = false): array
@@ -169,6 +171,8 @@ class ModuleLifecycleService
         if (($manifest['type'] ?? 'addon') === 'core') {
             throw new \LogicException("Los módulos core no se pueden desinstalar.");
         }
+
+        $keepData = $this->resolveKeepData($manifest, $keepData);
 
         // Verificar dependientes activos
         $dependents = $this->activeDependents($slug);
@@ -345,6 +349,9 @@ class ModuleLifecycleService
             // Auto-sync al rol base: super-administrator + DESARROLLADOR siempre;
             // permisos .view también a todos los demás roles (decisión 2026-06-04).
             $syncService->syncPermissionToBaseRoles($perm['name']);
+
+            // Item #851 (Fase A) — declara el criterio de scope "propios" si el módulo lo trae.
+            $syncService->syncScopeDeclaration($perm['name'], $perm['scope_propios'] ?? null);
         }
     }
 
@@ -373,6 +380,20 @@ class ModuleLifecycleService
     private function permissionNamesFromManifest(array $manifest): array
     {
         return array_column($manifest['permissions'] ?? [], 'name');
+    }
+
+    /**
+     * Si el manifiesto declara `"keep_data": true`, protege al módulo de una
+     * desinstalación destructiva sin importar lo que pida la llamada (request,
+     * comando). Antes esta clave del manifiesto era inerte — item #669.
+     */
+    private function resolveKeepData(array $manifest, bool $requested): bool
+    {
+        if (($manifest['keep_data'] ?? false) === true) {
+            return true;
+        }
+
+        return $requested;
     }
 
     // ── Validación de dependencias ───────────────────────────────────────────

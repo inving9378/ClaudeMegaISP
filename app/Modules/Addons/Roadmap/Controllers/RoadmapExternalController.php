@@ -215,6 +215,17 @@ class RoadmapExternalController extends Controller
                 'ej_nivel_B_pag2'=> '/{token}/q/-/B/2/50',
                 'detalle'        => '/{token}/item/{id}',
             ],
+            // ESCRITURA EXTENDIDA (token `create_token`, cae al `write_token` si no está definido):
+            // dar de alta un item nuevo y acumular reportes sobre uno existente. El item creado
+            // nace SIEMPRE `pendiente_revision` — crear no aprueba.
+            'escritura_extendida' => [
+                'alta_item'      => 'POST /{token}/item  — body: title (req), description, prompt, modulo, '
+                    . 'nivel_riesgo, priority, origen_item_id, target_version, es_resolucion',
+                'alta_item_path' => 'GET /{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}   '
+                    . '("-" = sin módulo; titulo/spec en base64url, para fetchers que solo hacen GET)',
+                'reporte'        => 'POST /{token}/item/{id}/reporte  — body: tipo (req), resumen (req), cuerpo',
+                'historial'      => 'GET /{token}/item/{id}/historial  — historial append-only de reportes (token de lectura)',
+            ],
         ];
     }
 

@@ -40,12 +40,31 @@ return [
         'token'         => env('SMARTOLT_TOKEN'),
         'ttl'           => env('SMARTOLT_TTL', 120),
         'hourly_budget' => env('SMARTOLT_HOURLY_BUDGET', 1000),
+        'verify_ssl'    => env('VERIFY_SSL', true),
+        'proxy'         => env('PROXY'),
     ],
 
     'anthropic' => [
         'key' => env('CLAUDE_API_KEY'),
         'model' => env('CLAUDE_MODEL', 'claude-sonnet-4-6'),
         'endpoint' => env('CLAUDE_API_ENDPOINT', 'https://api.anthropic.com/v1/messages'),
+    ],
+
+    // Respaldo #2 (tras el Hub api_integrations) de UsesApiIntegration::resolveApiKey()
+    // para el provider 'openai' — ver el mapa ENV_FALLBACK_CONFIG_MAP en ese trait.
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+    ],
+
+    // Firebase Cloud Messaging (item #101/#72) — sin valores hasta que #72 (greenfield)
+    // provea el proyecto real. Con project_id vacío, PushChannel (Flotas) rechaza el
+    // envío en vez de fingir éxito.
+    'firebase' => [
+        'project_id'       => env('FIREBASE_PROJECT_ID'),
+        'credentials_path' => env('FIREBASE_CREDENTIALS_PATH'),
+        // Server key legacy FCM (HTTP API), compartida por MegaFamilia (FcmService)
+        // y Talento (TalentoMobileApiController) — una sola clave, un solo lugar.
+        'server_key'       => env('FCM_SERVER_KEY'),
     ],
 
     // Huawei OLT (motor propio — B1b-4). Sin valores hasta validar B1c.

@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Models\TorreConfig;
+use App\Modules\Addons\Roadmap\Models\TorreFronteraDuraEvento;
 
 /**
  * EL CORAZÓN — un solo lugar donde vive la decisión de «¿esto puede avanzar sin Irving?».
@@ -67,6 +68,7 @@ class TorreAutomationPolicy
     public function __construct(
         private TorreConfigService $config,
         private JarvisService $jarvis,
+        private AuditorService $auditor,
     ) {
     }
 
@@ -171,13 +173,30 @@ class TorreAutomationPolicy
      * NO gobierna la aprobación iniciada por un HUMANO (`RoadmapController::store`, donde la
      * autorización es Irving mismo) ni la vía externa (`RoadmapCircuitoService::guard()`, token
      * Cowork/MCP). Esas dos quedan fuera por decisión explícita.
+     *
+     * #9990246 (Fase 3 de #9990210) — los pasos 1-4 hacían UNA llamada a `tocaFronteraDura()`
+     * (que internamente ya corre `fronteraDuraDeItemDetalle()`) y, si retenía, una SEGUNDA llamada
+     * a `fronteraDuraDeItemDetalle()` dentro de `registrarFronteraDuraVivo()` — el mismo cálculo
+     * dos veces. Ahora se calcula UNA sola vez aquí y el detalle se reparte a los dos caminos:
+     * retiene igual que siempre, o —si la válvula lo ablandó y por eso `categoria` salió `null`—
+     * deja el rastro en `torre_frontera_dura_eventos` con `veredicto='ablandamiento_paso'` antes
+     * de seguir de largo. Ver el docblock de `registrarAblandamientoPaso()`.
      */
     public function estadoInicial(RoadmapItem $item, string $actor, ?string $subTechoSimulado = null): string
     {
         // (1-4) FRONTERA DURA. Gana siempre, por delante de todo. No se levanta desde ninguna
         // configuración: ni con `autonomo`, ni con `override = auto`.
-        if ($this->tocaFronteraDura($item) !== null) {
+        $detFrontera = $this->jarvis->fronteraDuraDeItemDetalle($item);
+
+        if ($detFrontera['categoria'] !== null) {
+            $this->registrarFronteraDuraVivo($item, $detFrontera);
+
             return 'requiere_irving';
+        }
+
+        $eventoAblandamiento = \App\Modules\Addons\Roadmap\Support\AblandamientoFrontera::evento($detFrontera);
+        if ($eventoAblandamiento !== null) {
+            $this->registrarAblandamientoPaso($item, $eventoAblandamiento, $detFrontera['motivo'] ?? null);
         }
 
         // (5) `manual` ES ABSOLUTO. Ningún override lo sobrepasa.
@@ -289,6 +308,119 @@ class TorreAutomationPolicy
     }
 
     /**
+     * Pieza 1b (#765, sub-item de #672) — CAPTURA EN VIVO. Proyecta a `torre_frontera_dura_eventos`
+     * (creada en la Pieza 1a, #764) el mismo instante en que `estadoInicial()` retiene un item por
+     * frontera dura, con `origen='vivo'` — a diferencia del backfill (#764), que sólo reconstruye lo
+     * ya escrito en `roadmap_items.log`.
+     *
+     * IDEMPOTENCIA: este método se llama en CADA re-evaluación de un item que sigue retenido (cada
+     * intento de despacho automático de cada actor). No cada llamada es un evento nuevo:
+     *   - Si el item **no estaba ya** en `requiere_irving` (viene de otro estado) → es una apertura
+     *     NUEVA de la frontera → siempre se registra.
+     *   - Si el item **ya estaba** en `requiere_irving` → es la misma retención re-evaluándose →
+     *     sólo se registra si no hay ya un evento reciente (mismo item+término+veredicto, `vivo`).
+     *
+     * Nunca debe tumbar la decisión real: cualquier fallo de lectura/escritura se traga (es
+     * instrumentación, no la frontera misma).
+     *
+     * #9990246 — recibe el `$det` ya calculado por `estadoInicial()` (antes lo recalculaba aquí
+     * dentro, una segunda llamada a `fronteraDuraDeItemDetalle()` para el mismo item).
+     */
+    private function registrarFronteraDuraVivo(RoadmapItem $item, array $det): void
+    {
+        if (! $item->exists) {
+            return; // sin id no hay a qué colgar el evento (no debería pasar: ver docblock de estadoInicial).
+        }
+
+        $categoria = $det['categoria'] ?? null;
+        $termino   = trim((string) ($det['termino'] ?? ''));
+        if ($categoria === null || $termino === '') {
+            return;
+        }
+
+        $veredicto = ($det['ablandada'] ?? false) ? 'mencion' : 'accion';
+
+        // Dedup SOLO mientras el item sigue retenido: si NO estaba ya `requiere_irving`, es una
+        // apertura NUEVA de la frontera (siempre se registra); si ya lo estaba, cada re-evaluación
+        // es la MISMA retención y sólo cuenta una vez por ventana reciente.
+        $dedupReciente = $item->estado_aprobacion === 'requiere_irving';
+
+        $this->insertarEventoFronteraDura($item, $categoria, $termino, $veredicto, $det['motivo'] ?? null, $dedupReciente);
+    }
+
+    /**
+     * #9990246 (Fase 3 de #9990210) — el otro lado del ablandamiento.
+     *
+     * `fronteraDuraDeItemDetalle()` puede devolver `categoria=null` (nada retiene al item) con
+     * `categoria_detectada` no-null y `ablandada=true`: la válvula selló el item como MENCIÓN (o,
+     * en modo `apagar`, cualquier mención) y esa categoría concreta NO está entre las que retienen
+     * una mención (`circuito.mencion_retiene_categorias`) — el item SIGUE, no se frena. Hasta este
+     * item ese camino no dejaba ningún rastro en `torre_frontera_dura_eventos`: se veía igual que
+     * un item que nunca disparó ninguna frontera, y la auditoría de "cuántas veces el ablandamiento
+     * dejó pasar algo" no tenía de dónde leerlo.
+     *
+     * La DECISIÓN de si corresponde («¿`categoria` salió null porque la válvula lo ablandó?») y con
+     * qué datos (`categoria`/`termino`/`veredicto='ablandamiento_paso'`) vive en la parte PURA,
+     * `Support\AblandamientoFrontera::evento()` — sin Laravel ni BD, para que su candado de
+     * regresión no necesite bootear la app (ver su docblock). Este método sólo hace el `INSERT` con
+     * lo que esa función ya decidió.
+     *
+     * IDEMPOTENCIA: a diferencia de `registrarFronteraDuraVivo()`, este item NUNCA queda en
+     * `requiere_irving` (por definición: es el camino donde avanza) — así que el estado del item no
+     * sirve para distinguir "apertura nueva" de "misma retención re-evaluándose". Por eso aquí SIEMPRE
+     * se hace el chequeo de ventana reciente, sin condicionarlo al estado.
+     *
+     * @param  array{categoria:string, termino:string, veredicto:string}  $evento  ya validado por `AblandamientoFrontera::evento()`
+     */
+    private function registrarAblandamientoPaso(RoadmapItem $item, array $evento, ?string $motivo): void
+    {
+        $this->insertarEventoFronteraDura($item, $evento['categoria'], $evento['termino'], $evento['veredicto'], $motivo, true);
+    }
+
+    /**
+     * Escritura compartida por `registrarFronteraDuraVivo()` y `registrarAblandamientoPaso()`.
+     * Nunca debe tumbar la decisión real: cualquier fallo de lectura/escritura se traga (es
+     * instrumentación, no la frontera misma).
+     */
+    private function insertarEventoFronteraDura(
+        RoadmapItem $item,
+        string $categoria,
+        string $termino,
+        string $veredicto,
+        ?string $motivo,
+        bool $dedupReciente
+    ): void {
+        try {
+            if ($dedupReciente) {
+                $yaRegistrado = TorreFronteraDuraEvento::query()
+                    ->where('roadmap_item_id', $item->id)
+                    ->where('termino', $termino)
+                    ->where('veredicto', $veredicto)
+                    ->where('origen', 'vivo')
+                    ->where('ocurrido_at', '>=', now()->subHours(6))
+                    ->exists();
+
+                if ($yaRegistrado) {
+                    return;
+                }
+            }
+
+            TorreFronteraDuraEvento::create([
+                'roadmap_item_id' => $item->id,
+                'categoria'       => $categoria,
+                'termino'         => $termino,
+                'veredicto'       => $veredicto,
+                'razon'           => $motivo,
+                'ocurrido_at'     => now(),
+                'origen'          => 'vivo',
+            ]);
+        } catch (\Throwable) {
+            // Colisión de unique (mismo item+término+timestamp) u otro fallo de escritura: la
+            // instrumentación se pierde, la decisión real (arriba) ya se tomó y no se toca.
+        }
+    }
+
+    /**
      * El estado aprobado que corresponde al nivel. Reusa los que el pool YA reconoce
      * (A → `aprobado_claude`, B/C → `aprobado_revisor`): no se inventa un estado nuevo.
      */
@@ -345,9 +477,22 @@ class TorreAutomationPolicy
             // que ya no están vigentes.
             'topes_duros'          => array_keys(app(FronterasService::class)->mapa()),
             'auditor'              => [
-                'activo'          => $cfg->auditor_activo,
-                'max_por_corrida' => $cfg->auditor_max_por_corrida,
-                'cooldown_min'    => $cfg->auditor_cooldown_min,
+                'activo'            => $cfg->auditor_activo,
+                'max_por_corrida'   => $cfg->auditor_max_por_corrida,
+                'cooldown_min'      => $cfg->auditor_cooldown_min,
+                'slots_libres_min'  => $cfg->auditor_slots_libres_min,
+                // #891 Fase 3b-i — half-open del freno de sequía N2: config del reintento +
+                // estado resuelto (`estadoGastoUi()`, misma lectura que consume el auditor).
+                'gasto_reintento_min'    => $cfg->auditor_gasto_reintento_min,
+                'gasto_reintento_activo' => $cfg->auditor_gasto_reintento_activo,
+                'gasto'                  => $this->auditor->estadoGastoUi(),
+            ],
+            // #9990005 — misma forma que el sub-techo del autopilot: valor RESUELTO (columna si
+            // Irving la fijó, si no el default de config) + de dónde salió, para que la pantalla
+            // lo pinte sin tener que repetir la lógica de resolución.
+            'paralelo_mismo_modulo' => [
+                'valor'  => $cfg->paraleloMismoModulo(),
+                'fuente' => $cfg->paraleloMismoModuloFuente(),
             ],
         ];
     }

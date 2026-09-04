@@ -6,6 +6,7 @@ use App\Modules\Addons\Flotas\Models\FleetGeofenceEvent;
 use App\Modules\Addons\Flotas\Models\FleetNotificationLog;
 use App\Modules\Addons\Flotas\Models\FleetNotificationPreference;
 use App\Modules\Addons\Flotas\Services\Notifications\Drivers\EmailChannel;
+use App\Modules\Addons\Flotas\Services\Notifications\Drivers\PushChannel;
 use App\Modules\Addons\Flotas\Services\Notifications\Drivers\WhatsappChannel;
 use Illuminate\Support\Facades\Log;
 
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Log;
  * Sub-fase 3.3 — Despacha notificaciones de un evento de geocerca a los usuarios
  * suscritos, por cada canal habilitado, registrando cada intento en el log.
  *
- * Sumar un canal nuevo (push/FCM item #72, sms): implementar NotificationChannelInterface
+ * Sumar un canal nuevo (sms): implementar NotificationChannelInterface
  * y añadirlo al mapa CHANNELS. Nada más cambia.
  */
 class FleetNotificationDispatcher
@@ -21,7 +22,7 @@ class FleetNotificationDispatcher
     private const CHANNELS = [
         'email'    => EmailChannel::class,
         'whatsapp' => WhatsappChannel::class,
-        // 'push'  => PushChannel::class,  // item #72 (greenfield Firebase)
+        'push'     => PushChannel::class,  // item #101 — envío real bloqueado hasta item #72 (Firebase)
         // 'sms'   => SmsChannel::class,
     ];
 

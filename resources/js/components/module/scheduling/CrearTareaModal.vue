@@ -309,7 +309,7 @@ export default {
 
         function close() {
             if (!saving.value) {
-                $("#crearTareaModal").modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('crearTareaModal'))?.hide();
             }
         }
 
@@ -319,9 +319,9 @@ export default {
                 if (open) {
                     fillFromTicket();
                     await nextTick();
-                    $("#crearTareaModal").modal("show");
+                    window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crearTareaModal')).show();
                 } else {
-                    $("#crearTareaModal").modal("hide");
+                    window.bootstrap.Modal.getInstance(document.getElementById('crearTareaModal'))?.hide();
                 }
             }
         );
@@ -381,7 +381,7 @@ export default {
                     assigned_to: form.assigned_to ? [form.assigned_to] : [],
                 };
                 const { data } = await axios.post("/scheduling/task/add", payload);
-                $("#crearTareaModal").modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('crearTareaModal'))?.hide();
                 emit("created", data);
             } catch (e) {
                 if (e.response?.status === 422) {

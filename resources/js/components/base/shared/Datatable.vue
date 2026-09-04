@@ -288,7 +288,7 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive, onMounted, computed } from "vue";
+import { ref, watch, reactive, onMounted, computed, onUnmounted, getCurrentInstance } from "vue";
 import { debounce } from "lodash";
 import { initHelperFormField } from "../../../helpers/module/setting_additional_field/helper";
 import {
@@ -310,6 +310,11 @@ import { showLoading, hideLoading } from "../../../helpers/loading";
 import FilterDataTable from "./FilterDataTable.vue";
 import Swal from "sweetalert2";
 import { darkMode, rowStatusStyle, setRowStatusStyle } from "../../../hook/appConfig";
+
+const ns = `.leak983-datatable-${getCurrentInstance().uid}`;
+onUnmounted(() => {
+    $(document).off(ns);
+});
 
 defineOptions({
     name: "Datatable",
@@ -513,7 +518,7 @@ const resetFieldJson = () => {
 };
 
 onMounted(async () => {
-    $(document).on("click", `#${props.idTable} .fa-trash`, function (e) {
+    $(document).on("click" + ns, `#${props.idTable} .fa-trash`, function (e) {
         Swal.fire({
             title: "Esta seguro que desea eliminar?",
             text: "No podrás deshacer esta acción.",
@@ -699,7 +704,7 @@ const onSubmit = () => {
                 }
 
                 headers.value = updatedHeaders;
-                $(`#modaleditcolumn_${props.idTable}`).modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById(`modaleditcolumn_${props.idTable}`))?.hide();
             }
         })
         .catch((error) => {

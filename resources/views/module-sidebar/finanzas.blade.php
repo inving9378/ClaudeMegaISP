@@ -1,11 +1,10 @@
+@if(auth()->user()->canAny(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments',
+         'finance_view_invoices', 'finance_view_general_accounting', 'payments_manage_providers', 'conciliacion.manage']))
 <li>
-    @if(auth()->user()->canAny(['finance_view_transactions', 'finance_view_billing', 'finance_view_payments',
-             'finance_view_invoices', 'finance_view_general_accounting', 'payments_manage_providers', 'conciliacion.manage']))
-        <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="grid"></i>
-            <span data-key="t-finanzas">{{ $item->sidebar_label ?? 'Finanzas' }}</span>
-        </a>
-    @endcanany
+    <a href="javascript: void(0);" class="has-arrow">
+        <i data-feather="grid"></i>
+        <span data-key="t-finanzas">{{ $item->sidebar_label ?? 'Finanzas' }}</span>
+    </a>
     <ul class="sub-menu" aria-expanded="false">
 
         {{-- Finanzas core --}}
@@ -65,11 +64,15 @@
              Marketing dejó de ser caso especial: ahora es módulo top-level
              con su propio partial (module-sidebar/marketing.blade.php). --}}
         @foreach($item->dynamic_children ?? collect() as $child)
+            @php($childPermission = $child->permission ?? $item->permission ?? null)
+            @if(!$childPermission || auth()->user()->can($childPermission))
             <li>
                 <a href="{{ $child->sidebar_url ? url($child->sidebar_url) : url('/' . $child->module_key) }}">
                     <span>@if($child->sidebar_icon)<small><i class="{{ $child->sidebar_icon }}"></i></small> @endif{{ $child->sidebar_label ?? $child->module_key }}</span>
                 </a>
             </li>
+            @endif
         @endforeach
     </ul>
 </li>
+@endif

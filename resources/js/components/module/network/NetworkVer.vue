@@ -49,7 +49,7 @@ import Datatable from "../../base/shared/Datatable";
 import NetworkOverview from "./NetworkOverview";
 import NetworkIpCrud from "./ip/NetworkIpCrud.vue";
 
-import {onMounted, reactive, ref} from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import StoreZoneCrud from "../inventory/store_zone/StoreZoneCrud.vue";
 import DatatableHelper from "../../../helpers/datatableHelper.js";
 
@@ -61,6 +61,10 @@ export default {
     },
     setup(props) {
 
+        const ns = `.leak983-networkVer-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Editar Red");
         const action = ref("/red/ipv4/ip/add");
         const reloadCrud = ref(true);
@@ -70,7 +74,7 @@ export default {
         });
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(idItem, modal);
@@ -78,13 +82,13 @@ export default {
         });
 
         const closeModal = () => {
-            $("#modalEditIp").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalEditIp'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             datatable.table.reload();
         };
 
         const showEditModal = (idItem) => {
-            $("#modalEditIp").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditIp')).show();
             action.value = `/red/ipv4/ip/update/${idItem}`;
         };
 

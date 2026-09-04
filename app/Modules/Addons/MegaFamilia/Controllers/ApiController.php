@@ -15,14 +15,19 @@ use App\Models\Ticket;
 use App\Models\TicketThread;
 use App\Models\User;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
+use App\Modules\Addons\MegaFamilia\Models\ParentalAppBlock;
 use App\Modules\Addons\MegaFamilia\Models\ParentalDevice;
 use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
+use App\Modules\Addons\MegaFamilia\Models\ParentalGeofence;
 use App\Modules\Addons\MegaFamilia\Models\ParentalLocation;
 use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRequest;
 use App\Modules\Addons\MegaFamilia\Models\ParentalReward;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRule;
 use App\Modules\Addons\MegaFamilia\Models\ParentalTask;
+use App\Modules\Addons\Payments\Models\ReportedPayment;
+use App\Modules\Addons\Payments\Services\PaymentReferenceService;
+use App\Modules\Addons\PortalPago\Models\PortalPagoAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -669,6 +674,94 @@ class ApiController extends Controller
         return Storage::disk($disk)->download($notif->pdf_path, "recibo-{$id}.pdf");
     }
 
+    /**
+     * ID fijo de "Transferencia Bancaria" en method_of_payments — mismo valor
+     * que usa ManualPaymentController (mostrador) por defecto (defaultMethodId).
+     */
+    private const METHOD_TRANSFERENCIA = 2;
+
+    /**
+     * CLABE/banco de la empresa + referencia MEG del cliente autenticado,
+     * para que pague por transferencia SPEI desde la app. Reusa la MISMA
+     * infraestructura que el Portal Cliente web y el mostrador (item #24):
+     * PaymentReferenceService (referencia) + portal_pago_accounts (cuenta).
+     * Solo lectura, no mueve dinero.
+     */
+    public function paymentsClabe(): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) {
+            return response()->json(['error' => 'Cuenta sin cliente ISP asociado.'], 404);
+        }
+
+        $reference = PaymentReferenceService::ensureFor((int) $client->id)->reference;
+        $account = PortalPagoAccount::activas()->first(['id', 'nombre', 'banco', 'clabe', 'titular', 'beneficiario']);
+
+        if (! $account) {
+            return response()->json(['error' => 'No hay una cuenta de cobro configurada.'], 404);
+        }
+
+        return response()->json([
+            'reference'           => $reference,
+            'receiver_account_id' => $account->id,
+            'banco'               => $account->banco,
+            'clabe'               => $account->clabe,
+            'titular'             => $account->titular ?: $account->beneficiario,
+            'nombre_cuenta'       => $account->nombre,
+        ]);
+    }
+
+    /**
+     * El cliente reporta desde la app que ya hizo una transferencia. NO
+     * aplica el pago (no toca saldo) — solo registra un `reported_payment`
+     * con `conciliation_status=pendiente_verificar`, igual que el flujo de
+     * mostrador (ManualPaymentController) pero sin el paso de aplicar dinero,
+     * porque aquí nadie del staff lo validó todavía (item #24).
+     */
+    public function notifyTransfer(Request $request): JsonResponse
+    {
+        $client = $this->resolveClientForCurrentUser();
+        if (! $client) {
+            return response()->json(['error' => 'Cuenta sin cliente ISP asociado.'], 404);
+        }
+
+        $data = $request->validate([
+            'amount'               => ['required', 'numeric', 'min:0.01'],
+            'fecha_pago'           => ['required', 'date'],
+            'clave_rastreo'        => ['nullable', 'string', 'max:40'],
+            'titular'              => ['nullable', 'string', 'max:255'],
+            'banco_origen'         => ['nullable', 'string', 'max:255'],
+            'receiver_account_id'  => ['nullable', 'integer', 'exists:portal_pago_accounts,id'],
+            'comprobante'          => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:8192'],
+        ]);
+
+        $comprobantePath = null;
+        if ($request->hasFile('comprobante')) {
+            $comprobantePath = $request->file('comprobante')
+                ->store('private/payments/megafamilia/comprobantes', 'local');
+        }
+
+        $report = ReportedPayment::create([
+            'payment_id'           => null,
+            'client_id'            => (int) $client->id,
+            'receiver_account_id'  => $data['receiver_account_id'] ?? null,
+            'method_of_payment_id' => self::METHOD_TRANSFERENCIA,
+            'amount'               => $data['amount'],
+            'fecha_pago'           => $data['fecha_pago'],
+            'clave_rastreo'        => $data['clave_rastreo'] ?? null,
+            'titular'              => $data['titular'] ?? null,
+            'banco_origen'         => $data['banco_origen'] ?? null,
+            'comprobante_path'     => $comprobantePath,
+            'conciliation_status'  => ReportedPayment::ESTADO_PENDIENTE,
+        ]);
+
+        return response()->json([
+            'ok'                  => true,
+            'reported_payment_id' => $report->id,
+            'message'             => 'Recibimos tu transferencia, un asesor la confirmará pronto.',
+        ]);
+    }
+
     // ---- ACCOUNT / PROFILE (ISP cliente) ---------------------------------
 
     /**
@@ -1011,6 +1104,56 @@ class ApiController extends Controller
             'internet_paused',
         ]));
         return response()->json(['success' => true, 'rules' => $rules]);
+    }
+
+    // ---- GEOFENCES (Panel del Padre) --------------------------------------
+
+    public function profileGeofences(int $id): JsonResponse
+    {
+        $profile = $this->requireProfile($id);
+        return response()->json($profile->geofences()->orderByDesc('id')->get());
+    }
+
+    public function storeProfileGeofence(Request $request, int $id): JsonResponse
+    {
+        $profile = $this->requireProfile($id);
+        $data = $request->validate([
+            'name'           => 'required|string|max:120',
+            'address'        => 'nullable|string|max:500',
+            'lat'            => 'required|numeric|between:-90,90',
+            'lng'            => 'required|numeric|between:-180,180',
+            'radius_meters'  => 'required|integer|min:50|max:50000',
+            'alert_on_enter' => 'sometimes|boolean',
+            'alert_on_exit'  => 'sometimes|boolean',
+        ]);
+        $data['profile_id'] = $profile->id;
+        $data['active'] = true;
+        $geofence = ParentalGeofence::create($data);
+        return response()->json(['success' => true, 'geofence' => $geofence], 201);
+    }
+
+    public function updateProfileGeofence(Request $request, int $id): JsonResponse
+    {
+        $geofence = $this->requireGeofence($id);
+        $data = $request->validate([
+            'name'           => 'sometimes|string|max:120',
+            'address'        => 'sometimes|nullable|string|max:500',
+            'lat'            => 'sometimes|numeric|between:-90,90',
+            'lng'            => 'sometimes|numeric|between:-180,180',
+            'radius_meters'  => 'sometimes|integer|min:50|max:50000',
+            'alert_on_enter' => 'sometimes|boolean',
+            'alert_on_exit'  => 'sometimes|boolean',
+            'active'         => 'sometimes|boolean',
+        ]);
+        $geofence->update($data);
+        return response()->json(['success' => true, 'geofence' => $geofence]);
+    }
+
+    public function destroyProfileGeofence(int $id): JsonResponse
+    {
+        $geofence = $this->requireGeofence($id);
+        $geofence->delete();
+        return response()->json(['success' => true]);
     }
 
     // ---- TASKS / REQUESTS ------------------------------------------------
@@ -1392,6 +1535,35 @@ class ApiController extends Controller
     }
 
     /**
+     * Apps bloqueadas configuradas por el padre (portal /portal/megafamilia),
+     * visibles para el hijo. `parental_app_blocks` sólo registra lo que el
+     * padre bloqueó explícitamente — no existe catálogo de apps instaladas
+     * en el dispositivo — así que esto es la lista de bloqueadas, no un
+     * universo de "permitidas" (mismo criterio anti-inventar de #639 q3).
+     * Mismo patrón que hijoTareas()/hijoLogros(): sin cuenta → vacío.
+     */
+    public function hijoAppsPermitidas(): JsonResponse
+    {
+        $account = ParentalAccount::where('user_id', Auth::id())->first();
+        if (! $account) {
+            return response()->json([]);
+        }
+
+        $profileIds = $account->profiles()->pluck('id');
+        $blocks = ParentalAppBlock::whereIn('profile_id', $profileIds)
+            ->where('blocked', true)
+            ->orderBy('app_name')
+            ->get(['id', 'app_name', 'package_name', 'category']);
+
+        return response()->json($blocks->map(fn ($b) => [
+            'id' => $b->id,
+            'name' => $b->app_name,
+            'packageName' => $b->package_name ?: null,
+            'category' => $b->category,
+        ]));
+    }
+
+    /**
      * Crea una solicitud de permiso desde la vista hijo. A diferencia de
      * storeRequest() (que exige profile_id porque la llama la app padre
      * desde la ficha de un perfil concreto), la sesión hijo comparte el
@@ -1478,6 +1650,20 @@ class ApiController extends Controller
             ->first();
         abort_unless($device, 404);
         return $device;
+    }
+
+    /**
+     * Resuelve una geocerca SOLO si pertenece a un perfil de la cuenta del
+     * usuario autenticado. Evita IDOR: un geofence_id ajeno devuelve 404.
+     */
+    private function requireGeofence(int $id): ParentalGeofence
+    {
+        $account = $this->requireAccount();
+        $geofence = ParentalGeofence::where('id', $id)
+            ->whereHas('profile', fn ($q) => $q->where('account_id', $account->id))
+            ->first();
+        abort_unless($geofence, 404);
+        return $geofence;
     }
 
     // ---- EMBAJADORES --------------------------------------------------------

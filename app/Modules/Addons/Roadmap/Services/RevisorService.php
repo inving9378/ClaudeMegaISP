@@ -7,6 +7,7 @@ use App\Modules\Addons\Roadmap\Jobs\ProponerOpcionesJob;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\HuecosDelSpec;
 use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
+use App\Modules\Addons\Roadmap\Support\CarrilSeguridad;
 use App\Modules\Addons\Roadmap\Services\ValvulaContextoService;
 use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\DB;
@@ -220,8 +221,18 @@ class RevisorService
             $porPolitica = app(TorreAutomationPolicy::class)->estadoInicial($item, 'revisor');
             if ($porPolitica === 'requiere_irving') {
                 $autoriza = false;
+                // #979 — el mensaje distinguía "la política no permite este nivel" tanto si la
+                // causa real era una frontera dura (dinero/seguridad/prod) como si era solo el
+                // techo de nivel del carril: dos causas distintas con el mismo texto.
+                $det = app(JarvisService::class)->fronteraDuraDeItemDetalle($item);
+                if ($det['categoria'] !== null) {
+                    $detalle = "retenido por frontera dura «{$det['categoria_detectada']}», término «{$det['termino']}» — {$det['motivo']}";
+                } else {
+                    $techo = app(TorreAutomationPolicy::class)->nivelEfectivo('revisor');
+                    $detalle = "nivel del item «{$item->nivel_riesgo}» por encima del techo del carril revisor (" . ($techo ?? 'sin techo definido') . ')';
+                }
                 $v['razon'] = trim((string) ($v['razon'] ?? ''))
-                    . ' — El revisor autorizaba, pero la política de la Torre no permite este nivel: queda para Irving.';
+                    . " — El revisor autorizaba, pero la política de la Torre no permite este nivel ({$detalle}): queda para Irving.";
             }
         }
 
@@ -509,6 +520,12 @@ class RevisorService
                 'motivo'    => $t['valvula']['razon'],
             ];
             $item->log = $log;
+
+            // FASE 2 (#975, sub-item de #905) — misma convención que la válvula de NACIMIENTO
+            // (RoadmapController::store líneas ~2752-2753): sellar la columna aquí también, no solo
+            // el log. Cubre 'mencion' y 'accion' por igual; el veredicto más reciente pisa al anterior.
+            $item->frontera_valvula    = $t['valvula']['veredicto'];
+            $item->frontera_valvula_at = now();
         }
 
         if ($declarado !== null && $declarado !== $t['nivel']) {
@@ -970,7 +987,11 @@ TXT;
      * con la clasificación) — solo devuelve datos. FRONTERA DURA: seguridad/dinero/negocio/prod NO
      * se auto-ejecutan; van a Irving. Devuelve:
      *   { categoria: seguridad|dinero|negocio|prod|no_aplica, subcat, severidad: critica|alta|media|baja,
-     *     titulo_corto, texto_brief (markdown), modelo }
+     *     titulo_corto, texto_brief (markdown), modelo, carril: auto|bandeja|null }
+     *
+     * `carril` (#9990060, wiring de #918): SOLO para categoria=seguridad, determinista (sin segunda
+     * llamada a IA) vía `CarrilSeguridad::calcular()` sobre subcat+texto_brief. `null` para las demás
+     * categorías — el comando decide su estado por su camino actual, sin tocarlo.
      */
     public function briefarSeguridad(RoadmapItem $item): array
     {
@@ -1013,6 +1034,8 @@ TXT;
             $v['texto_brief'] = '(Auditor de riesgo no concluyente: ' . mb_strimwidth($e->getMessage(), 0, 140, '…') . ' → queda para Irving.)';
             $v['categoria'] = 'seguridad'; // falla-segura: ante fallo, trátalo como sensible (a Irving), no lo bajes
         }
+
+        $v['carril'] = CarrilSeguridad::calcular($v, (array) config('circuito_hardening'));
 
         return $v;
     }
@@ -1074,7 +1097,16 @@ TXT;
             if ($porPolitica === 'requiere_irving') {
                 $v['reejecutable'] = false;
                 $v['categoria']    = $v['categoria'] ?? 'politica';
-                $v['razon']        = 'La política de la Torre no autoriza este nivel al des-trabador. ' . trim((string) $v['razon']);
+                // #979 — mismo defecto que en aplicarVeredicto(): el mensaje no distinguía
+                // frontera dura real de simple techo de nivel del carril des-trabador.
+                $det = app(JarvisService::class)->fronteraDuraDeItemDetalle($item);
+                if ($det['categoria'] !== null) {
+                    $detalle = "retenido por frontera dura «{$det['categoria_detectada']}», término «{$det['termino']}» — {$det['motivo']}";
+                } else {
+                    $techo = app(TorreAutomationPolicy::class)->nivelEfectivo('destrabe');
+                    $detalle = "nivel del item «{$item->nivel_riesgo}» por encima del techo del carril des-trabador (" . ($techo ?? 'sin techo definido') . ')';
+                }
+                $v['razon'] = "La política de la Torre no autoriza este nivel al des-trabador ({$detalle}). " . trim((string) $v['razon']);
             }
         }
 

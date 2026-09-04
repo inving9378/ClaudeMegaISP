@@ -31,9 +31,11 @@ return new class extends Migration {
 
             // FK opcional al catálogo de tipos de OT (solo cuando tipo=campo)
             $table->unsignedBigInteger('talento_type_id')->nullable()->after('ticket_id');
-            $table->foreign('talento_type_id')
-                  ->references('id')->on('talento_work_order_types')
-                  ->onDelete('set null');
+            if (Schema::hasTable('talento_work_order_types')) {
+                $table->foreign('talento_type_id')
+                      ->references('id')->on('talento_work_order_types')
+                      ->onDelete('set null');
+            }
 
             // Índice para queries del translation layer (Capa 3)
             $table->index(['tipo', 'status'], 'idx_tasks_tipo_status');
@@ -44,7 +46,9 @@ return new class extends Migration {
     {
         Schema::table('tasks', function (Blueprint $table) {
             $table->dropForeign(['ticket_id']);
-            $table->dropForeign(['talento_type_id']);
+            if (Schema::hasTable('talento_work_order_types')) {
+                $table->dropForeign(['talento_type_id']);
+            }
             $table->dropIndex('idx_tasks_tipo_status');
             $table->dropColumn(['tipo', 'points', 'is_billable', 'ticket_id', 'talento_type_id']);
         });
