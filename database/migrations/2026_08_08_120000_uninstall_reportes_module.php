@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Desinstala addon-reportes (cascarón vacío que duplica /releases) con
@@ -13,6 +14,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('module_registry')) {
+            return;
+        }
+
         DB::table('module_registry')
             ->where('slug', 'addon-reportes')
             ->update(['active' => false, 'updated_at' => now()]);
@@ -20,6 +25,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('module_registry')) {
+            return;
+        }
+
         DB::table('module_registry')
             ->where('slug', 'addon-reportes')
             ->update(['active' => true, 'updated_at' => now()]);
