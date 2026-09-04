@@ -290,7 +290,17 @@ class SchedulerCommand extends Command
         if ($once) {
             $env .= ' CIRCUITO_ONCE=1';
         }
-        $cmd    = "setsid nohup env {$env} " . escapeshellarg($script) . ' >/dev/null 2>&1 &';
+        // #9990293 — cron-wrap.sh invoca `php artisan` dentro de `$(...)` (sustitución de
+        // comando de bash), que abre una pipe cuyo extremo de escritura este proceso PHP
+        // hereda. `proc_open` (bajo `Process::fromShellCommandline`) no cierra por sí solo
+        // los fds >2 heredados al lanzar el hijo, así que ese fd de la pipe se propaga a
+        // setsid/nohup/timeout/claude — y mientras la vuelta siga viva, cron-wrap.sh queda
+        // bloqueado en `pipe_read` esperando un EOF que nunca llega, aunque su `php artisan`
+        // ya haya terminado. `exec N>&-` cierra esos fds en el `sh -c` intermedio ANTES del
+        // `setsid nohup ...`, así el hijo detached ya no los hereda. Cerrar un fd que no está
+        // abierto no falla (verificado con dash, el shell real de `/bin/sh` aquí).
+        $cierraFds = 'exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 2>/dev/null';
+        $cmd    = "{$cierraFds}; setsid nohup env {$env} " . escapeshellarg($script) . ' >/dev/null 2>&1 &';
         $p = Process::fromShellCommandline($cmd, base_path());
         $p->run();
     }
