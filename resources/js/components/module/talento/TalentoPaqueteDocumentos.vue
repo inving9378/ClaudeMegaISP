@@ -35,10 +35,10 @@
           <label class="form-label fw-semibold">Puesto</label>
           <select class="form-select" v-model="puestoSeleccionado" @change="loadAsignaciones">
             <option :value="null" disabled>Selecciona un puesto…</option>
-            <option v-for="p in puestos" :key="p" :value="p">{{ p }}</option>
+            <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
           </select>
           <small v-if="!puestos.length" class="text-muted">
-            No hay puestos capturados aún (campo "Puesto" de Colaboradores).
+            No hay puestos capturados aún (catálogo Talento → Puestos).
           </small>
         </div>
       </div>
@@ -108,7 +108,7 @@ export default {
       saveError: null,
       pendingId: null,
 
-      puestos:   [],   // ["Técnico", "Vendedor", ...]
+      puestos:   [],   // [{id, nombre}]
       templates: [],   // [{id, name, category}]
 
       puestoSeleccionado:   null,
@@ -145,7 +145,7 @@ export default {
       this.saveError = null;
       try {
         const res = await axios.get('/talento/api/expediente/paquetes/asignaciones', {
-          params: { puesto: this.puestoSeleccionado },
+          params: { puesto_id: this.puestoSeleccionado },
         });
         this.assignedSet = new Set(res.data ?? []);
       } catch (e) {
@@ -175,7 +175,7 @@ export default {
 
       try {
         await axios.post('/talento/api/expediente/paquetes/toggle', {
-          puesto:      this.puestoSeleccionado,
+          puesto_id:   this.puestoSeleccionado,
           template_id: templateId,
           asignado:    checked,
         });
