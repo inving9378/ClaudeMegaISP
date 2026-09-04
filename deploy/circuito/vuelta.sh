@@ -50,7 +50,16 @@ fi
 
 PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
 PROMPT_ITEM_FILE="$PROJ/deploy/circuito/prompt-item.txt"
-TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
+# #9990302 — GUARD DE VIDA MÁXIMA POR-TIPO DE BRIEF (decisión de Irving en #9990295, q2 opción 2).
+# El scheduler (SchedulerCommand::lanzarVueltaItem) ya resuelve este valor por nivel_riesgo del
+# item (A=600s/B=1200s/C=2700s, config('circuito.vida_maxima')) y lo manda por env; el default de
+# aquí solo cubre invocaciones manuales/legacy sin scheduler (modo backlog, CIRCUITO_ITEM vacío).
+TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min por default)
+# Cortesía de SIGTERM→SIGKILL: si el proceso ignora el SIGTERM del timeout, `-k` manda un SIGKILL
+# de respaldo tras este margen (antes no había respaldo — un proceso sordo a la señal quedaba vivo
+# indefinidamente). Ver más abajo: RC=137 (necesitó el SIGKILL) es la señal que dispara la
+# escalación SIEMPRE-a-la-bandeja de q3, distinta del RC=124 normal (SIGTERM bastó).
+GRACE="${CIRCUITO_VIDA_MAXIMA_GRACE:-30}"
 MAXTURNS="${CIRCUITO_MAXTURNS:-60}"
 # MODEL se resuelve MÁS ABAJO desde `circuito:flags` (settings circuito_modelo_rutina/forzar, #336).
 # CIRCUITO_MODEL sigue siendo el override manual de más prioridad (pruebas ad-hoc sin tocar settings).
@@ -265,7 +274,7 @@ ejecutar_una() {
   php artisan circuito:vivo --watch --sid="$SID" --log="$LOG" >/dev/null 2>&1 &
   HB_PID=$!
 
-  timeout "$TIMEOUT" claude -p "$PROMPT_TEXT" \
+  timeout -k "$GRACE" "$TIMEOUT" claude -p "$PROMPT_TEXT" \
     --model "$MODEL" \
     --allowed-tools $TOOLS \
     --max-turns "$MAXTURNS" \
@@ -277,7 +286,8 @@ ejecutar_una() {
   php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar fin live."
 
   log "===== fin de la vuelta ====="
-  if [ "$RC" -eq 124 ]; then log "Vuelta cortada por timeout (${TIMEOUT}s)."
+  if [ "$RC" -eq 137 ]; then log "Vuelta forzada con SIGKILL (guard de vida máxima: ignoró SIGTERM a los ${TIMEOUT}s, ${GRACE}s de cortesía)."
+  elif [ "$RC" -eq 124 ]; then log "Vuelta cortada por timeout (${TIMEOUT}s)."
   elif [ "$RC" -ne 0 ]; then log "claude terminó con código $RC."
   else log "Vuelta OK."; fi
 
@@ -303,7 +313,12 @@ ejecutar_una() {
   # Quien decide sigue siendo `circuito:parquear-timeout` (PHP, testeable); aquí sólo se le dice
   # la causa real para que el motivo del log no mienta.
   if [ "$RC" -ne 0 ] && [ -n "${ITEM:-}" ]; then
-    if [ "$RC" -eq 124 ]; then CAUSA="timeout"; DESC="Timeout ${TIMEOUT}s"
+    # #9990302 — RC=137 (necesitó el SIGKILL de respaldo, no solo SIGTERM) es la causa dedicada
+    # `sigkill`: `circuito:parquear-timeout` la trata distinto (SIEMPRE escala, nunca reanuda solo
+    # — decisión q3 de Irving), a diferencia de un RC=124 normal (SIGTERM bastó), que sigue la
+    # reanudación-si-avanzó de siempre.
+    if [ "$RC" -eq 137 ]; then CAUSA="sigkill"; DESC="Guard de vida máxima: SIGKILL de respaldo (${TIMEOUT}s + ${GRACE}s de cortesía)"
+    elif [ "$RC" -eq 124 ]; then CAUSA="timeout"; DESC="Timeout ${TIMEOUT}s"
     elif grep -aq 'Reached max turns' "$LOG"; then CAUSA="max_turns"; DESC="Agotó sus turnos (max-turns)"
     else CAUSA="error"; DESC="Terminó con código $RC"; fi
     META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"${DESC} — ver circuito:parquear-timeout (reanudado si la rama tiene commits; a la bandeja si no).\"}"
