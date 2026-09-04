@@ -1777,3 +1777,29 @@ Detalle en `docs/roadmap-bucle-reap-item-917-verificacion.md`. **Sin cambio de c
 — el trabajo real (medir ocupación/colisiones/vueltas perdidas/incidentes de merge y redactar la
 conclusión sobre la perilla del aflojo) sigue en #9990195/#9990196/#9990197, pendientes de que el
 revisor los tríe.
+
+## Item #210 — El latido sobrevive al proceso que lo lanzó y renueva el lease de un item abandonado (RESUELTO — ya corregido por trabajo posterior)
+
+Item MEDIDO el 2026-08-25 (auditoría de #191 Fase 3): dos fallos del propio Circuito CC — (1) el
+pool continuo abandonaba el item anterior sin limpiar `worker_sid`/`estado_aprobacion` al saltar
+al siguiente, y (2) el latido (`circuito:vivo --watch`, hijo en background de `vuelta.sh`) no
+moría con su padre y seguía renovando el `claimed_at` del item abandonado indefinidamente,
+blindándolo frente al reaper. Pedía decidir si el latido debe morir con su padre y si el pool debe
+liberar el item anterior antes de reclamar el siguiente. Verificado contra el código real de
+`main`: la causa raíz (fallo 2) ya está corregida por **#640** (sub-item de #188 que citó
+explícitamente a #210) — `RoadmapCircuitoService::renovarLease()` acota el `UPDATE` de
+`claimed_at` al `current_item` de la vuelta activa, no solo `worker_sid`+estado, así que un item
+abandonado deja de recibir renovaciones falsas desde el instante mismo del abandono. Con eso, el
+reaper existente (`circuito:reap-stuck`, que ya exige `claimed_at` **y** `updated_at` fríos,
+`#507` sub-paso 3) lo detecta y re-encola dentro de su ventana normal (~25 min), resolviendo
+también el fallo 1 sin necesitar lógica nueva en `vuelta.sh` — es una corrección más general que
+"liberar antes de avanzar" porque cubre cualquier camino que deje un item `en_progreso` sin
+cerrar. Refuerzos adicionales ya en `main`: **#927** (trap + manejo de fin anormal en
+`vuelta.sh` suelta el reclamo), **#215** (`circuito:cortar-vuelta`, corte manual seguro por PGID
+que mata el heartbeat CON la vuelta, reemplazó el `pkill -f` que causó el incidente original) y
+**#704** (`JarvisVigilarCommand::medirReclamos()`, detección activa de cualquier variante
+residual del patrón). La pregunta "A DECIDIR" del item quedó resuelta por una vía más robusta que
+depender de que el proceso muera limpio: se quitó el efecto dañino de que el latido siguiera vivo,
+en vez de intentar matarlo de forma fiable. Detalle completo en
+`docs/circuito-heartbeat-lease-item-210-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real ya está hecho y mergeado en `main` desde antes de que se tomara este item.
