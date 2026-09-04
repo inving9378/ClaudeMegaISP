@@ -169,10 +169,8 @@ class SchedulerCommand extends Command
                 }
 
                 // #546 — arranca el reloj de ETA en el MISMO instante que el lease (mismo UPDATE atómico).
-                $eta = $svc->estimarEtaTrabajo(
-                    $item['modulo'] ?? null,
-                    DB::table('roadmap_items')->where('id', $id)->value('nivel_riesgo')
-                );
+                $nivel = DB::table('roadmap_items')->where('id', $id)->value('nivel_riesgo');
+                $eta = $svc->estimarEtaTrabajo($item['modulo'] ?? null, $nivel);
 
                 // RECLAMO atómico: solo si sigue aprobado_* o A-pendiente (evita doble-toma).
                 // Sella la firma del worker (#334 A): quién lo tomó = el slot wt-{slot}.
@@ -191,7 +189,7 @@ class SchedulerCommand extends Command
                     continue; // ya lo tomó otro
                 }
 
-                $this->lanzarVueltaItem($id, $slot);
+                $this->lanzarVueltaItem($id, $slot, false, $nivel);
                 $lanzados[] = $id;
             }
 
@@ -278,13 +276,31 @@ class SchedulerCommand extends Command
         return $free;
     }
 
-    /** Lanza vuelta.sh en modo por-item, detached, en el worktree del slot. */
-    private function lanzarVueltaItem(int $itemId, int $slot, bool $once = false): void
+    /**
+     * #9990302 — segundero del guard de vida máxima por nivel_riesgo (decisión de Irving en
+     * #9990295, q2 opción 2: A=10min/B=20min/C=45min). Nivel desconocido/null cae al default
+     * histórico de nivel A (600s) — ver el docblock de `config('circuito.vida_maxima')`.
+     */
+    private static function vidaMaximaSegundos(?string $nivelRiesgo): int
     {
-        $script = base_path('deploy/circuito/vuelta.sh');
-        $wt     = self::RUNTIME . "/wt-{$slot}";
-        $sid    = "wt-{$slot}";
-        $env    = sprintf('CIRCUITO_ITEM=%d CIRCUITO_WT=%s CIRCUITO_SID=%s', $itemId, escapeshellarg($wt), escapeshellarg($sid));
+        $mapa  = (array) config('circuito.vida_maxima.segundos', []);
+        $nivel = strtoupper((string) $nivelRiesgo);
+
+        return (int) ($mapa[$nivel] ?? $mapa['A'] ?? 600);
+    }
+
+    /** Lanza vuelta.sh en modo por-item, detached, en el worktree del slot. */
+    private function lanzarVueltaItem(int $itemId, int $slot, bool $once = false, ?string $nivelRiesgo = null): void
+    {
+        $script  = base_path('deploy/circuito/vuelta.sh');
+        $wt      = self::RUNTIME . "/wt-{$slot}";
+        $sid     = "wt-{$slot}";
+        $timeout = self::vidaMaximaSegundos($nivelRiesgo);
+        $grace   = (int) config('circuito.vida_maxima.grace_seg', 30);
+        $env     = sprintf(
+            'CIRCUITO_ITEM=%d CIRCUITO_WT=%s CIRCUITO_SID=%s CIRCUITO_TIMEOUT=%d CIRCUITO_VIDA_MAXIMA_GRACE=%d',
+            $itemId, escapeshellarg($wt), escapeshellarg($sid), $timeout, $grace
+        );
         // #211 — modo dirigido de una sola vuelta: el item ya se sella como despacho_dirigido en
         // el log (claimNextParalelo); esto además le dice al wrapper que no encadene el siguiente.
         if ($once) {
@@ -376,7 +392,7 @@ class SchedulerCommand extends Command
                 return self::FAILURE;
             }
 
-            $this->lanzarVueltaItem($itemId, $slot, $once);
+            $this->lanzarVueltaItem($itemId, $slot, $once, $item->nivel_riesgo);
             $this->info("Despacho dirigido: #{$itemId} → slot {$sid}" . ($once ? ' (once: no encadena el siguiente).' : '.'));
 
             return self::SUCCESS;

@@ -242,6 +242,41 @@ return [
     'vuelta_colgada_seg' => (int) env('CIRCUITO_VUELTA_COLGADA_SEG', 3600),
 
     /*
+    |--------------------------------------------------------------------------
+    | GUARD DE VIDA MÁXIMA POR-TIPO DE BRIEF (#9990302, decisión de Irving en #9990295 q2/q3)
+    |--------------------------------------------------------------------------
+    |
+    | q2 (opción 2, elegida): guard SUAVE — timeout por `nivel_riesgo` del item, no el uniforme
+    | 600s de `vuelta_timeout_seg` de arriba (ese queda como default/techo nominal para lo que no
+    | conoce el nivel, p.ej. el reloj de la Torre). `SchedulerCommand::lanzarVueltaItem` resuelve
+    | el segundero aquí y lo manda como CIRCUITO_TIMEOUT al entorno de `vuelta.sh`, que arma
+    | `timeout -k <grace_seg> <segundero> claude -p ...`: al vencer manda SIGTERM (como siempre);
+    | si el proceso lo ignora, `-k` manda SIGKILL de respaldo tras `grace_seg` — antes NO había
+    | respaldo si un item quedaba sordo a la señal.
+    |
+    | q3 (opción 1, elegida): "matar, marcar FALLIDO y escalar SIEMPRE a la bandeja de Irving con
+    | traza parcial". Decisión de implementación (#9990302, registrada en el log del item): esa
+    | regla aplica SOLO cuando hizo falta el SIGKILL de respaldo (`timeout` sale con 137, no 124 —
+    | verificado empírico: `timeout -k 2 3 bash -c 'trap "" TERM; sleep 20'` → RC=137). Un proceso
+    | que ignoró SIGTERM y necesitó el hachazo es la señal real de "algo quedó genuinamente
+    | colgado"; un RC=124 normal (SIGTERM bastó) sigue el circuito reanudar-si-avanzó de siempre
+    | (`ParquearTimeoutCommand`) — matarlo ahí también habría apagado la reanudación barata que
+    | ese comando ya documenta como protección real contra quemar Max, sin que q3 lo pidiera (su
+    | pregunta era sobre "excede el timeout", el caso normal ya estaba resuelto aparte).
+    |
+    | Nivel sin timeout propio (null / desconocido) cae al default histórico de 600s (nivel A):
+    | ante la duda, más conservador (suelta el slot antes) es más seguro que dejarlo correr de más.
+    */
+    'vida_maxima' => [
+        'segundos' => [
+            'A' => (int) env('CIRCUITO_VIDA_MAXIMA_A', 600),   // 10 min
+            'B' => (int) env('CIRCUITO_VIDA_MAXIMA_B', 1200),  // 20 min
+            'C' => (int) env('CIRCUITO_VIDA_MAXIMA_C', 2700),  // 45 min
+        ],
+        'grace_seg' => (int) env('CIRCUITO_VIDA_MAXIMA_GRACE', 30),
+    ],
+
+    /*
     | Nombres por default de los workers del equipo (wt-1..wt-N). Persisten y son
     | RENOMBRABLES por Irving (override en `settings` → circuito_worker_nombres). Dan un
     | ROSTER legible: "trabajado por Ada" en vez de "wt-3".
