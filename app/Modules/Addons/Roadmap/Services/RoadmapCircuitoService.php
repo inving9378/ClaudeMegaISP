@@ -2556,6 +2556,46 @@ class RoadmapCircuitoService
         return \App\Modules\Addons\Roadmap\Support\DependenciaItems::evaluar($ids, $cerrados)['puede'];
     }
 
+    /**
+     * MR-36 (#9990332) — POR QUÉ está esperando este item, para pintarlo en la Torre.
+     *
+     * Sin esto se cambiaría un freno invisible por otro: un item frenado por dependencia se vería
+     * igual que uno despachable, que es exactamente lo que costó diagnosticar el 2026-09-04 con los
+     * 115 items parqueados. Devuelve `null` cuando no hay nada que esperar.
+     *
+     * @return array{faltan:array<int>, texto:string}|null
+     */
+    public function esperandoDependencias(int $itemId): ?array
+    {
+        $raw = DB::table('roadmap_items')->where('id', $itemId)->value('depende_de');
+        $ids = array_values(array_filter(array_map('intval', (array) (is_array($raw) ? $raw : json_decode((string) $raw, true)))));
+        if ($ids === []) {
+            return null;
+        }
+
+        $cerrados = [];
+        $titulos  = [];
+        foreach (
+            DB::table('roadmap_items')->whereIn('id', $ids)
+                ->get(['id', 'title', 'estado_aprobacion', 'merge_commit']) as $d
+        ) {
+            $cerrados[(int) $d->id] = $d->estado_aprobacion === 'completado' && ! empty($d->merge_commit);
+            $titulos[(int) $d->id]  = (string) $d->title;
+        }
+
+        $ev = \App\Modules\Addons\Roadmap\Support\DependenciaItems::evaluar($ids, $cerrados);
+        if ($ev['puede']) {
+            return null;
+        }
+
+        $partes = array_map(
+            fn ($id) => '#' . $id . (isset($titulos[$id]) ? ' (' . mb_substr($titulos[$id], 0, 40) . ')' : ' (no existe)'),
+            $ev['faltan']
+        );
+
+        return ['faltan' => $ev['faltan'], 'texto' => 'Esperando a ' . implode(' y ', $partes)];
+    }
+
     private function itemsEnVueloPorModulo(): array
     {
         return DB::table('roadmap_items')
